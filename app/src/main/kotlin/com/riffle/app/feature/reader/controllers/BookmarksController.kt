@@ -220,13 +220,21 @@ class BookmarksController @AssistedInject constructor(
          *
          * Priority (issue #399):
          *  1. **Live viewport-fraction** — `viewportSize / chapterSize` measured by the active
-         *     renderer. Eps is `fraction / 2` — the geometrically-correct half-viewport bound
-         *     for a viewport-midpoint locator. Used as soon as the mode's producer reports a
-         *     fraction for [chapterHref] (continuous: on chapter measure; paginated / vertical:
-         *     on page-load / reflow).
-         *  2. **`0.5 / positionsInChapter`** — Readium's positions are ~1024-char slices, a
-         *     rough proxy for viewport-page-equivalents. Kicks in while the live measurement
-         *     hasn't landed yet (brief pre-measure window on open / reflow).
+         *     renderer.
+         *      - **Paginated / vertical:** `fraction / 2`. Readium's fragment-anchored `go()`
+         *        lands the CFI's column / scrollY exactly, so the delta on arrival is 0 — a
+         *        half-viewport window is the tightest correct bound.
+         *      - **Continuous:** full `fraction`. The saved anchor could be anywhere in the
+         *        viewport the user was reading in (top edge to bottom edge), so on an
+         *        `alignToTop=true` bookmark-panel nav the arrival midpoint can drift by up to
+         *        one full viewport-fraction from the saved midpoint. Tightening to `/ 2` would
+         *        make the indicator flake off on arrival for any bookmark whose anchor sat in
+         *        the lower half of the saved viewport — the user's principled contract is that
+         *        this must never happen. One-viewport tolerance covers the anchor-position
+         *        uncertainty exactly.
+         *  2. **`0.5 / positionsInChapter`** / **`1.0 / positionsInChapter`** — Readium's
+         *     positions are ~1024-char slices, a rough proxy. Same 2× continuous widening as
+         *     above. Kicks in while the live measurement hasn't landed yet.
          *  3. **Flat [BOOKMARK_PAGE_EPS] / [BOOKMARK_VIEWPORT_EPS]** — final fallback for the
          *     open-race before positions arrive.
          */
@@ -236,17 +244,17 @@ class BookmarksController @AssistedInject constructor(
             viewportFractionByHref: Map<String, Double>,
             chapterHref: String,
         ): Double {
+            val isContinuous = orientation == ReaderOrientation.Continuous
             viewportFractionByHref[chapterHref]?.let { vf ->
-                if (vf > 0.0) return vf / 2.0
+                if (vf > 0.0) return if (isContinuous) vf else vf / 2.0
             }
             val (hrefs, counts) = spineCounts
             val idx = hrefs.indexOfFirst { normalizeEpubHref(it) == chapterHref }
             val positions = counts.getOrNull(idx) ?: 0
-            if (positions > 0) return 0.5 / positions
+            if (positions > 0) return if (isContinuous) 1.0 / positions else 0.5 / positions
             // Neither live fraction nor position count available — fall back to the
             // mode-appropriate flat eps.
-            return if (orientation == ReaderOrientation.Continuous) BOOKMARK_VIEWPORT_EPS
-            else BOOKMARK_PAGE_EPS
+            return if (isContinuous) BOOKMARK_VIEWPORT_EPS else BOOKMARK_PAGE_EPS
         }
     }
 }

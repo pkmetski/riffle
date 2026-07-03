@@ -292,13 +292,13 @@ class BookmarksControllerTest {
     }
 
     // Regression for the "bookmark stays lit for several screens" symptom in continuous mode.
-    // The old flat 33% eps meant a bookmark saved at midpoint 0.5 stayed lit for progression
-    // 0.17-0.83 — a huge chunk of the chapter. The new `0.5 / positions` formula matches the
-    // paginated logic (viewportFraction/2 ≈ 1/(2·positions) is the geometrically-correct bound
-    // for viewport-midpoint locators), so on a 40-position chapter the indicator only lights
-    // within ±0.0125 progression.
+    // The old flat 33% eps kept a bookmark at midpoint 0.5 lit across progression 0.17-0.83.
+    // Continuous eps is now `1 / positions` (full-viewport tolerance — see `bookmarkEpsFor`
+    // for the geometric argument covering `alignToTop=true` bookmark-nav landings), so on a
+    // 40-position chapter the indicator lights within ±0.025 progression — about one viewport
+    // in either direction, not several.
     @Test
-    fun `continuous eps narrows to half-a-viewport when spine position counts are known`() = runTest {
+    fun `continuous eps is one-viewport wide when spine position counts are known`() = runTest {
         val (controller, store) = makeController()
         val currentLocator = MutableStateFlow<Locator?>(null)
         val positions = MutableStateFlow(listOf("ch1.xhtml") to listOf(40))
@@ -307,11 +307,11 @@ class BookmarksControllerTest {
 
         store.bookmarks.value = listOf(makeAnnotation(chapterHref = "ch1.xhtml", progression = 0.5))
 
-        // Same viewport (delta 0.010 < 1/(2*40) = 0.0125) → lit.
-        currentLocator.value = buildLocator("ch1.xhtml", 0.510)
-        assertTrue("indicator ON at ~0.01 midpoint delta on a 40-position chapter", controller.isCurrentPageBookmarked.value)
+        // Within one viewport (delta 0.020 < 1/40 = 0.025) → lit.
+        currentLocator.value = buildLocator("ch1.xhtml", 0.520)
+        assertTrue("indicator ON at 0.020 midpoint delta on a 40-position chapter", controller.isCurrentPageBookmarked.value)
 
-        // Several screens away (delta 0.10 — the OLD 33% flat eps would have kept this lit) → NOT lit.
+        // Beyond one viewport (delta 0.10 — the OLD 33% flat eps would have kept this lit) → NOT lit.
         currentLocator.value = buildLocator("ch1.xhtml", 0.60)
         assertFalse("indicator OFF at 0.10 midpoint delta on a 40-position chapter", controller.isCurrentPageBookmarked.value)
     }
@@ -333,32 +333,69 @@ class BookmarksControllerTest {
         assertEquals("unknown chapter falls back to 5%", 0.05, controller.bookmarkEpsFor("ch99.xhtml"), 1e-9)
     }
 
-    // Issue #399: the live viewport-fraction path is the geometrically-correct half-viewport
-    // bound (`fraction / 2`). When both the fraction and Readium's position count are known,
-    // fraction wins — position count is only ~1024-char slices, a rough proxy.
+    // Issue #399: the live viewport-fraction path is the geometrically-correct bound. In
+    // continuous mode eps == fraction (full viewport). Positions is a rough char-slice proxy
+    // and loses to fraction whenever present.
     @Test
     fun `live viewport fraction takes precedence over spine position counts`() = runTest {
         val (controller, store) = makeController()
         val currentLocator = MutableStateFlow<Locator?>(null)
         val positions = MutableStateFlow(listOf("ch1.xhtml") to listOf(30))
-        val fractions = MutableStateFlow(mapOf("ch1.xhtml" to 0.20)) // eps = 0.10
+        val fractions = MutableStateFlow(mapOf("ch1.xhtml" to 0.20)) // continuous eps = 0.20
         controller.bind("srv", "item1", currentLocator, positions, fractions)
         controller.onOrientationChanged(com.riffle.core.domain.ReaderOrientation.Continuous)
 
         store.bookmarks.value = listOf(makeAnnotation(chapterHref = "ch1.xhtml", progression = 0.5))
 
-        // 0.09 delta — inside the fraction/2=0.10 window, but well outside 0.5/30=0.0167.
+        // 0.19 delta — inside the continuous fraction=0.20 window, but well outside 1/30=0.033.
         // Assertion pins fraction wins over positions.
-        currentLocator.value = buildLocator("ch1.xhtml", 0.59)
+        currentLocator.value = buildLocator("ch1.xhtml", 0.69)
         assertTrue(
-            "indicator ON at 0.09 delta when fraction=0.20 (eps=0.10)",
+            "indicator ON at 0.19 delta when fraction=0.20 (continuous eps=0.20)",
             controller.isCurrentPageBookmarked.value,
         )
 
-        // 0.11 delta — outside the fraction/2=0.10 window.
-        currentLocator.value = buildLocator("ch1.xhtml", 0.61)
+        // 0.21 delta — outside the fraction=0.20 window.
+        currentLocator.value = buildLocator("ch1.xhtml", 0.71)
         assertFalse(
-            "indicator OFF at 0.11 delta when fraction=0.20 (eps=0.10)",
+            "indicator OFF at 0.21 delta when fraction=0.20 (continuous eps=0.20)",
+            controller.isCurrentPageBookmarked.value,
+        )
+    }
+
+    // The user's principled contract: after navigating to a bookmark, the indicator MUST light
+    // — anything less is a disagreement between the reader and the annotation panel.
+    //
+    // In continuous mode with `alignToTop=true` bookmark-panel navigation, the arrival midpoint
+    // shifts up to a full `viewportFraction` from the saved midpoint (the anchor can sit
+    // anywhere in the saved viewport — top edge → arrival delta 0; bottom edge → arrival delta
+    // one viewportFraction). Tightening eps to `fraction / 2` (as the paginated logic does)
+    // would flake the indicator off for any bookmark whose anchor sat in the lower half of the
+    // saved viewport, which is the majority case — users bookmark from the reading zone (the
+    // middle-to-bottom of the visible page).
+    //
+    // This test pins the worst-case arrival delta and asserts the indicator stays lit.
+    @Test
+    fun `continuous indicator lights at the alignToTop bookmark-nav arrival boundary`() = runTest {
+        val (controller, store) = makeController()
+        val currentLocator = MutableStateFlow<Locator?>(null)
+        val fractions = MutableStateFlow(mapOf("ch1.xhtml" to 0.10))
+        controller.bind(
+            "srv", "item1", currentLocator,
+            MutableStateFlow(emptyList<String>() to emptyList()),
+            fractions,
+        )
+        controller.onOrientationChanged(com.riffle.core.domain.ReaderOrientation.Continuous)
+
+        store.bookmarks.value = listOf(makeAnnotation(chapterHref = "ch1.xhtml", progression = 0.50))
+        // Saved midpoint 0.50, viewportFraction 0.10 → arrival midpoint 0.50 + 0.10 = 0.60 when
+        // the saved anchor sat at the bottom edge of its viewport. Delta = 0.10 == eps
+        // (`fraction`). The `<= eps` boundary check MUST keep the indicator ON — if it flips
+        // OFF here, revert the eps widening to `fraction / 2` at your peril; the user's
+        // observed "not lit after nav" symptom will return.
+        currentLocator.value = buildLocator("ch1.xhtml", 0.60)
+        assertTrue(
+            "indicator MUST be ON at the alignToTop arrival boundary (delta == fraction)",
             controller.isCurrentPageBookmarked.value,
         )
     }
@@ -391,12 +428,12 @@ class BookmarksControllerTest {
         val positions = MutableStateFlow(
             listOf("ch1.xhtml", "ch2.xhtml") to listOf(50, 50),
         )
-        val fractions = MutableStateFlow(mapOf("ch1.xhtml" to 0.10)) // eps = 0.05
+        val fractions = MutableStateFlow(mapOf("ch1.xhtml" to 0.10)) // continuous eps = fraction = 0.10
         controller.bind("srv", "item1", MutableStateFlow(null), positions, fractions)
         controller.onOrientationChanged(com.riffle.core.domain.ReaderOrientation.Continuous)
 
-        assertEquals("ch1 uses fraction (0.10/2 = 0.05)", 0.05, controller.bookmarkEpsFor("ch1.xhtml"), 1e-9)
-        assertEquals("ch2 falls back to positions (0.5/50)", 0.01, controller.bookmarkEpsFor("ch2.xhtml"), 1e-9)
+        assertEquals("ch1 uses fraction (continuous eps = fraction)", 0.10, controller.bookmarkEpsFor("ch1.xhtml"), 1e-9)
+        assertEquals("ch2 falls back to positions (continuous 1/50)", 0.02, controller.bookmarkEpsFor("ch2.xhtml"), 1e-9)
     }
 
     // A zero or negative fraction (measurement race, degenerate chapter) MUST fall through to
@@ -410,8 +447,8 @@ class BookmarksControllerTest {
         controller.onOrientationChanged(com.riffle.core.domain.ReaderOrientation.Continuous)
 
         assertEquals(
-            "zero fraction is dropped, positions used instead",
-            0.5 / 40.0,
+            "zero fraction is dropped, positions used instead (continuous eps = 1/positions)",
+            1.0 / 40.0,
             controller.bookmarkEpsFor("ch1.xhtml"),
             1e-9,
         )
