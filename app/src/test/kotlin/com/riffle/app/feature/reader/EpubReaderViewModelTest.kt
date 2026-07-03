@@ -1302,30 +1302,28 @@ class BookmarkIndicatorTest {
 }
 
 /**
- * Pins the invariant that annotation-panel navigation in continuous mode lands at the viewport
- * MIDPOINT regardless of annotation type. Previously the screen passed `alignToTop = isBookmark`,
- * which placed the bookmark's CFI DOM anchor at the viewport top — on books with images, big
- * headings, or otherwise non-uniform text density the pixel anchor sat almost a full viewport
- * past the char-based progression the corner ribbon stored, so the ribbon lit ~1 screen before
- * the actual landing scrollY. A regression to that shape (`alignToTop = isBookmark`) would flip
- * the `alignToTop=false` assertion on the `isBookmark=true` case.
+ * Pins the split invariant for annotation-panel navigation in continuous mode: bookmarks land
+ * at the viewport TOP, highlights land at the MIDPOINT. See [annotationNavigationOptions] —
+ * the split was safe to re-introduce once #399's live viewport-fraction eps made
+ * `alignToTop=true` a boundary-inclusive match for the bookmark ribbon.
  */
 class AnnotationNavigationOptionsTest {
 
     @Test
-    fun `bookmarks land at viewport midpoint (alignToTop=false)`() {
+    fun `bookmarks land at viewport top (alignToTop=true)`() {
         val opts = annotationNavigationOptions(isBookmark = true)
-        assertFalse(
-            "bookmark nav must align to midpoint, not top — see the fix for the lit-ribbon vs " +
-                "landing-scrollY mismatch on non-uniform-density chapters",
+        assertTrue(
+            "bookmark nav must align to top so the saved position is at the start of the " +
+                "viewport (already-read content scrolls off above); if this flips, revisit " +
+                "annotationNavigationOptions and the #399 eps analysis in its doc",
             opts.alignToTop,
         )
     }
 
     @Test
     fun `highlights land at viewport midpoint (alignToTop=false)`() {
-        // The highlight path already landed at the midpoint before the fix; this pins that the
-        // extraction didn't change highlight behaviour.
+        // Highlights are text-anchored — centring on the mark preserves reading context above
+        // the anchor. Kept at midpoint by design.
         val opts = annotationNavigationOptions(isBookmark = false)
         assertFalse(opts.alignToTop)
     }
