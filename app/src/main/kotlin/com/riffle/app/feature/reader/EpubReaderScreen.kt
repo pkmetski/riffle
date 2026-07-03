@@ -1080,9 +1080,12 @@ internal fun readaloudLocatorJson(ref: String, quote: SentenceQuote?): JSONObjec
  * The previous unified midpoint policy existed because landing bookmarks at the top produced a
  * ribbon-vs-landing offset — the `isCurrentPageBookmarked` indicator's stored midpoint
  * progression didn't match the arrival scrollY. Issue #399's live viewport-fraction eps closes
- * that gap: with `eps = viewportFraction / 2`, an `alignToTop=true` landing shifts the midpoint
- * by exactly `viewportFraction / 2`, so the boundary-inclusive `<= eps` check keeps the
- * indicator lit on arrival.
+ * that gap: on `alignToTop=true` the arrival midpoint can drift up to one full
+ * `viewportFraction` from the saved midpoint (the saved anchor could sit anywhere in the saved
+ * viewport, top edge to bottom edge). Continuous eps is widened to full `viewportFraction` for
+ * exactly this reason (see `BookmarksController.bookmarkEpsFor`), so the boundary-inclusive
+ * `<= eps` check keeps the indicator lit on arrival regardless of where in the saved viewport
+ * the anchor sat.
  */
 internal fun annotationNavigationOptions(isBookmark: Boolean): NavigationOptions =
     NavigationOptions(landAtStartWhenNoTarget = false, alignToTop = isBookmark)
