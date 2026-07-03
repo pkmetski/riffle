@@ -1158,4 +1158,97 @@ class ReadaloudSessionTest {
             sessionScope.cancel()
         }
     }
+
+    /**
+     * Regression for the "Play-from-here restarts the chapter" bug (fix 719ce41).
+     *
+     * On the first Play-from-here of a streaming Readaloud, the selection resolution
+     * needs the sentence-quote map to translate the tapped word into a SMIL span id. The
+     * map is built by [ReadaloudQuoteBuilder] after the sidecar observer reaches Ready.
+     * If the user taps Play before the observer's emission arrives, the quotes are empty,
+     * resolution falls back to Readium's HTML anchor (e.g. `#d1e770`), and
+     * `ReadaloudTrack.resolveStartClip` drops to the chapter's first clip.
+     *
+     * [ReadaloudSession.ensureSentenceQuotesReady] closes the race by seeding
+     * `quoteBuilder.quoteBundle` from the cached sidecar itself, then joining the build.
+     * This test would fail if the seeding step were removed — the builder's
+     * `quoteBundle` would stay null and `ensureBuilt()` would no-op.
+     */
+    @Test
+    fun `ensureSentenceQuotesReady seeds quoteBundle from cached sidecar when observer has not landed`() = runTest {
+        val sessionScope = CoroutineScope(UnconfinedTestDispatcher())
+        try {
+            val sidecar = java.io.File.createTempFile("sidecar", ".epub").apply { deleteOnExit() }
+            // Bundle is null (streaming path); sidecar exists in cache but the observer
+            // hasn't fired yet, so quoteBuilder.quoteBundle is null when we start.
+            val fakeRepo = FakeReadaloudAudioRepository(bundleFileVal = null)
+            val fakeSidecarStore = mockk<ReadaloudSidecarStore>(relaxed = true).also {
+                every { it.states } returns MutableStateFlow(emptyMap<String, ReadaloudSidecarStore.State>())
+                every { it.cachedFile(any(), any()) } returns sidecar
+            }
+            val session = ReadaloudSession(
+                scope = sessionScope,
+                snapshotLocator = { null },
+                playerCoordinator = FakePlayerController(),
+                readaloudAudioRepository = fakeRepo,
+                streamingSessionFactory = mockk(relaxed = true),
+                storytellerSyncController = mockk(relaxed = true),
+                audioPlaybackPreferencesStore = FakeAudioPlaybackPreferencesStore(),
+                listeningPreferencesStore = FakeListeningPreferencesStore(),
+                audioIdentityResolver = mockk(relaxed = true),
+                readaloudPreferencesStore = mockk<ReadaloudPreferencesStore>().also {
+                    every { it.preferences } returns flowOf(
+                        com.riffle.core.domain.ReadaloudPreferences(highlightColor = HighlightColor.BLUE)
+                    )
+                },
+                readaloudResumeStore = mockk(relaxed = true),
+                sidecarStore = fakeSidecarStore,
+                readingPositionStore = mockk(relaxed = true),
+                readingSyncStore = mockk(relaxed = true),
+                audioSyncStore = mockk(relaxed = true),
+                epubRepository = mockk(relaxed = true),
+                progressFlushScope = mockk(relaxed = true),
+                audiobookHandoffState = AudiobookHandoffState(),
+                connectivityObserver = mockk<ConnectivityObserver>().also {
+                    every { it.isOnline } returns MutableStateFlow(true)
+                },
+                nowPlayingStore = NowPlayingStore(),
+                dispatchers = UnconfinedDispatchers,
+                logger = RecordingLogger(),
+            )
+
+            // Bind as a matched ABS book with no bundle — the streaming path where the
+            // sidecar observer is the only thing that would set quoteBundle.
+            session.bind(
+                serverId = "srv-reader",
+                itemId = "abs-book",
+                isStorytellerServer = false,
+                audioBookId = "st-book",
+                audioServerId = "srv-st",
+                audioSettingsIdentity = AudioIdentity("srv-st", "st-book"),
+                audiobookItemId = null,
+                effectiveFormattingPreferencesFlow = MutableStateFlow(com.riffle.core.domain.FormattingPreferences()),
+                currentLocatorFlow = MutableStateFlow(null),
+                readerSyncProvider = { null },
+                audiobookFollowProvider = { null },
+                readerSyncServerIdProvider = { "srv-reader" },
+            )
+
+            // Precondition: the observer's initial (empty) emission left quoteBundle unset.
+            assertNull("quoteBundle must be null before ensureSentenceQuotesReady",
+                session.quoteBuilder.quoteBundle)
+
+            session.ensureSentenceQuotesReady()
+
+            // The fix: ensureSentenceQuotesReady falls back to the cached sidecar itself
+            // when the observer hasn't seeded the builder yet.
+            assertEquals(
+                "quoteBundle must be seeded to the cached sidecar",
+                sidecar,
+                session.quoteBuilder.quoteBundle,
+            )
+        } finally {
+            sessionScope.cancel()
+        }
+    }
 }
