@@ -1438,6 +1438,14 @@ class EpubReaderViewModel @Inject constructor(
 
     fun playFromHere(fragmentRef: String) = readaloud.playFromHere(fragmentRef)
 
+    /**
+     * Blocks until the sentence-quote map has been built from the SMIL sidecar (or bundle).
+     * The "Play from here" selection handler awaits this before resolving the tapped word to a
+     * SMIL sentence id — without it, a first-play tap resolves against an empty quote map, falls
+     * back to Readium's HTML anchor, and the player restarts the chapter.
+     */
+    suspend fun ensureSentenceQuotesReady() = readaloud.ensureSentenceQuotesReady()
+
     fun confirmDownloadAudio(wifiOnly: Boolean) = readaloud.confirmDownloadAudio(wifiOnly)
 
     fun dismissDownloadPrompt() = readaloud.dismissDownloadPrompt()

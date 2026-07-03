@@ -425,6 +425,7 @@ fun EpubReaderScreen(
                         pageTopProbeRequests = viewModel.pageTopProbeRequests,
                         onPageTopResolved = viewModel::onPageTopResolved,
                         onPlayFromHere = viewModel::playFromHere,
+                        onEnsureSentenceQuotesReady = viewModel::ensureSentenceQuotesReady,
                         readaloudAvailable = readaloudAvailable,
                         readaloudReservePx = totalReserveCssPx,
                         readaloudHighlightColor = readaloudHighlightColor,
@@ -1107,6 +1108,7 @@ private fun EpubNavigatorView(
     pageTopProbeRequests: Flow<String>,
     onPageTopResolved: (href: String, fragmentId: String?) -> Unit,
     onPlayFromHere: (fragmentRef: String) -> Unit,
+    onEnsureSentenceQuotesReady: suspend () -> Unit,
     readaloudAvailable: Boolean,
     readaloudReservePx: Int = 0,
     readaloudHighlightColor: HighlightColor,
@@ -1255,6 +1257,7 @@ private fun EpubNavigatorView(
     val currentOnCaptureReturnTarget by rememberUpdatedState(onCaptureReturnTarget)
     val currentOnFollowInternalLink by rememberUpdatedState(onFollowInternalLink)
     val currentOnPlayFromHere by rememberUpdatedState(onPlayFromHere)
+    val currentEnsureSentenceQuotesReady by rememberUpdatedState(onEnsureSentenceQuotesReady)
     val currentSentenceQuotes by rememberUpdatedState(sentenceQuotes)
     val currentSentenceChapters by rememberUpdatedState(sentenceChapters)
     val currentOnHighlight by rememberUpdatedState(onHighlight)
@@ -1394,6 +1397,13 @@ private fun EpubNavigatorView(
                         coroutineScope.launch {
                             val selection = selectable.currentSelection() ?: return@launch
                             val loc = selection.locator
+                            // Wait for the sentence-quote map to be built off the SMIL sidecar/bundle.
+                            // Without this, a first-play tap resolves against an empty quote map, `byText`
+                            // falls to null, and the Readium fallback anchor (e.g. `#d1e770`) reaches
+                            // ReadaloudTrack.resolveStartClip — which drops to the first clip of the
+                            // chapter, restarting playback. ensureSentenceQuotesReady() is a no-op once
+                            // the build has run.
+                            currentEnsureSentenceQuotesReady()
                             // We need the narrated-sentence span id (<span id="cNNN-sM">) the SMIL clips key
                             // on; Readium's selection locator carries only text + rect (no fragment id), so
                             // without that id the player can't map the selection to a clip and restarts the
