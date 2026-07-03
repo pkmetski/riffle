@@ -113,17 +113,45 @@ internal class ContinuousDecorationController(
     }
 
     override fun highlightInChapter(href: String, text: String, cssColor: String) {
-        val wv = port.findLoadedWebView(href) ?: return
-        wv.evaluateJavascript(ContinuousStyleInjector.highlightTextJs(text, cssColor)) { _ ->
-            // Re-lookup by href rather than reusing wv directly: the window may have shifted
-            // between the evaluateJavascript call and this callback.
-            scrollToReadaloudHighlight(href)
+        val direct = port.findLoadedWebView(href)
+        if (direct != null) {
+            direct.evaluateJavascript(ContinuousStyleInjector.highlightTextJs(text, cssColor)) { _ ->
+                // Re-lookup by href rather than reusing wv directly: the window may have shifted
+                // between the evaluateJavascript call and this callback.
+                scrollToReadaloudHighlight(href)
+            }
+            return
         }
+        // Fallback for matched ABS books: the readaloud [fragmentRef] carries the Storyteller BUNDLE
+        // href (e.g. `text/part0006_split_XXX.html`), but this window's loaded WebViews carry ABS
+        // hrefs (e.g. `xhtml/foo.html`) — the direct match above misses. In paginated mode Readium's
+        // DecorableNavigator anchors highlights by TEXT (TextQuoteAnchor) so this href mismatch is
+        // invisible there, but continuous mode looks up by exact href. Fall back to applying the
+        // text-based highlight to EVERY loaded WebView; the mark JS is a no-op on WebViews whose
+        // document doesn't contain [text], so at most one actually paints. Clearing on chapter
+        // change still works because a subsequent apply on a different fragmentRef triggers
+        // [clearHighlightInChapter] via the renderer's prevSentenceHref, and any stale mark on a
+        // non-matching WebView is cleared by the sentinel-and-replace step inside
+        // [ContinuousStyleInjector.highlightTextJs] the next time it runs on that WebView.
+        port.forEachLoadedWebView { wv ->
+            wv.evaluateJavascript(ContinuousStyleInjector.highlightTextJs(text, cssColor), null)
+        }
+        // Scroll uses [href] as the slot key; without a translated key it's not safe to auto-scroll,
+        // so the fallback only paints the highlight. Auto-scroll follow for matched-book continuous
+        // mode is a separate follow-up (the paginated auto-follow via ColumnSnap is orthogonal).
     }
 
     override fun clearHighlightInChapter(href: String) {
-        val wv = port.findLoadedWebView(href) ?: return
-        wv.evaluateJavascript(ContinuousStyleInjector.CLEAR_HIGHLIGHT_JS, null)
+        val wv = port.findLoadedWebView(href)
+        if (wv != null) {
+            wv.evaluateJavascript(ContinuousStyleInjector.CLEAR_HIGHLIGHT_JS, null)
+            return
+        }
+        // Symmetric with the highlightInChapter fallback: on matched ABS books the ref carries the
+        // bundle href which doesn't match any loaded WebView, so the highlight was broadcast; clear
+        // it from every loaded WebView too. The CLEAR JS is a no-op on WebViews that don't have
+        // the `_riffle_hl` mark, so this is safe to fan out.
+        port.forEachLoadedWebView { it.evaluateJavascript(ContinuousStyleInjector.CLEAR_HIGHLIGHT_JS, null) }
     }
 
     /** Same recipe as the prior in-View `scrollToHighlight`: query `_riffle_hl`'s device-px Y,
