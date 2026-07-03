@@ -3,6 +3,7 @@ package com.riffle.app.feature.reader.readaloud
 import com.riffle.core.domain.DispatcherProvider
 import com.riffle.core.domain.ReadaloudAudioRepository
 import com.riffle.core.domain.ReadaloudTrack
+import dagger.hilt.android.scopes.ViewModelScoped
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
@@ -24,6 +25,7 @@ import javax.inject.Inject
  * Lives as a per-reader instance (constructed by the ViewModel, not a @Singleton) so its scope
  * dies with the reader. The shared [ReadaloudController] it drives is the singleton.
  */
+@ViewModelScoped
 class PlayerCoordinator @Inject constructor(
     private val controller: ReadaloudController,
     private val audioRepository: ReadaloudAudioRepository,
