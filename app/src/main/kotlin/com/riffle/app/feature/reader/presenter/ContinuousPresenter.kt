@@ -24,6 +24,7 @@ internal class ContinuousPresenter : ReaderPresenter {
 
     private val _positionEvents = MutableSharedFlow<PositionUpdate>(replay = 0, extraBufferCapacity = 64)
     private val _pageLoadEvents = MutableSharedFlow<PageLoadGeneration>(replay = 0, extraBufferCapacity = 64)
+    private val _viewportFractionEvents = MutableSharedFlow<Pair<String, Double>>(replay = 0, extraBufferCapacity = 64)
     private val _tapEvents = MutableSharedFlow<TapEvent>(replay = 0, extraBufferCapacity = 64)
     private val _linkEvents = MutableSharedFlow<LinkEvent>(replay = 0, extraBufferCapacity = 64)
     private val _selectionEvents = MutableSharedFlow<SelectionEvent>(replay = 0, extraBufferCapacity = 64)
@@ -31,6 +32,7 @@ internal class ContinuousPresenter : ReaderPresenter {
 
     override val positionEvents: SharedFlow<PositionUpdate> = _positionEvents
     override val pageLoadEvents: SharedFlow<PageLoadGeneration> = _pageLoadEvents
+    override val viewportFractionEvents: SharedFlow<Pair<String, Double>> = _viewportFractionEvents
     override val tapEvents: SharedFlow<TapEvent> = _tapEvents
     override val linkEvents: SharedFlow<LinkEvent> = _linkEvents
     override val selectionEvents: SharedFlow<SelectionEvent> = _selectionEvents
@@ -59,6 +61,16 @@ internal class ContinuousPresenter : ReaderPresenter {
         val position = ReaderPosition(href, progression, totalProgression, locatorJson)
         lastPosition = position
         _positionEvents.tryEmit(PositionUpdate(position, 0L))
+    }
+
+    /**
+     * Publish a live `viewportHeightPx / chapterHeightPx` fraction for [href]. Called from
+     * `ContinuousWindowController` when a chapter's measured height first lands or changes
+     * (never on scroll). [fraction] must be `> 0`; values `<= 0` are dropped.
+     */
+    fun feedViewportFraction(href: String, fraction: Double) {
+        if (fraction <= 0.0) return
+        _viewportFractionEvents.tryEmit(href to fraction)
     }
 
     fun feedTap() {

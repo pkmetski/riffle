@@ -54,6 +54,16 @@ class BookmarksController @AssistedInject constructor(
     private val _spinePositionCounts = MutableStateFlow<Pair<List<String>, List<Int>>>(emptyList<String>() to emptyList())
 
     /**
+     * Live per-chapter `viewportSize / chapterSize` — the exact geometric bound for a
+     * viewport-midpoint locator (see [bookmarkEpsFor]). Empty until each mode's producer
+     * measures a chapter; missing entries fall through to [_spinePositionCounts] and then to
+     * the flat eps constants. Populated by the VM from `ReaderPresenter.viewportFractionEvents`
+     * and MUST only emit on measurement/size events, never on scroll (see issue #399 and the
+     * distinct-until-changed discipline in [EpubReaderViewModel.putViewportFraction]).
+     */
+    private val _viewportFractionByHref = MutableStateFlow<Map<String, Double>>(emptyMap())
+
+    /**
      * Current reader orientation, read non-reactively inside [isCurrentPageBookmarked]'s combine
      * so the combine stays 2-arg (matches master's shape and avoids the Eagerly-shared
      * viewModelScope chain that flaked the orientation-flip harness). Mode changes call
@@ -66,13 +76,11 @@ class BookmarksController @AssistedInject constructor(
     /**
      * True when one of this item's bookmarks falls inside the reader's currently visible viewport.
      *
-     * Bookmark `progression` is whatever the locator emitted at save-time:
-     *  - **Readium (paginated + vertical):** content-top progression. Bookmark anchor and
-     *    current locator share the same frame, so a tight ±5% window is the correct match.
-     *  - **Continuous:** viewport-midpoint progression (`ContinuousPositionTracker.locatorAt`).
-     *    The bookmark anchor is visible iff `|midpoint_now - M_save| <= viewportFraction/2`.
-     *    Without a live viewport-fraction signal, we use a fixed [BOOKMARK_VIEWPORT_EPS] (33%)
-     *    which covers typical viewports plus short chapters where `vf/2 ≈ 0.30`.
+     * The ±eps window comes from [bookmarkEpsFor], which prefers the live per-chapter
+     * `viewportSize / chapterSize` reported by the active renderer (issue #399), then Readium's
+     * `0.5 / positionsInChapter` approximation, then a flat fallback. All three modes emit a
+     * viewport-midpoint (`ContinuousPositionTracker.locatorAt`) or content-top locator whose
+     * anchor is visible iff `|current - saved| ≤ eps`.
      *
      * The `<= eps` (not `< eps`) makes the boundary case inclusive — when the bookmark anchor
      * sits exactly at the viewport's top edge, a strict `<` would silently call that OFF even
@@ -82,11 +90,12 @@ class BookmarksController @AssistedInject constructor(
         _bookmarkPositions,
         _currentLocator,
         _spinePositionCounts,
-    ) { bookmarksForChapter, locator, spineCounts ->
+        _viewportFractionByHref,
+    ) { bookmarksForChapter, locator, spineCounts, fractions ->
         val href = locator?.href?.toString() ?: return@combine false
         val prog = locator.locations.progression
         val hrefNorm = normalizeEpubHref(href)
-        val eps = bookmarkEpsFor(currentOrientation, spineCounts, hrefNorm)
+        val eps = bookmarkEpsFor(currentOrientation, spineCounts, fractions, hrefNorm)
         bookmarksForChapter.any { bm ->
             bm.chapterHref == hrefNorm &&
                 (prog == null || kotlin.math.abs(bm.progression - prog) <= eps)
@@ -100,11 +109,17 @@ class BookmarksController @AssistedInject constructor(
      * instead of creating a new one on the current page.
      */
     fun bookmarkEpsFor(chapterHref: String): Double =
-        bookmarkEpsFor(currentOrientation, _spinePositionCounts.value, normalizeEpubHref(chapterHref))
+        bookmarkEpsFor(
+            currentOrientation,
+            _spinePositionCounts.value,
+            _viewportFractionByHref.value,
+            normalizeEpubHref(chapterHref),
+        )
 
     private var observeJob: Job? = null
     private var locatorJob: Job? = null
     private var positionsJob: Job? = null
+    private var viewportFractionJob: Job? = null
 
     /**
      * Bind to a specific book. Cancels any previous observation and starts fresh.
@@ -116,13 +131,16 @@ class BookmarksController @AssistedInject constructor(
         itemId: String,
         currentLocator: StateFlow<Locator?>,
         spinePositionCounts: StateFlow<Pair<List<String>, List<Int>>>,
+        viewportFractionByHref: StateFlow<Map<String, Double>>,
     ) {
         observeJob?.cancel()
         locatorJob?.cancel()
         positionsJob?.cancel()
+        viewportFractionJob?.cancel()
         _bookmarkPositions.value = emptyList()
         _currentLocator.value = null
         _spinePositionCounts.value = emptyList<String>() to emptyList()
+        _viewportFractionByHref.value = emptyMap()
 
         observeJob = scope.launch {
             annotationStore.observeBookmarks(serverId, itemId).collect { annotations ->
@@ -143,6 +161,11 @@ class BookmarksController @AssistedInject constructor(
         positionsJob = scope.launch {
             spinePositionCounts.collect { counts ->
                 _spinePositionCounts.value = counts
+            }
+        }
+        viewportFractionJob = scope.launch {
+            viewportFractionByHref.collect { fractions ->
+                _viewportFractionByHref.value = fractions
             }
         }
     }
@@ -195,25 +218,43 @@ class BookmarksController @AssistedInject constructor(
          * Pure decision (JVM-testable) for the ±progression window used to decide whether a
          * bookmark falls on the current viewport in [chapterHref].
          *
-         * All three modes now use `0.5 / positionsInChapter` when the position count is known:
-         * - **Paginated / vertical:** half a page (locator = content-top progression).
-         * - **Continuous:** half a viewport-fraction (locator = viewport-midpoint progression;
-         *   viewportFraction ≈ 1/positions, so this is the tightest geometrically-correct
-         *   bound). Falls back to [BOOKMARK_VIEWPORT_EPS] / [BOOKMARK_PAGE_EPS] when positions
-         *   are unknown yet.
+         * Priority (issue #399):
+         *  1. **Live viewport-fraction** — `viewportSize / chapterSize` measured by the active
+         *     renderer.
+         *      - **Paginated / vertical:** `fraction / 2`. Readium's fragment-anchored `go()`
+         *        lands the CFI's column / scrollY exactly, so the delta on arrival is 0 — a
+         *        half-viewport window is the tightest correct bound.
+         *      - **Continuous:** full `fraction`. The saved anchor could be anywhere in the
+         *        viewport the user was reading in (top edge to bottom edge), so on an
+         *        `alignToTop=true` bookmark-panel nav the arrival midpoint can drift by up to
+         *        one full viewport-fraction from the saved midpoint. Tightening to `/ 2` would
+         *        make the indicator flake off on arrival for any bookmark whose anchor sat in
+         *        the lower half of the saved viewport — the user's principled contract is that
+         *        this must never happen. One-viewport tolerance covers the anchor-position
+         *        uncertainty exactly.
+         *  2. **`0.5 / positionsInChapter`** / **`1.0 / positionsInChapter`** — Readium's
+         *     positions are ~1024-char slices, a rough proxy. Same 2× continuous widening as
+         *     above. Kicks in while the live measurement hasn't landed yet.
+         *  3. **Flat [BOOKMARK_PAGE_EPS] / [BOOKMARK_VIEWPORT_EPS]** — final fallback for the
+         *     open-race before positions arrive.
          */
         internal fun bookmarkEpsFor(
             orientation: ReaderOrientation,
             spineCounts: Pair<List<String>, List<Int>>,
+            viewportFractionByHref: Map<String, Double>,
             chapterHref: String,
         ): Double {
+            val isContinuous = orientation == ReaderOrientation.Continuous
+            viewportFractionByHref[chapterHref]?.let { vf ->
+                if (vf > 0.0) return if (isContinuous) vf else vf / 2.0
+            }
             val (hrefs, counts) = spineCounts
             val idx = hrefs.indexOfFirst { normalizeEpubHref(it) == chapterHref }
             val positions = counts.getOrNull(idx) ?: 0
-            if (positions > 0) return 0.5 / positions
-            // Position count not yet available — fall back to the mode-appropriate flat eps.
-            return if (orientation == ReaderOrientation.Continuous) BOOKMARK_VIEWPORT_EPS
-            else BOOKMARK_PAGE_EPS
+            if (positions > 0) return if (isContinuous) 1.0 / positions else 0.5 / positions
+            // Neither live fraction nor position count available — fall back to the
+            // mode-appropriate flat eps.
+            return if (isContinuous) BOOKMARK_VIEWPORT_EPS else BOOKMARK_PAGE_EPS
         }
     }
 }

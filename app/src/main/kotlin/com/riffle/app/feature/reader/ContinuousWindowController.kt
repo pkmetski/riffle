@@ -26,6 +26,13 @@ internal class ContinuousWindowController(
     private val port: ContinuousScrollPort,
     private val context: Context,
     private val onRawPosition: (href: String, progression: Float) -> Unit,
+    /**
+     * Publish `viewportHeightPx / measuredHeight` for a chapter when its height first lands
+     * or changes. Called from the `onHeightMeasured` callbacks in [appendChapter] and
+     * [prependChapter]. Feeds `ContinuousPresenter.feedViewportFraction` (issue #399). MUST
+     * NOT be invoked from scroll callbacks — see the flake-avoidance rules in the issue.
+     */
+    private val onViewportFractionMeasured: (href: String, fraction: Double) -> Unit = { _, _ -> },
 ) : ContinuousHighlightTarget, ContinuousNavigationView {
 
     companion object {
@@ -534,6 +541,7 @@ internal class ContinuousWindowController(
                 } else {
                     measuredHeights[i] = measuredPx
                 }
+                publishViewportFraction(wv, measuredPx)
                 wv.layoutParams = wv.layoutParams.also { it.height = measuredPx }
                 if (pendingInitialScroll == null && i == 0 && delta != 0 && (delta < 0 || port.currentScrollY >= oldHeight)) {
                     port.scrollBy(delta)
@@ -581,6 +589,7 @@ internal class ContinuousWindowController(
             if (i >= 0) {
                 val delta = measuredPx - measuredHeights[i]
                 measuredHeights[i] = measuredPx
+                publishViewportFraction(wv, measuredPx)
                 wv.layoutParams = wv.layoutParams.also { it.height = measuredPx }
                 if (delta != 0) port.scrollBy(delta)
             }
@@ -720,6 +729,20 @@ internal class ContinuousWindowController(
     private fun webViewIndexFor(href: String): Int? {
         val i = webViews.indexOfFirst { it.chapterHref == href }
         return if (i >= 0) i else null
+    }
+
+    /**
+     * Publish `port.viewportHeightPx / measuredPx` for [wv]'s chapter, dropping any case where
+     * either side is non-positive (viewport not yet laid out, or the chapter measured to zero).
+     * Downstream (VM `putViewportFraction`) applies the per-entry distinct-until-changed guard
+     * so repeat calls with the same value do not churn the bookmark combine (issue #399).
+     */
+    private fun publishViewportFraction(wv: ChapterWebView, measuredPx: Int) {
+        val vh = port.viewportHeightPx
+        if (vh <= 0 || measuredPx <= 0) return
+        val href = wv.chapterHref
+        if (href.isEmpty()) return
+        onViewportFractionMeasured(href, vh.toDouble() / measuredPx)
     }
 }
 

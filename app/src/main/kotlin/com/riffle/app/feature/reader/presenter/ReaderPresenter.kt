@@ -32,6 +32,19 @@ internal interface ReaderPresenter {
      */
     val pageLoadEvents: Flow<PageLoadGeneration>
 
+    /**
+     * Per-chapter `viewportSize / chapterSize` fractions produced whenever the renderer
+     * measures a chapter or its viewport changes. Consumers ([BookmarksController] via the
+     * VM's `viewportFractionByHref` map) key by normalized href.
+     *
+     * **Must not emit on scroll** — see issue #399. Continuous mode emits from the
+     * `onHeightMeasured` callback; paginated / vertical emit from `onPageLoaded` and
+     * typography-change hooks via [RendererBridge.readViewportFraction]. Downstream applies
+     * a per-entry distinct-until-changed guard so a repeat value never re-triggers the
+     * bookmark combine.
+     */
+    val viewportFractionEvents: Flow<Pair<String, Double>>
+
     /** Any user tap that should toggle reader chrome (left/right tap zones, body tap). */
     val tapEvents: Flow<TapEvent>
 

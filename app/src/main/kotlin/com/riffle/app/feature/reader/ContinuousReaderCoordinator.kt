@@ -91,6 +91,9 @@ internal class ContinuousReaderCoordinator(
                     )
                 }
             },
+            onViewportFractionMeasured = { href, fraction ->
+                presenter?.feedViewportFraction(href, fraction)
+            },
         )
 
         view.onPlayFromHereSelection = { chapterHref, selectedText, evalJs ->

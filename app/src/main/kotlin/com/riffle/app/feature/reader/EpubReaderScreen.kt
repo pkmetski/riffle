@@ -405,6 +405,7 @@ fun EpubReaderScreen(
                             viewModel.onPositionChanged(locator)
                             viewModel.dismissFootnotePopup()
                         },
+                        onViewportFractionMeasured = viewModel::putViewportFraction,
                         onNavigationEvents = viewModel.navigationEvents,
                         serverLocatorEvents = viewModel.serverLocatorEvents,
                         searchNavigationEvents = viewModel.searchNavigationEvents,
@@ -1065,18 +1066,29 @@ internal fun readaloudLocatorJson(ref: String, quote: SentenceQuote?): JSONObjec
 }
 
 /**
- * NavigationOptions for an annotation-panel tap. Continuous-mode landing is uniform
- * viewport-midpoint (`alignToTop = false`) for every annotation type — bookmarks included —
- * so the page-bookmark ribbon (which stores + matches on `locatorAt`'s midpoint progression)
- * lights at the same scrollY the reader lands on. Placing bookmarks at the viewport top
- * produced up to a full-viewport offset between the lit ribbon and the landing on chapters
- * with images, big headings, or otherwise non-uniform text density — the CFI anchor's pixel
- * position drifted from its char-count progression. The [isBookmark] parameter is taken so
- * tests can pin the invariant that both types return the same options.
+ * NavigationOptions for an annotation-panel tap. In continuous mode, [alignToTop] depends on
+ * annotation type:
+ *
+ *  - **Bookmarks** → `alignToTop = true`. A page-level bookmark marks "I was here" — landing
+ *    the saved position at the viewport TOP places the reader at the start of what they were
+ *    reading, with the already-read content scrolled off above. Landing at the midpoint (the
+ *    prior behaviour) placed the bookmark in the middle of the viewport, which readers found
+ *    confusing.
+ *  - **Highlights / notes** → `alignToTop = false`. A text-anchored annotation is context-
+ *    dependent; centring on the mark preserves reading context above the anchor.
+ *
+ * The previous unified midpoint policy existed because landing bookmarks at the top produced a
+ * ribbon-vs-landing offset — the `isCurrentPageBookmarked` indicator's stored midpoint
+ * progression didn't match the arrival scrollY. Issue #399's live viewport-fraction eps closes
+ * that gap: on `alignToTop=true` the arrival midpoint can drift up to one full
+ * `viewportFraction` from the saved midpoint (the saved anchor could sit anywhere in the saved
+ * viewport, top edge to bottom edge). Continuous eps is widened to full `viewportFraction` for
+ * exactly this reason (see `BookmarksController.bookmarkEpsFor`), so the boundary-inclusive
+ * `<= eps` check keeps the indicator lit on arrival regardless of where in the saved viewport
+ * the anchor sat.
  */
-@Suppress("UNUSED_PARAMETER")
 internal fun annotationNavigationOptions(isBookmark: Boolean): NavigationOptions =
-    NavigationOptions(landAtStartWhenNoTarget = false, alignToTop = false)
+    NavigationOptions(landAtStartWhenNoTarget = false, alignToTop = isBookmark)
 
 @OptIn(ExperimentalReadiumApi::class)
 @Composable
@@ -1087,6 +1099,7 @@ private fun EpubNavigatorView(
     spinePositions: Pair<List<String>, List<Int>>,
     formattingPrefsProvider: () -> FormattingPreferences,
     onPositionChanged: (Locator) -> Unit,
+    onViewportFractionMeasured: (href: String, fraction: Double) -> Unit,
     onNavigationEvents: Flow<Link>,
     serverLocatorEvents: Flow<Locator>,
     searchNavigationEvents: Flow<Locator>,
@@ -1194,6 +1207,16 @@ private fun EpubNavigatorView(
         val presenter = readiumPresenter ?: return@LaunchedEffect
         val fragment = fragmentRef.value ?: return@LaunchedEffect
         presenter.attach(fragment)
+    }
+
+    // Forward per-chapter viewport-fraction measurements from the active renderer into the VM's
+    // `viewportFractionByHref` map. The VM applies a per-entry distinct-until-changed guard so
+    // repeat values do not churn the bookmark combine (issue #399). The producers only emit on
+    // measurement/reflow events, never on scroll.
+    LaunchedEffect(readerPresenter) {
+        readerPresenter.viewportFractionEvents.collect { (href, fraction) ->
+            onViewportFractionMeasured(href, fraction)
+        }
     }
 
     // MODE-FORK: Highlight rendering pipeline. ContinuousHighlightRenderer drives custom JS
