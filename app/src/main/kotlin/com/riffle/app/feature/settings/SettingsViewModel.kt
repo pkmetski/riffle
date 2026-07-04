@@ -111,8 +111,13 @@ class SettingsViewModel @Inject constructor(
             AnnotationSyncKind.Error -> AnnotationSyncRowState.Tone.Error
         }
         val identity = config?.let { "${it.username}@${shortHost(it.baseUrl)}" }
+        // NeverRun outranks a positive pending count so the row keeps saying
+        // "Waiting for first sync…" for a freshly-configured install — matching pre-refactor
+        // behavior. The kind is still Pending either way, so the badge stays in sync with the
+        // banner via [deriveAnnotationSyncKind].
         val sub = when {
             config == null -> "Not configured · tap to set up a WebDAV server"
+            outcome is CycleOutcome.NeverRun -> "Waiting for first sync…"
             outcome is CycleOutcome.Failed.Auth -> "Authentication failed · tap to re-enter credentials"
             outcome is CycleOutcome.Failed.Tls -> "TLS error · tap to check server URL"
             outcome is CycleOutcome.Failed.Server -> "Server error (HTTP ${outcome.code}) · will retry automatically"
@@ -121,7 +126,6 @@ class SettingsViewModel @Inject constructor(
                 "$pendingCount book(s) pending · will sync when online"
             outcome is CycleOutcome.Failed.Network -> "Offline · will sync when connected"
             pendingCount > 0 -> "$pendingCount book(s) pending · will sync when online"
-            outcome is CycleOutcome.NeverRun -> "Waiting for first sync…"
             else -> "Synced · $identity"
         }
         return AnnotationSyncRowState(badge, "WebDAV", sub, subTone)

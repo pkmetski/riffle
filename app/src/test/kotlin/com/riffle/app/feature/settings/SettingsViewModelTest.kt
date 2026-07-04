@@ -700,6 +700,27 @@ class SettingsViewModelTest {
         // Should NOT show the Synced badge before any cycle has completed.
     }
 
+    // Regression: NeverRun must win over a positive pending count in the sub-text — a
+    // freshly-installed device with un-pushed local highlights should say "Waiting for first
+    // sync…", not "N book(s) pending · will sync when online". Introduced when the row's
+    // when-branches were re-ordered around the shared kind derivation; without this test a
+    // future refactor could re-invert the ordering and no assertion would flip.
+    @Test
+    fun `annotationSyncRow shows Waiting for first sync when NeverRun even with pending books`() = runTest {
+        val config = MutableStateFlow<AnnotationSyncConfig?>(AnnotationSyncConfig("https://srv.example/dav/", "alice", "pw"))
+        val status = AnnotationSyncStatusStore() // NeverRun
+        val vm = newSettingsViewModel(
+            configStore = stubConfigStore(config), statusStore = status,
+            annotationDao = stubAnnotationDao(pendingBookCount = 3),
+        )
+        backgroundScope.launch { vm.annotationSyncRow.collect {} }
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        val row = vm.annotationSyncRow.value
+        assertEquals(AnnotationSyncRowState.Badge.Pending, row.badge)
+        assertTrue("sub should be 'Waiting for first sync…', got: ${row.sub}", row.sub.contains("Waiting for first sync"))
+    }
+
     @Test
     fun `annotationSyncRow is Synced when configured + Success + no pending`() = runTest {
         val config = MutableStateFlow<AnnotationSyncConfig?>(AnnotationSyncConfig("https://srv.example/dav/", "alice", "pw"))
