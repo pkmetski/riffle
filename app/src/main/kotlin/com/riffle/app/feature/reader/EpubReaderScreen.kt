@@ -1744,7 +1744,13 @@ private fun EpubNavigatorView(
         }
     }
 
-    LaunchedEffect(returnNavEvents) {
+    // Key on readerPresenter so a mode flip (paginated/vertical ↔ continuous) restarts the collect
+    // with the fresh presenter and isContinuous. Without this, navigateWithCover's `if (!isContinuous)`
+    // branch and the captured presenter reference stay pinned to whichever presenter was active when
+    // the composable first entered the composition — a Back tap after switching modes then drives the
+    // OLD (now invisible) navigator instead of the visible one, and the popup does nothing.
+    // returnNavEvents is a Channel(CONFLATED) flow, so a pending emission survives a re-launch.
+    LaunchedEffect(returnNavEvents, readerPresenter) {
         returnNavEvents.collect { locator ->
             navigateWithCover(
                 NavigationTarget.ToLocatorJson(locator.toJSON().toString()),
