@@ -4,10 +4,12 @@ import androidx.compose.runtime.snapshotFlow
 import com.riffle.app.feature.reader.presenter.ContinuousPresenter
 import com.riffle.core.domain.FormattingPreferences
 import com.riffle.core.domain.SentenceQuote
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 import org.readium.r2.shared.publication.Link
 import org.readium.r2.shared.publication.Locator
 import org.readium.r2.shared.publication.Publication
@@ -31,6 +33,8 @@ internal class ContinuousReaderCoordinator(
     private val latestLocator: () -> Locator?,
     private val sentenceQuotesProvider: () -> Map<String, SentenceQuote>,
     private val sentenceChaptersProvider: () -> Map<String, String>,
+    private val coroutineScope: CoroutineScope,
+    private val ensureSentenceQuotesReady: suspend () -> Unit,
     private val navigation: ContinuousNavigationSink,
     private val links: ContinuousLinkSink,
     private val annotations: ContinuousAnnotationSink,
@@ -94,14 +98,28 @@ internal class ContinuousReaderCoordinator(
         )
 
         view.onPlayFromHereSelection = { chapterHref, selectedText, evalJs ->
-            val scoped = scopeSentencesToChapter(
-                sentenceQuotesProvider(), sentenceChaptersProvider(), chapterHref,
-            )
-            evalJs(resolveSelectionSentenceJs(scoped)) { raw ->
-                val geomId = raw?.trim('"')?.takeIf { it.isNotEmpty() }
-                val sid = geomId
-                    ?: ContinuousPositionTracker.sentenceIdForSelection(selectedText, scoped.toMap())
-                if (sid != null) annotations.onPlayFromHere("$chapterHref#$sid")
+            // Await the sentence-quote map (built off-thread once the SMIL sidecar/bundle lands).
+            // Without this, the first Play-from-here tap in Continuous mode races the async build:
+            // sentenceQuotesProvider() returns an empty map, `scoped` is empty,
+            // resolveSelectionSentenceJs returns null, the offline fallback can't match either, and
+            // the tap is silently dropped. Paginated already awaits an equivalent hook — see
+            // EpubReaderScreen playFromHereActionMode / currentEnsureSentenceQuotesReady.
+            coroutineScope.launch {
+                ensureSentenceQuotesReady()
+                val scoped = scopeSentencesToChapter(
+                    sentenceQuotesProvider(), sentenceChaptersProvider(), chapterHref,
+                )
+                evalJs(resolveSelectionSentenceJs(scoped)) { raw ->
+                    val geomId = raw?.trim('"')?.takeIf { it.isNotEmpty() }
+                    val sid = geomId
+                        ?: ContinuousPositionTracker.sentenceIdForSelection(selectedText, scoped.toMap())
+                    // Fall back to the bare chapter href when the selection can't be resolved to a
+                    // span id — the player resolves the nearest narrated clip at/after the chapter
+                    // start rather than dropping the tap entirely. Mirrors the paginated fallback
+                    // where `spanId` may be null but the ref still includes `loc.href`.
+                    val ref = if (sid != null) "$chapterHref#$sid" else chapterHref
+                    annotations.onPlayFromHere(ref)
+                }
             }
         }
     }
