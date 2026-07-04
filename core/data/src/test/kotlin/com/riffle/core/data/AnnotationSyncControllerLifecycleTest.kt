@@ -991,7 +991,7 @@ private class LifecycleInMemoryAnnotationDao : AnnotationDao {
     override fun observeAnnotationsByPosition(serverId: String, itemId: String): Flow<List<AnnotationEntity>> = flowOf(emptyList())
     override suspend fun renameBookmark(id: String, title: String, updatedAt: Long, deviceId: String) = Unit
     override fun observePendingCountForBook(serverId: String, itemId: String): Flow<Int> = flowOf(0)
-    override fun observePendingCountAcrossAll(): Flow<Int> = flowOf(0)
+    override fun observePendingBookCountAcrossAll(): Flow<Int> = flowOf(0)
     override suspend fun dirtyServerItems(): List<AnnotationDao.DirtyServerItem> = emptyList()
     override suspend fun markSynced(ids: List<String>, syncedAt: Long) {
         markSyncedCalls++

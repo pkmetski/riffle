@@ -337,7 +337,7 @@ abstract class StubAnnotationDao : AnnotationDao {
         kotlinx.coroutines.flow.flowOf(emptyList<AnnotationEntity>())
     override suspend fun renameBookmark(id: String, title: String, updatedAt: Long, deviceId: String) {}
     override fun observePendingCountForBook(serverId: String, itemId: String) = kotlinx.coroutines.flow.flowOf(0)
-    override fun observePendingCountAcrossAll() = kotlinx.coroutines.flow.flowOf(0)
+    override fun observePendingBookCountAcrossAll() = kotlinx.coroutines.flow.flowOf(0)
     override suspend fun dirtyServerItems() = emptyList<AnnotationDao.DirtyServerItem>()
     override suspend fun markSynced(ids: List<String>, syncedAt: Long) {}
     override suspend fun purgeAgedTombstones(serverId: String, itemId: String, cutoff: Long): Int = 0

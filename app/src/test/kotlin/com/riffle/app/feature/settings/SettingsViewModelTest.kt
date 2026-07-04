@@ -213,7 +213,7 @@ class SettingsViewModelTest {
     private fun makeViewModel(
         reports: List<CrashReport> = emptyList(),
         annotationSyncStatusStore: AnnotationSyncStatusStore = AnnotationSyncStatusStore(),
-        annotationDao: AnnotationDao = stubAnnotationDao(pendingCount = 0),
+        annotationDao: AnnotationDao = stubAnnotationDao(pendingBookCount = 0),
     ) = SettingsViewModel(
         crashReportRepository = object : CrashReportRepository {
             private val current = reports.toMutableList()
@@ -243,7 +243,7 @@ class SettingsViewModelTest {
         annotationDao = annotationDao,
     )
 
-    private fun stubAnnotationDao(pendingCount: Int): AnnotationDao = object : AnnotationDao {
+    private fun stubAnnotationDao(pendingBookCount: Int): AnnotationDao = object : AnnotationDao {
         override fun observeForItem(serverId: String, itemId: String) = flowOf(emptyList<AnnotationEntity>())
         override fun observeForServer(serverId: String) = flowOf(emptyList<AnnotationEntity>())
         override suspend fun getForItem(serverId: String, itemId: String) = emptyList<AnnotationEntity>()
@@ -258,7 +258,7 @@ class SettingsViewModelTest {
         override fun observeAnnotationsByPosition(serverId: String, itemId: String) = flowOf(emptyList<AnnotationEntity>())
         override suspend fun renameBookmark(id: String, title: String, updatedAt: Long, deviceId: String) {}
         override fun observePendingCountForBook(serverId: String, itemId: String) = flowOf(0)
-        override fun observePendingCountAcrossAll() = flowOf(pendingCount)
+        override fun observePendingBookCountAcrossAll() = flowOf(pendingBookCount)
         override suspend fun dirtyServerItems() = emptyList<AnnotationDao.DirtyServerItem>()
         override suspend fun markSynced(ids: List<String>, syncedAt: Long) {}
         override suspend fun purgeAgedTombstones(serverId: String, itemId: String, cutoff: Long): Int = 0
@@ -671,7 +671,7 @@ class SettingsViewModelTest {
     fun `annotationSyncRow is Local when unconfigured`() = runTest {
         val config = MutableStateFlow<AnnotationSyncConfig?>(null)
         val status = AnnotationSyncStatusStore()
-        val dao = stubAnnotationDao(pendingCount = 0)
+        val dao = stubAnnotationDao(pendingBookCount = 0)
         val vm = newSettingsViewModel(configStore = stubConfigStore(config), statusStore = status, annotationDao = dao)
         backgroundScope.launch { vm.annotationSyncRow.collect {} }
         testDispatcher.scheduler.advanceUntilIdle()
@@ -689,7 +689,7 @@ class SettingsViewModelTest {
         val status = AnnotationSyncStatusStore() // NeverRun by default
         val vm = newSettingsViewModel(
             configStore = stubConfigStore(config), statusStore = status,
-            annotationDao = stubAnnotationDao(pendingCount = 0),
+            annotationDao = stubAnnotationDao(pendingBookCount = 0),
         )
         backgroundScope.launch { vm.annotationSyncRow.collect {} }
         testDispatcher.scheduler.advanceUntilIdle()
@@ -706,7 +706,7 @@ class SettingsViewModelTest {
         val status = AnnotationSyncStatusStore().apply { report(CycleOutcome.Success(1_000L)) }
         val vm = newSettingsViewModel(
             configStore = stubConfigStore(config), statusStore = status,
-            annotationDao = stubAnnotationDao(pendingCount = 0),
+            annotationDao = stubAnnotationDao(pendingBookCount = 0),
         )
         backgroundScope.launch { vm.annotationSyncRow.collect {} }
         testDispatcher.scheduler.advanceUntilIdle()
@@ -723,7 +723,7 @@ class SettingsViewModelTest {
         val status = AnnotationSyncStatusStore().apply { report(CycleOutcome.Failed.Network(1_000L, "offline")) }
         val vm = newSettingsViewModel(
             configStore = stubConfigStore(config), statusStore = status,
-            annotationDao = stubAnnotationDao(pendingCount = 2),
+            annotationDao = stubAnnotationDao(pendingBookCount = 2),
         )
         backgroundScope.launch { vm.annotationSyncRow.collect {} }
         testDispatcher.scheduler.advanceUntilIdle()
@@ -740,7 +740,7 @@ class SettingsViewModelTest {
         val status = AnnotationSyncStatusStore().apply { report(CycleOutcome.Failed.Auth(1_000L, 401)) }
         val vm = newSettingsViewModel(
             configStore = stubConfigStore(config), statusStore = status,
-            annotationDao = stubAnnotationDao(pendingCount = 0),
+            annotationDao = stubAnnotationDao(pendingBookCount = 0),
         )
         backgroundScope.launch { vm.annotationSyncRow.collect {} }
         testDispatcher.scheduler.advanceUntilIdle()
@@ -757,7 +757,7 @@ class SettingsViewModelTest {
         val status = AnnotationSyncStatusStore().apply { report(CycleOutcome.Failed.Tls(1_000L, "cert untrusted")) }
         val vm = newSettingsViewModel(
             configStore = stubConfigStore(config), statusStore = status,
-            annotationDao = stubAnnotationDao(pendingCount = 0),
+            annotationDao = stubAnnotationDao(pendingBookCount = 0),
         )
         backgroundScope.launch { vm.annotationSyncRow.collect {} }
         testDispatcher.scheduler.advanceUntilIdle()
@@ -767,13 +767,33 @@ class SettingsViewModelTest {
         assertTrue(row.sub.contains("TLS error"))
     }
 
+    // Regression: the WebDAV row copy is "$N book(s) pending" and N must reflect *books*, not
+    // dirty annotation rows. Wired through AnnotationDao.observePendingBookCountAcrossAll, which
+    // counts distinct (serverId, itemId). This test pins the wording; AnnotationDaoTest pins the
+    // SQL. Together they prevent the "8 highlights on 1 book showing as '8 books pending'" bug.
+    @Test
+    fun `annotationSyncRow reads book count into 'N book(s) pending' copy`() = runTest {
+        val config = MutableStateFlow<AnnotationSyncConfig?>(AnnotationSyncConfig("https://srv.example/dav/", "alice", "pw"))
+        val status = AnnotationSyncStatusStore().apply { report(CycleOutcome.Success(1_000L)) }
+        val vm = newSettingsViewModel(
+            configStore = stubConfigStore(config), statusStore = status,
+            annotationDao = stubAnnotationDao(pendingBookCount = 3),
+        )
+        backgroundScope.launch { vm.annotationSyncRow.collect {} }
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        val row = vm.annotationSyncRow.value
+        assertEquals(AnnotationSyncRowState.Badge.Pending, row.badge)
+        assertTrue("sub should read '3 book(s) pending' — got: ${row.sub}", row.sub.contains("3 book(s) pending"))
+    }
+
     @Test
     fun `annotationSyncRow is Pending when Network failure with no pending books`() = runTest {
         val config = MutableStateFlow<AnnotationSyncConfig?>(AnnotationSyncConfig("https://srv.example/dav/", "alice", "pw"))
         val status = AnnotationSyncStatusStore().apply { report(CycleOutcome.Failed.Network(1_000L, "timeout")) }
         val vm = newSettingsViewModel(
             configStore = stubConfigStore(config), statusStore = status,
-            annotationDao = stubAnnotationDao(pendingCount = 0),
+            annotationDao = stubAnnotationDao(pendingBookCount = 0),
         )
         backgroundScope.launch { vm.annotationSyncRow.collect {} }
         testDispatcher.scheduler.advanceUntilIdle()
