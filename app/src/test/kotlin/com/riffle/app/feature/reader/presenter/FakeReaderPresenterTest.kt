@@ -27,7 +27,7 @@ class FakeReaderPresenterTest {
 
     private val defaultPrefs = FormattingPreferences(
         theme = ReaderTheme.Light,
-        fontFamily = ReaderFontFamily.Serif,
+        fontFamily = ReaderFontFamily.Original,
         fontSize = 1.0f,
         lineSpacing = 1.2f,
         margins = 1.0f,

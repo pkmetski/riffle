@@ -107,15 +107,19 @@ class FormattingPreferencesStoreImpl @Inject constructor(
 // Before the Original split, the "Serif" enum value was passthrough — it rendered the publisher's
 // font. Any legacy "Serif" string on disk therefore encoded that passthrough intent and must load
 // as Original, not as the new real-serif Serif. To distinguish new picks from legacy data we
-// persist the new Serif under a distinct name ("SerifV2"). All other values keep their enum name.
+// persist the new Serif under a distinct name (SERIF_V2_PERSIST_NAME). All other values keep
+// their enum name.
+private const val SERIF_V2_PERSIST_NAME = "SerifV2"
+private const val LEGACY_SERIF_PERSIST_NAME = "Serif"
+
 internal fun ReaderFontFamily.encodePersistName(): String = when (this) {
-    ReaderFontFamily.Serif -> "SerifV2"
+    ReaderFontFamily.Serif -> SERIF_V2_PERSIST_NAME
     else -> name
 }
 
 internal fun String.decodeFontFamily(): ReaderFontFamily? = when (this) {
-    "SerifV2" -> ReaderFontFamily.Serif
-    "Serif" -> ReaderFontFamily.Original
+    SERIF_V2_PERSIST_NAME -> ReaderFontFamily.Serif
+    LEGACY_SERIF_PERSIST_NAME -> ReaderFontFamily.Original
     else -> runCatching { ReaderFontFamily.valueOf(this) }.getOrNull()
 }
 
