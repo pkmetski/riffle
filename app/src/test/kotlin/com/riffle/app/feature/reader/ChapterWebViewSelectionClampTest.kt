@@ -108,6 +108,67 @@ class ChapterWebViewSelectionClampTest {
     }
 
     @Test
+    fun `readerSelectionRectBottom clamp - selection fully inside band is unchanged`() {
+        val (top, bottom) = clampReaderSelectionRectBottomYs(
+            rectTop = 2300,
+            rectBottom = 2340,
+            viewportTop = 0,
+            viewportBottom = 2400,
+            viewLocationInWindowY = 0,
+            viewHeight = 2400,
+        )
+        assertEquals(2300, top)
+        assertEquals(2340, bottom)
+    }
+
+    @Test
+    fun `readerSelectionRectBottom clamp - selection with bottom past band pulls only bottom`() {
+        // Selection at last visible row; bottom sticks 90 px past the visible-band bottom into the
+        // gesture-bar strip. Top stays where it is so framework's above-placement anchors to the
+        // real line, not the visible-frame edge.
+        val (top, bottom) = clampReaderSelectionRectBottomYs(
+            rectTop = 2200,
+            rectBottom = 2340,
+            viewportTop = 0,
+            viewportBottom = 2250,
+            viewLocationInWindowY = 0,
+            viewHeight = 2400,
+        )
+        assertEquals(2200, top)
+        assertEquals(2250, bottom)
+    }
+
+    @Test
+    fun `readerSelectionRectBottom clamp - selection fully below band pulls both to band bottom`() {
+        // Real-device case: WebView paints into the gesture-bar area, whole selection below the
+        // visible display frame. Both edges pulled so the framework picks above-placement.
+        val (top, bottom) = clampReaderSelectionRectBottomYs(
+            rectTop = 1874,
+            rectBottom = 1937,
+            viewportTop = 63,
+            viewportBottom = 2274,
+            viewLocationInWindowY = 455,
+            viewHeight = 1941,
+        )
+        assertEquals(1819, top)
+        assertEquals(1819, bottom)
+    }
+
+    @Test
+    fun `readerSelectionRectBottom clamp - short view outside viewport returns unchanged`() {
+        val (top, bottom) = clampReaderSelectionRectBottomYs(
+            rectTop = 500,
+            rectBottom = 600,
+            viewportTop = 63,
+            viewportBottom = 2274,
+            viewLocationInWindowY = 3000,
+            viewHeight = 1000,
+        )
+        assertEquals(500, top)
+        assertEquals(600, bottom)
+    }
+
+    @Test
     fun `view shorter than the viewport caps bottomLocal at view height`() {
         // Short WebView (e.g. a tiny chapter), entirely inside the viewport. Visible band is the
         // whole view: [0, viewHeight]. Rect that already fits stays as-is.
