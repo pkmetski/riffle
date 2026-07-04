@@ -5,12 +5,14 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.composed
 import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
@@ -27,6 +29,8 @@ private const val FadeInMs = 120
 private const val FadeOutMs = 400
 private const val LingerMs = 700L
 
+internal data class ScrollbarMetrics(val offsetFraction: Float, val extentFraction: Float)
+
 fun Modifier.fadingScrollbar(
     state: LazyListState,
     color: Color = Color.Unspecified,
@@ -38,22 +42,21 @@ fun Modifier.fadingScrollbar(
         derivedStateOf {
             val info = state.layoutInfo
             val visible = info.visibleItemsInfo
-            val total = info.totalItemsCount
-            if (total <= 0 || visible.isEmpty()) return@derivedStateOf null
-            val viewport = (info.viewportEndOffset - info.viewportStartOffset)
-                .toFloat().coerceAtLeast(1f)
-            val avgItemSize = visible.map { it.size }.average().toFloat().coerceAtLeast(1f)
-            val contentHeight = avgItemSize * total
-            if (contentHeight <= viewport) return@derivedStateOf null
-            val extent = (viewport / contentHeight).coerceIn(0f, 1f)
-            val offsetPx =
-                state.firstVisibleItemIndex * avgItemSize + state.firstVisibleItemScrollOffset
-            val offset = (offsetPx / contentHeight).coerceIn(0f, 1f - extent)
-            ScrollbarMetrics(offset, extent)
+            if (visible.isEmpty()) return@derivedStateOf null
+            var sizeSum = 0L
+            for (i in visible.indices) sizeSum += visible[i].size
+            computeListScrollMetrics(
+                total = info.totalItemsCount,
+                viewport = info.viewportEndOffset - info.viewportStartOffset,
+                visibleCount = visible.size,
+                visibleSizeSum = sizeSum,
+                firstVisibleIndex = state.firstVisibleItemIndex,
+                firstVisibleScrollOffset = state.firstVisibleItemScrollOffset,
+            )
         }
     }
 
-    thumbOverlay(alpha = { alpha.value }, metrics = { metrics }, color = resolvedColor)
+    drawScrollbarOverlay(alpha = { alpha.value }, metrics = { metrics }, color = resolvedColor)
 }
 
 fun Modifier.fadingScrollbar(
@@ -67,31 +70,81 @@ fun Modifier.fadingScrollbar(
         derivedStateOf {
             val info = state.layoutInfo
             val visible = info.visibleItemsInfo
-            val total = info.totalItemsCount
-            if (total <= 0 || visible.isEmpty()) return@derivedStateOf null
-            val viewport = (info.viewportEndOffset - info.viewportStartOffset)
-                .toFloat().coerceAtLeast(1f)
-            val firstRow = visible.first().row
-            val columns = visible.count { it.row == firstRow }.coerceAtLeast(1)
-            val totalRows = (total + columns - 1) / columns
-            val avgRowHeight = visible
-                .groupBy { it.row }
-                .map { (_, group) -> group.first().size.height.toFloat() }
-                .average().toFloat().coerceAtLeast(1f)
-            val contentHeight = avgRowHeight * totalRows
-            if (contentHeight <= viewport) return@derivedStateOf null
-            val extent = (viewport / contentHeight).coerceIn(0f, 1f)
-            val firstItem = visible.first()
-            val offsetPx = firstRow * avgRowHeight - firstItem.offset.y.toFloat()
-            val offset = (offsetPx / contentHeight).coerceIn(0f, 1f - extent)
-            ScrollbarMetrics(offset, extent)
+            if (visible.isEmpty()) return@derivedStateOf null
+            // Single pass: max items-in-a-row (spanning rows don't shrink columns),
+            // and sum of the height of one item per visible row (first-of-row).
+            var maxCols = 0
+            var currentRow = Int.MIN_VALUE
+            var countInRow = 0
+            var rowHeightSum = 0L
+            var rowCount = 0
+            for (i in visible.indices) {
+                val item = visible[i]
+                if (item.row != currentRow) {
+                    if (countInRow > maxCols) maxCols = countInRow
+                    rowHeightSum += item.size.height
+                    rowCount++
+                    currentRow = item.row
+                    countInRow = 1
+                } else {
+                    countInRow++
+                }
+            }
+            if (countInRow > maxCols) maxCols = countInRow
+            val first = visible.first()
+            computeGridScrollMetrics(
+                total = info.totalItemsCount,
+                viewport = info.viewportEndOffset - info.viewportStartOffset,
+                maxItemsInAnyVisibleRow = maxCols,
+                rowHeightSum = rowHeightSum,
+                visibleRowCount = rowCount,
+                firstVisibleRow = first.row,
+                firstItemOffsetY = first.offset.y,
+            )
         }
     }
 
-    thumbOverlay(alpha = { alpha.value }, metrics = { metrics }, color = resolvedColor)
+    drawScrollbarOverlay(alpha = { alpha.value }, metrics = { metrics }, color = resolvedColor)
 }
 
-private data class ScrollbarMetrics(val offsetFraction: Float, val extentFraction: Float)
+internal fun computeListScrollMetrics(
+    total: Int,
+    viewport: Int,
+    visibleCount: Int,
+    visibleSizeSum: Long,
+    firstVisibleIndex: Int,
+    firstVisibleScrollOffset: Int,
+): ScrollbarMetrics? {
+    if (total <= 0 || viewport <= 0 || visibleCount <= 0) return null
+    val avgItemSize = (visibleSizeSum.toFloat() / visibleCount).coerceAtLeast(1f)
+    val contentHeight = avgItemSize * total
+    if (contentHeight <= viewport) return null
+    val extent = (viewport / contentHeight).coerceIn(0f, 1f)
+    val offsetPx = firstVisibleIndex * avgItemSize + firstVisibleScrollOffset
+    val offset = (offsetPx / contentHeight).coerceIn(0f, 1f - extent)
+    return ScrollbarMetrics(offset, extent)
+}
+
+internal fun computeGridScrollMetrics(
+    total: Int,
+    viewport: Int,
+    maxItemsInAnyVisibleRow: Int,
+    rowHeightSum: Long,
+    visibleRowCount: Int,
+    firstVisibleRow: Int,
+    firstItemOffsetY: Int,
+): ScrollbarMetrics? {
+    if (total <= 0 || viewport <= 0 || visibleRowCount <= 0) return null
+    val columns = maxItemsInAnyVisibleRow.coerceAtLeast(1)
+    val totalRows = (total + columns - 1) / columns
+    val avgRowHeight = (rowHeightSum.toFloat() / visibleRowCount).coerceAtLeast(1f)
+    val contentHeight = avgRowHeight * totalRows
+    if (contentHeight <= viewport) return null
+    val extent = (viewport / contentHeight).coerceIn(0f, 1f)
+    val offsetPx = firstVisibleRow * avgRowHeight - firstItemOffsetY
+    val offset = (offsetPx / contentHeight).coerceIn(0f, 1f - extent)
+    return ScrollbarMetrics(offset, extent)
+}
 
 @Composable
 private fun defaultThumbColor(): Color =
@@ -101,7 +154,7 @@ private fun defaultThumbColor(): Color =
 private fun rememberFadingAlpha(isScrolling: () -> Boolean): Animatable<Float, *> {
     val alpha = remember { Animatable(0f) }
     val scrolling by remember { derivedStateOf(isScrolling) }
-    androidx.compose.runtime.LaunchedEffect(scrolling) {
+    LaunchedEffect(scrolling) {
         if (scrolling) {
             alpha.animateTo(1f, tween(FadeInMs))
         } else {
@@ -113,7 +166,7 @@ private fun rememberFadingAlpha(isScrolling: () -> Boolean): Animatable<Float, *
 }
 
 @Composable
-private fun Modifier.thumbOverlay(
+private fun Modifier.drawScrollbarOverlay(
     alpha: () -> Float,
     metrics: () -> ScrollbarMetrics?,
     color: Color,
@@ -122,7 +175,7 @@ private fun Modifier.thumbOverlay(
     val thumbWidthPx = with(density) { ThumbWidth.toPx() }
     val minLenPx = with(density) { ThumbMinLength.toPx() }
     val edgePx = with(density) { EdgeInset.toPx() }
-    return drawWithContent {
+    return this.drawWithContent {
         drawContent()
         val a = alpha()
         if (a <= 0f) return@drawWithContent
@@ -149,6 +202,6 @@ private fun DrawScope.drawThumb(
         color = color.copy(alpha = color.alpha * alpha),
         topLeft = Offset(left, thumbTop),
         size = Size(thumbWidthPx, thumbHeight),
-        cornerRadius = androidx.compose.ui.geometry.CornerRadius(thumbWidthPx / 2f),
+        cornerRadius = CornerRadius(thumbWidthPx / 2f),
     )
 }
