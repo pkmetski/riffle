@@ -76,6 +76,7 @@ class EpubPositionIntegrationTest {
             )
             override fun observeAll(): Flow<List<Server>> = flowOf(listOf(activeServer))
             override suspend fun getActive(): Server = activeServer
+            override suspend fun getById(serverId: String): Server? = activeServer.takeIf { it.id == serverId }
             override suspend fun authenticate(url: ServerUrl, username: String, password: String, insecureAllowed: Boolean, serverType: com.riffle.core.domain.ServerType) =
                 throw UnsupportedOperationException()
             override suspend fun commit(pending: com.riffle.core.domain.PendingServer, hiddenLibraryIds: Set<String>) =

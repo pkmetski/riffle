@@ -22,23 +22,33 @@ class EpubRepositoryImpl(
 ) : EpubRepository {
 
     override suspend fun openEpub(item: LibraryItem): EpubOpenResult {
-        val activeServer = serverRepository.getActive()
-            ?: return EpubOpenResult.NetworkError(IllegalStateException("No active server"))
-        val local = downloadsStore.get(activeServer.id, item.id) ?: cacheStore.get(activeServer.id, item.id)
+        // Resolve the item's OWN server row, not `getActive()`. A user-switch on the same URL mints
+        // a fresh server row (ServerRepositoryImpl.commit → UUID.randomUUID), leaving the previous
+        // row (and its cached files under cacheDir/epubs/<oldId>/) in place. Keying by activeServer
+        // here made the opener look under the new row's dir, miss the truly-cached file, and fall
+        // into the network branch — surfacing "unable to resolve host" when offline even though the
+        // library detail badge (which correctly keys by item.serverId) said the book was cached.
+        val server = serverRepository.getById(item.serverId)
+            ?: return EpubOpenResult.NetworkError(IllegalStateException("No server for item"))
+        val local = downloadsStore.get(item.serverId, item.id) ?: cacheStore.get(item.serverId, item.id)
         val epubFile = if (local != null) {
             local
         } else {
-            val token = tokenStorage.getToken(activeServer.id)
+            val token = tokenStorage.getToken(server.id)
                 ?: return EpubOpenResult.NetworkError(IllegalStateException("No token for server"))
             val ino = item.ebookFileIno ?: run {
-                val r = api.getItemEbookFileIno(activeServer.url.value, item.id, token, activeServer.insecureConnectionAllowed)
+                val r = api.getItemEbookFileIno(server.url.value, item.id, token, server.insecureConnectionAllowed)
                 if (r is NetworkResult.Success) r.value else return EpubOpenResult.NetworkError(r.errorAsThrowable())
             }
-            val download = api.downloadEpub(activeServer.url.value, item.id, ino, token, activeServer.insecureConnectionAllowed)
+            val download = api.downloadEpub(server.url.value, item.id, ino, token, server.insecureConnectionAllowed)
             if (download !is NetworkResult.Success) return EpubOpenResult.NetworkError(download.errorAsThrowable())
-            download.value.use { body -> cacheStore.save(activeServer.id, item.id, body.byteStream()) }
+            download.value.use { body -> cacheStore.save(item.serverId, item.id, body.byteStream()) }
         }
-        val lastPosition = positionStore.load(activeServer.id, item.id)
+        // Position load intentionally stays keyed by activeServer.id — [saveReadingPosition] also
+        // uses it, so this pair stays consistent within a session. Round-trip across a user-switch
+        // is a separate concern tracked apart from this fix.
+        val activeServer = serverRepository.getActive()
+        val lastPosition = activeServer?.let { positionStore.load(it.id, item.id) }
         return EpubOpenResult.Success(epubFile = epubFile, lastPosition = lastPosition)
     }
 
@@ -56,8 +66,10 @@ class EpubRepositoryImpl(
             cacheStore.delete(item.serverId, item.id)
             return EpubDownloadResult.Success
         }
-        val server = serverRepository.getActive()
-            ?: return EpubDownloadResult.NetworkError(IllegalStateException("No active server"))
+        // Same rationale as [openEpub]: resolve by item.serverId so a user-switch (or any second
+        // ServerEntity row for the same URL) still fetches from the item's owning server.
+        val server = serverRepository.getById(item.serverId)
+            ?: return EpubDownloadResult.NetworkError(IllegalStateException("No server for item"))
         val token = tokenStorage.getToken(server.id)
             ?: return EpubDownloadResult.NetworkError(IllegalStateException("No token for server"))
         val ino = item.ebookFileIno ?: run {
