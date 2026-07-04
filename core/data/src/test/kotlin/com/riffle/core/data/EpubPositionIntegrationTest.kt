@@ -103,6 +103,7 @@ class EpubPositionIntegrationTest {
         isDownloaded = false,
         ebookFormat = EbookFormat.Epub,
         ebookFileIno = "ino-42",
+        serverId = "server-1",
     )
 
     @Test
