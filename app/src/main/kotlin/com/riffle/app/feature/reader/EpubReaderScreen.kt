@@ -1262,6 +1262,14 @@ private fun EpubNavigatorView(
     // Written on the JS background thread; read on the main thread in onGetContentRect.
     val pagedSelectionRectCss = remember { AtomicReference<android.graphics.RectF?>(null) }
     val pagedSelectionRectBridge = remember { RiffleSelectionRectBridge(pagedSelectionRectCss) }
+    // Tracks whether Readium is currently in vertical-scroll mode (scroll=true). Read from the
+    // startActionModeForChild wrapper to route the selection popup differently — the JS-captured
+    // CSS rect is viewport-relative and works cleanly for paginated columns, but in scroll mode the
+    // WebView scrolls internally and the CSS coordinates get mis-mapped by the floating toolbar
+    // framework (popup lands below the visible display frame). In scroll mode we bypass the CSS
+    // rect and let Readium's native ActionMode callback populate outRect, then only clamp its
+    // bottom into the visible band.
+    val readiumIsScrollMode = remember { java.util.concurrent.atomic.AtomicBoolean(false) }
     // Covers the reader with a plain page-coloured screen while a cross-resource jump (TOC/search)
     // loads the new chapter. Readium briefly paints the new resource's opener (a figure/graphic) or
     // a white blank before scrolling to the target, and the column-snap nudges the page a beat after;
@@ -2079,8 +2087,17 @@ private fun EpubNavigatorView(
                                     view: android.view.View,
                                     outRect: android.graphics.Rect,
                                 ) {
+                                    // Paginated mode: use the JS-captured CSS rect (Readium's default
+                                    // returns wrong coordinates for selections at the top of a page,
+                                    // placing the toolbar at the bottom of the screen). Scroll mode:
+                                    // the CSS rect from getBoundingClientRect() maps poorly through
+                                    // the WebView's internal scroll → the toolbar can land off-screen
+                                    // below the visible frame. Fall through to Readium's native
+                                    // callback in scroll mode; it already reports the selection in
+                                    // whatever coordinate space the framework expects for a scrolled
+                                    // WebView.
                                     val cssRect = pagedSelectionRectCss.get()
-                                    if (cssRect != null && !cssRect.isEmpty) {
+                                    if (!readiumIsScrollMode.get() && cssRect != null && !cssRect.isEmpty) {
                                         val dpr = view.resources.displayMetrics.density
                                         outRect.set(
                                             (cssRect.left * dpr).toInt(),
@@ -2093,6 +2110,11 @@ private fun EpubNavigatorView(
                                     } else {
                                         super.onGetContentRect(mode, view, outRect)
                                     }
+                                    // Whichever path populated outRect, pull its bottom into the
+                                    // window-visible band if it sticks out below (gesture-bar strip
+                                    // on edge-to-edge layouts). Preserves the framework's above-
+                                    // placement anchor when the selection is already inside the band.
+                                    clampReaderSelectionRectBottom(view, outRect)
                                 }
                                 override fun onCreateActionMode(mode: android.view.ActionMode, menu: android.view.Menu) = inner.onCreateActionMode(mode, menu)
                                 override fun onPrepareActionMode(mode: android.view.ActionMode, menu: android.view.Menu) = inner.onPrepareActionMode(mode, menu)
@@ -2118,6 +2140,12 @@ private fun EpubNavigatorView(
                     container.visibility = View.VISIBLE
                 }
                 container.isScrollMode = formattingPrefs.orientation != ReaderOrientation.Horizontal
+                // MODE-FORK: routes the Readium ActionMode-wrapper's coordinate handling —
+                // paginated columns want the JS-captured CSS rect, vertical scroll wants Readium's
+                // native callback because the CSS rect maps wrong through the WebView's internal
+                // scroll. This is a UI-lifecycle fork (framework popup positioning), not domain
+                // behaviour, so it doesn't belong behind ReaderPresenter.
+                readiumIsScrollMode.set(formattingPrefs.orientation == ReaderOrientation.Vertical)
                 // Pull callbacks capture composable-local State vars; re-set on every update so
                 // back-stack returns (which re-create the composable but reuse the cached View)
                 // always write to the current State instances rather than stale ones.
@@ -2554,6 +2582,55 @@ private fun AudiobookPlayerOverlay(
             )
         }
     }
+}
+
+/**
+ * Pull `outRect.bottom` up into the WebView's window-visible display frame, but only if it
+ * sticks out below. The `outRect.top` — and therefore the framework's anchor for above-placement —
+ * is left untouched whenever the selection is at least partially inside the visible band, so a
+ * word visible at the last row still gets a popup that sits right above it rather than jumping up
+ * to the visible-frame edge. When the selection is entirely below the visible band (real device
+ * with a gesture bar strip painting content the user sees but the system considers off-window),
+ * both edges get pulled to the band bottom so the framework's above-placement forces the toolbar
+ * back into the visible area instead of falling off-screen below.
+ */
+internal fun clampReaderSelectionRectBottom(view: android.view.View, outRect: android.graphics.Rect) {
+    val wvdf = android.graphics.Rect()
+    view.getWindowVisibleDisplayFrame(wvdf)
+    val locWin = IntArray(2)
+    view.getLocationInWindow(locWin)
+    val (newTop, newBottom) = clampReaderSelectionRectBottomYs(
+        rectTop = outRect.top,
+        rectBottom = outRect.bottom,
+        viewportTop = wvdf.top,
+        viewportBottom = wvdf.bottom,
+        viewLocationInWindowY = locWin[1],
+        viewHeight = view.height,
+    )
+    outRect.top = newTop
+    outRect.bottom = newBottom
+}
+
+/**
+ * Pure y-axis logic for [clampReaderSelectionRectBottom]. Returns the new (top, bottom) pair.
+ * Only pulls `rectBottom` (and, if the entire selection is below the band, also `rectTop`) into
+ * the visible band; leaves both alone when the selection is already inside the band.
+ */
+internal fun clampReaderSelectionRectBottomYs(
+    rectTop: Int,
+    rectBottom: Int,
+    viewportTop: Int,
+    viewportBottom: Int,
+    viewLocationInWindowY: Int,
+    viewHeight: Int,
+): Pair<Int, Int> {
+    val viewportBottomLocal = (viewportBottom - viewLocationInWindowY).coerceAtMost(viewHeight)
+    val viewportTopLocal = (viewportTop - viewLocationInWindowY).coerceAtLeast(0)
+    if (viewportBottomLocal <= viewportTopLocal) return rectTop to rectBottom
+    if (rectBottom <= viewportBottomLocal) return rectTop to rectBottom
+    val newBottom = viewportBottomLocal
+    val newTop = if (rectTop > viewportBottomLocal) viewportBottomLocal else rectTop
+    return newTop to newBottom
 }
 
 // Named class (not anonymous) so Android's addJavascriptInterface reflection can discover the
