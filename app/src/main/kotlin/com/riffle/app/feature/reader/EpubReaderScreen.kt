@@ -1218,10 +1218,13 @@ private fun EpubNavigatorView(
     }
 
     // Owns the sentence-highlight + auto-follow LaunchedEffects (see [SentencePlaybackController.Attach]
-    // below). Lambdas re-read the `remember`'d locals above so the controller always sees the current
-    // instance across an orientation flip (Readium <-> Continuous re-creates highlightRenderer /
-    // readiumPresenter without re-creating this controller).
-    val sentencePlaybackController = remember {
+    // below). Keyed on the three renderer/presenter refs so a mode flip (Paginated/Vertical ↔ Continuous)
+    // recreates the controller — the passed lambdas capture the enclosing scope's `val`s at closure-
+    // creation time (Kotlin closures capture by value, not by reference to the local variable slot), so
+    // without these keys a mode flip would leave the controller invoking the pre-flip renderer while the
+    // post-flip WebView surface gets nothing. This was the "highlight paints in previous mode only after
+    // switching modes" regression from the ADR-0039 refactor.
+    val sentencePlaybackController = remember(highlightRenderer, readerPresenter, readiumPresenter) {
         SentencePlaybackController(
             highlightRenderer = { highlightRenderer },
             readerPresenter = { readerPresenter },
@@ -1283,6 +1286,8 @@ private fun EpubNavigatorView(
             latestLocator = { currentLatestLocator() },
             sentenceQuotesProvider = { currentSentenceQuotes },
             sentenceChaptersProvider = { currentSentenceChapters },
+            coroutineScope = coroutineScope,
+            ensureSentenceQuotesReady = { currentEnsureSentenceQuotesReady() },
             navigation = object : ContinuousNavigationSink {
                 override fun onTap() = currentOnTap()
                 override fun onLocator(locator: Locator) = onPositionChanged(locator)
