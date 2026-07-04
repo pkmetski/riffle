@@ -24,7 +24,7 @@ class BookFormattingPreferencesStoreImpl @Inject constructor(
         return BookFormattingOverrides(
             fontSize = entity.fontSize,
             theme = entity.theme?.let { runCatching { ReaderTheme.valueOf(it) }.getOrNull() },
-            fontFamily = entity.fontFamily?.let { runCatching { ReaderFontFamily.valueOf(it) }.getOrNull() },
+            fontFamily = entity.fontFamily?.decodeFontFamily(),
             lineSpacing = entity.lineSpacing,
             margins = entity.margins,
             orientation = entity.orientation?.let { runCatching { ReaderOrientation.valueOf(it) }.getOrNull() },
@@ -49,7 +49,7 @@ class BookFormattingPreferencesStoreImpl @Inject constructor(
                 itemId = itemId,
                 fontSize = overrides.fontSize,
                 theme = overrides.theme?.name,
-                fontFamily = overrides.fontFamily?.name,
+                fontFamily = overrides.fontFamily?.encodePersistName(),
                 lineSpacing = overrides.lineSpacing,
                 margins = overrides.margins,
                 orientation = overrides.orientation?.name,

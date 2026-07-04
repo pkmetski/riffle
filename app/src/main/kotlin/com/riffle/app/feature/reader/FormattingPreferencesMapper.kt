@@ -52,14 +52,14 @@ fun FormattingPreferences.toEpubPreferences(
         },
         // DarkDim is "dark with slightly muted body text" — same dark background, dimmer text.
         textColor = if (theme == ReaderTheme.DarkDim) Color(DARK_DIM_TEXT_COLOR) else null,
-        // Null-gating: when the user value equals the default, pass null so Readium leaves
-        // the corresponding --USER__* CSS variable unset on :root. The typography-override
-        // stylesheet (see TypographyOverride.kt) is gated on the variable's presence, so an
-        // unset variable means the publisher's typography is preserved on uncustomised books.
-        // The moment the user nudges a setting away from default, the variable appears and
-        // both Readium's own rules and our targeted override start applying.
+        // Null-gating: Original (the default) passes null so Readium leaves --USER__fontFamily
+        // unset on :root. The typography-override stylesheet (see TypographyOverride.kt) is
+        // gated on the variable's presence, so an unset variable means the publisher's
+        // typography is preserved on uncustomised books. Every other choice — including the
+        // generic "Serif" — sets the variable and overrides the publisher font.
         fontFamily = when (fontFamily) {
-            ReaderFontFamily.Serif -> null  // Serif is the default; see FormattingPreferences.DEFAULT_FONT_FAMILY
+            ReaderFontFamily.Original -> null  // Default: see FormattingPreferences.DEFAULT_FONT_FAMILY
+            ReaderFontFamily.Serif -> FontFamily("serif")
             ReaderFontFamily.SansSerif -> FontFamily("sans-serif")
             ReaderFontFamily.Monospace -> FontFamily("monospace")
             ReaderFontFamily.Literata -> FontFamily("Literata")

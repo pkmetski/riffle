@@ -71,8 +71,9 @@ internal object ContinuousStyleInjector {
             props["--USER__textColor"] = DARK_DIM_TEXT_HEX
         }
 
-        // Font family: Serif maps to null (no override → publisher/system font, exactly like
-        // Readium). Other families set --USER__fontFamily + the readium-font-on flag.
+        // Font family: Original maps to null (no override → publisher font, exactly like
+        // Readium's null mapping). Other families set --USER__fontFamily + the readium-font-on
+        // flag; the generic "Serif" resolves to the CSS `serif` system font.
         val fontStack = fontFamilyStack(prefs.fontFamily)
         if (fontStack != null) {
             props["--USER__fontOverride"] = "readium-font-on"
@@ -102,13 +103,14 @@ internal object ContinuousStyleInjector {
     }
 
     /**
-     * The font stack for [family], or null when no override should be emitted (Serif → publisher
-     * font). Mirrors Readium's `resolveFontStack`: our app registers Literata/Merriweather/
-     * OpenDyslexic with no alternates, so each resolves to a single-entry stack — identical to
-     * what Scroll mode produces.
+     * The font stack for [family], or null when no override should be emitted (Original →
+     * publisher font). Mirrors Readium's `resolveFontStack`: our app registers Literata/
+     * Merriweather/OpenDyslexic with no alternates, so each resolves to a single-entry stack
+     * — identical to what Scroll mode produces. Generic "Serif" resolves to CSS `serif`.
      */
     private fun fontFamilyStack(family: ReaderFontFamily): List<String>? = when (family) {
-        ReaderFontFamily.Serif -> null
+        ReaderFontFamily.Original -> null
+        ReaderFontFamily.Serif -> listOf("serif")
         ReaderFontFamily.SansSerif -> listOf("sans-serif")
         ReaderFontFamily.Monospace -> listOf("monospace")
         ReaderFontFamily.Literata -> listOf("Literata")

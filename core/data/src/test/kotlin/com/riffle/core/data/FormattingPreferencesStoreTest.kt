@@ -59,6 +59,29 @@ class FormattingPreferencesStoreTest {
         assertEquals(ReaderFontFamily.OpenDyslexic, store.preferences.first().fontFamily)
     }
 
+    // Regression: the new Serif (real CSS serif face) must round-trip through the DataStore
+    // without collapsing to Original. The codec persists it as "SerifV2" specifically so that
+    // legacy "Serif" strings (previously passthrough) can be distinguished from new picks.
+    @Test
+    fun `new Serif round-trips as Serif, not Original`() = testScope.runTest {
+        val store = buildStore()
+        store.update(FormattingPreferences(fontFamily = ReaderFontFamily.Serif))
+        assertEquals(ReaderFontFamily.Serif, store.preferences.first().fontFamily)
+    }
+
+    // Regression: users upgrading from a build where "Serif" was the passthrough default (and
+    // was persisted verbatim by update()) must land on Original, not on the new real-serif
+    // Serif. If this flipped, every upgrader would suddenly see every book forced into CSS
+    // serif rather than the publisher font they had been reading.
+    @Test fun `legacy 'Serif' persisted name decodes to Original`() {
+        assertEquals(ReaderFontFamily.Original, "Serif".decodeFontFamily())
+    }
+
+    @Test fun `new Serif encodes to SerifV2 so it survives the legacy decode`() {
+        assertEquals("SerifV2", ReaderFontFamily.Serif.encodePersistName())
+        assertEquals(ReaderFontFamily.Serif, "SerifV2".decodeFontFamily())
+    }
+
     @Test
     fun `saved lineSpacing is returned after update`() = testScope.runTest {
         val store = buildStore()

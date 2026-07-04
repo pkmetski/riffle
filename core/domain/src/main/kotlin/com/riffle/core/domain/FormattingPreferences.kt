@@ -30,13 +30,13 @@ data class FormattingPreferences(
         const val DEFAULT_JUSTIFY_TEXT: Boolean = false
         const val DEFAULT_AUTO_SCROLL_WPM: Int = 250
         val DEFAULT_THEME: ReaderTheme = ReaderTheme.Light
-        val DEFAULT_FONT_FAMILY: ReaderFontFamily = ReaderFontFamily.Serif
+        val DEFAULT_FONT_FAMILY: ReaderFontFamily = ReaderFontFamily.Original
         val DEFAULT_ORIENTATION: ReaderOrientation = ReaderOrientation.Horizontal
     }
 }
 
 enum class ReaderTheme { Light, Dark, DarkDim, Sepia, Auto }
-enum class ReaderFontFamily { Serif, SansSerif, Monospace, Literata, Merriweather, OpenDyslexic }
+enum class ReaderFontFamily { Original, Serif, SansSerif, Monospace, Literata, Merriweather, OpenDyslexic }
 enum class ReaderOrientation { Horizontal, Vertical, Continuous }
 
 data class ThemeSchedule(
