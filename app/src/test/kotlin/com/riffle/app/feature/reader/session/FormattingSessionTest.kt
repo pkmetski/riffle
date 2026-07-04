@@ -368,4 +368,111 @@ class FormattingSessionTest {
             scope.cancel()
         }
     }
+
+    // 15. pauseAutoScrollFromPill lands in Paused with UserPausedPill so the pill stays visible.
+    @Test
+    fun `pauseAutoScrollFromPill parks state as Paused with UserPausedPill`() = runTest {
+        val dispatcher = UnconfinedTestDispatcher(testScheduler)
+        val autoScrollController = AutoScrollController.forTest(dispatcher)
+        val sessionScope = kotlinx.coroutines.CoroutineScope(dispatcher)
+        val session = FormattingSession(
+            scope = sessionScope,
+            formattingPreferencesStore = FakeFormattingPreferencesStore(),
+            bookFormattingPreferencesStore = FakeBookFormattingPreferencesStore(),
+            wakeLockPreferencesStore = FakeWakeLockPreferencesStore(),
+            listeningPreferencesStore = FakeListeningPreferencesStore(),
+            autoScrollController = autoScrollController,
+            appearanceCoordinator = FakeAppearanceCoordinator(),
+        )
+        try {
+            autoScrollController.dispatch(AutoScrollEvent.Start)
+            assertTrue(autoScrollController.state.value is AutoScrollState.Running)
+
+            session.pauseAutoScrollFromPill()
+            val s = autoScrollController.state.value
+            assertTrue(s is AutoScrollState.Paused)
+            assertEquals(
+                com.riffle.core.domain.autoscroll.PauseCause.UserPausedPill,
+                (s as AutoScrollState.Paused).cause,
+            )
+        } finally {
+            autoScrollController.release()
+            sessionScope.cancel()
+        }
+    }
+
+    // 16. After PILL_AUTO_HIDE_MS elapses in the UserPausedPill state, the session auto-stops so the
+    //     pill doesn't linger forever. Reverting the fix (removing the collectLatest+delay) would
+    //     leave state at Paused indefinitely and flip this assertion red.
+    @Test
+    fun `UserPausedPill auto-stops after PILL_AUTO_HIDE_MS`() = runTest {
+        val dispatcher = UnconfinedTestDispatcher(testScheduler)
+        val autoScrollController = AutoScrollController.forTest(dispatcher)
+        val sessionScope = kotlinx.coroutines.CoroutineScope(dispatcher)
+        val session = FormattingSession(
+            scope = sessionScope,
+            formattingPreferencesStore = FakeFormattingPreferencesStore(),
+            bookFormattingPreferencesStore = FakeBookFormattingPreferencesStore(),
+            wakeLockPreferencesStore = FakeWakeLockPreferencesStore(),
+            listeningPreferencesStore = FakeListeningPreferencesStore(),
+            autoScrollController = autoScrollController,
+            appearanceCoordinator = FakeAppearanceCoordinator(),
+        )
+        try {
+            autoScrollController.dispatch(AutoScrollEvent.Start)
+            session.pauseAutoScrollFromPill()
+            assertTrue(autoScrollController.state.value is AutoScrollState.Paused)
+
+            testScheduler.advanceTimeBy(FormattingSession.PILL_AUTO_HIDE_MS - 1)
+            testScheduler.runCurrent()
+            assertTrue(
+                "pill must still be up just before auto-hide",
+                autoScrollController.state.value is AutoScrollState.Paused,
+            )
+
+            testScheduler.advanceTimeBy(2)
+            testScheduler.runCurrent()
+            assertTrue(
+                "session must auto-stop after PILL_AUTO_HIDE_MS",
+                autoScrollController.state.value is AutoScrollState.Idle,
+            )
+        } finally {
+            autoScrollController.release()
+            sessionScope.cancel()
+        }
+    }
+
+    // 17. Resuming from the pill before the timeout cancels the auto-hide so a live session isn't
+    //     stopped out from under the user.
+    @Test
+    fun `resuming before auto-hide cancels the timer`() = runTest {
+        val dispatcher = UnconfinedTestDispatcher(testScheduler)
+        val autoScrollController = AutoScrollController.forTest(dispatcher)
+        val sessionScope = kotlinx.coroutines.CoroutineScope(dispatcher)
+        val session = FormattingSession(
+            scope = sessionScope,
+            formattingPreferencesStore = FakeFormattingPreferencesStore(),
+            bookFormattingPreferencesStore = FakeBookFormattingPreferencesStore(),
+            wakeLockPreferencesStore = FakeWakeLockPreferencesStore(),
+            listeningPreferencesStore = FakeListeningPreferencesStore(),
+            autoScrollController = autoScrollController,
+            appearanceCoordinator = FakeAppearanceCoordinator(),
+        )
+        try {
+            autoScrollController.dispatch(AutoScrollEvent.Start)
+            session.pauseAutoScrollFromPill()
+            testScheduler.advanceTimeBy(FormattingSession.PILL_AUTO_HIDE_MS / 2)
+
+            session.resumeAutoScrollIfPaused()
+            assertTrue(autoScrollController.state.value is AutoScrollState.Running)
+
+            // Advance well past the timeout — Resumed state must not be auto-stopped.
+            testScheduler.advanceTimeBy(FormattingSession.PILL_AUTO_HIDE_MS * 2)
+            testScheduler.runCurrent()
+            assertTrue(autoScrollController.state.value is AutoScrollState.Running)
+        } finally {
+            autoScrollController.release()
+            sessionScope.cancel()
+        }
+    }
 }

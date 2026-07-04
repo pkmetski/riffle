@@ -736,7 +736,8 @@ fun EpubReaderScreen(
         // Auto-Scroll HUD pill — overlays everything else and survives Immersive Mode.
         com.riffle.app.feature.reader.autoscroll.AutoScrollHudPill(
             state = autoScrollStateForPill,
-            onPause = { viewModel.stopAutoScroll() },
+            onPause = { viewModel.pauseAutoScrollFromPill() },
+            onResume = { viewModel.resumeAutoScrollFromPill() },
             onSlower = { viewModel.nudgeAutoScroll(by = -com.riffle.core.domain.autoscroll.AutoScrollSpeed.STEP_WPM) },
             onFaster = { viewModel.nudgeAutoScroll(by = com.riffle.core.domain.autoscroll.AutoScrollSpeed.STEP_WPM) },
         )
