@@ -5,7 +5,10 @@ import android.content.Context
 import coil.ImageLoader
 import coil.ImageLoaderFactory
 import coil.disk.DiskCache
+import com.riffle.app.sync.kickSweepsOnReconnect
+import com.riffle.core.data.AnnotationSweep
 import com.riffle.core.data.LocalStoreMigrator
+import com.riffle.core.data.ProgressSweep
 import com.riffle.core.domain.ApplicationScope
 import dagger.hilt.EntryPoint
 import dagger.hilt.InstallIn
@@ -30,6 +33,8 @@ class RiffleApplication : Application(), ImageLoaderFactory {
         fun connectivityObserver(): com.riffle.core.domain.ConnectivityObserver
         fun appUpdateRepository(): com.riffle.core.domain.AppUpdateRepository
         fun applicationScope(): ApplicationScope
+        fun annotationSweep(): AnnotationSweep
+        fun progressSweep(): ProgressSweep
     }
 
     override fun attachBaseContext(base: Context) {
@@ -92,18 +97,22 @@ class RiffleApplication : Application(), ImageLoaderFactory {
         com.riffle.app.sync.AnnotationSyncScheduler.ensurePeriodic(this)
 
         // Flush promptly when connectivity returns mid-session (offline edits made while the app kept
-        // running would otherwise wait for the periodic sweep). Skip the initial value; sweep on each
-        // false→true transition.
+        // running would otherwise wait for the periodic sweep). We run the sweeps INLINE rather than
+        // going through the WorkManager schedulers because those schedulers gate on OS-level
+        // `NetworkType.CONNECTED`, the same raw signal PR #402's ValidatedNetworkTracker was built to
+        // work around. On flaky devices (Huawei / Android 13 / captive portals) the validated
+        // observer can already report "online" while the OS constraint still holds the queued sweep
+        // — leaving "will retry automatically when connectivity returns" as a broken promise. The
+        // validated edge is authoritative.
         val connectivity = entryPoint.connectivityObserver()
+        val annotationSweep = entryPoint.annotationSweep()
+        val progressSweep = entryPoint.progressSweep()
         applicationScope.launchSurvivable {
-            var wasOnline = connectivity.isOnline.value
-            connectivity.isOnline.collect { online ->
-                if (online && !wasOnline) {
-                    com.riffle.app.sync.ProgressSyncScheduler.sweepNow(this@RiffleApplication)
-                    com.riffle.app.sync.AnnotationSyncScheduler.sweepNow(this@RiffleApplication)
-                }
-                wasOnline = online
-            }
+            kickSweepsOnReconnect(
+                isOnline = connectivity.isOnline,
+                runProgressSweep = { runCatching { progressSweep.run() } },
+                runAnnotationSweep = { runCatching { annotationSweep.run() } },
+            )
         }
     }
 
