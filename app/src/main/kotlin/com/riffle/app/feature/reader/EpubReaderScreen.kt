@@ -111,6 +111,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicReference
 import org.json.JSONObject
 import org.jsoup.nodes.Document
@@ -1261,7 +1262,14 @@ private fun EpubNavigatorView(
     // RiffleSelBridge on every selectionchange — before the floating action-mode toolbar fires.
     // Written on the JS background thread; read on the main thread in onGetContentRect.
     val pagedSelectionRectCss = remember { AtomicReference<android.graphics.RectF?>(null) }
-    val pagedSelectionRectBridge = remember { RiffleSelectionRectBridge(pagedSelectionRectCss) }
+    // Set by the touchstart snapshot in SELECTION_SPAN_TRACKER_JS: true if a non-collapsed text
+    // selection was live at the start of the current touch. Read in the InputListener.onTap
+    // handler so a tap that only dismisses the text-selection popup does not also toggle
+    // immersive mode. Written on the JS background thread; consumed on the main thread.
+    val pagedSelectionActiveAtDown = remember { AtomicBoolean(false) }
+    val pagedSelectionRectBridge = remember {
+        RiffleSelectionRectBridge(pagedSelectionRectCss, pagedSelectionActiveAtDown)
+    }
     // Tracks whether Readium is currently in vertical-scroll mode (scroll=true). Read from the
     // startActionModeForChild wrapper to route the selection popup differently — the JS-captured
     // CSS rect is viewport-relative and works cleanly for paginated columns, but in scroll mode the
@@ -1489,6 +1497,7 @@ private fun EpubNavigatorView(
     val tapListener = remember {
         object : InputListener {
             override fun onTap(event: TapEvent): Boolean {
+                if (consumeSelectionSuppressedTap(pagedSelectionActiveAtDown)) return false
                 currentOnTap()
                 return false
             }
@@ -2634,13 +2643,30 @@ internal fun clampReaderSelectionRectBottomYs(
     return newTop to newBottom
 }
 
+// Returns true if the tap that just fired should be swallowed because it dismissed an active
+// text-selection popup. Consumes the flag (clears it) so subsequent taps toggle immersive
+// normally. Extracted for JVM unit-testing — the paged InputListener.onTap wraps around a
+// Compose closure that can't be exercised without a live Readium fragment.
+internal fun consumeSelectionSuppressedTap(activeAtDown: AtomicBoolean): Boolean =
+    activeAtDown.getAndSet(false)
+
 // Named class (not anonymous) so Android's addJavascriptInterface reflection can discover the
-// @JavascriptInterface-annotated method reliably across all API levels and R8 configurations.
-private class RiffleSelectionRectBridge(
+// @JavascriptInterface-annotated methods reliably across all API levels and R8 configurations.
+internal class RiffleSelectionRectBridge(
     private val store: java.util.concurrent.atomic.AtomicReference<android.graphics.RectF?>,
+    private val activeAtDown: java.util.concurrent.atomic.AtomicBoolean,
 ) {
     @android.webkit.JavascriptInterface
     fun onRect(left: Double, top: Double, right: Double, bottom: Double) {
         store.set(android.graphics.RectF(left.toFloat(), top.toFloat(), right.toFloat(), bottom.toFloat()))
+    }
+
+    // Called from the touchstart listener in SELECTION_SPAN_TRACKER_JS with the selection state
+    // at the start of the touch (before any tap-to-dismiss has cleared it). The paged
+    // InputListener.onTap handler consumes this on the same touch to decide whether the tap is
+    // a selection-popup dismissal (skip immersive toggle) or a normal tap (toggle as usual).
+    @android.webkit.JavascriptInterface
+    fun onActiveAtDown(active: Boolean) {
+        activeAtDown.set(active)
     }
 }

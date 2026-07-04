@@ -265,6 +265,22 @@ internal val SELECTION_SPAN_TRACKER_JS = """
     (function () {
       if (window.__riffleSelTrackerInstalled) return;
       window.__riffleSelTrackerInstalled = true;
+      // Snapshot selection state at touchstart, BEFORE the browser processes the up-gesture
+      // that would dismiss an active selection. Readium's InputListener.onTap fires from the
+      // WebView's click event and can race with the selectionchange that clears the selection
+      // on tap-outside — reading selection state at tap time is unreliable. Capturing at
+      // touchstart is race-free: the flag is set before the same touch's click reaches the
+      // Kotlin tap listener, which consumes it and skips the immersive-mode toggle so the tap
+      // only dismisses the selection popup.
+      document.addEventListener('touchstart', function () {
+        var s = window.getSelection();
+        var active = !!(s && s.rangeCount > 0 && !s.isCollapsed);
+        try {
+          if (window.RiffleSelBridge && window.RiffleSelBridge.onActiveAtDown) {
+            window.RiffleSelBridge.onActiveAtDown(active);
+          }
+        } catch (e) {}
+      }, true);
       document.addEventListener('selectionchange', function () {
         var s = window.getSelection();
         // Ignore transient collapse/clear events dispatched right before the framework fires the
