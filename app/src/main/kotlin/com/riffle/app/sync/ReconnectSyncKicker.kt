@@ -1,6 +1,7 @@
 package com.riffle.app.sync
 
-import kotlinx.coroutines.flow.StateFlow
+import com.riffle.core.domain.collectReconnects
+import kotlinx.coroutines.flow.Flow
 
 /**
  * Runs the progress + annotation sweeps in-process on every offline→online transition of the
@@ -15,20 +16,15 @@ import kotlinx.coroutines.flow.StateFlow
  * authoritative — honour it by running the sweep directly. WorkManager remains the cold-start
  * and process-death durability backstop.
  *
- * The first StateFlow emission is the current value; only the false→true edge triggers a sweep,
- * so starting online is a no-op.
+ * The edge semantics live in [collectReconnects], shared with the library auto-refresh listener.
  */
 internal suspend fun kickSweepsOnReconnect(
-    isOnline: StateFlow<Boolean>,
+    isOnline: Flow<Boolean>,
     runProgressSweep: suspend () -> Unit,
     runAnnotationSweep: suspend () -> Unit,
 ) {
-    var wasOnline = isOnline.value
-    isOnline.collect { online ->
-        if (online && !wasOnline) {
-            runProgressSweep()
-            runAnnotationSweep()
-        }
-        wasOnline = online
+    isOnline.collectReconnects {
+        runProgressSweep()
+        runAnnotationSweep()
     }
 }

@@ -10,6 +10,7 @@ import com.riffle.core.domain.AnnotationStore
 import com.riffle.core.domain.AudiobookBookmarkStore
 import com.riffle.core.domain.Collection
 import com.riffle.core.domain.ConnectivityObserver
+import com.riffle.core.domain.collectReconnects
 import com.riffle.core.domain.LibraryItem
 import com.riffle.core.domain.LibraryItemOfflineAvailability
 import com.riffle.core.domain.LibraryRefreshResult
@@ -34,7 +35,6 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
@@ -231,13 +231,10 @@ class LibraryItemsViewModel @Inject constructor(
         // Auto-refresh whenever the device returns to online so cached data is refreshed
         // and the offline banner clears without requiring a manual lifecycle resume.
         viewModelScope.launch {
-            connectivityObserver.isOnline
-                .drop(1)
-                .filter { it }
-                .collect {
-                    refresh()
-                    toReadRepository.refresh(libraryId)
-                }
+            connectivityObserver.isOnline.collectReconnects {
+                refresh()
+                toReadRepository.refresh(libraryId)
+            }
         }
         // While a refresh is failing AND the device is online (i.e. server unreachable on an
         // otherwise-healthy network), retry periodically so the banner clears on its own once
