@@ -85,4 +85,18 @@ class TocFlattenTest {
         val flat = flattenToc(toc)
         assertNull(findActiveFlatIndex(toc, flat, null))
     }
+
+    @Test
+    fun `active flat index falls back to first surviving descendant when the matched entry has a blank title`() {
+        // A blank-title top-level container whose child is what the user actually landed on.
+        // The container itself is skipped in flat; findActiveEntry returns the container (its href
+        // matches), then we should scroll to the first descendant that survived flattening.
+        val childA = TocEntry("Child A", "container.xhtml#a")
+        val childB = TocEntry("Child B", "container.xhtml#b")
+        val container = TocEntry(title = "", href = "container.xhtml", children = listOf(childA, childB))
+        val list = listOf(chapter1, container)
+        val flat = flattenToc(list)
+        // flat: Chapter1 subtree (4 rows), then Child A (index 4), Child B (index 5).
+        assertEquals(4, findActiveFlatIndex(list, flat, "container.xhtml"))
+    }
 }
