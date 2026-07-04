@@ -204,6 +204,7 @@ internal class ContinuousWindowController(
         wv.onAnnotationNoteTap = null
         wv.onPlayFromHere = null
         wv.onFootnoteContent = null
+        wv.onCrossReferenceTap = null
         wv.onSelectionActiveChanged = null
         if (recycledViews.size < WINDOW_SIZE) recycledViews.addLast(wv) else wv.destroy()
     }

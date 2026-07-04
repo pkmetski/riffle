@@ -55,7 +55,7 @@ class ContinuousScriptInjectorTest {
         // Assert the resolved-URL branch exists so this can't silently regress.
         assertTrue("expected URL resolution against document.location", js.contains("new URL(href, document.location.href)"))
         assertTrue("expected same-doc test against pathname", js.contains("resolved.pathname === document.location.pathname"))
-        assertTrue("expected fragment extraction from resolved URL", js.contains("resolved.hash"))
+        assertTrue("expected fragment extraction from resolved URL hash", js.contains("resolved.hash"))
     }
 
     @Test
@@ -63,10 +63,38 @@ class ContinuousScriptInjectorTest {
         // We DO want a cross-resource link (part0008.xhtml#foo clicked from part0007.xhtml) to
         // fall through: the WebView's shouldOverrideUrlLoading path handles it via onInternalLink.
         // Regression assertion: the non-same-doc branch must NOT call onCrossReferenceTap.
-        val crossResourceBranch = js.substringAfter("if (!sameDoc)").substringBefore("var id")
+        val crossResourceBranch = js.substringAfter("if (!sameDoc)").substringBefore("if (!id)")
         assertTrue(
             "cross-resource branch must return without calling onCrossReferenceTap in $js",
             crossResourceBranch.contains("return") && !crossResourceBranch.contains("onCrossReferenceTap"),
+        )
+    }
+
+    @Test
+    fun `listener skips URL parsing on the hot path when href starts with a bare hash`() {
+        // Regression: URL parsing used to run unconditionally; the OR shortcut on href.charAt(0)
+        // was only checked AFTER `new URL(...)` had already allocated. Most in-book anchors are
+        // bare '#id' (this is what Readium emits for TOC entries and what most EPUBs use for
+        // in-chapter cross-references), so the bare-hash branch must extract id WITHOUT going
+        // through new URL().
+        val bareHashBranch = js.substringAfter("if (href.charAt(0) === '#')").substringBefore("} else {")
+        assertTrue(
+            "bare-hash branch must not call new URL() in $js",
+            bareHashBranch.contains("href.substring(1)") && !bareHashBranch.contains("new URL"),
+        )
+    }
+
+    @Test
+    fun `listener decodes percent-encoded fragment ids so getElementById matches raw DOM ids`() {
+        // Regression: URL.hash preserves percent-encoding. An EPUB with '<a href="#figure%201">'
+        // pointing at '<figure id="figure 1">' would extract id="figure%201" and native's
+        // document.getElementById would silently fail. decodeURIComponent must run on the
+        // path-prefixed branch (bare '#id' hrefs are already raw — no encoding survives
+        // getAttribute).
+        val pathPrefixedBranch = js.substringAfter("} else {").substringBefore("if (!id) return")
+        assertTrue(
+            "path-prefixed branch must decodeURIComponent the fragment id in $js",
+            pathPrefixedBranch.contains("decodeURIComponent"),
         )
     }
 

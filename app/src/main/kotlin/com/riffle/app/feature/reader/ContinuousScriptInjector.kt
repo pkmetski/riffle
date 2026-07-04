@@ -153,22 +153,32 @@ internal object ContinuousScriptInjector {
                 if (!t || !t.tagName || t.tagName.toLowerCase() !== 'a') return;
                 var href = t.getAttribute('href');
                 if (!href) return;
-                // Resolve `href` against document.location so path-prefixed same-chapter
-                // references ('part0007.xhtml#a2C8' clicked from part0007.xhtml — a common
-                // EPUB convention for cross-references) count as same-document. Without this
-                // the guard used to skip them and the WebView's default fragment scroll ran,
-                // which desyncs child scrollY from the parent's stacked-chapter geometry AND
-                // gives no hook to show the return card. Truly cross-resource links (a
-                // different chapter's pathname) fall through and are handled by
-                // shouldOverrideUrlLoading -> ChapterWebView.onInternalLink.
-                var resolved;
-                try { resolved = new URL(href, document.location.href); }
-                catch (e) { return; }
-                var sameDoc = href.charAt(0) === '#' ||
-                    (resolved.origin === document.location.origin &&
-                     resolved.pathname === document.location.pathname);
-                if (!sameDoc) return;
-                var id = (resolved.hash || '').replace(/^#/, '');
+                // Same-doc classification. Two accepted shapes:
+                //  1. bare '#id' — cheapest to detect, skip URL parsing on the hot path.
+                //  2. path-prefixed same-chapter reference ('part0007.xhtml#a2C8' clicked from
+                //     part0007.xhtml — a common EPUB convention for cross-references). Resolve
+                //     against document.location and compare pathname; without this the guard used
+                //     to skip these and the WebView's default fragment scroll ran, desyncing
+                //     child scrollY from the parent's stacked-chapter geometry AND giving no
+                //     hook to show the return card.
+                // Truly cross-resource links (a different chapter's pathname) fall through and
+                // are handled by shouldOverrideUrlLoading -> ChapterWebView.onInternalLink.
+                var id;
+                if (href.charAt(0) === '#') {
+                    id = href.substring(1);
+                } else {
+                    var resolved;
+                    try { resolved = new URL(href, document.location.href); }
+                    catch (e) { return; }
+                    var sameDoc = resolved.origin === document.location.origin &&
+                        resolved.pathname === document.location.pathname;
+                    if (!sameDoc) return;
+                    id = resolved.hash ? resolved.hash.substring(1) : '';
+                    // resolved.hash preserves percent-encoding (e.g. '#figure%201'); decode so
+                    // native's document.getElementById() matches the raw id in the DOM
+                    // ('figure 1'). getAttribute-driven bare '#id' hrefs are already raw.
+                    try { id = decodeURIComponent(id); } catch (e) {}
+                }
                 if (!id) return;
                 try {
                     if (window.RiffleChapter.onFootnoteAnchorTap(id)) {
