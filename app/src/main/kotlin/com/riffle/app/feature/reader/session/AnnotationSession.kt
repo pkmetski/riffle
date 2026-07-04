@@ -144,10 +144,6 @@ class AnnotationSession @AssistedInject constructor(
     val annotationNavigationEvents: Flow<AnnotationNavigationEvent> = _annotationNavigationChannel.receiveAsFlow()
 
     /**
-     * Reflects the last annotation sync outcome as a UI banner. Null = no cycle has run yet
-     * (initial state; nothing to show). Derived from [AnnotationSyncStatusStore].
-     */
-    /**
      * The app-wide "last-used" highlight colour. New highlights are born in this colour so the
      * user's most recent pick is remembered globally. Kept as a StateFlow so the VM can read
      * [StateFlow.value] synchronously at creation time; the initial value falls back to
@@ -156,6 +152,10 @@ class AnnotationSession @AssistedInject constructor(
     val lastUsedHighlightColor: StateFlow<HighlightColor> = highlightColorPreferencesStore.lastUsedColor
         .stateIn(scope, SharingStarted.Eagerly, HighlightColor.DEFAULT)
 
+    /**
+     * Reflects the last annotation sync outcome as a UI banner. Null = no cycle has run yet
+     * (initial state; nothing to show). Derived from [AnnotationSyncStatusStore].
+     */
     val syncBanner: StateFlow<AnnotationSyncBanner?> = annotationStatusStore.lastCycleOutcome
         .map { outcome ->
             when (outcome) {
