@@ -30,11 +30,11 @@ internal const val SEARCH_DECORATION_ALPHA = 0.30
 internal interface HighlightRenderer {
 
     /**
-     * Applies or clears the readaloud sentence highlight.
+     * Applies or clears the sentence highlight.
      * [fragmentRef] is "href#spanId" when active, null to clear. The fill uses [color]'s [argb]
      * verbatim — colour AND alpha are pre-baked; renderers must not compose additional alpha.
      */
-    suspend fun applyReadaloud(
+    suspend fun applySentenceHighlight(
         fragmentRef: String?,
         quotes: Map<String, SentenceQuote>,
         color: HighlightColor,
@@ -42,7 +42,7 @@ internal interface HighlightRenderer {
 
     /**
      * Applies or clears persisted annotation highlight decorations.
-     * Empty [renders] clears the group. Same colour+alpha invariant as [applyReadaloud].
+     * Empty [renders] clears the group. Same colour+alpha invariant as [applySentenceHighlight].
      */
     suspend fun applyAnnotations(
         renders: List<EpubReaderViewModel.HighlightRender>,

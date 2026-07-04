@@ -55,6 +55,26 @@ Do not open a PR without tests that cover the fix or new functionality. Every bu
 
 Before opening the PR, name the specific assertion(s) that would fail if the fix were reverted line-for-line. If you can't name one, you haven't written the regression test yet.
 
+## Don't blindly update tests
+
+Tests exist to lock in fixes — a passing regression test is the guarantee that a previously-fixed bug hasn't been reintroduced. Every test assertion is a claim someone made about behaviour that must hold. Changing that claim without understanding it is how regressions come back.
+
+This applies in two situations:
+
+**When a test fails after your change.** The default assumption is that your change is wrong, not that the test is stale. "The test is failing so I updated it to match the new output" is the exact motion that reintroduces regressions.
+
+**When updating tests as part of a refactor.** A refactor is supposed to preserve behaviour, so tests should keep passing untouched. If a refactor forces test edits, that's a signal — either the refactor changed behaviour (not a pure refactor), or the test was coupled to internals rather than behaviour. Either way, stop and understand before editing.
+
+Before editing any assertion, fixture, or expected value in an existing test, you must be able to answer:
+
+- What bug or behaviour was this test originally pinning? (Check `git blame` / `git log -p` on the test file — look for the commit that introduced the assertion.)
+- Is that behaviour still required? If yes, the test stays as-is and your code must satisfy it. If no, say so explicitly in the PR body and name the assertion you changed and why.
+- If I flip the assertion, what stops the original bug from silently returning?
+
+Mechanical updates (renaming a symbol the test references, adjusting a constructor signature) are fine. Semantic updates (changing an expected value, removing an assertion, loosening a matcher) require the justification above.
+
+Deleting or `@Ignore`-ing a red test to unblock a PR is never acceptable.
+
 ## Validate before claiming done
 
 Every fix or new feature must be validated as actually working before it is marked complete or sent for review. Acceptable validation is one of:

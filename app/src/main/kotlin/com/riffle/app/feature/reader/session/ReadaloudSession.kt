@@ -591,6 +591,25 @@ class ReadaloudSession @AssistedInject constructor(
         }
     }
 
+    /**
+     * Blocks the caller until the sentence-quote map has been built from the SMIL sidecar or
+     * bundle — used by the "Play from here" selection handler in EpubReaderScreen so it can
+     * resolve the tapped word to a SMIL sentence id, not Readium's HTML anchor.
+     *
+     * If the sidecar observer hasn't yet seeded [ReadaloudQuoteBuilder.quoteBundle] (because
+     * the observer's initial emission raced this call), seed it here from the cached sidecar
+     * so [ReadaloudQuoteBuilder.ensureBuilt] has something to build against.
+     */
+    suspend fun ensureSentenceQuotesReady() {
+        if (quoteBuilder.quoteBundle == null) {
+            // Prefer the on-disk bundle; fall back to the cached sidecar (streaming path).
+            val seed = readaloudAudioRepository.bundleFile(audioServerId, audioBookId)
+                ?: sidecarStore.cachedFile(audioServerId, audioBookId)
+            if (seed != null) quoteBuilder.quoteBundle = seed
+        }
+        quoteBuilder.ensureBuilt()
+    }
+
     /** "Play from here" from the text-selection menu — seek to the clip narrating [fragmentRef]. */
     fun playFromHere(fragmentRef: String) {
         scope.launch {

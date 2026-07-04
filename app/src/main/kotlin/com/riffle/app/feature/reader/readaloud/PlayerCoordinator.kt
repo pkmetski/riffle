@@ -3,13 +3,16 @@ package com.riffle.app.feature.reader.readaloud
 import com.riffle.core.domain.DispatcherProvider
 import com.riffle.core.domain.ReadaloudAudioRepository
 import com.riffle.core.domain.ReadaloudTrack
+import dagger.hilt.android.scopes.ViewModelScoped
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.onEach
 import java.io.File
 import javax.inject.Inject
 
@@ -22,6 +25,7 @@ import javax.inject.Inject
  * Lives as a per-reader instance (constructed by the ViewModel, not a @Singleton) so its scope
  * dies with the reader. The shared [ReadaloudController] it drives is the singleton.
  */
+@ViewModelScoped
 class PlayerCoordinator @Inject constructor(
     private val controller: ReadaloudController,
     private val audioRepository: ReadaloudAudioRepository,
@@ -34,9 +38,11 @@ class PlayerCoordinator @Inject constructor(
 
     @Volatile private var track: ReadaloudTrack? = null
 
-    private val _activeFragmentRef = MutableStateFlow<String?>(null)
+    /** Resolves the audio-clock position to the narrated text fragment (ADR 0039). */
+    private val ticker = AudioClockTicker(controller, { track }, scope)
+
     /** The text fragment currently narrated, or null when nothing is playing/prepared. */
-    override val activeFragmentRef: StateFlow<String?> = _activeFragmentRef.asStateFlow()
+    override val activeFragmentRef: StateFlow<String?> = ticker.currentFragment
 
     private val _narrationProgress = MutableStateFlow<NarrationProgress?>(null)
     /**
@@ -48,20 +54,9 @@ class PlayerCoordinator @Inject constructor(
     override val narrationProgress: StateFlow<NarrationProgress?> = _narrationProgress.asStateFlow()
 
     init {
-        scope.launch {
-            controller.state.collect { s ->
-                val t = track
-                val clip = if (t != null && s.currentAudioSrc != null) {
-                    t.activeClipAt(s.currentAudioSrc, s.positionSec)
-                } else {
-                    null
-                }
-                _activeFragmentRef.value = clip?.textFragmentRef
-                _narrationProgress.value = clip?.let {
-                    NarrationProgress(it.textFragmentRef, it.progressAt(s.positionSec))
-                }
-            }
-        }
+        combine(ticker.currentFragment, ticker.progress) { fragment, fraction ->
+            if (fragment != null && fraction != null) NarrationProgress(fragment, fraction) else null
+        }.onEach { _narrationProgress.value = it }.launchIn(scope)
     }
 
     /** Connects the controller to [bundleFile] and queues [track]'s audio. */
@@ -119,8 +114,7 @@ class PlayerCoordinator @Inject constructor(
     override fun releaseForHandoff() {
         track = null
         controller.releaseForHandoff()
-        _activeFragmentRef.value = null
-        _narrationProgress.value = null
+        ticker.reset()
     }
 
     override fun skipBy(deltaSec: Double) = controller.skipBy(deltaSec)
@@ -139,8 +133,7 @@ class PlayerCoordinator @Inject constructor(
     override fun close() {
         track = null
         controller.stop()
-        _activeFragmentRef.value = null
-        _narrationProgress.value = null
+        ticker.reset()
     }
 
     /** Cancels the state-collection scope. Call when the owning ViewModel is cleared (not on a

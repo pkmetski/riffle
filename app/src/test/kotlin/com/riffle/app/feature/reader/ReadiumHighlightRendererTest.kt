@@ -60,32 +60,32 @@ class ReadiumHighlightRendererTest {
         note = note,
     )
 
-    // ---- applyReadaloud -------------------------------------------------------
+    // ---- applySentenceHighlight -------------------------------------------------------
 
     @Test
-    fun `applyReadaloud with non-null ref applies readaloud group`() = runTest {
-        renderer.applyReadaloud(
+    fun `applySentenceHighlight with non-null ref applies sentence highlight group`() = runTest {
+        renderer.applySentenceHighlight(
             fragmentRef = "chapter1.xhtml#s1",
             quotes = mapOf("s1" to SentenceQuote(before = "", highlight = "Hello world", after = "")),
             color = HighlightColor.BLUE,
         )
-        val readaloudCalls = applied.filter { it.second == "readaloud" }
-        assertEquals(2, readaloudCalls.size) // applyDecorationsWithClear: clear then apply
-        assertEquals(emptyList<Decoration>(), readaloudCalls[0].first)
-        assertEquals(1, readaloudCalls[1].first.size)
-        assertEquals("readaloud_active", readaloudCalls[1].first[0].id)
+        val sentenceCalls = applied.filter { it.second == "readaloud" }
+        assertEquals(2, sentenceCalls.size) // applyDecorationsWithClear: clear then apply
+        assertEquals(emptyList<Decoration>(), sentenceCalls[0].first)
+        assertEquals(1, sentenceCalls[1].first.size)
+        assertEquals("readaloud_active", sentenceCalls[1].first[0].id)
     }
 
     @Test
-    fun `applyReadaloud with null ref clears group and does not re-clear if already clear`() = runTest {
+    fun `applySentenceHighlight with null ref clears group and does not re-clear if already clear`() = runTest {
         // First call: nothing to clear → no dispatch
-        renderer.applyReadaloud(null, emptyMap(), HighlightColor.BLUE)
+        renderer.applySentenceHighlight(null, emptyMap(), HighlightColor.BLUE)
         assertEquals(0, applied.size)
 
         // Apply one, then clear
-        renderer.applyReadaloud("c.xhtml#s1", emptyMap(), HighlightColor.BLUE)
+        renderer.applySentenceHighlight("c.xhtml#s1", emptyMap(), HighlightColor.BLUE)
         applied.clear()
-        renderer.applyReadaloud(null, emptyMap(), HighlightColor.BLUE)
+        renderer.applySentenceHighlight(null, emptyMap(), HighlightColor.BLUE)
         assertEquals(1, applied.size)
         assertEquals(emptyList<Decoration>(), applied[0].first)
         assertEquals("readaloud", applied[0].second)

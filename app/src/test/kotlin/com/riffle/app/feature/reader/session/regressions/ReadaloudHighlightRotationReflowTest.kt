@@ -22,25 +22,25 @@ import org.readium.r2.shared.publication.Locator
  * highlight was absent until the next sentence change.
  *
  * ## The fix (EpubReaderScreen.kt, ~line 1665)
- * The `LaunchedEffect` that calls `highlightRenderer.applyReadaloud(...)` keys on
+ * The `LaunchedEffect` that calls `highlightRenderer.applySentenceHighlight(...)` keys on
  * `pageLoadGeneration.value`, which is bumped in `PaginationListener.onPageLoaded()` on every
- * fresh page load (including rotation). Because the effect re-runs, it calls `applyReadaloud`
+ * fresh page load (including rotation). Because the effect re-runs, it calls `applySentenceHighlight`
  * again on the new fragment with the current `activeFragmentRef` and `sentenceQuotes` — the
  * highlight is re-applied without waiting for the next sentence change.
  *
  * ## Why these tests live here
- * The `LaunchedEffect(pageLoadGeneration.value, ...)` → `applyReadaloud()` chain lives in the
+ * The `LaunchedEffect(pageLoadGeneration.value, ...)` → `applySentenceHighlight()` chain lives in the
  * Compose screen layer (`EpubReaderScreen.kt`) and cannot be driven in a JVM test without
  * Compose infrastructure. The tests below assert the **closest testable invariant**: that
- * `ReadiumHighlightRenderer.applyReadaloud()` — the production class the screen calls — DOES
+ * `ReadiumHighlightRenderer.applySentenceHighlight()` — the production class the screen calls — DOES
  * re-issue decorations on every invocation when a sentence is active, without short-circuiting.
  *
- * If a future change adds "skip if args unchanged" logic to `applyReadaloud`, the rotation fix
+ * If a future change adds "skip if args unchanged" logic to `applySentenceHighlight`, the rotation fix
  * would silently break (the re-key wouldn't re-apply) and these tests would catch it.
  *
  * Production code path:
  *  - EpubReaderScreen.kt ~line 1665 (LaunchedEffect key includes pageLoadGeneration.value)
- *  - ReadiumHighlightRenderer.kt, applyReadaloud()
+ *  - ReadiumHighlightRenderer.kt, applySentenceHighlight()
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class ReadaloudHighlightRotationReflowTest {
@@ -82,52 +82,52 @@ class ReadaloudHighlightRotationReflowTest {
     // ---- 9b: re-apply on rotation (pageLoadGeneration bump) -------------------
 
     /**
-     * Rotation fix invariant: `applyReadaloud` must re-issue decorations on every call when
+     * Rotation fix invariant: `applySentenceHighlight` must re-issue decorations on every call when
      * a sentence is active, even when called with identical arguments.
      *
-     * The screen calls `applyReadaloud` twice with the same `(activeFragmentRef, sentenceQuotes)`
+     * The screen calls `applySentenceHighlight` twice with the same `(activeFragmentRef, sentenceQuotes)`
      * — once before rotation and once after (triggered by the `pageLoadGeneration` key change).
-     * If `applyReadaloud` were to short-circuit on "same args as last call", the second call
+     * If `applySentenceHighlight` were to short-circuit on "same args as last call", the second call
      * (post-rotation) would be a no-op and the highlight would not be re-applied to the new
      * fragment.
      */
     @Test
-    fun `applyReadaloud re-applies decorations on every call when sentence is active`() = runTest {
+    fun `applySentenceHighlight re-applies decorations on every call when sentence is active`() = runTest {
         // First call — simulates the initial highlight apply (pre-rotation)
-        renderer.applyReadaloud(activeRef, quotes, HighlightColor.BLUE)
+        renderer.applySentenceHighlight(activeRef, quotes, HighlightColor.BLUE)
         val afterFirst = applied.count { it.second == "readaloud" }
 
         applied.clear()
 
         // Second call with IDENTICAL args — simulates the post-rotation re-key firing.
         // The screen relies on this NOT being a no-op.
-        renderer.applyReadaloud(activeRef, quotes, HighlightColor.BLUE)
+        renderer.applySentenceHighlight(activeRef, quotes, HighlightColor.BLUE)
         val afterSecond = applied.count { it.second == "readaloud" }
 
         assertTrue(
-            "applyReadaloud must issue decoration calls on the second invocation (rotation re-key). " +
+            "applySentenceHighlight must issue decoration calls on the second invocation (rotation re-key). " +
                 "Got $afterSecond calls; expected > 0.",
             afterSecond > 0,
         )
         assertEquals(
-            "applyReadaloud must issue the same number of decoration calls on both invocations",
+            "applySentenceHighlight must issue the same number of decoration calls on both invocations",
             afterFirst,
             afterSecond,
         )
     }
 
     /**
-     * Each invocation of `applyReadaloud` includes the `readaloud_active` decoration in the
+     * Each invocation of `applySentenceHighlight` includes the `readaloud_active` decoration in the
      * apply call — rotation receives the decoration on the new fragment.
      */
     @Test
-    fun `applyReadaloud decoration id is readaloud_active after rotation re-apply`() = runTest {
+    fun `applySentenceHighlight decoration id is readaloud_active after rotation re-apply`() = runTest {
         // First call (pre-rotation)
-        renderer.applyReadaloud(activeRef, quotes, HighlightColor.BLUE)
+        renderer.applySentenceHighlight(activeRef, quotes, HighlightColor.BLUE)
         applied.clear()
 
         // Second call (post-rotation, triggered by pageLoadGeneration bump)
-        renderer.applyReadaloud(activeRef, quotes, HighlightColor.BLUE)
+        renderer.applySentenceHighlight(activeRef, quotes, HighlightColor.BLUE)
 
         val applyCall = applied.lastOrNull { it.second == "readaloud" && it.first.isNotEmpty() }
         assertTrue(
@@ -143,27 +143,27 @@ class ReadaloudHighlightRotationReflowTest {
 
     /**
      * Without the `pageLoadGeneration` key, the `LaunchedEffect` would NOT re-run after rotation
-     * and `applyReadaloud` would never be called a second time. This test confirms the effect
-     * of that scenario: if `applyReadaloud` is called only ONCE (first call only, no rotation
+     * and `applySentenceHighlight` would never be called a second time. This test confirms the effect
+     * of that scenario: if `applySentenceHighlight` is called only ONCE (first call only, no rotation
      * re-key), a subsequent fragment-replace leaves the decoration state in the old renderer
      * instance. Clearing the applied list and asserting no new decorations exist simulates what
      * the user would see without the fix — no highlight on the new fragment.
      *
-     * This is the "would-fail-without-fix" shape: if applyReadaloud were never called again
+     * This is the "would-fail-without-fix" shape: if applySentenceHighlight were never called again
      * (no pageLoadGeneration key), applied would be empty after clear.
      */
     @Test
-    fun `without second applyReadaloud call no decorations reach the new fragment`() = runTest {
-        renderer.applyReadaloud(activeRef, quotes, HighlightColor.BLUE)
+    fun `without second applySentenceHighlight call no decorations reach the new fragment`() = runTest {
+        renderer.applySentenceHighlight(activeRef, quotes, HighlightColor.BLUE)
         // Simulate rotation: new fragment replaces old one. WITHOUT the pageLoadGeneration fix,
-        // applyReadaloud is not called again, so the new fragment sees no decoration.
+        // applySentenceHighlight is not called again, so the new fragment sees no decoration.
         applied.clear() // new fragment has no decorations yet
 
         // No second call → no decorations for the new fragment.
         val decorationsForNewFragment = applied.filter { it.second == "readaloud" }
         assertEquals(
-            "Without a second applyReadaloud call (no pageLoadGeneration re-key), " +
-                "the new post-rotation fragment receives no readaloud decoration",
+            "Without a second applySentenceHighlight call (no pageLoadGeneration re-key), " +
+                "the new post-rotation fragment receives no sentence highlight decoration",
             0,
             decorationsForNewFragment.size,
         )
@@ -175,12 +175,12 @@ class ReadaloudHighlightRotationReflowTest {
      * new decoration must use the new color.
      */
     @Test
-    fun `applyReadaloud re-applies with updated color on rotation`() = runTest {
-        renderer.applyReadaloud(activeRef, quotes, HighlightColor.BLUE)
+    fun `applySentenceHighlight re-applies with updated color on rotation`() = runTest {
+        renderer.applySentenceHighlight(activeRef, quotes, HighlightColor.BLUE)
         applied.clear()
 
         // Rotation + color change
-        renderer.applyReadaloud(activeRef, quotes, HighlightColor.GREEN)
+        renderer.applySentenceHighlight(activeRef, quotes, HighlightColor.GREEN)
 
         val applyCall = applied.lastOrNull { it.second == "readaloud" && it.first.isNotEmpty() }
         assertTrue("Decoration must be present after rotation with updated color", applyCall != null)

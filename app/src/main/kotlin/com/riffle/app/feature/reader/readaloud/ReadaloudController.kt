@@ -71,7 +71,7 @@ open class ReadaloudController @Inject constructor(
     private val scope: CoroutineScope = applicationScope?.scopeOn(dispatchers.mainImmediate)
         ?: CoroutineScope(SupervisorJob() + dispatchers.mainImmediate)
     private val _state = MutableStateFlow(PlaybackState())
-    val state: StateFlow<PlaybackState> = _state.asStateFlow()
+    open val state: StateFlow<PlaybackState> = _state.asStateFlow()
 
     private val controller: MediaController? get() = connector?.controller
     private var pollJob: Job? = null
@@ -146,13 +146,13 @@ open class ReadaloudController @Inject constructor(
         pushState()
     }
 
-    fun play() {
+    open fun play() {
         logger.d(LogChannel.Handoff) { "RA.play called" }
         controller?.play()
         startPolling()
     }
 
-    fun pause() {
+    open fun pause() {
         controller?.pause()
         // Position is frozen while paused, so stop the 250ms poll; the Player.Listener still pushes
         // state on transitions (incl. the pause itself). Polling resumes on the next play().
@@ -233,7 +233,7 @@ open class ReadaloudController @Inject constructor(
     }
 
     /** Starts playback at the clip narrating [fragmentRef] (the "Play from here" entry point). */
-    fun playFromFragment(fragmentRef: String) {
+    open fun playFromFragment(fragmentRef: String) {
         val clip = track?.clipForFragment(fragmentRef) ?: return
         seekToAudio(clip.audioSrc, clip.clipBeginSec)
         play()
@@ -243,7 +243,7 @@ open class ReadaloudController @Inject constructor(
     fun currentPositionSec(): Double = (controller?.currentPosition ?: 0L) / 1000.0
 
     /** Stops playback and tears the session down — the synced highlight clears when this is called. */
-    fun stop() {
+    open fun stop() {
         pollJob?.cancel()
         pollJob = null
         connector?.release()

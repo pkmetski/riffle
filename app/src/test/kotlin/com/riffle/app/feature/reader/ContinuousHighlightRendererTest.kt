@@ -102,11 +102,11 @@ class ContinuousHighlightRendererTest {
         text = Locator.Text(highlight = text),
     )
 
-    // ---- applyReadaloud -------------------------------------------------------
+    // ---- applySentenceHighlight -------------------------------------------------------
 
     @Test
-    fun `applyReadaloud highlights the sentence text in the correct chapter`() = runTest {
-        renderer.applyReadaloud(
+    fun `applySentenceHighlight highlights the sentence text in the correct chapter`() = runTest {
+        renderer.applySentenceHighlight(
             fragmentRef = "chapter1.xhtml#s42",
             quotes = mapOf("s42" to SentenceQuote(before = "", highlight = "To be or not to be", after = "")),
             color = HighlightColor.BLUE,
@@ -117,13 +117,13 @@ class ContinuousHighlightRendererTest {
     }
 
     @Test
-    fun `applyReadaloud clears previous chapter when chapter changes`() = runTest {
-        renderer.applyReadaloud(
+    fun `applySentenceHighlight clears previous chapter when chapter changes`() = runTest {
+        renderer.applySentenceHighlight(
             fragmentRef = "ch1.xhtml#s1",
             quotes = mapOf("s1" to SentenceQuote(before = "", highlight = "First sentence", after = "")),
             color = HighlightColor.BLUE,
         )
-        renderer.applyReadaloud(
+        renderer.applySentenceHighlight(
             fragmentRef = "ch2.xhtml#s2",
             quotes = mapOf("s2" to SentenceQuote(before = "", highlight = "Second chapter", after = "")),
             color = HighlightColor.BLUE,
@@ -135,19 +135,19 @@ class ContinuousHighlightRendererTest {
     }
 
     @Test
-    fun `applyReadaloud with null ref clears previous chapter`() = runTest {
-        renderer.applyReadaloud(
+    fun `applySentenceHighlight with null ref clears previous chapter`() = runTest {
+        renderer.applySentenceHighlight(
             fragmentRef = "ch1.xhtml#s1",
             quotes = mapOf("s1" to SentenceQuote(before = "", highlight = "A sentence", after = "")),
             color = HighlightColor.BLUE,
         )
-        renderer.applyReadaloud(null, emptyMap(), HighlightColor.BLUE)
+        renderer.applySentenceHighlight(null, emptyMap(), HighlightColor.BLUE)
         assertTrue(fakeTarget.cleared.contains("ch1.xhtml"))
     }
 
     @Test
-    fun `applyReadaloud does nothing when sid not in quotes`() = runTest {
-        renderer.applyReadaloud(
+    fun `applySentenceHighlight does nothing when sid not in quotes`() = runTest {
+        renderer.applySentenceHighlight(
             fragmentRef = "ch1.xhtml#unknown",
             quotes = emptyMap(),
             color = HighlightColor.BLUE,
