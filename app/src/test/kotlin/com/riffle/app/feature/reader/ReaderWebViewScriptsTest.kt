@@ -127,4 +127,56 @@ class ReaderWebViewScriptsTest {
         assertTrue("returns range rect (l/t/r/b)", js.contains("l: stash.l, t: stash.t, r: stash.r, b: stash.b"))
         assertTrue("returns before/after context (bef/aft)", js.contains("bef: stash.bef") && js.contains("aft: stash.aft"))
     }
+
+    // Regression pin: touchstart snapshot in SELECTION_SPAN_TRACKER_JS is what lets the paged
+    // InputListener.onTap swallow a tap-to-dismiss instead of toggling immersive. If this listener
+    // stops firing (removed, moved out of the capture phase, or renamed away from onActiveAtDown),
+    // the tap-to-dismiss bug reappears — the assertions here flip red on any of those regressions.
+    @Test
+    fun `SELECTION_SPAN_TRACKER_JS snapshots selection state at touchstart via RiffleSelBridge`() {
+        val js = SELECTION_SPAN_TRACKER_JS
+        val touchStartIdx = js.indexOf("addEventListener('touchstart'")
+        val selectionChangeIdx = js.indexOf("addEventListener('selectionchange'")
+        assertTrue("touchstart listener is installed", touchStartIdx >= 0)
+        assertTrue("selectionchange listener is still installed", selectionChangeIdx >= 0)
+        assertTrue(
+            "touchstart is registered on the capture phase so it beats descendants",
+            js.substring(touchStartIdx).contains("}, true)"),
+        )
+        assertTrue(
+            "snapshots the selection state at touchstart",
+            js.contains("!!(s && s.rangeCount > 0 && !s.isCollapsed)"),
+        )
+        assertTrue(
+            "reports the snapshot via the RiffleSelBridge.onActiveAtDown method",
+            js.contains("RiffleSelBridge.onActiveAtDown(active)"),
+        )
+    }
+
+    // Regression pin: continuous mode's TAP_LISTENER_JS must skip the immersive toggle when a
+    // selection was live at touchstart. Symmetric to the paged mode's onActiveAtDown gate.
+    @Test
+    fun `TAP_LISTENER_JS suppresses onTap when a selection was live at touchstart`() {
+        val js = ContinuousScriptInjector.TAP_LISTENER_JS
+        val touchStartIdx = js.indexOf("addEventListener('touchstart'")
+        val clickIdx = js.indexOf("addEventListener('click'")
+        val onTapIdx = js.indexOf("RiffleChapter.onTap()")
+        assertTrue("touchstart listener is installed", touchStartIdx >= 0)
+        assertTrue("click listener is still installed", clickIdx >= 0)
+        assertTrue("touchstart is registered before click", touchStartIdx < clickIdx)
+        assertTrue(
+            "snapshots the selection state at touchstart",
+            js.contains("!!(s && s.rangeCount > 0 && !s.isCollapsed)"),
+        )
+        val snapshotIdx = js.indexOf("document.__riffleHadSelAtDown =")
+        assertTrue("snapshot writes to the doc-level flag", snapshotIdx in 0 until onTapIdx)
+        val gateIdx = js.indexOf("if (document.__riffleHadSelAtDown) {")
+        assertTrue("click reads the flag", gateIdx in 0 until onTapIdx)
+        // The gate must clear the flag (so the next tap toggles immersive normally) and return
+        // before reaching RiffleChapter.onTap().
+        val gateBody = js.substring(gateIdx)
+        val clearIdx = gateBody.indexOf("document.__riffleHadSelAtDown = false")
+        val returnIdx = gateBody.indexOf("return;")
+        assertTrue("gate clears the flag before returning", clearIdx in 0 until returnIdx)
+    }
 }

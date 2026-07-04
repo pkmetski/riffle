@@ -109,6 +109,15 @@ internal object ContinuousScriptInjector {
         (function() {
             if (document.__riffleTapWired) return;
             document.__riffleTapWired = true;
+            // Snapshot selection state at touchstart so a tap-to-dismiss doesn't toggle immersive.
+            // Reading the selection inside the click handler is racy: on Chromium the WebView
+            // clears the selection on touchend before dispatching click, so the check would find
+            // no selection and toggle. Snapshotting at touchstart is race-free.
+            document.addEventListener('touchstart', function() {
+                var s = window.getSelection();
+                document.__riffleHadSelAtDown =
+                    !!(s && s.rangeCount > 0 && !s.isCollapsed);
+            }, true);
             document.addEventListener('click', function(e) {
                 // Only a tap on the background toggles the reader chrome. A tap on a link (footnote,
                 // cross-reference, external) or other interactive control must NOT also toggle the
@@ -120,6 +129,12 @@ internal object ContinuousScriptInjector {
                     if (tag === 'a' || tag === 'button' || tag === 'input' ||
                         tag === 'select' || tag === 'textarea' || tag === 'label') return;
                     t = t.parentNode;
+                }
+                // If a selection was live at touchstart, this tap only dismisses the selection popup.
+                // Consume the flag and skip the immersive toggle.
+                if (document.__riffleHadSelAtDown) {
+                    document.__riffleHadSelAtDown = false;
+                    return;
                 }
                 window.RiffleChapter.onTap();
             }, false);
