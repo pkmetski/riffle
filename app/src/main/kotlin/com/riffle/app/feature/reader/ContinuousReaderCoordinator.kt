@@ -82,6 +82,17 @@ internal class ContinuousReaderCoordinator(
                     this.view?.navigateTo(href, 0f)
                 }
             },
+            // Same-document (`#id`) figure / cross-reference tap in the child WebView. The paged
+            // path (FootnoteAnchorBridge → snapToElement) doesn't apply here — Continuous mode
+            // has no Readium fragment to snap against, so we drive the outer viewport ourselves
+            // via view.navigateTo, which finds the target's device-Y through anchorOffsetTopDevicePx
+            // and scrolls the NestedScrollView to it. Capture the pre-jump origin so the return
+            // card can undo the jump, matching the paged-mode behaviour.
+            onCrossReference = { chapterHref, fragmentId ->
+                val origin = latestLocator()
+                if (origin != null) links.captureReturnAnchor(origin)
+                this.view?.navigateTo("$chapterHref#$fragmentId", 0f, alignToTop = false)
+            },
             onRawPosition = { href, progression ->
                 val (spineHrefs, counts) = spinePositionsProvider()
                 val locator = buildContinuousLocator(href, progression, spineHrefs, counts)

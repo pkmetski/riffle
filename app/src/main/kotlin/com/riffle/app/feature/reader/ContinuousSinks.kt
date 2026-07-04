@@ -22,6 +22,13 @@ internal interface ContinuousLinkSink {
     fun onFollowInternalLink(link: Link, origin: Locator)
     fun onExternalLink(url: String)
     fun onFootnote(content: FootnoteContent)
+
+    /**
+     * A same-document non-footnote anchor was tapped and the outer viewport is about to scroll to
+     * it. Passes the pre-jump [origin] so the host can offer a "Back" card, mirroring the paged
+     * mode's [FootnoteAnchorBridge] cross-reference path.
+     */
+    fun captureReturnAnchor(origin: Locator)
 }
 
 /**

@@ -35,6 +35,7 @@ class ContinuousDecorationControllerTest {
         override var onAnnotationTap: ((String, android.graphics.Rect) -> Unit)? = null
         override var onAnnotationNoteTap: ((String, android.graphics.Rect) -> Unit)? = null
         override var onFootnoteContent: ((FootnoteContent) -> Unit)? = null
+        override var onCrossReferenceTap: ((String) -> Unit)? = null
     }
 
     private class FakePort : ContinuousDecorationController.Port {

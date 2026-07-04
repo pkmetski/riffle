@@ -11,8 +11,9 @@ package com.riffle.app.feature.reader
  *     `window.RiffleChapter.onHeightMeasured` so the parent can size the WebView exactly.
  *  2. [TAP_LISTENER_JS] — forwards background taps to `window.RiffleChapter.onTap` to toggle
  *     reader chrome, matching the Readium navigator's `InputListener.onTap` behaviour.
- *  3. [FOOTNOTE_LISTENER_JS] — intercepts same-document anchor clicks before WebView's default
- *     in-page scroll and routes them through `window.RiffleChapter.onFootnoteAnchorTap`.
+ *  3. [SAME_DOC_ANCHOR_LISTENER_JS] — intercepts same-document anchor clicks before WebView's
+ *     default in-page scroll and routes them through `window.RiffleChapter.onFootnoteAnchorTap`
+ *     (footnote popup) or `window.RiffleChapter.onCrossReferenceTap` (figure / heading nav).
  *
  * Decoration JS (readaloud highlights, search, annotations) lives in [ContinuousStyleInjector]
  * because it is applied dynamically (not once at load time) and is tightly coupled to the
@@ -127,30 +128,61 @@ internal object ContinuousScriptInjector {
 
     /**
      * JS that intercepts taps on same-document anchors (`<a href="#id">`) in the capture phase,
-     * before the WebView performs its default in-page scroll, and asks the native side whether the
-     * target is a footnote via `window.RiffleChapter.onFootnoteAnchorTap(id)`. When it is (returns
-     * true) the default scroll is suppressed so the reader shows the footnote popup instead. In
-     * Continuous mode the WebView's own scrolling is disabled, so without this a footnote tap would
-     * do nothing at all. Mirrors the paged-mode [FootnoteAnchorBridge], but per-WebView (each stacked
-     * chapter resolves against its own document) rather than via the single shared bridge.
+     * before the WebView performs its default in-page scroll, and routes them into native so
+     * Continuous mode owns the navigation:
+     *  - `RiffleChapter.onFootnoteAnchorTap(id)` — footnote-style targets show the popup.
+     *  - `RiffleChapter.onCrossReferenceTap(id)` — everything else (figures, section headings,
+     *    other cross-references) triggers a native scroll of the parent viewport plus a
+     *    return-to-position card.
+     *
+     * The default in-page scroll is ALWAYS suppressed: allowing it to run in Continuous mode
+     * moves the child WebView's own `scrollY` (its content is taller than its measured viewport),
+     * shifting the visible band inside the chunk while the parent's stacked-chapter geometry
+     * assumes each WebView shows its content at scrollY=0. That desync makes it look like the
+     * outer scroll can't reach past the shifted band. Mirrors the paged-mode [FootnoteAnchorBridge]
+     * for both branches, but per-WebView (each stacked chapter resolves against its own document)
+     * rather than via the single shared bridge.
      */
-    val FOOTNOTE_LISTENER_JS = """
+    val SAME_DOC_ANCHOR_LISTENER_JS = """
         (function() {
-            if (document.__riffleFootnoteWired) return;
-            document.__riffleFootnoteWired = true;
+            if (document.__riffleSameDocAnchorWired) return;
+            document.__riffleSameDocAnchorWired = true;
             document.addEventListener('click', function(e) {
                 var t = e.target;
                 while (t && t.nodeType === 1 && (!t.tagName || t.tagName.toLowerCase() !== 'a')) t = t.parentNode;
                 if (!t || !t.tagName || t.tagName.toLowerCase() !== 'a') return;
                 var href = t.getAttribute('href');
-                if (!href || href.charAt(0) !== '#') return;
-                var id = href.substring(1);
+                if (!href) return;
+                // Resolve `href` against document.location so path-prefixed same-chapter
+                // references ('part0007.xhtml#a2C8' clicked from part0007.xhtml — a common
+                // EPUB convention for cross-references) count as same-document. Without this
+                // the guard used to skip them and the WebView's default fragment scroll ran,
+                // which desyncs child scrollY from the parent's stacked-chapter geometry AND
+                // gives no hook to show the return card. Truly cross-resource links (a
+                // different chapter's pathname) fall through and are handled by
+                // shouldOverrideUrlLoading -> ChapterWebView.onInternalLink.
+                var resolved;
+                try { resolved = new URL(href, document.location.href); }
+                catch (e) { return; }
+                var sameDoc = href.charAt(0) === '#' ||
+                    (resolved.origin === document.location.origin &&
+                     resolved.pathname === document.location.pathname);
+                if (!sameDoc) return;
+                var id = (resolved.hash || '').replace(/^#/, '');
                 if (!id) return;
                 try {
                     if (window.RiffleChapter.onFootnoteAnchorTap(id)) {
                         e.preventDefault();
                         e.stopPropagation();
+                        return;
                     }
+                    // Not a footnote — treat as a cross-reference (figure, heading, etc.). Native
+                    // scrolls the outer viewport to the target and captures a return anchor. We
+                    // always preventDefault so the WebView's own in-page scroll never runs; see
+                    // this file's KDoc for why that scroll breaks parent scroll continuity.
+                    window.RiffleChapter.onCrossReferenceTap(id);
+                    e.preventDefault();
+                    e.stopPropagation();
                 } catch (err) {}
             }, true);
         })();

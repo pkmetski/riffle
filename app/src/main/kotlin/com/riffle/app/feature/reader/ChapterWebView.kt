@@ -73,6 +73,17 @@ internal class ChapterWebView(context: Context) : WebView(context), ChapterWebVi
     override var onFootnoteContent: ((FootnoteContent) -> Unit)? = null
 
     /**
+     * Called on the main thread when the user taps a same-document anchor that is NOT a footnote
+     * (e.g. a "Figure 3.1" cross-reference). [fragmentId] is the target id, without the leading '#'.
+     * The host scrolls the outer viewport to that element inside this chapter's WebView and shows
+     * the return-to-position card so the user can hop back.
+     *
+     * Distinct from [onInternalLink] which fires only on cross-resource links routed through
+     * `shouldOverrideUrlLoading` — same-document `#id` clicks never reach that path.
+     */
+    override var onCrossReferenceTap: ((fragmentId: String) -> Unit)? = null
+
+    /**
      * The raw HTML of the chapter document currently loaded, retained so a footnote tap can resolve
      * the note body without a re-fetch. Set the first time an HTML resource is served for a load (the
      * main document is fetched first), cleared on each [loadChapter]. The parsed form is cached lazily
@@ -326,7 +337,7 @@ internal class ChapterWebView(context: Context) : WebView(context), ChapterWebVi
         evalJs("window.__riffleToken=$loadToken;")
         evalJs(ContinuousScriptInjector.HEIGHT_MEASUREMENT_JS)
         evalJs(ContinuousScriptInjector.TAP_LISTENER_JS)
-        evalJs(ContinuousScriptInjector.FOOTNOTE_LISTENER_JS)
+        evalJs(ContinuousScriptInjector.SAME_DOC_ANCHOR_LISTENER_JS)
     }
 
     /** Re-inject user styles and re-measure after a preference change. */
@@ -613,8 +624,8 @@ internal class ChapterWebView(context: Context) : WebView(context), ChapterWebVi
         /**
          * Resolve the same-document anchor [id] against this chapter's HTML. Returns true (so the JS
          * suppresses the default in-page scroll) and posts the note body to [onFootnoteContent] when
-         * the target is a footnote; false for a regular cross-reference (left to default handling).
-         * Runs on the JS binder thread — Jsoup parsing here is safe.
+         * the target is a footnote; false for a regular cross-reference (the JS then hands the tap
+         * to [onCrossReferenceTap] below). Runs on the JS binder thread — Jsoup parsing here is safe.
          */
         @JavascriptInterface
         fun onFootnoteAnchorTap(id: String): Boolean {
@@ -623,6 +634,19 @@ internal class ChapterWebView(context: Context) : WebView(context), ChapterWebVi
             val content = FootnoteResolver.extractFootnoteContent(doc, id) ?: return false
             post { this@ChapterWebView.onFootnoteContent?.invoke(content) }
             return true
+        }
+
+        /**
+         * Forwards a non-footnote same-document anchor tap ([id] is the fragment without '#') to the
+         * main thread so the host can scroll the outer viewport to the target and offer a return
+         * card. Runs on the JS binder thread; the [post] hop is what puts the callback on the main
+         * thread. See [ContinuousScriptInjector.SAME_DOC_ANCHOR_LISTENER_JS] for why the JS side
+         * always preventDefaults after calling this (the alternative desyncs child scrollY from the
+         * parent's stacked-chapter geometry).
+         */
+        @JavascriptInterface
+        fun onCrossReferenceTap(id: String) {
+            post { this@ChapterWebView.onCrossReferenceTap?.invoke(id) }
         }
     }
 }

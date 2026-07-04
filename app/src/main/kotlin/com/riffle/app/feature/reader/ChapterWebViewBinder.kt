@@ -24,6 +24,7 @@ internal interface ChapterWebViewLike {
     var onAnnotationTap: ((String, Rect) -> Unit)?
     var onAnnotationNoteTap: ((String, Rect) -> Unit)?
     var onFootnoteContent: ((FootnoteContent) -> Unit)?
+    var onCrossReferenceTap: ((String) -> Unit)?
 }
 
 /**
@@ -51,12 +52,14 @@ internal class ChapterWebViewBinder(
     private val screenRectOf: (ChapterWebViewLike, Rect) -> Rect,
     private val onRenderGone: () -> Unit,
     private val onInternalLink: (href: String) -> Unit,
+    private val onCrossReference: (chapterHref: String, fragmentId: String) -> Unit,
     private val onSelectionActiveChanged: (Boolean) -> Unit,
 ) {
     fun bind(wv: ChapterWebViewLike, annotationsAvailable: Boolean, readaloudAvailable: Boolean) {
         wv.onTap = { navigation.onTap() }
         wv.onRenderGone = { onRenderGone() }
         wv.onInternalLink = { onInternalLink(it) }
+        wv.onCrossReferenceTap = { id -> onCrossReference(wv.chapterHref, id) }
         wv.onExternalLink = { links.onExternalLink(it) }
         wv.annotationsAvailable = annotationsAvailable
         wv.onSelectionActiveChanged = onSelectionActiveChanged

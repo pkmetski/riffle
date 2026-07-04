@@ -104,6 +104,7 @@ internal class ContinuousReaderView @JvmOverloads constructor(
         links: ContinuousLinkSink,
         annotations: ContinuousAnnotationSink,
         onInternalLink: (href: String) -> Unit,
+        onCrossReference: (chapterHref: String, fragmentId: String) -> Unit,
         onRawPosition: (href: String, progression: Float) -> Unit,
         onViewportFractionMeasured: (href: String, fraction: Double) -> Unit = { _, _ -> },
     ) {
@@ -116,6 +117,7 @@ internal class ContinuousReaderView @JvmOverloads constructor(
             screenRectOf = ::screenRectFor,
             onRenderGone = { controller.onRendererGone() },
             onInternalLink = onInternalLink,
+            onCrossReference = onCrossReference,
             onSelectionActiveChanged = ::onChildSelectionActiveChanged,
         )
         controller.install(binder)

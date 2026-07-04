@@ -33,11 +33,13 @@ class ChapterWebViewBinderTest {
         override var onAnnotationTap: ((String, Rect) -> Unit)? = null
         override var onAnnotationNoteTap: ((String, Rect) -> Unit)? = null
         override var onFootnoteContent: ((FootnoteContent) -> Unit)? = null
+        override var onCrossReferenceTap: ((String) -> Unit)? = null
 
         fun emitTap() = onTap?.invoke()
         fun emitAnnotationTap(id: String, rect: Rect) = onAnnotationTap?.invoke(id, rect)
         fun emitAnnotationNoteTap(id: String, rect: Rect) = onAnnotationNoteTap?.invoke(id, rect)
         fun emitFootnoteContent(content: FootnoteContent) = onFootnoteContent?.invoke(content)
+        fun emitCrossReferenceTap(fragmentId: String) = onCrossReferenceTap?.invoke(fragmentId)
     }
 
     private class RecordingNav : ContinuousNavigationSink {
@@ -61,6 +63,7 @@ class ChapterWebViewBinderTest {
         override fun onFollowInternalLink(link: org.readium.r2.shared.publication.Link, origin: Locator) = Unit
         override fun onExternalLink(url: String) = Unit
         override fun onFootnote(content: FootnoteContent) { footnotes += content }
+        override fun captureReturnAnchor(origin: Locator) = Unit
     }
 
     private fun binderOf(
@@ -68,6 +71,7 @@ class ChapterWebViewBinderTest {
         links: ContinuousLinkSink = NoopLinks,
         ann: ContinuousAnnotationSink = RecordingAnn(),
         screenRectOf: (ChapterWebViewLike, Rect) -> Rect = { _, r -> r },
+        onCrossReference: (String, String) -> Unit = { _, _ -> },
     ) = ChapterWebViewBinder(
         navigation = nav,
         links = links,
@@ -75,6 +79,7 @@ class ChapterWebViewBinderTest {
         screenRectOf = screenRectOf,
         onRenderGone = {},
         onInternalLink = {},
+        onCrossReference = onCrossReference,
         onSelectionActiveChanged = {},
     )
 
@@ -90,6 +95,7 @@ class ChapterWebViewBinderTest {
             screenRectOf = { _, r -> rectOf(r.left + 10, r.top + 20, r.right + 10, r.bottom + 20) },
             onRenderGone = {},
             onInternalLink = {},
+            onCrossReference = { _, _ -> },
             onSelectionActiveChanged = {},
         )
         binder.bind(fake, annotationsAvailable = true, readaloudAvailable = true)
@@ -131,6 +137,23 @@ class ChapterWebViewBinderTest {
     }
 
     @Test
+    fun `cross-reference tap forwards fragmentId with the chapter href`() {
+        // Regression: same-doc figure/heading anchors used to be dropped in continuous mode — the
+        // JS listener only asked whether the target was a footnote and let the WebView's default
+        // in-page scroll handle everything else, which broke parent scroll continuity AND skipped
+        // the return-to-position card. The binder must now route the tap up as (chapterHref, id).
+        val calls = mutableListOf<Pair<String, String>>()
+        val fake = FakeChapterWebView(chapterHref = "ch03.xhtml")
+        binderOf(
+            onCrossReference = { chapterHref, fragmentId -> calls += chapterHref to fragmentId },
+        ).bind(fake, annotationsAvailable = false, readaloudAvailable = false)
+
+        fake.emitCrossReferenceTap("c03-fig-0001")
+
+        assertEquals(listOf("ch03.xhtml" to "c03-fig-0001"), calls)
+    }
+
+    @Test
     fun `footnote content forwards to link sink`() {
         val links = RecordingLinks()
         val fake = FakeChapterWebView("chapter-1.xhtml")
@@ -147,5 +170,6 @@ class ChapterWebViewBinderTest {
         override fun onFollowInternalLink(link: org.readium.r2.shared.publication.Link, origin: Locator) = Unit
         override fun onExternalLink(url: String) = Unit
         override fun onFootnote(content: FootnoteContent) = Unit
+        override fun captureReturnAnchor(origin: Locator) = Unit
     }
 }
