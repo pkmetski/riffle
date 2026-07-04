@@ -38,6 +38,12 @@ import androidx.compose.runtime.remember
 import com.riffle.core.domain.autoscroll.AutoScrollState
 import com.riffle.core.domain.autoscroll.speedOrNull
 
+// The HUD pill anchors to BottomEnd inside the system-bar insets, but the reader still paints its
+// chapter rail / reading-status overlay above the nav bar. The pill's bottom padding must clear
+// that overlay strip; a small 12dp value overlaps it. Keep this >= HUD_PILL_MIN_BOTTOM_DP.
+internal const val HUD_PILL_BOTTOM_DP: Int = 35
+internal const val HUD_PILL_MIN_BOTTOM_DP: Int = 24
+
 /**
  * The top-bar toggle icon for Auto-Scroll. When idle, draws the "Play↓ under even text" glyph
  * (three centred text bars over a downward-pointing play triangle). When running, draws a pause
@@ -116,7 +122,7 @@ fun AutoScrollHudPill(
         Row(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier
-                .padding(12.dp)
+                .padding(start = 12.dp, end = 12.dp, top = 12.dp, bottom = HUD_PILL_BOTTOM_DP.dp)
                 .background(Color(0x66_1F_1B_17), CircleShape)
                 .padding(horizontal = 4.dp, vertical = 2.dp)
                 .heightIn(min = 28.dp),
