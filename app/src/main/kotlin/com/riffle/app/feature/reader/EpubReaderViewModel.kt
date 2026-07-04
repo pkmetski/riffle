@@ -940,7 +940,8 @@ class EpubReaderViewModel @Inject constructor(
 
     // ---- Annotations -------------------------------------------------------------------------
 
-    // Create a yellow highlight at the current text selection. Anchors on a CFI range built from
+    // Create a highlight at the current text selection in the user's last-used colour (see
+    // [AnnotationSession.lastUsedHighlightColor]; falls back to yellow first-run). Anchors on a CFI range built from
     // the selection's start progression + selected text (ADR 0024), capturing the snippet + href.
     // Any existing highlights in the same chapter that overlap the new selection are deleted first —
     // a larger selection subsuming a previously highlighted word replaces that highlight.
@@ -980,6 +981,7 @@ class EpubReaderViewModel @Inject constructor(
                 chapterHref = href,
                 textBefore = selectionLocator.text.before ?: "",
                 textAfter = selectionLocator.text.after ?: "",
+                color = annotationSession.lastUsedHighlightColor.value.token,
                 spineIndex = spineIndex,
                 progression = progression,
             )

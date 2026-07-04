@@ -6,6 +6,7 @@ import com.riffle.core.domain.AppTheme
 import com.riffle.core.domain.AppThemeStore
 import com.riffle.core.domain.CoverGridDensityStore
 import com.riffle.core.domain.HighlightColor
+import com.riffle.core.domain.HighlightColorPreferencesStore
 import com.riffle.core.domain.ReadaloudPreferences
 import com.riffle.core.domain.ReadaloudPreferencesStore
 import com.riffle.core.domain.ReadingSpeedStore
@@ -80,5 +81,23 @@ fun ReadaloudPreferencesStore(dataStore: DataStore<Preferences>): ReadaloudPrefe
             store.flow.map { ReadaloudPreferences(highlightColor = it) }
 
         override suspend fun update(prefs: ReadaloudPreferences) = store.update(prefs.highlightColor)
+    }
+}
+
+fun HighlightColorPreferencesStore(dataStore: DataStore<Preferences>): HighlightColorPreferencesStore {
+    // Default YELLOW matches AnnotationStore.DEFAULT_COLOR so first-time users see today's behaviour.
+    // Legacy names outside the current palette (e.g. "PINK", "PURPLE") fall through the enum codec's
+    // unknown-name path to YELLOW; the user can re-pick and it persists thereafter.
+    val store = preferenceStore(
+        dataStore,
+        PrefCodecs.enum(
+            "last_used_highlight_color",
+            HighlightColor.YELLOW,
+            HighlightColor.entries.toTypedArray(),
+        ),
+    )
+    return object : HighlightColorPreferencesStore {
+        override val lastUsedColor: Flow<HighlightColor> = store.flow
+        override suspend fun setLastUsedColor(value: HighlightColor) = store.update(value)
     }
 }
