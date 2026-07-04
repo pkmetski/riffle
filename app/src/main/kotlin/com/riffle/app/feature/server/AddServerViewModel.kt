@@ -27,6 +27,7 @@ import com.riffle.core.domain.ServerUrl
 import com.riffle.core.domain.TokenStorage
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
@@ -35,6 +36,7 @@ import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
+import javax.inject.Named
 
 /**
  * Backend kind selectable in [AddServerScreen]. Distinct from [ServerType] because WebDAV is
@@ -54,6 +56,7 @@ class AddServerViewModel @Inject constructor(
     private val readaloudMatcher: ReadaloudMatchingService,
     private val tokenStorage: TokenStorage,
     private val clock: Clock,
+    @Named(WEBDAV_BANNER_TICKER) private val bannerTicker: Flow<Unit>,
     savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
 
@@ -87,7 +90,8 @@ class AddServerViewModel @Inject constructor(
         webdavConfigStore.observe(),
         webdavStatusStore.lastCycleOutcome,
         webdavStatusStore.lastSuccessAtMs,
-    ) { config, outcome, lastSuccessAtMs ->
+        bannerTicker,
+    ) { config, outcome, lastSuccessAtMs, _ ->
         config?.let { webdavBanner(it, outcome, lastSuccessAtMs) }
     }.stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
@@ -318,6 +322,15 @@ class AddServerViewModel @Inject constructor(
             elapsedSec < 86_400 -> "${elapsedSec / 3_600} h ago"
             else -> "${elapsedSec / 86_400} d ago"
         }
+    }
+
+    companion object {
+        /**
+         * Hilt qualifier for the [webdavBanner]'s wall-clock ticker. See [WebdavBannerTickerModule]
+         * for the production ticker (once a minute), and [AddServerViewModelTest] for the test
+         * override.
+         */
+        const val WEBDAV_BANNER_TICKER = "webdavBannerTicker"
     }
 }
 

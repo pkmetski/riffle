@@ -18,9 +18,11 @@ import com.riffle.core.domain.ServerUrl
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.emptyFlow
+import kotlinx.coroutines.flow.flowOf
 import okhttp3.OkHttpClient
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -149,12 +151,19 @@ class AddServerViewModelTest {
         override suspend fun clear() {}
     }
 
+    private class MutableClock(var nowMs: Long = 0L) : com.riffle.core.domain.Clock {
+        override fun nowMs(): Long = nowMs
+        override fun nowNs(): Long = nowMs * 1_000_000L
+    }
+
     private fun makeVm(
         repository: ServerRepository,
         savedState: SavedStateHandle = SavedStateHandle(),
         configStore: AnnotationSyncConfigStore = NullConfigStore,
         tokenStorage: com.riffle.core.domain.TokenStorage = io.mockk.mockk(relaxed = true),
         statusStore: AnnotationSyncStatusStore = AnnotationSyncStatusStore(),
+        clock: com.riffle.core.domain.Clock = MutableClock(),
+        bannerTicker: Flow<Unit> = flowOf(Unit),
     ): AddServerViewModel = AddServerViewModel(
         repository = repository,
         webdavConfigStore = configStore,
@@ -164,10 +173,8 @@ class AddServerViewModelTest {
         storytellerSyncer = io.mockk.mockk(relaxed = true),
         readaloudMatcher = io.mockk.mockk(relaxed = true),
         tokenStorage = tokenStorage,
-        clock = object : com.riffle.core.domain.Clock {
-            override fun nowMs(): Long = 0L
-            override fun nowNs(): Long = 0L
-        },
+        clock = clock,
+        bannerTicker = bannerTicker,
         savedStateHandle = savedState,
     )
 
@@ -408,6 +415,51 @@ class AddServerViewModelTest {
         assertNotNull(synced)
         assertEquals(WebdavBannerKind.Synced, synced!!.kind)
         assertEquals("just now", synced.lastSyncRelative)
+    }
+
+    /**
+     * Regression: when offline, WorkManager gates the sweep on CONNECTED and no CycleOutcome
+     * reports fire. Without a wall-clock ticker in the combine, the "Last sync N ago" string
+     * froze at whatever elapsed value was computed when connectivity dropped and never advanced.
+     * The banner must re-emit on ticker signals alone so "1 h ago" becomes "2 h ago" without any
+     * upstream state change. In production the ticker fires once a minute
+     * ([WebdavBannerTickerModule]); here the test drives it explicitly.
+     */
+    @Test
+    fun `webdavBanner lastSyncRelative advances with wall-clock time when no cycle outcomes fire`() = runTest {
+        val existing = com.riffle.core.domain.AnnotationSyncConfig(
+            baseUrl = "https://dav.example.com/store",
+            username = "syncuser",
+            password = "syncpass",
+        )
+        val statusStore = AnnotationSyncStatusStore()
+        val clock = MutableClock(nowMs = 0L)
+        // Successful sync 1 hour ago.
+        val oneHourMs = 60L * 60L * 1_000L
+        clock.nowMs = oneHourMs
+        statusStore.report(CycleOutcome.Success(atMs = 0L))
+        val ticker = MutableSharedFlow<Unit>(replay = 1).apply { tryEmit(Unit) }
+
+        val vm = makeVm(
+            fakeRepo(AuthenticateResult.WrongCredentials("x")),
+            savedState = SavedStateHandle(mapOf("type" to "webdav")),
+            configStore = RecordingConfigStore(initial = existing),
+            statusStore = statusStore,
+            clock = clock,
+            bannerTicker = ticker,
+        )
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals("1 h ago", vm.webdavBanner.value!!.lastSyncRelative)
+
+        // Simulate going offline for another hour: only wall-clock advances. No config change,
+        // no new CycleOutcome. Banner must still update because the ticker fires the combine,
+        // which re-reads clock.nowMs().
+        clock.nowMs = 2 * oneHourMs
+        ticker.emit(Unit)
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals("2 h ago", vm.webdavBanner.value!!.lastSyncRelative)
     }
 
     @Test
