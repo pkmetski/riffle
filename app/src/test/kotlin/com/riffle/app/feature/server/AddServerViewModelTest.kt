@@ -4,6 +4,8 @@ import androidx.lifecycle.SavedStateHandle
 import com.riffle.core.data.AnnotationSyncStatusStore
 import com.riffle.core.data.CycleOutcome
 import com.riffle.core.data.WebDavAnnotationSyncTargetFactory
+import com.riffle.core.database.AnnotationDao
+import com.riffle.core.database.AnnotationEntity
 import com.riffle.core.domain.AnnotationSweepEnqueuer
 import com.riffle.core.domain.AnnotationSyncConfig
 import com.riffle.core.domain.AnnotationSyncConfigStore
@@ -163,6 +165,7 @@ class AddServerViewModelTest {
         tokenStorage: com.riffle.core.domain.TokenStorage = io.mockk.mockk(relaxed = true),
         statusStore: AnnotationSyncStatusStore = AnnotationSyncStatusStore(),
         clock: com.riffle.core.domain.Clock = MutableClock(),
+        annotationDao: AnnotationDao = stubAnnotationDao(pendingBookCount = 0),
         bannerTicker: Flow<Unit> = flowOf(Unit),
     ): AddServerViewModel = AddServerViewModel(
         repository = repository,
@@ -174,9 +177,31 @@ class AddServerViewModelTest {
         readaloudMatcher = io.mockk.mockk(relaxed = true),
         tokenStorage = tokenStorage,
         clock = clock,
+        annotationDao = annotationDao,
         bannerTicker = bannerTicker,
         savedStateHandle = savedState,
     )
+
+    private fun stubAnnotationDao(pendingBookCount: Int): AnnotationDao = object : AnnotationDao {
+        override fun observeForItem(serverId: String, itemId: String) = flowOf(emptyList<AnnotationEntity>())
+        override fun observeForServer(serverId: String) = flowOf(emptyList<AnnotationEntity>())
+        override suspend fun getForItem(serverId: String, itemId: String) = emptyList<AnnotationEntity>()
+        override suspend fun getAllForItemIncludingDeleted(serverId: String, itemId: String) = emptyList<AnnotationEntity>()
+        override suspend fun getById(id: String): AnnotationEntity? = null
+        override suspend fun getByItemAndCfi(serverId: String, itemId: String, cfi: String): AnnotationEntity? = null
+        override suspend fun upsert(entity: AnnotationEntity) {}
+        override suspend fun upsertAll(annotations: List<AnnotationEntity>) {}
+        override suspend fun tombstone(id: String, updatedAt: Long, deviceId: String) {}
+        override suspend fun recolor(id: String, color: String, updatedAt: Long, deviceId: String) {}
+        override suspend fun updateNote(id: String, note: String?, updatedAt: Long, deviceId: String) {}
+        override fun observeAnnotationsByPosition(serverId: String, itemId: String) = flowOf(emptyList<AnnotationEntity>())
+        override suspend fun renameBookmark(id: String, title: String, updatedAt: Long, deviceId: String) {}
+        override fun observePendingCountForBook(serverId: String, itemId: String) = flowOf(0)
+        override fun observePendingBookCountAcrossAll() = flowOf(pendingBookCount)
+        override suspend fun dirtyServerItems() = emptyList<AnnotationDao.DirtyServerItem>()
+        override suspend fun markSynced(ids: List<String>, syncedAt: Long) {}
+        override suspend fun purgeAgedTombstones(serverId: String, itemId: String, cutoff: Long): Int = 0
+    }
 
     @Test
     fun `updateHost auto-splits a pasted http url into scheme and host`() {
@@ -415,6 +440,94 @@ class AddServerViewModelTest {
         assertNotNull(synced)
         assertEquals(WebdavBannerKind.Synced, synced!!.kind)
         assertEquals("just now", synced.lastSyncRelative)
+    }
+
+    /**
+     * Regression: the AddServer WebDAV banner and the main Settings row derive their kind from the
+     * same [com.riffle.app.feature.annotationsync.deriveAnnotationSyncKind] function, so a Success
+     * outcome with un-pushed books must downgrade to Pending on the banner too — otherwise the
+     * banner would say "Synced" while Settings said "N book(s) pending". Pin the banner side here;
+     * `SettingsViewModelTest` pins the Settings side; both would flip if the shared rule regressed.
+     */
+    @Test
+    fun `webdavBanner is Pending when Success outcome has pending books unsynced`() = runTest {
+        val existing = com.riffle.core.domain.AnnotationSyncConfig(
+            baseUrl = "https://dav.example.com/store",
+            username = "syncuser",
+            password = "syncpass",
+        )
+        val statusStore = AnnotationSyncStatusStore().apply {
+            report(CycleOutcome.Success(1_000L))
+        }
+        val vm = makeVm(
+            fakeRepo(AuthenticateResult.WrongCredentials("x")),
+            savedState = SavedStateHandle(mapOf("type" to "webdav")),
+            configStore = RecordingConfigStore(initial = existing),
+            statusStore = statusStore,
+            annotationDao = stubAnnotationDao(pendingBookCount = 2),
+        )
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        val banner = vm.webdavBanner.value
+        assertNotNull(banner)
+        assertEquals(WebdavBannerKind.Pending, banner!!.kind)
+        assertTrue(
+            "prescription should mention pending books, got: ${banner.prescription}",
+            banner.prescription?.contains("2 book") == true,
+        )
+    }
+
+    /**
+     * Complements the previous test: when the pending count reactively drops to 0 (books get
+     * pushed), the banner must flip Pending → Synced without navigating away and back. This is the
+     * "update in realtime" half of the invariant — the Settings row also observes the same
+     * pending-book count Flow, so both surfaces move together.
+     */
+    @Test
+    fun `webdavBanner flips Pending to Synced when pending book count reactively drops to 0`() = runTest {
+        val existing = com.riffle.core.domain.AnnotationSyncConfig(
+            baseUrl = "https://dav.example.com/store",
+            username = "syncuser",
+            password = "syncpass",
+        )
+        val statusStore = AnnotationSyncStatusStore().apply {
+            report(CycleOutcome.Success(1_000L))
+        }
+        val pending = MutableStateFlow(2)
+        val dao = object : AnnotationDao {
+            override fun observeForItem(serverId: String, itemId: String) = flowOf(emptyList<AnnotationEntity>())
+            override fun observeForServer(serverId: String) = flowOf(emptyList<AnnotationEntity>())
+            override suspend fun getForItem(serverId: String, itemId: String) = emptyList<AnnotationEntity>()
+            override suspend fun getAllForItemIncludingDeleted(serverId: String, itemId: String) = emptyList<AnnotationEntity>()
+            override suspend fun getById(id: String): AnnotationEntity? = null
+            override suspend fun getByItemAndCfi(serverId: String, itemId: String, cfi: String): AnnotationEntity? = null
+            override suspend fun upsert(entity: AnnotationEntity) {}
+            override suspend fun upsertAll(annotations: List<AnnotationEntity>) {}
+            override suspend fun tombstone(id: String, updatedAt: Long, deviceId: String) {}
+            override suspend fun recolor(id: String, color: String, updatedAt: Long, deviceId: String) {}
+            override suspend fun updateNote(id: String, note: String?, updatedAt: Long, deviceId: String) {}
+            override fun observeAnnotationsByPosition(serverId: String, itemId: String) = flowOf(emptyList<AnnotationEntity>())
+            override suspend fun renameBookmark(id: String, title: String, updatedAt: Long, deviceId: String) {}
+            override fun observePendingCountForBook(serverId: String, itemId: String) = flowOf(0)
+            override fun observePendingBookCountAcrossAll() = pending
+            override suspend fun dirtyServerItems() = emptyList<AnnotationDao.DirtyServerItem>()
+            override suspend fun markSynced(ids: List<String>, syncedAt: Long) {}
+            override suspend fun purgeAgedTombstones(serverId: String, itemId: String, cutoff: Long): Int = 0
+        }
+        val vm = makeVm(
+            fakeRepo(AuthenticateResult.WrongCredentials("x")),
+            savedState = SavedStateHandle(mapOf("type" to "webdav")),
+            configStore = RecordingConfigStore(initial = existing),
+            statusStore = statusStore,
+            annotationDao = dao,
+        )
+        testDispatcher.scheduler.advanceUntilIdle()
+        assertEquals(WebdavBannerKind.Pending, vm.webdavBanner.value!!.kind)
+
+        pending.value = 0
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(WebdavBannerKind.Synced, vm.webdavBanner.value!!.kind)
     }
 
     /**
