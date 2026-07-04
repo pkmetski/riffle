@@ -8,6 +8,7 @@ import com.riffle.core.database.AnnotationEntity
 import com.riffle.core.domain.Annotation
 import com.riffle.core.domain.AnnotationStore
 import com.riffle.core.domain.HighlightColor
+import com.riffle.core.domain.HighlightColorPreferencesStore
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedFactory
 import dagger.assisted.AssistedInject
@@ -58,6 +59,7 @@ class AnnotationSession @AssistedInject constructor(
     @Assisted private val scope: CoroutineScope,
     private val annotationStore: AnnotationStore,
     private val annotationStatusStore: AnnotationSyncStatusStore,
+    private val highlightColorPreferencesStore: HighlightColorPreferencesStore,
     private val progressFlushScope: ProgressFlushScope,
     /** Called on [bind] after [syncOnOpen]; returns the [Job] backing the live-pull loop. */
     @Assisted private val startLiveSync: (serverId: String, namespace: String, itemId: String) -> Job,
@@ -140,6 +142,15 @@ class AnnotationSession @AssistedInject constructor(
      */
     private val _annotationNavigationChannel = Channel<AnnotationNavigationEvent>(Channel.CONFLATED)
     val annotationNavigationEvents: Flow<AnnotationNavigationEvent> = _annotationNavigationChannel.receiveAsFlow()
+
+    /**
+     * The app-wide "last-used" highlight colour. New highlights are born in this colour so the
+     * user's most recent pick is remembered globally. Kept as a StateFlow so the VM can read
+     * [StateFlow.value] synchronously at creation time; the initial value falls back to
+     * [HighlightColor.DEFAULT] until DataStore emits its first value.
+     */
+    val lastUsedHighlightColor: StateFlow<HighlightColor> = highlightColorPreferencesStore.lastUsedColor
+        .stateIn(scope, SharingStarted.Eagerly, HighlightColor.DEFAULT)
 
     /**
      * Reflects the last annotation sync outcome as a UI banner. Null = no cycle has run yet
@@ -267,9 +278,14 @@ class AnnotationSession @AssistedInject constructor(
         _annotationNavigationChannel.trySend(AnnotationNavigationEvent(locator, isBookmark = false))
     }
 
-    /** Recolour an existing highlight; [annotationStore] re-emits → [highlightRenders] re-renders. */
+    /**
+     * Recolour an existing highlight; [annotationStore] re-emits → [highlightRenders] re-renders.
+     * Also persists [color] as the app-wide last-used highlight colour so subsequent new
+     * highlights are born in it.
+     */
     suspend fun recolorHighlight(id: String, color: HighlightColor) {
         annotationStore.recolor(id, color.token)
+        highlightColorPreferencesStore.setLastUsedColor(color)
         scheduleSync(boundServerId ?: return, boundNamespace ?: return, boundItemId ?: return)
     }
 

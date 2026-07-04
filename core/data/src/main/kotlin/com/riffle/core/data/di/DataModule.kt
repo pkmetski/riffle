@@ -61,6 +61,10 @@ annotation class ReadaloudPreferencesDataStore
 
 @Qualifier
 @Retention(AnnotationRetention.BINARY)
+annotation class HighlightColorPreferencesDataStore
+
+@Qualifier
+@Retention(AnnotationRetention.BINARY)
 annotation class ReadingSpeedDataStore
 
 @Qualifier

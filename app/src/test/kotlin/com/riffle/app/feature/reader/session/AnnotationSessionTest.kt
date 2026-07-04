@@ -9,6 +9,7 @@ import com.riffle.core.data.CycleOutcome
 import com.riffle.core.domain.Annotation
 import com.riffle.core.domain.AnnotationStore
 import com.riffle.core.domain.HighlightColor
+import com.riffle.core.domain.HighlightColorPreferencesStore
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
@@ -165,11 +166,21 @@ class AnnotationSessionTest {
         )
     }
 
+    private class FakeHighlightColorPreferencesStore(
+        initial: HighlightColor = HighlightColor.DEFAULT,
+    ) : HighlightColorPreferencesStore {
+        private val state = MutableStateFlow(initial)
+        override val lastUsedColor: Flow<HighlightColor> = state
+        override suspend fun setLastUsedColor(value: HighlightColor) { state.value = value }
+        fun currentValue(): HighlightColor = state.value
+    }
+
     private fun makeSession(
         store: FakeAnnotationStore = FakeAnnotationStore(),
         syncOps: FakeSyncOps,
         scope: CoroutineScope,
         statusStore: AnnotationSyncStatusStore = AnnotationSyncStatusStore(),
+        colorPrefsStore: HighlightColorPreferencesStore = FakeHighlightColorPreferencesStore(),
         flushScope: ProgressFlushScope = ProgressFlushScope(
             TestApplicationScope(CoroutineScope(UnconfinedTestDispatcher() + SupervisorJob()))
         ),
@@ -177,6 +188,7 @@ class AnnotationSessionTest {
         scope = scope,
         annotationStore = store,
         annotationStatusStore = statusStore,
+        highlightColorPreferencesStore = colorPrefsStore,
         progressFlushScope = flushScope,
         startLiveSync = syncOps.makeStartLiveSync(scope),
         scheduleSync = syncOps.makeScheduleDebounce(),
@@ -249,6 +261,50 @@ class AnnotationSessionTest {
 
         assertEquals(listOf("h1" to HighlightColor.BLUE.token), store.recoloredIds)
         assertEquals(1, syncOps.scheduleDebounceCount)
+
+        sessionScope.coroutineContext[Job]?.cancel()
+    }
+
+    /**
+     * Regression: recolorHighlight must ALSO persist the picked colour to the app-wide
+     * last-used store, so subsequent new highlights are born in that colour. Reverting the
+     * `setLastUsedColor` call in AnnotationSession.recolorHighlight flips this assertion.
+     */
+    @Test
+    fun `recolorHighlight persists colour as app-wide last-used`() = runTest {
+        val dispatcher = UnconfinedTestDispatcher(testScheduler)
+        val sessionScope = CoroutineScope(dispatcher)
+        val store = FakeAnnotationStore()
+        val syncOps = FakeSyncOps()
+        val colorPrefs = FakeHighlightColorPreferencesStore(initial = HighlightColor.YELLOW)
+        val session = makeSession(store = store, syncOps = syncOps, scope = sessionScope, colorPrefsStore = colorPrefs)
+
+        defaultBind(session)
+
+        session.recolorHighlight("h1", HighlightColor.GREEN)
+
+        assertEquals(HighlightColor.GREEN, colorPrefs.currentValue())
+
+        sessionScope.coroutineContext[Job]?.cancel()
+    }
+
+    /**
+     * Regression: [AnnotationSession.lastUsedHighlightColor] must surface the stored value
+     * synchronously via its StateFlow, so the VM can read `.value` at highlight-creation time
+     * (see [EpubReaderViewModel.createHighlight]). If the wiring is broken and the SharingStarted
+     * mode is changed away from Eagerly, the initial value stays at DEFAULT and this test flips.
+     */
+    @Test
+    fun `lastUsedHighlightColor StateFlow reflects the preferences store`() = runTest {
+        val dispatcher = UnconfinedTestDispatcher(testScheduler)
+        val sessionScope = CoroutineScope(dispatcher)
+        val colorPrefs = FakeHighlightColorPreferencesStore(initial = HighlightColor.BLUE)
+        val session = makeSession(syncOps = FakeSyncOps(), scope = sessionScope, colorPrefsStore = colorPrefs)
+
+        assertEquals(HighlightColor.BLUE, session.lastUsedHighlightColor.value)
+
+        colorPrefs.setLastUsedColor(HighlightColor.GREEN)
+        assertEquals(HighlightColor.GREEN, session.lastUsedHighlightColor.value)
 
         sessionScope.coroutineContext[Job]?.cancel()
     }

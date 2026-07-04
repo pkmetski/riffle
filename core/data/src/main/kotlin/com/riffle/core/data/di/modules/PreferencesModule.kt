@@ -16,6 +16,7 @@ import com.riffle.core.data.di.CoverGridDensityDataStore
 import com.riffle.core.data.di.DeviceIdDataStore
 import com.riffle.core.data.di.DeviceLabelDataStore
 import com.riffle.core.data.di.FormattingPreferencesDataStore
+import com.riffle.core.data.di.HighlightColorPreferencesDataStore
 import com.riffle.core.data.di.LastOpenedLibraryDataStore
 import com.riffle.core.data.di.LibraryOrderPreferencesDataStore
 import com.riffle.core.data.di.LibraryVisibilityPreferencesDataStore
@@ -29,6 +30,7 @@ import com.riffle.core.data.di.coverGridDensityDataStore
 import com.riffle.core.data.di.deviceIdDataStore
 import com.riffle.core.data.di.deviceLabelDataStore
 import com.riffle.core.data.di.formattingPreferencesDataStore
+import com.riffle.core.data.di.highlightColorPreferencesDataStore
 import com.riffle.core.data.di.lastOpenedLibraryDataStore
 import com.riffle.core.data.di.libraryOrderPreferencesDataStore
 import com.riffle.core.data.di.libraryVisibilityPreferencesDataStore
@@ -42,6 +44,7 @@ import com.riffle.core.domain.AudioPlaybackPreferencesStore
 import com.riffle.core.domain.BookFormattingPreferencesStore
 import com.riffle.core.domain.CoverGridDensityStore
 import com.riffle.core.domain.FormattingPreferencesStore
+import com.riffle.core.domain.HighlightColorPreferencesStore
 import com.riffle.core.domain.LastOpenedLibraryStore
 import com.riffle.core.domain.LibraryOrderPreferencesStore
 import com.riffle.core.domain.LibraryVisibilityPreferencesStore
@@ -52,6 +55,7 @@ import com.riffle.core.domain.VolumeKeyPreferencesStore
 import com.riffle.core.domain.WakeLockPreferencesStore
 import com.riffle.core.data.AppThemeStore as createAppThemeStore
 import com.riffle.core.data.CoverGridDensityStore as createCoverGridDensityStore
+import com.riffle.core.data.HighlightColorPreferencesStore as createHighlightColorPreferencesStore
 import com.riffle.core.data.ReadaloudPreferencesStore as createReadaloudPreferencesStore
 import com.riffle.core.data.ReadingSpeedStore as createReadingSpeedStore
 import com.riffle.core.data.WakeLockPreferencesStore as createWakeLockPreferencesStore
@@ -136,6 +140,9 @@ abstract class PreferencesModule {
         @Provides @Singleton @ReadaloudPreferencesDataStore
         fun provideReadaloudPreferencesDataStore(@ApplicationContext c: Context): DataStore<Preferences> = c.readaloudPreferencesDataStore
 
+        @Provides @Singleton @HighlightColorPreferencesDataStore
+        fun provideHighlightColorPreferencesDataStore(@ApplicationContext c: Context): DataStore<Preferences> = c.highlightColorPreferencesDataStore
+
         @Provides @Singleton @ReadingSpeedDataStore
         fun provideReadingSpeedDataStore(@ApplicationContext c: Context): DataStore<Preferences> = c.readingSpeedDataStore
 
@@ -169,5 +176,11 @@ abstract class PreferencesModule {
         fun provideReadaloudPreferencesStore(
             @ReadaloudPreferencesDataStore dataStore: DataStore<Preferences>,
         ): ReadaloudPreferencesStore = createReadaloudPreferencesStore(dataStore)
+
+        @Provides
+        @Singleton
+        fun provideHighlightColorPreferencesStore(
+            @HighlightColorPreferencesDataStore dataStore: DataStore<Preferences>,
+        ): HighlightColorPreferencesStore = createHighlightColorPreferencesStore(dataStore)
     }
 }
