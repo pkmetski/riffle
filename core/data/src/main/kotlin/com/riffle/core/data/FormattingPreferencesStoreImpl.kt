@@ -29,9 +29,7 @@ class FormattingPreferencesStoreImpl @Inject constructor(
             theme = prefs[KEY_THEME]
                 ?.let { runCatching { ReaderTheme.valueOf(it) }.getOrNull() }
                 ?: ReaderTheme.Light,
-            fontFamily = prefs[KEY_FONT_FAMILY]
-                ?.let { runCatching { ReaderFontFamily.valueOf(it) }.getOrNull() }
-                ?: ReaderFontFamily.Serif,
+            fontFamily = prefs[KEY_FONT_FAMILY]?.decodeFontFamily() ?: ReaderFontFamily.Original,
             lineSpacing = prefs[KEY_LINE_SPACING] ?: 1.2f,
             margins = prefs[KEY_MARGINS] ?: 1.0f,
             orientation = prefs[KEY_ORIENTATION]
@@ -65,7 +63,7 @@ class FormattingPreferencesStoreImpl @Inject constructor(
         dataStore.edit { prefs ->
             prefs[KEY_FONT_SIZE] = preferences.fontSize
             prefs[KEY_THEME] = preferences.theme.name
-            prefs[KEY_FONT_FAMILY] = preferences.fontFamily.name
+            prefs[KEY_FONT_FAMILY] = preferences.fontFamily.encodePersistName()
             prefs[KEY_LINE_SPACING] = preferences.lineSpacing
             prefs[KEY_MARGINS] = preferences.margins
             prefs[KEY_ORIENTATION] = preferences.orientation.name
@@ -102,6 +100,27 @@ class FormattingPreferencesStoreImpl @Inject constructor(
         val KEY_SCHEDULE_DAY_THEME = stringPreferencesKey("theme_schedule_day_theme")
         val KEY_SCHEDULE_NIGHT_THEME = stringPreferencesKey("theme_schedule_night_theme")
     }
+}
+
+// Persisted-name codec for ReaderFontFamily.
+//
+// Before the Original split, the "Serif" enum value was passthrough — it rendered the publisher's
+// font. Any legacy "Serif" string on disk therefore encoded that passthrough intent and must load
+// as Original, not as the new real-serif Serif. To distinguish new picks from legacy data we
+// persist the new Serif under a distinct name (SERIF_V2_PERSIST_NAME). All other values keep
+// their enum name.
+private const val SERIF_V2_PERSIST_NAME = "SerifV2"
+private const val LEGACY_SERIF_PERSIST_NAME = "Serif"
+
+internal fun ReaderFontFamily.encodePersistName(): String = when (this) {
+    ReaderFontFamily.Serif -> SERIF_V2_PERSIST_NAME
+    else -> name
+}
+
+internal fun String.decodeFontFamily(): ReaderFontFamily? = when (this) {
+    SERIF_V2_PERSIST_NAME -> ReaderFontFamily.Serif
+    LEGACY_SERIF_PERSIST_NAME -> ReaderFontFamily.Original
+    else -> runCatching { ReaderFontFamily.valueOf(this) }.getOrNull()
 }
 
 private fun LocalTime.toMinuteOfDay(): Int = hour * 60 + minute

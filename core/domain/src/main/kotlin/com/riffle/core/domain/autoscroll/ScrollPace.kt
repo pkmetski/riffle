@@ -32,7 +32,7 @@ private const val PAGE_GUTTER_CSS_PX: Float = 8f
 // the dyslexic face is wider than typical sans. Numbers are approximations — good enough to scale
 // the auto-scroll pace, not to lay out text.
 private fun avgEmAdvance(family: ReaderFontFamily): Float = when (family) {
-    ReaderFontFamily.Serif, ReaderFontFamily.Literata, ReaderFontFamily.Merriweather -> 0.50f
+    ReaderFontFamily.Original, ReaderFontFamily.Serif, ReaderFontFamily.Literata, ReaderFontFamily.Merriweather -> 0.50f
     ReaderFontFamily.SansSerif -> 0.52f
     ReaderFontFamily.Monospace -> 0.60f
     ReaderFontFamily.OpenDyslexic -> 0.58f

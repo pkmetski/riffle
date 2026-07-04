@@ -213,6 +213,7 @@ internal fun FontChipRow(
 
 @Composable
 private fun ReaderFontFamily.previewFontFamily(): FontFamily? = when (this) {
+    ReaderFontFamily.Original -> null
     ReaderFontFamily.Serif -> FontFamily.Serif
     ReaderFontFamily.SansSerif -> FontFamily.SansSerif
     ReaderFontFamily.Monospace -> FontFamily.Monospace

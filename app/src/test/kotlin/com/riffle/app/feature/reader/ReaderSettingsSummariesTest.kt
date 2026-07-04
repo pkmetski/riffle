@@ -20,6 +20,7 @@ class ReaderSettingsSummariesTest {
     }
 
     @Test fun fontLabels() {
+        assertEquals("Original", ReaderFontFamily.Original.label())
         assertEquals("Serif", ReaderFontFamily.Serif.label())
         assertEquals("Sans serif", ReaderFontFamily.SansSerif.label())
         assertEquals("Dyslexic", ReaderFontFamily.OpenDyslexic.label())

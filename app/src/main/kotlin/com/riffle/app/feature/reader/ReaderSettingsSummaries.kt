@@ -17,6 +17,7 @@ fun ReaderTheme.label(): String = when (this) {
 }
 
 fun ReaderFontFamily.label(): String = when (this) {
+    ReaderFontFamily.Original -> "Original"
     ReaderFontFamily.Serif -> "Serif"
     ReaderFontFamily.SansSerif -> "Sans serif"
     ReaderFontFamily.Monospace -> "Mono"

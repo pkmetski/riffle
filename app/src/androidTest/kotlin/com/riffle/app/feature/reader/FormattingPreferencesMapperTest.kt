@@ -61,14 +61,23 @@ class FormattingPreferencesMapperTest {
         assertEquals(Theme.LIGHT, result.theme)
     }
 
-    // Serif is the default ReaderFontFamily; mapping it to null leaves --USER__fontFamily
+    // Original is the default ReaderFontFamily; mapping it to null leaves --USER__fontFamily
     // unset on :root so the publisher's typography is preserved on books the user hasn't
     // customized. See typographyOverrideCss() — the gate `:root[style*="--USER__fontFamily"]`
     // requires the variable to be present for any override to apply.
     @Test
-    fun defaultSerifFontFamilyMapsToNullSoPublisherTypographyIsPreserved() {
-        val result = FormattingPreferences(fontFamily = ReaderFontFamily.Serif).toEpubPreferences()
+    fun defaultOriginalFontFamilyMapsToNullSoPublisherTypographyIsPreserved() {
+        val result = FormattingPreferences(fontFamily = ReaderFontFamily.Original).toEpubPreferences()
         assertNull(result.fontFamily)
+    }
+
+    // Regression: the generic "Serif" chip must force a real serif face, not passthrough. The
+    // previous behaviour (Serif → null → publisher font) misled users who picked "Serif" to
+    // force serif letterforms and instead got whatever the publisher shipped.
+    @Test
+    fun serifFontFamilyMapsToCssSerif() {
+        val result = FormattingPreferences(fontFamily = ReaderFontFamily.Serif).toEpubPreferences()
+        assertEquals("serif", result.fontFamily?.name)
     }
 
     @Test

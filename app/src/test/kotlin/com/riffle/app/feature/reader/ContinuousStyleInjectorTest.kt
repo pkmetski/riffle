@@ -70,10 +70,18 @@ class ContinuousStyleInjectorTest {
     // ── font family ──────────────────────────────────────────────────────────────
 
     @Test
-    fun `Serif (default) emits no font override — publisher font, matching Readium null mapping`() {
-        val s = attr(FormattingPreferences(fontFamily = ReaderFontFamily.Serif))
+    fun `Original (default) emits no font override — publisher font, matching Readium null mapping`() {
+        val s = attr(FormattingPreferences(fontFamily = ReaderFontFamily.Original))
         assertFalse("no font override", s.contains("--USER__fontOverride"))
         assertFalse("no font family", s.contains("--USER__fontFamily"))
+    }
+
+    // Regression: the generic "Serif" chip must emit a real serif override, not passthrough.
+    @Test
+    fun `Serif sets fontOverride and quoted CSS serif family`() {
+        val s = attr(FormattingPreferences(fontFamily = ReaderFontFamily.Serif))
+        assertTrue(s.contains("--USER__fontOverride: readium-font-on !important;"))
+        assertTrue(s.contains("--USER__fontFamily: \"serif\" !important;"))
     }
 
     @Test

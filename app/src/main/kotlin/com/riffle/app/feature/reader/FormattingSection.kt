@@ -48,7 +48,7 @@ fun FormattingSection(
 
         if (capabilities.supportsFontFamily) {
             Text("Font", style = MaterialTheme.typography.labelMedium)
-            val genericFonts = listOf(ReaderFontFamily.Serif, ReaderFontFamily.SansSerif, ReaderFontFamily.Monospace)
+            val genericFonts = listOf(ReaderFontFamily.Original, ReaderFontFamily.Serif, ReaderFontFamily.SansSerif, ReaderFontFamily.Monospace)
             val bundledFonts = listOf(ReaderFontFamily.Literata, ReaderFontFamily.Merriweather, ReaderFontFamily.OpenDyslexic)
             FontChipRow(genericFonts, prefs.fontFamily) { onPrefsChange(prefs.copy(fontFamily = it)) }
             Spacer(Modifier.height(4.dp))
