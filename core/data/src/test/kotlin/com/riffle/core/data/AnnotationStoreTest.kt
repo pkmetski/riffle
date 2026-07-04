@@ -73,7 +73,7 @@ class AnnotationStoreTest {
         override fun observePendingCountForBook(serverId: String, itemId: String): Flow<Int> =
             rows.map { all -> all.count { it.serverId == serverId && it.itemId == itemId && it.updatedAt > it.lastSyncedAt } }
 
-        override fun observePendingCountAcrossAll(): Flow<Int> =
+        override fun observePendingBookCountAcrossAll(): Flow<Int> =
             rows.map { all -> all.count { it.updatedAt > it.lastSyncedAt } }
 
         override suspend fun dirtyServerItems(): List<AnnotationDao.DirtyServerItem> =

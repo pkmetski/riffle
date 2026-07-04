@@ -234,4 +234,43 @@ class AnnotationDaoTest {
         assertTrue("other-server tomb must survive",
             "tomb-other-server" in dao.getAllForItemIncludingDeleted("abs2", "item1").map { it.id })
     }
+
+    // Regression: the Settings WebDAV row displays "$N book(s) pending" and must count books, not
+    // annotation rows. Five dirty highlights on one book must read as 1, not 5. See
+    // observePendingBookCountAcrossAll.
+    @Test
+    fun observePendingBookCountAcrossAll_countsDistinctBooks() = runTest {
+        // Book A: three dirty rows (updatedAt > lastSyncedAt via the default lastSyncedAt = 0L).
+        dao.upsert(highlight("a1", serverId = "abs1", itemId = "item1", createdAt = 1_000L))
+        dao.upsert(highlight("a2", serverId = "abs1", itemId = "item1", createdAt = 1_100L))
+        dao.upsert(highlight("a3", serverId = "abs1", itemId = "item1", createdAt = 1_200L))
+        // Book B: two dirty rows.
+        dao.upsert(highlight("b1", serverId = "abs1", itemId = "item2", createdAt = 1_300L))
+        dao.upsert(highlight("b2", serverId = "abs1", itemId = "item2", createdAt = 1_400L))
+        // Book C on a second server: one dirty row.
+        dao.upsert(highlight("c1", serverId = "abs2", itemId = "item1", createdAt = 1_500L))
+        // Book D: fully synced (lastSyncedAt == updatedAt) — must NOT count.
+        dao.upsert(highlight("d1", serverId = "abs1", itemId = "item3", createdAt = 1_600L)
+            .copy(lastSyncedAt = 1_600L))
+
+        assertEquals(3, dao.observePendingBookCountAcrossAll().first())
+    }
+
+    // Once every row for a book is stamped synced, the book must drop out of the count.
+    @Test
+    fun observePendingBookCountAcrossAll_dropsBookOnceMarkSyncedClearsAllRows() = runTest {
+        dao.upsert(highlight("a1", serverId = "abs1", itemId = "item1", createdAt = 1_000L))
+        dao.upsert(highlight("a2", serverId = "abs1", itemId = "item1", createdAt = 1_100L))
+        dao.upsert(highlight("b1", serverId = "abs1", itemId = "item2", createdAt = 1_200L))
+
+        assertEquals(2, dao.observePendingBookCountAcrossAll().first())
+
+        // Only one of book A's two rows is marked synced — book A still has a dirty row, so still 2.
+        dao.markSynced(listOf("a1"), syncedAt = 2_000L)
+        assertEquals(2, dao.observePendingBookCountAcrossAll().first())
+
+        // Now the last of book A's rows is clean too — book A drops out.
+        dao.markSynced(listOf("a2"), syncedAt = 2_100L)
+        assertEquals(1, dao.observePendingBookCountAcrossAll().first())
+    }
 }

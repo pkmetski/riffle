@@ -82,7 +82,7 @@ class SettingsViewModel @Inject constructor(
     val annotationSyncRow: StateFlow<AnnotationSyncRowState> = combine(
         annotationSyncConfigStore.observe(),
         annotationSyncStatusStore.lastCycleOutcome,
-        annotationDao.observePendingCountAcrossAll(),
+        annotationDao.observePendingBookCountAcrossAll(),
     ) { config, outcome, pendingCount ->
         deriveRow(config, outcome, pendingCount)
     }.stateIn(

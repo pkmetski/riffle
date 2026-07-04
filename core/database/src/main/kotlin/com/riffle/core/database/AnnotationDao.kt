@@ -89,9 +89,14 @@ interface AnnotationDao {
     @Query("SELECT COUNT(*) FROM annotations WHERE serverId = :serverId AND itemId = :itemId AND updatedAt > lastSyncedAt")
     fun observePendingCountForBook(serverId: String, itemId: String): Flow<Int>
 
-    /** Pending-row count across every book — live Flow for the Settings list-row badge. */
-    @Query("SELECT COUNT(*) FROM annotations WHERE updatedAt > lastSyncedAt")
-    fun observePendingCountAcrossAll(): Flow<Int>
+    /** Count of distinct books with at least one dirty annotation — live Flow for the Settings
+     *  list-row badge. Scoped by book, not by annotation row, so the "N book(s) pending" wording
+     *  actually matches: five dirty highlights on one book still reads as "1 book pending". */
+    @Query(
+        "SELECT COUNT(*) FROM (SELECT DISTINCT serverId, itemId FROM annotations " +
+            "WHERE updatedAt > lastSyncedAt)"
+    )
+    fun observePendingBookCountAcrossAll(): Flow<Int>
 
     /** One row per `(serverId, itemId)` with at least one dirty annotation. Used by AnnotationSweep. */
     @Query("SELECT DISTINCT serverId, itemId FROM annotations WHERE updatedAt > lastSyncedAt")
