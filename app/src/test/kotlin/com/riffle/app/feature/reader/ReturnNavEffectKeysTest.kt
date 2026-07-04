@@ -32,20 +32,33 @@ class ReturnNavEffectKeysTest {
         file!!.readText()
     }
 
-    @Test
-    fun `returnNavEvents LaunchedEffect keys on readerPresenter so a mode flip restarts the collect`() {
-        val marker = "LaunchedEffect(returnNavEvents"
-        val start = screenSource.indexOf(marker)
+    private fun assertKeysOnPresenter(effectMarker: String) {
+        val start = screenSource.indexOf(effectMarker)
         assertTrue(
-            "expected `$marker` in EpubReaderScreen — did the effect move or get renamed?",
+            "expected `$effectMarker` in EpubReaderScreen — did the effect move or get renamed?",
             start >= 0,
         )
         val header = screenSource.substring(start, start + 200)
         val keyList = header.substringAfter("LaunchedEffect(").substringBefore(")")
         assertTrue(
-            "returnNavEvents LaunchedEffect must key on readerPresenter to survive a mode flip; " +
+            "`$effectMarker` LaunchedEffect must key on readerPresenter to survive a mode flip; " +
                 "current keys: `$keyList`",
             keyList.contains("readerPresenter"),
         )
+    }
+
+    @Test
+    fun `returnNavEvents LaunchedEffect keys on readerPresenter so a mode flip restarts the collect`() {
+        assertKeysOnPresenter("LaunchedEffect(returnNavEvents")
+    }
+
+    @Test
+    fun `serverLocatorEvents LaunchedEffect keys on readerPresenter so a peer-position sync after a mode flip lands on the visible navigator`() {
+        assertKeysOnPresenter("LaunchedEffect(serverLocatorEvents")
+    }
+
+    @Test
+    fun `searchNavigationEvents LaunchedEffect keys on readerPresenter so tapping a search result after a mode flip lands on the visible navigator`() {
+        assertKeysOnPresenter("LaunchedEffect(searchNavigationEvents")
     }
 }

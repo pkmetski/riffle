@@ -1732,7 +1732,10 @@ private fun EpubNavigatorView(
         }
     }
 
-    LaunchedEffect(serverLocatorEvents) {
+    // Key on readerPresenter — see the returnNavEvents effect below for the rationale. Without
+    // this, a peer-position update that arrives after a mode flip would drive the OLD presenter
+    // (invisible in Continuous) and the peer sync would silently no-op.
+    LaunchedEffect(serverLocatorEvents, readerPresenter) {
         // Background server-progress sync: honour the locator's progression (no chapter-top yank),
         // no cover — a flash mid-reading would be jarring.
         serverLocatorEvents.collect { locator ->
@@ -1760,7 +1763,9 @@ private fun EpubNavigatorView(
         }
     }
 
-    LaunchedEffect(searchNavigationEvents) {
+    // Key on readerPresenter — same rationale as the returnNavEvents effect above. Tapping a search
+    // result after a mode flip must drive the current visible navigator, not the stale one.
+    LaunchedEffect(searchNavigationEvents, readerPresenter) {
         searchNavigationEvents.collect { locator ->
             navigateWithCover(
                 NavigationTarget.ToLocatorJson(locator.toJSON().toString()),
