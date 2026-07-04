@@ -132,6 +132,7 @@ dependencies {
     implementation(project(":core:network"))
 
     implementation(libs.androidx.core.ktx)
+    implementation(libs.androidx.webkit)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.activity.compose)
 

@@ -207,6 +207,18 @@ internal class ChapterWebView(context: Context) : WebView(context), ChapterWebVi
         settings.useWideViewPort = false
         settings.loadWithOverviewMode = false
         settings.textZoom = 100
+        // Force each chapter WebView to keep its full content rasterized even when part of it is
+        // off-screen. In continuous mode we stack many WebViews inside a NestedScrollView, so any
+        // given WebView is typically only partially visible; Chromium's default tile pipeline can
+        // then drop or lazily re-raster the off-screen portion, producing brief blank flashes at
+        // chapter boundaries as the reader scrolls back and forth across them. OFF_SCREEN_PRERASTER
+        // is Android's supported knob for this exact case.
+        if (androidx.webkit.WebViewFeature.isFeatureSupported(
+                androidx.webkit.WebViewFeature.OFF_SCREEN_PRERASTER,
+            )
+        ) {
+            androidx.webkit.WebSettingsCompat.setOffscreenPreRaster(settings, true)
+        }
         addJavascriptInterface(HeightBridge(), "RiffleChapter")
         webViewClient = object : WebViewClient() {
             override fun onPageFinished(view: WebView?, url: String?) {

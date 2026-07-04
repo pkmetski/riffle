@@ -88,6 +88,38 @@ class ChapterWebViewSettingsTest {
         )
     }
 
+    /**
+     * Regression guard for the chapter-boundary blank flash: in Continuous mode we stack many
+     * [ChapterWebView]s inside a NestedScrollView, so each is typically only partially visible.
+     * Without `OFF_SCREEN_PRERASTER`, Chromium's tile pipeline can drop or lazily re-raster the
+     * off-screen portion — when a chapter's tail scrolls above the viewport top and the user
+     * scrolls back down, the last visible line briefly renders as blank until the tile is
+     * re-rasterized. See `reference_continuous_chapter_boundary_blank_flash` for the full
+     * investigation.
+     */
+    @Test
+    fun offscreenPreRasterIsEnabledWhenSupported() {
+        if (!androidx.webkit.WebViewFeature.isFeatureSupported(
+                androidx.webkit.WebViewFeature.OFF_SCREEN_PRERASTER,
+            )
+        ) {
+            return
+        }
+        var value = false
+        instrumentation.runOnMainSync {
+            val wv = ChapterWebView(context)
+            value = androidx.webkit.WebSettingsCompat.getOffscreenPreRaster(wv.settings)
+            wv.destroy()
+        }
+        assertTrue(
+            "OFF_SCREEN_PRERASTER must be enabled on every ChapterWebView so a chapter's " +
+                "off-screen tail stays rasterized while stacked in Continuous mode — otherwise the " +
+                "trailing text of the previous chapter briefly blanks out mid-scroll at every " +
+                "chapter boundary. Do not remove this setter without a comparable substitute.",
+            value,
+        )
+    }
+
     // ── Viewport behaviour ───────────────────────────────────────────────────────
 
     /**
