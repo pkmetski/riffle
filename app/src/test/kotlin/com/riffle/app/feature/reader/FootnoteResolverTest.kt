@@ -244,7 +244,9 @@ class FootnoteResolverTest {
     fun `install script registers click listener in capture phase`() {
         // addEventListener('click', handler, true) — the trailing true is what makes
         // our handler fire before Readium's bubble-phase ut() click handler.
-        val pattern = Regex("""addEventListener\(\s*['"]click['"]\s*,[^,]+,\s*true\s*\)""")
+        // Use DOT_MATCHES_ALL + reluctant match so the handler body can contain commas
+        // (e.g. `new URL(href, document.location.href)` for path-prefixed same-doc anchors).
+        val pattern = Regex("""addEventListener\(\s*['"]click['"]\s*,.+?,\s*true\s*\)""", RegexOption.DOT_MATCHES_ALL)
         assertTrue(
             "INSTALL_SCRIPT must register a capture-phase click listener",
             pattern.containsMatchIn(FootnoteAnchorBridge.INSTALL_SCRIPT),

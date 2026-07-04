@@ -240,7 +240,13 @@ internal object ColumnSnap {
     //  - paginated: FLOOR scrollLeft to the column the element starts in (go(cssSelector) lands flush to
     //    the box → a sliver of the neighbour shows; flooring to innerWidth lands on the column boundary).
     //  - scroll mode (scrollHeight > innerHeight): there is no column grid, so scroll VERTICALLY to bring
-    //    the element to the top of the viewport; an element already fully on screen isn't moved.
+    //    the element to the VIEWPORT MIDPOINT — matching Continuous mode's `alignToTop=false` cross-
+    //    reference landing (see [com.riffle.app.feature.reader.ContinuousPositionTracker.anchorLandingScrollY]).
+    //    Landing at the top with an 8-px margin (the earlier behaviour) puts the anchor's own line at Y=0,
+    //    which for anchors placed on a caption BELOW a figure image pushes the image off-screen — the
+    //    "wrong location" bug when tapping a "Figure X.Y" link in Vertical. Midpoint preserves context
+    //    above (usually where the referenced diagram / heading lives) and below.
+    //    An element already fully on screen isn't moved.
     // Returns 'moved' when the snap changed the visible page (target was off-page → offer a return),
     // 'same' when it was already visible, or 'absent' when the id isn't in this document.
     fun scrollToColumnJs(fragmentId: String): String =
@@ -251,7 +257,7 @@ internal object ColumnSnap {
             "if(se.scrollHeight > window.innerHeight + 4){" + // scroll (vertical) mode → no column grid
             "if(r.top>=0 && r.bottom<=window.innerHeight)return 'same';" + // already fully visible
             "var beforeTop=se.scrollTop;" +
-            "se.scrollTop=Math.max(0, r.top + se.scrollTop - 8);" +
+            "se.scrollTop=Math.max(0, r.top + se.scrollTop - Math.floor(window.innerHeight/2));" +
             "return (Math.abs(se.scrollTop-beforeTop)>1)?'moved':'same';}" +
             "var iw=window.innerWidth;" +
             "var before=se.scrollLeft;" +

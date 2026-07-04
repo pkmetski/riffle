@@ -45,6 +45,24 @@ class ReaderWebViewScriptsTest {
         assertTrue("leaves an already-visible target alone", js.contains("r.bottom<=window.innerHeight"))
     }
 
+    // Vertical (scroll) mode cross-reference tap must land the anchor at the VIEWPORT MIDPOINT, not
+    // 8 px from the top. Landing at the top puts a caption placed BELOW its figure image at Y=0 —
+    // pushing the image (the thing the reader wanted) above the viewport. Continuous mode's
+    // ContinuousPositionTracker.anchorLandingScrollY already lands at midpoint (`- viewportHeight/2`);
+    // this pins that vertical does the same.
+    @Test
+    fun `scrollToColumnJs vertical branch lands the anchor at viewport midpoint`() {
+        val js = ColumnSnap.scrollToColumnJs("c04-fig-0001")
+        // The vertical branch is the block gated on scrollHeight > innerHeight.
+        val verticalBranch = js.substringAfter("scrollHeight > window.innerHeight")
+            .substringBefore("var iw=window.innerWidth")
+        assertTrue(
+            "vertical branch must subtract half a viewport, not a fixed 8-px margin, in $verticalBranch",
+            verticalBranch.contains("Math.floor(window.innerHeight/2)") &&
+                !Regex("""se\.scrollTop\s*=\s*Math\.max\(0,\s*r\.top\s*\+\s*se\.scrollTop\s*-\s*8\s*\)""").containsMatchIn(verticalBranch),
+        )
+    }
+
     // snapToTargetColumnJs anchors a go()-based TOC/search jump to the column the TARGET occupies,
     // re-applying it across the async typography reflow until scrollWidth settles — the fix for the
     // "TOC lands a page before/after" bug where a one-shot snap locked onto the pre-reflow column.
