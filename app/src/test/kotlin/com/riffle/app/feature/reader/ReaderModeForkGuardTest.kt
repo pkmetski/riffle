@@ -77,6 +77,6 @@ class ReaderModeForkGuardTest {
         // `// MODE-FORK:` comment above the annotationNavigationEvents LaunchedEffect). Two refs:
         // the LaunchedEffect key on isContinuous and the branch guard inside the collector — both
         // load-bearing and both untypeable behind ReaderPresenter without leaking mode internals.
-        private const val MAX_MODE_BRANCHES = 28
+        private const val MAX_MODE_BRANCHES = 29
     }
 }

@@ -2140,6 +2140,11 @@ private fun EpubNavigatorView(
                     container.visibility = View.VISIBLE
                 }
                 container.isScrollMode = formattingPrefs.orientation != ReaderOrientation.Horizontal
+                // MODE-FORK: routes the Readium ActionMode-wrapper's coordinate handling —
+                // paginated columns want the JS-captured CSS rect, vertical scroll wants Readium's
+                // native callback because the CSS rect maps wrong through the WebView's internal
+                // scroll. This is a UI-lifecycle fork (framework popup positioning), not domain
+                // behaviour, so it doesn't belong behind ReaderPresenter.
                 readiumIsScrollMode.set(formattingPrefs.orientation == ReaderOrientation.Vertical)
                 // Pull callbacks capture composable-local State vars; re-set on every update so
                 // back-stack returns (which re-create the composable but reuse the cached View)
