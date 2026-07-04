@@ -34,6 +34,8 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
+import com.riffle.app.ui.fadingScrollbar
 import androidx.compose.foundation.background
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -1345,14 +1347,17 @@ private fun SeriesTabContent(
         }
         return
     }
+    val gridState = rememberLazyGridState()
     LazyVerticalGrid(
+        state = gridState,
         columns = GridCells.Adaptive(coverGridMinCellSize()),
         contentPadding = PaddingValues(
             start = 12.dp, end = 12.dp, bottom = 16.dp,
         ),
         modifier = Modifier
             .pinchCoverZoom(onCoverScaleChange)
-            .fillMaxSize(),
+            .fillMaxSize()
+            .fadingScrollbar(gridState),
     ) {
         item(span = { GridItemSpan(maxLineSpan) }) {
             SectionHeader("Series (${items.size})")
@@ -1381,14 +1386,17 @@ private fun CollectionsTabContent(
         }
         return
     }
+    val gridState = rememberLazyGridState()
     LazyVerticalGrid(
+        state = gridState,
         columns = GridCells.Adaptive(coverGridMinCellSize()),
         contentPadding = PaddingValues(
             start = 12.dp, end = 12.dp, bottom = 16.dp,
         ),
         modifier = Modifier
             .pinchCoverZoom(onCoverScaleChange)
-            .fillMaxSize(),
+            .fillMaxSize()
+            .fadingScrollbar(gridState),
     ) {
         item(span = { GridItemSpan(maxLineSpan) }) {
             SectionHeader("Collections (${items.size})")
@@ -1422,14 +1430,17 @@ private fun ToReadTabContent(
         }
         return
     }
+    val gridState = rememberLazyGridState()
     LazyVerticalGrid(
+        state = gridState,
         columns = GridCells.Adaptive(shelfCoverMinCellSize()),
         contentPadding = PaddingValues(
             start = 12.dp, end = 12.dp, bottom = 16.dp,
         ),
         modifier = Modifier
             .pinchCoverZoom(onCoverScaleChange)
-            .fillMaxSize(),
+            .fillMaxSize()
+            .fadingScrollbar(gridState),
     ) {
         item(span = { GridItemSpan(maxLineSpan) }) {
             SectionHeader("To Read (${items.size})")
@@ -1490,12 +1501,15 @@ private fun AllBooksTabContent(
                 )
             }
         } else {
+            val gridState = rememberLazyGridState()
             LazyVerticalGrid(
+                state = gridState,
                 columns = GridCells.Adaptive(coverGridMinCellSize()),
                 contentPadding = PaddingValues(start = 12.dp, end = 12.dp, bottom = 16.dp),
                 modifier = Modifier
                     .pinchCoverZoom(onCoverScaleChange)
-                    .fillMaxSize(),
+                    .fillMaxSize()
+                    .fadingScrollbar(gridState),
             ) {
                 items(items, key = { it.id }) { item ->
                     Box(modifier = Modifier.padding(4.dp)) {
