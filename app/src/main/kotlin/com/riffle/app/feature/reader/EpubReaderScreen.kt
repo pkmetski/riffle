@@ -1337,6 +1337,7 @@ private fun EpubNavigatorView(
                     }
                 }
                 override fun onFootnote(content: FootnoteContent) = currentOnFootnoteTapped(content)
+                override fun captureReturnAnchor(origin: Locator) = currentOnCaptureReturnTarget(origin)
             },
             annotations = object : ContinuousAnnotationSink {
                 override fun onAnnotationTap(id: String, rect: IntRect) =
