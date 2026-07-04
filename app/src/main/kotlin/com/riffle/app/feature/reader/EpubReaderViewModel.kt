@@ -346,6 +346,10 @@ class EpubReaderViewModel @Inject constructor(
 
     fun resumeAutoScrollIfPaused() = formatting.resumeAutoScrollIfPaused()
 
+    fun pauseAutoScrollFromPill() = formatting.pauseAutoScrollFromPill()
+
+    fun resumeAutoScrollFromPill() = formatting.resumeAutoScrollIfPaused()
+
     fun setReaderViewportWidthPx(px: Int) = formatting.setViewportWidthPx(px)
 
     // ---- VolumeKeyDispatcher delegations -----------------------------------------------------------

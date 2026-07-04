@@ -15,6 +15,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Pause
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -36,6 +37,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.runtime.remember
 import com.riffle.core.domain.autoscroll.AutoScrollState
+import com.riffle.core.domain.autoscroll.isHudPillVisible
 import com.riffle.core.domain.autoscroll.speedOrNull
 
 // The HUD pill anchors to BottomEnd inside the system-bar insets, but the reader still paints its
@@ -104,13 +106,14 @@ private fun DrawScope.drawPlayDownUnderEvenText(color: Color) {
 fun AutoScrollHudPill(
     state: AutoScrollState,
     onPause: () -> Unit,
+    onResume: () -> Unit,
     onSlower: () -> Unit,
     onFaster: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val running = state is AutoScrollState.Running
-    if (!running) return
+    if (!state.isHudPillVisible) return
     val speed = state.speedOrNull?.wpm ?: return
+    val running = state is AutoScrollState.Running
 
     val insets = WindowInsets.systemBars.asPaddingValues()
     Box(
@@ -127,10 +130,13 @@ fun AutoScrollHudPill(
                 .padding(horizontal = 4.dp, vertical = 2.dp)
                 .heightIn(min = 28.dp),
         ) {
-            IconButton(onClick = onPause, modifier = Modifier.size(28.dp)) {
+            IconButton(
+                onClick = if (running) onPause else onResume,
+                modifier = Modifier.size(28.dp),
+            ) {
                 Icon(
-                    Icons.Filled.Pause,
-                    contentDescription = "Pause auto-scroll",
+                    if (running) Icons.Filled.Pause else Icons.Filled.PlayArrow,
+                    contentDescription = if (running) "Pause auto-scroll" else "Resume auto-scroll",
                     tint = Color.White,
                     modifier = Modifier.size(14.dp),
                 )

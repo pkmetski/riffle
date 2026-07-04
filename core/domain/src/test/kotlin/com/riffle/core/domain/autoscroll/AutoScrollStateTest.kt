@@ -40,6 +40,32 @@ class AutoScrollStateTest {
         assertTrue(PauseCause.OrientationChange in all)
         assertTrue(PauseCause.PanelOpen in all)
         assertTrue(PauseCause.ReadaloudStarted in all)
-        assertEquals(7, all.size)
+        assertTrue(PauseCause.UserPausedPill in all)
+        assertEquals(8, all.size)
+    }
+
+    @Test
+    fun `HUD pill is visible while Running`() {
+        assertTrue(AutoScrollState.Running(AutoScrollSpeed.Default).isHudPillVisible)
+    }
+
+    @Test
+    fun `HUD pill is visible when the user paused it from the pill`() {
+        val s: AutoScrollState = AutoScrollState.Paused(AutoScrollSpeed.Default, PauseCause.UserPausedPill)
+        assertTrue(s.isHudPillVisible)
+    }
+
+    @Test
+    fun `HUD pill is hidden for system-driven pause causes`() {
+        val systemCauses = PauseCause.values().filter { it != PauseCause.UserPausedPill }
+        for (cause in systemCauses) {
+            val s: AutoScrollState = AutoScrollState.Paused(AutoScrollSpeed.Default, cause)
+            assertFalse("pill must hide for $cause", s.isHudPillVisible)
+        }
+    }
+
+    @Test
+    fun `HUD pill is hidden when Idle`() {
+        assertFalse(AutoScrollState.Idle.isHudPillVisible)
     }
 }

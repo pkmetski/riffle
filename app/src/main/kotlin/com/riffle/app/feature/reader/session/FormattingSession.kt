@@ -17,16 +17,19 @@ import dagger.assisted.Assisted
 import dagger.assisted.AssistedFactory
 import dagger.assisted.AssistedInject
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import com.riffle.core.domain.autoscroll.PauseCause
 
 /**
  * Owns all formatting/typography/auto-scroll state for a single open book. Lifted from
@@ -163,6 +166,25 @@ class FormattingSession @AssistedInject constructor(
         }
         // Readaloud start ⇒ stop Auto-Scroll (mutual exclusion, ADR 0037).
         // Driven externally via onPlaybackStateChanged(isPlaying).
+        // When the user parks Auto-Scroll from the HUD pill, keep the pill on-screen for a couple
+        // of minutes so they can resume or tweak speed. If they never act, auto-stop so the pill
+        // doesn't linger forever. collectLatest cancels the timer if state moves off UserPausedPill
+        // (resume, another pause cause, stop, etc.).
+        scope.launch {
+            autoScrollController.state.collectLatest { s ->
+                if (s is AutoScrollState.Paused && s.cause == PauseCause.UserPausedPill) {
+                    delay(PILL_AUTO_HIDE_MS)
+                    autoScrollController.dispatch(AutoScrollEvent.Stop)
+                }
+            }
+        }
+    }
+
+    companion object {
+        // Chosen at ~90s — inside the "minute or two" the user asked for. Long enough that a brief
+        // interruption (drink of water, tap a message) doesn't drop the session; short enough that
+        // a walked-away pill self-cleans within a couple of minutes.
+        const val PILL_AUTO_HIDE_MS: Long = 90_000L
     }
 
     /**
@@ -244,6 +266,15 @@ class FormattingSession @AssistedInject constructor(
 
     fun pauseAutoScroll(cause: com.riffle.core.domain.autoscroll.PauseCause) {
         autoScrollController.dispatch(AutoScrollEvent.Pause(cause))
+    }
+
+    /**
+     * Pause from the HUD pill and keep the pill on-screen so the user can resume or nudge speed.
+     * If the user doesn't act within [PILL_AUTO_HIDE_MS], the session auto-stops so the pill
+     * doesn't linger indefinitely.
+     */
+    fun pauseAutoScrollFromPill() {
+        autoScrollController.dispatch(AutoScrollEvent.Pause(PauseCause.UserPausedPill))
     }
 
     fun resumeAutoScrollIfPaused() {
