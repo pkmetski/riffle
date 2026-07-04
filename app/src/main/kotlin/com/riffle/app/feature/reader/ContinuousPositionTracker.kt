@@ -68,6 +68,21 @@ internal object ContinuousPositionTracker {
         return target.coerceAtLeast(0)
     }
 
+    /**
+     * Whether an anchor whose absolute (parent-viewport) Y is [absoluteY] is already visible in a
+     * viewport currently scrolled to [currentScrollY] with height [viewportHeight]. Null means
+     * "couldn't resolve" — treat as not visible so the caller still navigates.
+     *
+     * Used by the continuous-mode same-document cross-reference handler to make an in-view link
+     * tap a no-op: paginated mode gets this for free from `ColumnSnap.scrollToColumnJs` returning
+     * `'same'` when the column is unchanged (see `snapToElement`), but continuous mode owns its
+     * own scroll and must decide explicitly. Without the check, tapping an internal link whose
+     * target is already on-screen would still recentre it AND drop a return-to-position card —
+     * both wrong (the user is already looking at the target).
+     */
+    fun anchorAlreadyInViewport(absoluteY: Int?, currentScrollY: Int, viewportHeight: Int): Boolean =
+        absoluteY != null && absoluteY >= currentScrollY && absoluteY < currentScrollY + viewportHeight
+
     /** Host that [ChapterWebView] serves all EPUB resources from. */
     const val RESOURCE_HOST = "readium_package"
 

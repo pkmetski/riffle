@@ -86,12 +86,30 @@ internal class ContinuousReaderCoordinator(
             // path (FootnoteAnchorBridge → snapToElement) doesn't apply here — Continuous mode
             // has no Readium fragment to snap against, so we drive the outer viewport ourselves
             // via view.navigateTo, which finds the target's device-Y through anchorOffsetTopDevicePx
-            // and scrolls the NestedScrollView to it. Capture the pre-jump origin so the return
-            // card can undo the jump, matching the paged-mode behaviour.
+            // and scrolls the NestedScrollView to it.
+            //
+            // In-viewport taps are a no-op: if the target's absolute Y is already inside the
+            // currently visible band, the user is already looking at it — recentring it and
+            // dropping a return-to-position card would both be wrong. Paged mode gets this for
+            // free (`snapToElement` returns 'same' → the return anchor isn't captured); continuous
+            // owns its own scroll and must decide explicitly. Otherwise capture the pre-jump
+            // origin so the return card can undo the jump, matching paged-mode behaviour.
             onCrossReference = { chapterHref, fragmentId ->
-                val origin = latestLocator()
-                if (origin != null) links.captureReturnAnchor(origin)
-                this.view?.navigateTo("$chapterHref#$fragmentId", 0f, alignToTop = false)
+                val v = this.view
+                if (v != null) {
+                    val origin = latestLocator()
+                    v.anchorAbsoluteY(chapterHref, fragmentId) { absoluteY ->
+                        handleContinuousCrossReferenceTap(
+                            absoluteY = absoluteY,
+                            currentScrollY = v.scrollY,
+                            viewportHeight = v.height,
+                            onCaptureAndScroll = {
+                                if (origin != null) links.captureReturnAnchor(origin)
+                                v.navigateTo("$chapterHref#$fragmentId", 0f, alignToTop = false)
+                            },
+                        )
+                    }
+                }
             },
             onRawPosition = { href, progression ->
                 val (spineHrefs, counts) = spinePositionsProvider()
@@ -146,6 +164,26 @@ internal class ContinuousReaderCoordinator(
     fun onPreferencesChanged(prefs: FormattingPreferences) {
         view?.updatePreferences(prefs)
     }
+}
+
+/**
+ * Pure body of Continuous mode's same-document cross-reference tap decision. Extracted so the
+ * "in-viewport tap = no-op" rule is exercisable at the JVM unit level without wiring up a real
+ * [ContinuousReaderView]. Callsite: [ContinuousReaderCoordinator.attach]'s `onCrossReference`.
+ *
+ * If [absoluteY] is inside the currently visible band, do nothing — the user is already looking
+ * at the target, so recentring the page AND dropping a return-to-position card would both be
+ * wrong. Otherwise invoke [onCaptureAndScroll], which captures the pre-jump origin and scrolls
+ * to the target.
+ */
+internal fun handleContinuousCrossReferenceTap(
+    absoluteY: Int?,
+    currentScrollY: Int,
+    viewportHeight: Int,
+    onCaptureAndScroll: () -> Unit,
+) {
+    if (ContinuousPositionTracker.anchorAlreadyInViewport(absoluteY, currentScrollY, viewportHeight)) return
+    onCaptureAndScroll()
 }
 
 /**

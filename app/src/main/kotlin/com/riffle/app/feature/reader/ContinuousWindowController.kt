@@ -421,6 +421,25 @@ internal class ContinuousWindowController(
         }
     }
 
+    /**
+     * Resolve the absolute (parent-viewport) Y of the anchor [fragmentId] within [chapterHref].
+     * Returns null via [callback] when the chapter isn't in the current window, the WebView for
+     * it isn't measured yet, or the element id can't be found. Used by the cross-reference tap
+     * handler to detect in-viewport taps and skip both the scroll and the return-to-position card.
+     */
+    fun anchorAbsoluteY(chapterHref: String, fragmentId: String, callback: (Int?) -> Unit) {
+        val target = chapterHref.substringBefore('#')
+        val slot = buildWindow().firstOrNull { it.href.substringBefore('#') == target }
+        val wv = webViews.firstOrNull { it.chapterHref.substringBefore('#') == target }
+        if (slot == null || wv == null) {
+            callback(null)
+            return
+        }
+        wv.anchorOffsetTopDevicePx(fragmentId) { offset ->
+            callback(if (offset == null) null else slot.top + offset)
+        }
+    }
+
     private fun scrollToLoadedChapter(
         target: String,
         progression: Float,
