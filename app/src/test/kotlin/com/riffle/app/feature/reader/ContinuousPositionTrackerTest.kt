@@ -604,4 +604,61 @@ class ContinuousPositionTrackerTest {
         )
         assertEquals(0, y)
     }
+
+    // Cross-reference tap on an on-screen target must be a no-op in continuous mode: an anchor
+    // whose absolute Y falls anywhere inside [scrollY, scrollY + viewportHeight) is already
+    // visible, so the caller must skip both the scroll and the return-to-position capture.
+    // Without this, tapping an internal link whose target is already on the page recentres the
+    // page AND drops a "Back" card — the regression this pins.
+
+    @Test
+    fun `anchorAlreadyInViewport — anchor inside the visible band is true`() {
+        assertTrue(
+            ContinuousPositionTracker.anchorAlreadyInViewport(
+                absoluteY = 1500, currentScrollY = 1000, viewportHeight = 800,
+            ),
+        )
+    }
+
+    @Test
+    fun `anchorAlreadyInViewport — anchor exactly at the top edge is true`() {
+        assertTrue(
+            ContinuousPositionTracker.anchorAlreadyInViewport(
+                absoluteY = 1000, currentScrollY = 1000, viewportHeight = 800,
+            ),
+        )
+    }
+
+    @Test
+    fun `anchorAlreadyInViewport — anchor above the viewport is false`() {
+        assertFalse(
+            ContinuousPositionTracker.anchorAlreadyInViewport(
+                absoluteY = 500, currentScrollY = 1000, viewportHeight = 800,
+            ),
+        )
+    }
+
+    @Test
+    fun `anchorAlreadyInViewport — anchor at or past the bottom edge is false`() {
+        // scrollY + viewportHeight is the first Y NOT visible (half-open interval).
+        assertFalse(
+            ContinuousPositionTracker.anchorAlreadyInViewport(
+                absoluteY = 1800, currentScrollY = 1000, viewportHeight = 800,
+            ),
+        )
+        assertFalse(
+            ContinuousPositionTracker.anchorAlreadyInViewport(
+                absoluteY = 2500, currentScrollY = 1000, viewportHeight = 800,
+            ),
+        )
+    }
+
+    @Test
+    fun `anchorAlreadyInViewport — null absoluteY is false so caller still navigates`() {
+        assertFalse(
+            ContinuousPositionTracker.anchorAlreadyInViewport(
+                absoluteY = null, currentScrollY = 1000, viewportHeight = 800,
+            ),
+        )
+    }
 }
