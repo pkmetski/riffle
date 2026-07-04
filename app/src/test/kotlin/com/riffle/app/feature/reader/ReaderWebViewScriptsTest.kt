@@ -169,14 +169,15 @@ class ReaderWebViewScriptsTest {
             js.contains("!!(s && s.rangeCount > 0 && !s.isCollapsed)"),
         )
         val snapshotIdx = js.indexOf("document.__riffleHadSelAtDown =")
-        assertTrue("snapshot writes to the doc-level flag", snapshotIdx in 0 until onTapIdx)
-        val gateIdx = js.indexOf("if (document.__riffleHadSelAtDown) {")
-        assertTrue("click reads the flag", gateIdx in 0 until onTapIdx)
-        // The gate must clear the flag (so the next tap toggles immersive normally) and return
-        // before reaching RiffleChapter.onTap().
-        val gateBody = js.substring(gateIdx)
-        val clearIdx = gateBody.indexOf("document.__riffleHadSelAtDown = false")
-        val returnIdx = gateBody.indexOf("return;")
-        assertTrue("gate clears the flag before returning", clearIdx in 0 until returnIdx)
+        assertTrue("touchstart writes to the doc-level flag", snapshotIdx in 0 until onTapIdx)
+        // Consume-once: the click handler snapshots hadSel and clears the flag at the top,
+        // before the interactive-element early-return, so a synthetic click without a
+        // preceding touchstart can't leave a stale `true` behind to swallow the next tap.
+        val consumeIdx = js.indexOf("var hadSel = document.__riffleHadSelAtDown;")
+        val clearIdx = js.indexOf("document.__riffleHadSelAtDown = false;")
+        assertTrue("click snapshots the flag first", consumeIdx in 0 until onTapIdx)
+        assertTrue("click clears the flag immediately after snapshot", clearIdx in consumeIdx..onTapIdx)
+        val gateIdx = js.indexOf("if (hadSel) return;")
+        assertTrue("click skips onTap when a selection was live at touchstart", gateIdx in 0 until onTapIdx)
     }
 }

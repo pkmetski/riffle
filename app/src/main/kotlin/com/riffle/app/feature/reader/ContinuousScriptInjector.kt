@@ -119,6 +119,13 @@ internal object ContinuousScriptInjector {
                     !!(s && s.rangeCount > 0 && !s.isCollapsed);
             }, true);
             document.addEventListener('click', function(e) {
+                // Consume-once: snapshot and clear the had-selection flag at the START of the click,
+                // regardless of what the target is. Clearing at the interactive-element early-return
+                // (below) alone would leak a stale `true` when a synthetic click reaches the listener
+                // without a preceding touchstart; consuming here guarantees the flag never survives
+                // past the click that follows the touchstart which set it.
+                var hadSel = document.__riffleHadSelAtDown;
+                document.__riffleHadSelAtDown = false;
                 // Only a tap on the background toggles the reader chrome. A tap on a link (footnote,
                 // cross-reference, external) or other interactive control must NOT also toggle the
                 // bars — otherwise following an internal link in Continuous mode flips out of
@@ -131,11 +138,7 @@ internal object ContinuousScriptInjector {
                     t = t.parentNode;
                 }
                 // If a selection was live at touchstart, this tap only dismisses the selection popup.
-                // Consume the flag and skip the immersive toggle.
-                if (document.__riffleHadSelAtDown) {
-                    document.__riffleHadSelAtDown = false;
-                    return;
-                }
+                if (hadSel) return;
                 window.RiffleChapter.onTap();
             }, false);
         })();
