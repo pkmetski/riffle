@@ -80,6 +80,36 @@ class ExtractEpubTocUseCaseTest {
     }
 
     @Test
+    fun `treats empty cached list as a miss and re-extracts (unknown inode)`() = runTest {
+        // Regression: a transient extraction failure used to poison the cache with an empty list
+        // under the "unknown" inode key (ABS < v2.36). Since the key never changes, the empty
+        // list would be returned forever. The fix treats empty as a cache miss.
+        coEvery { tocRepository.getCachedToc("srv1", "item1") } returns ("unknown" to emptyList())
+        coEvery { epubRepository.openEpub(any()) } returns
+            EpubOpenResult.NetworkError(RuntimeException("offline"))
+
+        val result = useCase(makeItem(ebookFileIno = null))
+
+        // The empty cache is bypassed — openEpub is called even though a cache row exists.
+        coVerify(exactly = 1) { epubRepository.openEpub(any()) }
+        assertTrue(result.isEmpty())
+    }
+
+    @Test
+    fun `treats empty cached list as a miss and re-extracts (matching inode)`() = runTest {
+        // Same regression, but for ABS >= v2.36 where a real inode is present. An empty cached
+        // list must not be trusted even when the inode matches.
+        coEvery { tocRepository.getCachedToc("srv1", "item1") } returns ("ino1" to emptyList())
+        coEvery { epubRepository.openEpub(any()) } returns
+            EpubOpenResult.NetworkError(RuntimeException("offline"))
+
+        val result = useCase(makeItem(ebookFileIno = "ino1"))
+
+        coVerify(exactly = 1) { epubRepository.openEpub(any()) }
+        assertTrue(result.isEmpty())
+    }
+
+    @Test
     fun `ignores stale cache and re-extracts when inode does not match`() = runTest {
         val staleCached = listOf(TocEntry("Old Chapter", "old.html"))
         // Cache has inode "old-ino" but item now has "ino1"
