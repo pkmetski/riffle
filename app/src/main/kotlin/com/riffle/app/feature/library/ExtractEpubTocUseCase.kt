@@ -27,7 +27,11 @@ class ExtractEpubTocUseCase @Inject constructor(
         val inode = item.ebookFileIno ?: "unknown"
 
         val cached = tocRepository.getCachedToc(item.serverId, item.id)
-        if (cached != null && cached.first == inode) return cached.second
+        // Only trust a cache hit that has entries. An empty cached list is treated as a miss so a
+        // transient extraction failure (e.g. a Readium parse hiccup on first open) doesn't poison
+        // the cache forever — especially under the "unknown" inode key used for ABS < v2.36, where
+        // the key never changes and there's no other invalidation trigger.
+        if (cached != null && cached.first == inode && cached.second.isNotEmpty()) return cached.second
 
         val file = when (val r = epubRepository.openEpub(item)) {
             is EpubOpenResult.Success -> r.epubFile
@@ -46,7 +50,11 @@ class ExtractEpubTocUseCase @Inject constructor(
 
         return publication.use {
             val entries = it.tableOfContents.toTocEntries()
-            tocRepository.saveToc(item.serverId, item.id, inode, entries)
+            // Don't persist an empty TOC — it's almost always a transient parse failure, and
+            // caching it would prevent a healthy re-extract on the next open.
+            if (entries.isNotEmpty()) {
+                tocRepository.saveToc(item.serverId, item.id, inode, entries)
+            }
             entries
         }
     }
