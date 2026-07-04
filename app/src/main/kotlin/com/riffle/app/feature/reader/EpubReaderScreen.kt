@@ -33,7 +33,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.List
-import androidx.compose.material.icons.filled.Bookmarks
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.ui.res.painterResource
 import com.riffle.app.R
@@ -95,6 +94,7 @@ import com.riffle.app.feature.reader.readaloud.PlayerCoordinator
 import com.riffle.app.feature.reader.readaloud.ReadaloudDownloadDialog
 import com.riffle.app.feature.reader.readaloud.ReadaloudMiniPlayer
 import com.riffle.app.feature.reader.readaloud.ReadaloudPeek
+import com.riffle.app.ui.theme.RiffleIcons
 import com.riffle.app.ui.theme.RiffleTheme
 import com.riffle.core.domain.FormattingPreferences
 import com.riffle.core.domain.HighlightColor
@@ -633,7 +633,7 @@ fun EpubReaderScreen(
                                 Icon(Icons.AutoMirrored.Filled.List, contentDescription = "Table of Contents")
                             }
                             IconButton(onClick = viewModel::openAnnotationsPanel) {
-                                Icon(Icons.Filled.Bookmarks, contentDescription = "Annotations")
+                                Icon(RiffleIcons.Annotations, contentDescription = "Annotations")
                             }
                             IconButton(onClick = { showFormattingPanel = true }) {
                                 Text(
