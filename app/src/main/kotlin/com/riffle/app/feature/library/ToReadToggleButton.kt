@@ -6,9 +6,6 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Bookmark
-import androidx.compose.material.icons.outlined.BookmarkBorder
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
@@ -16,6 +13,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
+import com.riffle.app.ui.theme.RiffleIcons
 
 @Composable
 fun ToReadToggleButton(
@@ -35,7 +33,7 @@ fun ToReadToggleButton(
         contentAlignment = Alignment.Center,
     ) {
         Icon(
-            imageVector = if (isInToRead) Icons.Filled.Bookmark else Icons.Outlined.BookmarkBorder,
+            imageVector = if (isInToRead) RiffleIcons.ToReadFilled else RiffleIcons.ToRead,
             contentDescription = if (isInToRead) "Remove from To Read" else "Add to To Read",
             tint = if (isInToRead) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.outline,
             modifier = Modifier.size(20.dp),

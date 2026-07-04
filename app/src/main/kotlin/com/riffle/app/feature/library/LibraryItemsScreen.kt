@@ -41,7 +41,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Bookmark
-import androidx.compose.material.icons.filled.Bookmarks
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.FormatListNumbered
@@ -105,6 +104,7 @@ import androidx.compose.ui.res.painterResource
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.riffle.app.R
+import com.riffle.app.ui.theme.RiffleIcons
 import com.riffle.core.database.AnnotationEntity
 import com.riffle.core.domain.Collection
 import com.riffle.core.domain.HighlightColor
@@ -1194,7 +1194,7 @@ private fun LibraryTabBar(selectedTab: Int, onTabSelected: (Int) -> Unit) {
         NavigationBarItem(
             selected = selectedTab == 1,
             onClick = { onTabSelected(1) },
-            icon = { Icon(Icons.Filled.Bookmarks, contentDescription = "To Read") },
+            icon = { Icon(RiffleIcons.ToReadFilled, contentDescription = "To Read") },
         )
         NavigationBarItem(
             selected = selectedTab == 2,

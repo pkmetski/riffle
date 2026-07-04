@@ -17,7 +17,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.List
-import androidx.compose.material.icons.filled.Bookmarks
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -58,6 +57,7 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.riffle.app.feature.reader.formatting.RenderCapabilities
 import com.riffle.app.feature.reader.formatting.toPdfiumPreferences
+import com.riffle.app.ui.theme.RiffleIcons
 import com.riffle.core.domain.FormattingPreferences
 import com.riffle.core.domain.ReaderTheme
 import kotlinx.coroutines.flow.Flow
@@ -266,7 +266,7 @@ fun PdfReaderScreen(
                             onClick = viewModel::openAnnotationsPanel,
                             modifier = Modifier.testTag("pdf_open_annotations"),
                         ) {
-                            Icon(Icons.Filled.Bookmarks, contentDescription = "Annotations")
+                            Icon(RiffleIcons.Annotations, contentDescription = "Annotations")
                         }
                         IconButton(
                             onClick = { showFormattingPanel = true },
