@@ -24,6 +24,8 @@ import com.riffle.core.domain.ReadaloudPreferencesStore
 import com.riffle.core.domain.ReadaloudReviewRepository
 import com.riffle.core.domain.Server
 import com.riffle.core.domain.ServerType
+import com.riffle.app.feature.annotationsync.AnnotationSyncKind
+import com.riffle.app.feature.annotationsync.deriveAnnotationSyncKind
 import com.riffle.core.data.AnnotationSyncStatusStore
 import com.riffle.core.data.CycleOutcome
 import com.riffle.core.database.AnnotationDao
@@ -96,58 +98,37 @@ class SettingsViewModel @Inject constructor(
         outcome: CycleOutcome,
         pendingCount: Int,
     ): AnnotationSyncRowState {
-        if (config == null) {
-            return AnnotationSyncRowState(
-                badge = AnnotationSyncRowState.Badge.Local,
-                headline = "WebDAV",
-                sub = "Not configured · tap to set up a WebDAV server",
-                subTone = AnnotationSyncRowState.Tone.Normal,
-            )
+        val kind = deriveAnnotationSyncKind(config, outcome, pendingCount)
+        val badge = when (kind) {
+            AnnotationSyncKind.Local -> AnnotationSyncRowState.Badge.Local
+            AnnotationSyncKind.Synced -> AnnotationSyncRowState.Badge.Synced
+            AnnotationSyncKind.Pending -> AnnotationSyncRowState.Badge.Pending
+            AnnotationSyncKind.Error -> AnnotationSyncRowState.Badge.Error
         }
-        val identity = "${config.username}@${shortHost(config.baseUrl)}"
-        return when {
-            outcome is CycleOutcome.NeverRun -> AnnotationSyncRowState(
-                AnnotationSyncRowState.Badge.Pending, "WebDAV",
-                "Waiting for first sync…",
-                AnnotationSyncRowState.Tone.Pending,
-            )
-            outcome is CycleOutcome.Failed.Auth -> AnnotationSyncRowState(
-                AnnotationSyncRowState.Badge.Error, "WebDAV",
-                "Authentication failed · tap to re-enter credentials",
-                AnnotationSyncRowState.Tone.Error,
-            )
-            outcome is CycleOutcome.Failed.Tls -> AnnotationSyncRowState(
-                AnnotationSyncRowState.Badge.Error, "WebDAV",
-                "TLS error · tap to check server URL",
-                AnnotationSyncRowState.Tone.Error,
-            )
-            outcome is CycleOutcome.Failed.Server -> AnnotationSyncRowState(
-                AnnotationSyncRowState.Badge.Error, "WebDAV",
-                "Server error (HTTP ${outcome.code}) · will retry automatically",
-                AnnotationSyncRowState.Tone.Error,
-            )
-            outcome is CycleOutcome.Failed.Unknown -> AnnotationSyncRowState(
-                AnnotationSyncRowState.Badge.Error, "WebDAV",
-                "Sync failed · will retry automatically",
-                AnnotationSyncRowState.Tone.Error,
-            )
-            outcome is CycleOutcome.Failed.Network -> AnnotationSyncRowState(
-                AnnotationSyncRowState.Badge.Pending, "WebDAV",
-                if (pendingCount > 0) "$pendingCount book(s) pending · will sync when online"
-                else "Offline · will sync when connected",
-                AnnotationSyncRowState.Tone.Pending,
-            )
-            pendingCount > 0 -> AnnotationSyncRowState(
-                AnnotationSyncRowState.Badge.Pending, "WebDAV",
-                "$pendingCount book(s) pending · will sync when online",
-                AnnotationSyncRowState.Tone.Pending,
-            )
-            else -> AnnotationSyncRowState(
-                AnnotationSyncRowState.Badge.Synced, "WebDAV",
-                "Synced · $identity",
-                AnnotationSyncRowState.Tone.Normal,
-            )
+        val subTone = when (kind) {
+            AnnotationSyncKind.Local, AnnotationSyncKind.Synced -> AnnotationSyncRowState.Tone.Normal
+            AnnotationSyncKind.Pending -> AnnotationSyncRowState.Tone.Pending
+            AnnotationSyncKind.Error -> AnnotationSyncRowState.Tone.Error
         }
+        val identity = config?.let { "${it.username}@${shortHost(it.baseUrl)}" }
+        // NeverRun outranks a positive pending count so the row keeps saying
+        // "Waiting for first sync…" for a freshly-configured install — matching pre-refactor
+        // behavior. The kind is still Pending either way, so the badge stays in sync with the
+        // banner via [deriveAnnotationSyncKind].
+        val sub = when {
+            config == null -> "Not configured · tap to set up a WebDAV server"
+            outcome is CycleOutcome.NeverRun -> "Waiting for first sync…"
+            outcome is CycleOutcome.Failed.Auth -> "Authentication failed · tap to re-enter credentials"
+            outcome is CycleOutcome.Failed.Tls -> "TLS error · tap to check server URL"
+            outcome is CycleOutcome.Failed.Server -> "Server error (HTTP ${outcome.code}) · will retry automatically"
+            outcome is CycleOutcome.Failed.Unknown -> "Sync failed · will retry automatically"
+            outcome is CycleOutcome.Failed.Network && pendingCount > 0 ->
+                "$pendingCount book(s) pending · will sync when online"
+            outcome is CycleOutcome.Failed.Network -> "Offline · will sync when connected"
+            pendingCount > 0 -> "$pendingCount book(s) pending · will sync when online"
+            else -> "Synced · $identity"
+        }
+        return AnnotationSyncRowState(badge, "WebDAV", sub, subTone)
     }
 
     private val _crashReports = MutableStateFlow(crashReportRepository.listCrashReports())

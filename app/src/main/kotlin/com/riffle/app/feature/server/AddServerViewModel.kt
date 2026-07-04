@@ -7,9 +7,12 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.riffle.app.BuildConfig
+import com.riffle.app.feature.annotationsync.AnnotationSyncKind
+import com.riffle.app.feature.annotationsync.deriveAnnotationSyncKind
 import com.riffle.core.data.AnnotationSyncStatusStore
 import com.riffle.core.data.CycleOutcome
 import com.riffle.core.data.ReadaloudMatchingService
+import com.riffle.core.database.AnnotationDao
 import com.riffle.core.data.StorytellerReadaloudSyncer
 import com.riffle.core.data.TestConnectionResult
 import com.riffle.core.data.WebDavAnnotationSyncTargetFactory
@@ -56,6 +59,7 @@ class AddServerViewModel @Inject constructor(
     private val readaloudMatcher: ReadaloudMatchingService,
     private val tokenStorage: TokenStorage,
     private val clock: Clock,
+    private val annotationDao: AnnotationDao,
     @Named(WEBDAV_BANNER_TICKER) private val bannerTicker: Flow<Unit>,
     savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
@@ -90,9 +94,10 @@ class AddServerViewModel @Inject constructor(
         webdavConfigStore.observe(),
         webdavStatusStore.lastCycleOutcome,
         webdavStatusStore.lastSuccessAtMs,
+        annotationDao.observePendingBookCountAcrossAll(),
         bannerTicker,
-    ) { config, outcome, lastSuccessAtMs, _ ->
-        config?.let { webdavBanner(it, outcome, lastSuccessAtMs) }
+    ) { config, outcome, lastSuccessAtMs, pendingCount, _ ->
+        config?.let { webdavBanner(it, outcome, pendingCount, lastSuccessAtMs) }
     }.stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
     var insecureWarning by mutableStateOf<InsecureConnectionType?>(null)
@@ -281,25 +286,41 @@ class AddServerViewModel @Inject constructor(
     private fun webdavBanner(
         config: AnnotationSyncConfig,
         outcome: CycleOutcome,
+        pendingBookCount: Int,
         lastSuccessAtMs: Long?,
     ): WebdavBanner {
-        val (kind, prescription) = when (outcome) {
-            is CycleOutcome.NeverRun -> WebdavBannerKind.Pending to null
-            is CycleOutcome.Success -> WebdavBannerKind.Synced to null
-            is CycleOutcome.Failed.Auth -> WebdavBannerKind.Error to
+        // Kind comes from the shared derivation so this banner cannot disagree with the Settings
+        // "WebDAV" row (see [AnnotationSyncKind]). Prescription copy stays local because the
+        // banner surfaces action guidance the Settings row does not.
+        val bannerKind = when (deriveAnnotationSyncKind(config, outcome, pendingBookCount)) {
+            AnnotationSyncKind.Synced -> WebdavBannerKind.Synced
+            AnnotationSyncKind.Pending -> WebdavBannerKind.Pending
+            AnnotationSyncKind.Error -> WebdavBannerKind.Error
+            // config is non-null on this code path (banner is hidden otherwise), so Local is
+            // unreachable — fall back to Pending defensively.
+            AnnotationSyncKind.Local -> WebdavBannerKind.Pending
+        }
+        val prescription = when {
+            outcome is CycleOutcome.Failed.Auth ->
                 "Authentication failed — your credentials may have expired. Re-enter them below; sync will retry once saved."
-            is CycleOutcome.Failed.Tls -> WebdavBannerKind.Error to
+            outcome is CycleOutcome.Failed.Tls ->
                 "TLS error — the server's certificate could not be verified. Update the URL below; sync will retry once saved."
-            is CycleOutcome.Failed.Server -> WebdavBannerKind.Error to
+            outcome is CycleOutcome.Failed.Server ->
                 "Server returned HTTP ${outcome.code}. Will retry automatically."
-            is CycleOutcome.Failed.Network -> WebdavBannerKind.Pending to
+            outcome is CycleOutcome.Failed.Unknown ->
+                "Sync failed. Will retry automatically."
+            outcome is CycleOutcome.Failed.Network ->
                 "Couldn't reach the server. Will retry automatically when connectivity returns."
-            is CycleOutcome.Failed.Unknown -> WebdavBannerKind.Error to "Sync failed. Will retry automatically."
+            outcome is CycleOutcome.Success && pendingBookCount > 0 ->
+                "$pendingBookCount book(s) pending · will sync shortly."
+            outcome is CycleOutcome.NeverRun && pendingBookCount > 0 ->
+                "$pendingBookCount book(s) pending · waiting for first sync."
+            else -> null
         }
         val host = runCatching { java.net.URI(config.baseUrl).host ?: config.baseUrl }
             .getOrElse { config.baseUrl }
         return WebdavBanner(
-            kind = kind,
+            kind = bannerKind,
             host = host,
             baseUrl = config.baseUrl,
             username = config.username,
