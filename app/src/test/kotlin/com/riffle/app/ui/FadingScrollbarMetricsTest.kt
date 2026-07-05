@@ -25,6 +25,7 @@ class FadingScrollbarMetricsTest {
                 visibleSizeSum = 5 * 100L,
                 firstVisibleIndex = 0,
                 firstVisibleScrollOffset = 0,
+                firstVisibleItemSize = 100,
             ),
         )
     }
@@ -34,7 +35,7 @@ class FadingScrollbarMetricsTest {
         assertNull(
             computeListScrollMetrics(
                 total = 20, viewport = 500, visibleCount = 0, visibleSizeSum = 0L,
-                firstVisibleIndex = 0, firstVisibleScrollOffset = 0,
+                firstVisibleIndex = 0, firstVisibleScrollOffset = 0, firstVisibleItemSize = 0,
             ),
         )
     }
@@ -44,7 +45,7 @@ class FadingScrollbarMetricsTest {
         // 20 items of 100px each = 2000 content, viewport 500 -> extent = 0.25
         val m = computeListScrollMetrics(
             total = 20, viewport = 500, visibleCount = 5, visibleSizeSum = 500L,
-            firstVisibleIndex = 0, firstVisibleScrollOffset = 0,
+            firstVisibleIndex = 0, firstVisibleScrollOffset = 0, firstVisibleItemSize = 100,
         )!!
         assertClose(0.25f, m.extentFraction)
         assertClose(0f, m.offsetFraction)
@@ -54,9 +55,9 @@ class FadingScrollbarMetricsTest {
     fun `list metrics offset advances with scroll offset within an item`() {
         val m = computeListScrollMetrics(
             total = 20, viewport = 500, visibleCount = 5, visibleSizeSum = 500L,
-            firstVisibleIndex = 4, firstVisibleScrollOffset = 50,
+            firstVisibleIndex = 4, firstVisibleScrollOffset = 50, firstVisibleItemSize = 100,
         )!!
-        // offsetPx = 4*100 + 50 = 450, content = 2000, offset = 0.225
+        // (4 + 50/100) / 20 = 4.5/20 = 0.225
         assertClose(0.225f, m.offsetFraction)
     }
 
@@ -64,10 +65,51 @@ class FadingScrollbarMetricsTest {
     fun `list metrics clamps offset to leave room for the thumb`() {
         val m = computeListScrollMetrics(
             total = 20, viewport = 500, visibleCount = 1, visibleSizeSum = 100L,
-            firstVisibleIndex = 100, firstVisibleScrollOffset = 9999,
+            firstVisibleIndex = 100, firstVisibleScrollOffset = 9999, firstVisibleItemSize = 100,
         )!!
         // Extent = 0.25 (500/2000). Max allowed offset = 1 - 0.25 = 0.75.
         assertClose(0.75f, m.offsetFraction)
+    }
+
+    @Test
+    fun `list metrics offset stays continuous when avg item size shifts mid-scroll`() {
+        // Regression: annotations list has 2-line bookmarks and 6-line highlights sharing a
+        // LazyColumn. As tall highlights enter/leave the viewport the running avg shifts, and
+        // the old avg-scaled offset would jitter mid-scroll. Now that offset is derived from
+        // the first visible item's own size, two frames scrolling forward within the same item
+        // must produce monotonically-increasing offsets even if avg changed between them.
+        val itemSize = 300
+        val a = computeListScrollMetrics(
+            total = 40, viewport = 900,
+            // Frame 1: viewport shows one 300px item and two 100px items -> avg = 166.
+            visibleCount = 3, visibleSizeSum = 300L + 100L + 100L,
+            firstVisibleIndex = 5, firstVisibleScrollOffset = 60,
+            firstVisibleItemSize = itemSize,
+        )!!
+        val b = computeListScrollMetrics(
+            total = 40, viewport = 900,
+            // Frame 2: another 300px item scrolled in, avg jumps -> avg = 233.
+            visibleCount = 3, visibleSizeSum = 300L + 300L + 100L,
+            firstVisibleIndex = 5, firstVisibleScrollOffset = 90,
+            firstVisibleItemSize = itemSize,
+        )!!
+        assert(b.offsetFraction > a.offsetFraction) {
+            "offset regressed on forward scroll: a=${a.offsetFraction}, b=${b.offsetFraction}"
+        }
+        // Continuity across the item boundary: scrolled fully through item 5, handoff to item 6.
+        val boundaryA = computeListScrollMetrics(
+            total = 40, viewport = 900,
+            visibleCount = 3, visibleSizeSum = 300L + 100L + 100L,
+            firstVisibleIndex = 5, firstVisibleScrollOffset = itemSize,
+            firstVisibleItemSize = itemSize,
+        )!!
+        val boundaryB = computeListScrollMetrics(
+            total = 40, viewport = 900,
+            visibleCount = 3, visibleSizeSum = 100L + 100L + 100L,
+            firstVisibleIndex = 6, firstVisibleScrollOffset = 0,
+            firstVisibleItemSize = 100,
+        )!!
+        assertClose(boundaryA.offsetFraction, boundaryB.offsetFraction, tol = 0.0001f)
     }
 
     // --- computeGridScrollMetrics ---
