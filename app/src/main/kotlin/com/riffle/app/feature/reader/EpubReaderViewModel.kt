@@ -265,6 +265,9 @@ class EpubReaderViewModel @Inject constructor(
             ?.let { runCatching { ReaderSource.valueOf(it.replaceFirstChar(Char::uppercase)) }.getOrNull() }
             ?: ReaderSource.FullBook
 
+    /** Public read of [source] for the screen layer to gate Readaloud/Rail UI (Task 9, ADR 0041). */
+    val readerSource: ReaderSource get() = source
+
     // Audiobook→readaloud handoff: when opened by swiping the audiobook player down, this carries the
     // audiobook's current position (seconds on the concatenated timeline; -1 = not a handoff). On open
     // we auto-start readaloud playing from this second so narration continues where listening left off.
@@ -307,6 +310,11 @@ class EpubReaderViewModel @Inject constructor(
 
     private val _syncErrorEvents = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
     val syncErrorEvents: SharedFlow<Unit> = _syncErrorEvents.asSharedFlow()
+
+    // Nav events the screen can't service itself — e.g. leaving the elided Highlights-mode reader
+    // to open the real source book at a tapped highlight's CFI (Task 9, ADR 0041).
+    private val _readerNavEvents = Channel<ReaderNavEvent>(Channel.BUFFERED)
+    val readerNavEvents: Flow<ReaderNavEvent> = _readerNavEvents.receiveAsFlow()
 
     // Delegates to the session — the channel lives there now (sub-task 8.3).
     val pageTopProbeRequests: Flow<String> get() = readaloud.pageTopProbeRequests
@@ -1160,6 +1168,27 @@ class EpubReaderViewModel @Inject constructor(
     /** Save (or clear) the note on a highlight; blank text is treated as null (removes the note). */
     fun updateHighlightNote(id: String, note: String?) {
         viewModelScope.launch { annotationSession.updateHighlightNote(id, note) }
+    }
+
+    /**
+     * Highlights mode only (Task 9, ADR 0041): tapping "Open in book" on a highlight in the
+     * synthesised, elided reader navigates OUT to the full-book reader at that highlight's CFI.
+     * Falls back to the active server if [annotationServerId] hasn't resolved yet — a race that
+     * shouldn't occur in practice, since Highlights mode had to load highlights (and thus resolve
+     * a server) before any highlight could be tapped.
+     */
+    fun openHighlightInSourceBook(annotationId: String) {
+        viewModelScope.launch {
+            val row = annotationDao.getById(annotationId) ?: return@launch
+            val serverId = annotationServerId ?: serverRepository.getActive()?.id ?: return@launch
+            _readerNavEvents.send(
+                ReaderNavEvent.OpenInSourceBook(
+                    serverId = serverId,
+                    itemId = row.itemId,
+                    cfi = row.cfi,
+                ),
+            )
+        }
     }
 
     /** Debounced push of the local non-deleted annotations to the WebDAV target (#76). No-op when

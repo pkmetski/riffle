@@ -497,9 +497,26 @@ fun MainScreen(
                     },
                 )
             ) {
+                val viewModel: com.riffle.app.feature.reader.EpubReaderViewModel = hiltViewModel()
+                // Highlights mode's "Open in book" (Task 9, ADR 0041): leaves the elided reader and
+                // opens the full-book reader at the tapped highlight's CFI. Handled at the nav-host
+                // level (not inside EpubReaderScreen) since it pops this route off the back stack.
+                LaunchedEffect(viewModel) {
+                    viewModel.readerNavEvents.collect { event ->
+                        when (event) {
+                            is com.riffle.app.feature.reader.ReaderNavEvent.OpenInSourceBook -> {
+                                val encodedId = URLEncoder.encode(event.itemId, "UTF-8")
+                                val encodedCfi = URLEncoder.encode(event.cfi, "UTF-8")
+                                navController.popBackStack()
+                                navController.navigate("epub_reader/$encodedId?openAtCfi=$encodedCfi")
+                            }
+                        }
+                    }
+                }
                 EpubReaderScreen(
                     windowSizeClass = windowSizeClass,
                     onNavigateBack = { navController.popBackStack() },
+                    viewModel = viewModel,
                 )
             }
             composable(

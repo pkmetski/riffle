@@ -47,6 +47,9 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import com.riffle.app.feature.reader.formatting.RenderCapabilities
+import com.riffle.app.feature.reader.highlights.shouldShowChapterRail
+import com.riffle.app.feature.reader.highlights.shouldShowOpenInBook
+import com.riffle.app.feature.reader.highlights.shouldShowReadaloudUi
 import com.riffle.app.feature.reader.presenter.ContinuousPresenter
 import com.riffle.app.feature.reader.presenter.NavigationOptions
 import com.riffle.app.feature.reader.presenter.NavigationTarget
@@ -441,6 +444,8 @@ fun EpubReaderScreen(
                         onRecolorHighlight = viewModel::recolorHighlight,
                         onDeleteHighlight = viewModel::deleteHighlight,
                         onUpdateHighlightNote = viewModel::updateHighlightNote,
+                        showOpenInBook = shouldShowOpenInBook(viewModel.readerSource),
+                        onOpenInBook = viewModel::openHighlightInSourceBook,
                         autoScrollDeltas = viewModel.autoScrollScrollDeltas,
                         onReachedEndOfBook = viewModel::reachedEndOfBookForAutoScroll,
                         onAutoScrollPause = viewModel::pauseAutoScroll,
@@ -524,12 +529,13 @@ fun EpubReaderScreen(
                     formattingPrefs.showCurrentChapterLabel ||
                     formattingPrefs.showReadingTimeEstimate
                 )
-        if (state is ReaderState.Ready && (readaloudOpen || showRailOverlay)) {
+        val showReadaloudUi = shouldShowReadaloudUi(viewModel.readerSource)
+        if (state is ReaderState.Ready && ((readaloudOpen && showReadaloudUi) || showRailOverlay)) {
             Column(
                 modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth(),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                if (readaloudOpen) {
+                if (readaloudOpen && showReadaloudUi) {
                     // Reference the reader-theme palette so the player matches the chapter-rail
                     // overlay backdrop (which paints readerTheme.palette.background) and the two
                     // read as one continuous, theme-following strip.
@@ -593,12 +599,14 @@ fun EpubReaderScreen(
             }
         }
 
-        downloadPromptBytes?.let { bytes ->
-            ReadaloudDownloadDialog(
-                sizeBytes = bytes,
-                onConfirm = { wifiOnly -> viewModel.confirmDownloadAudio(wifiOnly) },
-                onDismiss = viewModel::dismissDownloadPrompt,
-            )
+        if (showReadaloudUi) {
+            downloadPromptBytes?.let { bytes ->
+                ReadaloudDownloadDialog(
+                    sizeBytes = bytes,
+                    onConfirm = { wifiOnly -> viewModel.confirmDownloadAudio(wifiOnly) },
+                    onDismiss = viewModel::dismissDownloadPrompt,
+                )
+            }
         }
 
         AnimatedVisibility(
@@ -658,7 +666,7 @@ fun EpubReaderScreen(
                                     },
                                 )
                             }
-                            if (readaloudVisible) {
+                            if (readaloudVisible && showReadaloudUi) {
                                 IconButton(
                                     onClick = viewModel::openReadaloud,
                                     enabled = readaloudAvailable,
@@ -813,7 +821,7 @@ private fun EpubChapterRailOverlay(
                     bookTimeRemaining = bookTimeRemaining,
                 )
             }
-            if (showRail) {
+            if (showRail && shouldShowChapterRail(viewModel.readerSource)) {
                 ChapterNavigationRail(
                     segments = railSegments,
                     activeIndex = activeRailSegmentIndex,
@@ -1146,6 +1154,8 @@ private fun EpubNavigatorView(
     onRecolorHighlight: (String, HighlightColor) -> Unit,
     onDeleteHighlight: (String) -> Unit,
     onUpdateHighlightNote: (String, String?) -> Unit,
+    showOpenInBook: Boolean = false,
+    onOpenInBook: (String) -> Unit = {},
     autoScrollDeltas: Flow<Int>,
     onReachedEndOfBook: () -> Unit,
     onAutoScrollPause: (com.riffle.core.domain.autoscroll.PauseCause) -> Unit,
@@ -2513,6 +2523,8 @@ private fun EpubNavigatorView(
                 },
                 onDismiss = onDismissHighlightActions,
                 noteOnly = editTarget.noteOnly,
+                showOpenInBook = showOpenInBook,
+                onOpenInBook = { onOpenInBook(editTarget.id) },
             )
         }
         val noteTarget = noteEditorTarget
