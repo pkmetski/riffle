@@ -167,4 +167,11 @@ internal interface RendererBridge {
      */
     suspend fun evaluateCadenceTokenise(chapterHref: String, localeTag: String?): String?
 
+    /**
+     * Return the id of the first `<span class="riffle-cd">` currently visible in the
+     * paginated / vertical viewport (e.g. `"cd-7"`), or null when nothing is on-screen. Uses
+     * Cadence's own span ids — not the text-prefix probe [firstVisibleSentenceIndex] which
+     * false-positives when Cadence-tokenised sentences share common openings.
+     */
+    suspend fun firstVisibleCadenceSpanId(): String?
 }

@@ -124,4 +124,8 @@ internal class FakeRendererBridge(
         return cadenceTokeniseResult
     }
 
+    override suspend fun firstVisibleCadenceSpanId(): String? {
+        calls += "firstVisibleCadenceSpanId"
+        return cadenceFirstVisibleSpanIdResult
+    }
 }

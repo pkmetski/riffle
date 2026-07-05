@@ -553,7 +553,6 @@ fun EpubReaderScreen(
                         } else null,
                         cadencePageTopProbeRequests = viewModel.cadencePageTopProbeRequests,
                         onCadencePageTopResolved = viewModel::onCadencePageTopResolved,
-                        cadenceQuotesForProbe = { viewModel.cadenceQuotes.value },
                         onReachedEndOfBook = viewModel::reachedEndOfBookForAutoScroll,
                         onAutoScrollPause = viewModel::pauseAutoScroll,
                         onAutoScrollResume = viewModel::resumeAutoScrollIfPaused,
@@ -1320,7 +1319,6 @@ private fun EpubNavigatorView(
     // pair (issue #403 spec: "start from the sentence currently visible — same as Readaloud").
     cadencePageTopProbeRequests: Flow<String> = kotlinx.coroutines.flow.emptyFlow(),
     onCadencePageTopResolved: (href: String, fragmentId: String?) -> Unit = { _, _ -> },
-    cadenceQuotesForProbe: () -> Map<String, SentenceQuote> = { emptyMap() },
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -2072,24 +2070,16 @@ private fun EpubNavigatorView(
         }
     }
 
-    // Cadence page-top probe — mirrors the Readaloud effect above (issue #403 spec). Cadence's
-    // quotes are keyed by full FragmentRef ("chapterHref#cd-N"); we filter to the current chapter
-    // and pass the SHORT sentence text list to the same rendererBridge probe Readaloud uses. The
-    // returned index resolves back to the fragment ref via the same ordered list.
+    // Cadence page-top probe — mirrors the Readaloud effect above (issue #403 spec: same
+    // channel/effect/resolved contract). One difference: Readaloud's probe uses a 12-char
+    // text-prefix search which is fine for Storyteller-produced sentences but false-positives on
+    // Cadence-tokenised prose where many sentences share a common opening ("The problem…",
+    // "The solution…"). Cadence spans have unique DOM ids, so we query those directly via
+    // rendererBridge.firstVisibleCadenceSpanId — same pipeline, correct JS.
     LaunchedEffect(cadencePageTopProbeRequests) {
         cadencePageTopProbeRequests.collect { href ->
-            val allQuotes = cadenceQuotesForProbe()
-            val orderedForHref = allQuotes.entries
-                .filter { it.key.substringBefore('#') == href }
-                .toList()
-            val fragmentId = if (fragmentRef.value != null && orderedForHref.isNotEmpty()) {
-                val idx = rendererBridge.firstVisibleSentenceIndex(
-                    orderedForHref.map { it.value.highlight },
-                )
-                // Extract just the sid ("cd-N") from the resolved FragmentRef so the VM can pair
-                // it with `href` — same shape as Readaloud's onPageTopResolved contract.
-                idx?.let { orderedForHref.getOrNull(it)?.key?.substringAfter('#', "") }
-                    ?.takeIf { it.isNotEmpty() }
+            val fragmentId = if (fragmentRef.value != null) {
+                rendererBridge.firstVisibleCadenceSpanId()
             } else {
                 null
             }

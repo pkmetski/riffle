@@ -107,5 +107,29 @@ internal object CadenceDomScript {
     private fun jsEscape(s: String): String =
         s.replace("\\", "\\\\").replace("'", "\\'").replace("\n", "\\n").replace("\r", "")
 
-
+    /**
+     * Returns the id (e.g. `"cd-7"`) of the first `<span class="riffle-cd">` currently visible in
+     * the paginated/vertical viewport, or an empty string when none is on-screen. Uses Cadence's
+     * own injected span ids — far more reliable than the 12-char text-prefix probe
+     * ([com.riffle.app.feature.reader.firstVisibleSentenceJs]) which false-positives when
+     * different Cadence-tokenised sentences share a common opening ("The problem…", "The
+     * solution…"). Reading-order iteration guarantees the topmost visible span wins.
+     */
+    const val FIRST_VISIBLE_CADENCE_SPAN_ID_JS: String = """
+    (function(){
+      var TOL=24;
+      var spans=document.querySelectorAll('span.riffle-cd');
+      if (!spans || spans.length===0) return '';
+      var iw=window.innerWidth||0, ih=window.innerHeight||0;
+      for (var i=0; i<spans.length; i++) {
+        var el=spans[i];
+        var r=el.getBoundingClientRect();
+        if (!r || (r.width===0 && r.height===0)) continue;
+        if (r.left >= -TOL && r.right <= iw+TOL && r.top < ih && r.bottom > 0) {
+          return el.id;
+        }
+      }
+      return '';
+    })()
+    """
 }
