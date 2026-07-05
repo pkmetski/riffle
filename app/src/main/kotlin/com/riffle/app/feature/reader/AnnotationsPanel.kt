@@ -115,7 +115,10 @@ private fun AnnotationRow(
             .clickable(onClick = onClick)
             .padding(horizontal = 16.dp, vertical = 12.dp),
     ) {
-        Box(modifier = Modifier.size(32.dp), contentAlignment = Alignment.Center) {
+        Box(
+            modifier = Modifier.size(32.dp),
+            contentAlignment = Alignment.Center,
+        ) {
             if (annotation.type == AnnotationEntity.TYPE_BOOKMARK) {
                 Icon(
                     Icons.Filled.Bookmark,
@@ -142,7 +145,7 @@ private fun AnnotationRow(
                 text = title,
                 style = MaterialTheme.typography.bodyLarge,
                 color = MaterialTheme.colorScheme.onSurface,
-                maxLines = 2,
+                maxLines = maxLinesForAnnotationTitle(annotation.type),
                 overflow = TextOverflow.Ellipsis,
             )
             val note = annotation.note
@@ -198,6 +201,12 @@ private fun AnnotationOverflow(
         }
     }
 }
+
+internal const val BOOKMARK_TITLE_MAX_LINES = 2
+internal const val HIGHLIGHT_SNIPPET_MAX_LINES = 6
+
+internal fun maxLinesForAnnotationTitle(type: String): Int =
+    if (type == AnnotationEntity.TYPE_BOOKMARK) BOOKMARK_TITLE_MAX_LINES else HIGHLIGHT_SNIPPET_MAX_LINES
 
 @Composable
 private fun BookmarkRenameDialog(
