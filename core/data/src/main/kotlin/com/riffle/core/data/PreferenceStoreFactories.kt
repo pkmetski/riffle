@@ -2,6 +2,8 @@ package com.riffle.core.data
 
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.stringPreferencesKey
 import com.riffle.core.domain.AppTheme
 import com.riffle.core.domain.AppThemeStore
 import com.riffle.core.domain.CoverGridDensityStore
@@ -84,20 +86,28 @@ fun ReadaloudPreferencesStore(dataStore: DataStore<Preferences>): ReadaloudPrefe
     }
 }
 
+/**
+ * Per-book last-used-highlight-colour DataStore key. Exposed as `internal` so tests can reach it
+ * without duplicating the literal — a fixture that hard-codes the key silently diverges when the
+ * format changes and the fallback assertions become vacuous. Format is `"<prefix>:$serverId:$itemId"`.
+ */
+internal fun highlightColorPrefKey(serverId: String, itemId: String) =
+    stringPreferencesKey("last_used_highlight_color:$serverId:$itemId")
+
 fun HighlightColorPreferencesStore(dataStore: DataStore<Preferences>): HighlightColorPreferencesStore {
-    // Default YELLOW matches AnnotationStore.DEFAULT_COLOR so first-time users see today's behaviour.
-    // Legacy names outside the current palette (e.g. "PINK", "PURPLE") fall through the enum codec's
-    // unknown-name path to YELLOW; the user can re-pick and it persists thereafter.
-    val store = preferenceStore(
-        dataStore,
-        PrefCodecs.enum(
-            "last_used_highlight_color",
-            HighlightColor.YELLOW,
-            HighlightColor.entries.toTypedArray(),
-        ),
-    )
+    // Per-book last-used colour. Unknown/absent → HighlightColor.DEFAULT (first entry in the
+    // palette), so a book the user has never picked a colour on opens with the palette default.
+    // Legacy names outside the current palette (e.g. "PINK", "PURPLE") also fall back to DEFAULT;
+    // the user can re-pick and it persists per-book thereafter.
     return object : HighlightColorPreferencesStore {
-        override val lastUsedColor: Flow<HighlightColor> = store.flow
-        override suspend fun setLastUsedColor(value: HighlightColor) = store.update(value)
+        override fun lastUsedColor(serverId: String, itemId: String): Flow<HighlightColor> =
+            dataStore.data.map { prefs ->
+                val name = prefs[highlightColorPrefKey(serverId, itemId)] ?: return@map HighlightColor.DEFAULT
+                runCatching { HighlightColor.valueOf(name) }.getOrDefault(HighlightColor.DEFAULT)
+            }
+
+        override suspend fun setLastUsedColor(serverId: String, itemId: String, value: HighlightColor) {
+            dataStore.edit { it[highlightColorPrefKey(serverId, itemId)] = value.name }
+        }
     }
 }

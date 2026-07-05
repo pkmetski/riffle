@@ -19,7 +19,6 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
@@ -144,13 +143,14 @@ class AnnotationSession @AssistedInject constructor(
     val annotationNavigationEvents: Flow<AnnotationNavigationEvent> = _annotationNavigationChannel.receiveAsFlow()
 
     /**
-     * The app-wide "last-used" highlight colour. New highlights are born in this colour so the
-     * user's most recent pick is remembered globally. Kept as a StateFlow so the VM can read
+     * The per-book "last-used" highlight colour. New highlights are born in this colour so the
+     * user's most recent pick is remembered PER BOOK. Kept as a StateFlow so the VM can read
      * [StateFlow.value] synchronously at creation time; the initial value falls back to
-     * [HighlightColor.DEFAULT] until DataStore emits its first value.
+     * [HighlightColor.DEFAULT] (the first entry in the palette) until [bind] wires up a book-
+     * scoped source and until DataStore emits the first value for that book.
      */
-    val lastUsedHighlightColor: StateFlow<HighlightColor> = highlightColorPreferencesStore.lastUsedColor
-        .stateIn(scope, SharingStarted.Eagerly, HighlightColor.DEFAULT)
+    private val _lastUsedHighlightColor = MutableStateFlow(HighlightColor.DEFAULT)
+    val lastUsedHighlightColor: StateFlow<HighlightColor> = _lastUsedHighlightColor
 
     /**
      * Reflects the last annotation sync outcome as a UI banner. Null = no cycle has run yet
@@ -191,6 +191,9 @@ class AnnotationSession @AssistedInject constructor(
     private var highlightObserveJob: Job? = null
     private var annotationsObserveJob: Job? = null
 
+    /** Observes the per-book last-used highlight colour. Cancelled on [bind]. */
+    private var lastUsedColorObserveJob: Job? = null
+
     // ---- Public API --------------------------------------------------------------------------
 
     /**
@@ -214,6 +217,11 @@ class AnnotationSession @AssistedInject constructor(
         annotationLiveSyncJob = null
         highlightObserveJob?.cancel()
         annotationsObserveJob?.cancel()
+        lastUsedColorObserveJob?.cancel()
+        // Reset to palette default so the previous book's colour doesn't leak into a new book that
+        // has never had a colour picked. If the DataStore has a value for this book, the observer
+        // below overwrites this on its first emission.
+        _lastUsedHighlightColor.value = HighlightColor.DEFAULT
         _highlightRenders.value = emptyList()
         _annotations.value = emptyList()
         _annotationsPanelVisible.value = false
@@ -239,6 +247,15 @@ class AnnotationSession @AssistedInject constructor(
         annotationsObserveJob = scope.launch {
             annotationStore.observeAnnotations(serverId, itemId).collect { list ->
                 _annotations.value = list
+            }
+        }
+
+        // Observe the per-book last-used highlight colour so new highlights in THIS book are
+        // born in whatever colour the user last picked here. Falls back to HighlightColor.DEFAULT
+        // for books the user has never picked a colour on (see HighlightColorPreferencesStore).
+        lastUsedColorObserveJob = scope.launch {
+            highlightColorPreferencesStore.lastUsedColor(serverId, itemId).collect {
+                _lastUsedHighlightColor.value = it
             }
         }
 
@@ -280,13 +297,16 @@ class AnnotationSession @AssistedInject constructor(
 
     /**
      * Recolour an existing highlight; [annotationStore] re-emits → [highlightRenders] re-renders.
-     * Also persists [color] as the app-wide last-used highlight colour so subsequent new
-     * highlights are born in it.
+     * Also persists [color] as the last-used highlight colour FOR THE CURRENT BOOK so subsequent
+     * new highlights in the same book are born in it. No-op on the last-used store if the session
+     * isn't bound (should not happen from the reader UI).
      */
     suspend fun recolorHighlight(id: String, color: HighlightColor) {
         annotationStore.recolor(id, color.token)
-        highlightColorPreferencesStore.setLastUsedColor(color)
-        scheduleSync(boundServerId ?: return, boundNamespace ?: return, boundItemId ?: return)
+        val sid = boundServerId ?: return
+        val iid = boundItemId ?: return
+        highlightColorPreferencesStore.setLastUsedColor(sid, iid, color)
+        scheduleSync(sid, boundNamespace ?: return, iid)
     }
 
     /** Soft-delete a highlight; [annotationStore] re-emits without it → decoration removed. */

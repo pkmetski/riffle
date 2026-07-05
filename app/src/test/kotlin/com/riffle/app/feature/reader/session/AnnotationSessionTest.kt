@@ -169,10 +169,21 @@ class AnnotationSessionTest {
     private class FakeHighlightColorPreferencesStore(
         initial: HighlightColor = HighlightColor.DEFAULT,
     ) : HighlightColorPreferencesStore {
-        private val state = MutableStateFlow(initial)
-        override val lastUsedColor: Flow<HighlightColor> = state
-        override suspend fun setLastUsedColor(value: HighlightColor) { state.value = value }
-        fun currentValue(): HighlightColor = state.value
+        // Per-book state keyed by "$serverId:$itemId". Unknown book → the shared [initial] fallback,
+        // so tests that don't care about book identity keep working. Tests that DO need per-book
+        // isolation call [setLastUsedColor] with distinct ids and read [currentValue] with them.
+        private val perBook = mutableMapOf<String, MutableStateFlow<HighlightColor>>()
+        private val defaultInitial = initial
+        private fun k(serverId: String, itemId: String) = "$serverId:$itemId"
+        private fun flowFor(serverId: String, itemId: String) =
+            perBook.getOrPut(k(serverId, itemId)) { MutableStateFlow(defaultInitial) }
+        override fun lastUsedColor(serverId: String, itemId: String): Flow<HighlightColor> =
+            flowFor(serverId, itemId)
+        override suspend fun setLastUsedColor(serverId: String, itemId: String, value: HighlightColor) {
+            flowFor(serverId, itemId).value = value
+        }
+        fun currentValue(serverId: String = "srv1", itemId: String = "item1"): HighlightColor =
+            flowFor(serverId, itemId).value
     }
 
     private fun makeSession(
@@ -266,12 +277,14 @@ class AnnotationSessionTest {
     }
 
     /**
-     * Regression: recolorHighlight must ALSO persist the picked colour to the app-wide
-     * last-used store, so subsequent new highlights are born in that colour. Reverting the
-     * `setLastUsedColor` call in AnnotationSession.recolorHighlight flips this assertion.
+     * Regression: recolorHighlight must ALSO persist the picked colour to the per-book
+     * last-used store keyed by the currently-bound (serverId, itemId), so subsequent new
+     * highlights in that book are born in that colour. Reverting the `setLastUsedColor` call
+     * in AnnotationSession.recolorHighlight (or dropping the bound-book ids from it) flips
+     * this assertion.
      */
     @Test
-    fun `recolorHighlight persists colour as app-wide last-used`() = runTest {
+    fun `recolorHighlight persists colour as last-used for the bound book`() = runTest {
         val dispatcher = UnconfinedTestDispatcher(testScheduler)
         val sessionScope = CoroutineScope(dispatcher)
         val store = FakeAnnotationStore()
@@ -283,28 +296,67 @@ class AnnotationSessionTest {
 
         session.recolorHighlight("h1", HighlightColor.GREEN)
 
-        assertEquals(HighlightColor.GREEN, colorPrefs.currentValue())
+        assertEquals(HighlightColor.GREEN, colorPrefs.currentValue(serverId = "srv1", itemId = "item1"))
+        // Other books stay on their own last-used (fake's initial fallback) — recolour must not
+        // leak across books.
+        assertEquals(HighlightColor.YELLOW, colorPrefs.currentValue(serverId = "srv1", itemId = "item2"))
 
         sessionScope.coroutineContext[Job]?.cancel()
     }
 
     /**
      * Regression: [AnnotationSession.lastUsedHighlightColor] must surface the stored value
-     * synchronously via its StateFlow, so the VM can read `.value` at highlight-creation time
-     * (see [EpubReaderViewModel.createHighlight]). If the wiring is broken and the SharingStarted
-     * mode is changed away from Eagerly, the initial value stays at DEFAULT and this test flips.
+     * synchronously via its StateFlow AFTER [bind], so the VM can read `.value` at highlight-
+     * creation time (see [EpubReaderViewModel.createHighlight]). If the per-book observation
+     * job is broken, the value stays at the palette default and this test flips.
      */
     @Test
-    fun `lastUsedHighlightColor StateFlow reflects the preferences store`() = runTest {
+    fun `lastUsedHighlightColor StateFlow reflects the bound book's stored value`() = runTest {
         val dispatcher = UnconfinedTestDispatcher(testScheduler)
         val sessionScope = CoroutineScope(dispatcher)
-        val colorPrefs = FakeHighlightColorPreferencesStore(initial = HighlightColor.BLUE)
+        val colorPrefs = FakeHighlightColorPreferencesStore(initial = HighlightColor.DEFAULT)
+        // Pre-seed the bound book's colour BEFORE bind so the first collection emits it.
+        colorPrefs.setLastUsedColor("srv1", "item1", HighlightColor.BLUE)
         val session = makeSession(syncOps = FakeSyncOps(), scope = sessionScope, colorPrefsStore = colorPrefs)
+
+        defaultBind(session)
 
         assertEquals(HighlightColor.BLUE, session.lastUsedHighlightColor.value)
 
-        colorPrefs.setLastUsedColor(HighlightColor.GREEN)
+        // A later update on the SAME book flows through.
+        colorPrefs.setLastUsedColor("srv1", "item1", HighlightColor.GREEN)
         assertEquals(HighlightColor.GREEN, session.lastUsedHighlightColor.value)
+
+        sessionScope.coroutineContext[Job]?.cancel()
+    }
+
+    /**
+     * Regression: rebinding to a different book must swap the last-used colour source to that
+     * book's own value. If [bind] fails to cancel the previous observation job (or fails to
+     * reset the state), the previous book's colour leaks into the newly-bound book and this
+     * test flips.
+     */
+    @Test
+    fun `lastUsedHighlightColor swaps to the new book on rebind`() = runTest {
+        val dispatcher = UnconfinedTestDispatcher(testScheduler)
+        val sessionScope = CoroutineScope(dispatcher)
+        val colorPrefs = FakeHighlightColorPreferencesStore(initial = HighlightColor.DEFAULT)
+        colorPrefs.setLastUsedColor("srv1", "item1", HighlightColor.BLUE)
+        colorPrefs.setLastUsedColor("srv1", "item2", HighlightColor.RED)
+        val session = makeSession(syncOps = FakeSyncOps(), scope = sessionScope, colorPrefsStore = colorPrefs)
+
+        defaultBind(session)
+        assertEquals(HighlightColor.BLUE, session.lastUsedHighlightColor.value)
+
+        // Rebind to a different book — colour must swap.
+        session.bind(
+            serverId = "srv1",
+            namespace = "ns1",
+            itemId = "item2",
+            highlightRenderResolver = { null },
+            cfiLocatorResolver = { null },
+        )
+        assertEquals(HighlightColor.RED, session.lastUsedHighlightColor.value)
 
         sessionScope.coroutineContext[Job]?.cancel()
     }
