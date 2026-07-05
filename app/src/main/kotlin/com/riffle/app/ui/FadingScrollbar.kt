@@ -52,6 +52,7 @@ fun Modifier.fadingScrollbar(
                 visibleSizeSum = sizeSum,
                 firstVisibleIndex = state.firstVisibleItemIndex,
                 firstVisibleScrollOffset = state.firstVisibleItemScrollOffset,
+                firstVisibleItemSize = visible.first().size,
             )
         }
     }
@@ -114,14 +115,20 @@ internal fun computeListScrollMetrics(
     visibleSizeSum: Long,
     firstVisibleIndex: Int,
     firstVisibleScrollOffset: Int,
+    firstVisibleItemSize: Int,
 ): ScrollbarMetrics? {
     if (total <= 0 || viewport <= 0 || visibleCount <= 0) return null
     val avgItemSize = (visibleSizeSum.toFloat() / visibleCount).coerceAtLeast(1f)
     val contentHeight = avgItemSize * total
     if (contentHeight <= viewport) return null
     val extent = (viewport / contentHeight).coerceIn(0f, 1f)
-    val offsetPx = firstVisibleIndex * avgItemSize + firstVisibleScrollOffset
-    val offset = (offsetPx / contentHeight).coerceIn(0f, 1f - extent)
+    // Derive the offset in "items", not pixels, so a shifting avg item size (variable-height
+    // rows like the annotations list) can't rescale the fraction mid-scroll. Within an item
+    // we advance by scrollOffset/itemSize; at the item boundary scrollOffset resets to 0 and
+    // firstVisibleIndex increments, so handoff is continuous.
+    val itemSize = firstVisibleItemSize.coerceAtLeast(1)
+    val perItemOffset = (firstVisibleIndex + firstVisibleScrollOffset.toFloat() / itemSize) / total
+    val offset = perItemOffset.coerceIn(0f, 1f - extent)
     return ScrollbarMetrics(offset, extent)
 }
 

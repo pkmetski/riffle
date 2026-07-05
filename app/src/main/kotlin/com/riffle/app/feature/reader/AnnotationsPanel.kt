@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Bookmark
@@ -41,6 +42,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.riffle.app.ui.fadingScrollbar
 import com.riffle.core.database.AnnotationEntity
 import com.riffle.core.domain.Annotation
 import com.riffle.core.domain.HighlightColor
@@ -74,7 +76,11 @@ fun AnnotationsPanel(
                     modifier = Modifier.fillMaxWidth().padding(16.dp),
                 )
             } else {
-                LazyColumn(modifier = Modifier.fillMaxWidth()) {
+                val listState = rememberLazyListState()
+                LazyColumn(
+                    state = listState,
+                    modifier = Modifier.fillMaxWidth().fadingScrollbar(listState),
+                ) {
                     items(annotations, key = { it.id }) { annotation ->
                         AnnotationRow(
                             annotation = annotation,
