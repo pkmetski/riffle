@@ -9,12 +9,14 @@ import com.riffle.core.domain.AppThemeStore
 import com.riffle.core.domain.CoverGridDensityStore
 import com.riffle.core.domain.HighlightColor
 import com.riffle.core.domain.HighlightColorPreferencesStore
+import com.riffle.core.domain.HighlightsResumeStore
 import com.riffle.core.domain.ReadaloudPreferences
 import com.riffle.core.domain.ReadaloudPreferencesStore
 import com.riffle.core.domain.ReadingSpeedStore
 import com.riffle.core.domain.ReadingSpeedTracker
 import com.riffle.core.domain.WakeLockPreferencesStore
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 
 /**
@@ -93,6 +95,22 @@ fun ReadaloudPreferencesStore(dataStore: DataStore<Preferences>): ReadaloudPrefe
  */
 internal fun highlightColorPrefKey(serverId: String, itemId: String) =
     stringPreferencesKey("last_used_highlight_color:$serverId:$itemId")
+
+/**
+ * Multi-key store — one string key per (serverId, itemId) pair, unlike the single-codec stores
+ * above, so it's constructed directly here rather than via [preferenceStore]/[PrefCodecs].
+ */
+fun HighlightsResumeStore(dataStore: DataStore<Preferences>): HighlightsResumeStore {
+    fun keyFor(serverId: String, itemId: String) = stringPreferencesKey("highlights_resume_${serverId}_$itemId")
+    return object : HighlightsResumeStore {
+        override suspend fun lastHighlightId(serverId: String, itemId: String): String? =
+            dataStore.data.map { it[keyFor(serverId, itemId)] }.first()
+
+        override suspend fun setLastHighlightId(serverId: String, itemId: String, annotationId: String) {
+            dataStore.edit { it[keyFor(serverId, itemId)] = annotationId }
+        }
+    }
+}
 
 fun HighlightColorPreferencesStore(dataStore: DataStore<Preferences>): HighlightColorPreferencesStore {
     // Per-book last-used colour. Unknown/absent → HighlightColor.DEFAULT (first entry in the

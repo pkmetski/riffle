@@ -50,6 +50,7 @@ import com.riffle.core.domain.ServerRepository
 import com.riffle.core.domain.HighlightColor
 import com.riffle.core.domain.ReadaloudPreferencesStore
 import com.riffle.core.domain.ReadaloudResumeStore
+import com.riffle.core.domain.HighlightsResumeStore
 import com.riffle.core.domain.ReadaloudTrack
 import com.riffle.core.domain.ReadingPositionStore
 import com.riffle.core.domain.ReadingSpeedStore
@@ -78,6 +79,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.mapNotNull
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -185,6 +187,7 @@ class EpubReaderViewModel @Inject constructor(
     val dispatchers: DispatcherProvider,
     private val highlightsPublicationFactory: HighlightsPublicationFactory,
     private val annotationDao: AnnotationDao,
+    private val highlightsResumeStore: HighlightsResumeStore,
 ) : AndroidViewModel(application) {
 
     // Formatting/typography/auto-scroll orchestrator — constructed with viewModelScope so
@@ -355,6 +358,12 @@ class EpubReaderViewModel @Inject constructor(
     // now live on [lifecycle] (issue #376). Reads route through lifecycle.publication.value and
     // lifecycle.matchedSync.value; teardown via lifecycle.onCleared().
     private val chapterHtmlCache = mutableMapOf<Int, String>()
+
+    // Highlights mode only (Task 10, ADR 0041): the chapter grouping + resolved server id from the
+    // last [openBook] build, kept so the resume-position collector below can map a synthesised-href
+    // locator update back to a highlight id without rebuilding the Publication. Null in FullBook mode.
+    private var highlightsResumeChapters: List<ChapterElision>? = null
+    private var highlightsResumeServerId: String? = null
     // True after the navigator emits its first locator (the restored position on open).
     // The first emission is not new user progress — the position is already in DB — so we skip
     // the DB write to avoid stomping localUpdatedAt before the initial sync cycle runs.
@@ -560,6 +569,22 @@ class EpubReaderViewModel @Inject constructor(
                 position.requestServerJumpWithSuppressCheck(locator)
             }
         }
+        // Highlights mode only (Task 10, ADR 0041): persist the highlight the reader is currently
+        // showing so reopening the book resumes near it. Device-local — never synced. Chapter-level
+        // precision only: see [highlightsResumeAnnotationIdForHref]'s docstring for why a stable
+        // per-highlight href isn't available.
+        viewModelScope.launch {
+            if (source != ReaderSource.Highlights) return@launch
+            position.currentLocator
+                .mapNotNull { it?.href?.toString() }
+                .distinctUntilChanged()
+                .collect { href ->
+                    val serverId = highlightsResumeServerId ?: return@collect
+                    val chapters = highlightsResumeChapters ?: return@collect
+                    val annotationId = highlightsResumeAnnotationIdForHref(chapters, href) ?: return@collect
+                    highlightsResumeStore.setLastHighlightId(serverId, itemId, annotationId)
+                }
+        }
         // NOTE: The sentence-quote build on isPlaying and the audiobook-follow push loop are now
         // owned by ReadaloudSession's own init block (sub-task 8.4). The isPlaying→ReaderStateHolder
         // bridge is wired above via readaloud.onAudioPlayingChanged.
@@ -578,11 +603,36 @@ class EpubReaderViewModel @Inject constructor(
                 _state.value = ReaderState.Error("No active server")
                 return
             }
-            val pub = loadHighlightsPublication(serverId, itemId)
+            val rows = annotationDao.getForItem(serverId, itemId)
+            val chapters = buildChapterElisions(rows)
+            highlightsResumeChapters = chapters
+            highlightsResumeServerId = serverId
+            val pub = highlightsPublicationFactory.build(
+                serverId = serverId,
+                itemId = itemId,
+                bookTitle = null,
+                chapters = chapters,
+            )
+            // Per-device resume (Task 10, ADR 0041): jump back to the chapter containing the
+            // last-viewed highlight, at chapter-level precision. The synthesised Publication's
+            // hrefs ("highlights/ch$index.xhtml") are rebuilt fresh every open from `chapters`'
+            // index order, so resuming needs to re-derive the same index — there's no stable
+            // per-highlight href to store directly.
+            val lastId = highlightsResumeStore.lastHighlightId(serverId, itemId)
+            val resumeHref = lastId?.let { highlightsResumeChapterHref(chapters, it, pub.readingOrder.size) }
+            val initialLocator = resumeHref?.let { href ->
+                runCatching {
+                    Locator.fromJSON(
+                        JSONObject()
+                            .put("href", href)
+                            .put("type", "application/xhtml+xml"),
+                    )
+                }.getOrNull()
+            }
             _state.value = ReaderState.Ready(
                 publication = pub,
                 title = pub.metadata.title ?: "Annotations",
-                initialLocator = null,
+                initialLocator = initialLocator,
             )
             return
         }
@@ -599,23 +649,6 @@ class EpubReaderViewModel @Inject constructor(
             is com.riffle.app.feature.reader.session.ReaderSessionLifecycle.OpenOutcome.Ready ->
                 onOpenReady(outcome)
         }
-    }
-
-    /**
-     * Builds the synthesised, highlights-only Publication for Highlights-mode reading (ADR 0041).
-     * Reads this book's live highlights, groups them by chapter (preserving first-encounter order),
-     * derives a fallback chapter title from the href basename (Task 6's factory renders whatever
-     * title string it's given verbatim — this is where the fallback is actually computed), and hands
-     * the result to [HighlightsPublicationFactory].
-     */
-    private suspend fun loadHighlightsPublication(serverId: String, itemId: String): Publication {
-        val rows = annotationDao.getForItem(serverId, itemId)
-        return highlightsPublicationFactory.build(
-            serverId = serverId,
-            itemId = itemId,
-            bookTitle = null,
-            chapters = buildChapterElisions(rows),
-        )
     }
 
     private suspend fun onOpenReady(
@@ -1614,8 +1647,8 @@ internal fun deriveChapterTitle(href: String): String {
  * createdAt — see [AnnotationDao.observeAnnotationsByPosition] for the same tie-break order), and
  * groups them into one [ChapterElision] per distinct `chapterHref`, preserving first-encounter
  * order so chapters appear in the synthesised Publication in the order the reader would meet them.
- * `internal` so [EpubReaderViewModel.loadHighlightsPublication]'s grouping logic is unit-testable
- * from `app:test` without constructing the (Android-dependency-laden) ViewModel itself.
+ * `internal` so [EpubReaderViewModel.openBook]'s grouping logic is unit-testable from `app:test`
+ * without constructing the (Android-dependency-laden) ViewModel itself.
  */
 internal fun buildChapterElisions(rows: List<AnnotationEntity>): List<ChapterElision> {
     val live = rows
@@ -1634,6 +1667,40 @@ internal fun buildChapterElisions(rows: List<AnnotationEntity>): List<ChapterEli
             highlights = highlights,
         )
     }
+}
+
+/**
+ * Resumes to chapter-level precision only (Task 10, ADR 0041): the synthesised Publication's
+ * [HighlightsPublicationFactory] hrefs — `"highlights/ch$index.xhtml"` — are rebuilt fresh on every
+ * open from [chapters]' index order (filtered to non-empty chapters, matching the factory), so
+ * there is no stable per-highlight href to persist directly. Instead this re-derives the index of
+ * the chapter that contains [lastAnnotationId] and returns that chapter's synthesised href, or null
+ * if the highlight no longer exists (deleted since last visit) or [chapters] is empty.
+ * [readingOrderSize] guards against an out-of-range index if the two computations ever disagree.
+ * `internal` so this chapter-index arithmetic is unit-testable without a real Publication.
+ */
+internal fun highlightsResumeChapterHref(
+    chapters: List<ChapterElision>,
+    lastAnnotationId: String,
+    readingOrderSize: Int,
+): String? {
+    val nonEmptyChapters = chapters.filter { it.highlights.isNotEmpty() }
+    val index = nonEmptyChapters.indexOfFirst { chapter -> chapter.highlights.any { it.id == lastAnnotationId } }
+    if (index < 0 || index >= readingOrderSize) return null
+    return "highlights/ch$index.xhtml"
+}
+
+/**
+ * Inverse of [highlightsResumeChapterHref] (Task 10, ADR 0041): given the synthesised href the
+ * navigator just landed on (`"highlights/ch$index.xhtml"`) and the same [chapters] grouping used to
+ * build the Publication, returns the id of the first highlight in that chapter — the id persisted
+ * as this book's resume position. Returns null for a malformed/out-of-range href (defensive; the
+ * navigator should only ever report hrefs the factory itself generated).
+ */
+internal fun highlightsResumeAnnotationIdForHref(chapters: List<ChapterElision>, href: String): String? {
+    val index = Regex("""highlights/ch(\d+)\.xhtml$""").find(href)?.groupValues?.get(1)?.toIntOrNull() ?: return null
+    val nonEmptyChapters = chapters.filter { it.highlights.isNotEmpty() }
+    return nonEmptyChapters.getOrNull(index)?.highlights?.firstOrNull()?.id
 }
 
 /**

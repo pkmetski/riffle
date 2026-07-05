@@ -107,4 +107,54 @@ class EpubReaderViewModelHighlightsSourceTest {
         assertEquals("ch03", deriveChapterTitle("OEBPS/ch03.xhtml"))
         assertEquals("Chapter", deriveChapterTitle(""))
     }
+
+    // ---- Task 10 (ADR 0041): per-device resume position -----------------------------------
+
+    @Test
+    fun `highlightsResumeChapterHref resolves the synthesised href for the chapter containing the highlight`() {
+        val rows = listOf(
+            highlight("h1", "chA.xhtml", spineIndex = 0),
+            highlight("h2", "chB.xhtml", spineIndex = 1),
+        )
+        val chapters = buildChapterElisions(rows)
+
+        // chB is chapters[1] -> synthesised href index 1, matching HighlightsPublicationFactory's
+        // "highlights/ch$index.xhtml" naming (see its build()).
+        assertEquals("highlights/ch1.xhtml", highlightsResumeChapterHref(chapters, "h2", readingOrderSize = 2))
+    }
+
+    @Test
+    fun `highlightsResumeChapterHref returns null when the highlight no longer exists`() {
+        val chapters = buildChapterElisions(listOf(highlight("h1", "chA.xhtml", spineIndex = 0)))
+        assertEquals(null, highlightsResumeChapterHref(chapters, "deleted-id", readingOrderSize = 1))
+    }
+
+    @Test
+    fun `highlightsResumeChapterHref returns null when the resolved index is out of range`() {
+        val chapters = buildChapterElisions(listOf(highlight("h1", "chA.xhtml", spineIndex = 0)))
+        // readingOrderSize disagrees with the chapters list (defensive guard) -> no href.
+        assertEquals(null, highlightsResumeChapterHref(chapters, "h1", readingOrderSize = 0))
+    }
+
+    @Test
+    fun `highlightsResumeAnnotationIdForHref is the inverse of highlightsResumeChapterHref`() {
+        val rows = listOf(
+            highlight("h1", "chA.xhtml", spineIndex = 0, progression = 0.1, createdAt = 1L),
+            highlight("h2", "chA.xhtml", spineIndex = 0, progression = 0.5, createdAt = 2L),
+            highlight("h3", "chB.xhtml", spineIndex = 1),
+        )
+        val chapters = buildChapterElisions(rows)
+
+        // chB (index 1) -> its first (only) highlight.
+        assertEquals("h3", highlightsResumeAnnotationIdForHref(chapters, "highlights/ch1.xhtml"))
+        // chA (index 0) -> its first-by-progression highlight, h1, not first-by-createdAt.
+        assertEquals("h1", highlightsResumeAnnotationIdForHref(chapters, "highlights/ch0.xhtml"))
+    }
+
+    @Test
+    fun `highlightsResumeAnnotationIdForHref returns null for an unrecognised href`() {
+        val chapters = buildChapterElisions(listOf(highlight("h1", "chA.xhtml", spineIndex = 0)))
+        assertEquals(null, highlightsResumeAnnotationIdForHref(chapters, "not-a-highlights-href.xhtml"))
+        assertEquals(null, highlightsResumeAnnotationIdForHref(chapters, "highlights/ch7.xhtml"))
+    }
 }
