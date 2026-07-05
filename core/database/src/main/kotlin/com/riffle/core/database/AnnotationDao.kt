@@ -148,16 +148,4 @@ data class BookHighlightSummary(
     val itemId: String,
     val highlightCount: Int,
     val latestUpdatedAt: Long,
-) {
-    companion object {
-        // The @Query above hardcodes the 'HIGHLIGHT' literal because Room's @Query cannot
-        // reference Kotlin constants inside the SQL string. This check makes a future rename of
-        // AnnotationEntity.TYPE_HIGHLIGHT fail loudly at class-load time instead of silently
-        // breaking observeBooksWithHighlights.
-        private val TYPE_HIGHLIGHT_MATCHES_QUERY_LITERAL =
-            check(AnnotationEntity.TYPE_HIGHLIGHT == "HIGHLIGHT") {
-                "AnnotationDao.observeBooksWithHighlights hardcodes the SQL literal 'HIGHLIGHT'; " +
-                    "AnnotationEntity.TYPE_HIGHLIGHT no longer matches it."
-            }
-    }
-}
+)
