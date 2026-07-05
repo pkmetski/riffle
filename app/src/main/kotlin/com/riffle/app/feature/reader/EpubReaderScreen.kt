@@ -1762,22 +1762,35 @@ private fun EpubNavigatorView(
                     // suppressed every tokenisation call in these two orientations — the highlight
                     // never appeared because DomSentenceSource stayed empty).
                     if (onCadenceChapterTokenised != null) {
+                        android.util.Log.d(com.riffle.core.logging.LogChannel.Cadence.tag, "paginated onPageLoaded: probing Intl.Segmenter")
                         val supportedRaw = rendererBridge.evaluateCadenceFeatureDetect()
                         val supported = supportedRaw?.trim() == "true"
+                        android.util.Log.d(com.riffle.core.logging.LogChannel.Cadence.tag, "featureDetect raw='$supportedRaw' → supported=$supported")
                         onCadencePlatformSupportedChanged?.invoke(supported)
                         if (supported) {
                             val localeTag = publicationLanguageTag
-                            val hrefForCadence = currentHrefHolder[0] ?: return@launch
+                            val hrefForCadence = currentHrefHolder[0] ?: run {
+                                android.util.Log.d(com.riffle.core.logging.LogChannel.Cadence.tag, "abort: currentHrefHolder[0] is null")
+                                return@launch
+                            }
+                            android.util.Log.d(com.riffle.core.logging.LogChannel.Cadence.tag, "tokenising href='$hrefForCadence' locale='$localeTag'")
                             val rawJson = rendererBridge.evaluateCadenceTokenise(hrefForCadence, localeTag)
+                            android.util.Log.d(com.riffle.core.logging.LogChannel.Cadence.tag, "tokenise rawLen=${rawJson?.length} head=${rawJson?.take(120)}")
                             when (
                                 val parsed = com.riffle.app.feature.reader.cadence.CadenceInjector.parse(rawJson)
                             ) {
-                                is com.riffle.app.feature.reader.cadence.CadenceInjector.Result.Ready ->
+                                is com.riffle.app.feature.reader.cadence.CadenceInjector.Result.Ready -> {
+                                    android.util.Log.d(com.riffle.core.logging.LogChannel.Cadence.tag, "READY quotes=${parsed.quotes.size} hrefs=${parsed.chapterHrefs.size}")
                                     onCadenceChapterTokenised?.invoke(parsed.quotes, parsed.chapterHrefs)
-                                com.riffle.app.feature.reader.cadence.CadenceInjector.Result.Unsupported ->
+                                }
+                                com.riffle.app.feature.reader.cadence.CadenceInjector.Result.Unsupported -> {
+                                    android.util.Log.d(com.riffle.core.logging.LogChannel.Cadence.tag, "UNSUPPORTED — parse rejected the JSON")
                                     onCadencePlatformSupportedChanged?.invoke(false)
+                                }
                             }
                         }
+                    } else {
+                        android.util.Log.d(com.riffle.core.logging.LogChannel.Cadence.tag, "paginated onPageLoaded: skipped — onCadenceChapterTokenised is null (showCadence off?)")
                     }
                     // NOTE: do NOT snap to the column grid here for the general case. The typography
                     // injection above reflows the page asynchronously, so a snap at this point rounds a

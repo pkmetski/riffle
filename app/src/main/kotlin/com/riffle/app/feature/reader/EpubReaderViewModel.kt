@@ -465,6 +465,7 @@ class EpubReaderViewModel @Inject constructor(
         quotes: Map<String, com.riffle.core.domain.SentenceQuote>,
         hrefs: Map<String, String>,
     ) {
+        logger.d(com.riffle.core.logging.LogChannel.Cadence) { "VM.onCadenceChapterTokenised quotes=${quotes.size} hrefs=${hrefs.size}" }
         _cadenceQuotes.value = quotes
         val source = com.riffle.app.feature.reader.cadence.DomSentenceSource().apply {
             supplyResult(quotes, hrefs)
@@ -510,11 +511,15 @@ class EpubReaderViewModel @Inject constructor(
         applyArbiter(com.riffle.core.domain.cadence.Feature.Cadence)
         viewModelScope.launch {
             val quotes = _cadenceQuotes.value.entries.toList()
+            logger.d(com.riffle.core.logging.LogChannel.Cadence) {
+                "VM.startCadence quotes=${quotes.size} probe=${visibleSentenceProbe != null}"
+            }
             val startRef = if (quotes.isNotEmpty()) {
                 val texts = quotes.map { it.value.highlight }
                 visibleSentenceProbe?.invoke(texts)
                     ?.let { idx -> quotes.getOrNull(idx)?.key }
             } else null
+            logger.d(com.riffle.core.logging.LogChannel.Cadence) { "VM.startCadence startRef=$startRef" }
             if (startRef != null) cadenceController.goTo(startRef)
             cadenceController.dispatch(com.riffle.core.domain.cadence.CadenceEvent.Start)
         }
