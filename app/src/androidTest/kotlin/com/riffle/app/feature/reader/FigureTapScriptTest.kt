@@ -88,18 +88,22 @@ class FigureTapScriptTest {
             webView[0] = wv
         }
         assertTrue(pageLoaded.await(10, TimeUnit.SECONDS))
-        // Install the script and dispatch a synthetic click on the element.
-        instrumentation.runOnMainSync {
-            webView[0]!!.evaluateJavascript(FigureTapScript.installScript(FigureTapScript.PAGED_BRIDGE_NAME), null)
-        }
-        // Small delay so the install script's addEventListener is installed before we click.
-        Thread.sleep(200)
+        // Install the script and, in the SAME JS turn, dispatch a bubbling capture-phase click on
+        // the element. Element.click() on API-25 Chromium (Chrome 55) doesn't reliably drive the
+        // capture-phase document listener the install script uses, and it doesn't dispatch at all
+        // for <svg> / <picture>; a synthetic MouseEvent dispatched with bubbles:true works on
+        // every WebView version. Chaining install+dispatch in one evaluateJavascript payload also
+        // removes the install-vs-dispatch race that a separate sleep tried to paper over.
+        val installed = CountDownLatch(1)
         instrumentation.runOnMainSync {
             webView[0]!!.evaluateJavascript(
-                "document.getElementById('$elementId').click()",
-                null,
-            )
+                FigureTapScript.installScript(FigureTapScript.PAGED_BRIDGE_NAME) +
+                    ";(function(){var el=document.getElementById('$elementId');" +
+                    "var ev=new MouseEvent('click',{bubbles:true,cancelable:true,view:window});" +
+                    "el.dispatchEvent(ev);})();",
+            ) { _ -> installed.countDown() }
         }
+        assertTrue(installed.await(5, TimeUnit.SECONDS))
         // 1s bounded wait for the bridge callback. Anchor-wrapped case never fires, so callers
         // for that case just consume the timeout and inspect payload (null = no fire).
         recorder.latch.await(1, TimeUnit.SECONDS)
