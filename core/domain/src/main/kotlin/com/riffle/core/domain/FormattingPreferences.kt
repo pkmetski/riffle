@@ -17,6 +17,10 @@ data class FormattingPreferences(
     val justifyText: Boolean = DEFAULT_JUSTIFY_TEXT,
     val themeSchedule: ThemeSchedule = ThemeSchedule(),
     val autoScrollWpm: Int = DEFAULT_AUTO_SCROLL_WPM,
+    val showAutoScroll: Boolean = DEFAULT_SHOW_AUTO_SCROLL,
+    val cadenceWpm: Int = DEFAULT_CADENCE_WPM,
+    val showCadence: Boolean = DEFAULT_SHOW_CADENCE,
+    val cadenceHighlightColor: HighlightColor = DEFAULT_CADENCE_HIGHLIGHT_COLOR,
 ) {
     companion object {
         const val DEFAULT_FONT_SIZE: Float = 1.0f
@@ -29,6 +33,10 @@ data class FormattingPreferences(
         const val DEFAULT_DOUBLE_PAGE_SPREAD: Boolean = false
         const val DEFAULT_JUSTIFY_TEXT: Boolean = false
         const val DEFAULT_AUTO_SCROLL_WPM: Int = 250
+        const val DEFAULT_SHOW_AUTO_SCROLL: Boolean = true
+        const val DEFAULT_CADENCE_WPM: Int = 250
+        const val DEFAULT_SHOW_CADENCE: Boolean = true
+        val DEFAULT_CADENCE_HIGHLIGHT_COLOR: HighlightColor = HighlightColor.YELLOW
         val DEFAULT_THEME: ReaderTheme = ReaderTheme.Light
         val DEFAULT_FONT_FAMILY: ReaderFontFamily = ReaderFontFamily.Original
         val DEFAULT_ORIENTATION: ReaderOrientation = ReaderOrientation.Horizontal

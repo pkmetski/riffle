@@ -10,6 +10,7 @@ import androidx.datastore.preferences.core.stringPreferencesKey
 import com.riffle.core.data.di.FormattingPreferencesDataStore
 import com.riffle.core.domain.FormattingPreferences
 import com.riffle.core.domain.FormattingPreferencesStore
+import com.riffle.core.domain.HighlightColor
 import com.riffle.core.domain.ReaderFontFamily
 import com.riffle.core.domain.ReaderOrientation
 import com.riffle.core.domain.ReaderTheme
@@ -42,6 +43,12 @@ class FormattingPreferencesStoreImpl @Inject constructor(
             doublePageSpread = prefs[KEY_DOUBLE_PAGE_SPREAD] ?: false,
             justifyText = prefs[KEY_JUSTIFY_TEXT] ?: false,
             autoScrollWpm = prefs[KEY_AUTO_SCROLL_WPM] ?: FormattingPreferences.DEFAULT_AUTO_SCROLL_WPM,
+            showAutoScroll = prefs[KEY_SHOW_AUTO_SCROLL] ?: FormattingPreferences.DEFAULT_SHOW_AUTO_SCROLL,
+            cadenceWpm = prefs[KEY_CADENCE_WPM] ?: FormattingPreferences.DEFAULT_CADENCE_WPM,
+            showCadence = prefs[KEY_SHOW_CADENCE] ?: FormattingPreferences.DEFAULT_SHOW_CADENCE,
+            cadenceHighlightColor = prefs[KEY_CADENCE_HIGHLIGHT_COLOR]
+                ?.let { runCatching { HighlightColor.valueOf(it) }.getOrNull() }
+                ?: FormattingPreferences.DEFAULT_CADENCE_HIGHLIGHT_COLOR,
             themeSchedule = ThemeSchedule(
                 dayStart = prefs[KEY_SCHEDULE_DAY_START]?.let(::minuteOfDayToLocalTime)
                     ?: ThemeSchedule.DEFAULT_DAY_START,
@@ -74,6 +81,10 @@ class FormattingPreferencesStoreImpl @Inject constructor(
             prefs[KEY_DOUBLE_PAGE_SPREAD] = preferences.doublePageSpread
             prefs[KEY_JUSTIFY_TEXT] = preferences.justifyText
             prefs[KEY_AUTO_SCROLL_WPM] = preferences.autoScrollWpm
+            prefs[KEY_SHOW_AUTO_SCROLL] = preferences.showAutoScroll
+            prefs[KEY_CADENCE_WPM] = preferences.cadenceWpm
+            prefs[KEY_SHOW_CADENCE] = preferences.showCadence
+            prefs[KEY_CADENCE_HIGHLIGHT_COLOR] = preferences.cadenceHighlightColor.name
             prefs[KEY_SCHEDULE_DAY_START] = preferences.themeSchedule.dayStart.toMinuteOfDay()
             prefs[KEY_SCHEDULE_NIGHT_START] = preferences.themeSchedule.nightStart.toMinuteOfDay()
             prefs[KEY_SCHEDULE_DAY_THEME] = preferences.themeSchedule.dayTheme.name
@@ -95,6 +106,10 @@ class FormattingPreferencesStoreImpl @Inject constructor(
         val KEY_DOUBLE_PAGE_SPREAD = booleanPreferencesKey("double_page_spread")
         val KEY_JUSTIFY_TEXT = booleanPreferencesKey("justify_text")
         val KEY_AUTO_SCROLL_WPM = intPreferencesKey("auto_scroll_wpm")
+        val KEY_SHOW_AUTO_SCROLL = booleanPreferencesKey("show_auto_scroll")
+        val KEY_CADENCE_WPM = intPreferencesKey("cadence_wpm")
+        val KEY_SHOW_CADENCE = booleanPreferencesKey("show_cadence")
+        val KEY_CADENCE_HIGHLIGHT_COLOR = stringPreferencesKey("cadence_highlight_color")
         val KEY_SCHEDULE_DAY_START = intPreferencesKey("theme_schedule_day_start_minute_of_day")
         val KEY_SCHEDULE_NIGHT_START = intPreferencesKey("theme_schedule_night_start_minute_of_day")
         val KEY_SCHEDULE_DAY_THEME = stringPreferencesKey("theme_schedule_day_theme")

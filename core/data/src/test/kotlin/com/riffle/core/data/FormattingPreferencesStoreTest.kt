@@ -2,6 +2,7 @@ package com.riffle.core.data
 
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import com.riffle.core.domain.FormattingPreferences
+import com.riffle.core.domain.HighlightColor
 import com.riffle.core.domain.ReaderFontFamily
 import com.riffle.core.domain.ReaderOrientation
 import com.riffle.core.domain.ReaderTheme
@@ -145,5 +146,42 @@ class FormattingPreferencesStoreTest {
         val store = buildStore()
         store.update(FormattingPreferences(autoScrollWpm = 320))
         assertEquals(320, store.preferences.first().autoScrollWpm)
+    }
+
+    @Test
+    fun `Cadence defaults for empty DataStore`() = testScope.runTest {
+        val prefs = buildStore().preferences.first()
+        assertEquals(true, prefs.showAutoScroll)
+        assertEquals(250, prefs.cadenceWpm)
+        assertEquals(true, prefs.showCadence)
+        assertEquals(HighlightColor.YELLOW, prefs.cadenceHighlightColor)
+    }
+
+    @Test
+    fun `showAutoScroll round-trips through the DataStore`() = testScope.runTest {
+        val store = buildStore()
+        store.update(FormattingPreferences(showAutoScroll = false))
+        assertEquals(false, store.preferences.first().showAutoScroll)
+    }
+
+    @Test
+    fun `showCadence round-trips through the DataStore`() = testScope.runTest {
+        val store = buildStore()
+        store.update(FormattingPreferences(showCadence = false))
+        assertEquals(false, store.preferences.first().showCadence)
+    }
+
+    @Test
+    fun `cadenceWpm round-trips through the DataStore`() = testScope.runTest {
+        val store = buildStore()
+        store.update(FormattingPreferences(cadenceWpm = 340))
+        assertEquals(340, store.preferences.first().cadenceWpm)
+    }
+
+    @Test
+    fun `cadenceHighlightColor round-trips through the DataStore`() = testScope.runTest {
+        val store = buildStore()
+        store.update(FormattingPreferences(cadenceHighlightColor = HighlightColor.GREEN))
+        assertEquals(HighlightColor.GREEN, store.preferences.first().cadenceHighlightColor)
     }
 }
