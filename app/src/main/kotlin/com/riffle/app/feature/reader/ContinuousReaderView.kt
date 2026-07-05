@@ -79,6 +79,13 @@ internal class ContinuousReaderView @JvmOverloads constructor(
         get() = controller.onPlayFromHereSelection
         set(value) { controller.onPlayFromHereSelection = value }
 
+    /**
+     * Called on the main thread with the raw JSON payload emitted by figure-tap.js when the user
+     * taps a figure. The host parses it via [FigureTapMessageParser] and pushes the result into
+     * the ViewModel's figureZoom state, causing [FigureZoomOverlay] to open above the reader.
+     */
+    var onFigureTap: ((payload: String) -> Unit)? = null
+
     /** Set by [install]; invoked by the controller with the raw `(href, progression)` on
      *  every scroll-position update. */
     private var onRawPosition: ((href: String, progression: Float) -> Unit)? = null
@@ -119,6 +126,7 @@ internal class ContinuousReaderView @JvmOverloads constructor(
             onInternalLink = onInternalLink,
             onCrossReference = onCrossReference,
             onSelectionActiveChanged = ::onChildSelectionActiveChanged,
+            onFigureTap = { payload -> onFigureTap?.invoke(payload) },
         )
         controller.install(binder)
     }

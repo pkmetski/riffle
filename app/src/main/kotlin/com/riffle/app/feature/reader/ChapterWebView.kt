@@ -84,6 +84,13 @@ internal class ChapterWebView(context: Context) : WebView(context), ChapterWebVi
     override var onCrossReferenceTap: ((fragmentId: String) -> Unit)? = null
 
     /**
+     * Called on the main thread when the user taps a figure (`<img>`, inline `<svg>`, `<picture>`,
+     * or single-image `<figure>`) that is NOT wrapped in a link. [payload] is the JSON emitted by
+     * [FigureTapScript]; the host parses it via [FigureTapMessageParser].
+     */
+    override var onFigureTap: ((payload: String) -> Unit)? = null
+
+    /**
      * The raw HTML of the chapter document currently loaded, retained so a footnote tap can resolve
      * the note body without a re-fetch. Set the first time an HTML resource is served for a load (the
      * main document is fetched first), cleared on each [loadChapter]. The parsed form is cached lazily
@@ -350,6 +357,11 @@ internal class ChapterWebView(context: Context) : WebView(context), ChapterWebVi
         evalJs(ContinuousScriptInjector.HEIGHT_MEASUREMENT_JS)
         evalJs(ContinuousScriptInjector.TAP_LISTENER_JS)
         evalJs(ContinuousScriptInjector.SAME_DOC_ANCHOR_LISTENER_JS)
+        // Figure-tap hit-test. Runs in capture-phase click BEFORE the tap-listener above (which
+        // toggles immersive) and the same-doc anchor listener, so figure taps stopPropagation and
+        // never reach the immersive router. Uses the existing RiffleChapter object — see the
+        // onFigureTap addition in HeightBridge below.
+        evalJs(FigureTapScript.installScript("RiffleChapter"))
     }
 
     /** Re-inject user styles and re-measure after a preference change. */
@@ -659,6 +671,12 @@ internal class ChapterWebView(context: Context) : WebView(context), ChapterWebVi
         @JavascriptInterface
         fun onCrossReferenceTap(id: String) {
             post { this@ChapterWebView.onCrossReferenceTap?.invoke(id) }
+        }
+
+        /** Figure-tap event; [payload] is the JSON built by [FigureTapScript]. */
+        @JavascriptInterface
+        fun onFigureTap(payload: String) {
+            post { this@ChapterWebView.onFigureTap?.invoke(payload) }
         }
     }
 }

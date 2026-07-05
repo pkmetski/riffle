@@ -445,6 +445,7 @@ fun EpubReaderScreen(
                         onReachedEndOfBook = viewModel::reachedEndOfBookForAutoScroll,
                         onAutoScrollPause = viewModel::pauseAutoScroll,
                         onAutoScrollResume = viewModel::resumeAutoScrollIfPaused,
+                        onFigureTap = viewModel::onFigureTapPayload,
                         dispatchers = viewModel.dispatchers,
                         modifier = Modifier
                             .fillMaxSize()
@@ -740,6 +741,14 @@ fun EpubReaderScreen(
             onResume = { viewModel.resumeAutoScrollFromPill() },
             onSlower = { viewModel.nudgeAutoScroll(by = -com.riffle.core.domain.autoscroll.AutoScrollSpeed.STEP_WPM) },
             onFaster = { viewModel.nudgeAutoScroll(by = com.riffle.core.domain.autoscroll.AutoScrollSpeed.STEP_WPM) },
+        )
+        // Figure-zoom overlay — mounted at the outermost Box so it dims and covers every reader
+        // mode, all reader chrome, and every bottom stack element (readaloud, chapter rail).
+        val figureZoom by viewModel.figureZoom.collectAsState()
+        FigureZoomOverlay(
+            state = figureZoom,
+            publication = (state as? ReaderState.Ready)?.publication,
+            onDismiss = viewModel::dismissFigureZoom,
         )
     }
 }
@@ -1141,6 +1150,7 @@ private fun EpubNavigatorView(
     onReachedEndOfBook: () -> Unit,
     onAutoScrollPause: (com.riffle.core.domain.autoscroll.PauseCause) -> Unit,
     onAutoScrollResume: () -> Unit,
+    onFigureTap: (payload: String) -> Unit,
     dispatchers: com.riffle.core.domain.DispatcherProvider,
     modifier: Modifier = Modifier,
 ) {
@@ -1629,6 +1639,14 @@ private fun EpubNavigatorView(
     // progression is imprecise, and goForward/goBackward report success without
     // moving on Readium 3.3.0. A direct scrollLeft snap holds because the reader
     // is sized so innerWidth == Readium's page-snap pitch (see readerWidthDp).
+    // Route paged/vertical figure taps into the ViewModel via the same handler-registry pattern as
+    // FootnoteAnchorBridge. Continuous mode routes its figure taps through the per-chapter
+    // RiffleChapter bridge already, so it doesn't need this hook.
+    DisposableEffect(Unit) {
+        FigureTapBridge.setHandler { payload -> onFigureTap(payload) }
+        onDispose { FigureTapBridge.setHandler(null) }
+    }
+
     DisposableEffect(Unit) {
         FootnoteAnchorBridge.setHandler { fragmentId ->
             when (
@@ -2235,6 +2253,9 @@ private fun EpubNavigatorView(
                             registerJavascriptInterface(FootnoteAnchorBridge.JS_NAME) { _ ->
                                 FootnoteAnchorBridge.bridge
                             }
+                            registerJavascriptInterface(FigureTapBridge.JS_NAME) { _ ->
+                                FigureTapBridge.bridge
+                            }
                             registerJavascriptInterface("RiffleSelBridge") { _ ->
                                 pagedSelectionRectBridge
                             }
@@ -2345,6 +2366,7 @@ private fun EpubNavigatorView(
                         coordinator.attach(view)
                         view.annotationsAvailable = currentAnnotationsAvailable
                         view.readaloudAvailable = currentReadaloudAvailable
+                        view.onFigureTap = { payload -> onFigureTap(payload) }
                     }
                 },
                 // Availability flags can flip mid-session; keep the selection menu gates in sync.
