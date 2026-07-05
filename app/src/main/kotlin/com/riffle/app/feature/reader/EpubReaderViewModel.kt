@@ -1180,10 +1180,9 @@ class EpubReaderViewModel @Inject constructor(
     fun openHighlightInSourceBook(annotationId: String) {
         viewModelScope.launch {
             val row = annotationDao.getById(annotationId) ?: return@launch
-            val serverId = annotationServerId ?: serverRepository.getActive()?.id ?: return@launch
             _readerNavEvents.send(
                 ReaderNavEvent.OpenInSourceBook(
-                    serverId = serverId,
+                    serverId = row.serverId,
                     itemId = row.itemId,
                     cfi = row.cfi,
                 ),
