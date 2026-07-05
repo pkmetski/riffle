@@ -226,7 +226,7 @@ internal class ChapterWebView(context: Context) : WebView(context), ChapterWebVi
         ) {
             androidx.webkit.WebSettingsCompat.setOffscreenPreRaster(settings, true)
         }
-        addJavascriptInterface(HeightBridge(), "RiffleChapter")
+        addJavascriptInterface(HeightBridge(), FigureTapScript.CONTINUOUS_BRIDGE_NAME)
         webViewClient = object : WebViewClient() {
             override fun onPageFinished(view: WebView?, url: String?) {
                 this@ChapterWebView.onPageFinished?.invoke()
@@ -361,7 +361,7 @@ internal class ChapterWebView(context: Context) : WebView(context), ChapterWebVi
         // toggles immersive) and the same-doc anchor listener, so figure taps stopPropagation and
         // never reach the immersive router. Uses the existing RiffleChapter object — see the
         // onFigureTap addition in HeightBridge below.
-        evalJs(FigureTapScript.installScript("RiffleChapter"))
+        evalJs(FigureTapScript.installScript(FigureTapScript.CONTINUOUS_BRIDGE_NAME))
     }
 
     /** Re-inject user styles and re-measure after a preference change. */

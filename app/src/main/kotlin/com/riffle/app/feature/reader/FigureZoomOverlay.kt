@@ -65,13 +65,18 @@ internal fun FigureZoomOverlay(
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    // Cache the last non-null state so the fadeOut animates the actual content instead of an
+    // empty subtree — a null-guarded `return@AnimatedVisibility` during exit would render nothing
+    // for the whole 150ms, making dismissal look instant.
+    var lastVisible by remember { mutableStateOf<FigureZoomState?>(null) }
+    if (state != null) lastVisible = state
     AnimatedVisibility(
         visible = state != null,
         enter = fadeIn(tween(150)),
         exit = fadeOut(tween(150)),
         modifier = modifier,
     ) {
-        val visibleState = state ?: return@AnimatedVisibility
+        val visibleState = lastVisible ?: return@AnimatedVisibility
         FigureZoomContent(state = visibleState, publication = publication, onDismiss = onDismiss)
     }
 }
@@ -138,7 +143,18 @@ private fun FigureZoomContent(
                 .pointerInput(state) {
                     detectTapGestures(
                         onDoubleTap = {
-                            scale = 1f; tx = 0f; ty = 0f
+                            // Route the reset through clampPanZoom so the single source of truth
+                            // for valid transforms owns it — if minScale ever moves off 1f, the
+                            // reset can't land outside the clamp and jump on the next pan.
+                            val reset = clampPanZoom(
+                                scale = 1f,
+                                translationX = 0f, translationY = 0f,
+                                fittedWidth = fitW.toFloat(), fittedHeight = fitH.toFloat(),
+                                viewportWidth = vpW, viewportHeight = vpH,
+                            )
+                            scale = reset.scale
+                            tx = reset.translationX
+                            ty = reset.translationY
                         },
                         onTap = { /* consume — don't dismiss */ },
                     )
@@ -204,10 +220,13 @@ private suspend fun loadImageBytes(href: String, publication: Publication?): Byt
         if (comma < 0) return null
         val meta = href.substring(0, comma)
         val payload = href.substring(comma + 1)
-        return runCatching {
-            if (meta.contains(";base64")) Base64.decode(payload, Base64.DEFAULT)
-            else java.net.URLDecoder.decode(payload, "UTF-8").toByteArray()
-        }.getOrNull()
+        // Only base64 payloads decode cleanly to bitmap bytes. A URL-encoded data URI is text
+        // (typically inline SVG), and re-encoding it via URLDecoder+String.toByteArray produces
+        // UTF-8 bytes that BitmapFactory can't decode — the overlay would spin forever. Return
+        // null so the caller shows the "not available" state instead of feeding corrupt bytes.
+        // Inline SVG never arrives here (JS captures outerHTML into svgMarkup, not src).
+        if (!meta.contains(";base64")) return null
+        return runCatching { Base64.decode(payload, Base64.DEFAULT) }.getOrNull()
     }
     val pub = publication ?: return null
     // Strip the readium_package origin the WebView reports for served EPUB resources.

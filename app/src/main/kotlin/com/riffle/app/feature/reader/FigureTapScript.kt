@@ -28,19 +28,35 @@ internal object FigureTapScript {
     /** Global name of the paged/vertical figure-tap JS interface. */
     const val PAGED_BRIDGE_NAME: String = "RiffleFigureBridge"
 
+    /**
+     * Global name of the continuous-mode figure-tap JS interface. This is [ChapterWebView]'s
+     * existing per-chapter bridge object; continuous mode reuses it rather than registering a
+     * second one. Kept as a constant here so both the JS install site and the JS message-send
+     * sites resolve to the same literal — a rename can't leave one path silently no-op.
+     */
+    const val CONTINUOUS_BRIDGE_NAME: String = "RiffleChapter"
+
     fun installScript(bridgeName: String): String = """
         (function() {
             if (document.__riffleFigureTapWired) return;
             document.__riffleFigureTapWired = true;
             var MAX_SVG_BYTES = 256 * 1024;
             function findFigure(target) {
+                // Walk up to body FIRST looking for an anchor-with-href ancestor. If we find one
+                // before we find a figure candidate, this tap is a link — return null so the
+                // existing footnote / cross-reference / external-link router handles it. Doing
+                // the walk in two passes fixes the anchor-wrapped-image bug where returning on
+                // the first <img> match happens BEFORE we ever see the wrapping <a>.
+                var scan = target;
+                while (scan && scan.nodeType === 1 && scan !== document.body) {
+                    var stag = scan.tagName ? scan.tagName.toLowerCase() : '';
+                    if (stag === 'a' && scan.getAttribute && scan.getAttribute('href')) return null;
+                    scan = scan.parentNode;
+                }
+                // Now walk up to find the actual figure candidate.
                 var el = target;
-                // Walk up looking for the first candidate. Stop at body — don't zoom whole chapter.
                 while (el && el.nodeType === 1 && el !== document.body) {
                     var tag = el.tagName ? el.tagName.toLowerCase() : '';
-                    // If we hit an anchor with an href on the way up, this image is a link.
-                    // Let the existing anchor router handle the tap.
-                    if (tag === 'a' && el.getAttribute && el.getAttribute('href')) return null;
                     if (tag === 'img' || tag === 'svg' || tag === 'picture') return el;
                     if (tag === 'figure') {
                         // Find single image-like child; skip if the figure contains other content.
