@@ -117,17 +117,18 @@ internal object CadenceDomScript {
      */
     const val FIRST_VISIBLE_CADENCE_SPAN_ID_JS: String = """
     (function(){
-      var TOL=24;
       var spans=document.querySelectorAll('span.riffle-cd');
       if (!spans || spans.length===0) return '';
       var iw=window.innerWidth||0, ih=window.innerHeight||0;
+      // Walk spans in document (== reading) order and return the first whose bounding rect
+      // intersects the viewport in BOTH axes — including sentences that started before the
+      // viewport and continue into it (paginated column bleed / vertical partial scroll).
       for (var i=0; i<spans.length; i++) {
         var el=spans[i];
         var r=el.getBoundingClientRect();
-        if (!r || (r.width===0 && r.height===0)) continue;
-        if (r.left >= -TOL && r.right <= iw+TOL && r.top < ih && r.bottom > 0) {
-          return el.id;
-        }
+        if (!r) continue;
+        if (r.width===0 && r.height===0) continue;
+        if (r.top < ih && r.bottom > 0 && r.left < iw && r.right > 0) return el.id;
       }
       return '';
     })()

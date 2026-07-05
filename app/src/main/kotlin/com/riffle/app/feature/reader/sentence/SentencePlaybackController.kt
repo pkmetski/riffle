@@ -116,6 +116,14 @@ internal suspend fun performAutoFollow(
 ) {
     val ref = activeFragmentRef ?: return
     if (ref.indexOf('#') < 0) return
+    // Cadence fragments carry ids of the form "cd-N" written by CadenceDomScript's tokeniser.
+    // Cadence's page-top probe (rendererBridge.firstVisibleCadenceSpanId) already picked a span
+    // whose bounding rect is inside the viewport, so a text-search-based follow can only make
+    // things worse: for short Cadence sentences (e.g. "the problems.") the text-search will hit
+    // an earlier DOM occurrence and navigateToLocator would then jump the reader elsewhere.
+    // Readaloud fragments have ids like "sN" and continue to use the follow.
+    val sid = ref.substringAfter('#', "")
+    if (sid.startsWith("cd-")) return
     // No quote yet (the map is built off-thread once playback starts) -> we can neither locate the
     // sentence by text nor anchor a go(): the cssSelector-only locator can't resolve on the
     // span-stripped ABS page, so a snap would flip to chapter start. Skip until the quote arrives;
