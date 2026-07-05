@@ -58,6 +58,11 @@ import com.riffle.core.domain.TimeProvider
 import com.riffle.core.domain.TimeRemaining
 import com.riffle.core.domain.TocEntry
 import com.riffle.core.domain.resolveEpubHref
+import com.riffle.core.database.AnnotationDao
+import com.riffle.core.database.AnnotationEntity
+import com.riffle.app.feature.reader.highlights.ChapterElision
+import com.riffle.app.feature.reader.highlights.HighlightsPublicationFactory
+import com.riffle.app.feature.reader.highlights.ReaderSource
 import com.riffle.core.logging.LogChannel
 import com.riffle.core.logging.Logger
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -169,6 +174,8 @@ class EpubReaderViewModel @Inject constructor(
     private val logger: Logger,
     private val clock: Clock,
     val dispatchers: DispatcherProvider,
+    private val highlightsPublicationFactory: HighlightsPublicationFactory,
+    private val annotationDao: AnnotationDao,
 ) : AndroidViewModel(application) {
 
     // Formatting/typography/auto-scroll orchestrator — constructed with viewModelScope so
@@ -239,6 +246,15 @@ class EpubReaderViewModel @Inject constructor(
         )
 
     private val itemId: String = checkNotNull(savedStateHandle["itemId"])
+
+    // Which content this reader instance displays (ADR 0041). Nav args carry `?source=highlights`
+    // (lowercase, see MainScreen's EPUB_READER route); ReaderSource's canonical form is
+    // uppercase-first ("Highlights"), so normalise on read. runCatching guards against a garbage
+    // query string demoting to FullBook rather than crashing the reader open.
+    private val source: ReaderSource =
+        savedStateHandle.get<String>("source")
+            ?.let { runCatching { ReaderSource.valueOf(it.replaceFirstChar(Char::uppercase)) }.getOrNull() }
+            ?: ReaderSource.FullBook
 
     // Audiobook→readaloud handoff: when opened by swiping the audiobook player down, this carries the
     // audiobook's current position (seconds on the concatenated timeline; -1 = not a handoff). On open
@@ -534,6 +550,24 @@ class EpubReaderViewModel @Inject constructor(
     }
 
     private suspend fun openBook() {
+        // Highlights mode (ADR 0041): the reader displays a synthesised, elided Publication built
+        // from this book's stored highlights rather than the real ABS EPUB container. Diverted
+        // before lifecycle.open() so the ABS fetch, matched-sync resolution, readaloud binding, and
+        // annotation-sync wiring (all Task 8/9 concerns) never run for this reader instance.
+        if (source == ReaderSource.Highlights) {
+            val serverId = serverRepository.getActive()?.id
+            if (serverId == null) {
+                _state.value = ReaderState.Error("No active server")
+                return
+            }
+            val pub = loadHighlightsPublication(serverId, itemId)
+            _state.value = ReaderState.Ready(
+                publication = pub,
+                title = pub.metadata.title ?: "Annotations",
+                initialLocator = null,
+            )
+            return
+        }
         val outcome = lifecycle.open(
             com.riffle.app.feature.reader.session.ReaderSessionLifecycle.OpenParams(
                 itemId = itemId,
@@ -547,6 +581,23 @@ class EpubReaderViewModel @Inject constructor(
             is com.riffle.app.feature.reader.session.ReaderSessionLifecycle.OpenOutcome.Ready ->
                 onOpenReady(outcome)
         }
+    }
+
+    /**
+     * Builds the synthesised, highlights-only Publication for Highlights-mode reading (ADR 0041).
+     * Reads this book's live highlights, groups them by chapter (preserving first-encounter order),
+     * derives a fallback chapter title from the href basename (Task 6's factory renders whatever
+     * title string it's given verbatim — this is where the fallback is actually computed), and hands
+     * the result to [HighlightsPublicationFactory].
+     */
+    private suspend fun loadHighlightsPublication(serverId: String, itemId: String): Publication {
+        val rows = annotationDao.getForItem(serverId, itemId)
+        return highlightsPublicationFactory.build(
+            serverId = serverId,
+            itemId = itemId,
+            bookTitle = null,
+            chapters = buildChapterElisions(rows),
+        )
     }
 
     private suspend fun onOpenReady(
@@ -1500,6 +1551,44 @@ class EpubReaderViewModel @Inject constructor(
     fun dismissDownloadPrompt() = readaloud.dismissDownloadPrompt()
 
     fun onPageTopResolved(href: String, fragmentId: String?) = readaloud.onPageTopResolved(href, fragmentId)
+}
+
+/**
+ * Fallback chapter title for Highlights mode (ADR 0041) — the href basename with its directory and
+ * extension stripped (e.g. "OEBPS/ch03.xhtml" -> "ch03"). [HighlightsPublicationFactory] renders
+ * whatever title string it's given verbatim (see [HighlightsPublicationFactoryTest]'s docstring);
+ * this is where the actual fallback is computed. `internal` so it's unit-testable from `app:test`.
+ */
+internal fun deriveChapterTitle(href: String): String {
+    val name = href.substringAfterLast('/').substringBeforeLast('.')
+    return name.ifBlank { "Chapter" }
+}
+
+/**
+ * Filters [rows] down to live highlights, sorts them by reading position (spineIndex, progression,
+ * createdAt — see [AnnotationDao.observeAnnotationsByPosition] for the same tie-break order), and
+ * groups them into one [ChapterElision] per distinct `chapterHref`, preserving first-encounter
+ * order so chapters appear in the synthesised Publication in the order the reader would meet them.
+ * `internal` so [EpubReaderViewModel.loadHighlightsPublication]'s grouping logic is unit-testable
+ * from `app:test` without constructing the (Android-dependency-laden) ViewModel itself.
+ */
+internal fun buildChapterElisions(rows: List<AnnotationEntity>): List<ChapterElision> {
+    val live = rows
+        .filter { it.type == AnnotationEntity.TYPE_HIGHLIGHT && !it.deleted }
+        .sortedWith(compareBy({ it.spineIndex }, { it.progression }, { it.createdAt }))
+
+    val byHref = LinkedHashMap<String, MutableList<AnnotationEntity>>()
+    for (row in live) {
+        byHref.getOrPut(row.chapterHref) { mutableListOf() }.add(row)
+    }
+
+    return byHref.entries.map { (href, highlights) ->
+        ChapterElision(
+            href = href,
+            title = deriveChapterTitle(href),
+            highlights = highlights,
+        )
+    }
 }
 
 /**
