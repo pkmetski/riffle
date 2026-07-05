@@ -485,10 +485,39 @@ class EpubReaderViewModel @Inject constructor(
         _cadencePlatformSupported.value = supported
     }
 
-    /** Start Cadence — pauses Readaloud and Auto-Scroll first (mutual exclusion per issue #403). */
+    /**
+     * The reader screen sets this once its presenters are up. Given the ordered list of the
+     * current chapter's sentence texts, returns the index of the first sentence currently on
+     * screen — or null when the presenter can't answer (WebView gone / no matches).
+     *
+     * We accept `null` as a valid answer here (the ticker falls back to cd-0), because the
+     * chapter's first sentence is the least-bad landing if we can't compute the actual visible
+     * one — jumping backward is preferable to jumping forward past the reader's current position.
+     */
+    private var visibleSentenceProbe: (suspend (List<String>) -> Int?)? = null
+
+    fun setVisibleSentenceProbe(probe: (suspend (List<String>) -> Int?)?) {
+        visibleSentenceProbe = probe
+    }
+
+    /**
+     * Start Cadence — pauses Readaloud and Auto-Scroll first (mutual exclusion per issue #403),
+     * then seeds the ticker at the first sentence currently on-screen so the reader doesn't jump
+     * back to the chapter top on every tap. When no probe is installed (or the probe returns
+     * null), Cadence falls back to `cd-0` = chapter top.
+     */
     fun startCadence() {
         applyArbiter(com.riffle.core.domain.cadence.Feature.Cadence)
-        cadenceController.dispatch(com.riffle.core.domain.cadence.CadenceEvent.Start)
+        viewModelScope.launch {
+            val quotes = _cadenceQuotes.value.entries.toList()
+            val startRef = if (quotes.isNotEmpty()) {
+                val texts = quotes.map { it.value.highlight }
+                visibleSentenceProbe?.invoke(texts)
+                    ?.let { idx -> quotes.getOrNull(idx)?.key }
+            } else null
+            if (startRef != null) cadenceController.goTo(startRef)
+            cadenceController.dispatch(com.riffle.core.domain.cadence.CadenceEvent.Start)
+        }
     }
 
     fun stopCadence() =

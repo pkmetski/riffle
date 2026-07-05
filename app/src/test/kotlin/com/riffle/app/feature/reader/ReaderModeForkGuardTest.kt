@@ -77,6 +77,11 @@ class ReaderModeForkGuardTest {
         // `// MODE-FORK:` comment above the annotationNavigationEvents LaunchedEffect). Two refs:
         // the LaunchedEffect key on isContinuous and the branch guard inside the collector — both
         // load-bearing and both untypeable behind ReaderPresenter without leaking mode internals.
-        private const val MAX_MODE_BRANCHES = 29
+        // Raised from 29 to 31 for the Cadence first-visible-sentence probe (issue #403). Two refs
+        // again: the LaunchedEffect key on isContinuous, and the probe lambda's branch that returns
+        // null in Continuous because `rendererBridge.firstVisibleSentenceIndex` is a Readium-only
+        // capability. A Continuous-side probe would replace this; until then, this fork keeps
+        // Cadence's "start at visible sentence" working in paginated + vertical.
+        private const val MAX_MODE_BRANCHES = 31
     }
 }

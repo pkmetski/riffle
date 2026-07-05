@@ -538,6 +538,9 @@ fun EpubReaderScreen(
                         onCadencePlatformSupportedChanged = if (formattingPrefs.showCadence) {
                             { supported -> viewModel.setCadencePlatformSupported(supported) }
                         } else null,
+                        onInstallVisibleSentenceProbe = { probe ->
+                            viewModel.setVisibleSentenceProbe(probe)
+                        },
                         onReachedEndOfBook = viewModel::reachedEndOfBookForAutoScroll,
                         onAutoScrollPause = viewModel::pauseAutoScroll,
                         onAutoScrollResume = viewModel::resumeAutoScrollIfPaused,
@@ -1289,6 +1292,11 @@ private fun EpubNavigatorView(
     publicationLanguageTag: String? = null,
     onCadenceChapterTokenised: ((Map<String, SentenceQuote>, Map<String, String>) -> Unit)? = null,
     onCadencePlatformSupportedChanged: ((Boolean) -> Unit)? = null,
+    // Reader-screen-supplied hook that receives an orientation-aware "first visible sentence"
+    // probe closure. The outer screen forwards this to viewModel.setVisibleSentenceProbe so
+    // startCadence can seed the ticker at the sentence the user is looking at instead of the
+    // chapter top.
+    onInstallVisibleSentenceProbe: ((suspend (List<String>) -> Int?) -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -1746,7 +1754,12 @@ private fun EpubNavigatorView(
                     // methods forward through the fragment's evaluateJavascript, which is the
                     // only channel the reader is allowed to talk to Readium's WebView with.
                     // The result JSON is parsed by CadenceInjector and handed back to the VM.
-                    if (onCadenceInstallChapterHook != null) {
+                    //
+                    // Gate on the paginated-specific tokenised callback (NOT on the Continuous
+                    // hook: that's null in paginated/vertical, so the earlier gate silently
+                    // suppressed every tokenisation call in these two orientations — the highlight
+                    // never appeared because DomSentenceSource stayed empty).
+                    if (onCadenceChapterTokenised != null) {
                         val supportedRaw = rendererBridge.evaluateCadenceFeatureDetect()
                         val supported = supportedRaw?.trim() == "true"
                         onCadencePlatformSupportedChanged?.invoke(supported)
@@ -2124,6 +2137,19 @@ private fun EpubNavigatorView(
                 readerPresenter.snapReadaloudColumn(quote.highlight, column)
             }
         }
+    }
+
+    // Install the first-visible-sentence probe so the reader VM's startCadence can seed the
+    // ticker at the sentence currently on-screen. Paginated / vertical route through the renderer
+    // bridge (already the sentence-index probe Readaloud uses); Continuous falls back to null,
+    // which lands the ticker at cd-0 — the ContinuousReaderView will auto-scroll back to that
+    // first sentence anyway via the shared auto-follow LaunchedEffect. A follow-up can add a
+    // Continuous-specific probe when we need it.
+    LaunchedEffect(rendererBridge, isContinuous) {
+        val probe: suspend (List<String>) -> Int? = { highlights ->
+            if (isContinuous) null else rendererBridge.firstVisibleSentenceIndex(highlights)
+        }
+        onInstallVisibleSentenceProbe?.invoke(probe)
     }
 
     // Chapter auto-advance (issue #403 acceptance): when Cadence exhausts the current chapter's
