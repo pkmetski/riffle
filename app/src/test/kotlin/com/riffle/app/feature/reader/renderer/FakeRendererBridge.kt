@@ -22,6 +22,7 @@ internal class FakeRendererBridge(
     private val viewportFractionResult: Double? = null,
     private val cadenceFeatureDetectResult: String? = "false",
     private val cadenceTokeniseResult: String? = null,
+    @Suppress("unused") private val cadenceFirstVisibleSpanIdResult: String? = null,
 ) : RendererBridge {
 
     val calls: MutableList<String> = mutableListOf()
@@ -123,8 +124,4 @@ internal class FakeRendererBridge(
         return cadenceTokeniseResult
     }
 
-    override suspend fun cadenceFirstVisibleSpanId(): String? {
-        calls += "cadenceFirstVisibleSpanId"
-        return null
-    }
 }

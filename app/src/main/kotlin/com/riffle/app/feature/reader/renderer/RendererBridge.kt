@@ -167,10 +167,4 @@ internal interface RendererBridge {
      */
     suspend fun evaluateCadenceTokenise(chapterHref: String, localeTag: String?): String?
 
-    /**
-     * Return the id of the first Cadence-wrapped `<span class="riffle-cd">` currently visible on
-     * the paged/vertical page, or null when nothing is visible / the fragment is gone. Used by the
-     * reader VM to seed Cadence at the sentence the user is looking at.
-     */
-    suspend fun cadenceFirstVisibleSpanId(): String?
 }

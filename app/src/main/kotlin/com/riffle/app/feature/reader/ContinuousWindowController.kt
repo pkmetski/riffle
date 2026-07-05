@@ -141,40 +141,6 @@ internal class ContinuousWindowController(
         decorations.setCadenceOnChapterLoaded(hook)
     }
 
-    /**
-     * Return the FragmentRef ("chapterHref#cd-N") of the first Cadence-injected
-     * `<span class="riffle-cd">` currently visible on-screen across the sliding window's loaded
-     * WebViews, or null when nothing is on-screen. Used by the reader VM to seed Cadence at the
-     * sentence the user is looking at when they tap the top-bar toggle.
-     *
-     * Iterates chapters in window order; the first WebView whose JS probe returns a non-empty span
-     * id wins. Each `evaluateJavascript` call is fire-and-forget, so we suspend until all
-     * responses arrive (or a short timeout elapses) and return the earliest-in-order match.
-     */
-    suspend fun cadenceFirstVisibleFragmentRef(): String? {
-        val outerTop = port.currentScrollY
-        val viewportHeight = port.viewportHeightPx
-        val slots = buildWindow()
-        val slot = slots.firstOrNull { outerTop in it.top until it.top + it.height }
-            ?: slots.firstOrNull { outerTop < it.top + it.height }
-            ?: return null
-        val wv = webViews.firstOrNull { it.chapterHref == slot.href } ?: return null
-        val offsetInWv = (outerTop - slot.top).coerceAtLeast(0)
-
-        val done = kotlinx.coroutines.CompletableDeferred<String?>()
-        wv.evaluateJavascript(
-            com.riffle.app.feature.reader.cadence.CadenceDomScript
-                .firstSpanIdInVerticalBandJs(offsetInWv, viewportHeight),
-        ) { raw ->
-            done.complete(raw?.trim()?.trim('"')?.takeIf { it.isNotEmpty() })
-        }
-        val id = try {
-            kotlinx.coroutines.withTimeout(500L) { done.await() }
-        } catch (_: kotlinx.coroutines.TimeoutCancellationException) {
-            null
-        } ?: return null
-        return "${slot.href}#$id"
-    }
 
     /** True while a window-shift operation (removeTop/removeBottom/prependChapter) is in progress. */
     private var shiftInProgress = false

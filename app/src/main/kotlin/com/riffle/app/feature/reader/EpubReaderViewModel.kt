@@ -496,43 +496,44 @@ class EpubReaderViewModel @Inject constructor(
     }
 
     /**
-     * The reader screen sets this once its presenters are up. Returns the fully-qualified
-     * FragmentRef ("chapterHref#cd-N") of the first Cadence sentence-span currently on-screen,
-     * or null when nothing is on-screen (WebView gone / no spans injected / etc.).
-     *
-     * We accept `null` here (the ticker falls back to cd-0), because the chapter's first
-     * sentence is the least-bad landing when the probe can't compute the actual visible one.
+     * Carries chapter-href requests to the reader screen so it can probe the current page-top
+     * sentence against the WebView. Mirrors Readaloud's `pageTopProbeRequests` (issue #403 spec:
+     * "start from the sentence currently on screen — same as Readaloud"). The screen replies via
+     * [onCadencePageTopResolved].
      */
-    private var visibleFragmentRefProbe: (suspend () -> String?)? = null
+    private val _cadencePageTopProbeChannel = kotlinx.coroutines.channels.Channel<String>(
+        kotlinx.coroutines.channels.Channel.CONFLATED,
+    )
+    val cadencePageTopProbeRequests: Flow<String> = _cadencePageTopProbeChannel.receiveAsFlow()
 
-    fun setVisibleFragmentRefProbe(probe: (suspend () -> String?)?) {
-        visibleFragmentRefProbe = probe
+    /**
+     * Called by the reader screen once the WebView resolves the first Cadence-tokenised sentence
+     * visible on [href]'s current page (`fragmentId` = "cd-N", or null when none could be
+     * located → falls back to chapter top). Starts Cadence from there.
+     */
+    fun onCadencePageTopResolved(href: String, fragmentId: String?) {
+        val startRef = fragmentId?.let { "$href#$it" }
+        logger.d(com.riffle.core.logging.LogChannel.Cadence) {
+            "VM.onCadencePageTopResolved href=$href fragmentId=$fragmentId → startRef=$startRef"
+        }
+        if (startRef != null) cadenceController.goTo(startRef)
+        cadenceController.dispatch(com.riffle.core.domain.cadence.CadenceEvent.Start)
     }
 
     /**
      * Start Cadence — pauses Readaloud and Auto-Scroll first (mutual exclusion per issue #403),
-     * then seeds the ticker at the first sentence currently on-screen so the reader doesn't
-     * jump back to the chapter top on every tap. When no probe is installed (or the probe
-     * returns null), Cadence falls back to the chapter's first sentence.
+     * then emits a page-top probe request. The reader screen resolves the current page's first
+     * visible sentence and replies via [onCadencePageTopResolved], which finally dispatches the
+     * Start event. Mirrors Readaloud's `startReadaloud` flow — same plumbing, same semantics.
      */
     fun startCadence() {
         applyArbiter(com.riffle.core.domain.cadence.Feature.Cadence)
-        viewModelScope.launch {
-            // In Continuous the probe returns refs from any chapter in the sliding window. The
-            // Cadence ticker is bound to the ONE latest-tokenised chapter, so a ref from another
-            // chapter won't match its ordering — but we still hand it over: goTo() is a no-op on
-            // unknown refs, so falling back to cd-0 is the safe outcome. When the probed chapter
-            // becomes the current chapter (as its onCadenceChapterTokenised rebinds), the ticker
-            // will pick up the passed ref if we send it via a follow-up rebind hint. For now
-            // the single-chapter binding lands at cd-0 when the visible chapter differs from the
-            // bound one — good enough for the common "user opens book mid-chapter" case.
-            val startRef = visibleFragmentRefProbe?.invoke()
-            logger.d(com.riffle.core.logging.LogChannel.Cadence) {
-                "VM.startCadence startRef=$startRef"
-            }
-            if (startRef != null) cadenceController.goTo(startRef)
+        val href = position.currentLocatorHref.value ?: run {
+            // No known locator yet — dispatch Start directly; ticker falls back to cd-0.
             cadenceController.dispatch(com.riffle.core.domain.cadence.CadenceEvent.Start)
+            return
         }
+        _cadencePageTopProbeChannel.trySend(href)
     }
 
     fun stopCadence() =

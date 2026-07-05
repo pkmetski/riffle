@@ -551,9 +551,9 @@ fun EpubReaderScreen(
                         onCadencePlatformSupportedChanged = if (formattingPrefs.showCadence) {
                             { supported -> viewModel.setCadencePlatformSupported(supported) }
                         } else null,
-                        onInstallVisibleFragmentRefProbe = { probe ->
-                            viewModel.setVisibleFragmentRefProbe(probe)
-                        },
+                        cadencePageTopProbeRequests = viewModel.cadencePageTopProbeRequests,
+                        onCadencePageTopResolved = viewModel::onCadencePageTopResolved,
+                        cadenceQuotesForProbe = { viewModel.cadenceQuotes.value },
                         onReachedEndOfBook = viewModel::reachedEndOfBookForAutoScroll,
                         onAutoScrollPause = viewModel::pauseAutoScroll,
                         onAutoScrollResume = viewModel::resumeAutoScrollIfPaused,
@@ -1316,11 +1316,11 @@ private fun EpubNavigatorView(
     publicationLanguageTag: String? = null,
     onCadenceChapterTokenised: ((Map<String, SentenceQuote>, Map<String, String>) -> Unit)? = null,
     onCadencePlatformSupportedChanged: ((Boolean) -> Unit)? = null,
-    // Reader-screen-supplied hook that receives an orientation-aware "first visible Cadence
-    // sentence FragmentRef" probe closure. The outer screen forwards this to
-    // viewModel.setVisibleFragmentRefProbe so startCadence can seed the ticker at the sentence
-    // the user is looking at instead of the chapter top. Returns "chapterHref#cd-N" or null.
-    onInstallVisibleFragmentRefProbe: ((suspend () -> String?) -> Unit)? = null,
+    // Cadence page-top probe — mirrors Readaloud's [pageTopProbeRequests]/[onPageTopResolved]
+    // pair (issue #403 spec: "start from the sentence currently visible — same as Readaloud").
+    cadencePageTopProbeRequests: Flow<String> = kotlinx.coroutines.flow.emptyFlow(),
+    onCadencePageTopResolved: (href: String, fragmentId: String?) -> Unit = { _, _ -> },
+    cadenceQuotesForProbe: () -> Map<String, SentenceQuote> = { emptyMap() },
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -2072,6 +2072,31 @@ private fun EpubNavigatorView(
         }
     }
 
+    // Cadence page-top probe — mirrors the Readaloud effect above (issue #403 spec). Cadence's
+    // quotes are keyed by full FragmentRef ("chapterHref#cd-N"); we filter to the current chapter
+    // and pass the SHORT sentence text list to the same rendererBridge probe Readaloud uses. The
+    // returned index resolves back to the fragment ref via the same ordered list.
+    LaunchedEffect(cadencePageTopProbeRequests) {
+        cadencePageTopProbeRequests.collect { href ->
+            val allQuotes = cadenceQuotesForProbe()
+            val orderedForHref = allQuotes.entries
+                .filter { it.key.substringBefore('#') == href }
+                .toList()
+            val fragmentId = if (fragmentRef.value != null && orderedForHref.isNotEmpty()) {
+                val idx = rendererBridge.firstVisibleSentenceIndex(
+                    orderedForHref.map { it.value.highlight },
+                )
+                // Extract just the sid ("cd-N") from the resolved FragmentRef so the VM can pair
+                // it with `href` — same shape as Readaloud's onPageTopResolved contract.
+                idx?.let { orderedForHref.getOrNull(it)?.key?.substringAfter('#', "") }
+                    ?.takeIf { it.isNotEmpty() }
+            } else {
+                null
+            }
+            onCadencePageTopResolved(href, fragmentId)
+        }
+    }
+
     LaunchedEffect(highlightRenderer, searchResults, currentSearchIndex, reflowGeneration, pageLoadGeneration.value) {
         highlightRenderer.applySearch(searchResults, currentSearchIndex)
     }
@@ -2186,33 +2211,8 @@ private fun EpubNavigatorView(
         }
     }
 
-    // Install the first-visible Cadence-span probe so startCadence can seed the ticker at the
-    // sentence currently on-screen. Uses Cadence's own <span id="cd-N"> markers via the
-    // renderer bridge — far more reliable than a text-prefix probe against a DOM whose text
-    // nodes were re-parented by the Cadence tokeniser. Paginated / Vertical only for now;
-    // Continuous returns null (falls back to cd-0; the shared auto-follow scrolls the reader
-    // to it anyway — a Continuous-specific probe is a small follow-up).
-    // The probe returns the fully-qualified FragmentRef ("chapterHref#cd-N") of the first
-    // Cadence sentence-span visible on-screen. Continuous iterates its sliding-window WebViews;
-    // Paginated/Vertical queries the single Readium fragment and pairs the span id with the
-    // current chapter href from the latest locator.
-    LaunchedEffect(rendererBridge, isContinuous, continuousViewRef.value) {
-        android.util.Log.d(com.riffle.core.logging.LogChannel.Cadence.tag, "installing probe: isContinuous=$isContinuous continuousView=${continuousViewRef.value != null}")
-        val probe: suspend () -> String? = {
-            if (isContinuous) {
-                val ref = continuousViewRef.value?.cadenceFirstVisibleFragmentRef()
-                android.util.Log.d(com.riffle.core.logging.LogChannel.Cadence.tag, "continuous probe → $ref")
-                ref
-            } else {
-                val id = rendererBridge.cadenceFirstVisibleSpanId()
-                val href = latestLocator()?.href?.toString()
-                val ref = if (id != null && href != null) "$href#$id" else null
-                android.util.Log.d(com.riffle.core.logging.LogChannel.Cadence.tag, "paginated probe → $ref (id=$id href=$href)")
-                ref
-            }
-        }
-        onInstallVisibleFragmentRefProbe?.invoke(probe)
-    }
+    // (Cadence page-top probe is handled at the same layer as Readaloud's probe above — see
+    // LaunchedEffect(cadencePageTopProbeRequests).)
 
     // Chapter auto-advance (issue #403 acceptance): when Cadence exhausts the current chapter's
     // sentences, ask the active presenter to page forward. Works uniformly across all three

@@ -332,13 +332,6 @@ internal class ContinuousReaderView @JvmOverloads constructor(
         controller.setCadenceOnChapterLoaded(hook)
     }
 
-    /**
-     * See [ContinuousWindowController.cadenceFirstVisibleFragmentRef]. Returns the fully-qualified
-     * FragmentRef ("chapterHref#cd-N") of the first Cadence sentence-span currently on-screen, or
-     * null when nothing matches.
-     */
-    suspend fun cadenceFirstVisibleFragmentRef(): String? =
-        controller.cadenceFirstVisibleFragmentRef()
 
     override fun scrollByPage(forward: Boolean) = controller.scrollByPage(forward)
 

@@ -176,13 +176,6 @@ internal class DefaultRendererBridge(
             ),
         )
 
-    override suspend fun cadenceFirstVisibleSpanId(): String? {
-        val raw = fragment?.evaluateJavascript(
-            com.riffle.app.feature.reader.cadence.CadenceDomScript.FIRST_VISIBLE_SPAN_ID_JS,
-        )
-        android.util.Log.d(com.riffle.core.logging.LogChannel.Cadence.tag, "cadenceFirstVisibleSpanId raw='$raw'")
-        return raw?.trim()?.trim('"')?.takeIf { it.isNotEmpty() && !it.startsWith("DEBUG:") }
-    }
 
     override suspend fun readViewportFraction(): Double? {
         val frag = fragment ?: return null
