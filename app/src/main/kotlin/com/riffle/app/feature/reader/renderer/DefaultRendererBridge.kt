@@ -163,6 +163,19 @@ internal class DefaultRendererBridge(
         fragment?.evaluateJavascript(js)
     }
 
+    override suspend fun evaluateCadenceFeatureDetect(): String? =
+        fragment?.evaluateJavascript(
+            com.riffle.app.feature.reader.cadence.CadenceDomScript.FEATURE_DETECT_JS,
+        )
+
+    override suspend fun evaluateCadenceTokenise(chapterHref: String, localeTag: String?): String? =
+        fragment?.evaluateJavascript(
+            com.riffle.app.feature.reader.cadence.CadenceDomScript.tokeniseChapterJs(
+                chapterHref,
+                localeTag,
+            ),
+        )
+
     override suspend fun readViewportFraction(): Double? {
         val frag = fragment ?: return null
         val raw = frag.evaluateJavascript(

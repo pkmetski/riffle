@@ -61,12 +61,23 @@ open class CadenceController internal constructor(
     }
 
     /**
-     * Bind the current book's [SentenceSource]. Calling [dispatch]([CadenceEvent.Start]) before
-     * [bind] is a no-op; calling it after builds a [WpmTicker] over the source's fragment
-     * ordering and starts ticking. Re-binding replaces the ticker.
+     * Bind the current chapter's [SentenceSource]. Rebinding replaces the previous chapter's
+     * ticker — the state ([Running] / [Paused] / [Idle]) is preserved so an auto-advance to the
+     * next chapter can resume ticking without a user tap. If state was [Running] at bind-time the
+     * new ticker starts immediately; otherwise it stays idle until [dispatch]([CadenceEvent.Start]).
+     *
+     * [onExhausted] fires when the ticker drains this source's ordering — Cadence's caller uses
+     * this to trigger the chapter-forward navigation. The state does NOT flip to Idle here (that
+     * used to happen inside the reducer's `ReachedEndOfBook` branch); the caller navigates first,
+     * then a new `bind` installs the next chapter's ticker and the [Running] state carries over.
      */
-    open suspend fun bind(source: SentenceSource, onEndOfBook: () -> Unit = {}) {
-        unbind()
+    open suspend fun bind(source: SentenceSource, onExhausted: () -> Unit = {}) {
+        val wasRunning = _state.value is CadenceState.Running
+        // Tear down previous ticker without touching state — the state carries user intent.
+        ticker?.stop()
+        forwarderJob?.cancel()
+        _currentFragment.value = null
+
         this.source = source
         val quotes = source.loadAll()
         val order = quotes.keys.toList()
@@ -74,18 +85,20 @@ open class CadenceController internal constructor(
             orderedFragments = order,
             quotes = quotes,
             scope = scope,
-            initialSpeed = defaultSpeed,
-            onExhausted = {
-                _state.value = reduce(_state.value, CadenceEvent.ReachedEndOfBook, defaultSpeed)
-                onEndOfBook()
-            },
+            initialSpeed = _state.value.speedOrNull ?: defaultSpeed,
+            onExhausted = onExhausted,
         )
         ticker = t
         forwarderJob = scope.launch {
             t.currentFragment.collect { _currentFragment.value = it }
         }
+        if (wasRunning) t.play()
     }
 
+    /**
+     * Tear down the current session entirely — cancels the ticker + resets state + drops the
+     * source. Used when the reader closes.
+     */
     fun unbind() {
         ticker?.stop()
         ticker = null

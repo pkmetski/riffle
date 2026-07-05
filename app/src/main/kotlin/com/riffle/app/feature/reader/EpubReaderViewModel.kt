@@ -203,9 +203,13 @@ class EpubReaderViewModel @Inject constructor(
         it.setDeviceDensity(application.resources.displayMetrics.density)
     }
 
-    // WakeLock controller — derives keepScreenOn from prefs + autoScroll state.
+    // WakeLock controller — derives keepScreenOn from prefs + hands-free running states
+    // (Auto-Scroll + Cadence, issue #403). Cadence's state is attached separately because
+    // WakeLockController's factory takes only the AutoScroll flow.
     private val wakeLock: com.riffle.app.feature.reader.controllers.WakeLockController =
-        wakeLockControllerFactory.create(viewModelScope, formatting.autoScrollState)
+        wakeLockControllerFactory.create(viewModelScope, formatting.autoScrollState).also {
+            it.attachCadenceState(cadenceController.state)
+        }
 
     // Bookmark observation + page-bookmarked detection. onScheduleSync delegates to
     // scheduleAnnotationSync() which is resolved lazily at call time.
@@ -470,10 +474,11 @@ class EpubReaderViewModel @Inject constructor(
             supplyResult(quotes, hrefs)
         }
         viewModelScope.launch {
-            cadenceController.bind(source, onEndOfBook = {
-                // Chapter exhausted — fire the event and let the reader screen ask its active
-                // presenter (Continuous / Readium) to advance one chapter. The reader is the only
-                // layer that knows which orientation is live; the VM stays presenter-agnostic.
+            cadenceController.bind(source, onExhausted = {
+                // This chapter's fragments drained — fire the event so the reader screen can ask
+                // its active presenter to page forward. The state stays [Running] so a rebind on
+                // the freshly-loaded chapter (via onCadenceChapterTokenised) resumes ticking
+                // without a user tap. See CadenceController.bind's wasRunning branch.
                 _cadenceEndOfChapterEvents.tryEmit(Unit)
             })
         }

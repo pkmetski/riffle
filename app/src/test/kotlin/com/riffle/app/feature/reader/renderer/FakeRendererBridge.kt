@@ -20,6 +20,8 @@ internal class FakeRendererBridge(
     private val scrollByPxResult: Boolean? = true,
     private val scrollBoundaryResult: Pair<Boolean, Boolean> = Pair(false, false),
     private val viewportFractionResult: Double? = null,
+    private val cadenceFeatureDetectResult: String? = "false",
+    private val cadenceTokeniseResult: String? = null,
 ) : RendererBridge {
 
     val calls: MutableList<String> = mutableListOf()
@@ -109,5 +111,15 @@ internal class FakeRendererBridge(
     override suspend fun readViewportFraction(): Double? {
         calls += "readViewportFraction"
         return viewportFractionResult
+    }
+
+    override suspend fun evaluateCadenceFeatureDetect(): String? {
+        calls += "evaluateCadenceFeatureDetect"
+        return cadenceFeatureDetectResult
+    }
+
+    override suspend fun evaluateCadenceTokenise(chapterHref: String, localeTag: String?): String? {
+        calls += "evaluateCadenceTokenise($chapterHref, $localeTag)"
+        return cadenceTokeniseResult
     }
 }

@@ -108,14 +108,51 @@ class CadenceControllerTest {
     }
 
     @Test
-    fun `onEndOfBook fires when ticker exhausts and state becomes Idle`() = runController { c ->
+    fun `onExhausted fires when ticker drains this source, state stays Running for auto-advance`() = runController { c ->
+        // Regression: state does NOT flip to Idle on chapter exhaustion — the caller navigates to
+        // the next chapter and rebinds, and the [Running] state persists so ticking resumes
+        // without a user tap. If this flipped back to Idle, chapter boundaries would stall
+        // Cadence and require a manual restart on every page turn.
         var end = 0
-        c.bind(FakeSource(listOf("c#s0" to "one two")), onEndOfBook = { end++ })
+        c.bind(FakeSource(listOf("c#s0" to "one two")), onExhausted = { end++ })
         c.dispatch(CadenceEvent.Start)
         runCurrent()
         advanceUntilIdle()
         assertEquals(1, end)
-        assertEquals(CadenceState.Idle, c.state.value)
+        assertTrue(c.state.value is CadenceState.Running)
+    }
+
+    @Test
+    fun `rebinding with a Running state auto-plays the new ticker`() = runController { c ->
+        // Emulates the reader's chapter auto-advance: exhausted → screen navigates → new
+        // chapter's DOM tokenises → VM calls bind() again. Cadence must resume ticking on the
+        // new source without a user tap.
+        c.bind(FakeSource(listOf("c#s0" to "one two three four five six seven eight")))
+        c.dispatch(CadenceEvent.Start)
+        runCurrent()
+        assertEquals("c#s0", c.currentFragment.value)
+
+        // New chapter arrives.
+        c.bind(FakeSource(listOf("d#s0" to "chapter two starts here strongly")))
+        runCurrent()
+        assertEquals("d#s0", c.currentFragment.value)
+        assertTrue(c.state.value is CadenceState.Running)
+    }
+
+    @Test
+    fun `rebinding while Paused stays paused and does not auto-play`() = runController { c ->
+        // Regression: user-initiated pause should survive a chapter rebind. If auto-play ignored
+        // the paused state we'd override the user's stop-tap.
+        c.bind(FakeSource(listOf("c#s0" to "one two three four five six seven eight")))
+        c.dispatch(CadenceEvent.Start)
+        runCurrent()
+        c.dispatch(CadenceEvent.Pause(PauseCause.PanelOpen))
+        assertTrue(c.state.value is CadenceState.Paused)
+
+        c.bind(FakeSource(listOf("d#s0" to "next chapter one two three four")))
+        runCurrent()
+        assertTrue(c.state.value is CadenceState.Paused)
+        assertNull(c.currentFragment.value)
     }
 
     @Test

@@ -148,4 +148,22 @@ internal interface RendererBridge {
      * `evaluateJavascript(` confined to this package.
      */
     suspend fun evaluateBoundaryScroll(js: String)
+
+    // ── Cadence (issue #403) ───────────────────────────────────────────────────────────────────
+
+    /**
+     * Probe the paged/vertical WebView for `Intl.Segmenter`. Returns `"true"` / `"false"` (raw
+     * JSON), or null when the fragment is gone. The reader screen uses this to gate the Cadence
+     * top-bar toggle: no `Intl.Segmenter` → toggle hidden, feature disabled.
+     */
+    suspend fun evaluateCadenceFeatureDetect(): String?
+
+    /**
+     * Run Cadence's DOM tokenisation script for [chapterHref] in the paged/vertical WebView and
+     * return the raw JSON string it produces. See
+     * [com.riffle.app.feature.reader.cadence.CadenceDomScript.tokeniseChapterJs] for the payload
+     * shape and [com.riffle.app.feature.reader.cadence.CadenceInjector.parse] for how the reader
+     * consumes it. Null when the fragment is gone.
+     */
+    suspend fun evaluateCadenceTokenise(chapterHref: String, localeTag: String?): String?
 }
