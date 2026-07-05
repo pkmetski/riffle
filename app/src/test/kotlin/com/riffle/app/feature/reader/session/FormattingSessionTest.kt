@@ -245,6 +245,46 @@ class FormattingSessionTest {
         }
     }
 
+    // Regression: when the user has explicitly parked Auto-Scroll from the HUD pill,
+    // opening and closing a reader panel (formatting/TOC/search/annotations) must NOT
+    // silently resume scrolling. The pill-park is sticky.
+    @Test
+    fun `panel open then close leaves UserPausedPill parked`() = runTest {
+        val (session, _, _, _, autoScrollController, scope) = makeEager()
+        try {
+            autoScrollController.dispatch(AutoScrollEvent.Start)
+            session.pauseAutoScrollFromPill()
+            val parked = autoScrollController.state.value
+            assertTrue(parked is AutoScrollState.Paused)
+            assertEquals(
+                com.riffle.core.domain.autoscroll.PauseCause.UserPausedPill,
+                (parked as AutoScrollState.Paused).cause,
+            )
+
+            session.setAutoScrollPaused(
+                paused = true,
+                cause = com.riffle.core.domain.autoscroll.PauseCause.PanelOpen,
+            )
+            session.setAutoScrollPaused(
+                paused = false,
+                cause = com.riffle.core.domain.autoscroll.PauseCause.PanelOpen,
+            )
+
+            val after = autoScrollController.state.value
+            assertTrue(
+                "user-pill park must survive a panel open/close cycle",
+                after is AutoScrollState.Paused,
+            )
+            assertEquals(
+                com.riffle.core.domain.autoscroll.PauseCause.UserPausedPill,
+                (after as AutoScrollState.Paused).cause,
+            )
+        } finally {
+            autoScrollController.release()
+            scope.cancel()
+        }
+    }
+
     // 8. formattingPreferencesReady gates emission until prefs load
     @Test
     fun `formattingPreferencesReady is false before bindToBook and true after`() = runTest {

@@ -78,6 +78,13 @@ class AutoScrollReducerTest {
     }
 
     @Test
+    fun `Pause on UserPausedPill keeps the pill park sticky`() {
+        val parked = AutoScrollState.Paused(def, PauseCause.UserPausedPill)
+        val s = reduce(parked, AutoScrollEvent.Pause(PauseCause.PanelOpen), def)
+        assertEquals(parked, s)
+    }
+
+    @Test
     fun `Pause in Idle is a no-op`() {
         assertEquals(
             AutoScrollState.Idle,

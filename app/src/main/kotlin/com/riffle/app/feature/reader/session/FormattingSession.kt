@@ -181,10 +181,7 @@ class FormattingSession @AssistedInject constructor(
     }
 
     companion object {
-        // Chosen at ~90s — inside the "minute or two" the user asked for. Long enough that a brief
-        // interruption (drink of water, tap a message) doesn't drop the session; short enough that
-        // a walked-away pill self-cleans within a couple of minutes.
-        const val PILL_AUTO_HIDE_MS: Long = 90_000L
+        const val PILL_AUTO_HIDE_MS: Long = 60_000L
     }
 
     /**
@@ -240,7 +237,12 @@ class FormattingSession @AssistedInject constructor(
         if (paused) {
             autoScrollController.dispatch(AutoScrollEvent.Pause(cause))
         } else {
-            autoScrollController.dispatch(AutoScrollEvent.Resume)
+            // Scoped resume: only lift the pause if its cause matches the one we're clearing.
+            // Otherwise, a panel close would silently un-park a user's explicit HUD-pill pause.
+            val current = autoScrollController.state.value
+            if (current is AutoScrollState.Paused && current.cause == cause) {
+                autoScrollController.dispatch(AutoScrollEvent.Resume)
+            }
         }
     }
 
