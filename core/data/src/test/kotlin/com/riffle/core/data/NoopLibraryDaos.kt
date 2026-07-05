@@ -14,6 +14,7 @@ import kotlinx.coroutines.flow.flowOf
 /** Empty [LibraryItemDao] for tests that never touch metadata resolution. */
 internal object ThrowingLibraryItemDao : LibraryItemDao {
     override fun observeByLibraryId(serverId: String, libraryId: String): Flow<List<LibraryItemEntity>> = flowOf(emptyList())
+    override fun observeByServer(serverId: String): Flow<List<LibraryItemEntity>> = flowOf(emptyList())
     override fun observeUngroupedByLibraryId(serverId: String, libraryId: String): Flow<List<LibraryItemEntity>> = flowOf(emptyList())
     override fun observeInProgress(serverId: String, libraryId: String): Flow<List<LibraryItemEntity>> = flowOf(emptyList())
     override fun observeFinished(serverId: String, libraryId: String): Flow<List<LibraryItemEntity>> = flowOf(emptyList())

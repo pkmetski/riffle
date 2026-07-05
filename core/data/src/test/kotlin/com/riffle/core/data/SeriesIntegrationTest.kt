@@ -110,6 +110,7 @@ class SeriesIntegrationTest {
 
     private class FakeLibraryItemDao : LibraryItemDao {
         override fun observeByLibraryId(serverId: String, libraryId: String): Flow<List<LibraryItemEntity>> = MutableStateFlow(emptyList())
+        override fun observeByServer(serverId: String): Flow<List<LibraryItemEntity>> = MutableStateFlow(emptyList())
         override fun observeUngroupedByLibraryId(serverId: String, libraryId: String): Flow<List<LibraryItemEntity>> = MutableStateFlow(emptyList())
         override fun observeInProgress(serverId: String, libraryId: String): Flow<List<LibraryItemEntity>> = MutableStateFlow(emptyList())
         override fun observeFinished(serverId: String, libraryId: String): Flow<List<LibraryItemEntity>> = MutableStateFlow(emptyList())

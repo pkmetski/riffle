@@ -12,9 +12,20 @@ import kotlinx.coroutines.flow.MutableStateFlow
 internal class FakeLibraryItemDao : LibraryItemDao {
     val upserted = mutableListOf<LibraryItemEntity>()
     private val roomData = mutableMapOf<String, MutableStateFlow<List<LibraryItemEntity>>>()
+    private val byServer = mutableMapOf<String, MutableStateFlow<List<LibraryItemEntity>>>()
 
     fun itemsFor(libraryId: String): List<LibraryItemEntity> =
         roomData[libraryId]?.value ?: emptyList()
+
+    /** Seeds [observeByServer] for a given server, independent of the per-library backing used by
+     *  the other `observe*` methods. Used by tests exercising server-scoped joins (e.g. Annotations
+     *  View), which aren't grouped by libraryId. */
+    fun emit(serverId: String, items: List<LibraryItemEntity>) {
+        byServer.getOrPut(serverId) { MutableStateFlow(emptyList()) }.value = items
+    }
+
+    override fun observeByServer(serverId: String): Flow<List<LibraryItemEntity>> =
+        byServer.getOrPut(serverId) { MutableStateFlow(emptyList()) }
 
     private fun scoped(serverId: String, libraryId: String): List<LibraryItemEntity> =
         roomData[libraryId]?.value?.filter { it.serverId == serverId }.orEmpty()

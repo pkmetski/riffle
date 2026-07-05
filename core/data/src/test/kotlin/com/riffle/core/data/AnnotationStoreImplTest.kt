@@ -90,6 +90,20 @@ class AnnotationStoreImplTest {
         }
 
         override suspend fun purgeAgedTombstones(serverId: String, itemId: String, cutoff: Long): Int = 0
+
+        override fun observeBooksWithHighlights(serverId: String): Flow<List<com.riffle.core.database.BookHighlightSummary>> =
+            rows.map { all ->
+                all.filter { it.serverId == serverId && it.type == AnnotationEntity.TYPE_HIGHLIGHT && !it.deleted }
+                    .groupBy { it.itemId }
+                    .map { (itemId, group) ->
+                        com.riffle.core.database.BookHighlightSummary(
+                            itemId = itemId,
+                            highlightCount = group.size,
+                            latestUpdatedAt = group.maxOf { it.updatedAt },
+                        )
+                    }
+                    .sortedByDescending { it.latestUpdatedAt }
+            }
     }
 
     private val deviceIdStore = object : DeviceIdStore {

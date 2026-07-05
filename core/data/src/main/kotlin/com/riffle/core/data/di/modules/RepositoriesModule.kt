@@ -1,5 +1,7 @@
 package com.riffle.core.data.di.modules
 
+import com.riffle.core.data.AnnotationsLibraryRepository
+import com.riffle.core.data.AnnotationsLibraryRepositoryImpl
 import com.riffle.core.data.AppUpdateRepositoryImpl
 import com.riffle.core.data.ConnectivityObserverImpl
 import com.riffle.core.data.CrashReportRepositoryImpl
@@ -89,6 +91,10 @@ abstract class RepositoriesModule {
     @Binds
     @Singleton
     abstract fun bindTocRepository(impl: TocRepositoryImpl): TocRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindAnnotationsLibraryRepository(impl: AnnotationsLibraryRepositoryImpl): AnnotationsLibraryRepository
 
     companion object {
         @Provides

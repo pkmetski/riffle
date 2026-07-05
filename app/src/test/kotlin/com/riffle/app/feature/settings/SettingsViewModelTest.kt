@@ -262,6 +262,8 @@ class SettingsViewModelTest {
         override suspend fun dirtyServerItems() = emptyList<AnnotationDao.DirtyServerItem>()
         override suspend fun markSynced(ids: List<String>, syncedAt: Long) {}
         override suspend fun purgeAgedTombstones(serverId: String, itemId: String, cutoff: Long): Int = 0
+        override fun observeBooksWithHighlights(serverId: String) =
+            flowOf(emptyList<com.riffle.core.database.BookHighlightSummary>())
     }
 
     private fun stubConfigStore(flow: MutableStateFlow<AnnotationSyncConfig?>) = object : AnnotationSyncConfigStore {
