@@ -19,6 +19,9 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.navigation
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.riffle.app.feature.annotations.AnnotationsListScreen
+import com.riffle.app.feature.annotations.AnnotationsListViewModel
 import com.riffle.app.feature.downloads.DownloadsScreen
 import com.riffle.app.feature.library.CollectionDetailScreen
 import com.riffle.app.feature.library.FacetType
@@ -57,6 +60,7 @@ private const val SELECT_LIBRARIES = "select_libraries"
 private const val SETTINGS = "settings"
 private const val ANNOTATION_SYNC_MAINTENANCE = "settings/annotation_sync/maintenance"
 private const val READALOUD_MATCHES = "readaloud_matches/{serverId}?pairBookId={pairBookId}"
+private const val ANNOTATIONS = "annotations"
 private const val DOWNLOADS = "downloads"
 private const val LIBRARY_ITEMS = "library_items/{libraryId}/{libraryName}"
 private const val LIBRARY_SECTION = "library_section/{libraryId}/{libraryName}/{sectionType}"
@@ -64,7 +68,8 @@ private const val SERIES_DETAIL = "series_detail/{libraryId}/{seriesId}/{seriesN
 private const val COLLECTION_DETAIL = "collection_detail/{libraryId}/{collectionId}/{collectionName}"
 private const val FILTERED_BOOKS = "filtered_books/{libraryId}/{facetType}/{facetValue}"
 private const val LIBRARY_ITEM_DETAIL = "library_item_detail/{itemId}"
-private const val EPUB_READER = "epub_reader/{itemId}?startReadaloudAtSec={startReadaloudAtSec}&openAtCfi={openAtCfi}&startTocHref={startTocHref}"
+private const val EPUB_READER =
+    "epub_reader/{itemId}?startReadaloudAtSec={startReadaloudAtSec}&openAtCfi={openAtCfi}&startTocHref={startTocHref}&source={source}"
 private const val PDF_READER = "pdf_reader/{itemId}"
 private const val ANNOTATION_SEARCH = "annotation_search/{libraryId}?query={query}"
 private const val AUDIOBOOK_PLAYER = "audiobook_player/{itemId}?startAtSec={startAtSec}"
@@ -150,7 +155,10 @@ fun MainScreen(
             val encoded = URLEncoder.encode(library.name, "UTF-8")
             navController.navigateAsRoot("library_items/${library.id}/$encoded")
         },
-        onAnnotationsSelected = { /* TODO: wire to nav route in Task 5 */ },
+        onAnnotationsSelected = {
+            scope.launch { drawerState.close() }
+            navController.navigate(ANNOTATIONS)
+        },
         onDownloadsSelected = {
             scope.launch { drawerState.close() }
             navController.navigate(DOWNLOADS)
@@ -273,6 +281,22 @@ fun MainScreen(
                     onItemSelected = { item ->
                         val encodedId = URLEncoder.encode(item.id, "UTF-8")
                         navController.navigate("library_item_detail/$encodedId")
+                    },
+                )
+            }
+            composable(ANNOTATIONS) {
+                val vm: AnnotationsListViewModel = hiltViewModel()
+                val state by vm.state.collectAsStateWithLifecycle()
+                AnnotationsListScreen(
+                    state = state,
+                    // Task 3 auth-token fix: cover-image requests 401 without the Bearer token.
+                    token = vm.authToken,
+                    onOpenDrawer = { scope.launch { drawerState.open() } },
+                    onBookClick = { _, itemId ->
+                        // Placeholder for now — Task 7 will make source=highlights meaningful by
+                        // reading it in EpubReaderViewModel. Task 6 wires the reader mode itself.
+                        val encoded = URLEncoder.encode(itemId, "UTF-8")
+                        navController.navigate("epub_reader/$encoded?source=highlights")
                     },
                 )
             }
@@ -462,6 +486,11 @@ fun MainScreen(
                         defaultValue = null
                     },
                     navArgument("startTocHref") {
+                        type = NavType.StringType
+                        nullable = true
+                        defaultValue = null
+                    },
+                    navArgument("source") {
                         type = NavType.StringType
                         nullable = true
                         defaultValue = null
