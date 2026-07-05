@@ -105,6 +105,15 @@ private const val SPEED_SAVE_DEBOUNCE_MS = 400L
 // disambiguation in the overlap-detection logic (see createHighlight).
 private const val OVERLAP_CONTEXT_LEN = 60
 
+/**
+ * Whether Reading-Session tracking, ABS progress-sync PATCHes, and highlight/bookmark creation
+ * gestures should run for this reader instance (ADR 0041, Task 8). Highlights mode displays a
+ * synthesised, elided Publication built from stored highlights — it is not "reading" the real
+ * book, so none of these side effects should fire against the ABS item or the annotation store.
+ */
+internal fun shouldRunReadingSideEffects(source: ReaderSource): Boolean =
+    source != ReaderSource.Highlights
+
 sealed class ReaderState {
     data object Loading : ReaderState()
     data class Ready(
@@ -533,6 +542,7 @@ class EpubReaderViewModel @Inject constructor(
         // showFormattingPanel / tocVisible / annotationsPanelVisible / isSearchActive),
         // see [setAutoScrollPaused] below.
         viewModelScope.launch {
+            if (!shouldRunReadingSideEffects(source)) return@launch
             progressSyncController.serverPositionEvents.collect { serverProgress ->
                 val locator = serverProgressToLocator(serverProgress) ?: return@collect
                 // An explicit openAtCfi (annotation tap / search hit) takes precedence over server
@@ -720,6 +730,7 @@ class EpubReaderViewModel @Inject constructor(
     }
 
     private fun startReadingSession(initialTotalProgression: Float?) {
+        if (!shouldRunReadingSideEffects(source)) return
         readingSessionCoordinator.onResumed(
             initialTotalProgression = initialTotalProgression,
             onTick = { syncCurrentPosition() },
@@ -727,6 +738,7 @@ class EpubReaderViewModel @Inject constructor(
     }
 
     private fun syncCurrentPosition() {
+        if (!shouldRunReadingSideEffects(source)) return
         val locator = position.snapshotLastLocator() ?: return
         viewModelScope.launch {
             if (lifecycle.matchedSync.value?.readerSync != null) runReaderSyncCycle(locator)
@@ -901,10 +913,12 @@ class EpubReaderViewModel @Inject constructor(
     }
 
     fun onReaderClosed() {
-        readingSessionCoordinator.onClosed(
-            currentTotalProgression = currentLocatorTotalProgression.value,
-            totalPositions = railSegments.value.fold(0f) { acc, seg -> acc + seg.weight },
-        )
+        if (shouldRunReadingSideEffects(source)) {
+            readingSessionCoordinator.onClosed(
+                currentTotalProgression = currentLocatorTotalProgression.value,
+                totalPositions = railSegments.value.fold(0f) { acc, seg -> acc + seg.weight },
+            )
+        }
         readerStateHolder.isReaderActive = false
         readerStateHolder.isPanelOpen = false
         readerStateHolder.isAudioPlaying = false
@@ -924,6 +938,7 @@ class EpubReaderViewModel @Inject constructor(
         if (readaloud.readaloudOpen.value) {
             persistReadaloudResumePosition(position.snapshotLastLocator(), playerCoordinator.activeFragmentRef.value)
         }
+        if (!shouldRunReadingSideEffects(source)) return
         val locator = position.snapshotLastLocator() ?: return
         // Stays on viewModelScope: runReaderSyncCycle mutates reader state (lastLocator,
         // pendingServerJumpStamp, …) and posts the inbound-jump channel, which must run on the main
@@ -1019,6 +1034,7 @@ class EpubReaderViewModel @Inject constructor(
     // Any existing highlights in the same chapter that overlap the new selection are deleted first —
     // a larger selection subsuming a previously highlighted word replaces that highlight.
     fun createHighlight(selectionLocator: Locator, anchorRect: IntRect) {
+        if (source == ReaderSource.Highlights) return
         val serverId = annotationServerId ?: return
         viewModelScope.launch {
             val pub = lifecycle.publication.value ?: return@launch
@@ -1071,6 +1087,7 @@ class EpubReaderViewModel @Inject constructor(
      * surrounding text as snippet.
      */
     fun toggleBookmark() {
+        if (source == ReaderSource.Highlights) return
         val serverId = annotationServerId ?: return
         viewModelScope.launch {
             val locator = position.snapshotLastLocator() ?: return@launch
