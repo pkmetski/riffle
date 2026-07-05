@@ -152,27 +152,28 @@ internal class ContinuousWindowController(
      * responses arrive (or a short timeout elapses) and return the earliest-in-order match.
      */
     suspend fun cadenceFirstVisibleFragmentRef(): String? {
-        val results = mutableMapOf<Int, Pair<String, String>>()
-        val deferreds = mutableListOf<kotlinx.coroutines.CompletableDeferred<Unit>>()
-        webViews.forEachIndexed { index, wv ->
-            val done = kotlinx.coroutines.CompletableDeferred<Unit>()
-            deferreds += done
-            val href = wv.chapterHref
-            wv.evaluateJavascript(
-                com.riffle.app.feature.reader.cadence.CadenceDomScript.FIRST_VISIBLE_SPAN_ID_JS,
-            ) { raw ->
-                val id = raw?.trim()?.trim('"')?.takeIf { it.isNotEmpty() && !it.startsWith("DEBUG:") }
-                if (id != null && href.isNotEmpty()) results[index] = href to id
-                done.complete(Unit)
-            }
+        val outerTop = port.currentScrollY
+        val viewportHeight = port.viewportHeightPx
+        val slots = buildWindow()
+        val slot = slots.firstOrNull { outerTop in it.top until it.top + it.height }
+            ?: slots.firstOrNull { outerTop < it.top + it.height }
+            ?: return null
+        val wv = webViews.firstOrNull { it.chapterHref == slot.href } ?: return null
+        val offsetInWv = (outerTop - slot.top).coerceAtLeast(0)
+
+        val done = kotlinx.coroutines.CompletableDeferred<String?>()
+        wv.evaluateJavascript(
+            com.riffle.app.feature.reader.cadence.CadenceDomScript
+                .firstSpanIdInVerticalBandJs(offsetInWv, viewportHeight),
+        ) { raw ->
+            done.complete(raw?.trim()?.trim('"')?.takeIf { it.isNotEmpty() })
         }
-        // Await all callbacks with a bounded wait so a hung WebView can't stall startCadence.
-        try {
-            kotlinx.coroutines.withTimeout(500L) { deferreds.forEach { it.await() } }
-        } catch (_: kotlinx.coroutines.TimeoutCancellationException) { /* fall through */ }
-        val first = results.entries.minByOrNull { it.key } ?: return null
-        val (href, id) = first.value
-        return "$href#$id"
+        val id = try {
+            kotlinx.coroutines.withTimeout(500L) { done.await() }
+        } catch (_: kotlinx.coroutines.TimeoutCancellationException) {
+            null
+        } ?: return null
+        return "${slot.href}#$id"
     }
 
     /** True while a window-shift operation (removeTop/removeBottom/prependChapter) is in progress. */

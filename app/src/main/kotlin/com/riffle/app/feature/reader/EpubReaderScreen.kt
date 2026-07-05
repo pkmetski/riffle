@@ -872,6 +872,17 @@ fun EpubReaderScreen(
             onSlower = { viewModel.nudgeAutoScroll(by = -com.riffle.core.domain.autoscroll.AutoScrollSpeed.STEP_WPM) },
             onFaster = { viewModel.nudgeAutoScroll(by = com.riffle.core.domain.autoscroll.AutoScrollSpeed.STEP_WPM) },
         )
+        // Cadence HUD pill — same shape/anchor as Auto-Scroll's pill (mutual exclusion guarantees
+        // only one is visible at a time). Volume keys also nudge cadence WPM via the outer
+        // volumeNavEvents transform; this pill is the on-screen equivalent for touch users.
+        val cadenceStateForPill by viewModel.cadenceState.collectAsState()
+        com.riffle.app.feature.reader.cadence.CadenceHudPill(
+            state = cadenceStateForPill,
+            onPause = { viewModel.pauseCadence(com.riffle.core.domain.cadence.PauseCause.PanelOpen) },
+            onResume = { viewModel.resumeCadenceIfPaused() },
+            onSlower = { viewModel.nudgeCadence(by = -com.riffle.core.domain.autoscroll.AutoScrollSpeed.STEP_WPM) },
+            onFaster = { viewModel.nudgeCadence(by = com.riffle.core.domain.autoscroll.AutoScrollSpeed.STEP_WPM) },
+        )
         // Figure-zoom overlay — mounted at the outermost Box so it dims and covers every reader
         // mode, all reader chrome, and every bottom stack element (readaloud, chapter rail).
         val figureZoom by viewModel.figureZoom.collectAsState()

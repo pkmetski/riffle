@@ -1,13 +1,30 @@
 package com.riffle.app.feature.reader.cadence
 
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.systemBars
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Pause
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LocalContentColor
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -16,8 +33,13 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.riffle.core.domain.autoscroll.AutoScrollSpeed
+import com.riffle.core.domain.cadence.CadenceState
+import com.riffle.core.domain.cadence.speedOrNull
 
 /**
  * The reader top-bar toggle for Cadence. When idle, draws the agreed single-colour glyph from issue
@@ -90,4 +112,83 @@ internal fun DrawScope.drawCadenceGlyph(color: Color) {
     drawPath(play, color)
     // Bottom outer bar
     drawRect(color, topLeft = Offset(3f * unit, 17.4f * unit), size = Size(12f * unit, 1.6f * unit))
+}
+
+// The HUD pill anchors to BottomEnd inside the system-bar insets. Match Auto-Scroll's
+// [com.riffle.app.feature.reader.autoscroll.HUD_PILL_BOTTOM_DP] so the two pills sit at the same
+// baseline when both features could hypothetically be visible (they can't — mutual exclusion — but
+// the visual language stays consistent when the user toggles between them).
+private const val HUD_PILL_BOTTOM_DP: Int = 35
+
+/**
+ * Translucent in-content HUD pill for Cadence: pause + minus + wpm + plus (issue #403).
+ * Visible only while [state] is [CadenceState.Running] or [CadenceState.Paused]; anchored to the
+ * bottom-right inset of the screen. Mirrors [com.riffle.app.feature.reader.autoscroll.AutoScrollHudPill]
+ * so the two features feel identical when the user swaps between them.
+ */
+@Composable
+fun CadenceHudPill(
+    state: CadenceState,
+    onPause: () -> Unit,
+    onResume: () -> Unit,
+    onSlower: () -> Unit,
+    onFaster: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    if (state is CadenceState.Idle) return
+    val speed = state.speedOrNull?.wpm ?: return
+    val running = state is CadenceState.Running
+
+    val insets = WindowInsets.systemBars.asPaddingValues()
+    Box(
+        modifier = modifier
+            .fillMaxSize()
+            .padding(insets),
+        contentAlignment = Alignment.BottomEnd,
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier
+                .padding(start = 12.dp, end = 12.dp, top = 12.dp, bottom = HUD_PILL_BOTTOM_DP.dp)
+                .background(Color(0x66_1F_1B_17), CircleShape)
+                .padding(horizontal = 4.dp, vertical = 2.dp)
+                .heightIn(min = 28.dp),
+        ) {
+            IconButton(
+                onClick = if (running) onPause else onResume,
+                modifier = Modifier.size(28.dp),
+            ) {
+                Icon(
+                    if (running) Icons.Filled.Pause else Icons.Filled.PlayArrow,
+                    contentDescription = if (running) "Pause cadence" else "Resume cadence",
+                    tint = Color.White,
+                    modifier = Modifier.size(14.dp),
+                )
+            }
+            Spacer(Modifier.width(2.dp))
+            IconButton(onClick = onSlower, modifier = Modifier.size(28.dp)) {
+                Icon(
+                    Icons.Filled.Remove,
+                    contentDescription = "Slower",
+                    tint = Color.White,
+                    modifier = Modifier.size(14.dp),
+                )
+            }
+            Text(
+                text = "$speed wpm",
+                color = Color.White,
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 11.sp,
+                modifier = Modifier.padding(horizontal = 4.dp),
+            )
+            IconButton(onClick = onFaster, modifier = Modifier.size(28.dp)) {
+                Icon(
+                    Icons.Filled.Add,
+                    contentDescription = "Faster",
+                    tint = Color.White,
+                    modifier = Modifier.size(14.dp),
+                )
+            }
+        }
+    }
 }

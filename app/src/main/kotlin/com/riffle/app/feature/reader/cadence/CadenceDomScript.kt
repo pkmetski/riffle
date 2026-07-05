@@ -120,20 +120,52 @@ internal object CadenceDomScript {
     (function(){
       var TOL=24;
       var spans=document.querySelectorAll('span.riffle-cd');
-      if (!spans || spans.length===0) return 'DEBUG:NO_SPANS';
+      if (!spans || spans.length===0) return '';
       var iw=window.innerWidth||0, ih=window.innerHeight||0;
-      var firstRectExample=null;
+      // Paginated / Vertical: single-document scroll. Return the FIRST span in reading order
+      // whose bounding rect is currently visible in the viewport (top < ih, bottom > 0). Ordered
+      // iteration matches document order matches reading order, so the first hit is the topmost.
       for (var i=0; i<spans.length; i++) {
         var el=spans[i];
         var r=el.getBoundingClientRect();
-        if (!r) continue;
-        if (i<3 && !firstRectExample) firstRectExample={l:r.left,r:r.right,t:r.top,b:r.bottom,w:r.width,h:r.height};
-        if (r.width===0 && r.height===0) continue;
+        if (!r || (r.width===0 && r.height===0)) continue;
         if (r.left >= -TOL && r.right <= iw+TOL && r.top < ih && r.bottom > 0) {
           return el.id;
         }
       }
-      return 'DEBUG:N='+spans.length+' iw='+iw+' ih='+ih+' r='+JSON.stringify(firstRectExample);
+      return '';
     })()
     """
+
+    /**
+     * Continuous-mode variant of [FIRST_VISIBLE_SPAN_ID_JS]. The outer NestedScrollView scrolls
+     * a stack of content-sized WebViews; a per-WebView `getBoundingClientRect` doesn't know
+     * where the outer viewport sits, so we compute the WebView-relative visible band in Kotlin
+     * (`[offsetPx, offsetPx + viewportPx]`) and pass it in. This filter returns the FIRST span
+     * whose top-Y sits at or below `offsetPx` — i.e. the topmost sentence visible in the outer
+     * viewport — otherwise the last span above the range (a partial sentence being scrolled up
+     * off the top of the screen).
+     */
+    fun firstSpanIdInVerticalBandJs(offsetPx: Int, viewportPx: Int): String {
+        return """
+        (function(){
+          var start=$offsetPx, end=$offsetPx + $viewportPx;
+          var spans=document.querySelectorAll('span.riffle-cd');
+          if (!spans || spans.length===0) return '';
+          var lastAbove=null;
+          for (var i=0; i<spans.length; i++) {
+            var el=spans[i];
+            var r=el.getBoundingClientRect();
+            if (!r || (r.width===0 && r.height===0)) continue;
+            var top = r.top + (window.scrollY||0);
+            var bottom = r.bottom + (window.scrollY||0);
+            if (top >= start && top < end) return el.id;
+            if (bottom > start && top < start) return el.id;
+            if (top < start) lastAbove = el;
+          }
+          return lastAbove ? lastAbove.id : '';
+        })()
+        """.trimIndent()
+    }
+
 }
