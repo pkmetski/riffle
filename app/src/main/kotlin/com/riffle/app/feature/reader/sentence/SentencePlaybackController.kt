@@ -120,7 +120,8 @@ internal suspend fun performAutoFollow(
     // sentence by text nor anchor a go(): the cssSelector-only locator can't resolve on the
     // span-stripped ABS page, so a snap would flip to chapter start. Skip until the quote arrives;
     // the caller re-keys on the quotes map and re-runs to follow correctly once it's available.
-    val quote = sentenceQuotes[ref.substringAfter('#', "")] ?: return
+    // Try full ref (Cadence: "href#cd-N") before sid alone (Readaloud: "sN"). Same pipeline.
+    val quote = sentenceQuotes[ref] ?: sentenceQuotes[ref.substringAfter('#', "")] ?: return
     // Locate the sentence by its text (spans are stripped). The probe snaps to the sentence's
     // column itself in paginated mode; OffPage comes back only when the text isn't on this resource
     // (another chapter), where we fall back to a text-anchored go() to load it. Vertical / continuous

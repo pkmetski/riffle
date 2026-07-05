@@ -122,4 +122,9 @@ internal class FakeRendererBridge(
         calls += "evaluateCadenceTokenise($chapterHref, $localeTag)"
         return cadenceTokeniseResult
     }
+
+    override suspend fun cadenceFirstVisibleSpanId(): String? {
+        calls += "cadenceFirstVisibleSpanId"
+        return null
+    }
 }

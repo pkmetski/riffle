@@ -43,7 +43,9 @@ internal class ReadiumHighlightRenderer(
             return
         }
         val sid = fragmentRef.substringAfter('#', "")
-        val quote = quotes[sid]
+        // Try full ref (Cadence's DomSentenceSource — keyed by "href#cd-N") before falling
+        // back to sid alone (Readaloud's sidecar — keyed by "sN").
+        val quote = quotes[fragmentRef] ?: quotes[sid]
         val locator = fragmentLocator(fragmentRef, quote) ?: return
         val decoration = Decoration(
             id = "readaloud_active",

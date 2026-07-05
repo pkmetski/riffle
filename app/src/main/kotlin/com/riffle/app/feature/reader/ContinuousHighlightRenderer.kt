@@ -35,7 +35,9 @@ internal class ContinuousHighlightRenderer(
         val chapterHref = fragmentRef.substringBefore('#')
         val sid = fragmentRef.substringAfter('#', "")
         if (sid.isBlank()) return
-        val text = quotes[sid]?.highlight ?: return
+        // Look up first by full ref (Cadence's DomSentenceSource — keyed by "href#cd-N"), then
+        // by sid alone (Readaloud's sidecar — keyed by "sN"). Same renderer serves both features.
+        val text = (quotes[fragmentRef] ?: quotes[sid])?.highlight ?: return
 
         val prev = prevSentenceHref
         if (prev != null && prev != chapterHref) target.clearHighlightInChapter(prev)

@@ -80,8 +80,13 @@ class ReaderModeForkGuardTest {
         // Raised from 29 to 31 for the Cadence first-visible-sentence probe (issue #403). Two refs
         // again: the LaunchedEffect key on isContinuous, and the probe lambda's branch that returns
         // null in Continuous because `rendererBridge.firstVisibleSentenceIndex` is a Readium-only
-        // capability. A Continuous-side probe would replace this; until then, this fork keeps
-        // Cadence's "start at visible sentence" working in paginated + vertical.
-        private const val MAX_MODE_BRANCHES = 31
+        // capability.
+        //
+        // Raised from 31 to 33 after adding the Continuous-side visible-fragment probe
+        // (continuousViewRef.value?.cadenceFirstVisibleFragmentRef()). The probe closure branches
+        // on isContinuous to pick the right presenter (Continuous window scan vs. Readium
+        // rendererBridge + latestLocator pair). Both refs live inside one LaunchedEffect and are
+        // load-bearing — Cadence can't seed at the visible sentence otherwise.
+        private const val MAX_MODE_BRANCHES = 33
     }
 }

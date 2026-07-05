@@ -551,8 +551,8 @@ fun EpubReaderScreen(
                         onCadencePlatformSupportedChanged = if (formattingPrefs.showCadence) {
                             { supported -> viewModel.setCadencePlatformSupported(supported) }
                         } else null,
-                        onInstallVisibleSentenceProbe = { probe ->
-                            viewModel.setVisibleSentenceProbe(probe)
+                        onInstallVisibleFragmentRefProbe = { probe ->
+                            viewModel.setVisibleFragmentRefProbe(probe)
                         },
                         onReachedEndOfBook = viewModel::reachedEndOfBookForAutoScroll,
                         onAutoScrollPause = viewModel::pauseAutoScroll,
@@ -1305,11 +1305,11 @@ private fun EpubNavigatorView(
     publicationLanguageTag: String? = null,
     onCadenceChapterTokenised: ((Map<String, SentenceQuote>, Map<String, String>) -> Unit)? = null,
     onCadencePlatformSupportedChanged: ((Boolean) -> Unit)? = null,
-    // Reader-screen-supplied hook that receives an orientation-aware "first visible sentence"
-    // probe closure. The outer screen forwards this to viewModel.setVisibleSentenceProbe so
-    // startCadence can seed the ticker at the sentence the user is looking at instead of the
-    // chapter top.
-    onInstallVisibleSentenceProbe: ((suspend (List<String>) -> Int?) -> Unit)? = null,
+    // Reader-screen-supplied hook that receives an orientation-aware "first visible Cadence
+    // sentence FragmentRef" probe closure. The outer screen forwards this to
+    // viewModel.setVisibleFragmentRefProbe so startCadence can seed the ticker at the sentence
+    // the user is looking at instead of the chapter top. Returns "chapterHref#cd-N" or null.
+    onInstallVisibleFragmentRefProbe: ((suspend () -> String?) -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -2175,17 +2175,32 @@ private fun EpubNavigatorView(
         }
     }
 
-    // Install the first-visible-sentence probe so the reader VM's startCadence can seed the
-    // ticker at the sentence currently on-screen. Paginated / vertical route through the renderer
-    // bridge (already the sentence-index probe Readaloud uses); Continuous falls back to null,
-    // which lands the ticker at cd-0 — the ContinuousReaderView will auto-scroll back to that
-    // first sentence anyway via the shared auto-follow LaunchedEffect. A follow-up can add a
-    // Continuous-specific probe when we need it.
-    LaunchedEffect(rendererBridge, isContinuous) {
-        val probe: suspend (List<String>) -> Int? = { highlights ->
-            if (isContinuous) null else rendererBridge.firstVisibleSentenceIndex(highlights)
+    // Install the first-visible Cadence-span probe so startCadence can seed the ticker at the
+    // sentence currently on-screen. Uses Cadence's own <span id="cd-N"> markers via the
+    // renderer bridge — far more reliable than a text-prefix probe against a DOM whose text
+    // nodes were re-parented by the Cadence tokeniser. Paginated / Vertical only for now;
+    // Continuous returns null (falls back to cd-0; the shared auto-follow scrolls the reader
+    // to it anyway — a Continuous-specific probe is a small follow-up).
+    // The probe returns the fully-qualified FragmentRef ("chapterHref#cd-N") of the first
+    // Cadence sentence-span visible on-screen. Continuous iterates its sliding-window WebViews;
+    // Paginated/Vertical queries the single Readium fragment and pairs the span id with the
+    // current chapter href from the latest locator.
+    LaunchedEffect(rendererBridge, isContinuous, continuousViewRef.value) {
+        android.util.Log.d(com.riffle.core.logging.LogChannel.Cadence.tag, "installing probe: isContinuous=$isContinuous continuousView=${continuousViewRef.value != null}")
+        val probe: suspend () -> String? = {
+            if (isContinuous) {
+                val ref = continuousViewRef.value?.cadenceFirstVisibleFragmentRef()
+                android.util.Log.d(com.riffle.core.logging.LogChannel.Cadence.tag, "continuous probe → $ref")
+                ref
+            } else {
+                val id = rendererBridge.cadenceFirstVisibleSpanId()
+                val href = latestLocator()?.href?.toString()
+                val ref = if (id != null && href != null) "$href#$id" else null
+                android.util.Log.d(com.riffle.core.logging.LogChannel.Cadence.tag, "paginated probe → $ref (id=$id href=$href)")
+                ref
+            }
         }
-        onInstallVisibleSentenceProbe?.invoke(probe)
+        onInstallVisibleFragmentRefProbe?.invoke(probe)
     }
 
     // Chapter auto-advance (issue #403 acceptance): when Cadence exhausts the current chapter's

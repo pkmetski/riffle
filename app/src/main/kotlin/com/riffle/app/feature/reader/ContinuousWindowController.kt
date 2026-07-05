@@ -141,6 +141,40 @@ internal class ContinuousWindowController(
         decorations.setCadenceOnChapterLoaded(hook)
     }
 
+    /**
+     * Return the FragmentRef ("chapterHref#cd-N") of the first Cadence-injected
+     * `<span class="riffle-cd">` currently visible on-screen across the sliding window's loaded
+     * WebViews, or null when nothing is on-screen. Used by the reader VM to seed Cadence at the
+     * sentence the user is looking at when they tap the top-bar toggle.
+     *
+     * Iterates chapters in window order; the first WebView whose JS probe returns a non-empty span
+     * id wins. Each `evaluateJavascript` call is fire-and-forget, so we suspend until all
+     * responses arrive (or a short timeout elapses) and return the earliest-in-order match.
+     */
+    suspend fun cadenceFirstVisibleFragmentRef(): String? {
+        val results = mutableMapOf<Int, Pair<String, String>>()
+        val deferreds = mutableListOf<kotlinx.coroutines.CompletableDeferred<Unit>>()
+        webViews.forEachIndexed { index, wv ->
+            val done = kotlinx.coroutines.CompletableDeferred<Unit>()
+            deferreds += done
+            val href = wv.chapterHref
+            wv.evaluateJavascript(
+                com.riffle.app.feature.reader.cadence.CadenceDomScript.FIRST_VISIBLE_SPAN_ID_JS,
+            ) { raw ->
+                val id = raw?.trim()?.trim('"')?.takeIf { it.isNotEmpty() && !it.startsWith("DEBUG:") }
+                if (id != null && href.isNotEmpty()) results[index] = href to id
+                done.complete(Unit)
+            }
+        }
+        // Await all callbacks with a bounded wait so a hung WebView can't stall startCadence.
+        try {
+            kotlinx.coroutines.withTimeout(500L) { deferreds.forEach { it.await() } }
+        } catch (_: kotlinx.coroutines.TimeoutCancellationException) { /* fall through */ }
+        val first = results.entries.minByOrNull { it.key } ?: return null
+        val (href, id) = first.value
+        return "$href#$id"
+    }
+
     /** True while a window-shift operation (removeTop/removeBottom/prependChapter) is in progress. */
     private var shiftInProgress = false
 

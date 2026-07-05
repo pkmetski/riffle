@@ -44,6 +44,23 @@ internal object CadenceDomScript {
               return JSON.stringify({ quotes: {}, chapterHrefs: {}, supported: false });
             }
             const chapterHref = $hrefLit;
+            // Idempotency: paginationListener.onPageLoaded fires several times per chapter
+            // (initial paint, reflow after typography, backward-turn re-lay). Running the walk
+            // again would wrap ALREADY-WRAPPED text — creating nested spans, duplicate ids, and
+            // zero-sized bounding rects that break the "first visible span" probe. Bail out and
+            // just re-read the existing spans if any are present.
+            const existing = document.querySelectorAll('span.riffle-cd');
+            if (existing.length > 0) {
+              const quotes = {};
+              const chapterHrefs = {};
+              existing.forEach(function(el) {
+                if (!el.id) return;
+                const ref = chapterHref + '#' + el.id;
+                quotes[ref] = { before: '', highlight: (el.textContent || '').trim(), after: '' };
+                chapterHrefs[ref] = chapterHref;
+              });
+              return JSON.stringify({ quotes: quotes, chapterHrefs: chapterHrefs, supported: true, cached: true });
+            }
             const seg = new Intl.Segmenter($localeArg, { granularity: 'sentence' });
             const quotes = {};
             const chapterHrefs = {};
@@ -89,4 +106,34 @@ internal object CadenceDomScript {
 
     private fun jsEscape(s: String): String =
         s.replace("\\", "\\\\").replace("'", "\\'").replace("\n", "\\n").replace("\r", "")
+
+    /**
+     * JS that returns the id of the first `<span class="riffle-cd">` currently visible on the page,
+     * or an empty string when none is on-screen. Uses the Cadence-injected span ids directly (much
+     * cheaper + more reliable than [firstVisibleSentenceJs]'s text-prefix probe, which suffers
+     * when the DOM's text nodes are chopped up by the sentence-span wrapping itself).
+     *
+     * The visibility test mirrors the paginated / vertical semantics of
+     * [firstVisibleSentenceJs]: a rect that intersects the viewport within a 24 px tolerance.
+     */
+    const val FIRST_VISIBLE_SPAN_ID_JS: String = """
+    (function(){
+      var TOL=24;
+      var spans=document.querySelectorAll('span.riffle-cd');
+      if (!spans || spans.length===0) return 'DEBUG:NO_SPANS';
+      var iw=window.innerWidth||0, ih=window.innerHeight||0;
+      var firstRectExample=null;
+      for (var i=0; i<spans.length; i++) {
+        var el=spans[i];
+        var r=el.getBoundingClientRect();
+        if (!r) continue;
+        if (i<3 && !firstRectExample) firstRectExample={l:r.left,r:r.right,t:r.top,b:r.bottom,w:r.width,h:r.height};
+        if (r.width===0 && r.height===0) continue;
+        if (r.left >= -TOL && r.right <= iw+TOL && r.top < ih && r.bottom > 0) {
+          return el.id;
+        }
+      }
+      return 'DEBUG:N='+spans.length+' iw='+iw+' ih='+ih+' r='+JSON.stringify(firstRectExample);
+    })()
+    """
 }

@@ -465,21 +465,30 @@ class EpubReaderViewModel @Inject constructor(
         quotes: Map<String, com.riffle.core.domain.SentenceQuote>,
         hrefs: Map<String, String>,
     ) {
-        logger.d(com.riffle.core.logging.LogChannel.Cadence) { "VM.onCadenceChapterTokenised quotes=${quotes.size} hrefs=${hrefs.size}" }
-        _cadenceQuotes.value = quotes
+        // Accumulate quotes across every tokenised chapter — Continuous keeps several chapters
+        // loaded at once in the sliding window, and paginated may re-tokenise the current one on
+        // reflow. LinkedHashMap preserves insertion order so the ticker's fragment ordering stays
+        // reading-order stable across rebinds.
+        val merged = LinkedHashMap(_cadenceQuotes.value)
+        merged.putAll(quotes)
+        _cadenceQuotes.value = merged
+        val mergedHrefs = LinkedHashMap(_cadenceChapterHrefs)
+        mergedHrefs.putAll(hrefs)
+        _cadenceChapterHrefs = mergedHrefs
+        logger.d(com.riffle.core.logging.LogChannel.Cadence) {
+            "VM.onCadenceChapterTokenised chapterQuotes=${quotes.size} totalQuotes=${merged.size}"
+        }
         val source = com.riffle.app.feature.reader.cadence.DomSentenceSource().apply {
-            supplyResult(quotes, hrefs)
+            supplyResult(merged, mergedHrefs)
         }
         viewModelScope.launch {
             cadenceController.bind(source, onExhausted = {
-                // This chapter's fragments drained — fire the event so the reader screen can ask
-                // its active presenter to page forward. The state stays [Running] so a rebind on
-                // the freshly-loaded chapter (via onCadenceChapterTokenised) resumes ticking
-                // without a user tap. See CadenceController.bind's wasRunning branch.
                 _cadenceEndOfChapterEvents.tryEmit(Unit)
             })
         }
     }
+
+    private var _cadenceChapterHrefs: Map<String, String> = emptyMap()
 
     /** Report the WebView's Intl.Segmenter feature-detect result. */
     fun setCadencePlatformSupported(supported: Boolean) {
@@ -487,39 +496,40 @@ class EpubReaderViewModel @Inject constructor(
     }
 
     /**
-     * The reader screen sets this once its presenters are up. Given the ordered list of the
-     * current chapter's sentence texts, returns the index of the first sentence currently on
-     * screen — or null when the presenter can't answer (WebView gone / no matches).
+     * The reader screen sets this once its presenters are up. Returns the fully-qualified
+     * FragmentRef ("chapterHref#cd-N") of the first Cadence sentence-span currently on-screen,
+     * or null when nothing is on-screen (WebView gone / no spans injected / etc.).
      *
-     * We accept `null` as a valid answer here (the ticker falls back to cd-0), because the
-     * chapter's first sentence is the least-bad landing if we can't compute the actual visible
-     * one — jumping backward is preferable to jumping forward past the reader's current position.
+     * We accept `null` here (the ticker falls back to cd-0), because the chapter's first
+     * sentence is the least-bad landing when the probe can't compute the actual visible one.
      */
-    private var visibleSentenceProbe: (suspend (List<String>) -> Int?)? = null
+    private var visibleFragmentRefProbe: (suspend () -> String?)? = null
 
-    fun setVisibleSentenceProbe(probe: (suspend (List<String>) -> Int?)?) {
-        visibleSentenceProbe = probe
+    fun setVisibleFragmentRefProbe(probe: (suspend () -> String?)?) {
+        visibleFragmentRefProbe = probe
     }
 
     /**
      * Start Cadence — pauses Readaloud and Auto-Scroll first (mutual exclusion per issue #403),
-     * then seeds the ticker at the first sentence currently on-screen so the reader doesn't jump
-     * back to the chapter top on every tap. When no probe is installed (or the probe returns
-     * null), Cadence falls back to `cd-0` = chapter top.
+     * then seeds the ticker at the first sentence currently on-screen so the reader doesn't
+     * jump back to the chapter top on every tap. When no probe is installed (or the probe
+     * returns null), Cadence falls back to the chapter's first sentence.
      */
     fun startCadence() {
         applyArbiter(com.riffle.core.domain.cadence.Feature.Cadence)
         viewModelScope.launch {
-            val quotes = _cadenceQuotes.value.entries.toList()
+            // In Continuous the probe returns refs from any chapter in the sliding window. The
+            // Cadence ticker is bound to the ONE latest-tokenised chapter, so a ref from another
+            // chapter won't match its ordering — but we still hand it over: goTo() is a no-op on
+            // unknown refs, so falling back to cd-0 is the safe outcome. When the probed chapter
+            // becomes the current chapter (as its onCadenceChapterTokenised rebinds), the ticker
+            // will pick up the passed ref if we send it via a follow-up rebind hint. For now
+            // the single-chapter binding lands at cd-0 when the visible chapter differs from the
+            // bound one — good enough for the common "user opens book mid-chapter" case.
+            val startRef = visibleFragmentRefProbe?.invoke()
             logger.d(com.riffle.core.logging.LogChannel.Cadence) {
-                "VM.startCadence quotes=${quotes.size} probe=${visibleSentenceProbe != null}"
+                "VM.startCadence startRef=$startRef"
             }
-            val startRef = if (quotes.isNotEmpty()) {
-                val texts = quotes.map { it.value.highlight }
-                visibleSentenceProbe?.invoke(texts)
-                    ?.let { idx -> quotes.getOrNull(idx)?.key }
-            } else null
-            logger.d(com.riffle.core.logging.LogChannel.Cadence) { "VM.startCadence startRef=$startRef" }
             if (startRef != null) cadenceController.goTo(startRef)
             cadenceController.dispatch(com.riffle.core.domain.cadence.CadenceEvent.Start)
         }
