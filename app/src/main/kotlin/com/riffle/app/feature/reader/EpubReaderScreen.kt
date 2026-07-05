@@ -391,6 +391,20 @@ fun EpubReaderScreen(
                         )
                     }
                     val spinePositions by viewModel.spinePositionCounts.collectAsState()
+                    // Mutual-exclusion OR for the sentence-highlight pipeline (issue #403): when
+                    // Cadence is running, its currentFragment / quotes / colour replace
+                    // Readaloud's. Both features rely on the same
+                    // [SentencePlaybackController.Attach] machinery downstream — the only thing
+                    // that changes is which source is authoritative.
+                    val cadenceCurrentFragment by viewModel.cadenceCurrentFragment.collectAsState()
+                    val cadenceQuotesForPaint by viewModel.cadenceQuotes.collectAsState()
+                    val cadenceIsActiveForPaint = cadenceCurrentFragment != null
+                    val effectiveActiveFragmentRef =
+                        if (cadenceIsActiveForPaint) cadenceCurrentFragment else activeFragmentRef
+                    val effectiveSentenceQuotes =
+                        if (cadenceIsActiveForPaint) cadenceQuotesForPaint else sentenceQuotes
+                    val effectiveHighlightColor =
+                        if (cadenceIsActiveForPaint) formattingPrefs.cadenceHighlightColor else readaloudHighlightColor
                     EpubNavigatorView(
                         state = s,
                         formattingPrefs = formattingPrefs,
@@ -435,8 +449,8 @@ fun EpubReaderScreen(
                         returnNavEvents = viewModel.returnNavEvents,
                         onCaptureReturnTarget = viewModel::captureReturnTarget,
                         onFollowInternalLink = viewModel::followInternalLink,
-                        activeFragmentRef = activeFragmentRef,
-                        sentenceQuotes = sentenceQuotes,
+                        activeFragmentRef = effectiveActiveFragmentRef,
+                        sentenceQuotes = effectiveSentenceQuotes,
                         sentenceChapters = sentenceChapters,
                         narrationProgress = viewModel.narrationProgress,
                         pageTopProbeRequests = viewModel.pageTopProbeRequests,
@@ -445,7 +459,7 @@ fun EpubReaderScreen(
                         onEnsureSentenceQuotesReady = viewModel::ensureSentenceQuotesReady,
                         readaloudAvailable = readaloudAvailable,
                         readaloudReservePx = totalReserveCssPx,
-                        readaloudHighlightColor = readaloudHighlightColor,
+                        readaloudHighlightColor = effectiveHighlightColor,
                         // Suppress the "Highlight" action on text-selection long-press when the
                         // reader is showing the elided highlight-only view — new highlights aren't
                         // creatable here (createHighlight is a no-op in Highlights mode, ADR 0041),
@@ -1910,6 +1924,11 @@ private fun EpubNavigatorView(
     // ---- Readaloud synced highlight + auto-follow ------------------------------------------
     // See [SentencePlaybackController.Attach] for the key-list rationale (unchanged from the
     // inline LaunchedEffects this replaces) and the auto-follow behaviour.
+    //
+    // Cadence + Readaloud are mutually exclusive (issue #403 / ADR 0040). The caller passes an
+    // effective fragment/quote/colour triple that is Cadence's when Cadence is live and
+    // Readaloud's otherwise; the shared pipeline paints whichever is active. See the call site
+    // in the outer screen composable for the OR that produces these values.
     sentencePlaybackController.Attach(
         activeFragmentRef = activeFragmentRef,
         sentenceQuotes = sentenceQuotes,
