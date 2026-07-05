@@ -121,6 +121,8 @@ fun SettingsScreen(
     var showFormattingPanel by remember { mutableStateOf(false) }
     var showDisplayPanel by remember { mutableStateOf(false) }
     var showBehaviorPanel by remember { mutableStateOf(false) }
+    var showAutoScrollPanel by remember { mutableStateOf(false) }
+    var showCadencePanel by remember { mutableStateOf(false) }
     var showListeningPanel by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
@@ -234,6 +236,45 @@ fun SettingsScreen(
                     supportingContent = { Text(behaviorSummary(keepScreenOn, volumeKeyNavigationEnabled)) },
                     trailingContent = {
                         TextButton(onClick = { showBehaviorPanel = true }) { Text("Edit") }
+                    },
+                )
+                ListItem(
+                    modifier = Modifier.clickable { showAutoScrollPanel = true },
+                    leadingContent = {
+                        com.riffle.app.feature.reader.autoscroll.AutoScrollToggleIcon(
+                            isRunning = false,
+                            onClick = { showAutoScrollPanel = true },
+                        )
+                    },
+                    headlineContent = { Text("Auto-Scroll") },
+                    supportingContent = {
+                        Text(
+                            if (globalFormatting.showAutoScroll)
+                                "Hands-free scroll — ${globalFormatting.autoScrollWpm} wpm"
+                            else "Off",
+                        )
+                    },
+                    trailingContent = {
+                        TextButton(onClick = { showAutoScrollPanel = true }) { Text("Edit") }
+                    },
+                )
+                ListItem(
+                    modifier = Modifier.clickable { showCadencePanel = true },
+                    leadingContent = {
+                        androidx.compose.material3.IconButton(onClick = { showCadencePanel = true }) {
+                            com.riffle.app.feature.reader.cadence.CadenceHeroIcon(size = 24.dp)
+                        }
+                    },
+                    headlineContent = { Text("Cadence") },
+                    supportingContent = {
+                        Text(
+                            if (globalFormatting.showCadence)
+                                "Sentence highlight — ${globalFormatting.cadenceWpm} wpm"
+                            else "Off",
+                        )
+                    },
+                    trailingContent = {
+                        TextButton(onClick = { showCadencePanel = true }) { Text("Edit") }
                     },
                 )
                 HorizontalDivider()
@@ -616,6 +657,22 @@ fun SettingsScreen(
             invertVolumeKeys = invertVolumeKeys,
             onInvertVolumeKeysChange = { viewModel.setInvertVolumeKeys(it) },
             onDismiss = { showBehaviorPanel = false },
+        )
+    }
+
+    if (showAutoScrollPanel) {
+        AutoScrollSettingsPanel(
+            prefs = globalFormatting,
+            onPrefsChange = { viewModel.updateGlobalFormatting(it) },
+            onDismiss = { showAutoScrollPanel = false },
+        )
+    }
+
+    if (showCadencePanel) {
+        CadenceSettingsPanel(
+            prefs = globalFormatting,
+            onPrefsChange = { viewModel.updateGlobalFormatting(it) },
+            onDismiss = { showCadencePanel = false },
         )
     }
 
