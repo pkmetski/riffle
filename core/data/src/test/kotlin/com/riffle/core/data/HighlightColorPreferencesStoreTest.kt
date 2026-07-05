@@ -2,7 +2,6 @@ package com.riffle.core.data
 
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import androidx.datastore.preferences.core.edit
-import androidx.datastore.preferences.core.stringPreferencesKey
 import com.riffle.core.domain.HighlightColor
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.first
@@ -81,7 +80,7 @@ class HighlightColorPreferencesStoreTest {
             scope = backgroundScope,
             produceFile = { tmp.newFile("highlight_color_prefs_fallback.preferences_pb") },
         )
-        rawStore.edit { it[stringPreferencesKey("last_used_highlight_color:srv1:book1")] = "NOT_A_COLOR" }
+        rawStore.edit { it[highlightColorPrefKey("srv1", "book1")] = "NOT_A_COLOR" }
         val store = HighlightColorPreferencesStore(rawStore)
         assertEquals(HighlightColor.DEFAULT, store.lastUsedColor("srv1", "book1").first())
     }
@@ -94,7 +93,7 @@ class HighlightColorPreferencesStoreTest {
             scope = backgroundScope,
             produceFile = { tmp.newFile("highlight_color_prefs_repick.preferences_pb") },
         )
-        rawStore.edit { it[stringPreferencesKey("last_used_highlight_color:srv1:book1")] = "NOT_A_COLOR" }
+        rawStore.edit { it[highlightColorPrefKey("srv1", "book1")] = "NOT_A_COLOR" }
         val store = HighlightColorPreferencesStore(rawStore)
         assertEquals(HighlightColor.DEFAULT, store.lastUsedColor("srv1", "book1").first())
 

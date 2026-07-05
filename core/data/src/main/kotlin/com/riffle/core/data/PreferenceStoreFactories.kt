@@ -86,22 +86,28 @@ fun ReadaloudPreferencesStore(dataStore: DataStore<Preferences>): ReadaloudPrefe
     }
 }
 
+/**
+ * Per-book last-used-highlight-colour DataStore key. Exposed as `internal` so tests can reach it
+ * without duplicating the literal — a fixture that hard-codes the key silently diverges when the
+ * format changes and the fallback assertions become vacuous. Format is `"<prefix>:$serverId:$itemId"`.
+ */
+internal fun highlightColorPrefKey(serverId: String, itemId: String) =
+    stringPreferencesKey("last_used_highlight_color:$serverId:$itemId")
+
 fun HighlightColorPreferencesStore(dataStore: DataStore<Preferences>): HighlightColorPreferencesStore {
-    // Per-book last-used colour, keyed by "$serverId:$itemId". Unknown/absent → HighlightColor.DEFAULT
-    // (first entry in the palette), so a book the user has never picked a colour on opens with the
-    // palette default. Legacy names outside the current palette (e.g. "PINK", "PURPLE") also fall
-    // back to DEFAULT; the user can re-pick and it persists per-book thereafter.
-    fun key(serverId: String, itemId: String) =
-        stringPreferencesKey("last_used_highlight_color:$serverId:$itemId")
+    // Per-book last-used colour. Unknown/absent → HighlightColor.DEFAULT (first entry in the
+    // palette), so a book the user has never picked a colour on opens with the palette default.
+    // Legacy names outside the current palette (e.g. "PINK", "PURPLE") also fall back to DEFAULT;
+    // the user can re-pick and it persists per-book thereafter.
     return object : HighlightColorPreferencesStore {
         override fun lastUsedColor(serverId: String, itemId: String): Flow<HighlightColor> =
             dataStore.data.map { prefs ->
-                val name = prefs[key(serverId, itemId)] ?: return@map HighlightColor.DEFAULT
+                val name = prefs[highlightColorPrefKey(serverId, itemId)] ?: return@map HighlightColor.DEFAULT
                 runCatching { HighlightColor.valueOf(name) }.getOrDefault(HighlightColor.DEFAULT)
             }
 
         override suspend fun setLastUsedColor(serverId: String, itemId: String, value: HighlightColor) {
-            dataStore.edit { it[key(serverId, itemId)] = value.name }
+            dataStore.edit { it[highlightColorPrefKey(serverId, itemId)] = value.name }
         }
     }
 }
