@@ -150,6 +150,7 @@ fun MainScreen(
             val encoded = URLEncoder.encode(library.name, "UTF-8")
             navController.navigateAsRoot("library_items/${library.id}/$encoded")
         },
+        onAnnotationsSelected = { /* TODO: wire to nav route in Task 5 */ },
         onDownloadsSelected = {
             scope.launch { drawerState.close() }
             navController.navigate(DOWNLOADS)
