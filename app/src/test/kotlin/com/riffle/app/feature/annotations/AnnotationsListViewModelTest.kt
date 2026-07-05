@@ -9,6 +9,7 @@ import com.riffle.core.domain.Server
 import com.riffle.core.domain.ServerRepository
 import com.riffle.core.domain.ServerType
 import com.riffle.core.domain.ServerUrl
+import com.riffle.core.domain.TokenStorage
 import java.io.IOException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -49,7 +50,8 @@ class AnnotationsListViewModelTest {
             emit("S1", listOf(annotatedBook("B", 1, 300), annotatedBook("A", 2, 200)))
         }
         val serverRepository = FakeServerRepository(activeServerId = "S1")
-        val vm = AnnotationsListViewModel(serverRepository, repo)
+        val tokenStorage = fakeTokenStorage()
+        val vm = AnnotationsListViewModel(serverRepository, repo, tokenStorage)
 
         val state = vm.state.first { !it.loading }
         assertEquals(listOf("B", "A"), state.books.map { it.itemId })
@@ -62,7 +64,8 @@ class AnnotationsListViewModelTest {
             emit("S2", listOf(annotatedBook("X", 3, 999)))
         }
         val serverRepository = FakeServerRepository(activeServerId = "S1")
-        val vm = AnnotationsListViewModel(serverRepository, repo)
+        val tokenStorage = fakeTokenStorage()
+        val vm = AnnotationsListViewModel(serverRepository, repo, tokenStorage)
 
         vm.state.first { it.books.singleOrNull()?.itemId == "A" }
 
@@ -70,6 +73,12 @@ class AnnotationsListViewModelTest {
 
         vm.state.first { it.books.singleOrNull()?.itemId == "X" }
     }
+}
+
+private fun fakeTokenStorage(): TokenStorage = object : TokenStorage {
+    override suspend fun saveToken(serverId: String, token: String) {}
+    override suspend fun getToken(serverId: String): String? = null
+    override suspend fun deleteToken(serverId: String) {}
 }
 
 /** Test-only fake mirroring [ServerRepository]; exposes a mutable active-server id for tests. */

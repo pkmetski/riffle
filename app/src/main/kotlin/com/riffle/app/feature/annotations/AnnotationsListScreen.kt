@@ -27,6 +27,8 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -35,6 +37,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.hilt.navigation.compose.hiltViewModel
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.riffle.app.feature.library.coverGridMinCellSize
@@ -47,6 +50,7 @@ fun AnnotationsListScreen(
     state: AnnotationsListUiState,
     onOpenDrawer: () -> Unit,
     onBookClick: (serverId: String, itemId: String) -> Unit,
+    token: String = "",
     modifier: Modifier = Modifier,
 ) {
     Scaffold(
@@ -95,6 +99,7 @@ fun AnnotationsListScreen(
                         Box(modifier = Modifier.padding(4.dp)) {
                             AnnotatedBookCoverTile(
                                 book = book,
+                                token = token,
                                 onClick = { onBookClick(book.serverId, book.itemId) },
                             )
                         }
@@ -130,6 +135,7 @@ private fun AnnotationsEmptyState(modifier: Modifier = Modifier) {
 @Composable
 private fun AnnotatedBookCoverTile(
     book: AnnotatedBook,
+    token: String = "",
     onClick: () -> Unit,
 ) {
     Column(modifier = Modifier.clickable(onClick = onClick)) {
@@ -144,6 +150,7 @@ private fun AnnotatedBookCoverTile(
                 AsyncImage(
                     model = ImageRequest.Builder(LocalContext.current)
                         .data(book.coverUrl)
+                        .addHeader("Authorization", "Bearer $token")
                         .crossfade(true)
                         .build(),
                     contentDescription = book.title,
