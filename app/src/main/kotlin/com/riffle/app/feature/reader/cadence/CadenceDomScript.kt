@@ -136,15 +136,19 @@ internal object CadenceDomScript {
      */
     const val FIRST_VISIBLE_CADENCE_SPAN_ID_JS: String = """
     (function(){
-      var spans=document.querySelectorAll('span.riffle-cd');
-      if (!spans || spans.length===0) return '';
       var iw=window.innerWidth||0, ih=window.innerHeight||0;
-      for (var i=0; i<spans.length; i++) {
-        var el=spans[i];
-        var r=el.getBoundingClientRect();
-        if (!r) continue;
-        if (r.width===0 && r.height===0) continue;
-        if (r.top < ih && r.bottom > 0 && r.left < iw && r.right > 0) return el.id;
+      // Rasterize a vertical strip from the top of the viewport downward and, at each row,
+      // ask the DOM which element is being painted at that screen coordinate. This bypasses any
+      // ambiguity in getBoundingClientRect() coming from Readium's scroll-container / column
+      // layout — elementFromPoint returns whatever is actually visible at (x,y). Walk up from
+      // the hit element to find its nearest ancestor 'span.riffle-cd'.
+      var cx = Math.floor(iw / 2);
+      for (var y = 1; y < ih; y += 6) {
+        var e = document.elementFromPoint(cx, y);
+        while (e && e.nodeType === 1) {
+          if (e.classList && e.classList.contains('riffle-cd')) return e.id;
+          e = e.parentElement;
+        }
       }
       return '';
     })()
