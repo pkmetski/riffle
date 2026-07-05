@@ -46,14 +46,14 @@ class FigureTapScriptTest {
     private val fixture = """
         <!doctype html>
         <html><body style="margin:0">
-          <img id="bare" src="images/bare.jpg" width="80" height="60"
+          <img id="bare" src="data:image/gif;base64,R0lGODlhAQABAAAAACwAAAAAAQABAAA=" width="80" height="60"
                style="position:absolute;left:0;top:0;width:80px;height:60px">
           <figure id="wrapfig" style="position:absolute;left:100px;top:0;margin:0">
-            <img src="images/wrapped.png" width="80" height="60"
+            <img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAAAAAA6fptVAAAADElEQVQIHQEBAAD/AAEAAQAAt0V0QAAAAABJRU5ErkJggg==" width="80" height="60"
                  style="width:80px;height:60px"><figcaption>x</figcaption>
           </figure>
           <a id="linked" href="chap02.xhtml#note" style="position:absolute;left:200px;top:0">
-            <img src="images/linked.png" width="80" height="60"
+            <img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAAAAAA6fptVAAAADElEQVQIHQEBAAD/AAEAAQAAt0V0QAAAAABJRU5ErkJggg==" width="80" height="60"
                  style="width:80px;height:60px">
           </a>
           <svg id="inlinesvg" width="80" height="60" viewBox="0 0 80 60"
@@ -61,7 +61,7 @@ class FigureTapScriptTest {
             <rect width="80" height="60"/>
           </svg>
           <picture id="pic" style="position:absolute;left:400px;top:0">
-            <img src="images/pic.jpg" width="80" height="60"
+            <img src="data:image/gif;base64,R0lGODlhAQABAAAAACwAAAAAAQABAAA=" width="80" height="60"
                  style="width:80px;height:60px">
           </picture>
         </body></html>
@@ -118,7 +118,7 @@ class FigureTapScriptTest {
         val payload = runTapCase("bare") ?: error("No payload for bare <img>")
         val obj = org.json.JSONObject(payload)
         assertEquals("img", obj.getString("kind"))
-        assertTrue(obj.getString("href").endsWith("images/bare.jpg"))
+        assertTrue(obj.getString("href").endsWith("data:image/gif;base64,R0lGODlhAQABAAAAACwAAAAAAQABAAA="))
         assertEquals(80, obj.getInt("w"))
         assertEquals(60, obj.getInt("h"))
     }
@@ -128,7 +128,7 @@ class FigureTapScriptTest {
         val payload = runTapCase("wrapfig") ?: error("No payload for wrapped <figure>")
         val obj = org.json.JSONObject(payload)
         assertEquals("img", obj.getString("kind"))
-        assertTrue(obj.getString("href").endsWith("images/wrapped.png"))
+        assertTrue(obj.getString("href").endsWith("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAAAAAA6fptVAAAADElEQVQIHQEBAAD/AAEAAQAAt0V0QAAAAABJRU5ErkJggg=="))
     }
 
     @Test
@@ -154,6 +154,6 @@ class FigureTapScriptTest {
         val payload = runTapCase("pic") ?: error("No payload for <picture>")
         val obj = org.json.JSONObject(payload)
         assertEquals("img", obj.getString("kind"))
-        assertTrue(obj.getString("href").endsWith("images/pic.jpg"))
+        assertTrue(obj.getString("href").endsWith("data:image/gif;base64,R0lGODlhAQABAAAAACwAAAAAAQABAAA="))
     }
 }
