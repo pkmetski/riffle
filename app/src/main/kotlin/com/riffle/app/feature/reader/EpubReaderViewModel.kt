@@ -410,14 +410,10 @@ class EpubReaderViewModel @Inject constructor(
     fun reachedEndOfBookForAutoScroll() = formatting.reachedEndOfBookForAutoScroll()
 
     fun startAutoScroll() {
-        // Stop Readaloud if it's playing — mutual exclusion (ADR 0037).
-        if (playerCoordinator.state.value.connected && playerCoordinator.state.value.isPlaying) {
-            playerCoordinator.pause()
-        }
-        // Cadence half of the three-way mutual-exclusion pair (issue #403).
-        cadenceController.pauseFor(
-            com.riffle.core.domain.cadence.PauseCause.AutoScrollStarted,
-        )
+        // Three-way mutual exclusion via the pure arbiter (ADR 0037 + issue #403). Compute the
+        // fan-out first, apply it, then start the local feature. Routing through the arbiter
+        // keeps the "who pauses whom" truth-table in one place — the reducer stays feature-local.
+        applyArbiter(com.riffle.core.domain.cadence.Feature.AutoScroll)
         formatting.startAutoScroll()
     }
 
@@ -491,12 +487,7 @@ class EpubReaderViewModel @Inject constructor(
 
     /** Start Cadence — pauses Readaloud and Auto-Scroll first (mutual exclusion per issue #403). */
     fun startCadence() {
-        if (playerCoordinator.state.value.connected && playerCoordinator.state.value.isPlaying) {
-            playerCoordinator.pause()
-        }
-        if (formatting.autoScrollState.value is com.riffle.core.domain.autoscroll.AutoScrollState.Running) {
-            formatting.stopAutoScroll()
-        }
+        applyArbiter(com.riffle.core.domain.cadence.Feature.Cadence)
         cadenceController.dispatch(com.riffle.core.domain.cadence.CadenceEvent.Start)
     }
 
@@ -511,6 +502,40 @@ class EpubReaderViewModel @Inject constructor(
 
     fun resumeCadenceIfPaused() =
         cadenceController.dispatch(com.riffle.core.domain.cadence.CadenceEvent.Resume)
+
+    /**
+     * Snapshot the currently-running feature and apply [com.riffle.core.domain.cadence.onStart]'s
+     * pause fan-out. Called before dispatching a Start event to [starting]'s own controller.
+     *
+     * The current-feature snapshot has an at-most-one invariant guaranteed by the arbiter itself
+     * — the last successful startX() call would have paused any prior running feature. In the
+     * event of a race we pick the highest-priority winner (Cadence > AutoScroll > Readaloud) so
+     * the pause fan-out is deterministic.
+     */
+    private fun applyArbiter(starting: com.riffle.core.domain.cadence.Feature) {
+        val current = when {
+            cadenceController.state.value is com.riffle.core.domain.cadence.CadenceState.Running ->
+                com.riffle.core.domain.cadence.Feature.Cadence
+            formatting.autoScrollState.value is com.riffle.core.domain.autoscroll.AutoScrollState.Running ->
+                com.riffle.core.domain.cadence.Feature.AutoScroll
+            playerCoordinator.state.value.connected && playerCoordinator.state.value.isPlaying ->
+                com.riffle.core.domain.cadence.Feature.Readaloud
+            else -> com.riffle.core.domain.cadence.Feature.None
+        }
+        val action = com.riffle.core.domain.cadence.onStart(current, starting)
+        if (action.pauseAutoScroll) formatting.stopAutoScroll()
+        if (action.pauseReadaloud) playerCoordinator.pause()
+        if (action.pauseCadence) {
+            val cause = when (starting) {
+                com.riffle.core.domain.cadence.Feature.AutoScroll ->
+                    com.riffle.core.domain.cadence.PauseCause.AutoScrollStarted
+                com.riffle.core.domain.cadence.Feature.Readaloud ->
+                    com.riffle.core.domain.cadence.PauseCause.ReadaloudStarted
+                else -> com.riffle.core.domain.cadence.PauseCause.PanelOpen
+            }
+            cadenceController.pauseFor(cause)
+        }
+    }
 
     // ---- VolumeKeyDispatcher delegations -----------------------------------------------------------
 
