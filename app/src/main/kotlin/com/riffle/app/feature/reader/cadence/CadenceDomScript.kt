@@ -70,11 +70,30 @@ internal object CadenceDomScript {
             const textNodes = [];
             let n = walker.nextNode();
             while (n) { textNodes.push(n); n = walker.nextNode(); }
+            // Some EPUBs (including O'Reilly-style "Philosophy of Software Design") embed a
+            // TOC / landmarks <nav> at the top of the reading resource. Its link labels are
+            // real text nodes but they are NOT part of the reading flow — tokenising them
+            // would make Cadence highlight "3.4 Startups and investment" (a TOC label) instead
+            // of the paragraph the user is looking at, and Readium's decoration engine would
+            // snap-scroll to that TOC label. Reject any text node whose ancestry contains a
+            // <nav>, an epub:type of toc/landmarks/page-list, or role='doc-toc'.
+            function inNavAncestry(el) {
+              for (var p = el; p; p = p.parentNode) {
+                if (!p || p.nodeType !== 1) continue;
+                var tag = (p.tagName || '').toLowerCase();
+                if (tag === 'nav') return true;
+                var t = p.getAttribute && (p.getAttribute('epub:type') || p.getAttribute('role') || '');
+                if (t && /toc|landmarks|page-list|doc-toc/i.test(t)) return true;
+              }
+              return false;
+            }
             for (const node of textNodes) {
               const parent = node.parentNode;
               if (!parent) continue;
               // Skip empty / whitespace-only nodes — they carry no sentence and produce noise.
               if (!/\S/.test(node.nodeValue)) continue;
+              // Skip TOC / navigation labels.
+              if (inNavAncestry(parent)) continue;
               const parts = [];
               for (const s of seg.segment(node.nodeValue)) {
                 if (!s.segment || !/\S/.test(s.segment)) continue;
@@ -120,9 +139,6 @@ internal object CadenceDomScript {
       var spans=document.querySelectorAll('span.riffle-cd');
       if (!spans || spans.length===0) return '';
       var iw=window.innerWidth||0, ih=window.innerHeight||0;
-      // Walk spans in document (== reading) order and return the first whose bounding rect
-      // intersects the viewport in BOTH axes — including sentences that started before the
-      // viewport and continue into it (paginated column bleed / vertical partial scroll).
       for (var i=0; i<spans.length; i++) {
         var el=spans[i];
         var r=el.getBoundingClientRect();
