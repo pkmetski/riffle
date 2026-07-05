@@ -322,6 +322,16 @@ internal class ContinuousReaderView @JvmOverloads constructor(
     internal fun anchorAbsoluteY(chapterHref: String, fragmentId: String, callback: (Int?) -> Unit) =
         controller.anchorAbsoluteY(chapterHref, fragmentId, callback)
 
+    /**
+     * Install a per-chapter Cadence hook — delegates to
+     * [ContinuousWindowController.setCadenceOnChapterLoaded]. The reader screen calls this once
+     * the Cadence session is bound so every loaded chapter triggers a DOM tokenisation via
+     * [com.riffle.app.feature.reader.cadence.CadenceDomScript.tokeniseChapterJs]. Null clears.
+     */
+    fun setCadenceOnChapterLoaded(hook: ((wv: ChapterWebViewLike) -> Unit)?) {
+        controller.setCadenceOnChapterLoaded(hook)
+    }
+
     override fun scrollByPage(forward: Boolean) = controller.scrollByPage(forward)
 
     override fun highlightInChapter(href: String, text: String, cssColor: String) =

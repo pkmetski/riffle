@@ -481,6 +481,40 @@ fun EpubReaderScreen(
                         showOpenInBook = shouldShowOpenInBook(viewModel.readerSource),
                         onOpenInBook = viewModel::openHighlightInSourceBook,
                         autoScrollDeltas = viewModel.autoScrollScrollDeltas,
+                        // Cadence chapter-load DOM tokenisation hook (issue #403). Runs the
+                        // feature-detect + tokenise JS in the freshly-loaded chapter's WebView.
+                        // Wired only when Cadence is enabled AND the platform gate passes; the
+                        // hook itself also short-circuits on unsupported returns.
+                        onCadenceInstallChapterHook = if (formattingPrefs.showCadence) {
+                            { wv ->
+                                val locale = s.publication.metadata.languages
+                                    .firstOrNull()?.toString()
+                                wv.evaluateJavascript(
+                                    com.riffle.app.feature.reader.cadence.CadenceDomScript
+                                        .FEATURE_DETECT_JS,
+                                ) { supportedRaw ->
+                                    val supported = supportedRaw?.trim() == "true"
+                                    viewModel.setCadencePlatformSupported(supported)
+                                    if (!supported) return@evaluateJavascript
+                                    wv.evaluateJavascript(
+                                        com.riffle.app.feature.reader.cadence.CadenceDomScript
+                                            .tokeniseChapterJs(wv.chapterHref, locale),
+                                    ) { rawJson ->
+                                        when (
+                                            val parsed = com.riffle.app.feature.reader.cadence
+                                                .CadenceInjector.parse(rawJson)
+                                        ) {
+                                            is com.riffle.app.feature.reader.cadence.CadenceInjector.Result.Ready ->
+                                                viewModel.onCadenceChapterTokenised(
+                                                    parsed.quotes, parsed.chapterHrefs,
+                                                )
+                                            com.riffle.app.feature.reader.cadence.CadenceInjector.Result.Unsupported ->
+                                                viewModel.setCadencePlatformSupported(false)
+                                        }
+                                    }
+                                }
+                            }
+                        } else null,
                         onReachedEndOfBook = viewModel::reachedEndOfBookForAutoScroll,
                         onAutoScrollPause = viewModel::pauseAutoScroll,
                         onAutoScrollResume = viewModel::resumeAutoScrollIfPaused,
@@ -1217,6 +1251,11 @@ private fun EpubNavigatorView(
     onFigureTap: (payload: String) -> Unit,
     dispatchers: com.riffle.core.domain.DispatcherProvider,
     logger: com.riffle.core.logging.Logger,
+    // Cadence per-chapter hook (issue #403). Non-null in the outer caller when Cadence is enabled;
+    // installed on the ContinuousReaderView when it materialises so every chapter entering the
+    // sliding window fires DOM tokenisation. The lambda is invoked with the loaded WebView and is
+    // expected to run [CadenceDomScript.tokeniseChapterJs] via wv.evaluateJavascript.
+    onCadenceInstallChapterHook: ((com.riffle.app.feature.reader.ChapterWebViewLike) -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -2498,6 +2537,15 @@ private fun EpubNavigatorView(
                     focusAnnotationId = focusId,
                 )
             }
+            // Install the Cadence per-chapter DOM-tokenisation hook so every chapter entering the
+            // sliding window runs CadenceDomScript.tokeniseChapterJs and hands the parsed maps back
+            // to the ViewModel. Null (Cadence disabled / no callback provided) leaves the hook
+            // uninstalled — the reader renders exactly as before.
+            LaunchedEffect(continuousView, onCadenceInstallChapterHook) {
+                val view = continuousView ?: return@LaunchedEffect
+                view.setCadenceOnChapterLoaded(onCadenceInstallChapterHook)
+            }
+
             // Drive Auto-Scroll deltas into the ContinuousReaderView's scrollBy. When the view
             // reaches the bottom of the book the delta is rejected by the NestedScrollView and we
             // dispatch ReachedEndOfBook to stop the controller silently (ADR 0037).

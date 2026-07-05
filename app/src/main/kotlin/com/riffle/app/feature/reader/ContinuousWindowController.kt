@@ -132,6 +132,15 @@ internal class ContinuousWindowController(
         },
     )
 
+    /**
+     * Install a per-chapter Cadence hook that fires whenever a loaded chapter enters the sliding
+     * window. See [ContinuousDecorationController.setCadenceOnChapterLoaded]. Called by the reader
+     * screen once the Cadence session is bound; null clears the hook.
+     */
+    fun setCadenceOnChapterLoaded(hook: ((wv: ChapterWebViewLike) -> Unit)?) {
+        decorations.setCadenceOnChapterLoaded(hook)
+    }
+
     /** True while a window-shift operation (removeTop/removeBottom/prependChapter) is in progress. */
     private var shiftInProgress = false
 
