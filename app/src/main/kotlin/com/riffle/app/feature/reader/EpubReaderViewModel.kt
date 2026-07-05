@@ -262,6 +262,24 @@ class EpubReaderViewModel @Inject constructor(
     private val _footnotePopup = MutableStateFlow<FootnotePopupState?>(null)
     val footnotePopup: StateFlow<FootnotePopupState?> = _footnotePopup
 
+    // Fullscreen figure-zoom overlay state (feature: pressing on a figure opens it in a zoomed
+    // viewer with dimmed background). Set from a JS hit-test payload posted by FigureTapScript;
+    // reset when the user dismisses the overlay (tap-outside / system back).
+    private val _figureZoom = MutableStateFlow<FigureZoomState?>(null)
+    internal val figureZoom: StateFlow<FigureZoomState?> = _figureZoom
+
+    /** Called by the reader glue with the raw JSON emitted by figure-tap.js. Parses and opens the
+     *  overlay; malformed payloads are silently ignored (the JS may drift ahead of Kotlin). */
+    fun onFigureTapPayload(payload: String) {
+        val state = FigureTapMessageParser.parse(payload) ?: return
+        _figureZoom.value = state
+    }
+
+    /** Dismiss the figure-zoom overlay (user tapped outside, pressed Back, etc). Idempotent. */
+    fun dismissFigureZoom() {
+        _figureZoom.value = null
+    }
+
     private val _syncErrorEvents = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
     val syncErrorEvents: SharedFlow<Unit> = _syncErrorEvents.asSharedFlow()
 

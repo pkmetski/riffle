@@ -69,6 +69,14 @@ import org.readium.r2.navigator.input.InputListener
 import org.readium.r2.navigator.input.TapEvent
 import org.readium.r2.shared.publication.Locator
 
+// TODO(figure-zoom): PDF figure-zoom follow-up. The EPUB reader supports single-tap-on-figure
+// opening a fullscreen zoom overlay (see FigureZoomOverlay + FigureTapScript). For PDF, the
+// equivalent path is: on tap, use Pdfium's FPDF_GetPageObject (via PdfiumEngineProvider's page
+// object API) to hit-test image objects at the tap location, extract the pixel region as a Bitmap,
+// and feed it into the same FigureZoomOverlay composable. The overlay already accepts a
+// FigureZoomState with an in-memory bitmap path (via svgMarkup=null + href pointing to a temp file
+// or a new data URI). Deferred from v1; do not implement without a decode-cost benchmark on a
+// large-page PDF.
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PdfReaderScreen(

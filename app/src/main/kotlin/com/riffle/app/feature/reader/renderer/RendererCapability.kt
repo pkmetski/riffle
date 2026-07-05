@@ -34,6 +34,13 @@ internal enum class CapabilityId {
      * polyfill capability so the retry actually runs against a working engine.
      */
     DecorationTemplateReregister,
+
+    /**
+     * Figure-tap hit-test that opens the tapped image / SVG in the fullscreen zoom overlay.
+     * Depends on the rect polyfill because the hit-test reads `getBoundingClientRect()` to build
+     * the payload's natural-size fields when the element has no intrinsic width/height.
+     */
+    FigureTapBridge,
 }
 
 /** Where in the renderer's lifetime a capability is meant to be (re)installed. */
