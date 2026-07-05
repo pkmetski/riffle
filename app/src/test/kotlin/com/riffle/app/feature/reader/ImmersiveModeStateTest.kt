@@ -11,7 +11,7 @@ class ImmersiveModeStateTest {
     private class FakeController : SystemBarsController {
         var hideCount = 0
         var showCount = 0
-        var setBehaviorDefaultCount = 0
+        var applyImmersiveBehaviorCount = 0
 
         override fun hide() {
             hideCount++
@@ -21,8 +21,8 @@ class ImmersiveModeStateTest {
             showCount++
         }
 
-        override fun setBehaviorDefault() {
-            setBehaviorDefaultCount++
+        override fun applyImmersiveBehavior() {
+            applyImmersiveBehaviorCount++
         }
     }
 
@@ -52,7 +52,7 @@ class ImmersiveModeStateTest {
         assertTrue(state.isImmersive)
         assertTrue(state.systemBarsHiddenForTest)
         assertEquals(1, controller.hideCount)
-        assertEquals(1, controller.setBehaviorDefaultCount)
+        assertEquals(1, controller.applyImmersiveBehaviorCount)
     }
 
     @Test
