@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -130,13 +131,14 @@ fun AutoScrollSettingsPanel(
         modifier = Modifier.padding(bottom = 20.dp),
     )
     ListItem(
+        modifier = Modifier.toggleable(
+            value = prefs.showAutoScroll,
+            onValueChange = { onPrefsChange(prefs.copy(showAutoScroll = it)) },
+        ),
         headlineContent = { Text("Show Auto-Scroll") },
         supportingContent = { Text("Adds the toggle to the reader top bar (Vertical & Continuous only)") },
         trailingContent = {
-            Switch(
-                checked = prefs.showAutoScroll,
-                onCheckedChange = { onPrefsChange(prefs.copy(showAutoScroll = it)) },
-            )
+            Switch(checked = prefs.showAutoScroll, onCheckedChange = null)
         },
     )
     WpmSliderRow(
@@ -192,13 +194,14 @@ fun CadenceSettingsPanel(
         return@DetailScaffold
     }
     ListItem(
+        modifier = Modifier.toggleable(
+            value = prefs.showCadence,
+            onValueChange = { onPrefsChange(prefs.copy(showCadence = it)) },
+        ),
         headlineContent = { Text("Show Cadence") },
         supportingContent = { Text("Adds the toggle to the reader top bar (all orientations)") },
         trailingContent = {
-            Switch(
-                checked = prefs.showCadence,
-                onCheckedChange = { onPrefsChange(prefs.copy(showCadence = it)) },
-            )
+            Switch(checked = prefs.showCadence, onCheckedChange = null)
         },
     )
     WpmSliderRow(

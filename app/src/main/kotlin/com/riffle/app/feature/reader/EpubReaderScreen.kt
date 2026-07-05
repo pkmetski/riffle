@@ -439,13 +439,15 @@ fun EpubReaderScreen(
                         // event so the underlying page-turn machinery inside EpubNavigatorView never
                         // sees it. STEP_WPM matches the Settings-slider and Auto-Scroll HUD step so
                         // the nudge feels the same across features.
-                        volumeNavEvents = viewModel.volumeNavEvents.transform { event ->
-                            val running = viewModel.cadenceState.value is com.riffle.core.domain.cadence.CadenceState.Running
-                            if (running) {
-                                val step = com.riffle.core.domain.autoscroll.AutoScrollSpeed.STEP_WPM
-                                viewModel.nudgeCadence(if (event == VolumeNavEvent.Forward) step else -step)
-                            } else {
-                                emit(event)
+                        volumeNavEvents = remember(viewModel) {
+                            viewModel.volumeNavEvents.transform { event ->
+                                val running = viewModel.cadenceState.value is com.riffle.core.domain.cadence.CadenceState.Running
+                                if (running) {
+                                    val step = com.riffle.core.domain.autoscroll.AutoScrollSpeed.STEP_WPM
+                                    viewModel.nudgeCadence(if (event == VolumeNavEvent.Forward) step else -step)
+                                } else {
+                                    emit(event)
+                                }
                             }
                         },
                         onTap = immersiveState::toggle,
