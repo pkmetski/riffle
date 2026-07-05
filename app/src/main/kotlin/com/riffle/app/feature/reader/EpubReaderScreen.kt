@@ -510,23 +510,34 @@ fun EpubReaderScreen(
                                     com.riffle.app.feature.reader.cadence.CadenceDomScript
                                         .FEATURE_DETECT_JS,
                                 ) { supportedRaw ->
-                                    val supported = supportedRaw?.trim() == "true"
-                                    viewModel.setCadencePlatformSupported(supported)
-                                    if (!supported) return@evaluateJavascript
+                                    val normalized = supportedRaw?.trim()?.trim('"')
+                                    val explicitlyTrue = normalized == "true"
+                                    val explicitlyFalse = normalized == "false"
+                                    android.util.Log.d(com.riffle.core.logging.LogChannel.Cadence.tag, "continuous featureDetect raw='$supportedRaw' explicitlyTrue=$explicitlyTrue")
+                                    // Only flip to false on explicit false — null returns leave the
+                                    // icon visible (transient / race).
+                                    if (explicitlyFalse) viewModel.setCadencePlatformSupported(false)
+                                    else if (explicitlyTrue) viewModel.setCadencePlatformSupported(true)
+                                    if (!explicitlyTrue) return@evaluateJavascript
                                     wv.evaluateJavascript(
                                         com.riffle.app.feature.reader.cadence.CadenceDomScript
                                             .tokeniseChapterJs(wv.chapterHref, locale),
                                     ) { rawJson ->
+                                        android.util.Log.d(com.riffle.core.logging.LogChannel.Cadence.tag, "continuous tokenise rawLen=${rawJson?.length}")
                                         when (
                                             val parsed = com.riffle.app.feature.reader.cadence
                                                 .CadenceInjector.parse(rawJson)
                                         ) {
-                                            is com.riffle.app.feature.reader.cadence.CadenceInjector.Result.Ready ->
+                                            is com.riffle.app.feature.reader.cadence.CadenceInjector.Result.Ready -> {
+                                                android.util.Log.d(com.riffle.core.logging.LogChannel.Cadence.tag, "continuous READY quotes=${parsed.quotes.size}")
                                                 viewModel.onCadenceChapterTokenised(
                                                     parsed.quotes, parsed.chapterHrefs,
                                                 )
-                                            com.riffle.app.feature.reader.cadence.CadenceInjector.Result.Unsupported ->
-                                                viewModel.setCadencePlatformSupported(false)
+                                            }
+                                            com.riffle.app.feature.reader.cadence.CadenceInjector.Result.Unsupported -> {
+                                                // Per-chapter parse failure — don't hide the icon.
+                                                android.util.Log.d(com.riffle.core.logging.LogChannel.Cadence.tag, "continuous UNSUPPORTED — parse rejected this chapter's JSON")
+                                            }
                                         }
                                     }
                                 }
@@ -1764,10 +1775,18 @@ private fun EpubNavigatorView(
                     if (onCadenceChapterTokenised != null) {
                         android.util.Log.d(com.riffle.core.logging.LogChannel.Cadence.tag, "paginated onPageLoaded: probing Intl.Segmenter")
                         val supportedRaw = rendererBridge.evaluateCadenceFeatureDetect()
-                        val supported = supportedRaw?.trim() == "true"
-                        android.util.Log.d(com.riffle.core.logging.LogChannel.Cadence.tag, "featureDetect raw='$supportedRaw' → supported=$supported")
-                        onCadencePlatformSupportedChanged?.invoke(supported)
-                        if (supported) {
+                        // Match Readium's own probe idiom: trim JSON quotes too, in case the WebView
+                        // wraps the boolean return in an extra string literal.
+                        val normalized = supportedRaw?.trim()?.trim('"')
+                        val explicitlyTrue = normalized == "true"
+                        val explicitlyFalse = normalized == "false"
+                        android.util.Log.d(com.riffle.core.logging.LogChannel.Cadence.tag, "featureDetect raw='$supportedRaw' normalized='$normalized' explicitlyTrue=$explicitlyTrue")
+                        // Only flip supported → false when the probe explicitly says false. Null
+                        // returns (fragment gone / evaluate error / racing page-load) leave the
+                        // flag at its default true — otherwise transient errors hide the icon.
+                        if (explicitlyFalse) onCadencePlatformSupportedChanged?.invoke(false)
+                        else if (explicitlyTrue) onCadencePlatformSupportedChanged?.invoke(true)
+                        if (explicitlyTrue) {
                             val localeTag = publicationLanguageTag
                             val hrefForCadence = currentHrefHolder[0] ?: run {
                                 android.util.Log.d(com.riffle.core.logging.LogChannel.Cadence.tag, "abort: currentHrefHolder[0] is null")
@@ -1784,8 +1803,10 @@ private fun EpubNavigatorView(
                                     onCadenceChapterTokenised?.invoke(parsed.quotes, parsed.chapterHrefs)
                                 }
                                 com.riffle.app.feature.reader.cadence.CadenceInjector.Result.Unsupported -> {
-                                    android.util.Log.d(com.riffle.core.logging.LogChannel.Cadence.tag, "UNSUPPORTED — parse rejected the JSON")
-                                    onCadencePlatformSupportedChanged?.invoke(false)
+                                    // Per-chapter tokenisation failure — NOT a platform-support issue.
+                                    // Leave the icon visible; the ticker will simply have nothing to
+                                    // advance through until the user turns to a chapter that tokenises.
+                                    android.util.Log.d(com.riffle.core.logging.LogChannel.Cadence.tag, "UNSUPPORTED — parse rejected this chapter's JSON (leaving platform flag alone)")
                                 }
                             }
                         }
