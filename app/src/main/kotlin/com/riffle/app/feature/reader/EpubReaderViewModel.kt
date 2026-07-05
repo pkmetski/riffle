@@ -76,6 +76,7 @@ import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.drop
@@ -181,6 +182,7 @@ class EpubReaderViewModel @Inject constructor(
     private val searchControllerFactory: com.riffle.app.feature.reader.controllers.SearchController.Factory,
     private val wakeLockControllerFactory: com.riffle.app.feature.reader.controllers.WakeLockController.Factory,
     private val volumeKeyDispatcher: VolumeKeyDispatcher,
+    private val cadenceController: com.riffle.app.feature.reader.cadence.CadenceController,
     private val positionOrchestratorFactory: PositionOrchestrator.Factory,
     private val annotationSessionFactory: com.riffle.app.feature.reader.session.AnnotationSession.Factory,
     private val readaloudSessionFactory: com.riffle.app.feature.reader.session.ReadaloudSession.Factory,
@@ -408,6 +410,10 @@ class EpubReaderViewModel @Inject constructor(
         if (playerCoordinator.state.value.connected && playerCoordinator.state.value.isPlaying) {
             playerCoordinator.pause()
         }
+        // Cadence half of the three-way mutual-exclusion pair (issue #403).
+        cadenceController.pauseFor(
+            com.riffle.core.domain.cadence.PauseCause.AutoScrollStarted,
+        )
         formatting.startAutoScroll()
     }
 
@@ -425,6 +431,81 @@ class EpubReaderViewModel @Inject constructor(
     fun resumeAutoScrollFromPill() = formatting.resumeAutoScrollIfPaused()
 
     fun setReaderViewportWidthPx(px: Int) = formatting.setViewportWidthPx(px)
+
+    // ---- Cadence (issue #403 / ADR 0040) --------------------------------------------------------
+
+    val cadenceState: StateFlow<com.riffle.core.domain.cadence.CadenceState> = cadenceController.state
+    val cadenceCurrentFragment: StateFlow<String?> = cadenceController.currentFragment
+
+    private val _cadenceQuotes = MutableStateFlow<Map<String, com.riffle.core.domain.SentenceQuote>>(emptyMap())
+    val cadenceQuotes: StateFlow<Map<String, com.riffle.core.domain.SentenceQuote>> = _cadenceQuotes.asStateFlow()
+
+    /** True iff `Intl.Segmenter` is available in the reader WebView — the top-bar toggle hides when false. */
+    private val _cadencePlatformSupported = MutableStateFlow(true)
+    val cadencePlatformSupported: StateFlow<Boolean> = _cadencePlatformSupported.asStateFlow()
+
+    /**
+     * Fires when Cadence exhausts the current chapter. The reader screen observes this and asks
+     * its active presenter (Continuous / Readium) to advance one chapter forward, then re-runs the
+     * DOM tokenisation for the new chapter — see [onCadenceChapterTokenised].
+     */
+    private val _cadenceEndOfChapterEvents = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+    val cadenceEndOfChapterEvents: SharedFlow<Unit> = _cadenceEndOfChapterEvents.asSharedFlow()
+
+    /**
+     * Called by the reader screen after JS returns the tokenised chapter's sentence map.
+     * Rebinding a new source replaces the previous chapter's Cadence session — the ticker
+     * discards its state, the fragment ordering is refreshed, and the next Start begins at s0.
+     *
+     * Empty maps are still bound so the top-bar toggle can appear on chapters that happen to have
+     * zero readable sentences (unusual — front-matter blank pages); Cadence's onExhausted fires
+     * immediately in that case and the reader advances to the next chapter.
+     */
+    fun onCadenceChapterTokenised(
+        quotes: Map<String, com.riffle.core.domain.SentenceQuote>,
+        hrefs: Map<String, String>,
+    ) {
+        _cadenceQuotes.value = quotes
+        val source = com.riffle.app.feature.reader.cadence.DomSentenceSource().apply {
+            supplyResult(quotes, hrefs)
+        }
+        viewModelScope.launch {
+            cadenceController.bind(source, onEndOfBook = {
+                // Chapter exhausted — fire the event and let the reader screen ask its active
+                // presenter (Continuous / Readium) to advance one chapter. The reader is the only
+                // layer that knows which orientation is live; the VM stays presenter-agnostic.
+                _cadenceEndOfChapterEvents.tryEmit(Unit)
+            })
+        }
+    }
+
+    /** Report the WebView's Intl.Segmenter feature-detect result. */
+    fun setCadencePlatformSupported(supported: Boolean) {
+        _cadencePlatformSupported.value = supported
+    }
+
+    /** Start Cadence — pauses Readaloud and Auto-Scroll first (mutual exclusion per issue #403). */
+    fun startCadence() {
+        if (playerCoordinator.state.value.connected && playerCoordinator.state.value.isPlaying) {
+            playerCoordinator.pause()
+        }
+        if (formatting.autoScrollState.value is com.riffle.core.domain.autoscroll.AutoScrollState.Running) {
+            formatting.stopAutoScroll()
+        }
+        cadenceController.dispatch(com.riffle.core.domain.cadence.CadenceEvent.Start)
+    }
+
+    fun stopCadence() =
+        cadenceController.dispatch(com.riffle.core.domain.cadence.CadenceEvent.Stop)
+
+    fun nudgeCadence(by: Int) =
+        cadenceController.dispatch(com.riffle.core.domain.cadence.CadenceEvent.NudgeSpeed(by))
+
+    fun pauseCadence(cause: com.riffle.core.domain.cadence.PauseCause) =
+        cadenceController.pauseFor(cause)
+
+    fun resumeCadenceIfPaused() =
+        cadenceController.dispatch(com.riffle.core.domain.cadence.CadenceEvent.Resume)
 
     // ---- VolumeKeyDispatcher delegations -----------------------------------------------------------
 
@@ -596,7 +677,17 @@ class EpubReaderViewModel @Inject constructor(
             playerCoordinator.state
                 .map { it.isPlaying }
                 .distinctUntilChanged()
-                .collect { playing -> formatting.onPlaybackStateChanged(playing) }
+                .collect { playing ->
+                    formatting.onPlaybackStateChanged(playing)
+                    // Cadence half of the mutual-exclusion pair (issue #403): Readaloud playing
+                    // pauses a running Cadence. Pause (not Stop): a Readaloud tap-pause should
+                    // let the user resume Cadence exactly where it was.
+                    if (playing) {
+                        cadenceController.pauseFor(
+                            com.riffle.core.domain.cadence.PauseCause.ReadaloudStarted,
+                        )
+                    }
+                }
         }
         // Panel-open pause/resume is driven from the screen layer (it knows about
         // showFormattingPanel / tocVisible / annotationsPanelVisible / isSearchActive),

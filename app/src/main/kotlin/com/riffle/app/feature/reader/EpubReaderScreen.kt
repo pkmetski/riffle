@@ -675,7 +675,9 @@ fun EpubReaderScreen(
                             }
                             val autoScrollState by viewModel.autoScrollState.collectAsState()
                             val orientation = formattingPrefs.orientation
-                            if (orientation == ReaderOrientation.Vertical || orientation == ReaderOrientation.Continuous) {
+                            if (formattingPrefs.showAutoScroll &&
+                                (orientation == ReaderOrientation.Vertical || orientation == ReaderOrientation.Continuous)
+                            ) {
                                 com.riffle.app.feature.reader.autoscroll.AutoScrollToggleIcon(
                                     isRunning = autoScrollState is com.riffle.core.domain.autoscroll.AutoScrollState.Running,
                                     onClick = {
@@ -684,6 +686,18 @@ fun EpubReaderScreen(
                                         } else {
                                             viewModel.startAutoScroll()
                                         }
+                                    },
+                                )
+                            }
+                            val cadenceState by viewModel.cadenceState.collectAsState()
+                            val cadencePlatformSupported by viewModel.cadencePlatformSupported.collectAsState()
+                            if (formattingPrefs.showCadence && cadencePlatformSupported) {
+                                val cadenceRunning = cadenceState is com.riffle.core.domain.cadence.CadenceState.Running
+                                com.riffle.app.feature.reader.cadence.CadenceToggleIcon(
+                                    isRunning = cadenceRunning,
+                                    onClick = {
+                                        if (cadenceRunning) viewModel.stopCadence()
+                                        else viewModel.startCadence()
                                     },
                                 )
                             }
