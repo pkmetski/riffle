@@ -43,6 +43,18 @@ internal class ContinuousDecorationController(
     private var currentAnnotationsByHref: Map<String, List<AnnotationHighlight>> = emptyMap()
     private var currentSearchHighlights: SearchHighlightsState? = null
 
+    /**
+     * Cadence chapter-load hook (issue #403). The reader screen sets this on session bind so
+     * every chapter entering the sliding window triggers a fresh DOM tokenisation for Cadence.
+     * Null-safe — Cadence is opt-in per book + WebView-gated.
+     */
+    private var cadenceOnChapterLoaded: ((wv: ChapterWebViewLike) -> Unit)? = null
+
+    /** Called by [EpubReaderScreen] once the Cadence controller is bound to the current book. */
+    fun setCadenceOnChapterLoaded(hook: ((wv: ChapterWebViewLike) -> Unit)?) {
+        cadenceOnChapterLoaded = hook
+    }
+
     /** Called by [ContinuousReaderView.onPageFinished] once a chapter's page has loaded so it
      *  re-applies whatever decorations belong to it. */
     fun onChapterLoaded(wv: ChapterWebViewLike, onAnnotationsApplied: () -> Unit = {}) {
@@ -64,6 +76,9 @@ internal class ContinuousDecorationController(
         if (search != null && search.resultsByHref.containsKey(href)) {
             applySearchTo(wv, search)
         }
+        // Cadence tokenises the chapter DOM once per chapter enter — the reader screen's hook
+        // runs CadenceDomScript.tokeniseChapterJs and hands the parsed maps back to the VM.
+        cadenceOnChapterLoaded?.invoke(wv)
     }
 
     override fun applyAnnotationHighlights(annotationsByHref: Map<String, List<AnnotationHighlight>>) {
