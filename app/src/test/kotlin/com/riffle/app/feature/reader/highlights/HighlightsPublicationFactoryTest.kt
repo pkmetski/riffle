@@ -128,7 +128,7 @@ class HighlightsPublicationFactoryTest {
         val expectedCss = HighlightColor.fromToken("green").argb.toCssRgba()
         assertTrue(
             "expected <p> to carry background-color: $expectedCss, got: $html",
-            html.contains("class=\"riffle-hl\" data-ann-id=\"h1\" style=\"background-color: $expectedCss;\""),
+            html.contains("class=\"riffle-hl\" data-ann-id=\"h1\" style=\"background-color: $expectedCss !important;\""),
         )
     }
 
@@ -147,7 +147,7 @@ class HighlightsPublicationFactoryTest {
         )
         val html = readChapterHtml(pub, index = 0)
         val expectedCss = HighlightColor.DEFAULT.argb.toCssRgba()
-        assertTrue(html.contains("background-color: $expectedCss;"))
+        assertTrue(html.contains("background-color: $expectedCss !important;"))
     }
 
     // Regression for the "text is very small in Highlights mode" bug: Readium's ReadiumCss only
@@ -222,7 +222,7 @@ class HighlightsPublicationFactoryTest {
             urlFactory = ::testUrlFactory,
         )
         val html = readChapterHtml(pub, index = 0)
-        assertTrue(html.contains("<aside class=\"riffle-note\" data-ann-id=\"h1\" style=\"background-color: #f5f5f5;\">"))
+        assertTrue(html.contains("<aside class=\"riffle-note\" data-ann-id=\"h1\" style=\"background-color: #f5f5f5 !important;\">"))
     }
 
     private fun hl(

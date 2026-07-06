@@ -114,7 +114,7 @@ class HighlightsPublicationFactory @Inject constructor() {
                 append(highlight.id.xmlEscape())
                 append("\" style=\"background-color: ")
                 append(highlightBackgroundCss(highlight.color))
-                append(";\">")
+                append(" !important;\">")
                 append(highlight.textSnippet.xmlEscape())
                 append("</span></p>\n")
                 val note = highlight.note
@@ -123,7 +123,7 @@ class HighlightsPublicationFactory @Inject constructor() {
                     append(highlight.id.xmlEscape())
                     append("\" style=\"background-color: ")
                     append(NOTE_BACKGROUND_CSS)
-                    append(";\">")
+                    append(" !important;\">")
                     append(note.xmlEscape())
                     append("</aside>\n")
                 }
