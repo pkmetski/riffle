@@ -119,7 +119,7 @@ class HighlightsPublicationFactory @Inject constructor() {
         val title = chapter.title.xmlEscape()
         return """
             |<?xml version="1.0" encoding="UTF-8"?>
-            |<html xmlns="http://www.w3.org/1999/xhtml"><head><title>$title</title></head>
+            |<html xmlns="http://www.w3.org/1999/xhtml"><head><title>$title</title>$READIUM_DEFAULT_CSS_LINK</head>
             |<body>
             |  <h1>$title</h1>
             |${body.trimEnd('\n')}
@@ -147,6 +147,36 @@ private fun highlightBackgroundCss(colorToken: String): String =
 /** Paler, neutral background for a highlight's note `<aside>` — distinguishes it from the highlight
  * paragraph above it without introducing a second colour token. */
 private const val NOTE_BACKGROUND_CSS = "#f5f5f5"
+
+/**
+ * Explicit `<link>` to Readium's own `ReadiumCSS-default.css`, worked around this way to fix a
+ * formatting bug in the elided reader (ADR 0041): every synthesised chapter loses font-size/
+ * heading/spacing styling in FullBook mode's terms because Readium's `ReadiumCss.injectHtml`
+ * (readium-navigator's `HtmlInjector`/`ReadiumCss.kt`, `injectStyles()`) only auto-appends
+ * `ReadiumCSS-default.css` when the resource has **no** publisher-supplied styling — and its
+ * `hasStyles()` heuristic treats *any* ` style="..."` attribute, `<link>`, or `<style>` tag as
+ * "publisher styles present". Our synthesised chapter's `<span style="background-color: ...">`
+ * (the Fix A guaranteed-visible highlight paint — see [highlightBackgroundCss]'s KDoc, pinned by
+ * `HighlightsPublicationFactoryTest.highlightParagraphCarriesInlineBackgroundColorFromItsColorToken`,
+ * which cannot be removed) trips that heuristic, so Readium silently skips injecting
+ * `ReadiumCSS-default.css` — the stylesheet defining `--RS__baseFontSize`, the `h1`-`h6` type
+ * scale, and paragraph/flow spacing. Without it, `--USER__fontSize` (font-size preference) still
+ * applies to `:root`, but there's no default type-scale beneath it, so the reader renders at
+ * roughly the browser's unstyled UA size instead of the size FullBook mode shows for the same
+ * preference.
+ *
+ * Rather than removing the highlight's inline paint (which would regress Fix A), we manually
+ * supply the same stylesheet link Readium would have added on our behalf. `readium_assets` is a
+ * fixed hostname Readium's `WebViewServer` uses to serve its bundled CSS/JS assets
+ * (`WebViewServer.ASSETS_HOSTNAME`/`assetsBaseHref` in readium-navigator 3.3.0) — it isn't a
+ * per-instance or per-publication value, so hardcoding this URL doesn't reach into Readium
+ * internals or depend on our Container/manifest; it only depends on the WebView being served by
+ * Readium's own navigator, which is true in every reader mode (paginated/vertical/continuous all
+ * route through the same navigator server).
+ */
+private const val READIUM_DEFAULT_CSS_LINK =
+    "<link rel=\"stylesheet\" type=\"text/css\" " +
+        "href=\"https://readium_assets/readium/readium-css/ReadiumCSS-default.css\"/>"
 
 private fun String.xmlEscape(): String =
     replace("&", "&amp;")

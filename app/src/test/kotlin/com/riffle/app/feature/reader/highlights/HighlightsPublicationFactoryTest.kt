@@ -150,6 +150,35 @@ class HighlightsPublicationFactoryTest {
         assertTrue(html.contains("background-color: $expectedCss;"))
     }
 
+    // Regression for the "text is very small in Highlights mode" bug: Readium's ReadiumCss only
+    // auto-injects ReadiumCSS-default.css (font-size baseline, heading type-scale, flow spacing)
+    // when the resource has NO publisher-supplied styling — and it treats our highlight's
+    // inline `style="background-color:...` (Fix A, kept for guaranteed-visible painting) as
+    // publisher styling, so it silently skips that injection. Without an explicit fallback link,
+    // the synthesised chapter would render at ~unstyled browser default size instead of matching
+    // FullBook mode's Formatting Preferences. See HighlightsPublicationFactory's
+    // READIUM_DEFAULT_CSS_LINK KDoc for the full mechanism.
+    @Test
+    fun rendersDefaultReadiumCssLinkSoTypographyMatchesFullBookMode() {
+        val pub = factory.build(
+            serverId = "S1",
+            itemId = "B1",
+            bookTitle = null,
+            chapters = listOf(
+                ChapterElision("ch1.xhtml", "Chapter One", listOf(hl("h1", "snippet"))),
+            ),
+            urlFactory = ::testUrlFactory,
+        )
+        val html = readChapterHtml(pub, index = 0)
+        assertTrue(
+            "expected a <link> to Readium's own ReadiumCSS-default.css in <head>, got: $html",
+            html.contains(
+                "<link rel=\"stylesheet\" type=\"text/css\" " +
+                    "href=\"https://readium_assets/readium/readium-css/ReadiumCSS-default.css\"/>",
+            ),
+        )
+    }
+
     // Notes need their own paler/neutral background so they read as visually distinct from the
     // highlight paragraph above them.
     @Test
