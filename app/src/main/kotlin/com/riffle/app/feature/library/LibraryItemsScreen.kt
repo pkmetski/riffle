@@ -286,7 +286,6 @@ fun LibraryItemsScreen(
                         AnnotationsListScreen(
                             state = annotationsState,
                             token = annotationsVm.authToken,
-                            onOpenDrawer = onOpenDrawer,
                             onBookClick = onAnnotatedBookClick,
                         )
                     }
