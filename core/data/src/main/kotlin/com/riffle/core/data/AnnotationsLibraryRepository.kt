@@ -21,4 +21,12 @@ data class AnnotatedBook(
 interface AnnotationsLibraryRepository {
     /** Books with at least one live highlight on [serverId], most recently updated first. */
     fun observeAnnotatedBooks(serverId: String): Flow<List<AnnotatedBook>>
+
+    /**
+     * Books with at least one live highlight on [serverId] whose `library_items` row belongs to
+     * [libraryId], most recently updated first. Unlike the server-scoped overload, a highlight
+     * with no matching `library_items` row is EXCLUDED here — without that row we can't tell which
+     * library the book belongs to, so it can't be attributed to [libraryId].
+     */
+    fun observeAnnotatedBooks(serverId: String, libraryId: String): Flow<List<AnnotatedBook>>
 }

@@ -94,4 +94,85 @@ class AnnotationsLibraryRepositoryTest {
 
         assertEquals(listOf("A"), result.map { it.itemId })
     }
+
+    // Step A (per-Library scoping): the new (serverId, libraryId) overload must only surface books
+    // whose library_items row lives in the requested library. A book with a live highlight but no
+    // matching library_items row can't be attributed to any specific library, so — unlike the
+    // per-server variant, which keeps such orphans as text-only cards — it must be excluded here.
+    @Test
+    fun libraryScopedObserveExcludesBooksFromOtherLibraries() = runTest {
+        val annDao = FakeAnnotationDao().apply {
+            emitBooksWithHighlights(
+                "S1",
+                listOf(
+                    BookHighlightSummary("A", 2, 200), // lib1
+                    BookHighlightSummary("B", 1, 300), // lib2
+                ),
+            )
+        }
+        val libDao = FakeLibraryItemDao().apply {
+            upsertAll(
+                listOf(
+                    libItem("A", title = "Alpha", author = "AA", coverUrl = "urlA"),
+                    libItem("B", title = "Bravo", author = "BB", coverUrl = "urlB").copy(libraryId = "lib2"),
+                ),
+            )
+        }
+        val repo = AnnotationsLibraryRepositoryImpl(annDao, libDao)
+
+        val result = repo.observeAnnotatedBooks("S1", "lib1").first()
+
+        assertEquals(listOf("A"), result.map { it.itemId })
+    }
+
+    @Test
+    fun libraryScopedObserveExcludesOrphanedRowsWithNoLibraryItemsMatch() = runTest {
+        val annDao = FakeAnnotationDao().apply {
+            emitBooksWithHighlights(
+                "S1",
+                listOf(
+                    BookHighlightSummary("A", 2, 200), // lib1, has library_items row
+                    BookHighlightSummary("Z", 4, 999), // no library_items row at all → excluded
+                ),
+            )
+        }
+        val libDao = FakeLibraryItemDao().apply {
+            upsertAll(
+                listOf(
+                    libItem("A", title = "Alpha", author = "AA", coverUrl = "urlA"),
+                ),
+            )
+        }
+        val repo = AnnotationsLibraryRepositoryImpl(annDao, libDao)
+
+        val result = repo.observeAnnotatedBooks("S1", "lib1").first()
+
+        assertEquals(listOf("A"), result.map { it.itemId })
+    }
+
+    @Test
+    fun libraryScopedObserveIncludesMatchingLibraryAndServer() = runTest {
+        val annDao = FakeAnnotationDao().apply {
+            emitBooksWithHighlights(
+                "S1",
+                listOf(
+                    BookHighlightSummary("A", 2, 200),
+                    BookHighlightSummary("B", 1, 300),
+                ),
+            )
+        }
+        val libDao = FakeLibraryItemDao().apply {
+            upsertAll(
+                listOf(
+                    libItem("A", title = "Alpha", author = "AA", coverUrl = "urlA"),
+                    libItem("B", title = "Bravo", author = "BB", coverUrl = "urlB"),
+                ),
+            )
+        }
+        val repo = AnnotationsLibraryRepositoryImpl(annDao, libDao)
+
+        val result = repo.observeAnnotatedBooks("S1", "lib1").first()
+
+        assertEquals(listOf("B", "A"), result.map { it.itemId })
+    }
 }

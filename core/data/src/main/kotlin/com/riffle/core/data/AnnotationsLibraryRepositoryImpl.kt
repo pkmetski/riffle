@@ -42,4 +42,30 @@ class AnnotationsLibraryRepositoryImpl @Inject constructor(
                     )
                 }.sortedByDescending { it.latestUpdatedAt }
         }
+
+    override fun observeAnnotatedBooks(serverId: String, libraryId: String): Flow<List<AnnotatedBook>> =
+        combine(
+            annotationDao.observeBooksWithHighlights(serverId),
+            libraryItemDao.observeByLibraryId(serverId, libraryId).map { rows ->
+                rows.associateBy { it.id }
+            },
+        ) { summaries, itemsById ->
+            summaries
+                // Stricter than the per-server overload: a summary with no matching library_items
+                // row (orphaned, or belonging to a different library) is excluded entirely, since
+                // there is no way to attribute it to this specific library.
+                .mapNotNull { s -> itemsById[s.itemId]?.let { item -> s to item } }
+                .filter { (_, item) -> EbookFormat.from(item.ebookFormat) == EbookFormat.Epub }
+                .map { (s, item) ->
+                    AnnotatedBook(
+                        serverId = serverId,
+                        itemId = s.itemId,
+                        title = item.title,
+                        author = item.author,
+                        coverUrl = item.coverUrl,
+                        highlightCount = s.highlightCount,
+                        latestUpdatedAt = s.latestUpdatedAt,
+                    )
+                }.sortedByDescending { it.latestUpdatedAt }
+        }
 }
