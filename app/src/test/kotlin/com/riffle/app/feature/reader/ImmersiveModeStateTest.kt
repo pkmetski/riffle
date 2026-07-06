@@ -196,6 +196,51 @@ class ImmersiveModeStateTest {
     }
 
     @Test
+    fun `focus regain while immersive re-issues controller hide to clear popup-revealed bars`() {
+        // Bug: opening a focusable Compose Popup (e.g. HighlightActionsPopup) or a Dialog steals
+        // window focus from the reader; the OS clears SYSTEM_UI_FLAG_IMMERSIVE while the reader
+        // Window is unfocused and reveals the status/nav bars behind the popup. On dismiss the
+        // reader Window regains focus but the OS still shows the bars — no path re-issues
+        // controller.hide() and the topInset watcher can't see it (layout stays fullscreen, inset
+        // stays 0). The focus tracker must force-re-hide on the false→true transition.
+        state.hide()
+        assertEquals(1, controller.hideCount)
+
+        state.onWindowFocusChanged(false) // popup opens, reader loses focus
+        // No hide() during the un-focused window: OS drew the bars, we can't do anything about it.
+        assertEquals(1, controller.hideCount)
+
+        state.onWindowFocusChanged(true) // popup dismisses, reader regains focus
+        assertEquals(2, controller.hideCount) // force-re-hide clears the visible bars
+        assertTrue(state.isImmersive)
+        assertTrue(state.systemBarsHiddenForTest)
+    }
+
+    @Test
+    fun `focus regain when not immersive does not re-hide bars`() {
+        // If the user has intentionally exited immersive (tap-to-toggle), a transient focus loss +
+        // regain must NOT re-hide the bars — otherwise a popup dismiss would drag the reader back
+        // into immersive against the user's will.
+        // state is non-immersive from setUp; simulate the transient focus flip.
+        state.onWindowFocusChanged(false)
+        state.onWindowFocusChanged(true)
+
+        assertEquals(0, controller.hideCount)
+        assertFalse(state.isImmersive)
+    }
+
+    @Test
+    fun `focus loss alone does not touch the controller`() {
+        // Losing focus is a signal, not an action: we only re-hide on regain.
+        state.hide()
+        controller.hideCount = 0
+
+        state.onWindowFocusChanged(false)
+
+        assertEquals(0, controller.hideCount)
+    }
+
+    @Test
     fun `sleep-resume flow keeps nav bar hidden when immersive before sleep`() {
         // Reproduces the bug scenario:
         //   1. User is immersive (bars hidden via controller.hide()).

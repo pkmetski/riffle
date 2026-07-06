@@ -132,6 +132,23 @@ class ImmersiveModeState internal constructor(
     //    tap-to-toggle. (Verified on an API-33 emulator with gesture navigation: a side-edge swipe
     //    now stays in immersive mode. Note this also suppresses the incidental top-edge
     //    swipe-down reveal — the tap is the supported way to bring the chrome back.)
+    // Reader-window focus tracker. When the reader Window loses focus to a transient window
+    // (focusable Compose Popup, floating Dialog, ActionMode toolbar), the OS drops the reader
+    // out of immersive: the SYSTEM_UI_FLAG_IMMERSIVE flag it applied only takes effect while the
+    // window is focused, so on focus loss the status/nav bars are drawn back over the still
+    // layout-fullscreen reader. On focus regain the flags remain in the cleared state and no path
+    // re-applies the hide — the topInset watcher can't see the drift because the inset stays 0.
+    //
+    // Call [onWindowFocusChanged] from the composable's LocalWindowInfo.isWindowFocused observer.
+    // On the false→true transition we force-re-hide when [isImmersive], so controller.hide()
+    // reaches the OS again and clears the visible bars.
+    private var lastWindowFocused = true
+    internal fun onWindowFocusChanged(focused: Boolean) {
+        val wasFocused = lastWindowFocused
+        lastWindowFocused = focused
+        if (focused && !wasFocused && isImmersive) hide(force = true)
+    }
+
     internal fun onBarsRestoredExternally() {
         if (systemBarsHidden) {
             // Bars are currently shown (the OS just flashed them) so re-hiding is a real hide,
@@ -239,11 +256,8 @@ fun rememberImmersiveModeState(): ImmersiveModeState {
     // resets the systemBarsHidden guard so controller.hide() actually reaches the OS again.
     val windowInfo = LocalWindowInfo.current
     LaunchedEffect(state, windowInfo) {
-        var wasFocused = windowInfo.isWindowFocused
-        snapshotFlow { windowInfo.isWindowFocused }.collect { focused ->
-            if (focused && !wasFocused && state.isImmersive) state.hide(force = true)
-            wasFocused = focused
-        }
+        snapshotFlow { windowInfo.isWindowFocused }
+            .collect { focused -> state.onWindowFocusChanged(focused) }
     }
 
     // Always restore system bars when the reader screen leaves the composition.
