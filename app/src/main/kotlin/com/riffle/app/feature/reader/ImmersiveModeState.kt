@@ -16,7 +16,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import androidx.lifecycle.Lifecycle
@@ -226,6 +228,21 @@ fun rememberImmersiveModeState(): ImmersiveModeState {
                 return@LaunchedEffect
             }
             state.onBarsRestoredExternally()
+        }
+    }
+
+    // Re-apply immersive whenever the reader window regains focus after a transient loss. A
+    // focusable Popup (e.g. HighlightActionsPopup) or a system Dialog steals focus from the reader
+    // Window; while the reader Window is unfocused the OS drops it out of immersive and reveals the
+    // status/nav bars behind the popup — layout stays fullscreen so the topInset watcher can't see
+    // it (inset stays 0). On focus regain we force-re-hide to restore true immersive; force = true
+    // resets the systemBarsHidden guard so controller.hide() actually reaches the OS again.
+    val windowInfo = LocalWindowInfo.current
+    LaunchedEffect(state, windowInfo) {
+        var wasFocused = windowInfo.isWindowFocused
+        snapshotFlow { windowInfo.isWindowFocused }.collect { focused ->
+            if (focused && !wasFocused && state.isImmersive) state.hide(force = true)
+            wasFocused = focused
         }
     }
 
