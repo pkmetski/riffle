@@ -58,6 +58,7 @@ import com.riffle.core.domain.SessionPayload
 import com.riffle.core.domain.TimeProvider
 import com.riffle.core.domain.TimeRemaining
 import com.riffle.core.domain.TocEntry
+import com.riffle.core.domain.TocRepository
 import com.riffle.core.domain.resolveEpubHref
 import com.riffle.core.database.AnnotationDao
 import com.riffle.core.database.AnnotationEntity
@@ -190,6 +191,7 @@ class EpubReaderViewModel @Inject constructor(
     private val highlightsPublicationFactory: HighlightsPublicationFactory,
     private val annotationDao: AnnotationDao,
     private val highlightsResumeStore: HighlightsResumeStore,
+    private val tocRepository: TocRepository,
 ) : AndroidViewModel(application) {
 
     // Formatting/typography/auto-scroll orchestrator — constructed with viewModelScope so
@@ -610,7 +612,10 @@ class EpubReaderViewModel @Inject constructor(
                 return
             }
             val rows = annotationDao.getForItem(serverId, itemId)
-            val chapters = buildChapterElisions(rows)
+            val toc = tocRepository.getCachedToc(serverId, itemId)?.second.orEmpty()
+            val chapters = buildChapterElisions(rows).map { chapter ->
+                chapter.copy(title = resolveChapterTitle(chapter.href, toc) ?: chapter.title)
+            }
             highlightsResumeChapters = chapters
             highlightsResumeServerId = serverId
             val pub = highlightsPublicationFactory.build(
@@ -1740,6 +1745,30 @@ internal fun highlightsAnnotationToRender(
 internal fun deriveChapterTitle(href: String): String {
     val name = href.substringAfterLast('/').substringBeforeLast('.')
     return name.ifBlank { "Chapter" }
+}
+
+/**
+ * Resolves a highlight's chapter title from the cached TOC (Fix B, ADR 0041 follow-up) — without
+ * this, [deriveChapterTitle]'s href-basename fallback surfaces raw filenames like "part0007" as
+ * chapter headings. Matches on the href with any TOC fragment (`#anchor`) stripped, since a
+ * highlight's stored `chapterHref` never carries one but a TOC entry pointing at a mid-chapter
+ * heading often does. Returns null (not [deriveChapterTitle]'s output) when no TOC entry matches,
+ * so the caller can fall back explicitly. `internal` so it's unit-testable from `app:test` without
+ * constructing the ViewModel.
+ */
+internal fun resolveChapterTitle(href: String, toc: List<TocEntry>): String? {
+    val normalized = href.substringBefore('#')
+    fun search(entries: List<TocEntry>): String? {
+        for (entry in entries) {
+            val entryHref = entry.href.substringBefore('#')
+            if (entryHref == normalized || entryHref.endsWith("/$normalized") || normalized.endsWith("/$entryHref")) {
+                return entry.title
+            }
+            search(entry.children)?.let { return it }
+        }
+        return null
+    }
+    return search(toc)
 }
 
 /**

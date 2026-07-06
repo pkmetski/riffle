@@ -5,6 +5,7 @@ import com.riffle.app.feature.reader.highlights.HighlightsPublicationFactory
 import com.riffle.app.feature.reader.highlights.ReaderSource
 import com.riffle.core.database.AnnotationEntity
 import com.riffle.core.domain.Annotation
+import com.riffle.core.domain.TocEntry
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
@@ -113,6 +114,39 @@ class EpubReaderViewModelHighlightsSourceTest {
     fun `deriveChapterTitle strips directory and extension`() {
         assertEquals("ch03", deriveChapterTitle("OEBPS/ch03.xhtml"))
         assertEquals("Chapter", deriveChapterTitle(""))
+    }
+
+    // ---- Fix B (ADR 0041 follow-up): chapter titles resolved from the cached TOC -----------
+
+    // The regression this pins: without TOC resolution, Highlights-mode chapter headings show the
+    // raw href basename ("part0007") instead of the book's real chapter title.
+    @Test
+    fun `resolveChapterTitle prefers TOC entry title over href basename`() {
+        val toc = listOf(TocEntry(title = "The Nature of Complexity", href = "OEBPS/part0007.xhtml"))
+        assertEquals("The Nature of Complexity", resolveChapterTitle("OEBPS/part0007.xhtml", toc))
+    }
+
+    @Test
+    fun `resolveChapterTitle strips fragment when matching`() {
+        val toc = listOf(TocEntry(title = "Modules", href = "OEBPS/part0008.xhtml#modules"))
+        assertEquals("Modules", resolveChapterTitle("OEBPS/part0008.xhtml", toc))
+    }
+
+    @Test
+    fun `resolveChapterTitle returns null when no TOC entry matches`() {
+        assertNull(resolveChapterTitle("OEBPS/part0009.xhtml", emptyList()))
+    }
+
+    @Test
+    fun `resolveChapterTitle matches nested TOC entries`() {
+        val toc = listOf(
+            TocEntry(
+                title = "Part One",
+                href = "OEBPS/part0001.xhtml",
+                children = listOf(TocEntry(title = "Nested Chapter", href = "OEBPS/part0002.xhtml")),
+            ),
+        )
+        assertEquals("Nested Chapter", resolveChapterTitle("OEBPS/part0002.xhtml", toc))
     }
 
     // ---- Task 10 (ADR 0041): per-device resume position -----------------------------------
