@@ -67,7 +67,7 @@ internal class ReadiumHighlightRenderer(
             Decoration(
                 id = h.id,
                 locator = h.locator,
-                style = HighlightTintStyle(tint = HighlightColor.fromToken(h.color).argb),
+                style = HighlightTintStyle(tint = h.flatTintArgb ?: HighlightColor.fromToken(h.color).argb),
             )
         }
         // Initial apply uses clear+apply too — Readium's decoration diff treats an identical

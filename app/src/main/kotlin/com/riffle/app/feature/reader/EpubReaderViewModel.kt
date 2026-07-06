@@ -489,8 +489,24 @@ class EpubReaderViewModel @Inject constructor(
     // "Highlight" affordance must not appear there (ADR 0024).
     val annotationsAvailable: StateFlow<Boolean> = annotationSession.annotationsAvailable
 
-    /** A persisted highlight reconstructed into a renderable Readium locator + colour token + optional note. */
-    data class HighlightRender(val id: String, val locator: Locator, val color: String, val note: String?)
+    /**
+     * A persisted highlight reconstructed into a renderable Readium locator + colour token +
+     * optional note.
+     *
+     * [flatTintArgb] is Highlights-mode only (ADR 0041): when non-null it overrides the palette
+     * argb used by [com.riffle.app.feature.reader.ReadiumHighlightRenderer.applyAnnotations] to
+     * paint the decoration overlay, so the elided reader can render its highlights as a bare
+     * left accent bar (see [HighlightsPublicationFactory]) and pass `0` here to keep the overlay
+     * fully transparent — decoration hit-testing still fires (tap-to-edit works) but nothing is
+     * painted over the reading text. FullBook mode leaves it null → normal tinted painting.
+     */
+    data class HighlightRender(
+        val id: String,
+        val locator: Locator,
+        val color: String,
+        val note: String?,
+        val flatTintArgb: Int? = null,
+    )
 
     val highlightRenders: StateFlow<List<HighlightRender>> = annotationSession.highlightRenders
 
@@ -1220,7 +1236,14 @@ class EpubReaderViewModel @Inject constructor(
             // Highlights mode's spine is baked from the annotation snapshot at openBook() time —
             // decoration removal alone leaves the synthesised <p class="riffle-hl"> visible.
             // Reload so the deleted highlight's paragraph disappears entirely.
-            if (source == ReaderSource.Highlights) openBook()
+            if (source == ReaderSource.Highlights) {
+                // Force the reader composable to unmount its WebView by transitioning through
+                // Loading — a Ready→Ready swap with a new Publication instance isn't seen by
+                // Readium's fragment as a reload, and the deleted highlight's <p> stays on
+                // screen until next open.
+                _state.value = ReaderState.Loading
+                openBook()
+            }
         }
     }
 
@@ -1234,7 +1257,14 @@ class EpubReaderViewModel @Inject constructor(
     fun deleteAnnotation(id: String) {
         viewModelScope.launch {
             annotationSession.deleteAnnotation(id)
-            if (source == ReaderSource.Highlights) openBook()
+            if (source == ReaderSource.Highlights) {
+                // Force the reader composable to unmount its WebView by transitioning through
+                // Loading — a Ready→Ready swap with a new Publication instance isn't seen by
+                // Readium's fragment as a reload, and the deleted highlight's <p> stays on
+                // screen until next open.
+                _state.value = ReaderState.Loading
+                openBook()
+            }
         }
     }
 
@@ -1742,7 +1772,11 @@ internal fun highlightsAnnotationToRender(
         locations = Locator.Locations(),
         text = Locator.Text(highlight = a.textSnippet),
     )
-    return EpubReaderViewModel.HighlightRender(a.id, locator, a.color, a.note)
+    // flatTintArgb = 0 (fully transparent) so the decoration overlay renders an invisible but
+    // clickable box on top of our <span data-ann-id>. Tap-to-edit dispatch still fires; the visual
+    // is left to the synthesised HTML's left accent bar in HighlightsPublicationFactory. Highlights
+    // mode only — the FullBook resolver [EpubReaderViewModel.annotationToRender] leaves this null.
+    return EpubReaderViewModel.HighlightRender(a.id, locator, a.color, a.note, flatTintArgb = 0)
 }
 
 /**
