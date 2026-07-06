@@ -77,6 +77,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.mapNotNull
@@ -93,6 +94,7 @@ import org.readium.r2.shared.publication.services.locateProgression
 import org.readium.r2.shared.publication.services.positionsByReadingOrder
 import org.readium.r2.shared.util.AbsoluteUrl
 import org.readium.r2.shared.util.Try
+import org.readium.r2.shared.util.Url
 import org.readium.r2.shared.util.asset.AssetRetriever
 import org.readium.r2.streamer.PublicationOpener
 import java.io.File
@@ -261,12 +263,9 @@ class EpubReaderViewModel @Inject constructor(
 
     // Which content this reader instance displays (ADR 0041). Nav args carry `?source=highlights`
     // (lowercase, see MainScreen's EPUB_READER route); ReaderSource's canonical form is
-    // uppercase-first ("Highlights"), so normalise on read. runCatching guards against a garbage
-    // query string demoting to FullBook rather than crashing the reader open.
-    private val source: ReaderSource =
-        savedStateHandle.get<String>("source")
-            ?.let { runCatching { ReaderSource.valueOf(it.replaceFirstChar(Char::uppercase)) }.getOrNull() }
-            ?: ReaderSource.FullBook
+    // uppercase-first ("Highlights"). See [decodeReaderSource] for why matching is case-insensitive
+    // rather than single-character-normalised.
+    private val source: ReaderSource = decodeReaderSource(savedStateHandle.get<String>("source"))
 
     /** Public read of [source] for the screen layer to gate Readaloud/Rail UI (Task 9, ADR 0041). */
     val readerSource: ReaderSource get() = source
@@ -286,6 +285,15 @@ class EpubReaderViewModel @Inject constructor(
     // TOC entry to open immediately on launch — navigated once the publication is ready, using the same
     // _navigationEvents channel as the TOC panel's tap handler (see navigateToEntry).
     private val startTocHref: String? = savedStateHandle["startTocHref"]
+
+    // Highlights mode only (ADR 0041): the server the tapped book's highlights belong to, threaded
+    // explicitly through the nav route by AnnotationsListScreen's onBookClick rather than re-resolved
+    // from "the active server" at open time. Without this, a Server Switcher change racing the
+    // Annotations-list → reader navigation would open the elided reader against whatever server
+    // happens to be active when openBook() runs, not the server the tapped book's highlights are
+    // actually stored under — silently showing zero highlights. Null (and thus falling back to the
+    // active server) for every other nav origin, including a normal FullBook open.
+    private val navServerId: String? = savedStateHandle.get<String>("serverId")
 
     private val _state = MutableStateFlow<ReaderState>(ReaderState.Loading)
     val state: StateFlow<ReaderState> = _state
@@ -575,9 +583,7 @@ class EpubReaderViewModel @Inject constructor(
         // per-highlight href isn't available.
         viewModelScope.launch {
             if (source != ReaderSource.Highlights) return@launch
-            position.currentLocator
-                .mapNotNull { it?.href?.toString() }
-                .distinctUntilChanged()
+            highlightsResumeHrefUpdates(position.currentLocator.mapNotNull { it?.href?.toString() })
                 .collect { href ->
                     val serverId = highlightsResumeServerId ?: return@collect
                     val chapters = highlightsResumeChapters ?: return@collect
@@ -598,7 +604,7 @@ class EpubReaderViewModel @Inject constructor(
         // before lifecycle.open() so the ABS fetch, matched-sync resolution, readaloud binding, and
         // annotation-sync wiring (all Task 8/9 concerns) never run for this reader instance.
         if (source == ReaderSource.Highlights) {
-            val serverId = serverRepository.getActive()?.id
+            val serverId = navServerId ?: serverRepository.getActive()?.id
             if (serverId == null) {
                 _state.value = ReaderState.Error("No active server")
                 return
@@ -633,6 +639,26 @@ class EpubReaderViewModel @Inject constructor(
                 publication = pub,
                 title = pub.metadata.title ?: "Annotations",
                 initialLocator = initialLocator,
+            )
+            // Bind the annotation session so the highlight-actions popup works in Highlights mode
+            // (a prior gap: this branch used to return before binding at all, leaving
+            // highlightRenders permanently empty and recolor/delete/note edits silent no-ops).
+            // annotationServerId is read by scheduleAnnotationSync() (recolor/delete/note edits) and
+            // by openHighlightInSourceBook()'s fallback.
+            annotationServerId = serverId
+            // Same namespace resolution as the FullBook path (see onOpenReady) — recolor/delete/note
+            // edits still need a real ABS account id to push through AnnotationSyncController's
+            // scheduleDebounce; a blank namespace with a resolvable WebDAV target would otherwise
+            // build a malformed remote path instead of cleanly no-op'ing (only a null target is a
+            // documented no-op — see AnnotationSyncController.syncOnOpen/scheduleDebounce).
+            val namespace = serverRepository.ensureAbsUserId(serverId)
+            annotationNamespace = namespace
+            annotationSession.bind(
+                serverId = serverId,
+                namespace = namespace ?: "",
+                itemId = itemId,
+                highlightRenderResolver = { a -> highlightsAnnotationToRender(chapters, a) },
+                cfiLocatorResolver = { _ -> null },
             )
             return
         }
@@ -1629,6 +1655,80 @@ class EpubReaderViewModel @Inject constructor(
     fun dismissDownloadPrompt() = readaloud.dismissDownloadPrompt()
 
     fun onPageTopResolved(href: String, fragmentId: String?) = readaloud.onPageTopResolved(href, fragmentId)
+}
+
+/**
+ * Decodes the `?source=` nav arg (see MainScreen's EPUB_READER route) into a [ReaderSource],
+ * matching case-insensitively against the enum's declared name. [raw] is null for every FullBook
+ * open (the arg is omitted entirely) and `"highlights"` for a Highlights-mode open.
+ *
+ * Deliberately NOT `raw?.replaceFirstChar(Char::uppercase)` + [ReaderSource.valueOf] (the prior
+ * implementation): `replaceFirstChar` only touches the FIRST character, so `"fullbook"` normalises
+ * to `"Fullbook"` — which does not match the enum entry `FullBook`'s internally-capitalised `B` —
+ * while `"FullBook"` only ever matched because no caller passes that literal today. Matching
+ * case-insensitively against [ReaderSource.entries] sidesteps the whole class of casing bugs.
+ * `internal` so it's unit-testable without constructing [EpubReaderViewModel] (Robolectric-only
+ * constraint — see [EpubReaderViewModelHighlightsSourceTest]'s file docstring).
+ */
+internal fun decodeReaderSource(raw: String?): ReaderSource =
+    raw?.let { r -> ReaderSource.entries.firstOrNull { it.name.equals(r, ignoreCase = true) } }
+        ?: ReaderSource.FullBook
+
+/**
+ * Filters a stream of locator hrefs down to the ones that should trigger a
+ * [HighlightsResumeStore] write (Important #3 fix, ADR 0041 Task 10). Two transforms:
+ *  - [Flow.distinctUntilChanged] — collapse same-chapter position updates within a chapter to one
+ *    write per chapter entered (chapter-level resume precision only, see
+ *    [highlightsResumeAnnotationIdForHref]'s docstring).
+ *  - [Flow.drop] the first emission — the navigator's own restore of the locator [openBook] just
+ *    set as `initialLocator` (read from this exact store moments earlier), not new user progress.
+ *    Without this, EVERY Highlights-mode open re-persisted the value it had just read, a wasted
+ *    DataStore write on every single open.
+ * `internal` (top-level, not inlined into the init block) so this exact transform is
+ * unit-testable without constructing [EpubReaderViewModel] (Robolectric-only constraint).
+ */
+internal fun highlightsResumeHrefUpdates(hrefs: Flow<String>): Flow<String> =
+    hrefs.distinctUntilChanged().drop(1)
+
+/**
+ * Highlights-mode counterpart to [EpubReaderViewModel.annotationToRender] (Critical #1 fix, ADR
+ * 0041). The synthesised Publication has no CFI-addressable ABS EPUB backing it —
+ * `lifecycle.publication` and `lifecycle.zip()` are both null in this mode by design (openBook's
+ * Highlights branch never calls `lifecycle.open()`) — so the CFI→progression path
+ * [EpubReaderViewModel.annotationToRender] uses can never resolve here. Instead this builds the
+ * [EpubReaderViewModel.HighlightRender]'s [Locator] directly from [chapters] (the same grouping
+ * [HighlightsPublicationFactory] rendered the Publication from): the href is the synthesised
+ * chapter's own href, and the locator carries no `locations.progression` at all — Readium's
+ * DecorableNavigator falls back to text-based matching against `text.highlight`, which is exactly
+ * [a]'s snippet, rendered into that chapter's HTML verbatim (see
+ * [HighlightsPublicationFactory.renderChapterHtml] — the `<p class="riffle-hl">` body IS the
+ * snippet), so the match is unambiguous. `internal` (top-level, not a VM method) so it's
+ * unit-testable without constructing [EpubReaderViewModel].
+ *
+ * [urlFactory] mirrors [HighlightsPublicationFactory.build]'s same-named parameter: production
+ * uses the real `Url(String)` (works fine on-device); JVM tests substitute a factory that builds
+ * [Url] instances via `Unsafe.allocateInstance` + `android.net.FakeUri`, because `Url(String)`
+ * funnels through `android.net.Uri.parse`, unmocked under this module's stock (non-Robolectric)
+ * Android unit-test stub jar (see [HighlightsPublicationFactory]'s class docstring for the same
+ * constraint).
+ */
+internal fun highlightsAnnotationToRender(
+    chapters: List<ChapterElision>,
+    a: Annotation,
+    urlFactory: (String) -> Url? = { Url(it) },
+): EpubReaderViewModel.HighlightRender? {
+    val nonEmptyChapters = chapters.filter { it.highlights.isNotEmpty() }
+    val chapterIndex = nonEmptyChapters.indexOfFirst { chapter -> chapter.highlights.any { it.id == a.id } }
+    if (chapterIndex < 0) return null
+    val href = "highlights/ch$chapterIndex.xhtml"
+    val url = urlFactory(href) ?: return null
+    val locator = Locator(
+        href = url,
+        mediaType = org.readium.r2.shared.util.mediatype.MediaType.XHTML,
+        locations = Locator.Locations(),
+        text = Locator.Text(highlight = a.textSnippet),
+    )
+    return EpubReaderViewModel.HighlightRender(a.id, locator, a.color, a.note)
 }
 
 /**

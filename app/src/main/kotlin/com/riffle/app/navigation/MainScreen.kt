@@ -69,7 +69,7 @@ private const val COLLECTION_DETAIL = "collection_detail/{libraryId}/{collection
 private const val FILTERED_BOOKS = "filtered_books/{libraryId}/{facetType}/{facetValue}"
 private const val LIBRARY_ITEM_DETAIL = "library_item_detail/{itemId}"
 private const val EPUB_READER =
-    "epub_reader/{itemId}?startReadaloudAtSec={startReadaloudAtSec}&openAtCfi={openAtCfi}&startTocHref={startTocHref}&source={source}"
+    "epub_reader/{itemId}?startReadaloudAtSec={startReadaloudAtSec}&openAtCfi={openAtCfi}&startTocHref={startTocHref}&source={source}&serverId={serverId}"
 private const val PDF_READER = "pdf_reader/{itemId}"
 private const val ANNOTATION_SEARCH = "annotation_search/{libraryId}?query={query}"
 private const val AUDIOBOOK_PLAYER = "audiobook_player/{itemId}?startAtSec={startAtSec}"
@@ -292,11 +292,8 @@ fun MainScreen(
                     // Task 3 auth-token fix: cover-image requests 401 without the Bearer token.
                     token = vm.authToken,
                     onOpenDrawer = { scope.launch { drawerState.open() } },
-                    onBookClick = { _, itemId ->
-                        // Placeholder for now — Task 7 will make source=highlights meaningful by
-                        // reading it in EpubReaderViewModel. Task 6 wires the reader mode itself.
-                        val encoded = URLEncoder.encode(itemId, "UTF-8")
-                        navController.navigate("epub_reader/$encoded?source=highlights")
+                    onBookClick = { serverId, itemId ->
+                        navController.navigate(annotationsBookClickRoute(serverId, itemId))
                     },
                 )
             }
@@ -491,6 +488,11 @@ fun MainScreen(
                         defaultValue = null
                     },
                     navArgument("source") {
+                        type = NavType.StringType
+                        nullable = true
+                        defaultValue = null
+                    },
+                    navArgument("serverId") {
                         type = NavType.StringType
                         nullable = true
                         defaultValue = null

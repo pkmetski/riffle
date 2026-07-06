@@ -2,8 +2,15 @@ package com.riffle.app.feature.reader
 
 import android.net.FakeUri
 import com.riffle.app.feature.reader.highlights.HighlightsPublicationFactory
+import com.riffle.app.feature.reader.highlights.ReaderSource
 import com.riffle.core.database.AnnotationEntity
+import com.riffle.core.domain.Annotation
+import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.toList
+import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Test
 import org.readium.r2.shared.util.RelativeUrl
 import org.readium.r2.shared.util.Url
@@ -156,5 +163,128 @@ class EpubReaderViewModelHighlightsSourceTest {
         val chapters = buildChapterElisions(listOf(highlight("h1", "chA.xhtml", spineIndex = 0)))
         assertEquals(null, highlightsResumeAnnotationIdForHref(chapters, "not-a-highlights-href.xhtml"))
         assertEquals(null, highlightsResumeAnnotationIdForHref(chapters, "highlights/ch7.xhtml"))
+    }
+
+    // ---- Important #2: case-insensitive ReaderSource decoding -----------------------------
+
+    // The regression this pins: the old `ReaderSource.valueOf(raw.replaceFirstChar(Char::uppercase))`
+    // demoted "fullbook" (and would have demoted "FullBook", had any caller passed it) to FullBook
+    // via a silent runCatching swallow, rather than actually matching the enum entry.
+    @Test
+    fun `decodeReaderSource matches highlights regardless of case`() {
+        assertEquals(ReaderSource.Highlights, decodeReaderSource("highlights"))
+        assertEquals(ReaderSource.Highlights, decodeReaderSource("Highlights"))
+        assertEquals(ReaderSource.Highlights, decodeReaderSource("HIGHLIGHTS"))
+    }
+
+    @Test
+    fun `decodeReaderSource matches fullbook regardless of case`() {
+        assertEquals(ReaderSource.FullBook, decodeReaderSource("fullbook"))
+        assertEquals(ReaderSource.FullBook, decodeReaderSource("FullBook"))
+        assertEquals(ReaderSource.FullBook, decodeReaderSource("FULLBOOK"))
+    }
+
+    @Test
+    fun `decodeReaderSource falls back to FullBook for null or garbage`() {
+        assertEquals(ReaderSource.FullBook, decodeReaderSource(null))
+        assertEquals(ReaderSource.FullBook, decodeReaderSource("nonsense"))
+    }
+
+    // ---- Critical #1: Highlights-mode highlight render resolver ----------------------------
+
+    private fun annotation(
+        id: String,
+        snippet: String = "snippet-$id",
+        color: String = "yellow",
+        note: String? = null,
+    ): Annotation = Annotation(
+        id = id,
+        serverId = "S1",
+        itemId = "B1",
+        type = AnnotationEntity.TYPE_HIGHLIGHT,
+        cfi = "epubcfi(/6/2!/dummy)",
+        color = color,
+        note = note,
+        textSnippet = snippet,
+        textBefore = "",
+        textAfter = "",
+        chapterHref = "chA.xhtml",
+        spineIndex = 0,
+        progression = 0.0,
+        bookmarkTitle = "",
+        createdAt = 0L,
+        updatedAt = 0L,
+    )
+
+    // The regression this pins: highlightsAnnotationToRender must resolve a HighlightRender
+    // against the SYNTHESISED chapter href ("highlights/ch$index.xhtml"), not the ABS EPUB's CFI —
+    // annotationToRender (the FullBook resolver) requires `lifecycle.publication`/`lifecycle.zip()`,
+    // both null in Highlights mode, so it can never be reused here.
+    @Test
+    fun `highlightsAnnotationToRender resolves the synthesised chapter href and preserves snippet text`() {
+        val rows = listOf(
+            highlight("h1", "chA.xhtml", spineIndex = 0),
+            highlight("h2", "chB.xhtml", spineIndex = 1),
+        )
+        val chapters = buildChapterElisions(rows)
+
+        val render = highlightsAnnotationToRender(
+            chapters,
+            annotation("h2", snippet = "the spice must flow"),
+            urlFactory = ::testUrlFactory,
+        )
+
+        assertNotNull(render)
+        assertEquals("highlights/ch1.xhtml", render!!.locator.href.toString())
+        assertEquals("the spice must flow", render.locator.text.highlight)
+        assertEquals("h2", render.id)
+    }
+
+    @Test
+    fun `highlightsAnnotationToRender returns null when the highlight is not in any chapter`() {
+        val chapters = buildChapterElisions(listOf(highlight("h1", "chA.xhtml", spineIndex = 0)))
+        assertNull(highlightsAnnotationToRender(chapters, annotation("missing"), urlFactory = ::testUrlFactory))
+    }
+
+    @Test
+    fun `highlightsAnnotationToRender preserves color and note`() {
+        val chapters = buildChapterElisions(listOf(highlight("h1", "chA.xhtml", spineIndex = 0)))
+        val render = highlightsAnnotationToRender(
+            chapters,
+            annotation("h1", color = "blue", note = "my thought"),
+            urlFactory = ::testUrlFactory,
+        )
+        assertEquals("blue", render!!.color)
+        assertEquals("my thought", render.note)
+    }
+
+    // ---- Important #3: drop the restore-echo emission from the resume writer --------------
+
+    // The regression this pins: the first href emission (the navigator restoring the locator
+    // openBook() just set as initialLocator) must NOT reach the collector — only hrefs caused by
+    // the user actually turning pages/chapters should. Before the fix, every Highlights-mode open
+    // re-persisted the exact value it had just read from HighlightsResumeStore.
+    @Test
+    fun `highlightsResumeHrefUpdates drops the first (restore) emission`() = runBlocking {
+        val hrefs = flowOf("highlights/ch0.xhtml", "highlights/ch1.xhtml", "highlights/ch2.xhtml")
+        val result = highlightsResumeHrefUpdates(hrefs).toList()
+        assertEquals(listOf("highlights/ch1.xhtml", "highlights/ch2.xhtml"), result)
+    }
+
+    @Test
+    fun `highlightsResumeHrefUpdates collapses consecutive duplicate hrefs before dropping the restore`() = runBlocking {
+        // Same chapter reported twice in a row (e.g. an intra-chapter position tick) must collapse
+        // to one emission BEFORE the drop(1) removes the restore — otherwise a real chapter change
+        // right after open could be mistaken for the restore-echo and silently dropped too.
+        val hrefs = flowOf("highlights/ch0.xhtml", "highlights/ch0.xhtml", "highlights/ch1.xhtml")
+        val result = highlightsResumeHrefUpdates(hrefs).toList()
+        assertEquals(listOf("highlights/ch1.xhtml"), result)
+    }
+
+    @Test
+    fun `highlightsResumeHrefUpdates emits nothing when only the restore fires`() = runBlocking {
+        val hrefs = flowOf("highlights/ch0.xhtml")
+        val result = highlightsResumeHrefUpdates(hrefs).toList()
+        assertEquals(emptyList<String>(), result)
     }
 }
