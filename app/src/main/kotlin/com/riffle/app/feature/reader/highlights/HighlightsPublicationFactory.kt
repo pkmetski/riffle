@@ -94,13 +94,16 @@ class HighlightsPublicationFactory @Inject constructor() {
     private fun renderChapterHtml(chapter: ChapterElision): String {
         val body = buildString {
             for (highlight in chapter.highlights) {
-                append("  <p class=\"riffle-hl\" data-ann-id=\"")
+                // Inline <span> hugs the text horizontally instead of filling the reading column,
+                // so a single-word highlight reads as a highlighter mark rather than a coloured
+                // row (see FullBook reader for reference). The <p> keeps paragraph flow/spacing.
+                append("  <p><span class=\"riffle-hl\" data-ann-id=\"")
                 append(highlight.id.xmlEscape())
                 append("\" style=\"background-color: ")
                 append(highlightBackgroundCss(highlight.color))
                 append(";\">")
                 append(highlight.textSnippet.xmlEscape())
-                append("</p>\n")
+                append("</span></p>\n")
                 val note = highlight.note
                 if (note != null) {
                     append("  <aside class=\"riffle-note\" data-ann-id=\"")
