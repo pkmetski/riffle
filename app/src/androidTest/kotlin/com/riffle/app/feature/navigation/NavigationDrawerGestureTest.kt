@@ -44,7 +44,6 @@ class NavigationDrawerGestureTest {
                 serverVersions = emptyMap(),
                 onServerSelected = {},
                 onLibrarySelected = {},
-                onAnnotationsSelected = {},
                 onDownloadsSelected = {},
                 onSettingsSelected = {},
             ) {

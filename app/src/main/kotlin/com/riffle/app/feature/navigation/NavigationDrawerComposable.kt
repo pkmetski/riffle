@@ -47,7 +47,6 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.riffle.app.BuildConfig
-import com.riffle.app.ui.theme.RiffleIcons
 import com.riffle.core.domain.Library
 import com.riffle.core.domain.Server
 
@@ -65,7 +64,6 @@ fun RiffleNavigationDrawer(
     serverVersions: Map<String, String>,
     onServerSelected: (Server) -> Unit,
     onLibrarySelected: (Library) -> Unit,
-    onAnnotationsSelected: () -> Unit,
     onDownloadsSelected: () -> Unit,
     onSettingsSelected: () -> Unit,
     content: @Composable () -> Unit,
@@ -79,7 +77,6 @@ fun RiffleNavigationDrawer(
             serverVersions = serverVersions,
             onServerSelected = onServerSelected,
             onLibrarySelected = onLibrarySelected,
-            onAnnotationsSelected = onAnnotationsSelected,
             onDownloadsSelected = onDownloadsSelected,
             onSettingsSelected = onSettingsSelected,
         )
@@ -117,7 +114,6 @@ private fun DrawerSheetContent(
     serverVersions: Map<String, String>,
     onServerSelected: (Server) -> Unit,
     onLibrarySelected: (Library) -> Unit,
-    onAnnotationsSelected: () -> Unit,
     onDownloadsSelected: () -> Unit,
     onSettingsSelected: () -> Unit,
 ) {
@@ -140,12 +136,6 @@ private fun DrawerSheetContent(
                     onClick = { onLibrarySelected(library) },
                 )
             }
-            NavigationDrawerItem(
-                label = { Text("Annotations") },
-                icon = { Icon(RiffleIcons.Annotations, contentDescription = null) },
-                selected = false,
-                onClick = onAnnotationsSelected,
-            )
         }
         HorizontalDivider()
         NavigationDrawerItem(

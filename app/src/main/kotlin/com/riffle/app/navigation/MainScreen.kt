@@ -19,9 +19,6 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.navigation
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.riffle.app.feature.annotations.AnnotationsListScreen
-import com.riffle.app.feature.annotations.AnnotationsListViewModel
 import com.riffle.app.feature.downloads.DownloadsScreen
 import com.riffle.app.feature.library.CollectionDetailScreen
 import com.riffle.app.feature.library.FacetType
@@ -60,7 +57,6 @@ private const val SELECT_LIBRARIES = "select_libraries"
 private const val SETTINGS = "settings"
 private const val ANNOTATION_SYNC_MAINTENANCE = "settings/annotation_sync/maintenance"
 private const val READALOUD_MATCHES = "readaloud_matches/{serverId}?pairBookId={pairBookId}"
-private const val ANNOTATIONS = "annotations"
 private const val DOWNLOADS = "downloads"
 private const val LIBRARY_ITEMS = "library_items/{libraryId}/{libraryName}"
 private const val LIBRARY_SECTION = "library_section/{libraryId}/{libraryName}/{sectionType}"
@@ -154,10 +150,6 @@ fun MainScreen(
             scope.launch { drawerState.close() }
             val encoded = URLEncoder.encode(library.name, "UTF-8")
             navController.navigateAsRoot("library_items/${library.id}/$encoded")
-        },
-        onAnnotationsSelected = {
-            scope.launch { drawerState.close() }
-            navController.navigate(ANNOTATIONS)
         },
         onDownloadsSelected = {
             scope.launch { drawerState.close() }
@@ -284,19 +276,6 @@ fun MainScreen(
                     },
                 )
             }
-            composable(ANNOTATIONS) {
-                val vm: AnnotationsListViewModel = hiltViewModel()
-                val state by vm.state.collectAsStateWithLifecycle()
-                AnnotationsListScreen(
-                    state = state,
-                    // Task 3 auth-token fix: cover-image requests 401 without the Bearer token.
-                    token = vm.authToken,
-                    onOpenDrawer = { scope.launch { drawerState.open() } },
-                    onBookClick = { serverId, itemId ->
-                        navController.navigate(annotationsBookClickRoute(serverId, itemId))
-                    },
-                )
-            }
             composable(
                 route = LIBRARY_ITEMS,
                 arguments = listOf(
@@ -345,6 +324,9 @@ fun MainScreen(
                     onSectionSeeMore = { sectionType ->
                         val encodedName = URLEncoder.encode(libraryName, "UTF-8")
                         navController.navigate("library_section/$libraryId/$encodedName/${sectionType.name}")
+                    },
+                    onAnnotatedBookClick = { serverId, itemId ->
+                        navController.navigate(annotationsBookClickRoute(serverId, itemId))
                     },
                 )
             }

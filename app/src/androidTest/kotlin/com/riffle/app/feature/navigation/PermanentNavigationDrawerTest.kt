@@ -57,7 +57,6 @@ class PermanentNavigationDrawerTest {
                 serverVersions = emptyMap(),
                 onServerSelected = {},
                 onLibrarySelected = {},
-                onAnnotationsSelected = {},
                 onDownloadsSelected = {},
                 onSettingsSelected = {},
             ) {
@@ -101,7 +100,6 @@ class PermanentNavigationDrawerTest {
                 serverVersions = emptyMap(),
                 onServerSelected = {},
                 onLibrarySelected = {},
-                onAnnotationsSelected = {},
                 onDownloadsSelected = {},
                 onSettingsSelected = {},
             ) {
