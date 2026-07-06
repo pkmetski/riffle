@@ -10,6 +10,7 @@ import com.riffle.core.domain.ServerRepository
 import com.riffle.core.domain.ServerType
 import com.riffle.core.domain.ServerUrl
 import com.riffle.core.domain.TokenStorage
+import androidx.lifecycle.SavedStateHandle
 import java.io.IOException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -47,11 +48,11 @@ class AnnotationsListViewModelTest {
     @Test
     fun emitsRepoBooksForActiveServer() = runTest(dispatcher) {
         val repo = FakeAnnotationsLibraryRepository().apply {
-            emit("S1", listOf(annotatedBook("B", 1, 300), annotatedBook("A", 2, 200)))
+            emitForLibrary("S1", "lib1", listOf(annotatedBook("B", 1, 300), annotatedBook("A", 2, 200)))
         }
         val serverRepository = FakeServerRepository(activeServerId = "S1")
         val tokenStorage = fakeTokenStorage()
-        val vm = AnnotationsListViewModel(serverRepository, repo, tokenStorage)
+        val vm = AnnotationsListViewModel(serverRepository, repo, tokenStorage, savedStateHandle("lib1"))
 
         val state = vm.state.first { !it.loading }
         assertEquals(listOf("B", "A"), state.books.map { it.itemId })
@@ -60,12 +61,12 @@ class AnnotationsListViewModelTest {
     @Test
     fun switchesServerAndReflectsNewList() = runTest(dispatcher) {
         val repo = FakeAnnotationsLibraryRepository().apply {
-            emit("S1", listOf(annotatedBook("A", 1, 100)))
-            emit("S2", listOf(annotatedBook("X", 3, 999)))
+            emitForLibrary("S1", "lib1", listOf(annotatedBook("A", 1, 100)))
+            emitForLibrary("S2", "lib1", listOf(annotatedBook("X", 3, 999)))
         }
         val serverRepository = FakeServerRepository(activeServerId = "S1")
         val tokenStorage = fakeTokenStorage()
-        val vm = AnnotationsListViewModel(serverRepository, repo, tokenStorage)
+        val vm = AnnotationsListViewModel(serverRepository, repo, tokenStorage, savedStateHandle("lib1"))
 
         vm.state.first { it.books.singleOrNull()?.itemId == "A" }
 
@@ -73,7 +74,46 @@ class AnnotationsListViewModelTest {
 
         vm.state.first { it.books.singleOrNull()?.itemId == "X" }
     }
+
+    // Step B (per-Library scoping): the VM must read libraryId from its SavedStateHandle nav arg
+    // (mirroring LibraryItemsViewModel's `savedStateHandle.get<String>("libraryId")` pattern) and
+    // call the library-scoped repo overload. Without this the VM would still call the per-server
+    // overload and leak books from every library on the server into a single library's tab.
+    @Test
+    fun emitsOnlyBooksScopedToTheGivenLibrary() = runTest(dispatcher) {
+        val repo = FakeAnnotationsLibraryRepository().apply {
+            emitForLibrary("S1", "lib1", listOf(annotatedBook("A", 1, 100)))
+            emitForLibrary("S1", "lib2", listOf(annotatedBook("B", 2, 200)))
+        }
+        val serverRepository = FakeServerRepository(activeServerId = "S1")
+        val tokenStorage = fakeTokenStorage()
+        val vm = AnnotationsListViewModel(serverRepository, repo, tokenStorage, savedStateHandle("lib1"))
+
+        val state = vm.state.first { !it.loading }
+
+        assertEquals(listOf("A"), state.books.map { it.itemId })
+    }
+
+    @Test
+    fun switchingLibraryCleanlySwitchesEmittedListWithNoStaleMerge() = runTest(dispatcher) {
+        val repo = FakeAnnotationsLibraryRepository().apply {
+            emitForLibrary("S1", "lib1", listOf(annotatedBook("A", 1, 100)))
+            emitForLibrary("S1", "lib2", listOf(annotatedBook("B", 2, 200)))
+        }
+        val serverRepository = FakeServerRepository(activeServerId = "S1")
+        val tokenStorage = fakeTokenStorage()
+        val vmLib1 = AnnotationsListViewModel(serverRepository, repo, tokenStorage, savedStateHandle("lib1"))
+        val vmLib2 = AnnotationsListViewModel(serverRepository, repo, tokenStorage, savedStateHandle("lib2"))
+
+        val stateLib1 = vmLib1.state.first { !it.loading }
+        val stateLib2 = vmLib2.state.first { !it.loading }
+
+        assertEquals(listOf("A"), stateLib1.books.map { it.itemId })
+        assertEquals(listOf("B"), stateLib2.books.map { it.itemId })
+    }
 }
+
+private fun savedStateHandle(libraryId: String) = SavedStateHandle(mapOf("libraryId" to libraryId))
 
 private fun fakeTokenStorage(): TokenStorage = object : TokenStorage {
     override suspend fun saveToken(serverId: String, token: String) {}
@@ -122,16 +162,27 @@ private class FakeServerRepository(activeServerId: String?) : ServerRepository {
     override suspend fun getServerVersion(serverId: String): String? = null
 }
 
-/** Test-only fake with a per-server, mutable emission source. */
+/** Test-only fake with a per-server and per-(server, library) mutable emission source. */
 private class FakeAnnotationsLibraryRepository : AnnotationsLibraryRepository {
     private val booksByServer = mutableMapOf<String, MutableStateFlow<List<AnnotatedBook>>>()
+    private val booksByServerAndLibrary = mutableMapOf<Pair<String, String>, MutableStateFlow<List<AnnotatedBook>>>()
 
     fun emit(serverId: String, books: List<AnnotatedBook>) {
         flowFor(serverId).value = books
     }
 
+    fun emitForLibrary(serverId: String, libraryId: String, books: List<AnnotatedBook>) {
+        flowForLibrary(serverId, libraryId).value = books
+    }
+
     private fun flowFor(serverId: String) =
         booksByServer.getOrPut(serverId) { MutableStateFlow(emptyList()) }
 
+    private fun flowForLibrary(serverId: String, libraryId: String) =
+        booksByServerAndLibrary.getOrPut(serverId to libraryId) { MutableStateFlow(emptyList()) }
+
     override fun observeAnnotatedBooks(serverId: String): Flow<List<AnnotatedBook>> = flowFor(serverId)
+
+    override fun observeAnnotatedBooks(serverId: String, libraryId: String): Flow<List<AnnotatedBook>> =
+        flowForLibrary(serverId, libraryId)
 }

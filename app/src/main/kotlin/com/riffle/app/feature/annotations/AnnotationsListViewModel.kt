@@ -3,6 +3,7 @@ package com.riffle.app.feature.annotations
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.riffle.core.data.AnnotatedBook
@@ -27,10 +28,11 @@ data class AnnotationsListUiState(
 )
 
 /**
- * Backs the Annotations View library grid — books with at least one live highlight on the active
- * server. Follows the active-server derivation shape used by `NavigationDrawerViewModel`
- * (Storyteller servers are excluded there too, but they never carry annotations to begin with
- * since annotation sync is ABS-server-scoped).
+ * Backs the per-Library Annotations tab in the Library Tab Bar — books with at least one live
+ * highlight on the active server, scoped to [libraryId] read from `SavedStateHandle`, following the
+ * same pattern as `LibraryItemsViewModel`. Follows the active-server derivation shape used by
+ * `NavigationDrawerViewModel` (Storyteller servers are excluded there too, but they never carry
+ * annotations to begin with since annotation sync is ABS-server-scoped).
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 @HiltViewModel
@@ -38,7 +40,10 @@ class AnnotationsListViewModel @Inject constructor(
     private val serverRepository: ServerRepository,
     private val repo: AnnotationsLibraryRepository,
     private val tokenStorage: TokenStorage,
+    savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
+
+    private val libraryId: String = savedStateHandle.get<String>("libraryId") ?: ""
 
     private val activeServerId: kotlinx.coroutines.flow.Flow<String?> = serverRepository.observeAll()
         .map { servers ->
@@ -50,7 +55,7 @@ class AnnotationsListViewModel @Inject constructor(
             if (serverId == null) {
                 flowOf(AnnotationsListUiState(loading = false))
             } else {
-                repo.observeAnnotatedBooks(serverId)
+                repo.observeAnnotatedBooks(serverId, libraryId)
                     .map { books -> AnnotationsListUiState(loading = false, books = books) }
             }
         }
