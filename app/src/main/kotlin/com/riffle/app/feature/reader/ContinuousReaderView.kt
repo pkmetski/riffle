@@ -86,6 +86,16 @@ internal class ContinuousReaderView @JvmOverloads constructor(
      */
     var onFigureTap: ((payload: String) -> Unit)? = null
 
+    /**
+     * Called on the main thread when the last active text-selection action mode ends (either
+     * via a menu-item finish() or a tap-outside dismissal). Used by the reader to force-re-apply
+     * immersive mode: after ActionMode dismissal the OS leaves the system bars in a "transparent
+     * overlay" state — layout stays fullscreen so the [ImmersiveModeState] topInset watcher never
+     * fires (inset stays at 0), but the bars are drawn semi-visibly on top of the reader. A forced
+     * re-hide restores true immersive.
+     */
+    var onSelectionEnded: (() -> Unit)? = null
+
     /** Set by [install]; invoked by the controller with the raw `(href, progression)` on
      *  every scroll-position update. */
     private var onRawPosition: ((href: String, progression: Float) -> Unit)? = null
@@ -160,8 +170,12 @@ internal class ContinuousReaderView @JvmOverloads constructor(
     private var selectionActiveCount = 0
 
     private fun onChildSelectionActiveChanged(active: Boolean) {
-        if (active) selectionActiveCount++
-        else if (selectionActiveCount > 0) selectionActiveCount--
+        if (active) {
+            selectionActiveCount++
+        } else if (selectionActiveCount > 0) {
+            selectionActiveCount--
+            if (selectionActiveCount == 0) onSelectionEnded?.invoke()
+        }
     }
 
     /** Test seam: drives the same counter the production [ChapterWebView] callback does, without

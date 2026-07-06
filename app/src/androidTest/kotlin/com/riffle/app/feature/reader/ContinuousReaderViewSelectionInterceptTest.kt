@@ -4,6 +4,7 @@ import android.os.SystemClock
 import android.view.MotionEvent
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -77,6 +78,28 @@ class ContinuousReaderViewSelectionInterceptTest {
         }
         down(v, 100f, 100f)
         assertTrue("intercept must resume after selection ends", move(v, 100f, 1000f))
+    }
+
+    @Test
+    fun selectionEnded_firesOnSelectionEndedCallback_onlyWhenCountReachesZero() {
+        // Regression: after a text-selection ActionMode is destroyed (Highlight/Copy/tap-outside),
+        // the OS leaves the system bars drawn as a transparent overlay above the reader; the
+        // ImmersiveModeState topInset watcher can't detect that drift because layout stays
+        // fullscreen (inset stays 0). The view raises onSelectionEnded when the selection count
+        // reaches zero so the reader can force-re-hide immersive. Overlapping-selection recycle
+        // races must NOT fire the callback until the LAST selection ends.
+        val v = view()
+        var endedCount = 0
+        onMain { v.onSelectionEnded = { endedCount++ } }
+        onMain {
+            v.onSelectionActiveForTest(true)
+            v.onSelectionActiveForTest(true)
+            v.onSelectionActiveForTest(false)
+        }
+        // Still one active selection: callback must not fire yet.
+        assertEquals(0, endedCount)
+        onMain { v.onSelectionActiveForTest(false) }
+        assertEquals(1, endedCount)
     }
 
     @Test
