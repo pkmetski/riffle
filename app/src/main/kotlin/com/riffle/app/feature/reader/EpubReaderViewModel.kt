@@ -1215,7 +1215,13 @@ class EpubReaderViewModel @Inject constructor(
 
     /** Soft-delete a highlight; annotationStore re-emits without it → decoration is removed. */
     fun deleteHighlight(id: String) {
-        viewModelScope.launch { annotationSession.deleteHighlight(id) }
+        viewModelScope.launch {
+            annotationSession.deleteHighlight(id)
+            // Highlights mode's spine is baked from the annotation snapshot at openBook() time —
+            // decoration removal alone leaves the synthesised <p class="riffle-hl"> visible.
+            // Reload so the deleted highlight's paragraph disappears entirely.
+            if (source == ReaderSource.Highlights) openBook()
+        }
     }
 
     /** Navigate the reader to the annotation with [id], then close the annotations panel. */
@@ -1226,7 +1232,10 @@ class EpubReaderViewModel @Inject constructor(
 
     /** Soft-delete any annotation (highlight or bookmark); clears highlight-edit state if needed. */
     fun deleteAnnotation(id: String) {
-        viewModelScope.launch { annotationSession.deleteAnnotation(id) }
+        viewModelScope.launch {
+            annotationSession.deleteAnnotation(id)
+            if (source == ReaderSource.Highlights) openBook()
+        }
     }
 
     /** Save (or clear) the note on a highlight; blank text is treated as null (removes the note). */
