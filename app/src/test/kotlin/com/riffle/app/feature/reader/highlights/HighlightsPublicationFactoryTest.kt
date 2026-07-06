@@ -104,13 +104,12 @@ class HighlightsPublicationFactoryTest {
         assertEquals(listOf("ch2", "Chapter 2"), pub.tableOfContents.map { it.title })
     }
 
-    // Fix A regression: the paragraph's visual paint must come from inline CSS, not solely from
-    // Readium's text-matched decoration — a long or punctuated snippet can fail that match and
-    // leave the paragraph unpainted (see HighlightsPublicationFactory's KDoc on highlightBackgroundCss).
-    // This pins that the rendered <p> always carries a background-color style, keyed off the
-    // highlight's own color token via the single-source HighlightColor palette.
+    // The highlight's visual is a left accent bar in the palette colour (matching Riffle's
+    // [Book Search] results card style), NOT a full paragraph background — the constant background
+    // was fatiguing on dense chapters. This pins that the rendered <p> carries a border-left in
+    // the highlight's own colour, keyed off the single-source HighlightColor palette.
     @Test
-    fun highlightParagraphCarriesInlineBackgroundColorFromItsColorToken() {
+    fun highlightParagraphCarriesLeftAccentBarFromItsColorToken() {
         val pub = factory.build(
             serverId = "S1",
             itemId = "B1",
@@ -127,15 +126,19 @@ class HighlightsPublicationFactoryTest {
         val html = readChapterHtml(pub, index = 0)
         val expectedCss = HighlightColor.fromToken("green").argb.toCssRgba()
         assertTrue(
-            "expected <p> to carry background-color: $expectedCss, got: $html",
-            html.contains("class=\"riffle-hl\" data-ann-id=\"h1\" style=\"background-color: $expectedCss !important;\""),
+            "expected <p> to carry border-left: 4px solid $expectedCss, got: $html",
+            html.contains("border-left: 4px solid $expectedCss !important;"),
+        )
+        assertTrue(
+            "expected the <span data-ann-id> to have no inline background, got: $html",
+            !html.contains("class=\"riffle-hl\" data-ann-id=\"h1\" style="),
         )
     }
 
-    // Unknown/unrecognised color tokens must not leave the paragraph unpainted — they fall back to
-    // HighlightColor.DEFAULT (yellow), mirroring HighlightColor.fromToken's own fallback contract.
+    // Unknown/unrecognised color tokens must not leave the paragraph unaccented — they fall back
+    // to HighlightColor.DEFAULT (yellow), mirroring HighlightColor.fromToken's own fallback contract.
     @Test
-    fun unknownColorTokenFallsBackToDefaultYellowBackground() {
+    fun unknownColorTokenFallsBackToDefaultYellowAccent() {
         val pub = factory.build(
             serverId = "S1",
             itemId = "B1",
@@ -147,7 +150,7 @@ class HighlightsPublicationFactoryTest {
         )
         val html = readChapterHtml(pub, index = 0)
         val expectedCss = HighlightColor.DEFAULT.argb.toCssRgba()
-        assertTrue(html.contains("background-color: $expectedCss !important;"))
+        assertTrue(html.contains("border-left: 4px solid $expectedCss !important;"))
     }
 
     // Regression for the "text is very small in Highlights mode" bug: Readium's ReadiumCss only
@@ -204,7 +207,7 @@ class HighlightsPublicationFactoryTest {
         val html = readChapterHtml(pub, index = 0)
         assertTrue(
             "expected every highlight <p> to carry an explicit non-zero margin, got: $html",
-            html.contains("<p style=\"margin: 1em 0;\">"),
+            html.contains("<p style=\"margin: 1em 0;"),
         )
     }
 
@@ -222,7 +225,8 @@ class HighlightsPublicationFactoryTest {
             urlFactory = ::testUrlFactory,
         )
         val html = readChapterHtml(pub, index = 0)
-        assertTrue(html.contains("<aside class=\"riffle-note\" data-ann-id=\"h1\" style=\"background-color: #f5f5f5 !important;\">"))
+        assertTrue(html.contains("<aside class=\"riffle-note\" data-ann-id=\"h1\" style=\"border-left: 2px solid "))
+        assertTrue(html.contains("font-style: italic; opacity: 0.75;\">my thought</aside>"))
     }
 
     private fun hl(

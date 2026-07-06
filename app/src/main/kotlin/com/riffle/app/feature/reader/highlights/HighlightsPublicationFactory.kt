@@ -102,28 +102,29 @@ class HighlightsPublicationFactory @Inject constructor() {
     private fun renderChapterHtml(chapter: ChapterElision): String {
         val body = buildString {
             for (highlight in chapter.highlights) {
-                // Inline <span> hugs the text horizontally instead of filling the reading column,
-                // so a single-word highlight reads as a highlighter mark rather than a coloured
-                // row (see FullBook reader for reference). The <p> carries an explicit margin (see
-                // PARAGRAPH_GAP_STYLE) so consecutive highlight paragraphs have a genuine
-                // non-decorated gap between them for the immersive-mode tap target — see that
-                // constant's KDoc for why this can't rely on ReadiumCSS's own paragraph spacing.
+                // The highlight is presented as a left accent bar in the palette colour, matching
+                // Riffle's [Book Search] results card style — the text itself renders in the
+                // theme's normal body colour so dense highlights don't fatigue the eye. `!important`
+                // so ReadiumCSS's theme rules (e.g. Dark's `:not(a){border-color: currentColor}`)
+                // can't strip the colour. Tap dispatch still flows through Readium's decoration
+                // overlay on the <span data-ann-id> — see [highlightsAnnotationToRender].
+                val accent = highlightBackgroundCss(highlight.color)
                 append("  <p style=\"")
                 append(PARAGRAPH_GAP_STYLE)
-                append("\"><span class=\"riffle-hl\" data-ann-id=\"")
+                append("; border-left: 4px solid ")
+                append(accent)
+                append(" !important; padding-left: 12px;\"><span class=\"riffle-hl\" data-ann-id=\"")
                 append(highlight.id.xmlEscape())
-                append("\" style=\"background-color: ")
-                append(highlightBackgroundCss(highlight.color))
-                append(" !important;\">")
+                append("\">")
                 append(highlight.textSnippet.xmlEscape())
                 append("</span></p>\n")
                 val note = highlight.note
                 if (note != null) {
                     append("  <aside class=\"riffle-note\" data-ann-id=\"")
                     append(highlight.id.xmlEscape())
-                    append("\" style=\"background-color: ")
-                    append(NOTE_BACKGROUND_CSS)
-                    append(" !important;\">")
+                    append("\" style=\"border-left: 2px solid ")
+                    append(accent)
+                    append(" !important; padding-left: 12px; font-style: italic; opacity: 0.75;\">")
                     append(note.xmlEscape())
                     append("</aside>\n")
                 }
