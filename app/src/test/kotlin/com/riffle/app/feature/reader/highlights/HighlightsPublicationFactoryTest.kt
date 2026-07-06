@@ -179,6 +179,35 @@ class HighlightsPublicationFactoryTest {
         )
     }
 
+    // Regression for "Immersive Mode doesn't toggle in the elided reader": with zero paragraph
+    // margin (ReadiumCSS-default.css's own default), adjacent highlight <p>s sit flush against
+    // each other, so Readium's decoration hit-test (sized to the full text line) covers virtually
+    // the entire reading surface and Android.onTap never fires. Each highlight <p> needs an
+    // explicit margin so a real, non-decorated gap exists between highlights for the immersive
+    // tap target. See HighlightsPublicationFactory's PARAGRAPH_GAP_STYLE KDoc for the full
+    // mechanism.
+    @Test
+    fun highlightParagraphCarriesExplicitMarginForImmersiveTapGap() {
+        val pub = factory.build(
+            serverId = "S1",
+            itemId = "B1",
+            bookTitle = null,
+            chapters = listOf(
+                ChapterElision(
+                    "ch1.xhtml",
+                    "Chapter One",
+                    listOf(hl("h1", "first snippet"), hl("h2", "second snippet")),
+                ),
+            ),
+            urlFactory = ::testUrlFactory,
+        )
+        val html = readChapterHtml(pub, index = 0)
+        assertTrue(
+            "expected every highlight <p> to carry an explicit non-zero margin, got: $html",
+            html.contains("<p style=\"margin: 1em 0;\">"),
+        )
+    }
+
     // Notes need their own paler/neutral background so they read as visually distinct from the
     // highlight paragraph above them.
     @Test

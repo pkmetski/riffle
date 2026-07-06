@@ -96,8 +96,13 @@ class HighlightsPublicationFactory @Inject constructor() {
             for (highlight in chapter.highlights) {
                 // Inline <span> hugs the text horizontally instead of filling the reading column,
                 // so a single-word highlight reads as a highlighter mark rather than a coloured
-                // row (see FullBook reader for reference). The <p> keeps paragraph flow/spacing.
-                append("  <p><span class=\"riffle-hl\" data-ann-id=\"")
+                // row (see FullBook reader for reference). The <p> carries an explicit margin (see
+                // PARAGRAPH_GAP_STYLE) so consecutive highlight paragraphs have a genuine
+                // non-decorated gap between them for the immersive-mode tap target — see that
+                // constant's KDoc for why this can't rely on ReadiumCSS's own paragraph spacing.
+                append("  <p style=\"")
+                append(PARAGRAPH_GAP_STYLE)
+                append("\"><span class=\"riffle-hl\" data-ann-id=\"")
                 append(highlight.id.xmlEscape())
                 append("\" style=\"background-color: ")
                 append(highlightBackgroundCss(highlight.color))
@@ -177,6 +182,31 @@ private const val NOTE_BACKGROUND_CSS = "#f5f5f5"
 private const val READIUM_DEFAULT_CSS_LINK =
     "<link rel=\"stylesheet\" type=\"text/css\" " +
         "href=\"https://readium_assets/readium/readium-css/ReadiumCSS-default.css\"/>"
+
+/**
+ * Explicit vertical margin on every synthesised highlight `<p>`, fixing "Immersive Mode doesn't
+ * toggle in the elided reader" (ADR 0041 follow-up). ReadiumCSS-default.css's own paragraph rule
+ * (`p{margin-top:var(--RS__paraSpacing);margin-bottom:var(--RS__paraSpacing)}`, with
+ * `--RS__paraSpacing:0` by default) sets **zero** paragraph margin — normal FullBook-mode EPUBs
+ * still read fine because only isolated phrases within a much longer paragraph are highlighted, so
+ * most of the reading surface is plain (non-decorated) text with ample tap targets around it.
+ *
+ * The elided reader has no such plain text: every `<p>` IS a highlight from margin to margin, and
+ * Readium's decoration hit-test (`readium-reflowable.js`'s tap handler) walks each active
+ * decoration's `getClientRects()` line boxes — which are sized to the full rendered text line,
+ * consuming essentially all of the line's line-height. With zero paragraph margin, two adjacent
+ * highlight `<p>`s sit flush against each other, leaving no non-decorated gap for a tap to land in
+ * and reach `Android.onTap` (wired to [com.riffle.app.feature.reader.ImmersiveModeState.toggle] —
+ * see `EpubReaderScreen`'s `tapListener`/`InputListener.onTap`). Tapping a highlight itself
+ * correctly opens the highlight-actions sheet (by design — see ADR 0041 and the "Annotations View"
+ * glossary entry in CONTEXT.md) — the bug is that immersive becomes *unreachable* because there's
+ * no other place to tap.
+ *
+ * `1em` top/bottom is comfortably larger than typical inter-line leading, so it reads as a real
+ * paragraph break (consistent with how FullBook mode's own un-highlighted inter-paragraph spacing
+ * looks) while guaranteeing a tappable, non-decorated strip between every highlight.
+ */
+private const val PARAGRAPH_GAP_STYLE = "margin: 1em 0;"
 
 private fun String.xmlEscape(): String =
     replace("&", "&amp;")
