@@ -42,6 +42,68 @@ class HighlightTintStyle(
 }
 
 private const val HIGHLIGHT_TINT_CLASS = "riffle-highlight-tint"
+private const val HIGHLIGHT_ACCENT_BAR_CLASS = "riffle-highlight-accent-bar"
+private const val HIGHLIGHT_ACCENT_BAR_TAP_CLASS = "riffle-highlight-accent-bar-tap"
+
+/**
+ * Highlights-mode-only decoration style (ADR 0041). The synthesised chapter renders its own left
+ * accent bar via a `<p>` border-left; this decoration exists solely so tap-to-edit can dispatch
+ * through Readium's `onDecorationActivated` listener — but only on a narrow strip at the left
+ * of the selection. Uses [HtmlDecorationTemplate.Layout.BOUNDS] so the whole selection resolves
+ * to one rect (the `data-activable` child rect Readium hit-tests can then be positioned into
+ * the paragraph's left padding). No fill — the visual is entirely the synthesised HTML.
+ * FullBook mode never uses this style, so its whole-selection tap target is preserved.
+ */
+class HighlightAccentBarStyle : Decoration.Style, Parcelable {
+
+    override fun describeContents(): Int = 0
+
+    override fun writeToParcel(dest: Parcel, flags: Int) = Unit
+
+    override fun equals(other: Any?): Boolean = other is HighlightAccentBarStyle
+
+    override fun hashCode(): Int = HighlightAccentBarStyle::class.hashCode()
+
+    companion object {
+        @JvmField
+        val CREATOR: Parcelable.Creator<HighlightAccentBarStyle> =
+            object : Parcelable.Creator<HighlightAccentBarStyle> {
+                override fun createFromParcel(source: Parcel) = HighlightAccentBarStyle()
+                override fun newArray(size: Int): Array<HighlightAccentBarStyle?> = arrayOfNulls(size)
+            }
+    }
+}
+
+/**
+ * Template for [HighlightAccentBarStyle]. BOUNDS layout so we get one rect for the whole
+ * selection; the `data-activable="1"` child is positioned in the left gutter (like
+ * [NoteGlyphStyle]'s icon) so Readium's rect-based decoration hit-testing fires only on taps
+ * near the paragraph's left accent bar. Taps in the middle of highlighted text miss the
+ * decoration and fall through to the WebView's own tap handler (immersive toggle).
+ */
+fun highlightAccentBarTemplate(): HtmlDecorationTemplate =
+    HtmlDecorationTemplate(
+        layout = HtmlDecorationTemplate.Layout.BOUNDS,
+        element = { _ ->
+            """<div class="$HIGHLIGHT_ACCENT_BAR_CLASS"><div class="$HIGHLIGHT_ACCENT_BAR_TAP_CLASS" data-activable="1"></div></div>"""
+        },
+        stylesheet = """
+            .$HIGHLIGHT_ACCENT_BAR_CLASS {
+                position: absolute;
+                inset: 0;
+                background: none;
+                overflow: visible;
+            }
+            .$HIGHLIGHT_ACCENT_BAR_TAP_CLASS {
+                position: absolute;
+                left: -20px;
+                top: 0;
+                bottom: 0;
+                width: 20px;
+                background: transparent;
+            }
+        """.trimIndent(),
+    )
 
 /**
  * Template for [HighlightTintStyle]. Geometry mirrors Readium's built-in highlight (BOXES layout,

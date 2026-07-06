@@ -96,6 +96,7 @@ import com.riffle.app.feature.reader.readaloud.NarratedColumnProgression
 import com.riffle.app.feature.reader.readaloud.PlayerCoordinator
 import com.riffle.app.feature.reader.readaloud.ReadaloudDownloadDialog
 import com.riffle.app.feature.reader.readaloud.ReadaloudMiniPlayer
+import com.riffle.app.feature.reader.highlights.ReaderSource
 import com.riffle.app.feature.reader.readaloud.ReadaloudPeek
 import com.riffle.app.ui.theme.RiffleIcons
 import com.riffle.app.ui.theme.RiffleTheme
@@ -434,7 +435,11 @@ fun EpubReaderScreen(
                         readaloudAvailable = readaloudAvailable,
                         readaloudReservePx = totalReserveCssPx,
                         readaloudHighlightColor = readaloudHighlightColor,
-                        annotationsAvailable = annotationsAvailable,
+                        // Suppress the "Highlight" action on text-selection long-press when the
+                        // reader is showing the elided highlight-only view — new highlights aren't
+                        // creatable here (createHighlight is a no-op in Highlights mode, ADR 0041),
+                        // so surfacing the option would be dead UI.
+                        annotationsAvailable = annotationsAvailable && viewModel.readerSource != ReaderSource.Highlights,
                         highlightRenders = highlightRenders,
                         onHighlight = viewModel::createHighlight,
                         highlightToEdit = highlightToEdit,

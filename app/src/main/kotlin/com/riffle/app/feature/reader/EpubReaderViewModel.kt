@@ -190,6 +190,7 @@ class EpubReaderViewModel @Inject constructor(
     val dispatchers: DispatcherProvider,
     private val highlightsPublicationFactory: HighlightsPublicationFactory,
     private val annotationDao: AnnotationDao,
+    private val libraryItemDao: com.riffle.core.database.LibraryItemDao,
     private val highlightsResumeStore: HighlightsResumeStore,
     private val tocRepository: TocRepository,
 ) : AndroidViewModel(application) {
@@ -493,19 +494,20 @@ class EpubReaderViewModel @Inject constructor(
      * A persisted highlight reconstructed into a renderable Readium locator + colour token +
      * optional note.
      *
-     * [flatTintArgb] is Highlights-mode only (ADR 0041): when non-null it overrides the palette
-     * argb used by [com.riffle.app.feature.reader.ReadiumHighlightRenderer.applyAnnotations] to
-     * paint the decoration overlay, so the elided reader can render its highlights as a bare
-     * left accent bar (see [HighlightsPublicationFactory]) and pass `0` here to keep the overlay
-     * fully transparent — decoration hit-testing still fires (tap-to-edit works) but nothing is
-     * painted over the reading text. FullBook mode leaves it null → normal tinted painting.
+     * [useAccentBarStyle] is Highlights-mode only (ADR 0041): when true,
+     * [com.riffle.app.feature.reader.ReadiumHighlightRenderer.applyAnnotations] paints via
+     * [com.riffle.app.feature.reader.HighlightAccentBarStyle] instead of the usual tinted style,
+     * which renders no fill and confines Readium's tap hit-testing to a narrow gutter strip on
+     * the left of the paragraph — taps in the middle of highlighted text fall through to the
+     * immersive-mode toggle. FullBook mode leaves it false → normal tinted painting on the whole
+     * selection.
      */
     data class HighlightRender(
         val id: String,
         val locator: Locator,
         val color: String,
         val note: String?,
-        val flatTintArgb: Int? = null,
+        val useAccentBarStyle: Boolean = false,
     )
 
     val highlightRenders: StateFlow<List<HighlightRender>> = annotationSession.highlightRenders
@@ -634,10 +636,14 @@ class EpubReaderViewModel @Inject constructor(
             }
             highlightsResumeChapters = chapters
             highlightsResumeServerId = serverId
+            // Book title composed as "<real title> — Annotations" so the reader's own top-bar
+            // label makes clear which book's highlights are shown. Falls back to plain "Annotations"
+            // when the local library_items row is gone (orphaned book).
+            val realBookTitle = libraryItemDao.getById(serverId, itemId)?.title
             val pub = highlightsPublicationFactory.build(
                 serverId = serverId,
                 itemId = itemId,
-                bookTitle = null,
+                bookTitle = realBookTitle?.let { "$it — Annotations" },
                 chapters = chapters,
             )
             // Per-device resume (Task 10, ADR 0041): jump back to the chapter containing the
@@ -1772,11 +1778,11 @@ internal fun highlightsAnnotationToRender(
         locations = Locator.Locations(),
         text = Locator.Text(highlight = a.textSnippet),
     )
-    // flatTintArgb = 0 (fully transparent) so the decoration overlay renders an invisible but
-    // clickable box on top of our <span data-ann-id>. Tap-to-edit dispatch still fires; the visual
-    // is left to the synthesised HTML's left accent bar in HighlightsPublicationFactory. Highlights
-    // mode only — the FullBook resolver [EpubReaderViewModel.annotationToRender] leaves this null.
-    return EpubReaderViewModel.HighlightRender(a.id, locator, a.color, a.note, flatTintArgb = 0)
+    // useAccentBarStyle = true routes the decoration through HighlightAccentBarStyle, which paints
+    // no fill and confines tap hit-testing to a narrow left-gutter strip. The visual is entirely
+    // driven by the synthesised HTML's own left accent bar (see HighlightsPublicationFactory).
+    // Highlights mode only — FullBook's annotationToRender leaves this false.
+    return EpubReaderViewModel.HighlightRender(a.id, locator, a.color, a.note, useAccentBarStyle = true)
 }
 
 /**
