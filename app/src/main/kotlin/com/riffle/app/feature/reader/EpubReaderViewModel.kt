@@ -613,8 +613,8 @@ class EpubReaderViewModel @Inject constructor(
             }
             val rows = annotationDao.getForItem(serverId, itemId)
             val toc = tocRepository.getCachedToc(serverId, itemId)?.second.orEmpty()
-            val chapters = buildChapterElisions(rows).map { chapter ->
-                chapter.copy(title = resolveChapterTitle(chapter.href, toc) ?: chapter.title)
+            val chapters = buildChapterElisions(rows).mapIndexed { index, chapter ->
+                chapter.copy(title = elidedChapterTitle(chapter.href, chapter.title, toc, index))
             }
             highlightsResumeChapters = chapters
             highlightsResumeServerId = serverId
@@ -1746,6 +1746,27 @@ internal fun deriveChapterTitle(href: String): String {
     val name = href.substringAfterLast('/').substringBeforeLast('.')
     return name.ifBlank { "Chapter" }
 }
+
+/**
+ * Elided-reader chapter heading, in priority order (ADR 0041 follow-up):
+ *  1. Cached TOC entry title (real book chapter name).
+ *  2. `deriveChapterTitle(href)` — unless it looks unhelpful (UUID, "unknown", etc.), which
+ *     happens for Storyteller-aligned chapters where `chapterHref` is an alignment UUID.
+ *  3. `"Chapter N"` fallback using the 1-based position in the elided reading order.
+ *
+ * `internal` so it's unit-testable from `app:test`.
+ */
+internal fun elidedChapterTitle(href: String, derived: String, toc: List<TocEntry>, elidedIndex: Int): String {
+    resolveChapterTitle(href, toc)?.let { return it }
+    if (!looksUnhelpfulTitle(derived)) return derived
+    return "Chapter ${elidedIndex + 1}"
+}
+
+private val UUID_TITLE_REGEX =
+    Regex("^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$")
+
+internal fun looksUnhelpfulTitle(title: String): Boolean =
+    title.isBlank() || title.equals("Chapter", ignoreCase = true) || UUID_TITLE_REGEX.matches(title)
 
 /**
  * Resolves a highlight's chapter title from the cached TOC (Fix B, ADR 0041 follow-up) — without
