@@ -1,6 +1,5 @@
 package com.riffle.app.feature.reader
 
-import android.os.Build
 import android.os.SystemClock
 import androidx.activity.compose.LocalActivity
 import androidx.annotation.VisibleForTesting
@@ -33,40 +32,18 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 internal interface SystemBarsController {
     fun hide()
     fun show()
-    fun applyImmersiveBehavior()
+    fun setBehaviorDefault()
 }
 
 private class WindowInsetsBarsController(
     private val delegate: WindowInsetsControllerCompat,
-    private val sdkInt: Int = Build.VERSION.SDK_INT,
 ) : SystemBarsController {
     override fun hide() = delegate.hide(WindowInsetsCompat.Type.systemBars())
     override fun show() = delegate.show(WindowInsetsCompat.Type.systemBars())
-    override fun applyImmersiveBehavior() {
-        delegate.systemBarsBehavior = immersiveSystemBarsBehavior(sdkInt)
+    override fun setBehaviorDefault() {
+        delegate.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_DEFAULT
     }
 }
-
-/**
- * On pre-R (API < 30) the AndroidX compat layer maps [BEHAVIOR_DEFAULT] to the
- * non-sticky `SYSTEM_UI_FLAG_IMMERSIVE` flag: any tap/system event clears
- * `FLAG_HIDE_NAVIGATION|FULLSCREEN` but leaves `LAYOUT_HIDE_NAVIGATION|LAYOUT_FULLSCREEN` set,
- * so the status/nav bars re-appear as transparent overlays on top of the content and stay
- * there. Because the layout flags remain, `WindowInsets.systemBars.getTop()` stays 0, so
- * the topInset watcher in [rememberImmersiveModeState] cannot notice and re-hide.
- *
- * Using [BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE] on pre-R sets `IMMERSIVE_STICKY` instead, so
- * the system auto-hides the bars again after the transient reveal. On API 30+ we keep
- * [BEHAVIOR_DEFAULT] because the reader intentionally treats a side-edge page-turn swipe
- * as a permanent reveal (see the comment on [ImmersiveModeState.onBarsRestoredExternally]).
- */
-@VisibleForTesting
-internal fun immersiveSystemBarsBehavior(sdkInt: Int): Int =
-    if (sdkInt < Build.VERSION_CODES.R) {
-        WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
-    } else {
-        WindowInsetsControllerCompat.BEHAVIOR_DEFAULT
-    }
 
 @Stable
 class ImmersiveModeState internal constructor(
@@ -127,7 +104,7 @@ class ImmersiveModeState internal constructor(
         if (force) systemBarsHidden = false
         if (!systemBarsHidden) {
             systemBarsHidden = true
-            controller.applyImmersiveBehavior()
+            controller.setBehaviorDefault()
             controller.hide()
         }
         isImmersive = true

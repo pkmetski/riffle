@@ -26,7 +26,7 @@ class ImmersiveOnReadaloudPlayTest {
         var showCount = 0
         override fun hide() { hideCount++ }
         override fun show() { showCount++ }
-        override fun applyImmersiveBehavior() {}
+        override fun setBehaviorDefault() {}
     }
 
     private fun setContent(
