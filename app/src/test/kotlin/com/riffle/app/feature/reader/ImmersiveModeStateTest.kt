@@ -1,5 +1,7 @@
 package com.riffle.app.feature.reader
 
+import android.os.Build
+import androidx.core.view.WindowInsetsControllerCompat
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -11,7 +13,8 @@ class ImmersiveModeStateTest {
     private class FakeController : SystemBarsController {
         var hideCount = 0
         var showCount = 0
-        var setBehaviorDefaultCount = 0
+        var applyImmersiveBehaviorCount = 0
+        var reapplyRawCount = 0
 
         override fun hide() {
             hideCount++
@@ -21,8 +24,12 @@ class ImmersiveModeStateTest {
             showCount++
         }
 
-        override fun setBehaviorDefault() {
-            setBehaviorDefaultCount++
+        override fun applyImmersiveBehavior() {
+            applyImmersiveBehaviorCount++
+        }
+
+        override fun reapplyRaw() {
+            reapplyRawCount++
         }
     }
 
@@ -52,7 +59,7 @@ class ImmersiveModeStateTest {
         assertTrue(state.isImmersive)
         assertTrue(state.systemBarsHiddenForTest)
         assertEquals(1, controller.hideCount)
-        assertEquals(1, controller.setBehaviorDefaultCount)
+        assertEquals(1, controller.applyImmersiveBehaviorCount)
     }
 
     @Test
@@ -196,28 +203,58 @@ class ImmersiveModeStateTest {
     }
 
     @Test
-    fun `focus regain while immersive re-issues controller hide to clear popup-revealed bars`() {
-        // Bug: opening a focusable Compose Popup (e.g. HighlightActionsPopup) or a Dialog steals
-        // window focus from the reader; the OS clears SYSTEM_UI_FLAG_IMMERSIVE while the reader
-        // Window is unfocused and reveals the status/nav bars behind the popup. On dismiss the
-        // reader Window regains focus but the OS still shows the bars — no path re-issues
-        // controller.hide() and the topInset watcher can't see it (layout stays fullscreen, inset
-        // stays 0). The focus tracker must force-re-hide on the false→true transition.
-        state.hide()
-        assertEquals(1, controller.hideCount)
-
-        state.onWindowFocusChanged(false) // popup opens, reader loses focus
-        // No hide() during the un-focused window: OS drew the bars, we can't do anything about it.
-        assertEquals(1, controller.hideCount)
-
-        state.onWindowFocusChanged(true) // popup dismisses, reader regains focus
-        assertEquals(2, controller.hideCount) // force-re-hide clears the visible bars
-        assertTrue(state.isImmersive)
-        assertTrue(state.systemBarsHiddenForTest)
+    fun `pre-R uses sticky IMMERSIVE so bars auto-hide after any transient reveal`() {
+        // On pre-R BEHAVIOR_DEFAULT maps to non-sticky IMMERSIVE: a focusable Popup opening
+        // clears FLAG_HIDE_NAVIGATION|FULLSCREEN and leaves bars visible until we hide() again —
+        // but WindowInsetsControllerCompat's own state cache makes that hide() a no-op. Sticky
+        // IMMERSIVE (BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE) makes the OS auto-restore fullscreen
+        // after any transient reveal, closing the loop without our involvement.
+        assertEquals(
+            WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE,
+            immersiveSystemBarsBehavior(Build.VERSION_CODES.N_MR1), // API 25 tablet AVD
+        )
+        assertEquals(
+            WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE,
+            immersiveSystemBarsBehavior(Build.VERSION_CODES.Q), // API 29
+        )
     }
 
     @Test
-    fun `focus regain when not immersive does not re-hide bars`() {
+    fun `R plus keeps BEHAVIOR_DEFAULT so side-edge swipes are handled by onBarsRestoredExternally`() {
+        // R+ has a modern WindowInsetsController that reliably re-hides after focus regain via
+        // the focus-tracker path. Keep BEHAVIOR_DEFAULT so the reader's deliberate
+        // "side-edge page-turn swipe stays immersive" logic (onBarsRestoredExternally) still fires.
+        assertEquals(
+            WindowInsetsControllerCompat.BEHAVIOR_DEFAULT,
+            immersiveSystemBarsBehavior(Build.VERSION_CODES.R), // API 30
+        )
+        assertEquals(
+            WindowInsetsControllerCompat.BEHAVIOR_DEFAULT,
+            immersiveSystemBarsBehavior(Build.VERSION_CODES.TIRAMISU), // API 33
+        )
+    }
+
+    @Test
+    fun `focus regain while immersive calls reapplyRaw to bypass the compat cache`() {
+        // Bug: opening a focusable Compose Popup (e.g. HighlightActionsPopup) or a Dialog steals
+        // window focus from the reader; the OS clears the fullscreen flags while the reader Window
+        // is unfocused and reveals the status/nav bars behind the popup. On dismiss the reader
+        // Window regains focus but the OS still shows the bars — WindowInsetsControllerCompat's
+        // own state cache still thinks bars are hidden (it applied the flags earlier), so a
+        // vanilla hide() is a no-op. reapplyRaw() writes the flags directly onto the decor view,
+        // bypassing the cache, so the OS actually re-hides.
+        state.hide()
+
+        state.onWindowFocusChanged(false) // popup opens, reader loses focus
+        assertEquals(0, controller.reapplyRawCount) // loss alone is a signal, not an action
+
+        state.onWindowFocusChanged(true) // popup dismisses, reader regains focus
+        assertEquals(1, controller.reapplyRawCount) // fix path fired
+        assertTrue(state.isImmersive)
+    }
+
+    @Test
+    fun `focus regain when not immersive does not reapply the flags`() {
         // If the user has intentionally exited immersive (tap-to-toggle), a transient focus loss +
         // regain must NOT re-hide the bars — otherwise a popup dismiss would drag the reader back
         // into immersive against the user's will.
@@ -225,19 +262,18 @@ class ImmersiveModeStateTest {
         state.onWindowFocusChanged(false)
         state.onWindowFocusChanged(true)
 
-        assertEquals(0, controller.hideCount)
+        assertEquals(0, controller.reapplyRawCount)
         assertFalse(state.isImmersive)
     }
 
     @Test
     fun `focus loss alone does not touch the controller`() {
-        // Losing focus is a signal, not an action: we only re-hide on regain.
+        // Losing focus is a signal, not an action: we only reapply on regain.
         state.hide()
-        controller.hideCount = 0
 
         state.onWindowFocusChanged(false)
 
-        assertEquals(0, controller.hideCount)
+        assertEquals(0, controller.reapplyRawCount)
     }
 
     @Test
