@@ -80,7 +80,15 @@ class HighlightsPublicationFactory @Inject constructor() {
         }
 
         val manifest = Manifest(
-            metadata = Metadata(localizedTitle = LocalizedString(bookTitle ?: "Annotations")),
+            // conformsTo = EPUB is load-bearing (ADR 0041 follow-up): WebViewServer only invokes
+            // Readium's HtmlInjector — which registers the WebView tap listener that drives
+            // immersive-mode toggle AND injects ReadiumCSS-before/default/after — when the
+            // publication conforms to the EPUB profile. Without it, our synthesised chapters
+            // load into a raw WebView with no tap dispatch and no CSS.
+            metadata = Metadata(
+                conformsTo = setOf(Publication.Profile.EPUB),
+                localizedTitle = LocalizedString(bookTitle ?: "Annotations"),
+            ),
             readingOrder = readingOrder,
             tableOfContents = readingOrder,
         )
