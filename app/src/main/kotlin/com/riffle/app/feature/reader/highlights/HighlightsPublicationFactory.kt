@@ -1,6 +1,8 @@
 package com.riffle.app.feature.reader.highlights
 
+import com.riffle.app.feature.reader.toCssRgba
 import com.riffle.core.database.AnnotationEntity
+import com.riffle.core.domain.HighlightColor
 import javax.inject.Inject
 import org.readium.r2.shared.publication.Link
 import org.readium.r2.shared.publication.LocalizedString
@@ -94,14 +96,18 @@ class HighlightsPublicationFactory @Inject constructor() {
             for (highlight in chapter.highlights) {
                 append("  <p class=\"riffle-hl\" data-ann-id=\"")
                 append(highlight.id.xmlEscape())
-                append("\">")
+                append("\" style=\"background-color: ")
+                append(highlightBackgroundCss(highlight.color))
+                append(";\">")
                 append(highlight.textSnippet.xmlEscape())
                 append("</p>\n")
                 val note = highlight.note
                 if (note != null) {
                     append("  <aside class=\"riffle-note\" data-ann-id=\"")
                     append(highlight.id.xmlEscape())
-                    append("\">")
+                    append("\" style=\"background-color: ")
+                    append(NOTE_BACKGROUND_CSS)
+                    append(";\">")
                     append(note.xmlEscape())
                     append("</aside>\n")
                 }
@@ -118,6 +124,26 @@ class HighlightsPublicationFactory @Inject constructor() {
         """.trimMargin()
     }
 }
+
+/**
+ * Guaranteed-visible background paint for a synthesised `<p class="riffle-hl">` (Fix A,
+ * ADR 0041 follow-up). Long or punctuated snippets can fail Readium's text-matched
+ * [org.readium.r2.shared.publication.Locator.Text] decoration (see
+ * [HighlightsPublicationFactory]'s KDoc for the rendering path this backs up), leaving the
+ * paragraph unpainted. Inline CSS is format-independent and never depends on Readium's decoration
+ * tap-matching, so it paints every highlight regardless of snippet shape — the decoration overlay
+ * (kept for tap-to-edit dispatch) stacks on top of the *same* colour, so the two cooperate visually
+ * instead of conflicting. Reuses [HighlightColor] — the single-source palette shared by the
+ * highlight decoration renderers (see [com.riffle.app.feature.reader.ContinuousHighlightRenderer],
+ * [com.riffle.app.feature.reader.ReadiumHighlightRenderer]) — rather than a hardcoded hex table, so
+ * a palette change here can't drift from what the rest of the reader paints.
+ */
+private fun highlightBackgroundCss(colorToken: String): String =
+    HighlightColor.fromToken(colorToken).argb.toCssRgba()
+
+/** Paler, neutral background for a highlight's note `<aside>` — distinguishes it from the highlight
+ * paragraph above it without introducing a second colour token. */
+private const val NOTE_BACKGROUND_CSS = "#f5f5f5"
 
 private fun String.xmlEscape(): String =
     replace("&", "&amp;")
