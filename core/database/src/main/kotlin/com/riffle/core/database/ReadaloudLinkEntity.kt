@@ -11,41 +11,41 @@ import androidx.room.Index
  * conceptual work. A readaloud can point at *many* ABS items though, because the same
  * conceptual book often lives in two ABS libraries simultaneously (a Books-library ebook
  * and an Audiobooks-library audiobook stub of the same title+author). The primary key is
- * therefore the ABS side; the (storytellerServerId, storytellerBookId) pair is indexed but
+ * therefore the ABS side; the (storytellerSourceId, storytellerBookId) pair is indexed but
  * not unique.
  *
- * Both server columns FK-cascade to `servers.id` so the row disappears automatically when
- * either side's Server is removed.
+ * Both source columns FK-cascade to `sources.id` so the row disappears automatically when
+ * either side's Source is removed.
  *
  * `state` is forward-compat with [ADR 0021]'s Pending/Unmatched states; in this slice only
  * Confirmed rows are persisted.
  */
 @Entity(
     tableName = "readaloud_links",
-    primaryKeys = ["absServerId", "absLibraryItemId"],
+    primaryKeys = ["absSourceId", "absLibraryItemId"],
     foreignKeys = [
         ForeignKey(
-            entity = ServerEntity::class,
+            entity = SourceEntity::class,
             parentColumns = ["id"],
-            childColumns = ["storytellerServerId"],
+            childColumns = ["storytellerSourceId"],
             onDelete = ForeignKey.CASCADE,
         ),
         ForeignKey(
-            entity = ServerEntity::class,
+            entity = SourceEntity::class,
             parentColumns = ["id"],
-            childColumns = ["absServerId"],
+            childColumns = ["absSourceId"],
             onDelete = ForeignKey.CASCADE,
         ),
     ],
     indices = [
-        Index(value = ["storytellerServerId", "storytellerBookId"]),
-        Index(value = ["storytellerServerId"]),
+        Index(value = ["storytellerSourceId", "storytellerBookId"]),
+        Index(value = ["storytellerSourceId"]),
     ],
 )
 data class ReadaloudLinkEntity(
-    val absServerId: String,
+    val absSourceId: String,
     val absLibraryItemId: String,
-    val storytellerServerId: String,
+    val storytellerSourceId: String,
     val storytellerBookId: String,
     val state: String = STATE_CONFIRMED,
     val userConfirmed: Boolean,

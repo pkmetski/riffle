@@ -25,9 +25,9 @@ class AudiobookBookmarkDaoTest {
             RiffleDatabase::class.java,
         ).allowMainThreadQueries().build()
         dao = db.audiobookBookmarkDao()
-        // audiobook_bookmarks.serverId is a FK to servers(id) (ON DELETE CASCADE); seed it first.
-        db.serverDao().upsert(
-            ServerEntity("s1", "http://s1", isActive = true, insecureConnectionAllowed = false, username = "u"),
+        // audiobook_bookmarks.sourceId is a FK to servers(id) (ON DELETE CASCADE); seed it first.
+        db.sourceDao().upsert(
+            SourceEntity("s1", "http://s1", isActive = true, insecureConnectionAllowed = false, username = "u"),
         )
     }
 

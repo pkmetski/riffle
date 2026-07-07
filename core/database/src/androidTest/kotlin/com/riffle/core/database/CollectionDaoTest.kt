@@ -32,7 +32,7 @@ class CollectionDaoTest {
         dao = db.collectionDao()
         // library_items FK-references servers; seed the owning Server first.
         runBlocking {
-            db.serverDao().upsert(ServerEntity("s1", "http://s1", isActive = true, insecureConnectionAllowed = false, username = "u"))
+            db.sourceDao().upsert(SourceEntity("s1", "http://s1", isActive = true, insecureConnectionAllowed = false, username = "u"))
         }
     }
 
@@ -73,16 +73,16 @@ class CollectionDaoTest {
     @Test
     fun observeItemsByCollectionId_returnsItemsInTitleOrder() = runTest {
         val items = listOf(
-            LibraryItemEntity(serverId = "s1", id = "item-z", libraryId = "lib1", title = "Zorro", author = "Author", coverUrl = null, readingProgress = 0f),
-            LibraryItemEntity(serverId = "s1", id = "item-a", libraryId = "lib1", title = "Asimov", author = "Author", coverUrl = null, readingProgress = 0f),
-            LibraryItemEntity(serverId = "s1", id = "item-m", libraryId = "lib1", title = "Middle", author = "Author", coverUrl = null, readingProgress = 0f),
+            LibraryItemEntity(sourceId = "s1", id = "item-z", libraryId = "lib1", title = "Zorro", author = "Author", coverUrl = null, readingProgress = 0f),
+            LibraryItemEntity(sourceId = "s1", id = "item-a", libraryId = "lib1", title = "Asimov", author = "Author", coverUrl = null, readingProgress = 0f),
+            LibraryItemEntity(sourceId = "s1", id = "item-m", libraryId = "lib1", title = "Middle", author = "Author", coverUrl = null, readingProgress = 0f),
         )
         db.libraryItemDao().upsertAll(items)
         dao.upsertAll(listOf(collection("c1")))
         dao.upsertAllItems(listOf(
-            CollectionItemEntity("c1", serverId = "s1", itemId = "item-z"),
-            CollectionItemEntity("c1", serverId = "s1", itemId = "item-a"),
-            CollectionItemEntity("c1", serverId = "s1", itemId = "item-m"),
+            CollectionItemEntity("c1", sourceId = "s1", itemId = "item-z"),
+            CollectionItemEntity("c1", sourceId = "s1", itemId = "item-a"),
+            CollectionItemEntity("c1", sourceId = "s1", itemId = "item-m"),
         ))
 
         val result = dao.observeItemsByCollectionId("s1", "c1").first()

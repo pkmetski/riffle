@@ -7,8 +7,8 @@ import androidx.room.Query
 
 @Dao
 interface AudiobookChapterCacheDao {
-    @Query("SELECT * FROM audiobook_chapter_cache WHERE serverId = :serverId AND itemId = :itemId LIMIT 1")
-    suspend fun get(serverId: String, itemId: String): AudiobookChapterCacheEntity?
+    @Query("SELECT * FROM audiobook_chapter_cache WHERE sourceId = :sourceId AND itemId = :itemId LIMIT 1")
+    suspend fun get(sourceId: String, itemId: String): AudiobookChapterCacheEntity?
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsert(entity: AudiobookChapterCacheEntity)

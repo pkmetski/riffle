@@ -7,7 +7,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 
 @Database(
     entities = [
-        ServerEntity::class,
+        SourceEntity::class,
         LibraryEntity::class,
         LibraryItemEntity::class,
         SeriesEntity::class,
@@ -28,11 +28,11 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         TocCacheEntity::class,
         AudiobookChapterCacheEntity::class,
     ],
-    version = 43,
+    version = 44,
     exportSchema = true,
 )
 abstract class RiffleDatabase : RoomDatabase() {
-    abstract fun serverDao(): ServerDao
+    abstract fun sourceDao(): SourceDao
     abstract fun libraryDao(): LibraryDao
     abstract fun libraryItemDao(): LibraryItemDao
     abstract fun seriesDao(): SeriesDao

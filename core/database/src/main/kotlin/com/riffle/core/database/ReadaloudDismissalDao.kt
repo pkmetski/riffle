@@ -20,26 +20,26 @@ interface ReadaloudDismissalDao {
 
     @Query(
         "SELECT * FROM readaloud_dismissals " +
-            "WHERE storytellerServerId = :storytellerServerId AND storytellerBookId = :storytellerBookId"
+            "WHERE storytellerSourceId = :storytellerSourceId AND storytellerBookId = :storytellerBookId"
     )
     suspend fun findByStorytellerBook(
-        storytellerServerId: String,
+        storytellerSourceId: String,
         storytellerBookId: String,
     ): List<ReadaloudDismissalEntity>
 
     /** True when the user chose "No match — don't ask again" for this readaloud. */
     @Query(
         "SELECT COUNT(*) > 0 FROM readaloud_dismissals " +
-            "WHERE storytellerServerId = :storytellerServerId AND storytellerBookId = :storytellerBookId " +
+            "WHERE storytellerSourceId = :storytellerSourceId AND storytellerBookId = :storytellerBookId " +
             "AND scope = '" + "BOOK" + "'"
     )
-    suspend fun isBookDismissed(storytellerServerId: String, storytellerBookId: String): Boolean
+    suspend fun isBookDismissed(storytellerSourceId: String, storytellerBookId: String): Boolean
 
     /** Undo a per-book "don't ask again" so the matcher can re-evaluate it. */
     @Query(
         "DELETE FROM readaloud_dismissals " +
-            "WHERE storytellerServerId = :storytellerServerId AND storytellerBookId = :storytellerBookId " +
+            "WHERE storytellerSourceId = :storytellerSourceId AND storytellerBookId = :storytellerBookId " +
             "AND scope = '" + "BOOK" + "'"
     )
-    suspend fun clearBookDismissal(storytellerServerId: String, storytellerBookId: String)
+    suspend fun clearBookDismissal(storytellerSourceId: String, storytellerBookId: String)
 }

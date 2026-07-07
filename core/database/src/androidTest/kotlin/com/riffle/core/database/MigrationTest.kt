@@ -1789,7 +1789,7 @@ class MigrationTest {
         }
 
         val db = helper.runMigrationsAndValidate(
-            TEST_DB, 43, true,
+            TEST_DB, 44, true,
             RiffleDatabase.MIGRATION_1_2,
             RiffleDatabase.MIGRATION_2_3,
             RiffleDatabase.MIGRATION_3_4,
@@ -1832,15 +1832,17 @@ class MigrationTest {
             RiffleDatabase.MIGRATION_40_41,
             RiffleDatabase.MIGRATION_41_42,
             RiffleDatabase.MIGRATION_42_43,
+            RiffleDatabase.MIGRATION_43_44,
         )
 
-        db.query("SELECT url, username, serverType, absUserId FROM servers WHERE id = 's1'").use { cursor ->
+        db.query("SELECT url, username, serverType, absUserId, type FROM sources WHERE id = 's1'").use { cursor ->
             assertEquals(1, cursor.count)
             cursor.moveToFirst()
             assertEquals("http://localhost", cursor.getString(0))
             assertEquals("", cursor.getString(1))
             assertEquals("AUDIOBOOKSHELF", cursor.getString(2))
-            assertTrue("legacy rows reach v43 with absUserId still NULL", cursor.isNull(3))
+            assertTrue("legacy rows reach v44 with absUserId still NULL", cursor.isNull(3))
+            assertEquals("ABS", cursor.getString(4))
         }
     }
 

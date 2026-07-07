@@ -2,11 +2,11 @@ package com.riffle.core.database
 
 import androidx.room.Entity
 
-// serverId disambiguates colliding item ids across Servers (ADR 0025); a collection is library-
-// (hence server-) scoped, so serverId is the owning library's server.
-@Entity(tableName = "collection_items", primaryKeys = ["collectionId", "serverId", "itemId"])
+// sourceId disambiguates colliding item ids across Sources (ADR 0025); a collection is library-
+// (hence source-) scoped, so sourceId is the owning library's source.
+@Entity(tableName = "collection_items", primaryKeys = ["collectionId", "sourceId", "itemId"])
 data class CollectionItemEntity(
     val collectionId: String,
-    val serverId: String,
+    val sourceId: String,
     val itemId: String,
 )

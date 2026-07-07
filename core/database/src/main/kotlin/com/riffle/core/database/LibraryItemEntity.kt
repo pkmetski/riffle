@@ -4,23 +4,23 @@ import androidx.room.Entity
 import androidx.room.ForeignKey
 import androidx.room.Index
 
-// Keyed by (serverId, id): item ids are only unique within a Server — two Storyteller Servers
-// each emit "1", "2", … (ADR 0025). serverId FK-cascades so removing a Server clears its items.
+// Keyed by (sourceId, id): item ids are only unique within a Source — two Storyteller Sources
+// each emit "1", "2", … (ADR 0025). sourceId FK-cascades so removing a Source clears its items.
 @Entity(
     tableName = "library_items",
-    primaryKeys = ["serverId", "id"],
+    primaryKeys = ["sourceId", "id"],
     foreignKeys = [
         ForeignKey(
-            entity = ServerEntity::class,
+            entity = SourceEntity::class,
             parentColumns = ["id"],
-            childColumns = ["serverId"],
+            childColumns = ["sourceId"],
             onDelete = ForeignKey.CASCADE,
         ),
     ],
-    indices = [Index("serverId")],
+    indices = [Index("sourceId")],
 )
 data class LibraryItemEntity(
-    val serverId: String,
+    val sourceId: String,
     val id: String,
     val libraryId: String,
     val title: String,

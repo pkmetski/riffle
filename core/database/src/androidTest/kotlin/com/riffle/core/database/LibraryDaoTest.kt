@@ -29,8 +29,8 @@ class LibraryDaoTest {
         dao = db.libraryDao()
         // libraries FK-references servers; seed the owning Servers first.
         runBlocking {
-            db.serverDao().upsert(ServerEntity("s1", "http://s1", isActive = true, insecureConnectionAllowed = false, username = "u"))
-            db.serverDao().upsert(ServerEntity("s2", "http://s2", isActive = false, insecureConnectionAllowed = false, username = "u"))
+            db.sourceDao().upsert(SourceEntity("s1", "http://s1", isActive = true, insecureConnectionAllowed = false, username = "u"))
+            db.sourceDao().upsert(SourceEntity("s2", "http://s2", isActive = false, insecureConnectionAllowed = false, username = "u"))
         }
     }
 
@@ -39,8 +39,8 @@ class LibraryDaoTest {
         db.close()
     }
 
-    private fun library(id: String, serverId: String, name: String = "Library $id", mediaType: String = "book") =
-        LibraryEntity(id = id, name = name, mediaType = mediaType, serverId = serverId)
+    private fun library(id: String, sourceId: String, name: String = "Library $id", mediaType: String = "book") =
+        LibraryEntity(id = id, name = name, mediaType = mediaType, sourceId = sourceId)
 
     // Two Servers pointing at the same Audiobookshelf instance (issue #113) emit identical
     // library ids — they are unique only within an instance. Both rows must coexist, each owned

@@ -14,32 +14,32 @@ interface AudiobookBookmarkDao {
 
     /** Live, user-visible bookmarks for an item: non-deleted, earliest position first. */
     @Query(
-        "SELECT * FROM audiobook_bookmarks WHERE serverId = :serverId AND itemId = :itemId AND deleted = 0 " +
+        "SELECT * FROM audiobook_bookmarks WHERE sourceId = :sourceId AND itemId = :itemId AND deleted = 0 " +
             "ORDER BY positionSec ASC",
     )
-    fun observeForItem(serverId: String, itemId: String): Flow<List<AudiobookBookmarkEntity>>
+    fun observeForItem(sourceId: String, itemId: String): Flow<List<AudiobookBookmarkEntity>>
 
-    /** Live, non-deleted bookmarks across an entire server — for library-wide search. */
-    @Query("SELECT * FROM audiobook_bookmarks WHERE serverId = :serverId AND deleted = 0 ORDER BY positionSec ASC")
-    fun observeForServer(serverId: String): Flow<List<AudiobookBookmarkEntity>>
+    /** Live, non-deleted bookmarks across an entire source — for library-wide search. */
+    @Query("SELECT * FROM audiobook_bookmarks WHERE sourceId = :sourceId AND deleted = 0 ORDER BY positionSec ASC")
+    fun observeForServer(sourceId: String): Flow<List<AudiobookBookmarkEntity>>
 
     @Query("SELECT * FROM audiobook_bookmarks WHERE id = :id LIMIT 1")
     suspend fun getById(id: String): AudiobookBookmarkEntity?
 
     /** All rows for an item including tombstones (reconcile needs deletes). */
-    @Query("SELECT * FROM audiobook_bookmarks WHERE serverId = :serverId AND itemId = :itemId")
-    suspend fun allForItem(serverId: String, itemId: String): List<AudiobookBookmarkEntity>
+    @Query("SELECT * FROM audiobook_bookmarks WHERE sourceId = :sourceId AND itemId = :itemId")
+    suspend fun allForItem(sourceId: String, itemId: String): List<AudiobookBookmarkEntity>
 
-    /** Dirty rows for a server (creates, renames, AND tombstoned deletes). */
-    @Query("SELECT * FROM audiobook_bookmarks WHERE serverId = :serverId AND localUpdatedAt > lastSyncedAt")
-    suspend fun dirtyForServer(serverId: String): List<AudiobookBookmarkEntity>
+    /** Dirty rows for a source (creates, renames, AND tombstoned deletes). */
+    @Query("SELECT * FROM audiobook_bookmarks WHERE sourceId = :sourceId AND localUpdatedAt > lastSyncedAt")
+    suspend fun dirtyForServer(sourceId: String): List<AudiobookBookmarkEntity>
 
-    @Query("SELECT DISTINCT serverId FROM audiobook_bookmarks WHERE localUpdatedAt > lastSyncedAt")
+    @Query("SELECT DISTINCT sourceId FROM audiobook_bookmarks WHERE localUpdatedAt > lastSyncedAt")
     suspend fun serversWithDirtyRows(): List<String>
 
     /** Live count of unsynced (dirty) rows for an item — drives the "Offline — will sync" note. */
-    @Query("SELECT COUNT(*) FROM audiobook_bookmarks WHERE serverId = :serverId AND itemId = :itemId AND localUpdatedAt > lastSyncedAt")
-    fun observeDirtyCountForItem(serverId: String, itemId: String): Flow<Int>
+    @Query("SELECT COUNT(*) FROM audiobook_bookmarks WHERE sourceId = :sourceId AND itemId = :itemId AND localUpdatedAt > lastSyncedAt")
+    fun observeDirtyCountForItem(sourceId: String, itemId: String): Flow<Int>
 
     /** Mark clean after a successful push, only if untouched since (compare-and-clear, ADR 0030). */
     @Query(

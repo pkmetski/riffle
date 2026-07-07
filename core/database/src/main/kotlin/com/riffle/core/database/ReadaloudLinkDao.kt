@@ -12,16 +12,16 @@ interface ReadaloudLinkDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsert(entity: ReadaloudLinkEntity)
 
-    /** PK lookup — at most one row per (absServerId, absLibraryItemId). */
-    @Query("SELECT * FROM readaloud_links WHERE absServerId = :absServerId AND absLibraryItemId = :absLibraryItemId LIMIT 1")
-    suspend fun findByAbsItem(absServerId: String, absLibraryItemId: String): ReadaloudLinkEntity?
+    /** PK lookup — at most one row per (absSourceId, absLibraryItemId). */
+    @Query("SELECT * FROM readaloud_links WHERE absSourceId = :absSourceId AND absLibraryItemId = :absLibraryItemId LIMIT 1")
+    suspend fun findByAbsItem(absSourceId: String, absLibraryItemId: String): ReadaloudLinkEntity?
 
     /** A Storyteller readaloud can be linked from multiple ABS items (ebook + audiobook). */
     @Query(
         "SELECT * FROM readaloud_links " +
-            "WHERE storytellerServerId = :storytellerServerId AND storytellerBookId = :storytellerBookId"
+            "WHERE storytellerSourceId = :storytellerSourceId AND storytellerBookId = :storytellerBookId"
     )
-    suspend fun findByStorytellerBook(storytellerServerId: String, storytellerBookId: String): List<ReadaloudLinkEntity>
+    suspend fun findByStorytellerBook(storytellerSourceId: String, storytellerBookId: String): List<ReadaloudLinkEntity>
 
     @Query("SELECT * FROM readaloud_links")
     fun observeAll(): Flow<List<ReadaloudLinkEntity>>
@@ -34,21 +34,21 @@ interface ReadaloudLinkDao {
     @Query("SELECT absLibraryItemId FROM readaloud_links")
     fun observeLinkedAbsItemIds(): Flow<List<String>>
 
-    @Query("SELECT COUNT(*) FROM readaloud_links WHERE storytellerServerId = :serverId OR absServerId = :serverId")
-    suspend fun countForServer(serverId: String): Int
+    @Query("SELECT COUNT(*) FROM readaloud_links WHERE storytellerSourceId = :sourceId OR absSourceId = :sourceId")
+    suspend fun countForServer(sourceId: String): Int
 
     /** Unlink a specific ABS item from its readaloud. */
-    @Query("DELETE FROM readaloud_links WHERE absServerId = :absServerId AND absLibraryItemId = :absLibraryItemId")
-    suspend fun deleteByAbsItem(absServerId: String, absLibraryItemId: String)
+    @Query("DELETE FROM readaloud_links WHERE absSourceId = :absSourceId AND absLibraryItemId = :absLibraryItemId")
+    suspend fun deleteByAbsItem(absSourceId: String, absLibraryItemId: String)
 
     /** Unlink every ABS item that was paired with this readaloud. */
     @Query(
         "DELETE FROM readaloud_links " +
-            "WHERE storytellerServerId = :storytellerServerId AND storytellerBookId = :storytellerBookId"
+            "WHERE storytellerSourceId = :storytellerSourceId AND storytellerBookId = :storytellerBookId"
     )
-    suspend fun deleteByStorytellerBook(storytellerServerId: String, storytellerBookId: String)
+    suspend fun deleteByStorytellerBook(storytellerSourceId: String, storytellerBookId: String)
 
     /** Persist the streaming identity verdict for an ABS item (ADR 0028). */
-    @Query("UPDATE readaloud_links SET identityResult = :result WHERE absServerId = :absServerId AND absLibraryItemId = :absLibraryItemId")
-    suspend fun updateIdentityResult(absServerId: String, absLibraryItemId: String, result: String)
+    @Query("UPDATE readaloud_links SET identityResult = :result WHERE absSourceId = :absSourceId AND absLibraryItemId = :absLibraryItemId")
+    suspend fun updateIdentityResult(absSourceId: String, absLibraryItemId: String, result: String)
 }

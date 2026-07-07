@@ -11,35 +11,35 @@ import androidx.room.Index
  *
  * Keyed on the full (Storyteller, ABS) pair because a single readaloud can have several
  * fuzzy candidates and a single ABS item could (in principle) be a candidate for more than
- * one readaloud. Both server columns FK-cascade to `servers.id` so candidates vanish when
- * either side's Server is removed.
+ * one readaloud. Both source columns FK-cascade to `sources.id` so candidates vanish when
+ * either side's Source is removed.
  */
 @Entity(
     tableName = "readaloud_candidates",
-    primaryKeys = ["storytellerServerId", "storytellerBookId", "absServerId", "absLibraryItemId"],
+    primaryKeys = ["storytellerSourceId", "storytellerBookId", "absSourceId", "absLibraryItemId"],
     foreignKeys = [
         ForeignKey(
-            entity = ServerEntity::class,
+            entity = SourceEntity::class,
             parentColumns = ["id"],
-            childColumns = ["storytellerServerId"],
+            childColumns = ["storytellerSourceId"],
             onDelete = ForeignKey.CASCADE,
         ),
         ForeignKey(
-            entity = ServerEntity::class,
+            entity = SourceEntity::class,
             parentColumns = ["id"],
-            childColumns = ["absServerId"],
+            childColumns = ["absSourceId"],
             onDelete = ForeignKey.CASCADE,
         ),
     ],
     indices = [
         // The storyteller FK is covered by the PK prefix; the ABS FK needs its own index.
-        Index(value = ["absServerId"]),
+        Index(value = ["absSourceId"]),
     ],
 )
 data class ReadaloudCandidateEntity(
-    val storytellerServerId: String,
+    val storytellerSourceId: String,
     val storytellerBookId: String,
-    val absServerId: String,
+    val absSourceId: String,
     val absLibraryItemId: String,
     val score: Double,
 )

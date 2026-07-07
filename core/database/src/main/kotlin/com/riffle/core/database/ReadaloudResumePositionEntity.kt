@@ -5,24 +5,24 @@ import androidx.room.ForeignKey
 import androidx.room.Index
 
 /**
- * Per-device readaloud resume position, keyed by the reader's (serverId, itemId). Mirrors
- * [ReadingPositionEntity]'s keying and CASCADE so deleting a server cleans up its rows. Never synced.
+ * Per-device readaloud resume position, keyed by the reader's (sourceId, itemId). Mirrors
+ * [ReadingPositionEntity]'s keying and CASCADE so deleting a source cleans up its rows. Never synced.
  */
 @Entity(
     tableName = "readaloud_resume_positions",
-    primaryKeys = ["serverId", "itemId"],
+    primaryKeys = ["sourceId", "itemId"],
     foreignKeys = [
         ForeignKey(
-            entity = ServerEntity::class,
+            entity = SourceEntity::class,
             parentColumns = ["id"],
-            childColumns = ["serverId"],
+            childColumns = ["sourceId"],
             onDelete = ForeignKey.CASCADE,
         ),
     ],
-    indices = [Index("serverId")],
+    indices = [Index("sourceId")],
 )
 data class ReadaloudResumePositionEntity(
-    val serverId: String,
+    val sourceId: String,
     val itemId: String,
     val href: String,
     val progression: Double?,

@@ -3,8 +3,8 @@ package com.riffle.core.database
 import androidx.room.Entity
 import androidx.room.PrimaryKey
 
-@Entity(tableName = "servers")
-data class ServerEntity(
+@Entity(tableName = "sources")
+data class SourceEntity(
     @PrimaryKey val id: String,
     val url: String,
     val isActive: Boolean,
@@ -19,4 +19,5 @@ data class ServerEntity(
      * before this column existed — backfilled lazily on the next successful `/api/me` call.
      */
     val absUserId: String? = null,
+    val type: String = "ABS",
 )
