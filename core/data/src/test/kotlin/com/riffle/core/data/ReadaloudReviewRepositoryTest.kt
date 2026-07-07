@@ -288,16 +288,16 @@ class ReadaloudReviewRepositoryTest {
     }
 
     @Test
-    fun `searchAbsItems scoped to one ABS Server omits items from a sibling ABS account`() = runTest {
+    fun `searchAbsItems scoped to one ABS Source omits items from a sibling ABS account`() = runTest {
         // Two ABS Servers pointing at the same library (e.g. two accounts on one ABS instance)
         // share library_item ids, so the unscoped picker would surface each book twice — once per
-        // Server config — even though the books are visually identical. The picker now scopes to
-        // a single absServerId; the sibling account's copy must not appear.
+        // Source config — even though the books are visually identical. The picker now scopes to
+        // a single absSourceId; the sibling account's copy must not appear.
         val items = MatchableLibraryItemDao(
             listOf(
-                absCombined("X").copy(serverId = "abs-A"),
-                absCombined("X").copy(serverId = "abs-B"),
-                absCombined("Y").copy(serverId = "abs-A"),
+                absCombined("X").copy(sourceId = "abs-A"),
+                absCombined("X").copy(sourceId = "abs-B"),
+                absCombined("Y").copy(sourceId = "abs-A"),
             ),
             absServerIds = setOf("abs-A", "abs-B"),
             storytellerServerIds = emptySet(),
@@ -307,13 +307,13 @@ class ReadaloudReviewRepositoryTest {
         val result = repo.searchAbsItems("abs-A", "")
 
         assertEquals(setOf("X", "Y"), result.map { it.absLibraryItemId }.toSet())
-        assertTrue("every result must belong to the scoped Server", result.all { it.absServerId == "abs-A" })
+        assertTrue("every result must belong to the scoped Source", result.all { it.absSourceId == "abs-A" })
     }
 
     @Test
-    fun `searchAbsItems returns empty when absServerId is empty`() = runTest {
-        // No active ABS Server (e.g. only Storyteller is configured) must not silently fan out
-        // across every ABS Server — the picker should show "no results" so a manual link can't
+    fun `searchAbsItems returns empty when absSourceId is empty`() = runTest {
+        // No active ABS Source (e.g. only Storyteller is configured) must not silently fan out
+        // across every ABS Source — the picker should show "no results" so a manual link can't
         // bind a readaloud to an unrelated account.
         val repo = repo(RecordingLinkDao(), RecordingCandidateDao(), libraryItemDao = absSearchDao())
 
@@ -321,15 +321,15 @@ class ReadaloudReviewRepositoryTest {
     }
 
     @Test
-    fun `observeReview pending candidates are scoped to the chosen ABS Server`() = runTest {
+    fun `observeReview pending candidates are scoped to the chosen ABS Source`() = runTest {
         // The auto-matcher writes one candidate row per (storyteller book, ABS item). When two
         // ABS accounts share the library, the same storyteller book gets a candidate against each
-        // Server's copy. Surfacing both would show duplicate "Suggested" candidates — the screen
-        // scopes pending to a single ABS Server.
+        // Source's copy. Surfacing both would show duplicate "Suggested" candidates — the screen
+        // scopes pending to a single ABS Source.
         val items = MatchableLibraryItemDao(
             listOf(
-                absCombined("X").copy(serverId = "abs-A"),
-                absCombined("X").copy(serverId = "abs-B"),
+                absCombined("X").copy(sourceId = "abs-A"),
+                absCombined("X").copy(sourceId = "abs-B"),
                 storytellerBook("42"),
             ),
             absServerIds = setOf("abs-A", "abs-B"),
@@ -341,21 +341,21 @@ class ReadaloudReviewRepositoryTest {
         }
         val repo = repo(RecordingLinkDao(), candidates, libraryItemDao = items)
 
-        val pending = repo.observeReview("st", absServerId = "abs-A").first().pending.single()
+        val pending = repo.observeReview("st", absSourceId = "abs-A").first().pending.single()
 
-        assertEquals(listOf("abs-A"), pending.candidates.map { it.absServerId })
+        assertEquals(listOf("abs-A"), pending.candidates.map { it.absSourceId })
     }
 
     @Test
-    fun `observeReview confirmed targets are scoped to the chosen ABS Server`() = runTest {
-        // Each ABS account (= one server+login) shows its own self-contained match set so a
+    fun `observeReview confirmed targets are scoped to the chosen ABS Source`() = runTest {
+        // Each ABS account (= one source+login) shows its own self-contained match set so a
         // readaloud auto-matched against the same title on two ABS accounts doesn't pile their
         // links into one card ("2 ebook + 2 audiobook" per match). Switching the active ABS
         // account flips the visible set; the sibling account's links remain in the DB.
         val items = MatchableLibraryItemDao(
             listOf(
-                absCombined("X").copy(serverId = "abs-A"),
-                absCombined("X").copy(serverId = "abs-B"),
+                absCombined("X").copy(sourceId = "abs-A"),
+                absCombined("X").copy(sourceId = "abs-B"),
                 storytellerBook("42"),
             ),
             absServerIds = setOf("abs-A", "abs-B"),
@@ -367,9 +367,9 @@ class ReadaloudReviewRepositoryTest {
         }
         val repo = repo(links, RecordingCandidateDao(), libraryItemDao = items)
 
-        val confirmed = repo.observeReview("st", absServerId = "abs-A").first().confirmed.single()
+        val confirmed = repo.observeReview("st", absSourceId = "abs-A").first().confirmed.single()
 
-        assertEquals(setOf("abs-A"), confirmed.targets.map { it.absServerId }.toSet())
+        assertEquals(setOf("abs-A"), confirmed.targets.map { it.absSourceId }.toSet())
     }
 
     private fun absSearchDao() = MatchableLibraryItemDao(
@@ -390,22 +390,22 @@ class ReadaloudReviewRepositoryTest {
     private fun storytellerBook(id: String) =
         LibraryItemEntity("st", id, "lib", "Book $id", "Author", null, 0f)
 
-    /** A [LibraryItemDao] backing both `getById` lookups and `listMatchableByServerType` scans. */
+    /** A [LibraryItemDao] backing both `getById` lookups and `listMatchableBySourceType` scans. */
     private class MatchableLibraryItemDao(
         private val items: List<LibraryItemEntity>,
         private val absServerIds: Set<String>,
         private val storytellerServerIds: Set<String>,
     ) : LibraryItemDao by ThrowingLibraryItemDao {
-        override suspend fun getById(serverId: String, itemId: String) =
-            items.firstOrNull { it.serverId == serverId && it.id == itemId }
-        override suspend fun listMatchableByServerType(serverType: String): List<MatchableItemRow> {
+        override suspend fun getById(sourceId: String, itemId: String) =
+            items.firstOrNull { it.sourceId == sourceId && it.id == itemId }
+        override suspend fun listMatchableBySourceType(serverType: String): List<MatchableItemRow> {
             val serverIds = when (serverType) {
                 ServerType.AUDIOBOOKSHELF.name -> absServerIds
                 ServerType.STORYTELLER.name -> storytellerServerIds
                 else -> emptySet()
             }
-            return items.filter { it.serverId in serverIds }
-                .map { MatchableItemRow(it.id, it.serverId, it.title, it.author, null, null) }
+            return items.filter { it.sourceId in serverIds }
+                .map { MatchableItemRow(it.id, it.sourceId, it.title, it.author, null, null) }
         }
     }
 
@@ -442,34 +442,34 @@ class ReadaloudReviewRepositoryTest {
         private val impl: ReadaloudReviewRepositoryImpl,
         private val actions: com.riffle.core.domain.usecase.ReadaloudReviewActions,
     ) {
-        fun observeReview(storytellerServerId: String, absServerId: String? = null) =
-            impl.observeReview(storytellerServerId, absServerId)
-        suspend fun searchAbsItems(absServerId: String, query: String, filter: AbsFormatFilter = AbsFormatFilter.ANY) =
-            impl.searchAbsItems(absServerId, query, filter)
-        suspend fun confirmCandidate(storytellerServerId: String, storytellerBookId: String, absServerId: String, absLibraryItemId: String) =
-            actions.confirmCandidate(storytellerServerId, storytellerBookId, absServerId, absLibraryItemId)
-        suspend fun dismissCandidate(storytellerServerId: String, storytellerBookId: String, absServerId: String, absLibraryItemId: String) =
-            actions.dismissCandidate(storytellerServerId, storytellerBookId, absServerId, absLibraryItemId)
-        suspend fun dismissBook(storytellerServerId: String, storytellerBookId: String) =
-            actions.dismissBook(storytellerServerId, storytellerBookId)
-        suspend fun unlinkBook(storytellerServerId: String, storytellerBookId: String) =
-            actions.unlinkBook(storytellerServerId, storytellerBookId)
-        suspend fun unlinkAbsItem(absServerId: String, absLibraryItemId: String) =
-            actions.unlinkAbsItem(absServerId, absLibraryItemId)
-        suspend fun pairManually(storytellerServerId: String, storytellerBookId: String, absServerId: String, absLibraryItemId: String) =
-            actions.pairManually(storytellerServerId, storytellerBookId, absServerId, absLibraryItemId)
+        fun observeReview(storytellerSourceId: String, absSourceId: String? = null) =
+            impl.observeReview(storytellerSourceId, absSourceId)
+        suspend fun searchAbsItems(absSourceId: String, query: String, filter: AbsFormatFilter = AbsFormatFilter.ANY) =
+            impl.searchAbsItems(absSourceId, query, filter)
+        suspend fun confirmCandidate(storytellerSourceId: String, storytellerBookId: String, absSourceId: String, absLibraryItemId: String) =
+            actions.confirmCandidate(storytellerSourceId, storytellerBookId, absSourceId, absLibraryItemId)
+        suspend fun dismissCandidate(storytellerSourceId: String, storytellerBookId: String, absSourceId: String, absLibraryItemId: String) =
+            actions.dismissCandidate(storytellerSourceId, storytellerBookId, absSourceId, absLibraryItemId)
+        suspend fun dismissBook(storytellerSourceId: String, storytellerBookId: String) =
+            actions.dismissBook(storytellerSourceId, storytellerBookId)
+        suspend fun unlinkBook(storytellerSourceId: String, storytellerBookId: String) =
+            actions.unlinkBook(storytellerSourceId, storytellerBookId)
+        suspend fun unlinkAbsItem(absSourceId: String, absLibraryItemId: String) =
+            actions.unlinkAbsItem(absSourceId, absLibraryItemId)
+        suspend fun pairManually(storytellerSourceId: String, storytellerBookId: String, absSourceId: String, absLibraryItemId: String) =
+            actions.pairManually(storytellerSourceId, storytellerBookId, absSourceId, absLibraryItemId)
     }
 
-    private fun audiobook(serverId: String, id: String) =
-        LibraryItemEntity(serverId, id, "lib", "Title", "Author", null, 0f, hasAudio = true)
+    private fun audiobook(sourceId: String, id: String) =
+        LibraryItemEntity(sourceId, id, "lib", "Title", "Author", null, 0f, hasAudio = true)
 
-    private fun ebook(serverId: String, id: String) =
-        LibraryItemEntity(serverId, id, "lib", "Title", "Author", null, 0f, hasAudio = false)
+    private fun ebook(sourceId: String, id: String) =
+        LibraryItemEntity(sourceId, id, "lib", "Title", "Author", null, 0f, hasAudio = false)
 
     private class RecordingLibraryItemDao : LibraryItemDao by ThrowingLibraryItemDao {
         private val items = mutableMapOf<Pair<String, String>, LibraryItemEntity>()
-        fun seed(e: LibraryItemEntity) { items[e.serverId to e.id] = e }
-        override suspend fun getById(serverId: String, itemId: String) = items[serverId to itemId]
+        fun seed(e: LibraryItemEntity) { items[e.sourceId to e.id] = e }
+        override suspend fun getById(sourceId: String, itemId: String) = items[sourceId to itemId]
     }
 
     private class FakeAudioPlaybackPreferencesStore : AudioPlaybackPreferencesStore {
@@ -486,32 +486,32 @@ class ReadaloudReviewRepositoryTest {
     }
 
     private fun link(
-        absServerId: String,
+        absSourceId: String,
         absLibraryItemId: String,
-        storytellerServerId: String,
+        storytellerSourceId: String,
         storytellerBookId: String,
         userConfirmed: Boolean,
     ) = ReadaloudLinkEntity(
-        absServerId, absLibraryItemId, storytellerServerId, storytellerBookId,
+        absSourceId, absLibraryItemId, storytellerSourceId, storytellerBookId,
         ReadaloudLinkEntity.STATE_CONFIRMED, userConfirmed, 1L, 1L,
     )
 
     private class RecordingLinkDao : ReadaloudLinkDao {
-        override suspend fun updateIdentityResult(absServerId: String, absLibraryItemId: String, result: String) = Unit
+        override suspend fun updateIdentityResult(absSourceId: String, absLibraryItemId: String, result: String) = Unit
         private val store = mutableMapOf<Pair<String, String>, ReadaloudLinkEntity>()
-        fun seed(e: ReadaloudLinkEntity) { store[e.absServerId to e.absLibraryItemId] = e }
-        override suspend fun upsert(entity: ReadaloudLinkEntity) { store[entity.absServerId to entity.absLibraryItemId] = entity }
-        override suspend fun findByAbsItem(absServerId: String, absLibraryItemId: String) = store[absServerId to absLibraryItemId]
-        override suspend fun findByStorytellerBook(storytellerServerId: String, storytellerBookId: String) =
-            store.values.filter { it.storytellerServerId == storytellerServerId && it.storytellerBookId == storytellerBookId }
+        fun seed(e: ReadaloudLinkEntity) { store[e.absSourceId to e.absLibraryItemId] = e }
+        override suspend fun upsert(entity: ReadaloudLinkEntity) { store[entity.absSourceId to entity.absLibraryItemId] = entity }
+        override suspend fun findByAbsItem(absSourceId: String, absLibraryItemId: String) = store[absSourceId to absLibraryItemId]
+        override suspend fun findByStorytellerBook(storytellerSourceId: String, storytellerBookId: String) =
+            store.values.filter { it.storytellerSourceId == storytellerSourceId && it.storytellerBookId == storytellerBookId }
         override fun observeAll(): Flow<List<ReadaloudLinkEntity>> = flowOf(store.values.toList())
         override suspend fun allRows() = store.values.toList()
         override fun observeLinkedAbsItemIds(): Flow<List<String>> = flowOf(store.values.map { it.absLibraryItemId })
-        override suspend fun countForServer(serverId: String) = 0
-        override suspend fun deleteByAbsItem(absServerId: String, absLibraryItemId: String) { store.remove(absServerId to absLibraryItemId) }
-        override suspend fun deleteByStorytellerBook(storytellerServerId: String, storytellerBookId: String) {
-            store.values.filter { it.storytellerServerId == storytellerServerId && it.storytellerBookId == storytellerBookId }
-                .forEach { store.remove(it.absServerId to it.absLibraryItemId) }
+        override suspend fun countForSource(sourceId: String) = 0
+        override suspend fun deleteByAbsItem(absSourceId: String, absLibraryItemId: String) { store.remove(absSourceId to absLibraryItemId) }
+        override suspend fun deleteByStorytellerBook(storytellerSourceId: String, storytellerBookId: String) {
+            store.values.filter { it.storytellerSourceId == storytellerSourceId && it.storytellerBookId == storytellerBookId }
+                .forEach { store.remove(it.absSourceId to it.absLibraryItemId) }
         }
     }
 
@@ -524,15 +524,15 @@ class ReadaloudReviewRepositoryTest {
         override suspend fun allRows() = store.toList()
         override suspend fun clearAll() { store.clear() }
         override fun observeAll(): Flow<List<ReadaloudCandidateEntity>> = flowOf(store.toList())
-        override fun observeForStorytellerServer(storytellerServerId: String): Flow<List<ReadaloudCandidateEntity>> =
-            flowOf(store.filter { it.storytellerServerId == storytellerServerId })
-        override suspend fun deleteByStorytellerBook(storytellerServerId: String, storytellerBookId: String) {
-            store.removeAll { it.storytellerServerId == storytellerServerId && it.storytellerBookId == storytellerBookId }
+        override fun observeForStorytellerSource(storytellerSourceId: String): Flow<List<ReadaloudCandidateEntity>> =
+            flowOf(store.filter { it.storytellerSourceId == storytellerSourceId })
+        override suspend fun deleteByStorytellerBook(storytellerSourceId: String, storytellerBookId: String) {
+            store.removeAll { it.storytellerSourceId == storytellerSourceId && it.storytellerBookId == storytellerBookId }
         }
-        override suspend fun deleteCandidate(storytellerServerId: String, storytellerBookId: String, absServerId: String, absLibraryItemId: String) {
+        override suspend fun deleteCandidate(storytellerSourceId: String, storytellerBookId: String, absSourceId: String, absLibraryItemId: String) {
             store.removeAll {
-                it.storytellerServerId == storytellerServerId && it.storytellerBookId == storytellerBookId &&
-                    it.absServerId == absServerId && it.absLibraryItemId == absLibraryItemId
+                it.storytellerSourceId == storytellerSourceId && it.storytellerBookId == storytellerBookId &&
+                    it.absSourceId == absSourceId && it.absLibraryItemId == absLibraryItemId
             }
         }
     }
@@ -543,12 +543,12 @@ class ReadaloudReviewRepositoryTest {
         override suspend fun upsert(entity: ReadaloudDismissalEntity) { store += entity }
         override suspend fun allRows() = store.toList()
         override fun observeAll(): Flow<List<ReadaloudDismissalEntity>> = flowOf(store.toList())
-        override suspend fun findByStorytellerBook(storytellerServerId: String, storytellerBookId: String) =
-            store.filter { it.storytellerServerId == storytellerServerId && it.storytellerBookId == storytellerBookId }
-        override suspend fun isBookDismissed(storytellerServerId: String, storytellerBookId: String) =
-            store.any { it.storytellerServerId == storytellerServerId && it.storytellerBookId == storytellerBookId && it.scope == ReadaloudDismissalEntity.SCOPE_BOOK }
-        override suspend fun clearBookDismissal(storytellerServerId: String, storytellerBookId: String) {
-            store.removeAll { it.storytellerServerId == storytellerServerId && it.storytellerBookId == storytellerBookId && it.scope == ReadaloudDismissalEntity.SCOPE_BOOK }
+        override suspend fun findByStorytellerBook(storytellerSourceId: String, storytellerBookId: String) =
+            store.filter { it.storytellerSourceId == storytellerSourceId && it.storytellerBookId == storytellerBookId }
+        override suspend fun isBookDismissed(storytellerSourceId: String, storytellerBookId: String) =
+            store.any { it.storytellerSourceId == storytellerSourceId && it.storytellerBookId == storytellerBookId && it.scope == ReadaloudDismissalEntity.SCOPE_BOOK }
+        override suspend fun clearBookDismissal(storytellerSourceId: String, storytellerBookId: String) {
+            store.removeAll { it.storytellerSourceId == storytellerSourceId && it.storytellerBookId == storytellerBookId && it.scope == ReadaloudDismissalEntity.SCOPE_BOOK }
         }
     }
 }

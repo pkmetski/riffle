@@ -18,19 +18,19 @@ class AudiobookBookmarkStoreImplTest {
         override suspend fun upsert(entity: AudiobookBookmarkEntity) {
             rows.value = rows.value.filterNot { it.id == entity.id } + entity
         }
-        override fun observeForItem(serverId: String, itemId: String): Flow<List<AudiobookBookmarkEntity>> =
-            rows.map { list -> list.filter { it.serverId == serverId && it.itemId == itemId && !it.deleted }.sortedBy { it.positionSec } }
-        override fun observeForServer(serverId: String): Flow<List<AudiobookBookmarkEntity>> =
-            rows.map { list -> list.filter { it.serverId == serverId && !it.deleted }.sortedBy { it.positionSec } }
+        override fun observeForItem(sourceId: String, itemId: String): Flow<List<AudiobookBookmarkEntity>> =
+            rows.map { list -> list.filter { it.sourceId == sourceId && it.itemId == itemId && !it.deleted }.sortedBy { it.positionSec } }
+        override fun observeForSource(sourceId: String): Flow<List<AudiobookBookmarkEntity>> =
+            rows.map { list -> list.filter { it.sourceId == sourceId && !it.deleted }.sortedBy { it.positionSec } }
         override suspend fun getById(id: String) = rows.value.firstOrNull { it.id == id }
-        override suspend fun allForItem(serverId: String, itemId: String) =
-            rows.value.filter { it.serverId == serverId && it.itemId == itemId }
-        override suspend fun dirtyForServer(serverId: String) =
-            rows.value.filter { it.serverId == serverId && it.localUpdatedAt > it.lastSyncedAt }
-        override suspend fun serversWithDirtyRows() =
-            rows.value.filter { it.localUpdatedAt > it.lastSyncedAt }.map { it.serverId }.distinct()
-        override fun observeDirtyCountForItem(serverId: String, itemId: String): Flow<Int> =
-            rows.map { list -> list.count { it.serverId == serverId && it.itemId == itemId && it.localUpdatedAt > it.lastSyncedAt } }
+        override suspend fun allForItem(sourceId: String, itemId: String) =
+            rows.value.filter { it.sourceId == sourceId && it.itemId == itemId }
+        override suspend fun dirtyForSource(sourceId: String) =
+            rows.value.filter { it.sourceId == sourceId && it.localUpdatedAt > it.lastSyncedAt }
+        override suspend fun sourcesWithDirtyRows() =
+            rows.value.filter { it.localUpdatedAt > it.lastSyncedAt }.map { it.sourceId }.distinct()
+        override fun observeDirtyCountForItem(sourceId: String, itemId: String): Flow<Int> =
+            rows.map { list -> list.count { it.sourceId == sourceId && it.itemId == itemId && it.localUpdatedAt > it.lastSyncedAt } }
         override suspend fun confirmPushedIfUnchanged(id: String, serverStamp: Long, ifLocalUpdatedAt: Long) = 0
         override suspend fun hardDeleteIfUnchanged(id: String, ifLocalUpdatedAt: Long) = 0
         override suspend fun hardDelete(id: String) { rows.value = rows.value.filterNot { it.id == id } }

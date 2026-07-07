@@ -7,16 +7,16 @@ interface ReadaloudLinkRepository {
     fun observeLinkedAbsItemIds(): Flow<Set<String>>
 
     /** Unique by ABS PK. */
-    suspend fun findByAbsItem(absServerId: String, absLibraryItemId: String): ReadaloudLink?
+    suspend fun findByAbsItem(absSourceId: String, absLibraryItemId: String): ReadaloudLink?
 
     /** A readaloud can link to many ABS items (ebook + audiobook stub in different libraries). */
-    suspend fun findByStorytellerBook(storytellerServerId: String, storytellerBookId: String): List<ReadaloudLink>
+    suspend fun findByStorytellerBook(storytellerSourceId: String, storytellerBookId: String): List<ReadaloudLink>
 
     /** Unlink one specific ABS row. */
-    suspend fun unlinkAbsItem(absServerId: String, absLibraryItemId: String)
+    suspend fun unlinkAbsItem(absSourceId: String, absLibraryItemId: String)
 
-    suspend fun countForServer(serverId: String): Int
+    suspend fun countForSource(sourceId: String): Int
 
     /** Persist the streaming identity verdict for an ABS item (ADR 0028). */
-    suspend fun updateIdentityResult(absServerId: String, absLibraryItemId: String, result: AudiobookIdentityResult) {}
+    suspend fun updateIdentityResult(absSourceId: String, absLibraryItemId: String, result: AudiobookIdentityResult) {}
 }

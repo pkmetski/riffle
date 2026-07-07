@@ -28,10 +28,10 @@ import org.junit.Test
  * read-merge-upsert flow (syncOnOpen), debounced pushes (scheduleDebounce), and the
  * close-flush handshake (syncOnClose) against an in-memory dao and a recording target.
  *
- * Note: the controller takes a separate `serverId` (DAO key, local per-device) and
+ * Note: the controller takes a separate `sourceId` (DAO key, local per-device) and
  * `namespace` (target key, cross-device-stable). Most lifecycle tests use the constant
  * [NS] and care only that the controller threads the same value through; the dedicated
- * cross-device test below verifies that namespace, not serverId, is what scopes the
+ * cross-device test below verifies that namespace, not sourceId, is what scopes the
  * target so two devices with different serverIds can still find each other's files.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -87,7 +87,7 @@ class AnnotationSyncControllerLifecycleTest {
         newController().syncOnOpen(SRV, NS, ITEM)
 
         assertEquals(setOf("uuid-1", "uuid-2", "uuid-3"), dao.upserts.map { it.id }.toSet())
-        assertTrue(dao.upserts.all { it.serverId == SRV && it.itemId == ITEM })
+        assertTrue(dao.upserts.all { it.sourceId == SRV && it.itemId == ITEM })
     }
 
     @Test
@@ -129,22 +129,22 @@ class AnnotationSyncControllerLifecycleTest {
     }
 
     @Test
-    fun `syncOnOpen calls target with the namespace and dao with the local serverId`() = runTest {
+    fun `syncOnOpen calls target with the namespace and dao with the local sourceId`() = runTest {
         // Repro of the cross-device bug: device A pushed annotations under its own per-device
-        // serverId-A but the WebDAV namespace is the shared ABS user.id NS. Device B has
-        // serverId-B but the SAME NS. When device B opens, the target lookup must use NS (so
-        // it sees device A's file), while the DAO scope must use serverId-B (the local row).
+        // sourceId-A but the WebDAV namespace is the shared ABS user.id NS. Device B has
+        // sourceId-B but the SAME NS. When device B opens, the target lookup must use NS (so
+        // it sees device A's file), while the DAO scope must use sourceId-B (the local row).
         target.files["annotations-device-A.jsonld"] = jsonArrayOf(
             w3c("uuid-from-A", updatedAt = 100L, deviceId = "device-A"),
         )
 
-        newController().syncOnOpen(serverId = "serverId-B", namespace = NS, itemId = ITEM)
+        newController().syncOnOpen(sourceId = "sourceId-B", namespace = NS, itemId = ITEM)
 
-        // Target was queried with NS (not serverId-B) — that's how cross-device discovery works.
+        // Target was queried with NS (not sourceId-B) — that's how cross-device discovery works.
         assertEquals(listOf(NS), target.listNamespaceArgs)
-        assertNotEquals("serverId-B", NS)
-        // DAO upsert carries the local serverId-B, not the namespace.
-        assertEquals("serverId-B", dao.upserts.single().serverId)
+        assertNotEquals("sourceId-B", NS)
+        // DAO upsert carries the local sourceId-B, not the namespace.
+        assertEquals("sourceId-B", dao.upserts.single().sourceId)
     }
 
     // ===== scheduleDebounce =====
@@ -697,7 +697,7 @@ class AnnotationSyncControllerLifecycleTest {
     ): String = AnnotationW3CCodec.annotationEntityToW3C(
         AnnotationEntity(
             id = id,
-            serverId = SRV,
+            sourceId = SRV,
             itemId = ITEM,
             type = AnnotationEntity.TYPE_HIGHLIGHT,
             cfi = "epubcfi(/6/4!/4/2,/1:0,/1:5)",
@@ -724,7 +724,7 @@ class AnnotationSyncControllerLifecycleTest {
         lastModifiedByDeviceId: String = DEVICE_ID,
         color: String = "yellow",
     ) = AnnotationEntity(
-        id = id, serverId = SRV, itemId = itemId, type = AnnotationEntity.TYPE_HIGHLIGHT,
+        id = id, sourceId = SRV, itemId = itemId, type = AnnotationEntity.TYPE_HIGHLIGHT,
         cfi = "epubcfi(/6/4!/4/2,/1:0,/1:5)", color = color, note = null,
         textSnippet = "x", textBefore = "", textAfter = "", chapterHref = "c1",
         createdAt = updatedAt, updatedAt = updatedAt,
@@ -735,7 +735,7 @@ class AnnotationSyncControllerLifecycleTest {
     private fun w3cTombstone(id: String, updatedAt: Long, deviceId: String): String =
         AnnotationW3CCodec.annotationEntityToW3C(
             AnnotationEntity(
-                id = id, serverId = SRV, itemId = ITEM, type = AnnotationEntity.TYPE_HIGHLIGHT,
+                id = id, sourceId = SRV, itemId = ITEM, type = AnnotationEntity.TYPE_HIGHLIGHT,
                 cfi = "epubcfi(/6/4!/4/2,/1:0,/1:5)", color = "yellow", note = null,
                 textSnippet = "", textBefore = "", textAfter = "", chapterHref = "c1",
                 createdAt = updatedAt, updatedAt = updatedAt,
@@ -972,27 +972,27 @@ private class LifecycleInMemoryAnnotationDao : AnnotationDao {
     var lastMarkSyncedAt: Long = -1L
     var markSyncedCalls: Int = 0
 
-    override suspend fun getForItem(serverId: String, itemId: String): List<AnnotationEntity> =
-        localAnnotations.filter { it.serverId == serverId && it.itemId == itemId && !it.deleted }
+    override suspend fun getForItem(sourceId: String, itemId: String): List<AnnotationEntity> =
+        localAnnotations.filter { it.sourceId == sourceId && it.itemId == itemId && !it.deleted }
 
-    override suspend fun getAllForItemIncludingDeleted(serverId: String, itemId: String): List<AnnotationEntity> =
-        localAnnotations.filter { it.serverId == serverId && it.itemId == itemId }
+    override suspend fun getAllForItemIncludingDeleted(sourceId: String, itemId: String): List<AnnotationEntity> =
+        localAnnotations.filter { it.sourceId == sourceId && it.itemId == itemId }
 
     override suspend fun upsert(entity: AnnotationEntity) { upserts += entity }
     override suspend fun upsertAll(annotations: List<AnnotationEntity>) { upserts += annotations }
 
-    override fun observeForItem(serverId: String, itemId: String): Flow<List<AnnotationEntity>> = flowOf(emptyList())
-    override fun observeForServer(serverId: String): Flow<List<AnnotationEntity>> = flowOf(emptyList())
+    override fun observeForItem(sourceId: String, itemId: String): Flow<List<AnnotationEntity>> = flowOf(emptyList())
+    override fun observeForSource(sourceId: String): Flow<List<AnnotationEntity>> = flowOf(emptyList())
     override suspend fun getById(id: String): AnnotationEntity? = null
-    override suspend fun getByItemAndCfi(serverId: String, itemId: String, cfi: String): AnnotationEntity? = null
+    override suspend fun getByItemAndCfi(sourceId: String, itemId: String, cfi: String): AnnotationEntity? = null
     override suspend fun tombstone(id: String, updatedAt: Long, deviceId: String) = Unit
     override suspend fun recolor(id: String, color: String, updatedAt: Long, deviceId: String) = Unit
     override suspend fun updateNote(id: String, note: String?, updatedAt: Long, deviceId: String) = Unit
-    override fun observeAnnotationsByPosition(serverId: String, itemId: String): Flow<List<AnnotationEntity>> = flowOf(emptyList())
+    override fun observeAnnotationsByPosition(sourceId: String, itemId: String): Flow<List<AnnotationEntity>> = flowOf(emptyList())
     override suspend fun renameBookmark(id: String, title: String, updatedAt: Long, deviceId: String) = Unit
-    override fun observePendingCountForBook(serverId: String, itemId: String): Flow<Int> = flowOf(0)
+    override fun observePendingCountForBook(sourceId: String, itemId: String): Flow<Int> = flowOf(0)
     override fun observePendingBookCountAcrossAll(): Flow<Int> = flowOf(0)
-    override suspend fun dirtyServerItems(): List<AnnotationDao.DirtyServerItem> = emptyList()
+    override suspend fun dirtySourceItems(): List<AnnotationDao.DirtySourceItem> = emptyList()
     override suspend fun markSynced(ids: List<String>, syncedAt: Long) {
         markSyncedCalls++
         lastMarkSyncedIds = ids
@@ -1005,10 +1005,10 @@ private class LifecycleInMemoryAnnotationDao : AnnotationDao {
         }
     }
 
-    override suspend fun purgeAgedTombstones(serverId: String, itemId: String, cutoff: Long): Int {
+    override suspend fun purgeAgedTombstones(sourceId: String, itemId: String, cutoff: Long): Int {
         val before = localAnnotations.size
         localAnnotations.removeAll { row ->
-            row.serverId == serverId &&
+            row.sourceId == sourceId &&
                 row.itemId == itemId &&
                 row.deleted &&
                 row.updatedAt < cutoff &&

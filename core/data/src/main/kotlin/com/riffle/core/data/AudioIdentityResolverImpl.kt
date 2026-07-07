@@ -18,16 +18,16 @@ class AudioIdentityResolverImpl @Inject constructor(
 ) : AudioIdentityResolver {
 
     override suspend fun resolveForStorytellerBook(
-        storytellerServerId: String,
+        storytellerSourceId: String,
         storytellerBookId: String,
     ): AudioIdentity {
-        val audiobook = linkDao.findByStorytellerBook(storytellerServerId, storytellerBookId)
+        val audiobook = linkDao.findByStorytellerBook(storytellerSourceId, storytellerBookId)
             .sortedBy { it.absLibraryItemId }
-            .firstOrNull { libraryItemDao.getById(it.absServerId, it.absLibraryItemId)?.hasAudio == true }
+            .firstOrNull { libraryItemDao.getById(it.absSourceId, it.absLibraryItemId)?.hasAudio == true }
         return if (audiobook != null) {
-            AudioIdentity(audiobook.absServerId, audiobook.absLibraryItemId)
+            AudioIdentity(audiobook.absSourceId, audiobook.absLibraryItemId)
         } else {
-            AudioIdentity(storytellerServerId, storytellerBookId)
+            AudioIdentity(storytellerSourceId, storytellerBookId)
         }
     }
 }

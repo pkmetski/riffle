@@ -1,6 +1,6 @@
 package com.riffle.core.data
 
-import com.riffle.core.domain.ServerRepository
+import com.riffle.core.domain.SourceRepository
 import com.riffle.core.domain.TokenStorage
 import com.riffle.core.network.AbsLibraryApi
 import com.riffle.core.network.NetworkResult
@@ -21,7 +21,7 @@ private data class ToReadSnapshot(val playlistId: String?, val itemIds: Set<Stri
 @Singleton
 class ToReadRepositoryImpl @Inject constructor(
     private val api: AbsLibraryApi,
-    private val serverRepository: ServerRepository,
+    private val sourceRepository: SourceRepository,
     private val tokenStorage: TokenStorage,
 ) : ToReadRepository {
 
@@ -97,7 +97,7 @@ class ToReadRepositoryImpl @Inject constructor(
     }
 
     private suspend fun resolveSession(): Session? {
-        val server = serverRepository.getActive() ?: return null
+        val server = sourceRepository.getActive() ?: return null
         val token = tokenStorage.getToken(server.id) ?: return null
         return Session(server.url.value, token, server.insecureConnectionAllowed)
     }

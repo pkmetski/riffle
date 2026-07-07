@@ -24,23 +24,23 @@ abstract class TimestampedPositionStore<P>(
 
     protected open fun now(): Long = clock.nowMs()
 
-    protected abstract suspend fun writePayload(serverId: String, itemId: String, payload: P, updatedAt: Long)
-    protected abstract suspend fun readPayload(serverId: String, itemId: String): P?
-    protected abstract suspend fun readUpdatedAt(serverId: String, itemId: String): Long?
-    protected abstract suspend fun writeUpdatedAt(serverId: String, itemId: String, updatedAt: Long)
+    protected abstract suspend fun writePayload(sourceId: String, itemId: String, payload: P, updatedAt: Long)
+    protected abstract suspend fun readPayload(sourceId: String, itemId: String): P?
+    protected abstract suspend fun readUpdatedAt(sourceId: String, itemId: String): Long?
+    protected abstract suspend fun writeUpdatedAt(sourceId: String, itemId: String, updatedAt: Long)
 
-    final override suspend fun save(serverId: String, itemId: String, payload: P) {
-        val existing = readUpdatedAt(serverId, itemId) ?: 0L
+    final override suspend fun save(sourceId: String, itemId: String, payload: P) {
+        val existing = readUpdatedAt(sourceId, itemId) ?: 0L
         val ts = maxOf(now(), existing + 1)
-        writePayload(serverId, itemId, payload, ts)
+        writePayload(sourceId, itemId, payload, ts)
     }
 
-    final override suspend fun load(serverId: String, itemId: String): P? =
-        readPayload(serverId, itemId)
+    final override suspend fun load(sourceId: String, itemId: String): P? =
+        readPayload(sourceId, itemId)
 
-    final override suspend fun loadLocalUpdatedAt(serverId: String, itemId: String): Long =
-        readUpdatedAt(serverId, itemId) ?: 0L
+    final override suspend fun loadLocalUpdatedAt(sourceId: String, itemId: String): Long =
+        readUpdatedAt(sourceId, itemId) ?: 0L
 
-    final override suspend fun updateLocalTimestamp(serverId: String, itemId: String, millis: Long) =
-        writeUpdatedAt(serverId, itemId, millis)
+    final override suspend fun updateLocalTimestamp(sourceId: String, itemId: String, millis: Long) =
+        writeUpdatedAt(sourceId, itemId, millis)
 }

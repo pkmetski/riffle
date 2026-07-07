@@ -6,7 +6,7 @@ package com.riffle.core.domain
  */
 interface AudioIdentityResolver {
     suspend fun resolveForStorytellerBook(
-        storytellerServerId: String,
+        storytellerSourceId: String,
         storytellerBookId: String,
     ): AudioIdentity
 }

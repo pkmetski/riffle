@@ -8,7 +8,7 @@ import javax.inject.Inject
 
 /**
  * Persists per-book audio playback settings keyed by the resolved [AudioIdentity] (ADR 0028). Unlike
- * the formatting store, the identity already carries (serverId, bookId), so no active-server lookup
+ * the formatting store, the identity already carries (sourceId, bookId), so no active-server lookup
  * is needed.
  *
  * A row means "this book has a user-chosen speed"; its absence means "follow the global default speed"
@@ -22,20 +22,20 @@ class AudioPlaybackPreferencesStoreImpl @Inject constructor(
 ) : AudioPlaybackPreferencesStore {
 
     override suspend fun load(identity: AudioIdentity): Float? =
-        dao.get(identity.serverId, identity.bookId)?.speed
+        dao.get(identity.sourceId, identity.bookId)?.speed
 
     override suspend fun save(identity: AudioIdentity, speed: Float) {
-        dao.upsert(AudioPlaybackPreferencesEntity(identity.serverId, identity.bookId, speed))
+        dao.upsert(AudioPlaybackPreferencesEntity(identity.sourceId, identity.bookId, speed))
     }
 
     override suspend fun clear(identity: AudioIdentity) {
-        dao.delete(identity.serverId, identity.bookId)
+        dao.delete(identity.sourceId, identity.bookId)
     }
 
     override suspend fun rekey(old: AudioIdentity, new: AudioIdentity) {
         if (old == new) return
-        val existing = dao.get(old.serverId, old.bookId) ?: return
-        dao.delete(old.serverId, old.bookId)
-        dao.upsert(existing.copy(serverId = new.serverId, bookId = new.bookId))
+        val existing = dao.get(old.sourceId, old.bookId) ?: return
+        dao.delete(old.sourceId, old.bookId)
+        dao.upsert(existing.copy(sourceId = new.sourceId, bookId = new.bookId))
     }
 }

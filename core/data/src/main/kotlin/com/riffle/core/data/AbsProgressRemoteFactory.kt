@@ -3,7 +3,7 @@ package com.riffle.core.data
 import com.riffle.core.database.LibraryItemDao
 import com.riffle.core.domain.EbookCfiTranslatorFactory
 import com.riffle.core.domain.ProgressRemote
-import com.riffle.core.domain.Server
+import com.riffle.core.domain.Source
 import com.riffle.core.network.AbsSessionApi
 import javax.inject.Inject
 
@@ -23,16 +23,16 @@ class AbsProgressRemoteFactory @Inject constructor(
     private val translatorFactory: EbookCfiTranslatorFactory,
 ) : ProgressRemoteFactory {
 
-    override fun ebook(server: Server, token: String, itemId: String): ProgressRemote<String> =
+    override fun ebook(source: Source, token: String, itemId: String): ProgressRemote<String> =
         AbsEbookProgressRemote(
-            api, server.url.value, token, server.insecureConnectionAllowed, itemId,
-            translator = translatorFactory.forItem(server.id, itemId),
+            api, source.url.value, token, source.insecureConnectionAllowed, itemId,
+            translator = translatorFactory.forItem(source.id, itemId),
         ) {
-            libraryItemDao.getById(server.id, itemId)?.readingProgress ?: 0f
+            libraryItemDao.getById(source.id, itemId)?.readingProgress ?: 0f
         }
 
-    override fun audio(server: Server, token: String, itemId: String): ProgressRemote<Double> =
-        AbsAudioProgressRemote(api, server.url.value, token, server.insecureConnectionAllowed, itemId) {
-            libraryItemDao.getById(server.id, itemId)?.audioDurationSec ?: 0.0
+    override fun audio(source: Source, token: String, itemId: String): ProgressRemote<Double> =
+        AbsAudioProgressRemote(api, source.url.value, token, source.insecureConnectionAllowed, itemId) {
+            libraryItemDao.getById(source.id, itemId)?.audioDurationSec ?: 0.0
         }
 }

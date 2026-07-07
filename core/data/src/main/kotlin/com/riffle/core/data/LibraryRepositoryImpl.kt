@@ -21,7 +21,7 @@ import com.riffle.core.domain.LibraryObserver
 import com.riffle.core.domain.LibraryRefreshResult
 import com.riffle.core.domain.LibraryRefresher
 import com.riffle.core.domain.Series
-import com.riffle.core.domain.ServerRepository
+import com.riffle.core.domain.SourceRepository
 import com.riffle.core.domain.TokenStorage
 import com.riffle.core.network.AbsLibraryApi
 import com.riffle.core.network.NetworkResult
@@ -46,61 +46,61 @@ class LibraryRepositoryImpl @Inject constructor(
     private val libraryItemDao: LibraryItemDao,
     private val seriesDao: SeriesDao,
     private val collectionDao: CollectionDao,
-    private val serverRepository: ServerRepository,
+    private val sourceRepository: SourceRepository,
     private val tokenStorage: TokenStorage,
     private val clock: Clock,
 ) : LibraryObserver, LibraryMutator, LibraryRefresher {
 
     @OptIn(ExperimentalCoroutinesApi::class)
     override fun observeLibraries(): Flow<List<Library>> =
-        serverRepository.observeAll()
+        sourceRepository.observeAll()
             .map { servers -> servers.firstOrNull { it.isActive }?.id }
             .distinctUntilChanged()
-            .flatMapLatest { serverId ->
-                if (serverId == null) flowOf(emptyList())
-                else libraryDao.observeBySourceId(serverId).map { list -> list.map { it.toDomain() } }
+            .flatMapLatest { sourceId ->
+                if (sourceId == null) flowOf(emptyList())
+                else libraryDao.observeBySourceId(sourceId).map { list -> list.map { it.toDomain() } }
             }
 
-    override fun observeLibraries(serverId: String): Flow<List<Library>> =
-        libraryDao.observeBySourceId(serverId).map { list -> list.map { it.toDomain() } }
+    override fun observeLibraries(sourceId: String): Flow<List<Library>> =
+        libraryDao.observeBySourceId(sourceId).map { list -> list.map { it.toDomain() } }
 
     // Id of the Server whose libraries the user is currently browsing. The nav drawer only ever
     // lists the active Server's libraries, so the visible library always belongs to it.
     private val activeServerId: Flow<String?> =
-        serverRepository.observeAll()
+        sourceRepository.observeAll()
             .map { servers -> servers.firstOrNull { it.isActive }?.id }
             .distinctUntilChanged()
 
     // Library-scoped item flows resolve the active Server's id and pass it as the DAO's primary
-    // scope. library_items is keyed by (serverId, id) (ADR 0025), so the query itself enforces
+    // scope. library_items is keyed by (sourceId, id) (ADR 0025), so the query itself enforces
     // server isolation — no post-query filter required. With no active Server the screen has
     // nothing to show, so we emit an empty list rather than mixing data across Servers.
     @OptIn(ExperimentalCoroutinesApi::class)
     private fun scopedItemFlow(
         query: (String) -> Flow<List<LibraryItemEntity>>,
     ): Flow<List<LibraryItem>> =
-        activeServerId.flatMapLatest { serverId ->
-            if (serverId == null) flowOf(emptyList())
-            else query(serverId).map { list -> list.map { it.toDomain() } }
+        activeServerId.flatMapLatest { sourceId ->
+            if (sourceId == null) flowOf(emptyList())
+            else query(sourceId).map { list -> list.map { it.toDomain() } }
         }
 
     override fun observeLibraryItems(libraryId: String): Flow<List<LibraryItem>> =
-        scopedItemFlow { serverId -> libraryItemDao.observeByLibraryId(serverId, libraryId) }
+        scopedItemFlow { sourceId -> libraryItemDao.observeByLibraryId(sourceId, libraryId) }
 
     override fun observeUngroupedLibraryItems(libraryId: String): Flow<List<LibraryItem>> =
-        scopedItemFlow { serverId -> libraryItemDao.observeUngroupedByLibraryId(serverId, libraryId) }
+        scopedItemFlow { sourceId -> libraryItemDao.observeUngroupedByLibraryId(sourceId, libraryId) }
 
     override fun observeInProgressItems(libraryId: String): Flow<List<LibraryItem>> =
-        scopedItemFlow { serverId -> libraryItemDao.observeInProgress(serverId, libraryId) }
+        scopedItemFlow { sourceId -> libraryItemDao.observeInProgress(sourceId, libraryId) }
 
     override fun observeFinishedItems(libraryId: String): Flow<List<LibraryItem>> =
-        scopedItemFlow { serverId -> libraryItemDao.observeFinished(serverId, libraryId) }
+        scopedItemFlow { sourceId -> libraryItemDao.observeFinished(sourceId, libraryId) }
 
     override fun observeRecentlyAddedItems(libraryId: String): Flow<List<LibraryItem>> =
-        scopedItemFlow { serverId -> libraryItemDao.observeRecentlyAdded(serverId, libraryId) }
+        scopedItemFlow { sourceId -> libraryItemDao.observeRecentlyAdded(sourceId, libraryId) }
 
     override fun observeAllBooks(libraryId: String): Flow<List<LibraryItem>> =
-        scopedItemFlow { serverId -> libraryItemDao.observeAllBooks(serverId, libraryId) }
+        scopedItemFlow { sourceId -> libraryItemDao.observeAllBooks(sourceId, libraryId) }
 
     override fun observeSeries(libraryId: String): Flow<List<Series>> =
         seriesDao.observeByLibraryId(libraryId).map { list -> list.map { it.toDomain() } }
@@ -109,72 +109,72 @@ class LibraryRepositoryImpl @Inject constructor(
         collectionDao.observeByLibraryId(libraryId).map { list -> list.map { it.toDomain() } }
 
     override fun observeSeriesItems(seriesId: String): Flow<List<LibraryItem>> =
-        scopedItemFlow { serverId -> seriesDao.observeItemsBySeriesId(serverId, seriesId) }
+        scopedItemFlow { sourceId -> seriesDao.observeItemsBySeriesId(sourceId, seriesId) }
 
     override fun observeContinueSeriesItems(libraryId: String): Flow<List<LibraryItem>> =
-        scopedItemFlow { serverId -> seriesDao.observeContinueSeriesItems(serverId, libraryId) }
+        scopedItemFlow { sourceId -> seriesDao.observeContinueSeriesItems(sourceId, libraryId) }
 
     override fun observeCollectionItems(collectionId: String): Flow<List<LibraryItem>> =
-        scopedItemFlow { serverId -> collectionDao.observeItemsByCollectionId(serverId, collectionId) }
+        scopedItemFlow { sourceId -> collectionDao.observeItemsByCollectionId(sourceId, collectionId) }
 
     // Item ids are only unique within a Server (ADR 0025); reads/writes here target the active
     // Server's copy, mirroring how reading positions are keyed. No active Server → nothing to do.
     override suspend fun getItem(itemId: String): LibraryItem? {
-        val serverId = serverRepository.getActive()?.id ?: return null
-        return libraryItemDao.getById(serverId, itemId)?.toDomain()
+        val sourceId = sourceRepository.getActive()?.id ?: return null
+        return libraryItemDao.getById(sourceId, itemId)?.toDomain()
     }
 
     @OptIn(ExperimentalCoroutinesApi::class)
     override fun observeItem(itemId: String): Flow<LibraryItem?> =
-        serverRepository.observeAll()
+        sourceRepository.observeAll()
             .map { servers -> servers.firstOrNull { it.isActive }?.id }
             .distinctUntilChanged()
-            .flatMapLatest { serverId ->
-                if (serverId == null) flowOf(null)
-                else libraryItemDao.observeById(serverId, itemId).map { it?.toDomain() }
+            .flatMapLatest { sourceId ->
+                if (sourceId == null) flowOf(null)
+                else libraryItemDao.observeById(sourceId, itemId).map { it?.toDomain() }
             }
 
-    override suspend fun getItem(serverId: String, itemId: String): LibraryItem? =
-        libraryItemDao.getById(serverId, itemId)?.toDomain()
+    override suspend fun getItem(sourceId: String, itemId: String): LibraryItem? =
+        libraryItemDao.getById(sourceId, itemId)?.toDomain()
 
     // Library ids are only unique within a Server (issue #113); resolve against the active Server's
     // copy, mirroring how [getItem] keys item reads. No active Server → nothing to resolve.
     override suspend fun getLibrary(libraryId: String): Library? {
-        val serverId = serverRepository.getActive()?.id ?: return null
-        return libraryDao.getById(serverId, libraryId)?.toDomain()
+        val sourceId = sourceRepository.getActive()?.id ?: return null
+        return libraryDao.getById(sourceId, libraryId)?.toDomain()
     }
 
-    override suspend fun getSeriesIdForItem(serverId: String, itemId: String): String? =
-        seriesDao.findSeriesIdForItem(serverId, itemId)
+    override suspend fun getSeriesIdForItem(sourceId: String, itemId: String): String? =
+        seriesDao.findSeriesIdForItem(sourceId, itemId)
 
     override suspend fun markItemOpened(itemId: String) {
-        val serverId = serverRepository.getActive()?.id ?: return
-        libraryItemDao.updateLastOpenedAt(serverId, itemId, clock.nowMs())
+        val sourceId = sourceRepository.getActive()?.id ?: return
+        libraryItemDao.updateLastOpenedAt(sourceId, itemId, clock.nowMs())
     }
 
     override suspend fun updateReadingProgress(itemId: String, progress: Float) {
-        val serverId = serverRepository.getActive()?.id ?: return
-        libraryItemDao.updateReadingProgress(serverId, itemId, progress)
+        val sourceId = sourceRepository.getActive()?.id ?: return
+        libraryItemDao.updateReadingProgress(sourceId, itemId, progress)
     }
 
-    override suspend fun updateReadingProgress(serverId: String, itemId: String, progress: Float) {
-        libraryItemDao.updateReadingProgress(serverId, itemId, progress)
+    override suspend fun updateReadingProgress(sourceId: String, itemId: String, progress: Float) {
+        libraryItemDao.updateReadingProgress(sourceId, itemId, progress)
     }
 
     override suspend fun refreshLibraries(): LibraryRefreshResult {
-        val server = serverRepository.getActive() ?: return LibraryRefreshResult.NoActiveServer
+        val server = sourceRepository.getActive() ?: return LibraryRefreshResult.NoActiveServer
         val token = tokenStorage.getToken(server.id) ?: return LibraryRefreshResult.NoActiveServer
         val result = api.getLibraries(server.url.value, token, server.insecureConnectionAllowed)
         if (result !is NetworkResult.Success) return LibraryRefreshResult.NetworkError(result.errorAsThrowable())
         val entities = result.value
             .filter { it.mediaType == "book" }
-            .map { LibraryEntity(id = it.id, name = it.name, mediaType = it.mediaType, serverId = server.id) }
+            .map { LibraryEntity(id = it.id, name = it.name, mediaType = it.mediaType, sourceId = server.id) }
         libraryDao.replaceAllForSource(server.id, entities)
         return LibraryRefreshResult.Success
     }
 
     override suspend fun refreshLibraryItems(libraryId: String): LibraryRefreshResult {
-        val server = serverRepository.getActive() ?: return LibraryRefreshResult.NoActiveServer
+        val server = sourceRepository.getActive() ?: return LibraryRefreshResult.NoActiveServer
         val token = tokenStorage.getToken(server.id) ?: return LibraryRefreshResult.NoActiveServer
         return coroutineScope {
             // Fire both calls simultaneously: user-progress and library items are independent
@@ -192,7 +192,7 @@ class LibraryRepositoryImpl @Inject constructor(
                 .map { item ->
                     val serverProgress = serverProgressMap[item.id]
                     LibraryItemEntity(
-                        serverId = server.id,
+                        sourceId = server.id,
                         id = item.id,
                         libraryId = item.libraryId,
                         title = item.title,
@@ -235,7 +235,7 @@ class LibraryRepositoryImpl @Inject constructor(
     }
 
     override suspend fun refreshSeries(libraryId: String): LibraryRefreshResult {
-        val server = serverRepository.getActive() ?: return LibraryRefreshResult.NoActiveServer
+        val server = sourceRepository.getActive() ?: return LibraryRefreshResult.NoActiveServer
         val token = tokenStorage.getToken(server.id) ?: return LibraryRefreshResult.NoActiveServer
         val result = api.getSeries(server.url.value, libraryId, token, server.insecureConnectionAllowed)
         if (result !is NetworkResult.Success) return LibraryRefreshResult.NetworkError(result.errorAsThrowable())
@@ -254,7 +254,7 @@ class LibraryRepositoryImpl @Inject constructor(
             s.items.mapIndexed { index, item ->
                 SeriesItemEntity(
                     seriesId = s.id,
-                    serverId = server.id,
+                    sourceId = server.id,
                     itemId = item.id,
                     sequenceOrder = item.sequence?.toFloatOrNull() ?: (index + 1).toFloat(),
                 )
@@ -265,7 +265,7 @@ class LibraryRepositoryImpl @Inject constructor(
     }
 
     override suspend fun refreshCollections(libraryId: String): LibraryRefreshResult {
-        val server = serverRepository.getActive() ?: return LibraryRefreshResult.NoActiveServer
+        val server = sourceRepository.getActive() ?: return LibraryRefreshResult.NoActiveServer
         val token = tokenStorage.getToken(server.id) ?: return LibraryRefreshResult.NoActiveServer
         val result = api.getCollections(server.url.value, libraryId, token, server.insecureConnectionAllowed)
         if (result !is NetworkResult.Success) return LibraryRefreshResult.NetworkError(result.errorAsThrowable())
@@ -279,7 +279,7 @@ class LibraryRepositoryImpl @Inject constructor(
         }
         val collectionItemEntities = result.value.flatMap { c ->
             c.items.map { item ->
-                CollectionItemEntity(collectionId = c.id, serverId = server.id, itemId = item.id)
+                CollectionItemEntity(collectionId = c.id, sourceId = server.id, itemId = item.id)
             }
         }
         collectionDao.replaceAllForLibrary(libraryId, collectionEntities, collectionItemEntities)
@@ -297,7 +297,7 @@ class LibraryRepositoryImpl @Inject constructor(
 
     private fun LibraryItemEntity.toDomain() = LibraryItem(
         id = id,
-        serverId = serverId,
+        sourceId = sourceId,
         libraryId = libraryId,
         title = title,
         author = author,

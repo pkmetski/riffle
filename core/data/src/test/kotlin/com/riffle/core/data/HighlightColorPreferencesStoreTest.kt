@@ -63,8 +63,8 @@ class HighlightColorPreferencesStoreTest {
         assertEquals(HighlightColor.DEFAULT, store.lastUsedColor("srv1", "bookC").first())
     }
 
-    // Same itemId on two different servers must not collide — server-scoping in the key is what
-    // guarantees this. Dropping serverId from the key would make srv2's bookX inherit srv1's pick.
+    // Same itemId on two different servers must not collide — source-scoping in the key is what
+    // guarantees this. Dropping sourceId from the key would make srv2's bookX inherit srv1's pick.
     @Test
     fun `same itemId on different servers is independent`() = testScope.runTest {
         val store = buildStore()

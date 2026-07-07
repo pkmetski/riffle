@@ -18,19 +18,19 @@ class AnnotationStoreImplTest {
     private val rows = MutableStateFlow<List<AnnotationEntity>>(emptyList())
 
     private val dao = object : AnnotationDao {
-        override fun observeForItem(serverId: String, itemId: String): Flow<List<AnnotationEntity>> =
-            rows.map { all -> all.filter { it.serverId == serverId && it.itemId == itemId && !it.deleted } }
+        override fun observeForItem(sourceId: String, itemId: String): Flow<List<AnnotationEntity>> =
+            rows.map { all -> all.filter { it.sourceId == sourceId && it.itemId == itemId && !it.deleted } }
 
-        override suspend fun getForItem(serverId: String, itemId: String): List<AnnotationEntity> =
-            rows.value.filter { it.serverId == serverId && it.itemId == itemId && !it.deleted }
+        override suspend fun getForItem(sourceId: String, itemId: String): List<AnnotationEntity> =
+            rows.value.filter { it.sourceId == sourceId && it.itemId == itemId && !it.deleted }
 
-        override suspend fun getAllForItemIncludingDeleted(serverId: String, itemId: String): List<AnnotationEntity> =
-            rows.value.filter { it.serverId == serverId && it.itemId == itemId }
+        override suspend fun getAllForItemIncludingDeleted(sourceId: String, itemId: String): List<AnnotationEntity> =
+            rows.value.filter { it.sourceId == sourceId && it.itemId == itemId }
 
         override suspend fun getById(id: String): AnnotationEntity? = rows.value.firstOrNull { it.id == id }
 
-        override suspend fun getByItemAndCfi(serverId: String, itemId: String, cfi: String): AnnotationEntity? =
-            rows.value.firstOrNull { it.serverId == serverId && it.itemId == itemId && it.cfi == cfi && !it.deleted }
+        override suspend fun getByItemAndCfi(sourceId: String, itemId: String, cfi: String): AnnotationEntity? =
+            rows.value.firstOrNull { it.sourceId == sourceId && it.itemId == itemId && it.cfi == cfi && !it.deleted }
 
         override suspend fun upsert(entity: AnnotationEntity) {
             rows.value = rows.value.filterNot { it.id == entity.id } + entity
@@ -59,9 +59,9 @@ class AnnotationStoreImplTest {
             }
         }
 
-        override fun observeAnnotationsByPosition(serverId: String, itemId: String): Flow<List<AnnotationEntity>> =
+        override fun observeAnnotationsByPosition(sourceId: String, itemId: String): Flow<List<AnnotationEntity>> =
             rows.map { all ->
-                all.filter { it.serverId == serverId && it.itemId == itemId && !it.deleted }
+                all.filter { it.sourceId == sourceId && it.itemId == itemId && !it.deleted }
                     .sortedWith(compareBy({ it.spineIndex }, { it.progression }))
             }
 
@@ -71,39 +71,25 @@ class AnnotationStoreImplTest {
             }
         }
 
-        override fun observeForServer(serverId: String): Flow<List<AnnotationEntity>> =
-            rows.map { all -> all.filter { it.serverId == serverId && !it.deleted } }
+        override fun observeForSource(sourceId: String): Flow<List<AnnotationEntity>> =
+            rows.map { all -> all.filter { it.sourceId == sourceId && !it.deleted } }
 
-        override fun observePendingCountForBook(serverId: String, itemId: String): Flow<Int> =
-            rows.map { all -> all.count { it.serverId == serverId && it.itemId == itemId && it.updatedAt > it.lastSyncedAt } }
+        override fun observePendingCountForBook(sourceId: String, itemId: String): Flow<Int> =
+            rows.map { all -> all.count { it.sourceId == sourceId && it.itemId == itemId && it.updatedAt > it.lastSyncedAt } }
 
         override fun observePendingBookCountAcrossAll(): Flow<Int> =
-            rows.map { all -> all.filter { it.updatedAt > it.lastSyncedAt }.distinctBy { it.serverId to it.itemId }.size }
+            rows.map { all -> all.filter { it.updatedAt > it.lastSyncedAt }.distinctBy { it.sourceId to it.itemId }.size }
 
-        override suspend fun dirtyServerItems(): List<AnnotationDao.DirtyServerItem> =
+        override suspend fun dirtySourceItems(): List<AnnotationDao.DirtySourceItem> =
             rows.value.filter { it.updatedAt > it.lastSyncedAt }
-                .map { AnnotationDao.DirtyServerItem(it.serverId, it.itemId) }
+                .map { AnnotationDao.DirtySourceItem(it.sourceId, it.itemId) }
                 .distinct()
 
         override suspend fun markSynced(ids: List<String>, syncedAt: Long) {
             rows.value = rows.value.map { if (it.id in ids) it.copy(lastSyncedAt = syncedAt) else it }
         }
 
-        override suspend fun purgeAgedTombstones(serverId: String, itemId: String, cutoff: Long): Int = 0
-
-        override fun observeBooksWithHighlights(serverId: String): Flow<List<com.riffle.core.database.BookHighlightSummary>> =
-            rows.map { all ->
-                all.filter { it.serverId == serverId && it.type == AnnotationEntity.TYPE_HIGHLIGHT && !it.deleted }
-                    .groupBy { it.itemId }
-                    .map { (itemId, group) ->
-                        com.riffle.core.database.BookHighlightSummary(
-                            itemId = itemId,
-                            highlightCount = group.size,
-                            latestUpdatedAt = group.maxOf { it.updatedAt },
-                        )
-                    }
-                    .sortedByDescending { it.latestUpdatedAt }
-            }
+        override suspend fun purgeAgedTombstones(sourceId: String, itemId: String, cutoff: Long): Int = 0
     }
 
     private val deviceIdStore = object : DeviceIdStore {
@@ -122,7 +108,7 @@ class AnnotationStoreImplTest {
     @Test
     fun `createHighlight persists the chosen colour token`() = runTest {
         val created = store().createHighlight(
-            serverId = "abs1", itemId = "item1", cfi = "epubcfi(/6/4!/4/2,/1:0,/1:10)",
+            sourceId = "abs1", itemId = "item1", cfi = "epubcfi(/6/4!/4/2,/1:0,/1:10)",
             textSnippet = "t", chapterHref = "c.xhtml", color = "green",
         )
         assertEquals("green", created.color)
@@ -146,11 +132,11 @@ class AnnotationStoreImplTest {
     }
 
     @Test
-    fun `findByItemAndCfi scopes by serverId and itemId`() = runTest {
+    fun `findByItemAndCfi scopes by sourceId and itemId`() = runTest {
         val s = store()
         val cfi = "epubcfi(/6/4!/4/2,/1:0,/1:10)"
         s.createHighlight("abs1", "item1", cfi, "t", "c.xhtml")
-        // Same CFI but different server / item — must NOT match.
+        // Same CFI but different source / item — must NOT match.
         assertNull(s.findByItemAndCfi("abs2", "item1", cfi))
         assertNull(s.findByItemAndCfi("abs1", "item2", cfi))
     }
@@ -233,7 +219,7 @@ class AnnotationStoreImplTest {
     @Test
     fun `createBookmark stores spineIndex, progression and bookmarkTitle`() = runTest {
         val created = store().createBookmark(
-            serverId = "abs1", itemId = "item1",
+            sourceId = "abs1", itemId = "item1",
             cfi = "epubcfi(/6/6!/4/1:0)",
             textSnippet = "", chapterHref = "ch2.xhtml",
             spineIndex = 3, progression = 0.42, bookmarkTitle = "The Egg · 42%",
@@ -299,7 +285,7 @@ class AnnotationStoreImplTest {
         val store = AnnotationStoreImpl(dao, deviceIdStore, clock = { 0L }, idGenerator = { "id-${idSeq++}" })
         store.createHighlight("srv1", "b1", "epubcfi(/6/4!/4)", "snippet", "ch.html")
         store.createBookmark("srv1", "b2", "epubcfi(/6/6!/2)", "top", "ch2.html", 1, 0.1, "mark")
-        store.createHighlight("srv2", "b9", "epubcfi(/6/4!/4)", "other server", "ch.html")
+        store.createHighlight("srv2", "b9", "epubcfi(/6/4!/4)", "other source", "ch.html")
 
         val forSrv1 = store.observeAnnotationsForServer("srv1").first()
         assertEquals(setOf("b1", "b2"), forSrv1.map { it.itemId }.toSet())

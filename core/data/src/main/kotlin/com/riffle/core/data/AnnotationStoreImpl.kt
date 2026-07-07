@@ -26,24 +26,24 @@ class AnnotationStoreImpl(
         idGenerator = { UUID.randomUUID().toString() },
     )
 
-    override fun observeHighlights(serverId: String, itemId: String): Flow<List<Annotation>> =
-        dao.observeForItem(serverId, itemId).map { rows ->
+    override fun observeHighlights(sourceId: String, itemId: String): Flow<List<Annotation>> =
+        dao.observeForItem(sourceId, itemId).map { rows ->
             rows.filter { it.type == AnnotationEntity.TYPE_HIGHLIGHT }.map { it.toDomain() }
         }
 
-    override fun observeBookmarks(serverId: String, itemId: String): Flow<List<Annotation>> =
-        dao.observeForItem(serverId, itemId).map { rows ->
+    override fun observeBookmarks(sourceId: String, itemId: String): Flow<List<Annotation>> =
+        dao.observeForItem(sourceId, itemId).map { rows ->
             rows.filter { it.type == AnnotationEntity.TYPE_BOOKMARK }.map { it.toDomain() }
         }
 
-    override fun observeAnnotations(serverId: String, itemId: String): Flow<List<Annotation>> =
-        dao.observeAnnotationsByPosition(serverId, itemId).map { rows -> rows.map { it.toDomain() } }
+    override fun observeAnnotations(sourceId: String, itemId: String): Flow<List<Annotation>> =
+        dao.observeAnnotationsByPosition(sourceId, itemId).map { rows -> rows.map { it.toDomain() } }
 
-    override fun observeAnnotationsForServer(serverId: String): Flow<List<Annotation>> =
-        dao.observeForSource(serverId).map { rows -> rows.map { it.toDomain() } }
+    override fun observeAnnotationsForServer(sourceId: String): Flow<List<Annotation>> =
+        dao.observeForSource(sourceId).map { rows -> rows.map { it.toDomain() } }
 
     override suspend fun createHighlight(
-        serverId: String,
+        sourceId: String,
         itemId: String,
         cfi: String,
         textSnippet: String,
@@ -58,7 +58,7 @@ class AnnotationStoreImpl(
         val now = clock()
         val entity = AnnotationEntity(
             id = idGenerator(),
-            serverId = serverId,
+            sourceId = sourceId,
             itemId = itemId,
             type = AnnotationEntity.TYPE_HIGHLIGHT,
             cfi = cfi,
@@ -82,7 +82,7 @@ class AnnotationStoreImpl(
     }
 
     override suspend fun createBookmark(
-        serverId: String,
+        sourceId: String,
         itemId: String,
         cfi: String,
         textSnippet: String,
@@ -95,7 +95,7 @@ class AnnotationStoreImpl(
         val now = clock()
         val entity = AnnotationEntity(
             id = idGenerator(),
-            serverId = serverId,
+            sourceId = sourceId,
             itemId = itemId,
             type = AnnotationEntity.TYPE_BOOKMARK,
             cfi = cfi,
@@ -132,13 +132,13 @@ class AnnotationStoreImpl(
         dao.renameBookmark(id, title = title, updatedAt = clock(), deviceId = deviceIdStore.getOrCreate())
     }
 
-    override suspend fun findByItemAndCfi(serverId: String, itemId: String, cfi: String): Annotation? =
-        dao.getByItemAndCfi(serverId, itemId, cfi)?.toDomain()
+    override suspend fun findByItemAndCfi(sourceId: String, itemId: String, cfi: String): Annotation? =
+        dao.getByItemAndCfi(sourceId, itemId, cfi)?.toDomain()
 }
 
 private fun AnnotationEntity.toDomain() = Annotation(
     id = id,
-    serverId = serverId,
+    sourceId = sourceId,
     itemId = itemId,
     type = type,
     cfi = cfi,

@@ -26,7 +26,7 @@ class AnnotationW3CCodecTest {
     fun `serializeHighlight contains motivation highlighting and color in value`() {
         val entity = AnnotationEntity(
             id = "uuid-123",
-            serverId = "abs1",
+            sourceId = "abs1",
             itemId = "item1",
             type = AnnotationEntity.TYPE_HIGHLIGHT,
             cfi = "epubcfi(/6/4!/4/2,/1:0,/1:100)",
@@ -53,7 +53,7 @@ class AnnotationW3CCodecTest {
     fun `roundTripHighlight preserves all fields including CFI snippet and color`() {
         val original = AnnotationEntity(
             id = "uuid-hl-001",
-            serverId = "abs1",
+            sourceId = "abs1",
             itemId = "item1",
             type = AnnotationEntity.TYPE_HIGHLIGHT,
             cfi = "epubcfi(/6/4[chap01]!/4/2/16,/1:0,/1:100)",
@@ -94,7 +94,7 @@ class AnnotationW3CCodecTest {
     fun `roundTripBookmark preserves type and bookmarkTitle`() {
         val original = AnnotationEntity(
             id = "uuid-bm-001",
-            serverId = "abs1",
+            sourceId = "abs1",
             itemId = "item1",
             type = AnnotationEntity.TYPE_BOOKMARK,
             cfi = "epubcfi(/6/4!/4/2)",
@@ -128,7 +128,7 @@ class AnnotationW3CCodecTest {
     fun `roundTripHighlightWithNote preserves note content`() {
         val original = AnnotationEntity(
             id = "uuid-hl-note",
-            serverId = "abs1",
+            sourceId = "abs1",
             itemId = "item1",
             type = AnnotationEntity.TYPE_HIGHLIGHT,
             cfi = "epubcfi(/6/4!/4/2,/1:0,/1:50)",
@@ -158,7 +158,7 @@ class AnnotationW3CCodecTest {
     fun `roundTripDeletedAnnotation preserves deleted flag and device IDs`() {
         val original = AnnotationEntity(
             id = "uuid-deleted",
-            serverId = "abs1",
+            sourceId = "abs1",
             itemId = "item1",
             type = AnnotationEntity.TYPE_HIGHLIGHT,
             cfi = "epubcfi(/6/4!/4/2,/1:0,/1:50)",
@@ -189,7 +189,7 @@ class AnnotationW3CCodecTest {
     fun `snippetWithContext roundTrips with before and after text preserved`() {
         val original = AnnotationEntity(
             id = "uuid-snippet",
-            serverId = "abs1",
+            sourceId = "abs1",
             itemId = "item1",
             type = AnnotationEntity.TYPE_HIGHLIGHT,
             cfi = "epubcfi(/6/4!/4/2,/1:10,/1:50)",
@@ -221,7 +221,7 @@ class AnnotationW3CCodecTest {
         val complexCfi = "epubcfi(/6/4[chap01]!/4/2/16,/1:0,/1:150)"
         val original = AnnotationEntity(
             id = "uuid-cfi",
-            serverId = "abs1",
+            sourceId = "abs1",
             itemId = "item1",
             type = AnnotationEntity.TYPE_HIGHLIGHT,
             cfi = complexCfi,
@@ -253,7 +253,7 @@ class AnnotationW3CCodecTest {
 
         val original = AnnotationEntity(
             id = "uuid-time",
-            serverId = "abs1",
+            sourceId = "abs1",
             itemId = "item1",
             type = AnnotationEntity.TYPE_HIGHLIGHT,
             cfi = "epubcfi(/6/4!/4/2,/1:0,/1:50)",
@@ -285,7 +285,7 @@ class AnnotationW3CCodecTest {
     fun `deviceIDs bothOriginAndLastModifiedByPreserved`() {
         val original = AnnotationEntity(
             id = "uuid-device",
-            serverId = "abs1",
+            sourceId = "abs1",
             itemId = "item1",
             type = AnnotationEntity.TYPE_HIGHLIGHT,
             cfi = "epubcfi(/6/4!/4/2,/1:0,/1:50)",
@@ -317,7 +317,7 @@ class AnnotationW3CCodecTest {
         // Test HIGHLIGHT
         val highlight = AnnotationEntity(
             id = "uuid-hl",
-            serverId = "abs1",
+            sourceId = "abs1",
             itemId = "item1",
             type = AnnotationEntity.TYPE_HIGHLIGHT,
             cfi = "epubcfi(/6/4!/4/2,/1:0,/1:50)",
@@ -343,7 +343,7 @@ class AnnotationW3CCodecTest {
         // Test BOOKMARK
         val bookmark = AnnotationEntity(
             id = "uuid-bm",
-            serverId = "abs1",
+            sourceId = "abs1",
             itemId = "item1",
             type = AnnotationEntity.TYPE_BOOKMARK,
             cfi = "epubcfi(/6/4!/4/2)",
@@ -373,7 +373,7 @@ class AnnotationW3CCodecTest {
     fun `jsonStructureContainsAllRequiredW3CFields`() {
         val entity = AnnotationEntity(
             id = "uuid-struct",
-            serverId = "abs1",
+            sourceId = "abs1",
             itemId = "item1",
             type = AnnotationEntity.TYPE_HIGHLIGHT,
             cfi = "epubcfi(/6/4!/4/2,/1:0,/1:50)",
@@ -408,7 +408,7 @@ class AnnotationW3CCodecTest {
     fun `riffleExtensionsPresent inJsonOutput`() {
         val entity = AnnotationEntity(
             id = "uuid-riffle",
-            serverId = "abs1",
+            sourceId = "abs1",
             itemId = "item1",
             type = AnnotationEntity.TYPE_HIGHLIGHT,
             cfi = "epubcfi(/6/4!/4/2,/1:0,/1:50)",
@@ -439,7 +439,7 @@ class AnnotationW3CCodecTest {
     fun `emptyNoteFieldHandledCorrectly`() {
         val original = AnnotationEntity(
             id = "uuid-empty-note",
-            serverId = "abs1",
+            sourceId = "abs1",
             itemId = "item1",
             type = AnnotationEntity.TYPE_HIGHLIGHT,
             cfi = "epubcfi(/6/4!/4/2,/1:0,/1:50)",
@@ -467,7 +467,7 @@ class AnnotationW3CCodecTest {
     fun `bookmarkTitleRoundTripsInBodyAndRiffleNamespace`() {
         val original = AnnotationEntity(
             id = "uuid-bm-title",
-            serverId = "abs1",
+            sourceId = "abs1",
             itemId = "item1",
             type = AnnotationEntity.TYPE_BOOKMARK,
             cfi = "epubcfi(/6/4!/4/2)",
@@ -500,7 +500,7 @@ class AnnotationW3CCodecTest {
     fun `targetSelectorArrayContainsBothFragmentAndTextQuoteSelectors`() {
         val entity = AnnotationEntity(
             id = "uuid-selectors",
-            serverId = "abs1",
+            sourceId = "abs1",
             itemId = "item1",
             type = AnnotationEntity.TYPE_HIGHLIGHT,
             cfi = "epubcfi(/6/4!/4/2,/1:0,/1:50)",
@@ -533,7 +533,7 @@ class AnnotationW3CCodecTest {
     fun `sourceFieldCorrectlyFormattedAsEpubItem`() {
         val entity = AnnotationEntity(
             id = "uuid-source",
-            serverId = "abs1",
+            sourceId = "abs1",
             itemId = "item-abc123",
             type = AnnotationEntity.TYPE_HIGHLIGHT,
             cfi = "epubcfi(/6/4!/4/2,/1:0,/1:50)",
@@ -617,14 +617,14 @@ class AnnotationW3CCodecTest {
     }
 
     private fun highlight(id: String) = AnnotationEntity(
-        id = id, serverId = "abs1", itemId = "item-1", type = AnnotationEntity.TYPE_HIGHLIGHT,
+        id = id, sourceId = "abs1", itemId = "item-1", type = AnnotationEntity.TYPE_HIGHLIGHT,
         cfi = "epubcfi(/6/4!/4/2,/1:0,/1:5)", color = "yellow", note = null,
         textSnippet = "x", textBefore = "", textAfter = "", chapterHref = "c1",
         createdAt = 1000L, updatedAt = 1000L, originDeviceId = "dev", lastModifiedByDeviceId = "dev",
     )
 
     private fun bookmark(id: String) = AnnotationEntity(
-        id = id, serverId = "abs1", itemId = "item-1", type = AnnotationEntity.TYPE_BOOKMARK,
+        id = id, sourceId = "abs1", itemId = "item-1", type = AnnotationEntity.TYPE_BOOKMARK,
         cfi = "epubcfi(/6/4!/4/2,/1:0,/1:0)", color = "", note = null,
         textSnippet = "", textBefore = "", textAfter = "", chapterHref = "c1",
         bookmarkTitle = "ch1 · 12%",
@@ -636,7 +636,7 @@ class AnnotationW3CCodecTest {
     fun `textQuoteSelectorPrefixAndSuffixRoundTripThroughParse`() {
         val entity = AnnotationEntity(
             id = "uuid-roundtrip",
-            serverId = "abs1",
+            sourceId = "abs1",
             itemId = "item-1",
             type = AnnotationEntity.TYPE_HIGHLIGHT,
             cfi = "epubcfi(/6/4!/4/2,/1:0,/1:50)",
@@ -691,7 +691,7 @@ class AnnotationW3CCodecTest {
 
     private fun pdfHighlightEntity() = AnnotationEntity(
         id = "uuid-pdf-1",
-        serverId = "abs1",
+        sourceId = "abs1",
         itemId = "pdf-item",
         type = AnnotationEntity.TYPE_HIGHLIGHT,
         cfi = pdfHighlightCfi,
@@ -796,7 +796,7 @@ class AnnotationW3CCodecTest {
     fun `EPUB rows still emit the EPUB CFI FragmentSelector unchanged`() {
         val entity = AnnotationEntity(
             id = "uuid-epub-1",
-            serverId = "abs1",
+            sourceId = "abs1",
             itemId = "epub-item",
             type = AnnotationEntity.TYPE_HIGHLIGHT,
             cfi = "epubcfi(/6/4!/4/2,/1:0,/1:100)",

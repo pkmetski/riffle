@@ -23,7 +23,7 @@ internal class AnnotationPushCoordinator(
     private val sweepEnqueuer: AnnotationSweepEnqueuer,
     private val sentinelWriter: DeviceMetaSentinelWriter,
     private val locks: AnnotationLockPort,
-    private val bookTitleProvider: suspend (serverId: String, itemId: String) -> String?,
+    private val bookTitleProvider: suspend (sourceId: String, itemId: String) -> String?,
     private val scope: CoroutineScope,
     private val clock: () -> Long,
     private val tombstoneTtlMs: Long,
@@ -35,35 +35,35 @@ internal class AnnotationPushCoordinator(
      * Schedule a debounced push. Per-book timer; restarts on each call. No-op when the target is
      * currently unset (sync disabled).
      */
-    fun scheduleDebounce(serverId: String, namespace: String, itemId: String) {
+    fun scheduleDebounce(sourceId: String, namespace: String, itemId: String) {
         if (targetProvider() == null) return
 
-        val key = serverId to itemId
+        val key = sourceId to itemId
         debouncingJobs[key]?.cancel()
         debouncingJobs[key] = scope.launch {
             delay(debounceDurationMs)
-            pushPending(serverId, namespace, itemId)
+            pushPending(sourceId, namespace, itemId)
         }
     }
 
     /** Cancel any pending debounce and flush this device's annotations to the target. */
-    suspend fun syncOnClose(serverId: String, namespace: String, itemId: String) {
+    suspend fun syncOnClose(sourceId: String, namespace: String, itemId: String) {
         if (targetProvider() == null) return
 
-        val key = serverId to itemId
+        val key = sourceId to itemId
         debouncingJobs[key]?.cancel()
         debouncingJobs.remove(key)
-        pushPending(serverId, namespace, itemId)
+        pushPending(sourceId, namespace, itemId)
     }
 
-    private suspend fun pushPending(serverId: String, namespace: String, itemId: String) {
+    private suspend fun pushPending(sourceId: String, namespace: String, itemId: String) {
         val target = targetProvider() ?: return
 
         val pushed = try {
             // Hold the per-book annotation lock across the read-then-write so the durable
             // [AnnotationSweep] cannot interleave on the same device file (#321, ADR 0036).
-            locks.withAnnotationLock(serverId, itemId) {
-                pushPendingLocked(target, serverId, namespace, itemId)
+            locks.withAnnotationLock(sourceId, itemId) {
+                pushPendingLocked(target, sourceId, namespace, itemId)
             }
         } catch (e: Exception) {
             statusStore.report(e.toFailedCycleOutcome(clock()))
@@ -73,12 +73,12 @@ internal class AnnotationPushCoordinator(
         // Sentinel writes a different file than the annotations payload, so it doesn't need the
         // per-book lock — keep it out to avoid serializing an extra remote round-trip against the
         // sweep's reconcile path.
-        if (pushed) sentinelWriter.writeQuietly(target, namespace, serverId)
+        if (pushed) sentinelWriter.writeQuietly(target, namespace, sourceId)
     }
 
     private suspend fun pushPendingLocked(
         target: AnnotationSyncTarget,
-        serverId: String,
+        sourceId: String,
         namespace: String,
         itemId: String,
     ): Boolean {
@@ -87,7 +87,7 @@ internal class AnnotationPushCoordinator(
         // the newer tombstone over any older live copy of the same id.
         val now = clock()
         val cutoff = now - tombstoneTtlMs
-        val beforeSweep = annotationDao.getAllForItemIncludingDeleted(serverId, itemId)
+        val beforeSweep = annotationDao.getAllForItemIncludingDeleted(sourceId, itemId)
         // ADR 0038 rule 1+2 — preview the sweep in memory. If it would leave us empty, DELETE the
         // WebDAV file BEFORE mutating Room. A failed DELETE aborts before Room changes so the
         // next attempt still sees `beforeSweep.isNotEmpty()` and retries.
@@ -98,7 +98,7 @@ internal class AnnotationPushCoordinator(
                 // Rule 2 empty-file DELETE. Do it first, then commit the sweep to Room.
                 val deviceId = deviceIdStore.getOrCreate()
                 target.delete(namespace, itemId, AnnotationFilenames.forDevice(deviceId))
-                annotationDao.purgeAgedTombstones(serverId, itemId, cutoff)
+                annotationDao.purgeAgedTombstones(sourceId, itemId, cutoff)
                 statusStore.report(CycleOutcome.Success(now))
                 return true
             }
@@ -108,7 +108,7 @@ internal class AnnotationPushCoordinator(
         }
 
         // Non-empty case: commit the sweep, then push the survivors.
-        annotationDao.purgeAgedTombstones(serverId, itemId, cutoff)
+        annotationDao.purgeAgedTombstones(sourceId, itemId, cutoff)
         val localEntities = remainingAfterSweep
 
         val deviceId = deviceIdStore.getOrCreate()
@@ -121,7 +121,7 @@ internal class AnnotationPushCoordinator(
         // [AnnotationDeviceMeta] — so this header carries only the book-scoped bookTitle.
         val header = AnnotationFileHeader(
             deviceId = deviceId,
-            bookTitle = bookTitleProvider(serverId, itemId),
+            bookTitle = bookTitleProvider(sourceId, itemId),
         )
         val jsonArray = AnnotationFileHeaderCodec.buildFileBody(header, jsonStrings)
         val filename = AnnotationFilenames.forDevice(deviceId)

@@ -3,12 +3,12 @@ package com.riffle.core.data
 import com.riffle.core.network.NetworkResult
 
 import com.riffle.core.domain.AuthenticateResult
-import com.riffle.core.domain.CommitServerResult
-import com.riffle.core.domain.PendingServer
-import com.riffle.core.domain.Server
-import com.riffle.core.domain.ServerRepository
+import com.riffle.core.domain.CommitSourceResult
+import com.riffle.core.domain.PendingSource
+import com.riffle.core.domain.Source
+import com.riffle.core.domain.SourceRepository
 import com.riffle.core.domain.ServerType
-import com.riffle.core.domain.ServerUrl
+import com.riffle.core.domain.SourceUrl
 import com.riffle.core.domain.TokenStorage
 import com.riffle.core.network.NetworkStorytellerBook
 import com.riffle.core.network.StorytellerLibraryApi
@@ -21,42 +21,42 @@ import java.io.IOException
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
-private fun stServer(id: String) = Server(
+private fun stServer(id: String) = Source(
     id = id,
-    url = ServerUrl.parse("http://st-$id:8001")!!,
+    url = SourceUrl.parse("http://st-$id:8001")!!,
     isActive = true,
     insecureConnectionAllowed = false,
     username = "user",
     serverType = ServerType.STORYTELLER,
 )
 
-private fun absServer(id: String) = Server(
+private fun absServer(id: String) = Source(
     id = id,
-    url = ServerUrl.parse("http://abs-$id:13378")!!,
+    url = SourceUrl.parse("http://abs-$id:13378")!!,
     isActive = false,
     insecureConnectionAllowed = false,
     username = "user",
     serverType = ServerType.AUDIOBOOKSHELF,
 )
 
-private fun fakeServers(list: List<Server>): ServerRepository = object : ServerRepository {
-    override fun observeAll(): Flow<List<Server>> = flowOf(list)
-    override suspend fun getActive(): Server? = list.firstOrNull { it.isActive }
-    override suspend fun getById(serverId: String): Server? = list.firstOrNull { it.id == serverId }
+private fun fakeServers(list: List<Source>): SourceRepository = object : SourceRepository {
+    override fun observeAll(): Flow<List<Source>> = flowOf(list)
+    override suspend fun getActive(): Source? = list.firstOrNull { it.isActive }
+    override suspend fun getById(sourceId: String): Source? = list.firstOrNull { it.id == sourceId }
     override suspend fun authenticate(
-        url: ServerUrl, username: String, password: String,
+        url: SourceUrl, username: String, password: String,
         insecureAllowed: Boolean, serverType: ServerType,
     ): AuthenticateResult = error("unused")
-    override suspend fun commit(pending: PendingServer, hiddenLibraryIds: Set<String>): CommitServerResult = error("unused")
-    override suspend fun setActive(serverId: String) = error("unused")
-    override suspend fun remove(serverId: String) = error("unused")
-    override suspend fun getServerVersion(serverId: String): String? = error("unused")
+    override suspend fun commit(pending: PendingSource, hiddenLibraryIds: Set<String>): CommitSourceResult = error("unused")
+    override suspend fun setActive(sourceId: String) = error("unused")
+    override suspend fun remove(sourceId: String) = error("unused")
+    override suspend fun getSourceVersion(sourceId: String): String? = error("unused")
 }
 
 private fun fakeTokens(map: Map<String, String>): TokenStorage = object : TokenStorage {
-    override suspend fun saveToken(serverId: String, token: String) = error("unused")
-    override suspend fun getToken(serverId: String): String? = map[serverId]
-    override suspend fun deleteToken(serverId: String) = error("unused")
+    override suspend fun saveToken(sourceId: String, token: String) = error("unused")
+    override suspend fun getToken(sourceId: String): String? = map[sourceId]
+    override suspend fun deleteToken(sourceId: String) = error("unused")
 }
 
 private class CapturingApi(
@@ -95,7 +95,7 @@ class StorytellerReadaloudSyncerTest {
         )
         val entities = storytellerBooksToEntities(
             books = books,
-            serverId = "st-1",
+            sourceId = "st-1",
             libraryId = "readaloud:st-1",
             coverUrlOf = { id -> "http://s/api/books/$id/cover" },
             lastOpenedAtMap = mapOf("42" to 1234L),
@@ -114,27 +114,27 @@ class StorytellerReadaloudSyncerTest {
         assertEquals(1234L, e.lastOpenedAt)
     }
 
-    @Test fun `syncStale fetches each storyteller server and stores under readaloud library id`() = runTest {
+    @Test fun `syncStale fetches each storyteller source and stores under readaloud library id`() = runTest {
         val itemDao = FakeLibraryItemDao()
         val api = capturingApi(books = listOf(NetworkStorytellerBook(id = 1L, title = "T", authors = listOf("A"))))
         val syncer = StorytellerReadaloudSyncer(
-            serverRepository = fakeServers(listOf(stServer("st-1"), absServer("abs-1"))),
+            sourceRepository = fakeServers(listOf(stServer("st-1"), absServer("abs-1"))),
             tokenStorage = fakeTokens(mapOf("st-1" to "tok")),
             storytellerApi = api,
             libraryItemDao = itemDao,
             clock = { 0L },
         )
         syncer.syncStale()
-        assertEquals(listOf("http://st-st-1:8001"), api.calls)   // only the storyteller server fetched
+        assertEquals(listOf("http://st-st-1:8001"), api.calls)   // only the storyteller source fetched
         assertEquals(1, itemDao.itemsFor("readaloud:st-1").size)
     }
 
-    @Test fun `syncStale respects the staleness ttl per server`() = runTest {
+    @Test fun `syncStale respects the staleness ttl per source`() = runTest {
         val itemDao = FakeLibraryItemDao()
         val api = capturingApi(books = listOf(NetworkStorytellerBook(id = 1L, title = "T", authors = listOf("A"))))
         var now = 0L
         val syncer = StorytellerReadaloudSyncer(
-            serverRepository = fakeServers(listOf(stServer("st-1"))),
+            sourceRepository = fakeServers(listOf(stServer("st-1"))),
             tokenStorage = fakeTokens(mapOf("st-1" to "tok")),
             storytellerApi = api,
             libraryItemDao = itemDao,
@@ -149,12 +149,12 @@ class StorytellerReadaloudSyncerTest {
         assertEquals(2, api.calls.size)   // refetched after TTL
     }
 
-    @Test fun `syncStale is best-effort - a failing server does not throw or record success`() = runTest {
+    @Test fun `syncStale is best-effort - a failing source does not throw or record success`() = runTest {
         val itemDao = FakeLibraryItemDao()
         val api = capturingApiError()
         var now = 0L
         val syncer = StorytellerReadaloudSyncer(
-            serverRepository = fakeServers(listOf(stServer("st-1"))),
+            sourceRepository = fakeServers(listOf(stServer("st-1"))),
             tokenStorage = fakeTokens(mapOf("st-1" to "tok")),
             storytellerApi = api,
             libraryItemDao = itemDao,

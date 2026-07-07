@@ -73,23 +73,22 @@ private object StubLabelResolver : DeviceLabelResolver {
 }
 
 private class NoOpAnnotationDao : AnnotationDao {
-    override fun observeForItem(serverId: String, itemId: String): Flow<List<AnnotationEntity>> = flowOf(emptyList())
-    override fun observeForServer(serverId: String): Flow<List<AnnotationEntity>> = flowOf(emptyList())
-    override suspend fun getForItem(serverId: String, itemId: String): List<AnnotationEntity> = emptyList()
-    override suspend fun getAllForItemIncludingDeleted(serverId: String, itemId: String): List<AnnotationEntity> = emptyList()
+    override fun observeForItem(sourceId: String, itemId: String): Flow<List<AnnotationEntity>> = flowOf(emptyList())
+    override fun observeForSource(sourceId: String): Flow<List<AnnotationEntity>> = flowOf(emptyList())
+    override suspend fun getForItem(sourceId: String, itemId: String): List<AnnotationEntity> = emptyList()
+    override suspend fun getAllForItemIncludingDeleted(sourceId: String, itemId: String): List<AnnotationEntity> = emptyList()
     override suspend fun getById(id: String): AnnotationEntity? = null
-    override suspend fun getByItemAndCfi(serverId: String, itemId: String, cfi: String): AnnotationEntity? = null
+    override suspend fun getByItemAndCfi(sourceId: String, itemId: String, cfi: String): AnnotationEntity? = null
     override suspend fun upsert(entity: AnnotationEntity) = Unit
     override suspend fun upsertAll(annotations: List<AnnotationEntity>) = Unit
     override suspend fun tombstone(id: String, updatedAt: Long, deviceId: String) = Unit
     override suspend fun recolor(id: String, color: String, updatedAt: Long, deviceId: String) = Unit
     override suspend fun updateNote(id: String, note: String?, updatedAt: Long, deviceId: String) = Unit
-    override fun observeAnnotationsByPosition(serverId: String, itemId: String): Flow<List<AnnotationEntity>> = flowOf(emptyList())
+    override fun observeAnnotationsByPosition(sourceId: String, itemId: String): Flow<List<AnnotationEntity>> = flowOf(emptyList())
     override suspend fun renameBookmark(id: String, title: String, updatedAt: Long, deviceId: String) = Unit
-    override fun observePendingCountForBook(serverId: String, itemId: String): Flow<Int> = flowOf(0)
+    override fun observePendingCountForBook(sourceId: String, itemId: String): Flow<Int> = flowOf(0)
     override fun observePendingBookCountAcrossAll(): Flow<Int> = flowOf(0)
-    override suspend fun dirtyServerItems(): List<AnnotationDao.DirtyServerItem> = emptyList()
+    override suspend fun dirtySourceItems(): List<AnnotationDao.DirtySourceItem> = emptyList()
     override suspend fun markSynced(ids: List<String>, syncedAt: Long) = Unit
-    override suspend fun purgeAgedTombstones(serverId: String, itemId: String, cutoff: Long): Int = 0
-    override fun observeBooksWithHighlights(serverId: String): Flow<List<com.riffle.core.database.BookHighlightSummary>> = flowOf(emptyList())
+    override suspend fun purgeAgedTombstones(sourceId: String, itemId: String, cutoff: Long): Int = 0
 }

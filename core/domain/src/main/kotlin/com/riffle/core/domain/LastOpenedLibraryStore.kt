@@ -11,6 +11,6 @@ import kotlinx.coroutines.flow.Flow
  * library when nothing is remembered, or when the remembered library is now hidden or gone).
  */
 interface LastOpenedLibraryStore {
-    fun lastOpenedLibrary(serverId: String): Flow<String?>
-    suspend fun setLastOpenedLibrary(serverId: String, libraryId: String)
+    fun lastOpenedLibrary(sourceId: String): Flow<String?>
+    suspend fun setLastOpenedLibrary(sourceId: String, libraryId: String)
 }

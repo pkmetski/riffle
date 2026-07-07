@@ -13,14 +13,14 @@ data class ReadaloudResumePosition(
 
 /**
  * Persists the readaloud resume position per book so it survives leaving and re-entering the book (and
- * process death). Keyed by the reader's (serverId, itemId) — the same identity as the reading position —
+ * process death). Keyed by the reader's (sourceId, itemId) — the same identity as the reading position —
  * because [ReadaloudResumePosition.href]/[ReadaloudResumePosition.fragmentRef] live in reader-locator
  * space. Device-local: unlike the reading position it is never synced to a server.
  */
 interface ReadaloudResumeStore {
-    suspend fun save(serverId: String, itemId: String, position: ReadaloudResumePosition)
-    suspend fun load(serverId: String, itemId: String): ReadaloudResumePosition?
+    suspend fun save(sourceId: String, itemId: String, position: ReadaloudResumePosition)
+    suspend fun load(sourceId: String, itemId: String): ReadaloudResumePosition?
 
     /** Drop the saved resume position so a reopened book starts fresh (e.g. after "mark unread"). */
-    suspend fun clear(serverId: String, itemId: String)
+    suspend fun clear(sourceId: String, itemId: String)
 }

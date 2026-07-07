@@ -17,7 +17,7 @@ interface LibraryObserver {
     fun observeLibraries(): Flow<List<Library>>
 
     /** Libraries for a specific server (active or not). Reads the local DB; does not hit the network. */
-    fun observeLibraries(serverId: String): Flow<List<Library>>
+    fun observeLibraries(sourceId: String): Flow<List<Library>>
 
     fun observeLibraryItems(libraryId: String): Flow<List<LibraryItem>>
     fun observeUngroupedLibraryItems(libraryId: String): Flow<List<LibraryItem>>
@@ -42,11 +42,11 @@ interface LibraryObserver {
     fun observeItem(itemId: String): Flow<LibraryItem?>
 
     /** A specific Server's copy of an item — for cross-Server callers like the Downloads screen. */
-    suspend fun getItem(serverId: String, itemId: String): LibraryItem?
+    suspend fun getItem(sourceId: String, itemId: String): LibraryItem?
     suspend fun getLibrary(libraryId: String): Library?
 
     /** The id of the series the given item belongs to, or null if it is not in any series. */
-    suspend fun getSeriesIdForItem(serverId: String, itemId: String): String?
+    suspend fun getSeriesIdForItem(sourceId: String, itemId: String): String?
 }
 
 /**
@@ -61,7 +61,7 @@ interface LibraryMutator {
     suspend fun updateReadingProgress(itemId: String, progress: Float)
 
     /** Writes the new readingProgress to a specific server's local row. Cross-server callers. */
-    suspend fun updateReadingProgress(serverId: String, itemId: String, progress: Float)
+    suspend fun updateReadingProgress(sourceId: String, itemId: String, progress: Float)
 }
 
 /**

@@ -13,9 +13,9 @@ class RoomDirtyProgressLedger @Inject constructor(
     override suspend fun serversWithDirty(): List<String> =
         (readingDao.sourcesWithDirtyRows() + audiobookDao.sourcesWithDirtyRows()).distinct()
 
-    override suspend fun dirtyEbookItems(serverId: String): List<String> =
-        readingDao.dirtyForSource(serverId).map { it.itemId }
+    override suspend fun dirtyEbookItems(sourceId: String): List<String> =
+        readingDao.dirtyForSource(sourceId).map { it.itemId }
 
-    override suspend fun dirtyAudioItems(serverId: String): List<String> =
-        audiobookDao.dirtyForSource(serverId).map { it.itemId }
+    override suspend fun dirtyAudioItems(sourceId: String): List<String> =
+        audiobookDao.dirtyForSource(sourceId).map { it.itemId }
 }

@@ -10,7 +10,7 @@ import kotlin.math.roundToInt
 /**
  * Set-reconciler for audiobook bookmarks against Audiobookshelf (ADR 0030).
  *
- * Unlike positions (one value per item), bookmarks are a COLLECTION per (serverId, itemId),
+ * Unlike positions (one value per item), bookmarks are a COLLECTION per (sourceId, itemId),
  * so this is a set-reconcile. ABS identity for a bookmark is (libraryItemId, time) where time
  * is INTEGER seconds — there is NO per-bookmark id, so we key local<->server matches on
  * `positionSec.roundToInt() == timeSec`.
@@ -38,14 +38,14 @@ class AudiobookBookmarkReconciler(
     )
 
     suspend fun reconcile(
-        serverId: String,
+        sourceId: String,
         itemId: String,
         baseUrl: String,
         token: String,
         insecureAllowed: Boolean,
     ) {
         // --- PUSH: send each dirty row's local intent. Capture ifStamp BEFORE the network call. ---
-        val dirty = dao.allForItem(serverId, itemId).filter { it.localUpdatedAt > it.lastSyncedAt }
+        val dirty = dao.allForItem(sourceId, itemId).filter { it.localUpdatedAt > it.lastSyncedAt }
         for (row in dirty) {
             val ifStamp = row.localUpdatedAt
             if (row.deleted) {
@@ -74,7 +74,7 @@ class AudiobookBookmarkReconciler(
         val serverForItem = serverBookmarks.filter { it.libraryItemId == itemId }
         val serverTimes = serverForItem.map { it.timeSec }.toSet()
         // Re-read local AFTER push so confirmed deletes are already gone.
-        val local = dao.allForItem(serverId, itemId)
+        val local = dao.allForItem(sourceId, itemId)
 
         // Insert / update from server.
         for (sb in serverForItem) {
@@ -83,7 +83,7 @@ class AudiobookBookmarkReconciler(
                 atTime == null -> dao.upsert(
                     AudiobookBookmarkEntity(
                         id = newId(),
-                        serverId = serverId,
+                        sourceId = sourceId,
                         itemId = itemId,
                         positionSec = sb.timeSec.toDouble(),
                         title = sb.title,

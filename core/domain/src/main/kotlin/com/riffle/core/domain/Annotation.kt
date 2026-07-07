@@ -2,7 +2,7 @@ package com.riffle.core.domain
 
 data class Annotation(
     val id: String,
-    val serverId: String,
+    val sourceId: String,
     val itemId: String,
     val type: String,
     val cfi: String,

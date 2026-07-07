@@ -8,5 +8,5 @@ package com.riffle.core.data
  * port instead of instantiating the process-wide concrete class.
  */
 interface AnnotationLockPort {
-    suspend fun <T> withAnnotationLock(serverId: String, itemId: String, block: suspend () -> T): T
+    suspend fun <T> withAnnotationLock(sourceId: String, itemId: String, block: suspend () -> T): T
 }

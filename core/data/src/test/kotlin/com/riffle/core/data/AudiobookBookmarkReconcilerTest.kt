@@ -27,29 +27,29 @@ class AudiobookBookmarkReconcilerTest {
             rows.value = rows.value.filterNot { it.id == entity.id } + entity
         }
 
-        override fun observeForItem(serverId: String, itemId: String): Flow<List<AudiobookBookmarkEntity>> =
+        override fun observeForItem(sourceId: String, itemId: String): Flow<List<AudiobookBookmarkEntity>> =
             rows.map { list ->
-                list.filter { it.serverId == serverId && it.itemId == itemId && !it.deleted }
+                list.filter { it.sourceId == sourceId && it.itemId == itemId && !it.deleted }
                     .sortedBy { it.positionSec }
             }
 
-        override fun observeForServer(serverId: String): Flow<List<AudiobookBookmarkEntity>> =
-            rows.map { list -> list.filter { it.serverId == serverId && !it.deleted }.sortedBy { it.positionSec } }
+        override fun observeForSource(sourceId: String): Flow<List<AudiobookBookmarkEntity>> =
+            rows.map { list -> list.filter { it.sourceId == sourceId && !it.deleted }.sortedBy { it.positionSec } }
 
         override suspend fun getById(id: String) = rows.value.firstOrNull { it.id == id }
 
-        override suspend fun allForItem(serverId: String, itemId: String) =
-            rows.value.filter { it.serverId == serverId && it.itemId == itemId }
+        override suspend fun allForItem(sourceId: String, itemId: String) =
+            rows.value.filter { it.sourceId == sourceId && it.itemId == itemId }
 
-        override suspend fun dirtyForServer(serverId: String) =
-            rows.value.filter { it.serverId == serverId && it.localUpdatedAt > it.lastSyncedAt }
+        override suspend fun dirtyForSource(sourceId: String) =
+            rows.value.filter { it.sourceId == sourceId && it.localUpdatedAt > it.lastSyncedAt }
 
-        override suspend fun serversWithDirtyRows() =
-            rows.value.filter { it.localUpdatedAt > it.lastSyncedAt }.map { it.serverId }.distinct()
+        override suspend fun sourcesWithDirtyRows() =
+            rows.value.filter { it.localUpdatedAt > it.lastSyncedAt }.map { it.sourceId }.distinct()
 
-        override fun observeDirtyCountForItem(serverId: String, itemId: String): Flow<Int> =
+        override fun observeDirtyCountForItem(sourceId: String, itemId: String): Flow<Int> =
             rows.map { list ->
-                list.count { it.serverId == serverId && it.itemId == itemId && it.localUpdatedAt > it.lastSyncedAt }
+                list.count { it.sourceId == sourceId && it.itemId == itemId && it.localUpdatedAt > it.lastSyncedAt }
             }
 
         override suspend fun confirmPushedIfUnchanged(id: String, serverStamp: Long, ifLocalUpdatedAt: Long): Int {
@@ -140,11 +140,11 @@ class AudiobookBookmarkReconcilerTest {
         val dao = FakeDao()
         dao.upsert(
             AudiobookBookmarkEntity(
-                id = "a", serverId = "s1", itemId = "i1", positionSec = 12.4, title = "Intro",
+                id = "a", sourceId = "s1", itemId = "i1", positionSec = 12.4, title = "Intro",
                 createdAt = 500L, localUpdatedAt = 800L, lastSyncedAt = 0L, deleted = false,
             ),
         )
-        // Server echoes the bookmark back so the pull doesn't remove the now-clean row.
+        // Source echoes the bookmark back so the pull doesn't remove the now-clean row.
         val api = FakeApi(listResult = NetworkResult.Success(listOf(NetworkAbsBookmark("i1", "Intro", 12, 500L))))
         reconciler(dao, api).run()
 
@@ -157,7 +157,7 @@ class AudiobookBookmarkReconcilerTest {
         val dao = FakeDao()
         dao.upsert(
             AudiobookBookmarkEntity(
-                id = "a", serverId = "s1", itemId = "i1", positionSec = 30.0, title = "New name",
+                id = "a", sourceId = "s1", itemId = "i1", positionSec = 30.0, title = "New name",
                 createdAt = 500L, localUpdatedAt = 900L, lastSyncedAt = 600L, deleted = false,
             ),
         )
@@ -174,7 +174,7 @@ class AudiobookBookmarkReconcilerTest {
         val dao = FakeDao()
         dao.upsert(
             AudiobookBookmarkEntity(
-                id = "a", serverId = "s1", itemId = "i1", positionSec = 45.0, title = "x",
+                id = "a", sourceId = "s1", itemId = "i1", positionSec = 45.0, title = "x",
                 createdAt = 500L, localUpdatedAt = 900L, lastSyncedAt = 600L, deleted = true,
             ),
         )
@@ -189,7 +189,7 @@ class AudiobookBookmarkReconcilerTest {
         val dao = FakeDao()
         dao.upsert(
             AudiobookBookmarkEntity(
-                id = "a", serverId = "s1", itemId = "i1", positionSec = 45.0, title = "x",
+                id = "a", sourceId = "s1", itemId = "i1", positionSec = 45.0, title = "x",
                 createdAt = 500L, localUpdatedAt = 900L, lastSyncedAt = 600L, deleted = true,
             ),
         )
@@ -204,50 +204,50 @@ class AudiobookBookmarkReconcilerTest {
 
     @Test fun pullInsert() = runTest {
         val dao = FakeDao()
-        val api = FakeApi(listResult = NetworkResult.Success(listOf(NetworkAbsBookmark("i1", "From server", 77, 1234L))))
+        val api = FakeApi(listResult = NetworkResult.Success(listOf(NetworkAbsBookmark("i1", "From source", 77, 1234L))))
         reconciler(dao, api).run()
 
         val row = dao.allForItem("s1", "i1").single()
         assertEquals(77.0, row.positionSec, 0.0001)
-        assertEquals("From server", row.title)
+        assertEquals("From source", row.title)
         assertEquals(1234L, row.createdAt)
         assertEquals(false, row.deleted)
-        assertTrue("server-sourced row is clean", row.localUpdatedAt <= row.lastSyncedAt)
+        assertTrue("source-sourced row is clean", row.localUpdatedAt <= row.lastSyncedAt)
     }
 
     @Test fun pullRemovesCleanRowAbsentFromServer() = runTest {
         val dao = FakeDao()
         dao.upsert(
             AudiobookBookmarkEntity(
-                id = "a", serverId = "s1", itemId = "i1", positionSec = 20.0, title = "stale",
+                id = "a", sourceId = "s1", itemId = "i1", positionSec = 20.0, title = "stale",
                 createdAt = 500L, localUpdatedAt = 600L, lastSyncedAt = 600L, deleted = false,
             ),
         )
         val api = FakeApi(listResult = NetworkResult.Success(emptyList<NetworkAbsBookmark>()))
         reconciler(dao, api).run()
 
-        assertNull("clean row missing from server must be removed", dao.getById("a"))
+        assertNull("clean row missing from source must be removed", dao.getById("a"))
     }
 
     @Test fun pullDoesNotClobberDirtyRows() = runTest {
         val dao = FakeDao()
-        // Dirty local create whose time is absent server-side -> must NOT be removed.
+        // Dirty local create whose time is absent source-side -> must NOT be removed.
         dao.upsert(
             AudiobookBookmarkEntity(
-                id = "create", serverId = "s1", itemId = "i1", positionSec = 20.0, title = "pending",
+                id = "create", sourceId = "s1", itemId = "i1", positionSec = 20.0, title = "pending",
                 createdAt = 500L, localUpdatedAt = 900L, lastSyncedAt = 0L, deleted = false,
             ),
         )
-        // Dirty rename whose server title differs -> server title must NOT be applied.
+        // Dirty rename whose source title differs -> source title must NOT be applied.
         dao.upsert(
             AudiobookBookmarkEntity(
-                id = "rename", serverId = "s1", itemId = "i1", positionSec = 50.0, title = "local title",
+                id = "rename", sourceId = "s1", itemId = "i1", positionSec = 50.0, title = "local title",
                 createdAt = 500L, localUpdatedAt = 900L, lastSyncedAt = 600L, deleted = false,
             ),
         )
-        // Server returns the rename's time with a DIFFERENT title; the create's time is absent.
+        // Source returns the rename's time with a DIFFERENT title; the create's time is absent.
         val api = FakeApi(
-            listResult = NetworkResult.Success(listOf(NetworkAbsBookmark("i1", "server title", 50, 500L))),
+            listResult = NetworkResult.Success(listOf(NetworkAbsBookmark("i1", "source title", 50, 500L))),
         )
         // Pushes fail (network) so both rows stay DIRTY through the pull — that's the scenario
         // under test: the pull must not clobber pending local intent.
@@ -266,14 +266,14 @@ class AudiobookBookmarkReconcilerTest {
         // A dirty create to push.
         dao.upsert(
             AudiobookBookmarkEntity(
-                id = "a", serverId = "s1", itemId = "i1", positionSec = 12.0, title = "Intro",
+                id = "a", sourceId = "s1", itemId = "i1", positionSec = 12.0, title = "Intro",
                 createdAt = 500L, localUpdatedAt = 800L, lastSyncedAt = 0L, deleted = false,
             ),
         )
-        // A clean row that, if the pull ran, would be removed (absent server-side). It must survive.
+        // A clean row that, if the pull ran, would be removed (absent source-side). It must survive.
         dao.upsert(
             AudiobookBookmarkEntity(
-                id = "clean", serverId = "s1", itemId = "i1", positionSec = 99.0, title = "keep",
+                id = "clean", sourceId = "s1", itemId = "i1", positionSec = 99.0, title = "keep",
                 createdAt = 500L, localUpdatedAt = 600L, lastSyncedAt = 600L, deleted = false,
             ),
         )

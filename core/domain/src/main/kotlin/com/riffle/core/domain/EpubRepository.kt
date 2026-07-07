@@ -20,9 +20,9 @@ interface EpubRepository {
         item: LibraryItem,
         onProgress: (downloaded: Long, total: Long) -> Unit = { _, _ -> },
     ): EpubDownloadResult
-    suspend fun removeDownload(serverId: String, itemId: String)
-    fun isDownloaded(serverId: String, itemId: String): Boolean
-    fun isCached(serverId: String, itemId: String): Boolean
+    suspend fun removeDownload(sourceId: String, itemId: String)
+    fun isDownloaded(sourceId: String, itemId: String): Boolean
+    fun isCached(sourceId: String, itemId: String): Boolean
     suspend fun saveReadingPosition(itemId: String, cfi: String)
-    suspend fun loadLastPositionHref(serverId: String, itemId: String): String? = null
+    suspend fun loadLastPositionHref(sourceId: String, itemId: String): String? = null
 }

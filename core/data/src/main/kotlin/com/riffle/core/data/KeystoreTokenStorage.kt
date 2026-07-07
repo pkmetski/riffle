@@ -33,24 +33,24 @@ class KeystoreTokenStorage @Inject constructor(
         }
     }
 
-    override suspend fun saveToken(serverId: String, token: String) =
-        withContext(dispatchers.io) { prefs.edit().putString(serverId, token).apply() }
+    override suspend fun saveToken(sourceId: String, token: String) =
+        withContext(dispatchers.io) { prefs.edit().putString(sourceId, token).apply() }
 
-    override suspend fun getToken(serverId: String): String? =
-        withContext(dispatchers.io) { prefs.getString(serverId, null) }
+    override suspend fun getToken(sourceId: String): String? =
+        withContext(dispatchers.io) { prefs.getString(sourceId, null) }
 
-    override suspend fun deleteToken(serverId: String) =
-        withContext(dispatchers.io) { prefs.edit().remove(serverId).apply() }
+    override suspend fun deleteToken(sourceId: String) =
+        withContext(dispatchers.io) { prefs.edit().remove(sourceId).apply() }
 
-    override suspend fun savePassword(serverId: String, password: String) =
-        withContext(dispatchers.io) { prefs.edit().putString(passwordKey(serverId), password).apply() }
+    override suspend fun savePassword(sourceId: String, password: String) =
+        withContext(dispatchers.io) { prefs.edit().putString(passwordKey(sourceId), password).apply() }
 
-    override suspend fun getPassword(serverId: String): String? =
-        withContext(dispatchers.io) { prefs.getString(passwordKey(serverId), null) }
+    override suspend fun getPassword(sourceId: String): String? =
+        withContext(dispatchers.io) { prefs.getString(passwordKey(sourceId), null) }
 
-    override suspend fun deletePassword(serverId: String) =
-        withContext(dispatchers.io) { prefs.edit().remove(passwordKey(serverId)).apply() }
+    override suspend fun deletePassword(sourceId: String) =
+        withContext(dispatchers.io) { prefs.edit().remove(passwordKey(sourceId)).apply() }
 
-    /** Distinct key prefix so passwords never collide with the bare-serverId token keys. */
-    private fun passwordKey(serverId: String): String = "password:$serverId"
+    /** Distinct key prefix so passwords never collide with the bare-sourceId token keys. */
+    private fun passwordKey(sourceId: String): String = "password:$sourceId"
 }

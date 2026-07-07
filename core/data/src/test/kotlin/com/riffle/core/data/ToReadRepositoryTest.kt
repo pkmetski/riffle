@@ -3,12 +3,12 @@ package com.riffle.core.data
 import com.riffle.core.network.NetworkResult
 
 import com.riffle.core.domain.AuthenticateResult
-import com.riffle.core.domain.CommitServerResult
+import com.riffle.core.domain.CommitSourceResult
 import com.riffle.core.domain.EbookFormat
-import com.riffle.core.domain.PendingServer
-import com.riffle.core.domain.Server
-import com.riffle.core.domain.ServerRepository
-import com.riffle.core.domain.ServerUrl
+import com.riffle.core.domain.PendingSource
+import com.riffle.core.domain.Source
+import com.riffle.core.domain.SourceRepository
+import com.riffle.core.domain.SourceUrl
 import com.riffle.core.domain.TokenStorage
 import com.riffle.core.network.AbsLibraryApi
 import com.riffle.core.network.NetworkLibraryItem
@@ -24,9 +24,9 @@ import java.io.IOException
 
 class ToReadRepositoryTest {
 
-    private val activeServer = Server(
+    private val activeServer = Source(
         id = "s1",
-        url = ServerUrl.parse("http://abs.local")!!,
+        url = SourceUrl.parse("http://abs.local")!!,
         isActive = true,
         insecureConnectionAllowed = false,
         username = "u",
@@ -34,14 +34,14 @@ class ToReadRepositoryTest {
 
     private fun makeRepo(
         api: AbsLibraryApi = FakeAbsApi(),
-        serverRepository: ServerRepository = FakeServerRepository(activeServer),
+        sourceRepository: SourceRepository = FakeSourceRepository(activeServer),
         tokenStorage: TokenStorage = FakeTokenStorage(mutableMapOf("s1" to "tok")),
-    ) = ToReadRepositoryImpl(api, serverRepository, tokenStorage)
+    ) = ToReadRepositoryImpl(api, sourceRepository, tokenStorage)
 
     // ── refresh + observeToReadItemIds ────────────────────────────────────────
 
     @Test
-    fun `refresh populates cache from server`() = runTest {
+    fun `refresh populates cache from source`() = runTest {
         val api = FakeAbsApi(
             playlistsByLibrary = mapOf("lib-1" to listOf(playlist("pl-A", "To Read", listOf("item-1", "item-2")))),
         )
@@ -106,7 +106,7 @@ class ToReadRepositoryTest {
     }
 
     @Test
-    fun `addToToRead creates playlist when cache is empty + no playlist on server`() = runTest {
+    fun `addToToRead creates playlist when cache is empty + no playlist on source`() = runTest {
         val api = FakeAbsApi(playlistsByLibrary = mapOf("lib-1" to emptyList()))
         val repo = makeRepo(api)
         repo.refresh("lib-1")
@@ -117,9 +117,9 @@ class ToReadRepositoryTest {
     }
 
     @Test
-    fun `addToToRead returns false when no active server`() = runTest {
+    fun `addToToRead returns false when no active source`() = runTest {
         val repo = makeRepo(
-            serverRepository = FakeServerRepository(activeServer = null),
+            sourceRepository = FakeSourceRepository(activeServer = null),
             tokenStorage = FakeTokenStorage(mutableMapOf()),
         )
         assertFalse(repo.addToToRead("item-1", "lib-1"))
@@ -171,7 +171,7 @@ class ToReadRepositoryTest {
 
     @Test
     fun `removeFromToRead clears cached playlistId when last item is removed`() = runTest {
-        // ABS auto-deletes empty playlists server-side, so the cached id must be invalidated
+        // ABS auto-deletes empty playlists source-side, so the cached id must be invalidated
         // or the next add will POST to a dead playlist id.
         val api = FakeAbsApi(
             playlistsByLibrary = mapOf("lib-1" to listOf(playlist("pl-A", "To Read", listOf("item-1")))),
@@ -222,22 +222,22 @@ class ToReadRepositoryTest {
     )
 }
 
-private class FakeServerRepository(private val activeServer: Server?) : ServerRepository {
+private class FakeSourceRepository(private val activeServer: Source?) : SourceRepository {
     override fun observeAll() = MutableStateFlow(listOfNotNull(activeServer))
-    override suspend fun getActive(): Server? = activeServer
-    override suspend fun authenticate(url: ServerUrl, username: String, password: String, insecureAllowed: Boolean, serverType: com.riffle.core.domain.ServerType): AuthenticateResult =
+    override suspend fun getActive(): Source? = activeServer
+    override suspend fun authenticate(url: SourceUrl, username: String, password: String, insecureAllowed: Boolean, serverType: com.riffle.core.domain.ServerType): AuthenticateResult =
         AuthenticateResult.NetworkError(IOException())
-    override suspend fun commit(pending: PendingServer, hiddenLibraryIds: Set<String>): CommitServerResult =
-        CommitServerResult.Failure(IOException())
-    override suspend fun setActive(serverId: String) {}
-    override suspend fun remove(serverId: String) {}
-    override suspend fun getServerVersion(serverId: String): String? = null
+    override suspend fun commit(pending: PendingSource, hiddenLibraryIds: Set<String>): CommitSourceResult =
+        CommitSourceResult.Failure(IOException())
+    override suspend fun setActive(sourceId: String) {}
+    override suspend fun remove(sourceId: String) {}
+    override suspend fun getSourceVersion(sourceId: String): String? = null
 }
 
 private class FakeTokenStorage(private val tokens: MutableMap<String, String>) : TokenStorage {
-    override suspend fun saveToken(serverId: String, token: String) { tokens[serverId] = token }
-    override suspend fun getToken(serverId: String): String? = tokens[serverId]
-    override suspend fun deleteToken(serverId: String) { tokens.remove(serverId) }
+    override suspend fun saveToken(sourceId: String, token: String) { tokens[sourceId] = token }
+    override suspend fun getToken(sourceId: String): String? = tokens[sourceId]
+    override suspend fun deleteToken(sourceId: String) { tokens.remove(sourceId) }
 }
 
 private open class FakeAbsApi(

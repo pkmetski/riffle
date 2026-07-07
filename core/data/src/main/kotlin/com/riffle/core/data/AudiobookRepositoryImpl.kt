@@ -5,7 +5,7 @@ import com.riffle.core.domain.AudiobookRepository
 import com.riffle.core.domain.AudiobookSession
 import com.riffle.core.domain.AudiobookTimeline
 import com.riffle.core.domain.AudiobookTrackSpan
-import com.riffle.core.domain.ServerRepository
+import com.riffle.core.domain.SourceRepository
 import com.riffle.core.domain.TokenStorage
 import com.riffle.core.network.AbsPlaybackApi
 import com.riffle.core.network.AbsSessionApi
@@ -22,24 +22,24 @@ import javax.inject.Inject
 class AudiobookRepositoryImpl @Inject constructor(
     private val playbackApi: AbsPlaybackApi,
     private val sessionApi: AbsSessionApi,
-    private val serverRepository: ServerRepository,
+    private val sourceRepository: SourceRepository,
     private val tokenStorage: TokenStorage,
 ) : AudiobookRepository {
 
-    override suspend fun openSession(serverId: String, itemId: String): AudiobookSession? {
-        val server = serverRepository.getById(serverId) ?: return null
-        val token = tokenStorage.getToken(serverId) ?: return null
+    override suspend fun openSession(sourceId: String, itemId: String): AudiobookSession? {
+        val source = sourceRepository.getById(sourceId) ?: return null
+        val token = tokenStorage.getToken(sourceId) ?: return null
         val result = playbackApi.openPlaybackSession(
-            baseUrl = server.url.value,
+            baseUrl = source.url.value,
             libraryItemId = itemId,
-            deviceId = serverId, // stable per-server device id; ABS only needs it non-empty
+            deviceId = sourceId, // stable per-server device id; ABS only needs it non-empty
             token = token,
-            insecureAllowed = server.insecureConnectionAllowed,
+            insecureAllowed = source.insecureConnectionAllowed,
         )
         val session = (result as? NetworkResult.Success)?.value ?: return null
         if (session.tracks.isEmpty()) return null
 
-        val base = server.url.value.trimEnd('/')
+        val base = source.url.value.trimEnd('/')
         val trackUrls = session.tracks.map { t ->
             val path = if (t.contentUrl.startsWith("/")) t.contentUrl else "/${t.contentUrl}"
             val sep = if (t.contentUrl.contains("?")) "&" else "?"
@@ -58,10 +58,10 @@ class AudiobookRepositoryImpl @Inject constructor(
         // durable local store. A failed read leaves it 0 (the play-session currentTime still resumes).
         val serverLastUpdate = (
             sessionApi.getProgress(
-                baseUrl = server.url.value,
+                baseUrl = source.url.value,
                 libraryItemId = itemId,
                 token = token,
-                insecureAllowed = server.insecureConnectionAllowed,
+                insecureAllowed = source.insecureConnectionAllowed,
             ) as? NetworkResult.Success
         )?.value?.lastUpdate ?: 0L
 
@@ -74,15 +74,15 @@ class AudiobookRepositoryImpl @Inject constructor(
         )
     }
 
-    override suspend fun saveProgress(serverId: String, itemId: String, positionSec: Double, durationSec: Double) {
-        val server = serverRepository.getById(serverId) ?: return
-        val token = tokenStorage.getToken(serverId) ?: return
+    override suspend fun saveProgress(sourceId: String, itemId: String, positionSec: Double, durationSec: Double) {
+        val source = sourceRepository.getById(sourceId) ?: return
+        val token = tokenStorage.getToken(sourceId) ?: return
         sessionApi.syncAudiobookProgress(
-            baseUrl = server.url.value,
+            baseUrl = source.url.value,
             libraryItemId = itemId,
             payload = NetworkAudiobookProgressPayload(currentTime = positionSec, duration = durationSec),
             token = token,
-            insecureAllowed = server.insecureConnectionAllowed,
+            insecureAllowed = source.insecureConnectionAllowed,
         )
     }
 }

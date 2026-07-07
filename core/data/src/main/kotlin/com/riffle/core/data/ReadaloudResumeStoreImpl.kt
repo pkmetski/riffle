@@ -12,10 +12,10 @@ class ReadaloudResumeStoreImpl @Inject constructor(
     private val clock: Clock,
 ) : ReadaloudResumeStore {
 
-    override suspend fun save(serverId: String, itemId: String, position: ReadaloudResumePosition) {
+    override suspend fun save(sourceId: String, itemId: String, position: ReadaloudResumePosition) {
         dao.upsert(
             ReadaloudResumePositionEntity(
-                serverId = serverId,
+                sourceId = sourceId,
                 itemId = itemId,
                 href = position.href,
                 progression = position.progression,
@@ -25,10 +25,10 @@ class ReadaloudResumeStoreImpl @Inject constructor(
         )
     }
 
-    override suspend fun load(serverId: String, itemId: String): ReadaloudResumePosition? =
-        dao.getByItemId(serverId, itemId)?.let {
+    override suspend fun load(sourceId: String, itemId: String): ReadaloudResumePosition? =
+        dao.getByItemId(sourceId, itemId)?.let {
             ReadaloudResumePosition(href = it.href, progression = it.progression, fragmentRef = it.fragmentRef)
         }
 
-    override suspend fun clear(serverId: String, itemId: String) = dao.deleteByItemId(serverId, itemId)
+    override suspend fun clear(sourceId: String, itemId: String) = dao.deleteByItemId(sourceId, itemId)
 }

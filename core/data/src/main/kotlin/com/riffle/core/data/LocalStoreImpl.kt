@@ -7,7 +7,7 @@ import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.InputStream
 
-// Files live under dir/<serverId>/<itemId><ext> so item ids that collide across Servers
+// Files live under dir/<sourceId>/<itemId><ext> so item ids that collide across Servers
 // (e.g. two Storyteller Servers each emitting "1") never overwrite each other (ADR 0025).
 class LocalStoreImpl(
     private val dir: File,
@@ -15,15 +15,15 @@ class LocalStoreImpl(
     private val dispatchers: DispatcherProvider,
 ) : LocalStore {
 
-    private fun fileFor(serverId: String, itemId: String): File =
-        dir.resolve(serverId).resolve("$itemId$extension")
+    private fun fileFor(sourceId: String, itemId: String): File =
+        dir.resolve(sourceId).resolve("$itemId$extension")
 
-    override fun get(serverId: String, itemId: String): File? =
-        fileFor(serverId, itemId).takeIf { it.exists() }
+    override fun get(sourceId: String, itemId: String): File? =
+        fileFor(sourceId, itemId).takeIf { it.exists() }
 
-    override suspend fun save(serverId: String, itemId: String, stream: InputStream): File =
+    override suspend fun save(sourceId: String, itemId: String, stream: InputStream): File =
         withContext(dispatchers.io) {
-            val serverDir = dir.resolve(serverId).also { it.mkdirs() }
+            val serverDir = dir.resolve(sourceId).also { it.mkdirs() }
             val dest = serverDir.resolve("$itemId$extension")
             val tmp = serverDir.resolve("$itemId$extension.tmp")
             try {
@@ -36,12 +36,12 @@ class LocalStoreImpl(
             }
         }
 
-    override fun delete(serverId: String, itemId: String) {
-        fileFor(serverId, itemId).delete()
+    override fun delete(sourceId: String, itemId: String) {
+        fileFor(sourceId, itemId).delete()
     }
 
-    override fun deleteServer(serverId: String) {
-        dir.resolve(serverId).deleteRecursively()
+    override fun deleteServer(sourceId: String) {
+        dir.resolve(sourceId).deleteRecursively()
     }
 
     override fun clear() {
@@ -54,7 +54,7 @@ class LocalStoreImpl(
             ?.flatMap { serverDir ->
                 serverDir.listFiles()
                     ?.filter { it.name.endsWith(extension) }
-                    ?.map { StoredItemRef(serverId = serverDir.name, itemId = it.name.removeSuffix(extension)) }
+                    ?.map { StoredItemRef(sourceId = serverDir.name, itemId = it.name.removeSuffix(extension)) }
                     ?: emptyList()
             }
             ?: emptyList()

@@ -6,13 +6,13 @@ import com.riffle.core.domain.AnnotationSyncTarget
 import com.riffle.core.domain.AuthenticateResult
 import com.riffle.core.domain.NamespaceDeviceListing
 import com.riffle.core.domain.NamespaceSummary
-import com.riffle.core.domain.CommitServerResult
+import com.riffle.core.domain.CommitSourceResult
 import com.riffle.core.domain.DeviceIdStore
 import com.riffle.core.domain.DeviceLabelResolver
-import com.riffle.core.domain.PendingServer
-import com.riffle.core.domain.Server
-import com.riffle.core.domain.ServerRepository
-import com.riffle.core.domain.ServerUrl
+import com.riffle.core.domain.PendingSource
+import com.riffle.core.domain.Source
+import com.riffle.core.domain.SourceRepository
+import com.riffle.core.domain.SourceUrl
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.test.runTest
@@ -31,7 +31,7 @@ class AnnotationSweepTest {
             annotationDao = dao,
             deviceIdStore = FakeDeviceIdStore("dev-A"),
             deviceLabelResolver = FakeDeviceLabelResolver("test-label"),
-            serverRepository = FakeServerRepository(
+            sourceRepository = FakeSourceRepository(
                 absUserIds = mapOf("srv-A" to "abs-user-A"),
                 usernames = mapOf("srv-A" to "alice"),
             ),
@@ -54,7 +54,7 @@ class AnnotationSweepTest {
         val status = AnnotationSyncStatusStore()
         val target = FakeTarget()
         val dao = FakeAnnotationDao(
-            dirty = listOf(AnnotationDao.DirtyServerItem("srv-A", "item-1")),
+            dirty = listOf(AnnotationDao.DirtySourceItem("srv-A", "item-1")),
             rowsByItem = mapOf(
                 ("srv-A" to "item-1") to listOf(
                     annotation("ann-1", "srv-A", "item-1", updatedAt = 100L, lastSyncedAt = 0L),
@@ -67,7 +67,7 @@ class AnnotationSweepTest {
             annotationDao = dao,
             deviceIdStore = FakeDeviceIdStore("dev-A"),
             deviceLabelResolver = FakeDeviceLabelResolver("test-label"),
-            serverRepository = FakeServerRepository(
+            sourceRepository = FakeSourceRepository(
                 absUserIds = mapOf("srv-A" to "abs-user-A"),
                 usernames = mapOf("srv-A" to "alice"),
             ),
@@ -119,7 +119,7 @@ class AnnotationSweepTest {
         val status = AnnotationSyncStatusStore()
         val target = FakeTarget(writeException = AnnotationSyncException.AuthFailed(401))
         val dao = FakeAnnotationDao(
-            dirty = listOf(AnnotationDao.DirtyServerItem("srv-A", "item-1")),
+            dirty = listOf(AnnotationDao.DirtySourceItem("srv-A", "item-1")),
             rowsByItem = mapOf(("srv-A" to "item-1") to listOf(
                 annotation("ann-1", "srv-A", "item-1", updatedAt = 100L, lastSyncedAt = 0L)
             )),
@@ -129,7 +129,7 @@ class AnnotationSweepTest {
             annotationDao = dao,
             deviceIdStore = FakeDeviceIdStore("dev-A"),
             deviceLabelResolver = FakeDeviceLabelResolver("test-label"),
-            serverRepository = FakeServerRepository(
+            sourceRepository = FakeSourceRepository(
                 absUserIds = mapOf("srv-A" to "abs-user-A"),
                 usernames = mapOf("srv-A" to "alice"),
             ),
@@ -154,8 +154,8 @@ class AnnotationSweepTest {
         val target = FakeTarget(writeException = AnnotationSyncException.NetworkError("eof"))
         val dao = FakeAnnotationDao(
             dirty = listOf(
-                AnnotationDao.DirtyServerItem("srv-A", "item-1"),
-                AnnotationDao.DirtyServerItem("srv-A", "item-2"),
+                AnnotationDao.DirtySourceItem("srv-A", "item-1"),
+                AnnotationDao.DirtySourceItem("srv-A", "item-2"),
             ),
             rowsByItem = mapOf(
                 ("srv-A" to "item-1") to listOf(annotation("ann-1", "srv-A", "item-1", updatedAt = 1L, lastSyncedAt = 0L)),
@@ -167,7 +167,7 @@ class AnnotationSweepTest {
             annotationDao = dao,
             deviceIdStore = FakeDeviceIdStore("dev-A"),
             deviceLabelResolver = FakeDeviceLabelResolver("test-label"),
-            serverRepository = FakeServerRepository(
+            sourceRepository = FakeSourceRepository(
                 absUserIds = mapOf("srv-A" to "abs-user-A"),
                 usernames = mapOf("srv-A" to "alice"),
             ),
@@ -187,13 +187,13 @@ class AnnotationSweepTest {
     }
 
     @Test
-    fun `book whose server has no absUserId is skipped`() = runTest {
+    fun `book whose source has no absUserId is skipped`() = runTest {
         val status = AnnotationSyncStatusStore()
         val target = FakeTarget()
         val dao = FakeAnnotationDao(
             dirty = listOf(
-                AnnotationDao.DirtyServerItem("srv-A", "item-1"),
-                AnnotationDao.DirtyServerItem("srv-B", "item-2"),
+                AnnotationDao.DirtySourceItem("srv-A", "item-1"),
+                AnnotationDao.DirtySourceItem("srv-B", "item-2"),
             ),
             rowsByItem = mapOf(
                 ("srv-A" to "item-1") to listOf(annotation("ann-A", "srv-A", "item-1", updatedAt = 1L, lastSyncedAt = 0L)),
@@ -207,7 +207,7 @@ class AnnotationSweepTest {
             annotationDao = dao,
             deviceIdStore = FakeDeviceIdStore("dev-A"),
             deviceLabelResolver = FakeDeviceLabelResolver("test-label"),
-            serverRepository = FakeServerRepository(
+            sourceRepository = FakeSourceRepository(
                 absUserIds = mapOf("srv-A" to "abs-user-A"),
                 usernames = mapOf("srv-A" to "alice"),
             ),
@@ -224,9 +224,9 @@ class AnnotationSweepTest {
 
     // --- fakes ---
 
-    private fun annotation(id: String, serverId: String, itemId: String, updatedAt: Long, lastSyncedAt: Long) =
+    private fun annotation(id: String, sourceId: String, itemId: String, updatedAt: Long, lastSyncedAt: Long) =
         AnnotationEntity(
-            id = id, serverId = serverId, itemId = itemId,
+            id = id, sourceId = sourceId, itemId = itemId,
             cfi = "epubcfi(/6/4!/4/2)", textSnippet = "x", chapterHref = "OEBPS/ch1.xhtml",
             createdAt = 0L, updatedAt = updatedAt,
             originDeviceId = "dev-A", lastModifiedByDeviceId = "dev-A",
@@ -258,15 +258,15 @@ class AnnotationSweepTest {
     }
 
     private class FakeAnnotationDao(
-        private val dirty: List<AnnotationDao.DirtyServerItem> = emptyList(),
+        private val dirty: List<AnnotationDao.DirtySourceItem> = emptyList(),
         private val rowsByItem: Map<Pair<String, String>, List<AnnotationEntity>> = emptyMap(),
     ) : StubAnnotationDao() {
         var markSyncedCalls = 0
         var lastMarkSyncedIds: List<String> = emptyList()
         var lastMarkSyncedAt: Long = 0L
-        override suspend fun dirtyServerItems(): List<AnnotationDao.DirtyServerItem> = dirty
-        override suspend fun getAllForItemIncludingDeleted(serverId: String, itemId: String): List<AnnotationEntity> =
-            rowsByItem[serverId to itemId].orEmpty()
+        override suspend fun dirtySourceItems(): List<AnnotationDao.DirtySourceItem> = dirty
+        override suspend fun getAllForItemIncludingDeleted(sourceId: String, itemId: String): List<AnnotationEntity> =
+            rowsByItem[sourceId to itemId].orEmpty()
         override suspend fun markSynced(ids: List<String>, syncedAt: Long) {
             markSyncedCalls++
             lastMarkSyncedIds = ids
@@ -283,64 +283,62 @@ class AnnotationSweepTest {
         override fun deviceModel() = "test-model"
     }
 
-    private class FakeServerRepository(
+    private class FakeSourceRepository(
         private val absUserIds: Map<String, String>,
         private val usernames: Map<String, String> = emptyMap(),
-    ) : ServerRepository {
-        override suspend fun ensureAbsUserId(serverId: String): String? = absUserIds[serverId]
-        override suspend fun getById(serverId: String): Server? = usernames[serverId]?.let {
-            Server(
-                id = serverId,
-                url = ServerUrl.parse("https://example.test/")!!,
+    ) : SourceRepository {
+        override suspend fun ensureAbsUserId(sourceId: String): String? = absUserIds[sourceId]
+        override suspend fun getById(sourceId: String): Source? = usernames[sourceId]?.let {
+            Source(
+                id = sourceId,
+                url = SourceUrl.parse("https://example.test/")!!,
                 isActive = true,
                 insecureConnectionAllowed = false,
                 username = it,
-                absUserId = absUserIds[serverId],
+                absUserId = absUserIds[sourceId],
             )
         }
-        override fun observeAll(): Flow<List<Server>> = emptyFlow()
-        override suspend fun getActive(): Server? = null
+        override fun observeAll(): Flow<List<Source>> = emptyFlow()
+        override suspend fun getActive(): Source? = null
         override suspend fun authenticate(
-            url: ServerUrl,
+            url: SourceUrl,
             username: String,
             password: String,
             insecureAllowed: Boolean,
             serverType: com.riffle.core.domain.ServerType,
         ): AuthenticateResult = error("not used")
         override suspend fun commit(
-            pending: PendingServer,
+            pending: PendingSource,
             hiddenLibraryIds: Set<String>,
-        ): CommitServerResult = error("not used")
-        override suspend fun setActive(serverId: String) {}
-        override suspend fun remove(serverId: String) {}
-        override suspend fun getServerVersion(serverId: String): String? = null
+        ): CommitSourceResult = error("not used")
+        override suspend fun setActive(sourceId: String) {}
+        override suspend fun remove(sourceId: String) {}
+        override suspend fun getSourceVersion(sourceId: String): String? = null
     }
 }
 
 /** Minimal AnnotationDao stub for tests — implements every required method to return empty. Tests
  *  override the few methods they care about. */
 abstract class StubAnnotationDao : AnnotationDao {
-    override fun observeForItem(serverId: String, itemId: String) =
+    override fun observeForItem(sourceId: String, itemId: String) =
         kotlinx.coroutines.flow.flowOf(emptyList<AnnotationEntity>())
-    override fun observeForServer(serverId: String) =
+    override fun observeForSource(sourceId: String) =
         kotlinx.coroutines.flow.flowOf(emptyList<AnnotationEntity>())
-    override suspend fun getForItem(serverId: String, itemId: String) = emptyList<AnnotationEntity>()
-    override suspend fun getAllForItemIncludingDeleted(serverId: String, itemId: String) = emptyList<AnnotationEntity>()
+    override suspend fun getForItem(sourceId: String, itemId: String) = emptyList<AnnotationEntity>()
+    override suspend fun getAllForItemIncludingDeleted(sourceId: String, itemId: String) = emptyList<AnnotationEntity>()
     override suspend fun getById(id: String): AnnotationEntity? = null
-    override suspend fun getByItemAndCfi(serverId: String, itemId: String, cfi: String): AnnotationEntity? = null
+    override suspend fun getByItemAndCfi(sourceId: String, itemId: String, cfi: String): AnnotationEntity? = null
     override suspend fun upsert(entity: AnnotationEntity) {}
     override suspend fun upsertAll(annotations: List<AnnotationEntity>) {}
     override suspend fun tombstone(id: String, updatedAt: Long, deviceId: String) {}
     override suspend fun recolor(id: String, color: String, updatedAt: Long, deviceId: String) {}
     override suspend fun updateNote(id: String, note: String?, updatedAt: Long, deviceId: String) {}
-    override fun observeAnnotationsByPosition(serverId: String, itemId: String) =
+    override fun observeAnnotationsByPosition(sourceId: String, itemId: String) =
         kotlinx.coroutines.flow.flowOf(emptyList<AnnotationEntity>())
     override suspend fun renameBookmark(id: String, title: String, updatedAt: Long, deviceId: String) {}
-    override fun observePendingCountForBook(serverId: String, itemId: String) = kotlinx.coroutines.flow.flowOf(0)
+    override fun observePendingCountForBook(sourceId: String, itemId: String) = kotlinx.coroutines.flow.flowOf(0)
     override fun observePendingBookCountAcrossAll() = kotlinx.coroutines.flow.flowOf(0)
-    override suspend fun dirtyServerItems() = emptyList<AnnotationDao.DirtyServerItem>()
+    override suspend fun dirtySourceItems() = emptyList<AnnotationDao.DirtySourceItem>()
     override suspend fun markSynced(ids: List<String>, syncedAt: Long) {}
-    override suspend fun purgeAgedTombstones(serverId: String, itemId: String, cutoff: Long): Int = 0
-    override fun observeBooksWithHighlights(serverId: String) =
-        kotlinx.coroutines.flow.flowOf(emptyList<com.riffle.core.database.BookHighlightSummary>())
+    override suspend fun purgeAgedTombstones(sourceId: String, itemId: String, cutoff: Long): Int = 0
 }

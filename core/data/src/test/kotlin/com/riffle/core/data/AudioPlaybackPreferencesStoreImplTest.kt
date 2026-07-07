@@ -64,9 +64,9 @@ class AudioPlaybackPreferencesStoreImplTest {
     private class FakeDao : AudioPlaybackPreferencesDao {
         private val rows = mutableMapOf<Pair<String, String>, AudioPlaybackPreferencesEntity>()
         override suspend fun upsert(entity: AudioPlaybackPreferencesEntity) {
-            rows[entity.serverId to entity.bookId] = entity
+            rows[entity.sourceId to entity.bookId] = entity
         }
-        override suspend fun get(serverId: String, bookId: String) = rows[serverId to bookId]
-        override suspend fun delete(serverId: String, bookId: String) { rows.remove(serverId to bookId) }
+        override suspend fun get(sourceId: String, bookId: String) = rows[sourceId to bookId]
+        override suspend fun delete(sourceId: String, bookId: String) { rows.remove(sourceId to bookId) }
     }
 }

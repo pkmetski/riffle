@@ -3,13 +3,13 @@ package com.riffle.core.data
 import com.riffle.core.domain.DefaultDispatcherProvider
 
 import com.riffle.core.domain.AuthenticateResult
-import com.riffle.core.domain.CommitServerResult
-import com.riffle.core.domain.PendingServer
+import com.riffle.core.domain.CommitSourceResult
+import com.riffle.core.domain.PendingSource
 import com.riffle.core.domain.ProgressSyncCycleResult
 import com.riffle.core.domain.ReadingPositionStore
-import com.riffle.core.domain.Server
-import com.riffle.core.domain.ServerRepository
-import com.riffle.core.domain.ServerUrl
+import com.riffle.core.domain.Source
+import com.riffle.core.domain.SourceRepository
+import com.riffle.core.domain.SourceUrl
 import com.riffle.core.domain.SessionPayload
 import com.riffle.core.domain.TokenStorage
 import com.riffle.core.network.AbsApiClient
@@ -27,63 +27,63 @@ import org.junit.Test
 
 class ProgressSyncIntegrationTest {
 
-    private lateinit var server: MockWebServer
+    private lateinit var source: MockWebServer
     private lateinit var positionStore: RecordingPositionStore
 
     @Before
     fun setUp() {
-        server = MockWebServer()
-        server.start()
+        source = MockWebServer()
+        source.start()
         positionStore = RecordingPositionStore()
     }
 
     @After
-    fun tearDown() = server.shutdown()
+    fun tearDown() = source.shutdown()
 
     private class RecordingPositionStore(var localUpdatedAt: Long = 0L) : ReadingPositionStore {
         var updatedTimestamp: Long? = null
-        override suspend fun save(serverId: String, itemId: String, payload: String) = Unit
-        override suspend fun load(serverId: String, itemId: String): String? = null
-        override suspend fun loadLocalUpdatedAt(serverId: String, itemId: String): Long = localUpdatedAt
-        override suspend fun updateLocalTimestamp(serverId: String, itemId: String, millis: Long) { updatedTimestamp = millis }
+        override suspend fun save(sourceId: String, itemId: String, payload: String) = Unit
+        override suspend fun load(sourceId: String, itemId: String): String? = null
+        override suspend fun loadLocalUpdatedAt(sourceId: String, itemId: String): Long = localUpdatedAt
+        override suspend fun updateLocalTimestamp(sourceId: String, itemId: String, millis: Long) { updatedTimestamp = millis }
     }
 
     private fun buildRepo() = ReadingSessionRepositoryImpl(
         api = AbsApiClient(OkHttpClient(), DefaultDispatcherProvider),
-        serverRepository = object : ServerRepository {
-            val activeServer = Server(
-                id = "server-1",
-                url = ServerUrl.parse(server.url("/").toString().trimEnd('/'))!!,
+        sourceRepository = object : SourceRepository {
+            val activeServer = Source(
+                id = "source-1",
+                url = SourceUrl.parse(source.url("/").toString().trimEnd('/'))!!,
                 isActive = true,
                 insecureConnectionAllowed = false,
                 username = "",
             )
-            override fun observeAll(): Flow<List<Server>> = flowOf(listOf(activeServer))
-            override suspend fun getActive(): Server = activeServer
-            override suspend fun authenticate(url: ServerUrl, username: String, password: String, insecureAllowed: Boolean, serverType: com.riffle.core.domain.ServerType): AuthenticateResult =
+            override fun observeAll(): Flow<List<Source>> = flowOf(listOf(activeServer))
+            override suspend fun getActive(): Source = activeServer
+            override suspend fun authenticate(url: SourceUrl, username: String, password: String, insecureAllowed: Boolean, serverType: com.riffle.core.domain.ServerType): AuthenticateResult =
                 throw UnsupportedOperationException()
-            override suspend fun commit(pending: PendingServer, hiddenLibraryIds: Set<String>): CommitServerResult =
+            override suspend fun commit(pending: PendingSource, hiddenLibraryIds: Set<String>): CommitSourceResult =
                 throw UnsupportedOperationException()
-            override suspend fun setActive(serverId: String) = Unit
-            override suspend fun remove(serverId: String) = Unit
-            override suspend fun getServerVersion(serverId: String): String? = null
+            override suspend fun setActive(sourceId: String) = Unit
+            override suspend fun remove(sourceId: String) = Unit
+            override suspend fun getSourceVersion(sourceId: String): String? = null
         },
         tokenStorage = object : TokenStorage {
-            override suspend fun saveToken(serverId: String, token: String) = Unit
-            override suspend fun getToken(serverId: String): String? = "test-token"
-            override suspend fun deleteToken(serverId: String) = Unit
+            override suspend fun saveToken(sourceId: String, token: String) = Unit
+            override suspend fun getToken(sourceId: String): String? = "test-token"
+            override suspend fun deleteToken(sourceId: String) = Unit
         },
         positionStore = positionStore,
         audiobookPositionStore = object : com.riffle.core.domain.AudiobookPositionStore {
-            override suspend fun save(serverId: String, itemId: String, payload: Double) = Unit
-            override suspend fun load(serverId: String, itemId: String): Double? = null
-            override suspend fun loadLocalUpdatedAt(serverId: String, itemId: String): Long = 0L
-            override suspend fun updateLocalTimestamp(serverId: String, itemId: String, millis: Long) = Unit
+            override suspend fun save(sourceId: String, itemId: String, payload: Double) = Unit
+            override suspend fun load(sourceId: String, itemId: String): Double? = null
+            override suspend fun loadLocalUpdatedAt(sourceId: String, itemId: String): Long = 0L
+            override suspend fun updateLocalTimestamp(sourceId: String, itemId: String, millis: Long) = Unit
         },
         readaloudResumeStore = object : com.riffle.core.domain.ReadaloudResumeStore {
-            override suspend fun save(serverId: String, itemId: String, position: com.riffle.core.domain.ReadaloudResumePosition) = Unit
-            override suspend fun load(serverId: String, itemId: String): com.riffle.core.domain.ReadaloudResumePosition? = null
-            override suspend fun clear(serverId: String, itemId: String) = Unit
+            override suspend fun save(sourceId: String, itemId: String, position: com.riffle.core.domain.ReadaloudResumePosition) = Unit
+            override suspend fun load(sourceId: String, itemId: String): com.riffle.core.domain.ReadaloudResumePosition? = null
+            override suspend fun clear(sourceId: String, itemId: String) = Unit
         },
         libraryItemDao = FakeLibraryItemDao(),
             clock = com.riffle.core.domain.TestClock(initialMs = 5_000L),
@@ -97,9 +97,9 @@ class ProgressSyncIntegrationTest {
     private val payload = SessionPayload("epubcfi(/6/4!/4/1:0)", 0.25f)
 
     @Test
-    fun `server-newer path returns ServerWins with server ebookLocation and updates localUpdatedAt`() = runTest {
+    fun `source-newer path returns ServerWins with source ebookLocation and updates localUpdatedAt`() = runTest {
         positionStore.localUpdatedAt = 1_000L
-        server.enqueue(json(200, """{"ebookLocation":"epubcfi(/6/8!/4/1:0)","lastUpdate":2000}"""))
+        source.enqueue(json(200, """{"ebookLocation":"epubcfi(/6/8!/4/1:0)","lastUpdate":2000}"""))
 
         val result = buildRepo().runSyncCycle("item-1", payload)
 
@@ -107,24 +107,24 @@ class ProgressSyncIntegrationTest {
         assertEquals("epubcfi(/6/8!/4/1:0)", (result as ProgressSyncCycleResult.ServerWins).serverProgress.ebookLocation)
         assertEquals(2000L, result.serverProgress.lastUpdate)
         assertEquals(2000L, positionStore.updatedTimestamp)
-        assertEquals(1, server.requestCount)
-        assertEquals("GET", server.takeRequest().method)
+        assertEquals(1, source.requestCount)
+        assertEquals("GET", source.takeRequest().method)
     }
 
     @Test
     fun `local-newer path sends PATCH with correct payload and updates localUpdatedAt from response`() = runTest {
         positionStore.localUpdatedAt = 3_000L
-        server.enqueue(json(200, """{"ebookLocation":"old-cfi","lastUpdate":1000}"""))
-        server.enqueue(json(200, """{"ebookLocation":"epubcfi(/6/4!/4/1:0)","lastUpdate":3100}"""))
+        source.enqueue(json(200, """{"ebookLocation":"old-cfi","lastUpdate":1000}"""))
+        source.enqueue(json(200, """{"ebookLocation":"epubcfi(/6/4!/4/1:0)","lastUpdate":3100}"""))
 
         val result = buildRepo().runSyncCycle("item-1", payload)
 
         assertTrue(result is ProgressSyncCycleResult.LocalWins)
-        assertEquals(2, server.requestCount)
-        val getReq = server.takeRequest()
+        assertEquals(2, source.requestCount)
+        val getReq = source.takeRequest()
         assertEquals("GET", getReq.method)
         assertEquals("/api/me/progress/item-1", getReq.path)
-        val patchReq = server.takeRequest()
+        val patchReq = source.takeRequest()
         assertEquals("PATCH", patchReq.method)
         val body = patchReq.body.readUtf8()
         assertTrue(body.contains("\"ebookLocation\":\"epubcfi(/6/4!/4/1:0)\""))
@@ -135,21 +135,21 @@ class ProgressSyncIntegrationTest {
     @Test
     fun `GET failure returns Offline, sends no PATCH, and leaves localUpdatedAt unchanged`() = runTest {
         positionStore.localUpdatedAt = 5_000L
-        server.enqueue(MockResponse().setResponseCode(500).setBody("error"))
+        source.enqueue(MockResponse().setResponseCode(500).setBody("error"))
 
         val result = buildRepo().runSyncCycle("item-1", payload)
 
         assertTrue(result is ProgressSyncCycleResult.Offline)
-        assertEquals(1, server.requestCount)
-        assertEquals("GET", server.takeRequest().method)
+        assertEquals(1, source.requestCount)
+        assertEquals("GET", source.takeRequest().method)
         assertEquals(null, positionStore.updatedTimestamp)
     }
 
     @Test
     fun `local-newer path with real ABS plain-text OK response does not corrupt localUpdatedAt`() = runTest {
         positionStore.localUpdatedAt = 3_000L
-        server.enqueue(json(200, """{"ebookLocation":"old-cfi","lastUpdate":1000}"""))
-        server.enqueue(
+        source.enqueue(json(200, """{"ebookLocation":"old-cfi","lastUpdate":1000}"""))
+        source.enqueue(
             MockResponse().setResponseCode(200)
                 .addHeader("Content-Type", "text/plain")
                 .setBody("OK")
@@ -163,10 +163,10 @@ class ProgressSyncIntegrationTest {
     }
 
     @Test
-    fun `two-cycle scenario plain-text OK PATCH does not cause server to win on next cycle`() = runTest {
+    fun `two-cycle scenario plain-text OK PATCH does not cause source to win on next cycle`() = runTest {
         positionStore.localUpdatedAt = 3_000L
-        server.enqueue(json(200, """{"ebookLocation":"old-cfi","lastUpdate":1000}"""))
-        server.enqueue(
+        source.enqueue(json(200, """{"ebookLocation":"old-cfi","lastUpdate":1000}"""))
+        source.enqueue(
             MockResponse().setResponseCode(200)
                 .addHeader("Content-Type", "text/plain")
                 .setBody("OK")
@@ -177,45 +177,45 @@ class ProgressSyncIntegrationTest {
         val updatedTs = positionStore.updatedTimestamp
         assertTrue(updatedTs != null)
         assertTrue(updatedTs!! > 0L)
-        // Simulate: on the next cycle the server timestamp is still 1779445105751
-        // localUpdatedAt must be > 0 so server would NOT win
+        // Simulate: on the next cycle the source timestamp is still 1779445105751
+        // localUpdatedAt must be > 0 so source would NOT win
         val serverTs = 1779445105751L
-        assertTrue("localUpdatedAt must be > 0 so server doesn't always win", updatedTs > 0L)
+        assertTrue("localUpdatedAt must be > 0 so source doesn't always win", updatedTs > 0L)
     }
 
     @Test
-    fun `GET 404 with local progress treats as no server record and sends PATCH`() = runTest {
+    fun `GET 404 with local progress treats as no source record and sends PATCH`() = runTest {
         positionStore.localUpdatedAt = 4_000L
-        server.enqueue(MockResponse().setResponseCode(404).setBody("Not Found"))
-        server.enqueue(json(200, """{"ebookLocation":"epubcfi(/6/4!/4/1:0)","lastUpdate":4100}"""))
+        source.enqueue(MockResponse().setResponseCode(404).setBody("Not Found"))
+        source.enqueue(json(200, """{"ebookLocation":"epubcfi(/6/4!/4/1:0)","lastUpdate":4100}"""))
 
         val result = buildRepo().runSyncCycle("item-1", payload)
 
         assertTrue(result is ProgressSyncCycleResult.LocalWins)
-        assertEquals(2, server.requestCount)
-        assertEquals("GET", server.takeRequest().method)
-        assertEquals("PATCH", server.takeRequest().method)
+        assertEquals(2, source.requestCount)
+        assertEquals("GET", source.takeRequest().method)
+        assertEquals("PATCH", source.takeRequest().method)
         assertEquals(4100L, positionStore.updatedTimestamp)
     }
 
     @Test
     fun `GET 404 with no local progress returns InSync without PATCH`() = runTest {
         positionStore.localUpdatedAt = 0L
-        server.enqueue(MockResponse().setResponseCode(404).setBody("Not Found"))
+        source.enqueue(MockResponse().setResponseCode(404).setBody("Not Found"))
 
         val result = buildRepo().runSyncCycle("item-1", payload)
 
         assertTrue(result is ProgressSyncCycleResult.InSync)
-        assertEquals(1, server.requestCount)
-        assertEquals("GET", server.takeRequest().method)
+        assertEquals(1, source.requestCount)
+        assertEquals("GET", source.takeRequest().method)
         assertEquals(null, positionStore.updatedTimestamp)
     }
 
     @Test
     fun `GET 404 followed by successful local push correctly updates localUpdatedAt`() = runTest {
         positionStore.localUpdatedAt = 7_000L
-        server.enqueue(MockResponse().setResponseCode(404).setBody("Not Found"))
-        server.enqueue(json(200, """{"ebookLocation":"cfi","lastUpdate":7200}"""))
+        source.enqueue(MockResponse().setResponseCode(404).setBody("Not Found"))
+        source.enqueue(json(200, """{"ebookLocation":"cfi","lastUpdate":7200}"""))
 
         buildRepo().runSyncCycle("item-1", payload)
 
@@ -225,46 +225,46 @@ class ProgressSyncIntegrationTest {
     @Test
     fun `local-newer path with JSON response containing lastUpdate updates localUpdatedAt correctly`() = runTest {
         positionStore.localUpdatedAt = 3_000L
-        server.enqueue(json(200, """{"ebookLocation":"old-cfi","lastUpdate":1000}"""))
-        server.enqueue(json(200, """{"ebookLocation":"epubcfi(/6/4!/4/1:0)","lastUpdate":3100}"""))
+        source.enqueue(json(200, """{"ebookLocation":"old-cfi","lastUpdate":1000}"""))
+        source.enqueue(json(200, """{"ebookLocation":"epubcfi(/6/4!/4/1:0)","lastUpdate":3100}"""))
 
         buildRepo().runSyncCycle("item-1", payload)
 
         assertEquals(3100L, positionStore.updatedTimestamp)
     }
 
-    // --- touchOpenTimestamp end-to-end (GET → PATCH-same-content → server bumps lastUpdate) ---
+    // --- touchOpenTimestamp end-to-end (GET → PATCH-same-content → source bumps lastUpdate) ---
 
     @Test
-    fun `touchOpenTimestamp PATCHes back the server's existing ebookLocation verbatim`() = runTest {
-        server.enqueue(json(200, """{"ebookLocation":"epubcfi(/6/8!/4/2/1:0)","ebookProgress":0.42,"lastUpdate":1000}"""))
-        server.enqueue(json(200, """{"ebookLocation":"epubcfi(/6/8!/4/2/1:0)","lastUpdate":9999}"""))
+    fun `touchOpenTimestamp PATCHes back the source's existing ebookLocation verbatim`() = runTest {
+        source.enqueue(json(200, """{"ebookLocation":"epubcfi(/6/8!/4/2/1:0)","ebookProgress":0.42,"lastUpdate":1000}"""))
+        source.enqueue(json(200, """{"ebookLocation":"epubcfi(/6/8!/4/2/1:0)","lastUpdate":9999}"""))
 
         buildRepo().touchOpenTimestamp("item-1")
 
-        assertEquals(2, server.requestCount)
-        val getReq = server.takeRequest()
+        assertEquals(2, source.requestCount)
+        val getReq = source.takeRequest()
         assertEquals("GET", getReq.method)
         assertEquals("/api/me/progress/item-1", getReq.path)
-        val patchReq = server.takeRequest()
+        val patchReq = source.takeRequest()
         assertEquals("PATCH", patchReq.method)
         assertEquals("/api/me/progress/item-1", patchReq.path)
         val body = patchReq.body.readUtf8()
         assertTrue("ebookLocation must be echoed verbatim: $body", body.contains("\"ebookLocation\":\"epubcfi(/6/8!/4/2/1:0)\""))
         assertTrue("ebookProgress must be echoed verbatim: $body", body.contains("\"ebookProgress\":0.42"))
-        // The PATCH bumps the server's lastUpdate. We deliberately do not echo that timestamp
+        // The PATCH bumps the source's lastUpdate. We deliberately do not echo that timestamp
         // into the local store — leaving local stale guarantees the next runSyncCycle sees
-        // server > local, fires ServerWins, and restores the saved position to the navigator.
+        // source > local, fires ServerWins, and restores the saved position to the navigator.
         assertEquals(null, positionStore.updatedTimestamp)
     }
 
     @Test
     fun `touchOpenTimestamp is a no-op when GET fails`() = runTest {
-        server.enqueue(MockResponse().setResponseCode(500).setBody("oops"))
+        source.enqueue(MockResponse().setResponseCode(500).setBody("oops"))
 
         buildRepo().touchOpenTimestamp("item-1")
 
-        assertEquals(1, server.requestCount)
+        assertEquals(1, source.requestCount)
         assertEquals(null, positionStore.updatedTimestamp)
     }
 }

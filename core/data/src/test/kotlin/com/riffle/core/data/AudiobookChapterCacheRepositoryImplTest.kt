@@ -20,11 +20,11 @@ class AudiobookChapterCacheRepositoryImplTest {
     private class FakeAudiobookChapterCacheDao : AudiobookChapterCacheDao {
         val store = mutableMapOf<Pair<String, String>, AudiobookChapterCacheEntity>()
         var upsertCalled = false
-        override suspend fun get(serverId: String, itemId: String): AudiobookChapterCacheEntity? =
-            store[serverId to itemId]
+        override suspend fun get(sourceId: String, itemId: String): AudiobookChapterCacheEntity? =
+            store[sourceId to itemId]
         override suspend fun upsert(entity: AudiobookChapterCacheEntity) {
             upsertCalled = true
-            store[entity.serverId to entity.itemId] = entity
+            store[entity.sourceId to entity.itemId] = entity
         }
     }
 
@@ -92,7 +92,7 @@ class AudiobookChapterCacheRepositoryImplTest {
         assert(dao.upsertCalled) { "dao.upsert should have been called" }
         val entity = dao.store["srv" to "item"]
         assertNotNull(entity)
-        assertEquals("srv", entity!!.serverId)
+        assertEquals("srv", entity!!.sourceId)
         assertEquals("item", entity.itemId)
     }
 

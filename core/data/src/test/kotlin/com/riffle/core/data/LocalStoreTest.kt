@@ -30,13 +30,13 @@ class LocalStoreTest {
 
     @Test
     fun `get returns null when item is absent`() {
-        assertNull(store.get("server-1", "item-missing"))
+        assertNull(store.get("source-1", "item-missing"))
     }
 
     @Test
     fun `save writes file to store directory`() = runTest {
         val bytes = "epub-content".toByteArray()
-        val file = store.save("server-1", "item-1", bytes.inputStream())
+        val file = store.save("source-1", "item-1", bytes.inputStream())
         assertTrue(file.exists())
         assertTrue(file.absolutePath.startsWith(storeDir.absolutePath))
     }
@@ -44,8 +44,8 @@ class LocalStoreTest {
     @Test
     fun `get returns saved file with correct content`() = runTest {
         val bytes = "epub-content".toByteArray()
-        store.save("server-1", "item-1", bytes.inputStream())
-        val result = store.get("server-1", "item-1")
+        store.save("source-1", "item-1", bytes.inputStream())
+        val result = store.get("source-1", "item-1")
         assertNotNull(result)
         assertArrayEquals(bytes, result!!.readBytes())
     }
@@ -60,38 +60,38 @@ class LocalStoreTest {
             }
         }
         try {
-            store.save("server-1", "item-broken", failingStream)
+            store.save("source-1", "item-broken", failingStream)
         } catch (_: IOException) {}
-        assertNull(store.get("server-1", "item-broken"))
+        assertNull(store.get("source-1", "item-broken"))
         assertTrue(storeDir.walkTopDown().none { it.name.contains("item-broken") })
     }
 
     @Test
     fun `delete removes a previously saved file`() = runTest {
-        store.save("server-1", "item-1", "content".toByteArray().inputStream())
-        store.delete("server-1", "item-1")
-        assertNull(store.get("server-1", "item-1"))
+        store.save("source-1", "item-1", "content".toByteArray().inputStream())
+        store.delete("source-1", "item-1")
+        assertNull(store.get("source-1", "item-1"))
     }
 
     @Test
     fun `clear removes all files in store dir without touching other directories`() = runTest {
-        store.save("server-1", "item-1", "a".toByteArray().inputStream())
-        store.save("server-1", "item-2", "b".toByteArray().inputStream())
+        store.save("source-1", "item-1", "a".toByteArray().inputStream())
+        store.save("source-1", "item-2", "b".toByteArray().inputStream())
         val sentinel = otherDir.resolve("sentinel.epub").also { it.writeBytes("x".toByteArray()) }
 
         store.clear()
 
-        assertNull(store.get("server-1", "item-1"))
-        assertNull(store.get("server-1", "item-2"))
+        assertNull(store.get("source-1", "item-1"))
+        assertNull(store.get("source-1", "item-2"))
         assertTrue(sentinel.exists())
     }
 
     @Test
     fun `listItems returns refs of all saved items`() = runTest {
-        store.save("server-1", "item-a", "a".toByteArray().inputStream())
-        store.save("server-1", "item-b", "b".toByteArray().inputStream())
+        store.save("source-1", "item-a", "a".toByteArray().inputStream())
+        store.save("source-1", "item-b", "b".toByteArray().inputStream())
         val refs = store.listItems()
-        assertTrue(refs.containsAll(listOf(StoredItemRef("server-1", "item-a"), StoredItemRef("server-1", "item-b"))))
+        assertTrue(refs.containsAll(listOf(StoredItemRef("source-1", "item-a"), StoredItemRef("source-1", "item-b"))))
         assertTrue(refs.size == 2)
     }
 

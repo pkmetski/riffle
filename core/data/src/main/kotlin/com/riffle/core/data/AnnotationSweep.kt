@@ -5,7 +5,7 @@ import com.riffle.core.domain.AnnotationSyncTarget
 import com.riffle.core.domain.DeviceIdStore
 import com.riffle.core.domain.DeviceLabelResolver
 import com.riffle.core.domain.AnnotationFileHeader
-import com.riffle.core.domain.ServerRepository
+import com.riffle.core.domain.SourceRepository
 import java.time.Instant
 
 /**
@@ -25,18 +25,18 @@ class AnnotationSweep(
     private val annotationDao: AnnotationDao,
     private val deviceIdStore: DeviceIdStore,
     private val deviceLabelResolver: DeviceLabelResolver,
-    private val serverRepository: ServerRepository,
+    private val sourceRepository: SourceRepository,
     private val statusStore: AnnotationSyncStatusStore,
     /**
-     * Resolves the local catalog's book title for a (serverId, itemId). Embedded in the header
+     * Resolves the local catalog's book title for a (sourceId, itemId). Embedded in the header
      * so Maintenance can surface "Project Hail Mary" instead of an opaque itemId. Returns null
      * when the catalog hasn't cached the title yet — header renderer falls back to the id.
      */
-    private val bookTitleProvider: suspend (serverId: String, itemId: String) -> String? = { _, _ -> null },
+    private val bookTitleProvider: suspend (sourceId: String, itemId: String) -> String? = { _, _ -> null },
     private val nowIso: () -> String = { Instant.now().toString() },
     private val clock: () -> Long = System::currentTimeMillis,
     /**
-     * Enumerates the dirty (serverId, itemId) pairs to push (#321). Defaults to a thin wrapper
+     * Enumerates the dirty (sourceId, itemId) pairs to push (#321). Defaults to a thin wrapper
      * over [annotationDao]; production wiring (DI) supplies the [RoomDirtyAnnotationLedger]
      * binding explicitly.
      */
@@ -55,7 +55,7 @@ class AnnotationSweep(
     private val sentinelWriter: DeviceMetaSentinelWriter = DeviceMetaSentinelWriter(
         deviceIdStore,
         deviceLabelResolver,
-        { sid -> serverRepository.getById(sid)?.username },
+        { sid -> sourceRepository.getById(sid)?.username },
         nowIso,
     ),
 ) {
@@ -75,19 +75,19 @@ class AnnotationSweep(
         val sentinelTargets = mutableSetOf<Pair<String, String>>()
         val outcome: CycleOutcome = try {
             val deviceId = deviceIdStore.getOrCreate()
-            for ((serverId, itemId) in dirtyLedger.dirtySourceItems()) {
-                val namespace = serverRepository.ensureAbsUserId(serverId) ?: continue
-                val bookTitle = bookTitleProvider(serverId, itemId)
+            for ((sourceId, itemId) in dirtyLedger.dirtySourceItems()) {
+                val namespace = sourceRepository.ensureAbsUserId(sourceId) ?: continue
+                val bookTitle = bookTitleProvider(sourceId, itemId)
                 // Hold the per-book lock across the read-then-write so the live
                 // [AnnotationSyncController] cannot interleave on the same device file
                 // (#321, ADR 0036).
-                locks.withAnnotationLock(serverId, itemId) {
-                    pushBook(target, serverId, namespace, itemId, deviceId, bookTitle)
+                locks.withAnnotationLock(sourceId, itemId) {
+                    pushBook(target, sourceId, namespace, itemId, deviceId, bookTitle)
                 }
-                sentinelTargets += serverId to namespace
+                sentinelTargets += sourceId to namespace
             }
-            for ((serverId, namespace) in sentinelTargets) {
-                sentinelWriter.writeQuietly(target, namespace, serverId)
+            for ((sourceId, namespace) in sentinelTargets) {
+                sentinelWriter.writeQuietly(target, namespace, sourceId)
             }
             CycleOutcome.Success(clock())
         } catch (e: Exception) {
@@ -99,13 +99,13 @@ class AnnotationSweep(
 
     private suspend fun pushBook(
         target: AnnotationSyncTarget,
-        serverId: String,
+        sourceId: String,
         namespace: String,
         itemId: String,
         deviceId: String,
         bookTitle: String?,
     ) {
-        val rows = annotationDao.getAllForItemIncludingDeleted(serverId, itemId)
+        val rows = annotationDao.getAllForItemIncludingDeleted(sourceId, itemId)
         if (rows.isEmpty()) return
         val jsonStrings = rows.map { AnnotationW3CCodec.annotationEntityToW3C(it) }
         // Mirror the header written by AnnotationSyncController.pushPending so files from the

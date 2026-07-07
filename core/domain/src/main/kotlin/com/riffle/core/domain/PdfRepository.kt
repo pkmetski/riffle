@@ -20,8 +20,8 @@ interface PdfRepository {
         item: LibraryItem,
         onProgress: (downloaded: Long, total: Long) -> Unit = { _, _ -> },
     ): PdfDownloadResult
-    suspend fun removeDownload(serverId: String, itemId: String)
-    fun isDownloaded(serverId: String, itemId: String): Boolean
-    fun isCached(serverId: String, itemId: String): Boolean
+    suspend fun removeDownload(sourceId: String, itemId: String)
+    fun isDownloaded(sourceId: String, itemId: String): Boolean
+    fun isCached(sourceId: String, itemId: String): Boolean
     suspend fun saveReadingPosition(itemId: String, locatorJson: String)
 }

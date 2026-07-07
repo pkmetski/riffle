@@ -23,8 +23,8 @@ open class MarkReadAcrossDimensions @Inject constructor(
 ) {
     open suspend operator fun invoke(itemId: String, finished: Boolean) {
         val progress = if (finished) 1.0f else 0.0f
-        val serverId = serverRepository.getActive()?.id
-        val ids = if (serverId != null) coupledAbsItemIds(serverId, itemId) else listOf(itemId)
+        val sourceId = serverRepository.getActive()?.id
+        val ids = if (sourceId != null) coupledAbsItemIds(sourceId, itemId) else listOf(itemId)
         ids.forEach { id ->
             libraryMutator.updateReadingProgress(id, progress)
             readingSessionRepository.markFinished(id, finished)
@@ -36,11 +36,11 @@ open class MarkReadAcrossDimensions @Inject constructor(
      * includes [itemId]). Cross-server matches are excluded — [ReadingSessionRepository.markFinished]
      * operates on the active server only.
      */
-    private suspend fun coupledAbsItemIds(serverId: String, itemId: String): List<String> {
-        val link = readaloudLinkRepository.findByAbsItem(serverId, itemId) ?: return listOf(itemId)
+    private suspend fun coupledAbsItemIds(sourceId: String, itemId: String): List<String> {
+        val link = readaloudLinkRepository.findByAbsItem(sourceId, itemId) ?: return listOf(itemId)
         val siblings = readaloudLinkRepository
-            .findByStorytellerBook(link.storytellerServerId, link.storytellerBookId)
-            .filter { it.absServerId == serverId }
+            .findByStorytellerBook(link.storytellerSourceId, link.storytellerBookId)
+            .filter { it.absSourceId == sourceId }
             .map { it.absLibraryItemId }
         return (siblings + itemId).distinct()
     }

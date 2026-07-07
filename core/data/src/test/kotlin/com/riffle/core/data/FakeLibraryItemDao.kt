@@ -12,41 +12,30 @@ import kotlinx.coroutines.flow.MutableStateFlow
 internal class FakeLibraryItemDao : LibraryItemDao {
     val upserted = mutableListOf<LibraryItemEntity>()
     private val roomData = mutableMapOf<String, MutableStateFlow<List<LibraryItemEntity>>>()
-    private val byServer = mutableMapOf<String, MutableStateFlow<List<LibraryItemEntity>>>()
 
     fun itemsFor(libraryId: String): List<LibraryItemEntity> =
         roomData[libraryId]?.value ?: emptyList()
 
-    /** Seeds [observeByServer] for a given server, independent of the per-library backing used by
-     *  the other `observe*` methods. Used by tests exercising server-scoped joins (e.g. Annotations
-     *  View), which aren't grouped by libraryId. */
-    fun emit(serverId: String, items: List<LibraryItemEntity>) {
-        byServer.getOrPut(serverId) { MutableStateFlow(emptyList()) }.value = items
-    }
+    private fun scoped(sourceId: String, libraryId: String): List<LibraryItemEntity> =
+        roomData[libraryId]?.value?.filter { it.sourceId == sourceId }.orEmpty()
 
-    override fun observeByServer(serverId: String): Flow<List<LibraryItemEntity>> =
-        byServer.getOrPut(serverId) { MutableStateFlow(emptyList()) }
+    override fun observeByLibraryId(sourceId: String, libraryId: String): Flow<List<LibraryItemEntity>> =
+        MutableStateFlow(scoped(sourceId, libraryId))
 
-    private fun scoped(serverId: String, libraryId: String): List<LibraryItemEntity> =
-        roomData[libraryId]?.value?.filter { it.serverId == serverId }.orEmpty()
+    override fun observeUngroupedByLibraryId(sourceId: String, libraryId: String): Flow<List<LibraryItemEntity>> =
+        MutableStateFlow(scoped(sourceId, libraryId))
 
-    override fun observeByLibraryId(serverId: String, libraryId: String): Flow<List<LibraryItemEntity>> =
-        MutableStateFlow(scoped(serverId, libraryId))
+    override fun observeInProgress(sourceId: String, libraryId: String): Flow<List<LibraryItemEntity>> =
+        MutableStateFlow(scoped(sourceId, libraryId).filter { it.readingProgress > 0f && it.readingProgress < 1f })
 
-    override fun observeUngroupedByLibraryId(serverId: String, libraryId: String): Flow<List<LibraryItemEntity>> =
-        MutableStateFlow(scoped(serverId, libraryId))
+    override fun observeFinished(sourceId: String, libraryId: String): Flow<List<LibraryItemEntity>> =
+        MutableStateFlow(scoped(sourceId, libraryId).filter { it.readingProgress == 1f })
 
-    override fun observeInProgress(serverId: String, libraryId: String): Flow<List<LibraryItemEntity>> =
-        MutableStateFlow(scoped(serverId, libraryId).filter { it.readingProgress > 0f && it.readingProgress < 1f })
+    override fun observeRecentlyAdded(sourceId: String, libraryId: String): Flow<List<LibraryItemEntity>> =
+        MutableStateFlow(scoped(sourceId, libraryId).sortedByDescending { it.addedAt })
 
-    override fun observeFinished(serverId: String, libraryId: String): Flow<List<LibraryItemEntity>> =
-        MutableStateFlow(scoped(serverId, libraryId).filter { it.readingProgress == 1f })
-
-    override fun observeRecentlyAdded(serverId: String, libraryId: String): Flow<List<LibraryItemEntity>> =
-        MutableStateFlow(scoped(serverId, libraryId).sortedByDescending { it.addedAt })
-
-    override fun observeAllBooks(serverId: String, libraryId: String): Flow<List<LibraryItemEntity>> =
-        MutableStateFlow(scoped(serverId, libraryId))
+    override fun observeAllBooks(sourceId: String, libraryId: String): Flow<List<LibraryItemEntity>> =
+        MutableStateFlow(scoped(sourceId, libraryId))
 
     override suspend fun upsertAll(items: List<LibraryItemEntity>) {
         upserted.addAll(items)
@@ -74,7 +63,7 @@ internal class FakeLibraryItemDao : LibraryItemDao {
     override suspend fun updateMetadata(metadata: LibraryItemMetadata) {
         val flow = roomData[metadata.libraryId] ?: return
         flow.value = flow.value.map { existing ->
-            if (existing.serverId == metadata.serverId && existing.id == metadata.id) {
+            if (existing.sourceId == metadata.sourceId && existing.id == metadata.id) {
                 existing.copy(
                     libraryId = metadata.libraryId,
                     title = metadata.title,
@@ -99,42 +88,42 @@ internal class FakeLibraryItemDao : LibraryItemDao {
         }
     }
 
-    override suspend fun deleteRemovedFromLibrary(serverId: String, libraryId: String, serverItemIds: List<String>) {
+    override suspend fun deleteRemovedFromLibrary(sourceId: String, libraryId: String, serverItemIds: List<String>) {
         val serverIdSet = serverItemIds.toSet()
         roomData[libraryId]?.value = roomData[libraryId]?.value
-            ?.filter { it.serverId != serverId || it.id in serverIdSet }
+            ?.filter { it.sourceId != sourceId || it.id in serverIdSet }
             ?: emptyList()
     }
 
-    override suspend fun getById(serverId: String, itemId: String): LibraryItemEntity? =
-        roomData.values.flatMap { it.value }.firstOrNull { it.serverId == serverId && it.id == itemId }
+    override suspend fun getById(sourceId: String, itemId: String): LibraryItemEntity? =
+        roomData.values.flatMap { it.value }.firstOrNull { it.sourceId == sourceId && it.id == itemId }
 
-    override fun observeById(serverId: String, itemId: String): Flow<LibraryItemEntity?> =
-        MutableStateFlow(roomData.values.flatMap { it.value }.firstOrNull { it.serverId == serverId && it.id == itemId })
+    override fun observeById(sourceId: String, itemId: String): Flow<LibraryItemEntity?> =
+        MutableStateFlow(roomData.values.flatMap { it.value }.firstOrNull { it.sourceId == sourceId && it.id == itemId })
 
-    override suspend fun findServerIdForItem(itemId: String): String? =
-        roomData.values.flatMap { it.value }.firstOrNull { it.id == itemId }?.serverId
+    override suspend fun findSourceIdForItem(itemId: String): String? =
+        roomData.values.flatMap { it.value }.firstOrNull { it.id == itemId }?.sourceId
 
-    override suspend fun deleteByLibraryId(serverId: String, libraryId: String) {
+    override suspend fun deleteByLibraryId(sourceId: String, libraryId: String) {
         val current = roomData[libraryId]?.value ?: return
-        roomData[libraryId]!!.value = current.filterNot { it.serverId == serverId }
+        roomData[libraryId]!!.value = current.filterNot { it.sourceId == sourceId }
     }
 
-    override suspend fun updateLastOpenedAt(serverId: String, itemId: String, timestamp: Long) {}
+    override suspend fun updateLastOpenedAt(sourceId: String, itemId: String, timestamp: Long) {}
 
-    override suspend fun getLastOpenedAtMap(serverId: String, libraryId: String): List<LastOpenedAtRow> =
-        scoped(serverId, libraryId)
+    override suspend fun getLastOpenedAtMap(sourceId: String, libraryId: String): List<LastOpenedAtRow> =
+        scoped(sourceId, libraryId)
             .filter { it.lastOpenedAt != null }
             .map { LastOpenedAtRow(it.id, it.lastOpenedAt!!) }
 
-    override suspend fun getReadingProgressMap(serverId: String, libraryId: String): List<ReadingProgressRow> =
-        scoped(serverId, libraryId)
+    override suspend fun getReadingProgressMap(sourceId: String, libraryId: String): List<ReadingProgressRow> =
+        scoped(sourceId, libraryId)
             .filter { it.readingProgress > 0f }
             .map { ReadingProgressRow(it.id, it.readingProgress) }
 
-    override suspend fun updateReadingProgress(serverId: String, itemId: String, progress: Float) {}
+    override suspend fun updateReadingProgress(sourceId: String, itemId: String, progress: Float) {}
 
-    override suspend fun updateFinishedAt(serverId: String, itemId: String, finishedAt: Long?) {}
+    override suspend fun updateFinishedAt(sourceId: String, itemId: String, finishedAt: Long?) {}
 
-    override suspend fun listMatchableByServerType(serverType: String): List<MatchableItemRow> = emptyList()
+    override suspend fun listMatchableBySourceType(serverType: String): List<MatchableItemRow> = emptyList()
 }

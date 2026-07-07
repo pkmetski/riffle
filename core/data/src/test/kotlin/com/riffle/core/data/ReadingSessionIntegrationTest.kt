@@ -3,9 +3,9 @@ package com.riffle.core.data
 import com.riffle.core.domain.DefaultDispatcherProvider
 
 import com.riffle.core.domain.ReadingPositionStore
-import com.riffle.core.domain.Server
-import com.riffle.core.domain.ServerRepository
-import com.riffle.core.domain.ServerUrl
+import com.riffle.core.domain.Source
+import com.riffle.core.domain.SourceRepository
+import com.riffle.core.domain.SourceUrl
 import com.riffle.core.domain.SessionPayload
 import com.riffle.core.domain.SyncSessionResult
 import com.riffle.core.domain.TokenStorage
@@ -24,60 +24,60 @@ import org.junit.Test
 
 class ReadingSessionIntegrationTest {
 
-    private lateinit var server: MockWebServer
+    private lateinit var source: MockWebServer
     private lateinit var repo: ReadingSessionRepositoryImpl
 
     @Before
     fun setUp() {
-        server = MockWebServer()
-        server.start()
+        source = MockWebServer()
+        source.start()
         repo = buildRepo()
     }
 
     @After
-    fun tearDown() = server.shutdown()
+    fun tearDown() = source.shutdown()
 
     private fun buildRepo() = ReadingSessionRepositoryImpl(
         api = AbsApiClient(OkHttpClient(), DefaultDispatcherProvider),
-        serverRepository = object : ServerRepository {
-            val activeServer = Server(
-                id = "server-1",
-                url = ServerUrl.parse(server.url("/").toString().trimEnd('/'))!!,
+        sourceRepository = object : SourceRepository {
+            val activeServer = Source(
+                id = "source-1",
+                url = SourceUrl.parse(source.url("/").toString().trimEnd('/'))!!,
                 isActive = true,
                 insecureConnectionAllowed = false,
                 username = "",
             )
-            override fun observeAll(): Flow<List<Server>> = flowOf(listOf(activeServer))
-            override suspend fun getActive(): Server = activeServer
-            override suspend fun authenticate(url: ServerUrl, username: String, password: String, insecureAllowed: Boolean, serverType: com.riffle.core.domain.ServerType) =
+            override fun observeAll(): Flow<List<Source>> = flowOf(listOf(activeServer))
+            override suspend fun getActive(): Source = activeServer
+            override suspend fun authenticate(url: SourceUrl, username: String, password: String, insecureAllowed: Boolean, serverType: com.riffle.core.domain.ServerType) =
                 throw UnsupportedOperationException()
-            override suspend fun commit(pending: com.riffle.core.domain.PendingServer, hiddenLibraryIds: Set<String>) =
+            override suspend fun commit(pending: com.riffle.core.domain.PendingSource, hiddenLibraryIds: Set<String>) =
                 throw UnsupportedOperationException()
-            override suspend fun setActive(serverId: String) = Unit
-            override suspend fun remove(serverId: String) = Unit
-            override suspend fun getServerVersion(serverId: String): String? = null
+            override suspend fun setActive(sourceId: String) = Unit
+            override suspend fun remove(sourceId: String) = Unit
+            override suspend fun getSourceVersion(sourceId: String): String? = null
         },
         tokenStorage = object : TokenStorage {
-            override suspend fun saveToken(serverId: String, token: String) = Unit
-            override suspend fun getToken(serverId: String): String? = "test-token"
-            override suspend fun deleteToken(serverId: String) = Unit
+            override suspend fun saveToken(sourceId: String, token: String) = Unit
+            override suspend fun getToken(sourceId: String): String? = "test-token"
+            override suspend fun deleteToken(sourceId: String) = Unit
         },
         positionStore = object : ReadingPositionStore {
-            override suspend fun save(serverId: String, itemId: String, payload: String) = Unit
-            override suspend fun load(serverId: String, itemId: String): String? = null
-            override suspend fun loadLocalUpdatedAt(serverId: String, itemId: String): Long = 0L
-            override suspend fun updateLocalTimestamp(serverId: String, itemId: String, millis: Long) = Unit
+            override suspend fun save(sourceId: String, itemId: String, payload: String) = Unit
+            override suspend fun load(sourceId: String, itemId: String): String? = null
+            override suspend fun loadLocalUpdatedAt(sourceId: String, itemId: String): Long = 0L
+            override suspend fun updateLocalTimestamp(sourceId: String, itemId: String, millis: Long) = Unit
         },
         audiobookPositionStore = object : com.riffle.core.domain.AudiobookPositionStore {
-            override suspend fun save(serverId: String, itemId: String, payload: Double) = Unit
-            override suspend fun load(serverId: String, itemId: String): Double? = null
-            override suspend fun loadLocalUpdatedAt(serverId: String, itemId: String): Long = 0L
-            override suspend fun updateLocalTimestamp(serverId: String, itemId: String, millis: Long) = Unit
+            override suspend fun save(sourceId: String, itemId: String, payload: Double) = Unit
+            override suspend fun load(sourceId: String, itemId: String): Double? = null
+            override suspend fun loadLocalUpdatedAt(sourceId: String, itemId: String): Long = 0L
+            override suspend fun updateLocalTimestamp(sourceId: String, itemId: String, millis: Long) = Unit
         },
         readaloudResumeStore = object : com.riffle.core.domain.ReadaloudResumeStore {
-            override suspend fun save(serverId: String, itemId: String, position: com.riffle.core.domain.ReadaloudResumePosition) = Unit
-            override suspend fun load(serverId: String, itemId: String): com.riffle.core.domain.ReadaloudResumePosition? = null
-            override suspend fun clear(serverId: String, itemId: String) = Unit
+            override suspend fun save(sourceId: String, itemId: String, position: com.riffle.core.domain.ReadaloudResumePosition) = Unit
+            override suspend fun load(sourceId: String, itemId: String): com.riffle.core.domain.ReadaloudResumePosition? = null
+            override suspend fun clear(sourceId: String, itemId: String) = Unit
         },
         libraryItemDao = FakeLibraryItemDao(),
             clock = com.riffle.core.domain.TestClock(),
@@ -85,13 +85,13 @@ class ReadingSessionIntegrationTest {
 
     @Test
     fun `syncProgress sends PATCH to correct path with payload`() = runTest {
-        server.enqueue(json(200, "{}"))
+        source.enqueue(json(200, "{}"))
 
         val payload = SessionPayload("epubcfi(/6/4!/4/1:0)", 0.25f)
         val result = repo.syncProgress("item-1", payload)
 
         assertTrue(result is SyncSessionResult.Success)
-        val req = server.takeRequest()
+        val req = source.takeRequest()
         assertEquals("PATCH", req.method)
         assertEquals("/api/me/progress/item-1", req.path)
         val body = req.body.readUtf8()
@@ -100,15 +100,15 @@ class ReadingSessionIntegrationTest {
     }
 
     @Test
-    fun `syncProgress returns NetworkError on server failure`() = runTest {
-        server.enqueue(json(500, "{}"))
+    fun `syncProgress returns NetworkError on source failure`() = runTest {
+        source.enqueue(json(500, "{}"))
         val result = repo.syncProgress("item-1", SessionPayload("cfi", 0.5f))
         assertTrue(result is SyncSessionResult.NetworkError)
     }
 
     @Test
-    fun `syncProgress returns NetworkError when server is unreachable`() = runTest {
-        server.shutdown()
+    fun `syncProgress returns NetworkError when source is unreachable`() = runTest {
+        source.shutdown()
         val result = buildRepo().syncProgress("item-x", SessionPayload("cfi", 0f))
         assertTrue(result is SyncSessionResult.NetworkError)
     }

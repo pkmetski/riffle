@@ -14,8 +14,8 @@ import kotlinx.coroutines.sync.withLock
  *
  * Two key shapes are exposed because the resource axis differs per pipeline:
  *
- * - Progress (ADR 0030): `(serverId, itemId, kind)` — three peer-target axes per book.
- * - Annotations (ADR 0036): `(serverId, itemId)` — one device file per book, no per-target axis.
+ * - Progress (ADR 0030): `(sourceId, itemId, kind)` — three peer-target axes per book.
+ * - Annotations (ADR 0036): `(sourceId, itemId)` — one device file per book, no per-target axis.
  *
  * The two axes use separate maps, so an annotation push and a progress reconcile on the same
  * `(server, item)` do not contend with each other.
@@ -25,16 +25,16 @@ class ReconcileLocks @Inject constructor() : AnnotationLockPort {
     private val progressMutexes = ConcurrentHashMap<String, Mutex>()
     private val annotationMutexes = ConcurrentHashMap<String, Mutex>()
 
-    /** Progress reconcile lock — per `(serverId, itemId, kind)`. */
-    suspend fun <T> withLock(serverId: String, itemId: String, kind: RemoteKind, block: suspend () -> T): T {
-        val mutex = progressMutexes.getOrPut("$serverId $itemId $kind") { Mutex() }
+    /** Progress reconcile lock — per `(sourceId, itemId, kind)`. */
+    suspend fun <T> withLock(sourceId: String, itemId: String, kind: RemoteKind, block: suspend () -> T): T {
+        val mutex = progressMutexes.getOrPut("$sourceId $itemId $kind") { Mutex() }
         return mutex.withLock { block() }
     }
 
-    /** Annotation reconcile lock — per `(serverId, itemId)`. Closes the torn-write window between
+    /** Annotation reconcile lock — per `(sourceId, itemId)`. Closes the torn-write window between
      *  the live [AnnotationSyncController] push and the durable [AnnotationSweep] push. */
-    override suspend fun <T> withAnnotationLock(serverId: String, itemId: String, block: suspend () -> T): T {
-        val mutex = annotationMutexes.getOrPut("$serverId $itemId") { Mutex() }
+    override suspend fun <T> withAnnotationLock(sourceId: String, itemId: String, block: suspend () -> T): T {
+        val mutex = annotationMutexes.getOrPut("$sourceId $itemId") { Mutex() }
         return mutex.withLock { block() }
     }
 }

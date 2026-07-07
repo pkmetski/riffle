@@ -3,15 +3,15 @@ package com.riffle.core.data
 import com.riffle.core.network.NetworkResult
 
 import com.riffle.core.domain.AuthenticateResult
-import com.riffle.core.domain.CommitServerResult
+import com.riffle.core.domain.CommitSourceResult
 import com.riffle.core.domain.LocalStore
 import com.riffle.core.domain.MediaOverlayClip
-import com.riffle.core.domain.PendingServer
+import com.riffle.core.domain.PendingSource
 import com.riffle.core.domain.ReadaloudTrack
-import com.riffle.core.domain.Server
-import com.riffle.core.domain.ServerRepository
+import com.riffle.core.domain.Source
+import com.riffle.core.domain.SourceRepository
 import com.riffle.core.domain.ServerType
-import com.riffle.core.domain.ServerUrl
+import com.riffle.core.domain.SourceUrl
 import com.riffle.core.domain.StoredItemRef
 import com.riffle.core.domain.TokenStorage
 import com.riffle.core.network.StorytellerBundleProbeApi
@@ -46,7 +46,7 @@ class ReadaloudAudioRepositoryImplTest {
             },
             cacheStore = FakeStore(null),
             downloadsStore = FakeStore(bundleFile),
-            serverRepository = NoopServerRepository,
+            sourceRepository = NoopServerRepository,
             tokenStorage = NoopTokenStorage,
             dispatchers = com.riffle.core.domain.DefaultDispatcherProvider,
         ) {
@@ -99,12 +99,12 @@ class ReadaloudAudioRepositoryImplTest {
     }
 
     @Test
-    fun `readTrack isolates cache by (serverId, itemId)`() = runTest {
+    fun `readTrack isolates cache by (sourceId, itemId)`() = runTest {
         val bundle = tmp.newFile("book.zip")
         val (repo, parseCalls) = makeRepo(bundleFile = bundle, parseResult = track)
 
-        repo.readTrack("server-A", "item-1")
-        repo.readTrack("server-B", "item-1")
+        repo.readTrack("source-A", "item-1")
+        repo.readTrack("source-B", "item-1")
 
         assertEquals("different servers produce separate cache entries", 2, parseCalls())
     }
@@ -112,36 +112,36 @@ class ReadaloudAudioRepositoryImplTest {
     // ------- minimal collaborator stubs -------
 
     private class FakeStore(private val file: File?) : LocalStore {
-        override fun get(serverId: String, itemId: String): File? = file
-        override suspend fun save(serverId: String, itemId: String, stream: InputStream): File = throw UnsupportedOperationException()
-        override fun delete(serverId: String, itemId: String) = Unit
-        override fun deleteServer(serverId: String) = Unit
+        override fun get(sourceId: String, itemId: String): File? = file
+        override suspend fun save(sourceId: String, itemId: String, stream: InputStream): File = throw UnsupportedOperationException()
+        override fun delete(sourceId: String, itemId: String) = Unit
+        override fun deleteServer(sourceId: String) = Unit
         override fun clear() = Unit
         override fun listItems(): List<StoredItemRef> = emptyList()
     }
 
-    private object NoopServerRepository : ServerRepository {
-        override fun observeAll(): Flow<List<Server>> = MutableStateFlow(emptyList())
-        override suspend fun getActive(): Server? = null
+    private object NoopServerRepository : SourceRepository {
+        override fun observeAll(): Flow<List<Source>> = MutableStateFlow(emptyList())
+        override suspend fun getActive(): Source? = null
         override suspend fun authenticate(
-            url: ServerUrl,
+            url: SourceUrl,
             username: String,
             password: String,
             insecureAllowed: Boolean,
             serverType: ServerType,
         ): AuthenticateResult = AuthenticateResult.NetworkError(UnsupportedOperationException())
         override suspend fun commit(
-            pending: PendingServer,
+            pending: PendingSource,
             hiddenLibraryIds: Set<String>,
-        ): CommitServerResult = CommitServerResult.Failure(UnsupportedOperationException())
-        override suspend fun setActive(serverId: String) = Unit
-        override suspend fun remove(serverId: String) = Unit
-        override suspend fun getServerVersion(serverId: String): String? = null
+        ): CommitSourceResult = CommitSourceResult.Failure(UnsupportedOperationException())
+        override suspend fun setActive(sourceId: String) = Unit
+        override suspend fun remove(sourceId: String) = Unit
+        override suspend fun getSourceVersion(sourceId: String): String? = null
     }
 
     private object NoopTokenStorage : TokenStorage {
-        override suspend fun getToken(serverId: String): String? = null
-        override suspend fun saveToken(serverId: String, token: String) = Unit
-        override suspend fun deleteToken(serverId: String) = Unit
+        override suspend fun getToken(sourceId: String): String? = null
+        override suspend fun saveToken(sourceId: String, token: String) = Unit
+        override suspend fun deleteToken(sourceId: String) = Unit
     }
 }

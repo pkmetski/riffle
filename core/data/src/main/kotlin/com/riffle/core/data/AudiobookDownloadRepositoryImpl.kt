@@ -48,18 +48,18 @@ class AudiobookDownloadRepositoryImpl @Inject constructor(
 
     private val json = Json { ignoreUnknownKeys = true }
 
-    private fun itemDir(serverId: String, itemId: String) = File(downloadsDir, "$serverId/$itemId")
-    private fun manifestFile(serverId: String, itemId: String) = File(itemDir(serverId, itemId), "manifest.json")
+    private fun itemDir(sourceId: String, itemId: String) = File(downloadsDir, "$sourceId/$itemId")
+    private fun manifestFile(sourceId: String, itemId: String) = File(itemDir(sourceId, itemId), "manifest.json")
 
-    override fun isDownloaded(serverId: String, itemId: String): Boolean =
-        manifestFile(serverId, itemId).exists()
+    override fun isDownloaded(sourceId: String, itemId: String): Boolean =
+        manifestFile(sourceId, itemId).exists()
 
-    override fun localSession(serverId: String, itemId: String): AudiobookSession? {
-        val mf = manifestFile(serverId, itemId)
+    override fun localSession(sourceId: String, itemId: String): AudiobookSession? {
+        val mf = manifestFile(sourceId, itemId)
         if (!mf.exists()) return null
         val manifest = runCatching { json.decodeFromString<AudiobookDownloadManifest>(mf.readText()) }.getOrNull()
             ?: return null
-        val dir = itemDir(serverId, itemId)
+        val dir = itemDir(sourceId, itemId)
         return AudiobookSession(
             trackUrls = manifest.tracks.map { File(dir, it.file).toURI().toString() }, // file:// URLs
             tracks = manifest.tracks.map { AudiobookTrackSpan(it.index, it.startOffsetSec, it.durationSec) },
@@ -72,15 +72,15 @@ class AudiobookDownloadRepositoryImpl @Inject constructor(
     }
 
     override suspend fun download(
-        serverId: String,
+        sourceId: String,
         itemId: String,
         onProgress: (downloaded: Long, total: Long) -> Unit,
     ): AudiobookDownloadResult = withContext(dispatchers.io) {
-        if (isDownloaded(serverId, itemId)) return@withContext AudiobookDownloadResult.Success
-        val session = audiobookRepository.openSession(serverId, itemId)
+        if (isDownloaded(sourceId, itemId)) return@withContext AudiobookDownloadResult.Success
+        val session = audiobookRepository.openSession(sourceId, itemId)
             ?: return@withContext AudiobookDownloadResult.NetworkError(IOException("Could not open play session"))
 
-        val dir = itemDir(serverId, itemId).apply { mkdirs() }
+        val dir = itemDir(sourceId, itemId).apply { mkdirs() }
         var downloaded = 0L
         var total = 0L
         val manifestTracks = ArrayList<AudiobookDownloadManifest.ManifestTrack>()
@@ -123,7 +123,7 @@ class AudiobookDownloadRepositoryImpl @Inject constructor(
                 },
             )
             // Written last → atomic completion marker.
-            manifestFile(serverId, itemId).writeText(json.encodeToString(manifest))
+            manifestFile(sourceId, itemId).writeText(json.encodeToString(manifest))
             AudiobookDownloadResult.Success
         } catch (e: IOException) {
             dir.deleteRecursively() // leave no partial download behind
@@ -131,8 +131,8 @@ class AudiobookDownloadRepositoryImpl @Inject constructor(
         }
     }
 
-    override suspend fun remove(serverId: String, itemId: String): Long = withContext(dispatchers.io) {
-        val dir = itemDir(serverId, itemId)
+    override suspend fun remove(sourceId: String, itemId: String): Long = withContext(dispatchers.io) {
+        val dir = itemDir(sourceId, itemId)
         val freed = dir.walkBottomUp().filter { it.isFile }.sumOf { it.length() }
         dir.deleteRecursively()
         freed

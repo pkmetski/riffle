@@ -4,13 +4,13 @@ import com.riffle.core.network.NetworkResult
 import com.riffle.core.network.StorytellerPosition
 
 import com.riffle.core.domain.AuthenticateResult
-import com.riffle.core.domain.CommitServerResult
-import com.riffle.core.domain.PendingServer
+import com.riffle.core.domain.CommitSourceResult
+import com.riffle.core.domain.PendingSource
 import com.riffle.core.domain.ReadingPositionStore
-import com.riffle.core.domain.Server
-import com.riffle.core.domain.ServerRepository
+import com.riffle.core.domain.Source
+import com.riffle.core.domain.SourceRepository
 import com.riffle.core.domain.ServerType
-import com.riffle.core.domain.ServerUrl
+import com.riffle.core.domain.SourceUrl
 import com.riffle.core.domain.TokenStorage
 import com.riffle.core.network.StorytellerPositionApi
 import kotlinx.coroutines.flow.Flow
@@ -26,10 +26,10 @@ class StorytellerPositionSyncControllerTest {
     private class FakePositionStore(var ts: Long) : ReadingPositionStore {
         var saved: String? = null
         var savedTs: Long? = null
-        override suspend fun save(serverId: String, itemId: String, payload: String) { saved = payload }
-        override suspend fun load(serverId: String, itemId: String): String? = saved
-        override suspend fun loadLocalUpdatedAt(serverId: String, itemId: String): Long = ts
-        override suspend fun updateLocalTimestamp(serverId: String, itemId: String, millis: Long) { savedTs = millis; ts = millis }
+        override suspend fun save(sourceId: String, itemId: String, payload: String) { saved = payload }
+        override suspend fun load(sourceId: String, itemId: String): String? = saved
+        override suspend fun loadLocalUpdatedAt(sourceId: String, itemId: String): Long = ts
+        override suspend fun updateLocalTimestamp(sourceId: String, itemId: String, millis: Long) { savedTs = millis; ts = millis }
     }
 
     private class FakePositionApi(
@@ -46,20 +46,20 @@ class StorytellerPositionSyncControllerTest {
         StorytellerPositionSyncController(
             api = api,
             positionStore = store,
-            serverRepository = object : ServerRepository {
-                val server = Server("s1", ServerUrl.parse("http://localhost")!!, true, false, "")
-                override fun observeAll(): Flow<List<Server>> = flowOf(listOf(server))
-                override suspend fun getActive(): Server = server
-                override suspend fun authenticate(url: ServerUrl, username: String, password: String, insecureAllowed: Boolean, serverType: ServerType) = throw UnsupportedOperationException()
-                override suspend fun commit(pending: PendingServer, hiddenLibraryIds: Set<String>): CommitServerResult = throw UnsupportedOperationException()
-                override suspend fun setActive(serverId: String) = Unit
-                override suspend fun remove(serverId: String) = Unit
-                override suspend fun getServerVersion(serverId: String): String? = null
+            sourceRepository = object : SourceRepository {
+                val source = Source("s1", SourceUrl.parse("http://localhost")!!, true, false, "")
+                override fun observeAll(): Flow<List<Source>> = flowOf(listOf(source))
+                override suspend fun getActive(): Source = source
+                override suspend fun authenticate(url: SourceUrl, username: String, password: String, insecureAllowed: Boolean, serverType: ServerType) = throw UnsupportedOperationException()
+                override suspend fun commit(pending: PendingSource, hiddenLibraryIds: Set<String>): CommitSourceResult = throw UnsupportedOperationException()
+                override suspend fun setActive(sourceId: String) = Unit
+                override suspend fun remove(sourceId: String) = Unit
+                override suspend fun getSourceVersion(sourceId: String): String? = null
             },
             tokenStorage = object : TokenStorage {
-                override suspend fun saveToken(serverId: String, token: String) = Unit
-                override suspend fun getToken(serverId: String): String? = "tok"
-                override suspend fun deleteToken(serverId: String) = Unit
+                override suspend fun saveToken(sourceId: String, token: String) = Unit
+                override suspend fun getToken(sourceId: String): String? = "tok"
+                override suspend fun deleteToken(sourceId: String) = Unit
             },
         )
 
@@ -75,7 +75,7 @@ class StorytellerPositionSyncControllerTest {
         assertEquals(0, api.putCount)
     }
 
-    @Test fun `local newer pushes to server`() = runTest {
+    @Test fun `local newer pushes to source`() = runTest {
         val store = FakePositionStore(ts = 5_000)
         val api = FakePositionApi(NetworkResult.Success(StorytellerPosition("""{"href":"x"}""", 1_000)))
 

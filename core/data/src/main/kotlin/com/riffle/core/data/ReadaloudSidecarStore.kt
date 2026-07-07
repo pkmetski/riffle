@@ -3,7 +3,7 @@ package com.riffle.core.data
 import android.content.Context
 import com.riffle.core.domain.ApplicationScope
 import com.riffle.core.domain.ReadaloudSidecarCache
-import com.riffle.core.domain.ServerRepository
+import com.riffle.core.domain.SourceRepository
 import com.riffle.core.domain.TokenStorage
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CoroutineScope
@@ -37,14 +37,14 @@ import javax.inject.Singleton
  * off a prefetch without depending on the whole [ReadaloudSidecarStore] (and keeps them unit-testable).
  */
 fun interface ReadaloudSidecarPrefetcher {
-    fun prepare(storytellerServerId: String, storytellerBookId: String)
+    fun prepare(storytellerSourceId: String, storytellerBookId: String)
 }
 
 @Singleton
 class ReadaloudSidecarStore private constructor(
     private val cacheRootDir: () -> File,
     private val fetcher: StorytellerSidecarFetcher,
-    private val serverRepository: ServerRepository,
+    private val sourceRepository: SourceRepository,
     private val tokenStorage: TokenStorage,
     // App-scoped: a prepare started on the details screen must survive into the reader (and vice versa),
     // so it can't hang off a ViewModel scope. SupervisorJob so one book's failure doesn't cancel others.
@@ -54,13 +54,13 @@ class ReadaloudSidecarStore private constructor(
     @Inject constructor(
         @ApplicationContext context: Context,
         fetcher: StorytellerSidecarFetcher,
-        serverRepository: ServerRepository,
+        sourceRepository: SourceRepository,
         tokenStorage: TokenStorage,
         applicationScope: ApplicationScope,
     ) : this(
         cacheRootDir = { context.cacheDir },
         fetcher = fetcher,
-        serverRepository = serverRepository,
+        sourceRepository = sourceRepository,
         tokenStorage = tokenStorage,
         scope = applicationScope.coroutineScope,
     )
@@ -68,13 +68,13 @@ class ReadaloudSidecarStore private constructor(
     internal constructor(
         cacheRootDir: File,
         fetcher: StorytellerSidecarFetcher,
-        serverRepository: ServerRepository,
+        sourceRepository: SourceRepository,
         tokenStorage: TokenStorage,
         scope: CoroutineScope,
     ) : this(
         cacheRootDir = { cacheRootDir },
         fetcher = fetcher,
-        serverRepository = serverRepository,
+        sourceRepository = sourceRepository,
         tokenStorage = tokenStorage,
         scope = scope,
     )
@@ -108,61 +108,61 @@ class ReadaloudSidecarStore private constructor(
     /** Per-book prepare states, keyed by [key]. A book is also implicitly [State.Ready] when [cachedFile] exists. */
     val states: StateFlow<Map<String, State>> = _states
 
-    fun key(storytellerServerId: String, storytellerBookId: String) = "$storytellerServerId-$storytellerBookId"
+    fun key(storytellerSourceId: String, storytellerBookId: String) = "$storytellerSourceId-$storytellerBookId"
 
     private fun dir(): File = File(cacheRootDir(), "readaloud-sidecars").apply { mkdirs() }
-    private fun fileFor(serverId: String, bookId: String) = File(dir(), "${key(serverId, bookId)}.epub")
+    private fun fileFor(sourceId: String, bookId: String) = File(dir(), "${key(sourceId, bookId)}.epub")
 
     /** The cached sidecar if it's already on disk — never triggers a fetch. */
-    override fun cachedFile(storytellerServerId: String, storytellerBookId: String): File? =
-        fileFor(storytellerServerId, storytellerBookId).takeIf { it.exists() && it.length() > 0 }
+    override fun cachedFile(storytellerSourceId: String, storytellerBookId: String): File? =
+        fileFor(storytellerSourceId, storytellerBookId).takeIf { it.exists() && it.length() > 0 }
 
     /** State for the bar/UX: Ready when cached, else the in-flight/last prepare outcome. */
-    fun stateOf(storytellerServerId: String, storytellerBookId: String): State? {
-        val cached = cachedFile(storytellerServerId, storytellerBookId)
-        return if (cached != null) State.Ready else _states.value[key(storytellerServerId, storytellerBookId)]
+    fun stateOf(storytellerSourceId: String, storytellerBookId: String): State? {
+        val cached = cachedFile(storytellerSourceId, storytellerBookId)
+        return if (cached != null) State.Ready else _states.value[key(storytellerSourceId, storytellerBookId)]
     }
 
     /** Idempotently start (or join) a background prepare. No-op if already cached, already failed, or in flight. */
-    override fun prepare(storytellerServerId: String, storytellerBookId: String) {
-        if (cachedFile(storytellerServerId, storytellerBookId) != null) return
+    override fun prepare(storytellerSourceId: String, storytellerBookId: String) {
+        if (cachedFile(storytellerSourceId, storytellerBookId) != null) return
         // Don't retry a book that already exhausted all attempts this session. The in-memory state
         // resets on process restart, giving one fresh retry cycle per session. Without this guard,
         // every navigation back to the book re-launches the full retry loop (4 × ~30 MB downloads).
-        if (_states.value[key(storytellerServerId, storytellerBookId)] == State.Failed) return
+        if (_states.value[key(storytellerSourceId, storytellerBookId)] == State.Failed) return
         // Set Preparing synchronously so that any stateOf() check after this call (but before the
         // background coroutine runs) already sees Preparing — avoiding a window where the UI shows
         // "Couldn't stream" instead of "Preparing…" when eviction+re-prepare happen on the Play path.
-        setState(storytellerServerId, storytellerBookId, State.Preparing)
-        scope.launch { ensurePrepared(storytellerServerId, storytellerBookId) }
+        setState(storytellerSourceId, storytellerBookId, State.Preparing)
+        scope.launch { ensurePrepared(storytellerSourceId, storytellerBookId) }
     }
 
     /** Suspends until the sidecar is ready, joining any in-flight prepare; null on failure/timeout. */
-    suspend fun get(storytellerServerId: String, storytellerBookId: String): File? =
-        ensurePrepared(storytellerServerId, storytellerBookId)
+    suspend fun get(storytellerSourceId: String, storytellerBookId: String): File? =
+        ensurePrepared(storytellerSourceId, storytellerBookId)
 
-    private suspend fun ensurePrepared(storytellerServerId: String, storytellerBookId: String): File? {
-        cachedFile(storytellerServerId, storytellerBookId)?.let { return it }
+    private suspend fun ensurePrepared(storytellerSourceId: String, storytellerBookId: String): File? {
+        cachedFile(storytellerSourceId, storytellerBookId)?.let { return it }
         val deferred = mutex.withLock {
-            cachedFile(storytellerServerId, storytellerBookId)?.let { return it }
-            inFlight[key(storytellerServerId, storytellerBookId)]
-                ?: scope.async { doPrepare(storytellerServerId, storytellerBookId) }
-                    .also { inFlight[key(storytellerServerId, storytellerBookId)] = it }
+            cachedFile(storytellerSourceId, storytellerBookId)?.let { return it }
+            inFlight[key(storytellerSourceId, storytellerBookId)]
+                ?: scope.async { doPrepare(storytellerSourceId, storytellerBookId) }
+                    .also { inFlight[key(storytellerSourceId, storytellerBookId)] = it }
         }
         return deferred.await()
     }
 
-    private suspend fun doPrepare(storytellerServerId: String, storytellerBookId: String): File? {
-        setState(storytellerServerId, storytellerBookId, State.Preparing)
-        val server = serverRepository.getById(storytellerServerId)
-        val token = if (server != null) tokenStorage.getToken(storytellerServerId) else null
+    private suspend fun doPrepare(storytellerSourceId: String, storytellerBookId: String): File? {
+        setState(storytellerSourceId, storytellerBookId, State.Preparing)
+        val source = sourceRepository.getById(storytellerSourceId)
+        val token = if (source != null) tokenStorage.getToken(storytellerSourceId) else null
         var file: File? = null
-        if (server != null && token != null) {
+        if (source != null && token != null) {
             for (attempt in 0..MAX_RETRIES) {
                 if (attempt > 0) delay(RETRY_BACKOFF_MS[attempt - 1])
-                when (val result = fetcher.fetch(server.url.value, storytellerBookId, token, server.insecureConnectionAllowed)) {
+                when (val result = fetcher.fetch(source.url.value, storytellerBookId, token, source.insecureConnectionAllowed)) {
                     is StorytellerSidecarFetcher.FetchResult.Success -> {
-                        file = fileFor(storytellerServerId, storytellerBookId).apply { writeBytes(result.bytes) }
+                        file = fileFor(storytellerSourceId, storytellerBookId).apply { writeBytes(result.bytes) }
                         break
                     }
                     // Book definitively has no SMIL — no point retrying until Storyteller aligns it.
@@ -172,32 +172,32 @@ class ReadaloudSidecarStore private constructor(
                 }
             }
         }
-        mutex.withLock { inFlight.remove(key(storytellerServerId, storytellerBookId)) }
-        setState(storytellerServerId, storytellerBookId, if (file != null) State.Ready else State.Failed)
+        mutex.withLock { inFlight.remove(key(storytellerSourceId, storytellerBookId)) }
+        setState(storytellerSourceId, storytellerBookId, if (file != null) State.Ready else State.Failed)
         return file
     }
 
-    private fun setState(serverId: String, bookId: String, state: State) {
-        _states.value = _states.value + (key(serverId, bookId) to state)
+    private fun setState(sourceId: String, bookId: String, state: State) {
+        _states.value = _states.value + (key(sourceId, bookId) to state)
     }
 
     /** A prepared sidecar on disk — surfaced in the Downloads screen so the user can see/clear it. */
-    data class CachedSidecar(val storytellerServerId: String, val storytellerBookId: String, val sizeBytes: Long)
+    data class CachedSidecar(val storytellerSourceId: String, val storytellerBookId: String, val sizeBytes: Long)
 
-    /** All cached sidecars. The filename is `<storytellerServerId>-<storytellerBookId>.epub`; the book id
+    /** All cached sidecars. The filename is `<storytellerSourceId>-<storytellerBookId>.epub`; the book id
      *  is numeric (no hyphens), so the last hyphen splits it from the (UUID) server id. */
     fun listCached(): List<CachedSidecar> =
         dir().listFiles().orEmpty().filter { it.isFile && it.extension == "epub" && it.length() > 0 }.mapNotNull { f ->
             val name = f.nameWithoutExtension
-            val serverId = name.substringBeforeLast('-', "")
+            val sourceId = name.substringBeforeLast('-', "")
             val bookId = name.substringAfterLast('-', "")
-            if (serverId.isEmpty() || bookId.isEmpty()) null else CachedSidecar(serverId, bookId, f.length())
+            if (sourceId.isEmpty() || bookId.isEmpty()) null else CachedSidecar(sourceId, bookId, f.length())
         }
 
     /** Delete one prepared sidecar (it'll be re-prepared on the next open if still needed). */
-    fun remove(storytellerServerId: String, storytellerBookId: String) {
-        fileFor(storytellerServerId, storytellerBookId).delete()
-        _states.value = _states.value - key(storytellerServerId, storytellerBookId)
+    fun remove(storytellerSourceId: String, storytellerBookId: String) {
+        fileFor(storytellerSourceId, storytellerBookId).delete()
+        _states.value = _states.value - key(storytellerSourceId, storytellerBookId)
     }
 
     /** Delete every prepared sidecar. */

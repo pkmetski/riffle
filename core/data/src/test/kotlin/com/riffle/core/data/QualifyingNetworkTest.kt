@@ -5,7 +5,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * Fence off the Huawei-shaped "banner permanently shows offline while the user's server, WebDAV,
+ * Fence off the Huawei-shaped "banner permanently shows offline while the user's source, WebDAV,
  * and Storyteller peer are all reachable" regression class.
  *
  * The historical bug: `ConnectivityObserverImpl` required both `NET_CAPABILITY_INTERNET` and
@@ -14,7 +14,7 @@ import org.junit.Test
  * after a successful probe to `connectivitycheck.gstatic.com/generate_204`. On Huawei devices
  * without GMS — and on any network that firewalls Google endpoints — that probe never succeeds,
  * so the OS marks the WiFi as INTERNET-only and Riffle reported the user as offline forever,
- * even though the ABS server on the same LAN was reachable the whole time.
+ * even though the ABS source on the same LAN was reachable the whole time.
  *
  * The fix routed every capability check through [isQualifyingNetwork], which requires INTERNET
  * only. The `hasValidated` argument is retained in the signature — deliberately unused — so
@@ -39,8 +39,8 @@ class QualifyingNetworkTest {
         // The load-bearing assertion for this regression class. Huawei-without-GMS, corporate
         // networks that block `connectivitycheck.gstatic.com`, and users in regions where Google
         // is unreachable all end up here. The OS cannot validate, but Riffle does not talk to
-        // Google — it talks to the user's ABS server, WebDAV, and Storyteller peer — so we must
-        // treat these networks as online. Server-reachability is signalled separately via
+        // Google — it talks to the user's ABS source, WebDAV, and Storyteller peer — so we must
+        // treat these networks as online. Source-reachability is signalled separately via
         // `LibraryItemsViewModel._refreshFailed`.
         assertTrue(isQualifyingNetwork(hasInternet = true, hasValidated = false))
     }

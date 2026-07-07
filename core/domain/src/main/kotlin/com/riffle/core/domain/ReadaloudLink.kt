@@ -8,9 +8,9 @@ package com.riffle.core.domain
  * links so the auto-matcher knows what it may safely re-evaluate.
  */
 data class ReadaloudLink(
-    val storytellerServerId: String,
+    val storytellerSourceId: String,
     val storytellerBookId: String,
-    val absServerId: String,
+    val absSourceId: String,
     val absLibraryItemId: String,
     val userConfirmed: Boolean,
     /** Streaming identity verdict for this ABS item, persisted after a check (ADR 0028). */

@@ -35,10 +35,10 @@ class ReadaloudMatchingServiceTest {
         service(items, links, clock = { 12345L }).reconcileLinks()
 
         assertEquals(2, links.upserts.size)
-        val keys = links.upserts.map { it.absServerId to it.absLibraryItemId }.toSet()
+        val keys = links.upserts.map { it.absSourceId to it.absLibraryItemId }.toSet()
         assertEquals(setOf("abs-1" to "ebook", "abs-1" to "audio"), keys)
         for (link in links.upserts) {
-            assertEquals("st-1", link.storytellerServerId)
+            assertEquals("st-1", link.storytellerSourceId)
             assertEquals("42", link.storytellerBookId)
             assertEquals(false, link.userConfirmed)
         }
@@ -61,15 +61,15 @@ class ReadaloudMatchingServiceTest {
         service(items, links).reconcileLinks()
 
         assertEquals(2, links.upserts.size)
-        val keys = links.upserts.map { it.absServerId to it.absLibraryItemId }.toSet()
+        val keys = links.upserts.map { it.absSourceId to it.absLibraryItemId }.toSet()
         assertEquals(setOf("abs-1" to "books-ebook", "abs-1" to "audiobooks-stub"), keys)
     }
 
     @Test
-    fun `matching is scoped per ABS server so the same title across two servers doesn't double-count`() = runTest {
+    fun `matching is scoped per ABS source so the same title across two servers doesn't double-count`() = runTest {
         // Two ABS logins, each with a Books library + an Audiobooks library containing the
-        // same title. With per-server scoping we get one ebook + one audiobook link per
-        // server (4 rows across 2 servers), NOT 4 rows on each server.
+        // same title. With per-source scoping we get one ebook + one audiobook link per
+        // source (4 rows across 2 servers), NOT 4 rows on each source.
         val items = StubLibraryItemDao(
             storyteller = listOf(row("st-1", "42", title = "The Martian: A Novel", author = "Andy Weir")),
             abs = listOf(
@@ -83,28 +83,28 @@ class ReadaloudMatchingServiceTest {
 
         service(items, links).reconcileLinks()
 
-        val keys = links.upserts.map { it.absServerId to it.absLibraryItemId }.toSet()
+        val keys = links.upserts.map { it.absSourceId to it.absLibraryItemId }.toSet()
         assertEquals(
             setOf("abs-A" to "A-ebook", "abs-A" to "A-audio", "abs-B" to "B-ebook", "abs-B" to "B-audio"),
             keys,
         )
-        // Each (server, item) is upserted exactly once — no cross-server duplication.
+        // Each (source, item) is upserted exactly once — no cross-source duplication.
         assertEquals(4, links.upserts.size)
     }
 
     @Test
-    fun `user-confirmed link on one ABS server doesn't suppress auto-matching on another`() = runTest {
+    fun `user-confirmed link on one ABS source doesn't suppress auto-matching on another`() = runTest {
         val items = StubLibraryItemDao(
             storyteller = listOf(row("st-1", "42", isbn = "9780261103573")),
             abs = listOf(row("abs-B", "B-ebook", isbn = "9780261103573")),
         )
         val links = RecordingReadaloudLinkDao().apply {
-            // User already locked in a slot on server A for this readaloud.
+            // User already locked in a slot on source A for this readaloud.
             seed(
                 ReadaloudLinkEntity(
-                    absServerId = "abs-A",
+                    absSourceId = "abs-A",
                     absLibraryItemId = "A-user-pick",
-                    storytellerServerId = "st-1",
+                    storytellerSourceId = "st-1",
                     storytellerBookId = "42",
                     state = ReadaloudLinkEntity.STATE_CONFIRMED,
                     userConfirmed = true,
@@ -115,9 +115,9 @@ class ReadaloudMatchingServiceTest {
 
         service(items, links).reconcileLinks()
 
-        val newLinks = links.upserts.map { it.absServerId to it.absLibraryItemId }
+        val newLinks = links.upserts.map { it.absSourceId to it.absLibraryItemId }
         assertEquals(listOf("abs-B" to "B-ebook"), newLinks)
-        assertTrue("server A user pick must not be swept", links.deletions.none { it == "abs-A" to "A-user-pick" })
+        assertTrue("source A user pick must not be swept", links.deletions.none { it == "abs-A" to "A-user-pick" })
     }
 
     @Test
@@ -129,9 +129,9 @@ class ReadaloudMatchingServiceTest {
         val links = RecordingReadaloudLinkDao().apply {
             seed(
                 ReadaloudLinkEntity(
-                    absServerId = "abs-1",
+                    absSourceId = "abs-1",
                     absLibraryItemId = "ebook",
-                    storytellerServerId = "st-1",
+                    storytellerSourceId = "st-1",
                     storytellerBookId = "different-book",
                     state = ReadaloudLinkEntity.STATE_CONFIRMED,
                     userConfirmed = true,
@@ -155,9 +155,9 @@ class ReadaloudMatchingServiceTest {
         val links = RecordingReadaloudLinkDao().apply {
             seed(
                 ReadaloudLinkEntity(
-                    absServerId = "abs-1",
+                    absSourceId = "abs-1",
                     absLibraryItemId = "old",
-                    storytellerServerId = "st-1",
+                    storytellerSourceId = "st-1",
                     storytellerBookId = "42",
                     state = ReadaloudLinkEntity.STATE_CONFIRMED,
                     userConfirmed = false,
@@ -171,7 +171,7 @@ class ReadaloudMatchingServiceTest {
         // The old auto row gets swept; the new ABS slot is upserted.
         assertEquals(1, links.upserts.size)
         val n = links.upserts.single()
-        assertEquals("abs-2", n.absServerId)
+        assertEquals("abs-2", n.absSourceId)
         assertEquals("moved", n.absLibraryItemId)
         assertEquals(listOf("abs-1" to "old"), links.deletions)
     }
@@ -185,9 +185,9 @@ class ReadaloudMatchingServiceTest {
         val links = RecordingReadaloudLinkDao().apply {
             seed(
                 ReadaloudLinkEntity(
-                    absServerId = "abs-1",
+                    absSourceId = "abs-1",
                     absLibraryItemId = "old",
-                    storytellerServerId = "st-1",
+                    storytellerSourceId = "st-1",
                     storytellerBookId = "42",
                     state = ReadaloudLinkEntity.STATE_CONFIRMED,
                     userConfirmed = false,
@@ -237,9 +237,9 @@ class ReadaloudMatchingServiceTest {
 
         assertTrue("fuzzy match must not auto-confirm a link", links.upserts.isEmpty())
         val c = candidates.rows.single()
-        assertEquals("st-1", c.storytellerServerId)
+        assertEquals("st-1", c.storytellerSourceId)
         assertEquals("42", c.storytellerBookId)
-        assertEquals("abs-1", c.absServerId)
+        assertEquals("abs-1", c.absSourceId)
         assertEquals("cand", c.absLibraryItemId)
         assertTrue("score ${c.score} should be >= threshold", c.score >= 0.85)
     }
@@ -289,9 +289,9 @@ class ReadaloudMatchingServiceTest {
         val links = RecordingReadaloudLinkDao().apply {
             seed(
                 ReadaloudLinkEntity(
-                    absServerId = "abs-1",
+                    absSourceId = "abs-1",
                     absLibraryItemId = "user-pick",
-                    storytellerServerId = "st-1",
+                    storytellerSourceId = "st-1",
                     storytellerBookId = "42",
                     state = ReadaloudLinkEntity.STATE_CONFIRMED,
                     userConfirmed = true,
@@ -335,13 +335,13 @@ class ReadaloudMatchingServiceTest {
     ) = ReadaloudMatchingService(items, links, candidates, dismissals, clock)
 
     private fun row(
-        serverId: String,
+        sourceId: String,
         itemId: String,
         title: String = "Title",
         author: String = "Author",
         isbn: String? = null,
         asin: String? = null,
-    ) = MatchableItemRow(itemId, serverId, title, author, isbn, asin)
+    ) = MatchableItemRow(itemId, sourceId, title, author, isbn, asin)
 
     private fun absEntity(
         itemId: String,
@@ -352,7 +352,7 @@ class ReadaloudMatchingServiceTest {
         genres: String = "",
         ebookFormat: String = "epub",
     ) = LibraryItemEntity(
-        serverId = "srv",
+        sourceId = "srv",
         id = itemId,
         libraryId = "$itemId-lib",
         title = "Title",
@@ -373,62 +373,61 @@ class ReadaloudMatchingServiceTest {
     ) : LibraryItemDao {
         private val byId = entities.associateBy { it.id }
 
-        override suspend fun listMatchableByServerType(serverType: String): List<MatchableItemRow> = when (serverType) {
+        override suspend fun listMatchableBySourceType(serverType: String): List<MatchableItemRow> = when (serverType) {
             "STORYTELLER" -> storyteller
             "AUDIOBOOKSHELF" -> abs
             else -> emptyList()
         }
-        override fun observeByLibraryId(serverId: String, libraryId: String): Flow<List<LibraryItemEntity>> = flowOf(emptyList())
-        override fun observeByServer(serverId: String): Flow<List<LibraryItemEntity>> = flowOf(emptyList())
-        override fun observeUngroupedByLibraryId(serverId: String, libraryId: String): Flow<List<LibraryItemEntity>> = flowOf(emptyList())
-        override fun observeInProgress(serverId: String, libraryId: String): Flow<List<LibraryItemEntity>> = flowOf(emptyList())
-        override fun observeFinished(serverId: String, libraryId: String): Flow<List<LibraryItemEntity>> = flowOf(emptyList())
-        override fun observeRecentlyAdded(serverId: String, libraryId: String): Flow<List<LibraryItemEntity>> = flowOf(emptyList())
-        override fun observeAllBooks(serverId: String, libraryId: String): Flow<List<LibraryItemEntity>> = flowOf(emptyList())
+        override fun observeByLibraryId(sourceId: String, libraryId: String): Flow<List<LibraryItemEntity>> = flowOf(emptyList())
+        override fun observeUngroupedByLibraryId(sourceId: String, libraryId: String): Flow<List<LibraryItemEntity>> = flowOf(emptyList())
+        override fun observeInProgress(sourceId: String, libraryId: String): Flow<List<LibraryItemEntity>> = flowOf(emptyList())
+        override fun observeFinished(sourceId: String, libraryId: String): Flow<List<LibraryItemEntity>> = flowOf(emptyList())
+        override fun observeRecentlyAdded(sourceId: String, libraryId: String): Flow<List<LibraryItemEntity>> = flowOf(emptyList())
+        override fun observeAllBooks(sourceId: String, libraryId: String): Flow<List<LibraryItemEntity>> = flowOf(emptyList())
         override suspend fun upsertAll(items: List<LibraryItemEntity>) = Unit
         override suspend fun insertOrIgnore(items: List<LibraryItemEntity>) = Unit
         override suspend fun updateMetadata(metadata: com.riffle.core.database.LibraryItemMetadata) = Unit
-        override suspend fun getById(serverId: String, itemId: String): LibraryItemEntity? = byId[itemId]
-        override fun observeById(serverId: String, itemId: String): Flow<LibraryItemEntity?> = flowOf(byId[itemId])
-        override suspend fun findServerIdForItem(itemId: String): String? = byId[itemId]?.serverId
-        override suspend fun deleteByLibraryId(serverId: String, libraryId: String) = Unit
-        override suspend fun deleteRemovedFromLibrary(serverId: String, libraryId: String, serverItemIds: List<String>) = Unit
-        override suspend fun updateLastOpenedAt(serverId: String, itemId: String, timestamp: Long) = Unit
-        override suspend fun updateReadingProgress(serverId: String, itemId: String, progress: Float) = Unit
-        override suspend fun updateFinishedAt(serverId: String, itemId: String, finishedAt: Long?) = Unit
-        override suspend fun getLastOpenedAtMap(serverId: String, libraryId: String): List<LastOpenedAtRow> = emptyList()
-        override suspend fun getReadingProgressMap(serverId: String, libraryId: String): List<ReadingProgressRow> = emptyList()
+        override suspend fun getById(sourceId: String, itemId: String): LibraryItemEntity? = byId[itemId]
+        override fun observeById(sourceId: String, itemId: String): Flow<LibraryItemEntity?> = flowOf(byId[itemId])
+        override suspend fun findSourceIdForItem(itemId: String): String? = byId[itemId]?.sourceId
+        override suspend fun deleteByLibraryId(sourceId: String, libraryId: String) = Unit
+        override suspend fun deleteRemovedFromLibrary(sourceId: String, libraryId: String, serverItemIds: List<String>) = Unit
+        override suspend fun updateLastOpenedAt(sourceId: String, itemId: String, timestamp: Long) = Unit
+        override suspend fun updateReadingProgress(sourceId: String, itemId: String, progress: Float) = Unit
+        override suspend fun updateFinishedAt(sourceId: String, itemId: String, finishedAt: Long?) = Unit
+        override suspend fun getLastOpenedAtMap(sourceId: String, libraryId: String): List<LastOpenedAtRow> = emptyList()
+        override suspend fun getReadingProgressMap(sourceId: String, libraryId: String): List<ReadingProgressRow> = emptyList()
     }
 
     private class RecordingReadaloudLinkDao : ReadaloudLinkDao {
-        override suspend fun updateIdentityResult(absServerId: String, absLibraryItemId: String, result: String) = Unit
+        override suspend fun updateIdentityResult(absSourceId: String, absLibraryItemId: String, result: String) = Unit
         val upserts = mutableListOf<ReadaloudLinkEntity>()
         val deletions = mutableListOf<Pair<String, String>>()
         private val store = mutableMapOf<Pair<String, String>, ReadaloudLinkEntity>()
 
         fun seed(entity: ReadaloudLinkEntity) {
-            store[entity.absServerId to entity.absLibraryItemId] = entity
+            store[entity.absSourceId to entity.absLibraryItemId] = entity
         }
 
         override suspend fun upsert(entity: ReadaloudLinkEntity) {
             upserts += entity
-            store[entity.absServerId to entity.absLibraryItemId] = entity
+            store[entity.absSourceId to entity.absLibraryItemId] = entity
         }
-        override suspend fun findByAbsItem(absServerId: String, absLibraryItemId: String): ReadaloudLinkEntity? =
-            store[absServerId to absLibraryItemId]
-        override suspend fun findByStorytellerBook(storytellerServerId: String, storytellerBookId: String): List<ReadaloudLinkEntity> =
-            store.values.filter { it.storytellerServerId == storytellerServerId && it.storytellerBookId == storytellerBookId }
+        override suspend fun findByAbsItem(absSourceId: String, absLibraryItemId: String): ReadaloudLinkEntity? =
+            store[absSourceId to absLibraryItemId]
+        override suspend fun findByStorytellerBook(storytellerSourceId: String, storytellerBookId: String): List<ReadaloudLinkEntity> =
+            store.values.filter { it.storytellerSourceId == storytellerSourceId && it.storytellerBookId == storytellerBookId }
         override fun observeAll(): Flow<List<ReadaloudLinkEntity>> = flowOf(store.values.toList())
         override suspend fun allRows(): List<ReadaloudLinkEntity> = store.values.toList()
         override fun observeLinkedAbsItemIds(): Flow<List<String>> = flowOf(store.values.map { it.absLibraryItemId })
-        override suspend fun countForServer(serverId: String): Int =
-            store.values.count { it.storytellerServerId == serverId || it.absServerId == serverId }
-        override suspend fun deleteByAbsItem(absServerId: String, absLibraryItemId: String) {
-            deletions += absServerId to absLibraryItemId
-            store.remove(absServerId to absLibraryItemId)
+        override suspend fun countForSource(sourceId: String): Int =
+            store.values.count { it.storytellerSourceId == sourceId || it.absSourceId == sourceId }
+        override suspend fun deleteByAbsItem(absSourceId: String, absLibraryItemId: String) {
+            deletions += absSourceId to absLibraryItemId
+            store.remove(absSourceId to absLibraryItemId)
         }
-        override suspend fun deleteByStorytellerBook(storytellerServerId: String, storytellerBookId: String) {
-            val toRemove = store.filterValues { it.storytellerServerId == storytellerServerId && it.storytellerBookId == storytellerBookId }.keys
+        override suspend fun deleteByStorytellerBook(storytellerSourceId: String, storytellerBookId: String) {
+            val toRemove = store.filterValues { it.storytellerSourceId == storytellerSourceId && it.storytellerBookId == storytellerBookId }.keys
             deletions += toRemove
             toRemove.forEach { store.remove(it) }
         }
@@ -449,15 +448,15 @@ class ReadaloudMatchingServiceTest {
         override suspend fun allRows(): List<ReadaloudCandidateEntity> = store.toList()
         override suspend fun clearAll() { clearAllCalled = true; store.clear() }
         override fun observeAll(): Flow<List<ReadaloudCandidateEntity>> = flowOf(store.toList())
-        override fun observeForStorytellerServer(storytellerServerId: String): Flow<List<ReadaloudCandidateEntity>> =
-            flowOf(store.filter { it.storytellerServerId == storytellerServerId })
-        override suspend fun deleteByStorytellerBook(storytellerServerId: String, storytellerBookId: String) {
-            store.removeAll { it.storytellerServerId == storytellerServerId && it.storytellerBookId == storytellerBookId }
+        override fun observeForStorytellerSource(storytellerSourceId: String): Flow<List<ReadaloudCandidateEntity>> =
+            flowOf(store.filter { it.storytellerSourceId == storytellerSourceId })
+        override suspend fun deleteByStorytellerBook(storytellerSourceId: String, storytellerBookId: String) {
+            store.removeAll { it.storytellerSourceId == storytellerSourceId && it.storytellerBookId == storytellerBookId }
         }
-        override suspend fun deleteCandidate(storytellerServerId: String, storytellerBookId: String, absServerId: String, absLibraryItemId: String) {
+        override suspend fun deleteCandidate(storytellerSourceId: String, storytellerBookId: String, absSourceId: String, absLibraryItemId: String) {
             store.removeAll {
-                it.storytellerServerId == storytellerServerId && it.storytellerBookId == storytellerBookId &&
-                    it.absServerId == absServerId && it.absLibraryItemId == absLibraryItemId
+                it.storytellerSourceId == storytellerSourceId && it.storytellerBookId == storytellerBookId &&
+                    it.absSourceId == absSourceId && it.absLibraryItemId == absLibraryItemId
             }
         }
     }
@@ -465,29 +464,29 @@ class ReadaloudMatchingServiceTest {
     private class RecordingReadaloudDismissalDao : ReadaloudDismissalDao {
         private val store = mutableListOf<ReadaloudDismissalEntity>()
 
-        fun seedBookDismissal(storytellerServerId: String, storytellerBookId: String) {
-            store += ReadaloudDismissalEntity(storytellerServerId, storytellerBookId, ReadaloudDismissalEntity.SCOPE_BOOK)
+        fun seedBookDismissal(storytellerSourceId: String, storytellerBookId: String) {
+            store += ReadaloudDismissalEntity(storytellerSourceId, storytellerBookId, ReadaloudDismissalEntity.SCOPE_BOOK)
         }
 
-        fun seedCandidateDismissal(storytellerServerId: String, storytellerBookId: String, absServerId: String, absLibraryItemId: String) {
+        fun seedCandidateDismissal(storytellerSourceId: String, storytellerBookId: String, absSourceId: String, absLibraryItemId: String) {
             store += ReadaloudDismissalEntity(
-                storytellerServerId, storytellerBookId, ReadaloudDismissalEntity.SCOPE_CANDIDATE, absServerId, absLibraryItemId,
+                storytellerSourceId, storytellerBookId, ReadaloudDismissalEntity.SCOPE_CANDIDATE, absSourceId, absLibraryItemId,
             )
         }
 
         override suspend fun upsert(entity: ReadaloudDismissalEntity) { store += entity }
         override suspend fun allRows(): List<ReadaloudDismissalEntity> = store.toList()
         override fun observeAll(): Flow<List<ReadaloudDismissalEntity>> = flowOf(store.toList())
-        override suspend fun findByStorytellerBook(storytellerServerId: String, storytellerBookId: String): List<ReadaloudDismissalEntity> =
-            store.filter { it.storytellerServerId == storytellerServerId && it.storytellerBookId == storytellerBookId }
-        override suspend fun isBookDismissed(storytellerServerId: String, storytellerBookId: String): Boolean =
+        override suspend fun findByStorytellerBook(storytellerSourceId: String, storytellerBookId: String): List<ReadaloudDismissalEntity> =
+            store.filter { it.storytellerSourceId == storytellerSourceId && it.storytellerBookId == storytellerBookId }
+        override suspend fun isBookDismissed(storytellerSourceId: String, storytellerBookId: String): Boolean =
             store.any {
-                it.storytellerServerId == storytellerServerId && it.storytellerBookId == storytellerBookId &&
+                it.storytellerSourceId == storytellerSourceId && it.storytellerBookId == storytellerBookId &&
                     it.scope == ReadaloudDismissalEntity.SCOPE_BOOK
             }
-        override suspend fun clearBookDismissal(storytellerServerId: String, storytellerBookId: String) {
+        override suspend fun clearBookDismissal(storytellerSourceId: String, storytellerBookId: String) {
             store.removeAll {
-                it.storytellerServerId == storytellerServerId && it.storytellerBookId == storytellerBookId &&
+                it.storytellerSourceId == storytellerSourceId && it.storytellerBookId == storytellerBookId &&
                     it.scope == ReadaloudDismissalEntity.SCOPE_BOOK
             }
         }

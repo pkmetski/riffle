@@ -28,7 +28,7 @@ internal class AnnotationLiveSync(
      * have already invoked the open-book sync once, so an immediate tick here would race that.
      * Per-tick failures are caught and reported; the loop itself does not die on transients.
      */
-    fun start(serverId: String, namespace: String, itemId: String): Job = scope.launch {
+    fun start(sourceId: String, namespace: String, itemId: String): Job = scope.launch {
         // Resolve our own filename once; deviceId is stable for the install lifetime. A DataStore
         // failure here would otherwise kill the launch silently before the first delay().
         val myFilename = try {
@@ -51,13 +51,13 @@ internal class AnnotationLiveSync(
                 // Pass the captured target so the merge sees the same instance we just listed —
                 // avoids a holder-swap race where the second resolve returns null and the tick
                 // silently no-ops with the listed filenames discarded.
-                orchestrator.mergeFromListing(target, serverId, namespace, itemId, filenames)
+                orchestrator.mergeFromListing(target, sourceId, namespace, itemId, filenames)
             } else {
                 // Solo namespace this tick — PROPFIND was the only work needed. Report Success so
                 // the status badge can recover from a prior Failed state without forcing a no-op
                 // merge that would only re-read our own file.
                 statusStore.report(CycleOutcome.Success(clock()))
-                sentinelWriter.writeQuietly(target, namespace, serverId)
+                sentinelWriter.writeQuietly(target, namespace, sourceId)
             }
         }
     }

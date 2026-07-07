@@ -20,17 +20,17 @@ import java.util.concurrent.TimeUnit
 
 class WebDavAnnotationSyncTargetTest {
 
-    private lateinit var server: MockWebServer
+    private lateinit var source: MockWebServer
 
     @Before
     fun setUp() {
-        server = MockWebServer()
-        server.start()
+        source = MockWebServer()
+        source.start()
     }
 
     @After
     fun tearDown() {
-        server.shutdown()
+        source.shutdown()
     }
 
     private fun newTarget(
@@ -42,7 +42,7 @@ class WebDavAnnotationSyncTargetTest {
             .callTimeout(2, TimeUnit.SECONDS)
             .build()
         return WebDavAnnotationSyncTarget(
-            baseUrl = server.url("/$basePath"),
+            baseUrl = source.url("/$basePath"),
             username = username,
             password = password,
             client = client,
@@ -52,12 +52,12 @@ class WebDavAnnotationSyncTargetTest {
 
     @Test
     fun `read returns body content on 200`() = runTest {
-        server.enqueue(MockResponse().setResponseCode(200).setBody("{\"some\":\"json\"}"))
+        source.enqueue(MockResponse().setResponseCode(200).setBody("{\"some\":\"json\"}"))
 
         val content = newTarget().read("srv1", "book1", "annotations-dev.jsonld")
 
         assertEquals("{\"some\":\"json\"}", content)
-        val req = server.takeRequest()
+        val req = source.takeRequest()
         assertEquals("GET", req.method)
         assertEquals("/annotations/srv1__book1__annotations-dev.jsonld", req.path)
         assertEquals(basicAuth(USER, PASS), req.getHeader("Authorization"))
@@ -65,9 +65,9 @@ class WebDavAnnotationSyncTargetTest {
 
     @Test
     fun `every request carries a Finder UA — Synology gates writes on User-Agent`() = runTest {
-        server.enqueue(MockResponse().setResponseCode(207).setBody(PROPFIND_EMPTY_BODY))
-        server.enqueue(MockResponse().setResponseCode(200).setBody("[]"))
-        server.enqueue(MockResponse().setResponseCode(201))
+        source.enqueue(MockResponse().setResponseCode(207).setBody(PROPFIND_EMPTY_BODY))
+        source.enqueue(MockResponse().setResponseCode(200).setBody("[]"))
+        source.enqueue(MockResponse().setResponseCode(201))
 
         val target = newTarget()
         target.list("srv1", "book1")
@@ -75,7 +75,7 @@ class WebDavAnnotationSyncTargetTest {
         target.write("srv1", "book1", "annotations-dev.jsonld", "x")
 
         repeat(3) {
-            val req = server.takeRequest()
+            val req = source.takeRequest()
             val ua = req.getHeader("User-Agent") ?: ""
             assertTrue("expected Finder UA on ${req.method} ${req.path}, was \"$ua\"", ua.startsWith("WebDAVFS/"))
         }
@@ -83,7 +83,7 @@ class WebDavAnnotationSyncTargetTest {
 
     @Test
     fun `read returns null on 404`() = runTest {
-        server.enqueue(MockResponse().setResponseCode(404))
+        source.enqueue(MockResponse().setResponseCode(404))
 
         val content = newTarget().read("srv1", "book1", "annotations-dev.jsonld")
 
@@ -92,7 +92,7 @@ class WebDavAnnotationSyncTargetTest {
 
     @Test
     fun `read throws AuthFailed on 401`() = runTest {
-        server.enqueue(MockResponse().setResponseCode(401))
+        source.enqueue(MockResponse().setResponseCode(401))
 
         try {
             newTarget().read("srv1", "book1", "annotations-dev.jsonld")
@@ -104,11 +104,11 @@ class WebDavAnnotationSyncTargetTest {
 
     @Test
     fun `write PUTs body with auth and content type`() = runTest {
-        server.enqueue(MockResponse().setResponseCode(201))
+        source.enqueue(MockResponse().setResponseCode(201))
 
         newTarget().write("srv1", "book1", "annotations-dev.jsonld", "{\"a\":1}")
 
-        val req = server.takeRequest()
+        val req = source.takeRequest()
         assertEquals("PUT", req.method)
         assertEquals("/annotations/srv1__book1__annotations-dev.jsonld", req.path)
         assertEquals(basicAuth(USER, PASS), req.getHeader("Authorization"))
@@ -119,19 +119,19 @@ class WebDavAnnotationSyncTargetTest {
 
     @Test
     fun `write issues a single PUT — flat layout means no MKCOL chain`() = runTest {
-        server.enqueue(MockResponse().setResponseCode(201))
+        source.enqueue(MockResponse().setResponseCode(201))
 
         newTarget().write("srv1", "book1", "annotations-dev.jsonld", "x")
 
-        val req = server.takeRequest()
+        val req = source.takeRequest()
         assertEquals("PUT", req.method)
         assertEquals("/annotations/srv1__book1__annotations-dev.jsonld", req.path)
-        assertEquals(1, server.requestCount)
+        assertEquals(1, source.requestCount)
     }
 
     @Test
     fun `write throws AuthFailed on 401`() = runTest {
-        server.enqueue(MockResponse().setResponseCode(401))
+        source.enqueue(MockResponse().setResponseCode(401))
 
         try {
             newTarget().write("srv1", "book1", "annotations-dev.jsonld", "x")
@@ -143,7 +143,7 @@ class WebDavAnnotationSyncTargetTest {
 
     @Test
     fun `list PROPFINDs basePath, filters by prefix, and strips it from returned names`() = runTest {
-        server.enqueue(MockResponse().setResponseCode(207).setBody(PROPFIND_FLAT_BODY))
+        source.enqueue(MockResponse().setResponseCode(207).setBody(PROPFIND_FLAT_BODY))
 
         val files = newTarget().list("srv1", "book1")
 
@@ -152,7 +152,7 @@ class WebDavAnnotationSyncTargetTest {
             setOf("annotations-dev-a.jsonld", "annotations-dev-b.jsonld"),
             files.toSet(),
         )
-        val req = server.takeRequest()
+        val req = source.takeRequest()
         assertEquals("PROPFIND", req.method)
         assertEquals("/annotations/", req.path)
         assertEquals("1", req.getHeader("Depth"))
@@ -160,7 +160,7 @@ class WebDavAnnotationSyncTargetTest {
 
     @Test
     fun `list returns empty when directory absent (404)`() = runTest {
-        server.enqueue(MockResponse().setResponseCode(404))
+        source.enqueue(MockResponse().setResponseCode(404))
 
         val files = newTarget().list("srv1", "book1")
 
@@ -169,7 +169,7 @@ class WebDavAnnotationSyncTargetTest {
 
     @Test
     fun `list treats 405 the same as 404 (Synology returns 405 for non-existent dirs)`() = runTest {
-        server.enqueue(MockResponse().setResponseCode(405))
+        source.enqueue(MockResponse().setResponseCode(405))
 
         val files = newTarget().list("srv1", "book1")
 
@@ -178,7 +178,7 @@ class WebDavAnnotationSyncTargetTest {
 
     @Test
     fun `list treats 400 as empty (Synology returns 400 for non-existent deep paths)`() = runTest {
-        server.enqueue(MockResponse().setResponseCode(400))
+        source.enqueue(MockResponse().setResponseCode(400))
 
         val files = newTarget().list("srv1", "book1")
 
@@ -187,7 +187,7 @@ class WebDavAnnotationSyncTargetTest {
 
     @Test
     fun `list returns separate filenames for each device that wrote to this book`() = runTest {
-        server.enqueue(MockResponse().setResponseCode(207).setBody(PROPFIND_MULTI_DEVICE_BODY))
+        source.enqueue(MockResponse().setResponseCode(207).setBody(PROPFIND_MULTI_DEVICE_BODY))
 
         val files = newTarget().list("srv1", "book1")
 
@@ -205,7 +205,7 @@ class WebDavAnnotationSyncTargetTest {
     @Test
     fun `read returns the file's body verbatim (UTF-8, preserves non-ASCII)`() = runTest {
         val body = """[{"id":"urn:uuid:ä-ø-中"}]"""
-        server.enqueue(MockResponse().setResponseCode(200).setBody(body))
+        source.enqueue(MockResponse().setResponseCode(200).setBody(body))
 
         val content = newTarget().read("srv1", "book1", "annotations-dev.jsonld")
 
@@ -214,7 +214,7 @@ class WebDavAnnotationSyncTargetTest {
 
     @Test
     fun `read throws AuthFailed on 403`() = runTest {
-        server.enqueue(MockResponse().setResponseCode(403))
+        source.enqueue(MockResponse().setResponseCode(403))
 
         try {
             newTarget().read("srv1", "book1", "annotations-dev.jsonld")
@@ -223,8 +223,8 @@ class WebDavAnnotationSyncTargetTest {
     }
 
     @Test
-    fun `write throws HttpFailure on a server-side 5xx`() = runTest {
-        server.enqueue(MockResponse().setResponseCode(503))
+    fun `write throws HttpFailure on a source-side 5xx`() = runTest {
+        source.enqueue(MockResponse().setResponseCode(503))
 
         try {
             newTarget().write("srv1", "book1", "annotations-dev.jsonld", "x")
@@ -238,7 +238,7 @@ class WebDavAnnotationSyncTargetTest {
     fun `composite filenames cannot collide across books with the same prefix substring`() = runTest {
         // "book" and "book-2" both start with "book"; the `__` separator guarantees that the
         // book-1 list call doesn't accidentally include book-2's file.
-        server.enqueue(MockResponse().setResponseCode(207).setBody(PROPFIND_PREFIX_COLLISION_BODY))
+        source.enqueue(MockResponse().setResponseCode(207).setBody(PROPFIND_PREFIX_COLLISION_BODY))
 
         val files = newTarget().list("srv1", "book")
 
@@ -247,7 +247,7 @@ class WebDavAnnotationSyncTargetTest {
 
     @Test
     fun `list throws AuthFailed on 401`() = runTest {
-        server.enqueue(MockResponse().setResponseCode(401))
+        source.enqueue(MockResponse().setResponseCode(401))
 
         try {
             newTarget().list("srv1", "book1")
@@ -259,26 +259,26 @@ class WebDavAnnotationSyncTargetTest {
 
     @Test
     fun `testConnection returns Success when base PROPFIND ok`() = runTest {
-        server.enqueue(MockResponse().setResponseCode(207).setBody(PROPFIND_EMPTY_BODY))
+        source.enqueue(MockResponse().setResponseCode(207).setBody(PROPFIND_EMPTY_BODY))
 
         val result = newTarget().testConnection()
 
         assertEquals(TestConnectionResult.Success, result)
-        val req = server.takeRequest()
+        val req = source.takeRequest()
         assertEquals("PROPFIND", req.method)
         assertEquals("/annotations/", req.path)
     }
 
     @Test
     fun `testConnection MKCOLs base dir on 404 then succeeds`() = runTest {
-        server.enqueue(MockResponse().setResponseCode(404))           // PROPFIND base
-        server.enqueue(MockResponse().setResponseCode(201))           // MKCOL base
+        source.enqueue(MockResponse().setResponseCode(404))           // PROPFIND base
+        source.enqueue(MockResponse().setResponseCode(201))           // MKCOL base
 
         val result = newTarget().testConnection()
 
         assertEquals(TestConnectionResult.Success, result)
-        val r1 = server.takeRequest()
-        val r2 = server.takeRequest()
+        val r1 = source.takeRequest()
+        val r2 = source.takeRequest()
         assertEquals("PROPFIND", r1.method)
         assertEquals("MKCOL", r2.method)
         assertEquals("/annotations/", r2.path)
@@ -286,7 +286,7 @@ class WebDavAnnotationSyncTargetTest {
 
     @Test
     fun `testConnection returns AuthFailed on 401`() = runTest {
-        server.enqueue(MockResponse().setResponseCode(401))
+        source.enqueue(MockResponse().setResponseCode(401))
 
         val result = newTarget().testConnection()
 
@@ -295,7 +295,7 @@ class WebDavAnnotationSyncTargetTest {
 
     @Test
     fun `testConnection returns ServerError on 5xx`() = runTest {
-        server.enqueue(MockResponse().setResponseCode(503))
+        source.enqueue(MockResponse().setResponseCode(503))
 
         val result = newTarget().testConnection()
 
@@ -304,9 +304,9 @@ class WebDavAnnotationSyncTargetTest {
 
     @Test
     fun `testConnection returns NetworkError when host unreachable`() = runTest {
-        // Shut down the server before the call so the connection is refused.
+        // Shut down the source before the call so the connection is refused.
         val target = newTarget()
-        server.shutdown()
+        source.shutdown()
 
         val result = target.testConnection()
 
@@ -352,11 +352,11 @@ class WebDavAnnotationSyncTargetTest {
 
     @Test
     fun `delete issues a DELETE on the composite path with auth`() = runTest {
-        server.enqueue(MockResponse().setResponseCode(204))
+        source.enqueue(MockResponse().setResponseCode(204))
 
         newTarget().delete("srv1", "book1", "annotations-dev.jsonld")
 
-        val req = server.takeRequest()
+        val req = source.takeRequest()
         assertEquals("DELETE", req.method)
         assertEquals("/annotations/srv1__book1__annotations-dev.jsonld", req.path)
         assertEquals(basicAuth(USER, PASS), req.getHeader("Authorization"))
@@ -364,37 +364,37 @@ class WebDavAnnotationSyncTargetTest {
 
     @Test
     fun `delete is a no-op on 404 (file already gone)`() = runTest {
-        server.enqueue(MockResponse().setResponseCode(404))
+        source.enqueue(MockResponse().setResponseCode(404))
         // Should not throw.
         newTarget().delete("srv1", "book1", "annotations-dev.jsonld")
     }
 
     @Test
     fun `readDeviceMeta GETs the namespace-scoped sentinel path`() = runTest {
-        server.enqueue(MockResponse().setResponseCode(200).setBody("""{"type":"riffle:DeviceSyncMeta","deviceId":"dev-A","label":"L","lastSyncedAt":"2026-06-27T12:00:00Z"}"""))
+        source.enqueue(MockResponse().setResponseCode(200).setBody("""{"type":"riffle:DeviceSyncMeta","deviceId":"dev-A","label":"L","lastSyncedAt":"2026-06-27T12:00:00Z"}"""))
 
         val body = newTarget().readDeviceMeta("srv1", "dev-A")
 
         assertNotNull(body)
         assertTrue(body!!.contains("riffle:DeviceSyncMeta"))
-        val req = server.takeRequest()
+        val req = source.takeRequest()
         assertEquals("GET", req.method)
         assertEquals("/annotations/srv1__device-meta-dev-A.json", req.path)
     }
 
     @Test
     fun `readDeviceMeta returns null on 404`() = runTest {
-        server.enqueue(MockResponse().setResponseCode(404))
+        source.enqueue(MockResponse().setResponseCode(404))
         assertNull(newTarget().readDeviceMeta("srv1", "dev-A"))
     }
 
     @Test
     fun `writeDeviceMeta PUTs to the namespace-scoped sentinel path`() = runTest {
-        server.enqueue(MockResponse().setResponseCode(201))
+        source.enqueue(MockResponse().setResponseCode(201))
 
         newTarget().writeDeviceMeta("srv1", "dev-A", """{"type":"riffle:DeviceSyncMeta","deviceId":"dev-A","label":"L","lastSyncedAt":"now"}""")
 
-        val req = server.takeRequest()
+        val req = source.takeRequest()
         assertEquals("PUT", req.method)
         assertEquals("/annotations/srv1__device-meta-dev-A.json", req.path)
         assertTrue(req.body.readUtf8().contains("riffle:DeviceSyncMeta"))
@@ -404,7 +404,7 @@ class WebDavAnnotationSyncTargetTest {
     fun `enumerateDevices ignores device-meta files at the namespace root`() = runTest {
         // PROPFIND surfaces device-meta files too; the device-listing must not invent a phantom
         // device row from one, otherwise Maintenance would show duplicates.
-        server.enqueue(MockResponse().setResponseCode(207).setBody(PROPFIND_WITH_DEVICE_META_BODY))
+        source.enqueue(MockResponse().setResponseCode(207).setBody(PROPFIND_WITH_DEVICE_META_BODY))
 
         val listing = newTarget().enumerateDevices("srv1")
 
@@ -416,7 +416,7 @@ class WebDavAnnotationSyncTargetTest {
 
     @Test
     fun `enumerateNamespaces groups files by namespace prefix and counts annotations`() = runTest {
-        server.enqueue(MockResponse().setResponseCode(207).setBody(PROPFIND_MIXED_NAMESPACES_BODY))
+        source.enqueue(MockResponse().setResponseCode(207).setBody(PROPFIND_MIXED_NAMESPACES_BODY))
 
         val result = newTarget().enumerateNamespaces()
 
@@ -431,7 +431,7 @@ class WebDavAnnotationSyncTargetTest {
 
     @Test
     fun `enumerateNamespaces skips Synology AppleDouble shadow files`() = runTest {
-        server.enqueue(MockResponse().setResponseCode(207).setBody(PROPFIND_APPLEDOUBLE_BODY))
+        source.enqueue(MockResponse().setResponseCode(207).setBody(PROPFIND_APPLEDOUBLE_BODY))
 
         val result = newTarget().enumerateNamespaces()
 
@@ -442,19 +442,19 @@ class WebDavAnnotationSyncTargetTest {
 
     @Test
     fun `forgetNamespace DELETEs every file matching the prefix`() = runTest {
-        server.enqueue(MockResponse().setResponseCode(207).setBody(PROPFIND_MIXED_NAMESPACES_BODY))
+        source.enqueue(MockResponse().setResponseCode(207).setBody(PROPFIND_MIXED_NAMESPACES_BODY))
         // 3 files match ns-1 (2 jsonld + 1 unknown-shape json the fixture happens to include);
         // forgetNamespace deletes by prefix regardless of suffix. The 1 ns-2 file must NOT be DELETEd.
-        repeat(3) { server.enqueue(MockResponse().setResponseCode(204)) }
+        repeat(3) { source.enqueue(MockResponse().setResponseCode(204)) }
 
         val deleted = newTarget().forgetNamespace("ns-1")
 
         assertEquals(3, deleted)
         // First request was the PROPFIND, then 3 DELETEs in some order.
-        assertEquals("PROPFIND", server.takeRequest().method)
+        assertEquals("PROPFIND", source.takeRequest().method)
         val deletePaths = mutableListOf<String>()
         repeat(3) {
-            val req = server.takeRequest()
+            val req = source.takeRequest()
             assertEquals("DELETE", req.method)
             deletePaths += req.path!!
         }
@@ -465,7 +465,7 @@ class WebDavAnnotationSyncTargetTest {
     @Test
     fun `list skips Synology AppleDouble shadow files`() = runTest {
         // The list path is the same propfind parser, so make sure it doesn't surface the `._` shadow.
-        server.enqueue(MockResponse().setResponseCode(207).setBody(PROPFIND_APPLEDOUBLE_BODY))
+        source.enqueue(MockResponse().setResponseCode(207).setBody(PROPFIND_APPLEDOUBLE_BODY))
 
         val result = newTarget().list("ns-1", "book1")
 

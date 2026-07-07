@@ -12,11 +12,11 @@ package com.riffle.core.domain
  */
 interface BundleAudiobookSource {
     /** A playable session backed by a downloaded bundle's audio for this ABS item, or null if none. */
-    suspend fun localSession(serverId: String, itemId: String): AudiobookSession?
+    suspend fun localSession(sourceId: String, itemId: String): AudiobookSession?
 
     /**
      * True when a downloaded bundle can satisfy this ABS item's audio offline. Synchronous so it backs
      * the library's offline filter without making that predicate suspend.
      */
-    fun isAvailableOffline(serverId: String, itemId: String): Boolean
+    fun isAvailableOffline(sourceId: String, itemId: String): Boolean
 }

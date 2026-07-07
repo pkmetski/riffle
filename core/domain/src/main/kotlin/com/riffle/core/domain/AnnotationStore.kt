@@ -5,19 +5,19 @@ import kotlinx.coroutines.flow.Flow
 interface AnnotationStore {
 
     /** Live, non-deleted highlights for an ABS Library Item, oldest first. */
-    fun observeHighlights(serverId: String, itemId: String): Flow<List<Annotation>>
+    fun observeHighlights(sourceId: String, itemId: String): Flow<List<Annotation>>
 
     /** Live, non-deleted bookmarks for an ABS Library Item, oldest first. */
-    fun observeBookmarks(serverId: String, itemId: String): Flow<List<Annotation>>
+    fun observeBookmarks(sourceId: String, itemId: String): Flow<List<Annotation>>
 
     /** Live, non-deleted highlights + bookmarks for an ABS Library Item, sorted by reading position. */
-    fun observeAnnotations(serverId: String, itemId: String): Flow<List<Annotation>>
+    fun observeAnnotations(sourceId: String, itemId: String): Flow<List<Annotation>>
 
     /** Live, non-deleted highlights + bookmarks across every item for a server, oldest first. */
-    fun observeAnnotationsForServer(serverId: String): Flow<List<Annotation>>
+    fun observeAnnotationsForServer(sourceId: String): Flow<List<Annotation>>
 
     suspend fun createHighlight(
-        serverId: String,
+        sourceId: String,
         itemId: String,
         cfi: String,
         textSnippet: String,
@@ -30,7 +30,7 @@ interface AnnotationStore {
     ): Annotation
 
     suspend fun createBookmark(
-        serverId: String,
+        sourceId: String,
         itemId: String,
         cfi: String,
         textSnippet: String,
@@ -50,7 +50,7 @@ interface AnnotationStore {
     /** One-shot lookup of the annotation that exactly matches [cfi] for this item, or null. Used
      *  at open-from-library so the continuous reader can scroll to the annotation's DOM decoration
      *  (a precise post-reflow Y) instead of guessing from char-fraction × measured-WebView-height. */
-    suspend fun findByItemAndCfi(serverId: String, itemId: String, cfi: String): Annotation?
+    suspend fun findByItemAndCfi(sourceId: String, itemId: String, cfi: String): Annotation?
 
     companion object {
         const val DEFAULT_COLOR = "yellow"

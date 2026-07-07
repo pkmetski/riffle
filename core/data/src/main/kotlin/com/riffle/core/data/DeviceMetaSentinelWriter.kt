@@ -4,7 +4,7 @@ import com.riffle.core.domain.AnnotationDeviceMeta
 import com.riffle.core.domain.AnnotationSyncTarget
 import com.riffle.core.domain.DeviceIdStore
 import com.riffle.core.domain.DeviceLabelResolver
-import com.riffle.core.domain.ServerRepository
+import com.riffle.core.domain.SourceRepository
 import java.time.Instant
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -24,26 +24,26 @@ import kotlinx.coroutines.CancellationException
 class DeviceMetaSentinelWriter(
     private val deviceIdStore: DeviceIdStore,
     private val deviceLabelResolver: DeviceLabelResolver,
-    private val usernameProvider: suspend (serverId: String) -> String?,
+    private val usernameProvider: suspend (sourceId: String) -> String?,
     private val nowIso: () -> String = { Instant.now().toString() },
 ) {
     /**
-     * Hilt-injected constructor: resolves username through [ServerRepository.getById]. Tests use
+     * Hilt-injected constructor: resolves username through [SourceRepository.getById]. Tests use
      * the primary constructor with a deterministic `usernameProvider` lambda.
      */
     @Inject
     constructor(
         deviceIdStore: DeviceIdStore,
         deviceLabelResolver: DeviceLabelResolver,
-        serverRepository: ServerRepository,
+        sourceRepository: SourceRepository,
     ) : this(
         deviceIdStore,
         deviceLabelResolver,
-        { sid -> serverRepository.getById(sid)?.username },
+        { sid -> sourceRepository.getById(sid)?.username },
     )
 
-    /** Write the sentinel for `(serverId, namespace)`. Errors are silently swallowed. */
-    suspend fun writeQuietly(target: AnnotationSyncTarget, namespace: String, serverId: String) {
+    /** Write the sentinel for `(sourceId, namespace)`. Errors are silently swallowed. */
+    suspend fun writeQuietly(target: AnnotationSyncTarget, namespace: String, sourceId: String) {
         try {
             val deviceId = deviceIdStore.getOrCreate()
             val body = AnnotationDeviceMetaCodec.encode(
@@ -51,7 +51,7 @@ class DeviceMetaSentinelWriter(
                     deviceId = deviceId,
                     label = deviceLabelResolver.resolveLabel(deviceId),
                     lastSyncedAt = nowIso(),
-                    username = usernameProvider(serverId),
+                    username = usernameProvider(sourceId),
                 )
             )
             target.writeDeviceMeta(namespace, deviceId, body)

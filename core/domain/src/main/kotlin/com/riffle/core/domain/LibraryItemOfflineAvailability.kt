@@ -16,13 +16,13 @@ class LibraryItemOfflineAvailability(
     fun isAvailableOffline(item: LibraryItem): Boolean {
         val ebookAvailable = when (item.ebookFormat) {
             EbookFormat.Epub ->
-                epubRepository.isDownloaded(item.serverId, item.id) || epubRepository.isCached(item.serverId, item.id)
+                epubRepository.isDownloaded(item.sourceId, item.id) || epubRepository.isCached(item.sourceId, item.id)
             EbookFormat.Pdf ->
-                pdfRepository.isDownloaded(item.serverId, item.id) || pdfRepository.isCached(item.serverId, item.id)
+                pdfRepository.isDownloaded(item.sourceId, item.id) || pdfRepository.isCached(item.sourceId, item.id)
             EbookFormat.Unsupported -> false
         }
         return ebookAvailable ||
-            audiobookDownloadRepository.isDownloaded(item.serverId, item.id) ||
-            bundleAudiobookSource.isAvailableOffline(item.serverId, item.id)
+            audiobookDownloadRepository.isDownloaded(item.sourceId, item.id) ||
+            bundleAudiobookSource.isAvailableOffline(item.sourceId, item.id)
     }
 }

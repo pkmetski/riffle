@@ -1,7 +1,7 @@
 package com.riffle.core.data
 
 import com.riffle.core.domain.ReadingPositionStore
-import com.riffle.core.domain.ServerRepository
+import com.riffle.core.domain.SourceRepository
 import com.riffle.core.domain.StorytellerPositionReconciler
 import com.riffle.core.domain.StorytellerPositionReconciler.Decision
 import com.riffle.core.domain.TokenStorage
@@ -25,27 +25,27 @@ sealed interface StorytellerSyncOutcome {
 class StorytellerPositionSyncController(
     private val api: StorytellerPositionApi,
     private val positionStore: ReadingPositionStore,
-    private val serverRepository: ServerRepository,
+    private val sourceRepository: SourceRepository,
     private val tokenStorage: TokenStorage,
 ) {
 
     suspend fun runCycle(itemId: String, localLocatorJson: String): StorytellerSyncOutcome {
-        val server = serverRepository.getActive() ?: return StorytellerSyncOutcome.Offline
-        val token = tokenStorage.getToken(server.id) ?: return StorytellerSyncOutcome.Offline
-        val localUpdatedAt = positionStore.loadLocalUpdatedAt(server.id, itemId)
+        val source = sourceRepository.getActive() ?: return StorytellerSyncOutcome.Offline
+        val token = tokenStorage.getToken(source.id) ?: return StorytellerSyncOutcome.Offline
+        val localUpdatedAt = positionStore.loadLocalUpdatedAt(source.id, itemId)
 
-        val getRes = api.getPosition(server.url.value, itemId, token, server.insecureConnectionAllowed)
+        val getRes = api.getPosition(source.url.value, itemId, token, source.insecureConnectionAllowed)
         if (getRes !is NetworkResult.Success) return StorytellerSyncOutcome.Offline
         val remote: Pair<String?, Long> = getRes.value?.let { it.locatorJson to it.timestampMillis } ?: (null to 0L)
 
         return when (val d = StorytellerPositionReconciler.reconcile(localLocatorJson, localUpdatedAt, remote.first, remote.second)) {
             is Decision.PullRemote -> {
-                positionStore.save(server.id, itemId, d.locatorJson)
-                positionStore.updateLocalTimestamp(server.id, itemId, d.timestampMillis)
+                positionStore.save(source.id, itemId, d.locatorJson)
+                positionStore.updateLocalTimestamp(source.id, itemId, d.timestampMillis)
                 StorytellerSyncOutcome.PulledRemote(d.locatorJson)
             }
             is Decision.PushLocal -> {
-                api.putPosition(server.url.value, itemId, d.locatorJson, d.timestampMillis, token, server.insecureConnectionAllowed)
+                api.putPosition(source.url.value, itemId, d.locatorJson, d.timestampMillis, token, source.insecureConnectionAllowed)
                 StorytellerSyncOutcome.PushedLocal
             }
             Decision.InSync -> StorytellerSyncOutcome.InSync
