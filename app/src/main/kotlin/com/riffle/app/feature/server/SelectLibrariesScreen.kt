@@ -31,13 +31,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.riffle.app.ui.TabletContentWidthContainer
-import com.riffle.core.domain.PendingServer
+import com.riffle.core.domain.PendingSource
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SelectLibrariesScreen(
     windowSizeClass: WindowSizeClass,
-    pending: PendingServer,
+    pending: PendingSource,
     onNavigateBack: () -> Unit,
     onContinueComplete: () -> Unit,
     viewModel: SelectLibrariesViewModel = hiltViewModel(),

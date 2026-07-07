@@ -397,6 +397,7 @@ class ReadaloudMatchingServiceTest {
         override suspend fun updateFinishedAt(sourceId: String, itemId: String, finishedAt: Long?) = Unit
         override suspend fun getLastOpenedAtMap(sourceId: String, libraryId: String): List<LastOpenedAtRow> = emptyList()
         override suspend fun getReadingProgressMap(sourceId: String, libraryId: String): List<ReadingProgressRow> = emptyList()
+        override fun observeBySource(sourceId: String): Flow<List<LibraryItemEntity>> = flowOf(emptyList())
     }
 
     private class RecordingReadaloudLinkDao : ReadaloudLinkDao {

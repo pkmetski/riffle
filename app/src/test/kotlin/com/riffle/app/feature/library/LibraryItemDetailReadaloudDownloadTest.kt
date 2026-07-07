@@ -14,15 +14,15 @@ class LibraryItemDetailReadaloudDownloadTest {
         var lastDownloadBookId: String? = null
         var lastDownloadServerId: String? = null
         var lastRemoveBookId: String? = null
-        override fun isAudioAvailable(serverId: String, itemId: String) = present
-        override fun bundleFile(serverId: String, itemId: String): File? = if (present) File("x") else null
-        override suspend fun readTrack(serverId: String, itemId: String): ReadaloudTrack? = null
-        override suspend fun probeSizeBytes(serverId: String, itemId: String): Long? = null
-        override suspend fun downloadAudio(serverId: String, bookId: String, onProgress: (Long, Long) -> Unit): AudioDownloadResult {
-            lastDownloadBookId = bookId; lastDownloadServerId = serverId; present = true
+        override fun isAudioAvailable(sourceId: String, itemId: String) = present
+        override fun bundleFile(sourceId: String, itemId: String): File? = if (present) File("x") else null
+        override suspend fun readTrack(sourceId: String, itemId: String): ReadaloudTrack? = null
+        override suspend fun probeSizeBytes(sourceId: String, itemId: String): Long? = null
+        override suspend fun downloadAudio(sourceId: String, bookId: String, onProgress: (Long, Long) -> Unit): AudioDownloadResult {
+            lastDownloadBookId = bookId; lastDownloadServerId = sourceId; present = true
             return AudioDownloadResult.Success
         }
-        override suspend fun removeAudio(serverId: String, itemId: String): Long { lastRemoveBookId = itemId; present = false; return 0L }
+        override suspend fun removeAudio(sourceId: String, itemId: String): Long { lastRemoveBookId = itemId; present = false; return 0L }
     }
 
     @Test fun download_state_maps_from_bundle_presence() {

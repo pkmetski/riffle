@@ -7,7 +7,7 @@ interface AudiobookBookmarkStore {
     fun observe(sourceId: String, itemId: String): Flow<List<AudiobookBookmark>>
 
     /** Live stream of all non-deleted bookmarks for a server — for library-wide search. */
-    fun observeForServer(sourceId: String): Flow<List<AudiobookBookmark>>
+    fun observeForSource(sourceId: String): Flow<List<AudiobookBookmark>>
 
     /** Live: whether this item has unsynced (dirty) bookmarks pending a push to ABS. */
     fun observeHasUnsynced(sourceId: String, itemId: String): Flow<Boolean>

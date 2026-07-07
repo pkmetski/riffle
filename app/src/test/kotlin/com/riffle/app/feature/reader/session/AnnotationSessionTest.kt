@@ -38,7 +38,7 @@ class AnnotationSessionTest {
     // ------ Fakes -------------------------------------------------------------------------
 
     data class CreateHighlightArgs(
-        val serverId: String,
+        val sourceId: String,
         val itemId: String,
         val cfi: String,
         val textSnippet: String,
@@ -59,29 +59,29 @@ class AnnotationSessionTest {
         val updatedNotes = mutableListOf<Pair<String, String?>>()
         val createHighlightCalls = mutableListOf<CreateHighlightArgs>()
 
-        override fun observeHighlights(serverId: String, itemId: String): Flow<List<Annotation>> = highlights
-        override fun observeBookmarks(serverId: String, itemId: String): Flow<List<Annotation>> = MutableStateFlow(emptyList())
-        override fun observeAnnotations(serverId: String, itemId: String): Flow<List<Annotation>> = allAnnotations
-        override fun observeAnnotationsForServer(serverId: String): Flow<List<Annotation>> = MutableStateFlow(emptyList())
+        override fun observeHighlights(sourceId: String, itemId: String): Flow<List<Annotation>> = highlights
+        override fun observeBookmarks(sourceId: String, itemId: String): Flow<List<Annotation>> = MutableStateFlow(emptyList())
+        override fun observeAnnotations(sourceId: String, itemId: String): Flow<List<Annotation>> = allAnnotations
+        override fun observeAnnotationsForSource(sourceId: String): Flow<List<Annotation>> = MutableStateFlow(emptyList())
         override suspend fun createHighlight(
-            serverId: String, itemId: String, cfi: String, textSnippet: String,
+            sourceId: String, itemId: String, cfi: String, textSnippet: String,
             chapterHref: String, textBefore: String, textAfter: String, color: String,
             spineIndex: Int, progression: Double,
         ): Annotation {
             createHighlightCalls.add(
-                CreateHighlightArgs(serverId, itemId, cfi, textSnippet, chapterHref, textBefore, textAfter, color, spineIndex, progression)
+                CreateHighlightArgs(sourceId, itemId, cfi, textSnippet, chapterHref, textBefore, textAfter, color, spineIndex, progression)
             )
             return makeAnnotation(id = "h1", type = "highlight", cfi = cfi, color = color)
         }
         override suspend fun createBookmark(
-            serverId: String, itemId: String, cfi: String, textSnippet: String,
+            sourceId: String, itemId: String, cfi: String, textSnippet: String,
             chapterHref: String, spineIndex: Int, progression: Double, bookmarkTitle: String,
         ): Annotation = makeAnnotation(id = "b1", type = "bookmark", cfi = cfi)
         override suspend fun delete(id: String) { deletedIds.add(id) }
         override suspend fun recolor(id: String, color: String) { recoloredIds.add(id to color) }
         override suspend fun updateNote(id: String, note: String?) { updatedNotes.add(id to note) }
         override suspend fun renameBookmark(id: String, title: String) {}
-        override suspend fun findByItemAndCfi(serverId: String, itemId: String, cfi: String): Annotation? = null
+        override suspend fun findByItemAndCfi(sourceId: String, itemId: String, cfi: String): Annotation? = null
     }
 
     /**
@@ -131,7 +131,7 @@ class AnnotationSessionTest {
             color: String = "yellow",
         ) = Annotation(
         id = id,
-        serverId = "srv1",
+        sourceId = "srv1",
         itemId = "item1",
         type = type,
         cfi = cfi,
@@ -169,21 +169,21 @@ class AnnotationSessionTest {
     private class FakeHighlightColorPreferencesStore(
         initial: HighlightColor = HighlightColor.DEFAULT,
     ) : HighlightColorPreferencesStore {
-        // Per-book state keyed by "$serverId:$itemId". Unknown book → the shared [initial] fallback,
+        // Per-book state keyed by "$sourceId:$itemId". Unknown book → the shared [initial] fallback,
         // so tests that don't care about book identity keep working. Tests that DO need per-book
         // isolation call [setLastUsedColor] with distinct ids and read [currentValue] with them.
         private val perBook = mutableMapOf<String, MutableStateFlow<HighlightColor>>()
         private val defaultInitial = initial
-        private fun k(serverId: String, itemId: String) = "$serverId:$itemId"
-        private fun flowFor(serverId: String, itemId: String) =
-            perBook.getOrPut(k(serverId, itemId)) { MutableStateFlow(defaultInitial) }
-        override fun lastUsedColor(serverId: String, itemId: String): Flow<HighlightColor> =
-            flowFor(serverId, itemId)
-        override suspend fun setLastUsedColor(serverId: String, itemId: String, value: HighlightColor) {
-            flowFor(serverId, itemId).value = value
+        private fun k(sourceId: String, itemId: String) = "$sourceId:$itemId"
+        private fun flowFor(sourceId: String, itemId: String) =
+            perBook.getOrPut(k(sourceId, itemId)) { MutableStateFlow(defaultInitial) }
+        override fun lastUsedColor(sourceId: String, itemId: String): Flow<HighlightColor> =
+            flowFor(sourceId, itemId)
+        override suspend fun setLastUsedColor(sourceId: String, itemId: String, value: HighlightColor) {
+            flowFor(sourceId, itemId).value = value
         }
-        fun currentValue(serverId: String = "srv1", itemId: String = "item1"): HighlightColor =
-            flowFor(serverId, itemId).value
+        fun currentValue(sourceId: String = "srv1", itemId: String = "item1"): HighlightColor =
+            flowFor(sourceId, itemId).value
     }
 
     private fun makeSession(
@@ -214,7 +214,7 @@ class AnnotationSessionTest {
         cfiLocatorResolver: suspend (String) -> Locator? = { null },
     ) {
         session.bind(
-            serverId = "srv1",
+            sourceId = "srv1",
             namespace = "ns1",
             itemId = "item1",
             highlightRenderResolver = highlightRenderResolver,
@@ -238,7 +238,7 @@ class AnnotationSessionTest {
         val render = EpubReaderViewModel.HighlightRender(anno.id, buildLocator(), anno.color, anno.note)
 
         session.bind(
-            serverId = "srv1",
+            sourceId = "srv1",
             namespace = "ns1",
             itemId = "item1",
             highlightRenderResolver = { a -> if (a.id == anno.id) render else null },
@@ -278,7 +278,7 @@ class AnnotationSessionTest {
 
     /**
      * Regression: recolorHighlight must ALSO persist the picked colour to the per-book
-     * last-used store keyed by the currently-bound (serverId, itemId), so subsequent new
+     * last-used store keyed by the currently-bound (sourceId, itemId), so subsequent new
      * highlights in that book are born in that colour. Reverting the `setLastUsedColor` call
      * in AnnotationSession.recolorHighlight (or dropping the bound-book ids from it) flips
      * this assertion.
@@ -296,10 +296,10 @@ class AnnotationSessionTest {
 
         session.recolorHighlight("h1", HighlightColor.GREEN)
 
-        assertEquals(HighlightColor.GREEN, colorPrefs.currentValue(serverId = "srv1", itemId = "item1"))
+        assertEquals(HighlightColor.GREEN, colorPrefs.currentValue(sourceId = "srv1", itemId = "item1"))
         // Other books stay on their own last-used (fake's initial fallback) — recolour must not
         // leak across books.
-        assertEquals(HighlightColor.YELLOW, colorPrefs.currentValue(serverId = "srv1", itemId = "item2"))
+        assertEquals(HighlightColor.YELLOW, colorPrefs.currentValue(sourceId = "srv1", itemId = "item2"))
 
         sessionScope.coroutineContext[Job]?.cancel()
     }
@@ -350,7 +350,7 @@ class AnnotationSessionTest {
 
         // Rebind to a different book — colour must swap.
         session.bind(
-            serverId = "srv1",
+            sourceId = "srv1",
             namespace = "ns1",
             itemId = "item2",
             highlightRenderResolver = { null },
@@ -397,7 +397,7 @@ class AnnotationSessionTest {
         val session = makeSession(store = store, syncOps = syncOps, scope = sessionScope)
 
         session.bind(
-            serverId = "srv1",
+            sourceId = "srv1",
             namespace = "ns1",
             itemId = "item1",
             highlightRenderResolver = { null },
@@ -447,7 +447,7 @@ class AnnotationSessionTest {
         val session = makeSession(store = store, syncOps = syncOps, scope = sessionScope)
 
         session.bind(
-            serverId = "srv1",
+            sourceId = "srv1",
             namespace = "ns1",
             itemId = "item1",
             highlightRenderResolver = { null },
@@ -554,7 +554,7 @@ class AnnotationSessionTest {
 
         // Rebind to a different item — should cancel the first live-sync job
         session.bind(
-            serverId = "srv1",
+            sourceId = "srv1",
             namespace = "ns1",
             itemId = "item2",
             highlightRenderResolver = { null },
@@ -653,7 +653,7 @@ class AnnotationSessionTest {
         val store = FakeAnnotationStore()
 
         val created = store.createHighlight(
-            serverId = "srv1",
+            sourceId = "srv1",
             itemId = "item1",
             cfi = "epubcfi(/6/4!/4/2)",
             textSnippet = "hello",

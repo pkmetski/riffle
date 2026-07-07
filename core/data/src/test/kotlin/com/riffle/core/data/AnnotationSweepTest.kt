@@ -272,6 +272,7 @@ class AnnotationSweepTest {
             lastMarkSyncedIds = ids
             lastMarkSyncedAt = syncedAt
         }
+        override fun observeBooksWithHighlights(sourceId: String) = kotlinx.coroutines.flow.flowOf(emptyList<com.riffle.core.database.BookHighlightSummary>())
     }
 
     private class FakeDeviceIdStore(private val id: String) : DeviceIdStore {
@@ -341,4 +342,5 @@ abstract class StubAnnotationDao : AnnotationDao {
     override suspend fun dirtySourceItems() = emptyList<AnnotationDao.DirtySourceItem>()
     override suspend fun markSynced(ids: List<String>, syncedAt: Long) {}
     override suspend fun purgeAgedTombstones(sourceId: String, itemId: String, cutoff: Long): Int = 0
+    override fun observeBooksWithHighlights(sourceId: String) = kotlinx.coroutines.flow.flowOf(emptyList<com.riffle.core.database.BookHighlightSummary>())
 }

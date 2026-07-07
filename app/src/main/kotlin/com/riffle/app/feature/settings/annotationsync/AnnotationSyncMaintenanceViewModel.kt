@@ -7,7 +7,7 @@ import com.riffle.core.data.AnnotationSyncStatusStore
 import com.riffle.core.domain.DeviceIdStore
 import com.riffle.core.domain.DeviceLabelResolver
 import com.riffle.core.domain.DeviceLabelStore
-import com.riffle.core.domain.ServerRepository
+import com.riffle.core.domain.SourceRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -81,7 +81,7 @@ class AnnotationSyncMaintenanceViewModel @Inject constructor(
     private val deviceIdStore: DeviceIdStore,
     private val deviceLabelStore: DeviceLabelStore,
     private val deviceLabelResolver: DeviceLabelResolver,
-    private val serverRepository: ServerRepository,
+    private val sourceRepository: SourceRepository,
     private val statusStore: AnnotationSyncStatusStore,
 ) : ViewModel() {
 
@@ -181,7 +181,7 @@ class AnnotationSyncMaintenanceViewModel @Inject constructor(
                     namespace = namespace,
                     deviceId = deviceIdStore.getOrCreate(),
                     label = updated,
-                    username = serverRepository.getActive()?.username,
+                    username = sourceRepository.getActive()?.username,
                 )
             }
             if (publishResult != null) {
@@ -320,8 +320,8 @@ class AnnotationSyncMaintenanceViewModel @Inject constructor(
     private suspend fun resolveNamespace(): String? {
         // Active server first (most relevant to the user), then any configured ABS server with a
         // known absUserId — Maintenance shows files from whichever account currently owns them.
-        serverRepository.getActive()?.absUserId?.takeIf { it.isNotBlank() }?.let { return it }
-        val all = serverRepository.observeAll().first()
+        sourceRepository.getActive()?.absUserId?.takeIf { it.isNotBlank() }?.let { return it }
+        val all = sourceRepository.observeAll().first()
         return all.firstNotNullOfOrNull { it.absUserId?.takeIf { id -> id.isNotBlank() } }
     }
 

@@ -45,7 +45,7 @@ class AudiobookResumeResolver @Inject constructor(
      *   value, stamp it fresh so it wins last-update-wins).
      */
     suspend fun resolve(
-        serverId: String,
+        sourceId: String,
         itemId: String,
         session: AudiobookSession,
         readingProgressFraction: Float,
@@ -54,8 +54,8 @@ class AudiobookResumeResolver @Inject constructor(
         // Last-update-wins reconcile: mirrors the ebook reader. If the last local listen is newer
         // than ABS's record — e.g. a final flush was dropped at teardown — resume from it;
         // otherwise adopt the server position and stamp the local row so it does not re-push.
-        val localSec = if (serverId.isNotEmpty()) positionStore.load(serverId, itemId) else null
-        val localTs = if (serverId.isNotEmpty()) positionStore.loadLocalUpdatedAt(serverId, itemId) else 0L
+        val localSec = if (sourceId.isNotEmpty()) positionStore.load(sourceId, itemId) else null
+        val localTs = if (sourceId.isNotEmpty()) positionStore.loadLocalUpdatedAt(sourceId, itemId) else 0L
         val decision = AudiobookPositionReconciler.reconcile(
             localSec = localSec,
             localUpdatedAt = localTs,
@@ -66,9 +66,9 @@ class AudiobookResumeResolver @Inject constructor(
         val reconciledStamp: Long
         when (decision) {
             is AudiobookPositionReconciler.Decision.PullRemote -> {
-                if (serverId.isNotEmpty()) {
-                    positionStore.save(serverId, itemId, decision.positionSec)
-                    positionStore.updateLocalTimestamp(serverId, itemId, decision.timestampMillis)
+                if (sourceId.isNotEmpty()) {
+                    positionStore.save(sourceId, itemId, decision.positionSec)
+                    positionStore.updateLocalTimestamp(sourceId, itemId, decision.timestampMillis)
                 }
                 resumeSec = decision.positionSec
                 reconciledStamp = decision.timestampMillis
@@ -107,9 +107,9 @@ class AudiobookResumeResolver @Inject constructor(
         if (startAtSec >= 0.0) {
             resumeSec = startAtSec.coerceIn(0.0, session.timeline.durationSec)
             resumeStamp = clock.nowMs()
-            if (serverId.isNotEmpty()) {
-                positionStore.save(serverId, itemId, resumeSec)
-                positionStore.updateLocalTimestamp(serverId, itemId, resumeStamp)
+            if (sourceId.isNotEmpty()) {
+                positionStore.save(sourceId, itemId, resumeSec)
+                positionStore.updateLocalTimestamp(sourceId, itemId, resumeStamp)
             }
         }
 

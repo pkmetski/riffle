@@ -9,7 +9,7 @@ class LibraryItemOfflineAvailabilityTest {
     private fun item(
         ebookFormat: EbookFormat,
         hasAudio: Boolean = false,
-        serverId: String = "s1",
+        sourceId: String = "s1",
         id: String = "i1",
     ) = LibraryItem(
         id = id,
@@ -22,7 +22,7 @@ class LibraryItemOfflineAvailabilityTest {
         isDownloaded = false,
         ebookFormat = ebookFormat,
         hasAudio = hasAudio,
-        serverId = serverId,
+        sourceId = sourceId,
     )
 
     @Test
@@ -125,14 +125,14 @@ class LibraryItemOfflineAvailabilityTest {
         private val downloaded: Boolean = false,
         private val cached: Boolean = false,
     ) : EpubRepository {
-        override fun isDownloaded(serverId: String, itemId: String) = downloaded
-        override fun isCached(serverId: String, itemId: String) = cached
+        override fun isDownloaded(sourceId: String, itemId: String) = downloaded
+        override fun isCached(sourceId: String, itemId: String) = cached
         override suspend fun openEpub(item: LibraryItem) = error("unused")
         override suspend fun downloadEpub(
             item: LibraryItem,
             onProgress: (downloaded: Long, total: Long) -> Unit,
         ) = error("unused")
-        override suspend fun removeDownload(serverId: String, itemId: String) = error("unused")
+        override suspend fun removeDownload(sourceId: String, itemId: String) = error("unused")
         override suspend fun saveReadingPosition(itemId: String, cfi: String) = error("unused")
     }
 
@@ -140,34 +140,34 @@ class LibraryItemOfflineAvailabilityTest {
         private val downloaded: Boolean = false,
         private val cached: Boolean = false,
     ) : PdfRepository {
-        override fun isDownloaded(serverId: String, itemId: String) = downloaded
-        override fun isCached(serverId: String, itemId: String) = cached
+        override fun isDownloaded(sourceId: String, itemId: String) = downloaded
+        override fun isCached(sourceId: String, itemId: String) = cached
         override suspend fun openPdf(item: LibraryItem) = error("unused")
         override suspend fun downloadPdf(
             item: LibraryItem,
             onProgress: (downloaded: Long, total: Long) -> Unit,
         ) = error("unused")
-        override suspend fun removeDownload(serverId: String, itemId: String) = error("unused")
+        override suspend fun removeDownload(sourceId: String, itemId: String) = error("unused")
         override suspend fun saveReadingPosition(itemId: String, locatorJson: String) = error("unused")
     }
 
     private class FakeAudiobookDownloadRepository(
         private val downloaded: Boolean = false,
     ) : AudiobookDownloadRepository {
-        override fun isDownloaded(serverId: String, itemId: String) = downloaded
-        override fun localSession(serverId: String, itemId: String): AudiobookSession? = null
+        override fun isDownloaded(sourceId: String, itemId: String) = downloaded
+        override fun localSession(sourceId: String, itemId: String): AudiobookSession? = null
         override suspend fun download(
-            serverId: String,
+            sourceId: String,
             itemId: String,
             onProgress: (downloaded: Long, total: Long) -> Unit,
         ) = error("unused")
-        override suspend fun remove(serverId: String, itemId: String) = error("unused")
+        override suspend fun remove(sourceId: String, itemId: String) = error("unused")
     }
 
     private class FakeBundleAudiobookSource(
         private val offlineIds: Set<String> = emptySet(),
     ) : BundleAudiobookSource {
-        override suspend fun localSession(serverId: String, itemId: String): AudiobookSession? = null
-        override fun isAvailableOffline(serverId: String, itemId: String) = "$serverId/$itemId" in offlineIds
+        override suspend fun localSession(sourceId: String, itemId: String): AudiobookSession? = null
+        override fun isAvailableOffline(sourceId: String, itemId: String) = "$sourceId/$itemId" in offlineIds
     }
 }

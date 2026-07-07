@@ -5,7 +5,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.riffle.core.data.AudioPlaybackPreferencesStoreImpl
 import com.riffle.core.database.RiffleDatabase
-import com.riffle.core.database.ServerEntity
+import com.riffle.core.database.SourceEntity
 import com.riffle.core.domain.AudioIdentity
 import kotlinx.coroutines.runBlocking
 import org.junit.After
@@ -25,7 +25,7 @@ import org.junit.runner.RunWith
  *
  * These tests use a real Room database on-device to verify:
  *   - save → load with the same correct identity succeeds
- *   - save with empty serverId (old bug) is invisible to load with real serverId
+ *   - save with empty sourceId (old bug) is invisible to load with real sourceId
  */
 @RunWith(AndroidJUnit4::class)
 class AudioPlaybackSpeedPersistenceTest {
@@ -41,7 +41,7 @@ class AudioPlaybackSpeedPersistenceTest {
         ).allowMainThreadQueries().build()
         runBlocking {
             db.sourceDao().upsert(
-                ServerEntity("srv-1", "http://abs", isActive = true, insecureConnectionAllowed = false, username = "test")
+                SourceEntity("srv-1", "http://abs", isActive = true, insecureConnectionAllowed = false, username = "test")
             )
         }
         store = AudioPlaybackPreferencesStoreImpl(db.audioPlaybackPreferencesDao())
@@ -75,7 +75,7 @@ class AudioPlaybackSpeedPersistenceTest {
         runCatching { store.save(buggyIdentity, 1.75f) }
 
         assertNull(
-            "Speed saved with empty serverId must not be returned for the real server identity — " +
+            "Speed saved with empty sourceId must not be returned for the real server identity — " +
                 "if this fails the pre-fix bug would have been invisible",
             store.load(realIdentity),
         )

@@ -17,7 +17,7 @@ class AnnotationsLibraryRepositoryTest {
         coverUrl: String?,
         ebookFormat: String = EbookFormat.Epub.toStorageString(),
     ) = LibraryItemEntity(
-        serverId = "S1",
+        sourceId = "S1",
         id = id,
         libraryId = "lib1",
         title = title,
@@ -95,7 +95,7 @@ class AnnotationsLibraryRepositoryTest {
         assertEquals(listOf("A"), result.map { it.itemId })
     }
 
-    // Step A (per-Library scoping): the new (serverId, libraryId) overload must only surface books
+    // Step A (per-Library scoping): the new (sourceId, libraryId) overload must only surface books
     // whose library_items row lives in the requested library. A book with a live highlight but no
     // matching library_items row can't be attributed to any specific library, so — unlike the
     // per-server variant, which keeps such orphans as text-only cards — it must be excluded here.

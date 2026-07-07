@@ -168,13 +168,13 @@ class ReadaloudSessionTest {
      * Used to assert that [closeReadaloud] persists the resume position on teardown.
      */
     private class FakeReadaloudResumeStore : ReadaloudResumeStore {
-        data class SaveCall(val serverId: String, val itemId: String, val position: ReadaloudResumePosition)
+        data class SaveCall(val sourceId: String, val itemId: String, val position: ReadaloudResumePosition)
         val savedCalls = mutableListOf<SaveCall>()
-        override suspend fun save(serverId: String, itemId: String, position: ReadaloudResumePosition) {
-            savedCalls.add(SaveCall(serverId, itemId, position))
+        override suspend fun save(sourceId: String, itemId: String, position: ReadaloudResumePosition) {
+            savedCalls.add(SaveCall(sourceId, itemId, position))
         }
-        override suspend fun load(serverId: String, itemId: String): ReadaloudResumePosition? = null
-        override suspend fun clear(serverId: String, itemId: String) {}
+        override suspend fun load(sourceId: String, itemId: String): ReadaloudResumePosition? = null
+        override suspend fun clear(sourceId: String, itemId: String) {}
     }
 
     // ── Locator construction helper ────────────────────────────────────────────────────
@@ -367,22 +367,22 @@ class ReadaloudSessionTest {
      */
     private class FakeAudioSyncStore : SyncPositionStore<Double> {
         data class MirrorCall(
-            val serverId: String, val itemId: String, val position: Double,
+            val sourceId: String, val itemId: String, val position: Double,
             val localUpdatedAt: Long, val lastSyncedAt: Long,
         )
         val mirrorCalls = mutableListOf<MirrorCall>()
 
-        override suspend fun snapshot(serverId: String, itemId: String): PositionSnapshot<Double> =
+        override suspend fun snapshot(sourceId: String, itemId: String): PositionSnapshot<Double> =
             PositionSnapshot(position = null, localUpdatedAt = 10L, lastSyncedAt = 5L)
 
         override suspend fun mirror(
-            serverId: String, itemId: String, position: Double,
+            sourceId: String, itemId: String, position: Double,
             localUpdatedAt: Long, lastSyncedAt: Long,
-        ) { mirrorCalls.add(MirrorCall(serverId, itemId, position, localUpdatedAt, lastSyncedAt)) }
+        ) { mirrorCalls.add(MirrorCall(sourceId, itemId, position, localUpdatedAt, lastSyncedAt)) }
 
-        override suspend fun acceptServerPosition(serverId: String, itemId: String, position: Double, serverStamp: Long, ifLocalUpdatedAt: Long) = false
-        override suspend fun confirmPushed(serverId: String, itemId: String, serverStamp: Long, ifLocalUpdatedAt: Long) = false
-        override suspend fun confirmInSync(serverId: String, itemId: String, ifLocalUpdatedAt: Long) = false
+        override suspend fun acceptServerPosition(sourceId: String, itemId: String, position: Double, serverStamp: Long, ifLocalUpdatedAt: Long) = false
+        override suspend fun confirmPushed(sourceId: String, itemId: String, serverStamp: Long, ifLocalUpdatedAt: Long) = false
+        override suspend fun confirmInSync(sourceId: String, itemId: String, ifLocalUpdatedAt: Long) = false
     }
 
     /**
@@ -392,13 +392,13 @@ class ReadaloudSessionTest {
         private val localUpdatedAt: Long = 10L,
         private val lastSyncedAt: Long = 5L,
     ) : SyncPositionStore<String> {
-        override suspend fun snapshot(serverId: String, itemId: String): PositionSnapshot<String> =
+        override suspend fun snapshot(sourceId: String, itemId: String): PositionSnapshot<String> =
             PositionSnapshot(position = null, localUpdatedAt = localUpdatedAt, lastSyncedAt = lastSyncedAt)
 
-        override suspend fun mirror(serverId: String, itemId: String, position: String, localUpdatedAt: Long, lastSyncedAt: Long) {}
-        override suspend fun acceptServerPosition(serverId: String, itemId: String, position: String, serverStamp: Long, ifLocalUpdatedAt: Long) = false
-        override suspend fun confirmPushed(serverId: String, itemId: String, serverStamp: Long, ifLocalUpdatedAt: Long) = false
-        override suspend fun confirmInSync(serverId: String, itemId: String, ifLocalUpdatedAt: Long) = false
+        override suspend fun mirror(sourceId: String, itemId: String, position: String, localUpdatedAt: Long, lastSyncedAt: Long) {}
+        override suspend fun acceptServerPosition(sourceId: String, itemId: String, position: String, serverStamp: Long, ifLocalUpdatedAt: Long) = false
+        override suspend fun confirmPushed(sourceId: String, itemId: String, serverStamp: Long, ifLocalUpdatedAt: Long) = false
+        override suspend fun confirmInSync(sourceId: String, itemId: String, ifLocalUpdatedAt: Long) = false
     }
 
     /**
@@ -413,9 +413,9 @@ class ReadaloudSessionTest {
             error("not needed in test")
         override suspend fun downloadEpub(item: com.riffle.core.domain.LibraryItem, onProgress: (Long, Long) -> Unit) =
             error("not needed in test")
-        override suspend fun removeDownload(serverId: String, itemId: String) {}
-        override fun isDownloaded(serverId: String, itemId: String) = false
-        override fun isCached(serverId: String, itemId: String) = false
+        override suspend fun removeDownload(sourceId: String, itemId: String) {}
+        override fun isDownloaded(sourceId: String, itemId: String) = false
+        override fun isCached(sourceId: String, itemId: String) = false
     }
 
     private fun makeSessionWithStores(
@@ -491,7 +491,7 @@ class ReadaloudSessionTest {
             // currentPosition/1000.0 + startOffsetSec. The fake returns exactly 123.45.
             assertEquals("audioSyncStore must be called once", 1, fakeAudioSyncStore.mirrorCalls.size)
             val call = fakeAudioSyncStore.mirrorCalls.first()
-            assertEquals("srv1", call.serverId)
+            assertEquals("srv1", call.sourceId)
             assertEquals("audiobook-item-99", call.itemId)
             assertEquals(
                 "seconds must equal audiobookFollow.secondsForFragment result (no double-count)",
@@ -536,7 +536,7 @@ class ReadaloudSessionTest {
             // 2) Audio mirror must be written
             assertEquals("audioSyncStore.mirror called once", 1, fakeAudioSyncStore.mirrorCalls.size)
             val mirrorCall = fakeAudioSyncStore.mirrorCalls.first()
-            assertEquals("srv2", mirrorCall.serverId)
+            assertEquals("srv2", mirrorCall.sourceId)
             assertEquals("audio-456", mirrorCall.itemId)
             assertEquals(77.7, mirrorCall.position, 0.001)
         } finally {
@@ -556,20 +556,20 @@ class ReadaloudSessionTest {
         val downloadCalls = mutableListOf<Pair<String, String>>()
         var probeSizeBytesResult: Long? = 500L
 
-        override fun bundleFile(serverId: String, bookId: String): java.io.File? = bundleFileVal
-        override fun isAudioAvailable(serverId: String, bookId: String): Boolean = bundleFileVal != null
-        override suspend fun probeSizeBytes(serverId: String, bookId: String): Long? = probeSizeBytesResult
+        override fun bundleFile(sourceId: String, bookId: String): java.io.File? = bundleFileVal
+        override fun isAudioAvailable(sourceId: String, bookId: String): Boolean = bundleFileVal != null
+        override suspend fun probeSizeBytes(sourceId: String, bookId: String): Long? = probeSizeBytesResult
         override suspend fun downloadAudio(
-            serverId: String,
+            sourceId: String,
             bookId: String,
             onProgress: (Long, Long) -> Unit,
         ): AudioDownloadResult {
-            downloadCalls.add(serverId to bookId)
+            downloadCalls.add(sourceId to bookId)
             onProgress(50L, 100L)
             return downloadResult
         }
-        override suspend fun readTrack(serverId: String, bookId: String): com.riffle.core.domain.ReadaloudTrack? = null
-        override suspend fun removeAudio(serverId: String, itemId: String): Long = 0L
+        override suspend fun readTrack(sourceId: String, bookId: String): com.riffle.core.domain.ReadaloudTrack? = null
+        override suspend fun removeAudio(sourceId: String, itemId: String): Long = 0L
     }
 
     private fun makeSessionForOpenClose(
@@ -746,7 +746,7 @@ class ReadaloudSessionTest {
                 1, fakeResumeStore.savedCalls.size,
             )
             val saved = fakeResumeStore.savedCalls.first()
-            assertEquals("saved serverId must match readerServerId", "srv1", saved.serverId)
+            assertEquals("saved sourceId must match readerServerId", "srv1", saved.sourceId)
             assertEquals("saved itemId must match session itemId", "book1", saved.itemId)
             assertEquals("saved href must come from snapshotLocator", "c01.html", saved.position.href)
         } finally {
@@ -916,7 +916,7 @@ class ReadaloudSessionTest {
 
             assertEquals("readaloudResumeStore.save must be called once", 1, fakeResumeStore.savedCalls.size)
             val saved = fakeResumeStore.savedCalls.first()
-            assertEquals("saved serverId", "srv-persist", saved.serverId)
+            assertEquals("saved sourceId", "srv-persist", saved.sourceId)
             assertEquals("saved itemId", "item-xyz", saved.itemId)
             assertEquals("saved href", "chapter03.html", saved.position.href)
             assertEquals("saved progression", 0.75, saved.position.progression ?: 0.0, 0.001)
@@ -1009,7 +1009,7 @@ class ReadaloudSessionTest {
             val expectedIdentity = com.riffle.core.domain.AudioIdentity("srv-audio", "ab-123")
 
             session.bind(
-                serverId = "srv-reader",
+                sourceId = "srv-reader",
                 itemId = "ebook-abc",
                 isStorytellerServer = true,
                 audioBookId = "styteller-book-99",
@@ -1055,7 +1055,7 @@ class ReadaloudSessionTest {
             val formattingPrefsFlow = MutableStateFlow(com.riffle.core.domain.FormattingPreferences())
             val currentLocatorFlow = MutableStateFlow<Locator?>(null)
             session.bind(
-                serverId = "srv1",
+                sourceId = "srv1",
                 itemId = "book1",
                 isStorytellerServer = true,
                 audioBookId = "book1",
@@ -1132,7 +1132,7 @@ class ReadaloudSessionTest {
             val fakeRepo = FakeReadaloudAudioRepository(bundleFileVal = null)
             val session = makeSessionForBind(scope = sessionScope, audioRepository = fakeRepo)
             session.bind(
-                serverId = "srv1",
+                sourceId = "srv1",
                 itemId = "book1",
                 isStorytellerServer = true,
                 audioBookId = "book1",
@@ -1220,7 +1220,7 @@ class ReadaloudSessionTest {
             // Bind as a matched ABS book with no bundle — the streaming path where the
             // sidecar observer is the only thing that would set quoteBundle.
             session.bind(
-                serverId = "srv-reader",
+                sourceId = "srv-reader",
                 itemId = "abs-book",
                 isStorytellerServer = false,
                 audioBookId = "st-book",

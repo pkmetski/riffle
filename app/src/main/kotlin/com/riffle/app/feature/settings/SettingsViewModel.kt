@@ -22,7 +22,7 @@ import com.riffle.core.domain.HighlightColor
 import com.riffle.core.domain.ReadaloudPreferences
 import com.riffle.core.domain.ReadaloudPreferencesStore
 import com.riffle.core.domain.ReadaloudReviewRepository
-import com.riffle.core.domain.Server
+import com.riffle.core.domain.Source
 import com.riffle.core.domain.ServerType
 import com.riffle.app.feature.annotationsync.AnnotationSyncKind
 import com.riffle.app.feature.annotationsync.deriveAnnotationSyncKind
@@ -31,7 +31,7 @@ import com.riffle.core.data.CycleOutcome
 import com.riffle.core.database.AnnotationDao
 import com.riffle.core.domain.VolumeKeyPreferencesStore
 import com.riffle.core.domain.WakeLockPreferencesStore
-import com.riffle.core.domain.ServerRepository
+import com.riffle.core.domain.SourceRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.channels.Channel
@@ -63,7 +63,7 @@ data class AnnotationSyncRowState(
 class SettingsViewModel @Inject constructor(
     private val crashReportRepository: CrashReportRepository,
     private val formattingPreferencesStore: FormattingPreferencesStore,
-    private val serverRepository: ServerRepository,
+    private val sourceRepository: SourceRepository,
     private val libraryObserver: LibraryObserver,
     private val visibilityStore: LibraryVisibilityPreferencesStore,
     private val orderStore: LibraryOrderPreferencesStore,
@@ -120,7 +120,7 @@ class SettingsViewModel @Inject constructor(
             outcome is CycleOutcome.NeverRun -> "Waiting for first sync…"
             outcome is CycleOutcome.Failed.Auth -> "Authentication failed · tap to re-enter credentials"
             outcome is CycleOutcome.Failed.Tls -> "TLS error · tap to check server URL"
-            outcome is CycleOutcome.Failed.Server -> "Server error (HTTP ${outcome.code}) · will retry automatically"
+            outcome is CycleOutcome.Failed.Server -> "Source error (HTTP ${outcome.code}) · will retry automatically"
             outcome is CycleOutcome.Failed.Unknown -> "Sync failed · will retry automatically"
             outcome is CycleOutcome.Failed.Network && pendingCount > 0 ->
                 "$pendingCount book(s) pending · will sync when online"
@@ -221,7 +221,7 @@ class SettingsViewModel @Inject constructor(
     val appTheme: StateFlow<AppTheme> = appThemeStore.appTheme
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), AppTheme.System)
 
-    val servers: StateFlow<List<Server>> = serverRepository.observeAll()
+    val servers: StateFlow<List<Source>> = sourceRepository.observeAll()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     /** Ids of the configured Storyteller servers, feeding the per-server readaloud summaries. */
@@ -264,7 +264,7 @@ class SettingsViewModel @Inject constructor(
                 .collect { srvs ->
                     srvs.forEach { server ->
                         if (server.id in versionsCache) return@forEach
-                        val version = serverRepository.getServerVersion(server.id) ?: return@forEach
+                        val version = sourceRepository.getSourceVersion(server.id) ?: return@forEach
                         versionsCache[server.id] = version
                         _serverVersions.value = versionsCache.toMap()
                     }
@@ -272,7 +272,7 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
-    private val absServers: StateFlow<List<Server>> = servers
+    private val absServers: StateFlow<List<Source>> = servers
         .map { list -> list.filter { it.serverType == ServerType.AUDIOBOOKSHELF } }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
@@ -354,17 +354,17 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch { listeningPreferencesStore.setRewindOnResumeSeconds(seconds) }
     }
 
-    fun removeServer(serverId: String) {
+    fun removeServer(sourceId: String) {
         viewModelScope.launch {
             val current = servers.value
-            val removing = current.firstOrNull { it.id == serverId } ?: return@launch
-            serverRepository.remove(serverId)
+            val removing = current.firstOrNull { it.id == sourceId } ?: return@launch
+            sourceRepository.remove(sourceId)
             if (removing.isActive) {
-                // Promote the next browsable server. A Storyteller Server is never browsable
+                // Promote the next browsable server. A Storyteller Source is never browsable
                 // (ADR 0026) and can never be active, so skip it when choosing the successor.
-                val next = current.firstOrNull { it.id != serverId && it.serverType != ServerType.STORYTELLER }
+                val next = current.firstOrNull { it.id != sourceId && it.serverType != ServerType.STORYTELLER }
                 if (next != null) {
-                    serverRepository.setActive(next.id)
+                    sourceRepository.setActive(next.id)
                 } else {
                     _navigationEvents.send(SettingsNavEvent.NavigateToAddServer)
                 }
@@ -372,22 +372,22 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
-    fun openReadaloudMatches(serverId: String) {
+    fun openReadaloudMatches(sourceId: String) {
         viewModelScope.launch {
-            _navigationEvents.send(SettingsNavEvent.NavigateToReadaloudMatches(serverId))
+            _navigationEvents.send(SettingsNavEvent.NavigateToReadaloudMatches(sourceId))
         }
     }
 
-    fun setLibraryVisible(serverId: String, libraryId: String, visible: Boolean) {
+    fun setLibraryVisible(sourceId: String, libraryId: String, visible: Boolean) {
         viewModelScope.launch {
-            if (visible) visibilityStore.showLibrary(serverId, libraryId)
-            else visibilityStore.hideLibrary(serverId, libraryId)
+            if (visible) visibilityStore.showLibrary(sourceId, libraryId)
+            else visibilityStore.hideLibrary(sourceId, libraryId)
         }
     }
 
-    /** Persist a new full ordering of [serverId]'s libraries after a drag-reorder in Settings. */
-    fun setLibraryOrder(serverId: String, orderedLibraryIds: List<String>) {
-        viewModelScope.launch { orderStore.setLibraryOrder(serverId, orderedLibraryIds) }
+    /** Persist a new full ordering of [sourceId]'s libraries after a drag-reorder in Settings. */
+    fun setLibraryOrder(sourceId: String, orderedLibraryIds: List<String>) {
+        viewModelScope.launch { orderStore.setLibraryOrder(sourceId, orderedLibraryIds) }
     }
 
     private fun shortHost(rawUrl: String): String =

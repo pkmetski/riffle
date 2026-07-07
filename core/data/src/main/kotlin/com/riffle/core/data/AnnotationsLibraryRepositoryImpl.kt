@@ -13,10 +13,10 @@ class AnnotationsLibraryRepositoryImpl @Inject constructor(
     private val libraryItemDao: LibraryItemDao,
 ) : AnnotationsLibraryRepository {
 
-    override fun observeAnnotatedBooks(serverId: String): Flow<List<AnnotatedBook>> =
+    override fun observeAnnotatedBooks(sourceId: String): Flow<List<AnnotatedBook>> =
         combine(
-            annotationDao.observeBooksWithHighlights(serverId),
-            libraryItemDao.observeByServer(serverId).map { rows ->
+            annotationDao.observeBooksWithHighlights(sourceId),
+            libraryItemDao.observeBySource(sourceId).map { rows ->
                 rows.associateBy { it.id }
             },
         ) { summaries, itemsById ->
@@ -32,7 +32,7 @@ class AnnotationsLibraryRepositoryImpl @Inject constructor(
                 .map { s ->
                     val item = itemsById[s.itemId]
                     AnnotatedBook(
-                        serverId = serverId,
+                        sourceId = sourceId,
                         itemId = s.itemId,
                         title = item?.title,
                         author = item?.author,
@@ -43,10 +43,10 @@ class AnnotationsLibraryRepositoryImpl @Inject constructor(
                 }.sortedByDescending { it.latestUpdatedAt }
         }
 
-    override fun observeAnnotatedBooks(serverId: String, libraryId: String): Flow<List<AnnotatedBook>> =
+    override fun observeAnnotatedBooks(sourceId: String, libraryId: String): Flow<List<AnnotatedBook>> =
         combine(
-            annotationDao.observeBooksWithHighlights(serverId),
-            libraryItemDao.observeByLibraryId(serverId, libraryId).map { rows ->
+            annotationDao.observeBooksWithHighlights(sourceId),
+            libraryItemDao.observeByLibraryId(sourceId, libraryId).map { rows ->
                 rows.associateBy { it.id }
             },
         ) { summaries, itemsById ->
@@ -58,7 +58,7 @@ class AnnotationsLibraryRepositoryImpl @Inject constructor(
                 .filter { (_, item) -> EbookFormat.from(item.ebookFormat) == EbookFormat.Epub }
                 .map { (s, item) ->
                     AnnotatedBook(
-                        serverId = serverId,
+                        sourceId = sourceId,
                         itemId = s.itemId,
                         title = item.title,
                         author = item.author,

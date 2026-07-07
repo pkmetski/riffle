@@ -22,11 +22,11 @@ class ProgressReconcilerTest {
         var localUpdatedAt: Long = 0L,
         var lastSyncedAt: Long = 0L,
     ) : SyncPositionStore<P> {
-        override suspend fun snapshot(serverId: String, itemId: String) =
+        override suspend fun snapshot(sourceId: String, itemId: String) =
             PositionSnapshot(position, localUpdatedAt, lastSyncedAt)
 
         override suspend fun acceptServerPosition(
-            serverId: String, itemId: String, position: P, serverStamp: Long, ifLocalUpdatedAt: Long,
+            sourceId: String, itemId: String, position: P, serverStamp: Long, ifLocalUpdatedAt: Long,
         ): Boolean {
             if (localUpdatedAt != ifLocalUpdatedAt) return false
             this.position = position
@@ -36,7 +36,7 @@ class ProgressReconcilerTest {
         }
 
         override suspend fun confirmPushed(
-            serverId: String, itemId: String, serverStamp: Long, ifLocalUpdatedAt: Long,
+            sourceId: String, itemId: String, serverStamp: Long, ifLocalUpdatedAt: Long,
         ): Boolean {
             if (localUpdatedAt != ifLocalUpdatedAt) return false
             localUpdatedAt = serverStamp
@@ -45,7 +45,7 @@ class ProgressReconcilerTest {
         }
 
         override suspend fun confirmInSync(
-            serverId: String, itemId: String, ifLocalUpdatedAt: Long,
+            sourceId: String, itemId: String, ifLocalUpdatedAt: Long,
         ): Boolean {
             if (localUpdatedAt != ifLocalUpdatedAt) return false
             lastSyncedAt = localUpdatedAt
@@ -53,7 +53,7 @@ class ProgressReconcilerTest {
         }
 
         override suspend fun mirror(
-            serverId: String, itemId: String, position: P, localUpdatedAt: Long, lastSyncedAt: Long,
+            sourceId: String, itemId: String, position: P, localUpdatedAt: Long, lastSyncedAt: Long,
         ) {
             this.position = position
             this.localUpdatedAt = localUpdatedAt

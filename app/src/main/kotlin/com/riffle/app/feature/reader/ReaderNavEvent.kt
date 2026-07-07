@@ -6,5 +6,5 @@ package com.riffle.app.feature.reader
  * real source book (ADR 0041, Task 9).
  */
 sealed interface ReaderNavEvent {
-    data class OpenInSourceBook(val serverId: String, val itemId: String, val cfi: String) : ReaderNavEvent
+    data class OpenInSourceBook(val sourceId: String, val itemId: String, val cfi: String) : ReaderNavEvent
 }

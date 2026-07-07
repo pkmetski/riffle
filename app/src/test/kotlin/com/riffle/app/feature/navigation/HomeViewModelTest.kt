@@ -1,10 +1,10 @@
 package com.riffle.app.feature.navigation
 
 import com.riffle.core.domain.AuthenticateResult
-import com.riffle.core.domain.CommitServerResult
+import com.riffle.core.domain.CommitSourceResult
 import com.riffle.core.domain.Collection
 import com.riffle.core.domain.DispatcherProvider
-import com.riffle.core.domain.PendingServer
+import com.riffle.core.domain.PendingSource
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import com.riffle.core.domain.LastOpenedLibraryStore
@@ -14,9 +14,9 @@ import com.riffle.core.domain.LibraryRefreshResult
 import com.riffle.core.domain.LibraryObserver
 import com.riffle.core.domain.LibraryVisibilityPreferencesStore
 import com.riffle.core.domain.Series
-import com.riffle.core.domain.Server
-import com.riffle.core.domain.ServerRepository
-import com.riffle.core.domain.ServerUrl
+import com.riffle.core.domain.Source
+import com.riffle.core.domain.SourceRepository
+import com.riffle.core.domain.SourceUrl
 import java.io.IOException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -30,14 +30,14 @@ import org.junit.Test
 @OptIn(ExperimentalCoroutinesApi::class)
 class HomeViewModelTest {
 
-    private val serversFlow = MutableStateFlow<List<Server>>(emptyList())
+    private val serversFlow = MutableStateFlow<List<Source>>(emptyList())
     private val librariesFlow = MutableStateFlow<List<Library>>(emptyList())
     private val hiddenFlow = MutableStateFlow<Map<String, Set<String>>>(emptyMap())
     private val lastOpenedFlow = MutableStateFlow<Map<String, String>>(emptyMap())
 
-    private fun server(id: String, active: Boolean = false) = Server(
+    private fun server(id: String, active: Boolean = false) = Source(
         id = id,
-        url = ServerUrl.parse("https://$id.example.com")!!,
+        url = SourceUrl.parse("https://$id.example.com")!!,
         isActive = active,
         insecureConnectionAllowed = false,
         username = "",
@@ -45,20 +45,20 @@ class HomeViewModelTest {
 
     private fun library(id: String) = Library(id = id, name = id, mediaType = "book", isUnsupported = false)
 
-    private fun fakeServerRepo(): ServerRepository = object : ServerRepository {
-        override fun observeAll(): Flow<List<Server>> = serversFlow
-        override suspend fun getActive(): Server? = serversFlow.value.firstOrNull { it.isActive }
-        override suspend fun authenticate(url: ServerUrl, username: String, password: String, insecureAllowed: Boolean, serverType: com.riffle.core.domain.ServerType): AuthenticateResult =
+    private fun fakeServerRepo(): SourceRepository = object : SourceRepository {
+        override fun observeAll(): Flow<List<Source>> = serversFlow
+        override suspend fun getActive(): Source? = serversFlow.value.firstOrNull { it.isActive }
+        override suspend fun authenticate(url: SourceUrl, username: String, password: String, insecureAllowed: Boolean, serverType: com.riffle.core.domain.ServerType): AuthenticateResult =
             AuthenticateResult.WrongCredentials()
-        override suspend fun commit(pending: PendingServer, hiddenLibraryIds: Set<String>): CommitServerResult =
-            CommitServerResult.Failure(IOException())
-        override suspend fun setActive(serverId: String) {
-            serversFlow.update { list -> list.map { it.copy(isActive = it.id == serverId) } }
+        override suspend fun commit(pending: PendingSource, hiddenLibraryIds: Set<String>): CommitSourceResult =
+            CommitSourceResult.Failure(IOException())
+        override suspend fun setActive(sourceId: String) {
+            serversFlow.update { list -> list.map { it.copy(isActive = it.id == sourceId) } }
         }
-        override suspend fun remove(serverId: String) {
-            serversFlow.update { list -> list.filter { it.id != serverId } }
+        override suspend fun remove(sourceId: String) {
+            serversFlow.update { list -> list.filter { it.id != sourceId } }
         }
-        override suspend fun getServerVersion(serverId: String): String? = null
+        override suspend fun getSourceVersion(sourceId: String): String? = null
     }
 
     private class FakeRefreshLibraries(
@@ -73,7 +73,7 @@ class HomeViewModelTest {
         refreshResult: LibraryRefreshResult = LibraryRefreshResult.Success,
     ): LibraryObserver = object : LibraryObserver {
         override fun observeLibraries(): Flow<List<Library>> = librariesFlow
-        override fun observeLibraries(serverId: String): Flow<List<Library>> = observeLibraries()
+        override fun observeLibraries(sourceId: String): Flow<List<Library>> = observeLibraries()
         override fun observeLibraryItems(libraryId: String): Flow<List<LibraryItem>> = MutableStateFlow(emptyList())
         override fun observeUngroupedLibraryItems(libraryId: String): Flow<List<LibraryItem>> = MutableStateFlow(emptyList())
         override fun observeInProgressItems(libraryId: String): Flow<List<LibraryItem>> = MutableStateFlow(emptyList())
@@ -87,22 +87,22 @@ class HomeViewModelTest {
         override fun observeCollectionItems(collectionId: String): Flow<List<LibraryItem>> = MutableStateFlow(emptyList())
         override suspend fun getItem(itemId: String): LibraryItem? = null
         override fun observeItem(itemId: String): Flow<LibraryItem?> = MutableStateFlow<LibraryItem?>(null)
-        override suspend fun getItem(serverId: String, itemId: String): LibraryItem? = getItem(itemId)
+        override suspend fun getItem(sourceId: String, itemId: String): LibraryItem? = getItem(itemId)
         override suspend fun getLibrary(libraryId: String): com.riffle.core.domain.Library? = null
-        override suspend fun getSeriesIdForItem(serverId: String, itemId: String): String? = null
+        override suspend fun getSeriesIdForItem(sourceId: String, itemId: String): String? = null
     }
 
     private fun fakeVisibilityStore(): LibraryVisibilityPreferencesStore = object : LibraryVisibilityPreferencesStore {
-        override fun hiddenLibraryIds(serverId: String): Flow<Set<String>> = hiddenFlow.map { it[serverId].orEmpty() }
-        override suspend fun hideLibrary(serverId: String, libraryId: String) {}
-        override suspend fun showLibrary(serverId: String, libraryId: String) {}
+        override fun hiddenLibraryIds(sourceId: String): Flow<Set<String>> = hiddenFlow.map { it[sourceId].orEmpty() }
+        override suspend fun hideLibrary(sourceId: String, libraryId: String) {}
+        override suspend fun showLibrary(sourceId: String, libraryId: String) {}
     }
 
     private fun fakeLastOpenedStore(): LastOpenedLibraryStore = object : LastOpenedLibraryStore {
-        override fun lastOpenedLibrary(serverId: String): Flow<String?> =
-            lastOpenedFlow.map { it[serverId] }
-        override suspend fun setLastOpenedLibrary(serverId: String, libraryId: String) {
-            lastOpenedFlow.update { it + (serverId to libraryId) }
+        override fun lastOpenedLibrary(sourceId: String): Flow<String?> =
+            lastOpenedFlow.map { it[sourceId] }
+        override suspend fun setLastOpenedLibrary(sourceId: String, libraryId: String) {
+            lastOpenedFlow.update { it + (sourceId to libraryId) }
         }
     }
 
@@ -118,7 +118,7 @@ class HomeViewModelTest {
         libraryRepo: LibraryObserver = fakeLibraryRepo(),
         refreshLibraries: com.riffle.core.domain.usecase.RefreshLibraries = FakeRefreshLibraries(),
     ) = HomeViewModel(
-        serverRepository = fakeServerRepo(),
+        sourceRepository = fakeServerRepo(),
         libraryObserver = libraryRepo,
         refreshLibraries = refreshLibraries,
         visibilityStore = fakeVisibilityStore(),

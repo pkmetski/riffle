@@ -129,6 +129,7 @@ class SeriesIntegrationTest {
         override suspend fun updateReadingProgress(sourceId: String, itemId: String, progress: Float) {}
         override suspend fun updateFinishedAt(sourceId: String, itemId: String, finishedAt: Long?) {}
         override suspend fun listMatchableBySourceType(serverType: String): List<com.riffle.core.database.MatchableItemRow> = emptyList()
+        override fun observeBySource(sourceId: String): Flow<List<LibraryItemEntity>> = kotlinx.coroutines.flow.flowOf(emptyList())
     }
 
     private class FakeCollectionDao : CollectionDao {

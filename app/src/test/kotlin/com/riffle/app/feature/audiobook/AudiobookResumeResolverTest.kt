@@ -23,13 +23,13 @@ class AudiobookResumeResolverTest {
     ) : AudiobookPositionStore {
         val saves = mutableListOf<Triple<String, String, Double>>()
         val timestampUpdates = mutableListOf<Triple<String, String, Long>>()
-        override suspend fun save(serverId: String, itemId: String, payload: Double) {
-            saves += Triple(serverId, itemId, payload)
+        override suspend fun save(sourceId: String, itemId: String, payload: Double) {
+            saves += Triple(sourceId, itemId, payload)
         }
-        override suspend fun load(serverId: String, itemId: String): Double? = loadedSec
-        override suspend fun loadLocalUpdatedAt(serverId: String, itemId: String): Long = loadedTs
-        override suspend fun updateLocalTimestamp(serverId: String, itemId: String, millis: Long) {
-            timestampUpdates += Triple(serverId, itemId, millis)
+        override suspend fun load(sourceId: String, itemId: String): Double? = loadedSec
+        override suspend fun loadLocalUpdatedAt(sourceId: String, itemId: String): Long = loadedTs
+        override suspend fun updateLocalTimestamp(sourceId: String, itemId: String, millis: Long) {
+            timestampUpdates += Triple(sourceId, itemId, millis)
         }
     }
 
@@ -51,7 +51,7 @@ class AudiobookResumeResolverTest {
         val resolver = AudiobookResumeResolver(store, FakeClock(0L))
 
         val result = resolver.resolve(
-            serverId = "srv",
+            sourceId = "srv",
             itemId = "book",
             session = session(serverCurrentTimeSec = 500.0, serverLastUpdate = 5_000L),
             readingProgressFraction = 0f,
@@ -70,7 +70,7 @@ class AudiobookResumeResolverTest {
         val resolver = AudiobookResumeResolver(store, FakeClock(0L))
 
         val result = resolver.resolve(
-            serverId = "srv",
+            sourceId = "srv",
             itemId = "book",
             session = session(serverCurrentTimeSec = 100.0, serverLastUpdate = 1_000L),
             readingProgressFraction = 0f,
@@ -88,7 +88,7 @@ class AudiobookResumeResolverTest {
         val resolver = AudiobookResumeResolver(store, FakeClock(0L))
 
         val result = resolver.resolve(
-            serverId = "srv",
+            sourceId = "srv",
             itemId = "book",
             session = session(duration = 400.0, serverCurrentTimeSec = 0.0, serverLastUpdate = 0L),
             readingProgressFraction = 0.5f,
@@ -105,7 +105,7 @@ class AudiobookResumeResolverTest {
         val resolver = AudiobookResumeResolver(store, FakeClock(0L))
 
         val result = resolver.resolve(
-            serverId = "srv",
+            sourceId = "srv",
             itemId = "book",
             session = session(duration = 1000.0, serverCurrentTimeSec = 999.5, serverLastUpdate = 5_000L),
             readingProgressFraction = 0f,
@@ -121,7 +121,7 @@ class AudiobookResumeResolverTest {
         val resolver = AudiobookResumeResolver(store, FakeClock(9_999L))
 
         val result = resolver.resolve(
-            serverId = "srv",
+            sourceId = "srv",
             itemId = "book",
             session = session(serverCurrentTimeSec = 500.0, serverLastUpdate = 5_000L),
             readingProgressFraction = 0f,
@@ -140,7 +140,7 @@ class AudiobookResumeResolverTest {
         val resolver = AudiobookResumeResolver(store, FakeClock(1L))
 
         val result = resolver.resolve(
-            serverId = "srv",
+            sourceId = "srv",
             itemId = "book",
             session = session(duration = 400.0),
             readingProgressFraction = 0f,
@@ -151,12 +151,12 @@ class AudiobookResumeResolverTest {
     }
 
     @Test
-    fun `empty serverId → no store IO, defaults from session`() = runTest {
+    fun `empty sourceId → no store IO, defaults from session`() = runTest {
         val store = FakePositionStore(loadedSec = 999.0, loadedTs = 99_999L)
         val resolver = AudiobookResumeResolver(store, FakeClock(0L))
 
         val result = resolver.resolve(
-            serverId = "",
+            sourceId = "",
             itemId = "book",
             session = session(serverCurrentTimeSec = 30.0, serverLastUpdate = 42L),
             readingProgressFraction = 0f,

@@ -4,9 +4,9 @@ import com.riffle.core.domain.AudiobookChapter
 import com.riffle.core.domain.AudiobookChapterCacheRepository
 import com.riffle.core.domain.EbookFormat
 import com.riffle.core.domain.LibraryItem
-import com.riffle.core.domain.Server
-import com.riffle.core.domain.ServerRepository
-import com.riffle.core.domain.ServerUrl
+import com.riffle.core.domain.Source
+import com.riffle.core.domain.SourceRepository
+import com.riffle.core.domain.SourceUrl
 import com.riffle.core.domain.TokenStorage
 import io.mockk.coEvery
 import io.mockk.coVerify
@@ -18,19 +18,19 @@ import org.junit.Test
 
 class FetchAudiobookChaptersUseCaseTest {
     private val chapterRepo = mockk<AudiobookChapterCacheRepository>()
-    private val serverRepo = mockk<ServerRepository>()
+    private val serverRepo = mockk<SourceRepository>()
     private val tokenStorage = mockk<TokenStorage>()
     private val useCase = FetchAudiobookChaptersUseCase(chapterRepo, serverRepo, tokenStorage)
 
     private fun makeItem() = LibraryItem(
         id = "item1", libraryId = "lib1", title = "Book", author = "Author",
         coverUrl = null, readingProgress = 0f, isCached = false, isDownloaded = false,
-        ebookFormat = EbookFormat.Unsupported, hasAudio = true, serverId = "srv1",
+        ebookFormat = EbookFormat.Unsupported, hasAudio = true, sourceId = "srv1",
     )
 
-    private fun makeServer(baseUrl: String = "http://base") = Server(
+    private fun makeServer(baseUrl: String = "http://base") = Source(
         id = "srv1",
-        url = ServerUrl.parse(baseUrl)!!,
+        url = SourceUrl.parse(baseUrl)!!,
         isActive = true,
         insecureConnectionAllowed = false,
         username = "user",

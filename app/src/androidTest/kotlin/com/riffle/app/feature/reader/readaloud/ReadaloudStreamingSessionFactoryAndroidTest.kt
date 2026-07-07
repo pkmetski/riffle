@@ -12,14 +12,14 @@ import com.riffle.core.data.StorytellerSidecarFetcher
 import com.riffle.core.database.LibraryItemEntity
 import com.riffle.core.database.ReadaloudLinkEntity
 import com.riffle.core.database.RiffleDatabase
-import com.riffle.core.database.ServerEntity
+import com.riffle.core.database.SourceEntity
 import com.riffle.core.domain.AuthenticateResult
-import com.riffle.core.domain.CommitServerResult
-import com.riffle.core.domain.PendingServer
-import com.riffle.core.domain.Server
-import com.riffle.core.domain.ServerRepository
+import com.riffle.core.domain.CommitSourceResult
+import com.riffle.core.domain.PendingSource
+import com.riffle.core.domain.Source
+import com.riffle.core.domain.SourceRepository
 import com.riffle.core.domain.ServerType
-import com.riffle.core.domain.ServerUrl
+import com.riffle.core.domain.SourceUrl
 import com.riffle.core.domain.TokenStorage
 import com.riffle.core.network.AbsApiClient
 import com.riffle.core.network.StorytellerApiClient
@@ -139,13 +139,13 @@ class ReadaloudStreamingSessionFactoryAndroidTest {
     }
 
     private fun seed(withAudiobook: Boolean) = runBlocking {
-        db.sourceDao().upsert(ServerEntity(ABS_SERVER, baseUrl, true, false, "u", ServerType.AUDIOBOOKSHELF.name))
-        db.sourceDao().upsert(ServerEntity(ST_SERVER, baseUrl, false, false, "u", ServerType.STORYTELLER.name))
+        db.sourceDao().upsert(SourceEntity(ABS_SERVER, baseUrl, true, false, "u", ServerType.AUDIOBOOKSHELF.name))
+        db.sourceDao().upsert(SourceEntity(ST_SERVER, baseUrl, false, false, "u", ServerType.STORYTELLER.name))
         if (withAudiobook) {
             db.libraryItemDao().upsertAll(
                 listOf(
                     LibraryItemEntity(
-                        serverId = ABS_SERVER, id = AUDIOBOOK_ITEM, libraryId = "lib",
+                        sourceId = ABS_SERVER, id = AUDIOBOOK_ITEM, libraryId = "lib",
                         title = "Book", author = "A", coverUrl = null, readingProgress = 0f, hasAudio = true,
                     ),
                 ),
@@ -181,7 +181,7 @@ class ReadaloudStreamingSessionFactoryAndroidTest {
             absApi = AbsApiClient(OkHttpClient(), DefaultDispatcherProvider),
             storytellerApi = StorytellerApiClient(OkHttpClient(), DefaultDispatcherProvider),
             sidecarStore = sidecarStore,
-            serverRepository = repo,
+            sourceRepository = repo,
             tokenStorage = StubTokenStorage,
             linkRepository = ReadaloudLinkRepositoryImpl(db.readaloudLinkDao()),
             dispatchers = DefaultDispatcherProvider,
@@ -227,23 +227,23 @@ class ReadaloudStreamingSessionFactoryAndroidTest {
         assertNull("no audiobook link → not streamable", factory().tryBuild(ST_SERVER, ST_BOOK))
     }
 
-    private class StubServerRepository(private val urls: Map<String, String>) : ServerRepository {
-        override fun observeAll(): Flow<List<Server>> = emptyFlow()
-        override suspend fun getActive(): Server? = null
-        override suspend fun getById(serverId: String): Server? =
-            urls[serverId]?.let { Server(serverId, ServerUrl.parse(it)!!, false, false, "u", ServerType.AUDIOBOOKSHELF) }
-        override suspend fun authenticate(url: ServerUrl, username: String, password: String, insecureAllowed: Boolean, serverType: ServerType): AuthenticateResult =
+    private class StubServerRepository(private val urls: Map<String, String>) : SourceRepository {
+        override fun observeAll(): Flow<List<Source>> = emptyFlow()
+        override suspend fun getActive(): Source? = null
+        override suspend fun getById(sourceId: String): Source? =
+            urls[sourceId]?.let { Source(sourceId, SourceUrl.parse(it)!!, false, false, "u", serverType = ServerType.AUDIOBOOKSHELF) }
+        override suspend fun authenticate(url: SourceUrl, username: String, password: String, insecureAllowed: Boolean, serverType: ServerType): AuthenticateResult =
             throw UnsupportedOperationException()
-        override suspend fun commit(pending: PendingServer, hiddenLibraryIds: Set<String>): CommitServerResult =
+        override suspend fun commit(pending: PendingSource, hiddenLibraryIds: Set<String>): CommitSourceResult =
             throw UnsupportedOperationException()
-        override suspend fun setActive(serverId: String) = Unit
-        override suspend fun remove(serverId: String) = Unit
-        override suspend fun getServerVersion(serverId: String): String? = null
+        override suspend fun setActive(sourceId: String) = Unit
+        override suspend fun remove(sourceId: String) = Unit
+        override suspend fun getSourceVersion(sourceId: String): String? = null
     }
 
     private object StubTokenStorage : TokenStorage {
-        override suspend fun saveToken(serverId: String, token: String) = Unit
-        override suspend fun getToken(serverId: String): String = "tok"
-        override suspend fun deleteToken(serverId: String) = Unit
+        override suspend fun saveToken(sourceId: String, token: String) = Unit
+        override suspend fun getToken(sourceId: String): String = "tok"
+        override suspend fun deleteToken(sourceId: String) = Unit
     }
 }

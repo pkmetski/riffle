@@ -19,11 +19,11 @@ open class MarkReadAcrossDimensions @Inject constructor(
     private val libraryMutator: LibraryMutator,
     private val readingSessionRepository: ReadingSessionRepository,
     private val readaloudLinkRepository: ReadaloudLinkRepository,
-    private val serverRepository: SourceRepository,
+    private val sourceRepository: SourceRepository,
 ) {
     open suspend operator fun invoke(itemId: String, finished: Boolean) {
         val progress = if (finished) 1.0f else 0.0f
-        val sourceId = serverRepository.getActive()?.id
+        val sourceId = sourceRepository.getActive()?.id
         val ids = if (sourceId != null) coupledAbsItemIds(sourceId, itemId) else listOf(itemId)
         ids.forEach { id ->
             libraryMutator.updateReadingProgress(id, progress)

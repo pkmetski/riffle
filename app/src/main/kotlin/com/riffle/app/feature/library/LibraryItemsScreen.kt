@@ -139,7 +139,7 @@ fun LibraryItemsScreen(
     onAudiobookBookmarkSelected: (AudiobookBookmarkSearchResult) -> Unit,
     onShowAllAnnotations: (query: String) -> Unit,
     onSectionSeeMore: (LibrarySectionType) -> Unit,
-    onAnnotatedBookClick: (serverId: String, itemId: String) -> Unit,
+    onAnnotatedBookClick: (sourceId: String, itemId: String) -> Unit,
     // When the navigation drawer is open, its own BackHandler must take Back so it can close
     // itself. We disable our layered Back in that case (issue #60).
     backEnabled: Boolean = true,

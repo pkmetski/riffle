@@ -18,7 +18,7 @@ import com.riffle.core.domain.ProgressSyncController
 import com.riffle.core.domain.ReadingSessionCoordinator
 import com.riffle.core.domain.ReadingSessionRepository
 import com.riffle.core.domain.ReadingSpeedStore
-import com.riffle.core.domain.ServerRepository
+import com.riffle.core.domain.SourceRepository
 import com.riffle.core.domain.SessionPayload
 import com.riffle.core.domain.TocEntry
 import com.riffle.core.domain.WakeLockPreferencesStore
@@ -60,7 +60,7 @@ class PdfReaderViewModel @Inject constructor(
     private val volumeNavigationController: VolumeNavigationController,
     private val readerStateHolder: ReaderStateHolder,
     private val annotationStore: AnnotationStore,
-    private val serverRepository: ServerRepository,
+    private val sourceRepository: SourceRepository,
     private val formattingSessionFactory: FormattingSession.Factory,
     private val volumeKeyDispatcher: VolumeKeyDispatcher,
     clock: Clock,
@@ -261,7 +261,7 @@ class PdfReaderViewModel @Inject constructor(
                 }
                 this.publication = publication
                 buildTocAndRail(publication)
-                annotationServerId = serverRepository.getActive()?.id
+                annotationServerId = sourceRepository.getActive()?.id
                 startObservingAnnotations()
                 val locator = result.lastPosition
                     ?.takeIf { it.isNotEmpty() }
@@ -341,14 +341,14 @@ class PdfReaderViewModel @Inject constructor(
     }
 
     private fun startObservingAnnotations() {
-        val serverId = annotationServerId ?: return
+        val sourceId = annotationServerId ?: return
         viewModelScope.launch {
-            annotationStore.observeAnnotations(serverId, itemId).collect { rows ->
+            annotationStore.observeAnnotations(sourceId, itemId).collect { rows ->
                 _annotations.value = rows
             }
         }
         viewModelScope.launch {
-            annotationStore.observeBookmarks(serverId, itemId).collect { rows ->
+            annotationStore.observeBookmarks(sourceId, itemId).collect { rows ->
                 _bookmarks.value = rows
             }
         }
@@ -403,7 +403,7 @@ class PdfReaderViewModel @Inject constructor(
     }
 
     fun toggleBookmark() {
-        val serverId = annotationServerId ?: return
+        val sourceId = annotationServerId ?: return
         val locator = lastLocator ?: return
         val position = locator.locations.position ?: return
         viewModelScope.launch {
@@ -416,7 +416,7 @@ class PdfReaderViewModel @Inject constructor(
                     ?: if (totalPages > 0) (position - 1).toDouble() / totalPages.toDouble() else 0.0
                 val locatorJson = buildPdfLocatorJson(pageHref, position, totalProg)
                 annotationStore.createBookmark(
-                    serverId = serverId,
+                    sourceId = sourceId,
                     itemId = itemId,
                     cfi = locatorJson,
                     textSnippet = "",

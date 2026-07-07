@@ -14,8 +14,8 @@ import androidx.compose.ui.platform.testTag
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.riffle.app.harness.TabletLayout
 import com.riffle.core.domain.Library
-import com.riffle.core.domain.Server
-import com.riffle.core.domain.ServerUrl
+import com.riffle.core.domain.Source
+import com.riffle.core.domain.SourceUrl
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -35,9 +35,9 @@ class PermanentNavigationDrawerTest {
 
     @Test
     fun permanentDrawerRendersContentsWithoutOpening() {
-        val server = Server(
+        val server = Source(
             id = "s1",
-            url = ServerUrl.parse("http://example.com")!!,
+            url = SourceUrl.parse("http://example.com")!!,
             isActive = true,
             insecureConnectionAllowed = false,
             username = "alice",
@@ -77,9 +77,9 @@ class PermanentNavigationDrawerTest {
      */
     @Test
     fun permanentDrawerHidesPanelWhenHideFlagSet() {
-        val server = Server(
+        val server = Source(
             id = "s1",
-            url = ServerUrl.parse("http://example.com")!!,
+            url = SourceUrl.parse("http://example.com")!!,
             isActive = true,
             insecureConnectionAllowed = false,
             username = "alice",

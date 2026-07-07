@@ -140,11 +140,11 @@ class LibraryFilterEngine(
     private val annotationsProjection: Flow<List<AnnotationSearchResult>> =
         combine(allItemsSource, searchQuery) { items, query -> items to query }
             .flatMapLatest { (items, query) ->
-                val serverId = items.firstOrNull()?.serverId
-                if (query.isBlank() || serverId.isNullOrEmpty()) {
+                val sourceId = items.firstOrNull()?.sourceId
+                if (query.isBlank() || sourceId.isNullOrEmpty()) {
                     flowOf(emptyList())
                 } else {
-                    annotationStore.observeAnnotationsForServer(serverId)
+                    annotationStore.observeAnnotationsForSource(sourceId)
                         .map { annotations -> searchAnnotations(annotations, items, query) }
                 }
             }
@@ -154,11 +154,11 @@ class LibraryFilterEngine(
     private val audiobookBookmarksProjection: Flow<List<AudiobookBookmarkSearchResult>> =
         combine(allItemsSource, searchQuery) { items, query -> items to query }
             .flatMapLatest { (items, query) ->
-                val serverId = items.firstOrNull()?.serverId
-                if (query.isBlank() || serverId.isNullOrEmpty()) {
+                val sourceId = items.firstOrNull()?.sourceId
+                if (query.isBlank() || sourceId.isNullOrEmpty()) {
                     flowOf(emptyList())
                 } else {
-                    audiobookBookmarkStore.observeForSource(serverId)
+                    audiobookBookmarkStore.observeForSource(sourceId)
                         .map { bookmarks -> searchAudiobookBookmarks(bookmarks, items, query) }
                 }
             }

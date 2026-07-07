@@ -14,7 +14,7 @@ interface AnnotationStore {
     fun observeAnnotations(sourceId: String, itemId: String): Flow<List<Annotation>>
 
     /** Live, non-deleted highlights + bookmarks across every item for a server, oldest first. */
-    fun observeAnnotationsForServer(sourceId: String): Flow<List<Annotation>>
+    fun observeAnnotationsForSource(sourceId: String): Flow<List<Annotation>>
 
     suspend fun createHighlight(
         sourceId: String,

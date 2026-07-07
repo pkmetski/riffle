@@ -304,7 +304,7 @@ class ReadaloudSession @AssistedInject constructor(
         speedSaveJob?.cancel()
         speedSaveJob = scope.launch {
             delay(SPEED_SAVE_DEBOUNCE_MS)
-            if (audioSettingsIdentity.serverId.isEmpty()) return@launch
+            if (audioSettingsIdentity.sourceId.isEmpty()) return@launch
             audioPlaybackPreferencesStore.save(audioSettingsIdentity, speed)
             pendingSpeed = null
         }
@@ -318,7 +318,7 @@ class ReadaloudSession @AssistedInject constructor(
         val speed = pendingSpeed ?: return
         speedSaveJob?.cancel()
         pendingSpeed = null
-        if (audioSettingsIdentity.serverId.isEmpty()) return
+        if (audioSettingsIdentity.sourceId.isEmpty()) return
         progressFlushScope.flush { audioPlaybackPreferencesStore.save(audioSettingsIdentity, speed) }
     }
 
@@ -362,7 +362,7 @@ class ReadaloudSession @AssistedInject constructor(
      * call site.
      */
     suspend fun mirrorReadingToAudiobook(canonicalJson: String) {
-        val serverId = readerSyncServerId ?: return
+        val sourceId = readerSyncServerId ?: return
         val readerSync = readerSyncProvider()
         val audiobookFollow = audiobookFollowProvider()
         val audioItemId = readerSync?.audioItemId ?: audiobookFollow?.audioItemId ?: return
@@ -376,8 +376,8 @@ class ReadaloudSession @AssistedInject constructor(
             },
             pageSeconds = { readerSync?.audioSecondsForCanonical(canonicalJson) },
         ) ?: return
-        val snap = readingSyncStore.snapshot(serverId, itemId)
-        audioSyncStore.mirror(serverId, audioItemId, seconds, snap.localUpdatedAt, snap.lastSyncedAt)
+        val snap = readingSyncStore.snapshot(sourceId, itemId)
+        audioSyncStore.mirror(sourceId, audioItemId, seconds, snap.localUpdatedAt, snap.lastSyncedAt)
     }
 
     /**
@@ -389,7 +389,7 @@ class ReadaloudSession @AssistedInject constructor(
      * activeFragmentRef is null and a silent fall-back to the page top would be sent to the server.
      */
     suspend fun pushAudiobookFromReadingPosition(fragment: String?) {
-        val serverId = readerSyncServerId ?: return
+        val sourceId = readerSyncServerId ?: return
         val coordinator = readerSyncProvider()
         val locJson = snapshotLocator()?.toJSON()?.toString()
         val stamp = runCatching {
@@ -401,22 +401,22 @@ class ReadaloudSession @AssistedInject constructor(
                 else -> null
             }
         }.getOrNull() ?: return
-        if (stamp > readingPositionStore.loadLocalUpdatedAt(serverId, itemId)) {
-            readingPositionStore.updateLocalTimestamp(serverId, itemId, stamp)
+        if (stamp > readingPositionStore.loadLocalUpdatedAt(sourceId, itemId)) {
+            readingPositionStore.updateLocalTimestamp(sourceId, itemId, stamp)
         }
     }
 
     /**
-     * Saves where narration stopped for this book, keyed by the reader's (serverId, itemId). Skips
+     * Saves where narration stopped for this book, keyed by the reader's (sourceId, itemId). Skips
      * when there is no reader page to resume to. Overwrites any previous row so the position persists
      * indefinitely until the next stop — it is not cleared when consumed on resume.
      * Lifted in sub-task 8.3; called by closeReadaloud() and by the VM's persistReadaloudResumePosition.
      */
     suspend fun persistReadaloudResumePosition(locator: Locator?, fragmentRef: String?) {
         val href = locator?.href?.toString() ?: return
-        val serverId = readerServerId ?: return
+        val sourceId = readerServerId ?: return
         val progression = locator.locations.progression
-        readaloudResumeStore.save(serverId, itemId, ReadaloudResumePosition(href, progression, fragmentRef))
+        readaloudResumeStore.save(sourceId, itemId, ReadaloudResumePosition(href, progression, fragmentRef))
     }
 
     /**
@@ -428,7 +428,7 @@ class ReadaloudSession @AssistedInject constructor(
      * [progressFlushScope.flush], not viewModelScope.launch, so the write survives teardown.
      */
     suspend fun flushReadaloudPositionToStores(fragmentRef: String?) {
-        val serverId = readerSyncServerId ?: return
+        val sourceId = readerSyncServerId ?: return
         if (fragmentRef == null) return
         val sid = fragmentRef.substringAfter('#', "")
         val sentenceJson = com.riffle.app.feature.reader.readaloudLocatorJson(
@@ -441,8 +441,8 @@ class ReadaloudSession @AssistedInject constructor(
         val seconds = readerSync?.audioSecondsForFragment(fragmentRef, snapshotLocator()?.toJSON()?.toString())
             ?: audiobookFollow?.secondsForFragment(fragmentRef)
             ?: return
-        val snap = readingSyncStore.snapshot(serverId, itemId)
-        audioSyncStore.mirror(serverId, audioItemId, seconds, snap.localUpdatedAt, snap.lastSyncedAt)
+        val snap = readingSyncStore.snapshot(sourceId, itemId)
+        audioSyncStore.mirror(sourceId, audioItemId, seconds, snap.localUpdatedAt, snap.lastSyncedAt)
     }
 
     /**
@@ -733,7 +733,7 @@ class ReadaloudSession @AssistedInject constructor(
      * so the session is ready before any position events arrive.
      */
     fun bind(
-        serverId: String,
+        sourceId: String,
         itemId: String,
         isStorytellerServer: Boolean,
         audioBookId: String,
@@ -748,10 +748,10 @@ class ReadaloudSession @AssistedInject constructor(
     ) {
         // --- Store per-book identity ---------------------------------------------------------
         this.itemId = itemId
-        this.readerServerId = serverId
-        // readerSyncServerId is derived from the VM's readerSyncServerId (same server as serverId
+        this.readerServerId = sourceId
+        // readerSyncServerId is derived from the VM's readerSyncServerId (same server as sourceId
         // for the ebook side). Wire it now so mirrorReadingToAudiobook is non-null immediately.
-        this.readerSyncServerId = serverId
+        this.readerSyncServerId = sourceId
         this.isStorytellerServer = isStorytellerServer
         this.audioBookId = audioBookId
         this.audioServerId = audioServerId
@@ -776,9 +776,9 @@ class ReadaloudSession @AssistedInject constructor(
 
         // --- Seed close/resume state from persisted resume store ----------------------------
         // Restores where narration stopped last session so the first Play resumes in place.
-        // Uses the ebook reader's serverId (readerServerId) to key the lookup.
+        // Uses the ebook reader's sourceId (readerServerId) to key the lookup.
         scope.launch {
-            readaloudResumeStore.load(serverId, itemId)?.let { saved ->
+            readaloudResumeStore.load(sourceId, itemId)?.let { saved ->
                 closeLocator = saved.toCloseLocator()
                 resumeFragmentRef = saved.fragmentRef
             }

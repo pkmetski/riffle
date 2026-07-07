@@ -7,7 +7,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.riffle.core.data.AnnotationStoreImpl
 import com.riffle.core.database.RiffleDatabase
-import com.riffle.core.database.ServerEntity
+import com.riffle.core.database.SourceEntity
 import com.riffle.core.domain.DeviceIdStore
 import dagger.hilt.android.testing.HiltAndroidRule
 import dagger.hilt.android.testing.HiltAndroidTest
@@ -78,9 +78,9 @@ class AnnotationReopenInstrumentedTest {
     fun highlightPersistsAsRangeAndReanchorsOnReopen() = runTest {
         val epubFile = copyTestEpub()
         val pub = openTestEpub(epubFile)
-        // annotations.serverId is a FK → seed the ABS server.
+        // annotations.sourceId is a FK → seed the ABS server.
         db.sourceDao().upsert(
-            ServerEntity("abs1", "http://abs1", isActive = true, insecureConnectionAllowed = false, username = "u"),
+            SourceEntity("abs1", "http://abs1", isActive = true, insecureConnectionAllowed = false, username = "u"),
         )
 
         // Chapter 0 of the test EPUB.
@@ -99,7 +99,7 @@ class AnnotationReopenInstrumentedTest {
 
         // Create (persist) the highlight, scoped to the ABS item.
         store.createHighlight(
-            serverId = "abs1",
+            sourceId = "abs1",
             itemId = "item-1",
             cfi = cfiRange,
             textSnippet = selectedText,

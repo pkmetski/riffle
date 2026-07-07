@@ -73,7 +73,7 @@ class PositionOrchestrator @AssistedInject constructor(
     // ---- Per-book dependencies (set by bindBook) ----
 
     private var itemId: String = ""
-    private var serverId: String = ""
+    private var sourceId: String = ""
     private var positionSaveCoordinator: PositionSaveCoordinator<String>? = null
     private var readingPositionStore: ReadingPositionStore? = null
     private var spineCountsJob: kotlinx.coroutines.Job? = null
@@ -84,13 +84,13 @@ class PositionOrchestrator @AssistedInject constructor(
      */
     fun bindBook(
         itemId: String,
-        serverId: String,
+        sourceId: String,
         positionSaveCoordinator: PositionSaveCoordinator<String>,
         readingPositionStore: ReadingPositionStore,
         spinePositionCounts: StateFlow<Pair<List<String>, List<Int>>>,
     ) {
         this.itemId = itemId
-        this.serverId = serverId
+        this.sourceId = sourceId
         this.positionSaveCoordinator = positionSaveCoordinator
         this.readingPositionStore = readingPositionStore
 
@@ -159,7 +159,7 @@ class PositionOrchestrator @AssistedInject constructor(
         scope.launch {
             positionSaveCoordinator?.onChanged(locator.toJSON().toString())
             if (serverJumpStamp != null) {
-                readingPositionStore?.updateLocalTimestamp(serverId, itemId, serverJumpStamp)
+                readingPositionStore?.updateLocalTimestamp(sourceId, itemId, serverJumpStamp)
             }
         }
     }

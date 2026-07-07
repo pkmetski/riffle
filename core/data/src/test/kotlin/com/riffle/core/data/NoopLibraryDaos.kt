@@ -33,6 +33,7 @@ internal object ThrowingLibraryItemDao : LibraryItemDao {
     override suspend fun getLastOpenedAtMap(sourceId: String, libraryId: String): List<LastOpenedAtRow> = emptyList()
     override suspend fun getReadingProgressMap(sourceId: String, libraryId: String): List<ReadingProgressRow> = emptyList()
     override suspend fun listMatchableBySourceType(serverType: String): List<MatchableItemRow> = emptyList()
+    override fun observeBySource(sourceId: String): Flow<List<LibraryItemEntity>> = flowOf(emptyList())
 }
 
 /** Empty [LibraryDao] for tests that never resolve library names. */

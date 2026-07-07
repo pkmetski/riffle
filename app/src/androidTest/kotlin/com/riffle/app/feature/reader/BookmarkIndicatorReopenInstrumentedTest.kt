@@ -6,7 +6,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.riffle.core.data.AnnotationStoreImpl
 import com.riffle.core.database.RiffleDatabase
-import com.riffle.core.database.ServerEntity
+import com.riffle.core.database.SourceEntity
 import com.riffle.core.domain.DeviceIdStore
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
@@ -56,7 +56,7 @@ class BookmarkIndicatorReopenInstrumentedTest {
         )
         runBlocking {
             db.sourceDao().upsert(
-                ServerEntity("abs1", "http://abs1", isActive = true, insecureConnectionAllowed = false, username = "u"),
+                SourceEntity("abs1", "http://abs1", isActive = true, insecureConnectionAllowed = false, username = "u"),
             )
         }
     }
@@ -71,7 +71,7 @@ class BookmarkIndicatorReopenInstrumentedTest {
         // Session A: bookmark stored against this session's Readium localhost URL.
         val sessionAHref = "http://localhost:41234/OEBPS/chapter1.xhtml"
         store.createBookmark(
-            serverId = "abs1",
+            sourceId = "abs1",
             itemId = "item-1",
             cfi = "epubcfi(/6/2!/4/2/1:0)",
             textSnippet = "",
@@ -99,7 +99,7 @@ class BookmarkIndicatorReopenInstrumentedTest {
     fun bookmark_does_not_light_up_on_different_chapter() = runTest {
         val sessionAHref = "http://localhost:41234/OEBPS/chapter1.xhtml"
         store.createBookmark(
-            serverId = "abs1",
+            sourceId = "abs1",
             itemId = "item-1",
             cfi = "epubcfi(/6/2!/4/2/1:0)",
             textSnippet = "",
@@ -124,7 +124,7 @@ class BookmarkIndicatorReopenInstrumentedTest {
     @Test
     fun bookmark_does_not_light_up_outside_progression_window() = runTest {
         store.createBookmark(
-            serverId = "abs1",
+            sourceId = "abs1",
             itemId = "item-1",
             cfi = "epubcfi(/6/2!/4/2/1:0)",
             textSnippet = "",

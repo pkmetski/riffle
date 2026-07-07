@@ -150,7 +150,7 @@ class PdfHarnessTest {
         composeTestRule.waitUntil(timeoutMillis = 5_000) {
             composeTestRule.onAllNodesWithText("Connect").fetchSemanticsNodes().isNotEmpty()
         }
-        composeTestRule.onNode(hasSetTextAction() and hasText("Server URL")).performTextReplacement(stubServer.baseUrl)
+        composeTestRule.onNode(hasSetTextAction() and hasText("Source URL")).performTextReplacement(stubServer.baseUrl)
         composeTestRule.onNode(hasSetTextAction() and hasText("Username")).performTextReplacement("testuser")
         composeTestRule.onNode(hasSetTextAction() and hasText("Password")).performTextReplacement("testpass")
         composeTestRule.onNodeWithText("Connect").performClick()

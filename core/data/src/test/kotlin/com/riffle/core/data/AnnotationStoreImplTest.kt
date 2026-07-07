@@ -287,7 +287,7 @@ class AnnotationStoreImplTest {
         store.createBookmark("srv1", "b2", "epubcfi(/6/6!/2)", "top", "ch2.html", 1, 0.1, "mark")
         store.createHighlight("srv2", "b9", "epubcfi(/6/4!/4)", "other source", "ch.html")
 
-        val forSrv1 = store.observeAnnotationsForServer("srv1").first()
+        val forSrv1 = store.observeAnnotationsForSource("srv1").first()
         assertEquals(setOf("b1", "b2"), forSrv1.map { it.itemId }.toSet())
     }
 }

@@ -9,9 +9,9 @@ import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import com.riffle.core.domain.Library
-import com.riffle.core.domain.Server
+import com.riffle.core.domain.Source
 import com.riffle.core.domain.ServerType
-import com.riffle.core.domain.ServerUrl
+import com.riffle.core.domain.SourceUrl
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -24,9 +24,9 @@ class ServerSettingsExpansionTest {
 
     @get:Rule val composeTestRule = createComposeRule()
 
-    private fun server(type: ServerType, active: Boolean) = Server(
+    private fun server(type: ServerType, active: Boolean) = Source(
         id = "srv-1",
-        url = ServerUrl.parse("https://example.com")!!,
+        url = SourceUrl.parse("https://example.com")!!,
         isActive = active,
         insecureConnectionAllowed = false,
         username = "",

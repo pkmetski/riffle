@@ -9,9 +9,9 @@ import org.junit.Test
 class CrossEpubIndexServiceTest {
 
     private val link = ReadaloudLink(
-        storytellerServerId = "st1",
+        storytellerSourceId = "st1",
         storytellerBookId = "book-1",
-        absServerId = "abs1",
+        absSourceId = "abs1",
         absLibraryItemId = "item-1",
         userConfirmed = false,
     )

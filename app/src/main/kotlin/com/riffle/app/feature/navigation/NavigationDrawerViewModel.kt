@@ -9,8 +9,8 @@ import com.riffle.core.domain.LibraryObserver
 import com.riffle.core.domain.LibraryOrderPreferencesStore
 import com.riffle.core.domain.LibraryVisibilityPreferencesStore
 import com.riffle.core.domain.orderLibraries
-import com.riffle.core.domain.Server
-import com.riffle.core.domain.ServerRepository
+import com.riffle.core.domain.Source
+import com.riffle.core.domain.SourceRepository
 import com.riffle.core.domain.ServerType
 import com.riffle.core.domain.isReadaloud
 import com.riffle.app.playback.NowPlaying
@@ -35,7 +35,7 @@ import javax.inject.Inject
 @OptIn(ExperimentalCoroutinesApi::class)
 @HiltViewModel
 class NavigationDrawerViewModel @Inject constructor(
-    private val serverRepository: ServerRepository,
+    private val sourceRepository: SourceRepository,
     private val libraryObserver: LibraryObserver,
     private val visibilityStore: LibraryVisibilityPreferencesStore,
     private val orderStore: LibraryOrderPreferencesStore,
@@ -50,13 +50,13 @@ class NavigationDrawerViewModel @Inject constructor(
 
     fun currentNowPlaying(): NowPlaying? = nowPlayingStore.current
 
-    // Storyteller is a Settings-only readaloud backend (ADR 0026): it never appears in the Server
-    // Switcher and can never become the active browsable Server.
-    val allServers: StateFlow<List<Server>> = serverRepository.observeAll()
+    // Storyteller is a Settings-only readaloud backend (ADR 0026): it never appears in the Source
+    // Switcher and can never become the active browsable Source.
+    val allServers: StateFlow<List<Source>> = sourceRepository.observeAll()
         .map { servers -> servers.filter { it.serverType != ServerType.STORYTELLER } }
         .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
-    val activeServer: StateFlow<Server?> = allServers
+    val activeServer: StateFlow<Source?> = allServers
         .map { servers -> servers.firstOrNull { it.isActive } }
         .stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
@@ -90,8 +90,8 @@ class NavigationDrawerViewModel @Inject constructor(
         // persist this library under the previous server's key (or drop it when still null on cold
         // start).
         viewModelScope.launch {
-            val serverId = serverRepository.getActive()?.id ?: return@launch
-            lastOpenedLibraryStore.setLastOpenedLibrary(serverId, libraryId)
+            val sourceId = sourceRepository.getActive()?.id ?: return@launch
+            lastOpenedLibraryStore.setLastOpenedLibrary(sourceId, libraryId)
         }
     }
 
@@ -105,12 +105,12 @@ class NavigationDrawerViewModel @Inject constructor(
             // Re-attempt whenever the server list changes or connectivity flips.
             // We don't gate on isOnline=true because LAN-only servers (e.g. self-hosted
             // ABS on a local network) are reachable even when the OS reports no
-            // validated internet; getServerVersion() returns null on failure.
+            // validated internet; getSourceVersion() returns null on failure.
             combine(allServers, connectivityObserver.isOnline) { servers, _ -> servers }
                 .collect { servers ->
                     servers.forEach { server ->
                         if (server.id in versionsCache) return@forEach
-                        val version = serverRepository.getServerVersion(server.id) ?: return@forEach
+                        val version = sourceRepository.getSourceVersion(server.id) ?: return@forEach
                         versionsCache[server.id] = version
                         _serverVersions.value = versionsCache.toMap()
                     }
@@ -126,7 +126,7 @@ class NavigationDrawerViewModel @Inject constructor(
         }
     }
 
-    fun setActiveServer(serverId: String) {
-        viewModelScope.launch { serverRepository.setActive(serverId) }
+    fun setActiveServer(sourceId: String) {
+        viewModelScope.launch { sourceRepository.setActive(sourceId) }
     }
 }

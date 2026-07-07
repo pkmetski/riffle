@@ -34,7 +34,7 @@ class MarkReadAcrossDimensionsTest {
         override suspend fun updateReadingProgress(itemId: String, progress: Float) {
             progressCalls += itemId to progress
         }
-        override suspend fun updateReadingProgress(serverId: String, itemId: String, progress: Float) {
+        override suspend fun updateReadingProgress(sourceId: String, itemId: String, progress: Float) {
             progressCalls += itemId to progress
         }
     }
@@ -50,12 +50,12 @@ class MarkReadAcrossDimensionsTest {
     private class LinkRepo(private val links: Map<String, ReadaloudLink>) : ReadaloudLinkRepository {
         override fun observeAll(): Flow<List<ReadaloudLink>> = flowOf(links.values.toList())
         override fun observeLinkedAbsItemIds(): Flow<Set<String>> = flowOf(links.keys)
-        override suspend fun findByAbsItem(absServerId: String, absLibraryItemId: String) = links[absLibraryItemId]
-        override suspend fun findByStorytellerBook(storytellerServerId: String, storytellerBookId: String) =
+        override suspend fun findByAbsItem(absSourceId: String, absLibraryItemId: String) = links[absLibraryItemId]
+        override suspend fun findByStorytellerBook(storytellerSourceId: String, storytellerBookId: String) =
             links.values.filter { it.storytellerBookId == storytellerBookId }
-        override suspend fun unlinkAbsItem(absServerId: String, absLibraryItemId: String) = Unit
-        override suspend fun countForServer(serverId: String) = links.size
-        override suspend fun updateIdentityResult(absServerId: String, absLibraryItemId: String, result: AudiobookIdentityResult) = Unit
+        override suspend fun unlinkAbsItem(absSourceId: String, absLibraryItemId: String) = Unit
+        override suspend fun countForSource(sourceId: String) = links.size
+        override suspend fun updateIdentityResult(absSourceId: String, absLibraryItemId: String, result: AudiobookIdentityResult) = Unit
     }
 
     private class FakeServerRepository(private val active: Source?) : SourceRepository {

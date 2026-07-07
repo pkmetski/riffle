@@ -16,7 +16,7 @@ import com.riffle.core.domain.BookmarkTitleBuilder
 import com.riffle.core.domain.Clock
 import com.riffle.core.domain.LibraryObserver
 import com.riffle.core.domain.usecase.UpdateReadingProgress
-import com.riffle.core.domain.ServerRepository
+import com.riffle.core.domain.SourceRepository
 import com.riffle.core.domain.TokenStorage
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -158,7 +158,7 @@ class AudiobookPlayerViewModel @Inject constructor(
     private val bundleAudiobookSource: com.riffle.core.domain.BundleAudiobookSource,
     private val libraryObserver: LibraryObserver,
     private val updateReadingProgressUseCase: UpdateReadingProgress,
-    private val serverRepository: ServerRepository,
+    private val sourceRepository: SourceRepository,
     private val tokenStorage: TokenStorage,
     private val controller: AudiobookController,
     private val readaloudController: com.riffle.app.feature.reader.readaloud.ReadaloudController,
@@ -206,9 +206,9 @@ class AudiobookPlayerViewModel @Inject constructor(
         AudiobookPlayerUiState(loading = true),
     )
     private var timeline: AudiobookTimeline = AudiobookTimeline(0.0)
-    private var serverId: String = ""
+    private var sourceId: String = ""
 
-    // The per-book audio-settings key (ADR 0028). The audiobook's own (serverId, itemId) IS the
+    // The per-book audio-settings key (ADR 0028). The audiobook's own (sourceId, itemId) IS the
     // canonical key when an audiobook exists, and a linked Readaloud resolves to that same id, so the
     // speed is shared between them automatically; an audiobook with no bundle gets its own row.
     private var audioSettingsIdentity: AudioIdentity = AudioIdentity("", itemId)
@@ -231,14 +231,14 @@ class AudiobookPlayerViewModel @Inject constructor(
             get() = reconciliationCoordinator.readerSync
         override suspend fun tryAttachReaderSync(currentAudioSec: Double): Boolean =
             attachReaderSync(currentAudioSec, 0L)
-        override fun hasServer(): Boolean = serverId.isNotEmpty()
+        override fun hasServer(): Boolean = sourceId.isNotEmpty()
         override fun progressFraction(positionSec: Double): Float =
             audiobookProgressFraction(positionSec, timeline.durationSec)
         override suspend fun onHotPathAdvance(positionSec: Double) {
             positionSaveCoordinator.onChanged(positionSec)
         }
         override suspend fun writeSinglePeerFallback(positionSec: Double) {
-            audiobookRepository.saveProgress(serverId, itemId, positionSec, timeline.durationSec)
+            audiobookRepository.saveProgress(sourceId, itemId, positionSec, timeline.durationSec)
         }
         override suspend fun writeCloseFlush(positionSec: Double, fraction: Float) {
             positionSaveCoordinator.onClose(positionSec, fraction)
@@ -265,15 +265,15 @@ class AudiobookPlayerViewModel @Inject constructor(
     private val positionSaveCoordinator = com.riffle.app.feature.reader.PositionSaveCoordinator<Double>(
         updateProgress = { progress -> updateReadingProgressUseCase(itemId, progress) },
         savePosition = { pos ->
-            if (serverId.isNotEmpty()) {
-                audiobookPositionStore.save(serverId, itemId, pos)
+            if (sourceId.isNotEmpty()) {
+                audiobookPositionStore.save(sourceId, itemId, pos)
                 // Matched book: listening is also reading — persist the translated reading position
                 // locally so the durable sweep pushes the ebook record too, without reopening (ADR 0030).
-                reconciliationCoordinator.mirrorListeningToReading(serverId, itemId, pos)
+                reconciliationCoordinator.mirrorListeningToReading(sourceId, itemId, pos)
                 // …and the readaloud resume, so reopening the reader and pressing Play lands on the
                 // listened sentence rather than a stale one (ADR 0031). Runs on every save (hot path
                 // and close) so a process-death mid-listen still leaves a fresh resume.
-                reconciliationCoordinator.writeListeningToReadaloud(serverId, itemId, pos)
+                reconciliationCoordinator.writeListeningToReadaloud(sourceId, itemId, pos)
             }
         },
     )
@@ -323,14 +323,14 @@ class AudiobookPlayerViewModel @Inject constructor(
             try {
             val t0 = clock.nowMs()
             logger.d(LogChannel.Handoff) { "AB.VM init start itemId=$itemId startAtSec=$startAtSec" }
-            val server = serverRepository.getActive()
-            serverId = server?.id ?: ""
+            val server = sourceRepository.getActive()
+            sourceId = server?.id ?: ""
             // Claim this audiobook so the durable sweep leaves it to this player's own cycle (ADR 0030).
-            if (serverId.isNotEmpty()) openReconcileTargets.markOpen(serverId, itemId)
+            if (sourceId.isNotEmpty()) openReconcileTargets.markOpen(sourceId, itemId)
             // Observe this book's bookmarks live into the UI state (ordered by position, earliest first).
-            if (serverId.isNotEmpty()) {
+            if (sourceId.isNotEmpty()) {
                 viewModelScope.launch {
-                    bookmarkStore.observe(serverId, itemId).collect { list ->
+                    bookmarkStore.observe(sourceId, itemId).collect { list ->
                         meta.value = meta.value.copy(bookmarks = list)
                     }
                 }
@@ -338,7 +338,7 @@ class AudiobookPlayerViewModel @Inject constructor(
                 // Sync is otherwise silent, so the note only shows when a push is genuinely blocked.
                 viewModelScope.launch {
                     combine(
-                        bookmarkStore.observeHasUnsynced(serverId, itemId),
+                        bookmarkStore.observeHasUnsynced(sourceId, itemId),
                         connectivityObserver.isOnline,
                     ) { hasUnsynced, isOnline -> hasUnsynced && !isOnline }
                         .collect { offline ->
@@ -352,12 +352,12 @@ class AudiobookPlayerViewModel @Inject constructor(
             logger.d(LogChannel.Handoff) { "AB.VM init: got item +${clock.nowMs() - t0}ms" }
             // Prefer a dedicated audiobook download, then a downloaded readaloud bundle's audio, then
             // stream from ABS (connectivity-independent: a local copy always beats streaming).
-            val session = if (serverId.isEmpty()) null
-                else audiobookDownloadRepository.localSession(serverId, itemId)
+            val session = if (sourceId.isEmpty()) null
+                else audiobookDownloadRepository.localSession(sourceId, itemId)
                     ?.also { logger.d(LogChannel.Handoff) { "AB.VM init: local download session +${clock.nowMs() - t0}ms" } }
-                    ?: bundleAudiobookSource.localSession(serverId, itemId)
+                    ?: bundleAudiobookSource.localSession(sourceId, itemId)
                     ?.also { logger.d(LogChannel.Handoff) { "AB.VM init: bundle session +${clock.nowMs() - t0}ms" } }
-                    ?: audiobookRepository.openSession(serverId, itemId)
+                    ?: audiobookRepository.openSession(sourceId, itemId)
                     ?.also { logger.d(LogChannel.Handoff) { "AB.VM init: ABS network session +${clock.nowMs() - t0}ms" } }
             if (item == null || session == null) {
                 logger.d(LogChannel.Handoff) { "AB.VM init: FAILED (item=${item != null} session=${session != null}) +${clock.nowMs() - t0}ms" }
@@ -369,7 +369,7 @@ class AudiobookPlayerViewModel @Inject constructor(
             // fallback for offline-with-bundle-only, finished-book replay guard, and the readaloud→
             // audiobook handoff override — all consolidated in AudiobookResumeResolver.
             val resume = resumeResolver.resolve(
-                serverId = serverId,
+                sourceId = sourceId,
                 itemId = itemId,
                 session = session,
                 readingProgressFraction = item.readingProgress,
@@ -382,11 +382,11 @@ class AudiobookPlayerViewModel @Inject constructor(
             // land on the identical key regardless of the `hasAudio` flag or sort order. With no link,
             // settings key on this ABS item (an audiobook with no bundle gets its own row). Loaded
             // before prepare so it's applied to the freshly-connected controller below; absent ⇒ 1×.
-            val link = readaloudLinkRepository.findByAbsItem(serverId, itemId)
+            val link = readaloudLinkRepository.findByAbsItem(sourceId, itemId)
             audioSettingsIdentity = if (link != null) {
-                audioIdentityResolver.resolveForStorytellerBook(link.storytellerServerId, link.storytellerBookId)
+                audioIdentityResolver.resolveForStorytellerBook(link.storytellerSourceId, link.storytellerBookId)
             } else {
-                AudioIdentity(serverId, itemId)
+                AudioIdentity(sourceId, itemId)
             }
             val initialSpeed = audioPlaybackPreferencesStore.load(audioSettingsIdentity)
                 ?: listeningPreferencesStore.defaultPlaybackSpeed.first()
@@ -395,7 +395,7 @@ class AudiobookPlayerViewModel @Inject constructor(
             // book only once its bundle is downloaded, an unmatched ABS book never. The bundle is keyed by
             // the linked Storyteller book (or this item, on a Storyteller server), NOT the ABS item id.
             val isStoryteller = server?.serverType == com.riffle.core.domain.ServerType.STORYTELLER
-            val audioServerId = link?.storytellerServerId ?: serverId
+            val audioServerId = link?.storytellerSourceId ?: sourceId
             val audioBookId = link?.storytellerBookId ?: itemId
             val readaloudAvailable = com.riffle.app.feature.reader.readaloudControlState(
                 isStoryteller = isStoryteller,
@@ -407,10 +407,10 @@ class AudiobookPlayerViewModel @Inject constructor(
             // ebook+audio. Null when there's no readaloud ebook OR no synced bundle yet, which keeps the
             // swipe-down hint hidden and the gesture inert until read-along can actually happen.
             val readaloudEbookItemId: String? = if (!readaloudAvailable) null else link?.let { l ->
-                readaloudLinkRepository.findByStorytellerBook(l.storytellerServerId, l.storytellerBookId)
+                readaloudLinkRepository.findByStorytellerBook(l.storytellerSourceId, l.storytellerBookId)
                     .firstOrNull { t ->
                         t.absLibraryItemId != itemId &&
-                            libraryObserver.getItem(t.absServerId, t.absLibraryItemId)?.isReadable == true
+                            libraryObserver.getItem(t.absSourceId, t.absLibraryItemId)?.isReadable == true
                     }
                     ?.absLibraryItemId
                     ?: itemId.takeIf { item.isReadable }
@@ -580,7 +580,7 @@ class AudiobookPlayerViewModel @Inject constructor(
      * side-effect-free result into the VM's audio + floor state (ADR 0029).
      */
     private suspend fun attachReaderSync(atSec: Double, atUpdatedAt: Long): Boolean {
-        val result = reconciliationCoordinator.attach(serverId, itemId, atSec, atUpdatedAt)
+        val result = reconciliationCoordinator.attach(sourceId, itemId, atSec, atUpdatedAt)
         result.jumpToAudioSec?.let { controller.seekTo(it); reconciledResumeSec = it }
         localUpdatedAt = maxOf(localUpdatedAt, result.canonicalLastUpdate)
         return result.readerSyncAttached
@@ -645,8 +645,8 @@ class AudiobookPlayerViewModel @Inject constructor(
      * [AudiobookPlayerUiState.bookmarks] via the store observation.
      */
     fun addBookmark(title: String, positionSec: Double) {
-        if (serverId.isEmpty()) return
-        viewModelScope.launch { bookmarkStore.add(serverId, itemId, positionSec, title, clock.nowMs()) }
+        if (sourceId.isEmpty()) return
+        viewModelScope.launch { bookmarkStore.add(sourceId, itemId, positionSec, title, clock.nowMs()) }
     }
 
     fun renameBookmark(id: String, title: String) {
@@ -673,7 +673,7 @@ class AudiobookPlayerViewModel @Inject constructor(
         speedSaveJob?.cancel()
         speedSaveJob = viewModelScope.launch {
             kotlinx.coroutines.delay(SPEED_SAVE_DEBOUNCE_MS)
-            if (serverId.isEmpty()) return@launch
+            if (sourceId.isEmpty()) return@launch
             audioPlaybackPreferencesStore.save(audioSettingsIdentity, speed)
             pendingSpeed = null
         }
@@ -687,7 +687,7 @@ class AudiobookPlayerViewModel @Inject constructor(
         val speed = pendingSpeed ?: return
         speedSaveJob?.cancel()
         pendingSpeed = null
-        if (serverId.isEmpty()) return
+        if (sourceId.isEmpty()) return
         // progressFlushScope, not viewModelScope: onCleared cancels viewModelScope before calling
         // this, so a launch there never executes (same reasoning as FollowLoopOrchestrator.stopWithFinalFlush).
         progressFlushScope.flush { audioPlaybackPreferencesStore.save(audioSettingsIdentity, speed) }
@@ -757,9 +757,9 @@ class AudiobookPlayerViewModel @Inject constructor(
         controller.setSpeed(resolvedInitialSpeed)
         reconciledResumeSec = finalSec
         localUpdatedAt = clock.nowMs()
-        if (serverId.isNotEmpty()) {
-            audiobookPositionStore.save(serverId, itemId, finalSec)
-            audiobookPositionStore.updateLocalTimestamp(serverId, itemId, localUpdatedAt)
+        if (sourceId.isNotEmpty()) {
+            audiobookPositionStore.save(sourceId, itemId, finalSec)
+            audiobookPositionStore.updateLocalTimestamp(sourceId, itemId, localUpdatedAt)
         }
         nowPlayingStore.set(com.riffle.app.playback.NowPlaying.Audiobook(itemId))
         controller.play()
@@ -786,13 +786,13 @@ class AudiobookPlayerViewModel @Inject constructor(
     override fun onCleared() {
         followLoopOrchestrator.cancel()
         // Release this book to the durable sweep again (ADR 0030).
-        if (serverId.isNotEmpty()) {
-            openReconcileTargets.markClosed(serverId, itemId)
+        if (sourceId.isNotEmpty()) {
+            openReconcileTargets.markClosed(sourceId, itemId)
             // Mirror the coordinator's markOpen: on the index-free fallback path readerSync stays null
             // but audiobookFollow marked the ebook item open, so close via the same fallback chain —
             // otherwise the ebook item leaks in the open set and the sweep skips it until process death.
             reconciliationCoordinator.ebookItemIdForMarkClosed
-                ?.let { openReconcileTargets.markClosed(serverId, it) }
+                ?.let { openReconcileTargets.markClosed(sourceId, it) }
         }
         flushPendingSpeed()
         // On a readaloud handoff the progress was already pushed and the handle released without

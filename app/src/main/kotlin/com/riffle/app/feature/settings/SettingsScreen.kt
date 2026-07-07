@@ -80,7 +80,7 @@ import com.riffle.app.ui.TabletContentWidthContainer
 import com.riffle.app.feature.server.AddServerBackend
 import com.riffle.core.domain.AppTheme
 import com.riffle.core.domain.HighlightColor
-import com.riffle.core.domain.Server
+import com.riffle.core.domain.Source
 import com.riffle.core.domain.ServerType
 import kotlinx.coroutines.launch
 import java.text.DateFormat
@@ -126,7 +126,7 @@ fun SettingsScreen(
         viewModel.navigationEvents.collect { event ->
             when (event) {
                 is SettingsNavEvent.NavigateToAddServer -> onNavigateToAddServer(AddServerBackend.AUDIOBOOKSHELF, null)
-                is SettingsNavEvent.NavigateToReadaloudMatches -> onNavigateToReadaloudMatches(event.serverId)
+                is SettingsNavEvent.NavigateToReadaloudMatches -> onNavigateToReadaloudMatches(event.sourceId)
             }
         }
     }
@@ -659,7 +659,7 @@ private fun AppThemeRow(
  */
 @Composable
 private fun ServerRow(
-    server: Server,
+    server: Source,
     isExpanded: Boolean,
     onToggleExpanded: () -> Unit,
     onRemove: () -> Unit,
@@ -731,7 +731,7 @@ private fun ServerRow(
  */
 @Composable
 internal fun ServerSettingsExpansion(
-    server: Server,
+    server: Source,
     libraryItems: List<LibraryUiItem>,
     summary: ReadaloudMatchSummary?,
     onSetLibraryVisible: (libraryId: String, visible: Boolean) -> Unit,

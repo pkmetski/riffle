@@ -56,7 +56,7 @@ private const val ADD_SERVER_ROUTE = "add_server?type={type}&editId={editId}"
 private const val SELECT_LIBRARIES = "select_libraries"
 private const val SETTINGS = "settings"
 private const val ANNOTATION_SYNC_MAINTENANCE = "settings/annotation_sync/maintenance"
-private const val READALOUD_MATCHES = "readaloud_matches/{serverId}?pairBookId={pairBookId}"
+private const val READALOUD_MATCHES = "readaloud_matches/{sourceId}?pairBookId={pairBookId}"
 private const val DOWNLOADS = "downloads"
 private const val LIBRARY_ITEMS = "library_items/{libraryId}/{libraryName}"
 private const val LIBRARY_SECTION = "library_section/{libraryId}/{libraryName}/{sectionType}"
@@ -65,7 +65,7 @@ private const val COLLECTION_DETAIL = "collection_detail/{libraryId}/{collection
 private const val FILTERED_BOOKS = "filtered_books/{libraryId}/{facetType}/{facetValue}"
 private const val LIBRARY_ITEM_DETAIL = "library_item_detail/{itemId}"
 private const val EPUB_READER =
-    "epub_reader/{itemId}?startReadaloudAtSec={startReadaloudAtSec}&openAtCfi={openAtCfi}&startTocHref={startTocHref}&source={source}&serverId={serverId}"
+    "epub_reader/{itemId}?startReadaloudAtSec={startReadaloudAtSec}&openAtCfi={openAtCfi}&startTocHref={startTocHref}&source={source}&sourceId={sourceId}"
 private const val PDF_READER = "pdf_reader/{itemId}"
 private const val ANNOTATION_SEARCH = "annotation_search/{libraryId}?query={query}"
 private const val AUDIOBOOK_PLAYER = "audiobook_player/{itemId}?startAtSec={startAtSec}"
@@ -240,8 +240,8 @@ fun MainScreen(
                         }.joinToString("&")
                         navController.navigate("$ADD_SERVER?$params")
                     },
-                    onNavigateToReadaloudMatches = { serverId ->
-                        val encoded = URLEncoder.encode(serverId, "UTF-8")
+                    onNavigateToReadaloudMatches = { sourceId ->
+                        val encoded = URLEncoder.encode(sourceId, "UTF-8")
                         navController.navigate("readaloud_matches/$encoded")
                     },
                     onNavigateToAnnotationSyncMaintenance = { navController.navigate(ANNOTATION_SYNC_MAINTENANCE) },
@@ -255,7 +255,7 @@ fun MainScreen(
             composable(
                 route = READALOUD_MATCHES,
                 arguments = listOf(
-                    navArgument("serverId") { type = NavType.StringType },
+                    navArgument("sourceId") { type = NavType.StringType },
                     navArgument("pairBookId") {
                         type = NavType.StringType
                         defaultValue = ""
@@ -325,8 +325,8 @@ fun MainScreen(
                         val encodedName = URLEncoder.encode(libraryName, "UTF-8")
                         navController.navigate("library_section/$libraryId/$encodedName/${sectionType.name}")
                     },
-                    onAnnotatedBookClick = { serverId, itemId ->
-                        navController.navigate(annotationsBookClickRoute(serverId, itemId))
+                    onAnnotatedBookClick = { sourceId, itemId ->
+                        navController.navigate(annotationsBookClickRoute(sourceId, itemId))
                     },
                 )
             }
@@ -474,7 +474,7 @@ fun MainScreen(
                         nullable = true
                         defaultValue = null
                     },
-                    navArgument("serverId") {
+                    navArgument("sourceId") {
                         type = NavType.StringType
                         nullable = true
                         defaultValue = null

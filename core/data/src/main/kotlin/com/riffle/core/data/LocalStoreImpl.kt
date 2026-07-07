@@ -40,7 +40,7 @@ class LocalStoreImpl(
         fileFor(sourceId, itemId).delete()
     }
 
-    override fun deleteServer(sourceId: String) {
+    override fun deleteSource(sourceId: String) {
         dir.resolve(sourceId).deleteRecursively()
     }
 

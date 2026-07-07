@@ -10,18 +10,18 @@ import com.riffle.core.domain.AnnotationSyncConfig
 import com.riffle.core.domain.AnnotationSyncConfigStore
 import com.riffle.core.domain.AnnotationSyncTarget
 import com.riffle.core.domain.AuthenticateResult
-import com.riffle.core.domain.CommitServerResult
+import com.riffle.core.domain.CommitSourceResult
 import com.riffle.core.domain.DeviceFileSummary
 import com.riffle.core.domain.DeviceIdStore
 import com.riffle.core.domain.DeviceLabelResolver
 import com.riffle.core.domain.DeviceLabelStore
 import com.riffle.core.domain.NamespaceDeviceListing
 import com.riffle.core.domain.NamespaceSummary
-import com.riffle.core.domain.PendingServer
-import com.riffle.core.domain.Server
-import com.riffle.core.domain.ServerRepository
+import com.riffle.core.domain.PendingSource
+import com.riffle.core.domain.Source
+import com.riffle.core.domain.SourceRepository
 import com.riffle.core.domain.ServerType
-import com.riffle.core.domain.ServerUrl
+import com.riffle.core.domain.SourceUrl
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -219,7 +219,7 @@ class AnnotationSyncMaintenanceViewModelTest {
             deviceIdStore = FakeDeviceIdStore("this-device"),
             deviceLabelStore = FakeDeviceLabelStore(),
             deviceLabelResolver = FakeDeviceLabelResolver("This Device"),
-            serverRepository = FakeServerRepository(activeAbsUserId = activeNs),
+            sourceRepository = FakeServerRepository(activeAbsUserId = activeNs),
             statusStore = statusStore,
         )
     }
@@ -300,29 +300,29 @@ class AnnotationSyncMaintenanceViewModelTest {
         override fun deviceModel() = "test-model"
     }
 
-    private class FakeServerRepository(private val activeAbsUserId: String) : ServerRepository {
-        override fun observeAll(): Flow<List<Server>> = flowOf(emptyList())
-        override suspend fun getActive(): Server? = Server(
+    private class FakeServerRepository(private val activeAbsUserId: String) : SourceRepository {
+        override fun observeAll(): Flow<List<Source>> = flowOf(emptyList())
+        override suspend fun getActive(): Source? = Source(
             id = "srv-active",
-            url = ServerUrl.parse("http://example.test/")!!,
+            url = SourceUrl.parse("http://example.test/")!!,
             isActive = true,
             insecureConnectionAllowed = false,
             username = "alice",
             serverType = ServerType.AUDIOBOOKSHELF,
             absUserId = activeAbsUserId,
         )
-        override suspend fun getById(serverId: String): Server? = getActive()
-        override suspend fun ensureAbsUserId(serverId: String): String = activeAbsUserId
+        override suspend fun getById(sourceId: String): Source? = getActive()
+        override suspend fun ensureAbsUserId(sourceId: String): String = activeAbsUserId
         override suspend fun authenticate(
-            url: ServerUrl,
+            url: SourceUrl,
             username: String,
             password: String,
             insecureAllowed: Boolean,
             serverType: ServerType,
         ): AuthenticateResult = error("not used")
-        override suspend fun commit(pending: PendingServer, hiddenLibraryIds: Set<String>): CommitServerResult = error("not used")
-        override suspend fun setActive(serverId: String) {}
-        override suspend fun remove(serverId: String) {}
-        override suspend fun getServerVersion(serverId: String): String? = null
+        override suspend fun commit(pending: PendingSource, hiddenLibraryIds: Set<String>): CommitSourceResult = error("not used")
+        override suspend fun setActive(sourceId: String) {}
+        override suspend fun remove(sourceId: String) {}
+        override suspend fun getSourceVersion(sourceId: String): String? = null
     }
 }

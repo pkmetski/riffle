@@ -52,7 +52,7 @@ class AudiobookFollowTest {
         absApi = api,
         endpoint = AbsSyncEndpoint("http://abs", "tok", false, "audio-item", durationSec = 3600.0),
         translator = translator(),
-        serverId = "s1",
+        sourceId = "s1",
         audioItemId = "audio-item",
         ebookItemId = "ebook-item",
         quotes = quotes,

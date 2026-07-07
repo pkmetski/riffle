@@ -28,7 +28,7 @@ class ExtractEpubTocUseCaseTest {
     private fun makeItem(isCached: Boolean = true, ebookFileIno: String? = "ino1") = LibraryItem(
         id = "item1", libraryId = "lib1", title = "Book", author = "Author",
         coverUrl = null, readingProgress = 0f, isCached = isCached, isDownloaded = false,
-        ebookFormat = EbookFormat.Epub, ebookFileIno = ebookFileIno, serverId = "srv1",
+        ebookFormat = EbookFormat.Epub, ebookFileIno = ebookFileIno, sourceId = "srv1",
     )
 
     @Test

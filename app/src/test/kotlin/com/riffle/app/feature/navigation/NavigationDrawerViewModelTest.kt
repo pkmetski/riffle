@@ -1,10 +1,10 @@
 package com.riffle.app.feature.navigation
 
 import com.riffle.core.domain.AuthenticateResult
-import com.riffle.core.domain.CommitServerResult
+import com.riffle.core.domain.CommitSourceResult
 import com.riffle.core.domain.Collection
 import com.riffle.core.domain.ConnectivityObserver
-import com.riffle.core.domain.PendingServer
+import com.riffle.core.domain.PendingSource
 import java.io.IOException
 import com.riffle.core.domain.LastOpenedLibraryStore
 import com.riffle.core.domain.Library
@@ -14,10 +14,10 @@ import com.riffle.core.domain.LibraryOrderPreferencesStore
 import com.riffle.core.domain.LibraryObserver
 import com.riffle.core.domain.LibraryVisibilityPreferencesStore
 import com.riffle.core.domain.Series
-import com.riffle.core.domain.Server
-import com.riffle.core.domain.ServerRepository
+import com.riffle.core.domain.Source
+import com.riffle.core.domain.SourceRepository
 import com.riffle.core.domain.ServerType
-import com.riffle.core.domain.ServerUrl
+import com.riffle.core.domain.SourceUrl
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.async
@@ -45,16 +45,16 @@ class NavigationDrawerViewModelTest {
     @Before fun setUp() { Dispatchers.setMain(testDispatcher) }
     @After fun tearDown() { Dispatchers.resetMain() }
 
-    private val serversFlow = MutableStateFlow<List<Server>>(emptyList())
+    private val serversFlow = MutableStateFlow<List<Source>>(emptyList())
     private val librariesFlow = MutableStateFlow<List<Library>>(emptyList())
 
     private fun server(
         id: String,
         active: Boolean = false,
         serverType: ServerType = ServerType.AUDIOBOOKSHELF,
-    ) = Server(
+    ) = Source(
         id = id,
-        url = ServerUrl.parse("https://$id.example.com")!!,
+        url = SourceUrl.parse("https://$id.example.com")!!,
         isActive = active,
         insecureConnectionAllowed = false,
         username = "",
@@ -66,25 +66,25 @@ class NavigationDrawerViewModelTest {
 
     private var fakeVersions: Map<String, String?> = emptyMap()
 
-    private fun fakeServerRepo(): ServerRepository = object : ServerRepository {
-        override fun observeAll(): Flow<List<Server>> = serversFlow
-        override suspend fun getActive(): Server? = serversFlow.value.firstOrNull { it.isActive }
-        override suspend fun authenticate(url: ServerUrl, username: String, password: String, insecureAllowed: Boolean, serverType: com.riffle.core.domain.ServerType): AuthenticateResult =
+    private fun fakeServerRepo(): SourceRepository = object : SourceRepository {
+        override fun observeAll(): Flow<List<Source>> = serversFlow
+        override suspend fun getActive(): Source? = serversFlow.value.firstOrNull { it.isActive }
+        override suspend fun authenticate(url: SourceUrl, username: String, password: String, insecureAllowed: Boolean, serverType: com.riffle.core.domain.ServerType): AuthenticateResult =
             AuthenticateResult.WrongCredentials()
-        override suspend fun commit(pending: PendingServer, hiddenLibraryIds: Set<String>): CommitServerResult =
-            CommitServerResult.Failure(IOException())
-        override suspend fun setActive(serverId: String) {
-            serversFlow.update { list -> list.map { it.copy(isActive = it.id == serverId) } }
+        override suspend fun commit(pending: PendingSource, hiddenLibraryIds: Set<String>): CommitSourceResult =
+            CommitSourceResult.Failure(IOException())
+        override suspend fun setActive(sourceId: String) {
+            serversFlow.update { list -> list.map { it.copy(isActive = it.id == sourceId) } }
         }
-        override suspend fun remove(serverId: String) {
-            serversFlow.update { list -> list.filter { it.id != serverId } }
+        override suspend fun remove(sourceId: String) {
+            serversFlow.update { list -> list.filter { it.id != sourceId } }
         }
-        override suspend fun getServerVersion(serverId: String): String? = fakeVersions[serverId]
+        override suspend fun getSourceVersion(sourceId: String): String? = fakeVersions[sourceId]
     }
 
     private fun fakeLibraryRepo(): LibraryObserver = object : LibraryObserver {
         override fun observeLibraries(): Flow<List<Library>> = librariesFlow
-        override fun observeLibraries(serverId: String): Flow<List<Library>> = observeLibraries()
+        override fun observeLibraries(sourceId: String): Flow<List<Library>> = observeLibraries()
         override fun observeLibraryItems(libraryId: String): Flow<List<LibraryItem>> = MutableStateFlow(emptyList())
         override fun observeUngroupedLibraryItems(libraryId: String): Flow<List<LibraryItem>> = MutableStateFlow(emptyList())
         override fun observeInProgressItems(libraryId: String): Flow<List<LibraryItem>> = MutableStateFlow(emptyList())
@@ -98,41 +98,41 @@ class NavigationDrawerViewModelTest {
         override fun observeCollectionItems(collectionId: String): Flow<List<LibraryItem>> = MutableStateFlow(emptyList())
         override suspend fun getItem(itemId: String): LibraryItem? = null
         override fun observeItem(itemId: String): Flow<LibraryItem?> = MutableStateFlow<LibraryItem?>(null)
-        override suspend fun getItem(serverId: String, itemId: String): LibraryItem? = getItem(itemId)
+        override suspend fun getItem(sourceId: String, itemId: String): LibraryItem? = getItem(itemId)
         override suspend fun getLibrary(libraryId: String): com.riffle.core.domain.Library? = null
-        override suspend fun getSeriesIdForItem(serverId: String, itemId: String): String? = null
+        override suspend fun getSeriesIdForItem(sourceId: String, itemId: String): String? = null
     }
 
     private val hiddenFlow = MutableStateFlow<Map<String, Set<String>>>(emptyMap())
 
     private fun fakeVisibilityStore(): LibraryVisibilityPreferencesStore = object : LibraryVisibilityPreferencesStore {
-        override fun hiddenLibraryIds(serverId: String): Flow<Set<String>> =
-            hiddenFlow.map { it[serverId].orEmpty() }
-        override suspend fun hideLibrary(serverId: String, libraryId: String) {
-            hiddenFlow.update { it + (serverId to (it[serverId].orEmpty() + libraryId)) }
+        override fun hiddenLibraryIds(sourceId: String): Flow<Set<String>> =
+            hiddenFlow.map { it[sourceId].orEmpty() }
+        override suspend fun hideLibrary(sourceId: String, libraryId: String) {
+            hiddenFlow.update { it + (sourceId to (it[sourceId].orEmpty() + libraryId)) }
         }
-        override suspend fun showLibrary(serverId: String, libraryId: String) {
-            hiddenFlow.update { it + (serverId to (it[serverId].orEmpty() - libraryId)) }
+        override suspend fun showLibrary(sourceId: String, libraryId: String) {
+            hiddenFlow.update { it + (sourceId to (it[sourceId].orEmpty() - libraryId)) }
         }
     }
 
     private val orderFlow = MutableStateFlow<Map<String, List<String>>>(emptyMap())
 
     private fun fakeOrderStore(): LibraryOrderPreferencesStore = object : LibraryOrderPreferencesStore {
-        override fun libraryOrder(serverId: String): Flow<List<String>> =
-            orderFlow.map { it[serverId].orEmpty() }
-        override suspend fun setLibraryOrder(serverId: String, orderedIds: List<String>) {
-            orderFlow.update { it + (serverId to orderedIds) }
+        override fun libraryOrder(sourceId: String): Flow<List<String>> =
+            orderFlow.map { it[sourceId].orEmpty() }
+        override suspend fun setLibraryOrder(sourceId: String, orderedIds: List<String>) {
+            orderFlow.update { it + (sourceId to orderedIds) }
         }
     }
 
     private val lastOpenedFlow = MutableStateFlow<Map<String, String>>(emptyMap())
 
     private fun fakeLastOpenedStore(): LastOpenedLibraryStore = object : LastOpenedLibraryStore {
-        override fun lastOpenedLibrary(serverId: String): Flow<String?> =
-            lastOpenedFlow.map { it[serverId] }
-        override suspend fun setLastOpenedLibrary(serverId: String, libraryId: String) {
-            lastOpenedFlow.update { it + (serverId to libraryId) }
+        override fun lastOpenedLibrary(sourceId: String): Flow<String?> =
+            lastOpenedFlow.map { it[sourceId] }
+        override suspend fun setLastOpenedLibrary(sourceId: String, libraryId: String) {
+            lastOpenedFlow.update { it + (sourceId to libraryId) }
         }
     }
 
@@ -142,7 +142,7 @@ class NavigationDrawerViewModelTest {
     }
 
     private fun makeVm() = NavigationDrawerViewModel(
-        serverRepository = fakeServerRepo(),
+        sourceRepository = fakeServerRepo(),
         libraryObserver = fakeLibraryRepo(),
         visibilityStore = fakeVisibilityStore(),
         orderStore = fakeOrderStore(),
@@ -250,7 +250,7 @@ class NavigationDrawerViewModelTest {
     @Test
     fun `allServers excludes Storyteller servers from the switcher`() = runTest {
         // Storyteller is a Settings-only readaloud backend (ADR 0026) — it must never appear in the
-        // drawer's Server Switcher, so it can never become the active browsable server.
+        // drawer's Source Switcher, so it can never become the active browsable server.
         serversFlow.value = listOf(
             server("abs-1", active = true),
             server("st-1", serverType = ServerType.STORYTELLER),
@@ -365,7 +365,7 @@ class NavigationDrawerViewModelTest {
 
     @Test
     fun `serverVersions retries on connectivity change when previous fetch returned null`() = runTest(testDispatcher) {
-        // Server unreachable initially — getServerVersion returns null.
+        // Source unreachable initially — getSourceVersion returns null.
         fakeVersions = mapOf("srv-1" to null)
         serversFlow.value = listOf(server("srv-1", active = true))
         isOnlineFlow.value = false
@@ -376,7 +376,7 @@ class NavigationDrawerViewModelTest {
 
         assertTrue(vm.serverVersions.value.isEmpty())
 
-        // Server reachable now; flipping connectivity re-triggers the fetch.
+        // Source reachable now; flipping connectivity re-triggers the fetch.
         fakeVersions = mapOf("srv-1" to "1.2.3")
         isOnlineFlow.value = true
         testScheduler.advanceUntilIdle()

@@ -19,7 +19,7 @@ class SourceFilesCleanerImpl(
 ) : SourceFilesCleaner {
 
     override suspend fun deleteAllForSource(sourceId: String) = withContext(dispatchers.io) {
-        stores.forEach { it.deleteServer(sourceId) }
+        stores.forEach { it.deleteSource(sourceId) }
         File(audiobookDownloadsDir, sourceId).deleteRecursively()
         Unit
     }

@@ -11,7 +11,7 @@ import com.riffle.core.domain.PendingReadaloud
 import com.riffle.core.domain.ReadaloudReview
 import com.riffle.core.domain.ReadaloudReviewRepository
 import com.riffle.core.domain.usecase.ReadaloudReviewActions
-import com.riffle.core.domain.ServerRepository
+import com.riffle.core.domain.SourceRepository
 import com.riffle.core.domain.ServerType
 import com.riffle.core.domain.TokenStorage
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -36,25 +36,25 @@ class ReadaloudMatchesViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
     private val reviewRepository: ReadaloudReviewRepository,
     private val reviewActions: ReadaloudReviewActions,
-    private val serverRepository: ServerRepository,
+    private val sourceRepository: SourceRepository,
     private val tokenStorage: TokenStorage,
 ) : ViewModel() {
 
-    private val serverId: String = savedStateHandle.get<String>("serverId") ?: ""
+    private val sourceId: String = savedStateHandle.get<String>("sourceId") ?: ""
 
     /** Set when the screen was opened from a readaloud's "Pair manually" footer link. */
     val pairBookId: String? = savedStateHandle.get<String>("pairBookId")?.takeIf { it.isNotEmpty() }
 
     /**
-     * The ABS Server the user is currently matching against — the one whose library is shown
+     * The ABS Source the user is currently matching against — the one whose library is shown
      * in the manual picker and whose candidate suggestions appear in "Suggested". Picked as:
-     * the active ABS Server, else any other ABS Server, else empty. Empty disables the picker
+     * the active ABS Source, else any other ABS Source, else empty. Empty disables the picker
      * (no results) so the picker can't link a Storyteller readaloud against the wrong account
      * just because no ABS server is configured. See ADR 0021 and the pkmetski/readaloud-
      * manual-match-crash PR — multiple ABS accounts pointing at the same library would
      * otherwise produce indistinguishable duplicate rows.
      */
-    val activeAbsServerId: StateFlow<String> = serverRepository.observeAll()
+    val activeAbsServerId: StateFlow<String> = sourceRepository.observeAll()
         .map { servers ->
             val abs = servers.filter { it.serverType == ServerType.AUDIOBOOKSHELF }
             (abs.firstOrNull { it.isActive } ?: abs.firstOrNull())?.id ?: ""
@@ -62,14 +62,14 @@ class ReadaloudMatchesViewModel @Inject constructor(
         .stateIn(viewModelScope, SharingStarted.Eagerly, "")
 
     val review: StateFlow<ReadaloudReview> = activeAbsServerId
-        .flatMapLatest { absId -> reviewRepository.observeReview(serverId, absId.takeIf { it.isNotEmpty() }) }
+        .flatMapLatest { absId -> reviewRepository.observeReview(sourceId, absId.takeIf { it.isNotEmpty() }) }
         .stateIn(
             viewModelScope,
             SharingStarted.WhileSubscribed(5_000),
             ReadaloudReview(emptyList(), emptyList(), emptyList()),
         )
 
-    /** Per-server auth tokens so cover thumbnails across every ABS Server render. */
+    /** Per-server auth tokens so cover thumbnails across every ABS Source render. */
     private val _tokensByServer = MutableStateFlow<Map<String, String>>(emptyMap())
     val tokensByServer: StateFlow<Map<String, String>> = _tokensByServer.asStateFlow()
 
@@ -88,7 +88,7 @@ class ReadaloudMatchesViewModel @Inject constructor(
         viewModelScope.launch {
             // One snapshot is enough; tokens don't change while this screen is open.
             val map = mutableMapOf<String, String>()
-            serverRepository.observeAll().first().forEach { server ->
+            sourceRepository.observeAll().first().forEach { server ->
                 tokenStorage.getToken(server.id)?.let { map[server.id] = it }
             }
             _tokensByServer.value = map
@@ -119,8 +119,8 @@ class ReadaloudMatchesViewModel @Inject constructor(
     fun confirm(book: PendingReadaloud, candidate: AbsCandidate) {
         viewModelScope.launch {
             reviewActions.confirmCandidate(
-                book.storytellerServerId, book.storytellerBookId,
-                candidate.absServerId, candidate.absLibraryItemId,
+                book.storytellerSourceId, book.storytellerBookId,
+                candidate.absSourceId, candidate.absLibraryItemId,
             )
         }
     }
@@ -128,28 +128,28 @@ class ReadaloudMatchesViewModel @Inject constructor(
     fun dismissCandidate(book: PendingReadaloud, candidate: AbsCandidate) {
         viewModelScope.launch {
             reviewActions.dismissCandidate(
-                book.storytellerServerId, book.storytellerBookId,
-                candidate.absServerId, candidate.absLibraryItemId,
+                book.storytellerSourceId, book.storytellerBookId,
+                candidate.absSourceId, candidate.absLibraryItemId,
             )
         }
     }
 
     fun dismissBook(book: PendingReadaloud) {
         viewModelScope.launch {
-            reviewActions.dismissBook(book.storytellerServerId, book.storytellerBookId)
+            reviewActions.dismissBook(book.storytellerSourceId, book.storytellerBookId)
         }
     }
 
     fun unlinkBook(link: ConfirmedReadaloud) {
         viewModelScope.launch {
-            reviewActions.unlinkBook(link.storytellerServerId, link.storytellerBookId)
+            reviewActions.unlinkBook(link.storytellerSourceId, link.storytellerBookId)
         }
     }
 
     /** Detach a single ABS item from a readaloud (used by the picker's per-row Unlink). */
     fun unlinkAbsItem(item: AbsPickerItem) {
         viewModelScope.launch {
-            reviewActions.unlinkAbsItem(item.absServerId, item.absLibraryItemId)
+            reviewActions.unlinkAbsItem(item.absSourceId, item.absLibraryItemId)
         }
     }
 
@@ -160,7 +160,7 @@ class ReadaloudMatchesViewModel @Inject constructor(
     fun pairManually(storytellerBookId: String, item: AbsPickerItem) {
         viewModelScope.launch {
             reviewActions.pairManually(
-                serverId, storytellerBookId, item.absServerId, item.absLibraryItemId,
+                sourceId, storytellerBookId, item.absSourceId, item.absLibraryItemId,
             )
         }
     }

@@ -19,7 +19,7 @@ import com.riffle.core.domain.usecase.MarkReadAcrossDimensions
 import com.riffle.core.domain.usecase.RecordItemOpened
 import com.riffle.core.domain.usecase.UpdateReadingProgress
 import com.riffle.core.data.ToReadRepository
-import com.riffle.core.domain.ServerRepository
+import com.riffle.core.domain.SourceRepository
 import com.riffle.core.domain.TocEntry
 import com.riffle.core.domain.TokenStorage
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -89,7 +89,7 @@ class LibraryItemDetailViewModel @Inject constructor(
     private val recordItemOpened: RecordItemOpened,
     private val updateReadingProgressUseCase: UpdateReadingProgress,
     private val markReadAcrossDimensions: MarkReadAcrossDimensions,
-    private val serverRepository: ServerRepository,
+    private val sourceRepository: SourceRepository,
     private val tokenStorage: TokenStorage,
     private val epubRepository: EpubRepository,
     private val pdfRepository: PdfRepository,
@@ -142,7 +142,7 @@ class LibraryItemDetailViewModel @Inject constructor(
         val item = ready.item
         if (item.ebookFormat != EbookFormat.Epub) return
         viewModelScope.launch {
-            _currentPositionHref.value = epubRepository.loadLastPositionHref(item.serverId, item.id)
+            _currentPositionHref.value = epubRepository.loadLastPositionHref(item.sourceId, item.id)
         }
     }
 
@@ -151,7 +151,7 @@ class LibraryItemDetailViewModel @Inject constructor(
 
     init {
         viewModelScope.launch {
-            val server = serverRepository.getActive()
+            val server = sourceRepository.getActive()
             if (server != null) {
                 authToken = tokenStorage.getToken(server.id) ?: ""
             }
@@ -167,25 +167,25 @@ class LibraryItemDetailViewModel @Inject constructor(
                     }
                     readaloudLink = link
                     val readaloudBundlePresent = link?.let {
-                        readaloudAudioRepository.isAudioAvailable(it.storytellerServerId, it.storytellerBookId)
+                        readaloudAudioRepository.isAudioAvailable(it.storytellerSourceId, it.storytellerBookId)
                     } ?: false
                     _readaloudDownloadState.value = link?.let { readaloudDownloadStateFor(readaloudBundlePresent) }
                     // Streaming prep (ADR 0028): a matched book opened in details starts fetching its sidecar
                     // now, so it's cached by the time the user opens the reader and taps Play — unless a full
                     // bundle is already downloaded (that supersedes streaming).
                     if (link != null && !readaloudBundlePresent) {
-                        sidecarPrefetcher.prepare(link.storytellerServerId, link.storytellerBookId)
+                        sidecarPrefetcher.prepare(link.storytellerSourceId, link.storytellerBookId)
                     }
                     _audiobookDownloadState.value = if (item.isListenable) {
-                        if (audiobookDownloadRepository.isDownloaded(item.serverId, item.id)) DownloadState.Downloaded
+                        if (audiobookDownloadRepository.isDownloaded(item.sourceId, item.id)) DownloadState.Downloaded
                         else DownloadState.NotDownloaded
                     } else null
-                    val isCachedOrDownloaded = epubRepository.isCached(item.serverId, item.id) || epubRepository.isDownloaded(item.serverId, item.id)
+                    val isCachedOrDownloaded = epubRepository.isCached(item.sourceId, item.id) || epubRepository.isDownloaded(item.sourceId, item.id)
                     // Render from the locally-cached To Read state immediately. The server refresh
                     // below runs off the critical path so a slow/unreachable ABS server can't keep
                     // the detail screen stuck in Loading for the network timeout (~10s).
                     val isInToRead = toReadRepository.isInToRead(item.id, item.libraryId)
-                    val seriesId = item.seriesName?.let { libraryObserver.getSeriesIdForItem(item.serverId, item.id) }
+                    val seriesId = item.seriesName?.let { libraryObserver.getSeriesIdForItem(item.sourceId, item.id) }
                     LibraryItemDetailUiState.Ready(
                         item = item,
                         seriesId = seriesId,
@@ -208,7 +208,7 @@ class LibraryItemDetailViewModel @Inject constructor(
                 val item = initialReady.item
                 if (item.ebookFormat == EbookFormat.Epub) {
                     launch {
-                        _currentPositionHref.value = epubRepository.loadLastPositionHref(item.serverId, item.id)
+                        _currentPositionHref.value = epubRepository.loadLastPositionHref(item.sourceId, item.id)
                         _tocState.value = TocState.Ready(extractEpubTocUseCase(item))
                     }
                 }
@@ -359,8 +359,8 @@ class LibraryItemDetailViewModel @Inject constructor(
         viewModelScope.launch {
             val item = (uiState.value as? LibraryItemDetailUiState.Ready)?.item
             when (item?.ebookFormat) {
-                EbookFormat.Epub -> epubRepository.removeDownload(item.serverId, item.id)
-                EbookFormat.Pdf -> pdfRepository.removeDownload(item.serverId, item.id)
+                EbookFormat.Epub -> epubRepository.removeDownload(item.sourceId, item.id)
+                EbookFormat.Pdf -> pdfRepository.removeDownload(item.sourceId, item.id)
                 else -> {}
             }
             if (item != null) downloadManager.clear(ebookKey(item))
@@ -376,7 +376,7 @@ class LibraryItemDetailViewModel @Inject constructor(
             // Streaming-eligible (ADR 0028): make offline by eager-fetching the audio (the sidecar is
             // already cached when the session is built). No 300 MB bundle. Null → not streamable → bundle.
             val streamed = readaloudOfflineDownloader.download(
-                link.storytellerServerId, link.storytellerBookId,
+                link.storytellerSourceId, link.storytellerBookId,
             ) { p -> onProgress((p * 100).toLong(), 100L) }
             if (streamed != null) {
                 if (!streamed) _snackbarEvents.tryEmit("Couldn't download readaloud audio")
@@ -384,7 +384,7 @@ class LibraryItemDetailViewModel @Inject constructor(
             }
             // Bundle path: download the synced bundle.
             val result = readaloudAudioRepository.downloadAudio(
-                link.storytellerServerId, link.storytellerBookId, onProgress,
+                link.storytellerSourceId, link.storytellerBookId, onProgress,
             )
             if (result !is com.riffle.core.domain.AudioDownloadResult.Success) {
                 _snackbarEvents.tryEmit("Couldn't download readaloud audio")
@@ -400,7 +400,7 @@ class LibraryItemDetailViewModel @Inject constructor(
     fun onRemoveReadaloud() {
         val link = readaloudLink ?: return
         viewModelScope.launch {
-            readaloudAudioRepository.removeAudio(link.storytellerServerId, link.storytellerBookId)
+            readaloudAudioRepository.removeAudio(link.storytellerSourceId, link.storytellerBookId)
             downloadManager.clear(readaloudKey(link))
             _readaloudDownloadState.value = DownloadState.NotDownloaded
         }
@@ -410,7 +410,7 @@ class LibraryItemDetailViewModel @Inject constructor(
         val item = (_uiState.value as? LibraryItemDetailUiState.Ready)?.item ?: return
         if (_audiobookDownloadState.value is DownloadState.InProgress) return
         downloadManager.start(audiobookKey(item)) { onProgress ->
-            val result = audiobookDownloadRepository.download(item.serverId, item.id, onProgress)
+            val result = audiobookDownloadRepository.download(item.sourceId, item.id, onProgress)
             val ok = result is com.riffle.core.domain.AudiobookDownloadResult.Success
             if (!ok) _snackbarEvents.tryEmit("Couldn't download audiobook")
             if (ok) DownloadState.Downloaded else DownloadState.NotDownloaded
@@ -420,7 +420,7 @@ class LibraryItemDetailViewModel @Inject constructor(
     fun onRemoveAudiobook() {
         val item = (_uiState.value as? LibraryItemDetailUiState.Ready)?.item ?: return
         viewModelScope.launch {
-            audiobookDownloadRepository.remove(item.serverId, item.id)
+            audiobookDownloadRepository.remove(item.sourceId, item.id)
             downloadManager.clear(audiobookKey(item))
             _audiobookDownloadState.value = DownloadState.NotDownloaded
         }
@@ -428,17 +428,17 @@ class LibraryItemDetailViewModel @Inject constructor(
 
     private fun refreshCacheState() {
         val current = _uiState.value as? LibraryItemDetailUiState.Ready ?: return
-        val refreshed = epubRepository.isCached(current.item.serverId, itemId) || epubRepository.isDownloaded(current.item.serverId, itemId)
+        val refreshed = epubRepository.isCached(current.item.sourceId, itemId) || epubRepository.isDownloaded(current.item.sourceId, itemId)
         _uiState.value = current.copy(isCachedOrDownloaded = refreshed)
     }
 
     // DownloadManager keys — stable per (server, item/book) so a recreated VM observes the same
     // in-flight download. Namespaced by kind because a single item can have both an ebook/audiobook
     // and a readaloud bundle downloading at once.
-    private fun ebookKey(item: LibraryItem) = "ebook:${item.serverId}:${item.id}"
-    private fun audiobookKey(item: LibraryItem) = "audiobook:${item.serverId}:${item.id}"
+    private fun ebookKey(item: LibraryItem) = "ebook:${item.sourceId}:${item.id}"
+    private fun audiobookKey(item: LibraryItem) = "audiobook:${item.sourceId}:${item.id}"
     private fun readaloudKey(link: com.riffle.core.domain.ReadaloudLink) =
-        "readaloud:${link.storytellerServerId}:${link.storytellerBookId}"
+        "readaloud:${link.storytellerSourceId}:${link.storytellerBookId}"
 
     private fun deriveDownloadState(item: LibraryItem): DownloadState {
         return when {
@@ -448,8 +448,8 @@ class LibraryItemDetailViewModel @Inject constructor(
     }
 
     private fun isDownloadedForFormat(item: LibraryItem): Boolean = when (item.ebookFormat) {
-        EbookFormat.Epub -> epubRepository.isDownloaded(item.serverId, item.id)
-        EbookFormat.Pdf -> pdfRepository.isDownloaded(item.serverId, item.id)
+        EbookFormat.Epub -> epubRepository.isDownloaded(item.sourceId, item.id)
+        EbookFormat.Pdf -> pdfRepository.isDownloaded(item.sourceId, item.id)
         else -> false
     }
 }

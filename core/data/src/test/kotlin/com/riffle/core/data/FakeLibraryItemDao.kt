@@ -126,4 +126,16 @@ internal class FakeLibraryItemDao : LibraryItemDao {
     override suspend fun updateFinishedAt(sourceId: String, itemId: String, finishedAt: Long?) {}
 
     override suspend fun listMatchableBySourceType(serverType: String): List<MatchableItemRow> = emptyList()
+
+    override fun observeBySource(sourceId: String): Flow<List<LibraryItemEntity>> =
+        MutableStateFlow(roomData.values.flatMap { it.value }.filter { it.sourceId == sourceId })
+
+    /** Test helper: inject items for a given source into the fake, keyed by their libraryId. */
+    fun emit(sourceId: String, items: List<LibraryItemEntity>) {
+        items.groupBy { it.libraryId }.forEach { (libraryId, group) ->
+            val flow = roomData.getOrPut(libraryId) { MutableStateFlow(emptyList()) }
+            val ids = group.map { it.id }.toSet()
+            flow.value = flow.value.filterNot { it.sourceId == sourceId && it.id in ids } + group
+        }
+    }
 }

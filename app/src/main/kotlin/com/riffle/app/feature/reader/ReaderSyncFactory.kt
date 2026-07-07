@@ -13,7 +13,7 @@ import com.riffle.core.domain.LibraryObserver
 import com.riffle.core.domain.LocalStore
 import com.riffle.core.domain.ReadaloudLinkRepository
 import com.riffle.core.domain.ReadaloudSidecarCache
-import com.riffle.core.domain.ServerRepository
+import com.riffle.core.domain.SourceRepository
 import com.riffle.core.domain.StorytellerFragmentIndexBuilder
 import com.riffle.core.domain.TokenStorage
 import com.riffle.core.logging.LogChannel
@@ -30,7 +30,7 @@ import javax.inject.Inject
  */
 open class ReaderSyncFactory @Inject constructor(
     private val linkRepository: ReadaloudLinkRepository,
-    private val serverRepository: ServerRepository,
+    private val sourceRepository: SourceRepository,
     private val tokenStorage: TokenStorage,
     private val indexStore: CrossEpubIndexStore,
     private val absSessionApi: AbsSessionApi,
@@ -46,13 +46,13 @@ open class ReaderSyncFactory @Inject constructor(
      *   side (ADR 0026), so the link is resolved by ABS item.
      */
     open suspend fun createIfApplicable(itemId: String): ReaderSyncCoordinator? {
-        val active = serverRepository.getActive() ?: return null
+        val active = sourceRepository.getActive() ?: return null
 
         // The readaloud bundle is the hub: route progress to whichever ABS items are matched to it.
         val openedLink = linkRepository.findByAbsItem(active.id, itemId) ?: return null
-        val allLinks = linkRepository.findByStorytellerBook(openedLink.storytellerServerId, openedLink.storytellerBookId)
+        val allLinks = linkRepository.findByStorytellerBook(openedLink.storytellerSourceId, openedLink.storytellerBookId)
         val linkedMedia = allLinks.mapNotNull { l ->
-            val item = libraryObserver.getItem(l.absServerId, l.absLibraryItemId) ?: return@mapNotNull null
+            val item = libraryObserver.getItem(l.absSourceId, l.absLibraryItemId) ?: return@mapNotNull null
             AbsLinkMedia(l, isReadable = item.isReadable, hasAudio = item.hasAudio, audioDurationSec = item.audioDurationSec)
         }
         val targets = resolveAbsTargets(itemId, linkedMedia)
@@ -60,8 +60,8 @@ open class ReaderSyncFactory @Inject constructor(
         // and no frame for the cross-EPUB index, so the reconciliation cycle can't apply.
         val ebookLink = targets.ebook ?: return null
 
-        val absFile = cachedFile(ebookLink.absServerId, ebookLink.absLibraryItemId) ?: return null
-        val storytellerFile = cachedFile(openedLink.storytellerServerId, openedLink.storytellerBookId) ?: return null
+        val absFile = cachedFile(ebookLink.absSourceId, ebookLink.absLibraryItemId) ?: return null
+        val storytellerFile = cachedFile(openedLink.storytellerSourceId, openedLink.storytellerBookId) ?: return null
 
         // The index must already be built for these exact bytes (checksum-keyed); otherwise the
         // background builder hasn't caught up — stay single-peer until it has. Checksums stream the
@@ -97,10 +97,10 @@ open class ReaderSyncFactory @Inject constructor(
             storytellerChapterHtml = storytellerExtract.htmlAt(),
         )
 
-        val absEbookEndpoint = absEndpointFor(ebookLink.absServerId, ebookLink.absLibraryItemId)
+        val absEbookEndpoint = absEndpointFor(ebookLink.absSourceId, ebookLink.absLibraryItemId)
         val absAudioEndpoint = targets.audio?.let { a ->
             val durationSec = linkedMedia.firstOrNull { it.link.absLibraryItemId == a.absLibraryItemId }?.audioDurationSec ?: 0.0
-            absEndpointFor(a.absServerId, a.absLibraryItemId, durationSec)
+            absEndpointFor(a.absSourceId, a.absLibraryItemId, durationSec)
         }
 
         return ReaderSyncCoordinator(
@@ -124,11 +124,11 @@ open class ReaderSyncFactory @Inject constructor(
      * the index is built (or when it can't be). `null` when there is no audio target or no cached bundle.
      */
     open suspend fun createAudiobookFollowIfApplicable(itemId: String): AudiobookFollow? {
-        val active = serverRepository.getActive() ?: return null
+        val active = sourceRepository.getActive() ?: return null
         val openedLink = linkRepository.findByAbsItem(active.id, itemId) ?: return null
-        val allLinks = linkRepository.findByStorytellerBook(openedLink.storytellerServerId, openedLink.storytellerBookId)
+        val allLinks = linkRepository.findByStorytellerBook(openedLink.storytellerSourceId, openedLink.storytellerBookId)
         val linkedMedia = allLinks.mapNotNull { l ->
-            val item = libraryObserver.getItem(l.absServerId, l.absLibraryItemId) ?: return@mapNotNull null
+            val item = libraryObserver.getItem(l.absSourceId, l.absLibraryItemId) ?: return@mapNotNull null
             AbsLinkMedia(l, isReadable = item.isReadable, hasAudio = item.hasAudio, audioDurationSec = item.audioDurationSec)
         }
         val targets = resolveAbsTargets(itemId, linkedMedia)
@@ -138,17 +138,17 @@ open class ReaderSyncFactory @Inject constructor(
         // AudiobookFollow can be built without a downloaded bundle. createIfApplicable() still requires
         // the full bundle (for cross-EPUB index checksums), so the coordinator stays on the sidecar-only
         // path until the bundle is downloaded.
-        val storytellerFile = cachedFile(openedLink.storytellerServerId, openedLink.storytellerBookId)
-            ?: sidecarCache.cachedFile(openedLink.storytellerServerId, openedLink.storytellerBookId)
+        val storytellerFile = cachedFile(openedLink.storytellerSourceId, openedLink.storytellerBookId)
+            ?: sidecarCache.cachedFile(openedLink.storytellerSourceId, openedLink.storytellerBookId)
             ?: return null
         val storytellerExtract = EpubContentExtractor.extract(storytellerFile) ?: return null
         val durationSec = linkedMedia.firstOrNull { it.link.absLibraryItemId == audioTarget.absLibraryItemId }?.audioDurationSec ?: 0.0
-        val endpoint = absEndpointFor(audioTarget.absServerId, audioTarget.absLibraryItemId, durationSec) ?: return null
+        val endpoint = absEndpointFor(audioTarget.absSourceId, audioTarget.absLibraryItemId, durationSec) ?: return null
         return AudiobookFollow(
             absApi = absSessionApi,
             endpoint = endpoint,
             translator = DefaultPositionTranslator(smilClips = storytellerExtract.smilClips),
-            serverId = audioTarget.absServerId,
+            sourceId = audioTarget.absSourceId,
             audioItemId = audioTarget.absLibraryItemId,
             // The ebook target + the bundle's sentence quotes let audiobook→ebook resolve index-free,
             // text-anchored on the ABS EPUB (ADR 0031).
@@ -157,14 +157,14 @@ open class ReaderSyncFactory @Inject constructor(
         )
     }
 
-    private suspend fun absEndpointFor(serverId: String, itemId: String, durationSec: Double = 0.0): AbsSyncEndpoint? {
-        val server = serverRepository.getById(serverId) ?: return null
-        val token = tokenStorage.getToken(serverId) ?: return null
+    private suspend fun absEndpointFor(sourceId: String, itemId: String, durationSec: Double = 0.0): AbsSyncEndpoint? {
+        val server = sourceRepository.getById(sourceId) ?: return null
+        val token = tokenStorage.getToken(sourceId) ?: return null
         return AbsSyncEndpoint(server.url.value, token, server.insecureConnectionAllowed, itemId, durationSec)
     }
 
-    private fun cachedFile(serverId: String, itemId: String): java.io.File? =
-        downloadsStore.get(serverId, itemId) ?: cacheStore.get(serverId, itemId)
+    private fun cachedFile(sourceId: String, itemId: String): java.io.File? =
+        downloadsStore.get(sourceId, itemId) ?: cacheStore.get(sourceId, itemId)
 
     private fun ExtractedEpub.hrefs() = chapters.map { it.href }
     private fun ExtractedEpub.htmlAt(): (Int) -> String? = { chapters.getOrNull(it)?.html }

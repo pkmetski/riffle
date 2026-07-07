@@ -115,7 +115,7 @@ class ReadaloudAudioRepositoryImplTest {
         override fun get(sourceId: String, itemId: String): File? = file
         override suspend fun save(sourceId: String, itemId: String, stream: InputStream): File = throw UnsupportedOperationException()
         override fun delete(sourceId: String, itemId: String) = Unit
-        override fun deleteServer(sourceId: String) = Unit
+        override fun deleteSource(sourceId: String) = Unit
         override fun clear() = Unit
         override fun listItems(): List<StoredItemRef> = emptyList()
     }

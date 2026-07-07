@@ -51,14 +51,14 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.riffle.app.ui.TabletContentWidthContainer
 import com.riffle.core.domain.InsecureConnectionType
-import com.riffle.core.domain.PendingServer
+import com.riffle.core.domain.PendingSource
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AddServerScreen(
     windowSizeClass: WindowSizeClass,
     onNavigateBack: () -> Unit,
-    onAuthenticated: (PendingServer) -> Unit,
+    onAuthenticated: (PendingSource) -> Unit,
     onAutoCompleted: () -> Unit,
     viewModel: AddServerViewModel = hiltViewModel(),
 ) {
@@ -72,7 +72,7 @@ fun AddServerScreen(
     val backend = viewModel.backend
     val isEditing = viewModel.isEditing
     val title = screenTitle(backend, isEditing)
-    val urlLabel = if (backend == AddServerBackend.WEBDAV) "WebDAV URL" else "Server URL"
+    val urlLabel = if (backend == AddServerBackend.WEBDAV) "WebDAV URL" else "Source URL"
     val urlPlaceholder = when (backend) {
         AddServerBackend.WEBDAV -> "server.example.com/dav/annotations"
         else -> "abs.example.com"

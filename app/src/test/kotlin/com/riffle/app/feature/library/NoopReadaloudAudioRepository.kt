@@ -6,11 +6,11 @@ import com.riffle.core.domain.ReadaloudTrack
 import java.io.File
 
 internal object NoopReadaloudAudioRepository : ReadaloudAudioRepository {
-    override fun isAudioAvailable(serverId: String, itemId: String): Boolean = false
-    override fun bundleFile(serverId: String, itemId: String): File? = null
-    override suspend fun readTrack(serverId: String, itemId: String): ReadaloudTrack? = null
-    override suspend fun probeSizeBytes(serverId: String, itemId: String): Long? = null
-    override suspend fun downloadAudio(serverId: String, bookId: String, onProgress: (Long, Long) -> Unit): AudioDownloadResult =
+    override fun isAudioAvailable(sourceId: String, itemId: String): Boolean = false
+    override fun bundleFile(sourceId: String, itemId: String): File? = null
+    override suspend fun readTrack(sourceId: String, itemId: String): ReadaloudTrack? = null
+    override suspend fun probeSizeBytes(sourceId: String, itemId: String): Long? = null
+    override suspend fun downloadAudio(sourceId: String, bookId: String, onProgress: (Long, Long) -> Unit): AudioDownloadResult =
         AudioDownloadResult.Success
-    override suspend fun removeAudio(serverId: String, itemId: String): Long = 0L
+    override suspend fun removeAudio(sourceId: String, itemId: String): Long = 0L
 }

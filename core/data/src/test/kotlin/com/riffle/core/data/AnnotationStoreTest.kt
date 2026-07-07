@@ -86,6 +86,7 @@ class AnnotationStoreTest {
         }
 
         override suspend fun purgeAgedTombstones(sourceId: String, itemId: String, cutoff: Long): Int = 0
+        override fun observeBooksWithHighlights(sourceId: String): Flow<List<com.riffle.core.database.BookHighlightSummary>> = kotlinx.coroutines.flow.flowOf(emptyList())
     }
 
     private class FakeDeviceIdStore(private val id: String) : DeviceIdStore {

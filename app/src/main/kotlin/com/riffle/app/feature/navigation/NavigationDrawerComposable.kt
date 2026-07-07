@@ -48,7 +48,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.riffle.app.BuildConfig
 import com.riffle.core.domain.Library
-import com.riffle.core.domain.Server
+import com.riffle.core.domain.Source
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -57,12 +57,12 @@ fun RiffleNavigationDrawer(
     gesturesEnabled: Boolean = true,
     usePermanentDrawer: Boolean = false,
     hidePermanentDrawerPanel: Boolean = false,
-    activeServer: Server?,
-    allServers: List<Server>,
+    activeServer: Source?,
+    allServers: List<Source>,
     visibleLibraries: List<Library>,
     activeLibraryId: String?,
     serverVersions: Map<String, String>,
-    onServerSelected: (Server) -> Unit,
+    onServerSelected: (Source) -> Unit,
     onLibrarySelected: (Library) -> Unit,
     onDownloadsSelected: () -> Unit,
     onSettingsSelected: () -> Unit,
@@ -107,12 +107,12 @@ fun RiffleNavigationDrawer(
 
 @Composable
 private fun DrawerSheetContent(
-    activeServer: Server?,
-    allServers: List<Server>,
+    activeServer: Source?,
+    allServers: List<Source>,
     visibleLibraries: List<Library>,
     activeLibraryId: String?,
     serverVersions: Map<String, String>,
-    onServerSelected: (Server) -> Unit,
+    onServerSelected: (Source) -> Unit,
     onLibrarySelected: (Library) -> Unit,
     onDownloadsSelected: () -> Unit,
     onSettingsSelected: () -> Unit,
@@ -176,10 +176,10 @@ private fun DrawerSheetContent(
 
 @Composable
 private fun DrawerHeader(
-    activeServer: Server?,
-    allServers: List<Server>,
+    activeServer: Source?,
+    allServers: List<Source>,
     serverVersions: Map<String, String>,
-    onServerSelected: (Server) -> Unit,
+    onServerSelected: (Source) -> Unit,
 ) {
     val activeVersion = activeServer?.id?.let { serverVersions[it] }
     var switcherExpanded by remember { mutableStateOf(false) }

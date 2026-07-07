@@ -10,13 +10,13 @@ import com.riffle.core.domain.AnnotationSweepEnqueuer
 import com.riffle.core.domain.AnnotationSyncConfig
 import com.riffle.core.domain.AnnotationSyncConfigStore
 import com.riffle.core.domain.AuthenticateResult
-import com.riffle.core.domain.CommitServerResult
+import com.riffle.core.domain.CommitSourceResult
 import com.riffle.core.domain.InsecureConnectionType
 import com.riffle.core.domain.Library
-import com.riffle.core.domain.PendingServer
-import com.riffle.core.domain.Server
-import com.riffle.core.domain.ServerRepository
-import com.riffle.core.domain.ServerUrl
+import com.riffle.core.domain.PendingSource
+import com.riffle.core.domain.Source
+import com.riffle.core.domain.SourceRepository
+import com.riffle.core.domain.SourceUrl
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -56,9 +56,9 @@ class AddServerViewModelTest {
         Dispatchers.resetMain()
     }
 
-    private fun fakeServer() = Server(
+    private fun fakeServer() = Source(
         id = "s1",
-        url = ServerUrl.parse("https://abs.example.com")!!,
+        url = SourceUrl.parse("https://abs.example.com")!!,
         isActive = true,
         insecureConnectionAllowed = false,
         username = "",
@@ -69,8 +69,8 @@ class AddServerViewModelTest {
             Library("lib-1", "Books", "book", false),
             Library("lib-2", "Comics", "book", false),
         ),
-    ) = PendingServer(
-        url = ServerUrl.parse("https://abs.example.com")!!,
+    ) = PendingSource(
+        url = SourceUrl.parse("https://abs.example.com")!!,
         username = "admin",
         userId = "uid",
         token = "tok",
@@ -84,26 +84,26 @@ class AddServerViewModelTest {
 
     private class RecordingRepository(
         private val authResult: AuthenticateResult,
-        private val commitResult: CommitServerResult = CommitServerResult.Success(
-            Server(
+        private val commitResult: CommitSourceResult = CommitSourceResult.Success(
+            Source(
                 id = "s1",
-                url = ServerUrl.parse("https://abs.example.com")!!,
+                url = SourceUrl.parse("https://abs.example.com")!!,
                 isActive = true,
                 insecureConnectionAllowed = false,
                 username = "",
             )
         ),
-        private val storedById: Map<String, Server> = emptyMap(),
-    ) : ServerRepository {
+        private val storedById: Map<String, Source> = emptyMap(),
+    ) : SourceRepository {
         var commitCallCount = 0
         var lastInsecureAllowed: Boolean? = null
         var lastServerType: com.riffle.core.domain.ServerType? = null
         val removedIds = mutableListOf<String>()
-        override fun observeAll(): Flow<List<Server>> = emptyFlow()
-        override suspend fun getActive(): Server? = null
-        override suspend fun getById(serverId: String): Server? = storedById[serverId]
+        override fun observeAll(): Flow<List<Source>> = emptyFlow()
+        override suspend fun getActive(): Source? = null
+        override suspend fun getById(sourceId: String): Source? = storedById[sourceId]
         override suspend fun authenticate(
-            url: ServerUrl,
+            url: SourceUrl,
             username: String,
             password: String,
             insecureAllowed: Boolean,
@@ -113,13 +113,13 @@ class AddServerViewModelTest {
             lastServerType = serverType
             return authResult
         }
-        override suspend fun commit(pending: PendingServer, hiddenLibraryIds: Set<String>): CommitServerResult {
+        override suspend fun commit(pending: PendingSource, hiddenLibraryIds: Set<String>): CommitSourceResult {
             commitCallCount += 1
             return commitResult
         }
-        override suspend fun setActive(serverId: String) {}
-        override suspend fun remove(serverId: String) { removedIds += serverId }
-        override suspend fun getServerVersion(serverId: String): String? = null
+        override suspend fun setActive(sourceId: String) {}
+        override suspend fun remove(sourceId: String) { removedIds += sourceId }
+        override suspend fun getSourceVersion(sourceId: String): String? = null
     }
 
     private class RecordingConfigStore(
@@ -136,15 +136,15 @@ class AddServerViewModelTest {
     private class CountingTokenStorage(
         private val passwords: MutableMap<String, String> = mutableMapOf(),
     ) : com.riffle.core.domain.TokenStorage {
-        override suspend fun saveToken(serverId: String, token: String) {}
-        override suspend fun getToken(serverId: String): String? = null
-        override suspend fun deleteToken(serverId: String) {}
-        override suspend fun savePassword(serverId: String, password: String) { passwords[serverId] = password }
-        override suspend fun getPassword(serverId: String): String? = passwords[serverId]
-        override suspend fun deletePassword(serverId: String) { passwords.remove(serverId) }
+        override suspend fun saveToken(sourceId: String, token: String) {}
+        override suspend fun getToken(sourceId: String): String? = null
+        override suspend fun deleteToken(sourceId: String) {}
+        override suspend fun savePassword(sourceId: String, password: String) { passwords[sourceId] = password }
+        override suspend fun getPassword(sourceId: String): String? = passwords[sourceId]
+        override suspend fun deletePassword(sourceId: String) { passwords.remove(sourceId) }
     }
 
-    private fun fakeRepo(authResult: AuthenticateResult): ServerRepository =
+    private fun fakeRepo(authResult: AuthenticateResult): SourceRepository =
         RecordingRepository(authResult)
 
     private object NullConfigStore : AnnotationSyncConfigStore {
@@ -159,7 +159,7 @@ class AddServerViewModelTest {
     }
 
     private fun makeVm(
-        repository: ServerRepository,
+        repository: SourceRepository,
         savedState: SavedStateHandle = SavedStateHandle(),
         configStore: AnnotationSyncConfigStore = NullConfigStore,
         tokenStorage: com.riffle.core.domain.TokenStorage = io.mockk.mockk(relaxed = true),
@@ -183,25 +183,25 @@ class AddServerViewModelTest {
     )
 
     private fun stubAnnotationDao(pendingBookCount: Int): AnnotationDao = object : AnnotationDao {
-        override fun observeForItem(serverId: String, itemId: String) = flowOf(emptyList<AnnotationEntity>())
-        override fun observeForServer(serverId: String) = flowOf(emptyList<AnnotationEntity>())
-        override suspend fun getForItem(serverId: String, itemId: String) = emptyList<AnnotationEntity>()
-        override suspend fun getAllForItemIncludingDeleted(serverId: String, itemId: String) = emptyList<AnnotationEntity>()
+        override fun observeForItem(sourceId: String, itemId: String) = flowOf(emptyList<AnnotationEntity>())
+        override fun observeForSource(sourceId: String) = flowOf(emptyList<AnnotationEntity>())
+        override suspend fun getForItem(sourceId: String, itemId: String) = emptyList<AnnotationEntity>()
+        override suspend fun getAllForItemIncludingDeleted(sourceId: String, itemId: String) = emptyList<AnnotationEntity>()
         override suspend fun getById(id: String): AnnotationEntity? = null
-        override suspend fun getByItemAndCfi(serverId: String, itemId: String, cfi: String): AnnotationEntity? = null
+        override suspend fun getByItemAndCfi(sourceId: String, itemId: String, cfi: String): AnnotationEntity? = null
         override suspend fun upsert(entity: AnnotationEntity) {}
         override suspend fun upsertAll(annotations: List<AnnotationEntity>) {}
         override suspend fun tombstone(id: String, updatedAt: Long, deviceId: String) {}
         override suspend fun recolor(id: String, color: String, updatedAt: Long, deviceId: String) {}
         override suspend fun updateNote(id: String, note: String?, updatedAt: Long, deviceId: String) {}
-        override fun observeAnnotationsByPosition(serverId: String, itemId: String) = flowOf(emptyList<AnnotationEntity>())
+        override fun observeAnnotationsByPosition(sourceId: String, itemId: String) = flowOf(emptyList<AnnotationEntity>())
         override suspend fun renameBookmark(id: String, title: String, updatedAt: Long, deviceId: String) {}
-        override fun observePendingCountForBook(serverId: String, itemId: String) = flowOf(0)
+        override fun observePendingCountForBook(sourceId: String, itemId: String) = flowOf(0)
         override fun observePendingBookCountAcrossAll() = flowOf(pendingBookCount)
-        override suspend fun dirtyServerItems() = emptyList<AnnotationDao.DirtyServerItem>()
+        override suspend fun dirtySourceItems() = emptyList<AnnotationDao.DirtySourceItem>()
         override suspend fun markSynced(ids: List<String>, syncedAt: Long) {}
-        override suspend fun purgeAgedTombstones(serverId: String, itemId: String, cutoff: Long): Int = 0
-        override fun observeBooksWithHighlights(serverId: String) =
+        override suspend fun purgeAgedTombstones(sourceId: String, itemId: String, cutoff: Long): Int = 0
+        override fun observeBooksWithHighlights(sourceId: String) =
             flowOf(emptyList<com.riffle.core.database.BookHighlightSummary>())
     }
 
@@ -269,7 +269,7 @@ class AddServerViewModelTest {
         val pending = singleLibraryPending()
         val repo = RecordingRepository(
             authResult = AuthenticateResult.Success(pending),
-            commitResult = CommitServerResult.Failure(RuntimeException("disk full")),
+            commitResult = CommitSourceResult.Failure(RuntimeException("disk full")),
         )
         val vm = makeVm(repo)
         vm.updateScheme("https://"); vm.updateHost("abs.example.com")
@@ -337,9 +337,9 @@ class AddServerViewModelTest {
 
     @Test
     fun `init with type=storyteller and editId prefills url, username, password from repo and token storage`() = runTest {
-        val storyteller = Server(
+        val storyteller = Source(
             id = "st-1",
-            url = ServerUrl.parse("http://media-server:8001")!!,
+            url = SourceUrl.parse("http://media-server:8001")!!,
             isActive = false,
             insecureConnectionAllowed = true,
             username = "plamen",
@@ -497,25 +497,25 @@ class AddServerViewModelTest {
         }
         val pending = MutableStateFlow(2)
         val dao = object : AnnotationDao {
-            override fun observeForItem(serverId: String, itemId: String) = flowOf(emptyList<AnnotationEntity>())
-            override fun observeForServer(serverId: String) = flowOf(emptyList<AnnotationEntity>())
-            override suspend fun getForItem(serverId: String, itemId: String) = emptyList<AnnotationEntity>()
-            override suspend fun getAllForItemIncludingDeleted(serverId: String, itemId: String) = emptyList<AnnotationEntity>()
+            override fun observeForItem(sourceId: String, itemId: String) = flowOf(emptyList<AnnotationEntity>())
+            override fun observeForSource(sourceId: String) = flowOf(emptyList<AnnotationEntity>())
+            override suspend fun getForItem(sourceId: String, itemId: String) = emptyList<AnnotationEntity>()
+            override suspend fun getAllForItemIncludingDeleted(sourceId: String, itemId: String) = emptyList<AnnotationEntity>()
             override suspend fun getById(id: String): AnnotationEntity? = null
-            override suspend fun getByItemAndCfi(serverId: String, itemId: String, cfi: String): AnnotationEntity? = null
+            override suspend fun getByItemAndCfi(sourceId: String, itemId: String, cfi: String): AnnotationEntity? = null
             override suspend fun upsert(entity: AnnotationEntity) {}
             override suspend fun upsertAll(annotations: List<AnnotationEntity>) {}
             override suspend fun tombstone(id: String, updatedAt: Long, deviceId: String) {}
             override suspend fun recolor(id: String, color: String, updatedAt: Long, deviceId: String) {}
             override suspend fun updateNote(id: String, note: String?, updatedAt: Long, deviceId: String) {}
-            override fun observeAnnotationsByPosition(serverId: String, itemId: String) = flowOf(emptyList<AnnotationEntity>())
+            override fun observeAnnotationsByPosition(sourceId: String, itemId: String) = flowOf(emptyList<AnnotationEntity>())
             override suspend fun renameBookmark(id: String, title: String, updatedAt: Long, deviceId: String) {}
-            override fun observePendingCountForBook(serverId: String, itemId: String) = flowOf(0)
+            override fun observePendingCountForBook(sourceId: String, itemId: String) = flowOf(0)
             override fun observePendingBookCountAcrossAll() = pending
-            override suspend fun dirtyServerItems() = emptyList<AnnotationDao.DirtyServerItem>()
+            override suspend fun dirtySourceItems() = emptyList<AnnotationDao.DirtySourceItem>()
             override suspend fun markSynced(ids: List<String>, syncedAt: Long) {}
-            override suspend fun purgeAgedTombstones(serverId: String, itemId: String, cutoff: Long): Int = 0
-            override fun observeBooksWithHighlights(serverId: String) =
+            override suspend fun purgeAgedTombstones(sourceId: String, itemId: String, cutoff: Long): Int = 0
+            override fun observeBooksWithHighlights(sourceId: String) =
                 flowOf(emptyList<com.riffle.core.database.BookHighlightSummary>())
         }
         val vm = makeVm(
@@ -600,9 +600,9 @@ class AddServerViewModelTest {
 
     @Test
     fun `edit mode with wrong credentials does NOT remove the existing server`() = runTest {
-        val storyteller = Server(
+        val storyteller = Source(
             id = "st-1",
-            url = ServerUrl.parse("https://story.example.com")!!,
+            url = SourceUrl.parse("https://story.example.com")!!,
             isActive = false,
             insecureConnectionAllowed = false,
             username = "plamen",
@@ -626,9 +626,9 @@ class AddServerViewModelTest {
 
     @Test
     fun `onRemove for Storyteller calls repository remove with the editing id and navigates home`() = runTest {
-        val storyteller = Server(
+        val storyteller = Source(
             id = "st-1",
-            url = ServerUrl.parse("http://media-server:8001")!!,
+            url = SourceUrl.parse("http://media-server:8001")!!,
             isActive = false,
             insecureConnectionAllowed = true,
             username = "plamen",

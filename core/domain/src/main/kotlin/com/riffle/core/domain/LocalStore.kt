@@ -15,7 +15,7 @@ interface LocalStore {
     fun delete(sourceId: String, itemId: String)
 
     /** Deletes every file owned by [sourceId] (its whole `dir/<sourceId>/` subtree). */
-    fun deleteServer(sourceId: String)
+    fun deleteSource(sourceId: String)
 
     fun clear()
     fun listItems(): List<StoredItemRef>
