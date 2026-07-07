@@ -158,10 +158,6 @@ class HighlightsPublicationFactory @Inject constructor() {
 private fun highlightBackgroundCss(colorToken: String): String =
     HighlightColor.fromToken(colorToken).argb.toCssRgba()
 
-/** Paler, neutral background for a highlight's note `<aside>` — distinguishes it from the highlight
- * paragraph above it without introducing a second colour token. */
-private const val NOTE_BACKGROUND_CSS = "#f5f5f5"
-
 /**
  * Explicit `<link>` to Readium's own `ReadiumCSS-default.css`, worked around this way to fix a
  * formatting bug in the elided reader (ADR 0041): every synthesised chapter loses font-size/

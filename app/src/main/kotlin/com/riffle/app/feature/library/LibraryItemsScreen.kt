@@ -165,7 +165,11 @@ fun LibraryItemsScreen(
     val notStartedFilterActive by viewModel.notStartedFilterActive.collectAsState()
 
     val coversAreSquare by viewModel.coversAreSquare.collectAsState()
-    var selectedTab by rememberSaveable { mutableIntStateOf(0) }
+    // Versioned key: v2 = post-Annotations-tab-insertion. Without the version bump, a user
+    // upgrading from a build where "Series" was index 2 would land on the new Annotations tab
+    // (also index 2) after the shuffle. Bumping the key discards the old saved int and resets
+    // everyone to Home on first launch after upgrade.
+    var selectedTab by rememberSaveable(key = "library_selected_tab_v2") { mutableIntStateOf(0) }
 
     // Drive the grids off a local live scale so a pinch reflows instantly; the
     // persisted value (collected here) seeds it and wins on any external change.
