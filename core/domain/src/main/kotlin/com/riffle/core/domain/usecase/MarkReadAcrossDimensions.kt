@@ -3,7 +3,7 @@ package com.riffle.core.domain.usecase
 import com.riffle.core.domain.LibraryMutator
 import com.riffle.core.domain.ReadaloudLinkRepository
 import com.riffle.core.domain.ReadingSessionRepository
-import com.riffle.core.domain.ServerRepository
+import com.riffle.core.domain.SourceRepository
 import javax.inject.Inject
 
 /**
@@ -19,7 +19,7 @@ open class MarkReadAcrossDimensions @Inject constructor(
     private val libraryMutator: LibraryMutator,
     private val readingSessionRepository: ReadingSessionRepository,
     private val readaloudLinkRepository: ReadaloudLinkRepository,
-    private val serverRepository: ServerRepository,
+    private val serverRepository: SourceRepository,
 ) {
     open suspend operator fun invoke(itemId: String, finished: Boolean) {
         val progress = if (finished) 1.0f else 0.0f
