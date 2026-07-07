@@ -139,8 +139,8 @@ class ReadaloudStreamingSessionFactoryAndroidTest {
     }
 
     private fun seed(withAudiobook: Boolean) = runBlocking {
-        db.serverDao().upsert(ServerEntity(ABS_SERVER, baseUrl, true, false, "u", ServerType.AUDIOBOOKSHELF.name))
-        db.serverDao().upsert(ServerEntity(ST_SERVER, baseUrl, false, false, "u", ServerType.STORYTELLER.name))
+        db.sourceDao().upsert(ServerEntity(ABS_SERVER, baseUrl, true, false, "u", ServerType.AUDIOBOOKSHELF.name))
+        db.sourceDao().upsert(ServerEntity(ST_SERVER, baseUrl, false, false, "u", ServerType.STORYTELLER.name))
         if (withAudiobook) {
             db.libraryItemDao().upsertAll(
                 listOf(

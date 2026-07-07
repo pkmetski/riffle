@@ -40,7 +40,7 @@ class AudioPlaybackSpeedPersistenceTest {
             RiffleDatabase::class.java,
         ).allowMainThreadQueries().build()
         runBlocking {
-            db.serverDao().upsert(
+            db.sourceDao().upsert(
                 ServerEntity("srv-1", "http://abs", isActive = true, insecureConnectionAllowed = false, username = "test")
             )
         }

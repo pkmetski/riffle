@@ -3,7 +3,7 @@ package com.riffle.core.data
 import com.riffle.core.database.LibraryDao
 import com.riffle.core.database.LibraryEntity
 import com.riffle.core.database.LibraryItemDao
-import com.riffle.core.database.ServerDao
+import com.riffle.core.database.SourceDao
 import com.riffle.core.database.ServerEntity
 import com.riffle.core.domain.AuthenticateResult
 import com.riffle.core.domain.CommitServerResult
@@ -29,7 +29,7 @@ import java.util.UUID
 import javax.inject.Inject
 
 class ServerRepositoryImpl @Inject constructor(
-    private val dao: ServerDao,
+    private val dao: SourceDao,
     private val tokenStorage: TokenStorage,
     private val absApiClient: AbsApi,
     private val storytellerApi: StorytellerApi,

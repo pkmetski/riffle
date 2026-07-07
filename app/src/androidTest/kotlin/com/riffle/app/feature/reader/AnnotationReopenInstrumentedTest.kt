@@ -79,7 +79,7 @@ class AnnotationReopenInstrumentedTest {
         val epubFile = copyTestEpub()
         val pub = openTestEpub(epubFile)
         // annotations.serverId is a FK → seed the ABS server.
-        db.serverDao().upsert(
+        db.sourceDao().upsert(
             ServerEntity("abs1", "http://abs1", isActive = true, insecureConnectionAllowed = false, username = "u"),
         )
 

@@ -55,7 +55,7 @@ class BookmarkIndicatorReopenInstrumentedTest {
             idGenerator = { "uuid-1" },
         )
         runBlocking {
-            db.serverDao().upsert(
+            db.sourceDao().upsert(
                 ServerEntity("abs1", "http://abs1", isActive = true, insecureConnectionAllowed = false, username = "u"),
             )
         }
