@@ -5,6 +5,9 @@ import android.view.ViewGroup.LayoutParams.MATCH_PARENT
 import android.view.ViewGroup.LayoutParams.WRAP_CONTENT
 import android.widget.LinearLayout
 import com.riffle.core.domain.FormattingPreferences
+import com.riffle.core.logging.LogChannel
+import com.riffle.core.logging.Logger
+import com.riffle.core.logging.NoopLogger
 import org.readium.r2.shared.publication.Publication
 
 /**
@@ -105,6 +108,15 @@ internal class ContinuousWindowController(
     /** Parallel list to the loaded WebViews; index i matches container.getChildAt(i). */
     private val webViews = mutableListOf<ChapterWebView>()
 
+    /** Wired by [ContinuousReaderView.logger] from the reader ViewModel so decoration-path
+     *  diagnostics land in the in-app debug screen (channel [LogChannel.ReaderDecoration]).
+     *  Setter propagates to the child [ContinuousDecorationController]. */
+    internal var logger: Logger = NoopLogger
+        set(value) {
+            field = value
+            decorations.logger = value
+        }
+
     /** Owns annotation + search decoration state and the apply-to-window loops. */
     private val decorations = ContinuousDecorationController(
         port = object : ContinuousDecorationController.Port {
@@ -187,7 +199,13 @@ internal class ContinuousWindowController(
     private val recycledViews = ArrayDeque<ChapterWebView>()
 
     private fun obtainWebView(): ChapterWebView =
-        recycledViews.removeFirstOrNull() ?: ChapterWebView(context)
+        (recycledViews.removeFirstOrNull() ?: ChapterWebView(context)).also { wv ->
+            // Route JS console errors/warnings to the ReaderDecoration log channel so the in-app
+            // debug screen surfaces DOM-side throws (e.g. #428's createTreeWalker-on-null-body)
+            // alongside the Kotlin-side decoration events. Wired here so recycled views also
+            // pick up the current logger.
+            wv.jsConsoleLogger = logger
+        }
 
     /**
      * Detach [wv] from active use and pool it for reuse (or destroy it if the pool is full).
@@ -519,7 +537,11 @@ internal class ContinuousWindowController(
 
     /** Hook fired once a chapter's `applyAnnotationHighlightsJs` JS finishes. */
     private fun onAnnotationHighlightsApplied(wv: ChapterWebViewLike) {
-        if (wv.chapterHref != pendingTargetHref) return
+        val matches = wv.chapterHref == pendingTargetHref
+        logger.d(LogChannel.ReaderDecoration) {
+            "onAnnotationHighlightsApplied href='${wv.chapterHref}' matchesPendingTarget=$matches pendingTargetHref='$pendingTargetHref'"
+        }
+        if (!matches) return
         reapplyLandingAfterFallback?.invoke()
         scrollToPendingFocusAnnotation(wv.chapterHref)
     }

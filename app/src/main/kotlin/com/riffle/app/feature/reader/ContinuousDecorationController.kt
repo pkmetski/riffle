@@ -1,5 +1,8 @@
 package com.riffle.app.feature.reader
 
+import com.riffle.core.logging.LogChannel
+import com.riffle.core.logging.Logger
+import com.riffle.core.logging.NoopLogger
 import kotlin.math.abs
 
 /**
@@ -32,20 +35,33 @@ internal class ContinuousDecorationController(
         val currentScrollY: Int
     }
 
+    /** Set by the host ([ContinuousWindowController.logger]) once the reader is wired up.
+     *  Emissions land on [LogChannel.ReaderDecoration] (tag `RIFFLE_DECO`) and mirror to
+     *  the in-app debug log screen — see docs/agents/domain.md. */
+    internal var logger: Logger = NoopLogger
+
     private var currentAnnotationsByHref: Map<String, List<AnnotationHighlight>> = emptyMap()
     private var currentSearchHighlights: SearchHighlightsState? = null
 
     /** Called by [ContinuousReaderView.onPageFinished] once a chapter's page has loaded so it
      *  re-applies whatever decorations belong to it. */
     fun onChapterLoaded(wv: ChapterWebViewLike, onAnnotationsApplied: () -> Unit = {}) {
-        val annotations = currentAnnotationsByHref[wv.chapterHref]
+        val href = wv.chapterHref
+        val annotations = currentAnnotationsByHref[href]
+        val count = annotations?.size ?: 0
+        logger.d(LogChannel.ReaderDecoration) {
+            "onChapterLoaded href='$href' annotationsForHref=$count knownHrefs=${currentAnnotationsByHref.size}"
+        }
         if (!annotations.isNullOrEmpty()) {
             wv.evaluateJavascript(ContinuousStyleInjector.applyAnnotationHighlightsJs(annotations)) { _ ->
+                logger.d(LogChannel.ReaderDecoration) {
+                    "onChapterLoaded apply-complete href='$href' count=$count"
+                }
                 onAnnotationsApplied()
             }
         }
         val search = currentSearchHighlights
-        if (search != null && search.resultsByHref.containsKey(wv.chapterHref)) {
+        if (search != null && search.resultsByHref.containsKey(href)) {
             applySearchTo(wv, search)
         }
     }
@@ -68,14 +84,26 @@ internal class ContinuousDecorationController(
         onEachApplied: (ChapterWebViewLike) -> Unit,
     ) {
         currentAnnotationsByHref = annotationsByHref
+        val loadedHrefs = mutableListOf<String>()
+        port.forEachLoadedWebView { loadedHrefs += it.chapterHref }
+        logger.d(LogChannel.ReaderDecoration) {
+            val perHref = annotationsByHref.entries.joinToString(",") { "${it.key}=${it.value.size}" }
+            "applyAnnotationHighlights hrefsWithMarks=${annotationsByHref.size} loadedHrefs=$loadedHrefs perHref=[$perHref]"
+        }
         port.forEachLoadedWebView { wv ->
             val href = wv.chapterHref
-            if (href.isEmpty()) return@forEachLoadedWebView
+            if (href.isEmpty()) {
+                logger.w(LogChannel.ReaderDecoration) { "applyAnnotationHighlights skip: empty chapterHref on WebView" }
+                return@forEachLoadedWebView
+            }
             val annotations = annotationsByHref[href]
             if (annotations.isNullOrEmpty()) {
+                logger.d(LogChannel.ReaderDecoration) { "apply→clear href='$href'" }
                 wv.evaluateJavascript(ContinuousStyleInjector.CLEAR_ANNOTATION_HIGHLIGHTS_JS, null)
             } else {
+                logger.d(LogChannel.ReaderDecoration) { "apply→highlights href='$href' count=${annotations.size}" }
                 wv.evaluateJavascript(ContinuousStyleInjector.applyAnnotationHighlightsJs(annotations)) { _ ->
+                    logger.d(LogChannel.ReaderDecoration) { "apply-complete href='$href' count=${annotations.size}" }
                     onEachApplied(wv)
                 }
             }

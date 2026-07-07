@@ -37,6 +37,14 @@ internal class ContinuousReaderView @JvmOverloads constructor(
     attrs: AttributeSet? = null,
 ) : NestedScrollView(context, attrs), ContinuousHighlightTarget, ContinuousNavigationView {
 
+    /** Wired from the reader ViewModel; forwards to [ContinuousWindowController.logger] so the
+     *  decoration path logs to [com.riffle.core.logging.LogChannel.ReaderDecoration]. */
+    internal var logger: com.riffle.core.logging.Logger = com.riffle.core.logging.NoopLogger
+        set(value) {
+            field = value
+            controller.logger = value
+        }
+
     data class ChapterEntry(val link: Link, val url: String)
 
     private val port = object : ContinuousScrollPort {

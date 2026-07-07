@@ -94,6 +94,7 @@ fun SettingsScreen(
     onNavigateToAddServer: (backend: AddServerBackend, editId: String?) -> Unit,
     onNavigateToReadaloudMatches: (String) -> Unit = {},
     onNavigateToAnnotationSyncMaintenance: () -> Unit = {},
+    onNavigateToDebugLogs: () -> Unit = {},
     viewModel: SettingsViewModel = hiltViewModel(),
 ) {
     val crashReports by viewModel.crashReports.collectAsState()
@@ -473,10 +474,22 @@ fun SettingsScreen(
                 HorizontalDivider()
 
                 Text(
-                    text = "Crash reports",
+                    text = "Diagnostics",
                     style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.Bold,
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                )
+                HorizontalDivider()
+                ListItem(
+                    modifier = Modifier.clickable { onNavigateToDebugLogs() },
+                    headlineContent = { Text("Debug logs") },
+                    supportingContent = { Text("View / share the in-app log buffer") },
+                    trailingContent = {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                            contentDescription = null,
+                        )
+                    },
                 )
                 HorizontalDivider()
                 if (crashReports.isEmpty()) {
