@@ -31,12 +31,15 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import android.view.View
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -119,6 +122,12 @@ fun HighlightActionsPopup(
         onDismissRequest = onDismiss,
         properties = PopupProperties(focusable = true),
     ) {
+        // Compose creates a focusable Popup as its own WindowManager window that steals input
+        // focus from the reader Activity. The reader's non-sticky SYSTEM_UI_FLAG_IMMERSIVE only
+        // holds while its Window has focus, so on focus loss the OS reveals the status/nav bars
+        // behind the popup. Applying the fullscreen/immersive flags to THIS popup Window means
+        // the OS sees the focused window is also fullscreen — no reason to draw bars.
+        ImmersivePopupWindow()
         Surface(
             shape = RoundedCornerShape(12.dp),
             shadowElevation = 4.dp,
@@ -295,4 +304,29 @@ internal fun NoteEditorDialog(
             }
         },
     )
+}
+
+/**
+ * Hide the system bars on the enclosing focusable Popup's own Window so the reader Activity
+ * behind never has its bars revealed by the focus transfer. See the comment at the Popup call
+ * site above for the full rationale. Uses `View.systemUiVisibility` directly — the popup root
+ * isn't backed by an Activity `Window`, so `WindowInsetsControllerCompat` can't be attached
+ * conventionally. The deprecated flags path is well-supported across API 25..34 for this
+ * exact use case (a subordinate WindowManager view opting into fullscreen).
+ */
+@Suppress("DEPRECATION")
+@Composable
+private fun ImmersivePopupWindow() {
+    val popupView = LocalView.current
+    DisposableEffect(popupView) {
+        val decor = popupView.rootView
+        val previous = decor.systemUiVisibility
+        decor.systemUiVisibility = View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or
+            View.SYSTEM_UI_FLAG_FULLSCREEN or
+            View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY or
+            View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION or
+            View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN or
+            View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+        onDispose { decor.systemUiVisibility = previous }
+    }
 }
