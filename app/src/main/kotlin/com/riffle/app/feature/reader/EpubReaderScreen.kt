@@ -472,6 +472,7 @@ fun EpubReaderScreen(
                         onAutoScrollResume = viewModel::resumeAutoScrollIfPaused,
                         onFigureTap = viewModel::onFigureTapPayload,
                         dispatchers = viewModel.dispatchers,
+                        logger = viewModel.logger,
                         modifier = Modifier
                             .fillMaxSize()
                             .testTag("reader_ready")
@@ -1187,6 +1188,7 @@ private fun EpubNavigatorView(
     onAutoScrollResume: () -> Unit,
     onFigureTap: (payload: String) -> Unit,
     dispatchers: com.riffle.core.domain.DispatcherProvider,
+    logger: com.riffle.core.logging.Logger,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -2396,6 +2398,9 @@ private fun EpubNavigatorView(
                 factory = { ctx ->
                     ContinuousReaderView(ctx).also { view ->
                         continuousViewRef.value = view
+                        // Route continuous decoration + WebView console diagnostics to
+                        // LogChannel.ReaderDecoration (RIFFLE_DECO) for the in-app debug screen.
+                        view.logger = logger
                         // Wire the presenter BEFORE attach so the coordinator's onRawPosition
                         // handler routes raw-position events through it on the very first scroll.
                         coordinator.presenter = continuousPresenter

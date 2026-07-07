@@ -4,11 +4,16 @@ import android.annotation.SuppressLint
 import android.content.Context
 import android.webkit.JavascriptInterface
 import android.webkit.RenderProcessGoneDetail
+import android.webkit.ConsoleMessage
+import android.webkit.WebChromeClient
 import android.webkit.WebResourceRequest
 import android.webkit.WebResourceResponse
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import com.riffle.core.domain.FormattingPreferences
+import com.riffle.core.logging.LogChannel
+import com.riffle.core.logging.Logger
+import com.riffle.core.logging.NoopLogger
 import kotlinx.coroutines.runBlocking
 import org.readium.r2.shared.publication.Publication
 import org.readium.r2.shared.util.Url
@@ -189,6 +194,15 @@ internal class ChapterWebView(context: Context) : WebView(context), ChapterWebVi
         publication = pub
     }
 
+    /**
+     * Optional sink for JS console messages emitted by this chapter's page. Set by
+     * [ContinuousWindowController] to the ReaderDecoration [Logger] so the in-app debug screen
+     * shows DOM-side errors (e.g. #428's `createTreeWalker` throw) alongside the Kotlin-side
+     * decoration events. WARNING/ERROR forward to `logger.w`/`logger.e`; DEBUG/LOG/TIP are dropped
+     * to keep noise low.
+     */
+    var jsConsoleLogger: Logger = NoopLogger
+
     init {
         isScrollContainer = false
         isVerticalScrollBarEnabled = false
@@ -227,6 +241,18 @@ internal class ChapterWebView(context: Context) : WebView(context), ChapterWebVi
             androidx.webkit.WebSettingsCompat.setOffscreenPreRaster(settings, true)
         }
         addJavascriptInterface(HeightBridge(), FigureTapScript.CONTINUOUS_BRIDGE_NAME)
+        webChromeClient = object : WebChromeClient() {
+            override fun onConsoleMessage(consoleMessage: ConsoleMessage?): Boolean {
+                val m = consoleMessage ?: return false
+                val line = "JS ${m.sourceId()?.substringAfterLast('/') ?: "?"}:${m.lineNumber()} ${m.message()}"
+                when (m.messageLevel()) {
+                    ConsoleMessage.MessageLevel.ERROR -> jsConsoleLogger.e(LogChannel.ReaderDecoration) { line }
+                    ConsoleMessage.MessageLevel.WARNING -> jsConsoleLogger.w(LogChannel.ReaderDecoration) { line }
+                    else -> Unit
+                }
+                return false
+            }
+        }
         webViewClient = object : WebViewClient() {
             override fun onPageFinished(view: WebView?, url: String?) {
                 this@ChapterWebView.onPageFinished?.invoke()

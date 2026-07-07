@@ -185,7 +185,7 @@ class EpubReaderViewModel @Inject constructor(
     private val annotationSessionFactory: com.riffle.app.feature.reader.session.AnnotationSession.Factory,
     private val readaloudSessionFactory: com.riffle.app.feature.reader.session.ReadaloudSession.Factory,
     private val readerSessionLifecycleFactory: com.riffle.app.feature.reader.session.ReaderSessionLifecycle.Factory,
-    private val logger: Logger,
+    internal val logger: Logger,
     private val clock: Clock,
     val dispatchers: DispatcherProvider,
     private val highlightsPublicationFactory: HighlightsPublicationFactory,
