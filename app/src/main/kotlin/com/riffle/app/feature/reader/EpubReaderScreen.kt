@@ -2291,16 +2291,12 @@ private fun EpubNavigatorView(
                     // Attach to the ReaderPresenter seam (#300 step 2). Today only decoration
                     // application flows through it; remaining concerns cut over in later steps.
                     readiumPresenter?.attach(fragment)
-                    // Readium's built-in ANIMATED page transition (Kotlin toolkit 3.2.0+): edge taps
-                    // turn the page with a smooth slide instead of an instant jump. Added before
-                    // tapListener so the adapter consumes horizontal edge taps and tapListener only
-                    // sees the center taps it doesn't handle.
-                    fragment.addInputListener(
-                        DirectionalNavigationAdapter(
-                            navigator = fragment,
-                            animatedTransition = true,
-                        ),
-                    )
+                    // Readium's built-in ANIMATED page transition (Kotlin toolkit 3.2.0+) for the
+                    // hardware-key path (arrow / page / space keys) — keyboard nav still slides
+                    // smoothly. Tap-edge page turning is disabled (empty tapEdges) so screen taps
+                    // toggle immersive mode (via tapListener) instead of turning the page; swipes
+                    // still work via the underlying pager.
+                    fragment.addInputListener(createPagedDirectionalNavigationAdapter(fragment))
                     fragment.addInputListener(tapListener)
                     coroutineScope.launch {
                         fragment.currentLocator.collect { locator ->
@@ -2700,6 +2696,19 @@ internal fun clampReaderSelectionRectBottomYs(
 // Compose closure that can't be exercised without a live Readium fragment.
 internal fun consumeSelectionSuppressedTap(activeAtDown: AtomicBoolean): Boolean =
     activeAtDown.getAndSet(false)
+
+// Builds the DirectionalNavigationAdapter Riffle attaches to paged/vertical mode. Extracted so a
+// JVM test can pin the tap-navigation config: tapEdges MUST stay empty so screen taps toggle
+// immersive mode instead of turning the page (Readium's default enables horizontal edge taps).
+// Keyboard nav and the animated ViewPager transition remain intact.
+internal fun createPagedDirectionalNavigationAdapter(
+    navigator: org.readium.r2.navigator.OverflowableNavigator,
+): DirectionalNavigationAdapter =
+    DirectionalNavigationAdapter(
+        navigator = navigator,
+        tapEdges = emptySet(),
+        animatedTransition = true,
+    )
 
 // Named class (not anonymous) so Android's addJavascriptInterface reflection can discover the
 // @JavascriptInterface-annotated methods reliably across all API levels and R8 configurations.
