@@ -1,5 +1,7 @@
 # ADR 0019 — "To Read" implemented as a name-matched ABS Playlist
 
+> **Amended by [ADR 0041](0041-source-and-service-abstractions-replace-server.md)** — To Read is now gated on `PlaylistsCapability`. Sources without the capability (LocalFiles today, OPDS/Calibre/Gutenberg in future) hide the To Read tab entirely. The ABS implementation is unchanged.
+
 **Status:** Accepted (supersedes ADR 0018)
 
 ## Context

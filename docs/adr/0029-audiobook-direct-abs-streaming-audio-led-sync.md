@@ -1,5 +1,7 @@
 # ADR 0029 — Audiobook playback streams direct from ABS and reuses the three-peer cycle as an audio-led driver
 
+> **Amended by [ADR 0041](0041-source-and-service-abstractions-replace-server.md)** — streaming source generalises to any **Source** implementing `AudiobookMediaCapability`; ABS remains the reference (and only shipping) implementation. Peer terminology aligns with the Progress Peer definition in ADR 0041.
+
 **Status:** Accepted
 **Relates to:** [ADR 0019](0019-three-peer-unified-canonical-progress-sync.md), [ADR 0023](0023-storyteller-synced-bundle-is-the-readaloud-audio-source.md), [ADR 0026](0026-storyteller-as-settings-only-readaloud-backend.md), [ADR 0028](0028-per-book-audio-playback-settings-keyed-by-audio-identity.md).
 
