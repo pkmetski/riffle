@@ -30,7 +30,7 @@ kotlinx-serialization = "1.7.3"
 coil = "2.7.0"
 jsoup = "1.22.2"
 media3 = "1.10.1"
-webkit = "1.14.0"
+webkit = "1.16.0"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
