@@ -90,27 +90,26 @@ private class WindowInsetsBarsController(
 }
 
 /**
- * On pre-R (API < 30) the AndroidX compat layer maps [BEHAVIOR_DEFAULT] to the non-sticky
- * `SYSTEM_UI_FLAG_IMMERSIVE` flag: when a focusable Popup opens or the user taps outside, the
- * OS clears `FLAG_HIDE_NAVIGATION|FULLSCREEN` but leaves `LAYOUT_HIDE_NAVIGATION|LAYOUT_FULLSCREEN`
- * set, so the status/nav bars come back as transparent overlays and stay. Because the layout
- * flags remain, `WindowInsets.systemBars.getTop()` stays 0 and the topInset watcher can't
- * notice — and calling [WindowInsetsControllerCompat.hide] after the fact is a no-op because the
- * compat layer thinks the flags are already applied.
+ * Sticky-IMMERSIVE ([BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE]) is safe on all API levels and
+ * closes several gaps that [BEHAVIOR_DEFAULT] leaves open:
  *
- * [BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE] sets `IMMERSIVE_STICKY` on pre-R, so the system
- * auto-hides the bars again after any transient reveal (popup dismiss, tap-outside, focus regain).
- * On R+ we keep [BEHAVIOR_DEFAULT] because the reader deliberately treats a side-edge page-turn
- * swipe as a permanent reveal (see [ImmersiveModeState.onBarsRestoredExternally]) — that
- * documented behavior only works with the non-transient default.
+ *  - Pre-R: BEHAVIOR_DEFAULT maps to non-sticky `SYSTEM_UI_FLAG_IMMERSIVE`. When a focusable
+ *    Popup opens or the user taps outside, the OS clears `FLAG_HIDE_NAVIGATION|FULLSCREEN` but
+ *    leaves `LAYOUT_HIDE_NAVIGATION|LAYOUT_FULLSCREEN` set, so bars re-appear as transparent
+ *    overlays and stay. The topInset watcher can't notice (inset stays 0) and calling
+ *    [WindowInsetsControllerCompat.hide] after the fact is a no-op (state cache says hidden).
+ *  - R+: BEHAVIOR_DEFAULT lets the OS reveal bars during any transient window transition
+ *    (text-selection ActionMode showing, focusable Popup opening); they stay visible until
+ *    [ImmersiveModeState.onWindowFocusChanged] fires — which is *after* the visible flash.
+ *
+ * Sticky's transient-then-auto-hide behavior swallows all of these without our involvement.
+ * [ImmersiveModeState.onBarsRestoredExternally] and [onWindowFocusChanged] remain as
+ * belt-and-braces for edge cases the OS's own retry misses.
  */
 @VisibleForTesting
+@Suppress("UNUSED_PARAMETER")
 internal fun immersiveSystemBarsBehavior(sdkInt: Int): Int =
-    if (sdkInt < Build.VERSION_CODES.R) {
-        WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
-    } else {
-        WindowInsetsControllerCompat.BEHAVIOR_DEFAULT
-    }
+    WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
 
 @Stable
 class ImmersiveModeState internal constructor(

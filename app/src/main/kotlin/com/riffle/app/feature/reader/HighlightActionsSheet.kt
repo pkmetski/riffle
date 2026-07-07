@@ -31,7 +31,11 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import android.os.Build
 import android.view.View
+import android.view.WindowInsets
+import android.view.WindowInsetsController
+import androidx.annotation.RequiresApi
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
@@ -309,10 +313,15 @@ internal fun NoteEditorDialog(
 /**
  * Hide the system bars on the enclosing focusable Popup's own Window so the reader Activity
  * behind never has its bars revealed by the focus transfer. See the comment at the Popup call
- * site above for the full rationale. Uses `View.systemUiVisibility` directly — the popup root
- * isn't backed by an Activity `Window`, so `WindowInsetsControllerCompat` can't be attached
- * conventionally. The deprecated flags path is well-supported across API 25..34 for this
- * exact use case (a subordinate WindowManager view opting into fullscreen).
+ * site above for the full rationale.
+ *
+ * Two paths, matching the OS's own split:
+ *  - Pre-R: `View.systemUiVisibility` is the only cross-version way. The popup root isn't backed
+ *    by an Activity `Window`, so `WindowInsetsControllerCompat` can't be attached conventionally.
+ *  - R+: the deprecated flag path is a no-op — the modern `WindowInsetsController` owns bar
+ *    visibility, and `systemUiVisibility` writes are ignored. Reach the popup Window's controller
+ *    via `View.getWindowInsetsController()` (works for any View attached to a WindowManager
+ *    window, not just Activity ones) and hide + set sticky-transient behavior on it.
  */
 @Suppress("DEPRECATION")
 @Composable
@@ -320,13 +329,30 @@ private fun ImmersivePopupWindow() {
     val popupView = LocalView.current
     DisposableEffect(popupView) {
         val decor = popupView.rootView
-        val previous = decor.systemUiVisibility
-        decor.systemUiVisibility = View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or
-            View.SYSTEM_UI_FLAG_FULLSCREEN or
-            View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY or
-            View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION or
-            View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN or
-            View.SYSTEM_UI_FLAG_LAYOUT_STABLE
-        onDispose { decor.systemUiVisibility = previous }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            val restore = applyImmersiveToPopupOnR(decor)
+            onDispose(restore)
+        } else {
+            val previous = decor.systemUiVisibility
+            decor.systemUiVisibility = View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or
+                View.SYSTEM_UI_FLAG_FULLSCREEN or
+                View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY or
+                View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION or
+                View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN or
+                View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+            onDispose { decor.systemUiVisibility = previous }
+        }
+    }
+}
+
+@RequiresApi(Build.VERSION_CODES.R)
+private fun applyImmersiveToPopupOnR(decor: View): () -> Unit {
+    val ic = decor.windowInsetsController ?: return {}
+    val previousBehavior = ic.systemBarsBehavior
+    ic.systemBarsBehavior = WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+    ic.hide(WindowInsets.Type.systemBars())
+    return {
+        ic.show(WindowInsets.Type.systemBars())
+        ic.systemBarsBehavior = previousBehavior
     }
 }

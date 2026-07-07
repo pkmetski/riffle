@@ -203,35 +203,25 @@ class ImmersiveModeStateTest {
     }
 
     @Test
-    fun `pre-R uses sticky IMMERSIVE so bars auto-hide after any transient reveal`() {
-        // On pre-R BEHAVIOR_DEFAULT maps to non-sticky IMMERSIVE: a focusable Popup opening
-        // clears FLAG_HIDE_NAVIGATION|FULLSCREEN and leaves bars visible until we hide() again —
-        // but WindowInsetsControllerCompat's own state cache makes that hide() a no-op. Sticky
-        // IMMERSIVE (BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE) makes the OS auto-restore fullscreen
-        // after any transient reveal, closing the loop without our involvement.
-        assertEquals(
-            WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE,
-            immersiveSystemBarsBehavior(Build.VERSION_CODES.N_MR1), // API 25 tablet AVD
-        )
-        assertEquals(
-            WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE,
-            immersiveSystemBarsBehavior(Build.VERSION_CODES.Q), // API 29
-        )
-    }
-
-    @Test
-    fun `R plus keeps BEHAVIOR_DEFAULT so side-edge swipes are handled by onBarsRestoredExternally`() {
-        // R+ has a modern WindowInsetsController that reliably re-hides after focus regain via
-        // the focus-tracker path. Keep BEHAVIOR_DEFAULT so the reader's deliberate
-        // "side-edge page-turn swipe stays immersive" logic (onBarsRestoredExternally) still fires.
-        assertEquals(
-            WindowInsetsControllerCompat.BEHAVIOR_DEFAULT,
-            immersiveSystemBarsBehavior(Build.VERSION_CODES.R), // API 30
-        )
-        assertEquals(
-            WindowInsetsControllerCompat.BEHAVIOR_DEFAULT,
-            immersiveSystemBarsBehavior(Build.VERSION_CODES.TIRAMISU), // API 33
-        )
+    fun `all API levels use sticky IMMERSIVE so bars auto-hide after any transient reveal`() {
+        // Non-sticky IMMERSIVE has multiple gaps we can't reliably paper over from application
+        // code: pre-R keeps the compat-cache-stale "transparent overlay" state until we cycle
+        // flags on the decor view; R+ shows bars during any transient reveal (ActionMode, focusable
+        // Popup) until our focus-regain observer fires — *after* the visible flash. Sticky
+        // (BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE) makes the OS auto-restore fullscreen without
+        // our involvement, closing the loop before the user sees anything.
+        listOf(
+            Build.VERSION_CODES.N_MR1, // API 25 tablet AVD
+            Build.VERSION_CODES.Q,     // API 29
+            Build.VERSION_CODES.R,     // API 30
+            Build.VERSION_CODES.TIRAMISU, // API 33
+        ).forEach { sdk ->
+            assertEquals(
+                "sticky expected at API $sdk",
+                WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE,
+                immersiveSystemBarsBehavior(sdk),
+            )
+        }
     }
 
     @Test
