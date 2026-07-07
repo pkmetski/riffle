@@ -1,5 +1,7 @@
 package com.riffle.app.feature.reader
 
+import com.riffle.core.logging.LogChannel
+import com.riffle.core.logging.RecordingLogger
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -186,5 +188,67 @@ class ContinuousDecorationControllerTest {
 
         assertEquals(67, port.lastSmoothScrollY)
         assertTrue(port.landingHoldCleared)
+    }
+
+    // ---- instrumentation (ReaderDecoration channel) --------------------------
+    // Pins the log emissions the in-app Debug logs screen relies on to correlate
+    // "highlight silently failed to render" reports with the underlying apply/complete
+    // events. A revert of the instrumentation flips these red.
+
+    @Test
+    fun `applyAnnotationHighlights logs entry and per-webview branch to ReaderDecoration channel`() {
+        val logger = RecordingLogger()
+        val port = FakePort()
+        val c = ContinuousDecorationController(port).apply { this.logger = logger }
+        val hrefWithMark = "ch-1.xhtml"
+        val hrefWithoutMark = "ch-2.xhtml"
+        val wvWith = FakeChapterWebView(chapterHref = hrefWithMark).also { port.loaded += it }
+        val wvWithout = FakeChapterWebView(chapterHref = hrefWithoutMark).also { port.loaded += it }
+
+        c.applyAnnotationHighlights(
+            mapOf(hrefWithMark to listOf(AnnotationHighlight("id1", "text", "rgba(0,0,0,1)"))),
+        )
+        wvWith.completeLast()
+
+        val msgs = logger.records(LogChannel.ReaderDecoration).map { it.message }
+        assertTrue(
+            "entry log missing: $msgs",
+            msgs.any { it.startsWith("applyAnnotationHighlights") && it.contains(hrefWithMark) },
+        )
+        assertTrue(
+            "apply→highlights branch log missing: $msgs",
+            msgs.any { it.startsWith("apply→highlights") && it.contains("href='$hrefWithMark'") },
+        )
+        assertTrue(
+            "apply→clear branch log missing: $msgs",
+            msgs.any { it.startsWith("apply→clear") && it.contains("href='$hrefWithoutMark'") },
+        )
+        assertTrue(
+            "apply-complete log missing: $msgs",
+            msgs.any { it.startsWith("apply-complete") && it.contains("href='$hrefWithMark'") },
+        )
+    }
+
+    @Test
+    fun `onChapterLoaded logs annotation count for the loaded href`() {
+        val logger = RecordingLogger()
+        val port = FakePort()
+        val c = ContinuousDecorationController(port).apply { this.logger = logger }
+        val href = "ch-1.xhtml"
+        c.applyAnnotationHighlights(
+            mapOf(href to listOf(AnnotationHighlight("id1", "text", "rgba(0,0,0,1)"))),
+        )
+        logger.clear()
+        val wv = FakeChapterWebView(chapterHref = href).also { port.loaded += it }
+
+        c.onChapterLoaded(wv)
+
+        val msgs = logger.records(LogChannel.ReaderDecoration).map { it.message }
+        assertTrue(
+            "onChapterLoaded log missing count=1: $msgs",
+            msgs.any {
+                it.startsWith("onChapterLoaded") && it.contains("href='$href'") && it.contains("annotationsForHref=1")
+            },
+        )
     }
 }
