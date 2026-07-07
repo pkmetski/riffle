@@ -1721,19 +1721,39 @@ class EpubReaderViewModel @Inject constructor(
         }
     }
 
+    private val _figureAnnotationEditorRequested = MutableStateFlow<String?>(null)
+
+    /**
+     * One-shot signal: the id of an existing `TYPE_IMAGE` annotation whose editor should open,
+     * because [onFigureLongPress] found the long-pressed figure already annotated instead of
+     * creating a duplicate. Screen-layer editor UI is Task-13/harness follow-up — for now this is
+     * the observable contract a test asserts against (see `EpubReaderViewModelImageAnnotationTest`).
+     * Consumers should null it back out via [consumeFigureAnnotationEditorRequest] once handled.
+     */
+    val figureAnnotationEditorRequested: StateFlow<String?> = _figureAnnotationEditorRequested
+
+    /** Clears [figureAnnotationEditorRequested] once the caller has acted on it. */
+    fun consumeFigureAnnotationEditorRequest() {
+        _figureAnnotationEditorRequested.value = null
+    }
+
     /**
      * Handle a figure long-press from either paged/vertical's [FigureTapBridge] or continuous's
      * [ContinuousReaderView.onFigureLongPress] — both dispatch the same parsed
-     * [FigureLongPressPayload] via the callback threaded through `EpubReaderScreen.kt`. Creates a
-     * `TYPE_IMAGE` annotation anchored to the current reading position, mirroring [toggleBookmark]'s
-     * point-CFI machinery (a figure long-press has no text selection to build a range from).
+     * [FigureLongPressPayload] via the callback threaded through `EpubReaderScreen.kt`.
+     *
+     * First looks up whether the figure already has a live `TYPE_IMAGE` annotation in the current
+     * chapter via [AnnotationStore.findImageAnnotationForFigure]. If so, this is a re-long-press on
+     * an already-annotated figure: skip creating a duplicate and instead publish the existing
+     * annotation's id to [figureAnnotationEditorRequested] so the editor can open on it. Otherwise,
+     * creates a new `TYPE_IMAGE` annotation anchored to the current reading position, mirroring
+     * [toggleBookmark]'s point-CFI machinery (a figure long-press has no text selection to build a
+     * range from).
      *
      * Exactly one of [FigureLongPressPayload.href] / [FigureLongPressPayload.svg] is non-null —
      * `href` for `img`/`picture` targets, `svg` for inline `<svg>` targets — and that split is
-     * threaded straight through to [AnnotationStore.createImageAnnotation]'s imageHref/imageSvg.
-     *
-     * Task 11 extends this entry point with a `findImageAnnotationForFigure` lookup to dispatch
-     * create-vs-edit; for now every long-press creates a new annotation.
+     * threaded straight through to both the lookup and [AnnotationStore.createImageAnnotation]'s
+     * imageHref/imageSvg.
      */
     internal suspend fun onFigureLongPress(payload: FigureLongPressPayload) {
         if (source == ReaderSource.Highlights) return
@@ -1741,6 +1761,19 @@ class EpubReaderViewModel @Inject constructor(
         val pub = lifecycle.publication.value ?: return
         val locator = position.snapshotLastLocator() ?: return
         val href = locator.href.toString()
+
+        val existing = annotationStore.findImageAnnotationForFigure(
+            sourceId = sourceId,
+            itemId = itemId,
+            chapterHref = href,
+            imageHref = payload.href,
+            imageSvg = payload.svg,
+        )
+        if (existing != null) {
+            _figureAnnotationEditorRequested.value = existing.id
+            return
+        }
+
         val spineIndex = pub.readingOrder.indexOfFirst {
             normalizeEpubHref(it.href.toString()) == normalizeEpubHref(href)
         }.coerceAtLeast(0)

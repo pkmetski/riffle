@@ -88,6 +88,9 @@ class AnnotationSessionTest {
         override suspend fun updateNote(id: String, note: String?) { updatedNotes.add(id to note) }
         override suspend fun renameBookmark(id: String, title: String) {}
         override suspend fun findByItemAndCfi(sourceId: String, itemId: String, cfi: String): Annotation? = null
+        override suspend fun findImageAnnotationForFigure(
+            sourceId: String, itemId: String, chapterHref: String, imageHref: String?, imageSvg: String?,
+        ): Annotation? = null
     }
 
     /**

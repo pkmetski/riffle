@@ -11,6 +11,7 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
@@ -45,6 +46,19 @@ class EpubReaderViewModelImageAnnotationTest {
 
         override suspend fun getByItemAndCfi(sourceId: String, itemId: String, cfi: String): AnnotationEntity? =
             rows.value.firstOrNull { it.sourceId == sourceId && it.itemId == itemId && it.cfi == cfi && !it.deleted }
+
+        override suspend fun findImageForFigure(
+            sourceId: String,
+            itemId: String,
+            chapterHref: String,
+            imageHref: String?,
+            imageSvg: String?,
+        ): AnnotationEntity? = rows.value.firstOrNull {
+            it.sourceId == sourceId && it.itemId == itemId && it.chapterHref == chapterHref &&
+                it.type == AnnotationEntity.TYPE_IMAGE && !it.deleted &&
+                (imageHref == null || it.imageHref == imageHref) &&
+                (imageSvg == null || it.imageSvg == imageSvg)
+        }
 
         override suspend fun upsert(entity: AnnotationEntity) {
             rows.value = rows.value.filterNot { it.id == entity.id } + entity
@@ -120,6 +134,18 @@ class EpubReaderViewModelImageAnnotationTest {
         idGenerator = { "fixed-id" },
     )
 
+    /** Unlike [store], generates a unique id per created annotation — needed by the Task 11 tests
+     *  below that create more than one annotation per test and need distinct ids to assert on. */
+    private fun storeWithUniqueIds(): AnnotationStoreImpl {
+        var counter = 0
+        return AnnotationStoreImpl(
+            dao = dao,
+            deviceIdStore = deviceIdStore,
+            clock = { 1_000L },
+            idGenerator = { "id-${counter++}" },
+        )
+    }
+
     /**
      * Mirrors [EpubReaderViewModel.onFigureLongPress]'s call into
      * [com.riffle.core.domain.AnnotationStore.createImageAnnotation]: caption → textSnippet,
@@ -141,6 +167,44 @@ class EpubReaderViewModelImageAnnotationTest {
         imageHref = payload.href,
         imageSvg = payload.svg,
     )
+
+    /**
+     * Mirrors [EpubReaderViewModel.onFigureLongPress]'s Task-11 dispatch: look up an existing live
+     * `TYPE_IMAGE` annotation for this exact figure in this chapter via
+     * [com.riffle.core.domain.AnnotationStore.findImageAnnotationForFigure] first; only create a new
+     * one when the lookup comes back null. Returns the id of the annotation that would have received
+     * the "open editor" signal, or null when a new annotation was created instead — this mirrors
+     * [EpubReaderViewModel.figureAnnotationEditorRequested]'s value without needing the full
+     * (Readium-backed, non-JVM-constructible) ViewModel.
+     */
+    private suspend fun dispatchFigureLongPress(
+        store: AnnotationStoreImpl,
+        payload: FigureLongPressPayload,
+        chapterHref: String,
+        spineIndex: Int,
+        progression: Double,
+    ): String? {
+        val existing = store.findImageAnnotationForFigure(
+            sourceId = "srv-abs",
+            itemId = "item-1",
+            chapterHref = chapterHref,
+            imageHref = payload.href,
+            imageSvg = payload.svg,
+        )
+        if (existing != null) return existing.id
+        store.createImageAnnotation(
+            sourceId = "srv-abs",
+            itemId = "item-1",
+            cfi = "epubcfi(/6/4!/4/2:0)",
+            textSnippet = payload.caption,
+            chapterHref = chapterHref,
+            spineIndex = spineIndex,
+            progression = progression,
+            imageHref = payload.href,
+            imageSvg = payload.svg,
+        )
+        return null
+    }
 
     @Test
     fun `createImageAnnotation persists TYPE_IMAGE with caption and href`() = runTest {
@@ -181,5 +245,62 @@ class EpubReaderViewModelImageAnnotationTest {
         val saved = onFigureLongPress(payload, chapterHref = "ch2.xhtml", spineIndex = 1, progression = 0.1)
 
         assertEquals("The Great Wave", saved.textSnippet)
+    }
+
+    /**
+     * Regression coverage for Task 11's edit-vs-create dispatch. Mirrors
+     * [EpubReaderViewModel.onFigureLongPress]'s new lookup-first flow via [dispatchFigureLongPress].
+     * Reverting the lookup (going back to an unconditional [AnnotationStoreImpl.createImageAnnotation]
+     * call) would flip [rows]' size from 1 back to 2 in the first test below.
+     */
+    @Test
+    fun `two long-presses on the same figure create only one annotation`() = runTest {
+        val store = storeWithUniqueIds()
+        val payload = FigureLongPressPayload(
+            kind = "img", caption = "Fig 1", href = "images/g.png", svg = null, elementId = null,
+        )
+
+        val first = dispatchFigureLongPress(store, payload, chapterHref = "ch1.xhtml", spineIndex = 0, progression = 0.5)
+        val second = dispatchFigureLongPress(store, payload, chapterHref = "ch1.xhtml", spineIndex = 0, progression = 0.5)
+
+        assertNull(first)
+        assertEquals(1, rows.value.size)
+        assertEquals(rows.value.single().id, second)
+    }
+
+    @Test
+    fun `long-presses on different figures create separate annotations`() = runTest {
+        val store = storeWithUniqueIds()
+        val figureA = FigureLongPressPayload(
+            kind = "img", caption = "Fig 1", href = "images/a.png", svg = null, elementId = null,
+        )
+        val figureB = FigureLongPressPayload(
+            kind = "img", caption = "Fig 2", href = "images/b.png", svg = null, elementId = null,
+        )
+
+        dispatchFigureLongPress(store, figureA, chapterHref = "ch1.xhtml", spineIndex = 0, progression = 0.5)
+        dispatchFigureLongPress(store, figureB, chapterHref = "ch1.xhtml", spineIndex = 0, progression = 0.6)
+
+        assertEquals(2, rows.value.size)
+    }
+
+    @Test
+    fun `long-press on soft-deleted matching annotation creates a new one`() = runTest {
+        val store = storeWithUniqueIds()
+        val payload = FigureLongPressPayload(
+            kind = "img", caption = "Fig 1", href = "images/g.png", svg = null, elementId = null,
+        )
+
+        val first = dispatchFigureLongPress(store, payload, chapterHref = "ch1.xhtml", spineIndex = 0, progression = 0.5)
+        assertNull(first)
+        val originalId = rows.value.single().id
+        store.delete(originalId)
+
+        val second = dispatchFigureLongPress(store, payload, chapterHref = "ch1.xhtml", spineIndex = 0, progression = 0.5)
+
+        assertNull(second)
+        val live = rows.value.filterNot { it.deleted }
+        assertEquals(1, live.size)
+        assertTrue(live.single().id != originalId)
     }
 }

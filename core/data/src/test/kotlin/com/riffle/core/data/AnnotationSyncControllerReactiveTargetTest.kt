@@ -79,6 +79,13 @@ private class NoOpAnnotationDao : AnnotationDao {
     override suspend fun getAllForItemIncludingDeleted(sourceId: String, itemId: String): List<AnnotationEntity> = emptyList()
     override suspend fun getById(id: String): AnnotationEntity? = null
     override suspend fun getByItemAndCfi(sourceId: String, itemId: String, cfi: String): AnnotationEntity? = null
+    override suspend fun findImageForFigure(
+        sourceId: String,
+        itemId: String,
+        chapterHref: String,
+        imageHref: String?,
+        imageSvg: String?,
+    ): AnnotationEntity? = null
     override suspend fun upsert(entity: AnnotationEntity) = Unit
     override suspend fun upsertAll(annotations: List<AnnotationEntity>) = Unit
     override suspend fun tombstone(id: String, updatedAt: Long, deviceId: String) = Unit

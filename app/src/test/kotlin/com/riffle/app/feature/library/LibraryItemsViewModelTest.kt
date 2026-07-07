@@ -84,6 +84,9 @@ class LibraryItemsViewModelTest {
             override suspend fun updateNote(id: String, note: String?) = error("unused")
             override suspend fun renameBookmark(id: String, title: String) = error("unused")
             override suspend fun findByItemAndCfi(sourceId: String, itemId: String, cfi: String): com.riffle.core.domain.Annotation? = null
+            override suspend fun findImageAnnotationForFigure(
+                sourceId: String, itemId: String, chapterHref: String, imageHref: String?, imageSvg: String?,
+            ): com.riffle.core.domain.Annotation? = null
         }
 
     private fun fakeAudiobookBookmarkStore(): com.riffle.core.domain.AudiobookBookmarkStore =

@@ -173,6 +173,9 @@ class ReaderSessionLifecycleTest {
         override suspend fun renameBookmark(id: String, title: String) {}
         override suspend fun findByItemAndCfi(sourceId: String, itemId: String, cfi: String): Annotation? =
             byCfi[Triple(sourceId, itemId, cfi)]
+        override suspend fun findImageAnnotationForFigure(
+            sourceId: String, itemId: String, chapterHref: String, imageHref: String?, imageSvg: String?,
+        ): Annotation? = null
     }
 
     // ── Helpers ──────────────────────────────────────────────────────────────────────────

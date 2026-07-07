@@ -48,6 +48,19 @@ class EpubReaderViewModelEmbeddedFiguresTest {
         override suspend fun getByItemAndCfi(sourceId: String, itemId: String, cfi: String): AnnotationEntity? =
             rows.value.firstOrNull { it.sourceId == sourceId && it.itemId == itemId && it.cfi == cfi && !it.deleted }
 
+        override suspend fun findImageForFigure(
+            sourceId: String,
+            itemId: String,
+            chapterHref: String,
+            imageHref: String?,
+            imageSvg: String?,
+        ): AnnotationEntity? = rows.value.firstOrNull {
+            it.sourceId == sourceId && it.itemId == itemId && it.chapterHref == chapterHref &&
+                it.type == AnnotationEntity.TYPE_IMAGE && !it.deleted &&
+                (imageHref == null || it.imageHref == imageHref) &&
+                (imageSvg == null || it.imageSvg == imageSvg)
+        }
+
         override suspend fun upsert(entity: AnnotationEntity) {
             rows.value = rows.value.filterNot { it.id == entity.id } + entity
         }

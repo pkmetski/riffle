@@ -179,6 +179,15 @@ class AnnotationStoreImpl(
 
     override suspend fun findByItemAndCfi(sourceId: String, itemId: String, cfi: String): Annotation? =
         dao.getByItemAndCfi(sourceId, itemId, cfi)?.toDomain()
+
+    override suspend fun findImageAnnotationForFigure(
+        sourceId: String,
+        itemId: String,
+        chapterHref: String,
+        imageHref: String?,
+        imageSvg: String?,
+    ): Annotation? =
+        dao.findImageForFigure(sourceId, itemId, chapterHref, imageHref, imageSvg)?.toDomain()
 }
 
 private val embeddedFiguresJson = Json { ignoreUnknownKeys = true }

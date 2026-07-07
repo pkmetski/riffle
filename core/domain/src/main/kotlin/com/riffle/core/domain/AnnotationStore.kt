@@ -73,6 +73,20 @@ interface AnnotationStore {
      *  (a precise post-reflow Y) instead of guessing from char-fraction × measured-WebView-height. */
     suspend fun findByItemAndCfi(sourceId: String, itemId: String, cfi: String): Annotation?
 
+    /**
+     * One-shot lookup of the live `TYPE_IMAGE` annotation already anchored to this figure in this
+     * chapter, or null if the figure hasn't been annotated yet. Callers pass exactly one of
+     * [imageHref] / [imageSvg] — mirroring [createImageAnnotation]'s raster-vs-svg split. Used to
+     * dispatch edit-vs-create on a figure long-press instead of stacking a duplicate annotation.
+     */
+    suspend fun findImageAnnotationForFigure(
+        sourceId: String,
+        itemId: String,
+        chapterHref: String,
+        imageHref: String?,
+        imageSvg: String?,
+    ): Annotation?
+
     companion object {
         const val DEFAULT_COLOR = "yellow"
     }

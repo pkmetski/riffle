@@ -985,6 +985,13 @@ private class LifecycleInMemoryAnnotationDao : AnnotationDao {
     override fun observeForSource(sourceId: String): Flow<List<AnnotationEntity>> = flowOf(emptyList())
     override suspend fun getById(id: String): AnnotationEntity? = null
     override suspend fun getByItemAndCfi(sourceId: String, itemId: String, cfi: String): AnnotationEntity? = null
+    override suspend fun findImageForFigure(
+        sourceId: String,
+        itemId: String,
+        chapterHref: String,
+        imageHref: String?,
+        imageSvg: String?,
+    ): AnnotationEntity? = null
     override suspend fun tombstone(id: String, updatedAt: Long, deviceId: String) = Unit
     override suspend fun recolor(id: String, color: String, updatedAt: Long, deviceId: String) = Unit
     override suspend fun updateNote(id: String, note: String?, updatedAt: Long, deviceId: String) = Unit

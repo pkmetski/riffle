@@ -49,6 +49,28 @@ interface AnnotationDao {
     )
     suspend fun getByItemAndCfi(sourceId: String, itemId: String, cfi: String): AnnotationEntity?
 
+    /** One-shot lookup of the live (non-deleted) `TYPE_IMAGE` annotation already anchored to this
+     *  figure in this chapter, or null if the figure hasn't been annotated yet. The caller passes
+     *  exactly one of [imageHref] / [imageSvg] (mirroring [AnnotationDao.upsert]'s figure split) —
+     *  the other stays null, and `col = :param` in SQLite never matches a null column-to-param pair,
+     *  so both sides use `(:param IS NULL OR col = :param)` to make the unset side a no-op filter
+     *  instead of excluding every row. Used by `EpubReaderViewModel.onFigureLongPress` (Task 11) to
+     *  dispatch edit-vs-create instead of stacking a duplicate `TYPE_IMAGE` row per long-press. */
+    @Query(
+        "SELECT * FROM annotations WHERE sourceId = :sourceId AND itemId = :itemId " +
+            "AND chapterHref = :chapterHref AND type = 'IMAGE' AND deleted = 0 " +
+            "AND (:imageHref IS NULL OR imageHref = :imageHref) " +
+            "AND (:imageSvg IS NULL OR imageSvg = :imageSvg) " +
+            "LIMIT 1"
+    )
+    suspend fun findImageForFigure(
+        sourceId: String,
+        itemId: String,
+        chapterHref: String,
+        imageHref: String?,
+        imageSvg: String?,
+    ): AnnotationEntity?
+
     // Real UPSERT (not INSERT-OR-REPLACE): REPLACE reallocates the rowid on every update, which
     // shuffles the SQLite fallback order for rows that tie on the sort key (e.g. a bookmark and a
     // highlight both at spineIndex=N, progression=0.0 at the top of a chapter). Every sync
