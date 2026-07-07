@@ -31,19 +31,13 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import android.os.Build
-import android.view.View
-import android.view.WindowInsets
-import android.view.WindowInsetsController
-import androidx.annotation.RequiresApi
+import androidx.activity.compose.BackHandler
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -124,14 +118,15 @@ fun HighlightActionsPopup(
     Popup(
         popupPositionProvider = provider,
         onDismissRequest = onDismiss,
-        properties = PopupProperties(focusable = true),
+        // focusable = false so the popup Window does NOT take input focus from the reader
+        // Activity — any focus transfer causes the OS to reveal the reader's status/nav bars for
+        // ~250ms before the OS's sticky-IMMERSIVE re-hides them, a visible flash. Non-focusable
+        // popups still receive touch events (dismissOnClickOutside works via touch dispatch, not
+        // focus), so the only casualty is Back-key dismissal — restored explicitly via the
+        // BackHandler below.
+        properties = PopupProperties(focusable = false),
     ) {
-        // Compose creates a focusable Popup as its own WindowManager window that steals input
-        // focus from the reader Activity. The reader's non-sticky SYSTEM_UI_FLAG_IMMERSIVE only
-        // holds while its Window has focus, so on focus loss the OS reveals the status/nav bars
-        // behind the popup. Applying the fullscreen/immersive flags to THIS popup Window means
-        // the OS sees the focused window is also fullscreen — no reason to draw bars.
-        ImmersivePopupWindow()
+        BackHandler(enabled = true, onBack = onDismiss)
         Surface(
             shape = RoundedCornerShape(12.dp),
             shadowElevation = 4.dp,
@@ -308,51 +303,4 @@ internal fun NoteEditorDialog(
             }
         },
     )
-}
-
-/**
- * Hide the system bars on the enclosing focusable Popup's own Window so the reader Activity
- * behind never has its bars revealed by the focus transfer. See the comment at the Popup call
- * site above for the full rationale.
- *
- * Two paths, matching the OS's own split:
- *  - Pre-R: `View.systemUiVisibility` is the only cross-version way. The popup root isn't backed
- *    by an Activity `Window`, so `WindowInsetsControllerCompat` can't be attached conventionally.
- *  - R+: the deprecated flag path is a no-op — the modern `WindowInsetsController` owns bar
- *    visibility, and `systemUiVisibility` writes are ignored. Reach the popup Window's controller
- *    via `View.getWindowInsetsController()` (works for any View attached to a WindowManager
- *    window, not just Activity ones) and hide + set sticky-transient behavior on it.
- */
-@Suppress("DEPRECATION")
-@Composable
-private fun ImmersivePopupWindow() {
-    val popupView = LocalView.current
-    DisposableEffect(popupView) {
-        val decor = popupView.rootView
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            val restore = applyImmersiveToPopupOnR(decor)
-            onDispose(restore)
-        } else {
-            val previous = decor.systemUiVisibility
-            decor.systemUiVisibility = View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or
-                View.SYSTEM_UI_FLAG_FULLSCREEN or
-                View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY or
-                View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION or
-                View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN or
-                View.SYSTEM_UI_FLAG_LAYOUT_STABLE
-            onDispose { decor.systemUiVisibility = previous }
-        }
-    }
-}
-
-@RequiresApi(Build.VERSION_CODES.R)
-private fun applyImmersiveToPopupOnR(decor: View): () -> Unit {
-    val ic = decor.windowInsetsController ?: return {}
-    val previousBehavior = ic.systemBarsBehavior
-    ic.systemBarsBehavior = WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
-    ic.hide(WindowInsets.Type.systemBars())
-    return {
-        ic.show(WindowInsets.Type.systemBars())
-        ic.systemBarsBehavior = previousBehavior
-    }
 }
