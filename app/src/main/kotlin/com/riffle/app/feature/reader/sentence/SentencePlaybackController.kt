@@ -91,6 +91,7 @@ internal class SentencePlaybackController(
                 activeFragmentRef = activeFragmentRef,
                 sentenceQuotes = sentenceQuotes,
                 followReadaloudSentence = { text -> readerPresenter().followReadaloudSentence(text) },
+                followCadenceSpan = { id -> readerPresenter().followCadenceSpan(id) },
                 fragmentLocator = fragmentLocator,
                 navigateToLocator = { locator -> readiumPresenter()?.navigateToLocator(locator, snap = false, animated = false) },
             )
@@ -111,16 +112,38 @@ internal suspend fun performAutoFollow(
     activeFragmentRef: String?,
     sentenceQuotes: Map<String, SentenceQuote>,
     followReadaloudSentence: suspend (text: String) -> ReadaloudFollowResult,
+    followCadenceSpan: suspend (fragmentId: String) -> ReadaloudFollowResult,
     fragmentLocator: (ref: String, quote: SentenceQuote?) -> Locator?,
     navigateToLocator: suspend (Locator) -> Unit,
 ) {
     val ref = activeFragmentRef ?: return
     if (ref.indexOf('#') < 0) return
+    val sid = ref.substringAfter('#', "")
+    if (sid.startsWith("cd-")) {
+        // Cadence: id-based snap. The tokeniser wrote `cd-N` onto the DOM and the ids are
+        // chapter-unique, so we can hand the id straight to Readium's column-snap JS instead of
+        // text-search. This avoids the "text-search hits an earlier occurrence and yanks the
+        // reader to the wrong column" bug that made us disable Cadence follow entirely. The
+        // presenter reports Snapped when the id is on the current resource (including
+        // "already visible" — snapCadenceSpan collapses moved/same at the presenter layer);
+        // OffPage means the id isn't in this resource, so navigate to its chapter, and the
+        // next page-load's tick re-runs this follow. Unavailable is continuous — its highlight
+        // paint pipeline drives scroll-into-view separately.
+        when (followCadenceSpan(sid)) {
+            ReadaloudFollowResult.Snapped, ReadaloudFollowResult.Unavailable -> Unit
+            ReadaloudFollowResult.OffPage -> {
+                val quote = sentenceQuotes[ref] ?: sentenceQuotes[sid]
+                fragmentLocator(ref, quote)?.let { navigateToLocator(it) }
+            }
+        }
+        return
+    }
     // No quote yet (the map is built off-thread once playback starts) -> we can neither locate the
     // sentence by text nor anchor a go(): the cssSelector-only locator can't resolve on the
     // span-stripped ABS page, so a snap would flip to chapter start. Skip until the quote arrives;
     // the caller re-keys on the quotes map and re-runs to follow correctly once it's available.
-    val quote = sentenceQuotes[ref.substringAfter('#', "")] ?: return
+    // Try full ref (Cadence: "href#cd-N") before sid alone (Readaloud: "sN"). Same pipeline.
+    val quote = sentenceQuotes[ref] ?: sentenceQuotes[ref.substringAfter('#', "")] ?: return
     // Locate the sentence by its text (spans are stripped). The probe snaps to the sentence's
     // column itself in paginated mode; OffPage comes back only when the text isn't on this resource
     // (another chapter), where we fall back to a text-anchored go() to load it. Vertical / continuous

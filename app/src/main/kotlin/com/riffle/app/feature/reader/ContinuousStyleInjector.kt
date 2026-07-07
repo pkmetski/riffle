@@ -645,6 +645,40 @@ internal object ContinuousStyleInjector {
      * selection at), so consecutive sentences that share a repeated word/phrase always resolve
      * to the next occurrence in reading order instead of the first one in the document.
      */
+    /**
+     * Highlight the DOM element with [fragmentId] directly, no text search. Preferred for
+     * Cadence (whose `cd-N` ids are chapter-unique and known at paint time) — using
+     * [highlightTextJs] instead makes `window.find` land on the FIRST occurrence of the
+     * sentence text anywhere in the document, which for short/common phrases (or heading
+     * text that recurs verbatim in the body) is not the span we want. The "highlight starts
+     * from midscreen and not the closest chapter/subchapter" regression was exactly that:
+     * resolver picked cd-N inside the visible heading, paint via `window.find(heading text)`
+     * matched an earlier body occurrence, and the mark landed one paragraph away.
+     *
+     * Replaces any existing `_riffle_hl` mark. Silently no-ops if the id isn't in the DOM.
+     */
+    fun highlightIdJs(fragmentId: String, cssColor: String): String {
+        if (fragmentId.isBlank()) return CLEAR_HIGHLIGHT_JS
+        val safe = fragmentId.replace("\\", "\\\\").replace("'", "\\'")
+        return """
+            $SAFE_WRAP_HELPER_JS
+            (function() {
+                var existing = document.getElementById('_riffle_hl');
+                if (existing && existing.parentNode) existing.outerHTML = existing.innerHTML;
+                var el = document.getElementById('$safe');
+                if (!el) return;
+                var range = document.createRange();
+                try { range.selectNodeContents(el); } catch (e) { return; }
+                var mark = document.createElement('mark');
+                mark.id = '_riffle_hl';
+                mark.style.cssText = '${highlightInlineStyle("$cssColor")}';
+                if (!window.__riffleSafeWrap(range, mark)) return;
+                var sel = window.getSelection ? window.getSelection() : null;
+                if (sel) sel.removeAllRanges();
+            })();
+        """.trimIndent()
+    }
+
     fun highlightTextJs(text: String, cssColor: String): String {
         if (text.isBlank()) return CLEAR_HIGHLIGHT_JS
         val safe = text.replace("\\", "\\\\").replace("'", "\\'").replace("\n", "\\n").replace("\r", "\\r")

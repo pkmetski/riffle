@@ -164,7 +164,7 @@ class ContinuousDecorationControllerTest {
         val c = ContinuousDecorationController(port)
         val wv = FakeChapterWebView(chapterHref = "ch-1.xhtml").also { port.loaded += it }
 
-        c.highlightInChapter("ch-1.xhtml", "some text", "rgba(0,0,0,1)")
+        c.highlightInChapter("ch-1.xhtml", fragmentId = null, "some text", "rgba(0,0,0,1)")
         wv.completeLast() // completes highlightTextJs -> triggers scrollToReadaloudHighlight's evaluateJavascript
         wv.completeLast("400") // completes the position-query JS with elementTop = 400 device px
 
@@ -182,7 +182,7 @@ class ContinuousDecorationControllerTest {
         val c = ContinuousDecorationController(port)
         val wv = FakeChapterWebView(chapterHref = "ch-1.xhtml").also { port.loaded += it }
 
-        c.highlightInChapter("ch-1.xhtml", "some text", "rgba(0,0,0,1)")
+        c.highlightInChapter("ch-1.xhtml", fragmentId = null, "some text", "rgba(0,0,0,1)")
         wv.completeLast()
         wv.completeLast("400")
 

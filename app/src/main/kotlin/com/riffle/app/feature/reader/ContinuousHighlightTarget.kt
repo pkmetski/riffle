@@ -6,7 +6,14 @@ package com.riffle.app.feature.reader
  * instantiating the Android View.
  */
 internal interface ContinuousHighlightTarget {
-    fun highlightInChapter(href: String, text: String, cssColor: String)
+    /**
+     * Highlight the sentence identified by [fragmentId] (an id in the chapter's DOM) if it is
+     * non-null AND resolves to an element; otherwise fall back to a `window.find`-based text
+     * search over [text]. Cadence always passes a `cd-N` id — its `.riffle-cd` spans are
+     * chapter-unique — and Readaloud's sidecar-driven sentences pass their ABS-provided id.
+     * The text fallback covers callers that don't yet plumb an id (older tests, migration paths).
+     */
+    fun highlightInChapter(href: String, fragmentId: String?, text: String, cssColor: String)
     fun clearHighlightInChapter(href: String)
     fun applyAnnotationHighlights(annotationsByHref: Map<String, List<AnnotationHighlight>>)
     /**

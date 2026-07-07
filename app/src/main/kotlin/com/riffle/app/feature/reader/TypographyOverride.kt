@@ -89,6 +89,11 @@ internal val EXCLUDED_FROM_TYPOGRAPHY_OVERRIDES: Map<String, String> = mapOf(
     "showReadingTimeEstimate" to "UI affordance outside the reader content; no CSS implication.",
     "themeSchedule" to "Schedule metadata used to derive the resolved theme at runtime; has no direct CSS implication.",
     "autoScrollWpm" to "Auto-Scroll pace (words-per-minute); a kinetics setting consumed by AutoScrollController, not a CSS property.",
+    "showAutoScroll" to "Settings toggle gating the reader top-bar Auto-Scroll icon; UI affordance, not a CSS property.",
+    "cadenceWpm" to "Cadence pace (words-per-minute); a timing setting consumed by CadenceController/WpmTicker, not a CSS property.",
+    "showCadence" to "Settings toggle gating the reader top-bar Cadence icon; UI affordance, not a CSS property.",
+    "cadenceHighlightColor" to "Cadence sentence-highlight colour; applied via the highlight decoration renderer (same palette as annotations/readaloud), not a per-element CSS override.",
+    "cadencePlatformSupported" to "Device WebView capability flag (Intl.Segmenter feature-detect); hides the Cadence Settings entry on unsupported WebViews, not a CSS property.",
 )
 
 /**

@@ -75,6 +75,7 @@ class SettingsViewModelTest {
     private val noOpFormattingStore = object : FormattingPreferencesStore {
         override val preferences = flowOf(FormattingPreferences())
         override suspend fun update(preferences: FormattingPreferences) {}
+        override suspend fun setCadencePlatformSupported(supported: Boolean) {}
     }
 
     private val noOpWakeLockStore = object : WakeLockPreferencesStore {

@@ -17,9 +17,13 @@ internal class FakeRendererBridge(
     private val firstVisibleSentenceResult: Int? = null,
     private val landedAtEndResult: Boolean = false,
     private val snapToElementMoved: Boolean = false,
+    private val snapCadenceSpanResult: String? = null,
     private val scrollByPxResult: Boolean? = true,
     private val scrollBoundaryResult: Pair<Boolean, Boolean> = Pair(false, false),
     private val viewportFractionResult: Double? = null,
+    private val cadenceFeatureDetectResult: String? = "false",
+    private val cadenceTokeniseResult: String? = null,
+    @Suppress("unused") private val cadenceStartSpanIdResult: String? = null,
 ) : RendererBridge {
 
     val calls: MutableList<String> = mutableListOf()
@@ -58,6 +62,11 @@ internal class FakeRendererBridge(
         return snapToElementMoved
     }
 
+    override suspend fun snapCadenceSpan(fragmentId: String): String? {
+        calls += "snapCadenceSpan($fragmentId)"
+        return snapCadenceSpanResult
+    }
+
     override suspend fun landedAtEnd(): Boolean {
         calls += "landedAtEnd"
         return landedAtEndResult
@@ -75,6 +84,15 @@ internal class FakeRendererBridge(
 
     override suspend fun snapNarratedColumn(text: String, columnIndex: Int) {
         calls += "snapNarratedColumn($text, $columnIndex)"
+    }
+
+    override suspend fun measureCadenceColumns(fragmentId: String): List<Double> {
+        calls += "measureCadenceColumns($fragmentId)"
+        return measureColumnsResult
+    }
+
+    override suspend fun snapCadenceColumn(fragmentId: String, columnIndex: Int) {
+        calls += "snapCadenceColumn($fragmentId, $columnIndex)"
     }
 
     override suspend fun resolveSelectionSentence(sentences: List<Pair<String, String>>): String? {
@@ -109,5 +127,20 @@ internal class FakeRendererBridge(
     override suspend fun readViewportFraction(): Double? {
         calls += "readViewportFraction"
         return viewportFractionResult
+    }
+
+    override suspend fun evaluateCadenceFeatureDetect(): String? {
+        calls += "evaluateCadenceFeatureDetect"
+        return cadenceFeatureDetectResult
+    }
+
+    override suspend fun evaluateCadenceTokenise(chapterHref: String, localeTag: String?): String? {
+        calls += "evaluateCadenceTokenise($chapterHref, $localeTag)"
+        return cadenceTokeniseResult
+    }
+
+    override suspend fun cadenceStartSpanId(): String? {
+        calls += "cadenceStartSpanId"
+        return cadenceStartSpanIdResult
     }
 }

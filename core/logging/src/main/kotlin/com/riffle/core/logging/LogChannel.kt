@@ -14,4 +14,5 @@ enum class LogChannel(val tag: String) {
     Handoff("RIFFLE_HANDOFF"),
     HighlightMerge("RIFFLE_HL_MERGE"),
     ReaderDecoration("RIFFLE_DECO"),
+    Cadence("RIFFLE_CD"),
 }

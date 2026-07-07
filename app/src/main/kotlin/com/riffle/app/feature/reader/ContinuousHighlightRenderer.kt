@@ -35,13 +35,19 @@ internal class ContinuousHighlightRenderer(
         val chapterHref = fragmentRef.substringBefore('#')
         val sid = fragmentRef.substringAfter('#', "")
         if (sid.isBlank()) return
-        val text = quotes[sid]?.highlight ?: return
+        // Look up first by full ref (Cadence's DomSentenceSource — keyed by "href#cd-N"), then
+        // by sid alone (Readaloud's sidecar — keyed by "sN"). Same renderer serves both features.
+        val text = (quotes[fragmentRef] ?: quotes[sid])?.highlight ?: return
 
         val prev = prevSentenceHref
         if (prev != null && prev != chapterHref) target.clearHighlightInChapter(prev)
         prevSentenceHref = chapterHref
 
-        target.highlightInChapter(chapterHref, text, color.argb.toCssRgba())
+        // Pass the fragment id so paint uses getElementById (chapter-unique) instead of
+        // window.find (which lands on the first occurrence anywhere in the doc). For Cadence
+        // this is `cd-N`; for Readaloud it's the sidecar's `sN`. Both are stable ids the
+        // tokeniser or sidecar wrote onto the DOM.
+        target.highlightInChapter(chapterHref, sid, text, color.argb.toCssRgba())
     }
 
     override suspend fun applyAnnotations(

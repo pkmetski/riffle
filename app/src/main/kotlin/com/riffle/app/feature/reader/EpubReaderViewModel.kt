@@ -76,6 +76,7 @@ import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.drop
@@ -181,6 +182,7 @@ class EpubReaderViewModel @Inject constructor(
     private val searchControllerFactory: com.riffle.app.feature.reader.controllers.SearchController.Factory,
     private val wakeLockControllerFactory: com.riffle.app.feature.reader.controllers.WakeLockController.Factory,
     private val volumeKeyDispatcher: VolumeKeyDispatcher,
+    private val cadenceController: com.riffle.app.feature.reader.cadence.CadenceController,
     private val positionOrchestratorFactory: PositionOrchestrator.Factory,
     private val annotationSessionFactory: com.riffle.app.feature.reader.session.AnnotationSession.Factory,
     private val readaloudSessionFactory: com.riffle.app.feature.reader.session.ReadaloudSession.Factory,
@@ -201,9 +203,13 @@ class EpubReaderViewModel @Inject constructor(
         it.setDeviceDensity(application.resources.displayMetrics.density)
     }
 
-    // WakeLock controller — derives keepScreenOn from prefs + autoScroll state.
+    // WakeLock controller — derives keepScreenOn from prefs + hands-free running states
+    // (Auto-Scroll + Cadence, issue #403). Cadence's state is attached separately because
+    // WakeLockController's factory takes only the AutoScroll flow.
     private val wakeLock: com.riffle.app.feature.reader.controllers.WakeLockController =
-        wakeLockControllerFactory.create(viewModelScope, formatting.autoScrollState)
+        wakeLockControllerFactory.create(viewModelScope, formatting.autoScrollState).also {
+            it.attachCadenceState(cadenceController.state)
+        }
 
     // Bookmark observation + page-bookmarked detection. onScheduleSync delegates to
     // scheduleAnnotationSync() which is resolved lazily at call time.
@@ -404,10 +410,10 @@ class EpubReaderViewModel @Inject constructor(
     fun reachedEndOfBookForAutoScroll() = formatting.reachedEndOfBookForAutoScroll()
 
     fun startAutoScroll() {
-        // Stop Readaloud if it's playing — mutual exclusion (ADR 0037).
-        if (playerCoordinator.state.value.connected && playerCoordinator.state.value.isPlaying) {
-            playerCoordinator.pause()
-        }
+        // Three-way mutual exclusion via the pure arbiter (ADR 0037 + issue #403). Compute the
+        // fan-out first, apply it, then start the local feature. Routing through the arbiter
+        // keeps the "who pauses whom" truth-table in one place — the reducer stays feature-local.
+        applyArbiter(com.riffle.core.domain.cadence.Feature.AutoScroll)
         formatting.startAutoScroll()
     }
 
@@ -425,6 +431,177 @@ class EpubReaderViewModel @Inject constructor(
     fun resumeAutoScrollFromPill() = formatting.resumeAutoScrollIfPaused()
 
     fun setReaderViewportWidthPx(px: Int) = formatting.setViewportWidthPx(px)
+
+    // ---- Cadence (issue #403 / ADR 0040) --------------------------------------------------------
+
+    val cadenceState: StateFlow<com.riffle.core.domain.cadence.CadenceState> = cadenceController.state
+    val cadenceCurrentFragment: StateFlow<String?> = cadenceController.currentFragment
+
+    private val _cadenceQuotes = MutableStateFlow<Map<String, com.riffle.core.domain.SentenceQuote>>(emptyMap())
+    val cadenceQuotes: StateFlow<Map<String, com.riffle.core.domain.SentenceQuote>> = _cadenceQuotes.asStateFlow()
+
+    /** True iff `Intl.Segmenter` is available in the reader WebView — the top-bar toggle hides when false. */
+    private val _cadencePlatformSupported = MutableStateFlow(true)
+    val cadencePlatformSupported: StateFlow<Boolean> = _cadencePlatformSupported.asStateFlow()
+
+    /**
+     * Fires when Cadence exhausts the current chapter. The reader screen observes this and asks
+     * its active presenter (Continuous / Readium) to advance one chapter forward, then re-runs the
+     * DOM tokenisation for the new chapter — see [onCadenceChapterTokenised].
+     */
+    private val _cadenceEndOfChapterEvents = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+    val cadenceEndOfChapterEvents: SharedFlow<Unit> = _cadenceEndOfChapterEvents.asSharedFlow()
+
+    /**
+     * Called by the reader screen after JS returns the tokenised chapter's sentence map.
+     * Rebinding a new source replaces the previous chapter's Cadence session — the ticker
+     * discards its state, the fragment ordering is refreshed, and the next Start begins at s0.
+     *
+     * Empty maps are still bound so the top-bar toggle can appear on chapters that happen to have
+     * zero readable sentences (unusual — front-matter blank pages); Cadence's onExhausted fires
+     * immediately in that case and the reader advances to the next chapter.
+     */
+    fun onCadenceChapterTokenised(
+        quotes: Map<String, com.riffle.core.domain.SentenceQuote>,
+        hrefs: Map<String, String>,
+    ) {
+        // Accumulate quotes across every tokenised chapter — Continuous keeps several chapters
+        // loaded at once in the sliding window, and paginated may re-tokenise the current one on
+        // reflow. LinkedHashMap preserves insertion order so the ticker's fragment ordering stays
+        // reading-order stable across rebinds.
+        val merged = LinkedHashMap(_cadenceQuotes.value)
+        merged.putAll(quotes)
+        _cadenceQuotes.value = merged
+        val mergedHrefs = LinkedHashMap(_cadenceChapterHrefs)
+        mergedHrefs.putAll(hrefs)
+        _cadenceChapterHrefs = mergedHrefs
+        logger.d(com.riffle.core.logging.LogChannel.Cadence) {
+            "VM.onCadenceChapterTokenised chapterQuotes=${quotes.size} totalQuotes=${merged.size}"
+        }
+        val source = com.riffle.app.feature.reader.cadence.DomSentenceSource().apply {
+            supplyResult(merged, mergedHrefs)
+        }
+        viewModelScope.launch {
+            cadenceController.bind(source, onExhausted = {
+                _cadenceEndOfChapterEvents.tryEmit(Unit)
+            })
+        }
+    }
+
+    private var _cadenceChapterHrefs: Map<String, String> = emptyMap()
+
+    /**
+     * Report the WebView's Intl.Segmenter feature-detect result. Updates the in-memory flag that
+     * drives the reader's top-bar toggle AND persists the same flag to [FormattingPreferencesStore]
+     * so the Settings screen (which can be opened before any book) hides its Cadence entry when
+     * the current device's WebView doesn't support the feature.
+     */
+    fun setCadencePlatformSupported(supported: Boolean) {
+        _cadencePlatformSupported.value = supported
+        formatting.persistCadencePlatformSupported(supported)
+    }
+
+    /**
+     * Carries chapter-href requests to the reader screen so it can probe the current page-top
+     * sentence against the WebView. Mirrors Readaloud's `pageTopProbeRequests` (issue #403 spec:
+     * "start from the sentence currently on screen — same as Readaloud"). The screen replies via
+     * [onCadencePageTopResolved].
+     */
+    private val _cadencePageTopProbeChannel = kotlinx.coroutines.channels.Channel<String>(
+        kotlinx.coroutines.channels.Channel.CONFLATED,
+    )
+    val cadencePageTopProbeRequests: Flow<String> = _cadencePageTopProbeChannel.receiveAsFlow()
+
+    /**
+     * Called by the reader screen once the WebView resolves the first Cadence-tokenised sentence
+     * visible on [href]'s current page (`fragmentId` = "cd-N", or null when none could be
+     * located). Starts Cadence from there.
+     *
+     * When the probe fails ([fragmentId] is null/blank) we fall back to the first fragment of
+     * the CURRENT chapter — see [resolveCadenceStartRef]. Falling through to the ticker's own
+     * "startIndex = 0" default would jump to cd-0 of the merged cross-chapter history, i.e. the
+     * first sentence of whichever chapter was tokenised first this session — usually several
+     * pages behind the user, which then triggers a Readium auto-scroll to the decoration.
+     */
+    fun onCadencePageTopResolved(href: String, fragmentId: String?) {
+        val startRef = resolveCadenceStartRef(
+            href = href,
+            probedFragmentId = fragmentId,
+            chapterHrefs = _cadenceChapterHrefs,
+            knownRefs = _cadenceQuotes.value.keys,
+        )
+        logger.d(com.riffle.core.logging.LogChannel.Cadence) {
+            "VM.onCadencePageTopResolved href=$href fragmentId=$fragmentId → startRef=$startRef"
+        }
+        if (startRef != null) cadenceController.goTo(startRef)
+        cadenceController.dispatch(com.riffle.core.domain.cadence.CadenceEvent.Start)
+    }
+
+    /**
+     * Start Cadence — pauses Readaloud and Auto-Scroll first (mutual exclusion per issue #403),
+     * then emits a page-top probe request. The reader screen resolves the current page's first
+     * visible sentence and replies via [onCadencePageTopResolved], which finally dispatches the
+     * Start event. Mirrors Readaloud's `startReadaloud` flow — same plumbing, same semantics.
+     */
+    fun startCadence() {
+        applyArbiter(com.riffle.core.domain.cadence.Feature.Cadence)
+        val href = position.currentLocatorHref.value
+        logger.d(com.riffle.core.logging.LogChannel.Cadence) {
+            "VM.startCadence currentLocatorHref=$href tokenisedChapters=${_cadenceChapterHrefs.values.distinct().size}"
+        }
+        if (href == null) {
+            // No known locator yet — dispatch Start directly; ticker falls back to cd-0.
+            cadenceController.dispatch(com.riffle.core.domain.cadence.CadenceEvent.Start)
+            return
+        }
+        _cadencePageTopProbeChannel.trySend(href)
+    }
+
+    fun stopCadence() =
+        cadenceController.dispatch(com.riffle.core.domain.cadence.CadenceEvent.Stop)
+
+    fun nudgeCadence(by: Int) =
+        cadenceController.dispatch(com.riffle.core.domain.cadence.CadenceEvent.NudgeSpeed(by))
+
+    fun pauseCadence(cause: com.riffle.core.domain.cadence.PauseCause) =
+        cadenceController.pauseFor(cause)
+
+    fun resumeCadenceIfPaused() =
+        cadenceController.dispatch(com.riffle.core.domain.cadence.CadenceEvent.Resume)
+
+    /**
+     * Snapshot the currently-running feature and apply [com.riffle.core.domain.cadence.onStart]'s
+     * pause fan-out. Called before dispatching a Start event to [starting]'s own controller.
+     *
+     * The current-feature snapshot has an at-most-one invariant guaranteed by the arbiter itself
+     * — the last successful startX() call would have paused any prior running feature. In the
+     * event of a race we pick the highest-priority winner (Cadence > AutoScroll > Readaloud) so
+     * the pause fan-out is deterministic.
+     */
+    private fun applyArbiter(starting: com.riffle.core.domain.cadence.Feature) {
+        val current = when {
+            cadenceController.state.value is com.riffle.core.domain.cadence.CadenceState.Running ->
+                com.riffle.core.domain.cadence.Feature.Cadence
+            formatting.autoScrollState.value is com.riffle.core.domain.autoscroll.AutoScrollState.Running ->
+                com.riffle.core.domain.cadence.Feature.AutoScroll
+            playerCoordinator.state.value.connected && playerCoordinator.state.value.isPlaying ->
+                com.riffle.core.domain.cadence.Feature.Readaloud
+            else -> com.riffle.core.domain.cadence.Feature.None
+        }
+        val action = com.riffle.core.domain.cadence.onStart(current, starting)
+        if (action.pauseAutoScroll) formatting.stopAutoScroll()
+        if (action.pauseReadaloud) playerCoordinator.pause()
+        if (action.pauseCadence) {
+            val cause = when (starting) {
+                com.riffle.core.domain.cadence.Feature.AutoScroll ->
+                    com.riffle.core.domain.cadence.PauseCause.AutoScrollStarted
+                com.riffle.core.domain.cadence.Feature.Readaloud ->
+                    com.riffle.core.domain.cadence.PauseCause.ReadaloudStarted
+                else -> com.riffle.core.domain.cadence.PauseCause.PanelOpen
+            }
+            cadenceController.pauseFor(cause)
+        }
+    }
 
     // ---- VolumeKeyDispatcher delegations -----------------------------------------------------------
 
@@ -561,6 +738,25 @@ class EpubReaderViewModel @Inject constructor(
     // page turns when a sentence spans more than one paginated column.
     val narrationProgress: StateFlow<PlayerCoordinator.NarrationProgress?> = playerCoordinator.narrationProgress
 
+    /**
+     * Cadence's analogue of [narrationProgress]: fuses the current cd-N fragment with the
+     * ticker's dwell-progress fraction so the intra-column-follow LaunchedEffect can drive
+     * page turns mid-sentence in paginated mode the same way Readaloud does. When Cadence
+     * isn't running this stays null and the screen's mutex-OR selects Readaloud's flow instead.
+     *
+     * Reuses [PlayerCoordinator.NarrationProgress] verbatim — the intra-column-follow effect
+     * only cares about `(fragmentRef, fraction)` and treats both drivers identically. Any short
+     * `cd-N` sentence whose text wraps across the column boundary will get its second half
+     * revealed on the next column just before the ticker advances — same behaviour readers
+     * already have with Readaloud.
+     */
+    val cadenceNarrationProgress: StateFlow<PlayerCoordinator.NarrationProgress?> = combine(
+        cadenceController.currentFragment,
+        cadenceController.currentProgress,
+    ) { ref, fraction ->
+        if (ref != null && fraction != null) PlayerCoordinator.NarrationProgress(ref, fraction) else null
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, null)
+
     // ---- Readaloud state delegations (state now lives in the session — sub-task 8.3) -------------
 
     val sentenceQuotes: StateFlow<Map<String, com.riffle.core.domain.SentenceQuote>> get() = readaloud.sentenceQuotes
@@ -596,7 +792,17 @@ class EpubReaderViewModel @Inject constructor(
             playerCoordinator.state
                 .map { it.isPlaying }
                 .distinctUntilChanged()
-                .collect { playing -> formatting.onPlaybackStateChanged(playing) }
+                .collect { playing ->
+                    formatting.onPlaybackStateChanged(playing)
+                    // Cadence half of the mutual-exclusion pair (issue #403): Readaloud playing
+                    // pauses a running Cadence. Pause (not Stop): a Readaloud tap-pause should
+                    // let the user resume Cadence exactly where it was.
+                    if (playing) {
+                        cadenceController.pauseFor(
+                            com.riffle.core.domain.cadence.PauseCause.ReadaloudStarted,
+                        )
+                    }
+                }
         }
         // Panel-open pause/resume is driven from the screen layer (it knows about
         // showFormattingPanel / tocVisible / annotationsPanelVisible / isSearchActive),
@@ -1588,6 +1794,13 @@ class EpubReaderViewModel @Inject constructor(
 
     override fun onCleared() {
         super.onCleared()
+        // Stop Cadence. CadenceController is @Singleton so it survives this VM; without this
+        // unbind, a running ticker would keep advancing past book-close and the SAME session
+        // would resume when the user reopens the book. Also drops the merged quotes/hrefs
+        // accumulator held by the source so the next book starts fresh.
+        cadenceController.unbind()
+        _cadenceQuotes.value = emptyMap()
+        _cadenceChapterHrefs = emptyMap()
         // Stop any in-flight Auto-Scroll so the next book open starts idle, not auto-scrolling
         // mid-session into someone else's text.
         formatting.onBookClosed()
@@ -2134,6 +2347,60 @@ internal fun highlightsResumeAnnotationIdForHref(chapters: List<ChapterElision>,
     val index = Regex("""highlights/ch(\d+)\.xhtml$""").find(href)?.groupValues?.get(1)?.toIntOrNull() ?: return null
     val nonEmptyChapters = chapters.filter { it.highlights.isNotEmpty() }
     return nonEmptyChapters.getOrNull(index)?.highlights?.firstOrNull()?.id
+}
+
+/**
+ * Cadence's start-position resolver, extracted from [EpubReaderViewModel.onCadencePageTopResolved]
+ * for unit-testing without a WebView.
+ *
+ *  - Happy path: the WebView probe returned `"chapter#cd-N"` (full ref, when the resolver JS
+ *    could read the chapter attribute the tokeniser stamped onto <html>) OR a bare `"cd-N"` (old
+ *    payload / DOM never tokenised). If it's a full ref we use it directly — bypassing the
+ *    Readium-locator-href lag that used to file cd-N under the previous chapter's href.
+ *  - Bare id + [href] combined: fall back to the old behaviour, `"$href#$probed"`. Only correct
+ *    when Readium's locator href actually matches the currently-rendered DOM, which is not
+ *    guaranteed after a paginated chapter turn — but it's the best we can do without the JS
+ *    chapter hint.
+ *  - Probe failure ([probedFragmentId] null/blank): fall back to the FIRST fragment in
+ *    [chapterHrefs] whose value equals [href] — i.e. the first tokenised sentence of the
+ *    chapter the user is currently on. The naive alternative — dispatching Start with no
+ *    goTo — makes [com.riffle.core.domain.sentence.WpmTicker.play] index into position 0 of
+ *    the merged cross-chapter fragment list, which is the first sentence of the FIRST chapter
+ *    tokenised this session (often several pages back). That produces the "Cadence starts on a
+ *    previous page and Readium scrolls me back" bug.
+ *  - Chapter not tokenised yet (rare — `startCadence` gates on a known locator): returns null
+ *    so the caller still dispatches Start; the ticker's own default kicks in as a last resort.
+ *
+ * [knownRefs] is the set of refs the ticker will accept (i.e. `_cadenceQuotes.keys`). When
+ * provided, the resolved ref is validated against it — a ref that isn't in the set is rejected
+ * (returned as null) rather than passed to a `WpmTicker.goTo` that would silently no-op and
+ * cause play() to fall to `orderedFragments[0]`. Old callers that don't know the map can pass
+ * `null` to skip the check.
+ */
+internal fun resolveCadenceStartRef(
+    href: String,
+    probedFragmentId: String?,
+    chapterHrefs: Map<String, String>,
+    knownRefs: Set<String>? = null,
+): String? {
+    val probed = probedFragmentId?.takeIf { it.isNotBlank() }
+    val candidate = when {
+        probed == null -> chapterHrefs.entries.firstOrNull { it.value == href }?.key
+        probed.contains('#') -> probed
+        else -> "$href#$probed"
+    } ?: return null
+    if (knownRefs != null && candidate !in knownRefs) {
+        // Reject a stale/mislabeled ref rather than let the ticker fall to position 0.
+        // Prefer the CHAPTER carried in [probed] when it's a full ref (JS-provided, DOM-
+        // authoritative) over the Kotlin-supplied [href] — the whole reason knownRefs might
+        // reject a candidate is that Readium's locator href lagged the tokeniser by one
+        // chapter, and re-querying by that stale href would re-introduce the very lag this
+        // resolver was written to guard against.
+        val fallbackHref = probed?.takeIf { it.contains('#') }?.substringBefore('#') ?: href
+        return chapterHrefs.entries.firstOrNull { it.value == fallbackHref }?.key
+            ?.takeIf { it in knownRefs }
+    }
+    return candidate
 }
 
 /**

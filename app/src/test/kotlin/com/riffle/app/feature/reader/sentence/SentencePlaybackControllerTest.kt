@@ -37,6 +37,7 @@ class SentencePlaybackControllerTest {
             activeFragmentRef = null,
             sentenceQuotes = emptyMap(),
             followReadaloudSentence = { followCalled = true; ReadaloudFollowResult.Snapped },
+            followCadenceSpan = { ReadaloudFollowResult.Unavailable },
             fragmentLocator = { _, _ -> minimalLocator() },
             navigateToLocator = { navigateCalled = true },
         )
@@ -53,6 +54,7 @@ class SentencePlaybackControllerTest {
             activeFragmentRef = "chapter1.xhtml", // no '#'
             sentenceQuotes = mapOf("s1" to SentenceQuote(before = "", highlight = "Hello", after = "")),
             followReadaloudSentence = { followCalled = true; ReadaloudFollowResult.Snapped },
+            followCadenceSpan = { ReadaloudFollowResult.Unavailable },
             fragmentLocator = { _, _ -> minimalLocator() },
             navigateToLocator = {},
         )
@@ -68,6 +70,7 @@ class SentencePlaybackControllerTest {
             activeFragmentRef = "chapter1.xhtml#s1",
             sentenceQuotes = emptyMap(), // quote not built yet
             followReadaloudSentence = { followCalled = true; ReadaloudFollowResult.Snapped },
+            followCadenceSpan = { ReadaloudFollowResult.Unavailable },
             fragmentLocator = { _, _ -> minimalLocator() },
             navigateToLocator = {},
         )
@@ -83,6 +86,7 @@ class SentencePlaybackControllerTest {
             activeFragmentRef = "chapter1.xhtml#s1",
             sentenceQuotes = mapOf("s1" to SentenceQuote(before = "", highlight = "Hello world", after = "")),
             followReadaloudSentence = { ReadaloudFollowResult.Snapped },
+            followCadenceSpan = { ReadaloudFollowResult.Unavailable },
             fragmentLocator = { _, _ -> minimalLocator() },
             navigateToLocator = { navigateCalled = true },
         )
@@ -98,6 +102,7 @@ class SentencePlaybackControllerTest {
             activeFragmentRef = "chapter1.xhtml#s1",
             sentenceQuotes = mapOf("s1" to SentenceQuote(before = "", highlight = "Hello world", after = "")),
             followReadaloudSentence = { ReadaloudFollowResult.Unavailable },
+            followCadenceSpan = { ReadaloudFollowResult.Unavailable },
             fragmentLocator = { _, _ -> minimalLocator() },
             navigateToLocator = { navigateCalled = true },
         )
@@ -120,6 +125,7 @@ class SentencePlaybackControllerTest {
                 assertEquals("Hello world", text)
                 ReadaloudFollowResult.OffPage
             },
+            followCadenceSpan = { ReadaloudFollowResult.Unavailable },
             fragmentLocator = { ref, q ->
                 locatorRef = ref
                 locatorQuote = q
@@ -134,6 +140,43 @@ class SentencePlaybackControllerTest {
     }
 
     @Test
+    fun `cd- fragment routes through followCadenceSpan, not text-based followReadaloudSentence`() = runTest {
+        // Regression (user report 2026-07-07): "in paginated mode, highlights don't re-focus
+        // on the correct page" — the auto-follow used to bail out on every `cd-N` ref via
+        // `if (sid.startsWith("cd-")) return`, so once the ticker advanced past the current
+        // column, the reader stayed put. The fix routes cd- through the id-based snap.
+        var textFollowCalled = false
+        var cadenceFollowedId: String? = null
+        performAutoFollow(
+            activeFragmentRef = "chapter1.xhtml#cd-42",
+            sentenceQuotes = mapOf("chapter1.xhtml#cd-42" to SentenceQuote("", "some text", "")),
+            followReadaloudSentence = { textFollowCalled = true; ReadaloudFollowResult.Snapped },
+            followCadenceSpan = { id -> cadenceFollowedId = id; ReadaloudFollowResult.Snapped },
+            fragmentLocator = { _, _ -> minimalLocator() },
+            navigateToLocator = {},
+        )
+        assertTrue("text-based follow must NOT be called for cd- refs", !textFollowCalled)
+        assertEquals("cd-42", cadenceFollowedId)
+    }
+
+    @Test
+    fun `cd- OffPage navigates the cd's chapter so the tokeniser loads the next resource`() = runTest {
+        // Cross-chapter follow: ticker advances past this resource's cds into the next
+        // chapter's fragment. followCadenceSpan reports "absent" → OffPage → navigate.
+        var navigatedLocator: Locator? = null
+        val locator = minimalLocator()
+        performAutoFollow(
+            activeFragmentRef = "chapter2.xhtml#cd-0",
+            sentenceQuotes = mapOf("chapter2.xhtml#cd-0" to SentenceQuote("", "Next chapter start", "")),
+            followReadaloudSentence = { ReadaloudFollowResult.Snapped },
+            followCadenceSpan = { ReadaloudFollowResult.OffPage },
+            fragmentLocator = { _, _ -> locator },
+            navigateToLocator = { navigatedLocator = it },
+        )
+        assertEquals(locator, navigatedLocator)
+    }
+
+    @Test
     fun `OffPage result with a null locator does not navigate`() = runTest {
         var navigateCalled = false
 
@@ -141,6 +184,7 @@ class SentencePlaybackControllerTest {
             activeFragmentRef = "chapter1.xhtml#s1",
             sentenceQuotes = mapOf("s1" to SentenceQuote(before = "", highlight = "Hello world", after = "")),
             followReadaloudSentence = { ReadaloudFollowResult.OffPage },
+            followCadenceSpan = { ReadaloudFollowResult.Unavailable },
             fragmentLocator = { _, _ -> null },
             navigateToLocator = { navigateCalled = true },
         )

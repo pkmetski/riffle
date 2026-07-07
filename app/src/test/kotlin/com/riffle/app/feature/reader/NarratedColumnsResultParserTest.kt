@@ -1,6 +1,8 @@
 package com.riffle.app.feature.reader
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
@@ -15,6 +17,25 @@ import org.junit.Test
  * carries the wrapping quotes.
  */
 class NarratedColumnsResultParserTest {
+
+    @Test
+    fun measureCadenceColumnsJs_uses_getElementById_and_not_text_search() {
+        // Cadence's `cd-N` spans are chapter-unique so the JS resolves by id, not by text prefix.
+        // Regression: if this ever regresses to text search, short/repeated Cadence sentences
+        // would measure the WRONG span's columns and the intra-column follow would page-turn to
+        // the wrong place.
+        val js = ColumnSnap.measureCadenceColumnsJs("cd-181")
+        assertTrue("must resolve target by getElementById", js.contains("document.getElementById(\"cd-181\")"))
+        assertFalse("must NOT do a text prefix search on the DOM", js.contains("nodeValue.indexOf(key)"))
+    }
+
+    @Test
+    fun snapCadenceColumnJs_uses_getElementById_and_reads_column_index() {
+        val js = ColumnSnap.snapCadenceColumnJs("cd-181", 2)
+        assertTrue(js.contains("document.getElementById(\"cd-181\")"))
+        assertTrue(js.contains("var idx=2"))
+        assertFalse(js.contains("nodeValue.indexOf(key)"))
+    }
 
     @Test
     fun nullEvaluateResult_returnsEmpty() {

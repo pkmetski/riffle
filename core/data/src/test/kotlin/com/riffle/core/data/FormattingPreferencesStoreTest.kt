@@ -2,6 +2,7 @@ package com.riffle.core.data
 
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import com.riffle.core.domain.FormattingPreferences
+import com.riffle.core.domain.HighlightColor
 import com.riffle.core.domain.ReaderFontFamily
 import com.riffle.core.domain.ReaderOrientation
 import com.riffle.core.domain.ReaderTheme
@@ -145,5 +146,72 @@ class FormattingPreferencesStoreTest {
         val store = buildStore()
         store.update(FormattingPreferences(autoScrollWpm = 320))
         assertEquals(320, store.preferences.first().autoScrollWpm)
+    }
+
+    @Test
+    fun `Cadence defaults for empty DataStore`() = testScope.runTest {
+        val prefs = buildStore().preferences.first()
+        assertEquals(false, prefs.showAutoScroll)
+        assertEquals(250, prefs.cadenceWpm)
+        assertEquals(false, prefs.showCadence)
+        assertEquals(HighlightColor.YELLOW, prefs.cadenceHighlightColor)
+    }
+
+    @Test
+    fun `showAutoScroll round-trips through the DataStore`() = testScope.runTest {
+        val store = buildStore()
+        store.update(FormattingPreferences(showAutoScroll = true))
+        assertEquals(true, store.preferences.first().showAutoScroll)
+    }
+
+    @Test
+    fun `showCadence round-trips through the DataStore`() = testScope.runTest {
+        val store = buildStore()
+        store.update(FormattingPreferences(showCadence = true))
+        assertEquals(true, store.preferences.first().showCadence)
+    }
+
+    @Test
+    fun `cadenceWpm round-trips through the DataStore`() = testScope.runTest {
+        val store = buildStore()
+        store.update(FormattingPreferences(cadenceWpm = 340))
+        assertEquals(340, store.preferences.first().cadenceWpm)
+    }
+
+    @Test
+    fun `cadenceHighlightColor round-trips through the DataStore`() = testScope.runTest {
+        val store = buildStore()
+        store.update(FormattingPreferences(cadenceHighlightColor = HighlightColor.GREEN))
+        assertEquals(HighlightColor.GREEN, store.preferences.first().cadenceHighlightColor)
+    }
+
+    @Test
+    fun `cadencePlatformSupported defaults to true for empty DataStore`() = testScope.runTest {
+        assertEquals(true, buildStore().preferences.first().cadencePlatformSupported)
+    }
+
+    // Regression: setCadencePlatformSupported must persist so the Settings screen (which opens
+    // without the reader) can gate its Cadence entry on the flag the reader saw on last book open.
+    // Flip this assertion and Android 7.1.1 users would see a Cadence Settings entry that never
+    // surfaces a runtime button — exactly the bug this fix pins.
+    @Test
+    fun `setCadencePlatformSupported false round-trips through the DataStore`() = testScope.runTest {
+        val store = buildStore()
+        store.setCadencePlatformSupported(false)
+        assertEquals(false, store.preferences.first().cadencePlatformSupported)
+    }
+
+    // Regression: update() must NOT overwrite the persisted platform-supported flag. Otherwise, a
+    // user changing any preference in Settings between reader closes would clobber the reader's
+    // feature-detect result with the stale in-memory `true` default.
+    @Test
+    fun `update does not overwrite the persisted cadencePlatformSupported flag`() = testScope.runTest {
+        val store = buildStore()
+        store.setCadencePlatformSupported(false)
+        // Now simulate a general preferences update carrying a stale in-memory `true` for the flag.
+        store.update(FormattingPreferences(cadencePlatformSupported = true, fontSize = 1.4f))
+        val prefs = store.preferences.first()
+        assertEquals(false, prefs.cadencePlatformSupported)
+        assertEquals(1.4f, prefs.fontSize)
     }
 }

@@ -247,6 +247,19 @@ internal class ReadiumPresenter(
         return if (where == "off") ReadaloudFollowResult.OffPage else ReadaloudFollowResult.Snapped
     }
 
+    override suspend fun followCadenceSpan(fragmentId: String): ReadaloudFollowResult {
+        if (fragment == null) return ReadaloudFollowResult.Unavailable
+        // Three-way outcome: "moved" (snap changed the page), "same" (already on-page),
+        // "absent" (id not in this resource → OffPage so the caller navigates its chapter).
+        // Collapsing "same" into OffPage would trigger a chapter navigation every tick while
+        // the sentence sits comfortably visible.
+        return when (bridge.snapCadenceSpan(fragmentId)) {
+            "moved", "same" -> ReadaloudFollowResult.Snapped
+            "absent" -> ReadaloudFollowResult.OffPage
+            else -> ReadaloudFollowResult.Unavailable
+        }
+    }
+
     override suspend fun measureReadaloudColumns(text: String): List<Double> {
         if (fragment == null) return emptyList()
         return bridge.measureNarratedColumns(text)
@@ -255,6 +268,16 @@ internal class ReadiumPresenter(
     override suspend fun snapReadaloudColumn(text: String, columnIndex: Int) {
         if (fragment == null) return
         bridge.snapNarratedColumn(text, columnIndex)
+    }
+
+    override suspend fun measureCadenceColumns(fragmentId: String): List<Double> {
+        if (fragment == null) return emptyList()
+        return bridge.measureCadenceColumns(fragmentId)
+    }
+
+    override suspend fun snapCadenceColumn(fragmentId: String, columnIndex: Int) {
+        if (fragment == null) return
+        bridge.snapCadenceColumn(fragmentId, columnIndex)
     }
 
     override suspend fun scrollBoundary(): ScrollBoundary {

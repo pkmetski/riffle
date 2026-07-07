@@ -335,6 +335,25 @@ class ContinuousStyleInjectorTest {
     // ── highlight helpers (unchanged) ───────────────────────────────────────────
 
     @Test
+    fun `highlightIdJs uses getElementById not window find so the exact span is highlighted`() {
+        // Regression (recording 20260707_162341): continuous mode used `window.find(text)`
+        // which lands on the first occurrence in the doc — for repeated phrases or heading
+        // text that reappears in body, the mark ended up mid-section instead of at the
+        // resolver-picked cd-N. Cadence's `cd-N` ids ARE in the DOM (the tokeniser wrote
+        // them) and are chapter-unique, so getElementById is authoritative.
+        val js = ContinuousStyleInjector.highlightIdJs("cd-181", "rgba(251,191,36,0.50)")
+        assertTrue("must use getElementById for exact-span placement", js.contains("document.getElementById('cd-181')"))
+        assertTrue("must NOT fall back to window.find for id-anchored paint", !js.contains("window.find"))
+        assertTrue("must clear any prior _riffle_hl mark before applying new one", js.contains("_riffle_hl"))
+    }
+
+    @Test
+    fun `highlightIdJs blank id short-circuits to CLEAR to avoid a getElementById('') no-op`() {
+        val js = ContinuousStyleInjector.highlightIdJs("", "rgba(0,0,0,1)")
+        assertEquals(ContinuousStyleInjector.CLEAR_HIGHLIGHT_JS, js)
+    }
+
+    @Test
     fun `highlightTextJs escapes single quotes in text`() {
         val js = ContinuousStyleInjector.highlightTextJs("it's a test", "rgba(56,189,248,0.30)")
         assertTrue(js.contains("it\\'s a test"))

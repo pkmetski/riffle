@@ -112,6 +112,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.transform
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.util.concurrent.ConcurrentHashMap
@@ -391,6 +392,20 @@ fun EpubReaderScreen(
                         )
                     }
                     val spinePositions by viewModel.spinePositionCounts.collectAsState()
+                    // Mutual-exclusion OR for the sentence-highlight pipeline (issue #403): when
+                    // Cadence is running, its currentFragment / quotes / colour replace
+                    // Readaloud's. Both features rely on the same
+                    // [SentencePlaybackController.Attach] machinery downstream — the only thing
+                    // that changes is which source is authoritative.
+                    val cadenceCurrentFragment by viewModel.cadenceCurrentFragment.collectAsState()
+                    val cadenceQuotesForPaint by viewModel.cadenceQuotes.collectAsState()
+                    val cadenceIsActiveForPaint = cadenceCurrentFragment != null
+                    val effectiveActiveFragmentRef =
+                        if (cadenceIsActiveForPaint) cadenceCurrentFragment else activeFragmentRef
+                    val effectiveSentenceQuotes =
+                        if (cadenceIsActiveForPaint) cadenceQuotesForPaint else sentenceQuotes
+                    val effectiveHighlightColor =
+                        if (cadenceIsActiveForPaint) formattingPrefs.cadenceHighlightColor else readaloudHighlightColor
                     EpubNavigatorView(
                         state = s,
                         formattingPrefs = formattingPrefs,
@@ -418,7 +433,23 @@ fun EpubReaderScreen(
                         annotationNavigationEvents = viewModel.annotationNavigationEvents,
                         searchResults = searchResults,
                         currentSearchIndex = currentSearchIndex,
-                        volumeNavEvents = viewModel.volumeNavEvents,
+                        // While Cadence is running, volume keys nudge WPM instead of turning pages
+                        // (issue #403). We intercept at the outer flow: if Cadence is Running when
+                        // an event arrives, we route it to viewModel.nudgeCadence and swallow the
+                        // event so the underlying page-turn machinery inside EpubNavigatorView never
+                        // sees it. STEP_WPM matches the Settings-slider and Auto-Scroll HUD step so
+                        // the nudge feels the same across features.
+                        volumeNavEvents = remember(viewModel) {
+                            viewModel.volumeNavEvents.transform { event ->
+                                val running = viewModel.cadenceState.value is com.riffle.core.domain.cadence.CadenceState.Running
+                                if (running) {
+                                    val step = com.riffle.core.domain.autoscroll.AutoScrollSpeed.STEP_WPM
+                                    viewModel.nudgeCadence(if (event == VolumeNavEvent.Forward) step else -step)
+                                } else {
+                                    emit(event)
+                                }
+                            }
+                        },
                         onTap = immersiveState::toggle,
                         onSelectionEnded = {
                             // Belt-and-braces: sticky IMMERSIVE (see immersiveSystemBarsBehavior)
@@ -435,17 +466,21 @@ fun EpubReaderScreen(
                         returnNavEvents = viewModel.returnNavEvents,
                         onCaptureReturnTarget = viewModel::captureReturnTarget,
                         onFollowInternalLink = viewModel::followInternalLink,
-                        activeFragmentRef = activeFragmentRef,
-                        sentenceQuotes = sentenceQuotes,
+                        activeFragmentRef = effectiveActiveFragmentRef,
+                        sentenceQuotes = effectiveSentenceQuotes,
                         sentenceChapters = sentenceChapters,
-                        narrationProgress = viewModel.narrationProgress,
+                        // Same mutex-OR as effectiveActiveFragmentRef: when Cadence is running,
+                        // its ticker-progress drives the intra-column follow (turn the page
+                        // mid-sentence when a cd-N span wraps across columns); otherwise
+                        // Readaloud's audio-clock progress does.
+                        narrationProgress = if (cadenceIsActiveForPaint) viewModel.cadenceNarrationProgress else viewModel.narrationProgress,
                         pageTopProbeRequests = viewModel.pageTopProbeRequests,
                         onPageTopResolved = viewModel::onPageTopResolved,
                         onPlayFromHere = viewModel::playFromHere,
                         onEnsureSentenceQuotesReady = viewModel::ensureSentenceQuotesReady,
                         readaloudAvailable = readaloudAvailable,
                         readaloudReservePx = totalReserveCssPx,
-                        readaloudHighlightColor = readaloudHighlightColor,
+                        readaloudHighlightColor = effectiveHighlightColor,
                         // Suppress the "Highlight" action on text-selection long-press when the
                         // reader is showing the elided highlight-only view — new highlights aren't
                         // creatable here (createHighlight is a no-op in Highlights mode, ADR 0041),
@@ -467,6 +502,61 @@ fun EpubReaderScreen(
                         showOpenInBook = shouldShowOpenInBook(viewModel.readerSource),
                         onOpenInBook = viewModel::openHighlightInSourceBook,
                         autoScrollDeltas = viewModel.autoScrollScrollDeltas,
+                        // Cadence chapter-load DOM tokenisation hook (issue #403). Runs the
+                        // feature-detect + tokenise JS in the freshly-loaded chapter's WebView.
+                        // Wired only when Cadence is enabled AND the platform gate passes; the
+                        // hook itself also short-circuits on unsupported returns.
+                        onCadenceInstallChapterHook = if (formattingPrefs.showCadence) {
+                            { wv ->
+                                val locale = s.publication.metadata.languages
+                                    .firstOrNull()?.toString()
+                                wv.evaluateJavascript(
+                                    com.riffle.app.feature.reader.cadence.CadenceDomScript
+                                        .FEATURE_DETECT_JS,
+                                ) { supportedRaw ->
+                                    val normalized = supportedRaw?.trim()?.trim('"')
+                                    val explicitlyTrue = normalized == "true"
+                                    val explicitlyFalse = normalized == "false"
+                                    android.util.Log.d(com.riffle.core.logging.LogChannel.Cadence.tag, "continuous featureDetect raw='$supportedRaw' explicitlyTrue=$explicitlyTrue")
+                                    // Only flip to false on explicit false — null returns leave the
+                                    // icon visible (transient / race).
+                                    if (explicitlyFalse) viewModel.setCadencePlatformSupported(false)
+                                    else if (explicitlyTrue) viewModel.setCadencePlatformSupported(true)
+                                    if (!explicitlyTrue) return@evaluateJavascript
+                                    wv.evaluateJavascript(
+                                        com.riffle.app.feature.reader.cadence.CadenceDomScript
+                                            .tokeniseChapterJs(wv.chapterHref, locale),
+                                    ) { rawJson ->
+                                        android.util.Log.d(com.riffle.core.logging.LogChannel.Cadence.tag, "continuous tokenise rawLen=${rawJson?.length}")
+                                        when (
+                                            val parsed = com.riffle.app.feature.reader.cadence
+                                                .CadenceInjector.parse(rawJson)
+                                        ) {
+                                            is com.riffle.app.feature.reader.cadence.CadenceInjector.Result.Ready -> {
+                                                android.util.Log.d(com.riffle.core.logging.LogChannel.Cadence.tag, "continuous READY quotes=${parsed.quotes.size}")
+                                                viewModel.onCadenceChapterTokenised(
+                                                    parsed.quotes, parsed.chapterHrefs,
+                                                )
+                                            }
+                                            com.riffle.app.feature.reader.cadence.CadenceInjector.Result.Unsupported -> {
+                                                // Per-chapter parse failure — don't hide the icon.
+                                                android.util.Log.d(com.riffle.core.logging.LogChannel.Cadence.tag, "continuous UNSUPPORTED — parse rejected this chapter's JSON")
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        } else null,
+                        cadenceEndOfChapterEvents = viewModel.cadenceEndOfChapterEvents,
+                        publicationLanguageTag = s.publication.metadata.languages.firstOrNull()?.toString(),
+                        onCadenceChapterTokenised = if (formattingPrefs.showCadence) {
+                            { quotes, hrefs -> viewModel.onCadenceChapterTokenised(quotes, hrefs) }
+                        } else null,
+                        onCadencePlatformSupportedChanged = if (formattingPrefs.showCadence) {
+                            { supported -> viewModel.setCadencePlatformSupported(supported) }
+                        } else null,
+                        cadencePageTopProbeRequests = viewModel.cadencePageTopProbeRequests,
+                        onCadencePageTopResolved = viewModel::onCadencePageTopResolved,
                         onReachedEndOfBook = viewModel::reachedEndOfBookForAutoScroll,
                         onAutoScrollPause = viewModel::pauseAutoScroll,
                         onAutoScrollResume = viewModel::resumeAutoScrollIfPaused,
@@ -675,7 +765,9 @@ fun EpubReaderScreen(
                             }
                             val autoScrollState by viewModel.autoScrollState.collectAsState()
                             val orientation = formattingPrefs.orientation
-                            if (orientation == ReaderOrientation.Vertical || orientation == ReaderOrientation.Continuous) {
+                            if (formattingPrefs.showAutoScroll &&
+                                (orientation == ReaderOrientation.Vertical || orientation == ReaderOrientation.Continuous)
+                            ) {
                                 com.riffle.app.feature.reader.autoscroll.AutoScrollToggleIcon(
                                     isRunning = autoScrollState is com.riffle.core.domain.autoscroll.AutoScrollState.Running,
                                     onClick = {
@@ -684,6 +776,18 @@ fun EpubReaderScreen(
                                         } else {
                                             viewModel.startAutoScroll()
                                         }
+                                    },
+                                )
+                            }
+                            val cadenceState by viewModel.cadenceState.collectAsState()
+                            val cadencePlatformSupported by viewModel.cadencePlatformSupported.collectAsState()
+                            if (formattingPrefs.showCadence && cadencePlatformSupported) {
+                                val cadenceRunning = cadenceState is com.riffle.core.domain.cadence.CadenceState.Running
+                                com.riffle.app.feature.reader.cadence.CadenceToggleIcon(
+                                    isRunning = cadenceRunning,
+                                    onClick = {
+                                        if (cadenceRunning) viewModel.stopCadence()
+                                        else viewModel.startCadence()
                                     },
                                 )
                             }
@@ -770,6 +874,17 @@ fun EpubReaderScreen(
             onResume = { viewModel.resumeAutoScrollFromPill() },
             onSlower = { viewModel.nudgeAutoScroll(by = -com.riffle.core.domain.autoscroll.AutoScrollSpeed.STEP_WPM) },
             onFaster = { viewModel.nudgeAutoScroll(by = com.riffle.core.domain.autoscroll.AutoScrollSpeed.STEP_WPM) },
+        )
+        // Cadence HUD pill — same shape/anchor as Auto-Scroll's pill (mutual exclusion guarantees
+        // only one is visible at a time). Volume keys also nudge cadence WPM via the outer
+        // volumeNavEvents transform; this pill is the on-screen equivalent for touch users.
+        val cadenceStateForPill by viewModel.cadenceState.collectAsState()
+        com.riffle.app.feature.reader.cadence.CadenceHudPill(
+            state = cadenceStateForPill,
+            onPause = { viewModel.pauseCadence(com.riffle.core.domain.cadence.PauseCause.PanelOpen) },
+            onResume = { viewModel.resumeCadenceIfPaused() },
+            onSlower = { viewModel.nudgeCadence(by = -com.riffle.core.domain.autoscroll.AutoScrollSpeed.STEP_WPM) },
+            onFaster = { viewModel.nudgeCadence(by = com.riffle.core.domain.autoscroll.AutoScrollSpeed.STEP_WPM) },
         )
         // Figure-zoom overlay — mounted at the outermost Box so it dims and covers every reader
         // mode, all reader chrome, and every bottom stack element (readaloud, chapter rail).
@@ -1189,6 +1304,25 @@ private fun EpubNavigatorView(
     onFigureTap: (payload: String) -> Unit,
     dispatchers: com.riffle.core.domain.DispatcherProvider,
     logger: com.riffle.core.logging.Logger,
+    // Cadence per-chapter hook (issue #403). Non-null in the outer caller when Cadence is enabled;
+    // installed on the ContinuousReaderView when it materialises so every chapter entering the
+    // sliding window fires DOM tokenisation. The lambda is invoked with the loaded WebView and is
+    // expected to run [CadenceDomScript.tokeniseChapterJs] via wv.evaluateJavascript.
+    onCadenceInstallChapterHook: ((com.riffle.app.feature.reader.ChapterWebViewLike) -> Unit)? = null,
+    // Cadence chapter-exhausted stream — the outer VM emits when the current chapter's ticker
+    // drains; we page forward through the active presenter so all three orientations get the
+    // same acceptance-line semantics.
+    cadenceEndOfChapterEvents: Flow<Unit> = kotlinx.coroutines.flow.emptyFlow(),
+    // Cadence paginated/vertical (Readium) hand-offs — parallel to the Continuous hook. Wired
+    // only when the outer caller has Cadence enabled; the paginationListener invokes the
+    // tokenise result callback and the platform-supported gate.
+    publicationLanguageTag: String? = null,
+    onCadenceChapterTokenised: ((Map<String, SentenceQuote>, Map<String, String>) -> Unit)? = null,
+    onCadencePlatformSupportedChanged: ((Boolean) -> Unit)? = null,
+    // Cadence page-top probe — mirrors Readaloud's [pageTopProbeRequests]/[onPageTopResolved]
+    // pair (issue #403 spec: "start from the sentence currently visible — same as Readaloud").
+    cadencePageTopProbeRequests: Flow<String> = kotlinx.coroutines.flow.emptyFlow(),
+    onCadencePageTopResolved: (href: String, fragmentId: String?) -> Unit = { _, _ -> },
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -1641,6 +1775,57 @@ private fun EpubNavigatorView(
                     // engine — decorations register into an internal map but never emit CSS or DOM.
                     rendererBridge.installPageCapabilities()
                     pageLoadGeneration.value += 1
+                    // Cadence per-chapter DOM tokenisation for paginated / vertical (issue #403).
+                    // Runs feature-detect + tokenise via the RendererBridge — the two typed
+                    // methods forward through the fragment's evaluateJavascript, which is the
+                    // only channel the reader is allowed to talk to Readium's WebView with.
+                    // The result JSON is parsed by CadenceInjector and handed back to the VM.
+                    //
+                    // Gate on the paginated-specific tokenised callback (NOT on the Continuous
+                    // hook: that's null in paginated/vertical, so the earlier gate silently
+                    // suppressed every tokenisation call in these two orientations — the highlight
+                    // never appeared because DomSentenceSource stayed empty).
+                    if (onCadenceChapterTokenised != null) {
+                        android.util.Log.d(com.riffle.core.logging.LogChannel.Cadence.tag, "paginated onPageLoaded: probing Intl.Segmenter")
+                        val supportedRaw = rendererBridge.evaluateCadenceFeatureDetect()
+                        // Match Readium's own probe idiom: trim JSON quotes too, in case the WebView
+                        // wraps the boolean return in an extra string literal.
+                        val normalized = supportedRaw?.trim()?.trim('"')
+                        val explicitlyTrue = normalized == "true"
+                        val explicitlyFalse = normalized == "false"
+                        android.util.Log.d(com.riffle.core.logging.LogChannel.Cadence.tag, "featureDetect raw='$supportedRaw' normalized='$normalized' explicitlyTrue=$explicitlyTrue")
+                        // Only flip supported → false when the probe explicitly says false. Null
+                        // returns (fragment gone / evaluate error / racing page-load) leave the
+                        // flag at its default true — otherwise transient errors hide the icon.
+                        if (explicitlyFalse) onCadencePlatformSupportedChanged?.invoke(false)
+                        else if (explicitlyTrue) onCadencePlatformSupportedChanged?.invoke(true)
+                        if (explicitlyTrue) {
+                            val localeTag = publicationLanguageTag
+                            val hrefForCadence = currentHrefHolder[0] ?: run {
+                                android.util.Log.d(com.riffle.core.logging.LogChannel.Cadence.tag, "abort: currentHrefHolder[0] is null")
+                                return@launch
+                            }
+                            android.util.Log.d(com.riffle.core.logging.LogChannel.Cadence.tag, "tokenising href='$hrefForCadence' locale='$localeTag'")
+                            val rawJson = rendererBridge.evaluateCadenceTokenise(hrefForCadence, localeTag)
+                            android.util.Log.d(com.riffle.core.logging.LogChannel.Cadence.tag, "tokenise rawLen=${rawJson?.length} head=${rawJson?.take(120)}")
+                            when (
+                                val parsed = com.riffle.app.feature.reader.cadence.CadenceInjector.parse(rawJson)
+                            ) {
+                                is com.riffle.app.feature.reader.cadence.CadenceInjector.Result.Ready -> {
+                                    android.util.Log.d(com.riffle.core.logging.LogChannel.Cadence.tag, "READY quotes=${parsed.quotes.size} hrefs=${parsed.chapterHrefs.size}")
+                                    onCadenceChapterTokenised?.invoke(parsed.quotes, parsed.chapterHrefs)
+                                }
+                                com.riffle.app.feature.reader.cadence.CadenceInjector.Result.Unsupported -> {
+                                    // Per-chapter tokenisation failure — NOT a platform-support issue.
+                                    // Leave the icon visible; the ticker will simply have nothing to
+                                    // advance through until the user turns to a chapter that tokenises.
+                                    android.util.Log.d(com.riffle.core.logging.LogChannel.Cadence.tag, "UNSUPPORTED — parse rejected this chapter's JSON (leaving platform flag alone)")
+                                }
+                            }
+                        }
+                    } else {
+                        android.util.Log.d(com.riffle.core.logging.LogChannel.Cadence.tag, "paginated onPageLoaded: skipped — onCadenceChapterTokenised is null (showCadence off?)")
+                    }
                     // NOTE: do NOT snap to the column grid here for the general case. The typography
                     // injection above reflows the page asynchronously, so a snap at this point rounds a
                     // pre-reflow position and lands close-but-not-exact. The post-go() snap in the
@@ -1889,6 +2074,41 @@ private fun EpubNavigatorView(
         }
     }
 
+    // Cadence page-top probe — mirrors the Readaloud effect above (issue #403 spec: same
+    // channel/effect/resolved contract). Two differences from Readaloud: (1) it queries the
+    // Cadence-injected span ids directly rather than a 12-char text prefix (Cadence-tokenised
+    // sentences frequently share common openings — "The problem…", "The solution…"); (2) the
+    // resolver is section-aware — it prefers the first heading visible in the viewport so
+    // Cadence starts by reading the section title, matching the user's mental model of "start
+    // of the section I'm on". See [CadenceDomScript.CADENCE_START_SPAN_ID_JS] for the JS
+    // fallback chain.
+    LaunchedEffect(cadencePageTopProbeRequests, isContinuous) {
+        cadencePageTopProbeRequests.collect { href ->
+            val fragmentId = when {
+                isContinuous -> {
+                    // Continuous mode: the Readium fragment is parked at height=0 and holds no
+                    // DOM, so cadenceStartSpanId() on rendererBridge would evaluate against an
+                    // empty document. Route to the ContinuousReaderView which has the per-chapter
+                    // WebViews and knows the parent scroll position — it projects the reader
+                    // viewport into the chapter's DOM before running the resolver JS.
+                    val view = continuousViewRef.value
+                    if (view == null) {
+                        null
+                    } else {
+                        kotlinx.coroutines.suspendCancellableCoroutine<String?> { cont ->
+                            view.cadenceStartSpanId(href) { id ->
+                                if (cont.isActive) cont.resumeWith(Result.success(id))
+                            }
+                        }
+                    }
+                }
+                fragmentRef.value != null -> rendererBridge.cadenceStartSpanId()
+                else -> null
+            }
+            onCadencePageTopResolved(href, fragmentId)
+        }
+    }
+
     LaunchedEffect(highlightRenderer, searchResults, currentSearchIndex, reflowGeneration, pageLoadGeneration.value) {
         highlightRenderer.applySearch(searchResults, currentSearchIndex)
     }
@@ -1896,6 +2116,11 @@ private fun EpubNavigatorView(
     // ---- Readaloud synced highlight + auto-follow ------------------------------------------
     // See [SentencePlaybackController.Attach] for the key-list rationale (unchanged from the
     // inline LaunchedEffects this replaces) and the auto-follow behaviour.
+    //
+    // Cadence + Readaloud are mutually exclusive (issue #403 / ADR 0040). The caller passes an
+    // effective fragment/quote/colour triple that is Cadence's when Cadence is live and
+    // Readaloud's otherwise; the shared pipeline paints whichever is active. See the call site
+    // in the outer screen composable for the OR that produces these values.
     sentencePlaybackController.Attach(
         activeFragmentRef = activeFragmentRef,
         sentenceQuotes = sentenceQuotes,
@@ -1984,17 +2209,41 @@ private fun EpubNavigatorView(
             if (progress == null) { columnProgression.reset(); measuredRef = null; return@collect }
             val ref = progress.fragmentRef
             if (ref.indexOf('#') < 0) return@collect
-            val quote = sentenceQuotes[ref.substringAfter('#', "")] ?: return@collect
+            val sid = ref.substringAfter('#', "")
+            // Cadence keys quotes by the full "href#cd-N" ref; Readaloud keys by the bare "sN".
+            val quote = sentenceQuotes[ref] ?: sentenceQuotes[sid] ?: return@collect
+            val isCadence = sid.startsWith("cd-")
             if (ref != measuredRef) {
                 // New sentence (or a relayout restarted this effect): measure how it spans columns.
+                // Cadence uses the id-based JS (getElementById on `cd-N`, chapter-unique) to avoid
+                // the text-search-picks-wrong-occurrence bug. Readaloud stays on the text-based
+                // path because Readium strips media-overlay span ids on serve.
                 // Empty in vertical / continuous — the progression then never advances, which is the
                 // correct behaviour for those modes.
-                columnProgression.onSentence(readerPresenter.measureReadaloudColumns(quote.highlight))
+                val columns = if (isCadence) readerPresenter.measureCadenceColumns(sid)
+                              else readerPresenter.measureReadaloudColumns(quote.highlight)
+                columnProgression.onSentence(columns)
                 measuredRef = ref
             }
             columnProgression.advance(progress.fraction)?.let { column ->
-                readerPresenter.snapReadaloudColumn(quote.highlight, column)
+                if (isCadence) readerPresenter.snapCadenceColumn(sid, column)
+                else readerPresenter.snapReadaloudColumn(quote.highlight, column)
             }
+        }
+    }
+
+    // (Cadence page-top probe is handled at the same layer as Readaloud's probe above — see
+    // LaunchedEffect(cadencePageTopProbeRequests).)
+
+    // Chapter auto-advance (issue #403 acceptance): when Cadence exhausts the current chapter's
+    // sentences, ask the active presenter to page forward. Works uniformly across all three
+    // orientations — ContinuousPresenter and ReadiumPresenter each own their own end-of-chapter
+    // page-turn semantics through pageBy(Forward). The Cadence controller's state stays [Running]
+    // through the navigation; the JS injection hook re-fires with the new chapter's fragments,
+    // rebinds the source, and the ticker resumes ticking (see CadenceController.bind).
+    LaunchedEffect(readerPresenter, cadenceEndOfChapterEvents) {
+        cadenceEndOfChapterEvents.collect {
+            readerPresenter.pageBy(PageDirection.Forward)
         }
     }
 
@@ -2465,6 +2714,15 @@ private fun EpubNavigatorView(
                     focusAnnotationId = focusId,
                 )
             }
+            // Install the Cadence per-chapter DOM-tokenisation hook so every chapter entering the
+            // sliding window runs CadenceDomScript.tokeniseChapterJs and hands the parsed maps back
+            // to the ViewModel. Null (Cadence disabled / no callback provided) leaves the hook
+            // uninstalled — the reader renders exactly as before.
+            LaunchedEffect(continuousView, onCadenceInstallChapterHook) {
+                val view = continuousView ?: return@LaunchedEffect
+                view.setCadenceOnChapterLoaded(onCadenceInstallChapterHook)
+            }
+
             // Drive Auto-Scroll deltas into the ContinuousReaderView's scrollBy. When the view
             // reaches the bottom of the book the delta is rejected by the NestedScrollView and we
             // dispatch ReachedEndOfBook to stop the controller silently (ADR 0037).

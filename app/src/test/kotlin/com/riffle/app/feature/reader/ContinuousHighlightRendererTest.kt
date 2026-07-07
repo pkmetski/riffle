@@ -18,14 +18,15 @@ class ContinuousHighlightRendererTest {
 
     // Fake target records every call for assertion.
     internal class FakeTarget : ContinuousHighlightTarget {
-        val highlighted = mutableListOf<Triple<String, String, String>>() // href, text, color
+        data class HighlightCall(val href: String, val fragmentId: String?, val text: String, val cssColor: String)
+        val highlighted = mutableListOf<HighlightCall>()
         val cleared = mutableListOf<String>() // href
         val appliedAnnotations = mutableListOf<Map<String, List<AnnotationHighlight>>>()
         var searchHighlightsState: SearchHighlightsState? = null
         var searchHighlightsCalls = 0
 
-        override fun highlightInChapter(href: String, text: String, cssColor: String) {
-            highlighted.add(Triple(href, text, cssColor))
+        override fun highlightInChapter(href: String, fragmentId: String?, text: String, cssColor: String) {
+            highlighted.add(HighlightCall(href, fragmentId, text, cssColor))
         }
         override fun clearHighlightInChapter(href: String) { cleared.add(href) }
         override fun applyAnnotationHighlights(annotationsByHref: Map<String, List<AnnotationHighlight>>) {
@@ -112,8 +113,27 @@ class ContinuousHighlightRendererTest {
             color = HighlightColor.BLUE,
         )
         assertEquals(1, fakeTarget.highlighted.size)
-        assertEquals("chapter1.xhtml", fakeTarget.highlighted[0].first)
-        assertEquals("To be or not to be", fakeTarget.highlighted[0].second)
+        assertEquals("chapter1.xhtml", fakeTarget.highlighted[0].href)
+        assertEquals("s42", fakeTarget.highlighted[0].fragmentId)
+        assertEquals("To be or not to be", fakeTarget.highlighted[0].text)
+    }
+
+    @Test
+    fun `applySentenceHighlight passes fragment id so paint uses getElementById not window find`() = runTest {
+        // Regression (recording 20260707_162341): continuous mode's highlight paint used
+        // `window.find(text)` with no starting cursor. For Cadence's short sentences (and any
+        // repeated phrase in the doc) the search matched the FIRST occurrence anywhere in the
+        // chapter — which for a heading-anchored Start landed one paragraph in from the actual
+        // section opening ("highlight starts mid-screen not at the closest section"). The
+        // renderer now passes the fragment id — `cd-N` for Cadence — so the paint layer uses
+        // `document.getElementById(id)` for exact placement.
+        renderer.applySentenceHighlight(
+            fragmentRef = "part0010.xhtml#cd-181",
+            quotes = mapOf("part0010.xhtml#cd-181" to SentenceQuote(before = "", highlight = "Most software systems", after = "")),
+            color = HighlightColor.BLUE,
+        )
+        assertEquals(1, fakeTarget.highlighted.size)
+        assertEquals("cd-181", fakeTarget.highlighted[0].fragmentId)
     }
 
     @Test
@@ -131,7 +151,7 @@ class ContinuousHighlightRendererTest {
         // ch1 should have been cleared when ch2 was highlighted
         assertTrue("ch1 should be cleared", fakeTarget.cleared.contains("ch1.xhtml"))
         val lastHighlight = fakeTarget.highlighted.last()
-        assertEquals("ch2.xhtml", lastHighlight.first)
+        assertEquals("ch2.xhtml", lastHighlight.href)
     }
 
     @Test

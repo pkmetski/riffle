@@ -61,6 +61,16 @@ class BookFormattingOverridesTest {
         assertEquals(320, updated.autoScrollWpm)
     }
 
+    // cadencePlatformSupported is a device capability with no per-book override — applyTo must
+    // always thread the global value. If this ever regressed, a book with legacy override rows
+    // could re-enable the Cadence Settings entry on a WebView that can't run the feature.
+    @Test
+    fun `applyTo threads global cadencePlatformSupported regardless of overrides`() {
+        val unsupported = global.copy(cadencePlatformSupported = false)
+        val effective = BookFormattingOverrides(fontSize = 1.5f).applyTo(unsupported)
+        assertFalse(effective.cadencePlatformSupported)
+    }
+
     @Test
     fun `applyTo threads showCurrentChapterLabel`() {
         val effective = BookFormattingOverrides(showCurrentChapterLabel = true).applyTo(global)

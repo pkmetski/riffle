@@ -14,6 +14,7 @@ data class BookFormattingOverrides(
     val doublePageSpread: Boolean? = null,
     val justifyText: Boolean? = null,
     val autoScrollWpm: Int? = null,
+    val cadenceWpm: Int? = null,
 ) {
     val isEmpty: Boolean
         get() = fontSize == null &&
@@ -28,7 +29,8 @@ data class BookFormattingOverrides(
             showReadingTimeEstimate == null &&
             doublePageSpread == null &&
             justifyText == null &&
-            autoScrollWpm == null
+            autoScrollWpm == null &&
+            cadenceWpm == null
 
     fun applyTo(global: FormattingPreferences): FormattingPreferences = FormattingPreferences(
         fontSize = fontSize ?: global.fontSize,
@@ -48,6 +50,12 @@ data class BookFormattingOverrides(
         // configured day/night times instead of silently falling back to defaults.
         themeSchedule = global.themeSchedule,
         autoScrollWpm = autoScrollWpm ?: global.autoScrollWpm,
+        showAutoScroll = global.showAutoScroll,
+        cadenceWpm = cadenceWpm ?: global.cadenceWpm,
+        showCadence = global.showCadence,
+        cadenceHighlightColor = global.cadenceHighlightColor,
+        // Device capability — global only, no per-book override.
+        cadencePlatformSupported = global.cadencePlatformSupported,
     )
 
     // Treat each field the user just changed (new != previously-effective) as an explicit book
@@ -69,5 +77,6 @@ data class BookFormattingOverrides(
         doublePageSpread = if (new.doublePageSpread != previous.doublePageSpread) new.doublePageSpread else doublePageSpread,
         justifyText = if (new.justifyText != previous.justifyText) new.justifyText else justifyText,
         autoScrollWpm = if (new.autoScrollWpm != previous.autoScrollWpm) new.autoScrollWpm else autoScrollWpm,
+        cadenceWpm = if (new.cadenceWpm != previous.cadenceWpm) new.cadenceWpm else cadenceWpm,
     )
 }
