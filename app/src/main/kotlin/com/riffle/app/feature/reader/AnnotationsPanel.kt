@@ -18,6 +18,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
@@ -107,6 +108,22 @@ fun AnnotationsPanel(
     }
 }
 
+/**
+ * Which visual variant an [AnnotationRow] renders, derived from [Annotation.type].
+ */
+internal enum class RowKind { Bookmark, Highlight, Image }
+
+/**
+ * Pure type→row-variant selector, extracted so the routing decision is unit-testable without
+ * standing up Compose. Unknown/legacy types fall back to [RowKind.Highlight].
+ */
+internal fun rowKindFor(annotation: Annotation): RowKind = when (annotation.type) {
+    AnnotationEntity.TYPE_BOOKMARK -> RowKind.Bookmark
+    AnnotationEntity.TYPE_HIGHLIGHT -> RowKind.Highlight
+    AnnotationEntity.TYPE_IMAGE -> RowKind.Image
+    else -> RowKind.Highlight
+}
+
 @Composable
 private fun AnnotationRow(
     annotation: Annotation,
@@ -114,6 +131,7 @@ private fun AnnotationRow(
     onDelete: () -> Unit,
     onRename: () -> Unit,
 ) {
+    val rowKind = rowKindFor(annotation)
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
@@ -125,24 +143,33 @@ private fun AnnotationRow(
             modifier = Modifier.size(32.dp),
             contentAlignment = Alignment.Center,
         ) {
-            if (annotation.type == AnnotationEntity.TYPE_BOOKMARK) {
-                Icon(
+            when (rowKind) {
+                RowKind.Bookmark -> Icon(
                     Icons.Filled.Bookmark,
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-            } else {
-                val highlightColor = HighlightColor.fromToken(annotation.color)
-                Surface(
-                    shape = CircleShape,
-                    color = Color(highlightColor.argb.toLong() and 0xFFFFFFFFL),
-                    modifier = Modifier.size(16.dp),
-                ) {}
+                RowKind.Image -> {
+                    val highlightColor = HighlightColor.fromToken(annotation.color)
+                    Icon(
+                        Icons.Filled.Image,
+                        contentDescription = null,
+                        tint = Color(highlightColor.argb.toLong() and 0xFFFFFFFFL),
+                    )
+                }
+                RowKind.Highlight -> {
+                    val highlightColor = HighlightColor.fromToken(annotation.color)
+                    Surface(
+                        shape = CircleShape,
+                        color = Color(highlightColor.argb.toLong() and 0xFFFFFFFFL),
+                        modifier = Modifier.size(16.dp),
+                    ) {}
+                }
             }
         }
         Spacer(Modifier.width(16.dp))
         Column(modifier = Modifier.weight(1f)) {
-            val title = if (annotation.type == AnnotationEntity.TYPE_BOOKMARK) {
+            val title = if (rowKind == RowKind.Bookmark) {
                 annotation.bookmarkTitle.ifBlank { "Bookmark" }
             } else {
                 annotation.textSnippet
@@ -155,7 +182,7 @@ private fun AnnotationRow(
                 overflow = TextOverflow.Ellipsis,
             )
             val note = annotation.note
-            if (annotation.type == AnnotationEntity.TYPE_HIGHLIGHT && !note.isNullOrBlank()) {
+            if (rowKind == RowKind.Highlight && !note.isNullOrBlank()) {
                 Text(
                     text = note.take(60),
                     style = MaterialTheme.typography.labelMedium,
@@ -167,7 +194,7 @@ private fun AnnotationRow(
         }
         Spacer(Modifier.width(16.dp))
         AnnotationOverflow(
-            isBookmark = annotation.type == AnnotationEntity.TYPE_BOOKMARK,
+            isBookmark = rowKind == RowKind.Bookmark,
             onDelete = onDelete,
             onRename = onRename,
         )
