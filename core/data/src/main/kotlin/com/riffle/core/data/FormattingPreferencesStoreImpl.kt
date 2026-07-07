@@ -49,6 +49,8 @@ class FormattingPreferencesStoreImpl @Inject constructor(
             cadenceHighlightColor = prefs[KEY_CADENCE_HIGHLIGHT_COLOR]
                 ?.let { runCatching { HighlightColor.valueOf(it) }.getOrNull() }
                 ?: FormattingPreferences.DEFAULT_CADENCE_HIGHLIGHT_COLOR,
+            cadencePlatformSupported = prefs[KEY_CADENCE_PLATFORM_SUPPORTED]
+                ?: FormattingPreferences.DEFAULT_CADENCE_PLATFORM_SUPPORTED,
             themeSchedule = ThemeSchedule(
                 dayStart = prefs[KEY_SCHEDULE_DAY_START]?.let(::minuteOfDayToLocalTime)
                     ?: ThemeSchedule.DEFAULT_DAY_START,
@@ -89,6 +91,15 @@ class FormattingPreferencesStoreImpl @Inject constructor(
             prefs[KEY_SCHEDULE_NIGHT_START] = preferences.themeSchedule.nightStart.toMinuteOfDay()
             prefs[KEY_SCHEDULE_DAY_THEME] = preferences.themeSchedule.dayTheme.name
             prefs[KEY_SCHEDULE_NIGHT_THEME] = preferences.themeSchedule.nightTheme.name
+            // Intentionally NOT writing KEY_CADENCE_PLATFORM_SUPPORTED here — it is written only
+            // by [setCadencePlatformSupported] so a concurrent user-driven prefs write cannot
+            // clobber the reader's feature-detect result with a stale in-memory value.
+        }
+    }
+
+    override suspend fun setCadencePlatformSupported(supported: Boolean) {
+        dataStore.edit { prefs ->
+            prefs[KEY_CADENCE_PLATFORM_SUPPORTED] = supported
         }
     }
 
@@ -110,6 +121,7 @@ class FormattingPreferencesStoreImpl @Inject constructor(
         val KEY_CADENCE_WPM = intPreferencesKey("cadence_wpm")
         val KEY_SHOW_CADENCE = booleanPreferencesKey("show_cadence")
         val KEY_CADENCE_HIGHLIGHT_COLOR = stringPreferencesKey("cadence_highlight_color")
+        val KEY_CADENCE_PLATFORM_SUPPORTED = booleanPreferencesKey("cadence_platform_supported")
         val KEY_SCHEDULE_DAY_START = intPreferencesKey("theme_schedule_day_start_minute_of_day")
         val KEY_SCHEDULE_NIGHT_START = intPreferencesKey("theme_schedule_night_start_minute_of_day")
         val KEY_SCHEDULE_DAY_THEME = stringPreferencesKey("theme_schedule_day_theme")

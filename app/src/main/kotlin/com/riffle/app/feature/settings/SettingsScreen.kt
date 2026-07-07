@@ -258,25 +258,31 @@ fun SettingsScreen(
                         TextButton(onClick = { showAutoScrollPanel = true }) { Text("Edit") }
                     },
                 )
-                ListItem(
-                    modifier = Modifier.clickable { showCadencePanel = true },
-                    leadingContent = {
-                        androidx.compose.material3.IconButton(onClick = { showCadencePanel = true }) {
-                            com.riffle.app.feature.reader.cadence.CadenceHeroIcon(size = 24.dp)
-                        }
-                    },
-                    headlineContent = { Text("Cadence") },
-                    supportingContent = {
-                        Text(
-                            if (globalFormatting.showCadence)
-                                "Sentence highlight — ${globalFormatting.cadenceWpm} wpm"
-                            else "Off",
-                        )
-                    },
-                    trailingContent = {
-                        TextButton(onClick = { showCadencePanel = true }) { Text("Edit") }
-                    },
-                )
+                // Cadence entry hides when the current device's WebView doesn't provide
+                // `Intl.Segmenter` (e.g. Android 7.1.1 with a stale system WebView). The flag is
+                // persisted by the reader after its first JS feature-detect and read back here so
+                // Settings never advertises a feature that can't render a runtime button.
+                if (globalFormatting.cadencePlatformSupported) {
+                    ListItem(
+                        modifier = Modifier.clickable { showCadencePanel = true },
+                        leadingContent = {
+                            androidx.compose.material3.IconButton(onClick = { showCadencePanel = true }) {
+                                com.riffle.app.feature.reader.cadence.CadenceHeroIcon(size = 24.dp)
+                            }
+                        },
+                        headlineContent = { Text("Cadence") },
+                        supportingContent = {
+                            Text(
+                                if (globalFormatting.showCadence)
+                                    "Sentence highlight — ${globalFormatting.cadenceWpm} wpm"
+                                else "Off",
+                            )
+                        },
+                        trailingContent = {
+                            TextButton(onClick = { showCadencePanel = true }) { Text("Edit") }
+                        },
+                    )
+                }
                 HorizontalDivider()
 
                 Text(

@@ -97,6 +97,9 @@ internal class DefaultRendererBridge(
     override suspend fun snapToElement(fragmentId: String): Boolean =
         fragment?.evaluateJavascript(ColumnSnap.scrollToColumnJs(fragmentId))?.trim('"') == "moved"
 
+    override suspend fun snapCadenceSpan(fragmentId: String): String? =
+        fragment?.evaluateJavascript(ColumnSnap.scrollToColumnJs(fragmentId))?.trim('"')
+
     override suspend fun landedAtEnd(): Boolean =
         fragment?.evaluateJavascript(ColumnSnap.LANDED_AT_END_JS)?.trim('"') == "true"
 
@@ -110,6 +113,15 @@ internal class DefaultRendererBridge(
 
     override suspend fun snapNarratedColumn(text: String, columnIndex: Int) {
         fragment?.evaluateJavascript(ColumnSnap.snapNarratedColumnJs(text, columnIndex))
+    }
+
+    override suspend fun measureCadenceColumns(fragmentId: String): List<Double> {
+        val raw = fragment?.evaluateJavascript(ColumnSnap.measureCadenceColumnsJs(fragmentId))
+        return ColumnSnap.parseNarratedColumnsResult(raw)
+    }
+
+    override suspend fun snapCadenceColumn(fragmentId: String, columnIndex: Int) {
+        fragment?.evaluateJavascript(ColumnSnap.snapCadenceColumnJs(fragmentId, columnIndex))
     }
 
     override suspend fun resolveSelectionSentence(sentences: List<Pair<String, String>>): String? {
@@ -176,10 +188,15 @@ internal class DefaultRendererBridge(
             ),
         )
 
-    override suspend fun firstVisibleCadenceSpanId(): String? =
-        fragment?.evaluateJavascript(
-            com.riffle.app.feature.reader.cadence.CadenceDomScript.FIRST_VISIBLE_CADENCE_SPAN_ID_JS,
-        )?.trim()?.trim('"')?.takeIf { it.isNotEmpty() }
+    override suspend fun cadenceStartSpanId(): String? {
+        // Nulls fall through to `window.scrollY` / `innerHeight` — correct for Readium modes
+        // where the WebView owns its scroll. See CadenceDomScript.parseCadenceStartId for the
+        // JSON diagnostic payload the JS returns.
+        val raw = fragment?.evaluateJavascript(
+            com.riffle.app.feature.reader.cadence.CadenceDomScript.cadenceStartSpanIdJs(),
+        )
+        return com.riffle.app.feature.reader.cadence.CadenceDomScript.parseCadenceStartId(raw)
+    }
 
     override suspend fun readViewportFraction(): Double? {
         val frag = fragment ?: return null

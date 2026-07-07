@@ -89,6 +89,22 @@ internal interface ReaderPresenter {
     suspend fun followReadaloudSentence(text: String): ReadaloudFollowResult
 
     /**
+     * Cadence's auto-follow: try to bring the Cadence span with id [fragmentId] onto the
+     * page WITHOUT text search. Returns [ReadaloudFollowResult.Snapped] iff the id is present
+     * in the currently-rendered DOM and the snap moved (or was already on-page);
+     * [ReadaloudFollowResult.OffPage] when the id isn't in this resource (caller navigates to
+     * the cd's chapter to load it, then this snap re-runs on the next page load); or
+     * [ReadaloudFollowResult.Unavailable] for presenters that don't drive an id-based snap
+     * (continuous — its highlight paint pipeline handles scroll-into-view separately).
+     *
+     * Why id-based, not text-based: Cadence's `cd-N` spans are chapter-unique DOM ids the
+     * tokeniser wrote onto the page. A text-based follow would land on the FIRST occurrence
+     * of the sentence text anywhere in the resource (same bug that mispainted the highlight)
+     * and for short/repeated phrases would page-turn to the wrong column.
+     */
+    suspend fun followCadenceSpan(fragmentId: String): ReadaloudFollowResult
+
+    /**
      * Measure how [text] spans the paginated column grid; non-empty only in paginated mode.
      * Empty means "single column / not on this resource / vertical / continuous" — all cases
      * where intra-sentence page turns should not be driven by [NarratedColumnProgression].
@@ -100,6 +116,12 @@ internal interface ReaderPresenter {
      * [measureReadaloudColumns]. No-op in vertical / continuous.
      */
     suspend fun snapReadaloudColumn(text: String, columnIndex: Int)
+
+    /** Cadence's [measureReadaloudColumns] — id-based, chapter-unique, no text search. */
+    suspend fun measureCadenceColumns(fragmentId: String): List<Double>
+
+    /** Cadence's [snapReadaloudColumn] — id-based, chapter-unique, no text search. */
+    suspend fun snapCadenceColumn(fragmentId: String, columnIndex: Int)
 
     /**
      * Current native-scroll boundary state for the rendered content. Used by the vertical-mode

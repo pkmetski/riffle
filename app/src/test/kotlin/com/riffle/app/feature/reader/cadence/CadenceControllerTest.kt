@@ -156,6 +156,36 @@ class CadenceControllerTest {
     }
 
     @Test
+    fun `rebinding a superset source keeps the current fragment position`() = runController { c ->
+        // Regression (user report 2026-07-07): "switching between reading modes restarts
+        // Cadence from the wrong location". Continuous mode fires `bind()` on every chapter
+        // that enters the sliding window; a paginated formatting reflow / rotation re-tokenises
+        // the current chapter and rebinds too. The old bind() cleared `_currentFragment` before
+        // handing to the fresh ticker, so if Cadence was running, play() fell back to
+        // orderedFragments[0] — cd-0 of the first chapter tokenised this session (usually
+        // "Cover design: Wiley" or similar). Fix: bind captures the previous fragment and
+        // restores it on the fresh ticker via goTo when the ref is still in the merged order.
+        c.bind(FakeSource(listOf(
+            "c#s0" to "first sentence here",
+            "c#s1" to "second sentence for good measure",
+        )))
+        c.dispatch(CadenceEvent.Start)
+        runCurrent()
+        advanceTimeBy(3_500L) // ~1 word/100ms at 600wpm; past s0 into s1 (3 words dwell = ~300ms)
+        val positionBeforeRebind = c.currentFragment.value
+        assertEquals("c#s1", positionBeforeRebind)
+
+        // Rebind with the SAME two fragments plus an extra (mode switch / sliding-window add).
+        c.bind(FakeSource(listOf(
+            "c#s0" to "first sentence here",
+            "c#s1" to "second sentence for good measure",
+            "c#s2" to "third sentence extra",
+        )))
+        runCurrent()
+        assertEquals("Cadence must resume where it left off, not reset to cd-0", "c#s1", c.currentFragment.value)
+    }
+
+    @Test
     fun `unbind clears fragment and stops ticker`() = runController { c ->
         c.bind(FakeSource(listOf("c#s0" to "one two three")))
         c.dispatch(CadenceEvent.Start)

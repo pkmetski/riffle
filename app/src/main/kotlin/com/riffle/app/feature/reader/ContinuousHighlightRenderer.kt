@@ -43,7 +43,11 @@ internal class ContinuousHighlightRenderer(
         if (prev != null && prev != chapterHref) target.clearHighlightInChapter(prev)
         prevSentenceHref = chapterHref
 
-        target.highlightInChapter(chapterHref, text, color.argb.toCssRgba())
+        // Pass the fragment id so paint uses getElementById (chapter-unique) instead of
+        // window.find (which lands on the first occurrence anywhere in the doc). For Cadence
+        // this is `cd-N`; for Readaloud it's the sidecar's `sN`. Both are stable ids the
+        // tokeniser or sidecar wrote onto the DOM.
+        target.highlightInChapter(chapterHref, sid, text, color.argb.toCssRgba())
     }
 
     override suspend fun applyAnnotations(

@@ -450,6 +450,42 @@ internal class ContinuousWindowController(
     }
 
     /**
+     * Resolve Cadence's start-span id inside [chapterHref] against the reader's current viewport.
+     *
+     * In continuous mode the ChapterWebView holds the full chapter body without ever scrolling
+     * itself — the parent [ContinuousReaderView] scrolls, and each WebView has `window.scrollY = 0`.
+     * So `window.innerHeight` inside the WebView is the chapter height (potentially thousands of
+     * px), not the reader viewport, and a naive `[1..ih)` sweep would return the first `.riffle-cd`
+     * anywhere in the chapter. We project the reader viewport into this chapter's DOM
+     * coordinates (`viewportTopInChapter = port.currentScrollY - slot.top`) and pass that range
+     * into [CadenceDomScript.cadenceStartSpanIdJs] so isVisible/isPreceding operate on the
+     * region actually under the user's eyes.
+     *
+     * Returns the parsed id via [callback], or null when the chapter isn't in the window, the
+     * WebView isn't measured yet, or the resolver came back empty.
+     */
+    fun cadenceStartSpanId(chapterHref: String, callback: (String?) -> Unit) {
+        val target = chapterHref.substringBefore('#')
+        val slot = buildWindow().firstOrNull { it.href.substringBefore('#') == target }
+        val wv = webViews.firstOrNull { it.chapterHref.substringBefore('#') == target }
+        if (slot == null || wv == null) {
+            callback(null)
+            return
+        }
+        val viewportTop = port.currentScrollY - slot.top
+        val viewportHeight = port.viewportHeightPx
+        val js = com.riffle.app.feature.reader.cadence.CadenceDomScript.cadenceStartSpanIdJs(
+            viewportTopDocPx = viewportTop,
+            viewportHeightPx = viewportHeight,
+            viewportLeftDocPx = 0,
+            viewportWidthPx = null,
+        )
+        wv.evaluateJavascript(js) { raw ->
+            callback(com.riffle.app.feature.reader.cadence.CadenceDomScript.parseCadenceStartId(raw))
+        }
+    }
+
+    /**
      * Resolve the absolute (parent-viewport) Y of the anchor [fragmentId] within [chapterHref].
      * Returns null via [callback] when the chapter isn't in the current window, the WebView for
      * it isn't measured yet, or the element id can't be found. Used by the cross-reference tap
@@ -529,8 +565,8 @@ internal class ContinuousWindowController(
         port.smoothScrollBy(if (forward) delta else -delta)
     }
 
-    override fun highlightInChapter(href: String, text: String, cssColor: String) {
-        decorations.highlightInChapter(href, text, cssColor)
+    override fun highlightInChapter(href: String, fragmentId: String?, text: String, cssColor: String) {
+        decorations.highlightInChapter(href, fragmentId, text, cssColor)
     }
 
     override fun clearHighlightInChapter(href: String) {

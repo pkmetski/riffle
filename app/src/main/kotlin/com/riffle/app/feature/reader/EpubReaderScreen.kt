@@ -469,7 +469,11 @@ fun EpubReaderScreen(
                         activeFragmentRef = effectiveActiveFragmentRef,
                         sentenceQuotes = effectiveSentenceQuotes,
                         sentenceChapters = sentenceChapters,
-                        narrationProgress = viewModel.narrationProgress,
+                        // Same mutex-OR as effectiveActiveFragmentRef: when Cadence is running,
+                        // its ticker-progress drives the intra-column follow (turn the page
+                        // mid-sentence when a cd-N span wraps across columns); otherwise
+                        // Readaloud's audio-clock progress does.
+                        narrationProgress = if (cadenceIsActiveForPaint) viewModel.cadenceNarrationProgress else viewModel.narrationProgress,
                         pageTopProbeRequests = viewModel.pageTopProbeRequests,
                         onPageTopResolved = viewModel::onPageTopResolved,
                         onPlayFromHere = viewModel::playFromHere,
@@ -2071,17 +2075,35 @@ private fun EpubNavigatorView(
     }
 
     // Cadence page-top probe — mirrors the Readaloud effect above (issue #403 spec: same
-    // channel/effect/resolved contract). One difference: Readaloud's probe uses a 12-char
-    // text-prefix search which is fine for Storyteller-produced sentences but false-positives on
-    // Cadence-tokenised prose where many sentences share a common opening ("The problem…",
-    // "The solution…"). Cadence spans have unique DOM ids, so we query those directly via
-    // rendererBridge.firstVisibleCadenceSpanId — same pipeline, correct JS.
-    LaunchedEffect(cadencePageTopProbeRequests) {
+    // channel/effect/resolved contract). Two differences from Readaloud: (1) it queries the
+    // Cadence-injected span ids directly rather than a 12-char text prefix (Cadence-tokenised
+    // sentences frequently share common openings — "The problem…", "The solution…"); (2) the
+    // resolver is section-aware — it prefers the first heading visible in the viewport so
+    // Cadence starts by reading the section title, matching the user's mental model of "start
+    // of the section I'm on". See [CadenceDomScript.CADENCE_START_SPAN_ID_JS] for the JS
+    // fallback chain.
+    LaunchedEffect(cadencePageTopProbeRequests, isContinuous) {
         cadencePageTopProbeRequests.collect { href ->
-            val fragmentId = if (fragmentRef.value != null) {
-                rendererBridge.firstVisibleCadenceSpanId()
-            } else {
-                null
+            val fragmentId = when {
+                isContinuous -> {
+                    // Continuous mode: the Readium fragment is parked at height=0 and holds no
+                    // DOM, so cadenceStartSpanId() on rendererBridge would evaluate against an
+                    // empty document. Route to the ContinuousReaderView which has the per-chapter
+                    // WebViews and knows the parent scroll position — it projects the reader
+                    // viewport into the chapter's DOM before running the resolver JS.
+                    val view = continuousViewRef.value
+                    if (view == null) {
+                        null
+                    } else {
+                        kotlinx.coroutines.suspendCancellableCoroutine<String?> { cont ->
+                            view.cadenceStartSpanId(href) { id ->
+                                if (cont.isActive) cont.resumeWith(Result.success(id))
+                            }
+                        }
+                    }
+                }
+                fragmentRef.value != null -> rendererBridge.cadenceStartSpanId()
+                else -> null
             }
             onCadencePageTopResolved(href, fragmentId)
         }
@@ -2187,16 +2209,25 @@ private fun EpubNavigatorView(
             if (progress == null) { columnProgression.reset(); measuredRef = null; return@collect }
             val ref = progress.fragmentRef
             if (ref.indexOf('#') < 0) return@collect
-            val quote = sentenceQuotes[ref.substringAfter('#', "")] ?: return@collect
+            val sid = ref.substringAfter('#', "")
+            // Cadence keys quotes by the full "href#cd-N" ref; Readaloud keys by the bare "sN".
+            val quote = sentenceQuotes[ref] ?: sentenceQuotes[sid] ?: return@collect
+            val isCadence = sid.startsWith("cd-")
             if (ref != measuredRef) {
                 // New sentence (or a relayout restarted this effect): measure how it spans columns.
+                // Cadence uses the id-based JS (getElementById on `cd-N`, chapter-unique) to avoid
+                // the text-search-picks-wrong-occurrence bug. Readaloud stays on the text-based
+                // path because Readium strips media-overlay span ids on serve.
                 // Empty in vertical / continuous — the progression then never advances, which is the
                 // correct behaviour for those modes.
-                columnProgression.onSentence(readerPresenter.measureReadaloudColumns(quote.highlight))
+                val columns = if (isCadence) readerPresenter.measureCadenceColumns(sid)
+                              else readerPresenter.measureReadaloudColumns(quote.highlight)
+                columnProgression.onSentence(columns)
                 measuredRef = ref
             }
             columnProgression.advance(progress.fraction)?.let { column ->
-                readerPresenter.snapReadaloudColumn(quote.highlight, column)
+                if (isCadence) readerPresenter.snapCadenceColumn(sid, column)
+                else readerPresenter.snapReadaloudColumn(quote.highlight, column)
             }
         }
     }

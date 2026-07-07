@@ -79,6 +79,21 @@ internal interface RendererBridge {
      */
     suspend fun snapToElement(fragmentId: String): Boolean
 
+    /**
+     * Cadence's variant of [snapToElement] that distinguishes "already visible" from "not in
+     * this resource". Returns:
+     *  - `"moved"` — snap changed the visible page,
+     *  - `"same"` — target was already on-page, no action taken,
+     *  - `"absent"` — id isn't in the currently-rendered DOM (caller navigates the cd's chapter),
+     *  - `null` — no fragment attached.
+     *
+     * [snapToElement] collapses "same" and "absent" both to `false`, which is fine for taps
+     * (that path only cares about "should we offer a Return card?"). For per-sentence auto-
+     * follow we need the distinction: "same" ⇒ Snapped (leave the reader alone); "absent" ⇒
+     * OffPage (load the other chapter, then re-run the snap on that page's load).
+     */
+    suspend fun snapCadenceSpan(fragmentId: String): String?
+
     /** True iff the freshly loaded paginated page is resting on its LAST column. */
     suspend fun landedAtEnd(): Boolean
 
@@ -94,6 +109,12 @@ internal interface RendererBridge {
 
     /** Snap to the [columnIndex]-th column the narrated sentence occupies (clamped). */
     suspend fun snapNarratedColumn(text: String, columnIndex: Int)
+
+    /** Id-based [measureNarratedColumns] for Cadence — resolves the target via `getElementById`. */
+    suspend fun measureCadenceColumns(fragmentId: String): List<Double>
+
+    /** Id-based [snapNarratedColumn] for Cadence — resolves the target via `getElementById`. */
+    suspend fun snapCadenceColumn(fragmentId: String, columnIndex: Int)
 
     // ── Selection / readaloud probes ────────────────────────────────────────────────────────
 
@@ -168,10 +189,13 @@ internal interface RendererBridge {
     suspend fun evaluateCadenceTokenise(chapterHref: String, localeTag: String?): String?
 
     /**
-     * Return the id of the first `<span class="riffle-cd">` currently visible in the
-     * paginated / vertical viewport (e.g. `"cd-7"`), or null when nothing is on-screen. Uses
-     * Cadence's own span ids — not the text-prefix probe [firstVisibleSentenceIndex] which
-     * false-positives when Cadence-tokenised sentences share common openings.
+     * Return the id of the `<span class="riffle-cd">` Cadence should START from (e.g. `"cd-7"`).
+     *
+     * The choice is section-aware — prefers the first `h1..h6` heading visible in the viewport
+     * (its opening `.riffle-cd`), then the nearest preceding heading, then the first
+     * `.riffle-cd` currently on-screen. See
+     * [com.riffle.app.feature.reader.cadence.CadenceDomScript.CADENCE_START_SPAN_ID_JS] for the
+     * exact JS contract. Returns null when the fragment is gone or no fallback matches.
      */
-    suspend fun firstVisibleCadenceSpanId(): String?
+    suspend fun cadenceStartSpanId(): String?
 }

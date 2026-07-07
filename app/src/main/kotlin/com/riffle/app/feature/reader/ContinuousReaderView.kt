@@ -323,6 +323,16 @@ internal class ContinuousReaderView @JvmOverloads constructor(
         controller.anchorAbsoluteY(chapterHref, fragmentId, callback)
 
     /**
+     * Resolve Cadence's start-span id inside [chapterHref] using the reader's current viewport
+     * projected into that chapter's DOM. See [ContinuousWindowController.cadenceStartSpanId] for
+     * the section-heading logic; the reader screen calls this instead of
+     * [com.riffle.app.feature.reader.renderer.RendererBridge.cadenceStartSpanId] when running in
+     * continuous mode, because the Readium fragment is parked at height=0 and holds no DOM.
+     */
+    internal fun cadenceStartSpanId(chapterHref: String, callback: (String?) -> Unit) =
+        controller.cadenceStartSpanId(chapterHref, callback)
+
+    /**
      * Install a per-chapter Cadence hook — delegates to
      * [ContinuousWindowController.setCadenceOnChapterLoaded]. The reader screen calls this once
      * the Cadence session is bound so every loaded chapter triggers a DOM tokenisation via
@@ -335,8 +345,8 @@ internal class ContinuousReaderView @JvmOverloads constructor(
 
     override fun scrollByPage(forward: Boolean) = controller.scrollByPage(forward)
 
-    override fun highlightInChapter(href: String, text: String, cssColor: String) =
-        controller.highlightInChapter(href, text, cssColor)
+    override fun highlightInChapter(href: String, fragmentId: String?, text: String, cssColor: String) =
+        controller.highlightInChapter(href, fragmentId, text, cssColor)
 
     override fun clearHighlightInChapter(href: String) = controller.clearHighlightInChapter(href)
 

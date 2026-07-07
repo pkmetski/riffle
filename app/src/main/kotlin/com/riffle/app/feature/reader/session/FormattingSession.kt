@@ -221,6 +221,16 @@ class FormattingSession @AssistedInject constructor(
         scope.launch { bookFormattingPreferencesStore.save(itemId, updated) }
     }
 
+    /**
+     * Persist the WebView's Cadence platform-capability result. Passthrough to
+     * [FormattingPreferencesStore.setCadencePlatformSupported] — kept off [updateFormatting] so a
+     * concurrent user-driven preference write cannot clobber the reader's feature-detect result.
+     * The VM calls this once per open book when the JS probe reports its Intl.Segmenter answer.
+     */
+    fun persistCadencePlatformSupported(supported: Boolean) {
+        scope.launch { formattingPreferencesStore.setCadencePlatformSupported(supported) }
+    }
+
     /** Clear all book-level overrides, reverting to the global formatting preferences. */
     fun resetToGlobalDefaults(itemId: String) {
         scope.launch {

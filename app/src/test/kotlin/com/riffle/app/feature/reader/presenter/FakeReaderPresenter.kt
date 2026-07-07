@@ -62,6 +62,13 @@ internal class FakeReaderPresenter : ReaderPresenter {
         return followReadaloudResult
     }
 
+    val recordedFollowCadence: MutableList<String> = mutableListOf()
+    var followCadenceResult: ReadaloudFollowResult = ReadaloudFollowResult.Unavailable
+    override suspend fun followCadenceSpan(fragmentId: String): ReadaloudFollowResult {
+        recordedFollowCadence += fragmentId
+        return followCadenceResult
+    }
+
     override suspend fun measureReadaloudColumns(text: String): List<Double> {
         recordedMeasureReadaloud += text
         return measureReadaloudColumnsResult
@@ -69,6 +76,17 @@ internal class FakeReaderPresenter : ReaderPresenter {
 
     override suspend fun snapReadaloudColumn(text: String, columnIndex: Int) {
         recordedSnapReadaloud += text to columnIndex
+    }
+
+    val recordedMeasureCadence: MutableList<String> = mutableListOf()
+    val recordedSnapCadence: MutableList<Pair<String, Int>> = mutableListOf()
+    var measureCadenceColumnsResult: List<Double> = emptyList()
+    override suspend fun measureCadenceColumns(fragmentId: String): List<Double> {
+        recordedMeasureCadence += fragmentId
+        return measureCadenceColumnsResult
+    }
+    override suspend fun snapCadenceColumn(fragmentId: String, columnIndex: Int) {
+        recordedSnapCadence += fragmentId to columnIndex
     }
 
     var scrollBoundaryResult: ScrollBoundary = ScrollBoundary.None

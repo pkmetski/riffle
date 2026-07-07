@@ -54,6 +54,8 @@ data class BookFormattingOverrides(
         cadenceWpm = cadenceWpm ?: global.cadenceWpm,
         showCadence = global.showCadence,
         cadenceHighlightColor = global.cadenceHighlightColor,
+        // Device capability — global only, no per-book override.
+        cadencePlatformSupported = global.cadencePlatformSupported,
     )
 
     // Treat each field the user just changed (new != previously-effective) as an explicit book

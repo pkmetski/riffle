@@ -93,6 +93,7 @@ internal val EXCLUDED_FROM_TYPOGRAPHY_OVERRIDES: Map<String, String> = mapOf(
     "cadenceWpm" to "Cadence pace (words-per-minute); a timing setting consumed by CadenceController/WpmTicker, not a CSS property.",
     "showCadence" to "Settings toggle gating the reader top-bar Cadence icon; UI affordance, not a CSS property.",
     "cadenceHighlightColor" to "Cadence sentence-highlight colour; applied via the highlight decoration renderer (same palette as annotations/readaloud), not a per-element CSS override.",
+    "cadencePlatformSupported" to "Device WebView capability flag (Intl.Segmenter feature-detect); hides the Cadence Settings entry on unsupported WebViews, not a CSS property.",
 )
 
 /**

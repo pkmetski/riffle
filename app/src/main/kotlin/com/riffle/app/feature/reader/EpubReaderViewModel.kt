@@ -490,9 +490,15 @@ class EpubReaderViewModel @Inject constructor(
 
     private var _cadenceChapterHrefs: Map<String, String> = emptyMap()
 
-    /** Report the WebView's Intl.Segmenter feature-detect result. */
+    /**
+     * Report the WebView's Intl.Segmenter feature-detect result. Updates the in-memory flag that
+     * drives the reader's top-bar toggle AND persists the same flag to [FormattingPreferencesStore]
+     * so the Settings screen (which can be opened before any book) hides its Cadence entry when
+     * the current device's WebView doesn't support the feature.
+     */
     fun setCadencePlatformSupported(supported: Boolean) {
         _cadencePlatformSupported.value = supported
+        formatting.persistCadencePlatformSupported(supported)
     }
 
     /**
@@ -509,10 +515,21 @@ class EpubReaderViewModel @Inject constructor(
     /**
      * Called by the reader screen once the WebView resolves the first Cadence-tokenised sentence
      * visible on [href]'s current page (`fragmentId` = "cd-N", or null when none could be
-     * located → falls back to chapter top). Starts Cadence from there.
+     * located). Starts Cadence from there.
+     *
+     * When the probe fails ([fragmentId] is null/blank) we fall back to the first fragment of
+     * the CURRENT chapter — see [resolveCadenceStartRef]. Falling through to the ticker's own
+     * "startIndex = 0" default would jump to cd-0 of the merged cross-chapter history, i.e. the
+     * first sentence of whichever chapter was tokenised first this session — usually several
+     * pages behind the user, which then triggers a Readium auto-scroll to the decoration.
      */
     fun onCadencePageTopResolved(href: String, fragmentId: String?) {
-        val startRef = fragmentId?.let { "$href#$it" }
+        val startRef = resolveCadenceStartRef(
+            href = href,
+            probedFragmentId = fragmentId,
+            chapterHrefs = _cadenceChapterHrefs,
+            knownRefs = _cadenceQuotes.value.keys,
+        )
         logger.d(com.riffle.core.logging.LogChannel.Cadence) {
             "VM.onCadencePageTopResolved href=$href fragmentId=$fragmentId → startRef=$startRef"
         }
@@ -528,7 +545,11 @@ class EpubReaderViewModel @Inject constructor(
      */
     fun startCadence() {
         applyArbiter(com.riffle.core.domain.cadence.Feature.Cadence)
-        val href = position.currentLocatorHref.value ?: run {
+        val href = position.currentLocatorHref.value
+        logger.d(com.riffle.core.logging.LogChannel.Cadence) {
+            "VM.startCadence currentLocatorHref=$href tokenisedChapters=${_cadenceChapterHrefs.values.distinct().size}"
+        }
+        if (href == null) {
             // No known locator yet — dispatch Start directly; ticker falls back to cd-0.
             cadenceController.dispatch(com.riffle.core.domain.cadence.CadenceEvent.Start)
             return
@@ -716,6 +737,25 @@ class EpubReaderViewModel @Inject constructor(
     // How far the live position has advanced through the narrated sentence — drives intra-sentence
     // page turns when a sentence spans more than one paginated column.
     val narrationProgress: StateFlow<PlayerCoordinator.NarrationProgress?> = playerCoordinator.narrationProgress
+
+    /**
+     * Cadence's analogue of [narrationProgress]: fuses the current cd-N fragment with the
+     * ticker's dwell-progress fraction so the intra-column-follow LaunchedEffect can drive
+     * page turns mid-sentence in paginated mode the same way Readaloud does. When Cadence
+     * isn't running this stays null and the screen's mutex-OR selects Readaloud's flow instead.
+     *
+     * Reuses [PlayerCoordinator.NarrationProgress] verbatim — the intra-column-follow effect
+     * only cares about `(fragmentRef, fraction)` and treats both drivers identically. Any short
+     * `cd-N` sentence whose text wraps across the column boundary will get its second half
+     * revealed on the next column just before the ticker advances — same behaviour readers
+     * already have with Readaloud.
+     */
+    val cadenceNarrationProgress: StateFlow<PlayerCoordinator.NarrationProgress?> = combine(
+        cadenceController.currentFragment,
+        cadenceController.currentProgress,
+    ) { ref, fraction ->
+        if (ref != null && fraction != null) PlayerCoordinator.NarrationProgress(ref, fraction) else null
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
     // ---- Readaloud state delegations (state now lives in the session — sub-task 8.3) -------------
 
@@ -1754,6 +1794,13 @@ class EpubReaderViewModel @Inject constructor(
 
     override fun onCleared() {
         super.onCleared()
+        // Stop Cadence. CadenceController is @Singleton so it survives this VM; without this
+        // unbind, a running ticker would keep advancing past book-close and the SAME session
+        // would resume when the user reopens the book. Also drops the merged quotes/hrefs
+        // accumulator held by the source so the next book starts fresh.
+        cadenceController.unbind()
+        _cadenceQuotes.value = emptyMap()
+        _cadenceChapterHrefs = emptyMap()
         // Stop any in-flight Auto-Scroll so the next book open starts idle, not auto-scrolling
         // mid-session into someone else's text.
         formatting.onBookClosed()
@@ -2300,6 +2347,54 @@ internal fun highlightsResumeAnnotationIdForHref(chapters: List<ChapterElision>,
     val index = Regex("""highlights/ch(\d+)\.xhtml$""").find(href)?.groupValues?.get(1)?.toIntOrNull() ?: return null
     val nonEmptyChapters = chapters.filter { it.highlights.isNotEmpty() }
     return nonEmptyChapters.getOrNull(index)?.highlights?.firstOrNull()?.id
+}
+
+/**
+ * Cadence's start-position resolver, extracted from [EpubReaderViewModel.onCadencePageTopResolved]
+ * for unit-testing without a WebView.
+ *
+ *  - Happy path: the WebView probe returned `"chapter#cd-N"` (full ref, when the resolver JS
+ *    could read the chapter attribute the tokeniser stamped onto <html>) OR a bare `"cd-N"` (old
+ *    payload / DOM never tokenised). If it's a full ref we use it directly — bypassing the
+ *    Readium-locator-href lag that used to file cd-N under the previous chapter's href.
+ *  - Bare id + [href] combined: fall back to the old behaviour, `"$href#$probed"`. Only correct
+ *    when Readium's locator href actually matches the currently-rendered DOM, which is not
+ *    guaranteed after a paginated chapter turn — but it's the best we can do without the JS
+ *    chapter hint.
+ *  - Probe failure ([probedFragmentId] null/blank): fall back to the FIRST fragment in
+ *    [chapterHrefs] whose value equals [href] — i.e. the first tokenised sentence of the
+ *    chapter the user is currently on. The naive alternative — dispatching Start with no
+ *    goTo — makes [com.riffle.core.domain.sentence.WpmTicker.play] index into position 0 of
+ *    the merged cross-chapter fragment list, which is the first sentence of the FIRST chapter
+ *    tokenised this session (often several pages back). That produces the "Cadence starts on a
+ *    previous page and Readium scrolls me back" bug.
+ *  - Chapter not tokenised yet (rare — `startCadence` gates on a known locator): returns null
+ *    so the caller still dispatches Start; the ticker's own default kicks in as a last resort.
+ *
+ * [knownRefs] is the set of refs the ticker will accept (i.e. `_cadenceQuotes.keys`). When
+ * provided, the resolved ref is validated against it — a ref that isn't in the set is rejected
+ * (returned as null) rather than passed to a `WpmTicker.goTo` that would silently no-op and
+ * cause play() to fall to `orderedFragments[0]`. Old callers that don't know the map can pass
+ * `null` to skip the check.
+ */
+internal fun resolveCadenceStartRef(
+    href: String,
+    probedFragmentId: String?,
+    chapterHrefs: Map<String, String>,
+    knownRefs: Set<String>? = null,
+): String? {
+    val probed = probedFragmentId?.takeIf { it.isNotBlank() }
+    val candidate = when {
+        probed == null -> chapterHrefs.entries.firstOrNull { it.value == href }?.key
+        probed.contains('#') -> probed
+        else -> "$href#$probed"
+    } ?: return null
+    if (knownRefs != null && candidate !in knownRefs) {
+        // Reject a stale/mislabeled ref rather than let the ticker fall to position 0.
+        return chapterHrefs.entries.firstOrNull { it.value == href }?.key
+            ?.takeIf { it in knownRefs }
+    }
+    return candidate
 }
 
 /**

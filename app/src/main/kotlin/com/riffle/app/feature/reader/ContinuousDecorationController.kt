@@ -155,9 +155,22 @@ internal class ContinuousDecorationController(
         }
     }
 
-    override fun highlightInChapter(href: String, text: String, cssColor: String) {
+    override fun highlightInChapter(href: String, fragmentId: String?, text: String, cssColor: String) {
         val wv = port.findLoadedWebView(href) ?: return
-        wv.evaluateJavascript(ContinuousStyleInjector.highlightTextJs(text, cssColor)) { _ ->
+        // Prefer id-based paint when the caller supplies a Cadence-style fragment id
+        // (`cd-N` — these ARE in the tokenised DOM, chapter-unique). Readaloud's `sN` sidecar
+        // ids are NOT in the DOM (Readium strips media-overlay spans — see
+        // reference_readaloud_highlight_text_anchored.md), so text-anchored find is the correct
+        // path for them. window.find on Cadence texts would land on the FIRST occurrence in
+        // the doc — for repeated phrases or heading text that also appears in body, that's a
+        // different span from what the resolver picked ("highlight lands mid-screen not at
+        // section start" regression).
+        val js = if (fragmentId != null && fragmentId.startsWith("cd-")) {
+            ContinuousStyleInjector.highlightIdJs(fragmentId, cssColor)
+        } else {
+            ContinuousStyleInjector.highlightTextJs(text, cssColor)
+        }
+        wv.evaluateJavascript(js) { _ ->
             // Re-lookup by href rather than reusing wv directly: the window may have shifted
             // between the evaluateJavascript call and this callback.
             scrollToReadaloudHighlight(href)
@@ -169,8 +182,17 @@ internal class ContinuousDecorationController(
         wv.evaluateJavascript(ContinuousStyleInjector.CLEAR_HIGHLIGHT_JS, null)
     }
 
-    /** Same recipe as the prior in-View `scrollToHighlight`: query `_riffle_hl`'s device-px Y,
-     *  add slot.top, subtract height/3, then scroll iff |delta| > height/8. */
+    /**
+     * Query `_riffle_hl`'s device-px Y, add slot.top, and scroll to place it at `vh/3` — but
+     * ONLY when the highlight is outside a safe band around the current viewport.
+     *
+     * The prior "always recenter to vh/3" behaviour worked for Readaloud (audio is driving; the
+     * user expects the highlight to track) but broke Cadence: tapping the toggle mid-page
+     * repositioned the reader by ~`vh/3` even though the picked cd-span was already at the top
+     * of what the user was looking at (see the "sent to a different location" repro). The safe
+     * band keeps auto-follow behaviour when the ticker/narrator advances off-screen while
+     * leaving the reader alone when the newly-highlighted span is already comfortably visible.
+     */
     private fun scrollToReadaloudHighlight(href: String) {
         val wv = port.findLoadedWebView(href) ?: return
         wv.evaluateJavascript(
@@ -189,10 +211,16 @@ internal class ContinuousDecorationController(
             val slot = port.buildWindow().firstOrNull { it.href == href } ?: return@evaluateJavascript
             val vh = port.viewportHeightPx
             val absoluteY = slot.top + elementTop
+            val viewportTop = port.currentScrollY
+            val viewportBottom = viewportTop + vh
+            // Safe band: the highlight is "comfortably visible" when its top sits between vh/6
+            // and vh - vh/6 of the viewport. Inside this band we don't touch the scroll so a
+            // fresh Cadence Start doesn't jerk the user around; outside it we snap to the
+            // vh/3 mark so auto-follow keeps the highlight readable as playback advances.
+            val safeTop = viewportTop + vh / 6
+            val safeBottom = viewportBottom - vh / 6
+            if (absoluteY in safeTop..safeBottom) return@evaluateJavascript
             val targetScrollY = (absoluteY - vh / 3).coerceAtLeast(0)
-            // Scroll whenever the current position is more than height/8 away from the target.
-            // Using abs() avoids a bug where a target just inside the top of the viewport would
-            // trigger a spurious backward scroll (target < scrollY + margin => target < scrollY).
             if (abs(targetScrollY - port.currentScrollY) > vh / 8) {
                 port.clearLandingHold()
                 port.smoothScrollTo(targetScrollY)

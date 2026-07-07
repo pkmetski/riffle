@@ -184,6 +184,56 @@ internal object ColumnSnap {
         })()
         """.trimIndent()
 
+    // Id-based version of the locate-and-group prelude, for Cadence. Cadence's `cd-N` ids ARE in
+    // the tokenised DOM and are chapter-unique, so `document.getElementById` is authoritative
+    // and avoids the "text-search hits an earlier occurrence" bug that mispainted the sentence
+    // highlight. Same output contract as [narratedColumnsPreludeJs] — leaves `se`, `order`,
+    // `wmap`, `total` in scope on success; returns "off" (id absent) or "scroll" (vertical mode).
+    private fun cadenceColumnsPreludeJs(fragmentId: String): String {
+        val idLit = JSONObject.quote(fragmentId)
+        return """
+          var el=document.getElementById($idLit); if(!el) return "off";
+          var se=document.scrollingElement||document.documentElement;
+          if(se && se.scrollHeight > window.innerHeight + 4) return "scroll";
+          var iw=window.innerWidth; if(!(iw>0)) return "off";
+          var rng=document.createRange();
+          try { rng.selectNodeContents(el); } catch(e) { return "off"; }
+          var rects=rng.getClientRects(), order=[], wmap={};
+          for(var k=0;k<rects.length;k++){
+            var rc=rects[k]; if(rc.width<=0 || rc.height<=0) continue;
+            var b=Math.floor((rc.left + se.scrollLeft) / iw) * iw;
+            if(!(b in wmap)){ wmap[b]=0; order.push(b); }
+            wmap[b]+=rc.width;
+          }
+          if(order.length===0) return "off";
+          order.sort(function(a,b){return a-b;});
+          var total=0; for(var j=0;j<order.length;j++) total+=wmap[order[j]];
+          if(!(total>0)) return "off";
+        """.trimIndent()
+    }
+
+    /** Id-based analogue of [measureNarratedColumnsJs] for Cadence's `cd-N` spans. */
+    fun measureCadenceColumnsJs(fragmentId: String): String =
+        """
+        (function(){
+        ${cadenceColumnsPreludeJs(fragmentId)}
+          var cum=0, fr=[];
+          for(var j=0;j<order.length;j++){ cum+=wmap[order[j]]; fr.push(cum/total); }
+          return JSON.stringify(fr);
+        })()
+        """.trimIndent()
+
+    /** Id-based analogue of [snapNarratedColumnJs] for Cadence's `cd-N` spans. */
+    fun snapCadenceColumnJs(fragmentId: String, columnIndex: Int): String =
+        """
+        (function(){
+        ${cadenceColumnsPreludeJs(fragmentId)}
+          var idx=$columnIndex; if(idx<0) idx=0; if(idx>order.length-1) idx=order.length-1;
+          se.scrollLeft=order[idx];
+          return "on";
+        })()
+        """.trimIndent()
+
     /**
      * Snaps scrollLeft to the [columnIndex]-th column the narrated sentence occupies (clamped),
      * landing flush on the grid. Returns "on", or "off"/"scroll" when there's nothing to snap.

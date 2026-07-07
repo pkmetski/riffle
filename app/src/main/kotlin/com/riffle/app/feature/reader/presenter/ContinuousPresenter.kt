@@ -148,9 +148,20 @@ internal class ContinuousPresenter : ReaderPresenter {
     override suspend fun followReadaloudSentence(text: String): ReadaloudFollowResult =
         ReadaloudFollowResult.Unavailable
 
+    // Continuous drives its Cadence scroll-into-view from the highlight paint pipeline
+    // (ContinuousDecorationController.scrollToReadaloudHighlight), so this presenter has
+    // nothing to snap on top of that — performAutoFollow skips the Readium-style snap here.
+    override suspend fun followCadenceSpan(fragmentId: String): ReadaloudFollowResult =
+        ReadaloudFollowResult.Unavailable
+
     override suspend fun measureReadaloudColumns(text: String): List<Double> = emptyList()
 
     override suspend fun snapReadaloudColumn(text: String, columnIndex: Int) = Unit
+
+    // Continuous mode has no column grid, so id-based Cadence measure/snap is also a no-op —
+    // its natural mode-scroll handles multi-line sentence visibility for free.
+    override suspend fun measureCadenceColumns(fragmentId: String): List<Double> = emptyList()
+    override suspend fun snapCadenceColumn(fragmentId: String, columnIndex: Int) = Unit
 
     // Continuous mode's chapter boundaries are tracked internally by ContinuousReaderView (window
     // shifting, infinite-scroll math), so the screen's ScrollBoundaryNavigationContainer is bypassed

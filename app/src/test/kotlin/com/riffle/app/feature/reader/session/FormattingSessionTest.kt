@@ -37,6 +37,9 @@ class FormattingSessionTest {
         private val _flow = MutableStateFlow(initial)
         override val preferences: Flow<FormattingPreferences> = _flow
         override suspend fun update(preferences: FormattingPreferences) { _flow.value = preferences }
+        override suspend fun setCadencePlatformSupported(supported: Boolean) {
+            _flow.value = _flow.value.copy(cadencePlatformSupported = supported)
+        }
         fun set(p: FormattingPreferences) { _flow.value = p }
     }
 

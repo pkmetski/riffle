@@ -50,6 +50,14 @@ open class CadenceController internal constructor(
     private val _currentFragment = MutableStateFlow<FragmentRef?>(null)
     val currentFragment: StateFlow<FragmentRef?> = _currentFragment.asStateFlow()
 
+    /**
+     * Progress fraction (0..1) of the current fragment's dwell — mirrors [WpmTicker.progress].
+     * Reader-screen intra-column follow uses this to drive the same page-turn-mid-sentence
+     * behaviour Readaloud gets from audio-clock timing. Null when idle or between fragments.
+     */
+    private val _currentProgress = MutableStateFlow<Double?>(null)
+    val currentProgress: StateFlow<Double?> = _currentProgress.asStateFlow()
+
     private var defaultSpeed: AutoScrollSpeed = AutoScrollSpeed.Default
     private var source: SentenceSource? = null
     private var ticker: WpmTicker? = null
@@ -73,10 +81,19 @@ open class CadenceController internal constructor(
      */
     open suspend fun bind(source: SentenceSource, onExhausted: () -> Unit = {}) {
         val wasRunning = _state.value is CadenceState.Running
+        // Preserve the currently-highlighted fragment across the rebind. bind() fires on every
+        // chapter tokenise (each Readium page load / continuous sliding-window entry / any
+        // reflow that re-invokes CadenceDomScript). Nuking _currentFragment before re-creating
+        // the ticker meant that if Cadence was running, `t.play()` fell back to
+        // `orderedFragments[0]` (the very first cd of the very first chapter tokenised this
+        // session) — user-visible symptom: "switching between reading modes restarts Cadence
+        // from the wrong location". Instead we snapshot the pre-bind position and hand it back
+        // to the fresh ticker via goTo — the merged fragment list is a superset of the old, so
+        // the old ref stays valid.
+        val previousFragment = _currentFragment.value
         // Tear down previous ticker without touching state — the state carries user intent.
         ticker?.stop()
         forwarderJob?.cancel()
-        _currentFragment.value = null
 
         this.source = source
         val quotes = source.loadAll()
@@ -89,8 +106,12 @@ open class CadenceController internal constructor(
             onExhausted = onExhausted,
         )
         ticker = t
+        // Restore position BEFORE hooking the forwarder so the reset _currentFragment doesn't
+        // briefly go to null in downstream collectors (would clear the highlight for a frame).
+        if (previousFragment != null && previousFragment in order) t.goTo(previousFragment)
         forwarderJob = scope.launch {
-            t.currentFragment.collect { _currentFragment.value = it }
+            launch { t.currentFragment.collect { _currentFragment.value = it } }
+            launch { t.progress.collect { _currentProgress.value = it } }
         }
         if (wasRunning) t.play()
     }
@@ -106,6 +127,7 @@ open class CadenceController internal constructor(
         forwarderJob = null
         source = null
         _currentFragment.value = null
+        _currentProgress.value = null
         _state.value = CadenceState.Idle
     }
 
