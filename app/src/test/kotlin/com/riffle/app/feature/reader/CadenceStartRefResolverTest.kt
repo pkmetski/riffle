@@ -111,4 +111,28 @@ class CadenceStartRefResolverTest {
         )
         assertEquals("ch3.xhtml#cd-1", ref)
     }
+
+    @Test
+    fun `full-ref probe not in knownRefs falls back using the probed chapter, not the stale Kotlin href`() {
+        // Regression (code-review finding 2026-07-07): when the guard rejects a candidate that
+        // was built from the JS-provided chapter, the fallback used to re-query chapterHrefs by
+        // the Kotlin [href] — the SAME lagging Readium locator whose lag the chapter-stamp was
+        // introduced to bypass. The fix prefers the chapter carried in [probed] so a knownRefs
+        // miss can't silently switch chapters on us.
+        val known = setOf("f01.xhtml#cd-0", "f01.xhtml#cd-1") // f02 not yet merged
+        val map = mapOf(
+            "f01.xhtml#cd-0" to "f01.xhtml",
+            "f01.xhtml#cd-1" to "f01.xhtml",
+        )
+        val ref = resolveCadenceStartRef(
+            // Readium says we're on f02 (lagging), but the JS resolver ran against f01's DOM
+            // and stamped chapter=f01. Full ref "f01.xhtml#cd-2" isn't in knownRefs (cd-2 not
+            // yet merged); the fallback must use f01 (probed chapter), NOT f02 (Kotlin href).
+            href = "f02.xhtml",
+            probedFragmentId = "f01.xhtml#cd-2",
+            chapterHrefs = map,
+            knownRefs = known,
+        )
+        assertEquals("f01.xhtml#cd-0", ref)
+    }
 }

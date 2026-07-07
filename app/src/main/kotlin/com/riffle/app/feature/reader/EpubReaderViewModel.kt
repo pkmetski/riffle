@@ -2391,7 +2391,13 @@ internal fun resolveCadenceStartRef(
     } ?: return null
     if (knownRefs != null && candidate !in knownRefs) {
         // Reject a stale/mislabeled ref rather than let the ticker fall to position 0.
-        return chapterHrefs.entries.firstOrNull { it.value == href }?.key
+        // Prefer the CHAPTER carried in [probed] when it's a full ref (JS-provided, DOM-
+        // authoritative) over the Kotlin-supplied [href] — the whole reason knownRefs might
+        // reject a candidate is that Readium's locator href lagged the tokeniser by one
+        // chapter, and re-querying by that stale href would re-introduce the very lag this
+        // resolver was written to guard against.
+        val fallbackHref = probed?.takeIf { it.contains('#') }?.substringBefore('#') ?: href
+        return chapterHrefs.entries.firstOrNull { it.value == fallbackHref }?.key
             ?.takeIf { it in knownRefs }
     }
     return candidate
