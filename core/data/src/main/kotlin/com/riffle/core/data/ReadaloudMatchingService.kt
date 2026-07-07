@@ -49,8 +49,8 @@ open class ReadaloudMatchingService(
     ) : this(libraryItemDao, readaloudLinkDao, readaloudCandidateDao, readaloudDismissalDao, System::currentTimeMillis)
 
     override suspend fun reconcileLinks() {
-        val storytellerBooks = libraryItemDao.listMatchableByServerType(ServerType.STORYTELLER.name)
-        val absItems = libraryItemDao.listMatchableByServerType(ServerType.AUDIOBOOKSHELF.name)
+        val storytellerBooks = libraryItemDao.listMatchableBySourceType(ServerType.STORYTELLER.name)
+        val absItems = libraryItemDao.listMatchableBySourceType(ServerType.AUDIOBOOKSHELF.name)
 
         // Match each ABS server (= one user login on one ABS instance) independently: a
         // Storyteller readaloud is evaluated against each ABS server's library set on its own.
@@ -58,7 +58,7 @@ open class ReadaloudMatchingService(
         // audiobook form would each emit Confirmed links, surfacing 2 ebook + 2 audiobook rows
         // per match on the Matches screen instead of one set per server.
         val candidatesByAbsServer: Map<String, List<MatchableAbsItem>> = absItems
-            .groupBy { it.serverId }
+            .groupBy { it.sourceId }
             .mapValues { (_, rows) -> rows.map { it.toAbsCandidate() } }
         val now = clock()
         // Track every ABS PK the current pass auto-Confirmed (or a sticky user slot), to sweep
@@ -68,24 +68,24 @@ open class ReadaloudMatchingService(
 
         for (book in storytellerBooks) {
             // Sticky: "No match — don't ask again" keeps the book Unmatched on every ABS server.
-            if (readaloudDismissalDao.isBookDismissed(book.serverId, book.itemId)) continue
+            if (readaloudDismissalDao.isBookDismissed(book.sourceId, book.itemId)) continue
 
-            val existingLinks = readaloudLinkDao.findByStorytellerBook(book.serverId, book.itemId)
+            val existingLinks = readaloudLinkDao.findByStorytellerBook(book.sourceId, book.itemId)
             // Sticky is per-ABS-server: a user-confirmed link on Server A leaves Server A alone
             // but doesn't suppress auto-matching on Server B. Keep user slots fresh so the
             // stale sweep doesn't delete them.
             val userConfirmedLinks = existingLinks.filter { it.userConfirmed }
-            userConfirmedLinks.forEach { freshAutoSlots += it.absServerId to it.absLibraryItemId }
-            val userConfirmedAbsServers = userConfirmedLinks.map { it.absServerId }.toSet()
+            userConfirmedLinks.forEach { freshAutoSlots += it.absSourceId to it.absLibraryItemId }
+            val userConfirmedAbsServers = userConfirmedLinks.map { it.absSourceId }.toSet()
 
             val dismissedPairs = readaloudDismissalDao
-                .findByStorytellerBook(book.serverId, book.itemId)
+                .findByStorytellerBook(book.sourceId, book.itemId)
                 .filter { it.scope == ReadaloudDismissalEntity.SCOPE_CANDIDATE }
-                .map { it.absServerId to it.absLibraryItemId }
+                .map { it.absSourceId to it.absLibraryItemId }
                 .toSet()
 
-            for ((absServerId, serverCandidates) in candidatesByAbsServer) {
-                if (absServerId in userConfirmedAbsServers) continue
+            for ((absSourceId, serverCandidates) in candidatesByAbsServer) {
+                if (absSourceId in userConfirmedAbsServers) continue
                 when (val outcome = ReadaloudMatcher.match(book.toStorytellerBook(), serverCandidates)) {
                     is MatchOutcome.Confirmed -> outcome.links.forEach { match ->
                         val slot = match.absServerUuid to match.absLibraryItemId
@@ -93,16 +93,16 @@ open class ReadaloudMatchingService(
                         if (existing?.userConfirmed == true) {
                             // The user owns this ABS slot; never overwrite it. Only mark it fresh when
                             // it already points at this book, so an unrelated user choice isn't swept.
-                            if (existing.storytellerServerId == book.serverId && existing.storytellerBookId == book.itemId) {
+                            if (existing.storytellerSourceId == book.sourceId && existing.storytellerBookId == book.itemId) {
                                 freshAutoSlots += slot
                             }
                             return@forEach
                         }
                         readaloudLinkDao.upsert(
                             ReadaloudLinkEntity(
-                                absServerId = match.absServerUuid,
+                                absSourceId = match.absServerUuid,
                                 absLibraryItemId = match.absLibraryItemId,
-                                storytellerServerId = book.serverId,
+                                storytellerSourceId = book.sourceId,
                                 storytellerBookId = book.itemId,
                                 state = ReadaloudLinkEntity.STATE_CONFIRMED,
                                 userConfirmed = false,
@@ -118,9 +118,9 @@ open class ReadaloudMatchingService(
                             .filter { (it.absServerUuid to it.absLibraryItemId) !in dismissedPairs }
                             .forEach {
                                 freshCandidates += ReadaloudCandidateEntity(
-                                    storytellerServerId = book.serverId,
+                                    storytellerSourceId = book.sourceId,
                                     storytellerBookId = book.itemId,
-                                    absServerId = it.absServerUuid,
+                                    absSourceId = it.absServerUuid,
                                     absLibraryItemId = it.absLibraryItemId,
                                     score = it.score,
                                 )
@@ -150,15 +150,15 @@ open class ReadaloudMatchingService(
         val all = readaloudLinkDao.allRows()
         for (row in all) {
             if (row.userConfirmed) continue
-            val slot = row.absServerId to row.absLibraryItemId
+            val slot = row.absSourceId to row.absLibraryItemId
             if (slot !in freshAutoSlots) {
-                readaloudLinkDao.deleteByAbsItem(row.absServerId, row.absLibraryItemId)
+                readaloudLinkDao.deleteByAbsItem(row.absSourceId, row.absLibraryItemId)
             }
         }
     }
 
     private fun MatchableItemRow.toStorytellerBook() = MatchableStorytellerBook(
-        uuid = "$serverId:$itemId",
+        uuid = "$sourceId:$itemId",
         title = title,
         author = author,
         isbn = isbn,
@@ -166,7 +166,7 @@ open class ReadaloudMatchingService(
     )
 
     private fun MatchableItemRow.toAbsCandidate() = MatchableAbsItem(
-        serverUuid = serverId,
+        serverUuid = sourceId,
         libraryItemId = itemId,
         title = title,
         author = author,

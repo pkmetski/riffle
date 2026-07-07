@@ -9,7 +9,7 @@ import org.junit.rules.TemporaryFolder
 import java.io.ByteArrayInputStream
 import java.io.File
 
-class ServerFilesCleanerImplTest {
+class SourceFilesCleanerImplTest {
 
     @get:Rule
     val tmp = TemporaryFolder()
@@ -17,7 +17,7 @@ class ServerFilesCleanerImplTest {
     private fun bytes(n: Int) = ByteArrayInputStream(ByteArray(n))
 
     @Test
-    fun `deletes every store's files for the removed server but keeps other servers`() = runTest {
+    fun `deletes every store's files for the removed source but keeps other servers`() = runTest {
         val epubDir = tmp.newFolder("epubs")
         val pdfDir = tmp.newFolder("pdfs")
         val audiobookDir = tmp.newFolder("audiobooks")
@@ -33,13 +33,13 @@ class ServerFilesCleanerImplTest {
         File(audiobookDir, "srv-A/audio-1").apply { mkdirs() }.let { File(it, "track-0").writeBytes(ByteArray(10)) }
         File(audiobookDir, "srv-B/audio-1").apply { mkdirs() }.let { File(it, "track-0").writeBytes(ByteArray(10)) }
 
-        val cleaner = ServerFilesCleanerImpl(
+        val cleaner = SourceFilesCleanerImpl(
             stores = listOf(epubStore, pdfStore),
             audiobookDownloadsDir = audiobookDir,
             dispatchers = com.riffle.core.domain.DefaultDispatcherProvider,
         )
 
-        cleaner.deleteAllForServer("srv-A")
+        cleaner.deleteAllForSource("srv-A")
 
         // srv-A is gone from every store...
         assertFalse(File(epubDir, "srv-A").exists())
@@ -52,16 +52,16 @@ class ServerFilesCleanerImplTest {
     }
 
     @Test
-    fun `is a no-op when the server has no files`() = runTest {
+    fun `is a no-op when the source has no files`() = runTest {
         val epubDir = tmp.newFolder("epubs")
         val audiobookDir = tmp.newFolder("audiobooks")
-        val cleaner = ServerFilesCleanerImpl(
+        val cleaner = SourceFilesCleanerImpl(
             stores = listOf(LocalStoreImpl(epubDir, ".epub", com.riffle.core.domain.DefaultDispatcherProvider)),
             audiobookDownloadsDir = audiobookDir,
             dispatchers = com.riffle.core.domain.DefaultDispatcherProvider,
         )
 
-        cleaner.deleteAllForServer("ghost")
+        cleaner.deleteAllForSource("ghost")
 
         assertFalse(File(epubDir, "ghost").exists())
     }

@@ -20,9 +20,9 @@ import com.riffle.core.domain.PdfDownloadResult
 import com.riffle.core.domain.PdfOpenResult
 import com.riffle.core.domain.PdfRepository
 import com.riffle.core.domain.Series
-import com.riffle.core.domain.Server
-import com.riffle.core.domain.ServerRepository
-import com.riffle.core.domain.ServerUrl
+import com.riffle.core.domain.Source
+import com.riffle.core.domain.SourceRepository
+import com.riffle.core.domain.SourceUrl
 import com.riffle.core.domain.TokenStorage
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -51,7 +51,7 @@ class SeriesDetailViewModelTest {
 
     private fun fakeRepo(): LibraryObserver = object : LibraryObserver {
         override fun observeLibraries(): Flow<List<Library>> = MutableStateFlow(emptyList())
-        override fun observeLibraries(serverId: String): Flow<List<Library>> = observeLibraries()
+        override fun observeLibraries(sourceId: String): Flow<List<Library>> = observeLibraries()
         override fun observeLibraryItems(libraryId: String): Flow<List<LibraryItem>> = MutableStateFlow(emptyList())
         override fun observeUngroupedLibraryItems(libraryId: String): Flow<List<LibraryItem>> = MutableStateFlow(emptyList())
         override fun observeInProgressItems(libraryId: String): Flow<List<LibraryItem>> = MutableStateFlow(emptyList())
@@ -65,9 +65,9 @@ class SeriesDetailViewModelTest {
         override fun observeCollectionItems(collectionId: String): Flow<List<LibraryItem>> = MutableStateFlow(emptyList())
         override suspend fun getItem(itemId: String): LibraryItem? = null
         override fun observeItem(itemId: String): Flow<LibraryItem?> = MutableStateFlow<LibraryItem?>(null)
-        override suspend fun getItem(serverId: String, itemId: String): LibraryItem? = getItem(itemId)
+        override suspend fun getItem(sourceId: String, itemId: String): LibraryItem? = getItem(itemId)
         override suspend fun getLibrary(libraryId: String): com.riffle.core.domain.Library? = null
-        override suspend fun getSeriesIdForItem(serverId: String, itemId: String): String? = null
+        override suspend fun getSeriesIdForItem(sourceId: String, itemId: String): String? = null
     }
 
     private class CountingRefreshSeries(
@@ -79,48 +79,48 @@ class SeriesDetailViewModelTest {
         }
     }
 
-    private val noOpServerRepo = object : ServerRepository {
-        override fun observeAll(): Flow<List<Server>> = MutableStateFlow(emptyList())
-        override suspend fun getActive(): Server? = null
-        override suspend fun authenticate(url: ServerUrl, username: String, password: String, insecureAllowed: Boolean, serverType: com.riffle.core.domain.ServerType) =
+    private val noOpServerRepo = object : SourceRepository {
+        override fun observeAll(): Flow<List<Source>> = MutableStateFlow(emptyList())
+        override suspend fun getActive(): Source? = null
+        override suspend fun authenticate(url: SourceUrl, username: String, password: String, insecureAllowed: Boolean, serverType: com.riffle.core.domain.ServerType) =
             throw UnsupportedOperationException()
-        override suspend fun commit(pending: com.riffle.core.domain.PendingServer, hiddenLibraryIds: Set<String>) =
+        override suspend fun commit(pending: com.riffle.core.domain.PendingSource, hiddenLibraryIds: Set<String>) =
             throw UnsupportedOperationException()
-        override suspend fun setActive(serverId: String) {}
-        override suspend fun remove(serverId: String) {}
-        override suspend fun getServerVersion(serverId: String): String? = null
+        override suspend fun setActive(sourceId: String) {}
+        override suspend fun remove(sourceId: String) {}
+        override suspend fun getSourceVersion(sourceId: String): String? = null
     }
 
     private val noOpTokenStorage = object : TokenStorage {
-        override suspend fun saveToken(serverId: String, token: String) {}
-        override suspend fun getToken(serverId: String): String? = null
-        override suspend fun deleteToken(serverId: String) {}
+        override suspend fun saveToken(sourceId: String, token: String) {}
+        override suspend fun getToken(sourceId: String): String? = null
+        override suspend fun deleteToken(sourceId: String) {}
     }
 
     private class FakeEpubRepository : EpubRepository {
         override suspend fun openEpub(item: LibraryItem) = EpubOpenResult.Offline
         override suspend fun downloadEpub(item: LibraryItem, onProgress: (Long, Long) -> Unit) = EpubDownloadResult.Success
-        override suspend fun removeDownload(serverId: String, itemId: String) {}
-        override fun isDownloaded(serverId: String, itemId: String): Boolean = false
-        override fun isCached(serverId: String, itemId: String): Boolean = false
+        override suspend fun removeDownload(sourceId: String, itemId: String) {}
+        override fun isDownloaded(sourceId: String, itemId: String): Boolean = false
+        override fun isCached(sourceId: String, itemId: String): Boolean = false
         override suspend fun saveReadingPosition(itemId: String, cfi: String) {}
     }
 
     private class FakePdfRepository : PdfRepository {
         override suspend fun openPdf(item: LibraryItem) = PdfOpenResult.Offline
         override suspend fun downloadPdf(item: LibraryItem, onProgress: (Long, Long) -> Unit) = PdfDownloadResult.Success
-        override suspend fun removeDownload(serverId: String, itemId: String) {}
-        override fun isDownloaded(serverId: String, itemId: String): Boolean = false
-        override fun isCached(serverId: String, itemId: String): Boolean = false
+        override suspend fun removeDownload(sourceId: String, itemId: String) {}
+        override fun isDownloaded(sourceId: String, itemId: String): Boolean = false
+        override fun isCached(sourceId: String, itemId: String): Boolean = false
         override suspend fun saveReadingPosition(itemId: String, locatorJson: String) {}
     }
 
     private class FakeAudiobookDownloadRepository : AudiobookDownloadRepository {
-        override fun isDownloaded(serverId: String, itemId: String): Boolean = false
-        override fun localSession(serverId: String, itemId: String): AudiobookSession? = null
-        override suspend fun download(serverId: String, itemId: String, onProgress: (Long, Long) -> Unit) =
+        override fun isDownloaded(sourceId: String, itemId: String): Boolean = false
+        override fun localSession(sourceId: String, itemId: String): AudiobookSession? = null
+        override suspend fun download(sourceId: String, itemId: String, onProgress: (Long, Long) -> Unit) =
             AudiobookDownloadResult.Success
-        override suspend fun remove(serverId: String, itemId: String): Long = 0L
+        override suspend fun remove(sourceId: String, itemId: String): Long = 0L
     }
 
     private class FakeConnectivityObserver(online: Boolean = true) : ConnectivityObserver {
@@ -137,15 +137,15 @@ class SeriesDetailViewModelTest {
         savedStateHandle = SavedStateHandle(mapOf("seriesId" to "ser-1", "libraryId" to "lib-1")),
         libraryObserver = libraryObserver,
         refreshSeriesUseCase = refreshSeriesUseCase,
-        serverRepository = noOpServerRepo,
+        sourceRepository = noOpServerRepo,
         tokenStorage = noOpTokenStorage,
         offlineAvailability = LibraryItemOfflineAvailability(
             FakeEpubRepository(),
             FakePdfRepository(),
             FakeAudiobookDownloadRepository(),
             object : BundleAudiobookSource {
-                override suspend fun localSession(serverId: String, itemId: String) = null
-                override fun isAvailableOffline(serverId: String, itemId: String) = false
+                override suspend fun localSession(sourceId: String, itemId: String) = null
+                override fun isAvailableOffline(sourceId: String, itemId: String) = false
             },
         ),
         connectivityObserver = connectivityObserver,

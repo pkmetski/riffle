@@ -16,28 +16,28 @@ internal class FakeAnnotationDao : AnnotationDao {
     private val summariesByServer = mutableMapOf<String, MutableStateFlow<List<BookHighlightSummary>>>()
 
     /** Seeds [observeBooksWithHighlights] for a given server. */
-    fun emitBooksWithHighlights(serverId: String, summaries: List<BookHighlightSummary>) {
-        summariesByServer.getOrPut(serverId) { MutableStateFlow(emptyList()) }.value = summaries
+    fun emitBooksWithHighlights(sourceId: String, summaries: List<BookHighlightSummary>) {
+        summariesByServer.getOrPut(sourceId) { MutableStateFlow(emptyList()) }.value = summaries
     }
 
-    override fun observeBooksWithHighlights(serverId: String): Flow<List<BookHighlightSummary>> =
-        summariesByServer.getOrPut(serverId) { MutableStateFlow(emptyList()) }
+    override fun observeBooksWithHighlights(sourceId: String): Flow<List<BookHighlightSummary>> =
+        summariesByServer.getOrPut(sourceId) { MutableStateFlow(emptyList()) }
 
-    override fun observeForItem(serverId: String, itemId: String): Flow<List<AnnotationEntity>> =
+    override fun observeForItem(sourceId: String, itemId: String): Flow<List<AnnotationEntity>> =
         error("not used by this fake")
 
-    override fun observeForServer(serverId: String): Flow<List<AnnotationEntity>> =
+    override fun observeForSource(sourceId: String): Flow<List<AnnotationEntity>> =
         error("not used by this fake")
 
-    override suspend fun getForItem(serverId: String, itemId: String): List<AnnotationEntity> =
+    override suspend fun getForItem(sourceId: String, itemId: String): List<AnnotationEntity> =
         error("not used by this fake")
 
-    override suspend fun getAllForItemIncludingDeleted(serverId: String, itemId: String): List<AnnotationEntity> =
+    override suspend fun getAllForItemIncludingDeleted(sourceId: String, itemId: String): List<AnnotationEntity> =
         error("not used by this fake")
 
     override suspend fun getById(id: String): AnnotationEntity? = error("not used by this fake")
 
-    override suspend fun getByItemAndCfi(serverId: String, itemId: String, cfi: String): AnnotationEntity? =
+    override suspend fun getByItemAndCfi(sourceId: String, itemId: String, cfi: String): AnnotationEntity? =
         error("not used by this fake")
 
     override suspend fun upsert(entity: AnnotationEntity) = error("not used by this fake")
@@ -52,21 +52,21 @@ internal class FakeAnnotationDao : AnnotationDao {
     override suspend fun updateNote(id: String, note: String?, updatedAt: Long, deviceId: String) =
         error("not used by this fake")
 
-    override fun observeAnnotationsByPosition(serverId: String, itemId: String): Flow<List<AnnotationEntity>> =
+    override fun observeAnnotationsByPosition(sourceId: String, itemId: String): Flow<List<AnnotationEntity>> =
         error("not used by this fake")
 
     override suspend fun renameBookmark(id: String, title: String, updatedAt: Long, deviceId: String) =
         error("not used by this fake")
 
-    override fun observePendingCountForBook(serverId: String, itemId: String): Flow<Int> =
+    override fun observePendingCountForBook(sourceId: String, itemId: String): Flow<Int> =
         error("not used by this fake")
 
     override fun observePendingBookCountAcrossAll(): Flow<Int> = error("not used by this fake")
 
-    override suspend fun dirtyServerItems(): List<AnnotationDao.DirtyServerItem> = error("not used by this fake")
+    override suspend fun dirtySourceItems(): List<AnnotationDao.DirtySourceItem> = error("not used by this fake")
 
     override suspend fun markSynced(ids: List<String>, syncedAt: Long) = error("not used by this fake")
 
-    override suspend fun purgeAgedTombstones(serverId: String, itemId: String, cutoff: Long): Int =
+    override suspend fun purgeAgedTombstones(sourceId: String, itemId: String, cutoff: Long): Int =
         error("not used by this fake")
 }

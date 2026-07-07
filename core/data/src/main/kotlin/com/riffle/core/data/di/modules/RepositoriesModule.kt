@@ -11,7 +11,7 @@ import com.riffle.core.data.EpubRepositoryImpl
 import com.riffle.core.data.LibraryRepositoryImpl
 import com.riffle.core.data.PdfRepositoryImpl
 import com.riffle.core.data.ReadingSessionRepositoryImpl
-import com.riffle.core.data.ServerRepositoryImpl
+import com.riffle.core.data.SourceRepositoryImpl
 import com.riffle.core.data.ToReadRepository
 import com.riffle.core.data.ToReadRepositoryImpl
 import com.riffle.core.data.TocRepositoryImpl
@@ -33,7 +33,7 @@ import com.riffle.core.domain.LocalStore
 import com.riffle.core.domain.PdfRepository
 import com.riffle.core.domain.ReadingPositionStore
 import com.riffle.core.domain.ReadingSessionRepository
-import com.riffle.core.domain.ServerRepository
+import com.riffle.core.domain.SourceRepository
 import com.riffle.core.domain.TocRepository
 import com.riffle.core.domain.TokenStorage
 import com.riffle.core.network.AbsLibraryApi
@@ -50,7 +50,7 @@ abstract class RepositoriesModule {
 
     @Binds
     @Singleton
-    abstract fun bindServerRepository(impl: ServerRepositoryImpl): ServerRepository
+    abstract fun bindSourceRepository(impl: SourceRepositoryImpl): SourceRepository
 
     @Binds
     @Singleton
@@ -104,9 +104,9 @@ abstract class RepositoriesModule {
             @EpubCacheStore cacheStore: LocalStore,
             @EpubDownloadsStore downloadsStore: LocalStore,
             positionStore: ReadingPositionStore,
-            serverRepository: ServerRepository,
+            sourceRepository: SourceRepository,
             tokenStorage: TokenStorage,
-        ): EpubRepository = EpubRepositoryImpl(api, cacheStore, downloadsStore, positionStore, serverRepository, tokenStorage)
+        ): EpubRepository = EpubRepositoryImpl(api, cacheStore, downloadsStore, positionStore, sourceRepository, tokenStorage)
 
         @Provides
         @Singleton
@@ -115,9 +115,9 @@ abstract class RepositoriesModule {
             @PdfCacheStore cacheStore: LocalStore,
             @PdfDownloadsStore downloadsStore: LocalStore,
             positionStore: ReadingPositionStore,
-            serverRepository: ServerRepository,
+            sourceRepository: SourceRepository,
             tokenStorage: TokenStorage,
-        ): PdfRepository = PdfRepositoryImpl(api, cacheStore, downloadsStore, positionStore, serverRepository, tokenStorage)
+        ): PdfRepository = PdfRepositoryImpl(api, cacheStore, downloadsStore, positionStore, sourceRepository, tokenStorage)
 
         @Provides
         @Singleton

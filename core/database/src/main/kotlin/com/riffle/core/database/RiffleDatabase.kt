@@ -7,7 +7,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 
 @Database(
     entities = [
-        ServerEntity::class,
+        SourceEntity::class,
         LibraryEntity::class,
         LibraryItemEntity::class,
         SeriesEntity::class,
@@ -28,11 +28,11 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         TocCacheEntity::class,
         AudiobookChapterCacheEntity::class,
     ],
-    version = 43,
+    version = 44,
     exportSchema = true,
 )
 abstract class RiffleDatabase : RoomDatabase() {
-    abstract fun serverDao(): ServerDao
+    abstract fun sourceDao(): SourceDao
     abstract fun libraryDao(): LibraryDao
     abstract fun libraryItemDao(): LibraryItemDao
     abstract fun seriesDao(): SeriesDao
@@ -814,6 +814,384 @@ abstract class RiffleDatabase : RoomDatabase() {
                         "`chaptersJson` TEXT NOT NULL, " +
                         "PRIMARY KEY(`serverId`, `itemId`))"
                 )
+            }
+        }
+
+        // ADR 0041 (issue #432), Task 3: Server→Source rename at the schema level. Renames
+        // `servers` → `sources`, adding a `type` column backfilled to 'ABS' for every existing
+        // row (Storyteller row extraction is #441, tracked separately — intentionally NOT done
+        // here). Renames `serverId` → `sourceId` on every carrying table, and
+        // `absServerId`/`storytellerServerId` → `absSourceId`/`storytellerSourceId` on the three
+        // readaloud tables. Every table is fully recreated (rename-column isn't supported by
+        // SQLite's ALTER TABLE for FK-bearing tables pre-3.25 semantics we rely on elsewhere), so
+        // foreign-key checks are suspended for the duration and every index is recreated under
+        // the new column names.
+        val MIGRATION_43_44 = object : Migration(43, 44) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("PRAGMA foreign_keys=OFF")
+                try {
+                    // --- servers -> sources (must land first; every FK below targets sources(id)) ---
+                    db.execSQL(
+                        "CREATE TABLE `sources` (" +
+                            "`id` TEXT NOT NULL, " +
+                            "`url` TEXT NOT NULL, " +
+                            "`isActive` INTEGER NOT NULL, " +
+                            "`insecureConnectionAllowed` INTEGER NOT NULL, " +
+                            "`username` TEXT NOT NULL, " +
+                            "`serverType` TEXT NOT NULL, " +
+                            "`absUserId` TEXT, " +
+                            "`type` TEXT NOT NULL DEFAULT 'ABS', " +
+                            "PRIMARY KEY(`id`))"
+                    )
+                    db.execSQL(
+                        "INSERT INTO `sources` (`id`, `url`, `isActive`, `insecureConnectionAllowed`, `username`, `serverType`, `absUserId`, `type`) " +
+                            "SELECT `id`, `url`, `isActive`, `insecureConnectionAllowed`, `username`, `serverType`, `absUserId`, 'ABS' FROM `servers`"
+                    )
+                    db.execSQL("DROP TABLE `servers`")
+
+                    // --- libraries ---
+                    db.execSQL(
+                        "CREATE TABLE `libraries_new` (" +
+                            "`id` TEXT NOT NULL, " +
+                            "`name` TEXT NOT NULL, " +
+                            "`mediaType` TEXT NOT NULL, " +
+                            "`sourceId` TEXT NOT NULL, " +
+                            "`isUnsupported` INTEGER NOT NULL, " +
+                            "PRIMARY KEY(`sourceId`, `id`), " +
+                            "FOREIGN KEY(`sourceId`) REFERENCES `sources`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )"
+                    )
+                    db.execSQL(
+                        "INSERT INTO `libraries_new` (`id`, `name`, `mediaType`, `sourceId`, `isUnsupported`) " +
+                            "SELECT `id`, `name`, `mediaType`, `serverId`, `isUnsupported` FROM `libraries`"
+                    )
+                    db.execSQL("DROP TABLE `libraries`")
+                    db.execSQL("ALTER TABLE `libraries_new` RENAME TO `libraries`")
+                    db.execSQL("CREATE INDEX IF NOT EXISTS `index_libraries_sourceId` ON `libraries` (`sourceId`)")
+
+                    // --- library_items ---
+                    db.execSQL(
+                        "CREATE TABLE `library_items_new` (" +
+                            "`sourceId` TEXT NOT NULL, " +
+                            "`id` TEXT NOT NULL, " +
+                            "`libraryId` TEXT NOT NULL, " +
+                            "`title` TEXT NOT NULL, " +
+                            "`author` TEXT NOT NULL, " +
+                            "`coverUrl` TEXT, " +
+                            "`readingProgress` REAL NOT NULL, " +
+                            "`ebookFileIno` TEXT, " +
+                            "`ebookFormat` TEXT NOT NULL, " +
+                            "`hasAudio` INTEGER NOT NULL, " +
+                            "`audioDurationSec` REAL NOT NULL, " +
+                            "`description` TEXT, " +
+                            "`seriesName` TEXT, " +
+                            "`publishedYear` TEXT, " +
+                            "`genres` TEXT NOT NULL, " +
+                            "`publisher` TEXT, " +
+                            "`language` TEXT, " +
+                            "`lastOpenedAt` INTEGER, " +
+                            "`addedAt` INTEGER, " +
+                            "`isbn` TEXT, " +
+                            "`asin` TEXT, " +
+                            "`finishedAt` INTEGER, " +
+                            "PRIMARY KEY(`sourceId`, `id`), " +
+                            "FOREIGN KEY(`sourceId`) REFERENCES `sources`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )"
+                    )
+                    db.execSQL(
+                        "INSERT INTO `library_items_new` (`sourceId`, `id`, `libraryId`, `title`, `author`, `coverUrl`, `readingProgress`, `ebookFileIno`, `ebookFormat`, `hasAudio`, `audioDurationSec`, `description`, `seriesName`, `publishedYear`, `genres`, `publisher`, `language`, `lastOpenedAt`, `addedAt`, `isbn`, `asin`, `finishedAt`) " +
+                            "SELECT `serverId`, `id`, `libraryId`, `title`, `author`, `coverUrl`, `readingProgress`, `ebookFileIno`, `ebookFormat`, `hasAudio`, `audioDurationSec`, `description`, `seriesName`, `publishedYear`, `genres`, `publisher`, `language`, `lastOpenedAt`, `addedAt`, `isbn`, `asin`, `finishedAt` FROM `library_items`"
+                    )
+                    db.execSQL("DROP TABLE `library_items`")
+                    db.execSQL("ALTER TABLE `library_items_new` RENAME TO `library_items`")
+                    db.execSQL("CREATE INDEX IF NOT EXISTS `index_library_items_sourceId` ON `library_items` (`sourceId`)")
+
+                    // --- series_items --- (no FK in v43, composite PK only)
+                    db.execSQL(
+                        "CREATE TABLE `series_items_new` (" +
+                            "`seriesId` TEXT NOT NULL, " +
+                            "`sourceId` TEXT NOT NULL, " +
+                            "`itemId` TEXT NOT NULL, " +
+                            "`sequenceOrder` REAL NOT NULL, " +
+                            "PRIMARY KEY(`seriesId`, `sourceId`, `itemId`))"
+                    )
+                    db.execSQL(
+                        "INSERT INTO `series_items_new` (`seriesId`, `sourceId`, `itemId`, `sequenceOrder`) " +
+                            "SELECT `seriesId`, `serverId`, `itemId`, `sequenceOrder` FROM `series_items`"
+                    )
+                    db.execSQL("DROP TABLE `series_items`")
+                    db.execSQL("ALTER TABLE `series_items_new` RENAME TO `series_items`")
+
+                    // --- collection_items --- (no FK in v43, composite PK only)
+                    db.execSQL(
+                        "CREATE TABLE `collection_items_new` (" +
+                            "`collectionId` TEXT NOT NULL, " +
+                            "`sourceId` TEXT NOT NULL, " +
+                            "`itemId` TEXT NOT NULL, " +
+                            "PRIMARY KEY(`collectionId`, `sourceId`, `itemId`))"
+                    )
+                    db.execSQL(
+                        "INSERT INTO `collection_items_new` (`collectionId`, `sourceId`, `itemId`) " +
+                            "SELECT `collectionId`, `serverId`, `itemId` FROM `collection_items`"
+                    )
+                    db.execSQL("DROP TABLE `collection_items`")
+                    db.execSQL("ALTER TABLE `collection_items_new` RENAME TO `collection_items`")
+
+                    // --- reading_positions ---
+                    db.execSQL(
+                        "CREATE TABLE `reading_positions_new` (" +
+                            "`sourceId` TEXT NOT NULL, " +
+                            "`itemId` TEXT NOT NULL, " +
+                            "`cfi` TEXT NOT NULL, " +
+                            "`localUpdatedAt` INTEGER NOT NULL, " +
+                            "`lastSyncedAt` INTEGER NOT NULL, " +
+                            "PRIMARY KEY(`sourceId`, `itemId`), " +
+                            "FOREIGN KEY(`sourceId`) REFERENCES `sources`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )"
+                    )
+                    db.execSQL(
+                        "INSERT INTO `reading_positions_new` (`sourceId`, `itemId`, `cfi`, `localUpdatedAt`, `lastSyncedAt`) " +
+                            "SELECT `serverId`, `itemId`, `cfi`, `localUpdatedAt`, `lastSyncedAt` FROM `reading_positions`"
+                    )
+                    db.execSQL("DROP TABLE `reading_positions`")
+                    db.execSQL("ALTER TABLE `reading_positions_new` RENAME TO `reading_positions`")
+                    db.execSQL("CREATE INDEX IF NOT EXISTS `index_reading_positions_sourceId` ON `reading_positions` (`sourceId`)")
+
+                    // --- book_formatting_preferences ---
+                    db.execSQL(
+                        "CREATE TABLE `book_formatting_preferences_new` (" +
+                            "`sourceId` TEXT NOT NULL, " +
+                            "`itemId` TEXT NOT NULL, " +
+                            "`fontSize` REAL, " +
+                            "`theme` TEXT, " +
+                            "`fontFamily` TEXT, " +
+                            "`lineSpacing` REAL, " +
+                            "`margins` REAL, " +
+                            "`orientation` TEXT, " +
+                            "`showChapterMap` INTEGER, " +
+                            "`showReadingProgressLabels` INTEGER, " +
+                            "`showCurrentChapterLabel` INTEGER, " +
+                            "`doublePageSpread` INTEGER, " +
+                            "`justifyText` INTEGER, " +
+                            "`showReadingTimeEstimate` INTEGER, " +
+                            "PRIMARY KEY(`sourceId`, `itemId`), " +
+                            "FOREIGN KEY(`sourceId`) REFERENCES `sources`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )"
+                    )
+                    db.execSQL(
+                        "INSERT INTO `book_formatting_preferences_new` (`sourceId`, `itemId`, `fontSize`, `theme`, `fontFamily`, `lineSpacing`, `margins`, `orientation`, `showChapterMap`, `showReadingProgressLabels`, `showCurrentChapterLabel`, `doublePageSpread`, `justifyText`, `showReadingTimeEstimate`) " +
+                            "SELECT `serverId`, `itemId`, `fontSize`, `theme`, `fontFamily`, `lineSpacing`, `margins`, `orientation`, `showChapterMap`, `showReadingProgressLabels`, `showCurrentChapterLabel`, `doublePageSpread`, `justifyText`, `showReadingTimeEstimate` FROM `book_formatting_preferences`"
+                    )
+                    db.execSQL("DROP TABLE `book_formatting_preferences`")
+                    db.execSQL("ALTER TABLE `book_formatting_preferences_new` RENAME TO `book_formatting_preferences`")
+                    db.execSQL("CREATE INDEX IF NOT EXISTS `index_book_formatting_preferences_sourceId` ON `book_formatting_preferences` (`sourceId`)")
+
+                    // --- annotations ---
+                    db.execSQL(
+                        "CREATE TABLE `annotations_new` (" +
+                            "`id` TEXT NOT NULL, " +
+                            "`sourceId` TEXT NOT NULL, " +
+                            "`itemId` TEXT NOT NULL, " +
+                            "`type` TEXT NOT NULL, " +
+                            "`cfi` TEXT NOT NULL, " +
+                            "`color` TEXT NOT NULL, " +
+                            "`note` TEXT, " +
+                            "`textSnippet` TEXT NOT NULL, " +
+                            "`textBefore` TEXT NOT NULL, " +
+                            "`textAfter` TEXT NOT NULL, " +
+                            "`chapterHref` TEXT NOT NULL, " +
+                            "`spineIndex` INTEGER NOT NULL, " +
+                            "`progression` REAL NOT NULL, " +
+                            "`bookmarkTitle` TEXT NOT NULL, " +
+                            "`createdAt` INTEGER NOT NULL, " +
+                            "`updatedAt` INTEGER NOT NULL, " +
+                            "`originDeviceId` TEXT NOT NULL, " +
+                            "`lastModifiedByDeviceId` TEXT NOT NULL, " +
+                            "`deleted` INTEGER NOT NULL, " +
+                            "`lastSyncedAt` INTEGER NOT NULL, " +
+                            "PRIMARY KEY(`id`), " +
+                            "FOREIGN KEY(`sourceId`) REFERENCES `sources`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )"
+                    )
+                    db.execSQL(
+                        "INSERT INTO `annotations_new` (`id`, `sourceId`, `itemId`, `type`, `cfi`, `color`, `note`, `textSnippet`, `textBefore`, `textAfter`, `chapterHref`, `spineIndex`, `progression`, `bookmarkTitle`, `createdAt`, `updatedAt`, `originDeviceId`, `lastModifiedByDeviceId`, `deleted`, `lastSyncedAt`) " +
+                            "SELECT `id`, `serverId`, `itemId`, `type`, `cfi`, `color`, `note`, `textSnippet`, `textBefore`, `textAfter`, `chapterHref`, `spineIndex`, `progression`, `bookmarkTitle`, `createdAt`, `updatedAt`, `originDeviceId`, `lastModifiedByDeviceId`, `deleted`, `lastSyncedAt` FROM `annotations`"
+                    )
+                    db.execSQL("DROP TABLE `annotations`")
+                    db.execSQL("ALTER TABLE `annotations_new` RENAME TO `annotations`")
+                    db.execSQL("CREATE INDEX IF NOT EXISTS `index_annotations_sourceId_itemId` ON `annotations` (`sourceId`, `itemId`)")
+
+                    // --- readaloud_resume_positions ---
+                    db.execSQL(
+                        "CREATE TABLE `readaloud_resume_positions_new` (" +
+                            "`sourceId` TEXT NOT NULL, " +
+                            "`itemId` TEXT NOT NULL, " +
+                            "`href` TEXT NOT NULL, " +
+                            "`progression` REAL, " +
+                            "`fragmentRef` TEXT, " +
+                            "`localUpdatedAt` INTEGER NOT NULL, " +
+                            "PRIMARY KEY(`sourceId`, `itemId`), " +
+                            "FOREIGN KEY(`sourceId`) REFERENCES `sources`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )"
+                    )
+                    db.execSQL(
+                        "INSERT INTO `readaloud_resume_positions_new` (`sourceId`, `itemId`, `href`, `progression`, `fragmentRef`, `localUpdatedAt`) " +
+                            "SELECT `serverId`, `itemId`, `href`, `progression`, `fragmentRef`, `localUpdatedAt` FROM `readaloud_resume_positions`"
+                    )
+                    db.execSQL("DROP TABLE `readaloud_resume_positions`")
+                    db.execSQL("ALTER TABLE `readaloud_resume_positions_new` RENAME TO `readaloud_resume_positions`")
+                    db.execSQL("CREATE INDEX IF NOT EXISTS `index_readaloud_resume_positions_sourceId` ON `readaloud_resume_positions` (`sourceId`)")
+
+                    // --- audio_playback_preferences ---
+                    db.execSQL(
+                        "CREATE TABLE `audio_playback_preferences_new` (" +
+                            "`sourceId` TEXT NOT NULL, " +
+                            "`bookId` TEXT NOT NULL, " +
+                            "`speed` REAL, " +
+                            "PRIMARY KEY(`sourceId`, `bookId`), " +
+                            "FOREIGN KEY(`sourceId`) REFERENCES `sources`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )"
+                    )
+                    db.execSQL(
+                        "INSERT INTO `audio_playback_preferences_new` (`sourceId`, `bookId`, `speed`) " +
+                            "SELECT `serverId`, `bookId`, `speed` FROM `audio_playback_preferences`"
+                    )
+                    db.execSQL("DROP TABLE `audio_playback_preferences`")
+                    db.execSQL("ALTER TABLE `audio_playback_preferences_new` RENAME TO `audio_playback_preferences`")
+                    db.execSQL("CREATE INDEX IF NOT EXISTS `index_audio_playback_preferences_sourceId` ON `audio_playback_preferences` (`sourceId`)")
+
+                    // --- audiobook_positions ---
+                    db.execSQL(
+                        "CREATE TABLE `audiobook_positions_new` (" +
+                            "`sourceId` TEXT NOT NULL, " +
+                            "`itemId` TEXT NOT NULL, " +
+                            "`positionSec` REAL NOT NULL, " +
+                            "`localUpdatedAt` INTEGER NOT NULL, " +
+                            "`lastSyncedAt` INTEGER NOT NULL, " +
+                            "PRIMARY KEY(`sourceId`, `itemId`), " +
+                            "FOREIGN KEY(`sourceId`) REFERENCES `sources`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )"
+                    )
+                    db.execSQL(
+                        "INSERT INTO `audiobook_positions_new` (`sourceId`, `itemId`, `positionSec`, `localUpdatedAt`, `lastSyncedAt`) " +
+                            "SELECT `serverId`, `itemId`, `positionSec`, `localUpdatedAt`, `lastSyncedAt` FROM `audiobook_positions`"
+                    )
+                    db.execSQL("DROP TABLE `audiobook_positions`")
+                    db.execSQL("ALTER TABLE `audiobook_positions_new` RENAME TO `audiobook_positions`")
+                    db.execSQL("CREATE INDEX IF NOT EXISTS `index_audiobook_positions_sourceId` ON `audiobook_positions` (`sourceId`)")
+
+                    // --- audiobook_bookmarks ---
+                    db.execSQL(
+                        "CREATE TABLE `audiobook_bookmarks_new` (" +
+                            "`id` TEXT NOT NULL, " +
+                            "`sourceId` TEXT NOT NULL, " +
+                            "`itemId` TEXT NOT NULL, " +
+                            "`positionSec` REAL NOT NULL, " +
+                            "`title` TEXT NOT NULL, " +
+                            "`createdAt` INTEGER NOT NULL, " +
+                            "`localUpdatedAt` INTEGER NOT NULL, " +
+                            "`lastSyncedAt` INTEGER NOT NULL, " +
+                            "`deleted` INTEGER NOT NULL, " +
+                            "PRIMARY KEY(`id`), " +
+                            "FOREIGN KEY(`sourceId`) REFERENCES `sources`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )"
+                    )
+                    db.execSQL(
+                        "INSERT INTO `audiobook_bookmarks_new` (`id`, `sourceId`, `itemId`, `positionSec`, `title`, `createdAt`, `localUpdatedAt`, `lastSyncedAt`, `deleted`) " +
+                            "SELECT `id`, `serverId`, `itemId`, `positionSec`, `title`, `createdAt`, `localUpdatedAt`, `lastSyncedAt`, `deleted` FROM `audiobook_bookmarks`"
+                    )
+                    db.execSQL("DROP TABLE `audiobook_bookmarks`")
+                    db.execSQL("ALTER TABLE `audiobook_bookmarks_new` RENAME TO `audiobook_bookmarks`")
+                    db.execSQL("CREATE INDEX IF NOT EXISTS `index_audiobook_bookmarks_sourceId` ON `audiobook_bookmarks` (`sourceId`)")
+                    db.execSQL("CREATE INDEX IF NOT EXISTS `index_audiobook_bookmarks_sourceId_itemId` ON `audiobook_bookmarks` (`sourceId`, `itemId`)")
+
+                    // --- toc_cache --- (no FK in v43, composite PK only)
+                    db.execSQL(
+                        "CREATE TABLE `toc_cache_new` (" +
+                            "`sourceId` TEXT NOT NULL, " +
+                            "`itemId` TEXT NOT NULL, " +
+                            "`ebookFileIno` TEXT NOT NULL, " +
+                            "`entriesJson` TEXT NOT NULL, " +
+                            "PRIMARY KEY(`sourceId`, `itemId`))"
+                    )
+                    db.execSQL(
+                        "INSERT INTO `toc_cache_new` (`sourceId`, `itemId`, `ebookFileIno`, `entriesJson`) " +
+                            "SELECT `serverId`, `itemId`, `ebookFileIno`, `entriesJson` FROM `toc_cache`"
+                    )
+                    db.execSQL("DROP TABLE `toc_cache`")
+                    db.execSQL("ALTER TABLE `toc_cache_new` RENAME TO `toc_cache`")
+
+                    // --- audiobook_chapter_cache --- (no FK in v43, composite PK only)
+                    db.execSQL(
+                        "CREATE TABLE `audiobook_chapter_cache_new` (" +
+                            "`sourceId` TEXT NOT NULL, " +
+                            "`itemId` TEXT NOT NULL, " +
+                            "`chaptersJson` TEXT NOT NULL, " +
+                            "PRIMARY KEY(`sourceId`, `itemId`))"
+                    )
+                    db.execSQL(
+                        "INSERT INTO `audiobook_chapter_cache_new` (`sourceId`, `itemId`, `chaptersJson`) " +
+                            "SELECT `serverId`, `itemId`, `chaptersJson` FROM `audiobook_chapter_cache`"
+                    )
+                    db.execSQL("DROP TABLE `audiobook_chapter_cache`")
+                    db.execSQL("ALTER TABLE `audiobook_chapter_cache_new` RENAME TO `audiobook_chapter_cache`")
+
+                    // --- readaloud_links ---
+                    db.execSQL(
+                        "CREATE TABLE `readaloud_links_new` (" +
+                            "`absSourceId` TEXT NOT NULL, " +
+                            "`absLibraryItemId` TEXT NOT NULL, " +
+                            "`storytellerSourceId` TEXT NOT NULL, " +
+                            "`storytellerBookId` TEXT NOT NULL, " +
+                            "`state` TEXT NOT NULL, " +
+                            "`userConfirmed` INTEGER NOT NULL, " +
+                            "`createdAt` INTEGER NOT NULL, " +
+                            "`updatedAt` INTEGER NOT NULL, " +
+                            "`identityResult` TEXT NOT NULL, " +
+                            "PRIMARY KEY(`absSourceId`, `absLibraryItemId`), " +
+                            "FOREIGN KEY(`storytellerSourceId`) REFERENCES `sources`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE , " +
+                            "FOREIGN KEY(`absSourceId`) REFERENCES `sources`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )"
+                    )
+                    db.execSQL(
+                        "INSERT INTO `readaloud_links_new` (`absSourceId`, `absLibraryItemId`, `storytellerSourceId`, `storytellerBookId`, `state`, `userConfirmed`, `createdAt`, `updatedAt`, `identityResult`) " +
+                            "SELECT `absServerId`, `absLibraryItemId`, `storytellerServerId`, `storytellerBookId`, `state`, `userConfirmed`, `createdAt`, `updatedAt`, `identityResult` FROM `readaloud_links`"
+                    )
+                    db.execSQL("DROP TABLE `readaloud_links`")
+                    db.execSQL("ALTER TABLE `readaloud_links_new` RENAME TO `readaloud_links`")
+                    db.execSQL("CREATE INDEX IF NOT EXISTS `index_readaloud_links_storytellerSourceId_storytellerBookId` ON `readaloud_links` (`storytellerSourceId`, `storytellerBookId`)")
+                    db.execSQL("CREATE INDEX IF NOT EXISTS `index_readaloud_links_storytellerSourceId` ON `readaloud_links` (`storytellerSourceId`)")
+
+                    // --- readaloud_candidates ---
+                    db.execSQL(
+                        "CREATE TABLE `readaloud_candidates_new` (" +
+                            "`storytellerSourceId` TEXT NOT NULL, " +
+                            "`storytellerBookId` TEXT NOT NULL, " +
+                            "`absSourceId` TEXT NOT NULL, " +
+                            "`absLibraryItemId` TEXT NOT NULL, " +
+                            "`score` REAL NOT NULL, " +
+                            "PRIMARY KEY(`storytellerSourceId`, `storytellerBookId`, `absSourceId`, `absLibraryItemId`), " +
+                            "FOREIGN KEY(`storytellerSourceId`) REFERENCES `sources`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE , " +
+                            "FOREIGN KEY(`absSourceId`) REFERENCES `sources`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )"
+                    )
+                    db.execSQL(
+                        "INSERT INTO `readaloud_candidates_new` (`storytellerSourceId`, `storytellerBookId`, `absSourceId`, `absLibraryItemId`, `score`) " +
+                            "SELECT `storytellerServerId`, `storytellerBookId`, `absServerId`, `absLibraryItemId`, `score` FROM `readaloud_candidates`"
+                    )
+                    db.execSQL("DROP TABLE `readaloud_candidates`")
+                    db.execSQL("ALTER TABLE `readaloud_candidates_new` RENAME TO `readaloud_candidates`")
+                    db.execSQL("CREATE INDEX IF NOT EXISTS `index_readaloud_candidates_absSourceId` ON `readaloud_candidates` (`absSourceId`)")
+
+                    // --- readaloud_dismissals ---
+                    db.execSQL(
+                        "CREATE TABLE `readaloud_dismissals_new` (" +
+                            "`storytellerSourceId` TEXT NOT NULL, " +
+                            "`storytellerBookId` TEXT NOT NULL, " +
+                            "`scope` TEXT NOT NULL, " +
+                            "`absSourceId` TEXT NOT NULL, " +
+                            "`absLibraryItemId` TEXT NOT NULL, " +
+                            "PRIMARY KEY(`storytellerSourceId`, `storytellerBookId`, `absSourceId`, `absLibraryItemId`), " +
+                            "FOREIGN KEY(`storytellerSourceId`) REFERENCES `sources`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )"
+                    )
+                    db.execSQL(
+                        "INSERT INTO `readaloud_dismissals_new` (`storytellerSourceId`, `storytellerBookId`, `scope`, `absSourceId`, `absLibraryItemId`) " +
+                            "SELECT `storytellerServerId`, `storytellerBookId`, `scope`, `absServerId`, `absLibraryItemId` FROM `readaloud_dismissals`"
+                    )
+                    db.execSQL("DROP TABLE `readaloud_dismissals`")
+                    db.execSQL("ALTER TABLE `readaloud_dismissals_new` RENAME TO `readaloud_dismissals`")
+                } finally {
+                    db.execSQL("PRAGMA foreign_keys=ON")
+                }
             }
         }
     }

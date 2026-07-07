@@ -14,7 +14,7 @@ import com.riffle.core.domain.Collection
 import com.riffle.core.domain.PdfRepository
 import com.riffle.core.domain.ReadingSessionRepository
 import com.riffle.core.domain.Series
-import com.riffle.core.domain.ServerRepository
+import com.riffle.core.domain.SourceRepository
 import com.riffle.core.domain.TocEntry
 import io.mockk.coEvery
 import io.mockk.coVerify
@@ -47,7 +47,7 @@ class LibraryItemDetailViewModelTocTest {
 
     private fun fakeRepo(item: LibraryItem?): LibraryObserver = object : LibraryObserver {
         override fun observeLibraries(): Flow<List<Library>> = MutableStateFlow(emptyList())
-        override fun observeLibraries(serverId: String): Flow<List<Library>> = observeLibraries()
+        override fun observeLibraries(sourceId: String): Flow<List<Library>> = observeLibraries()
         override fun observeLibraryItems(libraryId: String): Flow<List<LibraryItem>> = MutableStateFlow(emptyList())
         override fun observeUngroupedLibraryItems(libraryId: String): Flow<List<LibraryItem>> = MutableStateFlow(emptyList())
         override fun observeInProgressItems(libraryId: String): Flow<List<LibraryItem>> = MutableStateFlow(emptyList())
@@ -61,38 +61,38 @@ class LibraryItemDetailViewModelTocTest {
         override fun observeCollectionItems(collectionId: String): Flow<List<LibraryItem>> = MutableStateFlow(emptyList())
         override suspend fun getItem(itemId: String): LibraryItem? = item
         override fun observeItem(itemId: String): Flow<LibraryItem?> = MutableStateFlow(item)
-        override suspend fun getItem(serverId: String, itemId: String): LibraryItem? = getItem(itemId)
+        override suspend fun getItem(sourceId: String, itemId: String): LibraryItem? = getItem(itemId)
         override suspend fun getLibrary(libraryId: String): com.riffle.core.domain.Library? = null
-        override suspend fun getSeriesIdForItem(serverId: String, itemId: String): String? = null
+        override suspend fun getSeriesIdForItem(sourceId: String, itemId: String): String? = null
     }
 
     private class FakeConnectivityObserver : ConnectivityObserver {
         override val isOnline: StateFlow<Boolean> = MutableStateFlow(true)
     }
 
-    private val noOpServerRepo = object : ServerRepository {
-        override fun observeAll(): Flow<List<com.riffle.core.domain.Server>> = MutableStateFlow(emptyList())
-        override suspend fun getActive(): com.riffle.core.domain.Server? = null
+    private val noOpServerRepo = object : SourceRepository {
+        override fun observeAll(): Flow<List<com.riffle.core.domain.Source>> = MutableStateFlow(emptyList())
+        override suspend fun getActive(): com.riffle.core.domain.Source? = null
         override suspend fun authenticate(
-            url: com.riffle.core.domain.ServerUrl,
+            url: com.riffle.core.domain.SourceUrl,
             username: String,
             password: String,
             insecureAllowed: Boolean,
             serverType: com.riffle.core.domain.ServerType,
         ): com.riffle.core.domain.AuthenticateResult = com.riffle.core.domain.AuthenticateResult.WrongCredentials()
         override suspend fun commit(
-            pending: com.riffle.core.domain.PendingServer,
+            pending: com.riffle.core.domain.PendingSource,
             hiddenLibraryIds: Set<String>,
-        ): com.riffle.core.domain.CommitServerResult = com.riffle.core.domain.CommitServerResult.Failure(Exception())
-        override suspend fun setActive(serverId: String) {}
-        override suspend fun remove(serverId: String) {}
-        override suspend fun getServerVersion(serverId: String): String? = null
+        ): com.riffle.core.domain.CommitSourceResult = com.riffle.core.domain.CommitSourceResult.Failure(Exception())
+        override suspend fun setActive(sourceId: String) {}
+        override suspend fun remove(sourceId: String) {}
+        override suspend fun getSourceVersion(sourceId: String): String? = null
     }
 
     private val noOpTokenStorage = object : com.riffle.core.domain.TokenStorage {
-        override suspend fun getToken(serverId: String): String? = null
-        override suspend fun saveToken(serverId: String, token: String) {}
-        override suspend fun deleteToken(serverId: String) {}
+        override suspend fun getToken(sourceId: String): String? = null
+        override suspend fun saveToken(sourceId: String, token: String) {}
+        override suspend fun deleteToken(sourceId: String) {}
     }
 
     private val noOpToReadRepository = object : ToReadRepository {
@@ -106,18 +106,18 @@ class LibraryItemDetailViewModelTocTest {
     private class FakeEpubRepo : EpubRepository {
         override suspend fun openEpub(item: LibraryItem): com.riffle.core.domain.EpubOpenResult = throw UnsupportedOperationException()
         override suspend fun downloadEpub(item: LibraryItem, onProgress: (Long, Long) -> Unit): com.riffle.core.domain.EpubDownloadResult = com.riffle.core.domain.EpubDownloadResult.Success
-        override suspend fun removeDownload(serverId: String, itemId: String) {}
-        override fun isDownloaded(serverId: String, itemId: String): Boolean = false
-        override fun isCached(serverId: String, itemId: String): Boolean = false
+        override suspend fun removeDownload(sourceId: String, itemId: String) {}
+        override fun isDownloaded(sourceId: String, itemId: String): Boolean = false
+        override fun isCached(sourceId: String, itemId: String): Boolean = false
         override suspend fun saveReadingPosition(itemId: String, cfi: String) {}
     }
 
     private class FakePdfRepo : PdfRepository {
         override suspend fun openPdf(item: LibraryItem): com.riffle.core.domain.PdfOpenResult = throw UnsupportedOperationException()
         override suspend fun downloadPdf(item: LibraryItem, onProgress: (Long, Long) -> Unit): com.riffle.core.domain.PdfDownloadResult = com.riffle.core.domain.PdfDownloadResult.Success
-        override suspend fun removeDownload(serverId: String, itemId: String) {}
-        override fun isDownloaded(serverId: String, itemId: String): Boolean = false
-        override fun isCached(serverId: String, itemId: String): Boolean = false
+        override suspend fun removeDownload(sourceId: String, itemId: String) {}
+        override fun isDownloaded(sourceId: String, itemId: String): Boolean = false
+        override fun isCached(sourceId: String, itemId: String): Boolean = false
         override suspend fun saveReadingPosition(itemId: String, locatorJson: String) {}
     }
 
@@ -146,7 +146,7 @@ class LibraryItemDetailViewModelTocTest {
         recordItemOpened = com.riffle.app.testing.NoopRecordItemOpened(),
         updateReadingProgressUseCase = com.riffle.app.testing.NoopUpdateReadingProgress(),
         markReadAcrossDimensions = com.riffle.app.testing.NoopMarkReadAcrossDimensions(),
-        serverRepository = noOpServerRepo,
+        sourceRepository = noOpServerRepo,
         tokenStorage = noOpTokenStorage,
         epubRepository = FakeEpubRepo(),
         pdfRepository = FakePdfRepo(),
@@ -155,7 +155,7 @@ class LibraryItemDetailViewModelTocTest {
         readaloudAudioRepository = NoopReadaloudAudioRepository,
         audiobookDownloadRepository = NoopAudiobookDownloadRepository,
         readaloudOfflineDownloader = object : com.riffle.app.feature.reader.readaloud.ReadaloudOfflineDownloader {
-            override suspend fun download(storytellerServerId: String, storytellerBookId: String, onProgress: (Float) -> Unit): Boolean? = null
+            override suspend fun download(storytellerSourceId: String, storytellerBookId: String, onProgress: (Float) -> Unit): Boolean? = null
         },
         connectivityObserver = FakeConnectivityObserver(),
         downloadManager = DownloadManager(kotlinx.coroutines.CoroutineScope(testDispatcher)),
@@ -178,7 +178,7 @@ class LibraryItemDetailViewModelTocTest {
         isDownloaded = false,
         ebookFormat = EbookFormat.Epub,
         hasAudio = false,
-        serverId = "srv-1",
+        sourceId = "srv-1",
     )
 
     private val audiobookItem = LibraryItem(
@@ -192,7 +192,7 @@ class LibraryItemDetailViewModelTocTest {
         isDownloaded = false,
         ebookFormat = EbookFormat.Unsupported,
         hasAudio = true,
-        serverId = "srv-1",
+        sourceId = "srv-1",
     )
 
     private val audioOnlyItem = audiobookItem // alias for readability

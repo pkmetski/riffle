@@ -1,6 +1,6 @@
 package com.riffle.core.domain
 
-/** A point-in-time read of a durable per-(serverId, itemId) position row (ADR 0030). */
+/** A point-in-time read of a durable per-(sourceId, itemId) position row (ADR 0030). */
 data class PositionSnapshot<P>(
     val position: P?,
     val localUpdatedAt: Long,
@@ -15,11 +15,11 @@ data class PositionSnapshot<P>(
  * offline edit is never clobbered or silently dropped.
  */
 interface SyncPositionStore<P> {
-    suspend fun snapshot(serverId: String, itemId: String): PositionSnapshot<P>
+    suspend fun snapshot(sourceId: String, itemId: String): PositionSnapshot<P>
 
     /** Server wins: overwrite the local position and set both timestamps to the server stamp (clean). */
     suspend fun acceptServerPosition(
-        serverId: String,
+        sourceId: String,
         itemId: String,
         position: P,
         serverStamp: Long,
@@ -28,7 +28,7 @@ interface SyncPositionStore<P> {
 
     /** Local push confirmed: adopt the server-returned stamp into both timestamps (clean). */
     suspend fun confirmPushed(
-        serverId: String,
+        sourceId: String,
         itemId: String,
         serverStamp: Long,
         ifLocalUpdatedAt: Long,
@@ -36,7 +36,7 @@ interface SyncPositionStore<P> {
 
     /** Already in sync (equal stamps): clear dirty by setting `lastSyncedAt = localUpdatedAt`. */
     suspend fun confirmInSync(
-        serverId: String,
+        sourceId: String,
         itemId: String,
         ifLocalUpdatedAt: Long,
     ): Boolean
@@ -49,7 +49,7 @@ interface SyncPositionStore<P> {
      * so the durable sweep can push the sibling ABS record too, without the book being reopened.
      */
     suspend fun mirror(
-        serverId: String,
+        sourceId: String,
         itemId: String,
         position: P,
         localUpdatedAt: Long,

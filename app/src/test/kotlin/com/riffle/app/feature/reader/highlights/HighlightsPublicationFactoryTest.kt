@@ -52,7 +52,7 @@ class HighlightsPublicationFactoryTest {
     @Test
     fun spineOnlyIncludesChaptersWithHighlights() {
         val pub = factory.build(
-            serverId = "S1",
+            sourceId = "S1",
             itemId = "B1",
             bookTitle = "Dune",
             chapters = listOf(
@@ -68,7 +68,7 @@ class HighlightsPublicationFactoryTest {
     @Test
     fun rendersHighlightsAndInlineNotesInCfiOrder() {
         val pub = factory.build(
-            serverId = "S1",
+            sourceId = "S1",
             itemId = "B1",
             bookTitle = null,
             chapters = listOf(
@@ -92,7 +92,7 @@ class HighlightsPublicationFactoryTest {
     @Test
     fun chapterTitleFallsBackToHrefBasenameThenChapterN() {
         val pub = factory.build(
-            serverId = "S1",
+            sourceId = "S1",
             itemId = "B1",
             bookTitle = null,
             chapters = listOf(
@@ -111,7 +111,7 @@ class HighlightsPublicationFactoryTest {
     @Test
     fun highlightParagraphCarriesLeftAccentBarFromItsColorToken() {
         val pub = factory.build(
-            serverId = "S1",
+            sourceId = "S1",
             itemId = "B1",
             bookTitle = null,
             chapters = listOf(
@@ -140,7 +140,7 @@ class HighlightsPublicationFactoryTest {
     @Test
     fun unknownColorTokenFallsBackToDefaultYellowAccent() {
         val pub = factory.build(
-            serverId = "S1",
+            sourceId = "S1",
             itemId = "B1",
             bookTitle = null,
             chapters = listOf(
@@ -164,7 +164,7 @@ class HighlightsPublicationFactoryTest {
     @Test
     fun rendersDefaultReadiumCssLinkSoTypographyMatchesFullBookMode() {
         val pub = factory.build(
-            serverId = "S1",
+            sourceId = "S1",
             itemId = "B1",
             bookTitle = null,
             chapters = listOf(
@@ -192,7 +192,7 @@ class HighlightsPublicationFactoryTest {
     @Test
     fun highlightParagraphCarriesExplicitMarginForImmersiveTapGap() {
         val pub = factory.build(
-            serverId = "S1",
+            sourceId = "S1",
             itemId = "B1",
             bookTitle = null,
             chapters = listOf(
@@ -216,7 +216,7 @@ class HighlightsPublicationFactoryTest {
     @Test
     fun noteAsideCarriesNeutralBackground() {
         val pub = factory.build(
-            serverId = "S1",
+            sourceId = "S1",
             itemId = "B1",
             bookTitle = null,
             chapters = listOf(
@@ -239,7 +239,7 @@ class HighlightsPublicationFactoryTest {
     ): AnnotationEntity =
         AnnotationEntity(
             id = id,
-            serverId = "S1",
+            sourceId = "S1",
             itemId = "B1",
             type = AnnotationEntity.TYPE_HIGHLIGHT,
             cfi = "epubcfi(/6/${(spineIndex + 1) * 2}!/dummy)",

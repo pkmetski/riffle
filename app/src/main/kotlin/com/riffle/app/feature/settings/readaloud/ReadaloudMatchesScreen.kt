@@ -242,7 +242,7 @@ private fun PendingReadaloudCard(
         book.candidates.forEach { candidate ->
             CandidateRow(
                 candidate = candidate,
-                token = tokens[candidate.absServerId],
+                token = tokens[candidate.absSourceId],
                 onConfirm = { onConfirm(candidate) },
                 onDismiss = { onDismissCandidate(candidate) },
             )
@@ -475,13 +475,13 @@ private fun AbsPickerDialog(
                 )
                 Spacer(Modifier.height(8.dp))
                 LazyColumn(modifier = Modifier.fillMaxWidth().height(360.dp)) {
-                    items(results, key = { it.absServerId + "/" + it.absLibraryItemId }) { item ->
+                    items(results, key = { it.absSourceId + "/" + it.absLibraryItemId }) { item ->
                         val isLinked = item.absLibraryItemId in linkedItemIds
                         Row(
                             modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
-                            Cover(coverUrl = item.coverUrl, token = tokens[item.absServerId])
+                            Cover(coverUrl = item.coverUrl, token = tokens[item.absSourceId])
                             Spacer(Modifier.width(12.dp))
                             Column(Modifier.weight(1f)) {
                                 Text(item.title, style = MaterialTheme.typography.bodyMedium, maxLines = 2, overflow = TextOverflow.Ellipsis)

@@ -12,10 +12,10 @@ import com.riffle.core.domain.HighlightColor
 import com.riffle.core.domain.ReadaloudPreferences
 import com.riffle.core.domain.ReadaloudPreferencesStore
 import com.riffle.core.domain.AuthenticateResult
-import com.riffle.core.domain.CommitServerResult
+import com.riffle.core.domain.CommitSourceResult
 import com.riffle.core.domain.Collection
 import com.riffle.core.domain.ConnectivityObserver
-import com.riffle.core.domain.PendingServer
+import com.riffle.core.domain.PendingSource
 import java.io.IOException
 import com.riffle.core.domain.CrashReport
 import com.riffle.core.domain.CrashReportRepository
@@ -33,10 +33,10 @@ import com.riffle.core.domain.PendingReadaloud
 import com.riffle.core.domain.ReadaloudReview
 import com.riffle.core.domain.ReadaloudReviewRepository
 import com.riffle.core.domain.Series
-import com.riffle.core.domain.Server
-import com.riffle.core.domain.ServerRepository
+import com.riffle.core.domain.Source
+import com.riffle.core.domain.SourceRepository
 import com.riffle.core.domain.ServerType
-import com.riffle.core.domain.ServerUrl
+import com.riffle.core.domain.SourceUrl
 import com.riffle.core.domain.UnmatchedReadaloud
 import com.riffle.core.domain.ListeningPreferencesStore
 import com.riffle.core.domain.VolumeKeyPreferencesStore
@@ -118,9 +118,9 @@ class SettingsViewModelTest {
         id: String,
         active: Boolean = false,
         serverType: ServerType = ServerType.AUDIOBOOKSHELF,
-    ) = Server(
+    ) = Source(
         id = id,
-        url = ServerUrl.parse("https://$id.example.com")!!,
+        url = SourceUrl.parse("https://$id.example.com")!!,
         isActive = active,
         insecureConnectionAllowed = false,
         username = "",
@@ -129,30 +129,30 @@ class SettingsViewModelTest {
 
     private fun library(id: String) = Library(id = id, name = id, mediaType = "book", isUnsupported = false)
 
-    private val serversFlow = MutableStateFlow<List<Server>>(emptyList())
+    private val serversFlow = MutableStateFlow<List<Source>>(emptyList())
     private val librariesFlow = MutableStateFlow<List<Library>>(emptyList())
     private val hiddenFlow = MutableStateFlow<Map<String, Set<String>>>(emptyMap())
     private val orderFlow = MutableStateFlow<Map<String, List<String>>>(emptyMap())
 
-    private fun fakeServerRepo(): ServerRepository = object : ServerRepository {
-        override fun observeAll(): Flow<List<Server>> = serversFlow
-        override suspend fun getActive(): Server? = serversFlow.value.firstOrNull { it.isActive }
-        override suspend fun authenticate(url: ServerUrl, username: String, password: String, insecureAllowed: Boolean, serverType: com.riffle.core.domain.ServerType): AuthenticateResult =
+    private fun fakeServerRepo(): SourceRepository = object : SourceRepository {
+        override fun observeAll(): Flow<List<Source>> = serversFlow
+        override suspend fun getActive(): Source? = serversFlow.value.firstOrNull { it.isActive }
+        override suspend fun authenticate(url: SourceUrl, username: String, password: String, insecureAllowed: Boolean, serverType: com.riffle.core.domain.ServerType): AuthenticateResult =
             AuthenticateResult.WrongCredentials()
-        override suspend fun commit(pending: PendingServer, hiddenLibraryIds: Set<String>): CommitServerResult =
-            CommitServerResult.Failure(IOException())
-        override suspend fun setActive(serverId: String) {
-            serversFlow.update { list -> list.map { it.copy(isActive = it.id == serverId) } }
+        override suspend fun commit(pending: PendingSource, hiddenLibraryIds: Set<String>): CommitSourceResult =
+            CommitSourceResult.Failure(IOException())
+        override suspend fun setActive(sourceId: String) {
+            serversFlow.update { list -> list.map { it.copy(isActive = it.id == sourceId) } }
         }
-        override suspend fun remove(serverId: String) {
-            serversFlow.update { list -> list.filter { it.id != serverId } }
+        override suspend fun remove(sourceId: String) {
+            serversFlow.update { list -> list.filter { it.id != sourceId } }
         }
-        override suspend fun getServerVersion(serverId: String): String? = null
+        override suspend fun getSourceVersion(sourceId: String): String? = null
     }
 
     private fun fakeLibraryRepo(): LibraryObserver = object : LibraryObserver {
         override fun observeLibraries(): Flow<List<Library>> = librariesFlow
-        override fun observeLibraries(serverId: String): Flow<List<Library>> = observeLibraries()
+        override fun observeLibraries(sourceId: String): Flow<List<Library>> = observeLibraries()
         override fun observeLibraryItems(libraryId: String): Flow<List<LibraryItem>> = MutableStateFlow(emptyList())
         override fun observeUngroupedLibraryItems(libraryId: String): Flow<List<LibraryItem>> = MutableStateFlow(emptyList())
         override fun observeInProgressItems(libraryId: String): Flow<List<LibraryItem>> = MutableStateFlow(emptyList())
@@ -166,27 +166,27 @@ class SettingsViewModelTest {
         override fun observeCollectionItems(collectionId: String): Flow<List<LibraryItem>> = MutableStateFlow(emptyList())
         override suspend fun getItem(itemId: String): LibraryItem? = null
         override fun observeItem(itemId: String): Flow<LibraryItem?> = MutableStateFlow<LibraryItem?>(null)
-        override suspend fun getItem(serverId: String, itemId: String): LibraryItem? = getItem(itemId)
+        override suspend fun getItem(sourceId: String, itemId: String): LibraryItem? = getItem(itemId)
         override suspend fun getLibrary(libraryId: String): com.riffle.core.domain.Library? = null
-        override suspend fun getSeriesIdForItem(serverId: String, itemId: String): String? = null
+        override suspend fun getSeriesIdForItem(sourceId: String, itemId: String): String? = null
     }
 
     private fun fakeVisibilityStore(): LibraryVisibilityPreferencesStore = object : LibraryVisibilityPreferencesStore {
-        override fun hiddenLibraryIds(serverId: String): Flow<Set<String>> =
-            hiddenFlow.map { it[serverId].orEmpty() }
-        override suspend fun hideLibrary(serverId: String, libraryId: String) {
-            hiddenFlow.update { it + (serverId to (it[serverId].orEmpty() + libraryId)) }
+        override fun hiddenLibraryIds(sourceId: String): Flow<Set<String>> =
+            hiddenFlow.map { it[sourceId].orEmpty() }
+        override suspend fun hideLibrary(sourceId: String, libraryId: String) {
+            hiddenFlow.update { it + (sourceId to (it[sourceId].orEmpty() + libraryId)) }
         }
-        override suspend fun showLibrary(serverId: String, libraryId: String) {
-            hiddenFlow.update { it + (serverId to (it[serverId].orEmpty() - libraryId)) }
+        override suspend fun showLibrary(sourceId: String, libraryId: String) {
+            hiddenFlow.update { it + (sourceId to (it[sourceId].orEmpty() - libraryId)) }
         }
     }
 
     private fun fakeOrderStore(): LibraryOrderPreferencesStore = object : LibraryOrderPreferencesStore {
-        override fun libraryOrder(serverId: String): Flow<List<String>> =
-            orderFlow.map { it[serverId].orEmpty() }
-        override suspend fun setLibraryOrder(serverId: String, orderedIds: List<String>) {
-            orderFlow.update { it + (serverId to orderedIds) }
+        override fun libraryOrder(sourceId: String): Flow<List<String>> =
+            orderFlow.map { it[sourceId].orEmpty() }
+        override suspend fun setLibraryOrder(sourceId: String, orderedIds: List<String>) {
+            orderFlow.update { it + (sourceId to orderedIds) }
         }
     }
 
@@ -205,9 +205,9 @@ class SettingsViewModelTest {
 
     private val reviewsFlow = MutableStateFlow<Map<String, ReadaloudReview>>(emptyMap())
     private val fakeReviewRepo = object : ReadaloudReviewRepository {
-        override fun observeReview(storytellerServerId: String, absServerId: String?): Flow<ReadaloudReview> =
-            reviewsFlow.map { it[storytellerServerId] ?: ReadaloudReview(emptyList(), emptyList(), emptyList()) }
-        override suspend fun searchAbsItems(absServerId: String, query: String, filter: com.riffle.core.domain.AbsFormatFilter): List<AbsPickerItem> = emptyList()
+        override fun observeReview(storytellerSourceId: String, absSourceId: String?): Flow<ReadaloudReview> =
+            reviewsFlow.map { it[storytellerSourceId] ?: ReadaloudReview(emptyList(), emptyList(), emptyList()) }
+        override suspend fun searchAbsItems(absSourceId: String, query: String, filter: com.riffle.core.domain.AbsFormatFilter): List<AbsPickerItem> = emptyList()
     }
 
     private fun makeViewModel(
@@ -222,7 +222,7 @@ class SettingsViewModelTest {
             override fun clearAllCrashReports() { current.clear() }
         },
         formattingPreferencesStore = noOpFormattingStore,
-        serverRepository = fakeServerRepo(),
+        sourceRepository = fakeServerRepo(),
         libraryObserver = fakeLibraryRepo(),
         visibilityStore = fakeVisibilityStore(),
         orderStore = fakeOrderStore(),
@@ -244,25 +244,25 @@ class SettingsViewModelTest {
     )
 
     private fun stubAnnotationDao(pendingBookCount: Int): AnnotationDao = object : AnnotationDao {
-        override fun observeForItem(serverId: String, itemId: String) = flowOf(emptyList<AnnotationEntity>())
-        override fun observeForServer(serverId: String) = flowOf(emptyList<AnnotationEntity>())
-        override suspend fun getForItem(serverId: String, itemId: String) = emptyList<AnnotationEntity>()
-        override suspend fun getAllForItemIncludingDeleted(serverId: String, itemId: String) = emptyList<AnnotationEntity>()
+        override fun observeForItem(sourceId: String, itemId: String) = flowOf(emptyList<AnnotationEntity>())
+        override fun observeForSource(sourceId: String) = flowOf(emptyList<AnnotationEntity>())
+        override suspend fun getForItem(sourceId: String, itemId: String) = emptyList<AnnotationEntity>()
+        override suspend fun getAllForItemIncludingDeleted(sourceId: String, itemId: String) = emptyList<AnnotationEntity>()
         override suspend fun getById(id: String): AnnotationEntity? = null
-        override suspend fun getByItemAndCfi(serverId: String, itemId: String, cfi: String): AnnotationEntity? = null
+        override suspend fun getByItemAndCfi(sourceId: String, itemId: String, cfi: String): AnnotationEntity? = null
         override suspend fun upsert(entity: AnnotationEntity) {}
         override suspend fun upsertAll(annotations: List<AnnotationEntity>) {}
         override suspend fun tombstone(id: String, updatedAt: Long, deviceId: String) {}
         override suspend fun recolor(id: String, color: String, updatedAt: Long, deviceId: String) {}
         override suspend fun updateNote(id: String, note: String?, updatedAt: Long, deviceId: String) {}
-        override fun observeAnnotationsByPosition(serverId: String, itemId: String) = flowOf(emptyList<AnnotationEntity>())
+        override fun observeAnnotationsByPosition(sourceId: String, itemId: String) = flowOf(emptyList<AnnotationEntity>())
         override suspend fun renameBookmark(id: String, title: String, updatedAt: Long, deviceId: String) {}
-        override fun observePendingCountForBook(serverId: String, itemId: String) = flowOf(0)
+        override fun observePendingCountForBook(sourceId: String, itemId: String) = flowOf(0)
         override fun observePendingBookCountAcrossAll() = flowOf(pendingBookCount)
-        override suspend fun dirtyServerItems() = emptyList<AnnotationDao.DirtyServerItem>()
+        override suspend fun dirtySourceItems() = emptyList<AnnotationDao.DirtySourceItem>()
         override suspend fun markSynced(ids: List<String>, syncedAt: Long) {}
-        override suspend fun purgeAgedTombstones(serverId: String, itemId: String, cutoff: Long): Int = 0
-        override fun observeBooksWithHighlights(serverId: String) =
+        override suspend fun purgeAgedTombstones(sourceId: String, itemId: String, cutoff: Long): Int = 0
+        override fun observeBooksWithHighlights(sourceId: String) =
             flowOf(emptyList<com.riffle.core.database.BookHighlightSummary>())
     }
 
@@ -283,7 +283,7 @@ class SettingsViewModelTest {
             override fun clearAllCrashReports() = Unit
         },
         formattingPreferencesStore = noOpFormattingStore,
-        serverRepository = fakeServerRepo(),
+        sourceRepository = fakeServerRepo(),
         libraryObserver = fakeLibraryRepo(),
         visibilityStore = fakeVisibilityStore(),
         orderStore = fakeOrderStore(),
@@ -357,7 +357,7 @@ class SettingsViewModelTest {
 
     @Test
     fun `removeServer active server promotes the next browsable server, never a Storyteller`() = runTest {
-        // ADR 0026: a Storyteller Server can never become the active browsable Server, so removing
+        // ADR 0026: a Storyteller Source can never become the active browsable Source, so removing
         // the active ABS server must skip the Storyteller and promote the next ABS server.
         serversFlow.value = listOf(
             server("abs-1", active = true),
@@ -398,7 +398,7 @@ class SettingsViewModelTest {
         backgroundScope.launch { vm.libraryUiItemsByServer.collect {} }
         testDispatcher.scheduler.advanceUntilIdle()
 
-        vm.setLibraryVisible(serverId = "srv-1", libraryId = "lib-1", visible = false)
+        vm.setLibraryVisible(sourceId = "srv-1", libraryId = "lib-1", visible = false)
         testDispatcher.scheduler.advanceUntilIdle()
 
         val hidden = hiddenFlow.value["srv-1"].orEmpty()
@@ -414,7 +414,7 @@ class SettingsViewModelTest {
         backgroundScope.launch { vm.libraryUiItemsByServer.collect {} }
         testDispatcher.scheduler.advanceUntilIdle()
 
-        vm.setLibraryVisible(serverId = "srv-1", libraryId = "lib-1", visible = true)
+        vm.setLibraryVisible(sourceId = "srv-1", libraryId = "lib-1", visible = true)
         testDispatcher.scheduler.advanceUntilIdle()
 
         val hidden = hiddenFlow.value["srv-1"].orEmpty()
@@ -525,20 +525,20 @@ class SettingsViewModelTest {
     }
 
     private fun pending(bookId: String) = PendingReadaloud(
-        storytellerServerId = "st-1", storytellerBookId = bookId,
+        storytellerSourceId = "st-1", storytellerBookId = bookId,
         title = bookId, author = "", coverUrl = null, candidates = emptyList(),
     )
 
     private fun unmatched(bookId: String) = UnmatchedReadaloud(
-        storytellerServerId = "st-1", storytellerBookId = bookId,
+        storytellerSourceId = "st-1", storytellerBookId = bookId,
         title = bookId, author = "", coverUrl = null,
     )
 
     private fun confirmed(bookId: String, hasEbook: Boolean = true, hasAudio: Boolean = true) = ConfirmedReadaloud(
-        storytellerServerId = "st-1", storytellerBookId = bookId, title = bookId,
+        storytellerSourceId = "st-1", storytellerBookId = bookId, title = bookId,
         targets = listOf(
             ConfirmedReadaloud.ConfirmedTarget(
-                absServerId = "abs", absLibraryItemId = bookId, absTitle = bookId,
+                absSourceId = "abs", absLibraryItemId = bookId, absTitle = bookId,
                 absLibraryName = "lib", hasEbook = hasEbook, hasAudio = hasAudio,
             )
         ),
@@ -792,7 +792,7 @@ class SettingsViewModelTest {
 
     // Regression: the WebDAV row copy is "$N book(s) pending" and N must reflect *books*, not
     // dirty annotation rows. Wired through AnnotationDao.observePendingBookCountAcrossAll, which
-    // counts distinct (serverId, itemId). This test pins the wording; AnnotationDaoTest pins the
+    // counts distinct (sourceId, itemId). This test pins the wording; AnnotationDaoTest pins the
     // SQL. Together they prevent the "8 highlights on 1 book showing as '8 books pending'" bug.
     @Test
     fun `annotationSyncRow reads book count into 'N book(s) pending' copy`() = runTest {

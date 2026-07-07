@@ -27,10 +27,10 @@ class PositionOrchestratorTest {
     private class FakeReadingPositionStore : ReadingPositionStore {
         val savedTimestamps = mutableListOf<Pair<Long, String>>()
         var localUpdatedAt: Long = 100L
-        override suspend fun save(serverId: String, itemId: String, payload: String) { }
-        override suspend fun load(serverId: String, itemId: String): String? = null
-        override suspend fun loadLocalUpdatedAt(serverId: String, itemId: String): Long = localUpdatedAt
-        override suspend fun updateLocalTimestamp(serverId: String, itemId: String, millis: Long) {
+        override suspend fun save(sourceId: String, itemId: String, payload: String) { }
+        override suspend fun load(sourceId: String, itemId: String): String? = null
+        override suspend fun loadLocalUpdatedAt(sourceId: String, itemId: String): Long = localUpdatedAt
+        override suspend fun updateLocalTimestamp(sourceId: String, itemId: String, millis: Long) {
             savedTimestamps.add(millis to itemId)
         }
     }
@@ -71,7 +71,7 @@ class PositionOrchestratorTest {
 
     private fun makeOrchestrator(
         itemId: String = "item1",
-        serverId: String = "server1",
+        sourceId: String = "server1",
     ): Triple<PositionOrchestrator, FakePositionSaveCoordinator, FakeReadingPositionStore> {
         val fakeSave = FakePositionSaveCoordinator()
         val fakeStore = FakeReadingPositionStore()
@@ -79,7 +79,7 @@ class PositionOrchestratorTest {
         val orchestrator = PositionOrchestrator(scope)
         orchestrator.bindBook(
             itemId = itemId,
-            serverId = serverId,
+            sourceId = sourceId,
             positionSaveCoordinator = fakeSave.coordinator,
             readingPositionStore = fakeStore,
             spinePositionCounts = MutableStateFlow(emptyList<String>() to emptyList()),
@@ -136,7 +136,7 @@ class PositionOrchestratorTest {
         val orchestrator = PositionOrchestrator(scope)
         orchestrator.bindBook(
             itemId = "item1",
-            serverId = "server1",
+            sourceId = "server1",
             positionSaveCoordinator = FakePositionSaveCoordinator().coordinator,
             readingPositionStore = FakeReadingPositionStore(),
             spinePositionCounts = MutableStateFlow(emptyList<String>() to emptyList()),
@@ -177,7 +177,7 @@ class PositionOrchestratorTest {
         // Bind a new book
         orchestrator.bindBook(
             itemId = "item2",
-            serverId = "server1",
+            sourceId = "server1",
             positionSaveCoordinator = FakePositionSaveCoordinator().coordinator,
             readingPositionStore = FakeReadingPositionStore(),
             spinePositionCounts = MutableStateFlow(emptyList<String>() to emptyList()),

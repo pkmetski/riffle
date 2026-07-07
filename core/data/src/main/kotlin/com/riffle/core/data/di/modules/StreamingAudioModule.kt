@@ -23,7 +23,7 @@ import com.riffle.core.domain.LocalStore
 import com.riffle.core.domain.ReadaloudAudioRepository
 import com.riffle.core.domain.ReadaloudLinkRepository
 import com.riffle.core.domain.ReadaloudReviewRepository
-import com.riffle.core.domain.ServerRepository
+import com.riffle.core.domain.SourceRepository
 import com.riffle.core.domain.TokenStorage
 import com.riffle.core.network.AudiobookBundleApiImpl
 import com.riffle.core.network.StorytellerBundleApiImpl
@@ -106,9 +106,9 @@ abstract class StreamingAudioModule {
             api = api,
             // Write into the same Downloads EPUB store the reader reads from — the synced bundle is
             // both the EPUB and the audio source (ADR 0023), so they share one file. Must mirror
-            // LocalStoreImpl's dir/<serverId>/<id> layout so downloadsStore.get(serverId, id) finds it.
-            targetFileProvider = { serverId, id ->
-                context.filesDir.resolve("downloads/epubs").resolve(serverId).also { it.mkdirs() }.resolve("$id.epub")
+            // LocalStoreImpl's dir/<sourceId>/<id> layout so downloadsStore.get(sourceId, id) finds it.
+            targetFileProvider = { sourceId, id ->
+                context.filesDir.resolve("downloads/epubs").resolve(sourceId).also { it.mkdirs() }.resolve("$id.epub")
             },
             dispatchers = dispatchers,
         )
@@ -120,7 +120,7 @@ abstract class StreamingAudioModule {
             bundleProbe: StorytellerBundleApiImpl,
             @EpubCacheStore cacheStore: LocalStore,
             @EpubDownloadsStore downloadsStore: LocalStore,
-            serverRepository: ServerRepository,
+            sourceRepository: SourceRepository,
             tokenStorage: TokenStorage,
             dispatchers: com.riffle.core.domain.DispatcherProvider,
         ): ReadaloudAudioRepository = ReadaloudAudioRepositoryImpl(
@@ -128,7 +128,7 @@ abstract class StreamingAudioModule {
             bundleProbe = bundleProbe,
             cacheStore = cacheStore,
             downloadsStore = downloadsStore,
-            serverRepository = serverRepository,
+            sourceRepository = sourceRepository,
             tokenStorage = tokenStorage,
             dispatchers = dispatchers,
         )

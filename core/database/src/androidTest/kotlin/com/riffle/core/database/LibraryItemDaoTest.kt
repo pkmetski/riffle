@@ -33,8 +33,8 @@ class LibraryItemDaoTest {
         dao = db.libraryItemDao()
         // library_items FK-references servers; seed the owning Servers first.
         runBlocking {
-            db.serverDao().upsert(ServerEntity("s1", "http://s1", isActive = true, insecureConnectionAllowed = false, username = "u"))
-            db.serverDao().upsert(ServerEntity("s2", "http://s2", isActive = false, insecureConnectionAllowed = false, username = "u"))
+            db.sourceDao().upsert(SourceEntity("s1", "http://s1", isActive = true, insecureConnectionAllowed = false, username = "u"))
+            db.sourceDao().upsert(SourceEntity("s2", "http://s2", isActive = false, insecureConnectionAllowed = false, username = "u"))
         }
     }
 
@@ -47,9 +47,9 @@ class LibraryItemDaoTest {
         id: String,
         readingProgress: Float,
         lastOpenedAt: Long? = null,
-        serverId: String = "s1",
+        sourceId: String = "s1",
     ) = LibraryItemEntity(
-        serverId = serverId,
+        sourceId = sourceId,
         id = id,
         libraryId = "lib1",
         title = "Title $id",
@@ -133,12 +133,12 @@ class LibraryItemDaoTest {
     }
 
     // A0 — two Servers can hold a book with the same itemId without colliding; getById resolves
-    // the right one by (serverId, itemId). This is the core fix for issue #81.
+    // the right one by (sourceId, itemId). This is the core fix for issue #81.
     @Test
     fun getById_distinguishesSameItemIdAcrossServers() = runTest {
         dao.upsertAll(listOf(
-            item("1", readingProgress = 0.25f, serverId = "s1").copy(title = "War and Peace"),
-            item("1", readingProgress = 0.5f, serverId = "s2").copy(title = "A Different Book"),
+            item("1", readingProgress = 0.25f, sourceId = "s1").copy(title = "War and Peace"),
+            item("1", readingProgress = 0.5f, sourceId = "s2").copy(title = "A Different Book"),
         ))
 
         assertEquals("War and Peace", dao.getById("s1", "1")?.title)
@@ -154,33 +154,33 @@ class LibraryItemDaoTest {
     fun listMatchableByServerType_doesNotDuplicateAcrossServersWithCollidingLibraryIds() = runTest {
         // s1 and s2 are seeded with the default serverType AUDIOBOOKSHELF in @Before.
         db.libraryDao().upsertAll(listOf(
-            LibraryEntity(id = "shared-lib", name = "L1", mediaType = "book", serverId = "s1"),
-            LibraryEntity(id = "shared-lib", name = "L1", mediaType = "book", serverId = "s2"),
+            LibraryEntity(id = "shared-lib", name = "L1", mediaType = "book", sourceId = "s1"),
+            LibraryEntity(id = "shared-lib", name = "L1", mediaType = "book", sourceId = "s2"),
         ))
         dao.upsertAll(listOf(
-            item("a", readingProgress = 0f, serverId = "s1").copy(libraryId = "shared-lib"),
-            item("b", readingProgress = 0f, serverId = "s2").copy(libraryId = "shared-lib"),
+            item("a", readingProgress = 0f, sourceId = "s1").copy(libraryId = "shared-lib"),
+            item("b", readingProgress = 0f, sourceId = "s2").copy(libraryId = "shared-lib"),
         ))
 
-        val rows = dao.listMatchableByServerType("AUDIOBOOKSHELF")
-        val keys = rows.map { it.serverId to it.itemId }
+        val rows = dao.listMatchableBySourceType("AUDIOBOOKSHELF")
+        val keys = rows.map { it.sourceId to it.itemId }
 
         assertEquals(setOf("s1" to "a", "s2" to "b"), keys.toSet())
         assertEquals("each item must appear once, not duplicated by the library-id JOIN", keys.toSet().size, keys.size)
     }
 
-    // A0c — library-scoped queries (ADR 0025) must isolate by serverId. Two Servers sharing
+    // A0c — library-scoped queries (ADR 0025) must isolate by sourceId. Two Servers sharing
     // a library id with overlapping item ids must each see only their own rows.
     @Test
     fun observeByLibraryId_scopesByServerId() = runTest {
         dao.upsertAll(listOf(
-            item("1", readingProgress = 0.3f, serverId = "s1").copy(libraryId = "shared-lib", title = "S1 Book 1"),
-            item("2", readingProgress = 0.7f, serverId = "s1").copy(libraryId = "shared-lib", title = "S1 Book 2"),
-            item("1", readingProgress = 0.4f, serverId = "s2").copy(libraryId = "shared-lib", title = "S2 Book 1"),
+            item("1", readingProgress = 0.3f, sourceId = "s1").copy(libraryId = "shared-lib", title = "S1 Book 1"),
+            item("2", readingProgress = 0.7f, sourceId = "s1").copy(libraryId = "shared-lib", title = "S1 Book 2"),
+            item("1", readingProgress = 0.4f, sourceId = "s2").copy(libraryId = "shared-lib", title = "S2 Book 1"),
         ))
 
-        val s1 = dao.observeByLibraryId("s1", "shared-lib").first().map { it.serverId to it.id }
-        val s2 = dao.observeByLibraryId("s2", "shared-lib").first().map { it.serverId to it.id }
+        val s1 = dao.observeByLibraryId("s1", "shared-lib").first().map { it.sourceId to it.id }
+        val s2 = dao.observeByLibraryId("s2", "shared-lib").first().map { it.sourceId to it.id }
 
         assertEquals(setOf("s1" to "1", "s1" to "2"), s1.toSet())
         assertEquals(setOf("s2" to "1"), s2.toSet())

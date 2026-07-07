@@ -15,12 +15,12 @@ import com.riffle.core.database.SeriesDao
 import com.riffle.core.database.SeriesEntity
 import com.riffle.core.database.SeriesItemEntity
 import com.riffle.core.domain.AuthenticateResult
-import com.riffle.core.domain.CommitServerResult
+import com.riffle.core.domain.CommitSourceResult
 import com.riffle.core.domain.LibraryRefreshResult
-import com.riffle.core.domain.PendingServer
-import com.riffle.core.domain.Server
-import com.riffle.core.domain.ServerRepository
-import com.riffle.core.domain.ServerUrl
+import com.riffle.core.domain.PendingSource
+import com.riffle.core.domain.Source
+import com.riffle.core.domain.SourceRepository
+import com.riffle.core.domain.SourceUrl
 import com.riffle.core.domain.TokenStorage
 import com.riffle.core.network.AbsApiClient
 import kotlinx.coroutines.flow.Flow
@@ -44,23 +44,23 @@ class SeriesIntegrationTest {
 
     private lateinit var mockServer: MockWebServer
 
-    private val fakeServerRepository = object : ServerRepository {
-        lateinit var server: Server
-        override fun observeAll() = MutableStateFlow(listOf(server))
-        override suspend fun getActive() = server
-        override suspend fun authenticate(url: ServerUrl, username: String, password: String, insecureAllowed: Boolean, serverType: com.riffle.core.domain.ServerType): AuthenticateResult =
+    private val fakeServerRepository = object : SourceRepository {
+        lateinit var source: Source
+        override fun observeAll() = MutableStateFlow(listOf(source))
+        override suspend fun getActive() = source
+        override suspend fun authenticate(url: SourceUrl, username: String, password: String, insecureAllowed: Boolean, serverType: com.riffle.core.domain.ServerType): AuthenticateResult =
             AuthenticateResult.NetworkError(IOException())
-        override suspend fun commit(pending: PendingServer, hiddenLibraryIds: Set<String>): CommitServerResult =
-            CommitServerResult.Failure(IOException())
-        override suspend fun setActive(serverId: String) {}
-        override suspend fun remove(serverId: String) {}
-        override suspend fun getServerVersion(serverId: String): String? = null
+        override suspend fun commit(pending: PendingSource, hiddenLibraryIds: Set<String>): CommitSourceResult =
+            CommitSourceResult.Failure(IOException())
+        override suspend fun setActive(sourceId: String) {}
+        override suspend fun remove(sourceId: String) {}
+        override suspend fun getSourceVersion(sourceId: String): String? = null
     }
 
     private val fakeTokenStorage = object : TokenStorage {
-        override suspend fun saveToken(serverId: String, token: String) {}
-        override suspend fun getToken(serverId: String) = "test-token"
-        override suspend fun deleteToken(serverId: String) {}
+        override suspend fun saveToken(sourceId: String, token: String) {}
+        override suspend fun getToken(sourceId: String) = "test-token"
+        override suspend fun deleteToken(sourceId: String) {}
     }
 
     @Before
@@ -68,9 +68,9 @@ class SeriesIntegrationTest {
         mockServer = MockWebServer()
         mockServer.start()
         val serverUrl = mockServer.url("/").toString().trimEnd('/')
-        fakeServerRepository.server = Server(
+        fakeServerRepository.source = Source(
             id = "s1",
-            url = ServerUrl.parse(serverUrl)!!,
+            url = SourceUrl.parse(serverUrl)!!,
             isActive = true,
             insecureConnectionAllowed = false,
             username = "",
@@ -89,10 +89,10 @@ class SeriesIntegrationTest {
         private val itemData = mutableMapOf<String, MutableStateFlow<List<LibraryItemEntity>>>()
         override fun observeByLibraryId(libraryId: String): Flow<List<SeriesEntity>> =
             seriesData.getOrPut(libraryId) { MutableStateFlow(emptyList()) }
-        override fun observeItemsBySeriesId(serverId: String, seriesId: String): Flow<List<LibraryItemEntity>> =
+        override fun observeItemsBySeriesId(sourceId: String, seriesId: String): Flow<List<LibraryItemEntity>> =
             itemData.getOrPut(seriesId) { MutableStateFlow(emptyList()) }
-        override suspend fun findSeriesIdForItem(serverId: String, itemId: String): String? = null
-        override fun observeContinueSeriesItems(serverId: String, libraryId: String): Flow<List<LibraryItemEntity>> = MutableStateFlow(emptyList())
+        override suspend fun findSeriesIdForItem(sourceId: String, itemId: String): String? = null
+        override fun observeContinueSeriesItems(sourceId: String, libraryId: String): Flow<List<LibraryItemEntity>> = MutableStateFlow(emptyList())
         override suspend fun upsertAll(series: List<SeriesEntity>) { upsertedSeries.addAll(series) }
         override suspend fun upsertAllItems(items: List<SeriesItemEntity>) { upsertedItems.addAll(items) }
         override suspend fun deleteByLibraryId(libraryId: String) {}
@@ -100,41 +100,41 @@ class SeriesIntegrationTest {
     }
 
     private class FakeLibraryDao : LibraryDao {
-        override fun observeByServerId(serverId: String): Flow<List<LibraryEntity>> = MutableStateFlow(emptyList())
-        override suspend fun libraryIdsForServer(serverId: String): List<String> = emptyList()
-        override suspend fun getById(serverId: String, libraryId: String): LibraryEntity? = null
+        override fun observeBySourceId(sourceId: String): Flow<List<LibraryEntity>> = MutableStateFlow(emptyList())
+        override suspend fun libraryIdsForSource(sourceId: String): List<String> = emptyList()
+        override suspend fun getById(sourceId: String, libraryId: String): LibraryEntity? = null
         override suspend fun upsertAll(libraries: List<LibraryEntity>) {}
-        override suspend fun deleteByServerId(serverId: String) {}
-        override suspend fun setUnsupported(serverId: String, libraryId: String, isUnsupported: Boolean) {}
+        override suspend fun deleteBySourceId(sourceId: String) {}
+        override suspend fun setUnsupported(sourceId: String, libraryId: String, isUnsupported: Boolean) {}
     }
 
     private class FakeLibraryItemDao : LibraryItemDao {
-        override fun observeByLibraryId(serverId: String, libraryId: String): Flow<List<LibraryItemEntity>> = MutableStateFlow(emptyList())
-        override fun observeByServer(serverId: String): Flow<List<LibraryItemEntity>> = MutableStateFlow(emptyList())
-        override fun observeUngroupedByLibraryId(serverId: String, libraryId: String): Flow<List<LibraryItemEntity>> = MutableStateFlow(emptyList())
-        override fun observeInProgress(serverId: String, libraryId: String): Flow<List<LibraryItemEntity>> = MutableStateFlow(emptyList())
-        override fun observeFinished(serverId: String, libraryId: String): Flow<List<LibraryItemEntity>> = MutableStateFlow(emptyList())
-        override fun observeRecentlyAdded(serverId: String, libraryId: String): Flow<List<LibraryItemEntity>> = MutableStateFlow(emptyList())
-        override fun observeAllBooks(serverId: String, libraryId: String): Flow<List<LibraryItemEntity>> = MutableStateFlow(emptyList())
-        override suspend fun getById(serverId: String, itemId: String): LibraryItemEntity? = null
-        override fun observeById(serverId: String, itemId: String): Flow<LibraryItemEntity?> = MutableStateFlow(null)
-        override suspend fun findServerIdForItem(itemId: String): String? = null
+        override fun observeByLibraryId(sourceId: String, libraryId: String): Flow<List<LibraryItemEntity>> = MutableStateFlow(emptyList())
+        override fun observeUngroupedByLibraryId(sourceId: String, libraryId: String): Flow<List<LibraryItemEntity>> = MutableStateFlow(emptyList())
+        override fun observeInProgress(sourceId: String, libraryId: String): Flow<List<LibraryItemEntity>> = MutableStateFlow(emptyList())
+        override fun observeFinished(sourceId: String, libraryId: String): Flow<List<LibraryItemEntity>> = MutableStateFlow(emptyList())
+        override fun observeRecentlyAdded(sourceId: String, libraryId: String): Flow<List<LibraryItemEntity>> = MutableStateFlow(emptyList())
+        override fun observeAllBooks(sourceId: String, libraryId: String): Flow<List<LibraryItemEntity>> = MutableStateFlow(emptyList())
+        override suspend fun getById(sourceId: String, itemId: String): LibraryItemEntity? = null
+        override fun observeById(sourceId: String, itemId: String): Flow<LibraryItemEntity?> = MutableStateFlow(null)
+        override suspend fun findSourceIdForItem(itemId: String): String? = null
         override suspend fun upsertAll(items: List<LibraryItemEntity>) {}
         override suspend fun insertOrIgnore(items: List<LibraryItemEntity>) {}
         override suspend fun updateMetadata(metadata: com.riffle.core.database.LibraryItemMetadata) {}
-        override suspend fun deleteByLibraryId(serverId: String, libraryId: String) {}
-        override suspend fun deleteRemovedFromLibrary(serverId: String, libraryId: String, serverItemIds: List<String>) {}
-        override suspend fun updateLastOpenedAt(serverId: String, itemId: String, timestamp: Long) {}
-        override suspend fun getLastOpenedAtMap(serverId: String, libraryId: String): List<LastOpenedAtRow> = emptyList()
-        override suspend fun getReadingProgressMap(serverId: String, libraryId: String): List<ReadingProgressRow> = emptyList()
-        override suspend fun updateReadingProgress(serverId: String, itemId: String, progress: Float) {}
-        override suspend fun updateFinishedAt(serverId: String, itemId: String, finishedAt: Long?) {}
-        override suspend fun listMatchableByServerType(serverType: String): List<com.riffle.core.database.MatchableItemRow> = emptyList()
+        override suspend fun deleteByLibraryId(sourceId: String, libraryId: String) {}
+        override suspend fun deleteRemovedFromLibrary(sourceId: String, libraryId: String, serverItemIds: List<String>) {}
+        override suspend fun updateLastOpenedAt(sourceId: String, itemId: String, timestamp: Long) {}
+        override suspend fun getLastOpenedAtMap(sourceId: String, libraryId: String): List<LastOpenedAtRow> = emptyList()
+        override suspend fun getReadingProgressMap(sourceId: String, libraryId: String): List<ReadingProgressRow> = emptyList()
+        override suspend fun updateReadingProgress(sourceId: String, itemId: String, progress: Float) {}
+        override suspend fun updateFinishedAt(sourceId: String, itemId: String, finishedAt: Long?) {}
+        override suspend fun listMatchableBySourceType(serverType: String): List<com.riffle.core.database.MatchableItemRow> = emptyList()
+        override fun observeBySource(sourceId: String): Flow<List<LibraryItemEntity>> = kotlinx.coroutines.flow.flowOf(emptyList())
     }
 
     private class FakeCollectionDao : CollectionDao {
         override fun observeByLibraryId(libraryId: String): Flow<List<CollectionEntity>> = MutableStateFlow(emptyList())
-        override fun observeItemsByCollectionId(serverId: String, collectionId: String): Flow<List<LibraryItemEntity>> = MutableStateFlow(emptyList())
+        override fun observeItemsByCollectionId(sourceId: String, collectionId: String): Flow<List<LibraryItemEntity>> = MutableStateFlow(emptyList())
         override suspend fun upsertAll(collections: List<CollectionEntity>) {}
         override suspend fun upsertAllItems(items: List<CollectionItemEntity>) {}
         override suspend fun deleteByLibraryId(libraryId: String) {}
@@ -149,7 +149,7 @@ class SeriesIntegrationTest {
             libraryItemDao = itemDao,
             seriesDao = seriesDao,
             collectionDao = FakeCollectionDao(),
-            serverRepository = fakeServerRepository,
+            sourceRepository = fakeServerRepository,
             tokenStorage = fakeTokenStorage,
             clock = com.riffle.core.domain.TestClock(),
         )
@@ -241,7 +241,7 @@ class SeriesIntegrationTest {
     }
 
     @Test
-    fun `refreshSeries when server returns 401 returns NetworkError`() = runTest {
+    fun `refreshSeries when source returns 401 returns NetworkError`() = runTest {
         mockServer.enqueue(MockResponse().setResponseCode(401).setBody("""{"error":"Unauthorized"}"""))
 
         val result = makeRepo().refreshSeries("e77c113d-4383-488d-956f-89c18db431ac")

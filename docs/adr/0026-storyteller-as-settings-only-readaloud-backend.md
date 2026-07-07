@@ -1,5 +1,7 @@
 # ADR 0026 — Storyteller is a Settings-only Readaloud backend, not a browsable peer Server
 
+> **Superseded by [ADR 0041](0041-source-and-service-abstractions-replace-server.md)** — the Settings-only/no-browse-surface behaviour is preserved, but the framing changes: Storyteller is a **Service**, not a special-case Server. The "why it's a Server but not really" language this ADR wrote to justify the carve-out is no longer needed.
+
 **Status:** Accepted
 **Supersedes:** [ADR 0020](0020-storyteller-as-peer-server-and-readaloud-library.md) (Storyteller as a peer Server type contributing a Readaloud Library).
 **Amends:** [ADR 0019](0019-three-peer-unified-canonical-progress-sync.md), [ADR 0021](0021-storyteller-abs-matching-with-review-queue.md).

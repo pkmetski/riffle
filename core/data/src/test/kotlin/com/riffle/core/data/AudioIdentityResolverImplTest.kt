@@ -43,34 +43,34 @@ class AudioIdentityResolverImplTest {
         assertEquals(AudioIdentity("st-1", "42"), resolver.resolveForStorytellerBook("st-1", "42"))
     }
 
-    private fun link(absServerId: String, absItemId: String, stServerId: String, stBookId: String) =
-        ReadaloudLinkEntity(absServerId, absItemId, stServerId, stBookId, ReadaloudLinkEntity.STATE_CONFIRMED, true, 1L, 1L)
+    private fun link(absSourceId: String, absItemId: String, stServerId: String, stBookId: String) =
+        ReadaloudLinkEntity(absSourceId, absItemId, stServerId, stBookId, ReadaloudLinkEntity.STATE_CONFIRMED, true, 1L, 1L)
 
-    private fun item(serverId: String, id: String, hasAudio: Boolean) =
-        LibraryItemEntity(serverId, id, "lib", "Title", "Author", null, 0f, hasAudio = hasAudio)
+    private fun item(sourceId: String, id: String, hasAudio: Boolean) =
+        LibraryItemEntity(sourceId, id, "lib", "Title", "Author", null, 0f, hasAudio = hasAudio)
 
     private class FakeLinkDao : ReadaloudLinkDao {
-        override suspend fun updateIdentityResult(absServerId: String, absLibraryItemId: String, result: String) = Unit
+        override suspend fun updateIdentityResult(absSourceId: String, absLibraryItemId: String, result: String) = Unit
         private val store = mutableMapOf<Pair<String, String>, ReadaloudLinkEntity>()
-        fun seed(e: ReadaloudLinkEntity) { store[e.absServerId to e.absLibraryItemId] = e }
-        override suspend fun upsert(entity: ReadaloudLinkEntity) { store[entity.absServerId to entity.absLibraryItemId] = entity }
-        override suspend fun findByAbsItem(absServerId: String, absLibraryItemId: String) = store[absServerId to absLibraryItemId]
-        override suspend fun findByStorytellerBook(storytellerServerId: String, storytellerBookId: String) =
-            store.values.filter { it.storytellerServerId == storytellerServerId && it.storytellerBookId == storytellerBookId }
+        fun seed(e: ReadaloudLinkEntity) { store[e.absSourceId to e.absLibraryItemId] = e }
+        override suspend fun upsert(entity: ReadaloudLinkEntity) { store[entity.absSourceId to entity.absLibraryItemId] = entity }
+        override suspend fun findByAbsItem(absSourceId: String, absLibraryItemId: String) = store[absSourceId to absLibraryItemId]
+        override suspend fun findByStorytellerBook(storytellerSourceId: String, storytellerBookId: String) =
+            store.values.filter { it.storytellerSourceId == storytellerSourceId && it.storytellerBookId == storytellerBookId }
         override fun observeAll(): Flow<List<ReadaloudLinkEntity>> = flowOf(store.values.toList())
         override suspend fun allRows() = store.values.toList()
         override fun observeLinkedAbsItemIds(): Flow<List<String>> = flowOf(store.values.map { it.absLibraryItemId })
-        override suspend fun countForServer(serverId: String) = 0
-        override suspend fun deleteByAbsItem(absServerId: String, absLibraryItemId: String) { store.remove(absServerId to absLibraryItemId) }
-        override suspend fun deleteByStorytellerBook(storytellerServerId: String, storytellerBookId: String) {
-            store.values.filter { it.storytellerServerId == storytellerServerId && it.storytellerBookId == storytellerBookId }
-                .forEach { store.remove(it.absServerId to it.absLibraryItemId) }
+        override suspend fun countForSource(sourceId: String) = 0
+        override suspend fun deleteByAbsItem(absSourceId: String, absLibraryItemId: String) { store.remove(absSourceId to absLibraryItemId) }
+        override suspend fun deleteByStorytellerBook(storytellerSourceId: String, storytellerBookId: String) {
+            store.values.filter { it.storytellerSourceId == storytellerSourceId && it.storytellerBookId == storytellerBookId }
+                .forEach { store.remove(it.absSourceId to it.absLibraryItemId) }
         }
     }
 
     private class FakeLibraryItemDao : LibraryItemDao by ThrowingLibraryItemDao {
         private val items = mutableMapOf<Pair<String, String>, LibraryItemEntity>()
-        fun seed(e: LibraryItemEntity) { items[e.serverId to e.id] = e }
-        override suspend fun getById(serverId: String, itemId: String) = items[serverId to itemId]
+        fun seed(e: LibraryItemEntity) { items[e.sourceId to e.id] = e }
+        override suspend fun getById(sourceId: String, itemId: String) = items[sourceId to itemId]
     }
 }

@@ -20,39 +20,39 @@ class SyncPositionStoreTest {
 
     private class FakeReadingDao : ReadingPositionDao {
         val rows = mutableMapOf<Pair<String, String>, ReadingPositionEntity>()
-        override suspend fun upsert(entity: ReadingPositionEntity) { rows[entity.serverId to entity.itemId] = entity }
-        override suspend fun getByItemId(serverId: String, itemId: String) = rows[serverId to itemId]
-        override suspend fun updateLocalTimestamp(serverId: String, itemId: String, millis: Long) {
-            rows[serverId to itemId]?.let { rows[serverId to itemId] = it.copy(localUpdatedAt = millis) }
+        override suspend fun upsert(entity: ReadingPositionEntity) { rows[entity.sourceId to entity.itemId] = entity }
+        override suspend fun getByItemId(sourceId: String, itemId: String) = rows[sourceId to itemId]
+        override suspend fun updateLocalTimestamp(sourceId: String, itemId: String, millis: Long) {
+            rows[sourceId to itemId]?.let { rows[sourceId to itemId] = it.copy(localUpdatedAt = millis) }
         }
         override suspend fun acceptServerIfUnchanged(
-            serverId: String, itemId: String, position: String, serverStamp: Long, ifLocalUpdatedAt: Long,
+            sourceId: String, itemId: String, position: String, serverStamp: Long, ifLocalUpdatedAt: Long,
         ): Int {
-            val e = rows[serverId to itemId] ?: return 0
+            val e = rows[sourceId to itemId] ?: return 0
             if (e.localUpdatedAt != ifLocalUpdatedAt) return 0
-            rows[serverId to itemId] = e.copy(cfi = position, localUpdatedAt = serverStamp, lastSyncedAt = serverStamp)
+            rows[sourceId to itemId] = e.copy(cfi = position, localUpdatedAt = serverStamp, lastSyncedAt = serverStamp)
             return 1
         }
         override suspend fun confirmPushedIfUnchanged(
-            serverId: String, itemId: String, serverStamp: Long, ifLocalUpdatedAt: Long,
+            sourceId: String, itemId: String, serverStamp: Long, ifLocalUpdatedAt: Long,
         ): Int {
-            val e = rows[serverId to itemId] ?: return 0
+            val e = rows[sourceId to itemId] ?: return 0
             if (e.localUpdatedAt != ifLocalUpdatedAt) return 0
-            rows[serverId to itemId] = e.copy(localUpdatedAt = serverStamp, lastSyncedAt = serverStamp)
+            rows[sourceId to itemId] = e.copy(localUpdatedAt = serverStamp, lastSyncedAt = serverStamp)
             return 1
         }
         override suspend fun confirmInSyncIfUnchanged(
-            serverId: String, itemId: String, ifLocalUpdatedAt: Long,
+            sourceId: String, itemId: String, ifLocalUpdatedAt: Long,
         ): Int {
-            val e = rows[serverId to itemId] ?: return 0
+            val e = rows[sourceId to itemId] ?: return 0
             if (e.localUpdatedAt != ifLocalUpdatedAt) return 0
-            rows[serverId to itemId] = e.copy(lastSyncedAt = e.localUpdatedAt)
+            rows[sourceId to itemId] = e.copy(lastSyncedAt = e.localUpdatedAt)
             return 1
         }
-        override suspend fun dirtyForServer(serverId: String) =
-            rows.values.filter { it.serverId == serverId && it.localUpdatedAt > it.lastSyncedAt }
-        override suspend fun serversWithDirtyRows() =
-            rows.values.filter { it.localUpdatedAt > it.lastSyncedAt }.map { it.serverId }.distinct()
+        override suspend fun dirtyForSource(sourceId: String) =
+            rows.values.filter { it.sourceId == sourceId && it.localUpdatedAt > it.lastSyncedAt }
+        override suspend fun sourcesWithDirtyRows() =
+            rows.values.filter { it.localUpdatedAt > it.lastSyncedAt }.map { it.sourceId }.distinct()
     }
 
     // --- snapshot ---
@@ -74,16 +74,16 @@ class SyncPositionStoreTest {
         assertEquals(0L, snap.lastSyncedAt)
     }
 
-    // --- acceptServerPosition (server wins) ---
+    // --- acceptServerPosition (source wins) ---
 
     @Test
     fun `acceptServerPosition persists position and clean stamps when unchanged`() = runTest {
         val dao = FakeReadingDao().apply { rows["s" to "i"] = ReadingPositionEntity("s", "i", "old", 100L, 100L) }
         val applied = ReadingPositionStoreImpl(dao, com.riffle.core.domain.TestClock(System.currentTimeMillis()))
-            .acceptServerPosition("s", "i", "server", serverStamp = 200L, ifLocalUpdatedAt = 100L)
+            .acceptServerPosition("s", "i", "source", serverStamp = 200L, ifLocalUpdatedAt = 100L)
         assertTrue(applied)
         val row = dao.rows["s" to "i"]!!
-        assertEquals("server", row.cfi)
+        assertEquals("source", row.cfi)
         assertEquals(200L, row.localUpdatedAt)
         assertEquals(200L, row.lastSyncedAt) // clean
     }
@@ -92,7 +92,7 @@ class SyncPositionStoreTest {
     fun `acceptServerPosition is refused and writes nothing when localUpdatedAt advanced`() = runTest {
         val dao = FakeReadingDao().apply { rows["s" to "i"] = ReadingPositionEntity("s", "i", "fresh-local", 150L, 100L) }
         val applied = ReadingPositionStoreImpl(dao, com.riffle.core.domain.TestClock(System.currentTimeMillis()))
-            .acceptServerPosition("s", "i", "server", serverStamp = 200L, ifLocalUpdatedAt = 100L)
+            .acceptServerPosition("s", "i", "source", serverStamp = 200L, ifLocalUpdatedAt = 100L)
         assertFalse(applied)
         assertEquals("fresh-local", dao.rows["s" to "i"]!!.cfi) // not clobbered
         assertEquals(150L, dao.rows["s" to "i"]!!.localUpdatedAt)
@@ -102,10 +102,10 @@ class SyncPositionStoreTest {
     fun `acceptServerPosition creates the row when absent`() = runTest {
         val dao = FakeReadingDao()
         val applied = ReadingPositionStoreImpl(dao, com.riffle.core.domain.TestClock(System.currentTimeMillis()))
-            .acceptServerPosition("s", "i", "server", serverStamp = 200L, ifLocalUpdatedAt = 0L)
+            .acceptServerPosition("s", "i", "source", serverStamp = 200L, ifLocalUpdatedAt = 0L)
         assertTrue(applied)
         val row = dao.rows["s" to "i"]!!
-        assertEquals("server", row.cfi)
+        assertEquals("source", row.cfi)
         assertEquals(200L, row.localUpdatedAt)
         assertEquals(200L, row.lastSyncedAt)
     }
@@ -113,7 +113,7 @@ class SyncPositionStoreTest {
     // --- confirmPushed (local win confirmed) ---
 
     @Test
-    fun `confirmPushed adopts the server stamp into both timestamps when unchanged`() = runTest {
+    fun `confirmPushed adopts the source stamp into both timestamps when unchanged`() = runTest {
         val dao = FakeReadingDao().apply { rows["s" to "i"] = ReadingPositionEntity("s", "i", "cfi", 300L, 100L) }
         val applied = ReadingPositionStoreImpl(dao, com.riffle.core.domain.TestClock(System.currentTimeMillis())).confirmPushed("s", "i", serverStamp = 305L, ifLocalUpdatedAt = 300L)
         assertTrue(applied)
@@ -177,36 +177,36 @@ class SyncPositionStoreTest {
 
     private class FakeAudioDao : AudiobookPositionDao {
         val rows = mutableMapOf<Pair<String, String>, AudiobookPositionEntity>()
-        override suspend fun upsert(entity: AudiobookPositionEntity) { rows[entity.serverId to entity.itemId] = entity }
-        override suspend fun getByItemId(serverId: String, itemId: String) = rows[serverId to itemId]
+        override suspend fun upsert(entity: AudiobookPositionEntity) { rows[entity.sourceId to entity.itemId] = entity }
+        override suspend fun getByItemId(sourceId: String, itemId: String) = rows[sourceId to itemId]
         override suspend fun acceptServerIfUnchanged(
-            serverId: String, itemId: String, positionSec: Double, serverStamp: Long, ifLocalUpdatedAt: Long,
+            sourceId: String, itemId: String, positionSec: Double, serverStamp: Long, ifLocalUpdatedAt: Long,
         ): Int {
-            val e = rows[serverId to itemId] ?: return 0
+            val e = rows[sourceId to itemId] ?: return 0
             if (e.localUpdatedAt != ifLocalUpdatedAt) return 0
-            rows[serverId to itemId] = e.copy(positionSec = positionSec, localUpdatedAt = serverStamp, lastSyncedAt = serverStamp)
+            rows[sourceId to itemId] = e.copy(positionSec = positionSec, localUpdatedAt = serverStamp, lastSyncedAt = serverStamp)
             return 1
         }
         override suspend fun confirmPushedIfUnchanged(
-            serverId: String, itemId: String, serverStamp: Long, ifLocalUpdatedAt: Long,
+            sourceId: String, itemId: String, serverStamp: Long, ifLocalUpdatedAt: Long,
         ): Int {
-            val e = rows[serverId to itemId] ?: return 0
+            val e = rows[sourceId to itemId] ?: return 0
             if (e.localUpdatedAt != ifLocalUpdatedAt) return 0
-            rows[serverId to itemId] = e.copy(localUpdatedAt = serverStamp, lastSyncedAt = serverStamp)
+            rows[sourceId to itemId] = e.copy(localUpdatedAt = serverStamp, lastSyncedAt = serverStamp)
             return 1
         }
         override suspend fun confirmInSyncIfUnchanged(
-            serverId: String, itemId: String, ifLocalUpdatedAt: Long,
+            sourceId: String, itemId: String, ifLocalUpdatedAt: Long,
         ): Int {
-            val e = rows[serverId to itemId] ?: return 0
+            val e = rows[sourceId to itemId] ?: return 0
             if (e.localUpdatedAt != ifLocalUpdatedAt) return 0
-            rows[serverId to itemId] = e.copy(lastSyncedAt = e.localUpdatedAt)
+            rows[sourceId to itemId] = e.copy(lastSyncedAt = e.localUpdatedAt)
             return 1
         }
-        override suspend fun dirtyForServer(serverId: String) =
-            rows.values.filter { it.serverId == serverId && it.localUpdatedAt > it.lastSyncedAt }
-        override suspend fun serversWithDirtyRows() =
-            rows.values.filter { it.localUpdatedAt > it.lastSyncedAt }.map { it.serverId }.distinct()
+        override suspend fun dirtyForSource(sourceId: String) =
+            rows.values.filter { it.sourceId == sourceId && it.localUpdatedAt > it.lastSyncedAt }
+        override suspend fun sourcesWithDirtyRows() =
+            rows.values.filter { it.localUpdatedAt > it.lastSyncedAt }.map { it.sourceId }.distinct()
     }
 
     @Test

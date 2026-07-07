@@ -40,7 +40,7 @@ import com.riffle.core.data.AnnotatedBook
 @Composable
 fun AnnotationsListScreen(
     state: AnnotationsListUiState,
-    onBookClick: (serverId: String, itemId: String) -> Unit,
+    onBookClick: (sourceId: String, itemId: String) -> Unit,
     token: String = "",
     modifier: Modifier = Modifier,
 ) {
@@ -69,12 +69,12 @@ fun AnnotationsListScreen(
                         .fillMaxSize()
                         .fadingScrollbar(gridState),
                 ) {
-                    items(state.books, key = { "${it.serverId}_${it.itemId}" }) { book ->
+                    items(state.books, key = { "${it.sourceId}_${it.itemId}" }) { book ->
                         Box(modifier = Modifier.padding(4.dp)) {
                             AnnotatedBookCoverTile(
                                 book = book,
                                 token = token,
-                                onClick = { onBookClick(book.serverId, book.itemId) },
+                                onClick = { onBookClick(book.sourceId, book.itemId) },
                             )
                         }
                     }

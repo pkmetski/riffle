@@ -3,13 +3,13 @@ package com.riffle.core.data
 import com.riffle.core.network.NetworkResult
 
 import com.riffle.core.domain.AuthenticateResult
-import com.riffle.core.domain.CommitServerResult
-import com.riffle.core.domain.PendingServer
+import com.riffle.core.domain.CommitSourceResult
+import com.riffle.core.domain.PendingSource
 import com.riffle.core.domain.ProgressSyncCycleResult
 import com.riffle.core.domain.ReadingPositionStore
-import com.riffle.core.domain.Server
-import com.riffle.core.domain.ServerRepository
-import com.riffle.core.domain.ServerUrl
+import com.riffle.core.domain.Source
+import com.riffle.core.domain.SourceRepository
+import com.riffle.core.domain.SourceUrl
 import com.riffle.core.domain.SessionPayload
 import com.riffle.core.domain.TokenStorage
 import com.riffle.core.network.AbsSessionApi
@@ -38,15 +38,15 @@ class ProgressSyncCycleTest {
         var updatedServerId: String? = null
         var savedPayload: String? = null
         var saveCalled = false
-        override suspend fun save(serverId: String, itemId: String, payload: String) {
+        override suspend fun save(sourceId: String, itemId: String, payload: String) {
             saveCalled = true
             savedPayload = payload
             storedCfi = payload
         }
-        override suspend fun load(serverId: String, itemId: String): String? = storedCfi
-        override suspend fun loadLocalUpdatedAt(serverId: String, itemId: String): Long = localUpdatedAt
-        override suspend fun updateLocalTimestamp(serverId: String, itemId: String, millis: Long) {
-            updatedServerId = serverId
+        override suspend fun load(sourceId: String, itemId: String): String? = storedCfi
+        override suspend fun loadLocalUpdatedAt(sourceId: String, itemId: String): Long = localUpdatedAt
+        override suspend fun updateLocalTimestamp(sourceId: String, itemId: String, millis: Long) {
+            updatedServerId = sourceId
             updatedTimestamp = millis
             localUpdatedAt = millis
         }
@@ -79,22 +79,22 @@ class ProgressSyncCycleTest {
         var savedPayload: Double? = null
         var saveCalled = false
         var updatedTimestamp: Long? = null
-        override suspend fun save(serverId: String, itemId: String, payload: Double) {
+        override suspend fun save(sourceId: String, itemId: String, payload: Double) {
             saveCalled = true
             savedPayload = payload
         }
-        override suspend fun load(serverId: String, itemId: String): Double? = null
-        override suspend fun loadLocalUpdatedAt(serverId: String, itemId: String): Long = 0L
-        override suspend fun updateLocalTimestamp(serverId: String, itemId: String, millis: Long) {
+        override suspend fun load(sourceId: String, itemId: String): Double? = null
+        override suspend fun loadLocalUpdatedAt(sourceId: String, itemId: String): Long = 0L
+        override suspend fun updateLocalTimestamp(sourceId: String, itemId: String, millis: Long) {
             updatedTimestamp = millis
         }
     }
 
     private class FakeReadaloudResumeStore : com.riffle.core.domain.ReadaloudResumeStore {
         var clearCalled = false
-        override suspend fun save(serverId: String, itemId: String, position: com.riffle.core.domain.ReadaloudResumePosition) = Unit
-        override suspend fun load(serverId: String, itemId: String): com.riffle.core.domain.ReadaloudResumePosition? = null
-        override suspend fun clear(serverId: String, itemId: String) { clearCalled = true }
+        override suspend fun save(sourceId: String, itemId: String, position: com.riffle.core.domain.ReadaloudResumePosition) = Unit
+        override suspend fun load(sourceId: String, itemId: String): com.riffle.core.domain.ReadaloudResumePosition? = null
+        override suspend fun clear(sourceId: String, itemId: String) { clearCalled = true }
     }
 
     private fun buildRepo(
@@ -105,20 +105,20 @@ class ProgressSyncCycleTest {
     ) =
         ReadingSessionRepositoryImpl(
             api = api,
-            serverRepository = object : ServerRepository {
-                val server = Server("s1", ServerUrl.parse("http://localhost")!!, true, false, "")
-                override fun observeAll(): Flow<List<Server>> = flowOf(listOf(server))
-                override suspend fun getActive(): Server = server
-                override suspend fun authenticate(url: ServerUrl, username: String, password: String, insecureAllowed: Boolean, serverType: com.riffle.core.domain.ServerType): AuthenticateResult = throw UnsupportedOperationException()
-                override suspend fun commit(pending: PendingServer, hiddenLibraryIds: Set<String>): CommitServerResult = throw UnsupportedOperationException()
-                override suspend fun setActive(serverId: String) = Unit
-                override suspend fun remove(serverId: String) = Unit
-                override suspend fun getServerVersion(serverId: String): String? = null
+            sourceRepository = object : SourceRepository {
+                val source = Source("s1", SourceUrl.parse("http://localhost")!!, true, false, "")
+                override fun observeAll(): Flow<List<Source>> = flowOf(listOf(source))
+                override suspend fun getActive(): Source = source
+                override suspend fun authenticate(url: SourceUrl, username: String, password: String, insecureAllowed: Boolean, serverType: com.riffle.core.domain.ServerType): AuthenticateResult = throw UnsupportedOperationException()
+                override suspend fun commit(pending: PendingSource, hiddenLibraryIds: Set<String>): CommitSourceResult = throw UnsupportedOperationException()
+                override suspend fun setActive(sourceId: String) = Unit
+                override suspend fun remove(sourceId: String) = Unit
+                override suspend fun getSourceVersion(sourceId: String): String? = null
             },
             tokenStorage = object : TokenStorage {
-                override suspend fun saveToken(serverId: String, token: String) = Unit
-                override suspend fun getToken(serverId: String): String? = "tok"
-                override suspend fun deleteToken(serverId: String) = Unit
+                override suspend fun saveToken(sourceId: String, token: String) = Unit
+                override suspend fun getToken(sourceId: String): String? = "tok"
+                override suspend fun deleteToken(sourceId: String) = Unit
             },
             positionStore = positionStore,
             audiobookPositionStore = audiobookPositionStore,
@@ -132,7 +132,7 @@ class ProgressSyncCycleTest {
     // --- tests ---
 
     @Test
-    fun `server-newer returns ServerWins with server ebookLocation and updates localUpdatedAt`() = runTest {
+    fun `source-newer returns ServerWins with source ebookLocation and updates localUpdatedAt`() = runTest {
         val localTs = 1_000L
         val serverTs = 2_000L
         val positionStore = FakePositionStore(localUpdatedAt = localTs)
@@ -266,7 +266,7 @@ class ProgressSyncCycleTest {
     @Test
     fun `markFinished false PATCHes ebookProgress 0 and isFinished false, clears the saved position`() = runTest {
         // Unread = reset BOTH dimensions to 0. isFinished=false zeroes the audio currentTime/progress
-        // on the server so it can't re-shadow the 0 ebookProgress on the next refresh (bug 2:
+        // on the source so it can't re-shadow the 0 ebookProgress on the next refresh (bug 2:
         // "marking unread restores an old progress").
         val positionStore = FakePositionStore(localUpdatedAt = 1_000L, storedCfi = "epubcfi(/6/8!/4/1:0)")
         val audiobookStore = FakeAudiobookPositionStore()
@@ -312,11 +312,11 @@ class ProgressSyncCycleTest {
         assertFalse(resumeStore.clearCalled)
     }
 
-    // --- 404-equivalent (server has no progress record) ---
+    // --- 404-equivalent (source has no progress record) ---
 
     @Test
-    fun `server returns no-progress (lastUpdate=0) with no local data returns InSync`() = runTest {
-        // Both local and server have lastUpdate=0 — nothing to push or pull.
+    fun `source returns no-progress (lastUpdate=0) with no local data returns InSync`() = runTest {
+        // Both local and source have lastUpdate=0 — nothing to push or pull.
         val positionStore = FakePositionStore(localUpdatedAt = 0L)
         val api = FakeSessionApi(
             getResult = NetworkResult.Success(NetworkServerProgress("", lastUpdate = 0L))
@@ -329,8 +329,8 @@ class ProgressSyncCycleTest {
     }
 
     @Test
-    fun `server returns no-progress (lastUpdate=0) with local data returns LocalWins and sends PATCH`() = runTest {
-        // Server has no record (mapped 404), local has been read — must push.
+    fun `source returns no-progress (lastUpdate=0) with local data returns LocalWins and sends PATCH`() = runTest {
+        // Source has no record (mapped 404), local has been read — must push.
         val positionStore = FakePositionStore(localUpdatedAt = 5_000L)
         val patchResponseTs = 5_100L
         val api = FakeSessionApi(
@@ -346,7 +346,7 @@ class ProgressSyncCycleTest {
     }
 
     @Test
-    fun `server returns no-progress and ServerWins result carries ebookProgress field`() = runTest {
+    fun `source returns no-progress and ServerWins result carries ebookProgress field`() = runTest {
         val positionStore = FakePositionStore(localUpdatedAt = 0L)
         val api = FakeSessionApi(
             getResult = NetworkResult.Success(
@@ -382,7 +382,7 @@ class ProgressSyncCycleTest {
     // --- touchOpenTimestamp ---
 
     @Test
-    fun `touchOpenTimestamp PATCHes back the server's current ebookLocation without writing local timestamp`() = runTest {
+    fun `touchOpenTimestamp PATCHes back the source's current ebookLocation without writing local timestamp`() = runTest {
         val positionStore = FakePositionStore(localUpdatedAt = 0L)
         val recording = object : AbsSessionApi {
             var patchPayload: NetworkEbookProgressPayload? = null
@@ -398,32 +398,32 @@ class ProgressSyncCycleTest {
                 token: String, insecureAllowed: Boolean,
             ): NetworkResult<Long> = NetworkResult.Success(0L)
             override suspend fun getProgress(baseUrl: String, libraryItemId: String, token: String, insecureAllowed: Boolean): NetworkResult<NetworkServerProgress> =
-                NetworkResult.Success(NetworkServerProgress("server-cfi", ebookProgress = 0.42f, lastUpdate = 3_000L))
+                NetworkResult.Success(NetworkServerProgress("source-cfi", ebookProgress = 0.42f, lastUpdate = 3_000L))
         }
 
         buildRepo(recording, positionStore).touchOpenTimestamp("item-1")
 
-        assertEquals("server-cfi", recording.patchPayload?.ebookLocation)
+        assertEquals("source-cfi", recording.patchPayload?.ebookLocation)
         assertEquals(0.42f, recording.patchPayload?.ebookProgress)
         // Local timestamps stay untouched — this is what allows the next sync cycle to
-        // recognise the server as the source of truth and pull the saved position.
+        // recognise the source as the source of truth and pull the saved position.
         assertEquals(null, positionStore.updatedTimestamp)
         assertEquals(0L, positionStore.localUpdatedAt)
     }
 
     @Test
-    fun `touchOpenTimestamp leaves localUpdatedAt untouched so the next sync cycle pulls server progress`() = runTest {
-        // Regression: touchOpenTimestamp used to bump local's updatedAt to the server's new
-        // lastUpdate without writing the server's cfi/progress locally. The empty local cfi
+    fun `touchOpenTimestamp leaves localUpdatedAt untouched so the next sync cycle pulls source progress`() = runTest {
+        // Regression: touchOpenTimestamp used to bump local's updatedAt to the source's new
+        // lastUpdate without writing the source's cfi/progress locally. The empty local cfi
         // + matching timestamp made the next runSyncCycle return InSync — the reader opened
-        // at page 1 and any subsequent local save overwrote the real server position.
+        // at page 1 and any subsequent local save overwrote the real source position.
         // The contract is now: touchOpenTimestamp doesn't touch local timestamps, so the
-        // first sync cycle after it sees server > local and ServerWins fires, restoring the
+        // first sync cycle after it sees source > local and ServerWins fires, restoring the
         // saved position.
         val positionStore = FakePositionStore(localUpdatedAt = 0L)
         val api = FakeSessionApi(
             getResult = NetworkResult.Success(
-                NetworkServerProgress("server-cfi", ebookProgress = 0.42f, lastUpdate = 3_000L)
+                NetworkServerProgress("source-cfi", ebookProgress = 0.42f, lastUpdate = 3_000L)
             ),
             patchResult = NetworkResult.Success(7_777L),
         )
@@ -433,7 +433,7 @@ class ProgressSyncCycleTest {
         val result = repo.runSyncCycle("item-1", payload = SessionPayload("", 0f))
 
         assertTrue(result is ProgressSyncCycleResult.ServerWins)
-        assertEquals("server-cfi", (result as ProgressSyncCycleResult.ServerWins).serverProgress.ebookLocation)
+        assertEquals("source-cfi", (result as ProgressSyncCycleResult.ServerWins).serverProgress.ebookLocation)
     }
 
     @Test

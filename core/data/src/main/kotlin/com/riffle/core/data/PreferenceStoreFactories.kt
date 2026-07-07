@@ -91,10 +91,10 @@ fun ReadaloudPreferencesStore(dataStore: DataStore<Preferences>): ReadaloudPrefe
 /**
  * Per-book last-used-highlight-colour DataStore key. Exposed as `internal` so tests can reach it
  * without duplicating the literal — a fixture that hard-codes the key silently diverges when the
- * format changes and the fallback assertions become vacuous. Format is `"<prefix>:$serverId:$itemId"`.
+ * format changes and the fallback assertions become vacuous. Format is `"<prefix>:$sourceId:$itemId"`.
  */
-internal fun highlightColorPrefKey(serverId: String, itemId: String) =
-    stringPreferencesKey("last_used_highlight_color:$serverId:$itemId")
+internal fun highlightColorPrefKey(sourceId: String, itemId: String) =
+    stringPreferencesKey("last_used_highlight_color:$sourceId:$itemId")
 
 /**
  * Multi-key store — one string key per (serverId, itemId) pair, unlike the single-codec stores
@@ -118,14 +118,14 @@ fun HighlightColorPreferencesStore(dataStore: DataStore<Preferences>): Highlight
     // Legacy names outside the current palette (e.g. "PINK", "PURPLE") also fall back to DEFAULT;
     // the user can re-pick and it persists per-book thereafter.
     return object : HighlightColorPreferencesStore {
-        override fun lastUsedColor(serverId: String, itemId: String): Flow<HighlightColor> =
+        override fun lastUsedColor(sourceId: String, itemId: String): Flow<HighlightColor> =
             dataStore.data.map { prefs ->
-                val name = prefs[highlightColorPrefKey(serverId, itemId)] ?: return@map HighlightColor.DEFAULT
+                val name = prefs[highlightColorPrefKey(sourceId, itemId)] ?: return@map HighlightColor.DEFAULT
                 runCatching { HighlightColor.valueOf(name) }.getOrDefault(HighlightColor.DEFAULT)
             }
 
-        override suspend fun setLastUsedColor(serverId: String, itemId: String, value: HighlightColor) {
-            dataStore.edit { it[highlightColorPrefKey(serverId, itemId)] = value.name }
+        override suspend fun setLastUsedColor(sourceId: String, itemId: String, value: HighlightColor) {
+            dataStore.edit { it[highlightColorPrefKey(sourceId, itemId)] = value.name }
         }
     }
 }

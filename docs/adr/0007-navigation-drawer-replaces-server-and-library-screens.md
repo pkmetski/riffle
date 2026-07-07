@@ -1,5 +1,7 @@
 # ADR 0007 — Navigation Drawer Replaces ServerListScreen and LibraryListScreen
 
+> **Amended by [ADR 0041](0041-source-and-service-abstractions-replace-server.md)** — "Server Switcher" becomes "Source Switcher"; the drawer lists Libraries for the active **Source** of any type (ABS, LocalFiles, …). The drawer shape and rationale are otherwise unchanged.
+
 The original navigation stack required the user to pass through two full screens (ServerList → LibraryList) before reaching books, and offered no way to switch libraries without going back two levels. We replaced this with a persistent Navigation Drawer: the drawer header exposes a Server Switcher dropdown, and the drawer body lists the visible Libraries for the active Server. LibraryItemsScreen becomes the effective home. ServerListScreen is retired; its switch behaviour moves into the drawer and its add/delete behaviour moves into Settings.
 
 ## Considered Options

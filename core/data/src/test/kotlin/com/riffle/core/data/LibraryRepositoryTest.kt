@@ -15,14 +15,14 @@ import com.riffle.core.database.SeriesDao
 import com.riffle.core.database.SeriesEntity
 import com.riffle.core.database.SeriesItemEntity
 import com.riffle.core.domain.AuthenticateResult
-import com.riffle.core.domain.CommitServerResult
+import com.riffle.core.domain.CommitSourceResult
 import com.riffle.core.domain.EbookFormat
-import com.riffle.core.domain.PendingServer
+import com.riffle.core.domain.PendingSource
 import com.riffle.core.domain.Library
 import com.riffle.core.domain.LibraryRefreshResult
-import com.riffle.core.domain.Server
-import com.riffle.core.domain.ServerRepository
-import com.riffle.core.domain.ServerUrl
+import com.riffle.core.domain.Source
+import com.riffle.core.domain.SourceRepository
+import com.riffle.core.domain.SourceUrl
 import com.riffle.core.domain.TokenStorage
 import com.riffle.core.network.AbsLibraryApi
 import com.riffle.core.network.NetworkCollection
@@ -44,60 +44,60 @@ import java.io.IOException
 
 class LibraryRepositoryTest {
 
-    private val fakeServerRepository = object : ServerRepository {
-        private val backing = MutableStateFlow<List<Server>>(emptyList())
-        var activeServer: Server?
+    private val fakeServerRepository = object : SourceRepository {
+        private val backing = MutableStateFlow<List<Source>>(emptyList())
+        var activeServer: Source?
             get() = backing.value.firstOrNull { it.isActive }
             set(value) { backing.value = listOfNotNull(value) }
-        fun setServers(servers: List<Server>) { backing.value = servers }
+        fun setServers(servers: List<Source>) { backing.value = servers }
         override fun observeAll() = backing
         override suspend fun getActive() = backing.value.firstOrNull { it.isActive }
-        override suspend fun authenticate(url: ServerUrl, username: String, password: String, insecureAllowed: Boolean, serverType: com.riffle.core.domain.ServerType): AuthenticateResult =
+        override suspend fun authenticate(url: SourceUrl, username: String, password: String, insecureAllowed: Boolean, serverType: com.riffle.core.domain.ServerType): AuthenticateResult =
             AuthenticateResult.NetworkError(IOException())
-        override suspend fun commit(pending: PendingServer, hiddenLibraryIds: Set<String>): CommitServerResult =
-            CommitServerResult.Failure(IOException())
-        override suspend fun setActive(serverId: String) {}
-        override suspend fun remove(serverId: String) {}
-        override suspend fun getServerVersion(serverId: String): String? = null
+        override suspend fun commit(pending: PendingSource, hiddenLibraryIds: Set<String>): CommitSourceResult =
+            CommitSourceResult.Failure(IOException())
+        override suspend fun setActive(sourceId: String) {}
+        override suspend fun remove(sourceId: String) {}
+        override suspend fun getSourceVersion(sourceId: String): String? = null
     }
 
     private val fakeTokenStorage = object : TokenStorage {
         val tokens = mutableMapOf<String, String>()
-        override suspend fun saveToken(serverId: String, token: String) { tokens[serverId] = token }
-        override suspend fun getToken(serverId: String) = tokens[serverId]
-        override suspend fun deleteToken(serverId: String) { tokens.remove(serverId) }
+        override suspend fun saveToken(sourceId: String, token: String) { tokens[sourceId] = token }
+        override suspend fun getToken(sourceId: String) = tokens[sourceId]
+        override suspend fun deleteToken(sourceId: String) { tokens.remove(sourceId) }
     }
 
     private class FakeLibraryDao : LibraryDao {
         val upserted = mutableListOf<LibraryEntity>()
         private val roomData = mutableMapOf<String, MutableStateFlow<List<LibraryEntity>>>()
 
-        fun seedData(serverId: String, entities: List<LibraryEntity>) {
-            roomData.getOrPut(serverId) { MutableStateFlow(emptyList()) }.value = entities
+        fun seedData(sourceId: String, entities: List<LibraryEntity>) {
+            roomData.getOrPut(sourceId) { MutableStateFlow(emptyList()) }.value = entities
         }
 
-        override fun observeByServerId(serverId: String): Flow<List<LibraryEntity>> =
-            roomData.getOrPut(serverId) { MutableStateFlow(emptyList()) }
+        override fun observeBySourceId(sourceId: String): Flow<List<LibraryEntity>> =
+            roomData.getOrPut(sourceId) { MutableStateFlow(emptyList()) }
 
-        override suspend fun libraryIdsForServer(serverId: String): List<String> =
-            roomData[serverId]?.value.orEmpty().map { it.id }
+        override suspend fun libraryIdsForSource(sourceId: String): List<String> =
+            roomData[sourceId]?.value.orEmpty().map { it.id }
 
-        override suspend fun getById(serverId: String, libraryId: String): LibraryEntity? =
-            roomData[serverId]?.value.orEmpty().firstOrNull { it.id == libraryId }
+        override suspend fun getById(sourceId: String, libraryId: String): LibraryEntity? =
+            roomData[sourceId]?.value.orEmpty().firstOrNull { it.id == libraryId }
 
         override suspend fun upsertAll(libraries: List<LibraryEntity>) {
             upserted.addAll(libraries)
-            libraries.groupBy { it.serverId }.forEach { (serverId, items) ->
-                roomData.getOrPut(serverId) { MutableStateFlow(emptyList()) }.value = items
+            libraries.groupBy { it.sourceId }.forEach { (sourceId, items) ->
+                roomData.getOrPut(sourceId) { MutableStateFlow(emptyList()) }.value = items
             }
         }
 
-        override suspend fun deleteByServerId(serverId: String) {
-            roomData[serverId]?.value = emptyList()
+        override suspend fun deleteBySourceId(sourceId: String) {
+            roomData[sourceId]?.value = emptyList()
         }
 
-        override suspend fun setUnsupported(serverId: String, libraryId: String, isUnsupported: Boolean) {
-            val flow = roomData[serverId] ?: return
+        override suspend fun setUnsupported(sourceId: String, libraryId: String, isUnsupported: Boolean) {
+            val flow = roomData[sourceId] ?: return
             flow.value = flow.value.map { if (it.id == libraryId) it.copy(isUnsupported = isUnsupported) else it }
         }
     }
@@ -111,14 +111,14 @@ class LibraryRepositoryTest {
         override fun observeByLibraryId(libraryId: String): Flow<List<SeriesEntity>> =
             seriesData.getOrPut(libraryId) { MutableStateFlow(emptyList()) }
 
-        override fun observeItemsBySeriesId(serverId: String, seriesId: String): Flow<List<LibraryItemEntity>> =
+        override fun observeItemsBySeriesId(sourceId: String, seriesId: String): Flow<List<LibraryItemEntity>> =
             itemData.getOrPut(seriesId) { MutableStateFlow(emptyList()) }
 
-        override suspend fun findSeriesIdForItem(serverId: String, itemId: String): String? = null
+        override suspend fun findSeriesIdForItem(sourceId: String, itemId: String): String? = null
 
         private val continueSeriesData = mutableMapOf<String, MutableStateFlow<List<LibraryItemEntity>>>()
 
-        override fun observeContinueSeriesItems(serverId: String, libraryId: String): Flow<List<LibraryItemEntity>> =
+        override fun observeContinueSeriesItems(sourceId: String, libraryId: String): Flow<List<LibraryItemEntity>> =
             continueSeriesData.getOrPut(libraryId) { MutableStateFlow(emptyList()) }
 
         fun seedContinueSeriesItems(libraryId: String, items: List<LibraryItemEntity>) {
@@ -156,7 +156,7 @@ class LibraryRepositoryTest {
         override fun observeByLibraryId(libraryId: String): Flow<List<CollectionEntity>> =
             collectionData.getOrPut(libraryId) { MutableStateFlow(emptyList()) }
 
-        override fun observeItemsByCollectionId(serverId: String, collectionId: String): Flow<List<LibraryItemEntity>> =
+        override fun observeItemsByCollectionId(sourceId: String, collectionId: String): Flow<List<LibraryItemEntity>> =
             itemData.getOrPut(collectionId) { MutableStateFlow(emptyList()) }
 
         override suspend fun upsertAll(collections: List<CollectionEntity>) {
@@ -201,9 +201,9 @@ class LibraryRepositoryTest {
         fakeServerRepository, fakeTokenStorage, com.riffle.core.domain.TestClock(),
     )
 
-    private fun activeServer(id: String = "s1") = Server(
+    private fun activeServer(id: String = "s1") = Source(
         id = id,
-        url = ServerUrl.parse("https://abs.example.com")!!,
+        url = SourceUrl.parse("https://abs.example.com")!!,
         isActive = true,
         insecureConnectionAllowed = false,
         username = "",
@@ -236,7 +236,7 @@ class LibraryRepositoryTest {
     }
 
     @Test
-    fun `refreshLibraries caches to Room with correct serverId`() = runTest {
+    fun `refreshLibraries caches to Room with correct sourceId`() = runTest {
         fakeServerRepository.activeServer = activeServer()
         fakeTokenStorage.tokens["s1"] = "tok"
         val dao = FakeLibraryDao()
@@ -251,7 +251,7 @@ class LibraryRepositoryTest {
                 NetworkResult.Success(emptyList())
         }
         makeRepo(libraryDao = dao, api = api).refreshLibraries()
-        assertEquals("s1", dao.upserted[0].serverId)
+        assertEquals("s1", dao.upserted[0].sourceId)
     }
 
     @Test
@@ -273,7 +273,7 @@ class LibraryRepositoryTest {
     }
 
     @Test
-    fun `refreshLibraries returns NoActiveServer when no server configured`() = runTest {
+    fun `refreshLibraries returns NoActiveServer when no source configured`() = runTest {
         fakeServerRepository.activeServer = null
         val result = makeRepo().refreshLibraries()
         assertTrue(result is LibraryRefreshResult.NoActiveServer)
@@ -282,7 +282,7 @@ class LibraryRepositoryTest {
     // ── observeLibraries ─────────────────────────────────────────────────────
 
     @Test
-    fun `observeLibraries emits from Room for active server`() = runTest {
+    fun `observeLibraries emits from Room for active source`() = runTest {
         fakeServerRepository.activeServer = activeServer()
         val dao = FakeLibraryDao()
         dao.seedData("s1", listOf(LibraryEntity("lib-1", "Books", "book", "s1")))
@@ -292,7 +292,7 @@ class LibraryRepositoryTest {
     }
 
     @Test
-    fun `observeLibraries emits empty list when no active server`() = runTest {
+    fun `observeLibraries emits empty list when no active source`() = runTest {
         fakeServerRepository.activeServer = null
         val result = makeRepo().observeLibraries().first()
         assertTrue(result.isEmpty())
@@ -348,7 +348,7 @@ class LibraryRepositoryTest {
     }
 
     @Test
-    fun `refreshLibraryItems lifts lastOpenedAt from server mediaProgress when newer than local`() = runTest {
+    fun `refreshLibraryItems lifts lastOpenedAt from source mediaProgress when newer than local`() = runTest {
         fakeServerRepository.activeServer = activeServer()
         fakeTokenStorage.tokens["s1"] = "tok"
         val dao = FakeLibraryItemDao()
@@ -376,7 +376,7 @@ class LibraryRepositoryTest {
     }
 
     @Test
-    fun `refreshLibraryItems keeps local lastOpenedAt when newer than server mediaProgress`() = runTest {
+    fun `refreshLibraryItems keeps local lastOpenedAt when newer than source mediaProgress`() = runTest {
         fakeServerRepository.activeServer = activeServer()
         fakeTokenStorage.tokens["s1"] = "tok"
         val dao = FakeLibraryItemDao()
@@ -404,9 +404,9 @@ class LibraryRepositoryTest {
     }
 
     @Test
-    fun `refreshLibraryItems keeps local readingProgress over stale server value`() = runTest {
-        // Reproduces the offline-read regression: server has old 0.42, local has 0.75 from an
-        // offline session. Refresh must not revert the library card back to the server value.
+    fun `refreshLibraryItems keeps local readingProgress over stale source value`() = runTest {
+        // Reproduces the offline-read regression: source has old 0.42, local has 0.75 from an
+        // offline session. Refresh must not revert the library card back to the source value.
         fakeServerRepository.activeServer = activeServer()
         fakeTokenStorage.tokens["s1"] = "tok"
         val dao = FakeLibraryItemDao()
@@ -434,7 +434,7 @@ class LibraryRepositoryTest {
     }
 
     @Test
-    fun `refreshLibraryItems uses server readingProgress when no local record exists`() = runTest {
+    fun `refreshLibraryItems uses source readingProgress when no local record exists`() = runTest {
         fakeServerRepository.activeServer = activeServer()
         fakeTokenStorage.tokens["s1"] = "tok"
         val dao = FakeLibraryItemDao() // no pre-existing items
@@ -486,7 +486,7 @@ class LibraryRepositoryTest {
     }
 
     @Test
-    fun `refreshLibraryItems persists finishedAt from server progress`() = runTest {
+    fun `refreshLibraryItems persists finishedAt from source progress`() = runTest {
         fakeServerRepository.activeServer = activeServer()
         fakeTokenStorage.tokens["s1"] = "tok"
         val dao = FakeLibraryItemDao()
@@ -654,15 +654,15 @@ class LibraryRepositoryTest {
         assertFalse(result[0].isCached)
     }
 
-    // ── issue #113: two Servers, colliding item ids — shelves follow the active Server ─────────
+    // ── issue #113: two Servers, colliding item ids — shelves follow the active Source ─────────
 
     @Test
-    fun `marking read on the active server clears In Progress despite a stale duplicate on another server`() = runTest {
+    fun `marking read on the active source clears In Progress despite a stale duplicate on another source`() = runTest {
         // Two ABS Servers point at the same instance, so item ids and libraryId collide (issue
-        // #113). markAsRead set the active Server's (s1) row to finished (1.0); the inactive
+        // #113). markAsRead set the active Source's (s1) row to finished (1.0); the inactive
         // duplicate (s2) still holds the old fraction. The In Progress shelf must follow the
-        // active Server, not surface the stale duplicate — otherwise the finished book stays
-        // pinned to In Progress while book detail (which reads the active Server's row) shows 100%.
+        // active Source, not surface the stale duplicate — otherwise the finished book stays
+        // pinned to In Progress while book detail (which reads the active Source's row) shows 100%.
         fakeServerRepository.activeServer = activeServer(id = "s1")
         val dao = FakeLibraryItemDao()
         dao.upsertAll(listOf(
@@ -679,10 +679,10 @@ class LibraryRepositoryTest {
     }
 
     @Test
-    fun `library shelves re-resolve when active server changes`() = runTest {
+    fun `library shelves re-resolve when active source changes`() = runTest {
         // ADR 0025: library-item flows resolve activeServerId via flatMapLatest, so when the user
-        // switches Servers, subsequent emissions come only from the new Server's DAO scope —
-        // never a stale snapshot of the previous Server's rows.
+        // switches Servers, subsequent emissions come only from the new Source's DAO scope —
+        // never a stale snapshot of the previous Source's rows.
         fakeServerRepository.activeServer = activeServer(id = "s1")
         val dao = FakeLibraryItemDao()
         dao.upsertAll(listOf(
@@ -704,8 +704,8 @@ class LibraryRepositoryTest {
 
     @Test
     fun `library shelves exclude rows owned by inactive duplicate servers`() = runTest {
-        // The active Server (s1) has the in-progress copy; an inactive duplicate (s2) carries a
-        // different fraction for the same id. Every shelf must show only the active Server's row.
+        // The active Source (s1) has the in-progress copy; an inactive duplicate (s2) carries a
+        // different fraction for the same id. Every shelf must show only the active Source's row.
         fakeServerRepository.activeServer = activeServer(id = "s1")
         val dao = FakeLibraryItemDao()
         // Seed the inactive duplicate first so a naive distinctBy{id} would keep the wrong row.
@@ -1012,12 +1012,12 @@ class LibraryRepositoryTest {
         val repo = makeRepo(seriesDao = dao)
         dao.seedContinueSeriesItems("lib-1", listOf(
             LibraryItemEntity(
-                serverId = "s1", id = "item-42", libraryId = "lib-1",
+                sourceId = "s1", id = "item-42", libraryId = "lib-1",
                 title = "Abaddon's Gate", author = "James S. A. Corey",
                 coverUrl = null, readingProgress = 0f,
             ),
             LibraryItemEntity(
-                serverId = "s1", id = "item-43", libraryId = "lib-1",
+                sourceId = "s1", id = "item-43", libraryId = "lib-1",
                 title = "Cibola Burn", author = "James S. A. Corey",
                 coverUrl = null, readingProgress = 0f,
             ),
@@ -1047,16 +1047,16 @@ class LibraryRepositoryTest {
 
     // ── Storyteller refresh ───────────────────────────────────────────────────
 
-    private fun storytellerServer() = Server(
+    private fun storytellerServer() = Source(
         id = "st-1",
-        url = ServerUrl.parse("http://media-server:8001")!!,
+        url = SourceUrl.parse("http://media-source:8001")!!,
         isActive = true,
         insecureConnectionAllowed = false,
         username = "plamen",
         serverType = com.riffle.core.domain.ServerType.STORYTELLER,
     )
 
-    // Storyteller is never the active/browsable server (ADR 0026), so refreshLibraryItems/
+    // Storyteller is never the active/browsable source (ADR 0026), so refreshLibraryItems/
     // refreshSeries/refreshCollections no longer have a Storyteller branch. The readaloud-matcher /
     // syncer dispatch lives in the RefreshLibraryItems use-case — see core/domain tests.
 }

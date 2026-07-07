@@ -10,7 +10,7 @@ import com.riffle.core.database.LibraryItemDao
 import com.riffle.core.domain.AnnotationSyncConfigStore
 import com.riffle.core.domain.DispatcherProvider
 import com.riffle.core.domain.ReadingPositionStore
-import com.riffle.core.domain.ServerRepository
+import com.riffle.core.domain.SourceRepository
 import com.riffle.core.domain.TokenStorage
 import com.riffle.core.network.StorytellerLibraryApi
 import com.riffle.core.network.StorytellerPositionApi
@@ -59,17 +59,17 @@ abstract class SyncModule {
     abstract fun bindStorytellerReadaloudCacheSyncer(impl: StorytellerReadaloudSyncer): com.riffle.core.domain.StorytellerReadaloudCacheSyncer
 
     companion object {
-        // Durable offline progress reconcile (ADR 0030): resolve a serverId to its server+token
+        // Durable offline progress reconcile (ADR 0030): resolve a sourceId to its server+token
         // (null ⇒ skip), and assemble the multi-server dirty sweep over the single-target primitive.
         @Provides
         @Singleton
         fun provideServerTokenResolver(
-            serverRepository: ServerRepository,
+            sourceRepository: SourceRepository,
             tokenStorage: TokenStorage,
         ): com.riffle.core.data.ServerTokenResolver =
-            com.riffle.core.data.ServerTokenResolver { serverId ->
-                val server = serverRepository.getById(serverId) ?: return@ServerTokenResolver null
-                val token = tokenStorage.getToken(serverId) ?: return@ServerTokenResolver null
+            com.riffle.core.data.ServerTokenResolver { sourceId ->
+                val server = sourceRepository.getById(sourceId) ?: return@ServerTokenResolver null
+                val token = tokenStorage.getToken(sourceId) ?: return@ServerTokenResolver null
                 server to token
             }
 
@@ -94,12 +94,12 @@ abstract class SyncModule {
                 // Bookmarks ride the sweep at the same cadence as positions: enumerate dirty
                 // (server, item) pairs straight off the bookmark DAO (ADR 0030, Task 12).
                 object : com.riffle.core.data.DirtyBookmarkLedger {
-                    override suspend fun serversWithDirty() = bookmarkDao.serversWithDirtyRows()
-                    override suspend fun dirtyItems(serverId: String) =
-                        bookmarkDao.dirtyForServer(serverId).map { it.itemId }.distinct()
+                    override suspend fun serversWithDirty() = bookmarkDao.sourcesWithDirtyRows()
+                    override suspend fun dirtyItems(sourceId: String) =
+                        bookmarkDao.dirtyForSource(sourceId).map { it.itemId }.distinct()
                 },
-                com.riffle.core.data.BookmarkReconcile { serverId, itemId, baseUrl, token, insecureAllowed ->
-                    bookmarkReconciler.reconcile(serverId, itemId, baseUrl, token, insecureAllowed)
+                com.riffle.core.data.BookmarkReconcile { sourceId, itemId, baseUrl, token, insecureAllowed ->
+                    bookmarkReconciler.reconcile(sourceId, itemId, baseUrl, token, insecureAllowed)
                 },
             )
 
@@ -108,10 +108,10 @@ abstract class SyncModule {
         fun provideStorytellerPositionSyncController(
             api: StorytellerPositionApi,
             positionStore: ReadingPositionStore,
-            serverRepository: ServerRepository,
+            sourceRepository: SourceRepository,
             tokenStorage: TokenStorage,
         ): StorytellerPositionSyncController =
-            StorytellerPositionSyncController(api, positionStore, serverRepository, tokenStorage)
+            StorytellerPositionSyncController(api, positionStore, sourceRepository, tokenStorage)
 
         @Provides
         @Singleton
@@ -143,7 +143,7 @@ abstract class SyncModule {
             deviceLabelResolver: com.riffle.core.domain.DeviceLabelResolver,
             statusStore: com.riffle.core.data.AnnotationSyncStatusStore,
             sweepEnqueuer: com.riffle.core.domain.AnnotationSweepEnqueuer,
-            serverRepository: ServerRepository,
+            sourceRepository: SourceRepository,
             libraryItemDao: LibraryItemDao,
             locks: com.riffle.core.data.ReconcileLocks,
             sentinelWriter: com.riffle.core.data.DeviceMetaSentinelWriter,
@@ -160,7 +160,7 @@ abstract class SyncModule {
                 ),
                 statusStore = statusStore,
                 sweepEnqueuer = sweepEnqueuer,
-                usernameProvider = { sid -> serverRepository.getById(sid)?.username },
+                usernameProvider = { sid -> sourceRepository.getById(sid)?.username },
                 bookTitleProvider = { sid, itemId ->
                     libraryItemDao.getById(sid, itemId)?.title?.takeIf { it.isNotBlank() }
                 },
@@ -175,7 +175,7 @@ abstract class SyncModule {
             annotationDao: com.riffle.core.database.AnnotationDao,
             deviceIdStore: com.riffle.core.domain.DeviceIdStore,
             deviceLabelResolver: com.riffle.core.domain.DeviceLabelResolver,
-            serverRepository: ServerRepository,
+            sourceRepository: SourceRepository,
             statusStore: com.riffle.core.data.AnnotationSyncStatusStore,
             libraryItemDao: LibraryItemDao,
             dirtyLedger: com.riffle.core.data.DirtyAnnotationLedger,
@@ -187,7 +187,7 @@ abstract class SyncModule {
                 annotationDao = annotationDao,
                 deviceIdStore = deviceIdStore,
                 deviceLabelResolver = deviceLabelResolver,
-                serverRepository = serverRepository,
+                sourceRepository = sourceRepository,
                 statusStore = statusStore,
                 bookTitleProvider = { sid, itemId ->
                     libraryItemDao.getById(sid, itemId)?.title?.takeIf { it.isNotBlank() }
@@ -207,12 +207,12 @@ abstract class SyncModule {
         @Provides
         @Singleton
         fun provideStorytellerReadaloudSyncer(
-            serverRepository: ServerRepository,
+            sourceRepository: SourceRepository,
             tokenStorage: TokenStorage,
             storytellerApi: StorytellerLibraryApi,
             libraryItemDao: LibraryItemDao,
         ): StorytellerReadaloudSyncer = StorytellerReadaloudSyncer(
-            serverRepository = serverRepository,
+            sourceRepository = sourceRepository,
             tokenStorage = tokenStorage,
             storytellerApi = storytellerApi,
             libraryItemDao = libraryItemDao,

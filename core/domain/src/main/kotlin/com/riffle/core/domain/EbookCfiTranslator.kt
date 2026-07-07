@@ -21,5 +21,5 @@ interface EbookCfiTranslator {
 /** Produces a per-item [EbookCfiTranslator]. Returns null when the EPUB for [itemId] is not
  *  locally cached (translation is impossible without the chapter HTML). */
 interface EbookCfiTranslatorFactory {
-    fun forItem(serverId: String, itemId: String): EbookCfiTranslator?
+    fun forItem(sourceId: String, itemId: String): EbookCfiTranslator?
 }

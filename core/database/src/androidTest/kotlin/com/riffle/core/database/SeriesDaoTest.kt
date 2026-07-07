@@ -32,7 +32,7 @@ class SeriesDaoTest {
         dao = db.seriesDao()
         // library_items FK-references servers; seed the owning Server first.
         runBlocking {
-            db.serverDao().upsert(ServerEntity("s1", "http://s1", isActive = true, insecureConnectionAllowed = false, username = "u"))
+            db.sourceDao().upsert(SourceEntity("s1", "http://s1", isActive = true, insecureConnectionAllowed = false, username = "u"))
         }
     }
 
@@ -42,7 +42,7 @@ class SeriesDaoTest {
     }
 
     private fun series(id: String) = SeriesEntity(id = id, libraryId = "lib1", name = "Series $id", coverUrl = null, bookCount = 1)
-    private fun seriesItem(seriesId: String, itemId: String) = SeriesItemEntity(seriesId = seriesId, serverId = "s1", itemId = itemId, sequenceOrder = 1f)
+    private fun seriesItem(seriesId: String, itemId: String) = SeriesItemEntity(seriesId = seriesId, sourceId = "s1", itemId = itemId, sequenceOrder = 1f)
 
     // B1 — replaceAllForLibrary must never expose an empty intermediate state to series observers.
     @Test
@@ -74,16 +74,16 @@ class SeriesDaoTest {
     @Test
     fun observeItemsBySeriesId_returnsItemsInSequenceOrder() = runTest {
         val items = listOf(
-            LibraryItemEntity(serverId = "s1", id = "item-1", libraryId = "lib1", title = "Title 1", author = "Author", coverUrl = null, readingProgress = 0f),
-            LibraryItemEntity(serverId = "s1", id = "item-2", libraryId = "lib1", title = "Title 2", author = "Author", coverUrl = null, readingProgress = 0f),
-            LibraryItemEntity(serverId = "s1", id = "item-3", libraryId = "lib1", title = "Title 3", author = "Author", coverUrl = null, readingProgress = 0f),
+            LibraryItemEntity(sourceId = "s1", id = "item-1", libraryId = "lib1", title = "Title 1", author = "Author", coverUrl = null, readingProgress = 0f),
+            LibraryItemEntity(sourceId = "s1", id = "item-2", libraryId = "lib1", title = "Title 2", author = "Author", coverUrl = null, readingProgress = 0f),
+            LibraryItemEntity(sourceId = "s1", id = "item-3", libraryId = "lib1", title = "Title 3", author = "Author", coverUrl = null, readingProgress = 0f),
         )
         db.libraryItemDao().upsertAll(items)
         dao.upsertAll(listOf(series("s1")))
         dao.upsertAllItems(listOf(
-            SeriesItemEntity("s1", serverId = "s1", itemId = "item-3", sequenceOrder = 1f),
-            SeriesItemEntity("s1", serverId = "s1", itemId = "item-1", sequenceOrder = 2f),
-            SeriesItemEntity("s1", serverId = "s1", itemId = "item-2", sequenceOrder = 3f),
+            SeriesItemEntity("s1", sourceId = "s1", itemId = "item-3", sequenceOrder = 1f),
+            SeriesItemEntity("s1", sourceId = "s1", itemId = "item-1", sequenceOrder = 2f),
+            SeriesItemEntity("s1", sourceId = "s1", itemId = "item-2", sequenceOrder = 3f),
         ))
 
         val result = dao.observeItemsBySeriesId("s1", "s1").first()
@@ -97,17 +97,17 @@ class SeriesDaoTest {
     fun observeContinueSeriesItems_returnsNextUnreadBookPerQualifyingSeries() = runTest {
         // Three items: item-1 finished, item-2 unread, item-3 unread (different series)
         db.libraryItemDao().upsertAll(listOf(
-            LibraryItemEntity(serverId = "s1", id = "item-1", libraryId = "lib1", title = "Book 1", author = "A", coverUrl = null, readingProgress = 1.0f, lastOpenedAt = 1000L),
-            LibraryItemEntity(serverId = "s1", id = "item-2", libraryId = "lib1", title = "Book 2", author = "A", coverUrl = null, readingProgress = 0f),
-            LibraryItemEntity(serverId = "s1", id = "item-3", libraryId = "lib1", title = "Book 3", author = "A", coverUrl = null, readingProgress = 0f),
+            LibraryItemEntity(sourceId = "s1", id = "item-1", libraryId = "lib1", title = "Book 1", author = "A", coverUrl = null, readingProgress = 1.0f, lastOpenedAt = 1000L),
+            LibraryItemEntity(sourceId = "s1", id = "item-2", libraryId = "lib1", title = "Book 2", author = "A", coverUrl = null, readingProgress = 0f),
+            LibraryItemEntity(sourceId = "s1", id = "item-3", libraryId = "lib1", title = "Book 3", author = "A", coverUrl = null, readingProgress = 0f),
         ))
         dao.upsertAll(listOf(series("series-A"), series("series-B")))
         dao.upsertAllItems(listOf(
             // series-A: item-1 finished (seq 1), item-2 unread (seq 2) → should return item-2
-            SeriesItemEntity("series-A", serverId = "s1", itemId = "item-1", sequenceOrder = 1f),
-            SeriesItemEntity("series-A", serverId = "s1", itemId = "item-2", sequenceOrder = 2f),
+            SeriesItemEntity("series-A", sourceId = "s1", itemId = "item-1", sequenceOrder = 1f),
+            SeriesItemEntity("series-A", sourceId = "s1", itemId = "item-2", sequenceOrder = 2f),
             // series-B: item-3 only unread, no finished book → must NOT appear
-            SeriesItemEntity("series-B", serverId = "s1", itemId = "item-3", sequenceOrder = 1f),
+            SeriesItemEntity("series-B", sourceId = "s1", itemId = "item-3", sequenceOrder = 1f),
         ))
 
         val result = dao.observeContinueSeriesItems("s1", "lib1").first()
@@ -120,15 +120,15 @@ class SeriesDaoTest {
     @Test
     fun observeContinueSeriesItems_excludesSeriesWithInProgressBook() = runTest {
         db.libraryItemDao().upsertAll(listOf(
-            LibraryItemEntity(serverId = "s1", id = "item-1", libraryId = "lib1", title = "B1", author = "A", coverUrl = null, readingProgress = 1.0f, lastOpenedAt = 2000L),
-            LibraryItemEntity(serverId = "s1", id = "item-2", libraryId = "lib1", title = "B2", author = "A", coverUrl = null, readingProgress = 0.5f),
-            LibraryItemEntity(serverId = "s1", id = "item-3", libraryId = "lib1", title = "B3", author = "A", coverUrl = null, readingProgress = 0f),
+            LibraryItemEntity(sourceId = "s1", id = "item-1", libraryId = "lib1", title = "B1", author = "A", coverUrl = null, readingProgress = 1.0f, lastOpenedAt = 2000L),
+            LibraryItemEntity(sourceId = "s1", id = "item-2", libraryId = "lib1", title = "B2", author = "A", coverUrl = null, readingProgress = 0.5f),
+            LibraryItemEntity(sourceId = "s1", id = "item-3", libraryId = "lib1", title = "B3", author = "A", coverUrl = null, readingProgress = 0f),
         ))
         dao.upsertAll(listOf(series("series-A")))
         dao.upsertAllItems(listOf(
-            SeriesItemEntity("series-A", serverId = "s1", itemId = "item-1", sequenceOrder = 1f),
-            SeriesItemEntity("series-A", serverId = "s1", itemId = "item-2", sequenceOrder = 2f),
-            SeriesItemEntity("series-A", serverId = "s1", itemId = "item-3", sequenceOrder = 3f),
+            SeriesItemEntity("series-A", sourceId = "s1", itemId = "item-1", sequenceOrder = 1f),
+            SeriesItemEntity("series-A", sourceId = "s1", itemId = "item-2", sequenceOrder = 2f),
+            SeriesItemEntity("series-A", sourceId = "s1", itemId = "item-3", sequenceOrder = 3f),
         ))
 
         // item-2 is in progress → the whole series is excluded
@@ -142,15 +142,15 @@ class SeriesDaoTest {
     @Test
     fun observeContinueSeriesItems_doesNotExcludeSeriesForBarelyOpenedBook() = runTest {
         db.libraryItemDao().upsertAll(listOf(
-            LibraryItemEntity(serverId = "s1", id = "item-1", libraryId = "lib1", title = "B1", author = "A", coverUrl = null, readingProgress = 1.0f, lastOpenedAt = 2000L),
-            LibraryItemEntity(serverId = "s1", id = "item-2", libraryId = "lib1", title = "B2", author = "A", coverUrl = null, readingProgress = 0.01f),
-            LibraryItemEntity(serverId = "s1", id = "item-3", libraryId = "lib1", title = "B3", author = "A", coverUrl = null, readingProgress = 0f),
+            LibraryItemEntity(sourceId = "s1", id = "item-1", libraryId = "lib1", title = "B1", author = "A", coverUrl = null, readingProgress = 1.0f, lastOpenedAt = 2000L),
+            LibraryItemEntity(sourceId = "s1", id = "item-2", libraryId = "lib1", title = "B2", author = "A", coverUrl = null, readingProgress = 0.01f),
+            LibraryItemEntity(sourceId = "s1", id = "item-3", libraryId = "lib1", title = "B3", author = "A", coverUrl = null, readingProgress = 0f),
         ))
         dao.upsertAll(listOf(series("series-A")))
         dao.upsertAllItems(listOf(
-            SeriesItemEntity("series-A", serverId = "s1", itemId = "item-1", sequenceOrder = 1f),
-            SeriesItemEntity("series-A", serverId = "s1", itemId = "item-2", sequenceOrder = 2f),
-            SeriesItemEntity("series-A", serverId = "s1", itemId = "item-3", sequenceOrder = 3f),
+            SeriesItemEntity("series-A", sourceId = "s1", itemId = "item-1", sequenceOrder = 1f),
+            SeriesItemEntity("series-A", sourceId = "s1", itemId = "item-2", sequenceOrder = 2f),
+            SeriesItemEntity("series-A", sourceId = "s1", itemId = "item-3", sequenceOrder = 3f),
         ))
 
         // item-2 is barely opened (1% < 5% threshold) → must NOT block the series; item-2 is next
@@ -164,18 +164,18 @@ class SeriesDaoTest {
     fun observeContinueSeriesItems_orderedByMostRecentlyFinished() = runTest {
         db.libraryItemDao().upsertAll(listOf(
             // series-old: finished long ago
-            LibraryItemEntity(serverId = "s1", id = "old-done", libraryId = "lib1", title = "OD", author = "A", coverUrl = null, readingProgress = 1.0f, lastOpenedAt = 1000L),
-            LibraryItemEntity(serverId = "s1", id = "old-next", libraryId = "lib1", title = "ON", author = "A", coverUrl = null, readingProgress = 0f),
+            LibraryItemEntity(sourceId = "s1", id = "old-done", libraryId = "lib1", title = "OD", author = "A", coverUrl = null, readingProgress = 1.0f, lastOpenedAt = 1000L),
+            LibraryItemEntity(sourceId = "s1", id = "old-next", libraryId = "lib1", title = "ON", author = "A", coverUrl = null, readingProgress = 0f),
             // series-new: finished recently
-            LibraryItemEntity(serverId = "s1", id = "new-done", libraryId = "lib1", title = "ND", author = "A", coverUrl = null, readingProgress = 1.0f, lastOpenedAt = 9000L),
-            LibraryItemEntity(serverId = "s1", id = "new-next", libraryId = "lib1", title = "NN", author = "A", coverUrl = null, readingProgress = 0f),
+            LibraryItemEntity(sourceId = "s1", id = "new-done", libraryId = "lib1", title = "ND", author = "A", coverUrl = null, readingProgress = 1.0f, lastOpenedAt = 9000L),
+            LibraryItemEntity(sourceId = "s1", id = "new-next", libraryId = "lib1", title = "NN", author = "A", coverUrl = null, readingProgress = 0f),
         ))
         dao.upsertAll(listOf(series("series-old"), series("series-new")))
         dao.upsertAllItems(listOf(
-            SeriesItemEntity("series-old", serverId = "s1", itemId = "old-done", sequenceOrder = 1f),
-            SeriesItemEntity("series-old", serverId = "s1", itemId = "old-next", sequenceOrder = 2f),
-            SeriesItemEntity("series-new", serverId = "s1", itemId = "new-done", sequenceOrder = 1f),
-            SeriesItemEntity("series-new", serverId = "s1", itemId = "new-next", sequenceOrder = 2f),
+            SeriesItemEntity("series-old", sourceId = "s1", itemId = "old-done", sequenceOrder = 1f),
+            SeriesItemEntity("series-old", sourceId = "s1", itemId = "old-next", sequenceOrder = 2f),
+            SeriesItemEntity("series-new", sourceId = "s1", itemId = "new-done", sequenceOrder = 1f),
+            SeriesItemEntity("series-new", sourceId = "s1", itemId = "new-next", sequenceOrder = 2f),
         ))
 
         val result = dao.observeContinueSeriesItems("s1", "lib1").first()
@@ -189,18 +189,18 @@ class SeriesDaoTest {
     fun observeContinueSeriesItems_includesSeriesWithNullLastOpenedAt() = runTest {
         db.libraryItemDao().upsertAll(listOf(
             // series-timestamped: finished with a real lastOpenedAt
-            LibraryItemEntity(serverId = "s1", id = "ts-done", libraryId = "lib1", title = "TD", author = "A", coverUrl = null, readingProgress = 1.0f, lastOpenedAt = 5000L),
-            LibraryItemEntity(serverId = "s1", id = "ts-next", libraryId = "lib1", title = "TN", author = "A", coverUrl = null, readingProgress = 0f),
+            LibraryItemEntity(sourceId = "s1", id = "ts-done", libraryId = "lib1", title = "TD", author = "A", coverUrl = null, readingProgress = 1.0f, lastOpenedAt = 5000L),
+            LibraryItemEntity(sourceId = "s1", id = "ts-next", libraryId = "lib1", title = "TN", author = "A", coverUrl = null, readingProgress = 0f),
             // series-null: finished with null lastOpenedAt (ABS sometimes omits this field)
-            LibraryItemEntity(serverId = "s1", id = "null-done", libraryId = "lib1", title = "ND", author = "A", coverUrl = null, readingProgress = 1.0f, lastOpenedAt = null),
-            LibraryItemEntity(serverId = "s1", id = "null-next", libraryId = "lib1", title = "NN", author = "A", coverUrl = null, readingProgress = 0f),
+            LibraryItemEntity(sourceId = "s1", id = "null-done", libraryId = "lib1", title = "ND", author = "A", coverUrl = null, readingProgress = 1.0f, lastOpenedAt = null),
+            LibraryItemEntity(sourceId = "s1", id = "null-next", libraryId = "lib1", title = "NN", author = "A", coverUrl = null, readingProgress = 0f),
         ))
         dao.upsertAll(listOf(series("series-ts"), series("series-null")))
         dao.upsertAllItems(listOf(
-            SeriesItemEntity("series-ts", serverId = "s1", itemId = "ts-done", sequenceOrder = 1f),
-            SeriesItemEntity("series-ts", serverId = "s1", itemId = "ts-next", sequenceOrder = 2f),
-            SeriesItemEntity("series-null", serverId = "s1", itemId = "null-done", sequenceOrder = 1f),
-            SeriesItemEntity("series-null", serverId = "s1", itemId = "null-next", sequenceOrder = 2f),
+            SeriesItemEntity("series-ts", sourceId = "s1", itemId = "ts-done", sequenceOrder = 1f),
+            SeriesItemEntity("series-ts", sourceId = "s1", itemId = "ts-next", sequenceOrder = 2f),
+            SeriesItemEntity("series-null", sourceId = "s1", itemId = "null-done", sequenceOrder = 1f),
+            SeriesItemEntity("series-null", sourceId = "s1", itemId = "null-next", sequenceOrder = 2f),
         ))
 
         val result = dao.observeContinueSeriesItems("s1", "lib1").first()
@@ -214,16 +214,16 @@ class SeriesDaoTest {
     fun observeContinueSeriesItems_deduplicatesBookInMultipleSeries() = runTest {
         // shared-next is the next unread book in both series-A and series-B
         db.libraryItemDao().upsertAll(listOf(
-            LibraryItemEntity(serverId = "s1", id = "a-done", libraryId = "lib1", title = "AD", author = "A", coverUrl = null, readingProgress = 1.0f, lastOpenedAt = 1000L),
-            LibraryItemEntity(serverId = "s1", id = "b-done", libraryId = "lib1", title = "BD", author = "A", coverUrl = null, readingProgress = 1.0f, lastOpenedAt = 2000L),
-            LibraryItemEntity(serverId = "s1", id = "shared-next", libraryId = "lib1", title = "SN", author = "A", coverUrl = null, readingProgress = 0f),
+            LibraryItemEntity(sourceId = "s1", id = "a-done", libraryId = "lib1", title = "AD", author = "A", coverUrl = null, readingProgress = 1.0f, lastOpenedAt = 1000L),
+            LibraryItemEntity(sourceId = "s1", id = "b-done", libraryId = "lib1", title = "BD", author = "A", coverUrl = null, readingProgress = 1.0f, lastOpenedAt = 2000L),
+            LibraryItemEntity(sourceId = "s1", id = "shared-next", libraryId = "lib1", title = "SN", author = "A", coverUrl = null, readingProgress = 0f),
         ))
         dao.upsertAll(listOf(series("series-A"), series("series-B")))
         dao.upsertAllItems(listOf(
-            SeriesItemEntity("series-A", serverId = "s1", itemId = "a-done", sequenceOrder = 1f),
-            SeriesItemEntity("series-A", serverId = "s1", itemId = "shared-next", sequenceOrder = 2f),
-            SeriesItemEntity("series-B", serverId = "s1", itemId = "b-done", sequenceOrder = 1f),
-            SeriesItemEntity("series-B", serverId = "s1", itemId = "shared-next", sequenceOrder = 2f),
+            SeriesItemEntity("series-A", sourceId = "s1", itemId = "a-done", sequenceOrder = 1f),
+            SeriesItemEntity("series-A", sourceId = "s1", itemId = "shared-next", sequenceOrder = 2f),
+            SeriesItemEntity("series-B", sourceId = "s1", itemId = "b-done", sequenceOrder = 1f),
+            SeriesItemEntity("series-B", sourceId = "s1", itemId = "shared-next", sequenceOrder = 2f),
         ))
 
         val result = dao.observeContinueSeriesItems("s1", "lib1").first()

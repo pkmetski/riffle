@@ -11,30 +11,30 @@ import kotlinx.coroutines.flow.Flow
 @Dao
 interface LibraryItemDao {
 
-    @Query("SELECT * FROM library_items WHERE serverId = :serverId AND libraryId = :libraryId ORDER BY title ASC")
-    fun observeByLibraryId(serverId: String, libraryId: String): Flow<List<LibraryItemEntity>>
+    @Query("SELECT * FROM library_items WHERE sourceId = :sourceId AND libraryId = :libraryId ORDER BY title ASC")
+    fun observeByLibraryId(sourceId: String, libraryId: String): Flow<List<LibraryItemEntity>>
 
-    /** All library items owned by a Server, across every library. Used by the Annotations View
+    /** All library items owned by a Source, across every library. Used by the Annotations View
      *  library list, which joins against highlight summaries that aren't library-scoped. */
-    @Query("SELECT * FROM library_items WHERE serverId = :serverId")
-    fun observeByServer(serverId: String): Flow<List<LibraryItemEntity>>
+    @Query("SELECT * FROM library_items WHERE sourceId = :sourceId")
+    fun observeBySource(sourceId: String): Flow<List<LibraryItemEntity>>
 
     @Query("""
         SELECT * FROM library_items
-        WHERE serverId = :serverId AND libraryId = :libraryId
+        WHERE sourceId = :sourceId AND libraryId = :libraryId
         AND id NOT IN (
             SELECT itemId FROM series_items
-            WHERE serverId = :serverId
+            WHERE sourceId = :sourceId
               AND seriesId IN (SELECT id FROM series WHERE libraryId = :libraryId)
         )
         AND id NOT IN (
             SELECT itemId FROM collection_items
-            WHERE serverId = :serverId
+            WHERE sourceId = :sourceId
               AND collectionId IN (SELECT id FROM collections WHERE libraryId = :libraryId)
         )
         ORDER BY title ASC
     """)
-    fun observeUngroupedByLibraryId(serverId: String, libraryId: String): Flow<List<LibraryItemEntity>>
+    fun observeUngroupedByLibraryId(sourceId: String, libraryId: String): Flow<List<LibraryItemEntity>>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertAll(items: List<LibraryItemEntity>)
@@ -52,35 +52,35 @@ interface LibraryItemDao {
     suspend fun updateMetadata(metadata: LibraryItemMetadata)
 
     /** Removes library items whose id is no longer present on the server. */
-    @Query("DELETE FROM library_items WHERE serverId = :serverId AND libraryId = :libraryId AND id NOT IN (:serverItemIds)")
-    suspend fun deleteRemovedFromLibrary(serverId: String, libraryId: String, serverItemIds: List<String>)
+    @Query("DELETE FROM library_items WHERE sourceId = :sourceId AND libraryId = :libraryId AND id NOT IN (:serverItemIds)")
+    suspend fun deleteRemovedFromLibrary(sourceId: String, libraryId: String, serverItemIds: List<String>)
 
-    @Query("SELECT * FROM library_items WHERE serverId = :serverId AND id = :itemId LIMIT 1")
-    suspend fun getById(serverId: String, itemId: String): LibraryItemEntity?
+    @Query("SELECT * FROM library_items WHERE sourceId = :sourceId AND id = :itemId LIMIT 1")
+    suspend fun getById(sourceId: String, itemId: String): LibraryItemEntity?
 
     /** Reactive single-item read — re-emits when the row changes (e.g. readingProgress on reader close). */
-    @Query("SELECT * FROM library_items WHERE serverId = :serverId AND id = :itemId LIMIT 1")
-    fun observeById(serverId: String, itemId: String): Flow<LibraryItemEntity?>
+    @Query("SELECT * FROM library_items WHERE sourceId = :sourceId AND id = :itemId LIMIT 1")
+    fun observeById(sourceId: String, itemId: String): Flow<LibraryItemEntity?>
 
     /**
-     * The Server that owns an item id. Used by the one-time on-disk file migration (ADR 0025) to
-     * relocate legacy flat `<itemId>` files under their owning Server. Pre-migration item ids were
+     * The Source that owns an item id. Used by the one-time on-disk file migration (ADR 0025) to
+     * relocate legacy flat `<itemId>` files under their owning Source. Pre-migration item ids were
      * globally unique (DB PK was itemId), so at most one row matches.
      */
-    @Query("SELECT serverId FROM library_items WHERE id = :itemId LIMIT 1")
-    suspend fun findServerIdForItem(itemId: String): String?
+    @Query("SELECT sourceId FROM library_items WHERE id = :itemId LIMIT 1")
+    suspend fun findSourceIdForItem(itemId: String): String?
 
-    @Query("DELETE FROM library_items WHERE serverId = :serverId AND libraryId = :libraryId")
-    suspend fun deleteByLibraryId(serverId: String, libraryId: String)
+    @Query("DELETE FROM library_items WHERE sourceId = :sourceId AND libraryId = :libraryId")
+    suspend fun deleteByLibraryId(sourceId: String, libraryId: String)
 
     @Transaction
-    suspend fun replaceAllForLibrary(serverId: String, libraryId: String, items: List<LibraryItemEntity>) {
+    suspend fun replaceAllForLibrary(sourceId: String, libraryId: String, items: List<LibraryItemEntity>) {
         if (items.isEmpty()) {
-            deleteByLibraryId(serverId, libraryId)
+            deleteByLibraryId(sourceId, libraryId)
             return
         }
         // Remove items no longer present on the server.
-        deleteRemovedFromLibrary(serverId, libraryId, items.map { it.id })
+        deleteRemovedFromLibrary(sourceId, libraryId, items.map { it.id })
         // Insert truly new items — they get the server's readingProgress as the initial seed.
         insertOrIgnore(items)
         // Update metadata for all items, preserving each row's local readingProgress.
@@ -89,56 +89,56 @@ interface LibraryItemDao {
 
     @Query("""
         SELECT * FROM library_items
-        WHERE serverId = :serverId AND libraryId = :libraryId
+        WHERE sourceId = :sourceId AND libraryId = :libraryId
           AND readingProgress > 0.0
           AND readingProgress < 0.99
         ORDER BY lastOpenedAt IS NULL ASC, lastOpenedAt DESC
     """)
-    fun observeInProgress(serverId: String, libraryId: String): Flow<List<LibraryItemEntity>>
+    fun observeInProgress(sourceId: String, libraryId: String): Flow<List<LibraryItemEntity>>
 
-    @Query("SELECT * FROM library_items WHERE serverId = :serverId AND libraryId = :libraryId AND readingProgress >= 0.99 ORDER BY COALESCE(finishedAt, lastOpenedAt) IS NULL ASC, COALESCE(finishedAt, lastOpenedAt) DESC")
-    fun observeFinished(serverId: String, libraryId: String): Flow<List<LibraryItemEntity>>
+    @Query("SELECT * FROM library_items WHERE sourceId = :sourceId AND libraryId = :libraryId AND readingProgress >= 0.99 ORDER BY COALESCE(finishedAt, lastOpenedAt) IS NULL ASC, COALESCE(finishedAt, lastOpenedAt) DESC")
+    fun observeFinished(sourceId: String, libraryId: String): Flow<List<LibraryItemEntity>>
 
-    @Query("SELECT * FROM library_items WHERE serverId = :serverId AND libraryId = :libraryId ORDER BY addedAt IS NULL ASC, addedAt DESC")
-    fun observeRecentlyAdded(serverId: String, libraryId: String): Flow<List<LibraryItemEntity>>
+    @Query("SELECT * FROM library_items WHERE sourceId = :sourceId AND libraryId = :libraryId ORDER BY addedAt IS NULL ASC, addedAt DESC")
+    fun observeRecentlyAdded(sourceId: String, libraryId: String): Flow<List<LibraryItemEntity>>
 
-    @Query("SELECT * FROM library_items WHERE serverId = :serverId AND libraryId = :libraryId ORDER BY title ASC")
-    fun observeAllBooks(serverId: String, libraryId: String): Flow<List<LibraryItemEntity>>
+    @Query("SELECT * FROM library_items WHERE sourceId = :sourceId AND libraryId = :libraryId ORDER BY title ASC")
+    fun observeAllBooks(sourceId: String, libraryId: String): Flow<List<LibraryItemEntity>>
 
-    @Query("UPDATE library_items SET lastOpenedAt = :timestamp WHERE serverId = :serverId AND id = :itemId")
-    suspend fun updateLastOpenedAt(serverId: String, itemId: String, timestamp: Long)
+    @Query("UPDATE library_items SET lastOpenedAt = :timestamp WHERE sourceId = :sourceId AND id = :itemId")
+    suspend fun updateLastOpenedAt(sourceId: String, itemId: String, timestamp: Long)
 
-    @Query("UPDATE library_items SET readingProgress = :progress WHERE serverId = :serverId AND id = :itemId")
-    suspend fun updateReadingProgress(serverId: String, itemId: String, progress: Float)
+    @Query("UPDATE library_items SET readingProgress = :progress WHERE sourceId = :sourceId AND id = :itemId")
+    suspend fun updateReadingProgress(sourceId: String, itemId: String, progress: Float)
 
-    @Query("UPDATE library_items SET finishedAt = :finishedAt WHERE serverId = :serverId AND id = :itemId")
-    suspend fun updateFinishedAt(serverId: String, itemId: String, finishedAt: Long?)
+    @Query("UPDATE library_items SET finishedAt = :finishedAt WHERE sourceId = :sourceId AND id = :itemId")
+    suspend fun updateFinishedAt(sourceId: String, itemId: String, finishedAt: Long?)
 
-    @Query("SELECT id, lastOpenedAt FROM library_items WHERE serverId = :serverId AND libraryId = :libraryId AND lastOpenedAt IS NOT NULL")
-    suspend fun getLastOpenedAtMap(serverId: String, libraryId: String): List<LastOpenedAtRow>
+    @Query("SELECT id, lastOpenedAt FROM library_items WHERE sourceId = :sourceId AND libraryId = :libraryId AND lastOpenedAt IS NOT NULL")
+    suspend fun getLastOpenedAtMap(sourceId: String, libraryId: String): List<LastOpenedAtRow>
 
-    @Query("SELECT id, readingProgress FROM library_items WHERE serverId = :serverId AND libraryId = :libraryId AND readingProgress > 0.0")
-    suspend fun getReadingProgressMap(serverId: String, libraryId: String): List<ReadingProgressRow>
+    @Query("SELECT id, readingProgress FROM library_items WHERE sourceId = :sourceId AND libraryId = :libraryId AND readingProgress > 0.0")
+    suspend fun getReadingProgressMap(sourceId: String, libraryId: String): List<ReadingProgressRow>
 
     /**
-     * All library items whose owning Server is of the given [serverType]. Used by the
-     * Storyteller↔ABS matcher to enumerate candidates across every configured Server of a
+     * All library items whose owning Source is of the given [serverType]. Used by the
+     * Storyteller↔ABS matcher to enumerate candidates across every configured Source of a
      * side. No format filter — `readaloud_links` is now keyed by ABS item, so an audiobook-
      * stub entry coexisting with an ebook entry produces two link rows rather than a Tier 2
      * collision.
      *
-     * Joined against [servers] via `library_items.serverId`, NOT through `libraries.id`:
-     * library ids are only unique within a Server (issue #113), so joining by library id
-     * multiplies each item by every Server whose library happens to share that id, which
+     * Joined against [sources] via `library_items.sourceId`, NOT through `libraries.id`:
+     * library ids are only unique within a Source (issue #113), so joining by library id
+     * multiplies each item by every Source whose library happens to share that id, which
      * surfaces as a duplicate-key crash in the Readaloud picker's LazyColumn.
      */
     @Query(
-        "SELECT li.id AS itemId, li.serverId AS serverId, li.title, li.author, li.isbn, li.asin " +
+        "SELECT li.id AS itemId, li.sourceId AS sourceId, li.title, li.author, li.isbn, li.asin " +
             "FROM library_items li " +
-            "JOIN servers s ON li.serverId = s.id " +
+            "JOIN sources s ON li.sourceId = s.id " +
             "WHERE s.serverType = :serverType"
     )
-    suspend fun listMatchableByServerType(serverType: String): List<MatchableItemRow>
+    suspend fun listMatchableBySourceType(serverType: String): List<MatchableItemRow>
 }
 
 /**
@@ -147,7 +147,7 @@ interface LibraryItemDao {
  * reading progress with a stale server value.
  */
 data class LibraryItemMetadata(
-    val serverId: String,
+    val sourceId: String,
     val id: String,
     val libraryId: String,
     val title: String,
@@ -171,7 +171,7 @@ data class LibraryItemMetadata(
 ) {
     companion object {
         fun from(entity: LibraryItemEntity) = LibraryItemMetadata(
-            serverId = entity.serverId,
+            sourceId = entity.sourceId,
             id = entity.id,
             libraryId = entity.libraryId,
             title = entity.title,
@@ -200,7 +200,7 @@ data class LastOpenedAtRow(val id: String, val lastOpenedAt: Long)
 data class ReadingProgressRow(val id: String, val readingProgress: Float)
 data class MatchableItemRow(
     val itemId: String,
-    val serverId: String,
+    val sourceId: String,
     val title: String,
     val author: String,
     val isbn: String?,

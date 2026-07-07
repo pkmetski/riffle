@@ -13,18 +13,18 @@ sealed class AudiobookDownloadResult {
  * tier for audio yet.
  */
 interface AudiobookDownloadRepository {
-    fun isDownloaded(serverId: String, itemId: String): Boolean
+    fun isDownloaded(sourceId: String, itemId: String): Boolean
 
     /** A playable session backed by the downloaded local files (`file://` track URLs), or null. */
-    fun localSession(serverId: String, itemId: String): AudiobookSession?
+    fun localSession(sourceId: String, itemId: String): AudiobookSession?
 
     /** Downloads every track of the audiobook to permanent storage, reporting cumulative bytes. */
     suspend fun download(
-        serverId: String,
+        sourceId: String,
         itemId: String,
         onProgress: (downloaded: Long, total: Long) -> Unit,
     ): AudiobookDownloadResult
 
     /** Removes the downloaded copy; returns bytes freed. */
-    suspend fun remove(serverId: String, itemId: String): Long
+    suspend fun remove(sourceId: String, itemId: String): Long
 }

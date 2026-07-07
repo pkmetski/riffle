@@ -21,25 +21,25 @@ class ReadaloudLinkRepositoryImpl @Inject constructor(
     override fun observeLinkedAbsItemIds(): Flow<Set<String>> =
         dao.observeLinkedAbsItemIds().map { it.toSet() }
 
-    override suspend fun findByAbsItem(absServerId: String, absLibraryItemId: String): ReadaloudLink? =
-        dao.findByAbsItem(absServerId, absLibraryItemId)?.toDomain()
+    override suspend fun findByAbsItem(absSourceId: String, absLibraryItemId: String): ReadaloudLink? =
+        dao.findByAbsItem(absSourceId, absLibraryItemId)?.toDomain()
 
-    override suspend fun findByStorytellerBook(storytellerServerId: String, storytellerBookId: String): List<ReadaloudLink> =
-        dao.findByStorytellerBook(storytellerServerId, storytellerBookId).map { it.toDomain() }
+    override suspend fun findByStorytellerBook(storytellerSourceId: String, storytellerBookId: String): List<ReadaloudLink> =
+        dao.findByStorytellerBook(storytellerSourceId, storytellerBookId).map { it.toDomain() }
 
-    override suspend fun unlinkAbsItem(absServerId: String, absLibraryItemId: String) =
-        dao.deleteByAbsItem(absServerId, absLibraryItemId)
+    override suspend fun unlinkAbsItem(absSourceId: String, absLibraryItemId: String) =
+        dao.deleteByAbsItem(absSourceId, absLibraryItemId)
 
-    override suspend fun countForServer(serverId: String): Int =
-        dao.countForServer(serverId)
+    override suspend fun countForSource(sourceId: String): Int =
+        dao.countForSource(sourceId)
 
-    override suspend fun updateIdentityResult(absServerId: String, absLibraryItemId: String, result: AudiobookIdentityResult) =
-        dao.updateIdentityResult(absServerId, absLibraryItemId, result.name)
+    override suspend fun updateIdentityResult(absSourceId: String, absLibraryItemId: String, result: AudiobookIdentityResult) =
+        dao.updateIdentityResult(absSourceId, absLibraryItemId, result.name)
 
     private fun ReadaloudLinkEntity.toDomain() = ReadaloudLink(
-        storytellerServerId = storytellerServerId,
+        storytellerSourceId = storytellerSourceId,
         storytellerBookId = storytellerBookId,
-        absServerId = absServerId,
+        absSourceId = absSourceId,
         absLibraryItemId = absLibraryItemId,
         userConfirmed = userConfirmed,
         identityResult = runCatching { AudiobookIdentityResult.valueOf(identityResult) }

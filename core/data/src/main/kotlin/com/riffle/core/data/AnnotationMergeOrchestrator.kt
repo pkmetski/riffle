@@ -24,7 +24,7 @@ internal class AnnotationMergeOrchestrator(
     /** Full sync on book open: list peer files, read each, merge, upsert. */
     suspend fun syncOnOpen(
         target: AnnotationSyncTarget,
-        serverId: String,
+        sourceId: String,
         namespace: String,
         itemId: String,
     ) {
@@ -35,7 +35,7 @@ internal class AnnotationMergeOrchestrator(
             // Don't enqueue a sweep — sync-on-open failures are retried the next book open.
             return
         }
-        mergeFromListing(target, serverId, namespace, itemId, filenames)
+        mergeFromListing(target, sourceId, namespace, itemId, filenames)
     }
 
     /**
@@ -45,7 +45,7 @@ internal class AnnotationMergeOrchestrator(
      */
     suspend fun mergeFromListing(
         target: AnnotationSyncTarget,
-        serverId: String,
+        sourceId: String,
         namespace: String,
         itemId: String,
         filenames: List<String>,
@@ -68,7 +68,7 @@ internal class AnnotationMergeOrchestrator(
             // Room empty with a stale file on WebDAV and no signal to retry the DELETE.
             val now = clock()
             val cutoff = now - tombstoneTtlMs
-            val beforeSweep = annotationDao.getAllForItemIncludingDeleted(serverId, itemId)
+            val beforeSweep = annotationDao.getAllForItemIncludingDeleted(sourceId, itemId)
             val nonPurgeable = beforeSweep.filter { !it.isAgedSyncedTomb(cutoff) }
             val localById = nonPurgeable.associateBy { it.id }
             val localExisting = nonPurgeable.map { AnnotationW3CCodec.entityToW3CAnnotation(it) }
@@ -93,7 +93,7 @@ internal class AnnotationMergeOrchestrator(
             }
 
             // Safe to commit Room mutations now — either no DELETE was needed, or it succeeded.
-            annotationDao.purgeAgedTombstones(serverId, itemId, cutoff)
+            annotationDao.purgeAgedTombstones(sourceId, itemId, cutoff)
 
             val entities = merged.map { w3cAnnotation ->
                 val existing = localById[w3cAnnotation.id]
@@ -104,7 +104,7 @@ internal class AnnotationMergeOrchestrator(
                 }
                 AnnotationEntity(
                     id = w3cAnnotation.id,
-                    serverId = serverId,
+                    sourceId = sourceId,
                     itemId = itemId,
                     type = w3cAnnotation.type,
                     cfi = w3cAnnotation.cfi,
@@ -146,7 +146,7 @@ internal class AnnotationMergeOrchestrator(
                 annotationDao.upsert(entity)
             }
             statusStore.report(CycleOutcome.Success(clock()))
-            sentinelWriter.writeQuietly(target, namespace, serverId)
+            sentinelWriter.writeQuietly(target, namespace, sourceId)
         } catch (e: Exception) {
             statusStore.report(e.toFailedCycleOutcome(clock()))
         }

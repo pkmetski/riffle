@@ -196,7 +196,7 @@ class AbsProgressRemoteTest {
     }
 
     @Test
-    fun `audio patch sends seconds with the supplied duration and returns the server stamp`() = runTest {
+    fun `audio patch sends seconds with the supplied duration and returns the source stamp`() = runTest {
         val api = FakeSessionApi(
             NetworkResult.Success(serverProgress()),
             NetworkResult.Success(1900L),

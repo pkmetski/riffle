@@ -53,7 +53,7 @@ class LibraryFilterEngineTest {
 
     private fun fakeRepo(): LibraryObserver = object : LibraryObserver {
         override fun observeLibraries(): Flow<List<Library>> = MutableStateFlow(emptyList())
-        override fun observeLibraries(serverId: String): Flow<List<Library>> = observeLibraries()
+        override fun observeLibraries(sourceId: String): Flow<List<Library>> = observeLibraries()
         override fun observeLibraryItems(libraryId: String): Flow<List<LibraryItem>> = allItemsFlow
         override fun observeUngroupedLibraryItems(libraryId: String): Flow<List<LibraryItem>> = ungroupedFlow
         override fun observeInProgressItems(libraryId: String): Flow<List<LibraryItem>> = inProgressFlow
@@ -69,31 +69,31 @@ class LibraryFilterEngineTest {
             collectionItemsByCollectionId.getOrPut(collectionId) { MutableStateFlow(emptyList()) }
         override suspend fun getItem(itemId: String): LibraryItem? = null
         override fun observeItem(itemId: String): Flow<LibraryItem?> = MutableStateFlow<LibraryItem?>(null)
-        override suspend fun getItem(serverId: String, itemId: String): LibraryItem? = null
+        override suspend fun getItem(sourceId: String, itemId: String): LibraryItem? = null
         override suspend fun getLibrary(libraryId: String): Library? = null
-        override suspend fun getSeriesIdForItem(serverId: String, itemId: String): String? = null
+        override suspend fun getSeriesIdForItem(sourceId: String, itemId: String): String? = null
     }
 
     private fun fakeAnnotationStore(): AnnotationStore = object : AnnotationStore {
-        override fun observeHighlights(serverId: String, itemId: String) = MutableStateFlow(emptyList<com.riffle.core.domain.Annotation>())
-        override fun observeBookmarks(serverId: String, itemId: String) = MutableStateFlow(emptyList<com.riffle.core.domain.Annotation>())
-        override fun observeAnnotations(serverId: String, itemId: String) = MutableStateFlow(emptyList<com.riffle.core.domain.Annotation>())
-        override fun observeAnnotationsForServer(serverId: String) =
-            annotationsFlow.map { all -> all.filter { it.serverId == serverId } }
-        override suspend fun createHighlight(serverId: String, itemId: String, cfi: String, textSnippet: String, chapterHref: String, textBefore: String, textAfter: String, color: String, spineIndex: Int, progression: Double) = error("unused")
-        override suspend fun createBookmark(serverId: String, itemId: String, cfi: String, textSnippet: String, chapterHref: String, spineIndex: Int, progression: Double, bookmarkTitle: String) = error("unused")
+        override fun observeHighlights(sourceId: String, itemId: String) = MutableStateFlow(emptyList<com.riffle.core.domain.Annotation>())
+        override fun observeBookmarks(sourceId: String, itemId: String) = MutableStateFlow(emptyList<com.riffle.core.domain.Annotation>())
+        override fun observeAnnotations(sourceId: String, itemId: String) = MutableStateFlow(emptyList<com.riffle.core.domain.Annotation>())
+        override fun observeAnnotationsForSource(sourceId: String) =
+            annotationsFlow.map { all -> all.filter { it.sourceId == sourceId } }
+        override suspend fun createHighlight(sourceId: String, itemId: String, cfi: String, textSnippet: String, chapterHref: String, textBefore: String, textAfter: String, color: String, spineIndex: Int, progression: Double) = error("unused")
+        override suspend fun createBookmark(sourceId: String, itemId: String, cfi: String, textSnippet: String, chapterHref: String, spineIndex: Int, progression: Double, bookmarkTitle: String) = error("unused")
         override suspend fun delete(id: String) = error("unused")
         override suspend fun recolor(id: String, color: String) = error("unused")
         override suspend fun updateNote(id: String, note: String?) = error("unused")
         override suspend fun renameBookmark(id: String, title: String) = error("unused")
-        override suspend fun findByItemAndCfi(serverId: String, itemId: String, cfi: String): com.riffle.core.domain.Annotation? = null
+        override suspend fun findByItemAndCfi(sourceId: String, itemId: String, cfi: String): com.riffle.core.domain.Annotation? = null
     }
 
     private fun fakeBookmarkStore(): AudiobookBookmarkStore = object : AudiobookBookmarkStore {
-        override fun observe(serverId: String, itemId: String) = MutableStateFlow(emptyList<com.riffle.core.domain.AudiobookBookmark>())
-        override fun observeForServer(serverId: String) = bookmarksFlow.map { all -> all.filter { it.serverId == serverId } }
-        override fun observeHasUnsynced(serverId: String, itemId: String) = MutableStateFlow(false)
-        override suspend fun add(serverId: String, itemId: String, positionSec: Double, title: String, now: Long) = error("unused")
+        override fun observe(sourceId: String, itemId: String) = MutableStateFlow(emptyList<com.riffle.core.domain.AudiobookBookmark>())
+        override fun observeForSource(sourceId: String) = bookmarksFlow.map { all -> all.filter { it.sourceId == sourceId } }
+        override fun observeHasUnsynced(sourceId: String, itemId: String) = MutableStateFlow(false)
+        override suspend fun add(sourceId: String, itemId: String, positionSec: Double, title: String, now: Long) = error("unused")
         override suspend fun rename(id: String, title: String, now: Long) = error("unused")
         override suspend fun delete(id: String, now: Long) = error("unused")
     }
@@ -101,26 +101,26 @@ class LibraryFilterEngineTest {
     private fun epubRepoWithDownloads(downloadedIds: Set<String>): EpubRepository = object : EpubRepository {
         override suspend fun openEpub(item: LibraryItem) = EpubOpenResult.Offline
         override suspend fun downloadEpub(item: LibraryItem, onProgress: (Long, Long) -> Unit) = EpubDownloadResult.Success
-        override suspend fun removeDownload(serverId: String, itemId: String) {}
-        override fun isDownloaded(serverId: String, itemId: String): Boolean = itemId in downloadedIds
-        override fun isCached(serverId: String, itemId: String): Boolean = false
+        override suspend fun removeDownload(sourceId: String, itemId: String) {}
+        override fun isDownloaded(sourceId: String, itemId: String): Boolean = itemId in downloadedIds
+        override fun isCached(sourceId: String, itemId: String): Boolean = false
         override suspend fun saveReadingPosition(itemId: String, cfi: String) {}
     }
 
     private fun fakePdfRepo(): PdfRepository = object : PdfRepository {
         override suspend fun openPdf(item: LibraryItem) = PdfOpenResult.Offline
         override suspend fun downloadPdf(item: LibraryItem, onProgress: (Long, Long) -> Unit) = PdfDownloadResult.Success
-        override suspend fun removeDownload(serverId: String, itemId: String) {}
-        override fun isDownloaded(serverId: String, itemId: String): Boolean = false
-        override fun isCached(serverId: String, itemId: String): Boolean = false
+        override suspend fun removeDownload(sourceId: String, itemId: String) {}
+        override fun isDownloaded(sourceId: String, itemId: String): Boolean = false
+        override fun isCached(sourceId: String, itemId: String): Boolean = false
         override suspend fun saveReadingPosition(itemId: String, locatorJson: String) {}
     }
 
     private fun fakeAudiobookDownloadRepo(): AudiobookDownloadRepository = object : AudiobookDownloadRepository {
-        override fun isDownloaded(serverId: String, itemId: String): Boolean = false
-        override fun localSession(serverId: String, itemId: String): AudiobookSession? = null
-        override suspend fun download(serverId: String, itemId: String, onProgress: (Long, Long) -> Unit) = AudiobookDownloadResult.Success
-        override suspend fun remove(serverId: String, itemId: String): Long = 0L
+        override fun isDownloaded(sourceId: String, itemId: String): Boolean = false
+        override fun localSession(sourceId: String, itemId: String): AudiobookSession? = null
+        override suspend fun download(sourceId: String, itemId: String, onProgress: (Long, Long) -> Unit) = AudiobookDownloadResult.Success
+        override suspend fun remove(sourceId: String, itemId: String): Long = 0L
     }
 
     private fun makeEngine(
@@ -139,8 +139,8 @@ class LibraryFilterEngineTest {
                 fakePdfRepo(),
                 fakeAudiobookDownloadRepo(),
                 object : BundleAudiobookSource {
-                    override suspend fun localSession(serverId: String, itemId: String) = null
-                    override fun isAvailableOffline(serverId: String, itemId: String) = false
+                    override suspend fun localSession(sourceId: String, itemId: String) = null
+                    override fun isAvailableOffline(sourceId: String, itemId: String) = false
                 },
             ),
             seriesSource = seriesFlow,
@@ -165,23 +165,23 @@ class LibraryFilterEngineTest {
         "id-$title", "lib-1", title, author, null, 0f, false, false, EbookFormat.Epub,
     )
 
-    private fun itemWithServerId(id: String, title: String, serverId: String) = LibraryItem(
+    private fun itemWithServerId(id: String, title: String, sourceId: String) = LibraryItem(
         id = id, libraryId = "lib-1", title = title, author = "A", coverUrl = null,
         readingProgress = 0f, isCached = false, isDownloaded = false,
-        ebookFormat = EbookFormat.Epub, serverId = serverId,
+        ebookFormat = EbookFormat.Epub, sourceId = sourceId,
     )
 
-    private fun annotation(id: String, serverId: String, itemId: String, snippet: String) =
+    private fun annotation(id: String, sourceId: String, itemId: String, snippet: String) =
         com.riffle.core.domain.Annotation(
-            id = id, serverId = serverId, itemId = itemId, type = "highlight",
+            id = id, sourceId = sourceId, itemId = itemId, type = "highlight",
             cfi = "", color = "yellow", note = null, textSnippet = snippet,
             textBefore = "", textAfter = "", chapterHref = "", spineIndex = 0,
             progression = 0.0, bookmarkTitle = "", createdAt = 0L, updatedAt = 0L,
         )
 
-    private fun bookmark(id: String, serverId: String, itemId: String, title: String) =
+    private fun bookmark(id: String, sourceId: String, itemId: String, title: String) =
         com.riffle.core.domain.AudiobookBookmark(
-            id = id, serverId = serverId, itemId = itemId, positionSec = 0.0,
+            id = id, sourceId = sourceId, itemId = itemId, positionSec = 0.0,
             title = title, createdAt = 0L,
         )
 

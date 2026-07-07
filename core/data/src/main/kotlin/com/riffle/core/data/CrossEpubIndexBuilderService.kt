@@ -11,8 +11,8 @@ import com.riffle.core.domain.EpubChecksum
 import com.riffle.core.domain.EpubContentExtractor
 import com.riffle.core.domain.LocalStore
 import com.riffle.core.domain.ReadaloudLink
-import com.riffle.core.domain.Server
-import com.riffle.core.domain.ServerRepository
+import com.riffle.core.domain.Source
+import com.riffle.core.domain.SourceRepository
 import com.riffle.core.domain.TokenStorage
 import com.riffle.core.network.AbsLibraryApi
 import com.riffle.core.network.NetworkResult
@@ -41,7 +41,7 @@ import javax.inject.Singleton
  */
 @Singleton
 class CrossEpubIndexBuilderService(
-    private val serverRepository: ServerRepository,
+    private val sourceRepository: SourceRepository,
     private val tokenStorage: TokenStorage,
     private val absApi: AbsLibraryApi,
     @EpubCacheStore private val cacheStore: LocalStore,
@@ -52,7 +52,7 @@ class CrossEpubIndexBuilderService(
     applicationScope: ApplicationScope,
 ) : CrossEpubIndexBuildTrigger {
     @Inject constructor(
-        serverRepository: ServerRepository,
+        sourceRepository: SourceRepository,
         tokenStorage: TokenStorage,
         absApi: AbsLibraryApi,
         @EpubCacheStore cacheStore: LocalStore,
@@ -60,7 +60,7 @@ class CrossEpubIndexBuilderService(
         store: CrossEpubIndexStore,
         sidecarStore: ReadaloudSidecarStore,
         applicationScope: ApplicationScope,
-    ) : this(serverRepository, tokenStorage, absApi, cacheStore, downloadsStore, store, sidecarStore, System::currentTimeMillis, applicationScope)
+    ) : this(sourceRepository, tokenStorage, absApi, cacheStore, downloadsStore, store, sidecarStore, System::currentTimeMillis, applicationScope)
 
     private val scope = applicationScope.coroutineScope
     private val inFlight = Collections.synchronizedSet(mutableSetOf<Pair<String, String>>())
@@ -73,7 +73,7 @@ class CrossEpubIndexBuilderService(
 
     /** Schedule an idempotent background build for [link]; returns immediately. */
     override fun enqueueBuild(link: ReadaloudLink) {
-        val key = link.absServerId to link.absLibraryItemId
+        val key = link.absSourceId to link.absLibraryItemId
         if (!inFlight.add(key)) return
         scope.launch {
             try {
@@ -94,12 +94,12 @@ class CrossEpubIndexBuilderService(
         // every Confirmed match, so a fetch would hammer /synced with one full-bundle generation per match
         // concurrently (observed: ~18 at once, all failing). The /synced fetch belongs to prepare-on-open,
         // which runs one book at a time. Absent both → defer; the build re-runs once the sidecar is prepared.
-        val storytellerFile = cachedFile(link.storytellerServerId, link.storytellerBookId)
-            ?: sidecarStore.cachedFile(link.storytellerServerId, link.storytellerBookId)
+        val storytellerFile = cachedFile(link.storytellerSourceId, link.storytellerBookId)
+            ?: sidecarStore.cachedFile(link.storytellerSourceId, link.storytellerBookId)
             ?: return null
 
-        val absServer = serverRepository.getById(link.absServerId) ?: return null
-        val absToken = tokenStorage.getToken(link.absServerId) ?: return null
+        val absServer = sourceRepository.getById(link.absSourceId) ?: return null
+        val absToken = tokenStorage.getToken(link.absSourceId) ?: return null
         val absFile = absEpubFile(absServer, absToken, link.absLibraryItemId) ?: return null
 
         // extract() reads only the OPF + spine chapters + SMIL from the zip, and of() streams the
@@ -115,14 +115,14 @@ class CrossEpubIndexBuilderService(
         )
     }
 
-    private fun cachedFile(serverId: String, itemId: String): File? =
-        downloadsStore.get(serverId, itemId) ?: cacheStore.get(serverId, itemId)
+    private fun cachedFile(sourceId: String, itemId: String): File? =
+        downloadsStore.get(sourceId, itemId) ?: cacheStore.get(sourceId, itemId)
 
-    private suspend fun absEpubFile(server: Server, token: String, itemId: String): File? {
-        cachedFile(server.id, itemId)?.let { return it }
-        val ino = (absApi.getItemEbookFileIno(server.url.value, itemId, token, server.insecureConnectionAllowed)
+    private suspend fun absEpubFile(source: Source, token: String, itemId: String): File? {
+        cachedFile(source.id, itemId)?.let { return it }
+        val ino = (absApi.getItemEbookFileIno(source.url.value, itemId, token, source.insecureConnectionAllowed)
             as? NetworkResult.Success)?.value ?: return null
-        val download = absApi.downloadEpub(server.url.value, itemId, ino, token, server.insecureConnectionAllowed)
-        return (download as? NetworkResult.Success)?.value?.use { cacheStore.save(server.id, itemId, it.byteStream()) }
+        val download = absApi.downloadEpub(source.url.value, itemId, ino, token, source.insecureConnectionAllowed)
+        return (download as? NetworkResult.Success)?.value?.use { cacheStore.save(source.id, itemId, it.byteStream()) }
     }
 }

@@ -12,6 +12,6 @@ import kotlinx.coroutines.flow.Flow
  * separate [ReadaloudPreferencesStore]; the two never share state.
  */
 interface HighlightColorPreferencesStore {
-    fun lastUsedColor(serverId: String, itemId: String): Flow<HighlightColor>
-    suspend fun setLastUsedColor(serverId: String, itemId: String, value: HighlightColor)
+    fun lastUsedColor(sourceId: String, itemId: String): Flow<HighlightColor>
+    suspend fun setLastUsedColor(sourceId: String, itemId: String, value: HighlightColor)
 }

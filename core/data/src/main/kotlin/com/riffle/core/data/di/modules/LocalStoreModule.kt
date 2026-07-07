@@ -14,7 +14,7 @@ import com.riffle.core.data.LocalStoreImpl
 import com.riffle.core.data.LocalStoreMigrator
 import com.riffle.core.data.ReadaloudResumeStoreImpl
 import com.riffle.core.data.ReadingPositionStoreImpl
-import com.riffle.core.data.ServerFilesCleanerImpl
+import com.riffle.core.data.SourceFilesCleanerImpl
 import com.riffle.core.data.di.AudiobookDownloadsDir
 import com.riffle.core.data.di.CrashReportDir
 import com.riffle.core.data.di.EpubCacheStore
@@ -31,7 +31,7 @@ import com.riffle.core.domain.DownloadsRepository
 import com.riffle.core.domain.LocalStore
 import com.riffle.core.domain.ReadaloudResumeStore
 import com.riffle.core.domain.ReadingPositionStore
-import com.riffle.core.domain.ServerFilesCleaner
+import com.riffle.core.domain.SourceFilesCleaner
 import com.riffle.core.domain.TokenStorage
 import dagger.Binds
 import dagger.Module
@@ -127,7 +127,7 @@ abstract class LocalStoreModule {
         fun providePdfDownloadsStore(@ApplicationContext context: Context, dispatchers: com.riffle.core.domain.DispatcherProvider): LocalStore =
             LocalStoreImpl(context.filesDir.resolve("downloads/pdfs").also { it.mkdirs() }, ".pdf", dispatchers)
 
-        // One-time relocation of legacy flat files into per-Server subdirectories (ADR 0025).
+        // One-time relocation of legacy flat files into per-Source subdirectories (ADR 0025).
         @Provides
         @Singleton
         fun provideLocalStoreMigrator(
@@ -142,7 +142,7 @@ abstract class LocalStoreModule {
                     context.cacheDir.resolve("pdfs") to ".pdf",
                     context.filesDir.resolve("downloads/pdfs") to ".pdf",
                 ),
-                resolveServerId = { itemId -> libraryItemDao.findServerIdForItem(itemId) },
+                resolveServerId = { itemId -> libraryItemDao.findSourceIdForItem(itemId) },
                 dispatchers = dispatchers,
             )
 
@@ -157,14 +157,14 @@ abstract class LocalStoreModule {
 
         @Provides
         @Singleton
-        fun provideServerFilesCleaner(
+        fun provideSourceFilesCleaner(
             @EpubCacheStore epubCacheStore: LocalStore,
             @EpubDownloadsStore epubDownloadsStore: LocalStore,
             @PdfCacheStore pdfCacheStore: LocalStore,
             @PdfDownloadsStore pdfDownloadsStore: LocalStore,
             @AudiobookDownloadsDir audiobookDownloadsDir: File,
             dispatchers: com.riffle.core.domain.DispatcherProvider,
-        ): ServerFilesCleaner = ServerFilesCleanerImpl(
+        ): SourceFilesCleaner = SourceFilesCleanerImpl(
             stores = listOf(epubCacheStore, epubDownloadsStore, pdfCacheStore, pdfDownloadsStore),
             audiobookDownloadsDir = audiobookDownloadsDir,
             dispatchers = dispatchers,

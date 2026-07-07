@@ -11,9 +11,9 @@ interface AudioPlaybackPreferencesDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsert(entity: AudioPlaybackPreferencesEntity)
 
-    @Query("SELECT * FROM audio_playback_preferences WHERE serverId = :serverId AND bookId = :bookId LIMIT 1")
-    suspend fun get(serverId: String, bookId: String): AudioPlaybackPreferencesEntity?
+    @Query("SELECT * FROM audio_playback_preferences WHERE sourceId = :sourceId AND bookId = :bookId LIMIT 1")
+    suspend fun get(sourceId: String, bookId: String): AudioPlaybackPreferencesEntity?
 
-    @Query("DELETE FROM audio_playback_preferences WHERE serverId = :serverId AND bookId = :bookId")
-    suspend fun delete(serverId: String, bookId: String)
+    @Query("DELETE FROM audio_playback_preferences WHERE sourceId = :sourceId AND bookId = :bookId")
+    suspend fun delete(sourceId: String, bookId: String)
 }

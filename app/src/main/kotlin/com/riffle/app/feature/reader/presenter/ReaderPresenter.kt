@@ -200,7 +200,7 @@ internal sealed class AnnotationTapEvent {
  * Per-navigation policy options. Defaults match a tap-from-TOC (snap to the landing column, land
  * at the chapter top when no anchor, animate the page turn). Override per call-site:
  *
- * - **Server-progress resume / annotation jump**: [landAtStartWhenNoTarget] = `false` — don't yank
+ * - **Source-progress resume / annotation jump**: [landAtStartWhenNoTarget] = `false` — don't yank
  *   to the chapter top; honour the locator's progression.
  * - **Readaloud `play-from-here`**: [snap] = `false`, [animated] = `false` — the locator already
  *   names the precise sentence column; snap would round it off.

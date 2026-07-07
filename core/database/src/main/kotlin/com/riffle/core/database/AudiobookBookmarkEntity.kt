@@ -5,7 +5,7 @@ import androidx.room.ForeignKey
 import androidx.room.Index
 
 // A user bookmark in an audiobook: a titled point (book-absolute seconds) on a library item.
-// Unlike audiobook_positions (one value per item) this is a COLLECTION per (serverId, itemId).
+// Unlike audiobook_positions (one value per item) this is a COLLECTION per (sourceId, itemId).
 // Dirty-tracking + soft-delete mirror ADR 0030: a row is dirty when localUpdatedAt > lastSyncedAt;
 // a delete is a tombstone (deleted = 1) kept until the server delete is confirmed, then hard-removed.
 @Entity(
@@ -13,17 +13,17 @@ import androidx.room.Index
     primaryKeys = ["id"],
     foreignKeys = [
         ForeignKey(
-            entity = ServerEntity::class,
+            entity = SourceEntity::class,
             parentColumns = ["id"],
-            childColumns = ["serverId"],
+            childColumns = ["sourceId"],
             onDelete = ForeignKey.CASCADE,
         ),
     ],
-    indices = [Index("serverId"), Index(value = ["serverId", "itemId"])],
+    indices = [Index("sourceId"), Index(value = ["sourceId", "itemId"])],
 )
 data class AudiobookBookmarkEntity(
     val id: String,
-    val serverId: String,
+    val sourceId: String,
     val itemId: String,
     val positionSec: Double,
     val title: String,

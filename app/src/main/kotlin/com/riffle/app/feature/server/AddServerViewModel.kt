@@ -21,12 +21,12 @@ import com.riffle.core.domain.AnnotationSyncConfig
 import com.riffle.core.domain.AnnotationSyncConfigStore
 import com.riffle.core.domain.AuthenticateResult
 import com.riffle.core.domain.Clock
-import com.riffle.core.domain.CommitServerResult
+import com.riffle.core.domain.CommitSourceResult
 import com.riffle.core.domain.InsecureConnectionType
-import com.riffle.core.domain.PendingServer
-import com.riffle.core.domain.ServerRepository
+import com.riffle.core.domain.PendingSource
+import com.riffle.core.domain.SourceRepository
 import com.riffle.core.domain.ServerType
-import com.riffle.core.domain.ServerUrl
+import com.riffle.core.domain.SourceUrl
 import com.riffle.core.domain.TokenStorage
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.channels.Channel
@@ -50,7 +50,7 @@ enum class AddServerBackend { AUDIOBOOKSHELF, STORYTELLER, WEBDAV }
 
 @HiltViewModel
 class AddServerViewModel @Inject constructor(
-    private val repository: ServerRepository,
+    private val repository: SourceRepository,
     private val webdavConfigStore: AnnotationSyncConfigStore,
     private val webdavTargetFactory: WebDavAnnotationSyncTargetFactory,
     private val webdavStatusStore: AnnotationSyncStatusStore,
@@ -66,7 +66,7 @@ class AddServerViewModel @Inject constructor(
 
     var backend by mutableStateOf(AddServerBackend.AUDIOBOOKSHELF)
         private set
-    /** Server id when editing an existing Storyteller/ABS server; null for add or for WebDAV. */
+    /** Source id when editing an existing Storyteller/ABS server; null for add or for WebDAV. */
     var editingServerId by mutableStateOf<String?>(null)
         private set
     /** True when the WebDAV backend already has a saved config (so we're editing, not adding). */
@@ -102,7 +102,7 @@ class AddServerViewModel @Inject constructor(
 
     var insecureWarning by mutableStateOf<InsecureConnectionType?>(null)
 
-    private val _navigateToSelectLibraries = Channel<PendingServer>(Channel.CONFLATED)
+    private val _navigateToSelectLibraries = Channel<PendingSource>(Channel.CONFLATED)
     val navigateToSelectLibraries = _navigateToSelectLibraries.receiveAsFlow()
 
     private val _navigateHome = Channel<Unit>(Channel.CONFLATED)
@@ -182,7 +182,7 @@ class AddServerViewModel @Inject constructor(
     }
 
     private fun connectServer() {
-        val serverUrl = ServerUrl.parse(url.trim())
+        val serverUrl = SourceUrl.parse(url.trim())
         if (serverUrl == null) {
             error = "Enter a valid URL (e.g. https://abs.example.com)"
             return
@@ -218,7 +218,7 @@ class AddServerViewModel @Inject constructor(
                 is TestConnectionResult.TlsError ->
                     error = "TLS error: ${result.message}"
                 is TestConnectionResult.ServerError ->
-                    error = "Server returned HTTP ${result.code}."
+                    error = "Source returned HTTP ${result.code}."
             }
             isLoading = false
         }
@@ -226,7 +226,7 @@ class AddServerViewModel @Inject constructor(
 
     fun onInsecureWarningAccepted() {
         insecureWarning = null
-        val serverUrl = ServerUrl.parse(url.trim()) ?: return
+        val serverUrl = SourceUrl.parse(url.trim()) ?: return
         doAuthenticate(serverUrl, insecureAllowed = true)
     }
 
@@ -234,7 +234,7 @@ class AddServerViewModel @Inject constructor(
         insecureWarning = null
     }
 
-    private fun doAuthenticate(serverUrl: ServerUrl, insecureAllowed: Boolean) {
+    private fun doAuthenticate(serverUrl: SourceUrl, insecureAllowed: Boolean) {
         val serverType = backend.toServerType() ?: return
         viewModelScope.launch {
             isLoading = true
@@ -247,14 +247,14 @@ class AddServerViewModel @Inject constructor(
                         // would destroy the user's server without replacement.
                         editingServerId?.let { repository.remove(it) }
                         when (val c = repository.commit(pending, hiddenLibraryIds = emptySet())) {
-                            is CommitServerResult.Success -> {
+                            is CommitSourceResult.Success -> {
                                 if (serverType == ServerType.STORYTELLER) {
                                     runCatching { storytellerSyncer.syncStale() }
                                     runCatching { readaloudMatcher.reconcileLinks() }
                                 }
                                 _navigateHome.send(Unit)
                             }
-                            is CommitServerResult.Failure ->
+                            is CommitSourceResult.Failure ->
                                 error = "Couldn't save server: ${c.cause.message}"
                         }
                     } else {
@@ -306,7 +306,7 @@ class AddServerViewModel @Inject constructor(
             outcome is CycleOutcome.Failed.Tls ->
                 "TLS error — the server's certificate could not be verified. Update the URL below; sync will retry once saved."
             outcome is CycleOutcome.Failed.Server ->
-                "Server returned HTTP ${outcome.code}. Will retry automatically."
+                "Source returned HTTP ${outcome.code}. Will retry automatically."
             outcome is CycleOutcome.Failed.Unknown ->
                 "Sync failed. Will retry automatically."
             outcome is CycleOutcome.Failed.Network ->

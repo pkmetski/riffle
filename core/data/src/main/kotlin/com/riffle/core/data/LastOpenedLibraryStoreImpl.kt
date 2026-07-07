@@ -14,14 +14,14 @@ class LastOpenedLibraryStoreImpl @Inject constructor(
     @param:LastOpenedLibraryDataStore private val dataStore: DataStore<Preferences>,
 ) : LastOpenedLibraryStore {
 
-    override fun lastOpenedLibrary(serverId: String): Flow<String?> =
-        dataStore.data.map { prefs -> prefs[key(serverId)] }
+    override fun lastOpenedLibrary(sourceId: String): Flow<String?> =
+        dataStore.data.map { prefs -> prefs[key(sourceId)] }
 
-    override suspend fun setLastOpenedLibrary(serverId: String, libraryId: String) {
+    override suspend fun setLastOpenedLibrary(sourceId: String, libraryId: String) {
         dataStore.edit { prefs ->
-            prefs[key(serverId)] = libraryId
+            prefs[key(sourceId)] = libraryId
         }
     }
 
-    private fun key(serverId: String) = stringPreferencesKey("last_$serverId")
+    private fun key(sourceId: String) = stringPreferencesKey("last_$sourceId")
 }

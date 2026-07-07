@@ -23,8 +23,8 @@ class AudiobookDownloadRepositoryImplTest {
     private val json = Json { ignoreUnknownKeys = true }
 
     private object NoopAudiobookRepository : AudiobookRepository {
-        override suspend fun openSession(serverId: String, itemId: String): AudiobookSession? = null
-        override suspend fun saveProgress(serverId: String, itemId: String, positionSec: Double, durationSec: Double) = Unit
+        override suspend fun openSession(sourceId: String, itemId: String): AudiobookSession? = null
+        override suspend fun saveProgress(sourceId: String, itemId: String, positionSec: Double, durationSec: Double) = Unit
     }
 
     private fun repo(root: File) = AudiobookDownloadRepositoryImpl(NoopAudiobookRepository, OkHttpClient(), root, com.riffle.core.domain.DefaultDispatcherProvider)

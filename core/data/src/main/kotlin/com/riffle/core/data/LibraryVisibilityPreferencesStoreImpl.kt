@@ -14,20 +14,20 @@ class LibraryVisibilityPreferencesStoreImpl @Inject constructor(
     @param:LibraryVisibilityPreferencesDataStore private val dataStore: DataStore<Preferences>,
 ) : LibraryVisibilityPreferencesStore {
 
-    override fun hiddenLibraryIds(serverId: String): Flow<Set<String>> =
-        dataStore.data.map { prefs -> prefs[key(serverId)].orEmpty() }
+    override fun hiddenLibraryIds(sourceId: String): Flow<Set<String>> =
+        dataStore.data.map { prefs -> prefs[key(sourceId)].orEmpty() }
 
-    override suspend fun hideLibrary(serverId: String, libraryId: String) {
+    override suspend fun hideLibrary(sourceId: String, libraryId: String) {
         dataStore.edit { prefs ->
-            prefs[key(serverId)] = prefs[key(serverId)].orEmpty() + libraryId
+            prefs[key(sourceId)] = prefs[key(sourceId)].orEmpty() + libraryId
         }
     }
 
-    override suspend fun showLibrary(serverId: String, libraryId: String) {
+    override suspend fun showLibrary(sourceId: String, libraryId: String) {
         dataStore.edit { prefs ->
-            prefs[key(serverId)] = prefs[key(serverId)].orEmpty() - libraryId
+            prefs[key(sourceId)] = prefs[key(sourceId)].orEmpty() - libraryId
         }
     }
 
-    private fun key(serverId: String) = stringSetPreferencesKey("hidden_$serverId")
+    private fun key(sourceId: String) = stringSetPreferencesKey("hidden_$sourceId")
 }

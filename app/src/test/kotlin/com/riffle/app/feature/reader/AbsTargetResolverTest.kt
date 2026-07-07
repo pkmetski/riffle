@@ -8,8 +8,8 @@ import org.junit.Test
 class AbsTargetResolverTest {
 
     private fun link(itemId: String) = ReadaloudLink(
-        storytellerServerId = "st", storytellerBookId = "b",
-        absServerId = "abs", absLibraryItemId = itemId, userConfirmed = false,
+        storytellerSourceId = "st", storytellerBookId = "b",
+        absSourceId = "abs", absLibraryItemId = itemId, userConfirmed = false,
     )
 
     @Test

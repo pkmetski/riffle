@@ -5,24 +5,24 @@ import androidx.room.ForeignKey
 import androidx.room.Index
 
 // Formatting stays per-device (never synced, never per-user), but the row must point at the *right*
-// book: once item ids collide across Servers, itemId alone would let two different books share one
-// formatting row (ADR 0025). serverId is added for *identity*, not as a per-server feature; it
-// FK-cascades so a removed Server's formatting is cleared.
+// book: once item ids collide across Sources, itemId alone would let two different books share one
+// formatting row (ADR 0025). sourceId is added for *identity*, not as a per-source feature; it
+// FK-cascades so a removed Source's formatting is cleared.
 @Entity(
     tableName = "book_formatting_preferences",
-    primaryKeys = ["serverId", "itemId"],
+    primaryKeys = ["sourceId", "itemId"],
     foreignKeys = [
         ForeignKey(
-            entity = ServerEntity::class,
+            entity = SourceEntity::class,
             parentColumns = ["id"],
-            childColumns = ["serverId"],
+            childColumns = ["sourceId"],
             onDelete = ForeignKey.CASCADE,
         ),
     ],
-    indices = [Index("serverId")],
+    indices = [Index("sourceId")],
 )
 data class BookFormattingPreferencesEntity(
-    val serverId: String,
+    val sourceId: String,
     val itemId: String,
     val fontSize: Float? = null,
     val theme: String? = null,

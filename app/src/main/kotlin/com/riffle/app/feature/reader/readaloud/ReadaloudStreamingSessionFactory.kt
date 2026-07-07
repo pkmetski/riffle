@@ -10,7 +10,7 @@ import com.riffle.core.domain.AudiobookIdentityResult
 import com.riffle.core.domain.DispatcherProvider
 import com.riffle.core.domain.ReadaloudLinkRepository
 import com.riffle.core.domain.ReadaloudTrack
-import com.riffle.core.domain.ServerRepository
+import com.riffle.core.domain.SourceRepository
 import com.riffle.core.domain.TokenStorage
 import com.riffle.core.network.AbsLibraryApi
 import com.riffle.core.network.NetworkResult
@@ -31,7 +31,7 @@ class ReadaloudStreamingSessionFactory @Inject constructor(
     private val absApi: AbsLibraryApi,
     private val storytellerApi: StorytellerLibraryApi,
     private val sidecarStore: ReadaloudSidecarStore,
-    private val serverRepository: ServerRepository,
+    private val sourceRepository: SourceRepository,
     private val tokenStorage: TokenStorage,
     private val linkRepository: ReadaloudLinkRepository,
     private val dispatchers: DispatcherProvider,
@@ -51,15 +51,15 @@ class ReadaloudStreamingSessionFactory @Inject constructor(
         val absToken: String,
     )
 
-    suspend fun tryBuild(storytellerServerId: String, storytellerBookId: String): Session? = withContext(dispatchers.io) {
+    suspend fun tryBuild(storytellerSourceId: String, storytellerBookId: String): Session? = withContext(dispatchers.io) {
         // 1. Resolve the ABS audiobook linked to this readaloud. No audiobook → not streamable.
-        val audiobook = audioIdentityResolver.resolveForStorytellerBook(storytellerServerId, storytellerBookId)
-        if (audiobook.serverId == storytellerServerId && audiobook.bookId == storytellerBookId) {
+        val audiobook = audioIdentityResolver.resolveForStorytellerBook(storytellerSourceId, storytellerBookId)
+        if (audiobook.sourceId == storytellerSourceId && audiobook.bookId == storytellerBookId) {
             return@withContext null
         }
 
-        val absServer = serverRepository.getById(audiobook.serverId) ?: return@withContext null
-        val absToken = tokenStorage.getToken(audiobook.serverId) ?: return@withContext null
+        val absServer = sourceRepository.getById(audiobook.sourceId) ?: return@withContext null
+        val absToken = tokenStorage.getToken(audiobook.sourceId) ?: return@withContext null
 
         // 2. Recording-identity gate: only stream when ABS audio is provably Storyteller's source.
         // Reuse the persisted verdict (ADR 0028) so a re-open doesn't re-fetch both fingerprints: a stored
@@ -67,17 +67,17 @@ class ReadaloudStreamingSessionFactory @Inject constructor(
         // bundle without a network round-trip. Only an as-yet-UNKNOWN link runs the fingerprint check —
         // and because it persists the verdict, a transient failure leaves it UNKNOWN so a later attempt
         // retries rather than being stuck (the source decision never trusts a non-VERIFIED result).
-        val persisted = linkRepository.findByAbsItem(audiobook.serverId, audiobook.bookId)?.identityResult
+        val persisted = linkRepository.findByAbsItem(audiobook.sourceId, audiobook.bookId)?.identityResult
         if (persisted != null && persisted != AudiobookIdentityResult.UNKNOWN) {
             if (persisted != AudiobookIdentityResult.VERIFIED) return@withContext null
         } else {
-            val stServer = serverRepository.getById(storytellerServerId) ?: return@withContext null
-            val stToken = tokenStorage.getToken(storytellerServerId) ?: return@withContext null
+            val stServer = sourceRepository.getById(storytellerSourceId) ?: return@withContext null
+            val stToken = tokenStorage.getToken(storytellerSourceId) ?: return@withContext null
             val bookId = storytellerBookId.toLongOrNull() ?: return@withContext null
             val stFp = storytellerApi.getAudiobookFingerprint(stServer.url.value, bookId, stToken, stServer.insecureConnectionAllowed)
             val absFp = absApi.getAudiobookFingerprint(absServer.url.value, audiobook.bookId, absToken, absServer.insecureConnectionAllowed)
             val verdict = AudiobookIdentityResolver.resolve(stFp, absFp)
-            linkRepository.updateIdentityResult(audiobook.serverId, audiobook.bookId, verdict)
+            linkRepository.updateIdentityResult(audiobook.sourceId, audiobook.bookId, verdict)
             if (verdict != AudiobookIdentityResult.VERIFIED) return@withContext null
         }
 
@@ -88,13 +88,13 @@ class ReadaloudStreamingSessionFactory @Inject constructor(
         // 4. The sidecar (SMIL + text). Use ONLY the already-cached copy — the slow /synced fetch is done
         //    ahead of time by ReadaloudSidecarStore.prepare() when the book is opened (ADR 0028), so the
         //    Play path never blocks on it. Not prepared yet → null → the caller surfaces "Preparing…".
-        val sidecarFile = sidecarStore.cachedFile(storytellerServerId, storytellerBookId)
+        val sidecarFile = sidecarStore.cachedFile(storytellerSourceId, storytellerBookId)
             ?: return@withContext null
 
         // 5. Reconcile segments to tracks; null when timelines disagree → bundle.
         val setup = StreamingSetupBuilder().build(sidecarFile, tracks, absServer.url.value, audiobook.bookId, absToken)
         if (setup == null) {
-            evictStaleOrPartialSidecar(storytellerServerId, storytellerBookId, sidecarFile, tracks.sumOf { it.durationSec })
+            evictStaleOrPartialSidecar(storytellerSourceId, storytellerBookId, sidecarFile, tracks.sumOf { it.durationSec })
             return@withContext null
         }
 
@@ -108,7 +108,7 @@ class ReadaloudStreamingSessionFactory @Inject constructor(
      * to one attempt per session — if the re-fetched sidecar is also partial, alignment is still in
      * progress on the server and we stop trying until the next app launch.
      */
-    private fun evictStaleOrPartialSidecar(serverId: String, bookId: String, sidecarFile: File, absTotalSec: Double) {
+    private fun evictStaleOrPartialSidecar(sourceId: String, bookId: String, sidecarFile: File, absTotalSec: Double) {
         val sidecarTrack = runCatching { MediaOverlayReader.readTrack(sidecarFile) }.getOrNull() ?: return
         val clips = sidecarTrack.clips
         val segments = clips.groupBy { it.audioSrc }
@@ -116,10 +116,10 @@ class ReadaloudStreamingSessionFactory @Inject constructor(
 
         val isPartial = segTotal >= 0.0 && absTotalSec - segTotal > 10.0 * segments.size
         if (clips.isEmpty() || isPartial) {
-            val bookKey = sidecarStore.key(serverId, bookId)
+            val bookKey = sidecarStore.key(sourceId, bookId)
             if (evictedPartialSidecars.add(bookKey)) {
-                sidecarStore.remove(serverId, bookId)
-                sidecarStore.prepare(serverId, bookId)
+                sidecarStore.remove(sourceId, bookId)
+                sidecarStore.prepare(sourceId, bookId)
             }
         }
     }

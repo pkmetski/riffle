@@ -1,11 +1,12 @@
 package com.riffle.core.domain
 
-data class Server(
+data class Source(
     val id: String,
-    val url: ServerUrl,
+    val url: SourceUrl,
     val isActive: Boolean,
     val insecureConnectionAllowed: Boolean,
     val username: String,
+    val type: SourceType = SourceType.ABS,
     val serverType: ServerType = ServerType.AUDIOBOOKSHELF,
     /**
      * ABS-side stable user identity (the `/api/me` `user.id`). Used by annotation sync as the

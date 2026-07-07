@@ -28,22 +28,22 @@ class BookmarksControllerTest {
         val created = mutableListOf<Annotation>()
         val renamed = mutableMapOf<String, String>()
 
-        override fun observeBookmarks(serverId: String, itemId: String): Flow<List<Annotation>> = bookmarks
-        override fun observeHighlights(serverId: String, itemId: String): Flow<List<Annotation>> =
+        override fun observeBookmarks(sourceId: String, itemId: String): Flow<List<Annotation>> = bookmarks
+        override fun observeHighlights(sourceId: String, itemId: String): Flow<List<Annotation>> =
             MutableStateFlow(emptyList())
-        override fun observeAnnotations(serverId: String, itemId: String): Flow<List<Annotation>> =
+        override fun observeAnnotations(sourceId: String, itemId: String): Flow<List<Annotation>> =
             MutableStateFlow(emptyList())
-        override fun observeAnnotationsForServer(serverId: String): Flow<List<Annotation>> =
+        override fun observeAnnotationsForSource(sourceId: String): Flow<List<Annotation>> =
             MutableStateFlow(emptyList())
 
         override suspend fun createHighlight(
-            serverId: String, itemId: String, cfi: String, textSnippet: String,
+            sourceId: String, itemId: String, cfi: String, textSnippet: String,
             chapterHref: String, textBefore: String, textAfter: String, color: String,
             spineIndex: Int, progression: Double,
         ): Annotation {
             val a = Annotation(
                 id = "highlight-${created.size}",
-                serverId = serverId, itemId = itemId,
+                sourceId = sourceId, itemId = itemId,
                 type = "highlight",
                 cfi = cfi, color = color, note = null,
                 textSnippet = textSnippet, textBefore = textBefore, textAfter = textAfter,
@@ -55,12 +55,12 @@ class BookmarksControllerTest {
         }
 
         override suspend fun createBookmark(
-            serverId: String, itemId: String, cfi: String, textSnippet: String,
+            sourceId: String, itemId: String, cfi: String, textSnippet: String,
             chapterHref: String, spineIndex: Int, progression: Double, bookmarkTitle: String,
         ): Annotation {
             val a = Annotation(
                 id = "bm-${created.size}",
-                serverId = serverId, itemId = itemId,
+                sourceId = sourceId, itemId = itemId,
                 type = "bookmark",
                 cfi = cfi, color = "yellow", note = null,
                 textSnippet = textSnippet, textBefore = "", textAfter = "",
@@ -80,20 +80,20 @@ class BookmarksControllerTest {
         override suspend fun recolor(id: String, color: String) = Unit
         override suspend fun updateNote(id: String, note: String?) = Unit
         override suspend fun renameBookmark(id: String, title: String) { renamed[id] = title }
-        override suspend fun findByItemAndCfi(serverId: String, itemId: String, cfi: String): Annotation? = null
+        override suspend fun findByItemAndCfi(sourceId: String, itemId: String, cfi: String): Annotation? = null
     }
 
     private fun makeAnnotation(
         id: String = "a1",
         type: String = "bookmark",
-        serverId: String = "srv",
+        sourceId: String = "srv",
         itemId: String = "item1",
         cfi: String = "epubcfi(/6/2)",
         chapterHref: String = "chapter1.xhtml",
         progression: Double = 0.0,
     ) = Annotation(
         id = id,
-        serverId = serverId,
+        sourceId = sourceId,
         itemId = itemId,
         type = type,
         cfi = cfi,

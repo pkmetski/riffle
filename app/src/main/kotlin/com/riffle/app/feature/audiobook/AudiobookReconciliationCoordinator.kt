@@ -62,12 +62,12 @@ class AudiobookReconciliationCoordinator @Inject constructor(
      *   listen lead.
      */
     suspend fun attach(
-        serverId: String,
+        sourceId: String,
         itemId: String,
         atSec: Double,
         atUpdatedAt: Long,
     ): AttachResult {
-        if (_readerSync != null || serverId.isEmpty()) {
+        if (_readerSync != null || sourceId.isEmpty()) {
             return AttachResult(
                 readerSyncAttached = false,
                 jumpToAudioSec = null,
@@ -82,7 +82,7 @@ class AudiobookReconciliationCoordinator @Inject constructor(
                 _audiobookFollow = runCatching {
                     readerSyncFactory.createAudiobookFollowIfApplicable(itemId)
                 }.getOrNull()
-                _audiobookFollow?.ebookItemId?.let { openReconcileTargets.markOpen(serverId, it) }
+                _audiobookFollow?.ebookItemId?.let { openReconcileTargets.markOpen(sourceId, it) }
             }
             return AttachResult(
                 readerSyncAttached = false,
@@ -93,7 +93,7 @@ class AudiobookReconciliationCoordinator @Inject constructor(
         _readerSync = rs
         // Matched: this player also drives the ebook ABS record, so the sweep must skip that
         // (possibly split-library) item too while the player is open (ADR 0030).
-        rs.ebookItemId?.let { openReconcileTargets.markOpen(serverId, it) }
+        rs.ebookItemId?.let { openReconcileTargets.markOpen(sourceId, it) }
         val r = rs.runAudioLedCycle(atSec, atUpdatedAt)
         return AttachResult(
             readerSyncAttached = true,
@@ -110,8 +110,8 @@ class AudiobookReconciliationCoordinator @Inject constructor(
      * both rows share dirty state. Pure additive write to the sibling row. No-op unless matched and
      * translatable.
      */
-    suspend fun mirrorListeningToReading(serverId: String, itemId: String, seconds: Double) {
-        if (serverId.isEmpty()) return
+    suspend fun mirrorListeningToReading(sourceId: String, itemId: String, seconds: Double) {
+        if (sourceId.isEmpty()) return
         val ebookItemId = _readerSync?.ebookItemId ?: _audiobookFollow?.ebookItemId ?: return
         // Index-free first (text-anchored, via the bundle), then the index-based canonical if
         // present (ADR 0031: audiobook→ebook goes via the bundle, never requiring the cross-EPUB
@@ -119,8 +119,8 @@ class AudiobookReconciliationCoordinator @Inject constructor(
         val ebookLocator = _audiobookFollow?.ebookLocatorForAudioSeconds(seconds)
             ?: _readerSync?.canonicalForAudioSeconds(seconds)
             ?: return
-        val snap = audioSyncStore.snapshot(serverId, itemId)
-        readingSyncStore.mirror(serverId, ebookItemId, ebookLocator, snap.localUpdatedAt, snap.lastSyncedAt)
+        val snap = audioSyncStore.snapshot(sourceId, itemId)
+        readingSyncStore.mirror(sourceId, ebookItemId, ebookLocator, snap.localUpdatedAt, snap.lastSyncedAt)
     }
 
     /**
@@ -130,12 +130,12 @@ class AudiobookReconciliationCoordinator @Inject constructor(
      * the bundle SMIL when the full coordinator isn't built. No-op unless matched and the seconds
      * narrate a sentence.
      */
-    suspend fun writeListeningToReadaloud(serverId: String, itemId: String, seconds: Double) {
-        if (serverId.isEmpty()) return
+    suspend fun writeListeningToReadaloud(sourceId: String, itemId: String, seconds: Double) {
+        if (sourceId.isEmpty()) return
         val ebookItemId = _readerSync?.ebookItemId ?: _audiobookFollow?.ebookItemId ?: return
         val anchor = _readerSync?.readaloudAnchorForAudioSeconds(seconds)
             ?: _audiobookFollow?.readaloudAnchorForAudioSeconds(seconds)
             ?: return
-        readaloudResumeStore.save(serverId, ebookItemId, anchor)
+        readaloudResumeStore.save(sourceId, ebookItemId, anchor)
     }
 }

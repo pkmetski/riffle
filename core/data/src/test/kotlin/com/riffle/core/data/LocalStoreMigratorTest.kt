@@ -23,7 +23,7 @@ class LocalStoreMigratorTest {
         writeFlat(epubDir, "1.epub", "A's book one")
         writeFlat(epubDir, "2.epub", "A's book two")
 
-        // itemId "1" belongs to server A, "2" to server B.
+        // itemId "1" belongs to source A, "2" to source B.
         val owners = mapOf("1" to "serverA", "2" to "serverB")
         val migrator = LocalStoreMigrator(
             stores = listOf(epubDir to ".epub"),
@@ -52,7 +52,7 @@ class LocalStoreMigratorTest {
         migrator.migrate()
 
         assertFalse("orphan should be deleted", epubDir.resolve("ghost.epub").exists())
-        assertTrue("no server subdir created", epubDir.listFiles()?.none { it.isDirectory } ?: true)
+        assertTrue("no source subdir created", epubDir.listFiles()?.none { it.isDirectory } ?: true)
     }
 
     @Test
@@ -75,7 +75,7 @@ class LocalStoreMigratorTest {
     @Test
     fun migrate_ignoresFilesAlreadyInServerSubdirs() = runTest {
         val epubDir = tmp.newFolder("epubs")
-        // A file already correctly placed under a server dir must not be touched / re-resolved.
+        // A file already correctly placed under a source dir must not be touched / re-resolved.
         writeFlat(epubDir.resolve("serverA"), "1.epub", "already placed")
 
         var resolverCalls = 0

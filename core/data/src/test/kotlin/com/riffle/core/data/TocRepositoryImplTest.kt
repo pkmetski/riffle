@@ -13,10 +13,10 @@ class TocRepositoryImplTest {
 
     private class FakeTocCacheDao : TocCacheDao {
         val store = mutableMapOf<Pair<String, String>, TocCacheEntity>()
-        override suspend fun get(serverId: String, itemId: String): TocCacheEntity? =
-            store[serverId to itemId]
+        override suspend fun get(sourceId: String, itemId: String): TocCacheEntity? =
+            store[sourceId to itemId]
         override suspend fun upsert(entity: TocCacheEntity) {
-            store[entity.serverId to entity.itemId] = entity
+            store[entity.sourceId to entity.itemId] = entity
         }
     }
 
@@ -52,7 +52,7 @@ class TocRepositoryImplTest {
 
         val entity = dao.store["srv" to "item"]
         assertNotNull(entity)
-        assertEquals("srv", entity!!.serverId)
+        assertEquals("srv", entity!!.sourceId)
         assertEquals("item", entity.itemId)
         assertEquals("ino99", entity.ebookFileIno)
         assert(entity.entriesJson.contains("Ch 1")) { "JSON should contain 'Ch 1'" }

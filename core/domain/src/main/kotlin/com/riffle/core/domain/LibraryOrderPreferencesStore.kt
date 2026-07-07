@@ -11,6 +11,6 @@ import kotlinx.coroutines.flow.Flow
  * the ordered ones, via [orderLibraries].
  */
 interface LibraryOrderPreferencesStore {
-    fun libraryOrder(serverId: String): Flow<List<String>>
-    suspend fun setLibraryOrder(serverId: String, orderedIds: List<String>)
+    fun libraryOrder(sourceId: String): Flow<List<String>>
+    suspend fun setLibraryOrder(sourceId: String, orderedIds: List<String>)
 }

@@ -1,5 +1,7 @@
 # ADR 0025 — Key Library Items by (serverId, itemId) end-to-end
 
+> **Superseded by [ADR 0041](0041-source-and-service-abstractions-replace-server.md)** — the same design (composite key), renamed: `serverId` → `sourceId`. The Source/Service re-root ships this decision that ADR 0025 had left as future work. Design A holds unchanged.
+
 **Status:** Accepted — **design A** (composite `(serverId, itemId)` PK across the schema). Tracked in [issue #81](https://github.com/pkmetski/riffle/issues/81), which weighed design **A** against design **B** (namespaced id at ingestion).
 
 ## Context

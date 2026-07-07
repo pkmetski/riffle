@@ -5,7 +5,7 @@ import com.riffle.core.domain.DispatcherProvider
 import com.riffle.core.domain.LocalStore
 import com.riffle.core.domain.ReadaloudAudioRepository
 import com.riffle.core.domain.ReadaloudTrack
-import com.riffle.core.domain.ServerRepository
+import com.riffle.core.domain.SourceRepository
 import com.riffle.core.domain.TokenStorage
 import com.riffle.core.network.NetworkResult
 import com.riffle.core.network.StorytellerBundleProbeApi
@@ -18,23 +18,23 @@ open class ReadaloudAudioRepositoryImpl(
     private val bundleProbe: StorytellerBundleProbeApi,
     private val cacheStore: LocalStore,
     private val downloadsStore: LocalStore,
-    private val serverRepository: ServerRepository,
+    private val sourceRepository: SourceRepository,
     private val tokenStorage: TokenStorage,
     private val dispatchers: DispatcherProvider,
 ) : ReadaloudAudioRepository {
 
-    // Process-level cache: keyed by (serverId, itemId, file.lastModified()) so a re-downloaded bundle
+    // Process-level cache: keyed by (sourceId, itemId, file.lastModified()) so a re-downloaded bundle
     // gets a fresh parse while repeated opens of the same bundle return instantly (~0ms vs ~1.8s).
     private val trackCache = ConcurrentHashMap<Triple<String, String, Long>, ReadaloudTrack>()
 
-    override fun isAudioAvailable(serverId: String, itemId: String): Boolean = bundleFile(serverId, itemId) != null
+    override fun isAudioAvailable(sourceId: String, itemId: String): Boolean = bundleFile(sourceId, itemId) != null
 
-    override fun bundleFile(serverId: String, itemId: String): File? =
-        downloadsStore.get(serverId, itemId) ?: cacheStore.get(serverId, itemId)
+    override fun bundleFile(sourceId: String, itemId: String): File? =
+        downloadsStore.get(sourceId, itemId) ?: cacheStore.get(sourceId, itemId)
 
-    override suspend fun readTrack(serverId: String, itemId: String): ReadaloudTrack? = withContext(dispatchers.io) {
-        val file = bundleFile(serverId, itemId) ?: return@withContext null
-        val key = Triple(serverId, itemId, file.lastModified())
+    override suspend fun readTrack(sourceId: String, itemId: String): ReadaloudTrack? = withContext(dispatchers.io) {
+        val file = bundleFile(sourceId, itemId) ?: return@withContext null
+        val key = Triple(sourceId, itemId, file.lastModified())
         trackCache[key]?.let { return@withContext it }
         val track = parseTrack(file) ?: return@withContext null
         trackCache[key] = track
@@ -47,33 +47,33 @@ open class ReadaloudAudioRepositoryImpl(
             .getOrNull()
             ?.takeIf { it.clips.isNotEmpty() }
 
-    override suspend fun probeSizeBytes(serverId: String, itemId: String): Long? {
-        val server = serverRepository.getById(serverId) ?: return null
+    override suspend fun probeSizeBytes(sourceId: String, itemId: String): Long? {
+        val server = sourceRepository.getById(sourceId) ?: return null
         val token = tokenStorage.getToken(server.id) ?: return null
         val r = bundleProbe.probeBundleSize(server.url.value, itemId, token, server.insecureConnectionAllowed)
         return (r as? NetworkResult.Success)?.value
     }
 
     override suspend fun downloadAudio(
-        serverId: String,
+        sourceId: String,
         bookId: String,
         onProgress: (downloaded: Long, total: Long) -> Unit,
     ): AudioDownloadResult {
-        if (downloadsStore.get(serverId, bookId) != null) return AudioDownloadResult.Success
-        val server = serverRepository.getById(serverId)
-            ?: return AudioDownloadResult.NetworkError(IllegalStateException("No server $serverId"))
-        val token = tokenStorage.getToken(serverId)
-            ?: return AudioDownloadResult.NetworkError(IllegalStateException("No token for $serverId"))
-        return when (val r = downloader.download(serverId, server.url.value, bookId, token, server.insecureConnectionAllowed, onProgress)) {
+        if (downloadsStore.get(sourceId, bookId) != null) return AudioDownloadResult.Success
+        val server = sourceRepository.getById(sourceId)
+            ?: return AudioDownloadResult.NetworkError(IllegalStateException("No server $sourceId"))
+        val token = tokenStorage.getToken(sourceId)
+            ?: return AudioDownloadResult.NetworkError(IllegalStateException("No token for $sourceId"))
+        return when (val r = downloader.download(sourceId, server.url.value, bookId, token, server.insecureConnectionAllowed, onProgress)) {
             is AudiobookBundleDownloader.Result.Success -> AudioDownloadResult.Success
             is AudiobookBundleDownloader.Result.NetworkError -> AudioDownloadResult.NetworkError(r.cause)
         }
     }
 
-    override suspend fun removeAudio(serverId: String, itemId: String): Long = withContext(dispatchers.io) {
-        val freed = (downloadsStore.get(serverId, itemId)?.length() ?: 0L) + (cacheStore.get(serverId, itemId)?.length() ?: 0L)
-        downloadsStore.delete(serverId, itemId)
-        cacheStore.delete(serverId, itemId)
+    override suspend fun removeAudio(sourceId: String, itemId: String): Long = withContext(dispatchers.io) {
+        val freed = (downloadsStore.get(sourceId, itemId)?.length() ?: 0L) + (cacheStore.get(sourceId, itemId)?.length() ?: 0L)
+        downloadsStore.delete(sourceId, itemId)
+        cacheStore.delete(sourceId, itemId)
         freed
     }
 }

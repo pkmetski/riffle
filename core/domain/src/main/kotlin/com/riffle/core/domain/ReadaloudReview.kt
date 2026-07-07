@@ -12,7 +12,7 @@ data class ReadaloudReview(
 
 /** A readaloud the auto-matcher couldn't auto-Confirm, with its above-threshold ABS candidates. */
 data class PendingReadaloud(
-    val storytellerServerId: String,
+    val storytellerSourceId: String,
     val storytellerBookId: String,
     val title: String,
     val author: String,
@@ -22,7 +22,7 @@ data class PendingReadaloud(
 
 /** One scored ABS candidate for a [PendingReadaloud]. */
 data class AbsCandidate(
-    val absServerId: String,
+    val absSourceId: String,
     val absLibraryItemId: String,
     val absTitle: String,
     val absAuthor: String,
@@ -33,7 +33,7 @@ data class AbsCandidate(
 
 /** A readaloud with no Confirmed link and no surviving candidates — available for manual pairing. */
 data class UnmatchedReadaloud(
-    val storytellerServerId: String,
+    val storytellerSourceId: String,
     val storytellerBookId: String,
     val title: String,
     val author: String,
@@ -46,7 +46,7 @@ data class UnmatchedReadaloud(
  * here and Unlink detaches the whole match at once — un-matching the book in a single action.
  */
 data class ConfirmedReadaloud(
-    val storytellerServerId: String,
+    val storytellerSourceId: String,
     val storytellerBookId: String,
     val title: String,
     val targets: List<ConfirmedTarget>,
@@ -61,7 +61,7 @@ data class ConfirmedReadaloud(
     val isIncomplete: Boolean get() = !hasEbook || !hasAudio
 
     data class ConfirmedTarget(
-        val absServerId: String,
+        val absSourceId: String,
         val absLibraryItemId: String,
         val absTitle: String,
         val absLibraryName: String,
@@ -89,7 +89,7 @@ data class ConfirmedReadaloud(
 
 /** A searchable ABS Library Item shown in the "Match manually…" picker, across every ABS Server. */
 data class AbsPickerItem(
-    val absServerId: String,
+    val absSourceId: String,
     val absLibraryItemId: String,
     val title: String,
     val author: String,

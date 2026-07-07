@@ -2,9 +2,9 @@ package com.riffle.core.data
 
 import com.riffle.core.network.NetworkResult
 
-import com.riffle.core.domain.Server
-import com.riffle.core.domain.ServerRepository
-import com.riffle.core.domain.ServerUrl
+import com.riffle.core.domain.Source
+import com.riffle.core.domain.SourceRepository
+import com.riffle.core.domain.SourceUrl
 import com.riffle.core.domain.TokenStorage
 import com.riffle.core.network.AbsPlaybackApi
 import com.riffle.core.network.AbsSessionApi
@@ -22,20 +22,20 @@ import org.junit.Test
 
 class AudiobookRepositoryImplTest {
 
-    private val server = Server(
-        id = "srv", url = ServerUrl.parse("http://host:13378")!!, isActive = true,
+    private val source = Source(
+        id = "srv", url = SourceUrl.parse("http://host:13378")!!, isActive = true,
         insecureConnectionAllowed = false, username = "u",
     )
 
     private fun repo(
         playback: AbsPlaybackApi,
         session: AbsSessionApi = NoopSessionApi,
-        serverById: Server? = server,
+        serverById: Source? = source,
         token: String? = "TKN",
     ) = AudiobookRepositoryImpl(
         playbackApi = playback,
         sessionApi = session,
-        serverRepository = FakeServerRepository(serverById),
+        sourceRepository = FakeSourceRepository(serverById),
         tokenStorage = FakeTokenStorage(token),
     )
 
@@ -76,7 +76,7 @@ class AudiobookRepositoryImplTest {
     }
 
     @Test
-    fun `openSession carries the server lastUpdate from the progress record`() = runTest {
+    fun `openSession carries the source lastUpdate from the progress record`() = runTest {
         val playback = FakePlaybackApi(
             NetworkResult.Success(
                 NetworkPlaybackSession(
@@ -151,24 +151,24 @@ class AudiobookRepositoryImplTest {
     }
 
     private class FakeTokenStorage(private val token: String?) : TokenStorage {
-        override suspend fun saveToken(serverId: String, token: String) = Unit
-        override suspend fun getToken(serverId: String): String? = token
-        override suspend fun deleteToken(serverId: String) = Unit
+        override suspend fun saveToken(sourceId: String, token: String) = Unit
+        override suspend fun getToken(sourceId: String): String? = token
+        override suspend fun deleteToken(sourceId: String) = Unit
     }
 
-    private class FakeServerRepository(private val byId: Server?) : ServerRepository {
-        override fun observeAll(): Flow<List<Server>> = emptyFlow()
-        override suspend fun getActive(): Server? = byId
-        override suspend fun getById(serverId: String): Server? = byId
+    private class FakeSourceRepository(private val byId: Source?) : SourceRepository {
+        override fun observeAll(): Flow<List<Source>> = emptyFlow()
+        override suspend fun getActive(): Source? = byId
+        override suspend fun getById(sourceId: String): Source? = byId
         override suspend fun authenticate(
-            url: ServerUrl, username: String, password: String, insecureAllowed: Boolean,
+            url: SourceUrl, username: String, password: String, insecureAllowed: Boolean,
             serverType: com.riffle.core.domain.ServerType,
         ) = throw UnsupportedOperationException()
-        override suspend fun commit(pending: com.riffle.core.domain.PendingServer, hiddenLibraryIds: Set<String>) =
+        override suspend fun commit(pending: com.riffle.core.domain.PendingSource, hiddenLibraryIds: Set<String>) =
             throw UnsupportedOperationException()
-        override suspend fun setActive(serverId: String) = Unit
-        override suspend fun remove(serverId: String) = Unit
-        override suspend fun getServerVersion(serverId: String): String? = null
+        override suspend fun setActive(sourceId: String) = Unit
+        override suspend fun remove(sourceId: String) = Unit
+        override suspend fun getSourceVersion(sourceId: String): String? = null
     }
 
     private object NoopSessionApi : AbsSessionApi {

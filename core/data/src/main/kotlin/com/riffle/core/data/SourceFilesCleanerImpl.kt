@@ -2,25 +2,25 @@ package com.riffle.core.data
 
 import com.riffle.core.domain.DispatcherProvider
 import com.riffle.core.domain.LocalStore
-import com.riffle.core.domain.ServerFilesCleaner
+import com.riffle.core.domain.SourceFilesCleaner
 import kotlinx.coroutines.withContext
 import java.io.File
 
 /**
- * Purges a Server's files across all on-disk stores (ADR 0025). [stores] are the EPUB/PDF
+ * Purges a Source's files across all on-disk stores (ADR 0025). [stores] are the EPUB/PDF
  * download+cache [LocalStore]s; [audiobookDownloadsDir] is the audiobook download root, which is a
  * directory-per-item tree rather than a [LocalStore] (ADR 0029) but follows the same
- * `<root>/<serverId>/…` layout, so it too is removed as a per-Server subtree.
+ * `<root>/<sourceId>/…` layout, so it too is removed as a per-Source subtree.
  */
-class ServerFilesCleanerImpl(
+class SourceFilesCleanerImpl(
     private val stores: List<LocalStore>,
     private val audiobookDownloadsDir: File,
     private val dispatchers: DispatcherProvider,
-) : ServerFilesCleaner {
+) : SourceFilesCleaner {
 
-    override suspend fun deleteAllForServer(serverId: String) = withContext(dispatchers.io) {
-        stores.forEach { it.deleteServer(serverId) }
-        File(audiobookDownloadsDir, serverId).deleteRecursively()
+    override suspend fun deleteAllForSource(sourceId: String) = withContext(dispatchers.io) {
+        stores.forEach { it.deleteSource(sourceId) }
+        File(audiobookDownloadsDir, sourceId).deleteRecursively()
         Unit
     }
 }

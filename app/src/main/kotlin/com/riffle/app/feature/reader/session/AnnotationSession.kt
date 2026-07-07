@@ -61,13 +61,13 @@ class AnnotationSession @AssistedInject constructor(
     private val highlightColorPreferencesStore: HighlightColorPreferencesStore,
     private val progressFlushScope: ProgressFlushScope,
     /** Called on [bind] after [syncOnOpen]; returns the [Job] backing the live-pull loop. */
-    @Assisted private val startLiveSync: (serverId: String, namespace: String, itemId: String) -> Job,
+    @Assisted private val startLiveSync: (sourceId: String, namespace: String, itemId: String) -> Job,
     /** Called on each annotation mutation to schedule a debounced push. */
-    @Assisted private val scheduleSync: (serverId: String, namespace: String, itemId: String) -> Unit,
+    @Assisted private val scheduleSync: (sourceId: String, namespace: String, itemId: String) -> Unit,
     /** Called on [bind] before [startLiveSync]. Suspend, so annotated with "open". */
-    @Assisted("open") private val syncOnOpen: suspend (serverId: String, namespace: String, itemId: String) -> Unit,
+    @Assisted("open") private val syncOnOpen: suspend (sourceId: String, namespace: String, itemId: String) -> Unit,
     /** Called on [onBookClosed] via [ProgressFlushScope] to push pending annotations. */
-    @Assisted("close") private val syncOnClose: suspend (serverId: String, namespace: String, itemId: String) -> Unit,
+    @Assisted("close") private val syncOnClose: suspend (sourceId: String, namespace: String, itemId: String) -> Unit,
 ) {
 
     @AssistedFactory
@@ -166,7 +166,7 @@ class AnnotationSession @AssistedInject constructor(
                         is CycleOutcome.Failed.Network -> outcome.message
                         is CycleOutcome.Failed.Auth -> "Authentication failed (${outcome.code})"
                         is CycleOutcome.Failed.Tls -> outcome.message
-                        is CycleOutcome.Failed.Server -> "Server error (${outcome.code})"
+                        is CycleOutcome.Failed.Server -> "Source error (${outcome.code})"
                         is CycleOutcome.Failed.Unknown -> outcome.message
                     }
                 )
@@ -206,7 +206,7 @@ class AnnotationSession @AssistedInject constructor(
      *   by VM. Used by [navigateToAnnotation] to emit the navigation target.
      */
     fun bind(
-        serverId: String,
+        sourceId: String,
         namespace: String,
         itemId: String,
         highlightRenderResolver: suspend (Annotation) -> EpubReaderViewModel.HighlightRender?,
@@ -228,7 +228,7 @@ class AnnotationSession @AssistedInject constructor(
         _highlightToEdit.value = null
         _annotationsAvailable.value = false
 
-        boundServerId = serverId
+        boundServerId = sourceId
         boundNamespace = namespace
         boundItemId = itemId
         cfiLocatorResolverFn = cfiLocatorResolver
@@ -238,14 +238,14 @@ class AnnotationSession @AssistedInject constructor(
 
         // Observe highlights → reconstruct HighlightRenders reactively.
         highlightObserveJob = scope.launch {
-            annotationStore.observeHighlights(serverId, itemId).collect { annotations ->
+            annotationStore.observeHighlights(sourceId, itemId).collect { annotations ->
                 _highlightRenders.value = annotations.mapNotNull { highlightRenderResolver(it) }
             }
         }
 
         // Observe all annotations (highlights + bookmarks) for the panel.
         annotationsObserveJob = scope.launch {
-            annotationStore.observeAnnotations(serverId, itemId).collect { list ->
+            annotationStore.observeAnnotations(sourceId, itemId).collect { list ->
                 _annotations.value = list
             }
         }
@@ -254,15 +254,15 @@ class AnnotationSession @AssistedInject constructor(
         // born in whatever colour the user last picked here. Falls back to HighlightColor.DEFAULT
         // for books the user has never picked a colour on (see HighlightColorPreferencesStore).
         lastUsedColorObserveJob = scope.launch {
-            highlightColorPreferencesStore.lastUsedColor(serverId, itemId).collect {
+            highlightColorPreferencesStore.lastUsedColor(sourceId, itemId).collect {
                 _lastUsedHighlightColor.value = it
             }
         }
 
         // Sync on open: pull peer annotations, then start the live-pull loop.
         scope.launch {
-            syncOnOpen(serverId, namespace, itemId)
-            annotationLiveSyncJob = startLiveSync(serverId, namespace, itemId)
+            syncOnOpen(sourceId, namespace, itemId)
+            annotationLiveSyncJob = startLiveSync(sourceId, namespace, itemId)
         }
     }
 

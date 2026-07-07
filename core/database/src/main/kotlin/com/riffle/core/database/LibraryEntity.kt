@@ -4,26 +4,26 @@ import androidx.room.Entity
 import androidx.room.ForeignKey
 import androidx.room.Index
 
-// Keyed by (serverId, id): library ids are only unique within an Audiobookshelf instance, so two
-// Servers pointing at the same instance emit identical ids (issue #113). serverId FK-cascades so
-// removing a Server clears its libraries — mirroring [LibraryItemEntity] (ADR 0025).
+// Keyed by (sourceId, id): library ids are only unique within an Audiobookshelf instance, so two
+// Sources pointing at the same instance emit identical ids (issue #113). sourceId FK-cascades so
+// removing a Source clears its libraries — mirroring [LibraryItemEntity] (ADR 0025).
 @Entity(
     tableName = "libraries",
-    primaryKeys = ["serverId", "id"],
+    primaryKeys = ["sourceId", "id"],
     foreignKeys = [
         ForeignKey(
-            entity = ServerEntity::class,
+            entity = SourceEntity::class,
             parentColumns = ["id"],
-            childColumns = ["serverId"],
+            childColumns = ["sourceId"],
             onDelete = ForeignKey.CASCADE,
         ),
     ],
-    indices = [Index("serverId")],
+    indices = [Index("sourceId")],
 )
 data class LibraryEntity(
     val id: String,
     val name: String,
     val mediaType: String,
-    val serverId: String,
+    val sourceId: String,
     val isUnsupported: Boolean = false,
 )

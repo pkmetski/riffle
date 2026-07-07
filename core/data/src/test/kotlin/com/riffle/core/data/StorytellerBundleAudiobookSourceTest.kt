@@ -25,32 +25,32 @@ import java.io.File
 class StorytellerBundleAudiobookSourceTest {
 
     private val link = ReadaloudLink(
-        storytellerServerId = "st", storytellerBookId = "book-1",
-        absServerId = "abs", absLibraryItemId = "item-1", userConfirmed = true,
+        storytellerSourceId = "st", storytellerBookId = "book-1",
+        absSourceId = "abs", absLibraryItemId = "item-1", userConfirmed = true,
     )
 
     private class FakeLinks(private val all: List<ReadaloudLink>) : ReadaloudLinkRepository {
         override fun observeAll(): Flow<List<ReadaloudLink>> = MutableStateFlow(all)
         override fun observeLinkedAbsItemIds() = MutableStateFlow(all.map { it.absLibraryItemId }.toSet())
-        override suspend fun findByAbsItem(absServerId: String, absLibraryItemId: String) =
-            all.firstOrNull { it.absServerId == absServerId && it.absLibraryItemId == absLibraryItemId }
-        override suspend fun findByStorytellerBook(storytellerServerId: String, storytellerBookId: String) =
-            all.filter { it.storytellerServerId == storytellerServerId && it.storytellerBookId == storytellerBookId }
-        override suspend fun unlinkAbsItem(absServerId: String, absLibraryItemId: String) = Unit
-        override suspend fun countForServer(serverId: String) = all.count { it.absServerId == serverId }
+        override suspend fun findByAbsItem(absSourceId: String, absLibraryItemId: String) =
+            all.firstOrNull { it.absSourceId == absSourceId && it.absLibraryItemId == absLibraryItemId }
+        override suspend fun findByStorytellerBook(storytellerSourceId: String, storytellerBookId: String) =
+            all.filter { it.storytellerSourceId == storytellerSourceId && it.storytellerBookId == storytellerBookId }
+        override suspend fun unlinkAbsItem(absSourceId: String, absLibraryItemId: String) = Unit
+        override suspend fun countForSource(sourceId: String) = all.count { it.absSourceId == sourceId }
     }
 
     private class FakeAudio(
         private val bundle: File?,
         private val track: ReadaloudTrack?,
     ) : ReadaloudAudioRepository {
-        override fun isAudioAvailable(serverId: String, itemId: String) = bundle != null
-        override fun bundleFile(serverId: String, itemId: String) = bundle
-        override suspend fun readTrack(serverId: String, itemId: String) = track
-        override suspend fun probeSizeBytes(serverId: String, itemId: String): Long? = null
-        override suspend fun downloadAudio(serverId: String, bookId: String, onProgress: (Long, Long) -> Unit) =
+        override fun isAudioAvailable(sourceId: String, itemId: String) = bundle != null
+        override fun bundleFile(sourceId: String, itemId: String) = bundle
+        override suspend fun readTrack(sourceId: String, itemId: String) = track
+        override suspend fun probeSizeBytes(sourceId: String, itemId: String): Long? = null
+        override suspend fun downloadAudio(sourceId: String, bookId: String, onProgress: (Long, Long) -> Unit) =
             com.riffle.core.domain.AudioDownloadResult.Success
-        override suspend fun removeAudio(serverId: String, itemId: String) = 0L
+        override suspend fun removeAudio(sourceId: String, itemId: String) = 0L
     }
 
     private val track = ReadaloudTrack(

@@ -102,12 +102,12 @@ fun DownloadsScreen(
                         EmptySection("No downloaded books")
                     }
                 } else {
-                    items(uiState.downloadedItems, key = { it.serverId + "/" + it.item.id }) { entry ->
+                    items(uiState.downloadedItems, key = { it.sourceId + "/" + it.item.id }) { entry ->
                         LocalItemRow(
                             entry = entry,
                             pillColor = PillColor.Downloaded,
                             onClick = { onItemSelected(entry.item) },
-                            onRemove = { viewModel.removeDownloadedItem(entry.serverId, entry.item.id) },
+                            onRemove = { viewModel.removeDownloadedItem(entry.sourceId, entry.item.id) },
                         )
                     }
                 }
@@ -125,12 +125,12 @@ fun DownloadsScreen(
                         EmptySection("No cached books")
                     }
                 } else {
-                    items(uiState.cachedItems, key = { it.serverId + "/" + it.item.id }) { entry ->
+                    items(uiState.cachedItems, key = { it.sourceId + "/" + it.item.id }) { entry ->
                         LocalItemRow(
                             entry = entry,
                             pillColor = PillColor.Cached,
                             onClick = { onItemSelected(entry.item) },
-                            onRemove = { viewModel.removeCachedItem(entry.serverId, entry.item.id) },
+                            onRemove = { viewModel.removeCachedItem(entry.sourceId, entry.item.id) },
                         )
                     }
                 }
@@ -148,12 +148,12 @@ fun DownloadsScreen(
                         EmptySection("No prepared readalouds")
                     }
                 } else {
-                    items(uiState.readaloudSidecars, key = { "sidecar/" + it.serverId + "/" + it.item.id }) { entry ->
+                    items(uiState.readaloudSidecars, key = { "sidecar/" + it.sourceId + "/" + it.item.id }) { entry ->
                         LocalItemRow(
                             entry = entry,
                             pillColor = PillColor.Readaloud,
                             onClick = { onItemSelected(entry.item) },
-                            onRemove = { viewModel.removeReadaloudSidecar(entry.serverId, entry.item.id) },
+                            onRemove = { viewModel.removeReadaloudSidecar(entry.sourceId, entry.item.id) },
                         )
                     }
                 }

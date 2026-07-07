@@ -302,14 +302,14 @@ class ReaderSyncCoordinator(
  * with no cross-EPUB index or ABS EPUB. This lets readaloud sync to the audiobook even when the full
  * [ReaderSyncCoordinator] can't be built (e.g. the cross-EPUB index isn't ready or a multi-link guard
  * trips). It also produces the **ebook** position for an audio second — a text-anchored locator built
- * from the bundle's own sentence text ([ebookItemId]/[serverId] key the stores), so audiobook→ebook
+ * from the bundle's own sentence text ([ebookItemId]/[sourceId] key the stores), so audiobook→ebook
  * sync also works index-free (ADR 0031: both directions go via the bundle, never the cross-EPUB index).
  */
 class AudiobookFollow(
     private val absApi: AbsSessionApi,
     private val endpoint: AbsSyncEndpoint,
     private val translator: PositionTranslator,
-    val serverId: String,
+    val sourceId: String,
     val audioItemId: String,
     val ebookItemId: String? = null,
     private val quotes: Map<String, com.riffle.core.domain.SentenceQuote> = emptyMap(),

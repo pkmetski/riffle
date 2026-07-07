@@ -8,7 +8,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.riffle.core.data.AnnotatedBook
 import com.riffle.core.data.AnnotationsLibraryRepository
-import com.riffle.core.domain.ServerRepository
+import com.riffle.core.domain.SourceRepository
 import com.riffle.core.domain.ServerType
 import com.riffle.core.domain.TokenStorage
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -37,7 +37,7 @@ data class AnnotationsListUiState(
 @OptIn(ExperimentalCoroutinesApi::class)
 @HiltViewModel
 class AnnotationsListViewModel @Inject constructor(
-    private val serverRepository: ServerRepository,
+    private val sourceRepository: SourceRepository,
     private val repo: AnnotationsLibraryRepository,
     private val tokenStorage: TokenStorage,
     savedStateHandle: SavedStateHandle,
@@ -45,17 +45,17 @@ class AnnotationsListViewModel @Inject constructor(
 
     private val libraryId: String = savedStateHandle.get<String>("libraryId") ?: ""
 
-    private val activeServerId: kotlinx.coroutines.flow.Flow<String?> = serverRepository.observeAll()
+    private val activeServerId: kotlinx.coroutines.flow.Flow<String?> = sourceRepository.observeAll()
         .map { servers ->
             servers.firstOrNull { it.isActive && it.serverType != ServerType.STORYTELLER }?.id
         }
 
     val state: StateFlow<AnnotationsListUiState> = activeServerId
-        .flatMapLatest { serverId ->
-            if (serverId == null) {
+        .flatMapLatest { sourceId ->
+            if (sourceId == null) {
                 flowOf(AnnotationsListUiState(loading = false))
             } else {
-                repo.observeAnnotatedBooks(serverId, libraryId)
+                repo.observeAnnotatedBooks(sourceId, libraryId)
                     .map { books -> AnnotationsListUiState(loading = false, books = books) }
             }
         }
@@ -66,7 +66,7 @@ class AnnotationsListViewModel @Inject constructor(
 
     init {
         viewModelScope.launch {
-            val server = serverRepository.getActive()
+            val server = sourceRepository.getActive()
             if (server != null) {
                 authToken = tokenStorage.getToken(server.id) ?: ""
             }

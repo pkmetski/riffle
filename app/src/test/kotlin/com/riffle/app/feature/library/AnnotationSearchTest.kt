@@ -14,7 +14,7 @@ class AnnotationSearchTest {
         title = title,
         author = "Author",
         coverUrl = "https://cover/$id.jpg",
-        serverId = "srv1",
+        sourceId = "srv1",
         readingProgress = 0f,
         isCached = false,
         isDownloaded = false,
@@ -30,7 +30,7 @@ class AnnotationSearchTest {
         bookmarkTitle: String = "",
     ) = Annotation(
         id = id,
-        serverId = "srv1",
+        sourceId = "srv1",
         itemId = itemId,
         type = type,
         cfi = "epubcfi(/6/4!/4)",
@@ -88,7 +88,7 @@ class AnnotationSearchTest {
     // --- audiobook bookmark search ---
 
     private fun audiobookBookmark(id: String, itemId: String, title: String) =
-        AudiobookBookmark(id = id, serverId = "srv1", itemId = itemId, positionSec = 0.0, title = title, createdAt = 0L)
+        AudiobookBookmark(id = id, sourceId = "srv1", itemId = itemId, positionSec = 0.0, title = title, createdAt = 0L)
 
     @Test
     fun audiobookBookmarkBlankQueryReturnsNothing() {

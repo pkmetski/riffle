@@ -15,7 +15,7 @@ class AnnotationSyncExceptionMappingTest {
     }
 
     @Test
-    fun `HttpFailure maps to Failed Server`() {
+    fun `HttpFailure maps to Failed Source`() {
         val out = AnnotationSyncException.HttpFailure(code = 503, operation = "write").toFailedCycleOutcome(at = 10L)
         assertTrue(out is CycleOutcome.Failed.Server)
         assertEquals(10L, out.atMs)

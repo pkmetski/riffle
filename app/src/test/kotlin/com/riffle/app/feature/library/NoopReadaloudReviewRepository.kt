@@ -8,7 +8,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
 
 internal object NoopReadaloudReviewRepository : ReadaloudReviewRepository {
-    override fun observeReview(storytellerServerId: String, absServerId: String?): Flow<ReadaloudReview> =
+    override fun observeReview(storytellerSourceId: String, absSourceId: String?): Flow<ReadaloudReview> =
         flowOf(ReadaloudReview(emptyList(), emptyList(), emptyList()))
-    override suspend fun searchAbsItems(absServerId: String, query: String, filter: AbsFormatFilter): List<AbsPickerItem> = emptyList()
+    override suspend fun searchAbsItems(absSourceId: String, query: String, filter: AbsFormatFilter): List<AbsPickerItem> = emptyList()
 }

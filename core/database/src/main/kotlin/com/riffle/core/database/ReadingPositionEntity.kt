@@ -6,19 +6,19 @@ import androidx.room.Index
 
 @Entity(
     tableName = "reading_positions",
-    primaryKeys = ["serverId", "itemId"],
+    primaryKeys = ["sourceId", "itemId"],
     foreignKeys = [
         ForeignKey(
-            entity = ServerEntity::class,
+            entity = SourceEntity::class,
             parentColumns = ["id"],
-            childColumns = ["serverId"],
+            childColumns = ["sourceId"],
             onDelete = ForeignKey.CASCADE,
         ),
     ],
-    indices = [Index("serverId")],
+    indices = [Index("sourceId")],
 )
 data class ReadingPositionEntity(
-    val serverId: String,
+    val sourceId: String,
     val itemId: String,
     val cfi: String,
     val localUpdatedAt: Long = 0,

@@ -7,9 +7,9 @@ import com.riffle.core.database.ReadingPositionEntity
 import com.riffle.core.domain.EbookFormat
 import com.riffle.core.domain.EpubOpenResult
 import com.riffle.core.domain.LibraryItem
-import com.riffle.core.domain.Server
-import com.riffle.core.domain.ServerRepository
-import com.riffle.core.domain.ServerUrl
+import com.riffle.core.domain.Source
+import com.riffle.core.domain.SourceRepository
+import com.riffle.core.domain.SourceUrl
 import com.riffle.core.domain.TokenStorage
 import com.riffle.core.network.AbsApiClient
 import kotlinx.coroutines.flow.Flow
@@ -42,7 +42,7 @@ class EpubPositionIntegrationTest {
     @get:Rule
     val tmp = TemporaryFolder()
 
-    private lateinit var server: MockWebServer
+    private lateinit var source: MockWebServer
     private lateinit var cacheStore: LocalStoreImpl
     private lateinit var sharedPositionDao: InMemoryReadingPositionDao
 
@@ -50,15 +50,15 @@ class EpubPositionIntegrationTest {
 
     @Before
     fun setUp() {
-        server = MockWebServer()
-        server.start()
+        source = MockWebServer()
+        source.start()
         cacheStore = LocalStoreImpl(tmp.newFolder("cache"), ".epub", com.riffle.core.domain.DefaultDispatcherProvider)
         sharedPositionDao = InMemoryReadingPositionDao()
     }
 
     @After
     fun tearDown() {
-        server.shutdown()
+        source.shutdown()
     }
 
     private fun buildRepo(): EpubRepositoryImpl = EpubRepositoryImpl(
@@ -66,29 +66,29 @@ class EpubPositionIntegrationTest {
         cacheStore = cacheStore,
         downloadsStore = LocalStoreImpl(tmp.newFolder("downloads-${System.nanoTime()}"), ".epub", com.riffle.core.domain.DefaultDispatcherProvider),
         positionStore = ReadingPositionStoreImpl(sharedPositionDao, com.riffle.core.domain.TestClock(System.currentTimeMillis())),
-        serverRepository = object : ServerRepository {
-            val activeServer = Server(
-                id = "server-1",
-                url = ServerUrl.parse(server.url("/").toString().trimEnd('/'))!!,
+        sourceRepository = object : SourceRepository {
+            val activeServer = Source(
+                id = "source-1",
+                url = SourceUrl.parse(source.url("/").toString().trimEnd('/'))!!,
                 isActive = true,
                 insecureConnectionAllowed = false,
                 username = "",
             )
-            override fun observeAll(): Flow<List<Server>> = flowOf(listOf(activeServer))
-            override suspend fun getActive(): Server = activeServer
-            override suspend fun getById(serverId: String): Server? = activeServer.takeIf { it.id == serverId }
-            override suspend fun authenticate(url: ServerUrl, username: String, password: String, insecureAllowed: Boolean, serverType: com.riffle.core.domain.ServerType) =
+            override fun observeAll(): Flow<List<Source>> = flowOf(listOf(activeServer))
+            override suspend fun getActive(): Source = activeServer
+            override suspend fun getById(sourceId: String): Source? = activeServer.takeIf { it.id == sourceId }
+            override suspend fun authenticate(url: SourceUrl, username: String, password: String, insecureAllowed: Boolean, serverType: com.riffle.core.domain.ServerType) =
                 throw UnsupportedOperationException()
-            override suspend fun commit(pending: com.riffle.core.domain.PendingServer, hiddenLibraryIds: Set<String>) =
+            override suspend fun commit(pending: com.riffle.core.domain.PendingSource, hiddenLibraryIds: Set<String>) =
                 throw UnsupportedOperationException()
-            override suspend fun setActive(serverId: String) = Unit
-            override suspend fun remove(serverId: String) = Unit
-            override suspend fun getServerVersion(serverId: String): String? = null
+            override suspend fun setActive(sourceId: String) = Unit
+            override suspend fun remove(sourceId: String) = Unit
+            override suspend fun getSourceVersion(sourceId: String): String? = null
         },
         tokenStorage = object : TokenStorage {
-            override suspend fun saveToken(serverId: String, token: String) = Unit
-            override suspend fun getToken(serverId: String): String? = "test-token"
-            override suspend fun deleteToken(serverId: String) = Unit
+            override suspend fun saveToken(sourceId: String, token: String) = Unit
+            override suspend fun getToken(sourceId: String): String? = "test-token"
+            override suspend fun deleteToken(sourceId: String) = Unit
         },
     )
 
@@ -103,12 +103,12 @@ class EpubPositionIntegrationTest {
         isDownloaded = false,
         ebookFormat = EbookFormat.Epub,
         ebookFileIno = "ino-42",
-        serverId = "server-1",
+        sourceId = "source-1",
     )
 
     @Test
     fun `reading position survives repository restart`() = runTest {
-        server.enqueue(MockResponse().setResponseCode(200).setBody(Buffer().write(epubBytes)))
+        source.enqueue(MockResponse().setResponseCode(200).setBody(Buffer().write(epubBytes)))
         val repo1 = buildRepo()
 
         // First session: open book then save position
@@ -121,12 +121,12 @@ class EpubPositionIntegrationTest {
 
         assertEquals("epubcfi(/6/4[chap01]!/4/2[body01]/1:0)", result.lastPosition)
         // Cache hit — no second network request
-        assertEquals(1, server.requestCount)
+        assertEquals(1, source.requestCount)
     }
 
     @Test
     fun `fresh book has no saved position after repository restart`() = runTest {
-        server.enqueue(MockResponse().setResponseCode(200).setBody(Buffer().write(epubBytes)))
+        source.enqueue(MockResponse().setResponseCode(200).setBody(Buffer().write(epubBytes)))
         val repo1 = buildRepo()
         repo1.openEpub(item())
         // No saveReadingPosition call — simulates never having read the book
@@ -139,7 +139,7 @@ class EpubPositionIntegrationTest {
 
     @Test
     fun `overwritten position is restored after repository restart`() = runTest {
-        server.enqueue(MockResponse().setResponseCode(200).setBody(Buffer().write(epubBytes)))
+        source.enqueue(MockResponse().setResponseCode(200).setBody(Buffer().write(epubBytes)))
         val repo1 = buildRepo()
         repo1.openEpub(item())
         repo1.saveReadingPosition("item-1", "epubcfi(/6/2!/4/1:10)")
@@ -154,38 +154,38 @@ class EpubPositionIntegrationTest {
     private class InMemoryReadingPositionDao : ReadingPositionDao {
         private val entities = mutableMapOf<Pair<String, String>, ReadingPositionEntity>()
         override suspend fun upsert(entity: ReadingPositionEntity) {
-            entities[entity.serverId to entity.itemId] = entity
+            entities[entity.sourceId to entity.itemId] = entity
         }
-        override suspend fun getByItemId(serverId: String, itemId: String): ReadingPositionEntity? =
-            entities[serverId to itemId]
-        override suspend fun updateLocalTimestamp(serverId: String, itemId: String, millis: Long) {
-            entities[serverId to itemId]?.let { entities[serverId to itemId] = it.copy(localUpdatedAt = millis) }
+        override suspend fun getByItemId(sourceId: String, itemId: String): ReadingPositionEntity? =
+            entities[sourceId to itemId]
+        override suspend fun updateLocalTimestamp(sourceId: String, itemId: String, millis: Long) {
+            entities[sourceId to itemId]?.let { entities[sourceId to itemId] = it.copy(localUpdatedAt = millis) }
         }
         override suspend fun acceptServerIfUnchanged(
-            serverId: String, itemId: String, position: String, serverStamp: Long, ifLocalUpdatedAt: Long,
+            sourceId: String, itemId: String, position: String, serverStamp: Long, ifLocalUpdatedAt: Long,
         ): Int {
-            val e = entities[serverId to itemId] ?: return 0
+            val e = entities[sourceId to itemId] ?: return 0
             if (e.localUpdatedAt != ifLocalUpdatedAt) return 0
-            entities[serverId to itemId] = e.copy(cfi = position, localUpdatedAt = serverStamp, lastSyncedAt = serverStamp)
+            entities[sourceId to itemId] = e.copy(cfi = position, localUpdatedAt = serverStamp, lastSyncedAt = serverStamp)
             return 1
         }
         override suspend fun confirmPushedIfUnchanged(
-            serverId: String, itemId: String, serverStamp: Long, ifLocalUpdatedAt: Long,
+            sourceId: String, itemId: String, serverStamp: Long, ifLocalUpdatedAt: Long,
         ): Int {
-            val e = entities[serverId to itemId] ?: return 0
+            val e = entities[sourceId to itemId] ?: return 0
             if (e.localUpdatedAt != ifLocalUpdatedAt) return 0
-            entities[serverId to itemId] = e.copy(localUpdatedAt = serverStamp, lastSyncedAt = serverStamp)
+            entities[sourceId to itemId] = e.copy(localUpdatedAt = serverStamp, lastSyncedAt = serverStamp)
             return 1
         }
-        override suspend fun confirmInSyncIfUnchanged(serverId: String, itemId: String, ifLocalUpdatedAt: Long): Int {
-            val e = entities[serverId to itemId] ?: return 0
+        override suspend fun confirmInSyncIfUnchanged(sourceId: String, itemId: String, ifLocalUpdatedAt: Long): Int {
+            val e = entities[sourceId to itemId] ?: return 0
             if (e.localUpdatedAt != ifLocalUpdatedAt) return 0
-            entities[serverId to itemId] = e.copy(lastSyncedAt = e.localUpdatedAt)
+            entities[sourceId to itemId] = e.copy(lastSyncedAt = e.localUpdatedAt)
             return 1
         }
-        override suspend fun dirtyForServer(serverId: String) =
-            entities.values.filter { it.serverId == serverId && it.localUpdatedAt > it.lastSyncedAt }
-        override suspend fun serversWithDirtyRows() =
-            entities.values.filter { it.localUpdatedAt > it.lastSyncedAt }.map { it.serverId }.distinct()
+        override suspend fun dirtyForSource(sourceId: String) =
+            entities.values.filter { it.sourceId == sourceId && it.localUpdatedAt > it.lastSyncedAt }
+        override suspend fun sourcesWithDirtyRows() =
+            entities.values.filter { it.localUpdatedAt > it.lastSyncedAt }.map { it.sourceId }.distinct()
     }
 }

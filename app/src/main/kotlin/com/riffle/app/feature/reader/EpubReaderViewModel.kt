@@ -46,7 +46,7 @@ import com.riffle.core.domain.ReaderOrientation
 import com.riffle.core.domain.ReadingSessionCoordinator
 import com.riffle.core.domain.ReadingSessionRepository
 import com.riffle.core.domain.ServerProgress
-import com.riffle.core.domain.ServerRepository
+import com.riffle.core.domain.SourceRepository
 import com.riffle.core.domain.HighlightColor
 import com.riffle.core.domain.ReadaloudPreferencesStore
 import com.riffle.core.domain.ReadaloudResumeStore
@@ -152,7 +152,7 @@ class EpubReaderViewModel @Inject constructor(
     private val streamingSessionFactory: com.riffle.app.feature.reader.readaloud.ReadaloudStreamingSessionFactory,
     private val playerCoordinator: PlayerCoordinator,
     private val storytellerSyncController: StorytellerPositionSyncController,
-    private val serverRepository: ServerRepository,
+    private val sourceRepository: SourceRepository,
     private val readaloudLinkRepository: ReadaloudLinkRepository,
     private val audioIdentityResolver: AudioIdentityResolver,
     private val audioPlaybackPreferencesStore: AudioPlaybackPreferencesStore,
@@ -219,7 +219,7 @@ class EpubReaderViewModel @Inject constructor(
     private val position: PositionOrchestrator = positionOrchestratorFactory.create(viewModelScope)
 
     // Session lifecycle — owns Publication/epubFile/epubZip, matched-book cross-sync state
-    // (readerSync + audiobookFollow + serverId), and the close-sync guard. The VM keeps the
+    // (readerSync + audiobookFollow + sourceId), and the close-sync guard. The VM keeps the
     // Compose-facing composer role: after lifecycle.open() returns Ready, the VM binds the
     // per-book collaborators (readaloud, position, bookmarks, annotationSession).
     private val lifecycle: com.riffle.app.feature.reader.session.ReaderSessionLifecycle =
@@ -296,7 +296,7 @@ class EpubReaderViewModel @Inject constructor(
     // happens to be active when openBook() runs, not the server the tapped book's highlights are
     // actually stored under — silently showing zero highlights. Null (and thus falling back to the
     // active server) for every other nav origin, including a normal FullBook open.
-    private val navServerId: String? = savedStateHandle.get<String>("serverId")
+    private val navServerId: String? = savedStateHandle.get<String>("sourceId")
 
     private val _state = MutableStateFlow<ReaderState>(ReaderState.Loading)
     val state: StateFlow<ReaderState> = _state
@@ -605,16 +605,16 @@ class EpubReaderViewModel @Inject constructor(
             if (source != ReaderSource.Highlights) return@launch
             highlightsResumeHrefUpdates(position.currentLocator.mapNotNull { it?.href?.toString() })
                 .collect { href ->
-                    val serverId = highlightsResumeServerId ?: return@collect
+                    val sourceId = highlightsResumeServerId ?: return@collect
                     val chapters = highlightsResumeChapters ?: return@collect
                     val annotationId = highlightsResumeAnnotationIdForHref(chapters, href) ?: return@collect
-                    highlightsResumeStore.setLastHighlightId(serverId, itemId, annotationId)
+                    highlightsResumeStore.setLastHighlightId(sourceId, itemId, annotationId)
                 }
         }
         // NOTE: The sentence-quote build on isPlaying and the audiobook-follow push loop are now
         // owned by ReadaloudSession's own init block (sub-task 8.4). The isPlaying→ReaderStateHolder
         // bridge is wired above via readaloud.onAudioPlayingChanged.
-        // NOTE: Server resolution + readaloud.bind() + annotation bind() are all done inside
+        // NOTE: Source resolution + readaloud.bind() + annotation bind() are all done inside
         // openBook() (Option α), so they run sequentially in a single suspending coroutine.
     }
 
@@ -624,24 +624,24 @@ class EpubReaderViewModel @Inject constructor(
         // before lifecycle.open() so the ABS fetch, matched-sync resolution, readaloud binding, and
         // annotation-sync wiring (all Task 8/9 concerns) never run for this reader instance.
         if (source == ReaderSource.Highlights) {
-            val serverId = navServerId ?: serverRepository.getActive()?.id
-            if (serverId == null) {
+            val sourceId = navServerId ?: sourceRepository.getActive()?.id
+            if (sourceId == null) {
                 _state.value = ReaderState.Error("No active server")
                 return
             }
-            val rows = annotationDao.getForItem(serverId, itemId)
-            val toc = tocRepository.getCachedToc(serverId, itemId)?.second.orEmpty()
+            val rows = annotationDao.getForItem(sourceId, itemId)
+            val toc = tocRepository.getCachedToc(sourceId, itemId)?.second.orEmpty()
             val chapters = buildChapterElisions(rows).mapIndexed { index, chapter ->
                 chapter.copy(title = elidedChapterTitle(chapter.href, chapter.title, toc, index))
             }
             highlightsResumeChapters = chapters
-            highlightsResumeServerId = serverId
+            highlightsResumeServerId = sourceId
             // Book title composed as "<real title> — Annotations" so the reader's own top-bar
             // label makes clear which book's highlights are shown. Falls back to plain "Annotations"
             // when the local library_items row is gone (orphaned book).
-            val realBookTitle = libraryItemDao.getById(serverId, itemId)?.title
+            val realBookTitle = libraryItemDao.getById(sourceId, itemId)?.title
             val pub = highlightsPublicationFactory.build(
-                serverId = serverId,
+                sourceId = sourceId,
                 itemId = itemId,
                 bookTitle = realBookTitle?.let { "$it — Annotations" },
                 chapters = chapters,
@@ -651,7 +651,7 @@ class EpubReaderViewModel @Inject constructor(
             // hrefs ("highlights/ch$index.xhtml") are rebuilt fresh every open from `chapters`'
             // index order, so resuming needs to re-derive the same index — there's no stable
             // per-highlight href to store directly.
-            val lastId = highlightsResumeStore.lastHighlightId(serverId, itemId)
+            val lastId = highlightsResumeStore.lastHighlightId(sourceId, itemId)
             val resumeHref = lastId?.let { highlightsResumeChapterHref(chapters, it, pub.readingOrder.size) }
             val initialLocator = resumeHref?.let { href ->
                 runCatching {
@@ -672,16 +672,16 @@ class EpubReaderViewModel @Inject constructor(
             // highlightRenders permanently empty and recolor/delete/note edits silent no-ops).
             // annotationServerId is read by scheduleAnnotationSync() (recolor/delete/note edits) and
             // by openHighlightInSourceBook()'s fallback.
-            annotationServerId = serverId
+            annotationServerId = sourceId
             // Same namespace resolution as the FullBook path (see onOpenReady) — recolor/delete/note
             // edits still need a real ABS account id to push through AnnotationSyncController's
             // scheduleDebounce; a blank namespace with a resolvable WebDAV target would otherwise
             // build a malformed remote path instead of cleanly no-op'ing (only a null target is a
             // documented no-op — see AnnotationSyncController.syncOnOpen/scheduleDebounce).
-            val namespace = serverRepository.ensureAbsUserId(serverId)
+            val namespace = sourceRepository.ensureAbsUserId(sourceId)
             annotationNamespace = namespace
             annotationSession.bind(
-                serverId = serverId,
+                sourceId = sourceId,
                 namespace = namespace ?: "",
                 itemId = itemId,
                 highlightRenderResolver = { a -> highlightsAnnotationToRender(chapters, a) },
@@ -719,7 +719,7 @@ class EpubReaderViewModel @Inject constructor(
         // All per-book readaloud wiring is consolidated here (Option α). After this call,
         // availability flags are set and background work (pre-warm, sidecar, quotes) is launched.
         readaloud.bind(
-            serverId = o.resolvedReaderServerId ?: "",
+            sourceId = o.resolvedReaderServerId ?: "",
             itemId = itemId,
             isStorytellerServer = o.isStorytellerServer,
             audioBookId = o.resolvedAudioBookId,
@@ -730,13 +730,13 @@ class EpubReaderViewModel @Inject constructor(
             currentLocatorFlow = position.currentLocator,
             readerSyncProvider = { lifecycle.matchedSync.value?.readerSync },
             audiobookFollowProvider = { lifecycle.matchedSync.value?.audiobookFollow },
-            readerSyncServerIdProvider = { lifecycle.matchedSync.value?.serverId },
+            readerSyncServerIdProvider = { lifecycle.matchedSync.value?.sourceId },
         )
 
         // Bind the position orchestrator so it can save positions for this book.
         position.bindBook(
             itemId = itemId,
-            serverId = o.resolvedReaderServerId ?: "",
+            sourceId = o.resolvedReaderServerId ?: "",
             positionSaveCoordinator = positionSaveCoordinator,
             readingPositionStore = readingPositionStore,
             spinePositionCounts = spinePositionCounts,
@@ -781,7 +781,7 @@ class EpubReaderViewModel @Inject constructor(
             // Bind the bookmarks controller so it can observe bookmarks and track the current
             // locator for page-bookmark detection.
             bookmarks.bind(
-                serverId = activeServer.id,
+                sourceId = activeServer.id,
                 itemId = itemId,
                 currentLocator = position.currentLocator,
                 spinePositionCounts = spinePositionCounts,
@@ -798,10 +798,10 @@ class EpubReaderViewModel @Inject constructor(
             }
             // Resolve the ABS-side stable account id (`/api/me` → user.id) as the WebDAV path
             // namespace. A null result means sync is skipped this session; DB stays canonical.
-            val namespace = serverRepository.ensureAbsUserId(activeServer.id)
+            val namespace = sourceRepository.ensureAbsUserId(activeServer.id)
             annotationNamespace = namespace
             annotationSession.bind(
-                serverId = activeServer.id,
+                sourceId = activeServer.id,
                 namespace = namespace ?: "",
                 itemId = itemId,
                 highlightRenderResolver = { a -> annotationToRender(a) },
@@ -856,10 +856,10 @@ class EpubReaderViewModel @Inject constructor(
     private suspend fun runReaderSyncCycle(locator: Locator?) {
         val ms = lifecycle.matchedSync.value ?: return
         val coordinator = ms.readerSync ?: return
-        val serverId = ms.serverId ?: return
+        val sourceId = ms.sourceId ?: return
         val locJson = (locator ?: position.snapshotLastLocator())?.toJSON()?.toString()
         if (locJson != null) {
-            val localUpdatedAt = readingPositionStore.loadLocalUpdatedAt(serverId, itemId)
+            val localUpdatedAt = readingPositionStore.loadLocalUpdatedAt(sourceId, itemId)
             // While parked on the sentence readaloud stopped on, readaloud already wrote the precise
             // audiobook position; reconcile the audiobook inbound-only so this page-derived cycle can't
             // regress it to the page top (ADR 0031). Outbound resumes once the user navigates off the page.
@@ -893,7 +893,7 @@ class EpubReaderViewModel @Inject constructor(
                     }
                 }
                 if (result.canonicalLastUpdate > localUpdatedAt) {
-                    readingPositionStore.updateLocalTimestamp(serverId, itemId, result.canonicalLastUpdate)
+                    readingPositionStore.updateLocalTimestamp(sourceId, itemId, result.canonicalLastUpdate)
                 }
             }
         }
@@ -1129,7 +1129,7 @@ class EpubReaderViewModel @Inject constructor(
     // a larger selection subsuming a previously highlighted word replaces that highlight.
     fun createHighlight(selectionLocator: Locator, anchorRect: IntRect) {
         if (source == ReaderSource.Highlights) return
-        val serverId = annotationServerId ?: return
+        val sourceId = annotationServerId ?: return
         viewModelScope.launch {
             val pub = lifecycle.publication.value ?: return@launch
             val snippet = selectionLocator.text.highlight?.takeIf { it.isNotBlank() } ?: return@launch
@@ -1157,7 +1157,7 @@ class EpubReaderViewModel @Inject constructor(
             val cfiRange = buildHighlightCfiRangeForSelection(spineStep, html, progression, snippet)
                 ?: return@launch
             val created = annotationStore.createHighlight(
-                serverId = serverId,
+                sourceId = sourceId,
                 itemId = itemId,
                 cfi = cfiRange,
                 textSnippet = snippet,
@@ -1182,7 +1182,7 @@ class EpubReaderViewModel @Inject constructor(
      */
     fun toggleBookmark() {
         if (source == ReaderSource.Highlights) return
-        val serverId = annotationServerId ?: return
+        val sourceId = annotationServerId ?: return
         viewModelScope.launch {
             val locator = position.snapshotLastLocator() ?: return@launch
             val href = locator.href.toString()
@@ -1216,7 +1216,7 @@ class EpubReaderViewModel @Inject constructor(
                 val cfi = locator.toPayload().ebookLocation
                 val snippet = locator.text.before?.take(200).orEmpty()
                 annotationStore.createBookmark(
-                    serverId = serverId,
+                    sourceId = sourceId,
                     itemId = itemId,
                     cfi = cfi,
                     textSnippet = snippet,
@@ -1291,7 +1291,7 @@ class EpubReaderViewModel @Inject constructor(
             val row = annotationDao.getById(annotationId) ?: return@launch
             _readerNavEvents.send(
                 ReaderNavEvent.OpenInSourceBook(
-                    serverId = row.serverId,
+                    sourceId = row.sourceId,
                     itemId = row.itemId,
                     cfi = row.cfi,
                 ),
@@ -1302,7 +1302,7 @@ class EpubReaderViewModel @Inject constructor(
     /** Debounced push of the local non-deleted annotations to the WebDAV target (#76). No-op when
      *  sync is not configured or the ABS namespace hasn't been resolved (Storyteller-only, offline
      *  backfill failure). [annotationServerId] and [annotationNamespace] are set together on book
-     *  open, so checking the namespace also guarantees the serverId is present.
+     *  open, so checking the namespace also guarantees the sourceId is present.
      *
      *  Still needed by createHighlight and toggleBookmark which are publication-dependent and stay in VM. */
     private fun scheduleAnnotationSync() {

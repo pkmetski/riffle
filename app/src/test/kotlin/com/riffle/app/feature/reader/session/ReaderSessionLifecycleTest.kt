@@ -15,10 +15,10 @@ import com.riffle.core.domain.LibraryObserver
 import com.riffle.core.domain.ListeningPreferencesStore
 import com.riffle.core.domain.ReadaloudLink
 import com.riffle.core.domain.ReadaloudLinkRepository
-import com.riffle.core.domain.Server
-import com.riffle.core.domain.ServerRepository
+import com.riffle.core.domain.Source
+import com.riffle.core.domain.SourceRepository
 import com.riffle.core.domain.ServerType
-import com.riffle.core.domain.ServerUrl
+import com.riffle.core.domain.SourceUrl
 import com.riffle.core.logging.RecordingLogger
 import io.mockk.every
 import io.mockk.mockk
@@ -60,7 +60,7 @@ class ReaderSessionLifecycleTest {
         private val activeItems: Map<String, LibraryItem>,
     ) : LibraryObserver {
         override fun observeLibraries(): Flow<List<com.riffle.core.domain.Library>> = flowOf(emptyList())
-        override fun observeLibraries(serverId: String): Flow<List<com.riffle.core.domain.Library>> = flowOf(emptyList())
+        override fun observeLibraries(sourceId: String): Flow<List<com.riffle.core.domain.Library>> = flowOf(emptyList())
         override fun observeLibraryItems(libraryId: String): Flow<List<LibraryItem>> = flowOf(emptyList())
         override fun observeUngroupedLibraryItems(libraryId: String): Flow<List<LibraryItem>> = flowOf(emptyList())
         override fun observeInProgressItems(libraryId: String): Flow<List<LibraryItem>> = flowOf(emptyList())
@@ -74,9 +74,9 @@ class ReaderSessionLifecycleTest {
         override fun observeCollectionItems(collectionId: String): Flow<List<LibraryItem>> = flowOf(emptyList())
         override suspend fun getItem(itemId: String): LibraryItem? = activeItems[itemId]
         override fun observeItem(itemId: String): Flow<LibraryItem?> = MutableStateFlow(activeItems[itemId])
-        override suspend fun getItem(serverId: String, itemId: String): LibraryItem? = items[serverId to itemId]
+        override suspend fun getItem(sourceId: String, itemId: String): LibraryItem? = items[sourceId to itemId]
         override suspend fun getLibrary(libraryId: String): com.riffle.core.domain.Library? = null
-        override suspend fun getSeriesIdForItem(serverId: String, itemId: String): String? = null
+        override suspend fun getSeriesIdForItem(sourceId: String, itemId: String): String? = null
     }
 
     private class FakeEpubRepository(
@@ -85,26 +85,26 @@ class ReaderSessionLifecycleTest {
         override suspend fun openEpub(item: LibraryItem): EpubOpenResult = outcome
         override suspend fun downloadEpub(item: LibraryItem, onProgress: (Long, Long) -> Unit) =
             error("not needed")
-        override suspend fun removeDownload(serverId: String, itemId: String) {}
-        override fun isDownloaded(serverId: String, itemId: String) = false
-        override fun isCached(serverId: String, itemId: String) = false
+        override suspend fun removeDownload(sourceId: String, itemId: String) {}
+        override fun isDownloaded(sourceId: String, itemId: String) = false
+        override fun isCached(sourceId: String, itemId: String) = false
         override suspend fun saveReadingPosition(itemId: String, cfi: String) {}
     }
 
-    private class FakeServerRepository(private val active: Server?) : ServerRepository {
-        override fun observeAll(): Flow<List<Server>> = flowOf(active?.let { listOf(it) } ?: emptyList())
-        override suspend fun getActive(): Server? = active
+    private class FakeServerRepository(private val active: Source?) : SourceRepository {
+        override fun observeAll(): Flow<List<Source>> = flowOf(active?.let { listOf(it) } ?: emptyList())
+        override suspend fun getActive(): Source? = active
         override suspend fun authenticate(
-            url: ServerUrl, username: String, password: String,
+            url: SourceUrl, username: String, password: String,
             insecureAllowed: Boolean, serverType: ServerType,
         ) = com.riffle.core.domain.AuthenticateResult.WrongCredentials()
         override suspend fun commit(
-            pending: com.riffle.core.domain.PendingServer, hiddenLibraryIds: Set<String>,
-        ) = com.riffle.core.domain.CommitServerResult.Failure(RuntimeException("not needed"))
-        override suspend fun setActive(serverId: String) {}
-        override suspend fun remove(serverId: String) {}
-        override suspend fun getServerVersion(serverId: String): String? = null
-        override suspend fun ensureAbsUserId(serverId: String): String? = "abs-user"
+            pending: com.riffle.core.domain.PendingSource, hiddenLibraryIds: Set<String>,
+        ) = com.riffle.core.domain.CommitSourceResult.Failure(RuntimeException("not needed"))
+        override suspend fun setActive(sourceId: String) {}
+        override suspend fun remove(sourceId: String) {}
+        override suspend fun getSourceVersion(sourceId: String): String? = null
+        override suspend fun ensureAbsUserId(sourceId: String): String? = "abs-user"
     }
 
     private class FakeReadaloudLinkRepository(
@@ -113,18 +113,18 @@ class ReaderSessionLifecycleTest {
     ) : ReadaloudLinkRepository {
         override fun observeAll(): Flow<List<ReadaloudLink>> = flowOf(absLookup.values.toList())
         override fun observeLinkedAbsItemIds(): Flow<Set<String>> = flowOf(emptySet())
-        override suspend fun findByAbsItem(absServerId: String, absLibraryItemId: String): ReadaloudLink? =
-            absLookup[absServerId to absLibraryItemId]
-        override suspend fun findByStorytellerBook(storytellerServerId: String, storytellerBookId: String): List<ReadaloudLink> =
-            storytellerLookup[storytellerServerId to storytellerBookId] ?: emptyList()
-        override suspend fun unlinkAbsItem(absServerId: String, absLibraryItemId: String) {}
-        override suspend fun countForServer(serverId: String): Int = 0
+        override suspend fun findByAbsItem(absSourceId: String, absLibraryItemId: String): ReadaloudLink? =
+            absLookup[absSourceId to absLibraryItemId]
+        override suspend fun findByStorytellerBook(storytellerSourceId: String, storytellerBookId: String): List<ReadaloudLink> =
+            storytellerLookup[storytellerSourceId to storytellerBookId] ?: emptyList()
+        override suspend fun unlinkAbsItem(absSourceId: String, absLibraryItemId: String) {}
+        override suspend fun countForSource(sourceId: String): Int = 0
     }
 
     private class FakeAudioIdentityResolver(
         private val identity: AudioIdentity = AudioIdentity("srv", "audio-id"),
     ) : AudioIdentityResolver {
-        override suspend fun resolveForStorytellerBook(storytellerServerId: String, storytellerBookId: String) = identity
+        override suspend fun resolveForStorytellerBook(storytellerSourceId: String, storytellerBookId: String) = identity
     }
 
     private class FakeAudioPlaybackPreferencesStore(private val speed: Float? = null) : AudioPlaybackPreferencesStore {
@@ -150,31 +150,31 @@ class ReaderSessionLifecycleTest {
     private class FakeAnnotationStore(
         private val byCfi: Map<Triple<String, String, String>, Annotation> = emptyMap(),
     ) : AnnotationStore {
-        override fun observeHighlights(serverId: String, itemId: String): Flow<List<Annotation>> = flowOf(emptyList())
-        override fun observeBookmarks(serverId: String, itemId: String): Flow<List<Annotation>> = flowOf(emptyList())
-        override fun observeAnnotations(serverId: String, itemId: String): Flow<List<Annotation>> = flowOf(emptyList())
-        override fun observeAnnotationsForServer(serverId: String): Flow<List<Annotation>> = flowOf(emptyList())
+        override fun observeHighlights(sourceId: String, itemId: String): Flow<List<Annotation>> = flowOf(emptyList())
+        override fun observeBookmarks(sourceId: String, itemId: String): Flow<List<Annotation>> = flowOf(emptyList())
+        override fun observeAnnotations(sourceId: String, itemId: String): Flow<List<Annotation>> = flowOf(emptyList())
+        override fun observeAnnotationsForSource(sourceId: String): Flow<List<Annotation>> = flowOf(emptyList())
         override suspend fun createHighlight(
-            serverId: String, itemId: String, cfi: String, textSnippet: String, chapterHref: String,
+            sourceId: String, itemId: String, cfi: String, textSnippet: String, chapterHref: String,
             textBefore: String, textAfter: String, color: String, spineIndex: Int, progression: Double,
         ): Annotation = error("not needed")
         override suspend fun createBookmark(
-            serverId: String, itemId: String, cfi: String, textSnippet: String, chapterHref: String,
+            sourceId: String, itemId: String, cfi: String, textSnippet: String, chapterHref: String,
             spineIndex: Int, progression: Double, bookmarkTitle: String,
         ): Annotation = error("not needed")
         override suspend fun delete(id: String) {}
         override suspend fun recolor(id: String, color: String) {}
         override suspend fun updateNote(id: String, note: String?) {}
         override suspend fun renameBookmark(id: String, title: String) {}
-        override suspend fun findByItemAndCfi(serverId: String, itemId: String, cfi: String): Annotation? =
-            byCfi[Triple(serverId, itemId, cfi)]
+        override suspend fun findByItemAndCfi(sourceId: String, itemId: String, cfi: String): Annotation? =
+            byCfi[Triple(sourceId, itemId, cfi)]
     }
 
     // ── Helpers ──────────────────────────────────────────────────────────────────────────
 
-    private val activeServer = Server(
+    private val activeServer = Source(
         id = "srv-abs",
-        url = ServerUrl.parse("https://example.test")!!,
+        url = SourceUrl.parse("https://example.test")!!,
         isActive = true,
         insecureConnectionAllowed = false,
         username = "u",
@@ -193,7 +193,7 @@ class ReaderSessionLifecycleTest {
         isCached = true,
         isDownloaded = true,
         ebookFormat = EbookFormat.Epub,
-        serverId = "srv-abs",
+        sourceId = "srv-abs",
     )
 
     private fun makeLifecycle(
@@ -205,7 +205,7 @@ class ReaderSessionLifecycleTest {
         epubRepository: EpubRepository = FakeEpubRepository(
             EpubOpenResult.Success(epubFile = File("/tmp/dummy.epub"), lastPosition = null),
         ),
-        serverRepository: ServerRepository = FakeServerRepository(activeServer),
+        sourceRepository: SourceRepository = FakeServerRepository(activeServer),
         readaloudLinkRepository: ReadaloudLinkRepository = FakeReadaloudLinkRepository(),
         audioPlaybackPreferencesStore: AudioPlaybackPreferencesStore = FakeAudioPlaybackPreferencesStore(speed = 1.25f),
         annotationStore: AnnotationStore = FakeAnnotationStore(),
@@ -221,7 +221,7 @@ class ReaderSessionLifecycleTest {
             cfiStringToLocator = cfiResolver,
             libraryObserver = libraryObserver,
             epubRepository = epubRepository,
-            serverRepository = serverRepository,
+            sourceRepository = sourceRepository,
             readaloudLinkRepository = readaloudLinkRepository,
             audioIdentityResolver = FakeAudioIdentityResolver(),
             audioPlaybackPreferencesStore = audioPlaybackPreferencesStore,
@@ -292,9 +292,9 @@ class ReaderSessionLifecycleTest {
     @Test
     fun `open with matched link resolves audiobook id and identity from link`() = runTest {
         val link = ReadaloudLink(
-            storytellerServerId = "srv-st",
+            storytellerSourceId = "srv-st",
             storytellerBookId = "st-book-1",
-            absServerId = "srv-abs",
+            absSourceId = "srv-abs",
             absLibraryItemId = "item-1",
             userConfirmed = true,
             identityResult = AudiobookIdentityResult.UNKNOWN,
@@ -327,7 +327,7 @@ class ReaderSessionLifecycleTest {
     @Test
     fun `open on Storyteller server keeps itemId as audio ids`() = runTest {
         val (lifecycle, _) = makeLifecycle(
-            serverRepository = FakeServerRepository(storytellerServer),
+            sourceRepository = FakeServerRepository(storytellerServer),
         )
         val outcome = lifecycle.open(params()) as ReaderSessionLifecycle.OpenOutcome.Ready
 
@@ -380,7 +380,7 @@ class ReaderSessionLifecycleTest {
         assertNotNull(ms)
         assertNull(ms!!.readerSync)
         assertNull(ms.audiobookFollow)
-        assertEquals("srv-abs", ms.serverId)
+        assertEquals("srv-abs", ms.sourceId)
     }
 
     @Test

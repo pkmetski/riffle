@@ -39,9 +39,9 @@ import com.riffle.core.domain.ReadaloudLinkRepository
 import com.riffle.core.domain.ReadaloudResumePosition
 import com.riffle.core.domain.ReadaloudResumeStore
 import com.riffle.core.domain.ReadaloudTrack
-import com.riffle.core.domain.Server
-import com.riffle.core.domain.ServerRepository
-import com.riffle.core.domain.ServerUrl
+import com.riffle.core.domain.Source
+import com.riffle.core.domain.SourceRepository
+import com.riffle.core.domain.SourceUrl
 import com.riffle.core.domain.StoredItemRef
 import com.riffle.core.domain.Clock
 import com.riffle.core.domain.SyncPositionStore
@@ -113,7 +113,7 @@ class SleepTimerTest {
 
     // ── shared timeline ──────────────────────────────────────────────────────────
 
-    private val serverId = "srv-1"
+    private val sourceId = "srv-1"
     private val itemId = "item-1"
     private val timeline = AudiobookTimeline(
         durationSec = 1000.0,
@@ -196,7 +196,7 @@ class SleepTimerTest {
             bundleAudiobookSource = NoBundleSource,
             libraryObserver = FakeLibraryRepository(),
             updateReadingProgressUseCase = com.riffle.app.testing.NoopUpdateReadingProgress(),
-            serverRepository = FakeServerRepository(),
+            sourceRepository = FakeServerRepository(),
             tokenStorage = FakeTokenStorage,
             controller = controller,
             readaloudController = FakeReadaloudController(),
@@ -373,33 +373,33 @@ class SleepTimerTest {
     private class FakeBookmarkStore : AudiobookBookmarkStore {
         val flow = MutableStateFlow<List<AudiobookBookmark>>(emptyList())
         val hasUnsynced = MutableStateFlow(false)
-        override fun observe(serverId: String, itemId: String): Flow<List<AudiobookBookmark>> = flow
-        override fun observeForServer(serverId: String): Flow<List<AudiobookBookmark>> = flow
-        override fun observeHasUnsynced(serverId: String, itemId: String): Flow<Boolean> = hasUnsynced
-        override suspend fun add(serverId: String, itemId: String, positionSec: Double, title: String, now: Long): String = "bm-0"
+        override fun observe(sourceId: String, itemId: String): Flow<List<AudiobookBookmark>> = flow
+        override fun observeForSource(sourceId: String): Flow<List<AudiobookBookmark>> = flow
+        override fun observeHasUnsynced(sourceId: String, itemId: String): Flow<Boolean> = hasUnsynced
+        override suspend fun add(sourceId: String, itemId: String, positionSec: Double, title: String, now: Long): String = "bm-0"
         override suspend fun rename(id: String, title: String, now: Long) {}
         override suspend fun delete(id: String, now: Long) {}
     }
 
     private class FakeAudiobookRepository(private val session: AudiobookSession) : AudiobookRepository {
-        override suspend fun openSession(serverId: String, itemId: String): AudiobookSession = session
-        override suspend fun saveProgress(serverId: String, itemId: String, positionSec: Double, durationSec: Double) {}
+        override suspend fun openSession(sourceId: String, itemId: String): AudiobookSession = session
+        override suspend fun saveProgress(sourceId: String, itemId: String, positionSec: Double, durationSec: Double) {}
     }
 
     private object NoDownloadRepo : AudiobookDownloadRepository {
-        override fun isDownloaded(serverId: String, itemId: String) = false
-        override fun localSession(serverId: String, itemId: String): AudiobookSession? = null
+        override fun isDownloaded(sourceId: String, itemId: String) = false
+        override fun localSession(sourceId: String, itemId: String): AudiobookSession? = null
         override suspend fun download(
-            serverId: String,
+            sourceId: String,
             itemId: String,
             onProgress: (Long, Long) -> Unit,
         ) = com.riffle.core.domain.AudiobookDownloadResult.Success
-        override suspend fun remove(serverId: String, itemId: String): Long = 0
+        override suspend fun remove(sourceId: String, itemId: String): Long = 0
     }
 
     private object NoBundleSource : BundleAudiobookSource {
-        override suspend fun localSession(serverId: String, itemId: String): AudiobookSession? = null
-        override fun isAvailableOffline(serverId: String, itemId: String) = false
+        override suspend fun localSession(sourceId: String, itemId: String): AudiobookSession? = null
+        override fun isAvailableOffline(sourceId: String, itemId: String) = false
     }
 
     private inner class FakeLibraryRepository : LibraryObserver {
@@ -415,13 +415,13 @@ class SleepTimerTest {
             ebookFormat = EbookFormat.Unsupported,
             hasAudio = true,
             audioDurationSec = 1000.0,
-            serverId = serverId,
+            sourceId = sourceId,
         )
         override suspend fun getItem(itemId: String): LibraryItem = item
-        override suspend fun getItem(serverId: String, itemId: String): LibraryItem = item
+        override suspend fun getItem(sourceId: String, itemId: String): LibraryItem = item
         override fun observeItem(itemId: String) = throw NotImplementedError()
         override fun observeLibraries() = throw NotImplementedError()
-        override fun observeLibraries(serverId: String) = throw NotImplementedError()
+        override fun observeLibraries(sourceId: String) = throw NotImplementedError()
         override fun observeLibraryItems(libraryId: String) = throw NotImplementedError()
         override fun observeUngroupedLibraryItems(libraryId: String) = throw NotImplementedError()
         override fun observeInProgressItems(libraryId: String) = throw NotImplementedError()
@@ -434,40 +434,40 @@ class SleepTimerTest {
         override fun observeContinueSeriesItems(libraryId: String) = throw NotImplementedError()
         override fun observeCollectionItems(collectionId: String) = throw NotImplementedError()
         override suspend fun getLibrary(libraryId: String) = throw NotImplementedError()
-        override suspend fun getSeriesIdForItem(serverId: String, itemId: String): String? = null
+        override suspend fun getSeriesIdForItem(sourceId: String, itemId: String): String? = null
     }
 
-    private inner class FakeServerRepository : ServerRepository {
-        private val server = Server(
-            id = serverId,
-            url = ServerUrl.parse("http://example.com")!!,
+    private inner class FakeServerRepository : SourceRepository {
+        private val server = Source(
+            id = sourceId,
+            url = SourceUrl.parse("http://example.com")!!,
             isActive = true,
             insecureConnectionAllowed = false,
             username = "u",
         )
         override fun observeAll() = throw NotImplementedError()
-        override suspend fun getActive(): Server = server
-        override suspend fun getById(serverId: String): Server = server
+        override suspend fun getActive(): Source = server
+        override suspend fun getById(sourceId: String): Source = server
         override suspend fun authenticate(
-            url: ServerUrl,
+            url: SourceUrl,
             username: String,
             password: String,
             insecureAllowed: Boolean,
             serverType: com.riffle.core.domain.ServerType,
         ) = throw NotImplementedError()
         override suspend fun commit(
-            pending: com.riffle.core.domain.PendingServer,
+            pending: com.riffle.core.domain.PendingSource,
             hiddenLibraryIds: Set<String>,
         ) = throw NotImplementedError()
-        override suspend fun setActive(serverId: String) {}
-        override suspend fun remove(serverId: String) {}
-        override suspend fun getServerVersion(serverId: String): String? = null
+        override suspend fun setActive(sourceId: String) {}
+        override suspend fun remove(sourceId: String) {}
+        override suspend fun getSourceVersion(sourceId: String): String? = null
     }
 
     private object FakeTokenStorage : TokenStorage {
-        override suspend fun saveToken(serverId: String, token: String) {}
-        override suspend fun getToken(serverId: String): String = "token"
-        override suspend fun deleteToken(serverId: String) {}
+        override suspend fun saveToken(sourceId: String, token: String) {}
+        override suspend fun getToken(sourceId: String): String = "token"
+        override suspend fun deleteToken(sourceId: String) {}
     }
 
     private object FakePrefsStore : AudioPlaybackPreferencesStore {
@@ -490,7 +490,7 @@ class SleepTimerTest {
 
     private object FakeIdentityResolver : AudioIdentityResolver {
         override suspend fun resolveForStorytellerBook(
-            storytellerServerId: String,
+            storytellerSourceId: String,
             storytellerBookId: String,
         ) = AudioIdentity("", "")
     }
@@ -498,52 +498,52 @@ class SleepTimerTest {
     private object FakeLinkRepository : ReadaloudLinkRepository {
         override fun observeAll() = throw NotImplementedError()
         override fun observeLinkedAbsItemIds() = throw NotImplementedError()
-        override suspend fun findByAbsItem(absServerId: String, absLibraryItemId: String): ReadaloudLink? = null
-        override suspend fun findByStorytellerBook(storytellerServerId: String, storytellerBookId: String): List<ReadaloudLink> = emptyList()
-        override suspend fun unlinkAbsItem(absServerId: String, absLibraryItemId: String) {}
-        override suspend fun countForServer(serverId: String): Int = 0
+        override suspend fun findByAbsItem(absSourceId: String, absLibraryItemId: String): ReadaloudLink? = null
+        override suspend fun findByStorytellerBook(storytellerSourceId: String, storytellerBookId: String): List<ReadaloudLink> = emptyList()
+        override suspend fun unlinkAbsItem(absSourceId: String, absLibraryItemId: String) {}
+        override suspend fun countForSource(sourceId: String): Int = 0
     }
 
     private object FakeAudioRepo : ReadaloudAudioRepository {
-        override fun isAudioAvailable(serverId: String, itemId: String) = false
-        override fun bundleFile(serverId: String, itemId: String): File? = null
-        override suspend fun readTrack(serverId: String, itemId: String): ReadaloudTrack? = null
-        override suspend fun probeSizeBytes(serverId: String, itemId: String): Long? = null
+        override fun isAudioAvailable(sourceId: String, itemId: String) = false
+        override fun bundleFile(sourceId: String, itemId: String): File? = null
+        override suspend fun readTrack(sourceId: String, itemId: String): ReadaloudTrack? = null
+        override suspend fun probeSizeBytes(sourceId: String, itemId: String): Long? = null
         override suspend fun downloadAudio(
-            serverId: String,
+            sourceId: String,
             bookId: String,
             onProgress: (Long, Long) -> Unit,
         ) = com.riffle.core.domain.AudioDownloadResult.NoBundle
-        override suspend fun removeAudio(serverId: String, itemId: String): Long = 0
+        override suspend fun removeAudio(sourceId: String, itemId: String): Long = 0
     }
 
     private class FakePositionStore : com.riffle.core.domain.AudiobookPositionStore {
-        override suspend fun save(serverId: String, itemId: String, payload: Double) {}
-        override suspend fun load(serverId: String, itemId: String): Double? = null
-        override suspend fun loadLocalUpdatedAt(serverId: String, itemId: String): Long = 0
-        override suspend fun updateLocalTimestamp(serverId: String, itemId: String, millis: Long) {}
+        override suspend fun save(sourceId: String, itemId: String, payload: Double) {}
+        override suspend fun load(sourceId: String, itemId: String): Double? = null
+        override suspend fun loadLocalUpdatedAt(sourceId: String, itemId: String): Long = 0
+        override suspend fun updateLocalTimestamp(sourceId: String, itemId: String, millis: Long) {}
     }
 
     private class FakeSyncStore : SyncPositionStore<String> {
-        override suspend fun snapshot(serverId: String, itemId: String) = PositionSnapshot<String>(null, 0, 0)
-        override suspend fun acceptServerPosition(serverId: String, itemId: String, position: String, serverStamp: Long, ifLocalUpdatedAt: Long) = false
-        override suspend fun confirmPushed(serverId: String, itemId: String, serverStamp: Long, ifLocalUpdatedAt: Long) = false
-        override suspend fun confirmInSync(serverId: String, itemId: String, ifLocalUpdatedAt: Long) = false
-        override suspend fun mirror(serverId: String, itemId: String, position: String, localUpdatedAt: Long, lastSyncedAt: Long) {}
+        override suspend fun snapshot(sourceId: String, itemId: String) = PositionSnapshot<String>(null, 0, 0)
+        override suspend fun acceptServerPosition(sourceId: String, itemId: String, position: String, serverStamp: Long, ifLocalUpdatedAt: Long) = false
+        override suspend fun confirmPushed(sourceId: String, itemId: String, serverStamp: Long, ifLocalUpdatedAt: Long) = false
+        override suspend fun confirmInSync(sourceId: String, itemId: String, ifLocalUpdatedAt: Long) = false
+        override suspend fun mirror(sourceId: String, itemId: String, position: String, localUpdatedAt: Long, lastSyncedAt: Long) {}
     }
 
     private class FakeSyncStoreDouble : SyncPositionStore<Double> {
-        override suspend fun snapshot(serverId: String, itemId: String) = PositionSnapshot<Double>(null, 0, 0)
-        override suspend fun acceptServerPosition(serverId: String, itemId: String, position: Double, serverStamp: Long, ifLocalUpdatedAt: Long) = false
-        override suspend fun confirmPushed(serverId: String, itemId: String, serverStamp: Long, ifLocalUpdatedAt: Long) = false
-        override suspend fun confirmInSync(serverId: String, itemId: String, ifLocalUpdatedAt: Long) = false
-        override suspend fun mirror(serverId: String, itemId: String, position: Double, localUpdatedAt: Long, lastSyncedAt: Long) {}
+        override suspend fun snapshot(sourceId: String, itemId: String) = PositionSnapshot<Double>(null, 0, 0)
+        override suspend fun acceptServerPosition(sourceId: String, itemId: String, position: Double, serverStamp: Long, ifLocalUpdatedAt: Long) = false
+        override suspend fun confirmPushed(sourceId: String, itemId: String, serverStamp: Long, ifLocalUpdatedAt: Long) = false
+        override suspend fun confirmInSync(sourceId: String, itemId: String, ifLocalUpdatedAt: Long) = false
+        override suspend fun mirror(sourceId: String, itemId: String, position: Double, localUpdatedAt: Long, lastSyncedAt: Long) {}
     }
 
     private object FakeResumeStore : ReadaloudResumeStore {
-        override suspend fun save(serverId: String, itemId: String, position: ReadaloudResumePosition) {}
-        override suspend fun load(serverId: String, itemId: String): ReadaloudResumePosition? = null
-        override suspend fun clear(serverId: String, itemId: String) {}
+        override suspend fun save(sourceId: String, itemId: String, position: ReadaloudResumePosition) {}
+        override suspend fun load(sourceId: String, itemId: String): ReadaloudResumePosition? = null
+        override suspend fun clear(sourceId: String, itemId: String) {}
     }
 
     private class TestReaderSyncFactory : ReaderSyncFactory(
@@ -563,28 +563,28 @@ class SleepTimerTest {
         override suspend fun createAudiobookFollowIfApplicable(itemId: String): AudiobookFollow? = null
     }
 
-    private object StubServer : ServerRepository {
+    private object StubServer : SourceRepository {
         override fun observeAll() = throw NotImplementedError()
-        override suspend fun getActive(): Server? = null
+        override suspend fun getActive(): Source? = null
         override suspend fun authenticate(
-            url: ServerUrl,
+            url: SourceUrl,
             username: String,
             password: String,
             insecureAllowed: Boolean,
             serverType: com.riffle.core.domain.ServerType,
         ) = throw NotImplementedError()
-        override suspend fun commit(pending: com.riffle.core.domain.PendingServer, hiddenLibraryIds: Set<String>) = throw NotImplementedError()
-        override suspend fun setActive(serverId: String) {}
-        override suspend fun remove(serverId: String) {}
-        override suspend fun getServerVersion(serverId: String): String? = null
+        override suspend fun commit(pending: com.riffle.core.domain.PendingSource, hiddenLibraryIds: Set<String>) = throw NotImplementedError()
+        override suspend fun setActive(sourceId: String) {}
+        override suspend fun remove(sourceId: String) {}
+        override suspend fun getSourceVersion(sourceId: String): String? = null
     }
 
     private object StubLibrary : LibraryObserver {
         override suspend fun getItem(itemId: String): LibraryItem? = null
-        override suspend fun getItem(serverId: String, itemId: String): LibraryItem? = null
+        override suspend fun getItem(sourceId: String, itemId: String): LibraryItem? = null
         override fun observeItem(itemId: String) = throw NotImplementedError()
         override fun observeLibraries() = throw NotImplementedError()
-        override fun observeLibraries(serverId: String) = throw NotImplementedError()
+        override fun observeLibraries(sourceId: String) = throw NotImplementedError()
         override fun observeLibraryItems(libraryId: String) = throw NotImplementedError()
         override fun observeUngroupedLibraryItems(libraryId: String) = throw NotImplementedError()
         override fun observeInProgressItems(libraryId: String) = throw NotImplementedError()
@@ -597,7 +597,7 @@ class SleepTimerTest {
         override fun observeContinueSeriesItems(libraryId: String) = throw NotImplementedError()
         override fun observeCollectionItems(collectionId: String) = throw NotImplementedError()
         override suspend fun getLibrary(libraryId: String) = throw NotImplementedError()
-        override suspend fun getSeriesIdForItem(serverId: String, itemId: String): String? = null
+        override suspend fun getSeriesIdForItem(sourceId: String, itemId: String): String? = null
     }
 
     private object StubIndexStore : CrossEpubIndexStore {
@@ -630,10 +630,10 @@ class SleepTimerTest {
     }
 
     private object StubLocalStore : LocalStore {
-        override fun get(serverId: String, itemId: String): File? = null
-        override suspend fun save(serverId: String, itemId: String, stream: InputStream): File = File("/dev/null")
-        override fun delete(serverId: String, itemId: String) {}
-        override fun deleteServer(serverId: String) {}
+        override fun get(sourceId: String, itemId: String): File? = null
+        override suspend fun save(sourceId: String, itemId: String, stream: InputStream): File = File("/dev/null")
+        override fun delete(sourceId: String, itemId: String) {}
+        override fun deleteSource(sourceId: String) {}
         override fun clear() {}
         override fun listItems(): List<StoredItemRef> = emptyList()
     }

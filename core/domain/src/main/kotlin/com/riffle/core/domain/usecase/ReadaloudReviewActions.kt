@@ -21,61 +21,61 @@ class ReadaloudReviewActions @Inject constructor(
 ) {
 
     suspend fun confirmCandidate(
-        storytellerServerId: String,
+        storytellerSourceId: String,
         storytellerBookId: String,
-        absServerId: String,
+        absSourceId: String,
         absLibraryItemId: String,
     ) {
-        rekeyAudioSettingsAround(storytellerServerId, storytellerBookId) {
-            mutator.createUserConfirmedLink(storytellerServerId, storytellerBookId, absServerId, absLibraryItemId)
+        rekeyAudioSettingsAround(storytellerSourceId, storytellerBookId) {
+            mutator.createUserConfirmedLink(storytellerSourceId, storytellerBookId, absSourceId, absLibraryItemId)
             // The book is now Confirmed; drop all of its Pending-Review candidates.
-            mutator.deleteCandidatesForBook(storytellerServerId, storytellerBookId)
+            mutator.deleteCandidatesForBook(storytellerSourceId, storytellerBookId)
         }
     }
 
     suspend fun dismissCandidate(
-        storytellerServerId: String,
+        storytellerSourceId: String,
         storytellerBookId: String,
-        absServerId: String,
+        absSourceId: String,
         absLibraryItemId: String,
     ) {
-        mutator.upsertCandidateDismissal(storytellerServerId, storytellerBookId, absServerId, absLibraryItemId)
-        mutator.deleteCandidate(storytellerServerId, storytellerBookId, absServerId, absLibraryItemId)
+        mutator.upsertCandidateDismissal(storytellerSourceId, storytellerBookId, absSourceId, absLibraryItemId)
+        mutator.deleteCandidate(storytellerSourceId, storytellerBookId, absSourceId, absLibraryItemId)
     }
 
-    suspend fun dismissBook(storytellerServerId: String, storytellerBookId: String) {
-        mutator.upsertBookDismissal(storytellerServerId, storytellerBookId)
-        mutator.deleteCandidatesForBook(storytellerServerId, storytellerBookId)
+    suspend fun dismissBook(storytellerSourceId: String, storytellerBookId: String) {
+        mutator.upsertBookDismissal(storytellerSourceId, storytellerBookId)
+        mutator.deleteCandidatesForBook(storytellerSourceId, storytellerBookId)
     }
 
-    suspend fun unlinkBook(storytellerServerId: String, storytellerBookId: String) {
-        rekeyAudioSettingsAround(storytellerServerId, storytellerBookId) {
-            mutator.deleteLinksForStorytellerBook(storytellerServerId, storytellerBookId)
+    suspend fun unlinkBook(storytellerSourceId: String, storytellerBookId: String) {
+        rekeyAudioSettingsAround(storytellerSourceId, storytellerBookId) {
+            mutator.deleteLinksForStorytellerBook(storytellerSourceId, storytellerBookId)
         }
     }
 
-    suspend fun unlinkAbsItem(absServerId: String, absLibraryItemId: String) {
-        val link = linkRepository.findByAbsItem(absServerId, absLibraryItemId)
+    suspend fun unlinkAbsItem(absSourceId: String, absLibraryItemId: String) {
+        val link = linkRepository.findByAbsItem(absSourceId, absLibraryItemId)
         if (link == null) {
-            mutator.deleteLinkForAbsItem(absServerId, absLibraryItemId)
+            mutator.deleteLinkForAbsItem(absSourceId, absLibraryItemId)
             return
         }
-        rekeyAudioSettingsAround(link.storytellerServerId, link.storytellerBookId) {
-            mutator.deleteLinkForAbsItem(absServerId, absLibraryItemId)
+        rekeyAudioSettingsAround(link.storytellerSourceId, link.storytellerBookId) {
+            mutator.deleteLinkForAbsItem(absSourceId, absLibraryItemId)
         }
     }
 
     suspend fun pairManually(
-        storytellerServerId: String,
+        storytellerSourceId: String,
         storytellerBookId: String,
-        absServerId: String,
+        absSourceId: String,
         absLibraryItemId: String,
     ) {
-        rekeyAudioSettingsAround(storytellerServerId, storytellerBookId) {
-            mutator.createUserConfirmedLink(storytellerServerId, storytellerBookId, absServerId, absLibraryItemId)
+        rekeyAudioSettingsAround(storytellerSourceId, storytellerBookId) {
+            mutator.createUserConfirmedLink(storytellerSourceId, storytellerBookId, absSourceId, absLibraryItemId)
             // Manual pairing overrides any prior "don't ask again" and clears stale candidates.
-            mutator.clearBookDismissal(storytellerServerId, storytellerBookId)
-            mutator.deleteCandidatesForBook(storytellerServerId, storytellerBookId)
+            mutator.clearBookDismissal(storytellerSourceId, storytellerBookId)
+            mutator.deleteCandidatesForBook(storytellerSourceId, storytellerBookId)
         }
     }
 
@@ -85,13 +85,13 @@ class ReadaloudReviewActions @Inject constructor(
      * moves the saved speed from the Storyteller id onto the audiobook id; unlinking moves it back.
      */
     private suspend fun rekeyAudioSettingsAround(
-        storytellerServerId: String,
+        storytellerSourceId: String,
         storytellerBookId: String,
         mutate: suspend () -> Unit,
     ) {
-        val before = audioIdentityResolver.resolveForStorytellerBook(storytellerServerId, storytellerBookId)
+        val before = audioIdentityResolver.resolveForStorytellerBook(storytellerSourceId, storytellerBookId)
         mutate()
-        val after = audioIdentityResolver.resolveForStorytellerBook(storytellerServerId, storytellerBookId)
+        val after = audioIdentityResolver.resolveForStorytellerBook(storytellerSourceId, storytellerBookId)
         if (before != after) audioPlaybackPreferencesStore.rekey(before, after)
     }
 }

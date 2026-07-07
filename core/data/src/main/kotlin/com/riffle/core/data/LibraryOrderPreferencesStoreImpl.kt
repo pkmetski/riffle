@@ -17,16 +17,16 @@ class LibraryOrderPreferencesStoreImpl @Inject constructor(
     // Order matters, so we can't use a Preferences string-set (unordered). We persist the ordered
     // ids as a single newline-delimited string; library ids are server-issued and never contain
     // newlines.
-    override fun libraryOrder(serverId: String): Flow<List<String>> =
+    override fun libraryOrder(sourceId: String): Flow<List<String>> =
         dataStore.data.map { prefs ->
-            prefs[key(serverId)]?.split('\n')?.filter { it.isNotEmpty() }.orEmpty()
+            prefs[key(sourceId)]?.split('\n')?.filter { it.isNotEmpty() }.orEmpty()
         }
 
-    override suspend fun setLibraryOrder(serverId: String, orderedIds: List<String>) {
+    override suspend fun setLibraryOrder(sourceId: String, orderedIds: List<String>) {
         dataStore.edit { prefs ->
-            prefs[key(serverId)] = orderedIds.joinToString("\n")
+            prefs[key(sourceId)] = orderedIds.joinToString("\n")
         }
     }
 
-    private fun key(serverId: String) = stringPreferencesKey("order_$serverId")
+    private fun key(sourceId: String) = stringPreferencesKey("order_$sourceId")
 }

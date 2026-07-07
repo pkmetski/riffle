@@ -73,7 +73,7 @@ class RiffleApplication : Application(), ImageLoaderFactory {
         val entryPoint = EntryPointAccessors.fromApplication(this, MigratorEntryPoint::class.java)
         val applicationScope = entryPoint.applicationScope()
 
-        // One-time relocation of legacy flat cache/download files into per-Server dirs (ADR 0025).
+        // One-time relocation of legacy flat cache/download files into per-Source dirs (ADR 0025).
         // Idempotent and best-effort; runs off the main thread and never blocks startup.
         val migrator = entryPoint.localStoreMigrator()
         applicationScope.launchSurvivable {

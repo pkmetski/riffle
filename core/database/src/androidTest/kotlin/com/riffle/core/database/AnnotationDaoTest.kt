@@ -26,12 +26,12 @@ class AnnotationDaoTest {
             RiffleDatabase::class.java,
         ).allowMainThreadQueries().build()
         dao = db.annotationDao()
-        // annotations.serverId is a FK to servers(id); seed the ABS servers the tests anchor to.
-        val servers = db.serverDao()
-        servers.upsert(ServerEntity("abs1", "http://abs1", isActive = true, insecureConnectionAllowed = false, username = "u"))
-        servers.upsert(ServerEntity("abs2", "http://abs2", isActive = false, insecureConnectionAllowed = false, username = "u"))
-        servers.upsert(ServerEntity("srv1", "http://srv1", isActive = true, insecureConnectionAllowed = false, username = "u"))
-        servers.upsert(ServerEntity("srv2", "http://srv2", isActive = false, insecureConnectionAllowed = false, username = "u"))
+        // annotations.sourceId is a FK to servers(id); seed the ABS servers the tests anchor to.
+        val servers = db.sourceDao()
+        servers.upsert(SourceEntity("abs1", "http://abs1", isActive = true, insecureConnectionAllowed = false, username = "u"))
+        servers.upsert(SourceEntity("abs2", "http://abs2", isActive = false, insecureConnectionAllowed = false, username = "u"))
+        servers.upsert(SourceEntity("srv1", "http://srv1", isActive = true, insecureConnectionAllowed = false, username = "u"))
+        servers.upsert(SourceEntity("srv2", "http://srv2", isActive = false, insecureConnectionAllowed = false, username = "u"))
     }
 
     @After
@@ -41,7 +41,7 @@ class AnnotationDaoTest {
 
     private fun highlight(
         id: String,
-        serverId: String = "abs1",
+        sourceId: String = "abs1",
         itemId: String = "item1",
         cfi: String = "epubcfi(/6/4!/4/2,/1:0,/1:10)",
         createdAt: Long = 1000L,
@@ -49,7 +49,7 @@ class AnnotationDaoTest {
         deleted: Boolean = false,
     ) = AnnotationEntity(
         id = id,
-        serverId = serverId,
+        sourceId = sourceId,
         itemId = itemId,
         type = AnnotationEntity.TYPE_HIGHLIGHT,
         cfi = cfi,
@@ -64,7 +64,7 @@ class AnnotationDaoTest {
 
     private fun bookmark(
         id: String,
-        serverId: String = "abs1",
+        sourceId: String = "abs1",
         itemId: String = "item1",
         cfi: String = "epubcfi(/6/4!/4/2,/1:0)",
         createdAt: Long = 1000L,
@@ -72,7 +72,7 @@ class AnnotationDaoTest {
         deleted: Boolean = false,
     ) = AnnotationEntity(
         id = id,
-        serverId = serverId,
+        sourceId = sourceId,
         itemId = itemId,
         type = AnnotationEntity.TYPE_BOOKMARK,
         cfi = cfi,
@@ -110,12 +110,12 @@ class AnnotationDaoTest {
         assertEquals(range, dao.getById("h1")?.cfi)
     }
 
-    // Annotations are scoped to a single ABS Library Item (serverId + itemId).
+    // Annotations are scoped to a single ABS Library Item (sourceId + itemId).
     @Test
     fun observeForItem_isScopedToServerAndItem() = runTest {
-        dao.upsert(highlight("h1", serverId = "abs1", itemId = "item1"))
-        dao.upsert(highlight("h2", serverId = "abs1", itemId = "item2"))
-        dao.upsert(highlight("h3", serverId = "abs2", itemId = "item1"))
+        dao.upsert(highlight("h1", sourceId = "abs1", itemId = "item1"))
+        dao.upsert(highlight("h2", sourceId = "abs1", itemId = "item2"))
+        dao.upsert(highlight("h3", sourceId = "abs2", itemId = "item1"))
 
         val result = dao.observeForItem("abs1", "item1").first()
 
@@ -203,12 +203,12 @@ class AnnotationDaoTest {
 
     @Test
     fun observeForServer_returnsAllNonDeletedAcrossItems_excludesOtherServers() = runBlocking {
-        dao.upsert(highlight("a1", serverId = "srv1", itemId = "b1"))
-        dao.upsert(highlight("a2", serverId = "srv1", itemId = "b2"))
-        dao.upsert(highlight("a3", serverId = "srv1", itemId = "b3", deleted = true))
-        dao.upsert(highlight("a4", serverId = "srv2", itemId = "b9"))
+        dao.upsert(highlight("a1", sourceId = "srv1", itemId = "b1"))
+        dao.upsert(highlight("a2", sourceId = "srv1", itemId = "b2"))
+        dao.upsert(highlight("a3", sourceId = "srv1", itemId = "b3", deleted = true))
+        dao.upsert(highlight("a4", sourceId = "srv2", itemId = "b9"))
 
-        val result = dao.observeForServer("srv1").first()
+        val result = dao.observeForSource("srv1").first()
 
         assertEquals(listOf("a1", "a2"), result.map { it.id })
     }
@@ -227,7 +227,7 @@ class AnnotationDaoTest {
         // Fresh tomb (past cutoff by wall-clock) → keep.
         dao.upsert(highlight("tomb-fresh", createdAt = 9_000L, deleted = true).copy(lastSyncedAt = 9_000L))
 
-        val purged = dao.purgeAgedTombstones(serverId = "abs1", itemId = "item1", cutoff = 5_000L)
+        val purged = dao.purgeAgedTombstones(sourceId = "abs1", itemId = "item1", cutoff = 5_000L)
 
         assertEquals(1, purged)
         val remaining = dao.observeForItem("abs1", "item1").first().map { it.id }.toSet()
@@ -242,16 +242,16 @@ class AnnotationDaoTest {
 
     @Test
     fun purgeAgedTombstones_isScopedToServerAndItem() = runTest {
-        // Same "aged + synced tombstone" pattern under a different itemId and a different serverId.
+        // Same "aged + synced tombstone" pattern under a different itemId and a different sourceId.
         // A per-item purge call must not touch either.
-        dao.upsert(highlight("tomb-target", serverId = "abs1", itemId = "item1", createdAt = 100L, deleted = true)
+        dao.upsert(highlight("tomb-target", sourceId = "abs1", itemId = "item1", createdAt = 100L, deleted = true)
             .copy(lastSyncedAt = 200L))
-        dao.upsert(highlight("tomb-other-item", serverId = "abs1", itemId = "item2", createdAt = 100L, deleted = true)
+        dao.upsert(highlight("tomb-other-item", sourceId = "abs1", itemId = "item2", createdAt = 100L, deleted = true)
             .copy(lastSyncedAt = 200L))
-        dao.upsert(highlight("tomb-other-server", serverId = "abs2", itemId = "item1", createdAt = 100L, deleted = true)
+        dao.upsert(highlight("tomb-other-server", sourceId = "abs2", itemId = "item1", createdAt = 100L, deleted = true)
             .copy(lastSyncedAt = 200L))
 
-        val purged = dao.purgeAgedTombstones(serverId = "abs1", itemId = "item1", cutoff = 5_000L)
+        val purged = dao.purgeAgedTombstones(sourceId = "abs1", itemId = "item1", cutoff = 5_000L)
 
         assertEquals(1, purged)
         assertTrue("other-item tomb must survive a scoped purge",
@@ -266,16 +266,16 @@ class AnnotationDaoTest {
     @Test
     fun observePendingBookCountAcrossAll_countsDistinctBooks() = runTest {
         // Book A: three dirty rows (updatedAt > lastSyncedAt via the default lastSyncedAt = 0L).
-        dao.upsert(highlight("a1", serverId = "abs1", itemId = "item1", createdAt = 1_000L))
-        dao.upsert(highlight("a2", serverId = "abs1", itemId = "item1", createdAt = 1_100L))
-        dao.upsert(highlight("a3", serverId = "abs1", itemId = "item1", createdAt = 1_200L))
+        dao.upsert(highlight("a1", sourceId = "abs1", itemId = "item1", createdAt = 1_000L))
+        dao.upsert(highlight("a2", sourceId = "abs1", itemId = "item1", createdAt = 1_100L))
+        dao.upsert(highlight("a3", sourceId = "abs1", itemId = "item1", createdAt = 1_200L))
         // Book B: two dirty rows.
-        dao.upsert(highlight("b1", serverId = "abs1", itemId = "item2", createdAt = 1_300L))
-        dao.upsert(highlight("b2", serverId = "abs1", itemId = "item2", createdAt = 1_400L))
+        dao.upsert(highlight("b1", sourceId = "abs1", itemId = "item2", createdAt = 1_300L))
+        dao.upsert(highlight("b2", sourceId = "abs1", itemId = "item2", createdAt = 1_400L))
         // Book C on a second server: one dirty row.
-        dao.upsert(highlight("c1", serverId = "abs2", itemId = "item1", createdAt = 1_500L))
+        dao.upsert(highlight("c1", sourceId = "abs2", itemId = "item1", createdAt = 1_500L))
         // Book D: fully synced (lastSyncedAt == updatedAt) — must NOT count.
-        dao.upsert(highlight("d1", serverId = "abs1", itemId = "item3", createdAt = 1_600L)
+        dao.upsert(highlight("d1", sourceId = "abs1", itemId = "item3", createdAt = 1_600L)
             .copy(lastSyncedAt = 1_600L))
 
         assertEquals(3, dao.observePendingBookCountAcrossAll().first())
@@ -284,9 +284,9 @@ class AnnotationDaoTest {
     // Once every row for a book is stamped synced, the book must drop out of the count.
     @Test
     fun observePendingBookCountAcrossAll_dropsBookOnceMarkSyncedClearsAllRows() = runTest {
-        dao.upsert(highlight("a1", serverId = "abs1", itemId = "item1", createdAt = 1_000L))
-        dao.upsert(highlight("a2", serverId = "abs1", itemId = "item1", createdAt = 1_100L))
-        dao.upsert(highlight("b1", serverId = "abs1", itemId = "item2", createdAt = 1_200L))
+        dao.upsert(highlight("a1", sourceId = "abs1", itemId = "item1", createdAt = 1_000L))
+        dao.upsert(highlight("a2", sourceId = "abs1", itemId = "item1", createdAt = 1_100L))
+        dao.upsert(highlight("b1", sourceId = "abs1", itemId = "item2", createdAt = 1_200L))
 
         assertEquals(2, dao.observePendingBookCountAcrossAll().first())
 
@@ -305,11 +305,11 @@ class AnnotationDaoTest {
     // Book D: highlight but soft-deleted (excluded).
     @Test
     fun observeBooksWithHighlights_groupsByItemAndSortsByLatestUpdatedAt() = runTest {
-        dao.upsert(highlight("a1", serverId = "abs1", itemId = "A", createdAt = 100))
-        dao.upsert(highlight("a2", serverId = "abs1", itemId = "A", createdAt = 200))
-        dao.upsert(highlight("b1", serverId = "abs1", itemId = "B", createdAt = 300))
-        dao.upsert(bookmark("c1", serverId = "abs1", itemId = "C", createdAt = 400))
-        dao.upsert(highlight("d1", serverId = "abs1", itemId = "D", createdAt = 500, deleted = true))
+        dao.upsert(highlight("a1", sourceId = "abs1", itemId = "A", createdAt = 100))
+        dao.upsert(highlight("a2", sourceId = "abs1", itemId = "A", createdAt = 200))
+        dao.upsert(highlight("b1", sourceId = "abs1", itemId = "B", createdAt = 300))
+        dao.upsert(bookmark("c1", sourceId = "abs1", itemId = "C", createdAt = 400))
+        dao.upsert(highlight("d1", sourceId = "abs1", itemId = "D", createdAt = 500, deleted = true))
 
         val result = dao.observeBooksWithHighlights("abs1").first()
 
@@ -325,8 +325,8 @@ class AnnotationDaoTest {
     // A second server's highlights must not leak into the first server's list.
     @Test
     fun observeBooksWithHighlights_isScopedToServer() = runTest {
-        dao.upsert(highlight("a1", serverId = "abs1", itemId = "A", createdAt = 100))
-        dao.upsert(highlight("x1", serverId = "abs2", itemId = "X", createdAt = 100))
+        dao.upsert(highlight("a1", sourceId = "abs1", itemId = "A", createdAt = 100))
+        dao.upsert(highlight("x1", sourceId = "abs2", itemId = "X", createdAt = 100))
 
         val result = dao.observeBooksWithHighlights("abs1").first()
 

@@ -16,7 +16,7 @@ interface ReadaloudOfflineDownloader {
      * or **null** when the book isn't streaming-eligible (the caller falls back to the bundle download).
      */
     suspend fun download(
-        storytellerServerId: String,
+        storytellerSourceId: String,
         storytellerBookId: String,
         onProgress: (Float) -> Unit,
     ): Boolean?
@@ -28,11 +28,11 @@ class ReadaloudOfflineDownloaderImpl @Inject constructor(
     private val dispatchers: DispatcherProvider,
 ) : ReadaloudOfflineDownloader {
     override suspend fun download(
-        storytellerServerId: String,
+        storytellerSourceId: String,
         storytellerBookId: String,
         onProgress: (Float) -> Unit,
     ): Boolean? {
-        val session = runCatching { factory.tryBuild(storytellerServerId, storytellerBookId) }.getOrNull()
+        val session = runCatching { factory.tryBuild(storytellerSourceId, storytellerBookId) }.getOrNull()
             ?: return null
         return runCatching {
             StreamingAudioDownloader.download(

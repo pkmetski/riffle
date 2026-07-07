@@ -6,7 +6,7 @@ import kotlinx.coroutines.flow.StateFlow
  * The single global configuration for cloud annotation sync.
  *
  * Per-Server scoping is preserved by the WebDAV path layout
- * (`<baseUrl>/<serverId>/<itemId>/annotations-<deviceId>.jsonld`),
+ * (`<baseUrl>/<sourceId>/<itemId>/annotations-<deviceId>.jsonld`),
  * not by duplicating this config per ABS Server.
  *
  * [password] is the user-supplied secret; storage implementations must keep it

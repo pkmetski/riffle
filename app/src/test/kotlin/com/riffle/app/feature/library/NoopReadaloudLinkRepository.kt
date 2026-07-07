@@ -8,8 +8,8 @@ import kotlinx.coroutines.flow.flowOf
 internal object NoopReadaloudLinkRepository : ReadaloudLinkRepository {
     override fun observeAll(): Flow<List<ReadaloudLink>> = flowOf(emptyList())
     override fun observeLinkedAbsItemIds(): Flow<Set<String>> = flowOf(emptySet())
-    override suspend fun findByAbsItem(absServerId: String, absLibraryItemId: String): ReadaloudLink? = null
-    override suspend fun findByStorytellerBook(storytellerServerId: String, storytellerBookId: String): List<ReadaloudLink> = emptyList()
-    override suspend fun unlinkAbsItem(absServerId: String, absLibraryItemId: String) = Unit
-    override suspend fun countForServer(serverId: String): Int = 0
+    override suspend fun findByAbsItem(absSourceId: String, absLibraryItemId: String): ReadaloudLink? = null
+    override suspend fun findByStorytellerBook(storytellerSourceId: String, storytellerBookId: String): List<ReadaloudLink> = emptyList()
+    override suspend fun unlinkAbsItem(absSourceId: String, absLibraryItemId: String) = Unit
+    override suspend fun countForSource(sourceId: String): Int = 0
 }

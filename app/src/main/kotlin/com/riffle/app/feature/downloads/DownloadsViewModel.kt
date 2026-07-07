@@ -13,7 +13,7 @@ import javax.inject.Inject
 
 /** A locally-available item paired with the on-disk size of its file. */
 data class LocalItemUi(
-    val serverId: String,
+    val sourceId: String,
     val item: LibraryItem,
     val sizeBytes: Long,
 )
@@ -48,20 +48,20 @@ class DownloadsViewModel @Inject constructor(
             val cached = downloadsRepository.getCachedItems()
 
             val downloadedItems = downloaded.mapNotNull { ref ->
-                libraryObserver.getItem(ref.serverId, ref.itemId)?.let {
-                    LocalItemUi(ref.serverId, it, downloadsRepository.sizeOf(ref.serverId, ref.itemId))
+                libraryObserver.getItem(ref.sourceId, ref.itemId)?.let {
+                    LocalItemUi(ref.sourceId, it, downloadsRepository.sizeOf(ref.sourceId, ref.itemId))
                 }
             }
             val cachedItems = cached.mapNotNull { ref ->
-                libraryObserver.getItem(ref.serverId, ref.itemId)?.let {
-                    LocalItemUi(ref.serverId, it, downloadsRepository.sizeOf(ref.serverId, ref.itemId))
+                libraryObserver.getItem(ref.sourceId, ref.itemId)?.let {
+                    LocalItemUi(ref.sourceId, it, downloadsRepository.sizeOf(ref.sourceId, ref.itemId))
                 }
             }
             // Prepared readaloud sidecars (ADR 0028): the small audio-free streaming caches. Keyed by the
-            // Storyteller (serverId, bookId); resolve the title from the Storyteller readaloud library item.
+            // Storyteller (sourceId, bookId); resolve the title from the Storyteller readaloud library item.
             val readaloudSidecars = sidecarStore.listCached().mapNotNull { sc ->
-                libraryObserver.getItem(sc.storytellerServerId, sc.storytellerBookId)?.let {
-                    LocalItemUi(sc.storytellerServerId, it, sc.sizeBytes)
+                libraryObserver.getItem(sc.storytellerSourceId, sc.storytellerBookId)?.let {
+                    LocalItemUi(sc.storytellerSourceId, it, sc.sizeBytes)
                 }
             }
 
@@ -73,16 +73,16 @@ class DownloadsViewModel @Inject constructor(
         }
     }
 
-    fun removeDownloadedItem(serverId: String, itemId: String) {
+    fun removeDownloadedItem(sourceId: String, itemId: String) {
         viewModelScope.launch {
-            downloadsRepository.removeDownload(serverId, itemId)
+            downloadsRepository.removeDownload(sourceId, itemId)
             load()
         }
     }
 
-    fun removeCachedItem(serverId: String, itemId: String) {
+    fun removeCachedItem(sourceId: String, itemId: String) {
         viewModelScope.launch {
-            downloadsRepository.removeCached(serverId, itemId)
+            downloadsRepository.removeCached(sourceId, itemId)
             load()
         }
     }
@@ -101,8 +101,8 @@ class DownloadsViewModel @Inject constructor(
         }
     }
 
-    fun removeReadaloudSidecar(storytellerServerId: String, storytellerBookId: String) {
-        sidecarStore.remove(storytellerServerId, storytellerBookId)
+    fun removeReadaloudSidecar(storytellerSourceId: String, storytellerBookId: String) {
+        sidecarStore.remove(storytellerSourceId, storytellerBookId)
         load()
     }
 

@@ -6,12 +6,12 @@ import com.riffle.core.domain.AudiobookSession
 
 /** Test double: nothing is ever downloaded. */
 internal object NoopAudiobookDownloadRepository : AudiobookDownloadRepository {
-    override fun isDownloaded(serverId: String, itemId: String): Boolean = false
-    override fun localSession(serverId: String, itemId: String): AudiobookSession? = null
+    override fun isDownloaded(sourceId: String, itemId: String): Boolean = false
+    override fun localSession(sourceId: String, itemId: String): AudiobookSession? = null
     override suspend fun download(
-        serverId: String,
+        sourceId: String,
         itemId: String,
         onProgress: (downloaded: Long, total: Long) -> Unit,
     ): AudiobookDownloadResult = AudiobookDownloadResult.Success
-    override suspend fun remove(serverId: String, itemId: String): Long = 0L
+    override suspend fun remove(sourceId: String, itemId: String): Long = 0L
 }

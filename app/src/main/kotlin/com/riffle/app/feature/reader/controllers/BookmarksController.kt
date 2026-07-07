@@ -127,7 +127,7 @@ class BookmarksController @AssistedInject constructor(
      * [currentLocator] — the live VM locator so [isCurrentPageBookmarked] stays reactive.
      */
     fun bind(
-        serverId: String,
+        sourceId: String,
         itemId: String,
         currentLocator: StateFlow<Locator?>,
         spinePositionCounts: StateFlow<Pair<List<String>, List<Int>>>,
@@ -143,7 +143,7 @@ class BookmarksController @AssistedInject constructor(
         _viewportFractionByHref.value = emptyMap()
 
         observeJob = scope.launch {
-            annotationStore.observeBookmarks(serverId, itemId).collect { annotations ->
+            annotationStore.observeBookmarks(sourceId, itemId).collect { annotations ->
                 _bookmarkPositions.value = annotations.map { a ->
                     BookmarkPosition(
                         id = a.id,

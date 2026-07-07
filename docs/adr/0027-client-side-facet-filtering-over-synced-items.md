@@ -1,5 +1,7 @@
 # ADR 0027 — Facet filtering (Filtered Books Screen) runs client-side over synced items, not via the ABS filter API
 
+> **Amended by [ADR 0041](0041-source-and-service-abstractions-replace-server.md)** — the "synced items" set is now the active **Source**'s catalog cache (populated when the Source implements `OfflineBrowseCapability`) or the acquired-items set otherwise. Client-side facet compute is unchanged.
+
 **Status:** Accepted
 
 ## Context

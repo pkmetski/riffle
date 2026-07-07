@@ -53,7 +53,7 @@ class EpubReaderViewModelHighlightsSourceTest {
         type: String = AnnotationEntity.TYPE_HIGHLIGHT,
     ): AnnotationEntity = AnnotationEntity(
         id = id,
-        serverId = "S1",
+        sourceId = "S1",
         itemId = "B1",
         type = type,
         cfi = "epubcfi(/6/${(spineIndex + 1) * 2}!/dummy)",
@@ -84,7 +84,7 @@ class EpubReaderViewModelHighlightsSourceTest {
 
         val chapters = buildChapterElisions(rows)
         val pub = HighlightsPublicationFactory().build(
-            serverId = "S1",
+            sourceId = "S1",
             itemId = "B1",
             bookTitle = null,
             chapters = chapters,
@@ -233,7 +233,7 @@ class EpubReaderViewModelHighlightsSourceTest {
         note: String? = null,
     ): Annotation = Annotation(
         id = id,
-        serverId = "S1",
+        sourceId = "S1",
         itemId = "B1",
         type = AnnotationEntity.TYPE_HIGHLIGHT,
         cfi = "epubcfi(/6/2!/dummy)",

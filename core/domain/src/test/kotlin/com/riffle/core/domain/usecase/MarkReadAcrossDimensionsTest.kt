@@ -2,17 +2,17 @@ package com.riffle.core.domain.usecase
 
 import com.riffle.core.domain.AudiobookIdentityResult
 import com.riffle.core.domain.AuthenticateResult
-import com.riffle.core.domain.CommitServerResult
+import com.riffle.core.domain.CommitSourceResult
 import com.riffle.core.domain.LibraryMutator
-import com.riffle.core.domain.PendingServer
+import com.riffle.core.domain.PendingSource
 import com.riffle.core.domain.ProgressSyncCycleResult
 import com.riffle.core.domain.ReadaloudLink
 import com.riffle.core.domain.ReadaloudLinkRepository
 import com.riffle.core.domain.ReadingSessionRepository
-import com.riffle.core.domain.Server
-import com.riffle.core.domain.ServerRepository
+import com.riffle.core.domain.Source
+import com.riffle.core.domain.SourceRepository
 import com.riffle.core.domain.ServerType
-import com.riffle.core.domain.ServerUrl
+import com.riffle.core.domain.SourceUrl
 import com.riffle.core.domain.SessionPayload
 import com.riffle.core.domain.SyncSessionResult
 import kotlinx.coroutines.flow.Flow
@@ -34,7 +34,7 @@ class MarkReadAcrossDimensionsTest {
         override suspend fun updateReadingProgress(itemId: String, progress: Float) {
             progressCalls += itemId to progress
         }
-        override suspend fun updateReadingProgress(serverId: String, itemId: String, progress: Float) {
+        override suspend fun updateReadingProgress(sourceId: String, itemId: String, progress: Float) {
             progressCalls += itemId to progress
         }
     }
@@ -50,30 +50,30 @@ class MarkReadAcrossDimensionsTest {
     private class LinkRepo(private val links: Map<String, ReadaloudLink>) : ReadaloudLinkRepository {
         override fun observeAll(): Flow<List<ReadaloudLink>> = flowOf(links.values.toList())
         override fun observeLinkedAbsItemIds(): Flow<Set<String>> = flowOf(links.keys)
-        override suspend fun findByAbsItem(absServerId: String, absLibraryItemId: String) = links[absLibraryItemId]
-        override suspend fun findByStorytellerBook(storytellerServerId: String, storytellerBookId: String) =
+        override suspend fun findByAbsItem(absSourceId: String, absLibraryItemId: String) = links[absLibraryItemId]
+        override suspend fun findByStorytellerBook(storytellerSourceId: String, storytellerBookId: String) =
             links.values.filter { it.storytellerBookId == storytellerBookId }
-        override suspend fun unlinkAbsItem(absServerId: String, absLibraryItemId: String) = Unit
-        override suspend fun countForServer(serverId: String) = links.size
-        override suspend fun updateIdentityResult(absServerId: String, absLibraryItemId: String, result: AudiobookIdentityResult) = Unit
+        override suspend fun unlinkAbsItem(absSourceId: String, absLibraryItemId: String) = Unit
+        override suspend fun countForSource(sourceId: String) = links.size
+        override suspend fun updateIdentityResult(absSourceId: String, absLibraryItemId: String, result: AudiobookIdentityResult) = Unit
     }
 
-    private class FakeServerRepository(private val active: Server?) : ServerRepository {
-        override fun observeAll(): Flow<List<Server>> = flowOf(listOfNotNull(active))
-        override suspend fun getActive(): Server? = active
+    private class FakeServerRepository(private val active: Source?) : SourceRepository {
+        override fun observeAll(): Flow<List<Source>> = flowOf(listOfNotNull(active))
+        override suspend fun getActive(): Source? = active
         override suspend fun authenticate(
-            url: ServerUrl, username: String, password: String, insecureAllowed: Boolean, serverType: ServerType,
+            url: SourceUrl, username: String, password: String, insecureAllowed: Boolean, serverType: ServerType,
         ) = throw UnsupportedOperationException()
-        override suspend fun commit(pending: PendingServer, hiddenLibraryIds: Set<String>) =
+        override suspend fun commit(pending: PendingSource, hiddenLibraryIds: Set<String>) =
             throw UnsupportedOperationException()
-        override suspend fun setActive(serverId: String) = Unit
-        override suspend fun remove(serverId: String) = Unit
-        override suspend fun getServerVersion(serverId: String): String? = null
+        override suspend fun setActive(sourceId: String) = Unit
+        override suspend fun remove(sourceId: String) = Unit
+        override suspend fun getSourceVersion(sourceId: String): String? = null
     }
 
-    private fun activeServer(id: String = "abs-1") = Server(
+    private fun activeServer(id: String = "abs-1") = Source(
         id = id,
-        url = ServerUrl.parse("https://abs.example.com")!!,
+        url = SourceUrl.parse("https://abs.example.com")!!,
         isActive = true,
         insecureConnectionAllowed = false,
         username = "",

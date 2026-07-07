@@ -20,7 +20,7 @@ import com.riffle.core.domain.usecase.RefreshLibraryItems
 import com.riffle.core.domain.usecase.RefreshSeries
 import com.riffle.core.domain.Series
 import com.riffle.core.data.ToReadRepository
-import com.riffle.core.domain.ServerRepository
+import com.riffle.core.domain.SourceRepository
 import com.riffle.core.domain.TokenStorage
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -54,7 +54,7 @@ class LibraryItemsViewModel @Inject constructor(
     private val refreshLibraryItemsUseCase: RefreshLibraryItems,
     private val refreshSeriesUseCase: RefreshSeries,
     private val refreshCollectionsUseCase: RefreshCollections,
-    private val serverRepository: ServerRepository,
+    private val sourceRepository: SourceRepository,
     private val tokenStorage: TokenStorage,
     private val offlineAvailability: LibraryItemOfflineAvailability,
     private val connectivityObserver: ConnectivityObserver,
@@ -208,7 +208,7 @@ class LibraryItemsViewModel @Inject constructor(
 
     init {
         viewModelScope.launch {
-            val server = serverRepository.getActive()
+            val server = sourceRepository.getActive()
             if (server != null) {
                 authToken = tokenStorage.getToken(server.id) ?: ""
             }

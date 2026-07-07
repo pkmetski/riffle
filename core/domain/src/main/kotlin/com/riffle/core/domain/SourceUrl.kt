@@ -1,7 +1,7 @@
 package com.riffle.core.domain
 
 @ConsistentCopyVisibility
-data class ServerUrl private constructor(val value: String) {
+data class SourceUrl private constructor(val value: String) {
 
     /** `host` or `host:port` extracted from [value]; falls back to a substring parse if java.net.URI rejects the input. */
     fun authority(): String {
@@ -20,7 +20,7 @@ data class ServerUrl private constructor(val value: String) {
     companion object {
         private val ALLOWED_SCHEMES = setOf("http", "https")
 
-        fun parse(raw: String): ServerUrl? {
+        fun parse(raw: String): SourceUrl? {
             val trimmed = raw.trim()
             if (trimmed.isEmpty()) return null
 
@@ -28,7 +28,7 @@ data class ServerUrl private constructor(val value: String) {
             if (scheme !in ALLOWED_SCHEMES) return null
 
             val normalized = trimmed.trimEnd('/')
-            return ServerUrl(normalized)
+            return SourceUrl(normalized)
         }
     }
 }

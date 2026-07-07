@@ -12,8 +12,8 @@ class EbookCfiTranslatorFactoryImpl @Inject constructor(
     @EpubCacheStore private val cacheStore: LocalStore,
 ) : EbookCfiTranslatorFactory {
 
-    override fun forItem(serverId: String, itemId: String): EbookCfiTranslator? {
-        val file = downloadsStore.get(serverId, itemId) ?: cacheStore.get(serverId, itemId)
+    override fun forItem(sourceId: String, itemId: String): EbookCfiTranslator? {
+        val file = downloadsStore.get(sourceId, itemId) ?: cacheStore.get(sourceId, itemId)
             ?: return null
         return EbookCfiTranslatorImpl(file)
     }

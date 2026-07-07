@@ -57,7 +57,7 @@ data class ChapterElision(
 class HighlightsPublicationFactory @Inject constructor() {
 
     fun build(
-        serverId: String,
+        sourceId: String,
         itemId: String,
         bookTitle: String?,
         chapters: List<ChapterElision>,

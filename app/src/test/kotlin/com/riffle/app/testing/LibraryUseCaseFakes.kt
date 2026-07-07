@@ -23,7 +23,7 @@ import com.riffle.core.domain.usecase.UpdateReadingProgress
 object NoopLibraryMutator : LibraryMutator {
     override suspend fun markItemOpened(itemId: String) = Unit
     override suspend fun updateReadingProgress(itemId: String, progress: Float) = Unit
-    override suspend fun updateReadingProgress(serverId: String, itemId: String, progress: Float) = Unit
+    override suspend fun updateReadingProgress(sourceId: String, itemId: String, progress: Float) = Unit
 }
 
 object NoopReadingSessionRepository : ReadingSessionRepository {
@@ -100,28 +100,28 @@ class NoopRefreshCollections(
 private object NoopReadaloudLinkRepository : com.riffle.core.domain.ReadaloudLinkRepository {
     override fun observeAll() = kotlinx.coroutines.flow.flowOf(emptyList<com.riffle.core.domain.ReadaloudLink>())
     override fun observeLinkedAbsItemIds() = kotlinx.coroutines.flow.flowOf(emptySet<String>())
-    override suspend fun findByAbsItem(absServerId: String, absLibraryItemId: String) = null
-    override suspend fun findByStorytellerBook(storytellerServerId: String, storytellerBookId: String) = emptyList<com.riffle.core.domain.ReadaloudLink>()
-    override suspend fun unlinkAbsItem(absServerId: String, absLibraryItemId: String) = Unit
-    override suspend fun countForServer(serverId: String) = 0
-    override suspend fun updateIdentityResult(absServerId: String, absLibraryItemId: String, result: com.riffle.core.domain.AudiobookIdentityResult) = Unit
+    override suspend fun findByAbsItem(absSourceId: String, absLibraryItemId: String) = null
+    override suspend fun findByStorytellerBook(storytellerSourceId: String, storytellerBookId: String) = emptyList<com.riffle.core.domain.ReadaloudLink>()
+    override suspend fun unlinkAbsItem(absSourceId: String, absLibraryItemId: String) = Unit
+    override suspend fun countForSource(sourceId: String) = 0
+    override suspend fun updateIdentityResult(absSourceId: String, absLibraryItemId: String, result: com.riffle.core.domain.AudiobookIdentityResult) = Unit
 }
 
-private object NoopServerRepository : com.riffle.core.domain.ServerRepository {
-    override fun observeAll() = kotlinx.coroutines.flow.flowOf(emptyList<com.riffle.core.domain.Server>())
-    override suspend fun getActive(): com.riffle.core.domain.Server? = null
+private object NoopServerRepository : com.riffle.core.domain.SourceRepository {
+    override fun observeAll() = kotlinx.coroutines.flow.flowOf(emptyList<com.riffle.core.domain.Source>())
+    override suspend fun getActive(): com.riffle.core.domain.Source? = null
     override suspend fun authenticate(
-        url: com.riffle.core.domain.ServerUrl,
+        url: com.riffle.core.domain.SourceUrl,
         username: String,
         password: String,
         insecureAllowed: Boolean,
         serverType: com.riffle.core.domain.ServerType,
     ): com.riffle.core.domain.AuthenticateResult = throw UnsupportedOperationException()
     override suspend fun commit(
-        pending: com.riffle.core.domain.PendingServer,
+        pending: com.riffle.core.domain.PendingSource,
         hiddenLibraryIds: Set<String>,
-    ): com.riffle.core.domain.CommitServerResult = throw UnsupportedOperationException()
-    override suspend fun setActive(serverId: String) = Unit
-    override suspend fun remove(serverId: String) = Unit
-    override suspend fun getServerVersion(serverId: String): String? = null
+    ): com.riffle.core.domain.CommitSourceResult = throw UnsupportedOperationException()
+    override suspend fun setActive(sourceId: String) = Unit
+    override suspend fun remove(sourceId: String) = Unit
+    override suspend fun getSourceVersion(sourceId: String): String? = null
 }

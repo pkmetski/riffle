@@ -3,12 +3,12 @@ package com.riffle.core.data
 import com.riffle.core.network.NetworkResult
 
 import com.riffle.core.domain.AuthenticateResult
-import com.riffle.core.domain.CommitServerResult
-import com.riffle.core.domain.PendingServer
-import com.riffle.core.domain.Server
-import com.riffle.core.domain.ServerRepository
+import com.riffle.core.domain.CommitSourceResult
+import com.riffle.core.domain.PendingSource
+import com.riffle.core.domain.Source
+import com.riffle.core.domain.SourceRepository
 import com.riffle.core.domain.ServerType
-import com.riffle.core.domain.ServerUrl
+import com.riffle.core.domain.SourceUrl
 import com.riffle.core.domain.TokenStorage
 import com.riffle.core.network.StorytellerBundleApi
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -37,22 +37,22 @@ class ReadaloudSidecarStoreTest {
     private val dispatcher = StandardTestDispatcher()
     private val testScope = TestScope(dispatcher)
 
-    private val server = Server("srv", ServerUrl.parse("http://storyteller")!!, false, false, "")
+    private val source = Source("srv", SourceUrl.parse("http://storyteller")!!, false, false, "")
 
-    private val serverRepository = object : ServerRepository {
-        override fun observeAll(): Flow<List<Server>> = flowOf(listOf(server))
-        override suspend fun getActive(): Server? = server
-        override suspend fun getById(serverId: String): Server? = if (serverId == "srv") server else null
-        override suspend fun authenticate(url: ServerUrl, username: String, password: String, insecureAllowed: Boolean, serverType: ServerType): AuthenticateResult = throw UnsupportedOperationException()
-        override suspend fun commit(pending: PendingServer, hiddenLibraryIds: Set<String>): CommitServerResult = throw UnsupportedOperationException()
-        override suspend fun setActive(serverId: String) = Unit
-        override suspend fun remove(serverId: String) = Unit
-        override suspend fun getServerVersion(serverId: String): String? = null
+    private val sourceRepository = object : SourceRepository {
+        override fun observeAll(): Flow<List<Source>> = flowOf(listOf(source))
+        override suspend fun getActive(): Source? = source
+        override suspend fun getById(sourceId: String): Source? = if (sourceId == "srv") source else null
+        override suspend fun authenticate(url: SourceUrl, username: String, password: String, insecureAllowed: Boolean, serverType: ServerType): AuthenticateResult = throw UnsupportedOperationException()
+        override suspend fun commit(pending: PendingSource, hiddenLibraryIds: Set<String>): CommitSourceResult = throw UnsupportedOperationException()
+        override suspend fun setActive(sourceId: String) = Unit
+        override suspend fun remove(sourceId: String) = Unit
+        override suspend fun getSourceVersion(sourceId: String): String? = null
     }
     private val tokenStorage = object : TokenStorage {
-        override suspend fun getToken(serverId: String): String? = "tok"
-        override suspend fun saveToken(serverId: String, token: String) = Unit
-        override suspend fun deleteToken(serverId: String) = Unit
+        override suspend fun getToken(sourceId: String): String? = "tok"
+        override suspend fun saveToken(sourceId: String, token: String) = Unit
+        override suspend fun deleteToken(sourceId: String) = Unit
     }
 
     private val validSidecar = zipOf(
@@ -64,7 +64,7 @@ class ReadaloudSidecarStoreTest {
     private fun store(fetcher: StorytellerSidecarFetcher) = ReadaloudSidecarStore(
         cacheRootDir = tmp.root,
         fetcher = fetcher,
-        serverRepository = serverRepository,
+        sourceRepository = sourceRepository,
         tokenStorage = tokenStorage,
         scope = testScope,
     )

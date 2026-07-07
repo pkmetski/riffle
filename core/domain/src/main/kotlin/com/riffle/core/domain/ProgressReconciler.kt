@@ -25,15 +25,15 @@ sealed interface ReconcileOutcome<out P> {
  */
 class ProgressReconciler<P>(private val store: SyncPositionStore<P>) {
 
-    suspend fun reconcile(serverId: String, itemId: String, remote: ProgressRemote<P>): ReconcileOutcome<P> {
-        val snap = store.snapshot(serverId, itemId)
+    suspend fun reconcile(sourceId: String, itemId: String, remote: ProgressRemote<P>): ReconcileOutcome<P> {
+        val snap = store.snapshot(sourceId, itemId)
         val read = remote.get() ?: return ReconcileOutcome.Offline
 
         return when {
             // Server is strictly newer — pull. (Local wins ties, so an in-sync remote never pulls.)
             read.lastUpdate > snap.localUpdatedAt -> {
                 val applied = store.acceptServerPosition(
-                    serverId, itemId, read.position, serverStamp = read.lastUpdate,
+                    sourceId, itemId, read.position, serverStamp = read.lastUpdate,
                     ifLocalUpdatedAt = snap.localUpdatedAt,
                 )
                 if (applied) ReconcileOutcome.ServerWon(read.position, read.lastUpdate)
@@ -45,14 +45,14 @@ class ProgressReconciler<P>(private val store: SyncPositionStore<P>) {
                 val position = snap.position ?: return ReconcileOutcome.InSync
                 val stamp = remote.patch(position) ?: return ReconcileOutcome.PushFailed
                 val applied = store.confirmPushed(
-                    serverId, itemId, serverStamp = stamp, ifLocalUpdatedAt = snap.localUpdatedAt,
+                    sourceId, itemId, serverStamp = stamp, ifLocalUpdatedAt = snap.localUpdatedAt,
                 )
                 if (applied) ReconcileOutcome.LocalPushed(stamp) else ReconcileOutcome.Superseded
             }
 
             // Equal — already in sync; clear any lingering dirty marker.
             else -> {
-                store.confirmInSync(serverId, itemId, ifLocalUpdatedAt = snap.localUpdatedAt)
+                store.confirmInSync(sourceId, itemId, ifLocalUpdatedAt = snap.localUpdatedAt)
                 ReconcileOutcome.InSync
             }
         }

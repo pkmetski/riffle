@@ -1,5 +1,7 @@
 # ADR 0011 — Unified LocalStore replaces EpubCacheManager and PdfCacheManager
 
+> **Amended by [ADR 0041](0041-source-and-service-abstractions-replace-server.md)** — storage is scoped per **Source** rather than globally. The two-tier Cache/Download split is preserved for Sources with remote catalogs; **[LocalFiles]** has one tier (permanent, copy-in) because its files are always local.
+
 **Status:** Accepted
 
 ## Context

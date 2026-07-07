@@ -6,7 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.riffle.core.domain.AnnotationStore
 import com.riffle.core.domain.AudiobookBookmarkStore
 import com.riffle.core.domain.LibraryObserver
-import com.riffle.core.domain.ServerRepository
+import com.riffle.core.domain.SourceRepository
 import com.riffle.core.domain.TokenStorage
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -29,7 +29,7 @@ class AnnotationSearchViewModel @Inject constructor(
     libraryObserver: LibraryObserver,
     annotationStore: AnnotationStore,
     audiobookBookmarkStore: AudiobookBookmarkStore,
-    private val serverRepository: ServerRepository,
+    private val sourceRepository: SourceRepository,
     private val tokenStorage: TokenStorage,
 ) : ViewModel() {
 
@@ -45,11 +45,11 @@ class AnnotationSearchViewModel @Inject constructor(
     val results: StateFlow<List<AnnotationSearchResult>> =
         libraryItems
             .flatMapLatest { items ->
-                val serverId = items.firstOrNull()?.serverId
-                if (query.isBlank() || serverId.isNullOrEmpty()) {
+                val sourceId = items.firstOrNull()?.sourceId
+                if (query.isBlank() || sourceId.isNullOrEmpty()) {
                     flowOf(emptyList())
                 } else {
-                    annotationStore.observeAnnotationsForServer(serverId)
+                    annotationStore.observeAnnotationsForSource(sourceId)
                         .map { annotations -> searchAnnotations(annotations, items, query) }
                 }
             }
@@ -58,11 +58,11 @@ class AnnotationSearchViewModel @Inject constructor(
     val bookmarkResults: StateFlow<List<AudiobookBookmarkSearchResult>> =
         libraryItems
             .flatMapLatest { items ->
-                val serverId = items.firstOrNull()?.serverId
-                if (query.isBlank() || serverId.isNullOrEmpty()) {
+                val sourceId = items.firstOrNull()?.sourceId
+                if (query.isBlank() || sourceId.isNullOrEmpty()) {
                     flowOf(emptyList())
                 } else {
-                    audiobookBookmarkStore.observeForServer(serverId)
+                    audiobookBookmarkStore.observeForSource(sourceId)
                         .map { bookmarks -> searchAudiobookBookmarks(bookmarks, items, query) }
                 }
             }
@@ -70,7 +70,7 @@ class AnnotationSearchViewModel @Inject constructor(
 
     init {
         viewModelScope.launch {
-            val server = serverRepository.getActive()
+            val server = sourceRepository.getActive()
             if (server != null) _authToken.value = tokenStorage.getToken(server.id) ?: ""
         }
     }

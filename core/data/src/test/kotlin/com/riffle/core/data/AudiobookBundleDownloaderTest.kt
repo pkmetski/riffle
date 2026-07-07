@@ -122,7 +122,7 @@ class AudiobookBundleDownloaderTest {
 
     @Test fun truncatedStream_isNotFinalised_andPartIsKeptForResume() = runTest {
         val dir = tmp.newFolder()
-        // Server advertises 200 bytes but the body ends after 120 — no exception thrown.
+        // Source advertises 200 bytes but the body ends after 120 — no exception thrown.
         val result = downloader(FakeApi(serveBytes = 120), dir).download("s1", "u", "42", "t", false) { _, _ -> }
 
         assertTrue("a short body must be treated as a failure, not a complete bundle", result is AudiobookBundleDownloader.Result.NetworkError)

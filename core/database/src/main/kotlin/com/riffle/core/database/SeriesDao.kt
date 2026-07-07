@@ -15,40 +15,40 @@ interface SeriesDao {
 
     @Query("""
         SELECT li.* FROM library_items li
-        INNER JOIN series_items si ON li.serverId = si.serverId AND li.id = si.itemId
-        WHERE si.serverId = :serverId AND si.seriesId = :seriesId
+        INNER JOIN series_items si ON li.sourceId = si.sourceId AND li.id = si.itemId
+        WHERE si.sourceId = :sourceId AND si.seriesId = :seriesId
         ORDER BY si.sequenceOrder ASC
     """)
-    fun observeItemsBySeriesId(serverId: String, seriesId: String): Flow<List<LibraryItemEntity>>
+    fun observeItemsBySeriesId(sourceId: String, seriesId: String): Flow<List<LibraryItemEntity>>
 
     @Query("""
         SELECT li.* FROM library_items li
-        WHERE li.serverId = :serverId AND li.libraryId = :libraryId
+        WHERE li.sourceId = :sourceId AND li.libraryId = :libraryId
           AND li.readingProgress < 0.99
           AND EXISTS (
               SELECT 1 FROM series_items si
-              WHERE si.serverId = li.serverId
+              WHERE si.sourceId = li.sourceId
                 AND si.itemId = li.id
                 AND si.seriesId IN (
                     SELECT DISTINCT si2.seriesId
                     FROM series_items si2
-                    INNER JOIN library_items li2 ON li2.serverId = si2.serverId AND li2.id = si2.itemId
-                    WHERE li2.serverId = :serverId AND li2.libraryId = :libraryId AND li2.readingProgress >= 0.99
+                    INNER JOIN library_items li2 ON li2.sourceId = si2.sourceId AND li2.id = si2.itemId
+                    WHERE li2.sourceId = :sourceId AND li2.libraryId = :libraryId AND li2.readingProgress >= 0.99
                 )
                 AND si.seriesId NOT IN (
                     SELECT DISTINCT si5.seriesId
                     FROM series_items si5
-                    INNER JOIN library_items li5 ON li5.serverId = si5.serverId AND li5.id = si5.itemId
-                    WHERE li5.serverId = :serverId AND li5.libraryId = :libraryId
+                    INNER JOIN library_items li5 ON li5.sourceId = si5.sourceId AND li5.id = si5.itemId
+                    WHERE li5.sourceId = :sourceId AND li5.libraryId = :libraryId
                       AND li5.readingProgress >= 0.05
                       AND li5.readingProgress < 0.99
                 )
                 AND si.sequenceOrder = (
                     SELECT MIN(si3.sequenceOrder)
                     FROM series_items si3
-                    INNER JOIN library_items li3 ON li3.serverId = si3.serverId AND li3.id = si3.itemId
+                    INNER JOIN library_items li3 ON li3.sourceId = si3.sourceId AND li3.id = si3.itemId
                     WHERE si3.seriesId = si.seriesId
-                      AND li3.serverId = :serverId AND li3.libraryId = :libraryId
+                      AND li3.sourceId = :sourceId AND li3.libraryId = :libraryId
                       AND li3.readingProgress < 0.99
                 )
           )
@@ -56,25 +56,25 @@ interface SeriesDao {
             (
                 SELECT MAX(li4.lastOpenedAt)
                 FROM series_items si4
-                INNER JOIN library_items li4 ON li4.serverId = si4.serverId AND li4.id = si4.itemId
+                INNER JOIN library_items li4 ON li4.sourceId = si4.sourceId AND li4.id = si4.itemId
                 WHERE si4.seriesId IN (
                     SELECT si_self.seriesId FROM series_items si_self
-                    WHERE si_self.serverId = li.serverId AND si_self.itemId = li.id
+                    WHERE si_self.sourceId = li.sourceId AND si_self.itemId = li.id
                 )
-                  AND li4.serverId = :serverId AND li4.libraryId = :libraryId
+                  AND li4.sourceId = :sourceId AND li4.libraryId = :libraryId
                   AND li4.readingProgress >= 0.99
             ), 0
         ) DESC
     """)
-    fun observeContinueSeriesItems(serverId: String, libraryId: String): Flow<List<LibraryItemEntity>>
+    fun observeContinueSeriesItems(sourceId: String, libraryId: String): Flow<List<LibraryItemEntity>>
 
     /**
      * The id of the series an item belongs to, if any. Used by the Library Item Detail Screen to
      * make the series line tap through to the existing Series detail (an item carries only its
      * `seriesName` string, not the series id).
      */
-    @Query("SELECT seriesId FROM series_items WHERE serverId = :serverId AND itemId = :itemId LIMIT 1")
-    suspend fun findSeriesIdForItem(serverId: String, itemId: String): String?
+    @Query("SELECT seriesId FROM series_items WHERE sourceId = :sourceId AND itemId = :itemId LIMIT 1")
+    suspend fun findSeriesIdForItem(sourceId: String, itemId: String): String?
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertAll(series: List<SeriesEntity>)

@@ -25,25 +25,25 @@ interface ReadaloudCandidateDao {
     @Query("SELECT * FROM readaloud_candidates")
     fun observeAll(): Flow<List<ReadaloudCandidateEntity>>
 
-    /** All Pending-Review candidates whose readaloud lives on the given Storyteller server. */
-    @Query("SELECT * FROM readaloud_candidates WHERE storytellerServerId = :storytellerServerId")
-    fun observeForStorytellerServer(storytellerServerId: String): Flow<List<ReadaloudCandidateEntity>>
+    /** All Pending-Review candidates whose readaloud lives on the given Storyteller source. */
+    @Query("SELECT * FROM readaloud_candidates WHERE storytellerSourceId = :storytellerSourceId")
+    fun observeForStorytellerSource(storytellerSourceId: String): Flow<List<ReadaloudCandidateEntity>>
 
     @Query(
         "DELETE FROM readaloud_candidates " +
-            "WHERE storytellerServerId = :storytellerServerId AND storytellerBookId = :storytellerBookId"
+            "WHERE storytellerSourceId = :storytellerSourceId AND storytellerBookId = :storytellerBookId"
     )
-    suspend fun deleteByStorytellerBook(storytellerServerId: String, storytellerBookId: String)
+    suspend fun deleteByStorytellerBook(storytellerSourceId: String, storytellerBookId: String)
 
     @Query(
         "DELETE FROM readaloud_candidates " +
-            "WHERE storytellerServerId = :storytellerServerId AND storytellerBookId = :storytellerBookId " +
-            "AND absServerId = :absServerId AND absLibraryItemId = :absLibraryItemId"
+            "WHERE storytellerSourceId = :storytellerSourceId AND storytellerBookId = :storytellerBookId " +
+            "AND absSourceId = :absSourceId AND absLibraryItemId = :absLibraryItemId"
     )
     suspend fun deleteCandidate(
-        storytellerServerId: String,
+        storytellerSourceId: String,
         storytellerBookId: String,
-        absServerId: String,
+        absSourceId: String,
         absLibraryItemId: String,
     )
 }

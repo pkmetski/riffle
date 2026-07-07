@@ -28,9 +28,9 @@ data class LibraryItem(
     val isbn: String? = null,
     val asin: String? = null,
     // The owning Server. Item ids are only unique within a Server (ADR 0025), so callers that key
-    // local files / DB rows must pair id with serverId. Defaulted for construction sites (e.g.
+    // local files / DB rows must pair id with sourceId. Defaulted for construction sites (e.g.
     // tests) that don't care; the real value is set when mapping from the DB entity.
-    val serverId: String = "",
+    val sourceId: String = "",
 ) {
     /** Has an ebook file Riffle can open in the reader (EPUB or PDF). */
     val isReadable: Boolean get() = ebookFormat != EbookFormat.Unsupported

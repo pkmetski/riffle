@@ -113,7 +113,7 @@ class CfiSyncContractTest {
 
     @Test
     fun `inbound returns null for empty ebookLocation — 404 fallback signal`() {
-        // Server returns ebookLocation="" when book has no progress (404 case).
+        // Source returns ebookLocation="" when book has no progress (404 case).
         // Null here tells the ViewModel to fall through to the ebookProgress float.
         assertNull(extractCfiDocPath(""))
     }

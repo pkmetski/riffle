@@ -18,7 +18,7 @@ import com.riffle.core.database.ReadaloudResumePositionDao
 import com.riffle.core.database.ReadingPositionDao
 import com.riffle.core.database.RiffleDatabase
 import com.riffle.core.database.SeriesDao
-import com.riffle.core.database.ServerDao
+import com.riffle.core.database.SourceDao
 import com.riffle.core.database.TocCacheDao
 import dagger.Module
 import dagger.Provides
@@ -78,12 +78,13 @@ object DatabaseModule {
                 RiffleDatabase.MIGRATION_40_41,
                 RiffleDatabase.MIGRATION_41_42,
                 RiffleDatabase.MIGRATION_42_43,
+                RiffleDatabase.MIGRATION_43_44,
             )
             .build()
 
     @Provides
     @Singleton
-    fun provideServerDao(db: RiffleDatabase): ServerDao = db.serverDao()
+    fun provideSourceDao(db: RiffleDatabase): SourceDao = db.sourceDao()
 
     @Provides
     @Singleton

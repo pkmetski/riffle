@@ -18,24 +18,24 @@ import androidx.room.PrimaryKey
  *   highlights/notes, a CFI *point* for bookmarks (ADR 0024).
  * - [textSnippet] + [chapterHref] — human-readable fallback / re-anchoring aid.
  *
- * Annotations are scoped to the ABS Library Item ([serverId] + [itemId]) and exist only on the
+ * Annotations are scoped to the ABS Library Item ([sourceId] + [itemId]) and exist only on the
  * ABS side; Storyteller-only books and the Readaloud reading side carry none (ADR 0024).
  */
 @Entity(
     tableName = "annotations",
     foreignKeys = [
         ForeignKey(
-            entity = ServerEntity::class,
+            entity = SourceEntity::class,
             parentColumns = ["id"],
-            childColumns = ["serverId"],
+            childColumns = ["sourceId"],
             onDelete = ForeignKey.CASCADE,
         ),
     ],
-    indices = [Index(value = ["serverId", "itemId"])],
+    indices = [Index(value = ["sourceId", "itemId"])],
 )
 data class AnnotationEntity(
     @PrimaryKey val id: String,
-    val serverId: String,
+    val sourceId: String,
     val itemId: String,
     val type: String = TYPE_HIGHLIGHT,
     val cfi: String,

@@ -20,7 +20,7 @@ import kotlinx.coroutines.Job
  * - [AnnotationPushCoordinator] — debounced push + close-flush behind the [AnnotationLockPort]
  *
  * The two identity axes are unchanged:
- * - `serverId` — per-device local Riffle id, used to scope the Room DAO query.
+ * - `sourceId` — per-device local Riffle id, used to scope the Room DAO query.
  * - `namespace` — cross-device-stable ABS account id, used for the sync target's path/key so two
  *   devices configured against the same ABS server discover each other's files. See
  *   [AnnotationSyncTarget] kdoc for the rationale.
@@ -45,13 +45,13 @@ class AnnotationSyncController(
      * can label foreign-user groups by name instead of by opaque user id. Returns null when the
      * server is unknown or doesn't carry credentials (Storyteller peer, etc.).
      */
-    usernameProvider: suspend (serverId: String) -> String? = { null },
+    usernameProvider: suspend (sourceId: String) -> String? = { null },
     /**
-     * Resolves the local catalog's book title for a (serverId, itemId). Embedded in the header
+     * Resolves the local catalog's book title for a (sourceId, itemId). Embedded in the header
      * so Maintenance can surface "Project Hail Mary" instead of an opaque itemId. Returns null
      * when the catalog hasn't cached the title yet — header renderer falls back to the id.
      */
-    bookTitleProvider: suspend (serverId: String, itemId: String) -> String? = { _, _ -> null },
+    bookTitleProvider: suspend (sourceId: String, itemId: String) -> String? = { _, _ -> null },
     nowIso: () -> String = { Instant.now().toString() },
     clock: () -> Long = System::currentTimeMillis,
     /**
@@ -123,13 +123,13 @@ class AnnotationSyncController(
     /**
      * Full sync on book open.
      *
-     * @param serverId Local per-device Riffle server id (DAO scope).
+     * @param sourceId Local per-device Riffle server id (DAO scope).
      * @param namespace Cross-device-stable account id (sync-target scope).
      * @param itemId The ABS library item ID.
      */
-    suspend fun syncOnOpen(serverId: String, namespace: String, itemId: String) {
+    suspend fun syncOnOpen(sourceId: String, namespace: String, itemId: String) {
         val target = targetProvider() ?: return
-        mergeOrchestrator.syncOnOpen(target, serverId, namespace, itemId)
+        mergeOrchestrator.syncOnOpen(target, sourceId, namespace, itemId)
     }
 
     /**
@@ -137,20 +137,20 @@ class AnnotationSyncController(
      * the reader stops or the book closes. Backgrounding/foregrounding is handled by the caller
      * via cancel + restart.
      */
-    fun startLiveSync(serverId: String, namespace: String, itemId: String): Job =
-        liveSync.start(serverId, namespace, itemId)
+    fun startLiveSync(sourceId: String, namespace: String, itemId: String): Job =
+        liveSync.start(sourceId, namespace, itemId)
 
     /**
      * Schedule a debounced push of pending annotations. Per-book timer; restarts on each call.
      */
-    fun scheduleDebounce(serverId: String, namespace: String, itemId: String) {
-        pushCoordinator.scheduleDebounce(serverId, namespace, itemId)
+    fun scheduleDebounce(sourceId: String, namespace: String, itemId: String) {
+        pushCoordinator.scheduleDebounce(sourceId, namespace, itemId)
     }
 
     /**
      * Sync on book close. Cancels any pending debounce timer and pushes pending annotations.
      */
-    suspend fun syncOnClose(serverId: String, namespace: String, itemId: String) {
-        pushCoordinator.syncOnClose(serverId, namespace, itemId)
+    suspend fun syncOnClose(sourceId: String, namespace: String, itemId: String) {
+        pushCoordinator.syncOnClose(sourceId, namespace, itemId)
     }
 }

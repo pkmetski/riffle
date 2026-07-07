@@ -13,7 +13,7 @@ import org.junit.Test
 
 /**
  * Contract tests for the [ReconcileLocks] singleton (#321). The progress and annotation axes use
- * separate mutex maps, so locks on the same `(server, item)` across axes must not contend.
+ * separate mutex maps, so locks on the same `(source, item)` across axes must not contend.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class ReconcileLocksTest {
@@ -71,7 +71,7 @@ class ReconcileLocksTest {
     @Test
     fun `annotation lock does not contend with progress lock on the same book`() = runTest {
         // Annotation and progress use separate mutex maps so an open-book progress reconcile
-        // never blocks an annotation push for the same (server, item).
+        // never blocks an annotation push for the same (source, item).
         val locks = ReconcileLocks()
         val progressHold = CompletableDeferred<Unit>()
         var annotationRan = false

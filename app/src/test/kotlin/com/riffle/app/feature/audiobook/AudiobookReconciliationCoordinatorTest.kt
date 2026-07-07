@@ -23,37 +23,37 @@ class AudiobookReconciliationCoordinatorTest {
 
     private class FakeReadingSyncStore : SyncPositionStore<String> {
         val mirrors = mutableListOf<MirrorCall<String>>()
-        override suspend fun snapshot(serverId: String, itemId: String) =
+        override suspend fun snapshot(sourceId: String, itemId: String) =
             PositionSnapshot<String>(null, 0L, 0L)
-        override suspend fun acceptServerPosition(serverId: String, itemId: String, position: String, serverStamp: Long, ifLocalUpdatedAt: Long) = false
-        override suspend fun confirmPushed(serverId: String, itemId: String, serverStamp: Long, ifLocalUpdatedAt: Long) = false
-        override suspend fun confirmInSync(serverId: String, itemId: String, ifLocalUpdatedAt: Long) = false
-        override suspend fun mirror(serverId: String, itemId: String, position: String, localUpdatedAt: Long, lastSyncedAt: Long) {
-            mirrors += MirrorCall(serverId, itemId, position, localUpdatedAt, lastSyncedAt)
+        override suspend fun acceptServerPosition(sourceId: String, itemId: String, position: String, serverStamp: Long, ifLocalUpdatedAt: Long) = false
+        override suspend fun confirmPushed(sourceId: String, itemId: String, serverStamp: Long, ifLocalUpdatedAt: Long) = false
+        override suspend fun confirmInSync(sourceId: String, itemId: String, ifLocalUpdatedAt: Long) = false
+        override suspend fun mirror(sourceId: String, itemId: String, position: String, localUpdatedAt: Long, lastSyncedAt: Long) {
+            mirrors += MirrorCall(sourceId, itemId, position, localUpdatedAt, lastSyncedAt)
         }
     }
 
     private class FakeAudioSyncStore(
         private val snap: PositionSnapshot<Double> = PositionSnapshot(null, 12_345L, 67_890L),
     ) : SyncPositionStore<Double> {
-        override suspend fun snapshot(serverId: String, itemId: String) = snap
-        override suspend fun acceptServerPosition(serverId: String, itemId: String, position: Double, serverStamp: Long, ifLocalUpdatedAt: Long) = false
-        override suspend fun confirmPushed(serverId: String, itemId: String, serverStamp: Long, ifLocalUpdatedAt: Long) = false
-        override suspend fun confirmInSync(serverId: String, itemId: String, ifLocalUpdatedAt: Long) = false
-        override suspend fun mirror(serverId: String, itemId: String, position: Double, localUpdatedAt: Long, lastSyncedAt: Long) {}
+        override suspend fun snapshot(sourceId: String, itemId: String) = snap
+        override suspend fun acceptServerPosition(sourceId: String, itemId: String, position: Double, serverStamp: Long, ifLocalUpdatedAt: Long) = false
+        override suspend fun confirmPushed(sourceId: String, itemId: String, serverStamp: Long, ifLocalUpdatedAt: Long) = false
+        override suspend fun confirmInSync(sourceId: String, itemId: String, ifLocalUpdatedAt: Long) = false
+        override suspend fun mirror(sourceId: String, itemId: String, position: Double, localUpdatedAt: Long, lastSyncedAt: Long) {}
     }
 
     private class FakeReadaloudStore : ReadaloudResumeStore {
         val saves = mutableListOf<Triple<String, String, ReadaloudResumePosition>>()
-        override suspend fun save(serverId: String, itemId: String, position: ReadaloudResumePosition) {
-            saves += Triple(serverId, itemId, position)
+        override suspend fun save(sourceId: String, itemId: String, position: ReadaloudResumePosition) {
+            saves += Triple(sourceId, itemId, position)
         }
-        override suspend fun load(serverId: String, itemId: String): ReadaloudResumePosition? = null
-        override suspend fun clear(serverId: String, itemId: String) {}
+        override suspend fun load(sourceId: String, itemId: String): ReadaloudResumePosition? = null
+        override suspend fun clear(sourceId: String, itemId: String) {}
     }
 
     private data class MirrorCall<P>(
-        val serverId: String,
+        val sourceId: String,
         val itemId: String,
         val position: P,
         val localUpdatedAt: Long,
@@ -69,9 +69,9 @@ class AudiobookReconciliationCoordinatorTest {
     ) = AudiobookReconciliationCoordinator(factory, targets, audio, reading, readaloud) to Triple(audio, reading, readaloud)
 
     @Test
-    fun `attach with empty serverId short-circuits`() = runTest {
+    fun `attach with empty sourceId short-circuits`() = runTest {
         val (coord, _) = coordinator()
-        val result = coord.attach(serverId = "", itemId = "book", atSec = 10.0, atUpdatedAt = 5L)
+        val result = coord.attach(sourceId = "", itemId = "book", atSec = 10.0, atUpdatedAt = 5L)
         assertFalse(result.readerSyncAttached)
         assertNull(result.jumpToAudioSec)
         assertEquals(5L, result.canonicalLastUpdate)
@@ -87,7 +87,7 @@ class AudiobookReconciliationCoordinatorTest {
         val targets = OpenReconcileTargets()
         val (coord, _) = coordinator(factory = factory, targets = targets)
 
-        val result = coord.attach(serverId = "srv", itemId = "book", atSec = 10.0, atUpdatedAt = 42L)
+        val result = coord.attach(sourceId = "srv", itemId = "book", atSec = 10.0, atUpdatedAt = 42L)
 
         assertFalse(result.readerSyncAttached)
         assertNull(result.jumpToAudioSec)
@@ -107,7 +107,7 @@ class AudiobookReconciliationCoordinatorTest {
         val targets = OpenReconcileTargets()
         val (coord, _) = coordinator(factory = factory, targets = targets)
 
-        val result = coord.attach(serverId = "srv", itemId = "book", atSec = 15.0, atUpdatedAt = 100L)
+        val result = coord.attach(sourceId = "srv", itemId = "book", atSec = 15.0, atUpdatedAt = 100L)
 
         assertTrue(result.readerSyncAttached)
         assertEquals(200.0 as Double?, result.jumpToAudioSec)
@@ -157,7 +157,7 @@ class AudiobookReconciliationCoordinatorTest {
 
         assertEquals(1, deps.second.mirrors.size)
         val m = deps.second.mirrors[0]
-        assertEquals("srv", m.serverId)
+        assertEquals("srv", m.sourceId)
         assertEquals("ebook-z", m.itemId)
         assertEquals("cfi:/at/50", m.position)
         assertEquals(999L, m.localUpdatedAt)
