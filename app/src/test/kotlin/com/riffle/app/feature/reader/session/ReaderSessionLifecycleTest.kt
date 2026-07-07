@@ -162,6 +162,10 @@ class ReaderSessionLifecycleTest {
             sourceId: String, itemId: String, cfi: String, textSnippet: String, chapterHref: String,
             spineIndex: Int, progression: Double, bookmarkTitle: String,
         ): Annotation = error("not needed")
+        override suspend fun createImageAnnotation(
+            sourceId: String, itemId: String, cfi: String, textSnippet: String, chapterHref: String,
+            spineIndex: Int, progression: Double, imageHref: String?, imageSvg: String?, color: String,
+        ): Annotation = error("not needed")
         override suspend fun delete(id: String) {}
         override suspend fun recolor(id: String, color: String) {}
         override suspend fun updateNote(id: String, note: String?) {}

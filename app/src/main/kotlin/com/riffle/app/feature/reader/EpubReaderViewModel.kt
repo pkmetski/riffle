@@ -1715,6 +1715,46 @@ class EpubReaderViewModel @Inject constructor(
         }
     }
 
+    /**
+     * Handle a figure long-press from either paged/vertical's [FigureTapBridge] or continuous's
+     * [ContinuousReaderView.onFigureLongPress] — both dispatch the same parsed
+     * [FigureLongPressPayload] via the callback threaded through `EpubReaderScreen.kt`. Creates a
+     * `TYPE_IMAGE` annotation anchored to the current reading position, mirroring [toggleBookmark]'s
+     * point-CFI machinery (a figure long-press has no text selection to build a range from).
+     *
+     * Exactly one of [FigureLongPressPayload.href] / [FigureLongPressPayload.svg] is non-null —
+     * `href` for `img`/`picture` targets, `svg` for inline `<svg>` targets — and that split is
+     * threaded straight through to [AnnotationStore.createImageAnnotation]'s imageHref/imageSvg.
+     *
+     * Task 11 extends this entry point with a `findImageAnnotationForFigure` lookup to dispatch
+     * create-vs-edit; for now every long-press creates a new annotation.
+     */
+    internal suspend fun onFigureLongPress(payload: FigureLongPressPayload) {
+        if (source == ReaderSource.Highlights) return
+        val sourceId = annotationServerId ?: return
+        val pub = lifecycle.publication.value ?: return
+        val locator = position.snapshotLastLocator() ?: return
+        val href = locator.href.toString()
+        val spineIndex = pub.readingOrder.indexOfFirst {
+            normalizeEpubHref(it.href.toString()) == normalizeEpubHref(href)
+        }.coerceAtLeast(0)
+        val progression = locator.locations.progression ?: 0.0
+        val cfi = locator.toPayload().ebookLocation
+        annotationStore.createImageAnnotation(
+            sourceId = sourceId,
+            itemId = itemId,
+            cfi = cfi,
+            textSnippet = payload.caption,
+            chapterHref = href,
+            spineIndex = spineIndex,
+            progression = progression,
+            imageHref = payload.href,
+            imageSvg = payload.svg,
+            color = annotationSession.lastUsedHighlightColor.value.token,
+        )
+        scheduleAnnotationSync()
+    }
+
     /** Recolour an existing highlight; annotationStore re-emits → decoration re-applies.
      *  Highlights mode: the observer diffs the store re-emit and dispatches a targeted DOM
      *  patch via [highlightDomPatches], so the accent bar refreshes in place — no rebuild. */

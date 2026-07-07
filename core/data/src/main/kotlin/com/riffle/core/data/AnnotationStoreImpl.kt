@@ -119,6 +119,46 @@ class AnnotationStoreImpl(
         return entity.toDomain()
     }
 
+    override suspend fun createImageAnnotation(
+        sourceId: String,
+        itemId: String,
+        cfi: String,
+        textSnippet: String,
+        chapterHref: String,
+        spineIndex: Int,
+        progression: Double,
+        imageHref: String?,
+        imageSvg: String?,
+        color: String,
+    ): Annotation {
+        val deviceId = deviceIdStore.getOrCreate()
+        val now = clock()
+        val entity = AnnotationEntity(
+            id = idGenerator(),
+            sourceId = sourceId,
+            itemId = itemId,
+            type = AnnotationEntity.TYPE_IMAGE,
+            cfi = cfi,
+            color = color,
+            note = null,
+            textSnippet = textSnippet,
+            chapterHref = chapterHref,
+            spineIndex = spineIndex,
+            progression = progression,
+            bookmarkTitle = "",
+            createdAt = now,
+            updatedAt = now,
+            originDeviceId = deviceId,
+            lastModifiedByDeviceId = deviceId,
+            deleted = false,
+            embeddedFigures = null,
+            imageHref = imageHref,
+            imageSvg = imageSvg,
+        )
+        dao.upsert(entity)
+        return entity.toDomain()
+    }
+
     override suspend fun delete(id: String) {
         dao.tombstone(id, updatedAt = clock(), deviceId = deviceIdStore.getOrCreate())
     }

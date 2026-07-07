@@ -72,6 +72,25 @@ class BookmarksControllerTest {
             return a
         }
 
+        override suspend fun createImageAnnotation(
+            sourceId: String, itemId: String, cfi: String, textSnippet: String,
+            chapterHref: String, spineIndex: Int, progression: Double,
+            imageHref: String?, imageSvg: String?, color: String,
+        ): Annotation {
+            val a = Annotation(
+                id = "img-${created.size}",
+                sourceId = sourceId, itemId = itemId,
+                type = "image",
+                cfi = cfi, color = color, note = null,
+                textSnippet = textSnippet, textBefore = "", textAfter = "",
+                chapterHref = chapterHref, spineIndex = spineIndex, progression = progression,
+                bookmarkTitle = "", createdAt = 0L, updatedAt = 0L,
+                imageHref = imageHref, imageSvg = imageSvg,
+            )
+            created.add(a)
+            return a
+        }
+
         override suspend fun delete(id: String) {
             deleted.add(id)
             bookmarks.value = bookmarks.value.filter { it.id != id }

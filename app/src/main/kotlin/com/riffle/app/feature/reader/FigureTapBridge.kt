@@ -24,7 +24,7 @@ internal object FigureTapBridge {
     @Volatile
     private var longPressHandler: ((FigureLongPressPayload) -> Unit)? = null
 
-    /** TODO(Task 6): callers currently pass a no-op; Task 6 wires the real annotate-figure handler. */
+    /** Set by the reader screen to [EpubReaderViewModel.onFigureLongPress]. */
     fun setLongPressHandler(h: ((FigureLongPressPayload) -> Unit)?) {
         longPressHandler = h
     }

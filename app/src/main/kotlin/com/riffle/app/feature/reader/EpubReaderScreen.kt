@@ -107,6 +107,7 @@ import com.riffle.core.domain.SentenceQuote
 import com.riffle.core.domain.ReaderTheme
 import com.riffle.core.domain.TimeRemaining
 import kotlin.math.roundToInt
+import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.filter
@@ -586,6 +587,9 @@ fun EpubReaderScreen(
                         onAutoScrollPause = viewModel::pauseAutoScroll,
                         onAutoScrollResume = viewModel::resumeAutoScrollIfPaused,
                         onFigureTap = viewModel::onFigureTapPayload,
+                        onFigureLongPress = { payload ->
+                            viewModel.viewModelScope.launch { viewModel.onFigureLongPress(payload) }
+                        },
                         dispatchers = viewModel.dispatchers,
                         logger = viewModel.logger,
                         modifier = Modifier
@@ -1329,6 +1333,7 @@ private fun EpubNavigatorView(
     onAutoScrollPause: (com.riffle.core.domain.autoscroll.PauseCause) -> Unit,
     onAutoScrollResume: () -> Unit,
     onFigureTap: (payload: String) -> Unit,
+    onFigureLongPress: (FigureLongPressPayload) -> Unit,
     dispatchers: com.riffle.core.domain.DispatcherProvider,
     logger: com.riffle.core.logging.Logger,
     // Cadence per-chapter hook (issue #403). Non-null in the outer caller when Cadence is enabled;
@@ -1968,8 +1973,7 @@ private fun EpubNavigatorView(
     // RiffleChapter bridge already, so it doesn't need this hook.
     DisposableEffect(Unit) {
         FigureTapBridge.setHandler { payload -> onFigureTap(payload) }
-        // TODO(Task 6): no-op; Task 6 wires the real annotate-figure handler.
-        FigureTapBridge.setLongPressHandler { _ -> }
+        FigureTapBridge.setLongPressHandler { payload -> onFigureLongPress(payload) }
         onDispose {
             FigureTapBridge.setHandler(null)
             FigureTapBridge.setLongPressHandler(null)
@@ -2769,8 +2773,7 @@ private fun EpubNavigatorView(
                         view.annotationsAvailable = currentAnnotationsAvailable
                         view.readaloudAvailable = currentReadaloudAvailable
                         view.onFigureTap = { payload -> onFigureTap(payload) }
-                        // TODO(Task 6): no-op; Task 6 wires the real annotate-figure handler.
-                        view.onFigureLongPress = { _ -> }
+                        view.onFigureLongPress = { payload -> onFigureLongPress(payload) }
                         view.onSelectionEnded = { currentOnSelectionEnded() }
                         view.onSelectionActiveChanged = { active -> currentOnSelectionActiveChanged(active) }
                     }

@@ -57,7 +57,8 @@ internal class ChapterWebViewBinder(
     private val onCrossReference: (chapterHref: String, fragmentId: String) -> Unit,
     private val onSelectionActiveChanged: (Boolean) -> Unit,
     private val onFigureTap: (payload: String) -> Unit = {},
-    // TODO(Task 6): no-op default; Task 6 threads through the real annotate-figure handler.
+    // Default no-op is only exercised by callers that don't care (e.g. some test doubles);
+    // the real handler is ContinuousReaderView.onFigureLongPress → EpubReaderViewModel.onFigureLongPress.
     private val onFigureLongPress: (payload: FigureLongPressPayload) -> Unit = {},
 ) {
     fun bind(wv: ChapterWebViewLike, annotationsAvailable: Boolean, readaloudAvailable: Boolean) {

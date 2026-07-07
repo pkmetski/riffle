@@ -40,6 +40,24 @@ interface AnnotationStore {
         bookmarkTitle: String,
     ): Annotation
 
+    /**
+     * Create a `TYPE_IMAGE` annotation from a figure long-press. Exactly one of [imageHref] /
+     * [imageSvg] should be non-null (raster figure vs. inline SVG) — [embeddedFigures] never
+     * applies here, that field is TYPE_HIGHLIGHT-only.
+     */
+    suspend fun createImageAnnotation(
+        sourceId: String,
+        itemId: String,
+        cfi: String,
+        textSnippet: String,
+        chapterHref: String,
+        spineIndex: Int,
+        progression: Double,
+        imageHref: String?,
+        imageSvg: String?,
+        color: String = DEFAULT_COLOR,
+    ): Annotation
+
     suspend fun delete(id: String)
     suspend fun recolor(id: String, color: String)
     suspend fun updateNote(id: String, note: String?)
