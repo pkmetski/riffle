@@ -244,14 +244,18 @@ internal class ChapterWebView(context: Context) : WebView(context), ChapterWebVi
         webChromeClient = object : WebChromeClient() {
             override fun onConsoleMessage(consoleMessage: ConsoleMessage?): Boolean {
                 val m = consoleMessage ?: return false
-                val line = "JS ${m.sourceId()?.substringAfterLast('/') ?: "?"}:${m.lineNumber()} ${m.message()}"
                 when (m.messageLevel()) {
-                    ConsoleMessage.MessageLevel.ERROR -> jsConsoleLogger.e(LogChannel.ReaderDecoration) { line }
-                    ConsoleMessage.MessageLevel.WARNING -> jsConsoleLogger.w(LogChannel.ReaderDecoration) { line }
+                    ConsoleMessage.MessageLevel.ERROR ->
+                        jsConsoleLogger.e(LogChannel.ReaderDecoration) { formatConsoleLine(m) }
+                    ConsoleMessage.MessageLevel.WARNING ->
+                        jsConsoleLogger.w(LogChannel.ReaderDecoration) { formatConsoleLine(m) }
                     else -> Unit
                 }
                 return false
             }
+
+            private fun formatConsoleLine(m: ConsoleMessage): String =
+                "JS ${m.sourceId()?.substringAfterLast('/') ?: "?"}:${m.lineNumber()} ${m.message()}"
         }
         webViewClient = object : WebViewClient() {
             override fun onPageFinished(view: WebView?, url: String?) {

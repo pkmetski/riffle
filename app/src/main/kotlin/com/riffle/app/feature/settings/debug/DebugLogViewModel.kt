@@ -43,6 +43,10 @@ class DebugLogViewModel @Inject constructor(
 
         val app = getApplication<Application>()
         val dir = File(app.filesDir, "debug_logs").apply { mkdirs() }
+        // Reuse one filename so successive shares overwrite instead of piling on disk. The
+        // timestamp still appears in the file contents (per-entry) and in the share subject,
+        // so the recipient can still tell captures apart.
+        dir.listFiles { f -> f.isFile && f.name.startsWith("riffle-debug-") }?.forEach { it.delete() }
         val stamp = SimpleDateFormat("yyyyMMdd-HHmmss", Locale.US).format(Date())
         val file = File(dir, "riffle-debug-$stamp.txt")
         val fmt = SimpleDateFormat("HH:mm:ss.SSS", Locale.US)
