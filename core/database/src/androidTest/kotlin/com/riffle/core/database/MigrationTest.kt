@@ -1878,5 +1878,86 @@ class MigrationTest {
             assertEquals(1700000000000L, cursor.getLong(0))
         }
     }
+
+    // Task 3 of the Server→Source rename (issue #432, ADR 0041): renames `servers` → `sources`
+    // (backfilling a new `type` column) and `serverId` → `sourceId` across every carrying table.
+    // Schema JSON 44.json does not exist yet (exported by KSP only after Task 4 bumps
+    // @Database(version = 44)), so this applies MIGRATION_43_44 directly rather than going through
+    // runMigrationsAndValidate. Task 4/5 will add a schema-validated round-trip test.
+    @Test
+    fun migration43To44_renamesServersToSourcesAndCarriesFkColumns() {
+        helper.createDatabase(TEST_DB, 43).use { db ->
+            // Seed one ABS server row and one Storyteller server row.
+            db.execSQL(
+                "INSERT INTO servers(id, url, isActive, insecureConnectionAllowed, username, serverType, absUserId) " +
+                    "VALUES ('abs-1', 'https://abs.example', 1, 0, 'alice', 'AUDIOBOOKSHELF', 'abs-user-1')"
+            )
+            db.execSQL(
+                "INSERT INTO servers(id, url, isActive, insecureConnectionAllowed, username, serverType, absUserId) " +
+                    "VALUES ('st-1', 'https://st.example', 0, 0, 'alice', 'STORYTELLER', NULL)"
+            )
+            // Library + a library item + an annotation → exercises FK chain.
+            db.execSQL(
+                "INSERT INTO libraries(id, name, mediaType, serverId, isUnsupported) VALUES ('lib-1', 'My Lib', 'book', 'abs-1', 0)"
+            )
+            db.execSQL(
+                "INSERT INTO library_items(serverId, id, libraryId, title, author, coverUrl, readingProgress, ebookFileIno, ebookFormat, hasAudio, audioDurationSec, description, seriesName, publishedYear, genres, publisher, language, lastOpenedAt, addedAt, isbn, asin, finishedAt) " +
+                    "VALUES ('abs-1', 'item-1', 'lib-1', 'Moby Dick', 'Melville', NULL, 0.0, NULL, 'epub', 0, 0.0, NULL, NULL, NULL, '[]', NULL, NULL, NULL, NULL, NULL, NULL, NULL)"
+            )
+            db.execSQL(
+                "INSERT INTO annotations(id, serverId, itemId, type, cfi, color, note, textSnippet, textBefore, textAfter, chapterHref, spineIndex, progression, bookmarkTitle, createdAt, updatedAt, originDeviceId, lastModifiedByDeviceId, deleted, lastSyncedAt) " +
+                    "VALUES ('ann-1', 'abs-1', 'item-1', 'HIGHLIGHT', 'epubcfi(/6/4)', 'yellow', NULL, 'snip', '', '', 'ch1.xhtml', 0, 0.0, '', 1000, 1500, 'dev-A', 'dev-A', 0, 0)"
+            )
+            db.execSQL(
+                "INSERT INTO readaloud_links(absServerId, absLibraryItemId, storytellerServerId, storytellerBookId, state, userConfirmed, createdAt, updatedAt, identityResult) " +
+                    "VALUES ('abs-1', 'item-1', 'st-1', 'st-item-1', 'LINKED', 1, 100, 200, '{}')"
+            )
+
+            // Apply the migration by hand — schema JSON 44 doesn't exist yet, so we can't use runMigrationsAndValidate.
+            RiffleDatabase.MIGRATION_43_44.migrate(db)
+
+            // 1) `sources` exists with the ABS-backfilled type column; `serverType` preserved.
+            db.query("SELECT type, serverType FROM sources WHERE id = 'abs-1'").use { c ->
+                assertTrue("expected abs-1 row", c.moveToFirst())
+                assertEquals("ABS", c.getString(0))
+                assertEquals("AUDIOBOOKSHELF", c.getString(1))
+            }
+            db.query("SELECT type, serverType FROM sources WHERE id = 'st-1'").use { c ->
+                assertTrue("expected st-1 row", c.moveToFirst())
+                assertEquals("ABS", c.getString(0)) // backfill per spec
+                assertEquals("STORYTELLER", c.getString(1))
+            }
+            // 2) `servers` is gone.
+            db.query("SELECT name FROM sqlite_master WHERE type='table' AND name='servers'").use { c ->
+                assertEquals(0, c.count)
+            }
+            // 3) Downstream tables carry sourceId.
+            db.query("SELECT sourceId FROM libraries WHERE id = 'lib-1'").use { c ->
+                assertTrue("expected lib-1 row", c.moveToFirst())
+                assertEquals("abs-1", c.getString(0))
+            }
+            db.query("SELECT sourceId FROM library_items WHERE id = 'item-1'").use { c ->
+                assertTrue("expected item-1 row", c.moveToFirst())
+                assertEquals("abs-1", c.getString(0))
+            }
+            db.query("SELECT sourceId FROM annotations WHERE id = 'ann-1'").use { c ->
+                assertTrue("expected ann-1 row", c.moveToFirst())
+                assertEquals("abs-1", c.getString(0))
+            }
+            db.query("SELECT absSourceId, storytellerSourceId FROM readaloud_links").use { c ->
+                assertTrue("expected readaloud_links row", c.moveToFirst())
+                assertEquals("abs-1", c.getString(0))
+                assertEquals("st-1", c.getString(1))
+            }
+            // 4) serverId column is gone from a representative downstream table.
+            db.query("PRAGMA table_info(library_items)").use { c ->
+                val cols = buildList<String> {
+                    while (c.moveToNext()) add(c.getString(c.getColumnIndexOrThrow("name")))
+                }
+                assertTrue("library_items still has serverId: $cols", "serverId" !in cols)
+                assertTrue("library_items missing sourceId: $cols", "sourceId" in cols)
+            }
+        }
+    }
 }
 
