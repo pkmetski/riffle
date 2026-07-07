@@ -30,7 +30,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         LocalFilesFolderEntity::class,
         LocalFilesFileEntity::class,
     ],
-    version = 46,
+    version = 47,
     exportSchema = true,
 )
 abstract class RiffleDatabase : RoomDatabase() {
@@ -1284,6 +1284,17 @@ abstract class RiffleDatabase : RoomDatabase() {
                 db.execSQL(
                     "CREATE INDEX IF NOT EXISTS `index_local_files_files_sourceId` ON `local_files_files` (`sourceId`)"
                 )
+            }
+        }
+
+        // Figure-annotation support (TYPE_IMAGE): carries the anchored range's embedded figures
+        // (JSON), the source image href, and inline SVG markup when the figure is SVG. All
+        // nullable so existing HIGHLIGHT/BOOKMARK rows are unaffected.
+        val MIGRATION_46_47 = object : Migration(46, 47) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE annotations ADD COLUMN embeddedFigures TEXT")
+                db.execSQL("ALTER TABLE annotations ADD COLUMN imageHref TEXT")
+                db.execSQL("ALTER TABLE annotations ADD COLUMN imageSvg TEXT")
             }
         }
     }

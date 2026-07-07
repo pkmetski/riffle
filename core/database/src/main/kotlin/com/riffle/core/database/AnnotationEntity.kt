@@ -55,10 +55,17 @@ data class AnnotationEntity(
     val deleted: Boolean = false,
     /** ADR 0036: stamp of the last successful PUT for this row. `updatedAt > lastSyncedAt` ⇒ dirty. */
     val lastSyncedAt: Long = 0L,
+    /** JSON-encoded list of figures embedded in the anchored range, for TYPE_IMAGE annotations. */
+    val embeddedFigures: String? = null,
+    /** Href of the source image for a TYPE_IMAGE annotation. */
+    val imageHref: String? = null,
+    /** Inline SVG markup for a TYPE_IMAGE annotation, when the figure is an SVG. */
+    val imageSvg: String? = null,
 ) {
     companion object {
         const val TYPE_HIGHLIGHT = "HIGHLIGHT"
         const val TYPE_BOOKMARK = "BOOKMARK"
+        const val TYPE_IMAGE = "IMAGE"
         const val COLOR_YELLOW = "yellow"
     }
 }

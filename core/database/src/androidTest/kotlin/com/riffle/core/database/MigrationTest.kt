@@ -1919,7 +1919,7 @@ class MigrationTest {
         }
 
         val db = helper.runMigrationsAndValidate(
-            TEST_DB, 45, true,
+            TEST_DB, 47, true,
             RiffleDatabase.MIGRATION_1_2,
             RiffleDatabase.MIGRATION_2_3,
             RiffleDatabase.MIGRATION_3_4,
@@ -1965,6 +1965,7 @@ class MigrationTest {
             RiffleDatabase.MIGRATION_43_44,
             RiffleDatabase.MIGRATION_44_45,
             RiffleDatabase.MIGRATION_45_46,
+            RiffleDatabase.MIGRATION_46_47,
         )
 
         db.query("SELECT url, username, serverType, absUserId, type FROM sources WHERE id = 's1'").use { cursor ->
@@ -2092,6 +2093,36 @@ class MigrationTest {
                 assertTrue("library_items missing sourceId: $cols", "sourceId" in cols)
             }
         }
+    }
+
+    // Figure-annotation support (TYPE_IMAGE): adds three nullable columns to `annotations` for
+    // the anchored range's embedded figures (JSON), source image href, and inline SVG markup.
+    // Pre-existing HIGHLIGHT rows must survive untouched with the new columns defaulting to NULL.
+    @Test
+    fun migration46To47() {
+        helper.createDatabase(TEST_DB, 46).apply {
+            execSQL(
+                """
+                INSERT INTO annotations
+                  (id, sourceId, itemId, type, cfi, color, note, textSnippet, textBefore, textAfter,
+                   chapterHref, spineIndex, progression, bookmarkTitle, createdAt, updatedAt,
+                   originDeviceId, lastModifiedByDeviceId, deleted, lastSyncedAt)
+                VALUES
+                  ('a1','s1','i1','HIGHLIGHT','epubcfi(/6/2!/4/2)','yellow',NULL,'snippet','','',
+                   'ch1.xhtml',0,0.5,'',1000,1000,'d1','d1',0,0)
+                """.trimIndent()
+            )
+            close()
+        }
+        val db = helper.runMigrationsAndValidate(TEST_DB, 47, true, RiffleDatabase.MIGRATION_46_47)
+        db.query("SELECT id, embeddedFigures, imageHref, imageSvg FROM annotations").use { c ->
+            assertTrue(c.moveToFirst())
+            assertEquals("a1", c.getString(0))
+            assertTrue(c.isNull(1))
+            assertTrue(c.isNull(2))
+            assertTrue(c.isNull(3))
+        }
+        db.close()
     }
 }
 
