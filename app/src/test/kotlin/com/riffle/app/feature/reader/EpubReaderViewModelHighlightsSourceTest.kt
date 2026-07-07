@@ -112,6 +112,23 @@ class EpubReaderViewModelHighlightsSourceTest {
         assertEquals(listOf("h2", "h1"), chapters.single().highlights.map { it.id })
     }
 
+    // Figure annotations must reach the elided reader too — TYPE_IMAGE rows count as chapter content,
+    // not noise like bookmarks. Reverting the TYPE_IMAGE branch in the filter drops these rows and
+    // this assertion flips red.
+    @Test
+    fun `TYPE_IMAGE annotations are included alongside TYPE_HIGHLIGHT in chapter elisions`() {
+        val rows = listOf(
+            highlight("h1", "chA.xhtml", spineIndex = 0, progression = 0.5, type = AnnotationEntity.TYPE_HIGHLIGHT),
+            highlight("i1", "chA.xhtml", spineIndex = 0, progression = 0.2, type = AnnotationEntity.TYPE_IMAGE),
+            highlight("b1", "chA.xhtml", spineIndex = 0, type = AnnotationEntity.TYPE_BOOKMARK),
+        )
+
+        val chapters = buildChapterElisions(rows)
+
+        assertEquals(1, chapters.size)
+        assertEquals(listOf("i1", "h1"), chapters.single().highlights.map { it.id })
+    }
+
     @Test
     fun `deriveChapterTitle strips directory and extension`() {
         assertEquals("ch03", deriveChapterTitle("OEBPS/ch03.xhtml"))

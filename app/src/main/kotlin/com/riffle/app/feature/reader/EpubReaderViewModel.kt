@@ -2580,7 +2580,7 @@ internal fun highlightsShouldCloseAfterDelete(rows: List<AnnotationEntity>): Boo
 
 internal fun buildChapterElisions(rows: List<AnnotationEntity>): List<ChapterElision> {
     val live = rows
-        .filter { it.type == AnnotationEntity.TYPE_HIGHLIGHT && !it.deleted }
+        .filter { (it.type == AnnotationEntity.TYPE_HIGHLIGHT || it.type == AnnotationEntity.TYPE_IMAGE) && !it.deleted }
         .sortedWith(compareBy({ it.spineIndex }, { it.progression }, { it.createdAt }))
 
     val byHref = LinkedHashMap<String, MutableList<AnnotationEntity>>()
