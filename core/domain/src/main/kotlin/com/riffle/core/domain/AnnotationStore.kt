@@ -27,6 +27,9 @@ interface AnnotationStore {
         color: String = DEFAULT_COLOR,
         spineIndex: Int = 0,
         progression: Double = 0.0,
+        /** Figures enclosed by the highlight's CFI range (Task 7), or null when none / not yet
+         *  resolved. An empty list is normalized to null on the persisted entity. */
+        embeddedFigures: List<EmbeddedFigure>? = null,
     ): Annotation
 
     suspend fun createBookmark(

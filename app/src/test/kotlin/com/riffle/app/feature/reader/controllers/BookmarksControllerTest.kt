@@ -40,6 +40,7 @@ class BookmarksControllerTest {
             sourceId: String, itemId: String, cfi: String, textSnippet: String,
             chapterHref: String, textBefore: String, textAfter: String, color: String,
             spineIndex: Int, progression: Double,
+            embeddedFigures: List<com.riffle.core.domain.EmbeddedFigure>?,
         ): Annotation {
             val a = Annotation(
                 id = "highlight-${created.size}",
@@ -49,6 +50,7 @@ class BookmarksControllerTest {
                 textSnippet = textSnippet, textBefore = textBefore, textAfter = textAfter,
                 chapterHref = chapterHref, spineIndex = spineIndex, progression = progression,
                 bookmarkTitle = "", createdAt = 0L, updatedAt = 0L,
+                embeddedFigures = embeddedFigures,
             )
             created.add(a)
             return a

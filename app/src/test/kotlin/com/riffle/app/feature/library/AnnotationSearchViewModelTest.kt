@@ -72,7 +72,7 @@ class AnnotationSearchViewModelTest {
         override fun observeAnnotations(sourceId: String, itemId: String) = MutableStateFlow(emptyList<Annotation>())
         override fun observeAnnotationsForSource(sourceId: String) =
             annotationsFlow.map { all -> all.filter { it.sourceId == sourceId } }
-        override suspend fun createHighlight(sourceId: String, itemId: String, cfi: String, textSnippet: String, chapterHref: String, textBefore: String, textAfter: String, color: String, spineIndex: Int, progression: Double) = error("unused")
+        override suspend fun createHighlight(sourceId: String, itemId: String, cfi: String, textSnippet: String, chapterHref: String, textBefore: String, textAfter: String, color: String, spineIndex: Int, progression: Double, embeddedFigures: List<com.riffle.core.domain.EmbeddedFigure>?) = error("unused")
         override suspend fun createBookmark(sourceId: String, itemId: String, cfi: String, textSnippet: String, chapterHref: String, spineIndex: Int, progression: Double, bookmarkTitle: String) = error("unused")
         override suspend fun createImageAnnotation(sourceId: String, itemId: String, cfi: String, textSnippet: String, chapterHref: String, spineIndex: Int, progression: Double, imageHref: String?, imageSvg: String?, color: String) = error("unused")
         override suspend fun delete(id: String) = error("unused")

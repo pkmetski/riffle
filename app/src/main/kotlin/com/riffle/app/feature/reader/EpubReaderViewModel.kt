@@ -197,6 +197,7 @@ class EpubReaderViewModel @Inject constructor(
     private val libraryItemDao: com.riffle.core.database.LibraryItemDao,
     private val highlightsResumeStore: HighlightsResumeStore,
     private val tocRepository: TocRepository,
+    private val figuresInRangeResolver: FiguresInRangeResolver,
 ) : AndroidViewModel(application) {
 
     // Formatting/typography/auto-scroll orchestrator — constructed with viewModelScope so
@@ -1447,6 +1448,10 @@ class EpubReaderViewModel @Inject constructor(
             } else {
                 buildHighlightCfiRangeForSelection(spineStep, html, progression, snippet)
             } ?: return@launch
+            // Figures enclosed by the highlight's range (Task 7). The resolver is a stub until a
+            // JS CFI→DOM resolver lands (see FiguresInRangeResolver's class doc) — today this
+            // always resolves to an empty list, which the store normalizes to a null column.
+            val embeddedFigures = figuresInRangeResolver.resolve(cfiRange)
             val created = annotationStore.createHighlight(
                 sourceId = sourceId,
                 itemId = itemId,
@@ -1458,6 +1463,7 @@ class EpubReaderViewModel @Inject constructor(
                 color = annotationSession.lastUsedHighlightColor.value.token,
                 spineIndex = spineIndex,
                 progression = progression,
+                embeddedFigures = embeddedFigures,
             )
             openHighlightActions(created.id, anchorRect)
             scheduleAnnotationSync()

@@ -56,6 +56,7 @@ class AnnotationStoreImpl(
         color: String,
         spineIndex: Int,
         progression: Double,
+        embeddedFigures: List<EmbeddedFigure>?,
     ): Annotation {
         val deviceId = deviceIdStore.getOrCreate()
         val now = clock()
@@ -79,6 +80,7 @@ class AnnotationStoreImpl(
             originDeviceId = deviceId,
             lastModifiedByDeviceId = deviceId,
             deleted = false,
+            embeddedFigures = embeddedFigures.toEntityJson(),
         )
         dao.upsert(entity)
         return entity.toDomain()

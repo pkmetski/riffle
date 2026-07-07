@@ -68,6 +68,7 @@ class AnnotationSessionTest {
             sourceId: String, itemId: String, cfi: String, textSnippet: String,
             chapterHref: String, textBefore: String, textAfter: String, color: String,
             spineIndex: Int, progression: Double,
+            embeddedFigures: List<com.riffle.core.domain.EmbeddedFigure>?,
         ): Annotation {
             createHighlightCalls.add(
                 CreateHighlightArgs(sourceId, itemId, cfi, textSnippet, chapterHref, textBefore, textAfter, color, spineIndex, progression)
