@@ -226,15 +226,15 @@ class ImmersiveModeStateTest {
 
     @Test
     fun `focus regain while immersive calls reapplyRaw to bypass the compat cache`() {
-        // Bug: opening a focusable Compose Popup (e.g. HighlightActionsPopup) or a Dialog steals
-        // window focus from the reader; the OS clears the fullscreen flags while the reader Window
-        // is unfocused and reveals the status/nav bars behind the popup. On dismiss the reader
-        // Window regains focus but the OS still shows the bars — WindowInsetsControllerCompat's
-        // own state cache still thinks bars are hidden (it applied the flags earlier), so a
-        // vanilla hide() is a no-op. reapplyRaw() writes the flags directly onto the decor view,
-        // bypassing the cache, so the OS actually re-hides.
+        // Bug: opening a focusable Compose Popup or a Dialog steals window focus from the reader;
+        // the OS clears the fullscreen flags while the reader Window is unfocused and reveals the
+        // status/nav bars behind the popup. On dismiss the reader Window regains focus but the OS
+        // still shows the bars — WindowInsetsControllerCompat's own state cache still thinks bars
+        // are hidden (it applied the flags earlier), so a vanilla hide() is a no-op. reapplyRaw()
+        // writes the flags directly onto the decor view, bypassing the cache, so the OS re-hides.
         state.hide()
 
+        state.onWindowFocusChanged(true) // seed the tracker with the current (focused) state
         state.onWindowFocusChanged(false) // popup opens, reader loses focus
         assertEquals(0, controller.reapplyRawCount) // loss alone is a signal, not an action
 
@@ -242,6 +242,40 @@ class ImmersiveModeStateTest {
         assertEquals(1, controller.reapplyRawCount) // fix path fired
         assertTrue(state.isImmersive)
     }
+
+    @Test
+    fun `first focus event just seeds the tracker so a focused-at-compose reader does not spurious-reapply`() {
+        // Reader composes while window IS focused (the common case): snapshotFlow's first emission
+        // is `true`. A naive `lastWindowFocused = true` default would coincidentally do the right
+        // thing here, but `lastWindowFocused = null` makes the seed step explicit and self-documenting.
+        // Either way, the first emission must not fire reapplyRaw.
+        state.hide()
+        controller.reapplyRawCount = 0
+
+        state.onWindowFocusChanged(true) // first-ever emission; window is already focused at compose time
+
+        assertEquals(0, controller.reapplyRawCount)
+    }
+
+    @Test
+    fun `reader composed unfocused then gaining focus is treated as a focus regain`() {
+        // Reader composes while window is unfocused (rotation with system Dialog up, cold start
+        // behind another window): snapshotFlow's first emission is `false`. When focus later
+        // arrives, that IS a genuine focus regain — the OS may have cleared our flags while we
+        // were unfocused. reapplyRaw is the correct response here. Without the null-seed fix, the
+        // default `lastWindowFocused = true` would have first read (true→false) as a focus loss —
+        // that's harmless (loss is a no-op) but the semantics were muddled. The seed makes the
+        // (unfocused-at-compose → focused) case an unambiguous first genuine transition.
+        state.hide()
+        controller.reapplyRawCount = 0
+
+        state.onWindowFocusChanged(false) // first-ever emission; window is unfocused at compose time
+        state.onWindowFocusChanged(true)  // OS finally delivers focus
+
+        assertEquals(1, controller.reapplyRawCount)
+        assertTrue(state.isImmersive)
+    }
+
 
     @Test
     fun `focus regain when not immersive does not reapply the flags`() {

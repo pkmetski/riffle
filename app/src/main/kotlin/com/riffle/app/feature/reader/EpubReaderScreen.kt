@@ -420,11 +420,13 @@ fun EpubReaderScreen(
                         volumeNavEvents = viewModel.volumeNavEvents,
                         onTap = immersiveState::toggle,
                         onSelectionEnded = {
-                            // After a text-selection ActionMode dismisses (menu-item pick or
-                            // tap-outside), the OS on both pre-R and R+ leaves the system bars in
-                            // a "transparent overlay" state — layout stays fullscreen so our
-                            // topInset watcher can't detect the drift (inset stays 0) but the bars
-                            // are drawn semi-visibly. Force-re-hide restores true immersive.
+                            // Belt-and-braces: sticky IMMERSIVE (see immersiveSystemBarsBehavior)
+                            // handles the ActionMode-dismiss reveal on its own — the OS auto-hides
+                            // bars without our involvement. hide(force = true) here keeps our own
+                            // isImmersive/systemBarsHidden state model in sync with the OS in case
+                            // any prior path drifted, without triggering the direct decor-view
+                            // reapply that would visibly flash bars during the ActionMode-close
+                            // transition on pre-R.
                             if (immersiveState.isImmersive) immersiveState.hide(force = true)
                         },
                         latestLocator = { viewModel.latestLocator },
