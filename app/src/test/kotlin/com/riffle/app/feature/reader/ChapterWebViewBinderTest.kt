@@ -35,6 +35,7 @@ class ChapterWebViewBinderTest {
         override var onFootnoteContent: ((FootnoteContent) -> Unit)? = null
         override var onCrossReferenceTap: ((String) -> Unit)? = null
         override var onFigureTap: ((String) -> Unit)? = null
+        override var onFigureLongPress: ((FigureLongPressPayload) -> Unit)? = null
 
         fun emitTap() = onTap?.invoke()
         fun emitAnnotationTap(id: String, rect: Rect) = onAnnotationTap?.invoke(id, rect)

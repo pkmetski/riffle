@@ -26,6 +26,7 @@ internal interface ChapterWebViewLike {
     var onFootnoteContent: ((FootnoteContent) -> Unit)?
     var onCrossReferenceTap: ((String) -> Unit)?
     var onFigureTap: ((String) -> Unit)?
+    var onFigureLongPress: ((FigureLongPressPayload) -> Unit)?
 }
 
 /**
@@ -56,6 +57,8 @@ internal class ChapterWebViewBinder(
     private val onCrossReference: (chapterHref: String, fragmentId: String) -> Unit,
     private val onSelectionActiveChanged: (Boolean) -> Unit,
     private val onFigureTap: (payload: String) -> Unit = {},
+    // TODO(Task 6): no-op default; Task 6 threads through the real annotate-figure handler.
+    private val onFigureLongPress: (payload: FigureLongPressPayload) -> Unit = {},
 ) {
     fun bind(wv: ChapterWebViewLike, annotationsAvailable: Boolean, readaloudAvailable: Boolean) {
         wv.onTap = { navigation.onTap() }
@@ -95,5 +98,6 @@ internal class ChapterWebViewBinder(
         wv.readaloudAvailable = readaloudAvailable
         wv.onFootnoteContent = { links.onFootnote(it) }
         wv.onFigureTap = { payload -> onFigureTap(payload) }
+        wv.onFigureLongPress = { payload -> onFigureLongPress(payload) }
     }
 }

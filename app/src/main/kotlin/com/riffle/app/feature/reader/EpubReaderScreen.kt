@@ -1968,7 +1968,12 @@ private fun EpubNavigatorView(
     // RiffleChapter bridge already, so it doesn't need this hook.
     DisposableEffect(Unit) {
         FigureTapBridge.setHandler { payload -> onFigureTap(payload) }
-        onDispose { FigureTapBridge.setHandler(null) }
+        // TODO(Task 6): no-op; Task 6 wires the real annotate-figure handler.
+        FigureTapBridge.setLongPressHandler { _ -> }
+        onDispose {
+            FigureTapBridge.setHandler(null)
+            FigureTapBridge.setLongPressHandler(null)
+        }
     }
 
     DisposableEffect(Unit) {
@@ -2764,6 +2769,8 @@ private fun EpubNavigatorView(
                         view.annotationsAvailable = currentAnnotationsAvailable
                         view.readaloudAvailable = currentReadaloudAvailable
                         view.onFigureTap = { payload -> onFigureTap(payload) }
+                        // TODO(Task 6): no-op; Task 6 wires the real annotate-figure handler.
+                        view.onFigureLongPress = { _ -> }
                         view.onSelectionEnded = { currentOnSelectionEnded() }
                         view.onSelectionActiveChanged = { active -> currentOnSelectionActiveChanged(active) }
                     }

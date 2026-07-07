@@ -109,6 +109,13 @@ internal class ContinuousReaderView @JvmOverloads constructor(
     var onFigureTap: ((payload: String) -> Unit)? = null
 
     /**
+     * Called on the main thread with the already-parsed long-press payload emitted by
+     * figure-tap.js's `touchstart` listener. TODO(Task 6): currently unset by every call site — the
+     * host wires the real annotate-figure handler in Task 6.
+     */
+    var onFigureLongPress: ((payload: FigureLongPressPayload) -> Unit)? = null
+
+    /**
      * Called on the main thread when the last active text-selection action mode ends (either
      * via a menu-item finish() or a tap-outside dismissal). Used by the reader to force-re-apply
      * immersive mode: after ActionMode dismissal the OS leaves the system bars in a "transparent
@@ -159,6 +166,7 @@ internal class ContinuousReaderView @JvmOverloads constructor(
             onCrossReference = onCrossReference,
             onSelectionActiveChanged = ::onChildSelectionActiveChanged,
             onFigureTap = { payload -> onFigureTap?.invoke(payload) },
+            onFigureLongPress = { payload -> onFigureLongPress?.invoke(payload) },
         )
         controller.install(binder)
     }

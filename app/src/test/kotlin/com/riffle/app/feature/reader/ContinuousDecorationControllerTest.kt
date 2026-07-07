@@ -39,6 +39,7 @@ class ContinuousDecorationControllerTest {
         override var onFootnoteContent: ((FootnoteContent) -> Unit)? = null
         override var onCrossReferenceTap: ((String) -> Unit)? = null
         override var onFigureTap: ((String) -> Unit)? = null
+        override var onFigureLongPress: ((FigureLongPressPayload) -> Unit)? = null
     }
 
     private class FakePort : ContinuousDecorationController.Port {
