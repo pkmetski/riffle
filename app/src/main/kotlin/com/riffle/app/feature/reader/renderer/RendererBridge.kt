@@ -56,6 +56,14 @@ internal interface RendererBridge {
      */
     suspend fun applyReadaloudReserve(reservePx: Int)
 
+    /**
+     * Push the current figure-border CSS rules (one per annotated raster figure, see
+     * [com.riffle.app.feature.reader.decorations.FigureBorderDecoration]) to the live document.
+     * Re-runs on every page load (fresh document) AND whenever the underlying annotation set
+     * changes mid-session. Idempotent — replaces the whole rule set each call.
+     */
+    suspend fun applyFigureBorders(cssRules: List<String>)
+
     // ── Column snapping ─────────────────────────────────────────────────────────────────────
 
     /** Install the at-rest snap backstop on a freshly loaded page (idempotent). */

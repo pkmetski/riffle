@@ -6,6 +6,8 @@ import com.riffle.app.feature.reader.FigureTapScript
 import com.riffle.app.feature.reader.FootnoteAnchorBridge
 import com.riffle.app.feature.reader.RECT_TO_JSON_POLYFILL_JS
 import com.riffle.app.feature.reader.SELECTION_SPAN_TRACKER_JS
+import com.riffle.app.feature.reader.decorations.figureBorderApplyJs
+import com.riffle.app.feature.reader.decorations.figureBorderInjectionJs
 import com.riffle.app.feature.reader.firstVisibleSentenceJs
 import com.riffle.app.feature.reader.readaloudReserveApplyJs
 import com.riffle.app.feature.reader.readaloudReserveInjectionJs
@@ -61,6 +63,12 @@ internal class DefaultRendererBridge(
         val frag = fragment ?: return
         frag.evaluateJavascript(readaloudReserveInjectionJs())
         frag.evaluateJavascript(readaloudReserveApplyJs(reservePx))
+    }
+
+    override suspend fun applyFigureBorders(cssRules: List<String>) {
+        val frag = fragment ?: return
+        frag.evaluateJavascript(figureBorderInjectionJs())
+        frag.evaluateJavascript(figureBorderApplyJs(cssRules))
     }
 
     override suspend fun installScrollSettleBackstop() {

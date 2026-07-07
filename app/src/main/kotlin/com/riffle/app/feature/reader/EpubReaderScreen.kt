@@ -46,6 +46,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import com.riffle.app.feature.reader.decorations.FigureBorderDecoration
 import com.riffle.app.feature.reader.formatting.RenderCapabilities
 import com.riffle.app.feature.reader.highlights.shouldShowChapterRail
 import com.riffle.app.feature.reader.highlights.shouldShowOpenInBook
@@ -511,6 +512,7 @@ fun EpubReaderScreen(
                         // creatable here (createHighlight is a no-op in Highlights mode, ADR 0041),
                         // so surfacing the option would be dead UI.
                         annotationsAvailable = annotationsAvailable && viewModel.readerSource != ReaderSource.Highlights,
+                        annotations = annotations,
                         highlightRenders = highlightRenders,
                         onHighlight = viewModel::createHighlight,
                         highlightToEdit = highlightToEdit,
@@ -1312,6 +1314,7 @@ private fun EpubNavigatorView(
     readaloudReservePx: Int = 0,
     readaloudHighlightColor: HighlightColor,
     annotationsAvailable: Boolean,
+    annotations: List<com.riffle.core.domain.Annotation>,
     highlightRenders: List<EpubReaderViewModel.HighlightRender>,
     onHighlight: (Locator, androidx.compose.ui.unit.IntRect) -> Unit,
     highlightToEdit: EpubReaderViewModel.HighlightEditTarget?,
@@ -2251,6 +2254,18 @@ private fun EpubNavigatorView(
 
     LaunchedEffect(highlightRenderer, highlightRenders, reflowGeneration, pageLoadGeneration.value) {
         highlightRenderer.applyNoteGlyphs(highlightRenders)
+    }
+
+    // ---- Figure borders (Task 8) ------------------------------------------------------------
+    // MODE-FORK: paginated/vertical only for now — rendererBridge is the only JS seam available
+    // at this level (continuous mode owns its WebViews directly via ContinuousReaderView and has
+    // no equivalent "apply to the live document" call wired up yet — see Task 8 report). The rule
+    // set itself already reflects "newest wins" (FigureBorderDecoration.buildCssRules), so no
+    // dedup/ordering work is needed here — just re-push on every relevant reflow/page-load/
+    // annotations-change tick, same cadence as the persisted-highlights effect above.
+    LaunchedEffect(rendererBridge, isContinuous, annotations, reflowGeneration, pageLoadGeneration.value) {
+        if (isContinuous) return@LaunchedEffect
+        rendererBridge.applyFigureBorders(FigureBorderDecoration.buildCssRules(annotations))
     }
 
     // ---- Decoration tap listener (annotations) ---------------------------------------------
