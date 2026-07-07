@@ -68,6 +68,13 @@ class AnnotationSession @AssistedInject constructor(
     @Assisted("open") private val syncOnOpen: suspend (sourceId: String, namespace: String, itemId: String) -> Unit,
     /** Called on [onBookClosed] via [ProgressFlushScope] to push pending annotations. */
     @Assisted("close") private val syncOnClose: suspend (sourceId: String, namespace: String, itemId: String) -> Unit,
+    /**
+     * Called after a recolour or note-clear on a highlight that might now be merge-eligible with a
+     * same-chapter neighbour. Publication-dependent (needs to rebuild the CFI range), so the VM
+     * owns the implementation. Params: annotation id + the post-mutation colour + post-mutation note.
+     * See docs/superpowers/specs/2026-07-05-highlight-auto-merge-design.md.
+     */
+    @Assisted("merge") private val mergeAfterEdit: suspend (id: String, color: String, note: String?) -> Unit,
 ) {
 
     @AssistedFactory
@@ -78,6 +85,7 @@ class AnnotationSession @AssistedInject constructor(
             scheduleSync: (String, String, String) -> Unit,
             @Assisted("open") syncOnOpen: suspend (String, String, String) -> Unit,
             @Assisted("close") syncOnClose: suspend (String, String, String) -> Unit,
+            @Assisted("merge") mergeAfterEdit: suspend (String, String, String?) -> Unit,
         ): AnnotationSession
     }
 
@@ -278,9 +286,77 @@ class AnnotationSession @AssistedInject constructor(
         _highlightToEdit.value = EpubReaderViewModel.HighlightEditTarget(id, anchorRect, noteOnly = true)
     }
 
-    /** Dismiss the highlight actions popup. */
-    fun dismissHighlightActions() {
+    /**
+     * The note-editor target — non-null while the note editor dialog is open. Kept in session
+     * state (not Compose-local) so [dismissHighlightActions] can tell whether the actions popup
+     * is closing to *transition into* the note editor (no merge yet) or as a true commit close.
+     * See docs/superpowers/specs/2026-07-05-highlight-auto-merge-design.md.
+     */
+    private val _noteEditorTarget = MutableStateFlow<EpubReaderViewModel.HighlightEditTarget?>(null)
+    val noteEditorTarget: StateFlow<EpubReaderViewModel.HighlightEditTarget?> = _noteEditorTarget
+
+    /**
+     * Transition from the highlight-actions popup to the note editor. Closes the actions popup
+     * *without* firing the merge check — the commit point is deferred to [dismissNoteEditor], so
+     * a merge cannot absorb the row before the note has been saved onto it.
+     */
+    fun openNoteEditor(id: String, anchorRect: androidx.compose.ui.unit.IntRect) {
+        val target = _highlightToEdit.value?.takeIf { it.id == id }
+            ?: EpubReaderViewModel.HighlightEditTarget(id, anchorRect)
+        _noteEditorTarget.value = target
         _highlightToEdit.value = null
+    }
+
+    /**
+     * Commit the note editor: persist [note] onto highlight [id], close the editor, then fire the
+     * merge check with the row's post-commit state. Ordered so [mergeAfterEdit] sees the just-
+     * written note — a race between "update note" and "close editor" would otherwise let a merge
+     * absorb the row before the note blocks eligibility.
+     */
+    suspend fun commitNoteEdit(id: String, note: String?) {
+        val normalized = note?.takeIf { it.isNotBlank() }
+        annotationStore.updateNote(id, normalized)
+        _noteEditorTarget.value = null
+        val row = _annotations.value.firstOrNull { it.id == id }
+        val color = row?.color ?: run {
+            scheduleSync(boundServerId ?: return, boundNamespace ?: return, boundItemId ?: return)
+            return
+        }
+        scheduleSync(boundServerId ?: return, boundNamespace ?: return, boundItemId ?: return)
+        mergeAfterEdit(id, color, normalized)
+    }
+
+    /**
+     * Cancel the note editor without changes. Still a commit point — the underlying row may have
+     * been recoloured / had its note previously cleared inside the actions popup, and this dismiss
+     * is the moment the user is done editing.
+     */
+    fun cancelNoteEdit() {
+        val target = _noteEditorTarget.value
+        _noteEditorTarget.value = null
+        val id = target?.id ?: return
+        val row = _annotations.value.firstOrNull { it.id == id } ?: return
+        if (row.type != AnnotationEntity.TYPE_HIGHLIGHT) return
+        scope.launch { mergeAfterEdit(id, row.color, row.note) }
+    }
+
+    /**
+     * Dismiss the highlight actions popup. Popup close = commit — auto-merge with a same-colour
+     * no-note neighbour if the row's final state is eligible. Individual recolours / note edits
+     * inside the popup do NOT fire; the user is still iterating.
+     *
+     * If the note editor is currently open (user tapped "Add note"), this is a *transition*, not a
+     * commit — [openNoteEditor] already cleared [highlightToEdit], and the merge check is deferred
+     * to [dismissNoteEditor].
+     */
+    fun dismissHighlightActions() {
+        val target = _highlightToEdit.value
+        _highlightToEdit.value = null
+        if (_noteEditorTarget.value != null) return
+        val id = target?.id ?: return
+        val row = _annotations.value.firstOrNull { it.id == id } ?: return
+        if (row.type != AnnotationEntity.TYPE_HIGHLIGHT) return
+        scope.launch { mergeAfterEdit(id, row.color, row.note) }
     }
 
     /**
@@ -306,6 +382,9 @@ class AnnotationSession @AssistedInject constructor(
         val sid = boundServerId ?: return
         val iid = boundItemId ?: return
         highlightColorPreferencesStore.setLastUsedColor(sid, iid, color)
+        // Merge check is deferred to [dismissHighlightActions] — the popup close is the commit
+        // point. Firing here would absorb a neighbour mid-iteration while the user is still
+        // deciding on colour/note.
         scheduleSync(sid, boundNamespace ?: return, iid)
     }
 
@@ -318,7 +397,9 @@ class AnnotationSession @AssistedInject constructor(
 
     /** Save (or clear) the note on a highlight. Blank text is treated as null. */
     suspend fun updateHighlightNote(id: String, note: String?) {
-        annotationStore.updateNote(id, note?.takeIf { it.isNotBlank() })
+        val normalized = note?.takeIf { it.isNotBlank() }
+        annotationStore.updateNote(id, normalized)
+        // Merge check is deferred to [dismissHighlightActions] — see recolorHighlight.
         scheduleSync(boundServerId ?: return, boundNamespace ?: return, boundItemId ?: return)
     }
 

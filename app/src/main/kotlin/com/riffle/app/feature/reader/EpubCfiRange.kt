@@ -6,6 +6,9 @@ import com.riffle.core.domain.countBodyChars
 import com.riffle.core.domain.extractCfiDocPath
 import com.riffle.core.domain.findNodeAtChar
 import org.jsoup.Jsoup
+import org.jsoup.nodes.Element
+import org.jsoup.nodes.Node
+import org.jsoup.nodes.TextNode
 
 // Builds an EPUB CFI *range* for a highlight (ADR 0024). Reuses the char-count positioning model
 // of EpubCfiTranslator so the range's endpoints are in the same coordinate family ABS stores.
@@ -90,4 +93,99 @@ internal fun rangeStartDocPath(rangeCfi: String): String? {
 internal fun highlightStartProgression(rangeCfi: String, html: String): Double? {
     val startDocPath = rangeStartDocPath(rangeCfi) ?: return null
     return cfiDocPathToProgression(startDocPath, html)
+}
+
+/**
+ * Concatenation of the body's readable-text (blank-only text nodes skipped) — the "flat" view of
+ * the chapter that [countBodyChars] measures. All char offsets used by highlight merging are
+ * indices into this string.
+ */
+internal fun readableBodyText(html: String): String {
+    val body = Jsoup.parse(html).body()
+    val out = StringBuilder()
+    fun visit(node: Node) {
+        when (node) {
+            is TextNode -> if (!node.wholeText.isBlank()) out.append(node.wholeText)
+            is Element -> node.childNodes().forEach(::visit)
+        }
+    }
+    body.childNodes().forEach(::visit)
+    return out.toString()
+}
+
+/**
+ * Locate the char position of [snippet] in [html]'s readable-text stream, using [before]'s last
+ * ~30 chars as a disambiguating anchor. Returns the start-char of [snippet] in the readable
+ * stream, or null if not locatable / ambiguous.
+ *
+ * Why we need this: `Locator.locations.progression` from a paginated Readium selection is the
+ * *page*'s progression, not the selection's. Every highlight created on the same page gets the
+ * same stored progression and CFI start offset, so the persisted char-position is useless for
+ * pinning down the selection's true location. Text-searching the DOM with the surrounding-text
+ * anchor recovers the real position.
+ */
+internal fun locateSnippetInBody(
+    html: String,
+    snippet: String,
+    before: String,
+): Long? {
+    if (snippet.isBlank()) return null
+    val body = readableBodyText(html)
+    val anchorTail = before.takeLast(30).trimStart()
+    if (anchorTail.isNotEmpty()) {
+        val query = anchorTail + snippet
+        val idx = body.indexOf(query)
+        if (idx >= 0) return (idx + anchorTail.length).toLong()
+    }
+    // Anchor-less fallback: only trustworthy if the snippet appears exactly once in the chapter.
+    val first = body.indexOf(snippet)
+    if (first < 0) return null
+    if (body.indexOf(snippet, first + 1) >= 0) return null
+    return first.toLong()
+}
+
+/**
+ * Extract the readable-text substring of [html]'s body between [startChar] (inclusive) and
+ * [endChar] (exclusive) — using the same "readable char" walk as [countBodyChars] (blank-only
+ * text nodes skipped). Returns null if the range is empty or falls outside the doc.
+ *
+ * Used by the highlight-merge path so the stored merged `textSnippet` is byte-exact against the
+ * DOM. Concatenating the two source snippets with a captured whitespace run can drift from the
+ * actual DOM (Readium's `textAfter`/`textBefore` may normalise NBSP/newlines differently than
+ * `textSnippet`), and any drift makes Readium's decorator fail-then-fallback to a partial range.
+ */
+internal fun readableTextBetween(html: String, startChar: Long, endChar: Long): String? {
+    if (endChar <= startChar) return null
+    val body = Jsoup.parse(html).body()
+    val out = StringBuilder()
+    var cursor = 0L
+
+    fun visit(node: Node): Boolean {
+        if (cursor >= endChar) return true
+        when (node) {
+            is TextNode -> {
+                val text = node.wholeText
+                if (text.isBlank()) return false
+                val nodeStart = cursor
+                val nodeLen = text.length.toLong()
+                val nodeEnd = nodeStart + nodeLen
+                if (nodeEnd > startChar) {
+                    val takeFrom = maxOf(0L, startChar - nodeStart).toInt()
+                    val takeTo = minOf(nodeLen, endChar - nodeStart).toInt()
+                    out.append(text, takeFrom, takeTo)
+                }
+                cursor = nodeEnd
+            }
+            is Element -> {
+                for (child in node.childNodes()) {
+                    if (visit(child)) return true
+                }
+            }
+        }
+        return cursor >= endChar
+    }
+    for (child in body.childNodes()) {
+        if (visit(child)) break
+    }
+    return out.toString().takeIf { it.isNotEmpty() }
 }

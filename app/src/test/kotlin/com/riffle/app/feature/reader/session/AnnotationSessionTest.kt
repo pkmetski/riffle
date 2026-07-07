@@ -6,6 +6,7 @@ import com.riffle.app.feature.reader.ProgressFlushScope
 import com.riffle.app.testing.TestApplicationScope
 import com.riffle.core.data.AnnotationSyncStatusStore
 import com.riffle.core.data.CycleOutcome
+import com.riffle.core.database.AnnotationEntity
 import com.riffle.core.domain.Annotation
 import com.riffle.core.domain.AnnotationStore
 import com.riffle.core.domain.HighlightColor
@@ -118,7 +119,7 @@ class AnnotationSessionTest {
 
     private fun fakeAnnotation(
         id: String = "a1",
-        type: String = "highlight",
+        type: String = AnnotationEntity.TYPE_HIGHLIGHT,
         cfi: String = "epubcfi(/6/4!/4/2)",
         color: String = "yellow",
     ) = makeAnnotation(id, type, cfi, color)
@@ -126,7 +127,7 @@ class AnnotationSessionTest {
     companion object {
         fun makeAnnotation(
             id: String = "a1",
-            type: String = "highlight",
+            type: String = AnnotationEntity.TYPE_HIGHLIGHT,
             cfi: String = "epubcfi(/6/4!/4/2)",
             color: String = "yellow",
         ) = Annotation(
@@ -195,6 +196,7 @@ class AnnotationSessionTest {
         flushScope: ProgressFlushScope = ProgressFlushScope(
             TestApplicationScope(CoroutineScope(UnconfinedTestDispatcher() + SupervisorJob()))
         ),
+        mergeAfterEdit: suspend (String, String, String?) -> Unit = { _, _, _ -> },
     ) = AnnotationSession(
         scope = scope,
         annotationStore = store,
@@ -205,6 +207,7 @@ class AnnotationSessionTest {
         scheduleSync = syncOps.makeScheduleDebounce(),
         syncOnOpen = syncOps.makeSyncOnOpen(),
         syncOnClose = syncOps.makeSyncOnClose(),
+        mergeAfterEdit = mergeAfterEdit,
     )
 
     private fun defaultBind(
@@ -357,7 +360,200 @@ class AnnotationSessionTest {
             cfiLocatorResolver = { null },
         )
         assertEquals(HighlightColor.RED, session.lastUsedHighlightColor.value)
+        sessionScope.coroutineContext[Job]?.cancel()
+    }
 
+    /**
+     * Regression: individual edits (recolour, note-add/edit, note-clear) INSIDE the highlight
+     * actions popup must NOT fire [mergeAfterEdit]. The user is still iterating; a mid-session
+     * merge would silently absorb neighbours before they've committed. Commit is signalled by
+     * popup dismissal — see [AnnotationSession.dismissHighlightActions].
+     */
+    @Test
+    fun `individual edits do not fire mergeAfterEdit`() = runTest {
+        val dispatcher = UnconfinedTestDispatcher(testScheduler)
+        val sessionScope = CoroutineScope(dispatcher)
+        val store = FakeAnnotationStore()
+        val syncOps = FakeSyncOps()
+        val mergeCalls = mutableListOf<Triple<String, String, String?>>()
+        val session = makeSession(
+            store = store, syncOps = syncOps, scope = sessionScope,
+            mergeAfterEdit = { id, color, note -> mergeCalls += Triple(id, color, note) },
+        )
+        defaultBind(session)
+        store.allAnnotations.value = listOf(makeAnnotation(id = "h1", color = "yellow"))
+
+        session.recolorHighlight("h1", HighlightColor.BLUE)
+        session.updateHighlightNote("h1", "hello")
+        session.updateHighlightNote("h1", null)
+
+        assertEquals(0, mergeCalls.size)
+        sessionScope.coroutineContext[Job]?.cancel()
+    }
+
+    /**
+     * Regression: [AnnotationSession.dismissHighlightActions] is the merge commit point. On
+     * dismiss it must fire [mergeAfterEdit] with the row's CURRENT colour + note so the VM can
+     * absorb a same-chapter same-colour no-note neighbour. Dropping this call reintroduces the
+     * "user closed popup, expected merge, nothing happened" report.
+     */
+    @Test
+    fun `dismissHighlightActions fires mergeAfterEdit with the current row state`() = runTest {
+        val dispatcher = UnconfinedTestDispatcher(testScheduler)
+        val sessionScope = CoroutineScope(dispatcher)
+        val store = FakeAnnotationStore()
+        val syncOps = FakeSyncOps()
+        val mergeCalls = mutableListOf<Triple<String, String, String?>>()
+        val session = makeSession(
+            store = store, syncOps = syncOps, scope = sessionScope,
+            mergeAfterEdit = { id, color, note -> mergeCalls += Triple(id, color, note) },
+        )
+        defaultBind(session)
+        store.allAnnotations.value = listOf(makeAnnotation(id = "h1", color = "green").copy(note = null))
+        session.openHighlightActions("h1", androidx.compose.ui.unit.IntRect(0, 0, 0, 0))
+
+        session.dismissHighlightActions()
+
+        assertEquals(1, mergeCalls.size)
+        assertEquals("h1", mergeCalls[0].first)
+        assertEquals("green", mergeCalls[0].second)
+        assertNull(mergeCalls[0].third)
+        // And the popup is closed.
+        assertNull(session.highlightToEdit.value)
+        sessionScope.coroutineContext[Job]?.cancel()
+    }
+
+    /**
+     * Regression: tapping "Add note" transitions the actions popup into the note editor. The
+     * actions popup closes, but this MUST NOT fire mergeAfterEdit — the row is about to receive
+     * a note. A merge fired here would (a) absorb the row into a same-colour neighbour and (b)
+     * cause the incoming note to land on a tombstoned id (video-reported bug).
+     */
+    @Test
+    fun `openNoteEditor closes actions popup without firing merge`() = runTest {
+        val dispatcher = UnconfinedTestDispatcher(testScheduler)
+        val sessionScope = CoroutineScope(dispatcher)
+        val store = FakeAnnotationStore()
+        val syncOps = FakeSyncOps()
+        val mergeCalls = mutableListOf<Triple<String, String, String?>>()
+        val session = makeSession(
+            store = store, syncOps = syncOps, scope = sessionScope,
+            mergeAfterEdit = { id, color, note -> mergeCalls += Triple(id, color, note) },
+        )
+        defaultBind(session)
+        store.allAnnotations.value = listOf(makeAnnotation(id = "h1"))
+        session.openHighlightActions("h1", androidx.compose.ui.unit.IntRect(0, 0, 0, 0))
+
+        session.openNoteEditor("h1", androidx.compose.ui.unit.IntRect(0, 0, 0, 0))
+
+        assertNull(session.highlightToEdit.value)
+        assertEquals("h1", session.noteEditorTarget.value?.id)
+        assertEquals(0, mergeCalls.size)
+        sessionScope.coroutineContext[Job]?.cancel()
+    }
+
+    /** Regression: while the note editor is open, dismissing the actions popup is a no-op. */
+    @Test
+    fun `dismissHighlightActions is a no-op when note editor is open`() = runTest {
+        val dispatcher = UnconfinedTestDispatcher(testScheduler)
+        val sessionScope = CoroutineScope(dispatcher)
+        val store = FakeAnnotationStore()
+        val syncOps = FakeSyncOps()
+        val mergeCalls = mutableListOf<Triple<String, String, String?>>()
+        val session = makeSession(
+            store = store, syncOps = syncOps, scope = sessionScope,
+            mergeAfterEdit = { id, color, note -> mergeCalls += Triple(id, color, note) },
+        )
+        defaultBind(session)
+        store.allAnnotations.value = listOf(makeAnnotation(id = "h1"))
+        session.openHighlightActions("h1", androidx.compose.ui.unit.IntRect(0, 0, 0, 0))
+        session.openNoteEditor("h1", androidx.compose.ui.unit.IntRect(0, 0, 0, 0))
+
+        session.dismissHighlightActions()
+
+        assertEquals(0, mergeCalls.size)
+        sessionScope.coroutineContext[Job]?.cancel()
+    }
+
+    /**
+     * Regression: commitNoteEdit persists the note THEN fires merge with the NEW note. If the
+     * merge check ran before the note was persisted, eligibility would pass (both notes empty)
+     * and the row would be absorbed — losing the just-written note.
+     */
+    @Test
+    fun `commitNoteEdit fires mergeAfterEdit with the new note`() = runTest {
+        val dispatcher = UnconfinedTestDispatcher(testScheduler)
+        val sessionScope = CoroutineScope(dispatcher)
+        val store = FakeAnnotationStore()
+        val syncOps = FakeSyncOps()
+        val mergeCalls = mutableListOf<Triple<String, String, String?>>()
+        val session = makeSession(
+            store = store, syncOps = syncOps, scope = sessionScope,
+            mergeAfterEdit = { id, color, note -> mergeCalls += Triple(id, color, note) },
+        )
+        defaultBind(session)
+        store.allAnnotations.value = listOf(makeAnnotation(id = "h1", color = "blue"))
+        session.openNoteEditor("h1", androidx.compose.ui.unit.IntRect(0, 0, 0, 0))
+
+        session.commitNoteEdit("h1", "my thought")
+
+        assertEquals(listOf("h1" to "my thought"), store.updatedNotes)
+        assertNull(session.noteEditorTarget.value)
+        assertEquals(1, mergeCalls.size)
+        assertEquals("h1", mergeCalls[0].first)
+        assertEquals("blue", mergeCalls[0].second)
+        assertEquals("my thought", mergeCalls[0].third)
+        sessionScope.coroutineContext[Job]?.cancel()
+    }
+
+    /**
+     * Regression: cancelNoteEdit is still a commit point — the actions-popup edits (recolour,
+     * note-clear) that preceded opening the note editor need to see a final merge attempt.
+     */
+    @Test
+    fun `cancelNoteEdit fires mergeAfterEdit with unchanged row state`() = runTest {
+        val dispatcher = UnconfinedTestDispatcher(testScheduler)
+        val sessionScope = CoroutineScope(dispatcher)
+        val store = FakeAnnotationStore()
+        val syncOps = FakeSyncOps()
+        val mergeCalls = mutableListOf<Triple<String, String, String?>>()
+        val session = makeSession(
+            store = store, syncOps = syncOps, scope = sessionScope,
+            mergeAfterEdit = { id, color, note -> mergeCalls += Triple(id, color, note) },
+        )
+        defaultBind(session)
+        store.allAnnotations.value = listOf(makeAnnotation(id = "h1", color = "green"))
+        session.openNoteEditor("h1", androidx.compose.ui.unit.IntRect(0, 0, 0, 0))
+
+        session.cancelNoteEdit()
+
+        assertNull(session.noteEditorTarget.value)
+        assertEquals(1, mergeCalls.size)
+        assertEquals("h1", mergeCalls[0].first)
+        assertEquals("green", mergeCalls[0].second)
+        assertNull(mergeCalls[0].third)
+        sessionScope.coroutineContext[Job]?.cancel()
+    }
+
+    /**
+     * If the popup was never opened (no target), dismiss must be a no-op — no false merge fires.
+     */
+    @Test
+    fun `dismissHighlightActions with no target does not fire merge`() = runTest {
+        val dispatcher = UnconfinedTestDispatcher(testScheduler)
+        val sessionScope = CoroutineScope(dispatcher)
+        val store = FakeAnnotationStore()
+        val syncOps = FakeSyncOps()
+        val mergeCalls = mutableListOf<Triple<String, String, String?>>()
+        val session = makeSession(
+            store = store, syncOps = syncOps, scope = sessionScope,
+            mergeAfterEdit = { id, color, note -> mergeCalls += Triple(id, color, note) },
+        )
+        defaultBind(session)
+
+        session.dismissHighlightActions()
+
+        assertEquals(0, mergeCalls.size)
         sessionScope.coroutineContext[Job]?.cancel()
     }
 

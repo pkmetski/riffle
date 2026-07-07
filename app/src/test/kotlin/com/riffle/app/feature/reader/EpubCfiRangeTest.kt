@@ -83,6 +83,22 @@ class EpubCfiRangeTest {
     }
 
     @Test
+    fun `readableTextBetween returns the exact readable substring across nodes`() {
+        // body readable chars: "Hello world"(0..10) + "Second paragraph"(11..26)
+        assertEquals("Hello", readableTextBetween(simpleHtml, 0, 5))
+        assertEquals("world", readableTextBetween(simpleHtml, 6, 11))
+        // spanning both paragraphs — jsoup concatenation is contiguous per readable-node walk.
+        assertEquals("worldSecond", readableTextBetween(simpleHtml, 6, 17))
+    }
+
+    @Test
+    fun `readableTextBetween returns null for empty or degenerate ranges`() {
+        assertNull(readableTextBetween(simpleHtml, 0, 0))
+        assertNull(readableTextBetween(simpleHtml, 5, 5))
+        assertNull(readableTextBetween(simpleHtml, 5, 3))
+    }
+
+    @Test
     fun `selection with blank selected text yields null`() {
         assertNull(
             buildHighlightCfiRangeForSelection(
