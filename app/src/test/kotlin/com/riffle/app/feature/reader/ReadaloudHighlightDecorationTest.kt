@@ -56,6 +56,37 @@ class ReadaloudHighlightDecorationTest {
         }
     }
 
+    // ---- highlightInlineStyle ------------------------------------------------
+    //
+    // ReadiumCSS night mode injects `background-color: transparent !important` on every
+    // `:not(a)` descendant of :root. Every Riffle highlight paint — the paginated template
+    // below AND the five continuous-mode <mark>s in ContinuousStyleInjector — must beat that
+    // via inline `!important`. This test pins the shared suffix so a plain revert on either
+    // side would flip red here first.
+
+    @Test
+    fun `highlightInlineStyle wraps the css color with important and color inherit`() {
+        assertEquals(
+            "background:rgba(251,191,36,0.50) !important;color:inherit;",
+            highlightInlineStyle("rgba(251,191,36,0.50)"),
+        )
+    }
+
+    @Test
+    fun `HIGHLIGHT_INLINE_STYLE_SUFFIX carries the important marker that beats ReadiumCSS night mode`() {
+        // The suffix is what makes Dark / DarkDim not swallow the highlight. Any change to
+        // this constant is a change to the fix that shipped for issue "highlights don't render
+        // on dark themes"; if this assertion drifts, the regression is back on all paths.
+        assertTrue(
+            "suffix must contain '!important'",
+            HIGHLIGHT_INLINE_STYLE_SUFFIX.contains("!important"),
+        )
+        assertTrue(
+            "suffix must reset foreground to inherit so text stays legible",
+            HIGHLIGHT_INLINE_STYLE_SUFFIX.contains("color:inherit"),
+        )
+    }
+
     @Test
     fun fragmentConfigurationRegistersHighlightTemplateAlongsideDefaults() {
         val templates = FormattingPreferences().toFragmentConfiguration().decorationTemplates

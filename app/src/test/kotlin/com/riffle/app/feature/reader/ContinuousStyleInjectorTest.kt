@@ -202,6 +202,136 @@ class ContinuousStyleInjectorTest {
         assertFalse("--USER__textAlign absent when justifyText=false", js.contains("--USER__textAlign"))
     }
 
+    // ── theme-switch tile-cache invalidation ───────────────────────────────────
+    //
+    // WebSettingsCompat.setOffscreenPreRaster(true) (see #413) is required to stop the
+    // chapter-boundary blank flash in Continuous mode, but its side-effect is that a bare
+    // :root style-attribute mutation doesn't invalidate the rasterised tiles. The CSSOM
+    // updates and getComputedStyle returns the new values, but the composited image on
+    // screen still shows the pre-change theme — visible bug: Sepia → Dim leaves sepia
+    // background AND the text vanishes entirely.
+    //
+    // Fix: after the setAttribute, toggle `visibility` on :root to force Chromium to
+    // repaint the entire subtree. Restore is idempotent (unconditional `''`) and covered
+    // by BOTH requestAnimationFrame AND setTimeout so overlapping rapid switches don't
+    // capture a mid-flight `'hidden'` as the "previous" value (which the earlier version
+    // did and left the WebView stuck hidden), and a backgrounded WebView with RAF paused
+    // still gets restored via the setTimeout fallback.
+
+    @Test
+    fun `buildStyleInjectionJs sets root visibility hidden to force Chromium tile invalidation`() {
+        val js = ContinuousStyleInjector.buildStyleInjectionJs(FormattingPreferences())
+        assertTrue(
+            "must set documentElement visibility to 'hidden' after the attribute change — " +
+                "this is the ONLY reliable way to invalidate the raster tiles pre-raster keeps alive",
+            js.contains("de.style.visibility = 'hidden'"),
+        )
+    }
+
+    @Test
+    fun `buildStyleInjectionJs restores visibility unconditionally not via captured previous value`() {
+        // The earlier iteration read `var prevVis = de.style.visibility` and restored via
+        // `prevVis || ''`. That looked correct but broke under rapid theme switches: the
+        // second call captured `'hidden'` (mid-flight from the first still-pending toggle)
+        // and RAF restored to `'hidden'`, stuck-hiding the WebView. This assertion pins
+        // the always-empty-string restore so the regression can't return.
+        val js = ContinuousStyleInjector.buildStyleInjectionJs(FormattingPreferences())
+        assertTrue("restore sets visibility to '' unconditionally", js.contains("de.style.visibility = '';"))
+        assertFalse(
+            "must NOT restore via captured previous value — race with overlapping switches",
+            js.contains("prevVis"),
+        )
+    }
+
+    @Test
+    fun `buildStyleInjectionJs schedules restore via both requestAnimationFrame and setTimeout`() {
+        // requestAnimationFrame is paused for backgrounded WebViews; the setTimeout is the
+        // belt-and-suspenders fallback so a WV that never comes back on-screen isn't left
+        // stuck at `visibility: hidden`.
+        val js = ContinuousStyleInjector.buildStyleInjectionJs(FormattingPreferences())
+        assertTrue("schedules restore via requestAnimationFrame", js.contains("requestAnimationFrame(restore)"))
+        assertTrue("schedules restore via setTimeout fallback", js.contains("setTimeout(restore,"))
+    }
+
+    // ── night-mode !important survival ──────────────────────────────────────────
+    //
+    // ReadiumCSS night mode injects `background-color: transparent !important` on every
+    // `:not(a)` descendant of :root. The continuous-mode `<mark>`s are exactly that. Without
+    // inline `!important` on each mark's background the highlight paints transparent on Dark
+    // / DarkDim — the whole "highlights don't render on dark themes" bug. These assertions
+    // pin the `!important` marker on every mark-emitting JS path so a plain revert flips red.
+
+    @Test
+    fun `applyAnnotationHighlightsJs new-mark background carries !important`() {
+        val js = ContinuousStyleInjector.applyAnnotationHighlightsJs(
+            listOf(AnnotationHighlight("id", "text", "rgba(251,191,36,0.50)")),
+        )
+        // The new-mark assignment is `mark.style.cssText = 'background:' + ann.c + '<suffix>';`.
+        // The suffix, embedded verbatim into the JS string, is what carries `!important`.
+        assertTrue(
+            "new-mark cssText must contain '!important' — actual JS lacks it",
+            js.contains("'background:' + ann.c + ' !important;color:inherit;'"),
+        )
+    }
+
+    @Test
+    fun `applyAnnotationHighlightsJs existing-mark recolor carries !important`() {
+        // Updating the colour of an already-wrapped annotation must use the same `!important`
+        // suffix as the initial wrap. The `.style.background = ann.c` shortcut without
+        // `!important` was the original bug on this path.
+        val js = ContinuousStyleInjector.applyAnnotationHighlightsJs(
+            listOf(AnnotationHighlight("id", "text", "rgba(0,0,0,0.50)")),
+        )
+        assertTrue(
+            "existing-mark recolor must contain '!important' — actual JS lacks it",
+            js.contains("m.style.cssText = 'background:' + ann.c + ' !important;color:inherit;'"),
+        )
+    }
+
+    @Test
+    fun `applySearchHighlightsJs inactive-mark background carries !important`() {
+        val js = ContinuousStyleInjector.applySearchHighlightsJs(
+            inactiveTexts = listOf("query"),
+            inactiveCssColor = "rgba(245,166,35,0.30)",
+            activeText = null,
+            activeProgression = 0f,
+            activeCssColor = "rgba(245,166,35,0.30)",
+        )
+        assertTrue(
+            "inactive search mark cssText must contain '!important' — actual JS lacks it",
+            js.contains("'background:' + inactiveCss + ' !important;color:inherit;'"),
+        )
+    }
+
+    @Test
+    fun `applySearchHighlightsJs active-mark background carries !important`() {
+        val js = ContinuousStyleInjector.applySearchHighlightsJs(
+            inactiveTexts = listOf("query"),
+            inactiveCssColor = "rgba(245,166,35,0.30)",
+            activeText = "query",
+            activeProgression = 0.5f,
+            activeCssColor = "rgba(245,166,35,0.50)",
+        )
+        assertTrue(
+            "active search mark cssText must contain '!important' — actual JS lacks it",
+            js.contains("'background:' + activeCss + ' !important;color:inherit;'"),
+        )
+    }
+
+    @Test
+    fun `highlightTextJs readaloud-sentence mark background carries !important`() {
+        val js = ContinuousStyleInjector.highlightTextJs(
+            "the quick brown fox",
+            "rgba(56,189,248,0.50)",
+        )
+        // Kotlin-interpolated cssColor bakes into the JS literal — pin the whole background:...
+        // decl including the required `!important` marker.
+        assertTrue(
+            "readaloud-sentence mark cssText must contain '!important' — actual JS lacks it",
+            js.contains("'background:rgba(56,189,248,0.50) !important;color:inherit;'"),
+        )
+    }
+
     // ── highlight helpers (unchanged) ───────────────────────────────────────────
 
     @Test
@@ -401,11 +531,13 @@ class ContinuousStyleInjectorTest {
     }
 
     @Test
-    fun `existing marks are updated in-place via style-background`() {
+    fun `existing marks are updated in-place via cssText rewrite`() {
         val js = applyJs(AnnotationHighlight("ann1", "text", "#abc"))
         // Multi-paragraph annotations produce one <mark> per block — the in-place update path
-        // walks every mark that already shares the id and recolours each.
-        assertTrue(js.contains("m.style.background"))
+        // walks every mark that already shares the id and recolours each. cssText (not the
+        // .background shortcut) is required so the `!important` suffix survives ReadiumCSS
+        // night-mode's `background-color: transparent !important` on `:not(a)`.
+        assertTrue(js.contains("m.style.cssText"))
         // And it relocates only for NEW annotations (after the in-place branch returns).
         assertTrue(js.contains("existingAll"))
     }
