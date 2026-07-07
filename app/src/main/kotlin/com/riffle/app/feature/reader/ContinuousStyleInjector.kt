@@ -204,6 +204,25 @@ internal object ContinuousStyleInjector {
      * `readium-*-on` flags straight from this attribute via its `[style*=…]` selectors, so setting
      * the whole attribute string is enough to re-style without reloading the chapter.
      */
+    // Force Chromium to invalidate the composited raster tiles for this WebView after every live
+    // preference change. WebSettingsCompat.setOffscreenPreRaster(true) (#413) keeps rasterised
+    // tiles alive for off-screen chapters so the chapter-boundary blank-flash doesn't return; the
+    // side-effect is that a bare `:root` style-attribute mutation — how every live theme /
+    // typography change is applied — doesn't reliably invalidate those cached tiles. The CSSOM
+    // updates, ReadiumCSS re-cascades, `getComputedStyle` returns the new colours, but the
+    // composited image on screen still shows the pre-change theme: users see the OLD background
+    // survive a Sepia → Dim switch, with the text vanishing entirely because the stale sepia
+    // raster is now displaying dark-mode text against sepia bg with contrast the tile was never
+    // rasterised for.
+    //
+    // Toggling `visibility: hidden` on `:root`, then restoring on the next animation frame, is a
+    // paint-invalidating change that overrides the pre-raster tile cache. Restoration is
+    // unconditional (always `''`, never a captured "previous value") so overlapping fast switches
+    // can't leave the document stuck hidden — the earlier iteration captured the current visibility
+    // as the previous, which under rapid switches was a mid-flight `hidden` from an in-progress
+    // toggle, and RAF then restored to hidden and stuck-hid the WebView. A `setTimeout` belt-and-
+    // suspenders guards against `requestAnimationFrame` being throttled or paused (Chromium pauses
+    // RAF for backgrounded WebViews; off-screen stacked WebViews can hit that state).
     fun buildStyleInjectionJs(prefs: FormattingPreferences): String {
         val styleAttr = buildHtmlStyleAttr(prefs)
             .replace("\\", "\\\\")
@@ -211,6 +230,11 @@ internal object ContinuousStyleInjector {
         return """
             (function() {
                 document.documentElement.setAttribute('style', '$styleAttr');
+                var de = document.documentElement;
+                de.style.visibility = 'hidden';
+                var restore = function() { de.style.visibility = ''; };
+                requestAnimationFrame(restore);
+                setTimeout(restore, 100);
             })();
         """.trimIndent()
     }
@@ -348,7 +372,7 @@ internal object ContinuousStyleInjector {
                         }
                         var mark = document.createElement('mark');
                         mark.setAttribute('data-riffle-si', '');
-                        mark.style.cssText = 'background:' + inactiveCss + ';color:inherit;';
+                        mark.style.cssText = 'background:' + inactiveCss + '$HIGHLIGHT_INLINE_STYLE_SUFFIX';
                         if (!window.__riffleSafeWrap(range, mark)) {
                             // Cross-block match — skip past the END of this hit (a collapsed
                             // selection at range.end* makes window.find resume strictly after the
@@ -381,7 +405,7 @@ internal object ContinuousStyleInjector {
                     if (best) {
                         best.setAttribute('data-riffle-sa', '');
                         best.removeAttribute('data-riffle-si');
-                        best.style.background = activeCss;
+                        best.style.cssText = 'background:' + activeCss + '$HIGHLIGHT_INLINE_STYLE_SUFFIX';
                     }
                 }
                 if (sel) sel.removeAllRanges();
@@ -560,7 +584,7 @@ internal object ContinuousStyleInjector {
                     // per block. Update colour in-place across all of them and skip relocation.
                     var existingAll = document.querySelectorAll('[data-riffle-ann="' + ann.id + '"]');
                     if (existingAll.length > 0) {
-                        existingAll.forEach(function(m) { m.style.background = ann.c; });
+                        existingAll.forEach(function(m) { m.style.cssText = 'background:' + ann.c + '$HIGHLIGHT_INLINE_STYLE_SUFFIX'; });
                         var eg = document.querySelector('[data-riffle-note-glyph="' + ann.id + '"]');
                         if (ann.n && !eg) {
                             makeGlyph(ann.id, existingAll[0]);
@@ -580,7 +604,7 @@ internal object ContinuousStyleInjector {
                     ranges.forEach(function(range) {
                         var mark = document.createElement('mark');
                         mark.setAttribute('data-riffle-ann', ann.id);
-                        mark.style.cssText = 'background:' + ann.c + ';color:inherit;';
+                        mark.style.cssText = 'background:' + ann.c + '$HIGHLIGHT_INLINE_STYLE_SUFFIX';
                         if (!window.__riffleSafeWrap(range, mark)) return;
                         // The mark just split a text node — invalidate the flat index so the NEXT
                         // annotation's locateRanges() rebuilds against the updated DOM. The other
@@ -651,7 +675,7 @@ internal object ContinuousStyleInjector {
                 var range = sel.getRangeAt(0);
                 var mark = document.createElement('mark');
                 mark.id = '_riffle_hl';
-                mark.style.cssText = 'background:$cssColor;color:inherit;';
+                mark.style.cssText = '${highlightInlineStyle("$cssColor")}';
                 // Skip cross-block matches — extractContents would reparent block elements as
                 // inline children of <mark>, breaking the surrounding paragraphs.
                 if (!window.__riffleSafeWrap(range, mark)) { sel.removeAllRanges(); return; }

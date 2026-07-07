@@ -105,6 +105,20 @@ fun highlightAccentBarTemplate(): HtmlDecorationTemplate =
         """.trimIndent(),
     )
 
+// Every Riffle highlight paint — paginated decoration template AND every continuous-mode
+// <mark> the JS emitters inject (annotations, search, readaloud sentence) — must use this
+// exact suffix on its inline `background:` declaration. ReadiumCSS night mode injects
+// `background-color: transparent !important` on every `:not(a)` descendant of :root; without
+// the inline `!important` the highlight is nuked on Dark / DarkDim. Author-sheet `!important`
+// competes with inline `!important` on specificity; inline (1,0,0,0) beats the night selector
+// (0,2,1), so inline wins. `color:inherit` is a defensive echo of the same rule's `color`
+// clobber so highlighted text keeps the theme foreground.
+internal const val HIGHLIGHT_INLINE_STYLE_SUFFIX = " !important;color:inherit;"
+
+/** Inline `style` block for a Riffle highlight background. See [HIGHLIGHT_INLINE_STYLE_SUFFIX]. */
+internal fun highlightInlineStyle(cssColor: String): String =
+    "background:$cssColor$HIGHLIGHT_INLINE_STYLE_SUFFIX"
+
 /**
  * Template for [HighlightTintStyle]. Geometry mirrors Readium's built-in highlight (BOXES layout,
  * 1px horizontal padding, 3px corner radius) so positioning is unchanged; the only difference is the
@@ -115,7 +129,7 @@ fun highlightTintTemplate(): HtmlDecorationTemplate =
         layout = HtmlDecorationTemplate.Layout.BOXES,
         element = { decoration ->
             val tint = (decoration.style as? Decoration.Style.Tinted)?.tint ?: Color.YELLOW
-            """<div class="$HIGHLIGHT_TINT_CLASS" style="background-color: ${tint.toCss()} !important;"/>"""
+            """<div class="$HIGHLIGHT_TINT_CLASS" style="${highlightInlineStyle(tint.toCss())}"/>"""
         },
         stylesheet = """
             .$HIGHLIGHT_TINT_CLASS {
