@@ -260,6 +260,9 @@ class EpubReaderViewModel @Inject constructor(
             syncOnClose = { sid, ns, iid ->
                 annotationSyncController.syncOnClose(sid, ns, iid)
             },
+            mergeAfterEdit = { id, color, note ->
+                mergeAdjacentIntoHighlight(id, color, note)
+            },
         )
 
     private val itemId: String = checkNotNull(savedStateHandle["itemId"])
@@ -525,6 +528,18 @@ class EpubReaderViewModel @Inject constructor(
         annotationSession.openNoteReader(id, anchorRect)
 
     fun dismissHighlightActions() = annotationSession.dismissHighlightActions()
+
+    /** Note-editor target — non-null while the note-editor dialog is open. */
+    val noteEditorTarget: StateFlow<HighlightEditTarget?> = annotationSession.noteEditorTarget
+
+    fun openNoteEditor(id: String, anchorRect: IntRect) =
+        annotationSession.openNoteEditor(id, anchorRect)
+
+    fun commitNoteEdit(id: String, note: String?) {
+        viewModelScope.launch { annotationSession.commitNoteEdit(id, note) }
+    }
+
+    fun cancelNoteEdit() = annotationSession.cancelNoteEdit()
 
     // ---- Readaloud state delegations (state now lives in the session) -----------------------
 
@@ -1140,7 +1155,22 @@ class EpubReaderViewModel @Inject constructor(
             if (spineIndex < 0) return@launch
             val spineStep = (spineIndex + 1) * 2
             val html = readChapterHtml(spineIndex) ?: return@launch
-            val progression = selectionLocator.locations.progression ?: 0.0
+            val textBeforeCaptured = selectionLocator.text.before ?: ""
+            // Recover the selection's true within-chapter position via anchored text-search.
+            // Readium's `Locator.locations.progression` in paginated mode is the PAGE start, not
+            // the selection start — every highlight created on the same page would otherwise
+            // share the same stored progression, making the annotations-panel order (which sorts
+            // by progression + createdAt) print same-page highlights in creation order instead of
+            // reading order. See docs/superpowers/specs/2026-07-05-highlight-auto-merge-design.md.
+            val totalChars = com.riffle.core.domain.countBodyChars(org.jsoup.Jsoup.parse(html).body())
+            val locatedChar = if (totalChars > 0) {
+                locateSnippetInBody(html, snippet, textBeforeCaptured)
+            } else null
+            val progression = if (locatedChar != null) {
+                locatedChar.toDouble() / totalChars.toDouble()
+            } else {
+                selectionLocator.locations.progression ?: 0.0
+            }
 
             // Delete existing highlights in the same chapter that the new selection covers.
             val newAfter = selectionLocator.text.after ?: ""
@@ -1154,16 +1184,26 @@ class EpubReaderViewModel @Inject constructor(
                     }
                 }
 
-            val cfiRange = buildHighlightCfiRangeForSelection(spineStep, html, progression, snippet)
-                ?: return@launch
+            // NOTE: create-time auto-merge was removed after the 2026-07-05 initial rollout. It
+            // surprised users who wanted to keep a fresh selection separate from a same-colour
+            // neighbour (to recolour or note it differently). Merging now only fires at *edit*
+            // time via [mergeAdjacentIntoHighlight] — recolour to match or note-cleared. See
+            // docs/superpowers/specs/2026-07-05-highlight-auto-merge-design.md ("On note-clear").
+            val cfiRange = if (locatedChar != null) {
+                buildHighlightCfiRange(
+                    spineStep, html, locatedChar, (locatedChar + snippet.length - 1L).coerceAtLeast(locatedChar),
+                )
+            } else {
+                buildHighlightCfiRangeForSelection(spineStep, html, progression, snippet)
+            } ?: return@launch
             val created = annotationStore.createHighlight(
                 sourceId = sourceId,
                 itemId = itemId,
                 cfi = cfiRange,
                 textSnippet = snippet,
                 chapterHref = href,
-                textBefore = selectionLocator.text.before ?: "",
-                textAfter = selectionLocator.text.after ?: "",
+                textBefore = textBeforeCaptured,
+                textAfter = newAfter,
                 color = annotationSession.lastUsedHighlightColor.value.token,
                 spineIndex = spineIndex,
                 progression = progression,
@@ -1171,6 +1211,200 @@ class EpubReaderViewModel @Inject constructor(
             openHighlightActions(created.id, anchorRect)
             scheduleAnnotationSync()
             // observeHighlights re-emits → highlightRenders updates → the screen re-applies decorations.
+        }
+    }
+
+    /**
+     * Called by [AnnotationSession] after a recolour or note-clear that could newly make the row
+     * merge-eligible with a same-chapter neighbour (spec: 2026-07-05-highlight-auto-merge-design.md).
+     * Publication-dependent, so it lives here and is passed in as a factory param.
+     *
+     * [effectiveColor] and [effectiveNote] describe the post-mutation state so we don't race the
+     * DAO Flow emit that refreshes [AnnotationSession.annotations].
+     */
+    private suspend fun mergeAdjacentIntoHighlight(
+        id: String,
+        effectiveColor: String,
+        effectiveNote: String?,
+    ) {
+        logger.d(LogChannel.HighlightMerge) {
+            "edit-merge entry id=$id color=$effectiveColor note=${effectiveNote?.let { "'${it.take(20)}'" }}"
+        }
+        if (!effectiveNote.isNullOrBlank()) {
+            logger.d(LogChannel.HighlightMerge) { "edit-merge skip id=$id reason=note-still-present" }
+            return
+        }
+        val sourceId = annotationServerId ?: run {
+            logger.d(LogChannel.HighlightMerge) { "edit-merge skip id=$id reason=no-sourceId" }
+            return
+        }
+        val current = annotationSession.annotations.value.firstOrNull { it.id == id }
+        if (current == null) {
+            logger.d(LogChannel.HighlightMerge) {
+                "edit-merge skip id=$id reason=not-in-annotations poolSize=${annotationSession.annotations.value.size}"
+            }
+            return
+        }
+        if (current.type != AnnotationEntity.TYPE_HIGHLIGHT) {
+            logger.d(LogChannel.HighlightMerge) { "edit-merge skip id=$id reason=type=${current.type}" }
+            return
+        }
+        val pool = annotationSession.annotations.value
+        // Trial-run the merge WITHOUT touching the DB. Track the leftmost source highlight as we
+        // chain-absorb — its stored textBefore is our anchor for text-searching the actual char
+        // position of the merged range in the chapter DOM. We can NOT use the stored progression
+        // (or the CFI derived from it): Readium's `Locator.locations.progression` from a paginated
+        // selection is the PAGE's progression, not the selection's, so every highlight on the same
+        // page shares the same stored start position — useless for locating the merged range.
+        var trialAnchor = current.toMergeAnchor().copy(color = effectiveColor, note = null)
+        // Track leftmost + rightmost source highlights separately so we can text-search each
+        // endpoint's position in the DOM. We can NOT compute `endChar = leftmost.start + composed.length`
+        // because composed includes whitespace from Readium's textAfter (paragraph boundaries,
+        // NBSP, etc.) that our readable-text char model does NOT count — the composed string is
+        // longer than the actual DOM span for cross-paragraph merges.
+        var leftmost: MergeAnchor = trialAnchor
+        var rightmost: MergeAnchor = trialAnchor
+        val toAbsorb = mutableListOf<Annotation>()
+        val absorbedIds = mutableSetOf(id)
+        logger.d(LogChannel.HighlightMerge) {
+            "edit-merge anchor snippet='${trialAnchor.textSnippet.take(30)}' " +
+                "before='${trialAnchor.textBefore.takeLast(30)}' after='${trialAnchor.textAfter.take(30)}' " +
+                "poolSize=${pool.size}"
+        }
+        while (true) {
+            val match = findAnyMergeableNeighbor(trialAnchor, pool, excludeIds = absorbedIds) ?: break
+            logger.d(LogChannel.HighlightMerge) {
+                "edit-merge absorb neighborId=${match.neighbor.id} side=${match.side} " +
+                    "neighborSnippet='${match.neighbor.textSnippet.take(30)}'"
+            }
+            when (match.side) {
+                MergeSide.CANDIDATE_BEFORE_ANCHOR -> leftmost = match.neighbor.toMergeAnchor()
+                MergeSide.CANDIDATE_AFTER_ANCHOR -> rightmost = match.neighbor.toMergeAnchor()
+            }
+            toAbsorb += match.neighbor
+            absorbedIds += match.neighbor.id
+            trialAnchor = applyMerge(trialAnchor, match)
+        }
+        if (toAbsorb.isEmpty()) {
+            debugLogNoMergeReasons(trialAnchor, pool, id)
+            return
+        }
+        val html = readChapterHtml(trialAnchor.spineIndex)
+        if (html == null) {
+            logger.d(LogChannel.HighlightMerge) { "edit-merge FAIL id=$id reason=no-html spine=${trialAnchor.spineIndex}" }
+            return
+        }
+        val totalChars = com.riffle.core.domain.countBodyChars(org.jsoup.Jsoup.parse(html).body())
+        if (totalChars <= 0) {
+            logger.d(LogChannel.HighlightMerge) { "edit-merge FAIL id=$id reason=totalChars=0" }
+            return
+        }
+        // Locate both endpoints of the merged range in the chapter's readable text via anchored
+        // searches. Rightmost's endChar is *not* startChar + composed.length: composed carries
+        // Readium's raw whitespace between snippets (newlines at paragraph boundaries, NBSP, etc.)
+        // that our readable char model does not count.
+        val startChar = locateSnippetInBody(html, leftmost.textSnippet, leftmost.textBefore)
+        if (startChar == null) {
+            logger.d(LogChannel.HighlightMerge) {
+                "edit-merge FAIL id=$id reason=leftmost-not-locatable " +
+                    "snippet='${leftmost.textSnippet.take(30)}' " +
+                    "beforeTail='${leftmost.textBefore.takeLast(30)}'"
+            }
+            return
+        }
+        val rightmostStart = locateSnippetInBody(html, rightmost.textSnippet, rightmost.textBefore)
+        if (rightmostStart == null) {
+            logger.d(LogChannel.HighlightMerge) {
+                "edit-merge FAIL id=$id reason=rightmost-not-locatable " +
+                    "snippet='${rightmost.textSnippet.take(30)}' " +
+                    "beforeTail='${rightmost.textBefore.takeLast(30)}'"
+            }
+            return
+        }
+        val endChar = (rightmostStart + rightmost.textSnippet.length).coerceAtMost(totalChars)
+        if (endChar <= startChar) {
+            logger.d(LogChannel.HighlightMerge) {
+                "edit-merge FAIL id=$id reason=invalid-range startChar=$startChar endChar=$endChar"
+            }
+            return
+        }
+        val domSnippet = readableTextBetween(html, startChar, endChar)
+        if (domSnippet.isNullOrEmpty()) {
+            logger.d(LogChannel.HighlightMerge) { "edit-merge FAIL id=$id reason=dom-text-empty startChar=$startChar endChar=$endChar" }
+            return
+        }
+        // Safety: our composed snippet and the DOM text must agree modulo whitespace normalisation.
+        // If they diverge, the adjacency check false-matched (probably a suffix-of-context
+        // coincidence) — abort rather than commit a broken merge.
+        if (!snippetsAgreeIgnoringWhitespace(domSnippet, trialAnchor.textSnippet)) {
+            logger.d(LogChannel.HighlightMerge) {
+                "edit-merge FAIL id=$id reason=dom-mismatch " +
+                    "dom='${domSnippet.take(60)}' composed='${trialAnchor.textSnippet.take(60)}'"
+            }
+            return
+        }
+        val spineStep = (trialAnchor.spineIndex + 1) * 2
+        val cfiRange = buildHighlightCfiRange(spineStep, html, startChar, endChar - 1L)
+        if (cfiRange == null) {
+            logger.d(LogChannel.HighlightMerge) { "edit-merge FAIL id=$id reason=cfi-build-null" }
+            return
+        }
+        val storedProgression = startChar.toDouble() / totalChars.toDouble()
+        // All computations succeeded — commit: delete neighbours, then replace the anchor row.
+        toAbsorb.forEach { annotationStore.delete(it.id) }
+        annotationStore.delete(id)
+        val created = annotationStore.createHighlight(
+            sourceId = sourceId,
+            itemId = itemId,
+            cfi = cfiRange,
+            textSnippet = domSnippet,
+            chapterHref = trialAnchor.chapterHref,
+            textBefore = trialAnchor.textBefore,
+            textAfter = trialAnchor.textAfter,
+            color = trialAnchor.color,
+            spineIndex = trialAnchor.spineIndex,
+            progression = storedProgression,
+        )
+        logger.d(LogChannel.HighlightMerge) {
+            "edit-merge done anchorReplaced=$id newId=${created.id} absorbedCount=${toAbsorb.size} " +
+                "domLen=${domSnippet.length} startChar=$startChar"
+        }
+    }
+
+    /**
+     * Content equality ignoring all whitespace. The composed snippet carries Readium's captured
+     * whitespace between source snippets (single space, NBSP, `\n` at paragraph boundaries) but
+     * the DOM extract's whitespace comes from the readable char model, which does not count
+     * paragraph breaks as chars. Stripping whitespace on both sides compares just the letters —
+     * enough to catch false-positive adjacency matches (extra CONTENT between the endpoints)
+     * without tripping on the paragraph-break case.
+     */
+    private fun snippetsAgreeIgnoringWhitespace(a: String, b: String): Boolean {
+        val na = a.filterNot { it.isWhitespace() }
+        val nb = b.filterNot { it.isWhitespace() }
+        return na.equals(nb, ignoreCase = true)
+    }
+
+    /** Per-neighbour reason line, so a "why no merge?" can be answered from a single logcat grep. */
+    private fun debugLogNoMergeReasons(anchor: MergeAnchor, pool: List<Annotation>, anchorId: String) {
+        val sameChapterOthers = pool.filter { it.id != anchorId && it.spineIndex == anchor.spineIndex }
+        logger.d(LogChannel.HighlightMerge) {
+            "edit-merge no-neighbor anchorId=$anchorId sameChapterOthers=${sameChapterOthers.size}"
+        }
+        for (n in sameChapterOthers) {
+            val reason = when {
+                n.type != AnnotationEntity.TYPE_HIGHLIGHT -> "type=${n.type}"
+                !anchor.color.equals(n.color, ignoreCase = true) -> "color-mismatch anchor=${anchor.color} n=${n.color}"
+                !n.note.isNullOrBlank() -> "neighbor-has-note"
+                findAdjacency(anchor, n) == null -> "not-adjacent " +
+                    "anchorAfterHead='${anchor.textAfter.take(40)}' " +
+                    "anchorBeforeTail='${anchor.textBefore.takeLast(40)}' " +
+                    "nSnippet='${n.textSnippet.take(30)}' " +
+                    "nBeforeTail='${n.textBefore.takeLast(40)}' " +
+                    "nAfterHead='${n.textAfter.take(40)}'"
+                else -> "should-have-matched?"
+            }
+            logger.d(LogChannel.HighlightMerge) { "edit-merge candidate id=${n.id} reason=$reason" }
         }
     }
 

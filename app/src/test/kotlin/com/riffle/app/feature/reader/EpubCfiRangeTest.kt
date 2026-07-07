@@ -83,6 +83,65 @@ class EpubCfiRangeTest {
     }
 
     @Test
+    fun `readableTextBetween returns the exact readable substring across nodes`() {
+        // body readable chars: "Hello world"(0..10) + "Second paragraph"(11..26)
+        assertEquals("Hello", readableTextBetween(simpleHtml, 0, 5))
+        assertEquals("world", readableTextBetween(simpleHtml, 6, 11))
+        // spanning both paragraphs — jsoup concatenation is contiguous per readable-node walk.
+        assertEquals("worldSecond", readableTextBetween(simpleHtml, 6, 17))
+    }
+
+    @Test
+    fun `readableTextBetween returns null for empty or degenerate ranges`() {
+        assertNull(readableTextBetween(simpleHtml, 0, 0))
+        assertNull(readableTextBetween(simpleHtml, 5, 5))
+        assertNull(readableTextBetween(simpleHtml, 5, 3))
+    }
+
+    @Test
+    fun `readableBodyText concatenates all readable text nodes in order`() {
+        assertEquals("Hello worldSecond paragraph", readableBodyText(simpleHtml))
+    }
+
+    /**
+     * Regression: locateSnippetInBody uses textBefore's tail as a disambiguating anchor when the
+     * snippet appears in multiple places. Without the anchor we'd fall back to first-occurrence
+     * (the wrong position for a highlight that lives on a later match).
+     */
+    @Test
+    fun `locateSnippetInBody uses textBefore anchor to pick the right occurrence`() {
+        val html = """
+            <html><body>
+                <p>Once upon a time</p>
+                <p>She said hello world and smiled</p>
+                <p>He whispered hello world softly</p>
+            </body></html>
+        """.trimIndent()
+        // readable stream: "Once upon a timeShe said hello world and smiledHe whispered hello world softly"
+        val second = locateSnippetInBody(html, snippet = "hello world", before = "He whispered ")
+        val body = readableBodyText(html)
+        assertEquals(body.indexOf("hello world", startIndex = body.indexOf("hello world") + 1).toLong(), second)
+    }
+
+    @Test
+    fun `locateSnippetInBody falls back to unique-only match when anchor is empty`() {
+        val html = "<html><body><p>Hello world</p><p>Second paragraph</p></body></html>"
+        assertEquals(0L, locateSnippetInBody(html, snippet = "Hello world", before = ""))
+    }
+
+    @Test
+    fun `locateSnippetInBody returns null when snippet is ambiguous and anchor doesnt disambiguate`() {
+        val html = "<html><body><p>hello world one</p><p>hello world two</p></body></html>"
+        assertNull(locateSnippetInBody(html, snippet = "hello world", before = ""))
+    }
+
+    @Test
+    fun `locateSnippetInBody returns null when snippet not in body`() {
+        val html = "<html><body><p>Hello world</p></body></html>"
+        assertNull(locateSnippetInBody(html, snippet = "goodbye", before = ""))
+    }
+
+    @Test
     fun `selection with blank selected text yields null`() {
         assertNull(
             buildHighlightCfiRangeForSelection(

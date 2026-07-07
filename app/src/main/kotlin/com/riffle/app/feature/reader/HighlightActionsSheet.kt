@@ -173,7 +173,7 @@ fun HighlightActionsPopup(
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
                             TextButton(
-                                onClick = { onDismiss(); onOpenNoteEditor() },
+                                onClick = { onOpenNoteEditor() },
                                 modifier = Modifier.align(Alignment.End),
                             ) {
                                 Text("Edit")
@@ -187,7 +187,7 @@ fun HighlightActionsPopup(
                             .fillMaxWidth()
                             .clickable {
                                 when {
-                                    note == null -> { onDismiss(); onOpenNoteEditor() }
+                                    note == null -> onOpenNoteEditor()
                                     noteExpanded -> noteExpanded = false
                                     else -> noteExpanded = true
                                 }
@@ -218,7 +218,7 @@ fun HighlightActionsPopup(
                                     style = MaterialTheme.typography.bodyMedium,
                                 )
                                 TextButton(
-                                    onClick = { onDismiss(); onOpenNoteEditor() },
+                                    onClick = { onOpenNoteEditor() },
                                     modifier = Modifier.align(Alignment.End),
                                 ) {
                                     Text("Edit")

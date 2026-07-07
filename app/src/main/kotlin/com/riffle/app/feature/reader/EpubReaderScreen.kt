@@ -279,6 +279,7 @@ fun EpubReaderScreen(
     val isCurrentPageBookmarked by viewModel.isCurrentPageBookmarked.collectAsState()
     val highlightRenders by viewModel.highlightRenders.collectAsState()
     val highlightToEdit by viewModel.highlightToEdit.collectAsState()
+    val noteEditorTarget by viewModel.noteEditorTarget.collectAsState()
     val railSegments by viewModel.railSegments.collectAsState()
     val readaloudAvailable by viewModel.readaloudAvailable.collectAsState()
     val readaloudVisible by viewModel.readaloudVisible.collectAsState()
@@ -453,9 +454,13 @@ fun EpubReaderScreen(
                         highlightRenders = highlightRenders,
                         onHighlight = viewModel::createHighlight,
                         highlightToEdit = highlightToEdit,
+                        noteEditorTarget = noteEditorTarget,
                         onOpenHighlightActions = viewModel::openHighlightActions,
                         onOpenNoteReader = viewModel::openNoteReader,
                         onDismissHighlightActions = viewModel::dismissHighlightActions,
+                        onOpenNoteEditor = viewModel::openNoteEditor,
+                        onCommitNoteEdit = viewModel::commitNoteEdit,
+                        onCancelNoteEdit = viewModel::cancelNoteEdit,
                         onRecolorHighlight = viewModel::recolorHighlight,
                         onDeleteHighlight = viewModel::deleteHighlight,
                         onUpdateHighlightNote = viewModel::updateHighlightNote,
@@ -1164,9 +1169,13 @@ private fun EpubNavigatorView(
     highlightRenders: List<EpubReaderViewModel.HighlightRender>,
     onHighlight: (Locator, androidx.compose.ui.unit.IntRect) -> Unit,
     highlightToEdit: EpubReaderViewModel.HighlightEditTarget?,
+    noteEditorTarget: EpubReaderViewModel.HighlightEditTarget?,
     onOpenHighlightActions: (String, androidx.compose.ui.unit.IntRect) -> Unit,
     onOpenNoteReader: (String, androidx.compose.ui.unit.IntRect) -> Unit,
     onDismissHighlightActions: () -> Unit,
+    onOpenNoteEditor: (String, androidx.compose.ui.unit.IntRect) -> Unit,
+    onCommitNoteEdit: (String, String?) -> Unit,
+    onCancelNoteEdit: () -> Unit,
     onRecolorHighlight: (String, HighlightColor) -> Unit,
     onDeleteHighlight: (String) -> Unit,
     onUpdateHighlightNote: (String, String?) -> Unit,
@@ -2527,7 +2536,6 @@ private fun EpubNavigatorView(
         // Highlight actions sheet — opens when the user taps an existing highlight or immediately
         // after creating one. Floats as an overlay inside the reader so it has access to the
         // reader's BoxWithConstraints scope and sits above the reader content.
-        var noteEditorTarget by remember { mutableStateOf<EpubReaderViewModel.HighlightEditTarget?>(null) }
         val editTarget = highlightToEdit
         if (editTarget != null) {
             val current = highlightRenders.firstOrNull { it.id == editTarget.id }
@@ -2537,9 +2545,7 @@ private fun EpubNavigatorView(
                 note = current?.note,
                 onPick = { color -> onRecolorHighlight(editTarget.id, color) },
                 onDelete = { onDeleteHighlight(editTarget.id) },
-                onOpenNoteEditor = {
-                    noteEditorTarget = editTarget
-                },
+                onOpenNoteEditor = { onOpenNoteEditor(editTarget.id, editTarget.anchorRect) },
                 onDismiss = onDismissHighlightActions,
                 noteOnly = editTarget.noteOnly,
                 showOpenInBook = showOpenInBook,
@@ -2551,11 +2557,8 @@ private fun EpubNavigatorView(
             val current = highlightRenders.firstOrNull { it.id == noteTarget.id }
             NoteEditorDialog(
                 initialNote = current?.note ?: "",
-                onConfirm = { text ->
-                    onUpdateHighlightNote(noteTarget.id, text.takeIf { it.isNotBlank() })
-                    noteEditorTarget = null
-                },
-                onDismiss = { noteEditorTarget = null },
+                onConfirm = { text -> onCommitNoteEdit(noteTarget.id, text.takeIf { it.isNotBlank() }) },
+                onDismiss = onCancelNoteEdit,
             )
         }
     }
