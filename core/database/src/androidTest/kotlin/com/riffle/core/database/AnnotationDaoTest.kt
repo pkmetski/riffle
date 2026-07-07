@@ -64,7 +64,7 @@ class AnnotationDaoTest {
 
     private fun bookmark(
         id: String,
-        serverId: String = "abs1",
+        sourceId: String = "abs1",
         itemId: String = "item1",
         cfi: String = "epubcfi(/6/4!/4/2,/1:0)",
         createdAt: Long = 1000L,
@@ -72,7 +72,7 @@ class AnnotationDaoTest {
         deleted: Boolean = false,
     ) = AnnotationEntity(
         id = id,
-        serverId = serverId,
+        sourceId = sourceId,
         itemId = itemId,
         type = AnnotationEntity.TYPE_BOOKMARK,
         cfi = cfi,
@@ -305,11 +305,11 @@ class AnnotationDaoTest {
     // Book D: highlight but soft-deleted (excluded).
     @Test
     fun observeBooksWithHighlights_groupsByItemAndSortsByLatestUpdatedAt() = runTest {
-        dao.upsert(highlight("a1", serverId = "abs1", itemId = "A", createdAt = 100))
-        dao.upsert(highlight("a2", serverId = "abs1", itemId = "A", createdAt = 200))
-        dao.upsert(highlight("b1", serverId = "abs1", itemId = "B", createdAt = 300))
-        dao.upsert(bookmark("c1", serverId = "abs1", itemId = "C", createdAt = 400))
-        dao.upsert(highlight("d1", serverId = "abs1", itemId = "D", createdAt = 500, deleted = true))
+        dao.upsert(highlight("a1", sourceId = "abs1", itemId = "A", createdAt = 100))
+        dao.upsert(highlight("a2", sourceId = "abs1", itemId = "A", createdAt = 200))
+        dao.upsert(highlight("b1", sourceId = "abs1", itemId = "B", createdAt = 300))
+        dao.upsert(bookmark("c1", sourceId = "abs1", itemId = "C", createdAt = 400))
+        dao.upsert(highlight("d1", sourceId = "abs1", itemId = "D", createdAt = 500, deleted = true))
 
         val result = dao.observeBooksWithHighlights("abs1").first()
 
@@ -325,8 +325,8 @@ class AnnotationDaoTest {
     // A second server's highlights must not leak into the first server's list.
     @Test
     fun observeBooksWithHighlights_isScopedToServer() = runTest {
-        dao.upsert(highlight("a1", serverId = "abs1", itemId = "A", createdAt = 100))
-        dao.upsert(highlight("x1", serverId = "abs2", itemId = "X", createdAt = 100))
+        dao.upsert(highlight("a1", sourceId = "abs1", itemId = "A", createdAt = 100))
+        dao.upsert(highlight("x1", sourceId = "abs2", itemId = "X", createdAt = 100))
 
         val result = dao.observeBooksWithHighlights("abs1").first()
 

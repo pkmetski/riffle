@@ -51,7 +51,7 @@ class MigrationTest {
     fun migration2To3() {
         helper.createDatabase(TEST_DB, 2).use { db ->
             db.execSQL(
-                "INSERT INTO libraries (id, name, mediaType, serverId) VALUES ('lib1', 'Books', 'book', 's1')"
+                "INSERT INTO libraries (id, name, mediaType, sourceId) VALUES ('lib1', 'Books', 'book', 's1')"
             )
             db.execSQL(
                 "INSERT INTO library_items (id, libraryId, title, author, coverUrl, readingProgress, isDownloaded) VALUES ('item1', 'lib1', 'Dune', 'Herbert', NULL, 0.5, 0)"
@@ -60,7 +60,7 @@ class MigrationTest {
 
         val db = helper.runMigrationsAndValidate(TEST_DB, 3, true, RiffleDatabase.MIGRATION_2_3)
 
-        db.query("SELECT id, name, mediaType, serverId, isUnsupported FROM libraries WHERE id = 'lib1'").use { cursor ->
+        db.query("SELECT id, name, mediaType, sourceId, isUnsupported FROM libraries WHERE id = 'lib1'").use { cursor ->
             assertEquals(1, cursor.count)
             cursor.moveToFirst()
             assertEquals("lib1", cursor.getString(0))
@@ -85,13 +85,13 @@ class MigrationTest {
     fun migration3To4() {
         helper.createDatabase(TEST_DB, 3).use { db ->
             db.execSQL(
-                "INSERT INTO libraries (id, name, mediaType, serverId, isUnsupported) VALUES ('lib1', 'Books', 'book', 's1', 0)"
+                "INSERT INTO libraries (id, name, mediaType, sourceId, isUnsupported) VALUES ('lib1', 'Books', 'book', 's1', 0)"
             )
         }
 
         val db = helper.runMigrationsAndValidate(TEST_DB, 4, true, RiffleDatabase.MIGRATION_3_4)
 
-        db.query("SELECT id, name, mediaType, serverId, isUnsupported FROM libraries WHERE id = 'lib1'").use { cursor ->
+        db.query("SELECT id, name, mediaType, sourceId, isUnsupported FROM libraries WHERE id = 'lib1'").use { cursor ->
             assertEquals(1, cursor.count)
             cursor.moveToFirst()
             assertEquals("lib1", cursor.getString(0))
@@ -501,7 +501,7 @@ class MigrationTest {
         val db = helper.runMigrationsAndValidate(TEST_DB, 19, true, RiffleDatabase.MIGRATION_18_19)
 
         // Pre-existing rows are attributed to the active server.
-        db.query("SELECT serverId, itemId, cfi, localUpdatedAt FROM reading_positions ORDER BY itemId").use { cursor ->
+        db.query("SELECT sourceId, itemId, cfi, localUpdatedAt FROM reading_positions ORDER BY itemId").use { cursor ->
             assertEquals(2, cursor.count)
             cursor.moveToFirst()
             assertEquals("s1", cursor.getString(0))
@@ -517,14 +517,14 @@ class MigrationTest {
 
         // Different servers can now hold distinct positions for the same itemId.
         db.execSQL(
-            "INSERT INTO reading_positions (serverId, itemId, cfi, localUpdatedAt) " +
+            "INSERT INTO reading_positions (sourceId, itemId, cfi, localUpdatedAt) " +
                 "VALUES ('s2', 'item-1', 'epubcfi(/6/4!/4/1:999)', 99999)"
         )
-        db.query("SELECT cfi FROM reading_positions WHERE serverId = 's1' AND itemId = 'item-1'").use { cursor ->
+        db.query("SELECT cfi FROM reading_positions WHERE sourceId = 's1' AND itemId = 'item-1'").use { cursor ->
             cursor.moveToFirst()
             assertEquals("epubcfi(/6/4!/4/1:0)", cursor.getString(0))
         }
-        db.query("SELECT cfi FROM reading_positions WHERE serverId = 's2' AND itemId = 'item-1'").use { cursor ->
+        db.query("SELECT cfi FROM reading_positions WHERE sourceId = 's2' AND itemId = 'item-1'").use { cursor ->
             cursor.moveToFirst()
             assertEquals("epubcfi(/6/4!/4/1:999)", cursor.getString(0))
         }
@@ -532,11 +532,11 @@ class MigrationTest {
         // FK cascade: deleting a server wipes that server's positions but leaves others untouched.
         db.execSQL("PRAGMA foreign_keys = ON")
         db.execSQL("DELETE FROM servers WHERE id = 's2'")
-        db.query("SELECT COUNT(*) FROM reading_positions WHERE serverId = 's2'").use { cursor ->
+        db.query("SELECT COUNT(*) FROM reading_positions WHERE sourceId = 's2'").use { cursor ->
             cursor.moveToFirst()
             assertEquals(0, cursor.getInt(0))
         }
-        db.query("SELECT COUNT(*) FROM reading_positions WHERE serverId = 's1'").use { cursor ->
+        db.query("SELECT COUNT(*) FROM reading_positions WHERE sourceId = 's1'").use { cursor ->
             cursor.moveToFirst()
             assertEquals(2, cursor.getInt(0))
         }
@@ -683,12 +683,12 @@ class MigrationTest {
         // A readaloud can hold multiple ABS-side rows — ebook entry + audiobook stub.
         db.execSQL(
             "INSERT INTO readaloud_links " +
-                "(absServerId, absLibraryItemId, storytellerServerId, storytellerBookId, state, userConfirmed, createdAt, updatedAt) " +
+                "(absSourceId, absLibraryItemId, storytellerSourceId, storytellerBookId, state, userConfirmed, createdAt, updatedAt) " +
                 "VALUES ('abs1', 'item-ebook', 'st1', 'book-42', 'CONFIRMED', 0, 1000, 1000)"
         )
         db.execSQL(
             "INSERT INTO readaloud_links " +
-                "(absServerId, absLibraryItemId, storytellerServerId, storytellerBookId, state, userConfirmed, createdAt, updatedAt) " +
+                "(absSourceId, absLibraryItemId, storytellerSourceId, storytellerBookId, state, userConfirmed, createdAt, updatedAt) " +
                 "VALUES ('abs1', 'item-audio', 'st1', 'book-42', 'CONFIRMED', 0, 1100, 1100)"
         )
         db.query("SELECT COUNT(*) FROM readaloud_links WHERE storytellerBookId = 'book-42'").use { cursor ->
@@ -696,13 +696,13 @@ class MigrationTest {
             assertEquals(2, cursor.getInt(0))
         }
 
-        // Primary key is the ABS side: same (absServerId, absLibraryItemId) collides via REPLACE.
+        // Primary key is the ABS side: same (absSourceId, absLibraryItemId) collides via REPLACE.
         db.execSQL(
             "INSERT OR REPLACE INTO readaloud_links " +
-                "(absServerId, absLibraryItemId, storytellerServerId, storytellerBookId, state, userConfirmed, createdAt, updatedAt) " +
+                "(absSourceId, absLibraryItemId, storytellerSourceId, storytellerBookId, state, userConfirmed, createdAt, updatedAt) " +
                 "VALUES ('abs1', 'item-ebook', 'st1', 'book-42', 'CONFIRMED', 1, 1000, 2000)"
         )
-        db.query("SELECT storytellerBookId, userConfirmed, updatedAt FROM readaloud_links WHERE absServerId = 'abs1' AND absLibraryItemId = 'item-ebook'").use { cursor ->
+        db.query("SELECT storytellerBookId, userConfirmed, updatedAt FROM readaloud_links WHERE absSourceId = 'abs1' AND absLibraryItemId = 'item-ebook'").use { cursor ->
             assertEquals(1, cursor.count)
             cursor.moveToFirst()
             assertEquals("book-42", cursor.getString(0))
@@ -725,7 +725,7 @@ class MigrationTest {
         )
         db.execSQL(
             "INSERT INTO readaloud_links " +
-                "(absServerId, absLibraryItemId, storytellerServerId, storytellerBookId, state, userConfirmed, createdAt, updatedAt) " +
+                "(absSourceId, absLibraryItemId, storytellerSourceId, storytellerBookId, state, userConfirmed, createdAt, updatedAt) " +
                 "VALUES ('abs2', 'item-1', 'st1', 'book-99', 'CONFIRMED', 0, 5000, 5000)"
         )
         db.execSQL("DELETE FROM servers WHERE id = 'st1'")
@@ -749,7 +749,7 @@ class MigrationTest {
             // A pre-existing readaloud_link must survive untouched.
             db.execSQL(
                 "INSERT INTO readaloud_links " +
-                    "(absServerId, absLibraryItemId, storytellerServerId, storytellerBookId, state, userConfirmed, createdAt, updatedAt) " +
+                    "(absSourceId, absLibraryItemId, storytellerSourceId, storytellerBookId, state, userConfirmed, createdAt, updatedAt) " +
                     "VALUES ('abs1', 'item-ebook', 'st1', 'book-42', 'CONFIRMED', 1, 1000, 1000)"
             )
         }
@@ -766,7 +766,7 @@ class MigrationTest {
             assertEquals(0, cursor.getInt(0))
         }
         // The pre-existing link is preserved across the migration.
-        db.query("SELECT userConfirmed FROM readaloud_links WHERE absServerId = 'abs1' AND absLibraryItemId = 'item-ebook'").use { cursor ->
+        db.query("SELECT userConfirmed FROM readaloud_links WHERE absSourceId = 'abs1' AND absLibraryItemId = 'item-ebook'").use { cursor ->
             assertEquals(1, cursor.count)
             cursor.moveToFirst()
             assertEquals(1, cursor.getInt(0))
@@ -775,12 +775,12 @@ class MigrationTest {
         // Candidates can be written with a score; PK is the full (readaloud, ABS item) pair.
         db.execSQL(
             "INSERT INTO readaloud_candidates " +
-                "(storytellerServerId, storytellerBookId, absServerId, absLibraryItemId, score) " +
+                "(storytellerSourceId, storytellerBookId, absSourceId, absLibraryItemId, score) " +
                 "VALUES ('st1', 'book-7', 'abs1', 'cand-a', 0.91)"
         )
         db.execSQL(
             "INSERT INTO readaloud_candidates " +
-                "(storytellerServerId, storytellerBookId, absServerId, absLibraryItemId, score) " +
+                "(storytellerSourceId, storytellerBookId, absSourceId, absLibraryItemId, score) " +
                 "VALUES ('st1', 'book-7', 'abs1', 'cand-b', 0.88)"
         )
         db.query("SELECT score FROM readaloud_candidates WHERE storytellerBookId = 'book-7' AND absLibraryItemId = 'cand-a'").use { cursor ->
@@ -797,12 +797,12 @@ class MigrationTest {
         // coexist for the same book because the ABS ids are part of the key.
         db.execSQL(
             "INSERT INTO readaloud_dismissals " +
-                "(storytellerServerId, storytellerBookId, scope, absServerId, absLibraryItemId) " +
+                "(storytellerSourceId, storytellerBookId, scope, absSourceId, absLibraryItemId) " +
                 "VALUES ('st1', 'book-9', 'BOOK', '', '')"
         )
         db.execSQL(
             "INSERT INTO readaloud_dismissals " +
-                "(storytellerServerId, storytellerBookId, scope, absServerId, absLibraryItemId) " +
+                "(storytellerSourceId, storytellerBookId, scope, absSourceId, absLibraryItemId) " +
                 "VALUES ('st1', 'book-9', 'CANDIDATE', 'abs1', 'cand-x')"
         )
         db.query("SELECT COUNT(*) FROM readaloud_dismissals WHERE storytellerBookId = 'book-9'").use { cursor ->
@@ -840,7 +840,7 @@ class MigrationTest {
             )
             db.execSQL(
                 "INSERT INTO readaloud_links " +
-                    "(absServerId, absLibraryItemId, storytellerServerId, storytellerBookId, state, userConfirmed, createdAt, updatedAt) " +
+                    "(absSourceId, absLibraryItemId, storytellerSourceId, storytellerBookId, state, userConfirmed, createdAt, updatedAt) " +
                     "VALUES ('abs1', 'item1', 'st1', 'book-1', 'CONFIRMED', 0, 1000, 1000)"
             )
         }
@@ -915,11 +915,11 @@ class MigrationTest {
         // tombstone flag — writes and reads back intact.
         db.execSQL(
             "INSERT INTO annotations " +
-                "(id, serverId, itemId, type, cfi, color, note, textSnippet, chapterHref, createdAt, updatedAt, originDeviceId, lastModifiedByDeviceId, deleted) " +
+                "(id, sourceId, itemId, type, cfi, color, note, textSnippet, chapterHref, createdAt, updatedAt, originDeviceId, lastModifiedByDeviceId, deleted) " +
                 "VALUES ('uuid-1', 'abs1', 'item-1', 'HIGHLIGHT', 'epubcfi(/6/4!/4/2,/1:0,/1:10)', 'yellow', NULL, 'hello world', 'chap01.xhtml', 1000, 1000, 'device-A', 'device-A', 0)"
         )
         db.query(
-            "SELECT serverId, itemId, type, cfi, color, note, textSnippet, chapterHref, originDeviceId, lastModifiedByDeviceId, deleted " +
+            "SELECT sourceId, itemId, type, cfi, color, note, textSnippet, chapterHref, originDeviceId, lastModifiedByDeviceId, deleted " +
                 "FROM annotations WHERE id = 'uuid-1'"
         ).use { cursor ->
             assertEquals(1, cursor.count)
@@ -940,7 +940,7 @@ class MigrationTest {
         // A note (nullable column populated) coexists with the highlight.
         db.execSQL(
             "INSERT INTO annotations " +
-                "(id, serverId, itemId, type, cfi, color, note, textSnippet, chapterHref, createdAt, updatedAt, originDeviceId, lastModifiedByDeviceId, deleted) " +
+                "(id, sourceId, itemId, type, cfi, color, note, textSnippet, chapterHref, createdAt, updatedAt, originDeviceId, lastModifiedByDeviceId, deleted) " +
                 "VALUES ('uuid-2', 'abs1', 'item-1', 'HIGHLIGHT', 'epubcfi(/6/4!/6/2,/1:0,/1:4)', 'yellow', 'my thought', 'word', 'chap01.xhtml', 1100, 1100, 'device-A', 'device-A', 0)"
         )
         db.query("SELECT note FROM annotations WHERE id = 'uuid-2'").use { cursor ->
@@ -957,11 +957,11 @@ class MigrationTest {
         }
     }
 
-    // 25 → 26: key Library Items by (serverId, itemId) end-to-end (issue #81, ADR 0025).
-    // `library_items` gains a `serverId` column + composite PK (serverId, id), backfilled from
-    // each item's owning library (libraryId → libraries.serverId). The series_items /
-    // collection_items join tables and book_formatting_preferences gain `serverId` in their PKs,
-    // backfilled by resolving itemId → library_items → libraries.serverId. This lets two
+    // 25 → 26: key Library Items by (sourceId, itemId) end-to-end (issue #81, ADR 0025).
+    // `library_items` gains a `sourceId` column + composite PK (sourceId, id), backfilled from
+    // each item's owning library (libraryId → libraries.sourceId). The series_items /
+    // collection_items join tables and book_formatting_preferences gain `sourceId` in their PKs,
+    // backfilled by resolving itemId → library_items → libraries.sourceId. This lets two
     // Storyteller Servers each hold a book "1" without collision. Orphan rows whose item/library
     // no longer resolves to a Server are dropped.
     @Test
@@ -976,8 +976,8 @@ class MigrationTest {
                 "INSERT INTO servers (id, url, isActive, insecureConnectionAllowed, username, serverType) " +
                     "VALUES ('s2', 'http://story-b', 0, 0, 'plamen', 'STORYTELLER')"
             )
-            db.execSQL("INSERT INTO libraries (id, name, mediaType, serverId, isUnsupported) VALUES ('libA', 'Books A', 'book', 's1', 0)")
-            db.execSQL("INSERT INTO libraries (id, name, mediaType, serverId, isUnsupported) VALUES ('libB', 'Books B', 'book', 's2', 0)")
+            db.execSQL("INSERT INTO libraries (id, name, mediaType, sourceId, isUnsupported) VALUES ('libA', 'Books A', 'book', 's1', 0)")
+            db.execSQL("INSERT INTO libraries (id, name, mediaType, sourceId, isUnsupported) VALUES ('libB', 'Books B', 'book', 's2', 0)")
 
             // Pre-migration the PK is itemId alone, so the two servers' book "1" can't both exist
             // yet; seed item "1" on s1 and item "2" on s2.
@@ -1007,8 +1007,8 @@ class MigrationTest {
 
         val db = helper.runMigrationsAndValidate(TEST_DB, 26, true, RiffleDatabase.MIGRATION_25_26)
 
-        // library_items: serverId backfilled from the owning library, data preserved.
-        db.query("SELECT serverId, libraryId, title, readingProgress FROM library_items WHERE id = '1'").use { cursor ->
+        // library_items: sourceId backfilled from the owning library, data preserved.
+        db.query("SELECT sourceId, libraryId, title, readingProgress FROM library_items WHERE id = '1'").use { cursor ->
             assertEquals(1, cursor.count)
             cursor.moveToFirst()
             assertEquals("s1", cursor.getString(0))
@@ -1016,40 +1016,40 @@ class MigrationTest {
             assertEquals("War and Peace", cursor.getString(2))
             assertEquals(0.25f, cursor.getFloat(3), 0.0001f)
         }
-        db.query("SELECT serverId FROM library_items WHERE id = '2'").use { cursor ->
+        db.query("SELECT sourceId FROM library_items WHERE id = '2'").use { cursor ->
             cursor.moveToFirst()
             assertEquals("s2", cursor.getString(0))
         }
 
         // Composite PK now lets the two servers' book "1" coexist as distinct rows.
         db.execSQL(
-            "INSERT INTO library_items (serverId, id, libraryId, title, author, coverUrl, readingProgress, ebookFormat, genres) " +
+            "INSERT INTO library_items (sourceId, id, libraryId, title, author, coverUrl, readingProgress, ebookFormat, genres) " +
                 "VALUES ('s2', '1', 'libB', 'A Different Book', 'Someone', NULL, 0.0, 'epub', '')"
         )
-        db.query("SELECT title FROM library_items WHERE serverId = 's1' AND id = '1'").use { cursor ->
+        db.query("SELECT title FROM library_items WHERE sourceId = 's1' AND id = '1'").use { cursor ->
             cursor.moveToFirst()
             assertEquals("War and Peace", cursor.getString(0))
         }
-        db.query("SELECT title FROM library_items WHERE serverId = 's2' AND id = '1'").use { cursor ->
+        db.query("SELECT title FROM library_items WHERE sourceId = 's2' AND id = '1'").use { cursor ->
             cursor.moveToFirst()
             assertEquals("A Different Book", cursor.getString(0))
         }
 
-        // Join tables carry serverId, backfilled from the item's owning server.
-        db.query("SELECT serverId, sequenceOrder FROM series_items WHERE seriesId = 'ser1' AND itemId = '1'").use { cursor ->
+        // Join tables carry sourceId, backfilled from the item's owning server.
+        db.query("SELECT sourceId, sequenceOrder FROM series_items WHERE seriesId = 'ser1' AND itemId = '1'").use { cursor ->
             assertEquals(1, cursor.count)
             cursor.moveToFirst()
             assertEquals("s1", cursor.getString(0))
             assertEquals(1.0f, cursor.getFloat(1), 0.0001f)
         }
-        db.query("SELECT serverId FROM collection_items WHERE collectionId = 'col1' AND itemId = '1'").use { cursor ->
+        db.query("SELECT sourceId FROM collection_items WHERE collectionId = 'col1' AND itemId = '1'").use { cursor ->
             assertEquals(1, cursor.count)
             cursor.moveToFirst()
             assertEquals("s1", cursor.getString(0))
         }
 
-        // Formatting prefs: serverId backfilled, value preserved; orphan dropped.
-        db.query("SELECT serverId, fontSize, theme FROM book_formatting_preferences WHERE itemId = '1'").use { cursor ->
+        // Formatting prefs: sourceId backfilled, value preserved; orphan dropped.
+        db.query("SELECT sourceId, fontSize, theme FROM book_formatting_preferences WHERE itemId = '1'").use { cursor ->
             assertEquals(1, cursor.count)
             cursor.moveToFirst()
             assertEquals("s1", cursor.getString(0))
@@ -1063,13 +1063,13 @@ class MigrationTest {
 
         // Two servers' formatting for book "1" no longer collide.
         db.execSQL(
-            "INSERT INTO book_formatting_preferences (serverId, itemId, fontSize, theme) VALUES ('s2', '1', 32.0, 'dark')"
+            "INSERT INTO book_formatting_preferences (sourceId, itemId, fontSize, theme) VALUES ('s2', '1', 32.0, 'dark')"
         )
-        db.query("SELECT fontSize FROM book_formatting_preferences WHERE serverId = 's1' AND itemId = '1'").use { cursor ->
+        db.query("SELECT fontSize FROM book_formatting_preferences WHERE sourceId = 's1' AND itemId = '1'").use { cursor ->
             cursor.moveToFirst()
             assertEquals(18.0f, cursor.getFloat(0), 0.0001f)
         }
-        db.query("SELECT fontSize FROM book_formatting_preferences WHERE serverId = 's2' AND itemId = '1'").use { cursor ->
+        db.query("SELECT fontSize FROM book_formatting_preferences WHERE sourceId = 's2' AND itemId = '1'").use { cursor ->
             cursor.moveToFirst()
             assertEquals(32.0f, cursor.getFloat(0), 0.0001f)
         }
@@ -1077,11 +1077,11 @@ class MigrationTest {
         // FK cascade: removing a server clears its library items.
         db.execSQL("PRAGMA foreign_keys = ON")
         db.execSQL("DELETE FROM servers WHERE id = 's2'")
-        db.query("SELECT COUNT(*) FROM library_items WHERE serverId = 's2'").use { cursor ->
+        db.query("SELECT COUNT(*) FROM library_items WHERE sourceId = 's2'").use { cursor ->
             cursor.moveToFirst()
             assertEquals(0, cursor.getInt(0))
         }
-        db.query("SELECT COUNT(*) FROM library_items WHERE serverId = 's1'").use { cursor ->
+        db.query("SELECT COUNT(*) FROM library_items WHERE sourceId = 's1'").use { cursor ->
             cursor.moveToFirst()
             assertEquals(1, cursor.getInt(0))
         }
@@ -1097,7 +1097,7 @@ class MigrationTest {
                     "VALUES ('s1', 'http://media-server:8001', 1, 0, 'plamen', 'STORYTELLER')"
             )
             db.execSQL(
-                "INSERT INTO reading_positions (serverId, itemId, cfi, localUpdatedAt) " +
+                "INSERT INTO reading_positions (sourceId, itemId, cfi, localUpdatedAt) " +
                     "VALUES ('s1', 'item-1', 'epubcfi(/6/2!/4/1:0)', 1000)"
             )
         }
@@ -1105,7 +1105,7 @@ class MigrationTest {
         val db = helper.runMigrationsAndValidate(TEST_DB, 27, true, RiffleDatabase.MIGRATION_26_27)
 
         // Pre-existing data survives.
-        db.query("SELECT cfi FROM reading_positions WHERE serverId = 's1' AND itemId = 'item-1'").use { cursor ->
+        db.query("SELECT cfi FROM reading_positions WHERE sourceId = 's1' AND itemId = 'item-1'").use { cursor ->
             assertEquals(1, cursor.count)
             cursor.moveToFirst()
             assertEquals("epubcfi(/6/2!/4/1:0)", cursor.getString(0))
@@ -1119,12 +1119,12 @@ class MigrationTest {
 
         // A full resume row round-trips, including nullable progression/fragmentRef populated.
         db.execSQL(
-            "INSERT INTO readaloud_resume_positions (serverId, itemId, href, progression, fragmentRef, localUpdatedAt) " +
+            "INSERT INTO readaloud_resume_positions (sourceId, itemId, href, progression, fragmentRef, localUpdatedAt) " +
                 "VALUES ('s1', 'item-1', 'chap03.xhtml', 0.42, 'chap03.xhtml#sent12', 5000)"
         )
         db.query(
             "SELECT href, progression, fragmentRef, localUpdatedAt FROM readaloud_resume_positions " +
-                "WHERE serverId = 's1' AND itemId = 'item-1'"
+                "WHERE sourceId = 's1' AND itemId = 'item-1'"
         ).use { cursor ->
             assertEquals(1, cursor.count)
             cursor.moveToFirst()
@@ -1136,10 +1136,10 @@ class MigrationTest {
 
         // Nullable columns accept NULL (close with no resolvable column/sentence).
         db.execSQL(
-            "INSERT INTO readaloud_resume_positions (serverId, itemId, href, progression, fragmentRef, localUpdatedAt) " +
+            "INSERT INTO readaloud_resume_positions (sourceId, itemId, href, progression, fragmentRef, localUpdatedAt) " +
                 "VALUES ('s1', 'item-2', 'chap01.xhtml', NULL, NULL, 6000)"
         )
-        db.query("SELECT progression, fragmentRef FROM readaloud_resume_positions WHERE serverId = 's1' AND itemId = 'item-2'").use { cursor ->
+        db.query("SELECT progression, fragmentRef FROM readaloud_resume_positions WHERE sourceId = 's1' AND itemId = 'item-2'").use { cursor ->
             cursor.moveToFirst()
             assertTrue(cursor.isNull(0))
             assertTrue(cursor.isNull(1))
@@ -1161,10 +1161,10 @@ class MigrationTest {
                 "INSERT INTO servers (id, url, isActive, insecureConnectionAllowed, username, serverType) " +
                     "VALUES ('s1', 'http://media-server', 1, 0, 'plamen', 'AUDIOBOOKSHELF')"
             )
-            db.execSQL("INSERT INTO libraries (id, name, mediaType, serverId, isUnsupported) VALUES ('lib1', 'Books', 'book', 's1', 0)")
+            db.execSQL("INSERT INTO libraries (id, name, mediaType, sourceId, isUnsupported) VALUES ('lib1', 'Books', 'book', 's1', 0)")
             // A pre-existing item with all the columns the migration must preserve.
             db.execSQL(
-                "INSERT INTO library_items (serverId, id, libraryId, title, author, coverUrl, readingProgress, ebookFormat, genres, publishedYear) " +
+                "INSERT INTO library_items (sourceId, id, libraryId, title, author, coverUrl, readingProgress, ebookFormat, genres, publishedYear) " +
                     "VALUES ('s1', '1', 'lib1', 'The Colour of Magic', 'Terry Pratchett', NULL, 0.3, 'epub', 'Fiction', '1983')"
             )
         }
@@ -1172,7 +1172,7 @@ class MigrationTest {
         val db = helper.runMigrationsAndValidate(TEST_DB, 28, true, RiffleDatabase.MIGRATION_27_28)
 
         // Pre-existing data preserved; new language column defaults to NULL.
-        db.query("SELECT title, publishedYear, language FROM library_items WHERE serverId = 's1' AND id = '1'").use { cursor ->
+        db.query("SELECT title, publishedYear, language FROM library_items WHERE sourceId = 's1' AND id = '1'").use { cursor ->
             assertEquals(1, cursor.count)
             cursor.moveToFirst()
             assertEquals("The Colour of Magic", cursor.getString(0))
@@ -1181,8 +1181,8 @@ class MigrationTest {
         }
 
         // The new column accepts a value.
-        db.execSQL("UPDATE library_items SET language = 'English' WHERE serverId = 's1' AND id = '1'")
-        db.query("SELECT language FROM library_items WHERE serverId = 's1' AND id = '1'").use { cursor ->
+        db.execSQL("UPDATE library_items SET language = 'English' WHERE sourceId = 's1' AND id = '1'")
+        db.query("SELECT language FROM library_items WHERE sourceId = 's1' AND id = '1'").use { cursor ->
             cursor.moveToFirst()
             assertEquals("English", cursor.getString(0))
         }
@@ -1195,9 +1195,9 @@ class MigrationTest {
                 "INSERT INTO servers (id, url, isActive, insecureConnectionAllowed, username, serverType) " +
                     "VALUES ('s1', 'http://localhost', 1, 0, '', 'AUDIOBOOKSHELF')"
             )
-            db.execSQL("INSERT INTO libraries (id, name, mediaType, serverId, isUnsupported) VALUES ('libA', 'Books', 'book', 's1', 0)")
+            db.execSQL("INSERT INTO libraries (id, name, mediaType, sourceId, isUnsupported) VALUES ('libA', 'Books', 'book', 's1', 0)")
             db.execSQL(
-                "INSERT INTO library_items (serverId, id, libraryId, title, author, coverUrl, readingProgress, ebookFormat, genres) " +
+                "INSERT INTO library_items (sourceId, id, libraryId, title, author, coverUrl, readingProgress, ebookFormat, genres) " +
                     "VALUES ('s1', '1', 'libA', 'Foundation''s Edge', 'Asimov', NULL, 0.25, 'epub', '')"
             )
         }
@@ -1205,7 +1205,7 @@ class MigrationTest {
         val db = helper.runMigrationsAndValidate(TEST_DB, 29, true, RiffleDatabase.MIGRATION_28_29)
 
         // New hasAudio column defaults to 0 and pre-existing data is preserved.
-        db.query("SELECT hasAudio, title, readingProgress FROM library_items WHERE serverId = 's1' AND id = '1'").use { cursor ->
+        db.query("SELECT hasAudio, title, readingProgress FROM library_items WHERE sourceId = 's1' AND id = '1'").use { cursor ->
             assertEquals(1, cursor.count)
             cursor.moveToFirst()
             assertEquals(0, cursor.getInt(0))
@@ -1215,10 +1215,10 @@ class MigrationTest {
 
         // The column is writable as a real audio flag.
         db.execSQL(
-            "INSERT INTO library_items (serverId, id, libraryId, title, author, coverUrl, readingProgress, ebookFormat, genres, hasAudio) " +
+            "INSERT INTO library_items (sourceId, id, libraryId, title, author, coverUrl, readingProgress, ebookFormat, genres, hasAudio) " +
                 "VALUES ('s1', '2', 'libA', 'Audiobook', 'Asimov', NULL, 0.0, 'unsupported', '', 1)"
         )
-        db.query("SELECT hasAudio FROM library_items WHERE serverId = 's1' AND id = '2'").use { cursor ->
+        db.query("SELECT hasAudio FROM library_items WHERE sourceId = 's1' AND id = '2'").use { cursor ->
             cursor.moveToFirst()
             assertEquals(1, cursor.getInt(0))
         }
@@ -1231,9 +1231,9 @@ class MigrationTest {
                 "INSERT INTO servers (id, url, isActive, insecureConnectionAllowed, username, serverType) " +
                     "VALUES ('s1', 'http://localhost', 1, 0, '', 'AUDIOBOOKSHELF')"
             )
-            db.execSQL("INSERT INTO libraries (id, name, mediaType, serverId, isUnsupported) VALUES ('libA', 'Books', 'book', 's1', 0)")
+            db.execSQL("INSERT INTO libraries (id, name, mediaType, sourceId, isUnsupported) VALUES ('libA', 'Books', 'book', 's1', 0)")
             db.execSQL(
-                "INSERT INTO library_items (serverId, id, libraryId, title, author, coverUrl, readingProgress, ebookFormat, genres, hasAudio) " +
+                "INSERT INTO library_items (sourceId, id, libraryId, title, author, coverUrl, readingProgress, ebookFormat, genres, hasAudio) " +
                     "VALUES ('s1', '1', 'libA', 'Foundation''s Edge', 'Asimov', NULL, 0.25, 'epub', '', 0)"
             )
         }
@@ -1241,7 +1241,7 @@ class MigrationTest {
         val db = helper.runMigrationsAndValidate(TEST_DB, 30, true, RiffleDatabase.MIGRATION_29_30)
 
         // New audioDurationSec column defaults to 0; pre-existing data (incl. hasAudio) preserved.
-        db.query("SELECT audioDurationSec, hasAudio, title FROM library_items WHERE serverId = 's1' AND id = '1'").use { cursor ->
+        db.query("SELECT audioDurationSec, hasAudio, title FROM library_items WHERE sourceId = 's1' AND id = '1'").use { cursor ->
             assertEquals(1, cursor.count)
             cursor.moveToFirst()
             assertEquals(0.0, cursor.getDouble(0), 0.0001)
@@ -1251,10 +1251,10 @@ class MigrationTest {
 
         // The column is writable as a real duration.
         db.execSQL(
-            "INSERT INTO library_items (serverId, id, libraryId, title, author, coverUrl, readingProgress, ebookFormat, genres, hasAudio, audioDurationSec) " +
+            "INSERT INTO library_items (sourceId, id, libraryId, title, author, coverUrl, readingProgress, ebookFormat, genres, hasAudio, audioDurationSec) " +
                 "VALUES ('s1', '2', 'libA', 'Audiobook', 'Asimov', NULL, 0.0, 'unsupported', '', 1, 39214.5)"
         )
-        db.query("SELECT audioDurationSec FROM library_items WHERE serverId = 's1' AND id = '2'").use { cursor ->
+        db.query("SELECT audioDurationSec FROM library_items WHERE sourceId = 's1' AND id = '2'").use { cursor ->
             cursor.moveToFirst()
             assertEquals(39214.5, cursor.getDouble(0), 0.0001)
         }
@@ -1274,15 +1274,15 @@ class MigrationTest {
             )
             // A pre-existing library owned by s1. Under the v30 bare-id PK only one row per id can
             // exist, so the collision can't be pre-seeded here — the migration must enable it.
-            db.execSQL("INSERT INTO libraries (id, name, mediaType, serverId, isUnsupported) VALUES ('lib', 'Books', 'book', 's1', 1)")
-            // An orphan whose serverId references no Server — dropped so the new FK holds.
-            db.execSQL("INSERT INTO libraries (id, name, mediaType, serverId, isUnsupported) VALUES ('orphan', 'Ghost', 'book', 'ghost', 0)")
+            db.execSQL("INSERT INTO libraries (id, name, mediaType, sourceId, isUnsupported) VALUES ('lib', 'Books', 'book', 's1', 1)")
+            // An orphan whose sourceId references no Server — dropped so the new FK holds.
+            db.execSQL("INSERT INTO libraries (id, name, mediaType, sourceId, isUnsupported) VALUES ('orphan', 'Ghost', 'book', 'ghost', 0)")
         }
 
         val db = helper.runMigrationsAndValidate(TEST_DB, 31, true, RiffleDatabase.MIGRATION_30_31)
 
         // s1's library is preserved with all its column values.
-        db.query("SELECT name, mediaType, isUnsupported FROM libraries WHERE serverId = 's1' AND id = 'lib'").use { cursor ->
+        db.query("SELECT name, mediaType, isUnsupported FROM libraries WHERE sourceId = 's1' AND id = 'lib'").use { cursor ->
             assertEquals(1, cursor.count)
             cursor.moveToFirst()
             assertEquals("Books", cursor.getString(0))
@@ -1295,8 +1295,8 @@ class MigrationTest {
             assertEquals(0, cursor.getInt(0))
         }
         // The composite key now lets the other Server own a same-id library — the heart of #113.
-        db.execSQL("INSERT INTO libraries (id, name, mediaType, serverId, isUnsupported) VALUES ('lib', 'Audiobooks', 'book', 's2', 0)")
-        db.query("SELECT name FROM libraries WHERE id = 'lib' ORDER BY serverId").use { cursor ->
+        db.execSQL("INSERT INTO libraries (id, name, mediaType, sourceId, isUnsupported) VALUES ('lib', 'Audiobooks', 'book', 's2', 0)")
+        db.query("SELECT name FROM libraries WHERE id = 'lib' ORDER BY sourceId").use { cursor ->
             assertEquals(2, cursor.count)
             cursor.moveToFirst()
             assertEquals("Books", cursor.getString(0))
@@ -1306,7 +1306,7 @@ class MigrationTest {
         // FK cascade: removing a Server clears its libraries (and only its own).
         db.execSQL("PRAGMA foreign_keys = ON")
         db.execSQL("DELETE FROM servers WHERE id = 's1'")
-        db.query("SELECT serverId FROM libraries WHERE id = 'lib'").use { cursor ->
+        db.query("SELECT sourceId FROM libraries WHERE id = 'lib'").use { cursor ->
             assertEquals(1, cursor.count)
             cursor.moveToFirst()
             assertEquals("s2", cursor.getString(0))
@@ -1332,9 +1332,9 @@ class MigrationTest {
 
         // A per-book speed override is writable and reads back.
         db.execSQL(
-            "INSERT INTO audio_playback_preferences (serverId, bookId, speed) VALUES ('s1', '42', 1.5)"
+            "INSERT INTO audio_playback_preferences (sourceId, bookId, speed) VALUES ('s1', '42', 1.5)"
         )
-        db.query("SELECT speed FROM audio_playback_preferences WHERE serverId = 's1' AND bookId = '42'").use { cursor ->
+        db.query("SELECT speed FROM audio_playback_preferences WHERE sourceId = 's1' AND bookId = '42'").use { cursor ->
             assertEquals(1, cursor.count)
             cursor.moveToFirst()
             assertEquals(1.5, cursor.getDouble(0), 0.0001)
@@ -1368,11 +1368,11 @@ class MigrationTest {
 
         // A position row is writable and reads back with its seconds + timestamp intact.
         db.execSQL(
-            "INSERT INTO audiobook_positions (serverId, itemId, positionSec, localUpdatedAt) " +
+            "INSERT INTO audiobook_positions (sourceId, itemId, positionSec, localUpdatedAt) " +
                 "VALUES ('s1', '42', 123.5, 1700000000000)"
         )
         db.query(
-            "SELECT positionSec, localUpdatedAt FROM audiobook_positions WHERE serverId = 's1' AND itemId = '42'"
+            "SELECT positionSec, localUpdatedAt FROM audiobook_positions WHERE sourceId = 's1' AND itemId = '42'"
         ).use { cursor ->
             assertEquals(1, cursor.count)
             cursor.moveToFirst()
@@ -1398,11 +1398,11 @@ class MigrationTest {
             )
             // Pre-existing rows in both position tables (v33 shape: no lastSyncedAt yet).
             db.execSQL(
-                "INSERT INTO reading_positions (serverId, itemId, cfi, localUpdatedAt) " +
+                "INSERT INTO reading_positions (sourceId, itemId, cfi, localUpdatedAt) " +
                     "VALUES ('s1', '10', 'epubcfi(/6/4!/4)', 1700000000000)"
             )
             db.execSQL(
-                "INSERT INTO audiobook_positions (serverId, itemId, positionSec, localUpdatedAt) " +
+                "INSERT INTO audiobook_positions (sourceId, itemId, positionSec, localUpdatedAt) " +
                     "VALUES ('s1', '20', 321.5, 1700000000001)"
             )
         }
@@ -1411,7 +1411,7 @@ class MigrationTest {
 
         // The ebook row is preserved and the new column defaults to 0 (⇒ dirty: localUpdatedAt > 0).
         db.query(
-            "SELECT cfi, localUpdatedAt, lastSyncedAt FROM reading_positions WHERE serverId = 's1' AND itemId = '10'"
+            "SELECT cfi, localUpdatedAt, lastSyncedAt FROM reading_positions WHERE sourceId = 's1' AND itemId = '10'"
         ).use { cursor ->
             assertEquals(1, cursor.count)
             cursor.moveToFirst()
@@ -1422,7 +1422,7 @@ class MigrationTest {
 
         // The audiobook row is preserved and likewise gains lastSyncedAt defaulting to 0.
         db.query(
-            "SELECT positionSec, localUpdatedAt, lastSyncedAt FROM audiobook_positions WHERE serverId = 's1' AND itemId = '20'"
+            "SELECT positionSec, localUpdatedAt, lastSyncedAt FROM audiobook_positions WHERE sourceId = 's1' AND itemId = '20'"
         ).use { cursor ->
             assertEquals(1, cursor.count)
             cursor.moveToFirst()
@@ -1432,8 +1432,8 @@ class MigrationTest {
         }
 
         // The new column is writable on both tables.
-        db.execSQL("UPDATE reading_positions SET lastSyncedAt = 1700000000000 WHERE serverId = 's1' AND itemId = '10'")
-        db.query("SELECT lastSyncedAt FROM reading_positions WHERE serverId = 's1' AND itemId = '10'").use { cursor ->
+        db.execSQL("UPDATE reading_positions SET lastSyncedAt = 1700000000000 WHERE sourceId = 's1' AND itemId = '10'")
+        db.query("SELECT lastSyncedAt FROM reading_positions WHERE sourceId = 's1' AND itemId = '10'").use { cursor ->
             cursor.moveToFirst()
             assertEquals(1700000000000L, cursor.getLong(0))
         }
@@ -1455,7 +1455,7 @@ class MigrationTest {
         }
 
         db.execSQL(
-            "INSERT INTO audiobook_bookmarks (id, serverId, itemId, positionSec, title, createdAt, localUpdatedAt, lastSyncedAt, deleted) " +
+            "INSERT INTO audiobook_bookmarks (id, sourceId, itemId, positionSec, title, createdAt, localUpdatedAt, lastSyncedAt, deleted) " +
                 "VALUES ('b1', 's1', '42', 765.0, 'The Egg', 1700000000000, 1700000000000, 0, 0)"
         )
         db.query(
@@ -1486,7 +1486,7 @@ class MigrationTest {
             )
             // A pre-existing formatting-pref row with all v35 columns.
             db.execSQL(
-                "INSERT INTO book_formatting_preferences (serverId, itemId, fontSize, theme, fontFamily, lineSpacing, margins, orientation, showChapterMap, showReadingProgressLabels, showCurrentChapterLabel, doublePageSpread, justifyText) " +
+                "INSERT INTO book_formatting_preferences (sourceId, itemId, fontSize, theme, fontFamily, lineSpacing, margins, orientation, showChapterMap, showReadingProgressLabels, showCurrentChapterLabel, doublePageSpread, justifyText) " +
                     "VALUES ('s1', 'item1', 1.3, 'Dark', 'Serif', 1.5, 1.2, 'Vertical', 1, 1, 0, 0, 1)"
             )
         }
@@ -1495,7 +1495,7 @@ class MigrationTest {
 
         // Pre-existing data preserved; new column defaults to NULL = follow global.
         db.query(
-            "SELECT serverId, itemId, fontSize, theme, justifyText, showReadingTimeEstimate FROM book_formatting_preferences WHERE itemId = 'item1'"
+            "SELECT sourceId, itemId, fontSize, theme, justifyText, showReadingTimeEstimate FROM book_formatting_preferences WHERE itemId = 'item1'"
         ).use { cursor ->
             assertEquals(1, cursor.count)
             cursor.moveToFirst()
@@ -1509,7 +1509,7 @@ class MigrationTest {
 
         // New writes can populate the new column.
         db.execSQL(
-            "INSERT INTO book_formatting_preferences (serverId, itemId, showReadingTimeEstimate) " +
+            "INSERT INTO book_formatting_preferences (sourceId, itemId, showReadingTimeEstimate) " +
                 "VALUES ('s1', 'item2', 1)"
         )
         db.query(
@@ -1530,7 +1530,7 @@ class MigrationTest {
             )
             // A pre-existing annotation row with all v36 columns (no textBefore/textAfter yet).
             db.execSQL(
-                "INSERT INTO annotations (id, serverId, itemId, type, cfi, color, textSnippet, chapterHref, createdAt, updatedAt, originDeviceId, lastModifiedByDeviceId, deleted) " +
+                "INSERT INTO annotations (id, sourceId, itemId, type, cfi, color, textSnippet, chapterHref, createdAt, updatedAt, originDeviceId, lastModifiedByDeviceId, deleted) " +
                     "VALUES ('a1', 's1', 'book1', 'HIGHLIGHT', 'epubcfi(/6/4!/4/2,/1:0,/1:7)', 'yellow', 'meaning', 'chapter1.xhtml', 1000, 1000, 'dev', 'dev', 0)"
             )
         }
@@ -1551,7 +1551,7 @@ class MigrationTest {
 
         // New annotations with context round-trip correctly.
         db.execSQL(
-            "INSERT INTO annotations (id, serverId, itemId, type, cfi, color, textSnippet, textBefore, textAfter, chapterHref, createdAt, updatedAt, originDeviceId, lastModifiedByDeviceId, deleted) " +
+            "INSERT INTO annotations (id, sourceId, itemId, type, cfi, color, textSnippet, textBefore, textAfter, chapterHref, createdAt, updatedAt, originDeviceId, lastModifiedByDeviceId, deleted) " +
                 "VALUES ('a2', 's1', 'book1', 'HIGHLIGHT', 'epubcfi(/6/4!/4/2,/1:8,/1:15)', 'green', 'example', 'before context', 'after context', 'chapter1.xhtml', 2000, 2000, 'dev', 'dev', 0)"
         )
         db.query("SELECT textBefore, textAfter FROM annotations WHERE id = 'a2'").use { cursor ->
@@ -1571,7 +1571,7 @@ class MigrationTest {
             )
             // Pre-existing highlight row with all v37 columns (no spineIndex/progression/bookmarkTitle yet).
             db.execSQL(
-                "INSERT INTO annotations (id, serverId, itemId, type, cfi, color, textSnippet, textBefore, textAfter, chapterHref, createdAt, updatedAt, originDeviceId, lastModifiedByDeviceId, deleted) " +
+                "INSERT INTO annotations (id, sourceId, itemId, type, cfi, color, textSnippet, textBefore, textAfter, chapterHref, createdAt, updatedAt, originDeviceId, lastModifiedByDeviceId, deleted) " +
                     "VALUES ('a1', 's1', 'book1', 'HIGHLIGHT', 'epubcfi(/6/4!/4/2,/1:0,/1:7)', 'yellow', 'meaning', '', '', 'ch1.xhtml', 1000, 1000, 'dev', 'dev', 0)"
             )
         }
@@ -1592,7 +1592,7 @@ class MigrationTest {
 
         // New bookmark row with populated fields round-trips correctly.
         db.execSQL(
-            "INSERT INTO annotations (id, serverId, itemId, type, cfi, color, textSnippet, textBefore, textAfter, chapterHref, spineIndex, progression, bookmarkTitle, createdAt, updatedAt, originDeviceId, lastModifiedByDeviceId, deleted) " +
+            "INSERT INTO annotations (id, sourceId, itemId, type, cfi, color, textSnippet, textBefore, textAfter, chapterHref, spineIndex, progression, bookmarkTitle, createdAt, updatedAt, originDeviceId, lastModifiedByDeviceId, deleted) " +
                 "VALUES ('b1', 's1', 'book1', 'BOOKMARK', 'epubcfi(/6/6!/4/1:0)', '', '', '', '', 'ch2.xhtml', 2, 0.42, 'Where it gets weird', 2000, 2000, 'dev', 'dev', 0)"
         )
         db.query("SELECT spineIndex, progression, bookmarkTitle FROM annotations WHERE id = 'b1'").use { cursor ->
@@ -1617,7 +1617,7 @@ class MigrationTest {
             )
             db.execSQL(
                 "INSERT INTO readaloud_links " +
-                    "(absServerId, absLibraryItemId, storytellerServerId, storytellerBookId, state, userConfirmed, createdAt, updatedAt) " +
+                    "(absSourceId, absLibraryItemId, storytellerSourceId, storytellerBookId, state, userConfirmed, createdAt, updatedAt) " +
                     "VALUES ('abs', 'item1', 'st', '42', 'CONFIRMED', 1, 100, 200)"
             )
         }
@@ -1627,7 +1627,7 @@ class MigrationTest {
         // The pre-existing link is preserved and its new identity verdict defaults to UNKNOWN.
         db.query(
             "SELECT identityResult, userConfirmed, storytellerBookId, createdAt FROM readaloud_links " +
-                "WHERE absServerId = 'abs' AND absLibraryItemId = 'item1'"
+                "WHERE absSourceId = 'abs' AND absLibraryItemId = 'item1'"
         ).use { cursor ->
             assertEquals(1, cursor.count)
             cursor.moveToFirst()
@@ -1638,8 +1638,8 @@ class MigrationTest {
         }
 
         // The verdict column is writable.
-        db.execSQL("UPDATE readaloud_links SET identityResult = 'VERIFIED' WHERE absServerId = 'abs'")
-        db.query("SELECT identityResult FROM readaloud_links WHERE absServerId = 'abs'").use { cursor ->
+        db.execSQL("UPDATE readaloud_links SET identityResult = 'VERIFIED' WHERE absSourceId = 'abs'")
+        db.query("SELECT identityResult FROM readaloud_links WHERE absSourceId = 'abs'").use { cursor ->
             cursor.moveToFirst()
             assertEquals("VERIFIED", cursor.getString(0))
         }
@@ -1649,8 +1649,8 @@ class MigrationTest {
     fun migration40To41_addsTocCacheAndAudiobookChapterCache() {
         helper.createDatabase(TEST_DB, 40).use { db ->
             db.execSQL("INSERT INTO servers (id, url, isActive, insecureConnectionAllowed, username, serverType) VALUES ('srv', 'http://localhost', 1, 0, '', 'AUDIOBOOKSHELF')")
-            db.execSQL("INSERT INTO libraries (id, name, mediaType, serverId, isUnsupported) VALUES ('lib1', 'Books', 'book', 'srv', 0)")
-            db.execSQL("INSERT INTO library_items (serverId, id, libraryId, title, author, coverUrl, readingProgress, ebookFormat, hasAudio, audioDurationSec, genres) VALUES ('srv', 'item1', 'lib1', 'Book', 'Author', NULL, 0.0, 'EPUB', 0, 0.0, '')")
+            db.execSQL("INSERT INTO libraries (id, name, mediaType, sourceId, isUnsupported) VALUES ('lib1', 'Books', 'book', 'srv', 0)")
+            db.execSQL("INSERT INTO library_items (sourceId, id, libraryId, title, author, coverUrl, readingProgress, ebookFormat, hasAudio, audioDurationSec, genres) VALUES ('srv', 'item1', 'lib1', 'Book', 'Author', NULL, 0.0, 'EPUB', 0, 0.0, '')")
         }
         helper.runMigrationsAndValidate(TEST_DB, 41, true, RiffleDatabase.MIGRATION_40_41).use { db ->
             db.query("SELECT name FROM sqlite_master WHERE type='table' AND name='toc_cache'").use { c ->
@@ -1661,8 +1661,8 @@ class MigrationTest {
             }
 
             // toc_cache columns accept data
-            db.execSQL("INSERT INTO toc_cache (serverId, itemId, ebookFileIno, entriesJson) VALUES ('srv', 'item1', 'ino42', '[]')")
-            db.query("SELECT serverId, itemId, ebookFileIno, entriesJson FROM toc_cache WHERE itemId = 'item1'").use { c ->
+            db.execSQL("INSERT INTO toc_cache (sourceId, itemId, ebookFileIno, entriesJson) VALUES ('srv', 'item1', 'ino42', '[]')")
+            db.query("SELECT sourceId, itemId, ebookFileIno, entriesJson FROM toc_cache WHERE itemId = 'item1'").use { c ->
                 assertEquals(1, c.count)
                 c.moveToFirst()
                 assertEquals("srv", c.getString(0))
@@ -1672,8 +1672,8 @@ class MigrationTest {
             }
 
             // audiobook_chapter_cache columns accept data
-            db.execSQL("INSERT INTO audiobook_chapter_cache (serverId, itemId, chaptersJson) VALUES ('srv', 'item1', '[]')")
-            db.query("SELECT serverId, itemId, chaptersJson FROM audiobook_chapter_cache WHERE itemId = 'item1'").use { c ->
+            db.execSQL("INSERT INTO audiobook_chapter_cache (sourceId, itemId, chaptersJson) VALUES ('srv', 'item1', '[]')")
+            db.query("SELECT sourceId, itemId, chaptersJson FROM audiobook_chapter_cache WHERE itemId = 'item1'").use { c ->
                 assertEquals(1, c.count)
                 c.moveToFirst()
                 assertEquals("srv", c.getString(0))
@@ -1740,7 +1740,7 @@ class MigrationTest {
             )
             db.execSQL(
                 "INSERT INTO annotations " +
-                    "(id, serverId, itemId, type, cfi, color, note, textSnippet, textBefore, textAfter, " +
+                    "(id, sourceId, itemId, type, cfi, color, note, textSnippet, textBefore, textAfter, " +
                     " chapterHref, spineIndex, progression, bookmarkTitle, createdAt, updatedAt, " +
                     " originDeviceId, lastModifiedByDeviceId, deleted) " +
                     "VALUES ('ann-1', 'srv-A', 'item-1', 'HIGHLIGHT', 'epubcfi(/6/4!/4/2)', 'yellow', NULL, " +
@@ -1749,7 +1749,7 @@ class MigrationTest {
             )
             db.execSQL(
                 "INSERT INTO annotations " +
-                    "(id, serverId, itemId, type, cfi, color, note, textSnippet, textBefore, textAfter, " +
+                    "(id, sourceId, itemId, type, cfi, color, note, textSnippet, textBefore, textAfter, " +
                     " chapterHref, spineIndex, progression, bookmarkTitle, createdAt, updatedAt, " +
                     " originDeviceId, lastModifiedByDeviceId, deleted) " +
                     "VALUES ('ann-2', 'srv-A', 'item-1', 'HIGHLIGHT', 'epubcfi(/6/4!/4/4)', 'pink', NULL, " +
@@ -1854,11 +1854,11 @@ class MigrationTest {
                     "VALUES ('abs', 'http://abs', 1, 0, 'test', 'AUDIOBOOKSHELF')"
             )
             db.execSQL(
-                "INSERT INTO libraries (id, name, mediaType, serverId, isUnsupported) " +
+                "INSERT INTO libraries (id, name, mediaType, sourceId, isUnsupported) " +
                     "VALUES ('lib1', 'Books', 'book', 'abs', 0)"
             )
             db.execSQL(
-                "INSERT INTO library_items (serverId, id, libraryId, title, author, coverUrl, readingProgress, " +
+                "INSERT INTO library_items (sourceId, id, libraryId, title, author, coverUrl, readingProgress, " +
                     "ebookFormat, genres, hasAudio, audioDurationSec) " +
                     "VALUES ('abs', 'item1', 'lib1', 'Dune', 'Herbert', NULL, 1.0, 'epub', '', 0, 0.0)"
             )
@@ -1867,7 +1867,7 @@ class MigrationTest {
         val db = helper.runMigrationsAndValidate(TEST_DB, 40, true, RiffleDatabase.MIGRATION_39_40)
 
         // Pre-existing rows get NULL finishedAt — column exists and is nullable.
-        db.query("SELECT finishedAt FROM library_items WHERE id = 'item1' AND serverId = 'abs'").use { cursor ->
+        db.query("SELECT finishedAt FROM library_items WHERE id = 'item1' AND sourceId = 'abs'").use { cursor ->
             assertEquals(1, cursor.count)
             cursor.moveToFirst()
             assertNull(cursor.getLong(0).takeIf { !cursor.isNull(0) })
@@ -1875,14 +1875,14 @@ class MigrationTest {
 
         // Column is writable.
         db.execSQL("UPDATE library_items SET finishedAt = 1700000000000 WHERE id = 'item1'")
-        db.query("SELECT finishedAt FROM library_items WHERE id = 'item1' AND serverId = 'abs'").use { cursor ->
+        db.query("SELECT finishedAt FROM library_items WHERE id = 'item1' AND sourceId = 'abs'").use { cursor ->
             cursor.moveToFirst()
             assertEquals(1700000000000L, cursor.getLong(0))
         }
     }
 
     // Task 3 of the Server→Source rename (issue #432, ADR 0041): renames `servers` → `sources`
-    // (backfilling a new `type` column) and `serverId` → `sourceId` across every carrying table.
+    // (backfilling a new `type` column) and `sourceId` → `sourceId` across every carrying table.
     // Schema JSON 44.json does not exist yet (exported by KSP only after Task 4 bumps
     // @Database(version = 44)), so this applies MIGRATION_43_44 directly rather than going through
     // runMigrationsAndValidate. Task 4/5 will add a schema-validated round-trip test.
@@ -1900,18 +1900,18 @@ class MigrationTest {
             )
             // Library + a library item + an annotation → exercises FK chain.
             db.execSQL(
-                "INSERT INTO libraries(id, name, mediaType, serverId, isUnsupported) VALUES ('lib-1', 'My Lib', 'book', 'abs-1', 0)"
+                "INSERT INTO libraries(id, name, mediaType, sourceId, isUnsupported) VALUES ('lib-1', 'My Lib', 'book', 'abs-1', 0)"
             )
             db.execSQL(
-                "INSERT INTO library_items(serverId, id, libraryId, title, author, coverUrl, readingProgress, ebookFileIno, ebookFormat, hasAudio, audioDurationSec, description, seriesName, publishedYear, genres, publisher, language, lastOpenedAt, addedAt, isbn, asin, finishedAt) " +
+                "INSERT INTO library_items(sourceId, id, libraryId, title, author, coverUrl, readingProgress, ebookFileIno, ebookFormat, hasAudio, audioDurationSec, description, seriesName, publishedYear, genres, publisher, language, lastOpenedAt, addedAt, isbn, asin, finishedAt) " +
                     "VALUES ('abs-1', 'item-1', 'lib-1', 'Moby Dick', 'Melville', NULL, 0.0, NULL, 'epub', 0, 0.0, NULL, NULL, NULL, '[]', NULL, NULL, NULL, NULL, NULL, NULL, NULL)"
             )
             db.execSQL(
-                "INSERT INTO annotations(id, serverId, itemId, type, cfi, color, note, textSnippet, textBefore, textAfter, chapterHref, spineIndex, progression, bookmarkTitle, createdAt, updatedAt, originDeviceId, lastModifiedByDeviceId, deleted, lastSyncedAt) " +
+                "INSERT INTO annotations(id, sourceId, itemId, type, cfi, color, note, textSnippet, textBefore, textAfter, chapterHref, spineIndex, progression, bookmarkTitle, createdAt, updatedAt, originDeviceId, lastModifiedByDeviceId, deleted, lastSyncedAt) " +
                     "VALUES ('ann-1', 'abs-1', 'item-1', 'HIGHLIGHT', 'epubcfi(/6/4)', 'yellow', NULL, 'snip', '', '', 'ch1.xhtml', 0, 0.0, '', 1000, 1500, 'dev-A', 'dev-A', 0, 0)"
             )
             db.execSQL(
-                "INSERT INTO readaloud_links(absServerId, absLibraryItemId, storytellerServerId, storytellerBookId, state, userConfirmed, createdAt, updatedAt, identityResult) " +
+                "INSERT INTO readaloud_links(absSourceId, absLibraryItemId, storytellerSourceId, storytellerBookId, state, userConfirmed, createdAt, updatedAt, identityResult) " +
                     "VALUES ('abs-1', 'item-1', 'st-1', 'st-item-1', 'LINKED', 1, 100, 200, '{}')"
             )
 
@@ -1951,12 +1951,12 @@ class MigrationTest {
                 assertEquals("abs-1", c.getString(0))
                 assertEquals("st-1", c.getString(1))
             }
-            // 4) serverId column is gone from a representative downstream table.
+            // 4) sourceId column is gone from a representative downstream table.
             db.query("PRAGMA table_info(library_items)").use { c ->
                 val cols = buildList<String> {
                     while (c.moveToNext()) add(c.getString(c.getColumnIndexOrThrow("name")))
                 }
-                assertTrue("library_items still has serverId: $cols", "serverId" !in cols)
+                assertTrue("library_items still has sourceId: $cols", "sourceId" !in cols)
                 assertTrue("library_items missing sourceId: $cols", "sourceId" in cols)
             }
         }

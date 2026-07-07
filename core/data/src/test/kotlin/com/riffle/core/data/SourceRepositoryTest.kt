@@ -165,6 +165,7 @@ class ServerRepositoryTest {
         override suspend fun updateReadingProgress(sourceId: String, itemId: String, progress: Float) {}
         override suspend fun updateFinishedAt(sourceId: String, itemId: String, finishedAt: Long?) {}
         override suspend fun listMatchableBySourceType(serverType: String) = emptyList<com.riffle.core.database.MatchableItemRow>()
+        override fun observeBySource(sourceId: String) = flowOf(emptyList<com.riffle.core.database.LibraryItemEntity>())
     }
 
     private val storytellerApiNotCalled = StorytellerApi { _, _, _, _ -> error("should not be called") }
