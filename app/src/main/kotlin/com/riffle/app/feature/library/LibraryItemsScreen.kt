@@ -106,6 +106,8 @@ import androidx.compose.ui.res.painterResource
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.riffle.app.R
+import com.riffle.app.feature.annotations.AnnotationsListScreen
+import com.riffle.app.feature.annotations.AnnotationsListViewModel
 import com.riffle.app.ui.theme.RiffleIcons
 import com.riffle.core.database.AnnotationEntity
 import com.riffle.core.domain.Collection
@@ -137,6 +139,7 @@ fun LibraryItemsScreen(
     onAudiobookBookmarkSelected: (AudiobookBookmarkSearchResult) -> Unit,
     onShowAllAnnotations: (query: String) -> Unit,
     onSectionSeeMore: (LibrarySectionType) -> Unit,
+    onAnnotatedBookClick: (serverId: String, itemId: String) -> Unit,
     // When the navigation drawer is open, its own BackHandler must take Back so it can close
     // itself. We disable our layered Back in that case (issue #60).
     backEnabled: Boolean = true,
@@ -162,7 +165,11 @@ fun LibraryItemsScreen(
     val notStartedFilterActive by viewModel.notStartedFilterActive.collectAsState()
 
     val coversAreSquare by viewModel.coversAreSquare.collectAsState()
-    var selectedTab by rememberSaveable { mutableIntStateOf(0) }
+    // Versioned key: v2 = post-Annotations-tab-insertion. Without the version bump, a user
+    // upgrading from a build where "Series" was index 2 would land on the new Annotations tab
+    // (also index 2) after the shuffle. Bumping the key discards the old saved int and resets
+    // everyone to Home on first launch after upgrade.
+    var selectedTab by rememberSaveable(key = "library_selected_tab_v2") { mutableIntStateOf(0) }
 
     // Drive the grids off a local live scale so a pinch reflows instantly; the
     // persisted value (collected here) seeds it and wins on any external change.
@@ -277,14 +284,23 @@ fun LibraryItemsScreen(
                         linkedItemIds = linkedItemIds,
                         onCoverScaleChange = onCoverScaleChange,
                     )
-                    2 -> SeriesTabContent(
+                    tabIndexForAnnotations() -> {
+                        val annotationsVm: AnnotationsListViewModel = hiltViewModel()
+                        val annotationsState by annotationsVm.state.collectAsState()
+                        AnnotationsListScreen(
+                            state = annotationsState,
+                            token = annotationsVm.authToken,
+                            onBookClick = onAnnotatedBookClick,
+                        )
+                    }
+                    3 -> SeriesTabContent(
                         items = series,
                         isLoading = isLoading,
                         token = viewModel.authToken,
                         onSeriesSelected = onSeriesSelected,
                         onCoverScaleChange = onCoverScaleChange,
                     )
-                    3 -> CollectionsTabContent(
+                    4 -> CollectionsTabContent(
                         items = collections,
                         isLoading = isLoading,
                         token = viewModel.authToken,
@@ -292,7 +308,7 @@ fun LibraryItemsScreen(
                         onCollectionSelected = onCollectionSelected,
                         onCoverScaleChange = onCoverScaleChange,
                     )
-                    4 -> AllBooksTabContent(
+                    5 -> AllBooksTabContent(
                         items = allBooks,
                         isLoading = isLoading,
                         token = viewModel.authToken,
@@ -1185,6 +1201,14 @@ internal fun LibraryItemCard(
 
 // --- Tab bar ---
 
+/**
+ * Index of the Annotations tab in the Library Tab Bar — a 6th tab positioned between "To Read"
+ * (index 1) and "Series" (index 3). Single source of truth referenced both by [LibraryTabBar]'s
+ * selected-check and by [LibraryItemsScreen]'s `when (selectedTab)` branch, so the two can't drift
+ * out of sync with each other.
+ */
+internal fun tabIndexForAnnotations(): Int = 2
+
 @Composable
 private fun LibraryTabBar(selectedTab: Int, onTabSelected: (Int) -> Unit) {
     NavigationBar {
@@ -1199,18 +1223,23 @@ private fun LibraryTabBar(selectedTab: Int, onTabSelected: (Int) -> Unit) {
             icon = { Icon(RiffleIcons.ToReadFilled, contentDescription = "To Read") },
         )
         NavigationBarItem(
-            selected = selectedTab == 2,
-            onClick = { onTabSelected(2) },
-            icon = { Icon(Icons.Filled.FormatListNumbered, contentDescription = "Series") },
+            selected = selectedTab == tabIndexForAnnotations(),
+            onClick = { onTabSelected(tabIndexForAnnotations()) },
+            icon = { Icon(RiffleIcons.Annotations, contentDescription = "Annotations") },
         )
         NavigationBarItem(
             selected = selectedTab == 3,
             onClick = { onTabSelected(3) },
-            icon = { Icon(Icons.Filled.Folder, contentDescription = "Collections") },
+            icon = { Icon(Icons.Filled.FormatListNumbered, contentDescription = "Series") },
         )
         NavigationBarItem(
             selected = selectedTab == 4,
             onClick = { onTabSelected(4) },
+            icon = { Icon(Icons.Filled.Folder, contentDescription = "Collections") },
+        )
+        NavigationBarItem(
+            selected = selectedTab == 5,
+            onClick = { onTabSelected(5) },
             icon = { Icon(Icons.Filled.GridView, contentDescription = "All Books") },
         )
     }

@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.MenuBook
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.KeyboardArrowDown
@@ -106,6 +107,8 @@ fun HighlightActionsPopup(
     onOpenNoteEditor: () -> Unit,
     onDismiss: () -> Unit,
     noteOnly: Boolean = false,
+    showOpenInBook: Boolean = false,
+    onOpenInBook: () -> Unit = {},
 ) {
     val density = LocalDensity.current
     val margin = with(density) { 8.dp.roundToPx() }
@@ -227,6 +230,30 @@ fun HighlightActionsPopup(
                             },
                             tint = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.size(20.dp),
+                        )
+                    }
+                }
+                // Highlights-mode only (Task 9, ADR 0041): the elided reader has no chapter
+                // context, so this row is the escape hatch back to the real book at this
+                // highlight's position.
+                if (showOpenInBook && !noteOnly) {
+                    HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { onDismiss(); onOpenInBook() }
+                            .padding(horizontal = 16.dp, vertical = 14.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Outlined.MenuBook,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        Text(
+                            text = "Open in book",
+                            style = MaterialTheme.typography.bodyMedium,
                         )
                     }
                 }

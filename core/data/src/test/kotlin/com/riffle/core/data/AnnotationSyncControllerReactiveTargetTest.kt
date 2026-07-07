@@ -91,4 +91,5 @@ private class NoOpAnnotationDao : AnnotationDao {
     override suspend fun dirtyServerItems(): List<AnnotationDao.DirtyServerItem> = emptyList()
     override suspend fun markSynced(ids: List<String>, syncedAt: Long) = Unit
     override suspend fun purgeAgedTombstones(serverId: String, itemId: String, cutoff: Long): Int = 0
+    override fun observeBooksWithHighlights(serverId: String): Flow<List<com.riffle.core.database.BookHighlightSummary>> = flowOf(emptyList())
 }

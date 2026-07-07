@@ -64,7 +64,8 @@ private const val SERIES_DETAIL = "series_detail/{libraryId}/{seriesId}/{seriesN
 private const val COLLECTION_DETAIL = "collection_detail/{libraryId}/{collectionId}/{collectionName}"
 private const val FILTERED_BOOKS = "filtered_books/{libraryId}/{facetType}/{facetValue}"
 private const val LIBRARY_ITEM_DETAIL = "library_item_detail/{itemId}"
-private const val EPUB_READER = "epub_reader/{itemId}?startReadaloudAtSec={startReadaloudAtSec}&openAtCfi={openAtCfi}&startTocHref={startTocHref}"
+private const val EPUB_READER =
+    "epub_reader/{itemId}?startReadaloudAtSec={startReadaloudAtSec}&openAtCfi={openAtCfi}&startTocHref={startTocHref}&source={source}&serverId={serverId}"
 private const val PDF_READER = "pdf_reader/{itemId}"
 private const val ANNOTATION_SEARCH = "annotation_search/{libraryId}?query={query}"
 private const val AUDIOBOOK_PLAYER = "audiobook_player/{itemId}?startAtSec={startAtSec}"
@@ -324,6 +325,9 @@ fun MainScreen(
                         val encodedName = URLEncoder.encode(libraryName, "UTF-8")
                         navController.navigate("library_section/$libraryId/$encodedName/${sectionType.name}")
                     },
+                    onAnnotatedBookClick = { serverId, itemId ->
+                        navController.navigate(annotationsBookClickRoute(serverId, itemId))
+                    },
                 )
             }
             composable(
@@ -465,11 +469,38 @@ fun MainScreen(
                         nullable = true
                         defaultValue = null
                     },
+                    navArgument("source") {
+                        type = NavType.StringType
+                        nullable = true
+                        defaultValue = null
+                    },
+                    navArgument("serverId") {
+                        type = NavType.StringType
+                        nullable = true
+                        defaultValue = null
+                    },
                 )
             ) {
+                val viewModel: com.riffle.app.feature.reader.EpubReaderViewModel = hiltViewModel()
+                // Highlights mode's "Open in book" (Task 9, ADR 0041): leaves the elided reader and
+                // opens the full-book reader at the tapped highlight's CFI. Handled at the nav-host
+                // level (not inside EpubReaderScreen) since it pops this route off the back stack.
+                LaunchedEffect(viewModel) {
+                    viewModel.readerNavEvents.collect { event ->
+                        when (event) {
+                            is com.riffle.app.feature.reader.ReaderNavEvent.OpenInSourceBook -> {
+                                val encodedId = URLEncoder.encode(event.itemId, "UTF-8")
+                                val encodedCfi = URLEncoder.encode(event.cfi, "UTF-8")
+                                navController.popBackStack()
+                                navController.navigate("epub_reader/$encodedId?openAtCfi=$encodedCfi")
+                            }
+                        }
+                    }
+                }
                 EpubReaderScreen(
                     windowSizeClass = windowSizeClass,
                     onNavigateBack = { navController.popBackStack() },
+                    viewModel = viewModel,
                 )
             }
             composable(

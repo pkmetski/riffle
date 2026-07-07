@@ -137,6 +137,8 @@ class ServerRepositoryTest {
         fun itemsFor(libraryId: String): List<com.riffle.core.database.LibraryItemEntity> = rows[libraryId].orEmpty()
         override fun observeByLibraryId(serverId: String, libraryId: String) =
             flowOf(rows[libraryId].orEmpty().filter { it.serverId == serverId }.toList())
+        override fun observeByServer(serverId: String) =
+            flowOf(rows.values.flatten().filter { it.serverId == serverId }.toList())
         override fun observeUngroupedByLibraryId(serverId: String, libraryId: String) =
             flowOf(rows[libraryId].orEmpty().filter { it.serverId == serverId }.toList())
         override fun observeInProgress(serverId: String, libraryId: String) = flowOf(emptyList<com.riffle.core.database.LibraryItemEntity>())

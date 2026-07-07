@@ -67,7 +67,11 @@ internal class ReadiumHighlightRenderer(
             Decoration(
                 id = h.id,
                 locator = h.locator,
-                style = HighlightTintStyle(tint = HighlightColor.fromToken(h.color).argb),
+                style = if (h.useAccentBarStyle) {
+                    HighlightAccentBarStyle()
+                } else {
+                    HighlightTintStyle(tint = HighlightColor.fromToken(h.color).argb)
+                },
             )
         }
         // Initial apply uses clear+apply too — Readium's decoration diff treats an identical

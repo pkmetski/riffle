@@ -45,16 +45,41 @@ class AnnotationDaoTest {
         itemId: String = "item1",
         cfi: String = "epubcfi(/6/4!/4/2,/1:0,/1:10)",
         createdAt: Long = 1000L,
+        updatedAt: Long = createdAt,
         deleted: Boolean = false,
     ) = AnnotationEntity(
         id = id,
         serverId = serverId,
         itemId = itemId,
+        type = AnnotationEntity.TYPE_HIGHLIGHT,
         cfi = cfi,
         textSnippet = "the selected text",
         chapterHref = "chapter1.xhtml",
         createdAt = createdAt,
-        updatedAt = createdAt,
+        updatedAt = updatedAt,
+        originDeviceId = "device-A",
+        lastModifiedByDeviceId = "device-A",
+        deleted = deleted,
+    )
+
+    private fun bookmark(
+        id: String,
+        serverId: String = "abs1",
+        itemId: String = "item1",
+        cfi: String = "epubcfi(/6/4!/4/2,/1:0)",
+        createdAt: Long = 1000L,
+        updatedAt: Long = createdAt,
+        deleted: Boolean = false,
+    ) = AnnotationEntity(
+        id = id,
+        serverId = serverId,
+        itemId = itemId,
+        type = AnnotationEntity.TYPE_BOOKMARK,
+        cfi = cfi,
+        textSnippet = "the selected text",
+        chapterHref = "chapter1.xhtml",
+        createdAt = createdAt,
+        updatedAt = updatedAt,
         originDeviceId = "device-A",
         lastModifiedByDeviceId = "device-A",
         deleted = deleted,
@@ -272,5 +297,39 @@ class AnnotationDaoTest {
         // Now the last of book A's rows is clean too — book A drops out.
         dao.markSynced(listOf("a2"), syncedAt = 2_100L)
         assertEquals(1, dao.observePendingBookCountAcrossAll().first())
+    }
+
+    // ===== Annotations View — observeBooksWithHighlights =====
+
+    // Book A: 2 highlights (older), Book B: 1 highlight (newer), Book C: only bookmark (excluded),
+    // Book D: highlight but soft-deleted (excluded).
+    @Test
+    fun observeBooksWithHighlights_groupsByItemAndSortsByLatestUpdatedAt() = runTest {
+        dao.upsert(highlight("a1", serverId = "abs1", itemId = "A", createdAt = 100))
+        dao.upsert(highlight("a2", serverId = "abs1", itemId = "A", createdAt = 200))
+        dao.upsert(highlight("b1", serverId = "abs1", itemId = "B", createdAt = 300))
+        dao.upsert(bookmark("c1", serverId = "abs1", itemId = "C", createdAt = 400))
+        dao.upsert(highlight("d1", serverId = "abs1", itemId = "D", createdAt = 500, deleted = true))
+
+        val result = dao.observeBooksWithHighlights("abs1").first()
+
+        assertEquals(2, result.size)
+        assertEquals("B", result[0].itemId)
+        assertEquals(1, result[0].highlightCount)
+        assertEquals(300L, result[0].latestUpdatedAt)
+        assertEquals("A", result[1].itemId)
+        assertEquals(2, result[1].highlightCount)
+        assertEquals(200L, result[1].latestUpdatedAt)
+    }
+
+    // A second server's highlights must not leak into the first server's list.
+    @Test
+    fun observeBooksWithHighlights_isScopedToServer() = runTest {
+        dao.upsert(highlight("a1", serverId = "abs1", itemId = "A", createdAt = 100))
+        dao.upsert(highlight("x1", serverId = "abs2", itemId = "X", createdAt = 100))
+
+        val result = dao.observeBooksWithHighlights("abs1").first()
+
+        assertEquals(listOf("A"), result.map { it.itemId })
     }
 }

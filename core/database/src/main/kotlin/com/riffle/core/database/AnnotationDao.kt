@@ -119,6 +119,33 @@ interface AnnotationDao {
     )
     suspend fun purgeAgedTombstones(serverId: String, itemId: String, cutoff: Long): Int
 
+    /** One row per book (ABS Library Item) with at least one live highlight on this server, most
+     *  recently updated first. Powers the Annotations View library list. */
+    @Query(
+        """
+        SELECT itemId,
+               COUNT(*) AS highlightCount,
+               MAX(updatedAt) AS latestUpdatedAt
+        FROM annotations
+        WHERE serverId = :serverId
+          AND type = 'HIGHLIGHT'
+          AND deleted = 0
+        GROUP BY itemId
+        ORDER BY latestUpdatedAt DESC
+    """
+    )
+    fun observeBooksWithHighlights(serverId: String): Flow<List<BookHighlightSummary>>
+
     /** Result row for [dirtyServerItems]. */
     data class DirtyServerItem(val serverId: String, val itemId: String)
 }
+
+/**
+ * One row per book with at least one live highlight — powers the Annotations View library list
+ * (see [AnnotationDao.observeBooksWithHighlights]).
+ */
+data class BookHighlightSummary(
+    val itemId: String,
+    val highlightCount: Int,
+    val latestUpdatedAt: Long,
+)
