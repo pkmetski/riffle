@@ -21,7 +21,7 @@ interface AudiobookBookmarkDao {
 
     /** Live, non-deleted bookmarks across an entire source — for library-wide search. */
     @Query("SELECT * FROM audiobook_bookmarks WHERE sourceId = :sourceId AND deleted = 0 ORDER BY positionSec ASC")
-    fun observeForServer(sourceId: String): Flow<List<AudiobookBookmarkEntity>>
+    fun observeForSource(sourceId: String): Flow<List<AudiobookBookmarkEntity>>
 
     @Query("SELECT * FROM audiobook_bookmarks WHERE id = :id LIMIT 1")
     suspend fun getById(id: String): AudiobookBookmarkEntity?
@@ -32,10 +32,10 @@ interface AudiobookBookmarkDao {
 
     /** Dirty rows for a source (creates, renames, AND tombstoned deletes). */
     @Query("SELECT * FROM audiobook_bookmarks WHERE sourceId = :sourceId AND localUpdatedAt > lastSyncedAt")
-    suspend fun dirtyForServer(sourceId: String): List<AudiobookBookmarkEntity>
+    suspend fun dirtyForSource(sourceId: String): List<AudiobookBookmarkEntity>
 
     @Query("SELECT DISTINCT sourceId FROM audiobook_bookmarks WHERE localUpdatedAt > lastSyncedAt")
-    suspend fun serversWithDirtyRows(): List<String>
+    suspend fun sourcesWithDirtyRows(): List<String>
 
     /** Live count of unsynced (dirty) rows for an item — drives the "Offline — will sync" note. */
     @Query("SELECT COUNT(*) FROM audiobook_bookmarks WHERE sourceId = :sourceId AND itemId = :itemId AND localUpdatedAt > lastSyncedAt")

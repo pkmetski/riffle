@@ -27,7 +27,7 @@ interface ReadaloudCandidateDao {
 
     /** All Pending-Review candidates whose readaloud lives on the given Storyteller source. */
     @Query("SELECT * FROM readaloud_candidates WHERE storytellerSourceId = :storytellerSourceId")
-    fun observeForStorytellerServer(storytellerSourceId: String): Flow<List<ReadaloudCandidateEntity>>
+    fun observeForStorytellerSource(storytellerSourceId: String): Flow<List<ReadaloudCandidateEntity>>
 
     @Query(
         "DELETE FROM readaloud_candidates " +

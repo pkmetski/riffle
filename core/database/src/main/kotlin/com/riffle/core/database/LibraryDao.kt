@@ -11,10 +11,10 @@ import kotlinx.coroutines.flow.Flow
 interface LibraryDao {
 
     @Query("SELECT * FROM libraries WHERE sourceId = :sourceId ORDER BY name ASC")
-    fun observeByServerId(sourceId: String): Flow<List<LibraryEntity>>
+    fun observeBySourceId(sourceId: String): Flow<List<LibraryEntity>>
 
     @Query("SELECT id FROM libraries WHERE sourceId = :sourceId")
-    suspend fun libraryIdsForServer(sourceId: String): List<String>
+    suspend fun libraryIdsForSource(sourceId: String): List<String>
 
     @Query("SELECT * FROM libraries WHERE sourceId = :sourceId AND id = :libraryId LIMIT 1")
     suspend fun getById(sourceId: String, libraryId: String): LibraryEntity?
@@ -23,11 +23,11 @@ interface LibraryDao {
     suspend fun upsertAll(libraries: List<LibraryEntity>)
 
     @Query("DELETE FROM libraries WHERE sourceId = :sourceId")
-    suspend fun deleteByServerId(sourceId: String)
+    suspend fun deleteBySourceId(sourceId: String)
 
     @Transaction
-    suspend fun replaceAllForServer(sourceId: String, libraries: List<LibraryEntity>) {
-        deleteByServerId(sourceId)
+    suspend fun replaceAllForSource(sourceId: String, libraries: List<LibraryEntity>) {
+        deleteBySourceId(sourceId)
         upsertAll(libraries)
     }
 

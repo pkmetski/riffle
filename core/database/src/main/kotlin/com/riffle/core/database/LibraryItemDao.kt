@@ -68,7 +68,7 @@ interface LibraryItemDao {
      * globally unique (DB PK was itemId), so at most one row matches.
      */
     @Query("SELECT sourceId FROM library_items WHERE id = :itemId LIMIT 1")
-    suspend fun findServerIdForItem(itemId: String): String?
+    suspend fun findSourceIdForItem(itemId: String): String?
 
     @Query("DELETE FROM library_items WHERE sourceId = :sourceId AND libraryId = :libraryId")
     suspend fun deleteByLibraryId(sourceId: String, libraryId: String)
@@ -138,7 +138,7 @@ interface LibraryItemDao {
             "JOIN sources s ON li.sourceId = s.id " +
             "WHERE s.serverType = :serverType"
     )
-    suspend fun listMatchableByServerType(serverType: String): List<MatchableItemRow>
+    suspend fun listMatchableBySourceType(serverType: String): List<MatchableItemRow>
 }
 
 /**

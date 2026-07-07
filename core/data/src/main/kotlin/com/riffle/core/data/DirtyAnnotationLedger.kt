@@ -10,13 +10,13 @@ import javax.inject.Inject
  * be faked without a Room dependency.
  */
 fun interface DirtyAnnotationLedger {
-    suspend fun dirtyServerItems(): List<AnnotationDao.DirtyServerItem>
+    suspend fun dirtySourceItems(): List<AnnotationDao.DirtySourceItem>
 }
 
-/** [DirtyAnnotationLedger] backed by the annotation DAO's `dirtyServerItems` query. */
+/** [DirtyAnnotationLedger] backed by the annotation DAO's `dirtySourceItems` query. */
 class RoomDirtyAnnotationLedger @Inject constructor(
     private val annotationDao: AnnotationDao,
 ) : DirtyAnnotationLedger {
-    override suspend fun dirtyServerItems(): List<AnnotationDao.DirtyServerItem> =
-        annotationDao.dirtyServerItems()
+    override suspend fun dirtySourceItems(): List<AnnotationDao.DirtySourceItem> =
+        annotationDao.dirtySourceItems()
 }

@@ -94,9 +94,9 @@ abstract class SyncModule {
                 // Bookmarks ride the sweep at the same cadence as positions: enumerate dirty
                 // (server, item) pairs straight off the bookmark DAO (ADR 0030, Task 12).
                 object : com.riffle.core.data.DirtyBookmarkLedger {
-                    override suspend fun serversWithDirty() = bookmarkDao.serversWithDirtyRows()
+                    override suspend fun serversWithDirty() = bookmarkDao.sourcesWithDirtyRows()
                     override suspend fun dirtyItems(serverId: String) =
-                        bookmarkDao.dirtyForServer(serverId).map { it.itemId }.distinct()
+                        bookmarkDao.dirtyForSource(serverId).map { it.itemId }.distinct()
                 },
                 com.riffle.core.data.BookmarkReconcile { serverId, itemId, baseUrl, token, insecureAllowed ->
                     bookmarkReconciler.reconcile(serverId, itemId, baseUrl, token, insecureAllowed)

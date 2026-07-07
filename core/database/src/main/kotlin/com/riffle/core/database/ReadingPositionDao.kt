@@ -48,9 +48,9 @@ interface ReadingPositionDao {
 
     /** Dirty rows for one source (ADR 0030 sweep): localUpdatedAt strictly ahead of lastSyncedAt. */
     @Query("SELECT * FROM reading_positions WHERE sourceId = :sourceId AND localUpdatedAt > lastSyncedAt")
-    suspend fun dirtyForServer(sourceId: String): List<ReadingPositionEntity>
+    suspend fun dirtyForSource(sourceId: String): List<ReadingPositionEntity>
 
     /** All distinct sourceIds that have at least one dirty row. */
     @Query("SELECT DISTINCT sourceId FROM reading_positions WHERE localUpdatedAt > lastSyncedAt")
-    suspend fun serversWithDirtyRows(): List<String>
+    suspend fun sourcesWithDirtyRows(): List<String>
 }

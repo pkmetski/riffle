@@ -17,7 +17,7 @@ class AudiobookBookmarkStoreImpl @Inject constructor(
         dao.observeForItem(serverId, itemId).map { rows -> rows.map { it.toDomain() } }
 
     override fun observeForServer(serverId: String): Flow<List<AudiobookBookmark>> =
-        dao.observeForServer(serverId).map { rows -> rows.map { it.toDomain() } }
+        dao.observeForSource(serverId).map { rows -> rows.map { it.toDomain() } }
 
     private fun AudiobookBookmarkEntity.toDomain() =
         AudiobookBookmark(id, serverId, itemId, positionSec, title, createdAt)

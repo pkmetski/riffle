@@ -53,7 +53,7 @@ class ReadaloudReviewRepositoryImpl(
     override fun observeReview(storytellerServerId: String, absServerId: String?): Flow<ReadaloudReview> =
         combine(
             linkDao.observeAll(),
-            candidateDao.observeForStorytellerServer(storytellerServerId),
+            candidateDao.observeForStorytellerSource(storytellerServerId),
         ) { links, candidates ->
             // When the screen scopes to one ABS Server, both confirmed links and pending
             // candidates are filtered to that server so each ABS account (= one server+login)
@@ -73,7 +73,7 @@ class ReadaloudReviewRepositoryImpl(
         allLinks: List<ReadaloudLinkEntity>,
         candidates: List<ReadaloudCandidateEntity>,
     ): ReadaloudReview {
-        val books = libraryItemDao.listMatchableByServerType(ServerType.STORYTELLER.name)
+        val books = libraryItemDao.listMatchableBySourceType(ServerType.STORYTELLER.name)
             .filter { it.serverId == storytellerServerId }
 
         val linksForServer = allLinks.filter { it.storytellerServerId == storytellerServerId }
@@ -248,7 +248,7 @@ class ReadaloudReviewRepositoryImpl(
     override suspend fun searchAbsItems(absServerId: String, query: String, filter: AbsFormatFilter): List<AbsPickerItem> {
         if (absServerId.isEmpty()) return emptyList()
         val trimmed = query.trim()
-        val all = libraryItemDao.listMatchableByServerType(ServerType.AUDIOBOOKSHELF.name)
+        val all = libraryItemDao.listMatchableBySourceType(ServerType.AUDIOBOOKSHELF.name)
             .filter { it.serverId == absServerId }
         val matched = if (trimmed.isEmpty()) {
             all

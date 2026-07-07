@@ -49,8 +49,8 @@ open class ReadaloudMatchingService(
     ) : this(libraryItemDao, readaloudLinkDao, readaloudCandidateDao, readaloudDismissalDao, System::currentTimeMillis)
 
     override suspend fun reconcileLinks() {
-        val storytellerBooks = libraryItemDao.listMatchableByServerType(ServerType.STORYTELLER.name)
-        val absItems = libraryItemDao.listMatchableByServerType(ServerType.AUDIOBOOKSHELF.name)
+        val storytellerBooks = libraryItemDao.listMatchableBySourceType(ServerType.STORYTELLER.name)
+        val absItems = libraryItemDao.listMatchableBySourceType(ServerType.AUDIOBOOKSHELF.name)
 
         // Match each ABS server (= one user login on one ABS instance) independently: a
         // Storyteller readaloud is evaluated against each ABS server's library set on its own.

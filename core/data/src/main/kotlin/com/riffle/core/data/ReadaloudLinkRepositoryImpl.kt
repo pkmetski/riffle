@@ -31,7 +31,7 @@ class ReadaloudLinkRepositoryImpl @Inject constructor(
         dao.deleteByAbsItem(absServerId, absLibraryItemId)
 
     override suspend fun countForServer(serverId: String): Int =
-        dao.countForServer(serverId)
+        dao.countForSource(serverId)
 
     override suspend fun updateIdentityResult(absServerId: String, absLibraryItemId: String, result: AudiobookIdentityResult) =
         dao.updateIdentityResult(absServerId, absLibraryItemId, result.name)

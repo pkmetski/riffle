@@ -20,7 +20,7 @@ interface AnnotationDao {
         "SELECT * FROM annotations WHERE sourceId = :sourceId AND deleted = 0 " +
             "ORDER BY createdAt ASC"
     )
-    fun observeForServer(sourceId: String): Flow<List<AnnotationEntity>>
+    fun observeForSource(sourceId: String): Flow<List<AnnotationEntity>>
 
     /** One-shot read of non-deleted annotations for an ABS Library Item, oldest first. */
     @Query(
@@ -100,7 +100,7 @@ interface AnnotationDao {
 
     /** One row per `(sourceId, itemId)` with at least one dirty annotation. Used by AnnotationSweep. */
     @Query("SELECT DISTINCT sourceId, itemId FROM annotations WHERE updatedAt > lastSyncedAt")
-    suspend fun dirtyServerItems(): List<DirtyServerItem>
+    suspend fun dirtySourceItems(): List<DirtySourceItem>
 
     /** Stamp the given row ids as synced at the given wall-clock timestamp. */
     @Query("UPDATE annotations SET lastSyncedAt = :syncedAt WHERE id IN (:ids)")
@@ -119,7 +119,7 @@ interface AnnotationDao {
     )
     suspend fun purgeAgedTombstones(sourceId: String, itemId: String, cutoff: Long): Int
 
-    /** One row per book (ABS Library Item) with at least one live highlight on this server, most
+    /** One row per book (ABS Library Item) with at least one live highlight on this source, most
      *  recently updated first. Powers the Annotations View library list. */
     @Query(
         """
@@ -127,17 +127,17 @@ interface AnnotationDao {
                COUNT(*) AS highlightCount,
                MAX(updatedAt) AS latestUpdatedAt
         FROM annotations
-        WHERE serverId = :serverId
+        WHERE sourceId = :sourceId
           AND type = 'HIGHLIGHT'
           AND deleted = 0
         GROUP BY itemId
         ORDER BY latestUpdatedAt DESC
     """
     )
-    fun observeBooksWithHighlights(serverId: String): Flow<List<BookHighlightSummary>>
+    fun observeBooksWithHighlights(sourceId: String): Flow<List<BookHighlightSummary>>
 
-    /** Result row for [dirtyServerItems]. */
-    data class DirtyServerItem(val sourceId: String, val itemId: String)
+    /** Result row for [dirtySourceItems]. */
+    data class DirtySourceItem(val sourceId: String, val itemId: String)
 }
 
 /**

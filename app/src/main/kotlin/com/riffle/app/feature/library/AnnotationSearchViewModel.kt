@@ -62,7 +62,7 @@ class AnnotationSearchViewModel @Inject constructor(
                 if (query.isBlank() || serverId.isNullOrEmpty()) {
                     flowOf(emptyList())
                 } else {
-                    audiobookBookmarkStore.observeForServer(serverId)
+                    audiobookBookmarkStore.observeForSource(serverId)
                         .map { bookmarks -> searchAudiobookBookmarks(bookmarks, items, query) }
                 }
             }

@@ -208,7 +208,7 @@ class AnnotationDaoTest {
         dao.upsert(highlight("a3", sourceId = "srv1", itemId = "b3", deleted = true))
         dao.upsert(highlight("a4", sourceId = "srv2", itemId = "b9"))
 
-        val result = dao.observeForServer("srv1").first()
+        val result = dao.observeForSource("srv1").first()
 
         assertEquals(listOf("a1", "a2"), result.map { it.id })
     }

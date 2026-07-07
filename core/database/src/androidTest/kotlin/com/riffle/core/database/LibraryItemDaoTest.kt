@@ -162,7 +162,7 @@ class LibraryItemDaoTest {
             item("b", readingProgress = 0f, sourceId = "s2").copy(libraryId = "shared-lib"),
         ))
 
-        val rows = dao.listMatchableByServerType("AUDIOBOOKSHELF")
+        val rows = dao.listMatchableBySourceType("AUDIOBOOKSHELF")
         val keys = rows.map { it.sourceId to it.itemId }
 
         assertEquals(setOf("s1" to "a", "s2" to "b"), keys.toSet())

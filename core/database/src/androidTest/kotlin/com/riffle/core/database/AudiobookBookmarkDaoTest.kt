@@ -53,7 +53,7 @@ class AudiobookBookmarkDaoTest {
         dao.upsert(AudiobookBookmarkEntity("dirty", "s1", "i1", 20.0, "d", 1, 6, 5, false))
         dao.upsert(AudiobookBookmarkEntity("tomb", "s1", "i1", 30.0, "t", 1, 7, 5, true))
 
-        val dirty = dao.dirtyForServer("s1").map { it.id }.toSet()
+        val dirty = dao.dirtyForSource("s1").map { it.id }.toSet()
 
         assertEquals(setOf("dirty", "tomb"), dirty)
     }

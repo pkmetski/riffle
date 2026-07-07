@@ -43,9 +43,9 @@ interface AudiobookPositionDao {
 
     /** Dirty rows for one source (ADR 0030 sweep). */
     @Query("SELECT * FROM audiobook_positions WHERE sourceId = :sourceId AND localUpdatedAt > lastSyncedAt")
-    suspend fun dirtyForServer(sourceId: String): List<AudiobookPositionEntity>
+    suspend fun dirtyForSource(sourceId: String): List<AudiobookPositionEntity>
 
     /** All distinct sourceIds that have at least one dirty row. */
     @Query("SELECT DISTINCT sourceId FROM audiobook_positions WHERE localUpdatedAt > lastSyncedAt")
-    suspend fun serversWithDirtyRows(): List<String>
+    suspend fun sourcesWithDirtyRows(): List<String>
 }

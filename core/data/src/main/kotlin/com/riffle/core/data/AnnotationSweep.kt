@@ -41,7 +41,7 @@ class AnnotationSweep(
      * binding explicitly.
      */
     private val dirtyLedger: DirtyAnnotationLedger =
-        DirtyAnnotationLedger { annotationDao.dirtyServerItems() },
+        DirtyAnnotationLedger { annotationDao.dirtySourceItems() },
     /**
      * Per-book mutex shared with [AnnotationSyncController] (#321). Held across the per-book
      * read-then-write so the sweep and a live push cannot interleave on the same device file.
@@ -75,7 +75,7 @@ class AnnotationSweep(
         val sentinelTargets = mutableSetOf<Pair<String, String>>()
         val outcome: CycleOutcome = try {
             val deviceId = deviceIdStore.getOrCreate()
-            for ((serverId, itemId) in dirtyLedger.dirtyServerItems()) {
+            for ((serverId, itemId) in dirtyLedger.dirtySourceItems()) {
                 val namespace = serverRepository.ensureAbsUserId(serverId) ?: continue
                 val bookTitle = bookTitleProvider(serverId, itemId)
                 // Hold the per-book lock across the read-then-write so the live

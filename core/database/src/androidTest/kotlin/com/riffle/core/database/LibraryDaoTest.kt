@@ -47,27 +47,27 @@ class LibraryDaoTest {
     // by its own Server.
     @Test
     fun sameLibraryIdOnDifferentServersBothPersist() = runTest {
-        dao.replaceAllForServer("s1", listOf(library("lib", "s1", name = "From s1")))
-        dao.replaceAllForServer("s2", listOf(library("lib", "s2", name = "From s2")))
+        dao.replaceAllForSource("s1", listOf(library("lib", "s1", name = "From s1")))
+        dao.replaceAllForSource("s2", listOf(library("lib", "s2", name = "From s2")))
 
-        val s1Libs = dao.observeByServerId("s1").first()
-        val s2Libs = dao.observeByServerId("s2").first()
+        val s1Libs = dao.observeBySourceId("s1").first()
+        val s2Libs = dao.observeBySourceId("s2").first()
 
         assertEquals(listOf("From s1"), s1Libs.map { it.name })
         assertEquals(listOf("From s2"), s2Libs.map { it.name })
     }
 
-    // replaceAllForServer must scope its delete+upsert to the target Server only — refreshing one
+    // replaceAllForSource must scope its delete+upsert to the target Server only — refreshing one
     // Server's libraries must not steal a same-id library away from another Server.
     @Test
-    fun replaceAllForServerLeavesOtherServersSameIdLibraryIntact() = runTest {
-        dao.replaceAllForServer("s1", listOf(library("lib", "s1")))
-        dao.replaceAllForServer("s2", listOf(library("lib", "s2")))
+    fun replaceAllForSourceLeavesOtherServersSameIdLibraryIntact() = runTest {
+        dao.replaceAllForSource("s1", listOf(library("lib", "s1")))
+        dao.replaceAllForSource("s2", listOf(library("lib", "s2")))
 
         // Re-refresh s1 (as refreshLibraries does for the active Server).
-        dao.replaceAllForServer("s1", listOf(library("lib", "s1")))
+        dao.replaceAllForSource("s1", listOf(library("lib", "s1")))
 
-        assertEquals(1, dao.observeByServerId("s1").first().size)
-        assertEquals(1, dao.observeByServerId("s2").first().size)
+        assertEquals(1, dao.observeBySourceId("s1").first().size)
+        assertEquals(1, dao.observeBySourceId("s2").first().size)
     }
 }

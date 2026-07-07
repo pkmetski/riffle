@@ -168,7 +168,7 @@ class ServerRepositoryImpl @Inject constructor(
                 serverId = id,
             )
         }
-        libraryDao.replaceAllForServer(serverId = id, libraries = libraryRows)
+        libraryDao.replaceAllForSource(serverId = id, libraries = libraryRows)
         hiddenLibraryIds.forEach { hidden -> visibilityStore.hideLibrary(id, hidden) }
         CommitServerResult.Success(inserted.toDomain())
     } catch (t: Throwable) {
@@ -188,8 +188,8 @@ class ServerRepositoryImpl @Inject constructor(
         // For Storyteller servers this purges the synthetic Readaloud library and its books;
         // for ABS servers it cleans up real libraries and their items. ReadaloudLinks cross-server
         // cleanup belongs to #36 (matching slice) — until that lands the count of links is 0.
-        libraryDao.libraryIdsForServer(serverId).forEach { libraryItemDao.deleteByLibraryId(serverId, it) }
-        libraryDao.deleteByServerId(serverId)
+        libraryDao.libraryIdsForSource(serverId).forEach { libraryItemDao.deleteByLibraryId(serverId, it) }
+        libraryDao.deleteBySourceId(serverId)
         dao.deleteById(serverId)
         tokenStorage.deleteToken(serverId)
         tokenStorage.deletePassword(serverId)

@@ -142,7 +142,7 @@ abstract class LocalStoreModule {
                     context.cacheDir.resolve("pdfs") to ".pdf",
                     context.filesDir.resolve("downloads/pdfs") to ".pdf",
                 ),
-                resolveServerId = { itemId -> libraryItemDao.findServerIdForItem(itemId) },
+                resolveServerId = { itemId -> libraryItemDao.findSourceIdForItem(itemId) },
                 dispatchers = dispatchers,
             )
 

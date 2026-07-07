@@ -35,7 +35,7 @@ interface ReadaloudLinkDao {
     fun observeLinkedAbsItemIds(): Flow<List<String>>
 
     @Query("SELECT COUNT(*) FROM readaloud_links WHERE storytellerSourceId = :sourceId OR absSourceId = :sourceId")
-    suspend fun countForServer(sourceId: String): Int
+    suspend fun countForSource(sourceId: String): Int
 
     /** Unlink a specific ABS item from its readaloud. */
     @Query("DELETE FROM readaloud_links WHERE absSourceId = :absSourceId AND absLibraryItemId = :absLibraryItemId")

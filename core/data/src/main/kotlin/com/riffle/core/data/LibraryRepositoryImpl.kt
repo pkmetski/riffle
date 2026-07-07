@@ -58,11 +58,11 @@ class LibraryRepositoryImpl @Inject constructor(
             .distinctUntilChanged()
             .flatMapLatest { serverId ->
                 if (serverId == null) flowOf(emptyList())
-                else libraryDao.observeByServerId(serverId).map { list -> list.map { it.toDomain() } }
+                else libraryDao.observeBySourceId(serverId).map { list -> list.map { it.toDomain() } }
             }
 
     override fun observeLibraries(serverId: String): Flow<List<Library>> =
-        libraryDao.observeByServerId(serverId).map { list -> list.map { it.toDomain() } }
+        libraryDao.observeBySourceId(serverId).map { list -> list.map { it.toDomain() } }
 
     // Id of the Server whose libraries the user is currently browsing. The nav drawer only ever
     // lists the active Server's libraries, so the visible library always belongs to it.
@@ -169,7 +169,7 @@ class LibraryRepositoryImpl @Inject constructor(
         val entities = result.value
             .filter { it.mediaType == "book" }
             .map { LibraryEntity(id = it.id, name = it.name, mediaType = it.mediaType, serverId = server.id) }
-        libraryDao.replaceAllForServer(server.id, entities)
+        libraryDao.replaceAllForSource(server.id, entities)
         return LibraryRefreshResult.Success
     }
 
