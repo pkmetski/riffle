@@ -1,5 +1,7 @@
 package com.riffle.app.feature.reader
 
+import android.os.Build
+import androidx.core.view.WindowInsetsControllerCompat
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -12,6 +14,7 @@ class ImmersiveModeStateTest {
         var hideCount = 0
         var showCount = 0
         var applyImmersiveBehaviorCount = 0
+        var reapplyRawCount = 0
 
         override fun hide() {
             hideCount++
@@ -23,6 +26,10 @@ class ImmersiveModeStateTest {
 
         override fun applyImmersiveBehavior() {
             applyImmersiveBehaviorCount++
+        }
+
+        override fun reapplyRaw() {
+            reapplyRawCount++
         }
     }
 
@@ -193,6 +200,104 @@ class ImmersiveModeStateTest {
         assertFalse(state.isImmersive)
         assertFalse(state.systemBarsHiddenForTest)
         assertEquals(1, controller.showCount)
+    }
+
+    @Test
+    fun `all API levels use sticky IMMERSIVE so bars auto-hide after any transient reveal`() {
+        // Non-sticky IMMERSIVE has multiple gaps we can't reliably paper over from application
+        // code: pre-R keeps the compat-cache-stale "transparent overlay" state until we cycle
+        // flags on the decor view; R+ shows bars during any transient reveal (ActionMode, focusable
+        // Popup) until our focus-regain observer fires — *after* the visible flash. Sticky
+        // (BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE) makes the OS auto-restore fullscreen without
+        // our involvement, closing the loop before the user sees anything.
+        listOf(
+            Build.VERSION_CODES.N_MR1, // API 25 tablet AVD
+            Build.VERSION_CODES.Q,     // API 29
+            Build.VERSION_CODES.R,     // API 30
+            Build.VERSION_CODES.TIRAMISU, // API 33
+        ).forEach { sdk ->
+            assertEquals(
+                "sticky expected at API $sdk",
+                WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE,
+                immersiveSystemBarsBehavior(sdk),
+            )
+        }
+    }
+
+    @Test
+    fun `focus regain while immersive calls reapplyRaw to bypass the compat cache`() {
+        // Bug: opening a focusable Compose Popup or a Dialog steals window focus from the reader;
+        // the OS clears the fullscreen flags while the reader Window is unfocused and reveals the
+        // status/nav bars behind the popup. On dismiss the reader Window regains focus but the OS
+        // still shows the bars — WindowInsetsControllerCompat's own state cache still thinks bars
+        // are hidden (it applied the flags earlier), so a vanilla hide() is a no-op. reapplyRaw()
+        // writes the flags directly onto the decor view, bypassing the cache, so the OS re-hides.
+        state.hide()
+
+        state.onWindowFocusChanged(true) // seed the tracker with the current (focused) state
+        state.onWindowFocusChanged(false) // popup opens, reader loses focus
+        assertEquals(0, controller.reapplyRawCount) // loss alone is a signal, not an action
+
+        state.onWindowFocusChanged(true) // popup dismisses, reader regains focus
+        assertEquals(1, controller.reapplyRawCount) // fix path fired
+        assertTrue(state.isImmersive)
+    }
+
+    @Test
+    fun `first focus event just seeds the tracker so a focused-at-compose reader does not spurious-reapply`() {
+        // Reader composes while window IS focused (the common case): snapshotFlow's first emission
+        // is `true`. A naive `lastWindowFocused = true` default would coincidentally do the right
+        // thing here, but `lastWindowFocused = null` makes the seed step explicit and self-documenting.
+        // Either way, the first emission must not fire reapplyRaw.
+        state.hide()
+        controller.reapplyRawCount = 0
+
+        state.onWindowFocusChanged(true) // first-ever emission; window is already focused at compose time
+
+        assertEquals(0, controller.reapplyRawCount)
+    }
+
+    @Test
+    fun `reader composed unfocused then gaining focus is treated as a focus regain`() {
+        // Reader composes while window is unfocused (rotation with system Dialog up, cold start
+        // behind another window): snapshotFlow's first emission is `false`. When focus later
+        // arrives, that IS a genuine focus regain — the OS may have cleared our flags while we
+        // were unfocused. reapplyRaw is the correct response here. Without the null-seed fix, the
+        // default `lastWindowFocused = true` would have first read (true→false) as a focus loss —
+        // that's harmless (loss is a no-op) but the semantics were muddled. The seed makes the
+        // (unfocused-at-compose → focused) case an unambiguous first genuine transition.
+        state.hide()
+        controller.reapplyRawCount = 0
+
+        state.onWindowFocusChanged(false) // first-ever emission; window is unfocused at compose time
+        state.onWindowFocusChanged(true)  // OS finally delivers focus
+
+        assertEquals(1, controller.reapplyRawCount)
+        assertTrue(state.isImmersive)
+    }
+
+
+    @Test
+    fun `focus regain when not immersive does not reapply the flags`() {
+        // If the user has intentionally exited immersive (tap-to-toggle), a transient focus loss +
+        // regain must NOT re-hide the bars — otherwise a popup dismiss would drag the reader back
+        // into immersive against the user's will.
+        // state is non-immersive from setUp; simulate the transient focus flip.
+        state.onWindowFocusChanged(false)
+        state.onWindowFocusChanged(true)
+
+        assertEquals(0, controller.reapplyRawCount)
+        assertFalse(state.isImmersive)
+    }
+
+    @Test
+    fun `focus loss alone does not touch the controller`() {
+        // Losing focus is a signal, not an action: we only reapply on regain.
+        state.hide()
+
+        state.onWindowFocusChanged(false)
+
+        assertEquals(0, controller.reapplyRawCount)
     }
 
     @Test

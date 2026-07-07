@@ -31,6 +31,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.activity.compose.BackHandler
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -117,8 +118,15 @@ fun HighlightActionsPopup(
     Popup(
         popupPositionProvider = provider,
         onDismissRequest = onDismiss,
-        properties = PopupProperties(focusable = true),
+        // focusable = false so the popup Window does NOT take input focus from the reader
+        // Activity — any focus transfer causes the OS to reveal the reader's status/nav bars for
+        // ~250ms before the OS's sticky-IMMERSIVE re-hides them, a visible flash. Non-focusable
+        // popups still receive touch events (dismissOnClickOutside works via touch dispatch, not
+        // focus), so the only casualty is Back-key dismissal — restored explicitly via the
+        // BackHandler below.
+        properties = PopupProperties(focusable = false),
     ) {
+        BackHandler(enabled = true, onBack = onDismiss)
         Surface(
             shape = RoundedCornerShape(12.dp),
             shadowElevation = 4.dp,

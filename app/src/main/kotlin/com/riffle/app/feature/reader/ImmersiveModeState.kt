@@ -2,6 +2,8 @@ package com.riffle.app.feature.reader
 
 import android.os.Build
 import android.os.SystemClock
+import android.view.View
+import android.view.Window
 import androidx.activity.compose.LocalActivity
 import androidx.annotation.VisibleForTesting
 import androidx.compose.foundation.layout.WindowInsets
@@ -17,7 +19,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import androidx.lifecycle.Lifecycle
@@ -34,9 +38,22 @@ internal interface SystemBarsController {
     fun hide()
     fun show()
     fun applyImmersiveBehavior()
+
+    /**
+     * Force-re-apply the raw fullscreen/immersive flags directly on the underlying `Window`,
+     * bypassing [WindowInsetsControllerCompat]'s state cache. Needed on focus regain after a
+     * focusable Popup dismissal: the compat layer's own bookkeeping still thinks bars are hidden
+     * (because it applied the flags earlier), so `hide()` is a no-op — but the OS has actually
+     * cleared `FLAG_HIDE_NAVIGATION|FULLSCREEN` during the focus loss and won't restore them until
+     * we write the flags again. On pre-R this reasserts the raw SYSTEM_UI_FLAG_*; on R+ we just
+     * fall back to `hide()` since the modern controller has no equivalent cache bug.
+     */
+    fun reapplyRaw()
 }
 
+@Suppress("DEPRECATION")
 private class WindowInsetsBarsController(
+    private val window: Window,
     private val delegate: WindowInsetsControllerCompat,
     private val sdkInt: Int = Build.VERSION.SDK_INT,
 ) : SystemBarsController {
@@ -45,28 +62,61 @@ private class WindowInsetsBarsController(
     override fun applyImmersiveBehavior() {
         delegate.systemBarsBehavior = immersiveSystemBarsBehavior(sdkInt)
     }
+
+    override fun reapplyRaw() {
+        if (sdkInt >= Build.VERSION_CODES.R) {
+            delegate.hide(WindowInsetsCompat.Type.systemBars())
+            return
+        }
+        // On pre-R, once the OS has entered the "transparent overlay" state (bars drawn on top of
+        // still-fullscreen layout after focus loss), the immersive flags on decor are still all
+        // set but the OS ignores them until it sees a real transition. Force one: first clear the
+        // fullscreen/hide flags (visible-bars state), then on the next frame re-set them with
+        // IMMERSIVE_STICKY. The two-step toggle reads to the OS as a genuine reveal→hide cycle so
+        // it drops the transparent overlay and returns to true fullscreen.
+        //
+        // Preserve LIGHT_STATUS_BAR / LIGHT_NAVIGATION_BAR bits across both writes — those are
+        // owned by [MainActivity]'s appearance SideEffect and would otherwise revert to default
+        // (dark background / light icons) on every popup dismissal in a light theme.
+        val decor = window.decorView
+        val appearanceMask = View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR or
+            View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR
+        val appearance = decor.systemUiVisibility and appearanceMask
+        val immersiveFlags = View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or
+            View.SYSTEM_UI_FLAG_FULLSCREEN or
+            View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY or
+            View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION or
+            View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN or
+            View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+        val layoutOnly = View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION or
+            View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN or
+            View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+        decor.systemUiVisibility = layoutOnly or appearance
+        decor.post { decor.systemUiVisibility = immersiveFlags or appearance }
+    }
 }
 
 /**
- * On pre-R (API < 30) the AndroidX compat layer maps [BEHAVIOR_DEFAULT] to the
- * non-sticky `SYSTEM_UI_FLAG_IMMERSIVE` flag: any tap/system event clears
- * `FLAG_HIDE_NAVIGATION|FULLSCREEN` but leaves `LAYOUT_HIDE_NAVIGATION|LAYOUT_FULLSCREEN` set,
- * so the status/nav bars re-appear as transparent overlays on top of the content and stay
- * there. Because the layout flags remain, `WindowInsets.systemBars.getTop()` stays 0, so
- * the topInset watcher in [rememberImmersiveModeState] cannot notice and re-hide.
+ * Sticky-IMMERSIVE ([BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE]) is safe on all API levels and
+ * closes several gaps that [BEHAVIOR_DEFAULT] leaves open:
  *
- * Using [BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE] on pre-R sets `IMMERSIVE_STICKY` instead, so
- * the system auto-hides the bars again after the transient reveal. On API 30+ we keep
- * [BEHAVIOR_DEFAULT] because the reader intentionally treats a side-edge page-turn swipe
- * as a permanent reveal (see the comment on [ImmersiveModeState.onBarsRestoredExternally]).
+ *  - Pre-R: BEHAVIOR_DEFAULT maps to non-sticky `SYSTEM_UI_FLAG_IMMERSIVE`. When a focusable
+ *    Popup opens or the user taps outside, the OS clears `FLAG_HIDE_NAVIGATION|FULLSCREEN` but
+ *    leaves `LAYOUT_HIDE_NAVIGATION|LAYOUT_FULLSCREEN` set, so bars re-appear as transparent
+ *    overlays and stay. The topInset watcher can't notice (inset stays 0) and calling
+ *    [WindowInsetsControllerCompat.hide] after the fact is a no-op (state cache says hidden).
+ *  - R+: BEHAVIOR_DEFAULT lets the OS reveal bars during any transient window transition
+ *    (text-selection ActionMode showing, focusable Popup opening); they stay visible until
+ *    [ImmersiveModeState.onWindowFocusChanged] fires — which is *after* the visible flash.
+ *
+ * Sticky's transient-then-auto-hide behavior swallows all of these without our involvement.
+ * [ImmersiveModeState.onBarsRestoredExternally] and [onWindowFocusChanged] remain as
+ * belt-and-braces for edge cases the OS's own retry misses.
  */
 @VisibleForTesting
+@Suppress("UNUSED_PARAMETER")
 internal fun immersiveSystemBarsBehavior(sdkInt: Int): Int =
-    if (sdkInt < Build.VERSION_CODES.R) {
-        WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
-    } else {
-        WindowInsetsControllerCompat.BEHAVIOR_DEFAULT
-    }
+    WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
 
 @Stable
 class ImmersiveModeState internal constructor(
@@ -146,13 +196,34 @@ class ImmersiveModeState internal constructor(
     //    overlay follow (isImmersive = false) — flags are already in the target state.
     //
     //  - An *unrequested* reveal while we still believe the bars should be hidden
-    //    (systemBarsHidden == true): a system edge gesture revealed them. A side-edge page-turn
-    //    swipe lands in the OS back-gesture zone, and under BEHAVIOR_DEFAULT that flashes the
-    //    system bars — which otherwise drops the reader out of immersive mode on every edge swipe.
-    //    We re-hide and stay immersive instead, so the bars are only ever revealed by an explicit
-    //    tap-to-toggle. (Verified on an API-33 emulator with gesture navigation: a side-edge swipe
-    //    now stays in immersive mode. Note this also suppresses the incidental top-edge
-    //    swipe-down reveal — the tap is the supported way to bring the chrome back.)
+    //    (systemBarsHidden == true): a lingering edge-case not swallowed by sticky IMMERSIVE
+    //    (see immersiveSystemBarsBehavior). Most transient reveals — focusable Popup dismiss,
+    //    ActionMode close, side-edge page-turn swipe hitting the OS back-gesture zone — auto-hide
+    //    via sticky without our involvement; this branch handles anything that survives.
+    //    We re-hide and stay immersive so bars are only ever revealed by an explicit tap-to-toggle.
+    // Reader-window focus tracker. When the reader Window loses focus to a transient window
+    // (focusable Compose Popup, floating Dialog, ActionMode toolbar), the OS drops the reader
+    // out of immersive: the SYSTEM_UI_FLAG_IMMERSIVE flag it applied only takes effect while the
+    // window is focused, so on focus loss the status/nav bars are drawn back over the still
+    // layout-fullscreen reader. On focus regain the flags remain in the cleared state and no path
+    // re-applies the hide — the topInset watcher can't see the drift because the inset stays 0.
+    //
+    // Call [onWindowFocusChanged] from the composable's LocalWindowInfo.isWindowFocused observer.
+    // On the false→true transition we force-re-hide when [isImmersive], so controller.hide()
+    // reaches the OS again and clears the visible bars.
+    // Initialised lazily on the first onWindowFocusChanged call so a reader composed while the
+    // window is unfocused (rotation with a system Dialog up, cold start behind another window)
+    // doesn't misread the very first genuine focus gain as a return-from-popup and fire a spurious
+    // reapplyRaw before any popup ever opened.
+    private var lastWindowFocused: Boolean? = null
+    internal fun onWindowFocusChanged(focused: Boolean) {
+        val wasFocused = lastWindowFocused
+        lastWindowFocused = focused
+        if (wasFocused == null) return
+        if (focused && !wasFocused && isImmersive) controller.reapplyRaw()
+    }
+
+
     internal fun onBarsRestoredExternally() {
         if (systemBarsHidden) {
             // Bars are currently shown (the OS just flashed them) so re-hiding is a real hide,
@@ -185,7 +256,7 @@ class ImmersiveModeState internal constructor(
 fun rememberImmersiveModeState(): ImmersiveModeState {
     val window = checkNotNull(LocalActivity.current).window
     val controller = remember(window) {
-        WindowInsetsBarsController(WindowInsetsControllerCompat(window, window.decorView))
+        WindowInsetsBarsController(window, WindowInsetsControllerCompat(window, window.decorView))
     }
     val state = remember(controller) {
         ImmersiveModeState(controller, clock = SystemClock::elapsedRealtime)
@@ -250,6 +321,18 @@ fun rememberImmersiveModeState(): ImmersiveModeState {
             }
             state.onBarsRestoredExternally()
         }
+    }
+
+    // Re-apply immersive whenever the reader window regains focus after a transient loss. A
+    // focusable Popup (e.g. HighlightActionsPopup) or a system Dialog steals focus from the reader
+    // Window; while the reader Window is unfocused the OS drops it out of immersive and reveals the
+    // status/nav bars behind the popup — layout stays fullscreen so the topInset watcher can't see
+    // it (inset stays 0). On focus regain we force-re-hide to restore true immersive; force = true
+    // resets the systemBarsHidden guard so controller.hide() actually reaches the OS again.
+    val windowInfo = LocalWindowInfo.current
+    LaunchedEffect(state, windowInfo) {
+        snapshotFlow { windowInfo.isWindowFocused }
+            .collect { focused -> state.onWindowFocusChanged(focused) }
     }
 
     // Always restore system bars when the reader screen leaves the composition.

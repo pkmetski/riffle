@@ -419,6 +419,16 @@ fun EpubReaderScreen(
                         currentSearchIndex = currentSearchIndex,
                         volumeNavEvents = viewModel.volumeNavEvents,
                         onTap = immersiveState::toggle,
+                        onSelectionEnded = {
+                            // Belt-and-braces: sticky IMMERSIVE (see immersiveSystemBarsBehavior)
+                            // handles the ActionMode-dismiss reveal on its own — the OS auto-hides
+                            // bars without our involvement. hide(force = true) here keeps our own
+                            // isImmersive/systemBarsHidden state model in sync with the OS in case
+                            // any prior path drifted, without triggering the direct decor-view
+                            // reapply that would visibly flash bars during the ActionMode-close
+                            // transition on pre-R.
+                            if (immersiveState.isImmersive) immersiveState.hide(force = true)
+                        },
                         latestLocator = { viewModel.latestLocator },
                         onFootnoteTapped = viewModel::showFootnotePopup,
                         returnNavEvents = viewModel.returnNavEvents,
@@ -1133,6 +1143,7 @@ private fun EpubNavigatorView(
     currentSearchIndex: Int,
     volumeNavEvents: Flow<VolumeNavEvent>,
     onTap: () -> Unit,
+    onSelectionEnded: () -> Unit,
     latestLocator: () -> Locator?,
     onFootnoteTapped: (content: FootnoteContent) -> Unit,
     returnNavEvents: Flow<Locator>,
@@ -1320,6 +1331,7 @@ private fun EpubNavigatorView(
     // rememberUpdatedState ensures the listener always calls the latest onTap lambda
     // without needing to be re-created when onTap changes.
     val currentOnTap by rememberUpdatedState(onTap)
+    val currentOnSelectionEnded by rememberUpdatedState(onSelectionEnded)
     val currentOnFootnoteTapped by rememberUpdatedState(onFootnoteTapped)
     val currentLatestLocator by rememberUpdatedState(latestLocator)
     val currentOnCaptureReturnTarget by rememberUpdatedState(onCaptureReturnTarget)
@@ -1514,7 +1526,12 @@ private fun EpubNavigatorView(
                 return true
             }
 
-            override fun onDestroyActionMode(mode: android.view.ActionMode) {}
+            override fun onDestroyActionMode(mode: android.view.ActionMode) {
+                // See the onSelectionEnded doc on ContinuousReaderView: after ActionMode dismissal
+                // the OS leaves the system bars in a transparent-overlay state that the topInset
+                // watcher can't see. Force-re-hide restores true immersive.
+                currentOnSelectionEnded()
+            }
         }
     }
     // ConcurrentHashMap: writes happen on Dispatchers.IO from the locator
@@ -2378,6 +2395,7 @@ private fun EpubNavigatorView(
                         view.annotationsAvailable = currentAnnotationsAvailable
                         view.readaloudAvailable = currentReadaloudAvailable
                         view.onFigureTap = { payload -> onFigureTap(payload) }
+                        view.onSelectionEnded = { currentOnSelectionEnded() }
                     }
                 },
                 // Availability flags can flip mid-session; keep the selection menu gates in sync.
