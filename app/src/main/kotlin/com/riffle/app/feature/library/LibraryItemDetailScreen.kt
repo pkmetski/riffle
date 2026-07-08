@@ -374,6 +374,7 @@ private fun LibraryItemDetailContent(
                 model = ImageRequest.Builder(LocalContext.current)
                     .data(url)
                     .addHeader("Authorization", "Bearer $token")
+                    .instrumentCover("detail", item.id, url)
                     .build(),
                 contentDescription = null,
                 contentScale = ContentScale.Fit,
@@ -592,6 +593,7 @@ internal fun LibraryItemDetailContentTablet(
                     model = ImageRequest.Builder(LocalContext.current)
                         .data(url)
                         .addHeader("Authorization", "Bearer $token")
+                        .instrumentCover("detail", item.id, url)
                         .build(),
                     contentDescription = null,
                     contentScale = ContentScale.Fit,
@@ -780,6 +782,7 @@ internal fun LibraryItemDetailContentPhoneLandscape(
                     model = ImageRequest.Builder(LocalContext.current)
                         .data(url)
                         .addHeader("Authorization", "Bearer $token")
+                        .instrumentCover("detail", item.id, url)
                         .build(),
                     contentDescription = null,
                     contentScale = ContentScale.Fit,

@@ -11,5 +11,6 @@ class LogChannelTest {
         assertEquals("RIFFLE_RA", LogChannel.Readaloud.tag)
         assertEquals("RIFFLE_AB", LogChannel.Audiobook.tag)
         assertEquals("RIFFLE_HANDOFF", LogChannel.Handoff.tag)
+        assertEquals("RIFFLE_COVERS", LogChannel.Covers.tag)
     }
 }
