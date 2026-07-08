@@ -37,6 +37,7 @@ internal fun figureBorderInjectionJs(): String =
 internal fun figureBorderApplyJs(
     cssRules: List<String>,
     svgMatches: List<FigureBorderDecoration.SvgMatch> = emptyList(),
+    rasterMarks: List<FigureBorderDecoration.RasterMark> = emptyList(),
 ): String {
     val css = cssRules.joinToString("\n")
         .replace("\\", "\\\\")
@@ -50,8 +51,20 @@ internal fun figureBorderApplyJs(
             .replace("\r", "")
             .replace("\t", " ")
         val escColor = m.color.replace("\"", "\\\"")
-        "{\"fp\":\"$escFp\",\"color\":\"$escColor\"}"
+        "{\"fp\":\"$escFp\",\"color\":\"$escColor\",\"note\":${if (m.hasNote) 1 else 0}}"
     }
+    val rasterJson = rasterMarks.joinToString(",", prefix = "[", postfix = "]") { m ->
+        val escFn = m.filename.replace("\\", "\\\\").replace("\"", "\\\"")
+        "{\"fn\":\"$escFn\",\"note\":${if (m.hasNote) 1 else 0}}"
+    }
+    // Percent-encoded SVG of the same note-alt icon used by NoteGlyphDecoration. Small enough to
+    // inline without base64.
+    val noteIconDataUri =
+        "data:image/svg+xml," +
+            "%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E" +
+            "%3Cpath d='M22,10l-6,-6H4C2.9,4,2,4.9,2,6v12c0,1.1,0.9,2,2,2h16c1.1,0,2,-0.9,2,-2V10Z" +
+            "M16,4l4,4h-4V4ZM13,18H7v-2h6V18ZM17,14H7v-2h10V14ZM17,10H7V8h10V10Z'/%3E" +
+            "%3C/svg%3E"
     return """
         (function() {
           var id = '$FIGURE_BORDER_STYLE_ID';
@@ -71,13 +84,71 @@ internal fun figureBorderApplyJs(
           // different (different attribute order, namespace handling) — so the prefix never
           // matched. To further tolerate re-serialisation drift on reload, we also match on
           // element.innerHTML prefix as a fallback.
+          // Ensure the note-badge CSS is in place. Positioned OUTSIDE the figure's border by using
+          // negative offsets on an absolute-positioned child inside a position:relative wrapper.
+          if (!document.getElementById('$FIGURE_BORDER_STYLE_ID-notes')) {
+            var noteStyle = document.createElement('style');
+            noteStyle.id = '$FIGURE_BORDER_STYLE_ID-notes';
+            noteStyle.textContent =
+              '.riffle-fig-wrapper { position: relative; display: inline-block; }' +
+              '.riffle-fig-note-badge { position: absolute; top: -8px; right: -8px; width: 22px; height: 22px; ' +
+              '  border-radius: 50%; background: #ffffff; display: flex; align-items: center; justify-content: center; ' +
+              '  box-shadow: 0 1px 3px rgba(0,0,0,0.35); pointer-events: none; z-index: 2; }' +
+              '.riffle-fig-note-badge > span { display: block; width: 14px; height: 14px; ' +
+              '  -webkit-mask-image: url("$noteIconDataUri"); -webkit-mask-size: contain; ' +
+              '  -webkit-mask-repeat: no-repeat; background-color: currentColor; opacity: 0.80; }';
+            document.head.appendChild(noteStyle);
+          }
+          function clearNoteBadgeAround(el) {
+            var w = el && el.parentNode;
+            if (w && w.classList && w.classList.contains('riffle-fig-wrapper')) {
+              var badges = w.querySelectorAll('.riffle-fig-note-badge');
+              for (var b = 0; b < badges.length; b++) w.removeChild(badges[b]);
+            }
+          }
+          function ensureWrap(el) {
+            var p = el && el.parentNode;
+            if (p && p.classList && p.classList.contains('riffle-fig-wrapper')) return p;
+            if (!p) return null;
+            var span = document.createElement('span');
+            span.className = 'riffle-fig-wrapper';
+            p.insertBefore(span, el);
+            span.appendChild(el);
+            return span;
+          }
+          function addNoteBadge(el, color) {
+            var wrap = ensureWrap(el);
+            if (!wrap) return;
+            clearNoteBadgeAround(el);
+            var badge = document.createElement('div');
+            badge.className = 'riffle-fig-note-badge';
+            badge.style.color = color;
+            badge.innerHTML = '<span></span>';
+            wrap.appendChild(badge);
+          }
+          try {
+            // Raster: iterate the matched images and add/remove note badges. Border itself comes
+            // from the CSS style block above; badge lives on the wrapper we insert here.
+            var rasters = $rasterJson;
+            for (var ri = 0; ri < rasters.length; ri++) {
+              var rf = rasters[ri];
+              var imgs = document.querySelectorAll('img[src\$="' + rf.fn + '"]');
+              for (var ii = 0; ii < imgs.length; ii++) {
+                var img = imgs[ii];
+                if (rf.note) {
+                  var col = (window.getComputedStyle && window.getComputedStyle(img).outlineColor) || 'currentColor';
+                  addNoteBadge(img, col);
+                } else {
+                  clearNoteBadgeAround(img);
+                }
+              }
+            }
+          } catch (er) {}
           try {
             var matches = $svgJson;
             var ser = null;
             try { ser = new XMLSerializer(); } catch (e2) {}
             var svgs = document.querySelectorAll('svg');
-            // Diag flash removed — raster figures now match via filename suffix in CSS, no JS
-            // needed for them; SVG matching stays JS-based.
             for (var i = 0; i < svgs.length; i++) {
               var s = svgs[i];
               if (s.__riffleBorderApplied) {
@@ -85,6 +156,7 @@ internal fun figureBorderApplyJs(
                 s.style.outlineOffset = '';
                 s.__riffleBorderApplied = false;
               }
+              clearNoteBadgeAround(s);
               var outer = ser ? ser.serializeToString(s) : (s.outerHTML || '');
               var inner = s.innerHTML || '';
               for (var j = 0; j < matches.length; j++) {
@@ -93,6 +165,7 @@ internal fun figureBorderApplyJs(
                   s.style.outline = '2px solid ' + matches[j].color;
                   s.style.outlineOffset = '2px';
                   s.__riffleBorderApplied = true;
+                  if (matches[j].note) addNoteBadge(s, matches[j].color);
                   break;
                 }
               }

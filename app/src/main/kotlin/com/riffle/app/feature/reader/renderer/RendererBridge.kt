@@ -66,6 +66,7 @@ internal interface RendererBridge {
     suspend fun applyFigureBorders(
         cssRules: List<String>,
         svgMatches: List<com.riffle.app.feature.reader.decorations.FigureBorderDecoration.SvgMatch> = emptyList(),
+        rasterMarks: List<com.riffle.app.feature.reader.decorations.FigureBorderDecoration.RasterMark> = emptyList(),
     )
 
     // ── Column snapping ─────────────────────────────────────────────────────────────────────

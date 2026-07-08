@@ -54,8 +54,11 @@ class RiffleApplication : Application(), ImageLoaderFactory {
             dialog {
                 text = "Riffle crashed. Open Settings → Crash reports to view or share the details."
                 title = "Crash report"
-                positiveButtonText = "Save report"
-                negativeButtonText = "Discard"
+                // Single OK button — the previous Save report / Discard pair looked like two
+                // "close" options because ACRA's positive/negative both close the dialog and either
+                // way the report is saved locally (FileCrashReportSender), so the choice was noise.
+                positiveButtonText = "OK"
+                negativeButtonText = null
             }
             // Cap retention so a looping bug can't fill the disk between launches. Pairs with
             // FileCrashReportSender.pruneToMax — Limiter bounds the upstream queue, the sender

@@ -44,8 +44,9 @@ internal class FakeRendererBridge(
     override suspend fun applyFigureBorders(
         cssRules: List<String>,
         svgMatches: List<com.riffle.app.feature.reader.decorations.FigureBorderDecoration.SvgMatch>,
+        rasterMarks: List<com.riffle.app.feature.reader.decorations.FigureBorderDecoration.RasterMark>,
     ) {
-        calls += "applyFigureBorders(n=${cssRules.size},svg=${svgMatches.size})"
+        calls += "applyFigureBorders(n=${cssRules.size},svg=${svgMatches.size},raster=${rasterMarks.size})"
     }
 
     override suspend fun installScrollSettleBackstop() {

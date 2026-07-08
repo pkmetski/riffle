@@ -68,15 +68,11 @@ internal class DefaultRendererBridge(
     override suspend fun applyFigureBorders(
         cssRules: List<String>,
         svgMatches: List<com.riffle.app.feature.reader.decorations.FigureBorderDecoration.SvgMatch>,
+        rasterMarks: List<com.riffle.app.feature.reader.decorations.FigureBorderDecoration.RasterMark>,
     ) {
         val frag = fragment ?: return
-        android.util.Log.d(
-            "FigDiag",
-            "applyFigureBorders cssRules.size=${cssRules.size} svgMatches.size=${svgMatches.size}",
-        )
-        cssRules.forEachIndexed { i, r -> android.util.Log.d("FigDiag", "  cssRule[$i]: $r") }
         frag.evaluateJavascript(figureBorderInjectionJs())
-        frag.evaluateJavascript(figureBorderApplyJs(cssRules, svgMatches))
+        frag.evaluateJavascript(figureBorderApplyJs(cssRules, svgMatches, rasterMarks))
     }
 
     override suspend fun installScrollSettleBackstop() {

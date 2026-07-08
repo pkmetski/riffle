@@ -26,37 +26,40 @@ internal object FigureBorderDecoration {
      * annotations reference the same figure, the one with the greatest [Annotation.updatedAt]
      * wins — matches the "newest wins" rule used elsewhere for overlapping annotation state.
      */
-    fun buildCssRules(annotations: List<Annotation>): List<String> {
-        data class FigureRef(val href: String, val color: String, val updatedAt: Long)
+    fun buildCssRules(annotations: List<Annotation>): List<String> = buildRasterMarks(annotations)
+        .sortedBy { it.filename }
+        .map { ref ->
+            val selector = "img[src\$=\"${ref.filename}\"]"
+            "$selector { outline: $OUTLINE_WIDTH_CSS solid ${ref.color}; outline-offset: $OUTLINE_OFFSET_CSS; }"
+        }
 
-        val refs = mutableListOf<FigureRef>()
+    /**
+     * Per-figure raster match — filename suffix (for CSS `[src$=…]` matching), the annotation's
+     * CSS-ready color, and whether the annotation carries a note (drives the note-glyph badge).
+     */
+    internal data class RasterMark(val filename: String, val color: String, val hasNote: Boolean)
+
+    fun buildRasterMarks(annotations: List<Annotation>): List<RasterMark> {
+        data class Ref(val href: String, val color: String, val hasNote: Boolean, val updatedAt: Long)
+        val refs = mutableListOf<Ref>()
         for (a in annotations) {
+            val hasNote = !a.note.isNullOrBlank()
             when (a.type) {
-                AnnotationEntity.TYPE_IMAGE -> a.imageHref?.let { href ->
-                    refs += FigureRef(href, a.color, a.updatedAt)
-                }
-                AnnotationEntity.TYPE_HIGHLIGHT -> a.embeddedFigures?.forEach { figure ->
-                    figure.href?.let { href ->
-                        refs += FigureRef(href, a.color, a.updatedAt)
-                    }
+                AnnotationEntity.TYPE_IMAGE -> a.imageHref?.let { refs += Ref(it, a.color, hasNote, a.updatedAt) }
+                AnnotationEntity.TYPE_HIGHLIGHT -> a.embeddedFigures?.forEach { fig ->
+                    fig.href?.let { refs += Ref(it, a.color, hasNote, a.updatedAt) }
                 }
             }
         }
-
         return refs.groupBy { hrefFilename(it.href) }
             .mapValues { (_, group) -> group.maxByOrNull { it.updatedAt }!! }
             .values
-            .sortedBy { it.href }
-            .map { ref ->
-                val cssColor = HighlightColor.fromToken(ref.color).argb.toCssRgba()
-                // Match by filename SUFFIX only. Captured `imageHref` is the resolved runtime URL
-                // (e.g. "https://readium_package/OEBPS/image_rsrc2H6.jpg"), but the HTML source's
-                // `src` attribute is the raw EPUB-relative path (e.g. "image_rsrc2H6.jpg"). CSS
-                // `[src$="…"]` matches the attribute value, not the resolved URL, so we strip to
-                // the filename to make both sides comparable.
-                val filename = hrefFilename(ref.href)
-                val selector = "img[src\$=\"$filename\"]"
-                "$selector { outline: $OUTLINE_WIDTH_CSS solid $cssColor; outline-offset: $OUTLINE_OFFSET_CSS; }"
+            .map {
+                RasterMark(
+                    filename = hrefFilename(it.href),
+                    color = HighlightColor.fromToken(it.color).argb.toCssRgba(),
+                    hasNote = it.hasNote,
+                )
             }
     }
 
@@ -84,20 +87,21 @@ internal object FigureBorderDecoration {
      * One entry per SVG annotation covering the current document. Newest-wins by `updatedAt` when
      * two annotations reference the same SVG (same fingerprint).
      */
-    internal data class SvgMatch(val fingerprint: String, val color: String)
+    internal data class SvgMatch(val fingerprint: String, val color: String, val hasNote: Boolean = false)
 
     fun buildSvgMatches(annotations: List<Annotation>): List<SvgMatch> {
-        data class Ref(val fingerprint: String, val color: String, val updatedAt: Long)
+        data class Ref(val fingerprint: String, val color: String, val hasNote: Boolean, val updatedAt: Long)
 
         val refs = mutableListOf<Ref>()
         for (a in annotations) {
+            val hasNote = !a.note.isNullOrBlank()
             when (a.type) {
                 AnnotationEntity.TYPE_IMAGE -> a.imageSvg?.take(SVG_FINGERPRINT_PREFIX_LEN)?.let {
-                    refs += Ref(it, a.color, a.updatedAt)
+                    refs += Ref(it, a.color, hasNote, a.updatedAt)
                 }
                 AnnotationEntity.TYPE_HIGHLIGHT -> a.embeddedFigures?.forEach { figure ->
                     figure.svg?.take(SVG_FINGERPRINT_PREFIX_LEN)?.let {
-                        refs += Ref(it, a.color, a.updatedAt)
+                        refs += Ref(it, a.color, hasNote, a.updatedAt)
                     }
                 }
             }
@@ -106,6 +110,12 @@ internal object FigureBorderDecoration {
         return refs.groupBy { it.fingerprint }
             .mapValues { (_, group) -> group.maxByOrNull { it.updatedAt }!! }
             .values
-            .map { SvgMatch(it.fingerprint, HighlightColor.fromToken(it.color).argb.toCssRgba()) }
+            .map {
+                SvgMatch(
+                    fingerprint = it.fingerprint,
+                    color = HighlightColor.fromToken(it.color).argb.toCssRgba(),
+                    hasNote = it.hasNote,
+                )
+            }
     }
 }

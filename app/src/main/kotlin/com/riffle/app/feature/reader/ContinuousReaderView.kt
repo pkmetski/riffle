@@ -403,7 +403,8 @@ internal class ContinuousReaderView @JvmOverloads constructor(
     fun applyFigureBorders(
         cssRules: List<String>,
         svgMatches: List<com.riffle.app.feature.reader.decorations.FigureBorderDecoration.SvgMatch>,
-    ) = controller.applyFigureBorders(cssRules, svgMatches)
+        rasterMarks: List<com.riffle.app.feature.reader.decorations.FigureBorderDecoration.RasterMark> = emptyList(),
+    ) = controller.applyFigureBorders(cssRules, svgMatches, rasterMarks)
 
     /**
      * Abort any in-progress fling animation so that the OverScroller stops updating scrollY.

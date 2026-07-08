@@ -2285,10 +2285,11 @@ private fun EpubNavigatorView(
     LaunchedEffect(rendererBridge, isContinuous, continuousViewRef.value, annotations, reflowGeneration, pageLoadGeneration.value) {
         val cssRules = FigureBorderDecoration.buildCssRules(annotations)
         val svgMatches = FigureBorderDecoration.buildSvgMatches(annotations)
+        val rasterMarks = FigureBorderDecoration.buildRasterMarks(annotations)
         if (isContinuous) {
-            continuousViewRef.value?.applyFigureBorders(cssRules, svgMatches)
+            continuousViewRef.value?.applyFigureBorders(cssRules, svgMatches, rasterMarks)
         } else {
-            rendererBridge.applyFigureBorders(cssRules, svgMatches)
+            rendererBridge.applyFigureBorders(cssRules, svgMatches, rasterMarks)
         }
     }
 

@@ -44,6 +44,7 @@ internal class ContinuousDecorationController(
     private var currentSearchHighlights: SearchHighlightsState? = null
     private var currentFigureCssRules: List<String> = emptyList()
     private var currentSvgMatches: List<com.riffle.app.feature.reader.decorations.FigureBorderDecoration.SvgMatch> = emptyList()
+    private var currentRasterMarks: List<com.riffle.app.feature.reader.decorations.FigureBorderDecoration.RasterMark> = emptyList()
 
     /**
      * Cadence chapter-load hook (issue #403). The reader screen sets this on session bind so
@@ -95,19 +96,21 @@ internal class ContinuousDecorationController(
     fun applyFigureBorders(
         cssRules: List<String>,
         svgMatches: List<com.riffle.app.feature.reader.decorations.FigureBorderDecoration.SvgMatch>,
+        rasterMarks: List<com.riffle.app.feature.reader.decorations.FigureBorderDecoration.RasterMark> = emptyList(),
     ) {
         currentFigureCssRules = cssRules
         currentSvgMatches = svgMatches
+        currentRasterMarks = rasterMarks
         port.forEachLoadedWebView { applyFigureBordersTo(it) }
     }
 
     private fun applyFigureBordersTo(wv: ChapterWebViewLike) {
         // Skip when there's nothing to apply — keeps onChapterLoaded's JS-call count predictable
         // for chapters that carry no figure annotations, matching the annotation-highlights path.
-        if (currentFigureCssRules.isEmpty() && currentSvgMatches.isEmpty()) return
+        if (currentFigureCssRules.isEmpty() && currentSvgMatches.isEmpty() && currentRasterMarks.isEmpty()) return
         wv.evaluateJavascript(com.riffle.app.feature.reader.decorations.figureBorderInjectionJs(), null)
         wv.evaluateJavascript(
-            com.riffle.app.feature.reader.decorations.figureBorderApplyJs(currentFigureCssRules, currentSvgMatches),
+            com.riffle.app.feature.reader.decorations.figureBorderApplyJs(currentFigureCssRules, currentSvgMatches, currentRasterMarks),
             null,
         )
     }
