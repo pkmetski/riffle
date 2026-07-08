@@ -142,21 +142,41 @@ internal object FigureTapScript {
             }, true);
             var longPressTimer = null;
             var longPressTarget = null;
+            var longPressStartX = 0;
+            var longPressStartY = 0;
+            var LONG_PRESS_MOVE_THRESHOLD = 12; // CSS px — matches Android's default touchSlop
             document.addEventListener('touchstart', function(e) {
                 var t = e.touches && e.touches[0];
                 if (!t) return;
                 var el = detectFigureAt(t.clientX, t.clientY);
                 if (!el) return;
                 longPressTarget = el;
+                longPressStartX = t.clientX;
+                longPressStartY = t.clientY;
                 longPressTimer = setTimeout(function() {
                     if (!longPressTarget) return;
+                    // Immediate visual signal that the long-press was detected — before any Kotlin
+                    // work runs. If the user sees this flash and no annotation appears, the JS→Kotlin
+                    // path is the problem; if they don't see this flash, the touch never reached us.
+                    try {
+                        var prev = longPressTarget.style.outline;
+                        var prevOffset = longPressTarget.style.outlineOffset;
+                        longPressTarget.style.outline = '3px solid #2196f3';
+                        longPressTarget.style.outlineOffset = '2px';
+                        setTimeout(function(t, o, oo) { return function() { t.style.outline = o; t.style.outlineOffset = oo; }; }(longPressTarget, prev, prevOffset), 300);
+                    } catch (e) {}
                     var tag = longPressTarget.tagName ? longPressTarget.tagName.toLowerCase() : '';
+                    var r = longPressTarget.getBoundingClientRect();
                     var payload = {
                         kind: tag,
                         caption: resolveCaption(longPressTarget),
                         href: tag === 'svg' ? null : (longPressTarget.currentSrc || longPressTarget.getAttribute('src') || null),
                         svg: tag === 'svg' ? serializeSvg(longPressTarget) : null,
                         elementId: longPressTarget.id || null,
+                        rectX: Math.round(r.left),
+                        rectY: Math.round(r.top),
+                        rectW: Math.round(r.width),
+                        rectH: Math.round(r.height),
                     };
                     try {
                         window.$bridgeName.onFigureLongPress(JSON.stringify(payload));
@@ -164,9 +184,17 @@ internal object FigureTapScript {
                     longPressTarget = null;
                 }, 500);
             }, true);
-            document.addEventListener('touchmove', function() {
-                if (longPressTimer) { clearTimeout(longPressTimer); longPressTimer = null; }
-                longPressTarget = null;
+            document.addEventListener('touchmove', function(e) {
+                if (!longPressTimer) return;
+                var t = e.touches && e.touches[0];
+                if (!t) return;
+                var dx = t.clientX - longPressStartX;
+                var dy = t.clientY - longPressStartY;
+                if (dx * dx + dy * dy > LONG_PRESS_MOVE_THRESHOLD * LONG_PRESS_MOVE_THRESHOLD) {
+                    clearTimeout(longPressTimer);
+                    longPressTimer = null;
+                    longPressTarget = null;
+                }
             }, true);
             document.addEventListener('touchend', function() {
                 if (longPressTimer) { clearTimeout(longPressTimer); longPressTimer = null; }

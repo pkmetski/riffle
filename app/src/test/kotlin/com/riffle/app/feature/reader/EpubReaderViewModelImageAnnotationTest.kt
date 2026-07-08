@@ -172,10 +172,10 @@ class EpubReaderViewModelImageAnnotationTest {
      * Mirrors [EpubReaderViewModel.onFigureLongPress]'s Task-11 dispatch: look up an existing live
      * `TYPE_IMAGE` annotation for this exact figure in this chapter via
      * [com.riffle.core.domain.AnnotationStore.findImageAnnotationForFigure] first; only create a new
-     * one when the lookup comes back null. Returns the id of the annotation that would have received
-     * the "open editor" signal, or null when a new annotation was created instead — this mirrors
-     * [EpubReaderViewModel.figureAnnotationEditorRequested]'s value without needing the full
-     * (Readium-backed, non-JVM-constructible) ViewModel.
+     * one when the lookup comes back null. Returns the id of the annotation that would have opened
+     * the highlight-actions popup for editing, or null when a new annotation was created instead —
+     * this mirrors [EpubReaderViewModel.onFigureLongPress]'s existing-vs-create dispatch without
+     * needing the full (Readium-backed, non-JVM-constructible) ViewModel.
      */
     private suspend fun dispatchFigureLongPress(
         store: AnnotationStoreImpl,

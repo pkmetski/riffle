@@ -589,8 +589,8 @@ fun EpubReaderScreen(
                         onAutoScrollPause = viewModel::pauseAutoScroll,
                         onAutoScrollResume = viewModel::resumeAutoScrollIfPaused,
                         onFigureTap = viewModel::onFigureTapPayload,
-                        onFigureLongPress = { payload ->
-                            viewModel.viewModelScope.launch { viewModel.onFigureLongPress(payload) }
+                        onFigureLongPress = { payload, anchorRect ->
+                            viewModel.viewModelScope.launch { viewModel.onFigureLongPress(payload, anchorRect) }
                         },
                         dispatchers = viewModel.dispatchers,
                         logger = viewModel.logger,
@@ -1336,7 +1336,7 @@ private fun EpubNavigatorView(
     onAutoScrollPause: (com.riffle.core.domain.autoscroll.PauseCause) -> Unit,
     onAutoScrollResume: () -> Unit,
     onFigureTap: (payload: String) -> Unit,
-    onFigureLongPress: (FigureLongPressPayload) -> Unit,
+    onFigureLongPress: (FigureLongPressPayload, androidx.compose.ui.unit.IntRect) -> Unit,
     dispatchers: com.riffle.core.domain.DispatcherProvider,
     logger: com.riffle.core.logging.Logger,
     // Cadence per-chapter hook (issue #403). Non-null in the outer caller when Cadence is enabled;
@@ -1976,7 +1976,26 @@ private fun EpubNavigatorView(
     // RiffleChapter bridge already, so it doesn't need this hook.
     DisposableEffect(Unit) {
         FigureTapBridge.setHandler { payload -> onFigureTap(payload) }
-        FigureTapBridge.setLongPressHandler { payload -> onFigureLongPress(payload) }
+        FigureTapBridge.setLongPressHandler { payload ->
+            // Translate the payload's CSS-px, WebView-viewport-relative rect to a screen-space
+            // IntRect so the popup anchors at the figure — same density*px → screenRectOf(container)
+            // pipeline the continuous path runs inside ChapterWebViewBinder, but done here because
+            // paged/vertical mode has no ChapterWebView; the Readium fragment's container view (and
+            // its density) is only available at this composable's level.
+            val container = containerRef.value
+            val anchorRect = if (container != null) {
+                val density = container.resources.displayMetrics.density
+                android.graphics.RectF(
+                    payload.rectX * density,
+                    payload.rectY * density,
+                    (payload.rectX + payload.rectW) * density,
+                    (payload.rectY + payload.rectH) * density,
+                ).toWindowIntRect(container)
+            } else {
+                IntRect.Zero
+            }
+            onFigureLongPress(payload, anchorRect)
+        }
         onDispose {
             FigureTapBridge.setHandler(null)
             FigureTapBridge.setLongPressHandler(null)
@@ -2788,7 +2807,7 @@ private fun EpubNavigatorView(
                         view.annotationsAvailable = currentAnnotationsAvailable
                         view.readaloudAvailable = currentReadaloudAvailable
                         view.onFigureTap = { payload -> onFigureTap(payload) }
-                        view.onFigureLongPress = { payload -> onFigureLongPress(payload) }
+                        view.onFigureLongPress = { payload, anchorRect -> onFigureLongPress(payload, anchorRect) }
                         view.onSelectionEnded = { currentOnSelectionEnded() }
                         view.onSelectionActiveChanged = { active -> currentOnSelectionActiveChanged(active) }
                     }

@@ -1721,41 +1721,27 @@ class EpubReaderViewModel @Inject constructor(
         }
     }
 
-    private val _figureAnnotationEditorRequested = MutableStateFlow<String?>(null)
-
-    /**
-     * One-shot signal: the id of an existing `TYPE_IMAGE` annotation whose editor should open,
-     * because [onFigureLongPress] found the long-pressed figure already annotated instead of
-     * creating a duplicate. Screen-layer editor UI is Task-13/harness follow-up — for now this is
-     * the observable contract a test asserts against (see `EpubReaderViewModelImageAnnotationTest`).
-     * Consumers should null it back out via [consumeFigureAnnotationEditorRequest] once handled.
-     */
-    val figureAnnotationEditorRequested: StateFlow<String?> = _figureAnnotationEditorRequested
-
-    /** Clears [figureAnnotationEditorRequested] once the caller has acted on it. */
-    fun consumeFigureAnnotationEditorRequest() {
-        _figureAnnotationEditorRequested.value = null
-    }
-
     /**
      * Handle a figure long-press from either paged/vertical's [FigureTapBridge] or continuous's
      * [ContinuousReaderView.onFigureLongPress] — both dispatch the same parsed
-     * [FigureLongPressPayload] via the callback threaded through `EpubReaderScreen.kt`.
+     * [FigureLongPressPayload] via the callback threaded through `EpubReaderScreen.kt`, along with
+     * [anchorRect] (the figure's on-screen rect, already translated from the payload's CSS-px rect
+     * by [ChapterWebViewBinder] / the paged DisposableEffect in `EpubReaderScreen.kt`).
      *
      * First looks up whether the figure already has a live `TYPE_IMAGE` annotation in the current
      * chapter via [AnnotationStore.findImageAnnotationForFigure]. If so, this is a re-long-press on
-     * an already-annotated figure: skip creating a duplicate and instead publish the existing
-     * annotation's id to [figureAnnotationEditorRequested] so the editor can open on it. Otherwise,
-     * creates a new `TYPE_IMAGE` annotation anchored to the current reading position, mirroring
-     * [toggleBookmark]'s point-CFI machinery (a figure long-press has no text selection to build a
-     * range from).
+     * an already-annotated figure: skip creating a duplicate and open [openHighlightActions] on the
+     * existing annotation so the user can edit it. Otherwise, creates a new `TYPE_IMAGE` annotation
+     * anchored to the current reading position, mirroring [toggleBookmark]'s point-CFI machinery (a
+     * figure long-press has no text selection to build a range from), then opens the same popup on
+     * the freshly created annotation — matching [createHighlight]'s create-then-open-popup pattern.
      *
      * Exactly one of [FigureLongPressPayload.href] / [FigureLongPressPayload.svg] is non-null —
      * `href` for `img`/`picture` targets, `svg` for inline `<svg>` targets — and that split is
      * threaded straight through to both the lookup and [AnnotationStore.createImageAnnotation]'s
      * imageHref/imageSvg.
      */
-    internal suspend fun onFigureLongPress(payload: FigureLongPressPayload) {
+    internal suspend fun onFigureLongPress(payload: FigureLongPressPayload, anchorRect: IntRect) {
         if (source == ReaderSource.Highlights) return
         val sourceId = annotationServerId ?: return
         val pub = lifecycle.publication.value ?: return
@@ -1770,7 +1756,7 @@ class EpubReaderViewModel @Inject constructor(
             imageSvg = payload.svg,
         )
         if (existing != null) {
-            _figureAnnotationEditorRequested.value = existing.id
+            openHighlightActions(existing.id, anchorRect)
             return
         }
 
@@ -1779,7 +1765,7 @@ class EpubReaderViewModel @Inject constructor(
         }.coerceAtLeast(0)
         val progression = locator.locations.progression ?: 0.0
         val cfi = locator.toPayload().ebookLocation
-        annotationStore.createImageAnnotation(
+        val created = annotationStore.createImageAnnotation(
             sourceId = sourceId,
             itemId = itemId,
             cfi = cfi,
@@ -1791,6 +1777,7 @@ class EpubReaderViewModel @Inject constructor(
             imageSvg = payload.svg,
             color = annotationSession.lastUsedHighlightColor.value.token,
         )
+        openHighlightActions(created.id, anchorRect)
         scheduleAnnotationSync()
     }
 
