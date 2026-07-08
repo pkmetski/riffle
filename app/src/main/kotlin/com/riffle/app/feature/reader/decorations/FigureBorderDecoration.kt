@@ -43,15 +43,33 @@ internal object FigureBorderDecoration {
             }
         }
 
-        return refs.groupBy { it.href }
+        return refs.groupBy { hrefFilename(it.href) }
             .mapValues { (_, group) -> group.maxByOrNull { it.updatedAt }!! }
             .values
             .sortedBy { it.href }
             .map { ref ->
                 val cssColor = HighlightColor.fromToken(ref.color).argb.toCssRgba()
-                val selector = "img[src\$=\"${ref.href}\"]"
+                // Match by filename SUFFIX only. Captured `imageHref` is the resolved runtime URL
+                // (e.g. "https://readium_package/OEBPS/image_rsrc2H6.jpg"), but the HTML source's
+                // `src` attribute is the raw EPUB-relative path (e.g. "image_rsrc2H6.jpg"). CSS
+                // `[src$="…"]` matches the attribute value, not the resolved URL, so we strip to
+                // the filename to make both sides comparable.
+                val filename = hrefFilename(ref.href)
+                val selector = "img[src\$=\"$filename\"]"
                 "$selector { outline: $OUTLINE_WIDTH_CSS solid $cssColor; outline-offset: $OUTLINE_OFFSET_CSS; }"
             }
+    }
+
+    /**
+     * Filename component of a captured imageHref — the last path segment after '/'. Falls back
+     * to the whole href if there's no '/'. Escapes double-quotes so the value is safe to embed
+     * inside a `[src$="…"]` selector.
+     */
+    private fun hrefFilename(href: String): String {
+        val trimmed = href.substringBefore('?').substringBefore('#')
+        val slash = trimmed.lastIndexOf('/')
+        val name = if (slash >= 0) trimmed.substring(slash + 1) else trimmed
+        return name.replace("\"", "\\\"")
     }
 
     /**

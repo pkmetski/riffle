@@ -76,20 +76,8 @@ internal fun figureBorderApplyJs(
             var ser = null;
             try { ser = new XMLSerializer(); } catch (e2) {}
             var svgs = document.querySelectorAll('svg');
-            // TEMP-DIAG: if we have any SVG matches to apply, briefly outline EVERY svg in red so
-            // we can visually confirm this JS is even running when the border flow fires. Red
-            // flash → JS runs (fingerprint match is the problem). No flash → the LaunchedEffect
-            // that calls applyFigureBorders isn't firing on annotation change (upstream problem).
-            if (matches.length > 0) {
-              for (var d = 0; d < svgs.length; d++) {
-                var ds = svgs[d];
-                var pdo = ds.style.outline;
-                var pdoo = ds.style.outlineOffset;
-                ds.style.outline = '3px dashed #ff1744';
-                ds.style.outlineOffset = '4px';
-                setTimeout(function(el, o, oo) { return function() { el.style.outline = o; el.style.outlineOffset = oo; }; }(ds, pdo, pdoo), 400);
-              }
-            }
+            // Diag flash removed — raster figures now match via filename suffix in CSS, no JS
+            // needed for them; SVG matching stays JS-based.
             for (var i = 0; i < svgs.length; i++) {
               var s = svgs[i];
               if (s.__riffleBorderApplied) {
