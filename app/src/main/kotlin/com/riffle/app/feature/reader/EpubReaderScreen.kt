@@ -2958,10 +2958,16 @@ private fun EpubNavigatorView(
         val editTarget = highlightToEdit
         if (editTarget != null) {
             val current = highlightRenders.firstOrNull { it.id == editTarget.id }
+            // TYPE_IMAGE annotations don't produce a HighlightRender (they have no text-selection
+            // decoration), so `current` above is always null for image annotations. Fall back to
+            // the full annotations list so the palette can still show the current colour selected.
+            val currentAnnotation = annotations.firstOrNull { it.id == editTarget.id }
+            val selectedColor = current?.let { HighlightColor.fromToken(it.color) }
+                ?: currentAnnotation?.let { HighlightColor.fromToken(it.color) }
             HighlightActionsPopup(
                 anchorRect = editTarget.anchorRect,
-                selected = current?.let { HighlightColor.fromToken(it.color) },
-                note = current?.note,
+                selected = selectedColor,
+                note = current?.note ?: currentAnnotation?.note,
                 onPick = { color -> onRecolorHighlight(editTarget.id, color) },
                 onDelete = { onDeleteHighlight(editTarget.id) },
                 onOpenNoteEditor = { onOpenNoteEditor(editTarget.id, editTarget.anchorRect) },

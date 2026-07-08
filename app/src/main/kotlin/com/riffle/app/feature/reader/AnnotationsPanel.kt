@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -149,7 +150,10 @@ private fun AnnotationRow(
             .padding(horizontal = 16.dp, vertical = 12.dp),
     ) {
         Box(
-            modifier = Modifier.size(32.dp),
+            modifier = Modifier.size(
+                width = if (rowKind == RowKind.Image) 96.dp else 32.dp,
+                height = if (rowKind == RowKind.Image) 80.dp else 32.dp,
+            ),
             contentAlignment = Alignment.Center,
         ) {
             when (rowKind) {
@@ -169,15 +173,16 @@ private fun AnnotationRow(
                             contentDescription = null,
                             contentScale = ContentScale.Fit,
                             modifier = Modifier
-                                .size(32.dp)
-                                .clip(RoundedCornerShape(4.dp))
-                                .border(2.dp, borderColor, RoundedCornerShape(4.dp)),
+                                .fillMaxSize()
+                                .clip(RoundedCornerShape(6.dp))
+                                .border(2.dp, borderColor, RoundedCornerShape(6.dp)),
                         )
                     } else {
                         Icon(
                             Icons.Filled.Image,
                             contentDescription = null,
                             tint = borderColor,
+                            modifier = Modifier.size(48.dp),
                         )
                     }
                 }
