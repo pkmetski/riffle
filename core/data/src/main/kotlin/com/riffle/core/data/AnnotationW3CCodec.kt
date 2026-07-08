@@ -1,7 +1,9 @@
 package com.riffle.core.data
 
 import com.riffle.core.database.AnnotationEntity
+import com.riffle.core.domain.EmbeddedFigure
 import com.riffle.core.domain.W3CAnnotation
+import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonPrimitive
@@ -17,6 +19,26 @@ import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
 import java.time.Instant
+
+private val embeddedFiguresSerializer = ListSerializer(EmbeddedFigure.serializer())
+private val embeddedFiguresJson = Json { ignoreUnknownKeys = true }
+
+/**
+ * Parses the [AnnotationEntity.embeddedFigures] JSON column into domain figures, sorted by
+ * [EmbeddedFigure.order]. Tolerant of malformed/absent columns (returns empty).
+ */
+internal fun embeddedFiguresColumnToList(raw: String?): List<EmbeddedFigure> {
+    if (raw.isNullOrEmpty()) return emptyList()
+    return try {
+        embeddedFiguresJson.decodeFromString(embeddedFiguresSerializer, raw).sortedBy { it.order }
+    } catch (_: Exception) {
+        emptyList()
+    }
+}
+
+/** Inverse of [embeddedFiguresColumnToList]. Null and empty lists both map to a null column. */
+internal fun embeddedFiguresListToColumn(figures: List<EmbeddedFigure>?): String? =
+    if (figures.isNullOrEmpty()) null else embeddedFiguresJson.encodeToString(embeddedFiguresSerializer, figures)
 
 /**
  * W3C Web Annotation codec for serializing/deserializing Riffle annotations.
@@ -90,6 +112,11 @@ object AnnotationW3CCodec {
         val motivation = when (entity.type) {
             AnnotationEntity.TYPE_HIGHLIGHT -> "highlighting"
             AnnotationEntity.TYPE_BOOKMARK -> "bookmarking"
+            // "describing" is a standard Web Annotation motivation (the body describes the
+            // target rather than commenting/highlighting it) — a natural fit for a standalone
+            // figure annotation. The decoder derives type from body composition regardless
+            // (see w3cObjectToAnnotation), so this value isn't load-bearing on round-trip.
+            AnnotationEntity.TYPE_IMAGE -> "describing"
             else -> "commenting"
         }
 
@@ -132,23 +159,49 @@ object AnnotationW3CCodec {
             put("selector", selectorArray)
         }
 
-        // Build the body object
-        val bodyObject = buildJsonObject {
-            put("type", "TextualBody")
-            put("purpose", motivation)
-            // For highlights, include the color; for bookmarks, use the title
-            if (entity.type == AnnotationEntity.TYPE_HIGHLIGHT && entity.color.isNotEmpty()) {
-                put("value", entity.color)
+        // Build the body value: a single JsonObject for the common single-body case, or a
+        // JsonArray when a TYPE_HIGHLIGHT carries embedded figures alongside its text body.
+        // `riffle:image` bodies are unknown to older consumers, which ignore unrecognised body
+        // types/entries, so this degrades gracefully.
+        val bodies = mutableListOf<JsonObject>()
+        if (entity.type == AnnotationEntity.TYPE_IMAGE) {
+            // TYPE_IMAGE carries no TextualBody — just the single riffle:image body.
+            bodies += buildRiffleImageBody(
+                href = entity.imageHref,
+                svg = entity.imageSvg,
+                caption = entity.textSnippet,
+                order = null,
+            )
+        } else {
+            bodies += buildJsonObject {
+                put("type", "TextualBody")
+                put("purpose", motivation)
+                // For highlights, include the color; for bookmarks, use the title
+                if (entity.type == AnnotationEntity.TYPE_HIGHLIGHT && entity.color.isNotEmpty()) {
+                    put("value", entity.color)
+                }
+                if (entity.type == AnnotationEntity.TYPE_BOOKMARK && entity.bookmarkTitle.isNotEmpty()) {
+                    put("value", entity.bookmarkTitle)
+                }
+                // Include note if present
+                val noteValue = entity.note
+                if (noteValue != null && noteValue.isNotEmpty()) {
+                    put("textContent", noteValue)
+                }
             }
-            if (entity.type == AnnotationEntity.TYPE_BOOKMARK && entity.bookmarkTitle.isNotEmpty()) {
-                put("value", entity.bookmarkTitle)
-            }
-            // Include note if present
-            val noteValue = entity.note
-            if (noteValue != null && noteValue.isNotEmpty()) {
-                put("textContent", noteValue)
+            if (entity.type == AnnotationEntity.TYPE_HIGHLIGHT) {
+                val figures = embeddedFiguresColumnToList(entity.embeddedFigures)
+                for (figure in figures) {
+                    bodies += buildRiffleImageBody(
+                        href = figure.href,
+                        svg = figure.svg,
+                        caption = figure.caption,
+                        order = figure.order,
+                    )
+                }
             }
         }
+        val bodyValue: JsonElement = if (bodies.size == 1) bodies[0] else buildJsonArray { bodies.forEach { add(it) } }
 
         // Build the main W3C annotation object
         val annotationObject = buildJsonObject {
@@ -157,7 +210,7 @@ object AnnotationW3CCodec {
             put("type", "Annotation")
             put("motivation", motivation)
             put("target", targetObject)
-            put("body", bodyObject)
+            put("body", bodyValue)
             put("created", entity.createdAt.toIso8601())
             put("modified", entity.updatedAt.toIso8601())
             // Riffle-specific extensions
@@ -181,6 +234,42 @@ object AnnotationW3CCodec {
         }
 
         return annotationObject.toString()
+    }
+
+    /**
+     * Builds a single `riffle:image` Web Annotation body. `order` is only meaningful for figures
+     * embedded in a TYPE_HIGHLIGHT range (stable sort key); omitted (null) for TYPE_IMAGE.
+     */
+    private fun buildRiffleImageBody(href: String?, svg: String?, caption: String, order: Int?): JsonObject =
+        buildJsonObject {
+            put("type", "riffle:image")
+            put("value", buildJsonObject {
+                if (href != null) put("href", href)
+                if (svg != null) put("svg", svg)
+                put("caption", caption)
+                if (order != null) put("order", JsonPrimitive(order))
+            })
+        }
+
+    /**
+     * Parses a single `riffle:image` body's `value` object into an [EmbeddedFigure]. `href` wins
+     * over `svg` when both are present (malformed input — the encoder never emits both); a body
+     * with neither is skipped (returns null). `fallbackOrder` supplies encounter-order when the
+     * body carries no explicit `order` (e.g. a TYPE_IMAGE body, which never emits one).
+     */
+    private fun parseRiffleImageBody(body: JsonObject, fallbackOrder: Int): EmbeddedFigure? {
+        val value = body["value"]?.jsonObject ?: return null
+        val href = value["href"]?.jsonPrimitive?.content
+        val svg = value["svg"]?.jsonPrimitive?.content
+        if (href == null && svg == null) return null
+        val caption = value["caption"]?.jsonPrimitive?.content ?: ""
+        val order = value["order"]?.jsonPrimitive?.intOrNull ?: fallbackOrder
+        return EmbeddedFigure(
+            href = href,
+            svg = if (href != null) null else svg,
+            caption = caption,
+            order = order,
+        )
     }
 
     /**
@@ -214,6 +303,9 @@ object AnnotationW3CCodec {
         deleted = entity.deleted,
         spineIndex = entity.spineIndex,
         progression = entity.progression,
+        embeddedFigures = embeddedFiguresColumnToList(entity.embeddedFigures).ifEmpty { null },
+        imageHref = entity.imageHref,
+        imageSvg = entity.imageSvg,
     )
 
     /**
@@ -253,9 +345,12 @@ object AnnotationW3CCodec {
             val idRaw = root["id"]?.jsonPrimitive?.content ?: ""
             val id = idRaw.removePrefix("urn:uuid:")
 
-            // Extract motivation and map to type
+            // Extract motivation and map to type. Overridden below once bodies are inspected:
+            // the presence/absence of a text body alongside any `riffle:image` bodies is the
+            // authoritative signal for TYPE_IMAGE vs TYPE_HIGHLIGHT (see w3cObjectToAnnotation
+            // kdoc on body composition), not the motivation string.
             val motivation = root["motivation"]?.jsonPrimitive?.content ?: ""
-            val type = when (motivation) {
+            var type = when (motivation) {
                 "highlighting" -> AnnotationEntity.TYPE_HIGHLIGHT
                 "bookmarking" -> AnnotationEntity.TYPE_BOOKMARK
                 else -> AnnotationEntity.TYPE_HIGHLIGHT
@@ -310,13 +405,24 @@ object AnnotationW3CCodec {
                 }
             }
 
-            // Extract body fields
-            val body = root["body"]?.jsonObject
+            // Extract body fields. `body` is a single JsonObject for the common case, or a
+            // JsonArray when a TYPE_HIGHLIGHT carries embedded figures alongside its text body
+            // (see annotationEntityToW3C). Split into the text body (anything not
+            // `riffle:image`) and the `riffle:image` bodies.
+            val bodyElement = root["body"]
+            val bodyList: List<JsonObject> = when (bodyElement) {
+                is JsonArray -> bodyElement.mapNotNull { it as? JsonObject }
+                is JsonObject -> listOf(bodyElement)
+                else -> emptyList()
+            }
+            val imageBodies = bodyList.filter { it["type"]?.jsonPrimitive?.content == "riffle:image" }
+            val textBody = bodyList.firstOrNull { it["type"]?.jsonPrimitive?.content != "riffle:image" }
+
             var color: String? = null
             var note: String? = null
             var bookmarkTitle: String? = null
 
-            body?.let {
+            textBody?.let {
                 val purpose = it["purpose"]?.jsonPrimitive?.content ?: ""
                 val value = it["value"]?.jsonPrimitive?.content
                 val textContent = it["textContent"]?.jsonPrimitive?.content
@@ -329,6 +435,31 @@ object AnnotationW3CCodec {
 
                 if (textContent != null) {
                     note = textContent
+                }
+            }
+
+            // Resolve TYPE_IMAGE / embedded-figures from body composition (authoritative — see
+            // note on `type` above).
+            var embeddedFigures: List<EmbeddedFigure>? = null
+            var imageHref: String? = null
+            var imageSvg: String? = null
+            if (imageBodies.isNotEmpty()) {
+                if (textBody != null) {
+                    type = AnnotationEntity.TYPE_HIGHLIGHT
+                    embeddedFigures = imageBodies
+                        .mapIndexedNotNull { index, imgBody -> parseRiffleImageBody(imgBody, fallbackOrder = index) }
+                        .sortedBy { it.order }
+                        .ifEmpty { null }
+                } else {
+                    type = AnnotationEntity.TYPE_IMAGE
+                    // Defensive: more than one riffle:image body with no text body shouldn't
+                    // happen with our own encoder. Take the first silently.
+                    val figure = parseRiffleImageBody(imageBodies.first(), fallbackOrder = 0)
+                    imageHref = figure?.href
+                    imageSvg = figure?.svg
+                    if (figure != null) {
+                        textSnippet = figure.caption
+                    }
                 }
             }
 
@@ -370,6 +501,9 @@ object AnnotationW3CCodec {
                 deleted = deleted,
                 spineIndex = spineIndex,
                 progression = progression,
+                embeddedFigures = embeddedFigures,
+                imageHref = imageHref,
+                imageSvg = imageSvg,
             )
         } catch (_: Exception) {
             return emptyAnnotation()

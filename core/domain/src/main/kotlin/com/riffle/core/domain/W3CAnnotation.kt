@@ -48,4 +48,12 @@ data class W3CAnnotation(
     /** Within-chapter fractional offset (0.0–1.0) — secondary sort key. Same round-trip rationale
      *  as [spineIndex]. Defaults to 0.0 for backward-compat. */
     val progression: Double = 0.0,
+    /** Figures enclosed by a TYPE_HIGHLIGHT annotation's range, carried as `riffle:image` Web
+     *  Annotation bodies alongside the text body. Null on TYPE_BOOKMARK and on TYPE_IMAGE rows
+     *  (which use [imageHref]/[imageSvg] directly instead). */
+    val embeddedFigures: List<EmbeddedFigure>? = null,
+    /** Href of the source image for a TYPE_IMAGE annotation, carried as a `riffle:image` body. */
+    val imageHref: String? = null,
+    /** Inline SVG markup for a TYPE_IMAGE annotation, when the figure is an SVG. */
+    val imageSvg: String? = null,
 )

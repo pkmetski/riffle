@@ -1,6 +1,7 @@
 package com.riffle.core.data
 
 import com.riffle.core.database.AnnotationEntity
+import com.riffle.core.domain.EmbeddedFigure
 import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
@@ -820,5 +821,209 @@ class AnnotationW3CCodecTest {
             json.contains("\"epubcfi(/6/4!/4/2,/1:0,/1:100)\""))
         assertFalse("no RFC 3778 conformsTo for EPUB",
             json.contains("rfc3778"))
+    }
+
+    // ---- riffle:image Web Annotation body (Task 12) -------------------------
+
+    @Test
+    fun `TYPE_IMAGE raster round-trips through Web Annotation body`() {
+        val entity = AnnotationEntity(
+            id = "uuid-img-raster",
+            sourceId = "abs1",
+            itemId = "item1",
+            type = AnnotationEntity.TYPE_IMAGE,
+            cfi = "epubcfi(/6/4!/4/2)",
+            color = "",
+            note = null,
+            textSnippet = "Figure 1",
+            chapterHref = "item1",
+            createdAt = 1000L,
+            updatedAt = 1000L,
+            originDeviceId = "device-A",
+            lastModifiedByDeviceId = "device-A",
+            imageHref = "images/g.png",
+            imageSvg = null,
+        )
+
+        val w3cJson = codec.annotationEntityToW3C(entity)
+        assertTrue("body carries riffle:image type", w3cJson.contains("\"type\":\"riffle:image\""))
+        assertTrue("body carries href", w3cJson.contains("\"href\":\"images/g.png\""))
+        assertFalse("TYPE_IMAGE body carries no order", w3cJson.contains("\"order\""))
+
+        val parsed = codec.w3cToAnnotationEntity(w3cJson)
+        assertEquals("Type should be IMAGE", AnnotationEntity.TYPE_IMAGE, parsed.type)
+        assertEquals("images/g.png", parsed.imageHref)
+        assertNull("svg should be null", parsed.imageSvg)
+        assertEquals("Figure 1", parsed.textSnippet)
+    }
+
+    @Test
+    fun `TYPE_IMAGE svg round-trips through Web Annotation body`() {
+        val entity = AnnotationEntity(
+            id = "uuid-img-svg",
+            sourceId = "abs1",
+            itemId = "item1",
+            type = AnnotationEntity.TYPE_IMAGE,
+            cfi = "epubcfi(/6/4!/4/2)",
+            color = "",
+            note = null,
+            textSnippet = "Diagram",
+            chapterHref = "item1",
+            createdAt = 1000L,
+            updatedAt = 1000L,
+            originDeviceId = "device-A",
+            lastModifiedByDeviceId = "device-A",
+            imageHref = null,
+            imageSvg = "<svg>diagram</svg>",
+        )
+
+        val w3cJson = codec.annotationEntityToW3C(entity)
+        assertTrue("body carries svg", w3cJson.contains("\"svg\":\"<svg>diagram</svg>\""))
+
+        val parsed = codec.w3cToAnnotationEntity(w3cJson)
+        assertEquals("Type should be IMAGE", AnnotationEntity.TYPE_IMAGE, parsed.type)
+        assertNull("href should be null", parsed.imageHref)
+        assertEquals("<svg>diagram</svg>", parsed.imageSvg)
+        assertEquals("Diagram", parsed.textSnippet)
+    }
+
+    @Test
+    fun `TYPE_HIGHLIGHT with embeddedFigures round-trips preserving order`() {
+        val figures = listOf(
+            EmbeddedFigure(href = "b.png", svg = null, caption = "second", order = 1),
+            EmbeddedFigure(href = "a.png", svg = null, caption = "first", order = 0),
+        )
+        val entity = AnnotationEntity(
+            id = "uuid-hl-figures",
+            sourceId = "abs1",
+            itemId = "item1",
+            type = AnnotationEntity.TYPE_HIGHLIGHT,
+            cfi = "epubcfi(/6/4!/4/2,/1:0,/1:100)",
+            color = "yellow",
+            note = null,
+            textSnippet = "surrounding text",
+            chapterHref = "item1",
+            createdAt = 1000L,
+            updatedAt = 1000L,
+            originDeviceId = "device-A",
+            lastModifiedByDeviceId = "device-A",
+            embeddedFigures = embeddedFiguresListToColumn(figures),
+        )
+
+        val w3cJson = codec.annotationEntityToW3C(entity)
+        assertTrue("JSON contains text body", w3cJson.contains("\"purpose\":\"highlighting\""))
+        assertTrue("JSON contains riffle:image bodies", w3cJson.contains("\"type\":\"riffle:image\""))
+
+        val parsed = codec.w3cToAnnotationEntity(w3cJson)
+        assertEquals("Type should still be HIGHLIGHT", AnnotationEntity.TYPE_HIGHLIGHT, parsed.type)
+        assertEquals("surrounding text", parsed.textSnippet)
+        assertEquals(
+            "Figures should round-trip sorted by order",
+            listOf("a.png", "b.png"),
+            parsed.embeddedFigures?.map { it.href },
+        )
+        assertEquals(listOf(0, 1), parsed.embeddedFigures?.map { it.order })
+    }
+
+    @Test
+    fun `TYPE_HIGHLIGHT with null embeddedFigures does not emit riffle_image bodies`() {
+        val entity = AnnotationEntity(
+            id = "uuid-hl-no-figures",
+            sourceId = "abs1",
+            itemId = "item1",
+            type = AnnotationEntity.TYPE_HIGHLIGHT,
+            cfi = "epubcfi(/6/4!/4/2,/1:0,/1:100)",
+            color = "yellow",
+            note = null,
+            textSnippet = "plain highlight",
+            chapterHref = "item1",
+            createdAt = 1000L,
+            updatedAt = 1000L,
+            originDeviceId = "device-A",
+            lastModifiedByDeviceId = "device-A",
+            embeddedFigures = null,
+        )
+
+        val w3cJson = codec.annotationEntityToW3C(entity)
+        assertFalse("No riffle:image bodies should be emitted", w3cJson.contains("riffle:image"))
+
+        val parsed = codec.w3cToAnnotationEntity(w3cJson)
+        assertEquals(AnnotationEntity.TYPE_HIGHLIGHT, parsed.type)
+        assertNull(parsed.embeddedFigures)
+    }
+
+    @Test
+    fun `TYPE_HIGHLIGHT with empty embeddedFigures round-trips to null on the entity`() {
+        val entity = AnnotationEntity(
+            id = "uuid-hl-empty-figures",
+            sourceId = "abs1",
+            itemId = "item1",
+            type = AnnotationEntity.TYPE_HIGHLIGHT,
+            cfi = "epubcfi(/6/4!/4/2,/1:0,/1:100)",
+            color = "yellow",
+            note = null,
+            textSnippet = "plain highlight",
+            chapterHref = "item1",
+            createdAt = 1000L,
+            updatedAt = 1000L,
+            originDeviceId = "device-A",
+            lastModifiedByDeviceId = "device-A",
+            embeddedFigures = embeddedFiguresListToColumn(emptyList()),
+        )
+
+        val w3cJson = codec.annotationEntityToW3C(entity)
+        assertFalse("No riffle:image bodies should be emitted", w3cJson.contains("riffle:image"))
+
+        val parsed = codec.w3cToAnnotationEntity(w3cJson)
+        assertNull(parsed.embeddedFigures)
+    }
+
+    @Test
+    fun `riffle_image body with both href and svg prefers href`() {
+        // Hand-built JSON (not round-tripped through the encoder, which never emits both href
+        // and svg on the same body) — the defensive malformed-input case the decoder must handle.
+        val json = """
+            {"@context":"http://www.w3.org/ns/anno.jsonld","id":"urn:uuid:uuid-img-both",
+             "type":"Annotation","motivation":"describing",
+             "target":{"source":"epub://item-item1","selector":[
+               {"type":"FragmentSelector","conformsTo":"http://idpf.org/epub/linking/cfi/epub-cfi.html","value":"epubcfi(/6/4!/4/2)"},
+               {"type":"TextQuoteSelector","exact":"","prefix":"","suffix":""}
+             ]},
+             "body":{"type":"riffle:image","value":{"href":"raster.png","svg":"<svg/>","caption":"malformed figure"}},
+             "created":"2021-01-01T00:00:00Z","modified":"2021-01-01T00:00:00Z",
+             "riffle:originDeviceId":"device-A","riffle:lastModifiedByDeviceId":"device-A",
+             "riffle:updatedAt":1000,"riffle:deleted":false}
+        """.trimIndent()
+
+        val parsed = codec.w3cToAnnotationEntity(json)
+
+        assertEquals(AnnotationEntity.TYPE_IMAGE, parsed.type)
+        assertEquals("raster.png", parsed.imageHref)
+        assertNull("svg should be nulled out when href wins", parsed.imageSvg)
+        assertEquals("malformed figure", parsed.textSnippet)
+    }
+
+    @Test
+    fun `riffle_image body with neither href nor svg is skipped`() {
+        val json = """
+            {"@context":"http://www.w3.org/ns/anno.jsonld","id":"urn:uuid:uuid-img-neither",
+             "type":"Annotation","motivation":"describing",
+             "target":{"source":"epub://item-item1","selector":[
+               {"type":"FragmentSelector","conformsTo":"http://idpf.org/epub/linking/cfi/epub-cfi.html","value":"epubcfi(/6/4!/4/2)"},
+               {"type":"TextQuoteSelector","exact":"","prefix":"","suffix":""}
+             ]},
+             "body":{"type":"riffle:image","value":{"caption":"no source"}},
+             "created":"2021-01-01T00:00:00Z","modified":"2021-01-01T00:00:00Z",
+             "riffle:originDeviceId":"device-A","riffle:lastModifiedByDeviceId":"device-A",
+             "riffle:updatedAt":1000,"riffle:deleted":false}
+        """.trimIndent()
+
+        val parsed = codec.w3cToAnnotationEntity(json)
+
+        // No usable riffle:image body survives, so this doesn't resolve to TYPE_IMAGE and no
+        // image fields are populated.
+        assertNull(parsed.imageHref)
+        assertNull(parsed.imageSvg)
+        assertNull(parsed.embeddedFigures)
     }
 }
