@@ -175,10 +175,33 @@ class ReadaloudStreamingSessionFactoryAndroidTest {
                     sidecarScope.async(block = block).await()
             },
         )
+        val absApiClient = AbsApiClient(OkHttpClient(), DefaultDispatcherProvider)
+        val testClock = object : com.riffle.core.domain.Clock {
+            override fun nowMs() = System.currentTimeMillis()
+            override fun nowNs() = System.nanoTime()
+        }
+        val catalogRegistry = object : com.riffle.core.catalog.CatalogRegistry {
+            override suspend fun forActive() = repo.getActive()?.let { forSource(it) }
+            override suspend fun forSourceId(sourceId: String) = repo.getById(sourceId)?.let { forSource(it) }
+            override suspend fun forSource(source: com.riffle.core.domain.Source) = com.riffle.core.catalog.abs.AbsCatalog(
+                config = com.riffle.core.catalog.abs.AbsCatalogConfig(
+                    baseUrl = source.url.value,
+                    token = "tok",
+                    insecureAllowed = source.insecureConnectionAllowed,
+                    deviceId = "test-device",
+                ),
+                libraryApi = absApiClient,
+                playbackApi = absApiClient,
+                sessionApi = absApiClient,
+                bookmarkApi = absApiClient,
+                serverInfoApi = absApiClient,
+                clock = testClock,
+            )
+        }
         return ReadaloudStreamingSessionFactory(
             context = ctx,
             audioIdentityResolver = AudioIdentityResolverImpl(db.readaloudLinkDao(), db.libraryItemDao()),
-            absApi = AbsApiClient(OkHttpClient(), DefaultDispatcherProvider),
+            catalogRegistry = catalogRegistry,
             storytellerApi = StorytellerApiClient(OkHttpClient(), DefaultDispatcherProvider),
             sidecarStore = sidecarStore,
             sourceRepository = repo,

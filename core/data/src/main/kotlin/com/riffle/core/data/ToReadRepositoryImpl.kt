@@ -1,9 +1,8 @@
 package com.riffle.core.data
 
-import com.riffle.core.domain.SourceRepository
-import com.riffle.core.domain.TokenStorage
-import com.riffle.core.network.AbsLibraryApi
-import com.riffle.core.network.NetworkResult
+import com.riffle.core.catalog.Catalog
+import com.riffle.core.catalog.CatalogRegistry
+import com.riffle.core.catalog.PlaylistsCapability
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.map
@@ -20,9 +19,7 @@ private data class ToReadSnapshot(val playlistId: String?, val itemIds: Set<Stri
 
 @Singleton
 class ToReadRepositoryImpl @Inject constructor(
-    private val api: AbsLibraryApi,
-    private val sourceRepository: SourceRepository,
-    private val tokenStorage: TokenStorage,
+    private val catalogRegistry: CatalogRegistry,
 ) : ToReadRepository {
 
     private val cache = MutableStateFlow<Map<String, ToReadSnapshot>>(emptyMap())
@@ -31,13 +28,12 @@ class ToReadRepositoryImpl @Inject constructor(
         cache.map { it[libraryId]?.itemIds ?: emptySet() }
 
     override suspend fun refresh(libraryId: String): Boolean {
-        val session = resolveSession() ?: return false
-        val result = api.getPlaylists(session.baseUrl, libraryId, session.token, session.insecureAllowed)
-        if (result !is NetworkResult.Success) return false
-        val match = result.value.firstOrNull { it.name == TO_READ_PLAYLIST_NAME }
+        val cap = activePlaylistsCap() ?: return false
+        val playlists = runCatching { cap.listPlaylists(libraryId) }.getOrElse { return false }
+        val match = playlists.firstOrNull { it.name == TO_READ_PLAYLIST_NAME }
         val snapshot = ToReadSnapshot(
             playlistId = match?.id,
-            itemIds = match?.bookIds ?: emptySet(),
+            itemIds = match?.itemIds?.toSet() ?: emptySet(),
         )
         cache.value = cache.value + (libraryId to snapshot)
         return true
@@ -47,35 +43,27 @@ class ToReadRepositoryImpl @Inject constructor(
         cache.value[libraryId]?.itemIds?.contains(libraryItemId) == true
 
     override suspend fun addToToRead(libraryItemId: String, libraryId: String): Boolean {
-        val session = resolveSession() ?: return false
+        val cap = activePlaylistsCap() ?: return false
         val before = cache.value[libraryId] ?: ToReadSnapshot(playlistId = null, itemIds = emptySet())
         // Optimistic update
         cache.value = cache.value + (libraryId to before.copy(itemIds = before.itemIds + libraryItemId))
         val playlistId = before.playlistId
         val ok = if (playlistId == null) {
-            val r = api.createPlaylist(
-                session.baseUrl, libraryId, TO_READ_PLAYLIST_NAME, libraryItemId,
-                session.token, session.insecureAllowed,
-            )
-            if (r is NetworkResult.Success) {
-                val newId = r.value?.id
-                if (newId != null) {
-                    cache.value = cache.value + (libraryId to ToReadSnapshot(newId, before.itemIds + libraryItemId))
-                }
+            runCatching {
+                val created = cap.createPlaylist(libraryId, TO_READ_PLAYLIST_NAME)
+                cap.addItemToPlaylist(created.id, libraryItemId)
+                cache.value = cache.value + (libraryId to ToReadSnapshot(created.id, before.itemIds + libraryItemId))
                 true
-            } else false
+            }.getOrDefault(false)
         } else {
-            val r = api.addBookToPlaylist(
-                session.baseUrl, playlistId, libraryItemId, session.token, session.insecureAllowed,
-            )
-            r is NetworkResult.Success
+            runCatching { cap.addItemToPlaylist(playlistId, libraryItemId); true }.getOrDefault(false)
         }
         if (!ok) cache.value = cache.value + (libraryId to before)
         return ok
     }
 
     override suspend fun removeFromToRead(libraryItemId: String, libraryId: String): Boolean {
-        val session = resolveSession() ?: return false
+        val cap = activePlaylistsCap() ?: return false
         val before = cache.value[libraryId] ?: return true
         val playlistId = before.playlistId ?: return true
         if (libraryItemId !in before.itemIds) return true
@@ -88,19 +76,13 @@ class ToReadRepositoryImpl @Inject constructor(
             before.copy(itemIds = remainingIds)
         }
         cache.value = cache.value + (libraryId to optimistic)
-        val r = api.removeBookFromPlaylist(
-            session.baseUrl, playlistId, libraryItemId, session.token, session.insecureAllowed,
-        )
-        val ok = r is NetworkResult.Success
+        val ok = runCatching { cap.removeItemFromPlaylist(playlistId, libraryItemId); true }.getOrDefault(false)
         if (!ok) cache.value = cache.value + (libraryId to before)
         return ok
     }
 
-    private suspend fun resolveSession(): Session? {
-        val server = sourceRepository.getActive() ?: return null
-        val token = tokenStorage.getToken(server.id) ?: return null
-        return Session(server.url.value, token, server.insecureConnectionAllowed)
+    private suspend fun activePlaylistsCap(): PlaylistsCapability? {
+        val catalog: Catalog = catalogRegistry.forActive() ?: return null
+        return catalog as? PlaylistsCapability
     }
-
-    private data class Session(val baseUrl: String, val token: String, val insecureAllowed: Boolean)
 }

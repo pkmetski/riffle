@@ -1,11 +1,20 @@
 package com.riffle.core.data
 
+import com.riffle.core.catalog.Catalog
+import com.riffle.core.catalog.CatalogRegistry
+import com.riffle.core.catalog.CatalogFileHandle
+import com.riffle.core.catalog.CatalogFileStream
+import com.riffle.core.catalog.BookFormat
+import com.riffle.core.catalog.CatalogHealth
+import com.riffle.core.catalog.CatalogItem
+import com.riffle.core.catalog.CatalogRoot
+import com.riffle.core.catalog.SortKey
 import com.riffle.core.domain.PositionSnapshot
 import com.riffle.core.domain.ProgressReconciler
 import com.riffle.core.domain.ProgressRemote
 import com.riffle.core.domain.RemoteProgress
 import com.riffle.core.domain.Source
-import com.riffle.core.domain.SourceUrl
+import com.riffle.core.domain.SourceType
 import com.riffle.core.domain.SyncPositionStore
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
@@ -15,8 +24,9 @@ import org.junit.Test
 
 /**
  * The durable multi-source dirty sweep (ADR 0030 slice 5): enumerate dirty rows across every source,
- * skip servers with no valid token, and reconcile each dirty target once under its per-target lock.
- * Orchestration is exercised over fakes — no Android, Room, or network.
+ * skip sources whose Catalog can't be resolved (missing token / unknown source), and reconcile each
+ * dirty target once under its per-target lock. Orchestration is exercised over fakes — no Android,
+ * Room, or network.
  */
 class ProgressSweepTest {
 
@@ -63,18 +73,39 @@ class ProgressSweepTest {
     ) : ProgressRemoteFactory {
         val ebookBuilt = mutableListOf<Pair<String, String>>()
         val audioBuilt = mutableListOf<Pair<String, String>>()
-        override fun ebook(source: Source, token: String, itemId: String): ProgressRemote<String> {
-            ebookBuilt += source.id to itemId
-            return ebookRemotes[source.id to itemId] ?: FakeRemote(RemoteProgress("noop", 0L), 0L)
+        override suspend fun ebook(sourceId: String, itemId: String): ProgressRemote<String>? {
+            ebookBuilt += sourceId to itemId
+            return ebookRemotes[sourceId to itemId] ?: FakeRemote(RemoteProgress("noop", 0L), 0L)
         }
-        override fun audio(source: Source, token: String, itemId: String): ProgressRemote<Double> {
-            audioBuilt += source.id to itemId
-            return audioRemotes[source.id to itemId] ?: FakeRemote(RemoteProgress(0.0, 0L), 0L)
+        override suspend fun audio(sourceId: String, itemId: String): ProgressRemote<Double>? {
+            audioBuilt += sourceId to itemId
+            return audioRemotes[sourceId to itemId] ?: FakeRemote(RemoteProgress(0.0, 0L), 0L)
         }
     }
 
-    private fun source(id: String) =
-        Source(id, SourceUrl.parse("http://$id")!!, isActive = false, insecureConnectionAllowed = false, username = "u")
+    /**
+     * A minimal [CatalogRegistry] that treats "unknown source" as absent — mirrors the production
+     * behaviour when a Source row exists but its token is missing (Catalog can't be built).
+     */
+    private class FakeRegistry(private val available: Set<String>) : CatalogRegistry {
+        override suspend fun forActive(): Catalog? = null
+        override suspend fun forSource(source: Source): Catalog? = if (source.id in available) DummyCatalog else null
+        override suspend fun forSourceId(sourceId: String): Catalog? = if (sourceId in available) DummyCatalog else null
+    }
+
+    /** No-op Catalog — sweep never invokes its methods; only presence/absence matters. */
+    private object DummyCatalog : Catalog {
+        override val sourceType = SourceType.ABS
+        override suspend fun listRoots() = emptyList<CatalogRoot>()
+        override suspend fun browse(rootId: String, sort: SortKey, page: Int, pageSize: Int) = emptyList<CatalogItem>()
+        override suspend fun search(rootId: String, query: String, page: Int, pageSize: Int) = emptyList<CatalogItem>()
+        override suspend fun getItem(itemId: String): CatalogItem? = null
+        override suspend fun fetchFile(itemId: String, format: BookFormat): CatalogFileHandle =
+            throw UnsupportedOperationException()
+        override suspend fun openFile(itemId: String, format: BookFormat, handleHint: String?): CatalogFileStream =
+            throw UnsupportedOperationException()
+        override suspend fun connectivityCheck() = CatalogHealth(isReachable = false)
+    }
 
     private fun ledger(
         servers: List<String>,
@@ -88,24 +119,24 @@ class ProgressSweepTest {
 
     private fun sweep(
         ledger: DirtyProgressLedger,
-        resolver: ServerTokenResolver,
+        registry: CatalogRegistry,
         ebookStore: SyncPositionStore<String>,
         audioStore: SyncPositionStore<Double>,
         factory: ProgressRemoteFactory,
         openTargets: OpenReconcileTargets = OpenReconcileTargets(),
     ) = ProgressSweep(
-        ledger, resolver,
+        ledger, registry,
         ProgressReconciler(ebookStore), ProgressReconciler(audioStore),
         factory, ReconcileLocks(), openTargets,
         object : DirtyBookmarkLedger {
             override suspend fun serversWithDirty() = emptyList<String>()
             override suspend fun dirtyItems(sourceId: String) = emptyList<String>()
         },
-        BookmarkReconcile { _, _, _, _, _ -> },
+        BookmarkReconcile { _, _ -> },
     )
 
     @Test
-    fun `reconciles dirty ebook rows across multiple servers`() = runTest {
+    fun `reconciles dirty ebook rows across multiple sources`() = runTest {
         val store = FakeStore<String>().apply {
             rows["s1" to "i1"] = Triple("local1", 300L, 100L)
             rows["s2" to "i2"] = Triple("local2", 300L, 100L)
@@ -116,19 +147,18 @@ class ProgressSweepTest {
                 ("s2" to "i2") to FakeRemote(RemoteProgress("srv", 200L), stamp = 305L),
             ),
         )
-        val resolver = ServerTokenResolver { id -> source(id) to "tok-$id" }
 
         sweep(
             ledger(listOf("s1", "s2"), ebook = mapOf("s1" to listOf("i1"), "s2" to listOf("i2"))),
-            resolver, store, FakeStore(), factory,
+            FakeRegistry(setOf("s1", "s2")), store, FakeStore(), factory,
         ).run()
 
-        assertFalse(store.dirty("s1", "i1")) // pushed + cleaned
+        assertFalse(store.dirty("s1", "i1"))
         assertFalse(store.dirty("s2", "i2"))
     }
 
     @Test
-    fun `skips servers with no token, leaving their rows dirty`() = runTest {
+    fun `skips sources whose Catalog cannot be resolved, leaving their rows dirty`() = runTest {
         val store = FakeStore<String>().apply {
             rows["s1" to "i1"] = Triple("local1", 300L, 100L)
             rows["s2" to "i2"] = Triple("local2", 300L, 100L)
@@ -136,16 +166,15 @@ class ProgressSweepTest {
         val factory = RecordingFactory(
             ebookRemotes = mapOf(("s1" to "i1") to FakeRemote(RemoteProgress("srv", 200L), stamp = 305L)),
         )
-        // s2 has no token → skipped.
-        val resolver = ServerTokenResolver { id -> if (id == "s2") null else source(id) to "tok" }
 
+        // s2's Catalog cannot be resolved → skipped by the sweep.
         sweep(
             ledger(listOf("s1", "s2"), ebook = mapOf("s1" to listOf("i1"), "s2" to listOf("i2"))),
-            resolver, store, FakeStore(), factory,
+            FakeRegistry(setOf("s1")), store, FakeStore(), factory,
         ).run()
 
         assertFalse(store.dirty("s1", "i1"))
-        assertTrue(store.dirty("s2", "i2")) // untouched
+        assertTrue(store.dirty("s2", "i2"))
         assertFalse("s2 must never be contacted", factory.ebookBuilt.contains("s2" to "i2"))
     }
 
@@ -159,11 +188,11 @@ class ProgressSweepTest {
 
         sweep(
             ledger(listOf("s1"), ebook = mapOf("s1" to listOf("open"))),
-            ServerTokenResolver { id -> source(id) to "tok" }, store, FakeStore(), factory, openTargets,
+            FakeRegistry(setOf("s1")), store, FakeStore(), factory, openTargets,
         ).run()
 
-        assertTrue("open book is left to its own live cycle", store.dirty("s1", "open"))
-        assertFalse("open book is never contacted by the sweep", factory.ebookBuilt.contains("s1" to "open"))
+        assertTrue(store.dirty("s1", "open"))
+        assertFalse(factory.ebookBuilt.contains("s1" to "open"))
     }
 
     @Test
@@ -177,7 +206,7 @@ class ProgressSweepTest {
 
         sweep(
             ledger(listOf("s1"), ebook = mapOf("s1" to listOf("i1")), audio = mapOf("s1" to listOf("i1"))),
-            ServerTokenResolver { id -> source(id) to "tok" }, ebookStore, audioStore, factory,
+            FakeRegistry(setOf("s1")), ebookStore, audioStore, factory,
         ).run()
 
         assertFalse(ebookStore.dirty("s1", "i1"))
@@ -193,11 +222,11 @@ class ProgressSweepTest {
 
         sweep(
             ledger(listOf("s1"), ebook = mapOf("s1" to listOf("i1"))),
-            ServerTokenResolver { id -> source(id) to "tok" }, store, FakeStore(), factory,
+            FakeRegistry(setOf("s1")), store, FakeStore(), factory,
         ).run()
 
         val row = store.rows["s1" to "i1"]!!
-        assertEquals("source-newer", row.first) // persisted locally, no reader needed
+        assertEquals("source-newer", row.first)
         assertFalse(store.dirty("s1", "i1"))
     }
 }

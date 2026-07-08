@@ -104,7 +104,7 @@ class ProgressSyncCycleTest {
         readaloudResumeStore: com.riffle.core.domain.ReadaloudResumeStore = FakeReadaloudResumeStore(),
     ) =
         ReadingSessionRepositoryImpl(
-            api = api,
+            catalogRegistry = InlineCatalogRegistry(testAbsCatalog(sessionApi = api, libraryApi = NoopLibraryApi)),
             sourceRepository = object : SourceRepository {
                 val source = Source("s1", SourceUrl.parse("http://localhost")!!, true, false, "")
                 override fun observeAll(): Flow<List<Source>> = flowOf(listOf(source))
@@ -114,11 +114,6 @@ class ProgressSyncCycleTest {
                 override suspend fun setActive(sourceId: String) = Unit
                 override suspend fun remove(sourceId: String) = Unit
                 override suspend fun getSourceVersion(sourceId: String): String? = null
-            },
-            tokenStorage = object : TokenStorage {
-                override suspend fun saveToken(sourceId: String, token: String) = Unit
-                override suspend fun getToken(sourceId: String): String? = "tok"
-                override suspend fun deleteToken(sourceId: String) = Unit
             },
             positionStore = positionStore,
             audiobookPositionStore = audiobookPositionStore,

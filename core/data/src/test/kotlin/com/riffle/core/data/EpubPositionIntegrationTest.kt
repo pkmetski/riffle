@@ -61,12 +61,8 @@ class EpubPositionIntegrationTest {
         source.shutdown()
     }
 
-    private fun buildRepo(): EpubRepositoryImpl = EpubRepositoryImpl(
-        api = AbsApiClient(OkHttpClient(), DefaultDispatcherProvider),
-        cacheStore = cacheStore,
-        downloadsStore = LocalStoreImpl(tmp.newFolder("downloads-${System.nanoTime()}"), ".epub", com.riffle.core.domain.DefaultDispatcherProvider),
-        positionStore = ReadingPositionStoreImpl(sharedPositionDao, com.riffle.core.domain.TestClock(System.currentTimeMillis())),
-        sourceRepository = object : SourceRepository {
+    private fun buildRepo(): EpubRepositoryImpl {
+        val sourceRepo = object : SourceRepository {
             val activeServer = Source(
                 id = "source-1",
                 url = SourceUrl.parse(source.url("/").toString().trimEnd('/'))!!,
@@ -84,13 +80,15 @@ class EpubPositionIntegrationTest {
             override suspend fun setActive(sourceId: String) = Unit
             override suspend fun remove(sourceId: String) = Unit
             override suspend fun getSourceVersion(sourceId: String): String? = null
-        },
-        tokenStorage = object : TokenStorage {
-            override suspend fun saveToken(sourceId: String, token: String) = Unit
-            override suspend fun getToken(sourceId: String): String? = "test-token"
-            override suspend fun deleteToken(sourceId: String) = Unit
-        },
-    )
+        }
+        return EpubRepositoryImpl(
+            catalogRegistry = TestCatalogRegistry(sourceRepo, mapOf("source-1" to "test-token")),
+            cacheStore = cacheStore,
+            downloadsStore = LocalStoreImpl(tmp.newFolder("downloads-${System.nanoTime()}"), ".epub", com.riffle.core.domain.DefaultDispatcherProvider),
+            positionStore = ReadingPositionStoreImpl(sharedPositionDao, com.riffle.core.domain.TestClock(System.currentTimeMillis())),
+            sourceRepository = sourceRepo,
+        )
+    }
 
     private fun item() = LibraryItem(
         id = "item-1",

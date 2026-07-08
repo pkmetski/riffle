@@ -727,18 +727,24 @@ class AudiobookPlayerViewModelBookmarkTest {
     private class TestReaderSyncFactory : ReaderSyncFactory(
         FakeLinkRepository,
         StubServer,
-        FakeTokenStorage,
+        StubCatalogRegistry,
         StubIndexStore,
-        StubAbsApi,
         StubLibrary,
         StubLocalStore,
         StubLocalStore,
         StubBuildTrigger,
         sidecarCache = { _, _ -> null },
+        clock = object : com.riffle.core.domain.Clock { override fun nowMs() = 0L; override fun nowNs() = 0L },
         logger = RecordingLogger(),
     ) {
         override suspend fun createIfApplicable(itemId: String): ReaderSyncCoordinator? = null
         override suspend fun createAudiobookFollowIfApplicable(itemId: String): AudiobookFollow? = null
+    }
+
+    private object StubCatalogRegistry : com.riffle.core.catalog.CatalogRegistry {
+        override suspend fun forActive(): com.riffle.core.catalog.Catalog? = null
+        override suspend fun forSource(source: Source): com.riffle.core.catalog.Catalog? = null
+        override suspend fun forSourceId(sourceId: String): com.riffle.core.catalog.Catalog? = null
     }
 
     private object StubServer : SourceRepository {

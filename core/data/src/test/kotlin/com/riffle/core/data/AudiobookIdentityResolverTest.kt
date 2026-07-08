@@ -1,7 +1,5 @@
 package com.riffle.core.data
 
-import com.riffle.core.network.NetworkResult
-
 import com.riffle.core.domain.AudiobookFingerprint
 import com.riffle.core.domain.AudiobookIdentityResult
 import org.junit.Assert.assertEquals
@@ -15,8 +13,8 @@ class AudiobookIdentityResolverTest {
 
     private val martian = AudiobookFingerprint(313_869_927, 39_214.464, listOf(39_214.464))
 
-    private fun ok(fp: AudiobookFingerprint): NetworkResult<AudiobookFingerprint?> = NetworkResult.Success(fp)
-    private val noAudiobook: NetworkResult<AudiobookFingerprint?> = NetworkResult.Success(null)
+    private fun ok(fp: AudiobookFingerprint?): Result<AudiobookFingerprint?> = Result.success(fp)
+    private val noAudiobook: Result<AudiobookFingerprint?> = Result.success(null)
 
     @Test
     fun `matching fingerprints verify`() {
@@ -41,7 +39,7 @@ class AudiobookIdentityResolverTest {
     fun `a fetch error resolves to UNKNOWN, never a false verify`() {
         assertEquals(
             AudiobookIdentityResult.UNKNOWN,
-            AudiobookIdentityResolver.resolve(ok(martian), NetworkResult.Offline(RuntimeException())),
+            AudiobookIdentityResolver.resolve(ok(martian), Result.failure(RuntimeException())),
         )
     }
 }

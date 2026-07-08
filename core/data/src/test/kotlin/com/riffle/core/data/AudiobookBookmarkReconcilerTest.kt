@@ -1,11 +1,20 @@
 package com.riffle.core.data
 
-import com.riffle.core.network.NetworkResult
-
+import com.riffle.core.catalog.BookFormat
+import com.riffle.core.catalog.BookmarksCapability
+import com.riffle.core.catalog.Catalog
+import com.riffle.core.catalog.CatalogBookmark
+import com.riffle.core.catalog.CatalogFileHandle
+import com.riffle.core.catalog.CatalogFileStream
+import com.riffle.core.catalog.CatalogHealth
+import com.riffle.core.catalog.CatalogItem
+import com.riffle.core.catalog.CatalogRegistry
+import com.riffle.core.catalog.CatalogRoot
+import com.riffle.core.catalog.SortKey
 import com.riffle.core.database.AudiobookBookmarkDao
 import com.riffle.core.database.AudiobookBookmarkEntity
-import com.riffle.core.network.AbsBookmarkApi
-import com.riffle.core.network.NetworkAbsBookmark
+import com.riffle.core.domain.Source
+import com.riffle.core.domain.SourceType
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.map
@@ -18,8 +27,6 @@ import org.junit.Test
 
 class AudiobookBookmarkReconcilerTest {
 
-    // A fake DAO that faithfully implements the compare-and-clear / hard-delete semantics
-    // so the reconciler's clean/dirty transitions can be asserted end-to-end.
     private class FakeDao : AudiobookBookmarkDao {
         val rows = MutableStateFlow<List<AudiobookBookmarkEntity>>(emptyList())
 
@@ -72,56 +79,48 @@ class AudiobookBookmarkReconcilerTest {
         }
     }
 
-    private class FakeApi(
-        var listResult: NetworkResult<List<NetworkAbsBookmark>> = NetworkResult.Success(emptyList()),
-    ) : AbsBookmarkApi {
+    private class FakeCatalog(
+        var listResult: Result<List<CatalogBookmark>> = Result.success(emptyList()),
+    ) : Catalog, BookmarksCapability {
         data class Call(val kind: String, val itemId: String, val timeSec: Int, val title: String)
-
         val calls = mutableListOf<Call>()
-        var createResult: NetworkResult<NetworkAbsBookmark> = NetworkResult.Success(NetworkAbsBookmark("", "", 0, 0))
-        var updateResult: NetworkResult<NetworkAbsBookmark> = NetworkResult.Success(NetworkAbsBookmark("", "", 0, 0))
-        var deleteResult: NetworkResult<NetworkAbsBookmark> = NetworkResult.Success(NetworkAbsBookmark("", "", 0, 0))
+        var createOk: Boolean = true
+        var renameOk: Boolean = true
+        var deleteOk: Boolean = true
 
-        override suspend fun createBookmark(
-            baseUrl: String,
-            itemId: String,
-            timeSec: Int,
-            title: String,
-            token: String,
-            insecureAllowed: Boolean,
-        ): NetworkResult<NetworkAbsBookmark> {
+        override val sourceType = SourceType.ABS
+        override suspend fun listRoots() = emptyList<CatalogRoot>()
+        override suspend fun browse(rootId: String, sort: SortKey, page: Int, pageSize: Int) = emptyList<CatalogItem>()
+        override suspend fun search(rootId: String, query: String, page: Int, pageSize: Int) = emptyList<CatalogItem>()
+        override suspend fun getItem(itemId: String): CatalogItem? = null
+        override suspend fun fetchFile(itemId: String, format: BookFormat): CatalogFileHandle = throw UnsupportedOperationException()
+        override suspend fun openFile(itemId: String, format: BookFormat, handleHint: String?): CatalogFileStream = throw UnsupportedOperationException()
+        override suspend fun connectivityCheck() = CatalogHealth(isReachable = true)
+
+        override suspend fun listAllBookmarks(): List<CatalogBookmark> = listResult.getOrThrow()
+
+        override suspend fun createBookmark(itemId: String, timeSec: Int, title: String): CatalogBookmark {
             calls += Call("create", itemId, timeSec, title)
-            return createResult
+            if (!createOk) throw RuntimeException("boom")
+            return CatalogBookmark(itemId, timeSec, title, createdAt = 0L)
         }
 
-        override suspend fun updateBookmark(
-            baseUrl: String,
-            itemId: String,
-            timeSec: Int,
-            title: String,
-            token: String,
-            insecureAllowed: Boolean,
-        ): NetworkResult<NetworkAbsBookmark> {
-            calls += Call("update", itemId, timeSec, title)
-            return updateResult
-        }
-
-        override suspend fun deleteBookmark(
-            baseUrl: String,
-            itemId: String,
-            timeSec: Int,
-            token: String,
-            insecureAllowed: Boolean,
-        ): NetworkResult<NetworkAbsBookmark> {
+        override suspend fun deleteBookmark(itemId: String, timeSec: Int) {
             calls += Call("delete", itemId, timeSec, "")
-            return deleteResult
+            if (!deleteOk) throw RuntimeException("boom")
         }
 
-        override suspend fun listBookmarks(
-            baseUrl: String,
-            token: String,
-            insecureAllowed: Boolean,
-        ): NetworkResult<List<NetworkAbsBookmark>> = listResult
+        override suspend fun renameBookmark(itemId: String, timeSec: Int, newTitle: String): CatalogBookmark {
+            calls += Call("update", itemId, timeSec, newTitle)
+            if (!renameOk) throw RuntimeException("boom")
+            return CatalogBookmark(itemId, timeSec, newTitle, createdAt = 0L)
+        }
+    }
+
+    private class FakeRegistry(private val catalog: Catalog) : CatalogRegistry {
+        override suspend fun forActive(): Catalog = catalog
+        override suspend fun forSource(source: Source): Catalog = catalog
+        override suspend fun forSourceId(sourceId: String): Catalog = catalog
     }
 
     private val now = { 1000L }
@@ -130,11 +129,10 @@ class AudiobookBookmarkReconcilerTest {
         return { "gen-${n++}" }
     }
 
-    private fun reconciler(dao: FakeDao, api: FakeApi) =
-        AudiobookBookmarkReconciler(dao, api, now = now, newId = counterIds())
+    private fun reconciler(dao: FakeDao, catalog: FakeCatalog) =
+        AudiobookBookmarkReconciler(dao, FakeRegistry(catalog), now = now, newId = counterIds())
 
-    private suspend fun AudiobookBookmarkReconciler.run() =
-        reconcile("s1", "i1", "http://abs", "tok", insecureAllowed = false)
+    private suspend fun AudiobookBookmarkReconciler.run() = reconcile("s1", "i1")
 
     @Test fun pushCreate() = runTest {
         val dao = FakeDao()
@@ -144,11 +142,10 @@ class AudiobookBookmarkReconcilerTest {
                 createdAt = 500L, localUpdatedAt = 800L, lastSyncedAt = 0L, deleted = false,
             ),
         )
-        // Source echoes the bookmark back so the pull doesn't remove the now-clean row.
-        val api = FakeApi(listResult = NetworkResult.Success(listOf(NetworkAbsBookmark("i1", "Intro", 12, 500L))))
-        reconciler(dao, api).run()
+        val cat = FakeCatalog(listResult = Result.success(listOf(CatalogBookmark("i1", 12, "Intro", 500L))))
+        reconciler(dao, cat).run()
 
-        assertEquals(listOf(FakeApi.Call("create", "i1", 12, "Intro")), api.calls.filter { it.kind == "create" })
+        assertEquals(listOf(FakeCatalog.Call("create", "i1", 12, "Intro")), cat.calls.filter { it.kind == "create" })
         val row = dao.getById("a")!!
         assertTrue("created row must become clean", row.localUpdatedAt <= row.lastSyncedAt)
     }
@@ -161,11 +158,11 @@ class AudiobookBookmarkReconcilerTest {
                 createdAt = 500L, localUpdatedAt = 900L, lastSyncedAt = 600L, deleted = false,
             ),
         )
-        val api = FakeApi(listResult = NetworkResult.Success(listOf(NetworkAbsBookmark("i1", "New name", 30, 500L))))
-        reconciler(dao, api).run()
+        val cat = FakeCatalog(listResult = Result.success(listOf(CatalogBookmark("i1", 30, "New name", 500L))))
+        reconciler(dao, cat).run()
 
-        assertEquals(listOf(FakeApi.Call("update", "i1", 30, "New name")), api.calls.filter { it.kind == "update" })
-        assertTrue(api.calls.none { it.kind == "create" })
+        assertEquals(listOf(FakeCatalog.Call("update", "i1", 30, "New name")), cat.calls.filter { it.kind == "update" })
+        assertTrue(cat.calls.none { it.kind == "create" })
         val row = dao.getById("a")!!
         assertTrue("renamed row must become clean", row.localUpdatedAt <= row.lastSyncedAt)
     }
@@ -178,10 +175,10 @@ class AudiobookBookmarkReconcilerTest {
                 createdAt = 500L, localUpdatedAt = 900L, lastSyncedAt = 600L, deleted = true,
             ),
         )
-        val api = FakeApi()
-        reconciler(dao, api).run()
+        val cat = FakeCatalog()
+        reconciler(dao, cat).run()
 
-        assertEquals(listOf(FakeApi.Call("delete", "i1", 45, "")), api.calls.filter { it.kind == "delete" })
+        assertEquals(listOf(FakeCatalog.Call("delete", "i1", 45, "")), cat.calls.filter { it.kind == "delete" })
         assertNull("confirmed delete must be hard-removed", dao.getById("a"))
     }
 
@@ -193,9 +190,8 @@ class AudiobookBookmarkReconcilerTest {
                 createdAt = 500L, localUpdatedAt = 900L, lastSyncedAt = 600L, deleted = true,
             ),
         )
-        val api = FakeApi()
-        api.deleteResult = NetworkResult.Offline(RuntimeException("boom"))
-        reconciler(dao, api).run()
+        val cat = FakeCatalog().apply { deleteOk = false }
+        reconciler(dao, cat).run()
 
         val row = dao.getById("a")!!
         assertEquals(true, row.deleted)
@@ -204,8 +200,8 @@ class AudiobookBookmarkReconcilerTest {
 
     @Test fun pullInsert() = runTest {
         val dao = FakeDao()
-        val api = FakeApi(listResult = NetworkResult.Success(listOf(NetworkAbsBookmark("i1", "From source", 77, 1234L))))
-        reconciler(dao, api).run()
+        val cat = FakeCatalog(listResult = Result.success(listOf(CatalogBookmark("i1", 77, "From source", 1234L))))
+        reconciler(dao, cat).run()
 
         val row = dao.allForItem("s1", "i1").single()
         assertEquals(77.0, row.positionSec, 0.0001)
@@ -223,37 +219,30 @@ class AudiobookBookmarkReconcilerTest {
                 createdAt = 500L, localUpdatedAt = 600L, lastSyncedAt = 600L, deleted = false,
             ),
         )
-        val api = FakeApi(listResult = NetworkResult.Success(emptyList<NetworkAbsBookmark>()))
-        reconciler(dao, api).run()
+        val cat = FakeCatalog(listResult = Result.success(emptyList()))
+        reconciler(dao, cat).run()
 
         assertNull("clean row missing from source must be removed", dao.getById("a"))
     }
 
     @Test fun pullDoesNotClobberDirtyRows() = runTest {
         val dao = FakeDao()
-        // Dirty local create whose time is absent source-side -> must NOT be removed.
         dao.upsert(
             AudiobookBookmarkEntity(
                 id = "create", sourceId = "s1", itemId = "i1", positionSec = 20.0, title = "pending",
                 createdAt = 500L, localUpdatedAt = 900L, lastSyncedAt = 0L, deleted = false,
             ),
         )
-        // Dirty rename whose source title differs -> source title must NOT be applied.
         dao.upsert(
             AudiobookBookmarkEntity(
                 id = "rename", sourceId = "s1", itemId = "i1", positionSec = 50.0, title = "local title",
                 createdAt = 500L, localUpdatedAt = 900L, lastSyncedAt = 600L, deleted = false,
             ),
         )
-        // Source returns the rename's time with a DIFFERENT title; the create's time is absent.
-        val api = FakeApi(
-            listResult = NetworkResult.Success(listOf(NetworkAbsBookmark("i1", "source title", 50, 500L))),
-        )
-        // Pushes fail (network) so both rows stay DIRTY through the pull — that's the scenario
-        // under test: the pull must not clobber pending local intent.
-        api.createResult = NetworkResult.Offline(RuntimeException("down"))
-        api.updateResult = NetworkResult.Offline(RuntimeException("down"))
-        reconciler(dao, api).run()
+        val cat = FakeCatalog(listResult = Result.success(listOf(CatalogBookmark("i1", 50, "source title", 500L))))
+        cat.createOk = false
+        cat.renameOk = false
+        reconciler(dao, cat).run()
 
         val createRow = dao.getById("create")
         assertNotNull("dirty pending create must survive pull", createRow)
@@ -263,43 +252,40 @@ class AudiobookBookmarkReconcilerTest {
 
     @Test fun listBookmarksNetworkErrorSkipsPullButPushesHappen() = runTest {
         val dao = FakeDao()
-        // A dirty create to push.
         dao.upsert(
             AudiobookBookmarkEntity(
                 id = "a", sourceId = "s1", itemId = "i1", positionSec = 12.0, title = "Intro",
                 createdAt = 500L, localUpdatedAt = 800L, lastSyncedAt = 0L, deleted = false,
             ),
         )
-        // A clean row that, if the pull ran, would be removed (absent source-side). It must survive.
         dao.upsert(
             AudiobookBookmarkEntity(
                 id = "clean", sourceId = "s1", itemId = "i1", positionSec = 99.0, title = "keep",
                 createdAt = 500L, localUpdatedAt = 600L, lastSyncedAt = 600L, deleted = false,
             ),
         )
-        val api = FakeApi(listResult = NetworkResult.Offline(RuntimeException("down")))
-        reconciler(dao, api).run()
+        val cat = FakeCatalog(listResult = Result.failure(RuntimeException("down")))
+        reconciler(dao, cat).run()
 
-        assertEquals(listOf(FakeApi.Call("create", "i1", 12, "Intro")), api.calls.filter { it.kind == "create" })
+        assertEquals(listOf(FakeCatalog.Call("create", "i1", 12, "Intro")), cat.calls.filter { it.kind == "create" })
         assertNotNull("pull skipped: clean row must NOT be removed", dao.getById("clean"))
     }
 
     @Test fun crossItemIsolation() = runTest {
         val dao = FakeDao()
-        val api = FakeApi(
-            listResult = NetworkResult.Success(
+        val cat = FakeCatalog(
+            listResult = Result.success(
                 listOf(
-                    NetworkAbsBookmark("OTHER", "other item", 10, 1L),
-                    NetworkAbsBookmark("i1", "ours", 20, 2L),
+                    CatalogBookmark("OTHER", 10, "other item", 1L),
+                    CatalogBookmark("i1", 20, "ours", 2L),
                 ),
             ),
         )
-        reconciler(dao, api).run()
+        reconciler(dao, cat).run()
 
         val rows = dao.allForItem("s1", "i1")
         assertEquals(1, rows.size)
         assertEquals("ours", rows.single().title)
-        // No row inserted for the OTHER item.
         assertTrue(dao.rows.value.none { it.itemId == "OTHER" })
     }
 }

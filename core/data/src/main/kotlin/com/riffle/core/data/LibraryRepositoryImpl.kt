@@ -1,6 +1,8 @@
 package com.riffle.core.data
 
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import com.riffle.core.catalog.CatalogRegistry
+import com.riffle.core.catalog.ProgressPeerCapability
 import com.riffle.core.database.CollectionDao
 import com.riffle.core.database.CollectionEntity
 import com.riffle.core.database.CollectionItemEntity
@@ -22,11 +24,6 @@ import com.riffle.core.domain.LibraryRefreshResult
 import com.riffle.core.domain.LibraryRefresher
 import com.riffle.core.domain.Series
 import com.riffle.core.domain.SourceRepository
-import com.riffle.core.domain.TokenStorage
-import com.riffle.core.network.AbsCoverUrl
-import com.riffle.core.network.AbsLibraryApi
-import com.riffle.core.network.NetworkResult
-import com.riffle.core.network.errorAsThrowable
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
@@ -37,18 +34,17 @@ import kotlinx.coroutines.flow.map
 import javax.inject.Inject
 
 /**
- * Slim Room/API wrapper that satisfies the three segregated library role interfaces. Cross-cutting
- * choreography (readaloud matcher / Storyteller catalogue sync / reading-session push) lives in
- * use-cases under `com.riffle.core.domain.usecase`, NOT here.
+ * Slim Room/Catalog wrapper that satisfies the three segregated library role interfaces.
+ * Cross-cutting choreography (readaloud matcher / Storyteller catalogue sync / reading-session
+ * push) lives in use-cases under `com.riffle.core.domain.usecase`, NOT here.
  */
 class LibraryRepositoryImpl @Inject constructor(
-    private val api: AbsLibraryApi,
+    private val catalogRegistry: CatalogRegistry,
     private val libraryDao: LibraryDao,
     private val libraryItemDao: LibraryItemDao,
     private val seriesDao: SeriesDao,
     private val collectionDao: CollectionDao,
     private val sourceRepository: SourceRepository,
-    private val tokenStorage: TokenStorage,
     private val clock: Clock,
 ) : LibraryObserver, LibraryMutator, LibraryRefresher {
 
@@ -65,17 +61,17 @@ class LibraryRepositoryImpl @Inject constructor(
     override fun observeLibraries(sourceId: String): Flow<List<Library>> =
         libraryDao.observeBySourceId(sourceId).map { list -> list.map { it.toDomain() } }
 
-    // Id of the Server whose libraries the user is currently browsing. The nav drawer only ever
-    // lists the active Server's libraries, so the visible library always belongs to it.
+    // Id of the Source whose libraries the user is currently browsing. The nav drawer only ever
+    // lists the active Source's libraries, so the visible library always belongs to it.
     private val activeServerId: Flow<String?> =
         sourceRepository.observeAll()
             .map { servers -> servers.firstOrNull { it.isActive }?.id }
             .distinctUntilChanged()
 
-    // Library-scoped item flows resolve the active Server's id and pass it as the DAO's primary
+    // Library-scoped item flows resolve the active Source's id and pass it as the DAO's primary
     // scope. library_items is keyed by (sourceId, id) (ADR 0025), so the query itself enforces
-    // server isolation — no post-query filter required. With no active Server the screen has
-    // nothing to show, so we emit an empty list rather than mixing data across Servers.
+    // source isolation — no post-query filter required. With no active Source the screen has
+    // nothing to show, so we emit an empty list rather than mixing data across Sources.
     @OptIn(ExperimentalCoroutinesApi::class)
     private fun scopedItemFlow(
         query: (String) -> Flow<List<LibraryItemEntity>>,
@@ -118,8 +114,8 @@ class LibraryRepositoryImpl @Inject constructor(
     override fun observeCollectionItems(collectionId: String): Flow<List<LibraryItem>> =
         scopedItemFlow { sourceId -> collectionDao.observeItemsByCollectionId(sourceId, collectionId) }
 
-    // Item ids are only unique within a Server (ADR 0025); reads/writes here target the active
-    // Server's copy, mirroring how reading positions are keyed. No active Server → nothing to do.
+    // Item ids are only unique within a Source (ADR 0025); reads/writes here target the active
+    // Source's copy, mirroring how reading positions are keyed. No active Source → nothing to do.
     override suspend fun getItem(itemId: String): LibraryItem? {
         val sourceId = sourceRepository.getActive()?.id ?: return null
         return libraryItemDao.getById(sourceId, itemId)?.toDomain()
@@ -138,8 +134,8 @@ class LibraryRepositoryImpl @Inject constructor(
     override suspend fun getItem(sourceId: String, itemId: String): LibraryItem? =
         libraryItemDao.getById(sourceId, itemId)?.toDomain()
 
-    // Library ids are only unique within a Server (issue #113); resolve against the active Server's
-    // copy, mirroring how [getItem] keys item reads. No active Server → nothing to resolve.
+    // Library ids are only unique within a Source (issue #113); resolve against the active Source's
+    // copy, mirroring how [getItem] keys item reads. No active Source → nothing to resolve.
     override suspend fun getLibrary(libraryId: String): Library? {
         val sourceId = sourceRepository.getActive()?.id ?: return null
         return libraryDao.getById(sourceId, libraryId)?.toDomain()
@@ -163,42 +159,55 @@ class LibraryRepositoryImpl @Inject constructor(
     }
 
     override suspend fun refreshLibraries(): LibraryRefreshResult {
-        val server = sourceRepository.getActive() ?: return LibraryRefreshResult.NoActiveServer
-        val token = tokenStorage.getToken(server.id) ?: return LibraryRefreshResult.NoActiveServer
-        val result = api.getLibraries(server.url.value, token, server.insecureConnectionAllowed)
-        if (result !is NetworkResult.Success) return LibraryRefreshResult.NetworkError(result.errorAsThrowable())
-        val entities = result.value
+        val source = sourceRepository.getActive() ?: return LibraryRefreshResult.NoActiveServer
+        val catalog = catalogRegistry.forSource(source) ?: return LibraryRefreshResult.NoActiveServer
+        val roots = try {
+            catalog.listRoots()
+        } catch (t: Throwable) {
+            return LibraryRefreshResult.NetworkError(t)
+        }
+        val entities = roots
             .filter { it.mediaType == "book" }
-            .map { LibraryEntity(id = it.id, name = it.name, mediaType = it.mediaType, sourceId = server.id) }
-        libraryDao.replaceAllForSource(server.id, entities)
+            .map { LibraryEntity(id = it.id, name = it.name, mediaType = it.mediaType, sourceId = source.id) }
+        libraryDao.replaceAllForSource(source.id, entities)
         return LibraryRefreshResult.Success
     }
 
     override suspend fun refreshLibraryItems(libraryId: String): LibraryRefreshResult {
-        val server = sourceRepository.getActive() ?: return LibraryRefreshResult.NoActiveServer
-        val token = tokenStorage.getToken(server.id) ?: return LibraryRefreshResult.NoActiveServer
+        val source = sourceRepository.getActive() ?: return LibraryRefreshResult.NoActiveServer
+        val catalog = catalogRegistry.forSource(source) ?: return LibraryRefreshResult.NoActiveServer
+        val progressPeer = catalog as? ProgressPeerCapability
         return coroutineScope {
             // Fire both calls simultaneously: user-progress and library items are independent
-            // requests. Total latency = max(getUserProgress, getLibraryItems) instead of their sum.
-            val progressDeferred = async { api.getUserProgress(server.url.value, token, server.insecureConnectionAllowed) }
-            val itemsDeferred = async { api.getLibraryItems(server.url.value, libraryId, token, server.insecureConnectionAllowed) }
+            // requests. Total latency = max(pullAllProgress, browse) instead of their sum.
+            val progressDeferred = async {
+                try {
+                    progressPeer?.pullAllProgress().orEmpty()
+                } catch (_: Throwable) {
+                    emptyList()
+                }
+            }
+            val itemsDeferred = async {
+                // Ask for one un-paged sweep of the library — refresh replaces the whole set.
+                runCatching { catalog.browse(libraryId, pageSize = Int.MAX_VALUE) }
+            }
 
-            val serverProgressMap = (progressDeferred.await() as? NetworkResult.Success)?.value ?: emptyMap()
-            val result = itemsDeferred.await()
-            if (result !is NetworkResult.Success) return@coroutineScope LibraryRefreshResult.NetworkError(result.errorAsThrowable())
-            val lastOpenedAtMap = libraryItemDao.getLastOpenedAtMap(server.id, libraryId).associate { it.id to it.lastOpenedAt }
-            val entities = result.value
-                .sortedByDescending { it.isSupported }
+            val serverProgressMap = progressDeferred.await().associateBy { it.itemId }
+            val itemsResult = itemsDeferred.await()
+            val items = itemsResult.getOrElse { return@coroutineScope LibraryRefreshResult.NetworkError(it) }
+            val lastOpenedAtMap = libraryItemDao.getLastOpenedAtMap(source.id, libraryId).associate { it.id to it.lastOpenedAt }
+            val entities = items
+                .sortedByDescending { it.ebookFormat != com.riffle.core.catalog.BookFormat.Unsupported }
                 .distinctBy { it.title.trim().lowercase() }
                 .map { item ->
                     val serverProgress = serverProgressMap[item.id]
                     LibraryItemEntity(
-                        sourceId = server.id,
+                        sourceId = source.id,
                         id = item.id,
-                        libraryId = item.libraryId,
+                        libraryId = item.rootId,
                         title = item.title,
                         author = item.author,
-                        coverUrl = absCoverUrl(server.url.value, item.id, item.updatedAt),
+                        coverUrl = item.coverUrl ?: "",
                         // For an audiobook-only item the ABS user-progress fallback already maps
                         // its listen fraction into `ebookProgress` (AbsApiClient: ebookProgress ?:
                         // progress), so this single field is the unified "how far through this
@@ -208,7 +217,7 @@ class LibraryRepositoryImpl @Inject constructor(
                         // new item for the first time.
                         readingProgress = serverProgress?.ebookProgress ?: item.readingProgress ?: 0f,
                         ebookFileIno = item.ebookFileIno,
-                        ebookFormat = item.ebookFormat.toStorageString(),
+                        ebookFormat = item.ebookFormat.toEbookFormat().toStorageString(),
                         hasAudio = item.hasAudio,
                         audioDurationSec = item.audioDurationSec,
                         description = item.description,
@@ -228,36 +237,38 @@ class LibraryRepositoryImpl @Inject constructor(
                         finishedAt = serverProgress?.finishedAt,
                     )
                 }
-            libraryItemDao.replaceAllForLibrary(server.id, libraryId, entities)
+            libraryItemDao.replaceAllForLibrary(source.id, libraryId, entities)
             val isUnsupported = entities.isNotEmpty() && entities.none { it.ebookFormat != EbookFormat.Unsupported.toStorageString() }
-            libraryDao.setUnsupported(server.id, libraryId, isUnsupported)
+            libraryDao.setUnsupported(source.id, libraryId, isUnsupported)
             LibraryRefreshResult.Success
         }
     }
 
     override suspend fun refreshSeries(libraryId: String): LibraryRefreshResult {
-        val server = sourceRepository.getActive() ?: return LibraryRefreshResult.NoActiveServer
-        val token = tokenStorage.getToken(server.id) ?: return LibraryRefreshResult.NoActiveServer
-        val result = api.getSeries(server.url.value, libraryId, token, server.insecureConnectionAllowed)
-        if (result !is NetworkResult.Success) return LibraryRefreshResult.NetworkError(result.errorAsThrowable())
-        val seriesEntities = result.value.map { s ->
+        val source = sourceRepository.getActive() ?: return LibraryRefreshResult.NoActiveServer
+        val catalog = catalogRegistry.forSource(source) ?: return LibraryRefreshResult.NoActiveServer
+        val seriesCap = catalog as? com.riffle.core.catalog.SeriesCapability ?: return LibraryRefreshResult.Success
+        val series = try {
+            seriesCap.listSeries(libraryId)
+        } catch (t: Throwable) {
+            return LibraryRefreshResult.NetworkError(t)
+        }
+        val seriesEntities = series.map { s ->
             SeriesEntity(
                 id = s.id,
-                libraryId = s.libraryId,
+                libraryId = s.rootId,
                 name = s.name,
-                coverUrl = s.items.firstOrNull()?.let { first ->
-                    absCoverUrl(server.url.value, first.id, first.updatedAt)
-                },
+                coverUrl = s.coverUrl,
                 bookCount = s.bookCount,
             )
         }
-        val seriesItemEntities = result.value.flatMap { s ->
-            s.items.mapIndexed { index, item ->
+        val seriesItemEntities = series.flatMap { s ->
+            s.items.mapIndexed { index, entry ->
                 SeriesItemEntity(
                     seriesId = s.id,
-                    sourceId = server.id,
-                    itemId = item.id,
-                    sequenceOrder = item.sequence?.toFloatOrNull() ?: (index + 1).toFloat(),
+                    sourceId = source.id,
+                    itemId = entry.itemId,
+                    sequenceOrder = entry.sequence?.toFloatOrNull() ?: (index + 1).toFloat(),
                 )
             }
         }
@@ -266,21 +277,25 @@ class LibraryRepositoryImpl @Inject constructor(
     }
 
     override suspend fun refreshCollections(libraryId: String): LibraryRefreshResult {
-        val server = sourceRepository.getActive() ?: return LibraryRefreshResult.NoActiveServer
-        val token = tokenStorage.getToken(server.id) ?: return LibraryRefreshResult.NoActiveServer
-        val result = api.getCollections(server.url.value, libraryId, token, server.insecureConnectionAllowed)
-        if (result !is NetworkResult.Success) return LibraryRefreshResult.NetworkError(result.errorAsThrowable())
-        val collectionEntities = result.value.map { c ->
+        val source = sourceRepository.getActive() ?: return LibraryRefreshResult.NoActiveServer
+        val catalog = catalogRegistry.forSource(source) ?: return LibraryRefreshResult.NoActiveServer
+        val collectionsCap = catalog as? com.riffle.core.catalog.CollectionsCapability ?: return LibraryRefreshResult.Success
+        val collections = try {
+            collectionsCap.listCollections(libraryId)
+        } catch (t: Throwable) {
+            return LibraryRefreshResult.NetworkError(t)
+        }
+        val collectionEntities = collections.map { c ->
             CollectionEntity(
                 id = c.id,
-                libraryId = c.libraryId,
+                libraryId = c.rootId,
                 name = c.name,
                 bookCount = c.bookCount,
             )
         }
-        val collectionItemEntities = result.value.flatMap { c ->
-            c.items.map { item ->
-                CollectionItemEntity(collectionId = c.id, sourceId = server.id, itemId = item.id)
+        val collectionItemEntities = collections.flatMap { c ->
+            c.itemIds.map { itemId ->
+                CollectionItemEntity(collectionId = c.id, sourceId = source.id, itemId = itemId)
             }
         }
         collectionDao.replaceAllForLibrary(libraryId, collectionEntities, collectionItemEntities)
@@ -330,13 +345,18 @@ class LibraryRepositoryImpl @Inject constructor(
         bookCount = bookCount,
     )
 
-    private fun absCoverUrl(baseUrl: String, itemId: String, updatedAt: Long?) =
-        AbsCoverUrl.of(baseUrl, itemId, updatedAt)
-
     private fun CollectionEntity.toDomain() = Collection(
         id = id,
         libraryId = libraryId,
         name = name,
         bookCount = bookCount,
     )
+
+    private fun com.riffle.core.catalog.BookFormat.toEbookFormat(): EbookFormat = when (this) {
+        com.riffle.core.catalog.BookFormat.Epub -> EbookFormat.Epub
+        com.riffle.core.catalog.BookFormat.Pdf -> EbookFormat.Pdf
+        com.riffle.core.catalog.BookFormat.Audiobook -> EbookFormat.Unsupported
+        com.riffle.core.catalog.BookFormat.Unsupported -> EbookFormat.Unsupported
+    }
+
 }

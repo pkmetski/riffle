@@ -130,6 +130,7 @@ dependencies {
     implementation(project(":core:logging"))
     // Three-peer reader sync constructs SyncRemotes over the position APIs directly (issue #38).
     implementation(project(":core:network"))
+    implementation(project(":core:catalog"))
 
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.webkit)

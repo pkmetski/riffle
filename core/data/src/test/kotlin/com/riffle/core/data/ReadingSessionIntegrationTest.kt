@@ -37,9 +37,8 @@ class ReadingSessionIntegrationTest {
     @After
     fun tearDown() = source.shutdown()
 
-    private fun buildRepo() = ReadingSessionRepositoryImpl(
-        api = AbsApiClient(OkHttpClient(), DefaultDispatcherProvider),
-        sourceRepository = object : SourceRepository {
+    private fun buildRepo(): ReadingSessionRepositoryImpl {
+        val sourceRepo = object : SourceRepository {
             val activeServer = Source(
                 id = "source-1",
                 url = SourceUrl.parse(source.url("/").toString().trimEnd('/'))!!,
@@ -56,13 +55,11 @@ class ReadingSessionIntegrationTest {
             override suspend fun setActive(sourceId: String) = Unit
             override suspend fun remove(sourceId: String) = Unit
             override suspend fun getSourceVersion(sourceId: String): String? = null
-        },
-        tokenStorage = object : TokenStorage {
-            override suspend fun saveToken(sourceId: String, token: String) = Unit
-            override suspend fun getToken(sourceId: String): String? = "test-token"
-            override suspend fun deleteToken(sourceId: String) = Unit
-        },
-        positionStore = object : ReadingPositionStore {
+        }
+        return ReadingSessionRepositoryImpl(
+            catalogRegistry = TestCatalogRegistry(sourceRepo, mapOf("source-1" to "test-token")),
+            sourceRepository = sourceRepo,
+            positionStore = object : ReadingPositionStore {
             override suspend fun save(sourceId: String, itemId: String, payload: String) = Unit
             override suspend fun load(sourceId: String, itemId: String): String? = null
             override suspend fun loadLocalUpdatedAt(sourceId: String, itemId: String): Long = 0L
@@ -81,7 +78,8 @@ class ReadingSessionIntegrationTest {
         },
         libraryItemDao = FakeLibraryItemDao(),
             clock = com.riffle.core.domain.TestClock(),
-    )
+        )
+    }
 
     @Test
     fun `syncProgress sends PATCH to correct path with payload`() = runTest {

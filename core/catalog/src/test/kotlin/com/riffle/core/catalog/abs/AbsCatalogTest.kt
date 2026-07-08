@@ -381,12 +381,15 @@ class AbsCatalogTest {
 
     // region ProgressPeerCapability
 
-    @Test fun `pushEbookProgress sends location progress and isFinished`() = runTest {
+    @Test fun `pushEbookProgress with isFinished=null leaves the audio dimension untouched (routine save)`() = runTest {
+        // Regression: forwarding `false` here would zero ABS's audio currentTime+progress per
+        // NetworkEbookProgressPayload's contract, clobbering audiobook progress on every ordinary
+        // reader position save. Only mark-finished / mark-unread callers pass a non-null value.
         catalog.pushEbookProgress(
             itemId = "it-1",
             location = "epubcfi(/6/4)",
             progress = 0.5f,
-            isFinished = false,
+            isFinished = null,
             lastUpdateEpochMs = 42L,
         )
 
@@ -394,7 +397,18 @@ class AbsCatalogTest {
         val payload = sessionApi.lastEbookPushPayload!!
         assertEquals("epubcfi(/6/4)", payload.ebookLocation)
         assertEquals(0.5f, payload.ebookProgress)
-        assertEquals(false, payload.isFinished)
+        assertEquals(null, payload.isFinished)
+    }
+
+    @Test fun `pushEbookProgress with isFinished=true forwards the flag (mark-finished)`() = runTest {
+        catalog.pushEbookProgress(
+            itemId = "it-1",
+            location = "epubcfi(/6/4)",
+            progress = 1.0f,
+            isFinished = true,
+            lastUpdateEpochMs = 42L,
+        )
+        assertEquals(true, sessionApi.lastEbookPushPayload!!.isFinished)
     }
 
     @Test fun `pushAudiobookProgress sends currentTime and duration`() = runTest {
@@ -402,7 +416,7 @@ class AbsCatalogTest {
             itemId = "it-1",
             currentTimeSec = 120.5,
             durationSec = 3600.0,
-            isFinished = false,
+            isFinished = null,
             lastUpdateEpochMs = 42L,
         )
 
@@ -411,12 +425,15 @@ class AbsCatalogTest {
         assertEquals(3600.0, sessionApi.lastAudiobookPushPayload!!.duration, 0.0)
     }
 
-    @Test fun `pullProgress returns null on empty ABS record`() = runTest {
+    @Test fun `pullProgress returns a reachable-empty CatalogProgress (lastUpdate=0) rather than null`() = runTest {
+        // Distinct from a null on network failure — an empty record means "reachable but never
+        // touched", so the caller can push the first position on this device instead of skipping.
         sessionApi.progressForItem["it-1"] = NetworkServerProgress(ebookLocation = "", lastUpdate = 0L)
 
-        val result = catalog.pullProgress(itemId = "it-1")
+        val result = catalog.pullProgress(itemId = "it-1")!!
 
-        assertNull(result)
+        assertEquals(0L, result.lastUpdate)
+        assertEquals(null, result.ebookLocation) // toCatalogProgress collapses "" → null
     }
 
     @Test fun `pullProgress maps a non-empty ABS record`() = runTest {
@@ -580,25 +597,21 @@ class AbsCatalogTest {
 
         val fp = catalog.getFingerprint(itemId = "it-1")
 
-        assertEquals("it-1", fp.itemId)
+        assertEquals("it-1", fp!!.itemId)
         assertEquals(3600.0, fp.totalDurationSec, 0.0)
         assertEquals(listOf(1800.0, 1800.0), fp.trackDurations)
     }
 
-    @Test fun `getFingerprint throws Unknown when item has no audiobook`() = runTest {
+    @Test fun `getFingerprint returns null when item has no audiobook (definitive NO_AUDIOBOOK verdict)`() = runTest {
         libraryApi.fingerprints["it-1"] = null
 
-        try {
-            catalog.getFingerprint(itemId = "it-1")
-            fail("expected CatalogException.Unknown")
-        } catch (_: CatalogException.Unknown) {
-        }
+        assertEquals(null, catalog.getFingerprint(itemId = "it-1"))
     }
 
-    @Test fun `buildStreamUrl mirrors AbsAudioUrl track pattern`() {
+    @Test fun `buildStreamUrl mirrors AbsAudioUrl track pattern and bakes the auth token in`() {
         val url = catalog.buildStreamUrl(itemId = "it-1", trackIno = "a")
 
-        assertEquals("https://abs.example.com/api/items/it-1/file/a", url)
+        assertEquals("https://abs.example.com/api/items/it-1/file/a?token=T", url)
     }
 
     // endregion

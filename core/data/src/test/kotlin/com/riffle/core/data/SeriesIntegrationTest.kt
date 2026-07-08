@@ -144,13 +144,12 @@ class SeriesIntegrationTest {
     private fun makeRepo(seriesDao: FakeSeriesDao = FakeSeriesDao()): LibraryRepositoryImpl {
         val itemDao = FakeLibraryItemDao()
         return LibraryRepositoryImpl(
-            api = AbsApiClient(OkHttpClient(), DefaultDispatcherProvider),
+            catalogRegistry = TestCatalogRegistry(fakeServerRepository, mapOf("s1" to "test-token")),
             libraryDao = FakeLibraryDao(),
             libraryItemDao = itemDao,
             seriesDao = seriesDao,
             collectionDao = FakeCollectionDao(),
             sourceRepository = fakeServerRepository,
-            tokenStorage = fakeTokenStorage,
             clock = com.riffle.core.domain.TestClock(),
         )
     }

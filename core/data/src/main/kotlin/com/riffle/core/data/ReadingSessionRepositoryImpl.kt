@@ -1,5 +1,8 @@
 package com.riffle.core.data
 
+import com.riffle.core.catalog.Catalog
+import com.riffle.core.catalog.CatalogRegistry
+import com.riffle.core.catalog.ProgressPeerCapability
 import com.riffle.core.database.LibraryItemDao
 import com.riffle.core.domain.AudiobookPositionStore
 import com.riffle.core.domain.Clock
@@ -7,22 +10,15 @@ import com.riffle.core.domain.ProgressSyncCycleResult
 import com.riffle.core.domain.ReadaloudResumeStore
 import com.riffle.core.domain.ReadingPositionStore
 import com.riffle.core.domain.ReadingSessionRepository
-import com.riffle.core.domain.Source
 import com.riffle.core.domain.ServerProgress
-import com.riffle.core.domain.SourceRepository
 import com.riffle.core.domain.SessionPayload
+import com.riffle.core.domain.SourceRepository
 import com.riffle.core.domain.SyncSessionResult
-import com.riffle.core.domain.TokenStorage
-import com.riffle.core.network.AbsSessionApi
-import com.riffle.core.network.NetworkEbookProgressPayload
-import com.riffle.core.network.NetworkResult
-import com.riffle.core.network.errorAsThrowable
 import javax.inject.Inject
 
 class ReadingSessionRepositoryImpl @Inject constructor(
-    private val api: AbsSessionApi,
+    private val catalogRegistry: CatalogRegistry,
     private val sourceRepository: SourceRepository,
-    private val tokenStorage: TokenStorage,
     private val positionStore: ReadingPositionStore,
     private val audiobookPositionStore: AudiobookPositionStore,
     private val readaloudResumeStore: ReadaloudResumeStore,
@@ -31,39 +27,57 @@ class ReadingSessionRepositoryImpl @Inject constructor(
 ) : ReadingSessionRepository {
 
     override suspend fun syncProgress(itemId: String, payload: SessionPayload): SyncSessionResult {
-        val resolved = resolveSourceAndToken() ?: return SyncSessionResult.NetworkError(
-            IllegalStateException("No active server or token")
+        val peer = activeProgressPeer() ?: return SyncSessionResult.NetworkError(
+            IllegalStateException("No active source or capability")
         )
-        val (source, token) = resolved
-        val r = api.syncEbookProgress(source.url.value, itemId, payload.toNetwork(), token, source.insecureConnectionAllowed)
-        return if (r is NetworkResult.Success) SyncSessionResult.Success else SyncSessionResult.NetworkError(r.errorAsThrowable())
+        return try {
+            peer.pushEbookProgress(
+                itemId = itemId,
+                location = payload.ebookLocation,
+                progress = payload.ebookProgress,
+                isFinished = null,
+                lastUpdateEpochMs = clock.nowMs(),
+            )
+            SyncSessionResult.Success
+        } catch (t: Throwable) {
+            SyncSessionResult.NetworkError(t)
+        }
     }
 
     override suspend fun runSyncCycle(itemId: String, payload: SessionPayload): ProgressSyncCycleResult {
-        val resolved = resolveSourceAndToken() ?: return ProgressSyncCycleResult.Offline
-        val (source, token) = resolved
+        val source = sourceRepository.getActive() ?: return ProgressSyncCycleResult.Offline
+        val catalog = catalogRegistry.forSource(source) ?: return ProgressSyncCycleResult.Offline
+        val peer = catalog as? ProgressPeerCapability ?: return ProgressSyncCycleResult.Offline
 
-        val getRes = api.getProgress(source.url.value, itemId, token, source.insecureConnectionAllowed)
-        if (getRes !is NetworkResult.Success) return ProgressSyncCycleResult.Offline
-        val serverProgress = getRes.value
-
+        val serverProgress = runCatching { peer.pullProgress(itemId) }.getOrElse { return ProgressSyncCycleResult.Offline }
+        val serverLastUpdate = serverProgress?.lastUpdate ?: 0L
         val localUpdatedAt = positionStore.loadLocalUpdatedAt(source.id, itemId)
 
         return when {
-            serverProgress.lastUpdate > localUpdatedAt -> {
-                positionStore.updateLocalTimestamp(source.id, itemId, serverProgress.lastUpdate)
+            serverLastUpdate > localUpdatedAt && serverProgress != null -> {
+                positionStore.updateLocalTimestamp(source.id, itemId, serverLastUpdate)
                 ProgressSyncCycleResult.ServerWins(
                     ServerProgress(
-                        ebookLocation = serverProgress.ebookLocation,
+                        ebookLocation = serverProgress.ebookLocation.orEmpty(),
                         ebookProgress = serverProgress.ebookProgress,
-                        lastUpdate = serverProgress.lastUpdate,
+                        lastUpdate = serverLastUpdate,
                     )
                 )
             }
-            localUpdatedAt > serverProgress.lastUpdate -> {
-                val patchResult = api.syncEbookProgress(source.url.value, itemId, payload.toNetwork(), token, source.insecureConnectionAllowed)
-                if (patchResult is NetworkResult.Success) {
-                    val ts = patchResult.value.takeIf { it > 0L } ?: clock.nowMs()
+            localUpdatedAt > serverLastUpdate -> {
+                val stamp = runCatching {
+                    peer.pushEbookProgress(
+                        itemId = itemId,
+                        location = payload.ebookLocation,
+                        progress = payload.ebookProgress,
+                        isFinished = null,
+                        lastUpdateEpochMs = clock.nowMs(),
+                    )
+                }.getOrNull()
+                if (stamp != null) {
+                    // Adopt the source-derived stamp; a zero/absent stamp falls back to clock so the
+                    // row still marks clean (matches the old sessionApi.syncEbookProgress path).
+                    val ts = stamp.takeIf { it > 0L } ?: clock.nowMs()
                     positionStore.updateLocalTimestamp(source.id, itemId, ts)
                 }
                 ProgressSyncCycleResult.LocalWins
@@ -73,11 +87,10 @@ class ReadingSessionRepositoryImpl @Inject constructor(
     }
 
     override suspend fun touchOpenTimestamp(itemId: String) {
-        val resolved = resolveSourceAndToken() ?: return
-        val (source, token) = resolved
-        val getRes = api.getProgress(source.url.value, itemId, token, source.insecureConnectionAllowed)
-        if (getRes !is NetworkResult.Success) return
-        val serverProgress = getRes.value
+        val source = sourceRepository.getActive() ?: return
+        val catalog = catalogRegistry.forSource(source) ?: return
+        val peer = catalog as? ProgressPeerCapability ?: return
+        val serverProgress = runCatching { peer.pullProgress(itemId) }.getOrNull() ?: return
         // Deliberately do NOT bump positionStore.localUpdatedAt here. Matching the server's
         // post-PATCH lastUpdate without also writing the server's cfi locally would create a
         // "local in sync but cfi empty" state: the next runSyncCycle would see equal stamps
@@ -85,14 +98,15 @@ class ReadingSessionRepositoryImpl @Inject constructor(
         // PATCH first-page state over the real server position. Leaving local untouched lets
         // the first runSyncCycle after this call see server > local and trigger ServerWins,
         // restoring the saved position to the navigator.
-        api.syncEbookProgress(
-            source.url.value, itemId,
-            NetworkEbookProgressPayload(
-                ebookLocation = serverProgress.ebookLocation,
-                ebookProgress = serverProgress.ebookProgress,
-            ),
-            token, source.insecureConnectionAllowed,
-        )
+        runCatching {
+            peer.pushEbookProgress(
+                itemId = itemId,
+                location = serverProgress.ebookLocation.orEmpty(),
+                progress = serverProgress.ebookProgress,
+                isFinished = null,
+                lastUpdateEpochMs = clock.nowMs(),
+            )
+        }
     }
 
     override suspend fun markFinished(itemId: String, finished: Boolean) {
@@ -111,33 +125,28 @@ class ReadingSessionRepositoryImpl @Inject constructor(
             audiobookPositionStore.updateLocalTimestamp(source.id, itemId, now)
             readaloudResumeStore.clear(source.id, itemId)
         }
-        // Bump before token check: marks the record dirty so the sync cycle pushes it
-        // even if the token is missing right now.
+        // Bump before catalog lookup: marks the record dirty so the sync cycle pushes it
+        // even if the catalog is unavailable right now.
         positionStore.updateLocalTimestamp(source.id, itemId, now)
         libraryItemDao.updateFinishedAt(source.id, itemId, if (finished) now else null)
-        val token = tokenStorage.getToken(source.id) ?: return
-        api.syncEbookProgress(
-            source.url.value, itemId,
-            // isFinished resets the audio half of the record too: true→progress 1, false→currentTime
-            // and progress 0. Both halves move together so neither can re-shadow the other.
-            NetworkEbookProgressPayload(
-                ebookLocation = ebookLocation,
-                ebookProgress = if (finished) 1.0f else 0.0f,
+        val peer = catalogRegistry.forSource(source) as? ProgressPeerCapability ?: return
+        // isFinished resets the audio half of the record too: true→progress 1, false→currentTime
+        // and progress 0. Both halves move together so neither can re-shadow the other.
+        runCatching {
+            peer.pushEbookProgress(
+                itemId = itemId,
+                location = ebookLocation,
+                progress = if (finished) 1.0f else 0.0f,
                 isFinished = finished,
-            ),
-            token, source.insecureConnectionAllowed,
-        )
+                lastUpdateEpochMs = now,
+            )
+        }
         // PATCH failure intentionally ignored — next sync cycle will push
     }
 
-    private suspend fun resolveSourceAndToken(): Pair<Source, String>? {
+    private suspend fun activeProgressPeer(): ProgressPeerCapability? {
         val source = sourceRepository.getActive() ?: return null
-        val token = tokenStorage.getToken(source.id) ?: return null
-        return source to token
+        val catalog: Catalog = catalogRegistry.forSource(source) ?: return null
+        return catalog as? ProgressPeerCapability
     }
-
-    private fun SessionPayload.toNetwork() = NetworkEbookProgressPayload(
-        ebookLocation = ebookLocation,
-        ebookProgress = ebookProgress,
-    )
 }

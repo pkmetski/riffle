@@ -19,6 +19,8 @@ data class CatalogItem(
     val ebookFileIno: String? = null,
     val description: String? = null,
     val seriesName: String? = null,
+    /** Position within [seriesName] when the item belongs to a series (e.g. "1", "2.5"). */
+    val seriesSequence: String? = null,
     val publishedYear: String? = null,
     val genres: List<String> = emptyList(),
     val publisher: String? = null,
@@ -26,4 +28,12 @@ data class CatalogItem(
     val addedAt: Long? = null,
     val isbn: String? = null,
     val asin: String? = null,
+    /**
+     * Optional server-reported "how far through" fraction (0..1). Only populated by non-progress
+     * paths that return items with server-side progress joined (e.g. some catalog list endpoints).
+     * Repositories that need authoritative progress consult [ProgressPeerCapability] instead.
+     */
+    val readingProgress: Float? = null,
+    /** Last time this item was updated on the source (used to bust cover-image CDN caches). */
+    val updatedAt: Long? = null,
 )
