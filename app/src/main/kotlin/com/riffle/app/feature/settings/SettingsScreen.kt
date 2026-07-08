@@ -1,6 +1,5 @@
 package com.riffle.app.feature.settings
 
-import android.content.ClipData
 import android.content.Intent
 import android.net.Uri
 import androidx.compose.ui.platform.LocalContext
@@ -58,7 +57,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -67,8 +65,6 @@ import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.platform.ClipEntry
-import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -82,9 +78,11 @@ import com.riffle.core.domain.AppTheme
 import com.riffle.core.domain.HighlightColor
 import com.riffle.core.domain.Source
 import com.riffle.core.domain.ServerType
-import kotlinx.coroutines.launch
 import java.text.DateFormat
 import java.util.Date
+
+internal fun crashReportShareSubject(timestamp: String): String =
+    "Riffle crash report ($timestamp)"
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -113,8 +111,6 @@ fun SettingsScreen(
     val skipIntervalSeconds by viewModel.skipIntervalSeconds.collectAsState()
     val rewindIntervalSeconds by viewModel.rewindIntervalSeconds.collectAsState()
     val rewindOnResumeSeconds by viewModel.rewindOnResumeSeconds.collectAsState()
-    val clipboard = LocalClipboard.current
-    val scope = rememberCoroutineScope()
     val expandedServers = remember { mutableStateMapOf<String, Boolean>() }
     val expandedCrashes = remember { mutableStateMapOf<String, Boolean>() }
     val context = LocalContext.current
@@ -545,9 +541,12 @@ fun SettingsScreen(
                         supportingContent = { Text("The app has not crashed since installation") },
                     )
                 } else {
-                    // Bulk affordances: "Share all" zips nothing — it just attaches each .txt
-                    // file via FileProvider so the user can pick an email / messaging app from
-                    // the share sheet. "Clear" deletes the on-disk archive.
+                    Text(
+                        text = "All reports",
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                    )
                     ListItem(
                         headlineContent = { Text("${crashReports.size} crash report${if (crashReports.size == 1) "" else "s"}") },
                         supportingContent = { Text("Newest first") },
@@ -583,6 +582,12 @@ fun SettingsScreen(
                             }
                         },
                     )
+                    Text(
+                        text = "Individual reports",
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                    )
                     crashReports.forEach { item ->
                         val timestamp = DateFormat.getDateTimeInstance().format(Date(item.timestampMillis))
                         val isOpen = expandedCrashes[item.id] == true
@@ -592,13 +597,14 @@ fun SettingsScreen(
                             trailingContent = {
                                 Row {
                                     TextButton(onClick = {
-                                        scope.launch {
-                                            clipboard.setClipEntry(
-                                                ClipEntry(ClipData.newPlainText("crash report", item.content))
-                                            )
+                                        val intent = Intent(Intent.ACTION_SEND).apply {
+                                            type = "text/plain"
+                                            putExtra(Intent.EXTRA_SUBJECT, crashReportShareSubject(timestamp))
+                                            putExtra(Intent.EXTRA_TEXT, item.content)
                                         }
+                                        context.startActivity(Intent.createChooser(intent, "Share crash report"))
                                     }) {
-                                        Text("Copy")
+                                        Text("Share")
                                     }
                                     TextButton(onClick = { expandedCrashes[item.id] = !isOpen }) {
                                         Text(if (isOpen) "Hide" else "Show")
