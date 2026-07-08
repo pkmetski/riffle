@@ -1714,7 +1714,31 @@ private fun EpubNavigatorView(
                 return false
             }
 
-            override fun onExternalLinkActivated(url: AbsoluteUrl) = Unit
+            override fun onExternalLinkActivated(url: AbsoluteUrl) {
+                // Highlights-mode accent-bar tap: the synthesised HTML's tap span navigates to a
+                // riffle:// URL (see HighlightsPublicationFactory), which Readium classifies as
+                // external (non-http). Convert the URL's CSS-px rect to a window IntRect anchored
+                // on the reader container so [HighlightActionsPopup] positions next to the tap
+                // instead of the top-left of the screen (the empty-rect fallback).
+                val parts = com.riffle.app.feature.reader.highlights.parseAnnotationTapUrlParts(
+                    url.toString(),
+                ) ?: return
+                val container = containerRef.value
+                val rect = if (parts.hasRect() && container != null) {
+                    val loc = IntArray(2)
+                    container.getLocationOnScreen(loc)
+                    val dpr = container.resources.displayMetrics.density
+                    androidx.compose.ui.unit.IntRect(
+                        left = loc[0] + (parts.cssLeft!! * dpr).toInt(),
+                        top = loc[1] + (parts.cssTop!! * dpr).toInt(),
+                        right = loc[0] + (parts.cssRight!! * dpr).toInt(),
+                        bottom = loc[1] + (parts.cssBottom!! * dpr).toInt(),
+                    )
+                } else {
+                    androidx.compose.ui.unit.IntRect.Zero
+                }
+                currentOnOpenHighlightActions(parts.annotationId, rect)
+            }
         }
     }
 
@@ -2375,7 +2399,13 @@ private fun EpubNavigatorView(
     val isPaginated = !isFixedLayout && formattingPrefs.orientation == ReaderOrientation.Horizontal
     val isDoublePage = isPaginated && formattingPrefs.doublePageSpread && isLandscape
     val alignViewport = isPaginated && !isDoublePage
-    val containerModifier = if (alignViewport) {
+    // MODE-FORK: continuous needs the container's own background painted (see the paginated-only
+    // gutter branch above). ContinuousReaderView's NestedScrollView paints only over its child
+    // heights; a short chapter (Highlights view with few annotations) leaves the area beneath
+    // transparent and the app-chrome grey shows through. Paginated only needs this behind the
+    // column gutters (`alignViewport`), so the two conditions live at the same site. This is a
+    // Compose UI-lifecycle fork, not a reader behaviour — nothing to route behind ReaderPresenter.
+    val containerModifier = if (alignViewport || isContinuous) {
         modifier.background(formattingPrefs.theme.palette.background)
     } else {
         modifier

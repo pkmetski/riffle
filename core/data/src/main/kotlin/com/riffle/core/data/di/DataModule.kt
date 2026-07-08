@@ -21,6 +21,10 @@ annotation class FormattingPreferencesDataStore
 
 @Qualifier
 @Retention(AnnotationRetention.BINARY)
+annotation class HighlightsFormattingPreferencesDataStore
+
+@Qualifier
+@Retention(AnnotationRetention.BINARY)
 annotation class LibraryVisibilityPreferencesDataStore
 
 @Qualifier

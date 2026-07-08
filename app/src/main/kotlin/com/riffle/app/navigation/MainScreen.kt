@@ -500,6 +500,9 @@ fun MainScreen(
                                 navController.popBackStack()
                                 navController.navigate("epub_reader/$encodedId?openAtCfi=$encodedCfi")
                             }
+                            com.riffle.app.feature.reader.ReaderNavEvent.CloseEmptyHighlights -> {
+                                navController.popBackStack()
+                            }
                         }
                     }
                 }

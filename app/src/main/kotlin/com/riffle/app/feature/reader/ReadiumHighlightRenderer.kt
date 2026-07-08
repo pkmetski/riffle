@@ -65,16 +65,24 @@ internal class ReadiumHighlightRenderer(
             hasAnnotationDecorations = false
             return
         }
-        val decorations = renders.map { h ->
+        // Highlights mode: accent-bar highlights emit NO Readium decoration — the visible bar and
+        // the tap dispatch both live in the synthesised HTML (see HighlightsPublicationFactory +
+        // AnnotationTapUrl). Applying an empty decoration list still clears any previously-applied
+        // decorations for this group; if the list is empty we take the early-return above.
+        val decorations = renders.mapNotNull { h ->
+            if (h.useAccentBarStyle) return@mapNotNull null
             Decoration(
                 id = h.id,
                 locator = h.locator,
-                style = if (h.useAccentBarStyle) {
-                    HighlightAccentBarStyle()
-                } else {
-                    HighlightTintStyle(tint = HighlightColor.fromToken(h.color).argb)
-                },
+                style = HighlightTintStyle(tint = HighlightColor.fromToken(h.color).argb),
             )
+        }
+        if (decorations.isEmpty()) {
+            if (hasAnnotationDecorations) {
+                applyDecorationsBlock(emptyList(), "annotations")
+                hasAnnotationDecorations = false
+            }
+            return
         }
         // Initial apply uses clear+apply too — Readium's decoration diff treats an identical
         // (id, locator, style) list as a no-op, so a re-fire of the same list (theme change bumps
@@ -98,7 +106,10 @@ internal class ReadiumHighlightRenderer(
     override suspend fun applyNoteGlyphs(
         renders: List<EpubReaderViewModel.HighlightRender>,
     ) {
-        val noted = renders.filter { it.note != null }
+        // Highlights mode (useAccentBarStyle) skips glyphs: the note is already visible as an
+        // <aside> in the synthesised HTML, and a glyph in the left gutter would overlap the
+        // accent-bar tap span and swallow taps that should open the highlight-actions popup.
+        val noted = renders.filter { it.note != null && !it.useAccentBarStyle }
         if (noted.isEmpty()) {
             if (!hasNoteGlyphDecorations) return
             applyDecorationsBlock(emptyList(), "annotation-notes")

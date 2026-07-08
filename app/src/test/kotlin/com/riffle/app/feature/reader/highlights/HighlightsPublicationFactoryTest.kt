@@ -211,6 +211,79 @@ class HighlightsPublicationFactoryTest {
         )
     }
 
+    // The accent-bar tap span owns tap dispatch in Highlights mode: taps on the visible left
+    // border-left land on this transparent absolute-positioned span (see ACCENT_BAR_TAP_CSS),
+    // whose onclick navigates to a riffle://annotation-tap/<id> URL that both continuous
+    // (ChapterWebView.shouldOverrideUrlLoading) and paginated/vertical (EpubReaderScreen
+    // .onExternalLinkActivated) intercept. Reverting the accent-bar tap element would let taps
+    // land on the highlighted text again, reintroducing the pre-2026-07 behaviour where any
+    // on-text tap opened the highlight menu.
+    @Test
+    fun highlightParagraphCarriesAccentBarTapSpanTargetingRiffleUrl() {
+        val pub = factory.build(
+            sourceId = "S1",
+            itemId = "B1",
+            bookTitle = null,
+            chapters = listOf(
+                ChapterElision("ch1.xhtml", "Chapter One", listOf(hl("h1", "the spice must flow"))),
+            ),
+            urlFactory = ::testUrlFactory,
+        )
+        val html = readChapterHtml(pub, index = 0)
+        assertTrue(
+            "expected a tap span with data-ann-id=h1 in the emitted HTML, got: $html",
+            html.contains("<span class=\"riffle-hl-tap\" data-ann-id=\"h1\""),
+        )
+        assertTrue(
+            "tap span must navigate to the riffle:// scheme parsed by parseAnnotationTapUrl, got: $html",
+            html.contains("location.href='riffle://annotation-tap/h1?l='+x+"),
+        )
+        // Raw XHTML: `&` in attribute values is escaped as `&amp;`. When the parser hands the
+        // string to JS at page load time it turns back into `&`, so the emitted URL is
+        // `?l=<L>&t=<T>&r=<R>&b=<B>`. Position uses `event.clientX/clientY` (the actual tap
+        // point, WebView-viewport CSS px) so the popup anchors right where the user touched
+        // rather than at the paragraph's top edge — the tap span itself spans the whole `<p>`,
+        // which would otherwise anchor the popup a full paragraph away for a multi-line highlight.
+        assertTrue(
+            "tap span must anchor the popup to event.clientX/Y, not to the whole element's rect; " +
+                "got: $html",
+            html.contains("var e=event,x=e.clientX,y=e.clientY;") &&
+                html.contains("'&amp;t='+y+'&amp;r='+(x+1)+'&amp;b='+(y+1)"),
+        )
+        assertTrue(
+            "the tap span's absolute positioning only works when the parent <p> is position: relative",
+            html.contains("position: relative"),
+        )
+        assertTrue(
+            "the tap CSS class must be defined in a <style> block so the tap zone has a size",
+            html.contains(".riffle-hl-tap{position:absolute;"),
+        )
+    }
+
+    // The percent-encoding path must survive an id that contains characters (spaces, `#`, `?`)
+    // Uri would otherwise treat as URL syntax. The synthesised HTML embeds the id twice — once in
+    // data-ann-id (XML-escaped) and once in the onclick's URL (URL-encoded) — so the emitted URL
+    // must be the URL-encoded form. Pairing this pin with AnnotationTapUrlTest's round-trip means
+    // reverting either half fails one or the other.
+    @Test
+    fun accentBarTapSpanUrlEncodesTheAnnotationId() {
+        val pub = factory.build(
+            sourceId = "S1",
+            itemId = "B1",
+            bookTitle = null,
+            chapters = listOf(
+                ChapterElision("ch1.xhtml", "Chapter One", listOf(hl("has space", "text"))),
+            ),
+            urlFactory = ::testUrlFactory,
+        )
+        val html = readChapterHtml(pub, index = 0)
+        assertTrue(
+            "id `has space` must be url-encoded in the tap URL, got: $html",
+            html.contains("location.href='riffle://annotation-tap/has+space?") ||
+                html.contains("location.href='riffle://annotation-tap/has%20space?"),
+        )
+    }
+
     // Notes need their own paler/neutral background so they read as visually distinct from the
     // highlight paragraph above them.
     @Test

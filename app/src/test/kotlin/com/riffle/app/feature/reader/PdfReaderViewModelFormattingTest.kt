@@ -6,6 +6,8 @@ import com.riffle.core.domain.BookFormattingOverrides
 import com.riffle.core.domain.BookFormattingPreferencesStore
 import com.riffle.core.domain.FormattingPreferences
 import com.riffle.core.domain.FormattingPreferencesStore
+import com.riffle.core.domain.FormattingPreferencesStoreProvider
+import com.riffle.core.domain.FormattingScope
 import com.riffle.core.domain.ListeningPreferencesStore
 import com.riffle.core.domain.WakeLockPreferencesStore
 import com.riffle.core.domain.appearance.AppearanceCoordinator
@@ -45,14 +47,15 @@ class PdfReaderViewModelFormattingTest {
     }
 
     private class FakeBookFormattingPreferencesStore : BookFormattingPreferencesStore {
-        private val saved = mutableMapOf<String, BookFormattingOverrides>()
-        override suspend fun load(itemId: String): BookFormattingOverrides =
-            saved[itemId] ?: BookFormattingOverrides()
-        override suspend fun save(itemId: String, overrides: BookFormattingOverrides) {
-            saved[itemId] = overrides
+        private val saved = mutableMapOf<Pair<String, FormattingScope>, BookFormattingOverrides>()
+        override suspend fun load(itemId: String, scope: FormattingScope): BookFormattingOverrides =
+            saved[itemId to scope] ?: BookFormattingOverrides()
+        override suspend fun save(itemId: String, scope: FormattingScope, overrides: BookFormattingOverrides) {
+            saved[itemId to scope] = overrides
         }
-        override suspend fun clear(itemId: String) { saved.remove(itemId) }
-        fun captured(itemId: String): BookFormattingOverrides? = saved[itemId]
+        override suspend fun clear(itemId: String, scope: FormattingScope) { saved.remove(itemId to scope) }
+        fun captured(itemId: String, scope: FormattingScope = FormattingScope.FullBook): BookFormattingOverrides? =
+            saved[itemId to scope]
     }
 
     private class FakeWakeLockPreferencesStore : WakeLockPreferencesStore {
@@ -98,7 +101,10 @@ class PdfReaderViewModelFormattingTest {
         val bookStore = FakeBookFormattingPreferencesStore()
         val session = FormattingSession(
             scope = scope,
-            formattingPreferencesStore = FakeFormattingPreferencesStore(),
+            formattingPreferencesStoreProvider = object : FormattingPreferencesStoreProvider {
+                private val store = FakeFormattingPreferencesStore()
+                override fun store(scope: FormattingScope) = store
+            },
             bookFormattingPreferencesStore = bookStore,
             wakeLockPreferencesStore = FakeWakeLockPreferencesStore(),
             listeningPreferencesStore = FakeListeningPreferencesStore(),

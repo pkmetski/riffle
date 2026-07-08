@@ -449,7 +449,13 @@ internal object ContinuousStyleInjector {
                 val safeBefore = ann.before.replace("\\", "\\\\").replace("'", "\\'").replace("\n", "\\n").replace("\r", "\\r")
                 val safeAfter = ann.after.replace("\\", "\\\\").replace("'", "\\'").replace("\n", "\\n").replace("\r", "\\r")
                 // cssColor is machine-generated (e.g. "rgba(56,189,248,0.50)") — no quote escaping needed.
-                append("{id:'$safeId',t:'$safeText',b:'$safeBefore',a:'$safeAfter',c:'${ann.cssColor}',n:${if (ann.hasNote) 1 else 0}}")
+                // s: suppressMarkClick — the emitted `<mark>` gets NO click listener when 1. Owned
+                // by the accent-bar span in the synthesised HTML in that case (Highlights mode).
+                append(
+                    "{id:'$safeId',t:'$safeText',b:'$safeBefore',a:'$safeAfter'," +
+                        "c:'${ann.cssColor}',n:${if (ann.hasNote) 1 else 0}," +
+                        "s:${if (ann.suppressMarkClick) 1 else 0}}"
+                )
             }
             append(']')
         }
@@ -586,9 +592,13 @@ internal object ContinuousStyleInjector {
                     if (existingAll.length > 0) {
                         existingAll.forEach(function(m) { m.style.cssText = 'background:' + ann.c + '$HIGHLIGHT_INLINE_STYLE_SUFFIX'; });
                         var eg = document.querySelector('[data-riffle-note-glyph="' + ann.id + '"]');
-                        if (ann.n && !eg) {
+                        // Highlights mode (ann.s === 1) suppresses the note glyph: the glyph would
+                        // overlap the accent-bar tap span in the left gutter and swallow taps that
+                        // should open the highlight-actions popup. The note is already visible as
+                        // an <aside> beneath the highlight in the synthesised HTML.
+                        if (ann.n && !eg && !ann.s) {
                             makeGlyph(ann.id, existingAll[0]);
-                        } else if (!ann.n && eg) {
+                        } else if ((!ann.n || ann.s) && eg) {
                             eg.remove();
                         }
                         return;
@@ -612,16 +622,19 @@ internal object ContinuousStyleInjector {
                         // pre-wrap by idxToRange), and they live in different blocks, so the wrap
                         // here doesn't disturb their boundaries.
                         flatIdx = null;
-                        (function(markEl, annId) {
-                            markEl.addEventListener('click', function(e) {
-                                e.stopPropagation();
-                                var r = markEl.getBoundingClientRect();
-                                window.RiffleChapter.onAnnotationTap(annId, r.left, r.top, r.right, r.bottom);
-                            });
-                        })(mark, ann.id);
+                        if (!ann.s) {
+                            (function(markEl, annId) {
+                                markEl.addEventListener('click', function(e) {
+                                    e.stopPropagation();
+                                    var r = markEl.getBoundingClientRect();
+                                    window.RiffleChapter.onAnnotationTap(annId, r.left, r.top, r.right, r.bottom);
+                                });
+                            })(mark, ann.id);
+                        }
                         if (!firstMark) firstMark = mark;
                     });
-                    if (firstMark && ann.n) makeGlyph(ann.id, firstMark);
+                    // Highlights mode suppresses the glyph (see the in-place branch above).
+                    if (firstMark && ann.n && !ann.s) makeGlyph(ann.id, firstMark);
                 });
                 if (sel) sel.removeAllRanges();
             })($json);

@@ -1,5 +1,7 @@
 package com.riffle.app.feature.reader.highlights
 
+import com.riffle.core.domain.FormattingScope
+
 /**
  * Which content the reader is currently displaying.
  *
@@ -9,3 +11,10 @@ package com.riffle.app.feature.reader.highlights
  * highlight, each rendered down to its highlighted passages and notes.
  */
 enum class ReaderSource { FullBook, Highlights }
+
+// Formatting-preferences chain to use for this reading context. The annotations reading view has
+// its own independent chain so tweaks there never leak into the full-book reader (and vice versa).
+fun ReaderSource.toFormattingScope(): FormattingScope = when (this) {
+    ReaderSource.FullBook -> FormattingScope.FullBook
+    ReaderSource.Highlights -> FormattingScope.Highlights
+}

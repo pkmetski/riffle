@@ -65,6 +65,7 @@ import com.riffle.core.database.AnnotationEntity
 import com.riffle.app.feature.reader.highlights.ChapterElision
 import com.riffle.app.feature.reader.highlights.HighlightsPublicationFactory
 import com.riffle.app.feature.reader.highlights.ReaderSource
+import com.riffle.app.feature.reader.highlights.toFormattingScope
 import com.riffle.core.logging.LogChannel
 import com.riffle.core.logging.Logger
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -676,7 +677,7 @@ class EpubReaderViewModel @Inject constructor(
      *
      * [useAccentBarStyle] is Highlights-mode only (ADR 0041): when true,
      * [com.riffle.app.feature.reader.ReadiumHighlightRenderer.applyAnnotations] paints via
-     * [com.riffle.app.feature.reader.HighlightAccentBarStyle] instead of the usual tinted style,
+     * the accent-bar rendering path (synthesised HTML border-left + injected tap span) instead of the usual tinted style,
      * which renders no fill and confines Readium's tap hit-testing to a narrow gutter strip on
      * the left of the paragraph — taps in the middle of highlighted text fall through to the
      * immersive-mode toggle. FullBook mode leaves it false → normal tinted painting on the whole
@@ -782,7 +783,7 @@ class EpubReaderViewModel @Inject constructor(
             // Sequential: formatting prefs must be available before openBook() so the
             // navigator never sees the stateIn default on first paint (FormattingSession.bindToBook
             // waits for effectiveFormattingPreferences to reflect the loaded value).
-            formatting.bindToBook(itemId)
+            formatting.bindToBook(itemId, source.toFormattingScope())
             openBook()
         }
         // Readaloud start ⇒ stop Auto-Scroll (mutual exclusion, ADR 0037). Stop (not Pause):
@@ -1672,7 +1673,28 @@ class EpubReaderViewModel @Inject constructor(
 
     /** Recolour an existing highlight; annotationStore re-emits → decoration re-applies. */
     fun recolorHighlight(id: String, color: HighlightColor) {
-        viewModelScope.launch { annotationSession.recolorHighlight(id, color) }
+        viewModelScope.launch {
+            annotationSession.recolorHighlight(id, color)
+            // Highlights mode bakes the accent-bar colour into the synthesised HTML at build
+            // time; a live decoration recolour doesn't reach the border-left CSS. Reload so the
+            // accent bar tracks the new palette pick.
+            if (source == ReaderSource.Highlights) reloadHighlightsView()
+        }
+    }
+
+    /**
+     * Reload the Highlights-mode reader so the synthesised chapters re-render against the
+     * updated annotation store (colour, note text, deletions). A back-to-back
+     * `Loading→Ready(newPub)` set through StateFlow can be coalesced — the collector may only
+     * see the last value and never leave composition, so the new Publication is handed to the
+     * SAME Readium fragment instance and its diff-check treats it as a no-op. The delay yields
+     * one frame so Compose observes the Loading state and unmounts before the fresh Ready
+     * arrives.
+     */
+    private suspend fun reloadHighlightsView() {
+        _state.value = ReaderState.Loading
+        kotlinx.coroutines.delay(16)
+        openBook()
     }
 
     /** Soft-delete a highlight; annotationStore re-emits without it → decoration is removed. */
@@ -1683,6 +1705,7 @@ class EpubReaderViewModel @Inject constructor(
             // decoration removal alone leaves the synthesised <p class="riffle-hl"> visible.
             // Reload so the deleted highlight's paragraph disappears entirely.
             if (source == ReaderSource.Highlights) {
+                if (reloadOrCloseHighlightsAfterDelete()) return@launch
                 // Force the reader composable to unmount its WebView by transitioning through
                 // Loading — a Ready→Ready swap with a new Publication instance isn't seen by
                 // Readium's fragment as a reload, and the deleted highlight's <p> stays on
@@ -1704,6 +1727,7 @@ class EpubReaderViewModel @Inject constructor(
         viewModelScope.launch {
             annotationSession.deleteAnnotation(id)
             if (source == ReaderSource.Highlights) {
+                if (reloadOrCloseHighlightsAfterDelete()) return@launch
                 // Force the reader composable to unmount its WebView by transitioning through
                 // Loading — a Ready→Ready swap with a new Publication instance isn't seen by
                 // Readium's fragment as a reload, and the deleted highlight's <p> stays on
@@ -1714,9 +1738,32 @@ class EpubReaderViewModel @Inject constructor(
         }
     }
 
+    /**
+     * After a delete in Highlights mode: if the book has no live highlights left, emit
+     * [ReaderNavEvent.CloseEmptyHighlights] so the nav host can pop this reader off the back stack,
+     * and return `true` — the synthesised Publication would otherwise be built with an empty
+     * readingOrder and Readium's navigator crashes on that. Returns `false` when at least one
+     * highlight remains, meaning the caller should proceed with the normal reload.
+     */
+    private suspend fun reloadOrCloseHighlightsAfterDelete(): Boolean {
+        val sourceId = annotationServerId ?: return false
+        val rows = annotationDao.getForItem(sourceId, itemId)
+        if (!highlightsShouldCloseAfterDelete(rows)) return false
+        _readerNavEvents.send(ReaderNavEvent.CloseEmptyHighlights)
+        return true
+    }
+
     /** Save (or clear) the note on a highlight; blank text is treated as null (removes the note). */
     fun updateHighlightNote(id: String, note: String?) {
-        viewModelScope.launch { annotationSession.updateHighlightNote(id, note) }
+        viewModelScope.launch {
+            annotationSession.updateHighlightNote(id, note)
+            // Highlights mode's synthesised HTML bakes the note into the chapter body as an
+            // <aside>. The runtime decoration path doesn't touch that body, so the note change
+            // is invisible until the reader reopens — reload for the same reason
+            // [deleteHighlight] does. Note edits never empty the book, so the close-if-empty
+            // branch never applies.
+            if (source == ReaderSource.Highlights) reloadHighlightsView()
+        }
     }
 
     /**
@@ -2225,10 +2272,11 @@ internal fun highlightsAnnotationToRender(
         locations = Locator.Locations(),
         text = Locator.Text(highlight = a.textSnippet),
     )
-    // useAccentBarStyle = true routes the decoration through HighlightAccentBarStyle, which paints
-    // no fill and confines tap hit-testing to a narrow left-gutter strip. The visual is entirely
-    // driven by the synthesised HTML's own left accent bar (see HighlightsPublicationFactory).
-    // Highlights mode only — FullBook's annotationToRender leaves this false.
+    // useAccentBarStyle = true routes the highlight through the accent-bar rendering path: no
+    // Readium decoration in paginated/vertical, transparent <mark> in continuous, and tap dispatch
+    // owned by the injected accent-bar span in the synthesised HTML (see HighlightsPublicationFactory
+    // + AnnotationTapUrl). FullBook's annotationToRender leaves this false so tinted highlights and
+    // whole-selection tap targets stay unchanged.
     return EpubReaderViewModel.HighlightRender(a.id, locator, a.color, a.note, useAccentBarStyle = true)
 }
 
@@ -2296,6 +2344,22 @@ internal fun resolveChapterTitle(href: String, toc: List<TocEntry>): String? {
  * `internal` so [EpubReaderViewModel.openBook]'s grouping logic is unit-testable from `app:test`
  * without constructing the (Android-dependency-laden) ViewModel itself.
  */
+/**
+ * Highlights-mode delete decision (ADR 0041 follow-up): given the DB rows for this book *after*
+ * a soft-delete has been applied, returns `true` when the reader should be closed instead of
+ * reloaded. Closing is required whenever no live highlights remain — the synthesised Publication
+ * would otherwise be built with an empty readingOrder and Readium's navigator crashes on that
+ * (reproduced by deleting the last remaining annotation in the annotations reading view).
+ *
+ * Bookmarks and soft-deleted highlights don't keep the view alive — [buildChapterElisions] already
+ * strips both — so a book whose only remaining rows are bookmarks or `deleted=true` highlights is
+ * still "empty" from Highlights-mode's perspective.
+ *
+ * `internal` so this decision is unit-testable from `app:test` without constructing the ViewModel.
+ */
+internal fun highlightsShouldCloseAfterDelete(rows: List<AnnotationEntity>): Boolean =
+    buildChapterElisions(rows).isEmpty()
+
 internal fun buildChapterElisions(rows: List<AnnotationEntity>): List<ChapterElision> {
     val live = rows
         .filter { it.type == AnnotationEntity.TYPE_HIGHLIGHT && !it.deleted }

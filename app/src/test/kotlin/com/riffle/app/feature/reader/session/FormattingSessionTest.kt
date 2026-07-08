@@ -5,6 +5,8 @@ import com.riffle.core.domain.BookFormattingOverrides
 import com.riffle.core.domain.BookFormattingPreferencesStore
 import com.riffle.core.domain.FormattingPreferences
 import com.riffle.core.domain.FormattingPreferencesStore
+import com.riffle.core.domain.FormattingPreferencesStoreProvider
+import com.riffle.core.domain.FormattingScope
 import com.riffle.core.domain.ListeningPreferencesStore
 import com.riffle.core.domain.ReaderTheme
 import com.riffle.core.domain.WakeLockPreferencesStore
@@ -44,12 +46,27 @@ class FormattingSessionTest {
     }
 
     private class FakeBookFormattingPreferencesStore : BookFormattingPreferencesStore {
-        val saved = mutableMapOf<String, BookFormattingOverrides>()
+        // Keyed by (itemId, scope) so the annotations-view chain and full-book chain don't collide
+        // in the same fake. Existing FullBook-only tests key with FormattingScope.FullBook.
+        val saved = mutableMapOf<Pair<String, FormattingScope>, BookFormattingOverrides>()
         private var toReturn = BookFormattingOverrides()
         fun willReturn(o: BookFormattingOverrides) { toReturn = o }
-        override suspend fun load(itemId: String): BookFormattingOverrides = saved[itemId] ?: toReturn
-        override suspend fun save(itemId: String, overrides: BookFormattingOverrides) { saved[itemId] = overrides }
-        override suspend fun clear(itemId: String) { saved.remove(itemId) }
+        override suspend fun load(itemId: String, scope: FormattingScope): BookFormattingOverrides =
+            saved[itemId to scope] ?: toReturn
+        override suspend fun save(itemId: String, scope: FormattingScope, overrides: BookFormattingOverrides) {
+            saved[itemId to scope] = overrides
+        }
+        override suspend fun clear(itemId: String, scope: FormattingScope) { saved.remove(itemId to scope) }
+    }
+
+    private class FakeFormattingPreferencesStoreProvider(
+        private val fullBook: FormattingPreferencesStore,
+        private val highlights: FormattingPreferencesStore = fullBook,
+    ) : FormattingPreferencesStoreProvider {
+        override fun store(scope: FormattingScope): FormattingPreferencesStore = when (scope) {
+            FormattingScope.FullBook -> fullBook
+            FormattingScope.Highlights -> highlights
+        }
     }
 
     private class FakeWakeLockPreferencesStore : WakeLockPreferencesStore {
@@ -106,7 +123,7 @@ class FormattingSessionTest {
         val sessionScope = kotlinx.coroutines.CoroutineScope(dispatcher)
         val session = FormattingSession(
             scope = sessionScope,
-            formattingPreferencesStore = fakeGlobal,
+            formattingPreferencesStoreProvider = FakeFormattingPreferencesStoreProvider(fakeGlobal),
             bookFormattingPreferencesStore = fakeBook,
             wakeLockPreferencesStore = FakeWakeLockPreferencesStore(),
             listeningPreferencesStore = FakeListeningPreferencesStore(),
@@ -161,7 +178,7 @@ class FormattingSessionTest {
             session.bindToBook("item1")
             val newPrefs = FormattingPreferences(fontSize = 1.8f)
             session.updateFormatting("item1", newPrefs)
-            assertTrue(bookStore.saved.containsKey("item1"))
+            assertTrue(bookStore.saved.containsKey("item1" to FormattingScope.FullBook))
         } finally {
             scope.cancel()
         }
@@ -177,7 +194,7 @@ class FormattingSessionTest {
             assertTrue(session.hasBookOverrides.value)
             session.resetToGlobalDefaults("item1")
             assertFalse(session.hasBookOverrides.value)
-            assertFalse(bookStore.saved.containsKey("item1"))
+            assertFalse(bookStore.saved.containsKey("item1" to FormattingScope.FullBook))
         } finally {
             scope.cancel()
         }
@@ -319,8 +336,8 @@ class FormattingSessionTest {
     fun `bindToBook applies overrides for each book`() = runTest {
         val fakeGlobal = FakeFormattingPreferencesStore(FormattingPreferences(fontSize = 1.0f))
         val fakeBook = FakeBookFormattingPreferencesStore()
-        fakeBook.saved["book-a"] = BookFormattingOverrides(fontSize = 1.5f)
-        fakeBook.saved["book-b"] = BookFormattingOverrides(fontSize = 2.0f)
+        fakeBook.saved["book-a" to FormattingScope.FullBook] = BookFormattingOverrides(fontSize = 1.5f)
+        fakeBook.saved["book-b" to FormattingScope.FullBook] = BookFormattingOverrides(fontSize = 2.0f)
         val (session, _, _, _, _, scope) = makeEager(fakeGlobal = fakeGlobal, fakeBook = fakeBook)
         try {
             session.bindToBook("book-a")
@@ -382,7 +399,7 @@ class FormattingSessionTest {
         try {
             FormattingSession(
                 scope = sessionScope,
-                formattingPreferencesStore = FakeFormattingPreferencesStore(),
+                formattingPreferencesStoreProvider = FakeFormattingPreferencesStoreProvider(FakeFormattingPreferencesStore()),
                 bookFormattingPreferencesStore = FakeBookFormattingPreferencesStore(),
                 wakeLockPreferencesStore = FakeWakeLockPreferencesStore(),
                 listeningPreferencesStore = FakeListeningPreferencesStore(),
@@ -420,7 +437,7 @@ class FormattingSessionTest {
         val sessionScope = kotlinx.coroutines.CoroutineScope(dispatcher)
         val session = FormattingSession(
             scope = sessionScope,
-            formattingPreferencesStore = FakeFormattingPreferencesStore(),
+            formattingPreferencesStoreProvider = FakeFormattingPreferencesStoreProvider(FakeFormattingPreferencesStore()),
             bookFormattingPreferencesStore = FakeBookFormattingPreferencesStore(),
             wakeLockPreferencesStore = FakeWakeLockPreferencesStore(),
             listeningPreferencesStore = FakeListeningPreferencesStore(),
@@ -454,7 +471,7 @@ class FormattingSessionTest {
         val sessionScope = kotlinx.coroutines.CoroutineScope(dispatcher)
         val session = FormattingSession(
             scope = sessionScope,
-            formattingPreferencesStore = FakeFormattingPreferencesStore(),
+            formattingPreferencesStoreProvider = FakeFormattingPreferencesStoreProvider(FakeFormattingPreferencesStore()),
             bookFormattingPreferencesStore = FakeBookFormattingPreferencesStore(),
             wakeLockPreferencesStore = FakeWakeLockPreferencesStore(),
             listeningPreferencesStore = FakeListeningPreferencesStore(),
@@ -485,6 +502,76 @@ class FormattingSessionTest {
         }
     }
 
+    // Scope isolation: binding with FormattingScope.Highlights routes both reads and writes to the
+    // highlights global store and to the (itemId, Highlights) per-book slot. Revert either half of
+    // the split (the DAO scope column, the FormattingSession's flatMapLatest over _scope, or the
+    // provider selection in bindToBook) and this pins that regression.
+    @Test
+    fun `bindToBook Highlights reads global from Highlights store not FullBook`() = runTest {
+        val fullBook = FakeFormattingPreferencesStore(FormattingPreferences(fontSize = 1.0f))
+        val highlights = FakeFormattingPreferencesStore(FormattingPreferences(fontSize = 2.0f))
+        val provider = FakeFormattingPreferencesStoreProvider(fullBook, highlights)
+        val dispatcher = UnconfinedTestDispatcher()
+        val autoScrollController = AutoScrollController.forTest(dispatcher)
+        val sessionScope = kotlinx.coroutines.CoroutineScope(dispatcher)
+        val session = FormattingSession(
+            scope = sessionScope,
+            formattingPreferencesStoreProvider = provider,
+            bookFormattingPreferencesStore = FakeBookFormattingPreferencesStore(),
+            wakeLockPreferencesStore = FakeWakeLockPreferencesStore(),
+            listeningPreferencesStore = FakeListeningPreferencesStore(),
+            autoScrollController = autoScrollController,
+            appearanceCoordinator = FakeAppearanceCoordinator(),
+        )
+        try {
+            session.bindToBook("item1", FormattingScope.Highlights)
+            assertEquals(
+                "Highlights bind must expose the highlights global's fontSize, not FullBook's",
+                2.0f,
+                session.effectiveFormattingPreferences.value.fontSize,
+            )
+        } finally {
+            autoScrollController.release()
+            sessionScope.cancel()
+        }
+    }
+
+    @Test
+    fun `updateFormatting under Highlights writes to Highlights per-book slot`() = runTest {
+        val fullBook = FakeFormattingPreferencesStore()
+        val highlights = FakeFormattingPreferencesStore()
+        val provider = FakeFormattingPreferencesStoreProvider(fullBook, highlights)
+        val bookStore = FakeBookFormattingPreferencesStore()
+        val dispatcher = UnconfinedTestDispatcher()
+        val autoScrollController = AutoScrollController.forTest(dispatcher)
+        val sessionScope = kotlinx.coroutines.CoroutineScope(dispatcher)
+        val session = FormattingSession(
+            scope = sessionScope,
+            formattingPreferencesStoreProvider = provider,
+            bookFormattingPreferencesStore = bookStore,
+            wakeLockPreferencesStore = FakeWakeLockPreferencesStore(),
+            listeningPreferencesStore = FakeListeningPreferencesStore(),
+            autoScrollController = autoScrollController,
+            appearanceCoordinator = FakeAppearanceCoordinator(),
+        )
+        try {
+            session.bindToBook("book-x", FormattingScope.Highlights)
+            session.updateFormatting("book-x", FormattingPreferences(fontSize = 1.75f))
+
+            assertTrue(
+                "Highlights write must land in the Highlights per-book slot",
+                bookStore.saved.containsKey("book-x" to FormattingScope.Highlights),
+            )
+            assertFalse(
+                "Highlights write must NOT leak into the FullBook per-book slot",
+                bookStore.saved.containsKey("book-x" to FormattingScope.FullBook),
+            )
+        } finally {
+            autoScrollController.release()
+            sessionScope.cancel()
+        }
+    }
+
     // 17. Resuming from the pill before the timeout cancels the auto-hide so a live session isn't
     //     stopped out from under the user.
     @Test
@@ -494,7 +581,7 @@ class FormattingSessionTest {
         val sessionScope = kotlinx.coroutines.CoroutineScope(dispatcher)
         val session = FormattingSession(
             scope = sessionScope,
-            formattingPreferencesStore = FakeFormattingPreferencesStore(),
+            formattingPreferencesStoreProvider = FakeFormattingPreferencesStoreProvider(FakeFormattingPreferencesStore()),
             bookFormattingPreferencesStore = FakeBookFormattingPreferencesStore(),
             wakeLockPreferencesStore = FakeWakeLockPreferencesStore(),
             listeningPreferencesStore = FakeListeningPreferencesStore(),
