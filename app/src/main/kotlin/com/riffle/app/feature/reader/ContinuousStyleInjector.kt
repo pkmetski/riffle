@@ -501,6 +501,11 @@ internal object ContinuousStyleInjector {
                 var buildFlat = function() {
                     var fullText = '';
                     var nodes = [];
+                    // #428 guard: chapter injections can fire before document.body is populated
+                    // (e.g. right after a sandboxed WebView restart); createTreeWalker throws
+                    // "parameter 1 is not of type 'Node'" and silently wedges highlight
+                    // rendering for the rest of the session.
+                    if (!document.body) return { fullText: '', nodes: [] };
                     var w = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, null, false);
                     var n;
                     while (n = w.nextNode()) {

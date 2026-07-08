@@ -74,6 +74,10 @@ internal object ColumnSnap {
           }
           needle=needle.replace(/ ${'$'}/,"");
           if(!needle) return "off";
+          // #428 guard: chapter injections can fire before document.body is populated
+          // (e.g. right after a sandboxed WebView restart); createTreeWalker throws
+          // "parameter 1 is not of type 'Node'" and wedges follow-up injections.
+          if(!document.body) return "off";
           var w=document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, null, false), n;
           var buf="", bn=[], bo=[], bsp=false;
           while(n=w.nextNode()){
@@ -135,6 +139,8 @@ internal object ColumnSnap {
         return """
           var full=$full; if(!full) return "off";
           var key=full.slice(0,12);
+          // #428 guard: see autoFollowSnapJs.
+          if(!document.body) return "off";
           var w=document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, null, false), n, sn=null, so=0;
           while(n=w.nextNode()){ var i=n.nodeValue.indexOf(key); if(i>=0){ sn=n; so=i; break; } }
           if(!sn) return "off";

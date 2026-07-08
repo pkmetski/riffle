@@ -797,4 +797,19 @@ class ContinuousStyleInjectorTest {
         assertTrue(ContinuousStyleInjector.CLEAR_SEARCH_HIGHLIGHTS_JS.contains("data-riffle-si"))
         assertTrue(ContinuousStyleInjector.CLEAR_SEARCH_HIGHLIGHTS_JS.contains("data-riffle-sa"))
     }
+
+    // Regression for #428: chapter injections can fire before document.body is populated (observed
+    // right after a sandboxed WebView process restart). An unguarded
+    // `document.createTreeWalker(document.body, ...)` throws "parameter 1 is not of type 'Node'",
+    // wedges buildFlat's index build, and the highlight-application pipeline silently no-ops for
+    // the rest of the session ("create highlight; nothing appears; app restart fixes it"). Pin the
+    // guard so a future edit can't remove it without turning this red.
+    @Test
+    fun `applyAnnotationHighlightsJs guards buildFlat against a missing document body (issue 428)`() {
+        val js = applyJs(AnnotationHighlight("id1", "hello", "#ff0000"))
+        assertTrue(
+            "buildFlat must early-return when document.body is null (issue #428)",
+            js.contains("if (!document.body) return { fullText: '', nodes: [] };"),
+        )
+    }
 }
