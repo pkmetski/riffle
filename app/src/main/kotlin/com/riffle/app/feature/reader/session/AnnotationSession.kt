@@ -9,6 +9,8 @@ import com.riffle.core.domain.Annotation
 import com.riffle.core.domain.AnnotationStore
 import com.riffle.core.domain.HighlightColor
 import com.riffle.core.domain.HighlightColorPreferencesStore
+import com.riffle.core.logging.LogChannel
+import com.riffle.core.logging.Logger
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedFactory
 import dagger.assisted.AssistedInject
@@ -60,6 +62,7 @@ class AnnotationSession @AssistedInject constructor(
     private val annotationStatusStore: AnnotationSyncStatusStore,
     private val highlightColorPreferencesStore: HighlightColorPreferencesStore,
     private val progressFlushScope: ProgressFlushScope,
+    private val logger: Logger,
     /** Called on [bind] after [syncOnOpen]; returns the [Job] backing the live-pull loop. */
     @Assisted private val startLiveSync: (sourceId: String, namespace: String, itemId: String) -> Job,
     /** Called on each annotation mutation to schedule a debounced push. */
@@ -352,10 +355,26 @@ class AnnotationSession @AssistedInject constructor(
     fun dismissHighlightActions() {
         val target = _highlightToEdit.value
         _highlightToEdit.value = null
-        if (_noteEditorTarget.value != null) return
-        val id = target?.id ?: return
-        val row = _annotations.value.firstOrNull { it.id == id } ?: return
-        if (row.type != AnnotationEntity.TYPE_HIGHLIGHT) return
+        logger.d(LogChannel.HighlightMerge) { "dismiss entry targetId=${target?.id} noteEditorOpen=${_noteEditorTarget.value != null}" }
+        if (_noteEditorTarget.value != null) {
+            logger.d(LogChannel.HighlightMerge) { "dismiss skip reason=note-editor-transition" }
+            return
+        }
+        val id = target?.id ?: run {
+            logger.d(LogChannel.HighlightMerge) { "dismiss skip reason=no-target" }
+            return
+        }
+        val row = _annotations.value.firstOrNull { it.id == id } ?: run {
+            logger.d(LogChannel.HighlightMerge) {
+                "dismiss skip reason=row-not-in-annotations id=$id poolSize=${_annotations.value.size} poolIds=${_annotations.value.take(5).joinToString { it.id.take(6) }}"
+            }
+            return
+        }
+        if (row.type != AnnotationEntity.TYPE_HIGHLIGHT) {
+            logger.d(LogChannel.HighlightMerge) { "dismiss skip reason=type=${row.type} id=$id" }
+            return
+        }
+        logger.d(LogChannel.HighlightMerge) { "dismiss → mergeAfterEdit id=$id color=${row.color} note=${row.note?.let { "'${it.take(20)}'" }}" }
         scope.launch { mergeAfterEdit(id, row.color, row.note) }
     }
 

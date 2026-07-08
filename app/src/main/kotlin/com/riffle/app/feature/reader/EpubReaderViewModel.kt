@@ -1415,6 +1415,11 @@ class EpubReaderViewModel @Inject constructor(
                 spineIndex = spineIndex,
                 progression = progression,
             )
+            logger.d(LogChannel.HighlightMerge) {
+                "create id=${created.id} snippet='${snippet.take(30)}' " +
+                    "beforeTail='${textBeforeCaptured.takeLast(30)}' afterHead='${newAfter.take(30)}' " +
+                    "poolSizeAtCreate=${annotationSession.annotations.value.size}"
+            }
             openHighlightActions(created.id, anchorRect)
             scheduleAnnotationSync()
             // observeHighlights re-emits → highlightRenders updates → the screen re-applies decorations.

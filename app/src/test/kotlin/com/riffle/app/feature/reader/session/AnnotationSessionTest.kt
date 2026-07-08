@@ -203,6 +203,7 @@ class AnnotationSessionTest {
         annotationStatusStore = statusStore,
         highlightColorPreferencesStore = colorPrefsStore,
         progressFlushScope = flushScope,
+        logger = com.riffle.core.logging.RecordingLogger(),
         startLiveSync = syncOps.makeStartLiveSync(scope),
         scheduleSync = syncOps.makeScheduleDebounce(),
         syncOnOpen = syncOps.makeSyncOnOpen(),
