@@ -638,12 +638,8 @@ internal class ChapterWebView(context: Context) : WebView(context), ChapterWebVi
                             svg = f.optString("svg").takeIf { !f.isNull("svg") && it.isNotEmpty() },
                             caption = f.optString("caption", ""),
                             order = f.optInt("order", i),
+                            imageBytes = f.optString("bytes").takeIf { !f.isNull("bytes") && it.isNotEmpty() },
                         )
-                        // NOTE: `bytes` field carries the data URI for raster figures. We drop it
-                        // here because EmbeddedFigure has no imageBytes field — the persisted
-                        // annotation only stores href/svg/caption/order per the current schema.
-                        // Raster embedded figures render as placeholder in Highlights mode until
-                        // that column arrives.
                     }
                     SelectionFiguresStash.set(figures)
                 } else {

@@ -40,4 +40,10 @@ data class EmbeddedFigure(
     val svg: String?,
     val caption: String,
     val order: Int,
+    /**
+     * Data URI (`data:image/…;base64,…`) of the raster figure, captured via canvas at
+     * selection-change time. Present when a text-highlight range crossed a raster figure — lets
+     * the Highlights-mode elided reader render it inline without needing the source Publication.
+     */
+    val imageBytes: String? = null,
 )

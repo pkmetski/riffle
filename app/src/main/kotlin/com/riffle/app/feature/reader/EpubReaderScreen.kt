@@ -3176,4 +3176,35 @@ internal class RiffleSelectionRectBridge(
     fun onActiveAtDown(active: Boolean) {
         activeAtDown.set(active)
     }
+
+    /**
+     * Called from SELECTION_SPAN_TRACKER_JS on every selectionchange with a JSON array of the
+     * figures enclosed by the current live range (raster figures rasterised via canvas to a data
+     * URI while the range was still live; SVG serialised verbatim). Fills
+     * [SelectionFiguresStash] so [EpubReaderViewModel.createHighlight] picks them up when the user
+     * confirms the highlight from Readium's paginated action-mode menu — the paginated path
+     * doesn't go through [ChapterWebView.withSelectionTextAndProgression], which is why we bridge
+     * the figures here on the paginated Readium WebView too.
+     */
+    @android.webkit.JavascriptInterface
+    fun onFigures(json: String) {
+        val figures = mutableListOf<com.riffle.core.domain.EmbeddedFigure>()
+        try {
+            val arr = org.json.JSONArray(json)
+            for (i in 0 until arr.length()) {
+                val f = arr.optJSONObject(i) ?: continue
+                figures += com.riffle.core.domain.EmbeddedFigure(
+                    href = f.optString("href").takeIf { !f.isNull("href") && it.isNotEmpty() },
+                    svg = f.optString("svg").takeIf { !f.isNull("svg") && it.isNotEmpty() },
+                    caption = f.optString("caption", ""),
+                    order = f.optInt("order", i),
+                    imageBytes = f.optString("bytes").takeIf { !f.isNull("bytes") && it.isNotEmpty() },
+                )
+            }
+        } catch (_: Exception) {
+            // Malformed payload — drop everything to a defined empty state rather than partial.
+            figures.clear()
+        }
+        SelectionFiguresStash.set(figures)
+    }
 }

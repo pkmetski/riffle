@@ -305,11 +305,14 @@ private fun appendImageAnnotation(sb: StringBuilder, annotation: AnnotationEntit
 private fun appendFigureBlock(sb: StringBuilder, figure: EmbeddedFigure) {
     sb.append("  <figure class=\"riffle-fig\">\n")
     val svg = figure.svg
+    val bytes = figure.imageBytes
     when {
+        // Prefer the data URI captured at selection-change time — no source-Publication container
+        // needed, no synthetic path that would crash Readium's WebViewServer.
+        bytes != null -> sb.append("<img src=\"").append(bytes.xmlAttrEscape()).append("\" style=\"max-width:100%;height:auto\"/>")
         svg != null -> sb.append(svg)
-        // Same guard as appendImageAnnotation: emitting `<img src="synthetic/…">` triggers a
-        // Readium WebViewServer NPE. Embedded figures never get an imageBytes capture (only the
-        // parent highlight's range walk knows about them), so all we can do here is placeholder.
+        // Legacy embedded figures captured before EmbeddedFigure.imageBytes existed: show a
+        // placeholder rather than a synthetic-path <img> (which would NPE WebViewServer).
         else -> sb.append("<p class=\"riffle-fig-placeholder\">[figure image not captured]</p>")
     }
     if (figure.caption.isNotBlank()) {

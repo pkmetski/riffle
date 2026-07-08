@@ -417,6 +417,16 @@ internal val SELECTION_SPAN_TRACKER_JS = """
               bef: bef, aft: aft,
               figures: figures
             };
+            // Also bridge figures to Kotlin directly. Continuous mode reads them out of
+            // window.__riffleSelData in ChapterWebView.withSelectionTextAndProgression, but
+            // paginated mode goes through Readium's own selection callback and never reads our
+            // stash — the bridge is the way to reach paginated too. Only fires when the bridge is
+            // registered (paginated Readium WebView); a no-op in continuous ChapterWebView.
+            try {
+              if (window.RiffleSelBridge && window.RiffleSelBridge.onFigures) {
+                window.RiffleSelBridge.onFigures(JSON.stringify(figures));
+              }
+            } catch (e) {}
           }
         } catch (e) {}
       });
