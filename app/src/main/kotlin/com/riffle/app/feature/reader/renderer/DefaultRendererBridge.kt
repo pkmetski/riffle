@@ -65,10 +65,13 @@ internal class DefaultRendererBridge(
         frag.evaluateJavascript(readaloudReserveApplyJs(reservePx))
     }
 
-    override suspend fun applyFigureBorders(cssRules: List<String>) {
+    override suspend fun applyFigureBorders(
+        cssRules: List<String>,
+        svgMatches: List<com.riffle.app.feature.reader.decorations.FigureBorderDecoration.SvgMatch>,
+    ) {
         val frag = fragment ?: return
         frag.evaluateJavascript(figureBorderInjectionJs())
-        frag.evaluateJavascript(figureBorderApplyJs(cssRules))
+        frag.evaluateJavascript(figureBorderApplyJs(cssRules, svgMatches))
     }
 
     override suspend fun installScrollSettleBackstop() {

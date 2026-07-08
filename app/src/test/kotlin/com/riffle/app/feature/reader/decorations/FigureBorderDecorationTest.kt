@@ -52,17 +52,36 @@ class FigureBorderDecorationTest {
     }
 
     @Test
-    fun `pure SVG annotation produces no rule`() {
-        val svgImage = imageAnnotation(id = "s1", imageHref = null, imageSvg = "<svg></svg>", color = "yellow")
+    fun `pure SVG annotation produces no CSS rule but does produce an SVG match`() {
+        val svgImage = imageAnnotation(id = "s1", imageHref = null, imageSvg = "<svg id=\"a\"></svg>", color = "yellow")
         val svgEmbedded = highlightAnnotation(
             id = "h2",
             color = "green",
-            embedded = listOf(EmbeddedFigure(href = null, svg = "<svg></svg>", caption = "cap", order = 0)),
+            embedded = listOf(EmbeddedFigure(href = null, svg = "<svg id=\"b\"></svg>", caption = "cap", order = 0)),
         )
 
         val rules = FigureBorderDecoration.buildCssRules(listOf(svgImage, svgEmbedded))
+        val svgMatches = FigureBorderDecoration.buildSvgMatches(listOf(svgImage, svgEmbedded))
 
+        // buildCssRules stays raster-only — reverting it to also process SVG would flip this red.
         assertTrue(rules.isEmpty())
+        // buildSvgMatches now covers SVG — reverting SVG support would flip this red.
+        assertEquals(2, svgMatches.size)
+        assertTrue(svgMatches.any { it.fingerprint.contains("id=\"a\"") })
+        assertTrue(svgMatches.any { it.fingerprint.contains("id=\"b\"") })
+    }
+
+    @Test
+    fun `SVG matches newest wins when two annotations reference the same svg`() {
+        val svg = "<svg><rect x=\"1\"/></svg>"
+        val older = imageAnnotation(id = "a", imageHref = null, imageSvg = svg, color = "yellow", updatedAt = 100)
+        val newer = imageAnnotation(id = "b", imageHref = null, imageSvg = svg, color = "green", updatedAt = 200)
+
+        val matches = FigureBorderDecoration.buildSvgMatches(listOf(older, newer))
+
+        assertEquals(1, matches.size)
+        // green rgb — reverting maxByOrNull{updatedAt} would flip this to yellow (251,191,36).
+        assertTrue(matches.single().color.contains("52,211,153"))
     }
 
     @Test

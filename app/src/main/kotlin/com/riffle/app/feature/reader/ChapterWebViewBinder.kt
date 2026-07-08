@@ -109,12 +109,16 @@ internal class ChapterWebViewBinder(
         wv.onFigureTap = { payload -> onFigureTap(payload) }
         wv.onFigureLongPress = { payload ->
             val density = densityOf(wv)
-            val local = Rect(
-                (payload.rectX * density).toInt(),
-                (payload.rectY * density).toInt(),
-                ((payload.rectX + payload.rectW) * density).toInt(),
-                ((payload.rectY + payload.rectH) * density).toInt(),
-            )
+            // Built via the no-arg constructor + field assignment rather than Rect(l,t,r,b):
+            // that 4-arg constructor is a no-op under the plain-JVM android.jar unit-test stub
+            // (see ChapterWebViewBinderTest's rectOf helper), so this form is the only one that
+            // behaves identically under JVM tests and on a real device.
+            val local = Rect().apply {
+                left = (payload.rectX * density).toInt()
+                top = (payload.rectY * density).toInt()
+                right = ((payload.rectX + payload.rectW) * density).toInt()
+                bottom = ((payload.rectY + payload.rectH) * density).toInt()
+            }
             val screen = screenRectOf(wv, local)
             onFigureLongPress(payload, IntRect(screen.left, screen.top, screen.right, screen.bottom))
         }

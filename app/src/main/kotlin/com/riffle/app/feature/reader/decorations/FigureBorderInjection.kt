@@ -34,11 +34,24 @@ internal fun figureBorderInjectionJs(): String =
  * underlying annotation set changes, and once per page load so a freshly served resource picks
  * up the current rules immediately.
  */
-internal fun figureBorderApplyJs(cssRules: List<String>): String {
+internal fun figureBorderApplyJs(
+    cssRules: List<String>,
+    svgMatches: List<FigureBorderDecoration.SvgMatch> = emptyList(),
+): String {
     val css = cssRules.joinToString("\n")
         .replace("\\", "\\\\")
         .replace("`", "\\`")
         .replace("\$", "\\\$")
+    val svgJson = svgMatches.joinToString(",", prefix = "[", postfix = "]") { m ->
+        val escFp = m.fingerprint
+            .replace("\\", "\\\\")
+            .replace("\"", "\\\"")
+            .replace("\n", "\\n")
+            .replace("\r", "")
+            .replace("\t", " ")
+        val escColor = m.color.replace("\"", "\\\"")
+        "{\"fp\":\"$escFp\",\"color\":\"$escColor\"}"
+    }
     return """
         (function() {
           var id = '$FIGURE_BORDER_STYLE_ID';
@@ -49,6 +62,29 @@ internal fun figureBorderApplyJs(cssRules: List<String>): String {
             document.head.appendChild(style);
           }
           style.textContent = `$css`;
+          // Match annotated SVGs by outerHTML prefix and apply an inline outline. Clears any
+          // stale outlines we set previously so a delete/recolor reflects immediately.
+          try {
+            var matches = $svgJson;
+            var svgs = document.querySelectorAll('svg');
+            for (var i = 0; i < svgs.length; i++) {
+              var s = svgs[i];
+              if (s.__riffleBorderApplied) {
+                s.style.outline = '';
+                s.style.outlineOffset = '';
+                s.__riffleBorderApplied = false;
+              }
+              var oh = s.outerHTML || '';
+              for (var j = 0; j < matches.length; j++) {
+                if (oh.indexOf(matches[j].fp) === 0) {
+                  s.style.outline = '2px solid ' + matches[j].color;
+                  s.style.outlineOffset = '2px';
+                  s.__riffleBorderApplied = true;
+                  break;
+                }
+              }
+            }
+          } catch (e) {}
         })();
     """.trimIndent()
 }

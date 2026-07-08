@@ -2284,7 +2284,10 @@ private fun EpubNavigatorView(
     // annotations-change tick, same cadence as the persisted-highlights effect above.
     LaunchedEffect(rendererBridge, isContinuous, annotations, reflowGeneration, pageLoadGeneration.value) {
         if (isContinuous) return@LaunchedEffect
-        rendererBridge.applyFigureBorders(FigureBorderDecoration.buildCssRules(annotations))
+        rendererBridge.applyFigureBorders(
+            FigureBorderDecoration.buildCssRules(annotations),
+            FigureBorderDecoration.buildSvgMatches(annotations),
+        )
     }
 
     // ---- Decoration tap listener (annotations) ---------------------------------------------

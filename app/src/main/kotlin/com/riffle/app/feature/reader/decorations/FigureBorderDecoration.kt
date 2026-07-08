@@ -6,19 +6,15 @@ import com.riffle.core.domain.Annotation
 import com.riffle.core.domain.HighlightColor
 
 /**
- * Builds the CSS that draws a coloured border around figures covered by an annotation, so an
+ * Builds the CSS + JS that draws a coloured border around figures covered by an annotation, so an
  * annotated diagram/chart/image stands out in the normal reading flow (not just in the
  * annotations panel).
  *
- * v1 raster-only limitation: figures are matched by an `img[src$="…"]` suffix selector against
- * the annotation's [Annotation.imageHref] ([AnnotationEntity.TYPE_IMAGE]) or an embedded figure's
- * [com.riffle.core.domain.EmbeddedFigure.href] ([AnnotationEntity.TYPE_HIGHLIGHT]). Pure-SVG
- * figures (`imageHref == null && imageSvg != null`, or an [com.riffle.core.domain.EmbeddedFigure]
- * with `href == null && svg != null`) have no stable DOM selector to hang a border off today —
- * inline SVG has no `src` attribute, and we don't yet thread an `elementId` onto the persisted
- * annotation to select it by id. Those annotations still exist in the DB and still show up in the
- * annotations panel / Highlights-mode view; only the in-reader border is skipped for them. See
- * Task 8 in docs/superpowers/plans/2026-07-07-figure-annotations.md.
+ * Raster figures (`imageHref != null`) get a plain CSS rule via [buildCssRules] matching by
+ * `img[src$="…"]`. Inline-SVG figures (`imageSvg != null`) have no stable CSS selector — inline
+ * `<svg>` carries no `src`/`href` we can match on — so they get a small JS routine emitted by
+ * [buildSvgApplyJs] that walks `document.querySelectorAll('svg')`, prefix-matches each element's
+ * outerHTML against the stored SVG source, and sets `outline` inline on the winner.
  */
 internal object FigureBorderDecoration {
 
@@ -56,5 +52,42 @@ internal object FigureBorderDecoration {
                 val selector = "img[src\$=\"${ref.href}\"]"
                 "$selector { outline: $OUTLINE_WIDTH_CSS solid $cssColor; outline-offset: $OUTLINE_OFFSET_CSS; }"
             }
+    }
+
+    /**
+     * Number of leading characters of a `<svg>` element's `outerHTML` we use as a fingerprint to
+     * match a persisted annotation's [Annotation.imageSvg] against live DOM nodes. Small enough to
+     * keep the injected JSON payload compact; large enough to disambiguate two different SVGs on
+     * the same page.
+     */
+    private const val SVG_FINGERPRINT_PREFIX_LEN = 200
+
+    /**
+     * One entry per SVG annotation covering the current document. Newest-wins by `updatedAt` when
+     * two annotations reference the same SVG (same fingerprint).
+     */
+    internal data class SvgMatch(val fingerprint: String, val color: String)
+
+    fun buildSvgMatches(annotations: List<Annotation>): List<SvgMatch> {
+        data class Ref(val fingerprint: String, val color: String, val updatedAt: Long)
+
+        val refs = mutableListOf<Ref>()
+        for (a in annotations) {
+            when (a.type) {
+                AnnotationEntity.TYPE_IMAGE -> a.imageSvg?.take(SVG_FINGERPRINT_PREFIX_LEN)?.let {
+                    refs += Ref(it, a.color, a.updatedAt)
+                }
+                AnnotationEntity.TYPE_HIGHLIGHT -> a.embeddedFigures?.forEach { figure ->
+                    figure.svg?.take(SVG_FINGERPRINT_PREFIX_LEN)?.let {
+                        refs += Ref(it, a.color, a.updatedAt)
+                    }
+                }
+            }
+        }
+
+        return refs.groupBy { it.fingerprint }
+            .mapValues { (_, group) -> group.maxByOrNull { it.updatedAt }!! }
+            .values
+            .map { SvgMatch(it.fingerprint, HighlightColor.fromToken(it.color).argb.toCssRgba()) }
     }
 }
