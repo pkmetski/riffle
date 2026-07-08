@@ -58,6 +58,7 @@ interface AnnotationStore {
         progression: Double,
         imageHref: String?,
         imageSvg: String?,
+        imageBytes: String?,
         color: String = DEFAULT_COLOR,
     ): Annotation
 

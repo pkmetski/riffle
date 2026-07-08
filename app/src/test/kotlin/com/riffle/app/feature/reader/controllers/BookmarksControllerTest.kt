@@ -77,7 +77,7 @@ class BookmarksControllerTest {
         override suspend fun createImageAnnotation(
             sourceId: String, itemId: String, cfi: String, textSnippet: String,
             chapterHref: String, spineIndex: Int, progression: Double,
-            imageHref: String?, imageSvg: String?, color: String,
+            imageHref: String?, imageSvg: String?, imageBytes: String?, color: String,
         ): Annotation {
             val a = Annotation(
                 id = "img-${created.size}",

@@ -131,6 +131,7 @@ class AnnotationStoreImpl(
         progression: Double,
         imageHref: String?,
         imageSvg: String?,
+        imageBytes: String?,
         color: String,
     ): Annotation {
         val deviceId = deviceIdStore.getOrCreate()
@@ -156,6 +157,7 @@ class AnnotationStoreImpl(
             embeddedFigures = null,
             imageHref = imageHref,
             imageSvg = imageSvg,
+            imageBytes = imageBytes,
         )
         dao.upsert(entity)
         return entity.toDomain()
@@ -232,6 +234,7 @@ internal fun Annotation.toEntity() = AnnotationEntity(
     embeddedFigures = embeddedFigures.toEntityJson(),
     imageHref = imageHref,
     imageSvg = imageSvg,
+    imageBytes = imageBytes,
 )
 
 internal fun AnnotationEntity.toDomain() = Annotation(
@@ -254,4 +257,5 @@ internal fun AnnotationEntity.toDomain() = Annotation(
     embeddedFigures = embeddedFigures.toEmbeddedFigures(),
     imageHref = imageHref,
     imageSvg = imageSvg,
+    imageBytes = imageBytes,
 )

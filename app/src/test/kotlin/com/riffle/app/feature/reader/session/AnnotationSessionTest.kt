@@ -81,7 +81,7 @@ class AnnotationSessionTest {
         ): Annotation = makeAnnotation(id = "b1", type = "bookmark", cfi = cfi)
         override suspend fun createImageAnnotation(
             sourceId: String, itemId: String, cfi: String, textSnippet: String, chapterHref: String,
-            spineIndex: Int, progression: Double, imageHref: String?, imageSvg: String?, color: String,
+            spineIndex: Int, progression: Double, imageHref: String?, imageSvg: String?, imageBytes: String?, color: String,
         ): Annotation = makeAnnotation(id = "img1", type = "image", cfi = cfi, color = color)
         override suspend fun delete(id: String) { deletedIds.add(id) }
         override suspend fun recolor(id: String, color: String) { recoloredIds.add(id to color) }

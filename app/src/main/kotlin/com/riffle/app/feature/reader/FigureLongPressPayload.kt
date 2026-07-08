@@ -28,6 +28,13 @@ internal data class FigureLongPressPayload(
     val rectY: Int = 0,
     val rectW: Int = 0,
     val rectH: Int = 0,
+    /**
+     * Data URI (`data:image/…;base64,…`) of the figure, rasterised from the WebView at long-press
+     * time via a canvas. Persisted on the annotation so both the annotations panel row's thumbnail
+     * and the Highlights-mode elided reader can display the figure without needing the source
+     * Publication container to be reloaded. Null on cross-origin blocks or SVG capture failure.
+     */
+    val imageBytes: String? = null,
 )
 
 /**
@@ -50,6 +57,7 @@ internal object FigureLongPressMessageParser {
             rectY = obj.optInt("rectY", 0),
             rectW = obj.optInt("rectW", 0),
             rectH = obj.optInt("rectH", 0),
+            imageBytes = obj.optString("imageBytes").takeIf { !obj.isNull("imageBytes") && it.isNotEmpty() },
         )
     }
 }

@@ -102,6 +102,9 @@ internal class ContinuousDecorationController(
     }
 
     private fun applyFigureBordersTo(wv: ChapterWebViewLike) {
+        // Skip when there's nothing to apply — keeps onChapterLoaded's JS-call count predictable
+        // for chapters that carry no figure annotations, matching the annotation-highlights path.
+        if (currentFigureCssRules.isEmpty() && currentSvgMatches.isEmpty()) return
         wv.evaluateJavascript(com.riffle.app.feature.reader.decorations.figureBorderInjectionJs(), null)
         wv.evaluateJavascript(
             com.riffle.app.feature.reader.decorations.figureBorderApplyJs(currentFigureCssRules, currentSvgMatches),

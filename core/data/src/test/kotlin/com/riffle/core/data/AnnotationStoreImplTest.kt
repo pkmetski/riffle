@@ -314,11 +314,11 @@ class AnnotationStoreImplTest {
             sourceId = "abs1", itemId = "item1", cfi = "epubcfi(/6/4!/4/2:0)", textSnippet = "Fig 1",
             chapterHref = "ch1.xhtml", spineIndex = 0, progression = 0.5,
             imageHref = "images/g.png", imageSvg = null,
+            imageBytes = null,
         )
         val found = s.findImageAnnotationForFigure(
             sourceId = "abs1", itemId = "item1", chapterHref = "ch1.xhtml",
-            imageHref = "images/g.png", imageSvg = null,
-        )
+            imageHref = "images/g.png", imageSvg = null,)
         assertEquals(created.id, found?.id)
     }
 
@@ -329,11 +329,11 @@ class AnnotationStoreImplTest {
             sourceId = "abs1", itemId = "item1", cfi = "epubcfi(/6/4!/4/2:0)", textSnippet = "Diagram",
             chapterHref = "ch1.xhtml", spineIndex = 0, progression = 0.5,
             imageHref = null, imageSvg = "<svg><rect/></svg>",
+            imageBytes = null,
         )
         val found = s.findImageAnnotationForFigure(
             sourceId = "abs1", itemId = "item1", chapterHref = "ch1.xhtml",
-            imageHref = null, imageSvg = "<svg><rect/></svg>",
-        )
+            imageHref = null, imageSvg = "<svg><rect/></svg>",)
         assertEquals(created.id, found?.id)
     }
 
@@ -344,11 +344,11 @@ class AnnotationStoreImplTest {
             sourceId = "abs1", itemId = "item1", cfi = "epubcfi(/6/4!/4/2:0)", textSnippet = "Fig 1",
             chapterHref = "ch1.xhtml", spineIndex = 0, progression = 0.5,
             imageHref = "images/g.png", imageSvg = null,
+            imageBytes = null,
         )
         val found = s.findImageAnnotationForFigure(
             sourceId = "abs1", itemId = "item1", chapterHref = "ch1.xhtml",
-            imageHref = "images/other.png", imageSvg = null,
-        )
+            imageHref = "images/other.png", imageSvg = null,)
         assertNull(found)
     }
 
@@ -359,12 +359,12 @@ class AnnotationStoreImplTest {
             sourceId = "abs1", itemId = "item1", cfi = "epubcfi(/6/4!/4/2:0)", textSnippet = "Fig 1",
             chapterHref = "ch1.xhtml", spineIndex = 0, progression = 0.5,
             imageHref = "images/g.png", imageSvg = null,
+            imageBytes = null,
         )
         s.delete(created.id)
         val found = s.findImageAnnotationForFigure(
             sourceId = "abs1", itemId = "item1", chapterHref = "ch1.xhtml",
-            imageHref = "images/g.png", imageSvg = null,
-        )
+            imageHref = "images/g.png", imageSvg = null,)
         assertNull(found)
     }
 }

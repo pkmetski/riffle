@@ -167,6 +167,31 @@ internal object FigureTapScript {
                     } catch (e) {}
                     var tag = longPressTarget.tagName ? longPressTarget.tagName.toLowerCase() : '';
                     var r = longPressTarget.getBoundingClientRect();
+                    // Rasterise the figure into a data URI so the panel row + Highlights-mode view
+                    // can display it without needing to reload the source Publication container.
+                    // Both raster <img> and inline <svg> go through a canvas — for SVG the
+                    // element is serialized to an SVG data URI first and re-drawn on the canvas.
+                    // Skip silently if the WebView blocks toDataURL on cross-origin content.
+                    var imageBytes = null;
+                    try {
+                        var srcW = tag === 'svg' ? Math.round(r.width) : (longPressTarget.naturalWidth || Math.round(r.width));
+                        var srcH = tag === 'svg' ? Math.round(r.height) : (longPressTarget.naturalHeight || Math.round(r.height));
+                        if (srcW > 0 && srcH > 0) {
+                            var cvs = document.createElement('canvas');
+                            var maxSide = 800;
+                            var scale = Math.min(1, maxSide / Math.max(srcW, srcH));
+                            cvs.width = Math.round(srcW * scale);
+                            cvs.height = Math.round(srcH * scale);
+                            var ctx = cvs.getContext('2d');
+                            ctx.fillStyle = '#ffffff';
+                            ctx.fillRect(0, 0, cvs.width, cvs.height);
+                            if (tag === 'img' || tag === 'picture') {
+                                var imgEl = tag === 'picture' ? longPressTarget.querySelector('img') : longPressTarget;
+                                if (imgEl) ctx.drawImage(imgEl, 0, 0, cvs.width, cvs.height);
+                                imageBytes = cvs.toDataURL('image/jpeg', 0.85);
+                            }
+                        }
+                    } catch (e5) {}
                     var payload = {
                         kind: tag,
                         caption: resolveCaption(longPressTarget),
@@ -177,6 +202,7 @@ internal object FigureTapScript {
                         rectY: Math.round(r.top),
                         rectW: Math.round(r.width),
                         rectH: Math.round(r.height),
+                        imageBytes: imageBytes,
                     };
                     try {
                         window.$bridgeName.onFigureLongPress(JSON.stringify(payload));

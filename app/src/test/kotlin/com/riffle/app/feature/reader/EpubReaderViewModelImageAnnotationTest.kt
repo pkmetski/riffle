@@ -166,6 +166,7 @@ class EpubReaderViewModelImageAnnotationTest {
         progression = progression,
         imageHref = payload.href,
         imageSvg = payload.svg,
+        imageBytes = payload.imageBytes,
     )
 
     /**
@@ -202,6 +203,7 @@ class EpubReaderViewModelImageAnnotationTest {
             progression = progression,
             imageHref = payload.href,
             imageSvg = payload.svg,
+            imageBytes = payload.imageBytes,
         )
         return null
     }

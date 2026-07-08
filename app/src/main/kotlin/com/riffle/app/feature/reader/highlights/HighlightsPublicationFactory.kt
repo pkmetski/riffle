@@ -278,9 +278,13 @@ private fun appendImageAnnotation(sb: StringBuilder, annotation: AnnotationEntit
     sb.append("  <figure class=\"riffle-fig\">\n")
     val svg = annotation.imageSvg
     val href = annotation.imageHref
+    val bytes = annotation.imageBytes
     when {
+        // Prefer the captured data URI — needs no source-Publication container access at render
+        // time. Falls through to synthetic-path/SVG when the annotation predates data-URI capture.
+        bytes != null -> sb.append("<img src=\"").append(bytes.xmlAttrEscape()).append("\" style=\"max-width:100%;height:auto\"/>")
         svg != null -> sb.append(svg)
-        href != null -> sb.append("<img src=\"").append(syntheticPath(href)).append("\"/>")
+        href != null -> sb.append("<img src=\"").append(syntheticPath(href)).append("\" style=\"max-width:100%;height:auto\"/>")
     }
     if (!annotation.textSnippet.isBlank()) {
         sb.append("\n    <figcaption>").append(annotation.textSnippet.xmlEscape()).append("</figcaption>")
@@ -410,6 +414,12 @@ private fun String.xmlEscape(): String =
         .replace(">", "&gt;")
         .replace("\"", "&quot;")
         .replace("'", "&apos;")
+
+/** Escape a value for an XML attribute — same as [xmlEscape] minus the `<`/`>` (attribute values
+ *  don't parse element markup) so a base64 data URI containing `+`/`/` survives verbatim. */
+private fun String.xmlAttrEscape(): String =
+    replace("&", "&amp;")
+        .replace("\"", "&quot;")
 
 /**
  * A [Container] backed entirely by an in-memory map of already-synthesised bytes. There is no

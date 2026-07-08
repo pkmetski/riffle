@@ -61,6 +61,13 @@ data class AnnotationEntity(
     val imageHref: String? = null,
     /** Inline SVG markup for a TYPE_IMAGE annotation, when the figure is an SVG. */
     val imageSvg: String? = null,
+    /**
+     * Data URI (`data:image/…;base64,…`) of the annotated figure's rendered bitmap, captured at
+     * long-press time. Used to display the figure as a thumbnail in the annotations panel and as
+     * a full-size image in the Highlights-mode elided reader, without needing the source
+     * Publication's container to be loaded.
+     */
+    val imageBytes: String? = null,
 ) {
     companion object {
         const val TYPE_HIGHLIGHT = "HIGHLIGHT"

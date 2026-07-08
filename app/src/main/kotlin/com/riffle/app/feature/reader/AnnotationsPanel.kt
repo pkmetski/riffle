@@ -19,6 +19,15 @@ import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Image
+import androidx.compose.ui.graphics.asImageBitmap
+import android.graphics.BitmapFactory
+import android.util.Base64
+import androidx.compose.foundation.Image as ComposeImage
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.border
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.unit.dp
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
@@ -151,11 +160,26 @@ private fun AnnotationRow(
                 )
                 RowKind.Image -> {
                     val highlightColor = HighlightColor.fromToken(annotation.color)
-                    Icon(
-                        Icons.Filled.Image,
-                        contentDescription = null,
-                        tint = Color(highlightColor.argb.toLong() and 0xFFFFFFFFL),
-                    )
+                    val borderColor = Color(highlightColor.argb.toLong() and 0xFFFFFFFFL)
+                    val bytesUri = annotation.imageBytes
+                    val bitmap = remember(bytesUri) { decodeImageDataUri(bytesUri) }
+                    if (bitmap != null) {
+                        ComposeImage(
+                            bitmap = bitmap.asImageBitmap(),
+                            contentDescription = null,
+                            contentScale = ContentScale.Fit,
+                            modifier = Modifier
+                                .size(32.dp)
+                                .clip(RoundedCornerShape(4.dp))
+                                .border(2.dp, borderColor, RoundedCornerShape(4.dp)),
+                        )
+                    } else {
+                        Icon(
+                            Icons.Filled.Image,
+                            contentDescription = null,
+                            tint = borderColor,
+                        )
+                    }
                 }
                 RowKind.Highlight -> {
                     val highlightColor = HighlightColor.fromToken(annotation.color)
@@ -240,6 +264,21 @@ internal const val HIGHLIGHT_SNIPPET_MAX_LINES = 6
 
 internal fun maxLinesForAnnotationTitle(type: String): Int =
     if (type == AnnotationEntity.TYPE_BOOKMARK) BOOKMARK_TITLE_MAX_LINES else HIGHLIGHT_SNIPPET_MAX_LINES
+
+/**
+ * Decode a `data:image/…;base64,…` URI into a [android.graphics.Bitmap]. Null on malformed input
+ * or a non-data-URI value. Used by the annotations panel to display a `TYPE_IMAGE` annotation's
+ * captured thumbnail and by the Highlights-mode elided reader to render the full-size figure.
+ */
+internal fun decodeImageDataUri(dataUri: String?): android.graphics.Bitmap? {
+    if (dataUri.isNullOrBlank()) return null
+    val comma = dataUri.indexOf(',')
+    if (comma < 0 || !dataUri.startsWith("data:")) return null
+    return runCatching {
+        val bytes = Base64.decode(dataUri.substring(comma + 1), Base64.DEFAULT)
+        BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+    }.getOrNull()
+}
 
 @Composable
 private fun BookmarkRenameDialog(

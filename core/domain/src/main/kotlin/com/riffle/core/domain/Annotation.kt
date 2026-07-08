@@ -22,6 +22,7 @@ data class Annotation(
     val embeddedFigures: List<EmbeddedFigure>? = null,
     val imageHref: String? = null,
     val imageSvg: String? = null,
+    val imageBytes: String? = null,
 )
 
 /**

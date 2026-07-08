@@ -1775,6 +1775,7 @@ class EpubReaderViewModel @Inject constructor(
             progression = progression,
             imageHref = payload.href,
             imageSvg = payload.svg,
+            imageBytes = payload.imageBytes,
             color = annotationSession.lastUsedHighlightColor.value.token,
         )
         openHighlightActions(created.id, anchorRect)
