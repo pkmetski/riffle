@@ -58,6 +58,14 @@ internal object FigureTapScript {
             if (document.__riffleFigureTapWired) return;
             document.__riffleFigureTapWired = true;
             var MAX_SVG_BYTES = 256 * 1024;
+            // Suppress Android WebView's built-in image callout (Save / Copy Image) on figures.
+            // Without this, the native context menu wins the long-press race, canceling the
+            // touch sequence before our 500ms timer resolves — long-press then does nothing.
+            try {
+                var style = document.createElement('style');
+                style.textContent = 'img,svg,picture,figure{-webkit-touch-callout:none;-webkit-user-select:none;user-select:none;}';
+                (document.head || document.documentElement).appendChild(style);
+            } catch (e) {}
             function findFigure(target) {
                 // Walk up to body FIRST looking for an anchor-with-href ancestor. If we find one
                 // before we find a figure candidate, this tap is a link — return null so the
@@ -163,6 +171,11 @@ internal object FigureTapScript {
             document.addEventListener('touchend', function() {
                 if (longPressTimer) { clearTimeout(longPressTimer); longPressTimer = null; }
                 longPressTarget = null;
+            }, true);
+            // Cancel the native long-press callout on figures — belt to the CSS's braces above,
+            // for WebView builds where the CSS property alone is respected too late.
+            document.addEventListener('contextmenu', function(e) {
+                if (findFigure(e.target)) e.preventDefault();
             }, true);
         })();
         window.riffleFiguresInsideRange = window.riffleFiguresInsideRange || function(cfiRange) {
