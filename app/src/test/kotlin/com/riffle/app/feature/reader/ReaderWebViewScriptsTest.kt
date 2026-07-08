@@ -198,4 +198,50 @@ class ReaderWebViewScriptsTest {
         val gateIdx = js.indexOf("if (hadSel) return;")
         assertTrue("click skips onTap when a selection was live at touchstart", gateIdx in 0 until onTapIdx)
     }
+
+    // Regression for #428: chapter injections can fire before document.body is populated
+    // (observed on a running session after a sandboxed WebView process restart). Every
+    // `document.createTreeWalker(document.body, ...)` call site must early-return so the
+    // injection doesn't throw "parameter 1 is not of type 'Node'" and wedge the reader.
+    @Test
+    fun `resolveSelectionSentenceJs guards createTreeWalker against a null document body (issue 428)`() {
+        val js = resolveSelectionSentenceJs(listOf("s1" to "Hello world hello world"))
+        val guardIdx = js.indexOf("if(!document.body) return \"\";")
+        val walkerIdx = js.indexOf("document.createTreeWalker(document.body")
+        assertTrue("guard present", guardIdx >= 0)
+        assertTrue("walker present", walkerIdx >= 0)
+        assertTrue("guard sits BEFORE the walker call", guardIdx < walkerIdx)
+    }
+
+    @Test
+    fun `firstVisibleSentenceJs guards createTreeWalker against a null document body (issue 428)`() {
+        val js = firstVisibleSentenceJs(listOf("Hello world hello world"))
+        val guardIdx = js.indexOf("if(!document.body) return \"\";")
+        val walkerIdx = js.indexOf("document.createTreeWalker(document.body")
+        assertTrue("guard present", guardIdx >= 0)
+        assertTrue("walker present", walkerIdx >= 0)
+        assertTrue("guard sits BEFORE the walker call", guardIdx < walkerIdx)
+    }
+
+    @Test
+    fun `autoFollowSnapJs guards createTreeWalker against a null document body (issue 428)`() {
+        val js = ColumnSnap.autoFollowSnapJs("Hello world.")
+        val guardIdx = js.indexOf("if(!document.body) return \"off\";")
+        val walkerIdx = js.indexOf("document.createTreeWalker(document.body")
+        assertTrue("guard present", guardIdx >= 0)
+        assertTrue("walker present", walkerIdx >= 0)
+        assertTrue("guard sits BEFORE the walker call", guardIdx < walkerIdx)
+    }
+
+    @Test
+    fun `measureNarratedColumnsJs guards createTreeWalker against a null document body (issue 428)`() {
+        // measureNarratedColumnsJs inlines narratedColumnsPreludeJs (private), so this exercises the
+        // shared prelude's guard from the public surface.
+        val js = ColumnSnap.measureNarratedColumnsJs("Hello world.")
+        val guardIdx = js.indexOf("if(!document.body) return \"off\";")
+        val walkerIdx = js.indexOf("document.createTreeWalker(document.body")
+        assertTrue("guard present", guardIdx >= 0)
+        assertTrue("walker present", walkerIdx >= 0)
+        assertTrue("guard sits BEFORE the walker call", guardIdx < walkerIdx)
+    }
 }

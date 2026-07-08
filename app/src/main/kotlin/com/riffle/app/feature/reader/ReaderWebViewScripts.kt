@@ -396,6 +396,10 @@ internal fun resolveSelectionSentenceJs(sentences: List<Pair<String, String>>): 
       var sents=$sents;
       var iw=window.innerWidth, ih=window.innerHeight;
       var LH=Math.max(8, sel.bottom - sel.top);
+      // #428 guard: chapter injections can fire before document.body is populated
+      // (e.g. right after a sandboxed WebView restart); createTreeWalker throws
+      // "parameter 1 is not of type 'Node'" and wedges the highlight pipeline.
+      if(!document.body) return "";
       var w=document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, null, false), n;
       var bestId="", bestTop=-1e9, bestLeft=-1e9;
       while(n=w.nextNode()){
@@ -442,6 +446,8 @@ internal fun firstVisibleSentenceJs(highlights: List<String>): String {
     return """
     (function(){
       var keys=$keys;
+      // #428 guard: see sentenceIdAtSelectionJs.
+      if(!document.body) return "";
       var w=document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, null, false), n;
       var TOL=24;
       while(n=w.nextNode()){
