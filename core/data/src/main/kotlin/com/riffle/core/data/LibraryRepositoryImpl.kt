@@ -23,6 +23,7 @@ import com.riffle.core.domain.LibraryRefresher
 import com.riffle.core.domain.Series
 import com.riffle.core.domain.SourceRepository
 import com.riffle.core.domain.TokenStorage
+import com.riffle.core.network.AbsCoverUrl
 import com.riffle.core.network.AbsLibraryApi
 import com.riffle.core.network.NetworkResult
 import com.riffle.core.network.errorAsThrowable
@@ -330,7 +331,7 @@ class LibraryRepositoryImpl @Inject constructor(
     )
 
     private fun absCoverUrl(baseUrl: String, itemId: String, updatedAt: Long?) =
-        "$baseUrl/api/items/$itemId/cover" + (updatedAt?.let { "?t=$it" } ?: "")
+        AbsCoverUrl.of(baseUrl, itemId, updatedAt)
 
     private fun CollectionEntity.toDomain() = Collection(
         id = id,

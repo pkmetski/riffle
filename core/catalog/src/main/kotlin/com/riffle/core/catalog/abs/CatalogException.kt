@@ -13,6 +13,7 @@ sealed class CatalogException(message: String, cause: Throwable? = null) : Runti
     class ServerError(val code: Int, msg: String?) : CatalogException("HTTP $code${msg?.let { ": $it" } ?: ""}")
     class Parse(cause: Throwable) : CatalogException("Parse error", cause)
     class Insecure(val cause0: Throwable? = null) : CatalogException("Insecure connection", cause0)
+    class UnsupportedFormat(msg: String) : CatalogException(msg)
     class Unknown(cause: Throwable) : CatalogException("Unknown", cause)
 }
 

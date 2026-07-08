@@ -13,3 +13,12 @@ object AbsAudioUrl {
         "${baseUrl.trimEnd('/')}/api/items/$itemId/file/$ino"
 }
 
+/**
+ * Builds ABS item-cover URLs. Cover requests are unauthenticated at the ABS layer; the optional
+ * `?t=` query param busts client image caches when the item is re-covered upstream.
+ */
+object AbsCoverUrl {
+    fun of(baseUrl: String, itemId: String, updatedAt: Long?): String =
+        "${baseUrl.trimEnd('/')}/api/items/$itemId/cover" + (updatedAt?.let { "?t=$it" } ?: "")
+}
+

@@ -29,6 +29,7 @@ import com.riffle.core.domain.EbookFormat
 import com.riffle.core.domain.SourceType
 import com.riffle.core.network.AbsAudioUrl
 import com.riffle.core.network.AbsBookmarkApi
+import com.riffle.core.network.AbsCoverUrl
 import com.riffle.core.network.AbsLibraryApi
 import com.riffle.core.network.AbsPlaybackApi
 import com.riffle.core.network.AbsServerInfoApi
@@ -127,19 +128,17 @@ class AbsCatalog(
             }
             BookFormat.Audiobook -> {
                 // Audiobook streams are per-track — callers use AudiobookMediaCapability instead.
-                throw IllegalArgumentException("Audiobook file handles are per-track — use AudiobookMediaCapability.buildStreamUrl")
+                throw CatalogException.UnsupportedFormat("Audiobook file handles are per-track — use AudiobookMediaCapability.buildStreamUrl")
             }
-            BookFormat.Unsupported -> throw IllegalArgumentException("Cannot fetch Unsupported format")
+            BookFormat.Unsupported -> throw CatalogException.UnsupportedFormat("Cannot fetch Unsupported format")
         }
     }
 
     override suspend fun connectivityCheck(): CatalogHealth {
+        // AbsApiClient.getServerInfo swallows failures and returns null on any error, so we can't
+        // surface a specific error string — reachability collapses to (version != null).
         val startMs = clock.nowMs()
-        val version = try {
-            serverInfoApi.getServerInfo(config.baseUrl, config.token, config.insecureAllowed)
-        } catch (t: Throwable) {
-            return CatalogHealth(isReachable = false, error = t.message)
-        }
+        val version = serverInfoApi.getServerInfo(config.baseUrl, config.token, config.insecureAllowed)
         return CatalogHealth(
             isReachable = version != null,
             serverVersion = version,
@@ -168,7 +167,9 @@ class AbsCatalog(
                 title = book.title,
                 author = book.author,
                 coverUrl = coverUrl(book.id, book.updatedAt),
-                ebookFormat = book.ebookFormat.toCatalogFormat(),
+                ebookFormat = book.ebookFormat.toCatalogFormat(hasAudio = book.hasAudio),
+                hasAudio = book.hasAudio,
+                audioDurationSec = book.audioDurationSec,
                 ebookFileIno = book.ebookFileIno,
                 description = book.description,
                 seriesName = book.seriesName,
@@ -254,9 +255,11 @@ class AbsCatalog(
         isFinished: Boolean,
         lastUpdateEpochMs: Long,
     ) {
-        // ABS's audiobook progress patch derives `isFinished` server-side from progress==1.0; the
-        // isFinished param is captured for API symmetry with ebook progress but not sent — see
-        // NetworkAudiobookProgressPayload (ADR 0029).
+        // ABS derives finished-state server-side from progress==1.0 for audiobook records (ADR 0029),
+        // so the `isFinished` param is captured for capability parity but not forwarded here. A
+        // Source that needs to explicitly signal "mark finished at t<duration" would have to send
+        // the ebook side of the shared media-progress record (see `pushEbookProgress`) with the
+        // same itemId — see project_mark_read_unread_audiobook_bug for the shape of that path.
         sessionApi.syncAudiobookProgress(
             config.baseUrl,
             itemId,
@@ -356,7 +359,7 @@ class AbsCatalog(
     // region mappers
 
     private fun coverUrl(itemId: String, updatedAt: Long?): String =
-        "${config.baseUrl.trimEnd('/')}/api/items/$itemId/cover" + (updatedAt?.let { "?t=$it" } ?: "")
+        AbsCoverUrl.of(config.baseUrl, itemId, updatedAt)
 
     private fun NetworkLibrary.toCatalogRoot(): CatalogRoot = CatalogRoot(
         id = id,
@@ -414,7 +417,10 @@ class AbsCatalog(
         ebookProgress = ebookProgress,
         audioCurrentTime = currentTime,
         audioDuration = duration,
-        isFinished = false,
+        // NetworkServerProgress lacks an explicit `finishedAt`, so derive the same way ABS does
+        // server-side: ebook 100% OR audio at/past duration. Matches pullAllProgress, which reads
+        // ABS's user-level `finishedAt` — either path answers the same question for the same item.
+        isFinished = ebookProgress >= 1f || (duration > 0.0 && currentTime >= duration),
         lastUpdate = lastUpdate,
     )
 
@@ -438,7 +444,12 @@ class AbsCatalog(
         SortKey.AUTHOR -> compareBy { it.author.lowercase() }
         SortKey.ADDED_AT -> compareByDescending { it.addedAt ?: 0L }
         SortKey.PUBLISHED_YEAR -> compareBy { it.publishedYear ?: "" }
-        SortKey.RECENTLY_OPENED -> compareBy { it.title.lowercase() }
+        // Last-opened is a per-device local concept ABS doesn't track. Repositories (#434) apply
+        // this ordering on top of catalog output; the Catalog layer refuses so silent fall-through
+        // to title-order can't mask the missing local-store lookup.
+        SortKey.RECENTLY_OPENED -> throw CatalogException.UnsupportedFormat(
+            "SortKey.RECENTLY_OPENED is a local ordering — apply it above the Catalog layer",
+        )
     }
 
     private fun <T> List<T>.pageOf(page: Int, pageSize: Int): List<T> {

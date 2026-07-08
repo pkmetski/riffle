@@ -131,6 +131,16 @@ class AbsCatalogTest {
         assertTrue(page2.isEmpty())
     }
 
+    @Test fun `browse with RECENTLY_OPENED refuses instead of silently sorting by title`() = runTest {
+        libraryApi.libraryItems["lib-a"] = listOf(item(id = "1", title = "Alpha"))
+
+        try {
+            catalog.browse(rootId = "lib-a", sort = SortKey.RECENTLY_OPENED)
+            fail("expected CatalogException.UnsupportedFormat")
+        } catch (_: CatalogException.UnsupportedFormat) {
+        }
+    }
+
     @Test fun `browse sorts by ADDED_AT descending`() = runTest {
         libraryApi.libraryItems["lib-a"] = listOf(
             item(id = "1", title = "Old", addedAt = 100L),
@@ -186,11 +196,19 @@ class AbsCatalogTest {
         assertEquals(BookFormat.Epub, handle.format)
     }
 
-    @Test fun `fetchFile Audiobook rejects — callers use AudiobookMediaCapability`() = runTest {
+    @Test fun `fetchFile Audiobook rejects with CatalogException UnsupportedFormat`() = runTest {
         try {
             catalog.fetchFile(itemId = "it-1", format = BookFormat.Audiobook)
-            fail("expected IllegalArgumentException")
-        } catch (_: IllegalArgumentException) {
+            fail("expected CatalogException.UnsupportedFormat")
+        } catch (_: CatalogException.UnsupportedFormat) {
+        }
+    }
+
+    @Test fun `fetchFile Unsupported rejects with CatalogException UnsupportedFormat`() = runTest {
+        try {
+            catalog.fetchFile(itemId = "it-1", format = BookFormat.Unsupported)
+            fail("expected CatalogException.UnsupportedFormat")
+        } catch (_: CatalogException.UnsupportedFormat) {
         }
     }
 
@@ -265,6 +283,27 @@ class AbsCatalogTest {
 
         assertEquals(listOf("f1", "f2"), items.map { it.id })
         assertEquals(listOf("Foundation Book 1", "Foundation Book 2"), items.map { it.title })
+    }
+
+    @Test fun `listItemsInSeries carries hasAudio through so audio-only titles stay Audiobook`() = runTest {
+        libraryApi.seriesByLibrary["lib-a"] = listOf(
+            NetworkSeries(
+                id = "s1",
+                libraryId = "lib-a",
+                name = "Foundation",
+                items = listOf(
+                    seriesItem("f1", "Ebook Book").copy(hasAudio = false, ebookFormat = EbookFormat.Epub),
+                    seriesItem("f2", "Audiobook Book").copy(hasAudio = true, audioDurationSec = 3600.0, ebookFormat = EbookFormat.Unsupported),
+                ),
+            ),
+        )
+
+        val items = catalog.listItemsInSeries(rootId = "lib-a", seriesId = "s1")
+
+        assertEquals(BookFormat.Epub, items[0].ebookFormat)
+        assertEquals(BookFormat.Audiobook, items[1].ebookFormat)
+        assertEquals(true, items[1].hasAudio)
+        assertEquals(3600.0, items[1].audioDurationSec, 0.0)
     }
 
     // endregion
@@ -396,6 +435,32 @@ class AbsCatalogTest {
         assertEquals(30.0, result.audioCurrentTime, 0.0)
         assertEquals(300.0, result.audioDuration, 0.0)
         assertEquals(999L, result.lastUpdate)
+        assertEquals(false, result.isFinished)
+    }
+
+    @Test fun `pullProgress derives isFinished when ebook progress hits 1`() = runTest {
+        sessionApi.progressForItem["it-1"] = NetworkServerProgress(
+            ebookLocation = "epubcfi(/6/8)",
+            ebookProgress = 1f,
+            lastUpdate = 999L,
+        )
+
+        val result = catalog.pullProgress(itemId = "it-1")!!
+
+        assertEquals(true, result.isFinished)
+    }
+
+    @Test fun `pullProgress derives isFinished when audio currentTime reaches duration`() = runTest {
+        sessionApi.progressForItem["it-1"] = NetworkServerProgress(
+            ebookLocation = "",
+            currentTime = 3600.0,
+            duration = 3600.0,
+            lastUpdate = 999L,
+        )
+
+        val result = catalog.pullProgress(itemId = "it-1")!!
+
+        assertEquals(true, result.isFinished)
     }
 
     @Test fun `pullAllProgress converts NetworkUserMediaProgress map to list`() = runTest {

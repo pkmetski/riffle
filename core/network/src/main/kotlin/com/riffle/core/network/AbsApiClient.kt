@@ -200,6 +200,8 @@ class AbsApiClient(
                         publishedYear = book.media.metadata.publishedYear,
                         genres = book.media.metadata.genres,
                         publisher = book.media.metadata.publisher,
+                        hasAudio = book.media.hasAudio,
+                        audioDurationSec = book.media.audioDurationSec,
                         updatedAt = book.updatedAt,
                     )
                 },

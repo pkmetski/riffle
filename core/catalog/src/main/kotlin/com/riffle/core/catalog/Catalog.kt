@@ -17,7 +17,9 @@ interface Catalog {
 
     /**
      * Browsable roots. For ABS these are Libraries; flat-catalog Sources (LocalFiles, Gutenberg)
-     * return a single synthetic root. Never empty.
+     * return a single synthetic root. May be empty when the backend genuinely has no roots (a
+     * fresh ABS instance with zero libraries) — callers must handle the empty case rather than
+     * assume a default is present.
      */
     suspend fun listRoots(): List<CatalogRoot>
 
