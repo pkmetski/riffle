@@ -42,6 +42,8 @@ internal class ContinuousDecorationController(
 
     private var currentAnnotationsByHref: Map<String, List<AnnotationHighlight>> = emptyMap()
     private var currentSearchHighlights: SearchHighlightsState? = null
+    private var currentFigureCssRules: List<String> = emptyList()
+    private var currentSvgMatches: List<com.riffle.app.feature.reader.decorations.FigureBorderDecoration.SvgMatch> = emptyList()
 
     /**
      * Cadence chapter-load hook (issue #403). The reader screen sets this on session bind so
@@ -79,6 +81,32 @@ internal class ContinuousDecorationController(
         // Cadence tokenises the chapter DOM once per chapter enter — the reader screen's hook
         // runs CadenceDomScript.tokeniseChapterJs and hands the parsed maps back to the VM.
         cadenceOnChapterLoaded?.invoke(wv)
+        // Figure borders: a freshly loaded chapter needs the current rule set injected too so
+        // annotated figures show their outline the moment they scroll into view.
+        applyFigureBordersTo(wv)
+    }
+
+    /**
+     * Push the given figure-border rules (raster CSS + inline-SVG JS matches, from
+     * [com.riffle.app.feature.reader.decorations.FigureBorderDecoration]) to every loaded chapter
+     * WebView, and remember them so chapters entering the sliding window later
+     * (via [onChapterLoaded]) automatically pick them up.
+     */
+    fun applyFigureBorders(
+        cssRules: List<String>,
+        svgMatches: List<com.riffle.app.feature.reader.decorations.FigureBorderDecoration.SvgMatch>,
+    ) {
+        currentFigureCssRules = cssRules
+        currentSvgMatches = svgMatches
+        port.forEachLoadedWebView { applyFigureBordersTo(it) }
+    }
+
+    private fun applyFigureBordersTo(wv: ChapterWebViewLike) {
+        wv.evaluateJavascript(com.riffle.app.feature.reader.decorations.figureBorderInjectionJs(), null)
+        wv.evaluateJavascript(
+            com.riffle.app.feature.reader.decorations.figureBorderApplyJs(currentFigureCssRules, currentSvgMatches),
+            null,
+        )
     }
 
     override fun applyAnnotationHighlights(annotationsByHref: Map<String, List<AnnotationHighlight>>) {

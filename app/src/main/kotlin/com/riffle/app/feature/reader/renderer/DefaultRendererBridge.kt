@@ -70,6 +70,11 @@ internal class DefaultRendererBridge(
         svgMatches: List<com.riffle.app.feature.reader.decorations.FigureBorderDecoration.SvgMatch>,
     ) {
         val frag = fragment ?: return
+        android.util.Log.d(
+            "FigDiag",
+            "applyFigureBorders cssRules.size=${cssRules.size} svgMatches.size=${svgMatches.size}",
+        )
+        cssRules.forEachIndexed { i, r -> android.util.Log.d("FigDiag", "  cssRule[$i]: $r") }
         frag.evaluateJavascript(figureBorderInjectionJs())
         frag.evaluateJavascript(figureBorderApplyJs(cssRules, svgMatches))
     }

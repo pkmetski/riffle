@@ -395,6 +395,17 @@ internal class ContinuousReaderView @JvmOverloads constructor(
         controller.applyAnnotationHighlights(annotationsByHref)
 
     /**
+     * Push the current figure-border rules to every loaded chapter WebView. Mirrors the
+     * paginated path in [com.riffle.app.feature.reader.renderer.DefaultRendererBridge.applyFigureBorders]
+     * — same CSS + SVG-matching JS, applied per chapter. State is remembered so chapters entering
+     * the sliding window later (via [ContinuousDecorationController.onChapterLoaded]) re-apply.
+     */
+    fun applyFigureBorders(
+        cssRules: List<String>,
+        svgMatches: List<com.riffle.app.feature.reader.decorations.FigureBorderDecoration.SvgMatch>,
+    ) = controller.applyFigureBorders(cssRules, svgMatches)
+
+    /**
      * Abort any in-progress fling animation so that the OverScroller stops updating scrollY.
      *
      * [NestedScrollView] does not expose a public abort-fling API, so we reach the mScroller field

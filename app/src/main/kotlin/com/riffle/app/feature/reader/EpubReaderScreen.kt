@@ -2282,12 +2282,14 @@ private fun EpubNavigatorView(
     // set itself already reflects "newest wins" (FigureBorderDecoration.buildCssRules), so no
     // dedup/ordering work is needed here — just re-push on every relevant reflow/page-load/
     // annotations-change tick, same cadence as the persisted-highlights effect above.
-    LaunchedEffect(rendererBridge, isContinuous, annotations, reflowGeneration, pageLoadGeneration.value) {
-        if (isContinuous) return@LaunchedEffect
-        rendererBridge.applyFigureBorders(
-            FigureBorderDecoration.buildCssRules(annotations),
-            FigureBorderDecoration.buildSvgMatches(annotations),
-        )
+    LaunchedEffect(rendererBridge, isContinuous, continuousViewRef.value, annotations, reflowGeneration, pageLoadGeneration.value) {
+        val cssRules = FigureBorderDecoration.buildCssRules(annotations)
+        val svgMatches = FigureBorderDecoration.buildSvgMatches(annotations)
+        if (isContinuous) {
+            continuousViewRef.value?.applyFigureBorders(cssRules, svgMatches)
+        } else {
+            rendererBridge.applyFigureBorders(cssRules, svgMatches)
+        }
     }
 
     // ---- Decoration tap listener (annotations) ---------------------------------------------
