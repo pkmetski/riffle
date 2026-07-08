@@ -12,6 +12,8 @@ Always run harness tests via `make harness-test` (phone-form-factor tests) or `m
 
 When debugging with `[DEBUG-<tag>]` logs the user is reproducing for you, **fetch the logcat yourself** — don't ask the user to paste it. The user's device is connected via `adb`; run e.g. `adb logcat -d | grep DEBUG-<tag>` (use `-d` to dump and exit, not stream). Clear the buffer with `adb logcat -c` before they reproduce so the output isn't drowned in history. If multiple devices/emulators are connected, pick the right one with `-s <serial>` (`adb devices`). Trust the user when they say "reproduced" — go fetch.
 
+Assume the user is testing on the correct/latest version of the app. Don't diagnose a reported bug as "wrong APK installed" based on the emulator's build SHA, the drawer version string, or a missing symbol in the installed commit — the user is typically reproducing on their physical device (or a fresh install), not on the emulator you're driving. Treat the bug as real and dig into the code.
+
 ## Reader mode changes
 
 The reader has three modes: **paginated**, **vertical**, and **continuous**.

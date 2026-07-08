@@ -424,6 +424,47 @@ class AnnotationSessionTest {
     }
 
     /**
+     * Regression: [AnnotationSession.dismissHighlightActions] must wait for the observed-
+     * annotations Flow to include the just-created row before firing [mergeAfterEdit], because
+     * Room's InvalidationTracker emits on a background executor and can lag the insert. Before
+     * this fix, a synchronous `firstOrNull { it.id == id }` returned null and the dismiss
+     * silently early-returned — so highlighting two adjacent words in quick succession never
+     * merged them on the second popup's dismiss. This test asserts merge still fires when the
+     * flow is populated AFTER dismiss but before the timeout elapses.
+     */
+    @Test
+    fun `dismissHighlightActions awaits the annotations flow when the row is not yet present`() = runTest {
+        val dispatcher = UnconfinedTestDispatcher(testScheduler)
+        val sessionScope = CoroutineScope(dispatcher)
+        val store = FakeAnnotationStore()
+        val syncOps = FakeSyncOps()
+        val mergeCalls = mutableListOf<Triple<String, String, String?>>()
+        val session = makeSession(
+            store = store, syncOps = syncOps, scope = sessionScope,
+            mergeAfterEdit = { id, color, note -> mergeCalls += Triple(id, color, note) },
+        )
+        defaultBind(session)
+        // Row is NOT yet in the observed flow — simulating the Room emission lag.
+        store.allAnnotations.value = emptyList()
+        session.openHighlightActions("h1", androidx.compose.ui.unit.IntRect(0, 0, 0, 0))
+
+        session.dismissHighlightActions()
+
+        // Merge hasn't fired yet — the coroutine is suspended awaiting the flow.
+        assertEquals(0, mergeCalls.size)
+
+        // Now the Room observer catches up.
+        store.allAnnotations.value = listOf(makeAnnotation(id = "h1", color = "green").copy(note = null))
+
+        // Merge fires with the observed row's state.
+        assertEquals(1, mergeCalls.size)
+        assertEquals("h1", mergeCalls[0].first)
+        assertEquals("green", mergeCalls[0].second)
+        assertNull(mergeCalls[0].third)
+        sessionScope.coroutineContext[Job]?.cancel()
+    }
+
+    /**
      * Regression: tapping "Add note" transitions the actions popup into the note editor. The
      * actions popup closes, but this MUST NOT fire mergeAfterEdit — the row is about to receive
      * a note. A merge fired here would (a) absorb the row into a same-colour neighbour and (b)
