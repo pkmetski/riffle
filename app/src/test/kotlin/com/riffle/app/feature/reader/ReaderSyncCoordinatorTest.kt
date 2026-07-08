@@ -69,7 +69,7 @@ class ReaderSyncCoordinatorTest {
         private fun nextStamp(): Long { clock += 1_000; return clock }
 
         override suspend fun pushEbookProgress(
-            itemId: String, location: String, progress: Float, isFinished: Boolean, lastUpdateEpochMs: Long,
+            itemId: String, location: String, progress: Float, isFinished: Boolean?, lastUpdateEpochMs: Long,
         ): Long {
             ebookLocation = location
             ebookProgress = progress
@@ -79,7 +79,7 @@ class ReaderSyncCoordinatorTest {
         }
 
         override suspend fun pushAudiobookProgress(
-            itemId: String, currentTimeSec: Double, durationSec: Double, isFinished: Boolean, lastUpdateEpochMs: Long,
+            itemId: String, currentTimeSec: Double, durationSec: Double, isFinished: Boolean?, lastUpdateEpochMs: Long,
         ): Long {
             audioCurrentTime = currentTimeSec
             audioDuration = durationSec

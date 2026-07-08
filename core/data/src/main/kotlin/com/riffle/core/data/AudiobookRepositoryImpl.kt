@@ -52,7 +52,9 @@ class AudiobookRepositoryImpl @Inject constructor(
                 itemId = itemId,
                 currentTimeSec = positionSec,
                 durationSec = durationSec,
-                isFinished = durationSec > 0.0 && positionSec >= durationSec,
+                // ABS derives audiobook finished-state from progress==1.0 server-side; sending
+                // isFinished here would only touch the ebook dimension of the shared record.
+                isFinished = null,
                 lastUpdateEpochMs = clock.nowMs(),
             )
         }

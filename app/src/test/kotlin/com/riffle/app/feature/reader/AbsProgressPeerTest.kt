@@ -48,16 +48,16 @@ class AbsProgressPeerTest {
 
     /** PATCH succeeds — peer echoes the stamp back mirroring ABS's PATCH response. */
     private class OkPeer(private val stamp: Long) : ProgressPeerCapability {
-        override suspend fun pushEbookProgress(itemId: String, location: String, progress: Float, isFinished: Boolean, lastUpdateEpochMs: Long) = stamp
-        override suspend fun pushAudiobookProgress(itemId: String, currentTimeSec: Double, durationSec: Double, isFinished: Boolean, lastUpdateEpochMs: Long) = stamp
+        override suspend fun pushEbookProgress(itemId: String, location: String, progress: Float, isFinished: Boolean?, lastUpdateEpochMs: Long) = stamp
+        override suspend fun pushAudiobookProgress(itemId: String, currentTimeSec: Double, durationSec: Double, isFinished: Boolean?, lastUpdateEpochMs: Long) = stamp
         override suspend fun pullProgress(itemId: String): CatalogProgress? = null
         override suspend fun pullAllProgress(): List<CatalogProgress> = emptyList()
     }
 
     /** PATCH fails at the network. */
     private class FailPeer : ProgressPeerCapability {
-        override suspend fun pushEbookProgress(itemId: String, location: String, progress: Float, isFinished: Boolean, lastUpdateEpochMs: Long): Long? = throw java.io.IOException("boom")
-        override suspend fun pushAudiobookProgress(itemId: String, currentTimeSec: Double, durationSec: Double, isFinished: Boolean, lastUpdateEpochMs: Long): Long? = throw java.io.IOException("boom")
+        override suspend fun pushEbookProgress(itemId: String, location: String, progress: Float, isFinished: Boolean?, lastUpdateEpochMs: Long): Long? = throw java.io.IOException("boom")
+        override suspend fun pushAudiobookProgress(itemId: String, currentTimeSec: Double, durationSec: Double, isFinished: Boolean?, lastUpdateEpochMs: Long): Long? = throw java.io.IOException("boom")
         override suspend fun pullProgress(itemId: String): CatalogProgress? = null
         override suspend fun pullAllProgress(): List<CatalogProgress> = emptyList()
     }

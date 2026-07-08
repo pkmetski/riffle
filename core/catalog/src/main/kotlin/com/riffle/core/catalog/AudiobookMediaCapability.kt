@@ -2,7 +2,9 @@ package com.riffle.core.catalog
 
 interface AudiobookMediaCapability : CatalogCapability {
     suspend fun getTracks(itemId: String): List<CatalogAudioTrack>
-    suspend fun getFingerprint(itemId: String): CatalogAudioFingerprint
+    /** Returns `null` when the item carries no audiobook on this Source (distinct from a fetch
+     *  failure, which throws). Callers persist the NO_AUDIOBOOK verdict definitively on null. */
+    suspend fun getFingerprint(itemId: String): CatalogAudioFingerprint?
 
     /** Direct streaming URL for a specific track. Includes any auth token needed for playback. */
     fun buildStreamUrl(itemId: String, trackIno: String): String

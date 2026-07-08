@@ -275,11 +275,14 @@ class AbsCatalog(
         itemId: String,
         location: String,
         progress: Float,
-        isFinished: Boolean,
+        isFinished: Boolean?,
         lastUpdateEpochMs: Long,
     ): Long? = sessionApi.syncEbookProgress(
         config.baseUrl,
         itemId,
+        // Leave `isFinished` nullable through to the payload: null = leave the audio dimension of
+        // ABS's shared media-progress record untouched. Non-null zeroes the audio side per
+        // NetworkEbookProgressPayload's contract — only mark-read/mark-unread callers do that.
         NetworkEbookProgressPayload(ebookLocation = location, ebookProgress = progress, isFinished = isFinished),
         config.token,
         config.insecureAllowed,
@@ -289,7 +292,7 @@ class AbsCatalog(
         itemId: String,
         currentTimeSec: Double,
         durationSec: Double,
-        isFinished: Boolean,
+        isFinished: Boolean?,
         lastUpdateEpochMs: Long,
     ): Long? {
         // ABS derives finished-state server-side from progress==1.0 for audiobook records (ADR 0029),
@@ -304,8 +307,12 @@ class AbsCatalog(
     }
 
     override suspend fun pullProgress(itemId: String): CatalogProgress? {
+        // A successful GET always yields a CatalogProgress (fields may all be empty for a
+        // never-touched item — callers detect that via `lastUpdate <= 0L`). A network failure
+        // surfaces as a thrown [CatalogException] from `unwrap()`; the peer-adapter's runCatching
+        // treats that as "unreachable" and returns null. Collapsing "reachable-empty" to null here
+        // would make the two states indistinguishable and drop the first push on a fresh book.
         val p = sessionApi.getProgress(config.baseUrl, itemId, config.token, config.insecureAllowed).unwrap()
-        if (p.lastUpdate == 0L && p.ebookLocation.isEmpty() && p.currentTime == 0.0) return null
         return p.toCatalogProgress(itemId)
     }
 
@@ -376,9 +383,12 @@ class AbsCatalog(
         }
     }
 
-    override suspend fun getFingerprint(itemId: String): CatalogAudioFingerprint {
+    override suspend fun getFingerprint(itemId: String): CatalogAudioFingerprint? {
+        // A successful GET with no audiobook is a first-class outcome (Success(null) on the
+        // network layer) — surface it as null so the caller persists a definitive NO_AUDIOBOOK
+        // verdict rather than re-fingerprinting on every open. Network failures still throw.
         val fp: AudiobookFingerprint = libraryApi.getAudiobookFingerprint(config.baseUrl, itemId, config.token, config.insecureAllowed).unwrap()
-            ?: throw CatalogException.Unknown(IllegalStateException("Item $itemId has no audiobook"))
+            ?: return null
         return CatalogAudioFingerprint(
             itemId = itemId,
             fileSizeBytes = fp.fileSizeBytes,

@@ -43,7 +43,7 @@ class CatalogEbookProgressRemote(
                 itemId = itemId,
                 location = cfi,
                 progress = readingProgress(),
-                isFinished = false,
+                isFinished = null,
                 lastUpdateEpochMs = clock.nowMs(),
             )
             stamp?.takeIf { it > 0L } ?: clock.nowMs()
@@ -75,7 +75,7 @@ class CatalogAudioProgressRemote(
                 itemId = itemId,
                 currentTimeSec = position,
                 durationSec = duration(),
-                isFinished = false,
+                isFinished = null,
                 lastUpdateEpochMs = clock.nowMs(),
             )
             stamp?.takeIf { it > 0L } ?: clock.nowMs()

@@ -22,13 +22,13 @@ class AbsProgressRemoteTest {
         var failGet: Boolean = false,
         var failPush: Boolean = false,
     ) : ProgressPeerCapability {
-        data class Ebook(val itemId: String, val location: String, val progress: Float, val isFinished: Boolean, val ts: Long)
-        data class Audio(val itemId: String, val currentTimeSec: Double, val durationSec: Double, val isFinished: Boolean, val ts: Long)
+        data class Ebook(val itemId: String, val location: String, val progress: Float, val isFinished: Boolean?, val ts: Long)
+        data class Audio(val itemId: String, val currentTimeSec: Double, val durationSec: Double, val isFinished: Boolean?, val ts: Long)
         var lastEbook: Ebook? = null
         var lastAudio: Audio? = null
 
         override suspend fun pushEbookProgress(
-            itemId: String, location: String, progress: Float, isFinished: Boolean, lastUpdateEpochMs: Long,
+            itemId: String, location: String, progress: Float, isFinished: Boolean?, lastUpdateEpochMs: Long,
         ): Long? {
             if (failPush) throw RuntimeException("down")
             lastEbook = Ebook(itemId, location, progress, isFinished, lastUpdateEpochMs)
@@ -36,7 +36,7 @@ class AbsProgressRemoteTest {
         }
 
         override suspend fun pushAudiobookProgress(
-            itemId: String, currentTimeSec: Double, durationSec: Double, isFinished: Boolean, lastUpdateEpochMs: Long,
+            itemId: String, currentTimeSec: Double, durationSec: Double, isFinished: Boolean?, lastUpdateEpochMs: Long,
         ): Long? {
             if (failPush) throw RuntimeException("down")
             lastAudio = Audio(itemId, currentTimeSec, durationSec, isFinished, lastUpdateEpochMs)

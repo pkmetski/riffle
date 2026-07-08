@@ -43,7 +43,7 @@ internal suspend fun ProgressPeerCapability.writeAudiobookSeconds(
         itemId = ep.itemId,
         currentTimeSec = seconds.coerceAtLeast(0.0),
         durationSec = ep.durationSec,
-        isFinished = false,
+        isFinished = null,
         lastUpdateEpochMs = now,
     )
     stamp?.takeIf { it > 0L } ?: now
@@ -75,7 +75,7 @@ internal class AbsEbookProgressPeer(
                 itemId = ep.itemId,
                 location = cfi,
                 progress = progress,
-                isFinished = false,
+                isFinished = null,
                 lastUpdateEpochMs = now,
             )
             // Adopt the source stamp when it reported one so a fresh write can't read back as newer

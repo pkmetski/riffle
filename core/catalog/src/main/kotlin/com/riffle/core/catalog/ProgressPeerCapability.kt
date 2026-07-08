@@ -11,11 +11,17 @@ package com.riffle.core.catalog
  * callers substitute the client clock.
  */
 interface ProgressPeerCapability : CatalogCapability {
+    /**
+     * [isFinished] is tri-state: `null` = leave the item-level finished flag untouched (this is
+     * the common case — routine reader-position saves must not touch the audio dimension of ABS's
+     * shared media-progress record); `true`/`false` = explicitly set/clear it (only mark-finished
+     * / mark-unread callers pass a non-null value).
+     */
     suspend fun pushEbookProgress(
         itemId: String,
         location: String,
         progress: Float,
-        isFinished: Boolean,
+        isFinished: Boolean?,
         lastUpdateEpochMs: Long,
     ): Long?
 
@@ -23,7 +29,7 @@ interface ProgressPeerCapability : CatalogCapability {
         itemId: String,
         currentTimeSec: Double,
         durationSec: Double,
-        isFinished: Boolean,
+        isFinished: Boolean?,
         lastUpdateEpochMs: Long,
     ): Long?
 

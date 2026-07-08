@@ -35,7 +35,7 @@ class ReadingSessionRepositoryImpl @Inject constructor(
                 itemId = itemId,
                 location = payload.ebookLocation,
                 progress = payload.ebookProgress,
-                isFinished = false,
+                isFinished = null,
                 lastUpdateEpochMs = clock.nowMs(),
             )
             SyncSessionResult.Success
@@ -70,7 +70,7 @@ class ReadingSessionRepositoryImpl @Inject constructor(
                         itemId = itemId,
                         location = payload.ebookLocation,
                         progress = payload.ebookProgress,
-                        isFinished = false,
+                        isFinished = null,
                         lastUpdateEpochMs = clock.nowMs(),
                     )
                 }.getOrNull()
@@ -103,7 +103,7 @@ class ReadingSessionRepositoryImpl @Inject constructor(
                 itemId = itemId,
                 location = serverProgress.ebookLocation.orEmpty(),
                 progress = serverProgress.ebookProgress,
-                isFinished = false,
+                isFinished = null,
                 lastUpdateEpochMs = clock.nowMs(),
             )
         }

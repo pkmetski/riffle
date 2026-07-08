@@ -97,7 +97,7 @@ class AudiobookRepositoryImplTest {
         override suspend fun openFile(itemId: String, format: BookFormat, handleHint: String?): CatalogFileStream = throw UnsupportedOperationException()
         override suspend fun connectivityCheck() = CatalogHealth(isReachable = true)
         override suspend fun getTracks(itemId: String): List<CatalogAudioTrack> = emptyList()
-        override suspend fun getFingerprint(itemId: String) = CatalogAudioFingerprint(itemId, 0L, 0.0, emptyList())
+        override suspend fun getFingerprint(itemId: String): CatalogAudioFingerprint? = CatalogAudioFingerprint(itemId, 0L, 0.0, emptyList())
         override fun buildStreamUrl(itemId: String, trackIno: String) = ""
         override suspend fun openAudiobook(itemId: String, deviceLabel: String) = stream
         override suspend fun getAudiobookChapters(itemId: String) = emptyList<CatalogAudiobookChapter>()

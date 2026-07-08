@@ -33,8 +33,8 @@ class AudiobookFollowTest {
 
     private class FakePeer(val stamp: Long = 4242L) : ProgressPeerCapability {
         var sentSeconds: Double? = null
-        override suspend fun pushEbookProgress(itemId: String, location: String, progress: Float, isFinished: Boolean, lastUpdateEpochMs: Long) = 0L
-        override suspend fun pushAudiobookProgress(itemId: String, currentTimeSec: Double, durationSec: Double, isFinished: Boolean, lastUpdateEpochMs: Long): Long {
+        override suspend fun pushEbookProgress(itemId: String, location: String, progress: Float, isFinished: Boolean?, lastUpdateEpochMs: Long) = 0L
+        override suspend fun pushAudiobookProgress(itemId: String, currentTimeSec: Double, durationSec: Double, isFinished: Boolean?, lastUpdateEpochMs: Long): Long {
             sentSeconds = currentTimeSec
             return stamp
         }

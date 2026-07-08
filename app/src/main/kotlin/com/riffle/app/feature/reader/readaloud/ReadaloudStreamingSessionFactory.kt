@@ -72,12 +72,16 @@ class ReadaloudStreamingSessionFactory @Inject constructor(
                 else -> Result.failure(RuntimeException("storyteller fingerprint fetch failed"))
             }
             val absFingerprint: Result<AudiobookFingerprint?> = runCatching {
-                val fp = audioCap.getFingerprint(audiobook.bookId)
-                AudiobookFingerprint(
-                    fileSizeBytes = fp.fileSizeBytes,
-                    durationSec = fp.totalDurationSec,
-                    trackDurationsSec = fp.trackDurations,
-                )
+                // Null fingerprint = "no audiobook on this item" (a Source-Success result). Preserve
+                // it so AudiobookIdentityResolver returns the definitive NO_AUDIOBOOK verdict rather
+                // than treating it as an UNKNOWN retry-forever state.
+                audioCap.getFingerprint(audiobook.bookId)?.let { fp ->
+                    AudiobookFingerprint(
+                        fileSizeBytes = fp.fileSizeBytes,
+                        durationSec = fp.totalDurationSec,
+                        trackDurationsSec = fp.trackDurations,
+                    )
+                }
             }
             val verdict = AudiobookIdentityResolver.resolve(stFingerprint, absFingerprint)
             linkRepository.updateIdentityResult(audiobook.sourceId, audiobook.bookId, verdict)
