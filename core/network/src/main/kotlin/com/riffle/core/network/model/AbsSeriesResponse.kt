@@ -28,7 +28,13 @@ internal data class AbsSeriesResponse(val results: List<AbsSeriesDto>) {
         val metadata: AbsSeriesMetadataDto,
         val ebookFormat: String? = null,
         val ebookFile: AbsSeriesEbookFileDto? = null,
-    )
+        val numAudioFiles: Int? = null,
+        val numTracks: Int? = null,
+        val duration: Double? = null,
+    ) {
+        val hasAudio: Boolean get() = (numAudioFiles ?: 0) > 0 || (numTracks ?: 0) > 0
+        val audioDurationSec: Double get() = duration ?: 0.0
+    }
 
     @Serializable
     data class AbsSeriesEbookFileDto(

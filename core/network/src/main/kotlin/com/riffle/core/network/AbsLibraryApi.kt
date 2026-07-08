@@ -30,6 +30,20 @@ interface AbsLibraryApi {
         insecureAllowed: Boolean,
     ): NetworkResult<List<NetworkLibraryItem>>
 
+    /**
+     * `GET /api/libraries/:libraryId/search?q=`. Returns the `book` group of ABS's grouped
+     * search response — podcasts, tags, authors, and series-with-books are dropped, since a
+     * Catalog exposes items only.
+     */
+    suspend fun searchLibrary(
+        baseUrl: String,
+        libraryId: String,
+        query: String,
+        limit: Int,
+        token: String,
+        insecureAllowed: Boolean,
+    ): NetworkResult<List<NetworkLibraryItem>> = throw UnsupportedOperationException("searchLibrary not implemented")
+
     suspend fun getSeries(
         baseUrl: String,
         libraryId: String,
@@ -127,6 +141,18 @@ interface AbsLibraryApi {
         token: String,
         insecureAllowed: Boolean,
     ): NetworkResult<AbsItemDetailResponse> = throw UnsupportedOperationException("getItemDetail not implemented")
+
+    /**
+     * `GET /api/items/:itemId?expanded=1`. Returns the full library-item envelope for a single
+     * item; `null` when ABS responds 404 (item no longer exists). Distinct from [getItemDetail]
+     * which only carries chapter markers.
+     */
+    suspend fun getItem(
+        baseUrl: String,
+        itemId: String,
+        token: String,
+        insecureAllowed: Boolean,
+    ): NetworkResult<NetworkLibraryItem?> = throw UnsupportedOperationException("getItem not implemented")
 
     /**
      * The ABS audiobook's identity fingerprint for the streaming check (ADR 0028). Success(null)
