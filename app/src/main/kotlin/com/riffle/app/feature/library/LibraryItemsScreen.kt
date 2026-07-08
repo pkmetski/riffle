@@ -103,12 +103,14 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.ui.res.painterResource
+import android.util.Log
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.riffle.app.R
 import com.riffle.app.feature.annotations.AnnotationsListScreen
 import com.riffle.app.feature.annotations.AnnotationsListViewModel
 import com.riffle.app.ui.theme.RiffleIcons
+import com.riffle.core.logging.LogChannel
 import com.riffle.core.database.AnnotationEntity
 import com.riffle.core.domain.Collection
 import com.riffle.core.domain.HighlightColor
@@ -551,6 +553,25 @@ private fun CoverGridLayout(
 
 // --- Cover tiles ---
 
+/**
+ * TEMP DEBUG-COVERS instrumentation for reproducing "cover missing offline even though it was
+ * visible online" bug. Logs the URL and Coil DataSource (MEMORY / DISK / NETWORK) for every
+ * cover load, and the throwable class on failure. Rip out once root cause is confirmed and
+ * fixed. Adb: `adb logcat -d | grep RIFFLE_COVERS`.
+ */
+internal fun ImageRequest.Builder.instrumentCover(kind: String, key: String?, url: String?): ImageRequest.Builder =
+    listener(
+        onSuccess = { _, result ->
+            Log.d(LogChannel.Covers.tag, "hit kind=$kind key=$key source=${result.dataSource} url=$url")
+        },
+        onError = { _, result ->
+            Log.d(
+                LogChannel.Covers.tag,
+                "miss kind=$kind key=$key err=${result.throwable::class.simpleName} url=$url",
+            )
+        },
+    )
+
 @Composable
 fun BookCoverTile(
     item: LibraryItem,
@@ -582,6 +603,7 @@ fun BookCoverTile(
                     .data(item.coverUrl)
                     .addHeader("Authorization", "Bearer $token")
                     .crossfade(true)
+                    .instrumentCover("item", item.id, item.coverUrl)
                     .build(),
                 placeholder = ColorPainter(MaterialTheme.colorScheme.surfaceVariant),
                 contentDescription = item.title,
@@ -665,6 +687,7 @@ fun SeriesCoverTile(
                 .data(series.coverUrl)
                 .addHeader("Authorization", "Bearer $token")
                 .crossfade(true)
+                .instrumentCover("series", series.id, series.coverUrl)
                 .build(),
             placeholder = ColorPainter(MaterialTheme.colorScheme.surfaceVariant),
             contentDescription = series.name,
@@ -744,6 +767,7 @@ private fun CollectionCoverImage(url: String?, token: String, modifier: Modifier
             .data(url)
             .addHeader("Authorization", "Bearer $token")
             .crossfade(true)
+            .instrumentCover("collection", null, url)
             .build(),
         placeholder = ColorPainter(MaterialTheme.colorScheme.surfaceVariant),
         contentDescription = null,
@@ -1121,6 +1145,7 @@ internal fun LibraryItemCard(
                     .data(item.coverUrl)
                     .addHeader("Authorization", "Bearer $token")
                     .crossfade(true)
+                    .instrumentCover("card", item.id, item.coverUrl)
                     .build(),
                 placeholder = ColorPainter(MaterialTheme.colorScheme.surfaceVariant),
                 contentDescription = item.title,
