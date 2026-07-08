@@ -65,7 +65,7 @@ class ReadingSessionRepositoryImpl @Inject constructor(
                 )
             }
             localUpdatedAt > serverLastUpdate -> {
-                val ok = runCatching {
+                val stamp = runCatching {
                     peer.pushEbookProgress(
                         itemId = itemId,
                         location = payload.ebookLocation,
@@ -73,8 +73,13 @@ class ReadingSessionRepositoryImpl @Inject constructor(
                         isFinished = false,
                         lastUpdateEpochMs = clock.nowMs(),
                     )
-                }.isSuccess
-                if (ok) positionStore.updateLocalTimestamp(source.id, itemId, clock.nowMs())
+                }.getOrNull()
+                if (stamp != null) {
+                    // Adopt the source-derived stamp; a zero/absent stamp falls back to clock so the
+                    // row still marks clean (matches the old sessionApi.syncEbookProgress path).
+                    val ts = stamp.takeIf { it > 0L } ?: clock.nowMs()
+                    positionStore.updateLocalTimestamp(source.id, itemId, ts)
+                }
                 ProgressSyncCycleResult.LocalWins
             }
             else -> ProgressSyncCycleResult.InSync

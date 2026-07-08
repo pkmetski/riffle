@@ -52,13 +52,13 @@ class PdfRepositoryTest {
         cacheStore = LocalStoreImpl(tmp.newFolder("pdf-cache"), ".pdf", com.riffle.core.domain.DefaultDispatcherProvider)
         downloadsStore = LocalStoreImpl(tmp.newFolder("pdf-downloads"), ".pdf", com.riffle.core.domain.DefaultDispatcherProvider)
         positionStore = FakePdfPositionStore()
+        val sourceRepo = fakeServerRepository(source.url("/").toString().trimEnd('/'))
         repo = PdfRepositoryImpl(
-            api = AbsApiClient(OkHttpClient(), DefaultDispatcherProvider),
+            catalogRegistry = TestCatalogRegistry(sourceRepo, mapOf("source-1" to "test-token")),
             cacheStore = cacheStore,
             downloadsStore = downloadsStore,
             positionStore = positionStore,
-            sourceRepository = fakeServerRepository(source.url("/").toString().trimEnd('/')),
-            tokenStorage = fakeTokenStorage("test-token"),
+            sourceRepository = sourceRepo,
         )
     }
 
@@ -253,12 +253,6 @@ class PdfRepositoryTest {
     // rationale — a user-switch on the same URL leaves the previous source row (and its cached
     // files) in place; the opener must key by item.sourceId, not activeServer.id.
 
-    private fun multiTokenStorage(tokens: Map<String, String>): TokenStorage = object : TokenStorage {
-        override suspend fun saveToken(sourceId: String, token: String) = Unit
-        override suspend fun getToken(sourceId: String): String? = tokens[sourceId]
-        override suspend fun deleteToken(sourceId: String) = Unit
-    }
-
     private fun serverRow(id: String, baseUrl: String, isActive: Boolean) = Source(
         id = id,
         url = SourceUrl.parse(baseUrl)!!,
@@ -268,14 +262,13 @@ class PdfRepositoryTest {
         serverType = ServerType.AUDIOBOOKSHELF,
     )
 
-    private fun repoWith(sourceRepository: SourceRepository, tokenStorage: TokenStorage): PdfRepository =
+    private fun repoWith(sourceRepository: SourceRepository, tokens: Map<String, String>): PdfRepository =
         PdfRepositoryImpl(
-            api = AbsApiClient(OkHttpClient(), com.riffle.core.domain.DefaultDispatcherProvider),
+            catalogRegistry = TestCatalogRegistry(sourceRepository, tokens),
             cacheStore = cacheStore,
             downloadsStore = downloadsStore,
             positionStore = positionStore,
             sourceRepository = sourceRepository,
-            tokenStorage = tokenStorage,
         )
 
     @Test
@@ -291,7 +284,7 @@ class PdfRepositoryTest {
                 ),
                 activeId = newId,
             ),
-            multiTokenStorage(mapOf(oldId to "old-token", newId to "new-token")),
+            (mapOf(oldId to "old-token", newId to "new-token")),
         )
         cacheStore.save(oldId, "item-1", pdfBytes.inputStream())
 
@@ -314,7 +307,7 @@ class PdfRepositoryTest {
                 ),
                 activeId = newId,
             ),
-            multiTokenStorage(mapOf(oldId to "old-token", newId to "new-token")),
+            (mapOf(oldId to "old-token", newId to "new-token")),
         )
         downloadsStore.save(oldId, "item-1", pdfBytes.inputStream())
 
@@ -340,7 +333,7 @@ class PdfRepositoryTest {
                     ),
                     activeId = activeId,
                 ),
-                multiTokenStorage(mapOf(itemId to "item-token", activeId to "active-token")),
+                (mapOf(itemId to "item-token", activeId to "active-token")),
             )
             source.enqueue(MockResponse().setResponseCode(200).setBody(Buffer().write(pdfBytes)))
 
@@ -364,7 +357,7 @@ class PdfRepositoryTest {
                 servers = listOf(serverRow("some-other-source", baseUrl, isActive = true)),
                 activeId = "some-other-source",
             ),
-            multiTokenStorage(mapOf("some-other-source" to "some-token")),
+            (mapOf("some-other-source" to "some-token")),
         )
 
         val result = repo.openPdf(item(sourceId = "orphaned-source"))
@@ -386,7 +379,7 @@ class PdfRepositoryTest {
                 ),
                 activeId = newId,
             ),
-            multiTokenStorage(mapOf(oldId to "old-token", newId to "new-token")),
+            (mapOf(oldId to "old-token", newId to "new-token")),
         )
         source.enqueue(MockResponse().setResponseCode(200).setBody(Buffer().write(pdfBytes)))
 
@@ -409,7 +402,7 @@ class PdfRepositoryTest {
                 ),
                 activeId = newId,
             ),
-            multiTokenStorage(mapOf(oldId to "old-token", newId to "new-token")),
+            (mapOf(oldId to "old-token", newId to "new-token")),
         )
         cacheStore.save(oldId, "item-1", pdfBytes.inputStream())
 
@@ -437,7 +430,7 @@ class PdfRepositoryTest {
                     ),
                     activeId = activeId,
                 ),
-                multiTokenStorage(mapOf(itemId to "item-token", activeId to "active-token")),
+                (mapOf(itemId to "item-token", activeId to "active-token")),
             )
             source.enqueue(MockResponse().setResponseCode(200).setBody(Buffer().write(pdfBytes)))
 
@@ -462,7 +455,7 @@ class PdfRepositoryTest {
                 servers = listOf(serverRow("some-other-source", baseUrl, isActive = true)),
                 activeId = "some-other-source",
             ),
-            multiTokenStorage(mapOf("some-other-source" to "some-token")),
+            (mapOf("some-other-source" to "some-token")),
         )
 
         val result = repo.downloadPdf(item(sourceId = "orphaned-source"))

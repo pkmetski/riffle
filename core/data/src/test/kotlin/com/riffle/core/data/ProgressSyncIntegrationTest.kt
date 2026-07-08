@@ -48,9 +48,8 @@ class ProgressSyncIntegrationTest {
         override suspend fun updateLocalTimestamp(sourceId: String, itemId: String, millis: Long) { updatedTimestamp = millis }
     }
 
-    private fun buildRepo() = ReadingSessionRepositoryImpl(
-        api = AbsApiClient(OkHttpClient(), DefaultDispatcherProvider),
-        sourceRepository = object : SourceRepository {
+    private fun buildRepo(): ReadingSessionRepositoryImpl {
+        val sourceRepo = object : SourceRepository {
             val activeServer = Source(
                 id = "source-1",
                 url = SourceUrl.parse(source.url("/").toString().trimEnd('/'))!!,
@@ -67,13 +66,11 @@ class ProgressSyncIntegrationTest {
             override suspend fun setActive(sourceId: String) = Unit
             override suspend fun remove(sourceId: String) = Unit
             override suspend fun getSourceVersion(sourceId: String): String? = null
-        },
-        tokenStorage = object : TokenStorage {
-            override suspend fun saveToken(sourceId: String, token: String) = Unit
-            override suspend fun getToken(sourceId: String): String? = "test-token"
-            override suspend fun deleteToken(sourceId: String) = Unit
-        },
-        positionStore = positionStore,
+        }
+        return ReadingSessionRepositoryImpl(
+            catalogRegistry = TestCatalogRegistry(sourceRepo, mapOf("source-1" to "test-token")),
+            sourceRepository = sourceRepo,
+            positionStore = positionStore,
         audiobookPositionStore = object : com.riffle.core.domain.AudiobookPositionStore {
             override suspend fun save(sourceId: String, itemId: String, payload: Double) = Unit
             override suspend fun load(sourceId: String, itemId: String): Double? = null
@@ -87,7 +84,8 @@ class ProgressSyncIntegrationTest {
         },
         libraryItemDao = FakeLibraryItemDao(),
             clock = com.riffle.core.domain.TestClock(initialMs = 5_000L),
-    )
+        )
+    }
 
     private fun json(code: Int, body: String) = MockResponse()
         .setResponseCode(code)

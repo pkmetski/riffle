@@ -39,14 +39,14 @@ internal suspend fun ProgressPeerCapability.writeAudiobookSeconds(
     clock: Clock,
 ): Long? = runCatching {
     val now = clock.nowMs()
-    pushAudiobookProgress(
+    val stamp = pushAudiobookProgress(
         itemId = ep.itemId,
         currentTimeSec = seconds.coerceAtLeast(0.0),
         durationSec = ep.durationSec,
         isFinished = false,
         lastUpdateEpochMs = now,
     )
-    now
+    stamp?.takeIf { it > 0L } ?: now
 }.getOrNull()
 
 /** Ebook progress as a [ProgressPeer]: an ebookLocation CFI on the ABS EPUB. */
@@ -71,14 +71,16 @@ internal class AbsEbookProgressPeer(
         val progress = translator.canonicalBookProgress(canonical.value)
         return runCatching {
             val now = clock.nowMs()
-            ep.peer.pushEbookProgress(
+            val stamp = ep.peer.pushEbookProgress(
                 itemId = ep.itemId,
                 location = cfi,
                 progress = progress,
                 isFinished = false,
                 lastUpdateEpochMs = now,
             )
-            WriteResult.Ok(now)
+            // Adopt the source stamp when it reported one so a fresh write can't read back as newer
+            // next cycle (feedback loop). A `null`/`0L` reply falls back to the client clock.
+            WriteResult.Ok(stamp?.takeIf { it > 0L } ?: now)
         }.getOrElse { WriteResult.Failed("ABS ebook PATCH network error") }
     }
 }

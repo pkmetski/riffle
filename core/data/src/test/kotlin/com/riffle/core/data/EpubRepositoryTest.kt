@@ -58,13 +58,13 @@ class EpubRepositoryTest {
         cacheStore = LocalStoreImpl(tmp.newFolder("cache"), ".epub", com.riffle.core.domain.DefaultDispatcherProvider)
         downloadsStore = LocalStoreImpl(tmp.newFolder("downloads"), ".epub", com.riffle.core.domain.DefaultDispatcherProvider)
         positionStore = FakePositionStore()
+        val sourceRepo = fakeServerRepository(source.url("/").toString().trimEnd('/'))
         repo = EpubRepositoryImpl(
-            api = AbsApiClient(OkHttpClient(), DefaultDispatcherProvider),
+            catalogRegistry = TestCatalogRegistry(sourceRepo, mapOf("source-1" to "test-token")),
             cacheStore = cacheStore,
             downloadsStore = downloadsStore,
             positionStore = positionStore,
-            sourceRepository = fakeServerRepository(source.url("/").toString().trimEnd('/')),
-            tokenStorage = fakeTokenStorage("test-token"),
+            sourceRepository = sourceRepo,
         )
     }
 
@@ -268,12 +268,6 @@ class EpubRepositoryTest {
     // directory, misses the truly-cached file, and falls into the network branch. That's the
     // "unable to resolve host" symptom on a cached book while offline.
 
-    private fun multiTokenStorage(tokens: Map<String, String>): TokenStorage = object : TokenStorage {
-        override suspend fun saveToken(sourceId: String, token: String) = Unit
-        override suspend fun getToken(sourceId: String): String? = tokens[sourceId]
-        override suspend fun deleteToken(sourceId: String) = Unit
-    }
-
     private fun serverRow(id: String, baseUrl: String, isActive: Boolean) = Source(
         id = id,
         url = SourceUrl.parse(baseUrl)!!,
@@ -283,14 +277,13 @@ class EpubRepositoryTest {
         serverType = ServerType.AUDIOBOOKSHELF,
     )
 
-    private fun repoWith(sourceRepository: SourceRepository, tokenStorage: TokenStorage): EpubRepository =
+    private fun repoWith(sourceRepository: SourceRepository, tokens: Map<String, String>): EpubRepository =
         EpubRepositoryImpl(
-            api = AbsApiClient(OkHttpClient(), DefaultDispatcherProvider),
+            catalogRegistry = TestCatalogRegistry(sourceRepository, tokens),
             cacheStore = cacheStore,
             downloadsStore = downloadsStore,
             positionStore = positionStore,
             sourceRepository = sourceRepository,
-            tokenStorage = tokenStorage,
         )
 
     @Test
@@ -306,7 +299,7 @@ class EpubRepositoryTest {
                 ),
                 activeId = newId,
             ),
-            multiTokenStorage(mapOf(oldId to "old-token", newId to "new-token")),
+            (mapOf(oldId to "old-token", newId to "new-token")),
         )
         cacheStore.save(oldId, "item-1", epubBytes.inputStream())
 
@@ -329,7 +322,7 @@ class EpubRepositoryTest {
                 ),
                 activeId = newId,
             ),
-            multiTokenStorage(mapOf(oldId to "old-token", newId to "new-token")),
+            (mapOf(oldId to "old-token", newId to "new-token")),
         )
         downloadsStore.save(oldId, "item-1", epubBytes.inputStream())
 
@@ -355,7 +348,7 @@ class EpubRepositoryTest {
                     ),
                     activeId = activeId,
                 ),
-                multiTokenStorage(mapOf(itemId to "item-token", activeId to "active-token")),
+                (mapOf(itemId to "item-token", activeId to "active-token")),
             )
             source.enqueue(MockResponse().setResponseCode(200).setBody(Buffer().write(epubBytes)))
 
@@ -379,7 +372,7 @@ class EpubRepositoryTest {
                 servers = listOf(serverRow("some-other-source", baseUrl, isActive = true)),
                 activeId = "some-other-source",
             ),
-            multiTokenStorage(mapOf("some-other-source" to "some-token")),
+            (mapOf("some-other-source" to "some-token")),
         )
 
         val result = repo.openEpub(item(sourceId = "orphaned-source"))
@@ -401,7 +394,7 @@ class EpubRepositoryTest {
                 ),
                 activeId = newId,
             ),
-            multiTokenStorage(mapOf(oldId to "old-token", newId to "new-token")),
+            (mapOf(oldId to "old-token", newId to "new-token")),
         )
         source.enqueue(MockResponse().setResponseCode(200).setBody(Buffer().write(epubBytes)))
 
@@ -424,7 +417,7 @@ class EpubRepositoryTest {
                 ),
                 activeId = newId,
             ),
-            multiTokenStorage(mapOf(oldId to "old-token", newId to "new-token")),
+            (mapOf(oldId to "old-token", newId to "new-token")),
         )
         cacheStore.save(oldId, "item-1", epubBytes.inputStream())
 
@@ -452,7 +445,7 @@ class EpubRepositoryTest {
                     ),
                     activeId = activeId,
                 ),
-                multiTokenStorage(mapOf(itemId to "item-token", activeId to "active-token")),
+                (mapOf(itemId to "item-token", activeId to "active-token")),
             )
             source.enqueue(MockResponse().setResponseCode(200).setBody(Buffer().write(epubBytes)))
 
@@ -477,7 +470,7 @@ class EpubRepositoryTest {
                 servers = listOf(serverRow("some-other-source", baseUrl, isActive = true)),
                 activeId = "some-other-source",
             ),
-            multiTokenStorage(mapOf("some-other-source" to "some-token")),
+            (mapOf("some-other-source" to "some-token")),
         )
 
         val result = repo.downloadEpub(item(sourceId = "orphaned-source"))

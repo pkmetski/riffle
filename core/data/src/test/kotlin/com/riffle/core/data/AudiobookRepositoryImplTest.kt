@@ -1,20 +1,22 @@
 package com.riffle.core.data
 
-import com.riffle.core.network.NetworkResult
-
+import com.riffle.core.catalog.AudiobookMediaCapability
+import com.riffle.core.catalog.BookFormat
+import com.riffle.core.catalog.Catalog
+import com.riffle.core.catalog.CatalogAudioFingerprint
+import com.riffle.core.catalog.CatalogAudioTrack
+import com.riffle.core.catalog.CatalogAudiobookChapter
+import com.riffle.core.catalog.CatalogAudiobookStream
+import com.riffle.core.catalog.CatalogFileHandle
+import com.riffle.core.catalog.CatalogFileStream
+import com.riffle.core.catalog.CatalogHealth
+import com.riffle.core.catalog.CatalogItem
+import com.riffle.core.catalog.CatalogRegistry
+import com.riffle.core.catalog.CatalogRoot
+import com.riffle.core.catalog.SortKey
+import com.riffle.core.domain.Clock
 import com.riffle.core.domain.Source
-import com.riffle.core.domain.SourceRepository
-import com.riffle.core.domain.SourceUrl
-import com.riffle.core.domain.TokenStorage
-import com.riffle.core.network.AbsPlaybackApi
-import com.riffle.core.network.AbsSessionApi
-import com.riffle.core.network.NetworkAudioChapter
-import com.riffle.core.network.NetworkAudioTrack
-import com.riffle.core.network.NetworkAudiobookProgressPayload
-import com.riffle.core.network.NetworkEbookProgressPayload
-import com.riffle.core.network.NetworkPlaybackSession
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.emptyFlow
+import com.riffle.core.domain.SourceType
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -22,44 +24,32 @@ import org.junit.Test
 
 class AudiobookRepositoryImplTest {
 
-    private val source = Source(
-        id = "srv", url = SourceUrl.parse("http://host:13378")!!, isActive = true,
-        insecureConnectionAllowed = false, username = "u",
-    )
-
-    private fun repo(
-        playback: AbsPlaybackApi,
-        session: AbsSessionApi = NoopSessionApi,
-        serverById: Source? = source,
-        token: String? = "TKN",
-    ) = AudiobookRepositoryImpl(
-        playbackApi = playback,
-        sessionApi = session,
-        sourceRepository = FakeSourceRepository(serverById),
-        tokenStorage = FakeTokenStorage(token),
+    private fun repo(catalog: Catalog?) = AudiobookRepositoryImpl(
+        catalogRegistry = FakeRegistry(catalog),
+        clock = object : Clock { override fun nowMs() = 0L; override fun nowNs() = 0L },
     )
 
     @Test
-    fun `openSession builds absolute tokenised track URLs and maps timeline`() = runTest {
-        val playback = FakePlaybackApi(
-            NetworkResult.Success(
-                NetworkPlaybackSession(
-                    sessionId = "ps",
-                    tracks = listOf(
-                        NetworkAudioTrack(0, 0.0, 100.0, "/api/items/it/file/1", "audio/mpeg"),
-                        NetworkAudioTrack(1, 100.0, 200.0, "/api/items/it/file/2", "audio/mpeg"),
-                    ),
-                    chapters = listOf(
-                        NetworkAudioChapter(0, 0.0, 100.0, "One"),
-                        NetworkAudioChapter(1, 100.0, 300.0, "Two"),
-                    ),
-                    currentTimeSec = 42.0,
-                    durationSec = 300.0,
-                ),
+    fun `openSession maps stream tracks, chapters and timeline`() = runTest {
+        val stream = CatalogAudiobookStream(
+            trackUrls = listOf(
+                "http://host:13378/api/items/it/file/1?token=TKN",
+                "http://host:13378/api/items/it/file/2?token=TKN",
             ),
+            tracks = listOf(
+                CatalogAudioTrack(ino = "1", index = 0, startOffsetSec = 0.0, durationSec = 100.0, contentUrl = ""),
+                CatalogAudioTrack(ino = "2", index = 1, startOffsetSec = 100.0, durationSec = 200.0, contentUrl = ""),
+            ),
+            chapters = listOf(
+                CatalogAudiobookChapter(0, 0.0, 100.0, "One"),
+                CatalogAudiobookChapter(1, 100.0, 300.0, "Two"),
+            ),
+            totalDurationSec = 300.0,
+            serverCurrentTimeSec = 42.0,
+            serverLastUpdate = 1_700_000_000_000L,
         )
 
-        val s = repo(playback).openSession("srv", "it")!!
+        val s = repo(FakeAudioCatalog(stream)).openSession("srv", "it")!!
 
         assertEquals(
             listOf(
@@ -73,113 +63,55 @@ class AudiobookRepositoryImplTest {
         assertEquals(300.0, s.timeline.durationSec, 0.0)
         assertEquals(listOf("One", "Two"), s.timeline.chapters.map { it.title })
         assertEquals(42.0, s.serverCurrentTimeSec, 0.0)
+        assertEquals(1_700_000_000_000L, s.serverLastUpdate)
     }
 
     @Test
-    fun `openSession carries the source lastUpdate from the progress record`() = runTest {
-        val playback = FakePlaybackApi(
-            NetworkResult.Success(
-                NetworkPlaybackSession(
-                    sessionId = "ps",
-                    tracks = listOf(NetworkAudioTrack(0, 0.0, 100.0, "/api/items/it/file/1", "audio/mpeg")),
-                    chapters = emptyList(),
-                    currentTimeSec = 42.0,
-                    durationSec = 100.0,
-                ),
-            ),
-        )
-        val session = object : AbsSessionApi by NoopSessionApi {
-            override suspend fun getProgress(
-                baseUrl: String, libraryItemId: String, token: String, insecureAllowed: Boolean,
-            ) = NetworkResult.Success(
-                com.riffle.core.network.NetworkServerProgress(
-                    ebookLocation = "", ebookProgress = 0f, currentTime = 42.0, duration = 100.0,
-                    lastUpdate = 1700000000000L,
-                ),
-            )
-        }
-
-        val s = repo(playback, session).openSession("srv", "it")!!
-
-        assertEquals(1700000000000L, s.serverLastUpdate)
+    fun `openSession returns null when the stream cannot be opened`() = runTest {
+        assertNull(repo(FakeAudioCatalog(stream = null)).openSession("srv", "it"))
     }
 
     @Test
-    fun `openSession defaults serverLastUpdate to zero when the progress read fails`() = runTest {
-        val playback = FakePlaybackApi(
-            NetworkResult.Success(
-                NetworkPlaybackSession(
-                    sessionId = "ps",
-                    tracks = listOf(NetworkAudioTrack(0, 0.0, 100.0, "/api/items/it/file/1", "audio/mpeg")),
-                    chapters = emptyList(),
-                    currentTimeSec = 42.0,
-                    durationSec = 100.0,
-                ),
-            ),
-        )
-        // NoopSessionApi.getProgress returns NetworkError → no stamp available.
-        val s = repo(playback).openSession("srv", "it")!!
-        assertEquals(0L, s.serverLastUpdate)
+    fun `openSession returns null when there is no catalog for the source`() = runTest {
+        assertNull(repo(catalog = null).openSession("srv", "it"))
     }
 
     @Test
-    fun `openSession returns null when the play session has no tracks`() = runTest {
-        val playback = FakePlaybackApi(
-            NetworkResult.Success(
-                NetworkPlaybackSession("ps", emptyList(), emptyList(), 0.0, 0.0),
-            ),
-        )
-        assertNull(repo(playback).openSession("srv", "it"))
+    fun `openSession returns null when the catalog has no audiobook capability`() = runTest {
+        assertNull(repo(PlainCatalog).openSession("srv", "it"))
     }
 
-    @Test
-    fun `openSession returns null on a network error`() = runTest {
-        val playback = FakePlaybackApi(NetworkResult.Offline(RuntimeException("boom")))
-        assertNull(repo(playback).openSession("srv", "it"))
+    private class FakeRegistry(private val catalog: Catalog?) : CatalogRegistry {
+        override suspend fun forActive(): Catalog? = catalog
+        override suspend fun forSource(source: Source): Catalog? = catalog
+        override suspend fun forSourceId(sourceId: String): Catalog? = catalog
     }
 
-    @Test
-    fun `openSession returns null when there is no token`() = runTest {
-        val playback = FakePlaybackApi(NetworkResult.Offline(RuntimeException("unused")))
-        assertNull(repo(playback, token = null).openSession("srv", "it"))
+    private class FakeAudioCatalog(private val stream: CatalogAudiobookStream?) : Catalog, AudiobookMediaCapability {
+        override val sourceType = SourceType.ABS
+        override suspend fun listRoots() = emptyList<CatalogRoot>()
+        override suspend fun browse(rootId: String, sort: SortKey, page: Int, pageSize: Int) = emptyList<CatalogItem>()
+        override suspend fun search(rootId: String, query: String, page: Int, pageSize: Int) = emptyList<CatalogItem>()
+        override suspend fun getItem(itemId: String): CatalogItem? = null
+        override suspend fun fetchFile(itemId: String, format: BookFormat): CatalogFileHandle = throw UnsupportedOperationException()
+        override suspend fun openFile(itemId: String, format: BookFormat, handleHint: String?): CatalogFileStream = throw UnsupportedOperationException()
+        override suspend fun connectivityCheck() = CatalogHealth(isReachable = true)
+        override suspend fun getTracks(itemId: String): List<CatalogAudioTrack> = emptyList()
+        override suspend fun getFingerprint(itemId: String) = CatalogAudioFingerprint(itemId, 0L, 0.0, emptyList())
+        override fun buildStreamUrl(itemId: String, trackIno: String) = ""
+        override suspend fun openAudiobook(itemId: String, deviceLabel: String) = stream
+        override suspend fun getAudiobookChapters(itemId: String) = emptyList<CatalogAudiobookChapter>()
     }
 
-    private class FakePlaybackApi(private val result: NetworkResult<com.riffle.core.network.NetworkPlaybackSession>) : AbsPlaybackApi {
-        override suspend fun openPlaybackSession(
-            baseUrl: String, libraryItemId: String, deviceId: String, token: String, insecureAllowed: Boolean,
-        ) = result
-    }
-
-    private class FakeTokenStorage(private val token: String?) : TokenStorage {
-        override suspend fun saveToken(sourceId: String, token: String) = Unit
-        override suspend fun getToken(sourceId: String): String? = token
-        override suspend fun deleteToken(sourceId: String) = Unit
-    }
-
-    private class FakeSourceRepository(private val byId: Source?) : SourceRepository {
-        override fun observeAll(): Flow<List<Source>> = emptyFlow()
-        override suspend fun getActive(): Source? = byId
-        override suspend fun getById(sourceId: String): Source? = byId
-        override suspend fun authenticate(
-            url: SourceUrl, username: String, password: String, insecureAllowed: Boolean,
-            serverType: com.riffle.core.domain.ServerType,
-        ) = throw UnsupportedOperationException()
-        override suspend fun commit(pending: com.riffle.core.domain.PendingSource, hiddenLibraryIds: Set<String>) =
-            throw UnsupportedOperationException()
-        override suspend fun setActive(sourceId: String) = Unit
-        override suspend fun remove(sourceId: String) = Unit
-        override suspend fun getSourceVersion(sourceId: String): String? = null
-    }
-
-    private object NoopSessionApi : AbsSessionApi {
-        override suspend fun syncEbookProgress(
-            baseUrl: String, libraryItemId: String, payload: NetworkEbookProgressPayload, token: String, insecureAllowed: Boolean,
-        ) = NetworkResult.Success(0L)
-        override suspend fun syncAudiobookProgress(
-            baseUrl: String, libraryItemId: String, payload: NetworkAudiobookProgressPayload, token: String, insecureAllowed: Boolean,
-        ) = NetworkResult.Success(0L)
-        override suspend fun getProgress(
-            baseUrl: String, libraryItemId: String, token: String, insecureAllowed: Boolean,
-        ) = NetworkResult.Offline(RuntimeException("unused"))
+    /** A Catalog without AudiobookMediaCapability. */
+    private object PlainCatalog : Catalog {
+        override val sourceType = SourceType.ABS
+        override suspend fun listRoots() = emptyList<CatalogRoot>()
+        override suspend fun browse(rootId: String, sort: SortKey, page: Int, pageSize: Int) = emptyList<CatalogItem>()
+        override suspend fun search(rootId: String, query: String, page: Int, pageSize: Int) = emptyList<CatalogItem>()
+        override suspend fun getItem(itemId: String): CatalogItem? = null
+        override suspend fun fetchFile(itemId: String, format: BookFormat): CatalogFileHandle = throw UnsupportedOperationException()
+        override suspend fun openFile(itemId: String, format: BookFormat, handleHint: String?): CatalogFileStream = throw UnsupportedOperationException()
+        override suspend fun connectivityCheck() = CatalogHealth(isReachable = true)
     }
 }

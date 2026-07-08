@@ -39,15 +39,14 @@ class CatalogEbookProgressRemote(
         val t = translator ?: return null
         val cfi = t.locatorJsonToCfi(position) ?: return null
         return runCatching {
-            val now = clock.nowMs()
-            peer.pushEbookProgress(
+            val stamp = peer.pushEbookProgress(
                 itemId = itemId,
                 location = cfi,
                 progress = readingProgress(),
                 isFinished = false,
-                lastUpdateEpochMs = now,
+                lastUpdateEpochMs = clock.nowMs(),
             )
-            now
+            stamp?.takeIf { it > 0L } ?: clock.nowMs()
         }.getOrNull()
     }
 }
@@ -72,14 +71,13 @@ class CatalogAudioProgressRemote(
 
     override suspend fun patch(position: Double): Long? =
         runCatching {
-            val now = clock.nowMs()
-            peer.pushAudiobookProgress(
+            val stamp = peer.pushAudiobookProgress(
                 itemId = itemId,
                 currentTimeSec = position,
                 durationSec = duration(),
                 isFinished = false,
-                lastUpdateEpochMs = now,
+                lastUpdateEpochMs = clock.nowMs(),
             )
-            now
+            stamp?.takeIf { it > 0L } ?: clock.nowMs()
         }.getOrNull()
 }

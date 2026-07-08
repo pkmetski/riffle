@@ -197,8 +197,12 @@ class LibraryRepositoryTest {
                 NetworkResult.Success(emptyList())
         },
     ) = LibraryRepositoryImpl(
-        api, libraryDao, libraryItemDao, seriesDao, collectionDao,
-        fakeServerRepository, fakeTokenStorage, com.riffle.core.domain.TestClock(),
+        InlineCatalogRegistry(testAbsCatalog(
+            libraryApi = api,
+            baseUrl = fakeServerRepository.activeServer?.url?.value ?: "http://abs",
+        )),
+        libraryDao, libraryItemDao, seriesDao, collectionDao,
+        fakeServerRepository, com.riffle.core.domain.TestClock(),
     )
 
     private fun activeServer(id: String = "s1") = Source(

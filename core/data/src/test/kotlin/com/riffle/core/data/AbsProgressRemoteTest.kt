@@ -1,44 +1,54 @@
 package com.riffle.core.data
 
-import com.riffle.core.network.NetworkResult
-
+import com.riffle.core.catalog.CatalogProgress
+import com.riffle.core.catalog.ProgressPeerCapability
+import com.riffle.core.domain.Clock
 import com.riffle.core.domain.EbookCfiTranslator
-import com.riffle.core.network.AbsSessionApi
-import com.riffle.core.network.NetworkAudiobookProgressPayload
-import com.riffle.core.network.NetworkEbookProgressPayload
-import com.riffle.core.network.NetworkServerProgress
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
 
 /**
- * The ABS [com.riffle.core.domain.ProgressRemote] adapters (ADR 0030 / ADR 0013): translate ABS
- * `epubcfi(...)` ↔ Riffle Locator JSON at the ABS boundary so the local store is never polluted
- * with a foreign format. A null translator defers (returns null) — row stays dirty for the next
- * sweep once the EPUB is cached.
+ * Catalog-backed [com.riffle.core.domain.ProgressRemote] adapters (ADR 0030 / ADR 0013): translate
+ * ABS `epubcfi(...)` ↔ Riffle Locator JSON at the Catalog boundary so the local store is never
+ * polluted with a foreign format. A null translator defers (returns null) — row stays dirty for
+ * the next sweep once the EPUB is cached.
  */
 class AbsProgressRemoteTest {
 
-    private class FakeSessionApi(
-        private val getResult: NetworkResult<NetworkServerProgress>,
-        private val syncResult: NetworkResult<Long>,
-    ) : AbsSessionApi {
-        var ebookPayload: NetworkEbookProgressPayload? = null
-        var audioPayload: NetworkAudiobookProgressPayload? = null
-        var getItemId: String? = null
+    private class FakePeer(
+        var progress: CatalogProgress? = null,
+        var failGet: Boolean = false,
+        var failPush: Boolean = false,
+    ) : ProgressPeerCapability {
+        data class Ebook(val itemId: String, val location: String, val progress: Float, val isFinished: Boolean, val ts: Long)
+        data class Audio(val itemId: String, val currentTimeSec: Double, val durationSec: Double, val isFinished: Boolean, val ts: Long)
+        var lastEbook: Ebook? = null
+        var lastAudio: Audio? = null
 
-        override suspend fun syncEbookProgress(
-            baseUrl: String, libraryItemId: String, payload: NetworkEbookProgressPayload, token: String, insecureAllowed: Boolean,
-        ): NetworkResult<Long> { ebookPayload = payload; return syncResult }
+        override suspend fun pushEbookProgress(
+            itemId: String, location: String, progress: Float, isFinished: Boolean, lastUpdateEpochMs: Long,
+        ): Long? {
+            if (failPush) throw RuntimeException("down")
+            lastEbook = Ebook(itemId, location, progress, isFinished, lastUpdateEpochMs)
+            return null
+        }
 
-        override suspend fun syncAudiobookProgress(
-            baseUrl: String, libraryItemId: String, payload: NetworkAudiobookProgressPayload, token: String, insecureAllowed: Boolean,
-        ): NetworkResult<Long> { audioPayload = payload; return syncResult }
+        override suspend fun pushAudiobookProgress(
+            itemId: String, currentTimeSec: Double, durationSec: Double, isFinished: Boolean, lastUpdateEpochMs: Long,
+        ): Long? {
+            if (failPush) throw RuntimeException("down")
+            lastAudio = Audio(itemId, currentTimeSec, durationSec, isFinished, lastUpdateEpochMs)
+            return null
+        }
 
-        override suspend fun getProgress(
-            baseUrl: String, libraryItemId: String, token: String, insecureAllowed: Boolean,
-        ): NetworkResult<NetworkServerProgress> { getItemId = libraryItemId; return getResult }
+        override suspend fun pullProgress(itemId: String): CatalogProgress? {
+            if (failGet) throw RuntimeException("down")
+            return progress
+        }
+
+        override suspend fun pullAllProgress(): List<CatalogProgress> = emptyList()
     }
 
     private class FakeTranslator(
@@ -49,173 +59,112 @@ class AbsProgressRemoteTest {
         override suspend fun locatorJsonToCfi(locatorJson: String) = locatorResult(locatorJson)
     }
 
-    private fun serverProgress(cfi: String = "", progress: Float = 0f, currentTime: Double = 0.0, lastUpdate: Long = 0L) =
-        NetworkServerProgress(ebookLocation = cfi, ebookProgress = progress, currentTime = currentTime, lastUpdate = lastUpdate)
-
+    private val clock = object : Clock { override fun nowMs() = 1800L; override fun nowNs() = 0L }
     private val locatorJson = """{"href":"OPS/ch1.xhtml","type":"application/xhtml+xml","locations":{"progression":0.5}}"""
+
+    private fun ebookRemote(peer: ProgressPeerCapability, translator: EbookCfiTranslator?, progress: Float = 0.5f) =
+        CatalogEbookProgressRemote(peer, "item-1", translator, { progress }, clock)
+
+    private fun audioRemote(peer: ProgressPeerCapability, duration: Double = 3600.0) =
+        CatalogAudioProgressRemote(peer, "item-1", { duration }, clock)
 
     // --- ebook get ---
 
     @Test
     fun `ebook get - null translator returns null (EPUB not cached, defers row)`() = runTest {
-        val api = FakeSessionApi(
-            NetworkResult.Success(serverProgress(cfi = "epubcfi(/6/4!/4)", lastUpdate = 1700L)),
-            NetworkResult.Success(0L),
-        )
-        val remote = AbsEbookProgressRemote(api, "http://abs", "tok", false, "item-1", translator = null) { 0.5f }
-        assertNull(remote.get())
+        val peer = FakePeer(progress = CatalogProgress("item-1", ebookLocation = "epubcfi(/6/4!/4)", lastUpdate = 1700L))
+        assertNull(ebookRemote(peer, translator = null).get())
     }
 
     @Test
     fun `ebook get - translates epubcfi to Locator JSON and preserves lastUpdate`() = runTest {
-        val api = FakeSessionApi(
-            NetworkResult.Success(serverProgress(cfi = "epubcfi(/6/4!/4)", lastUpdate = 1700L)),
-            NetworkResult.Success(0L),
-        )
+        val peer = FakePeer(progress = CatalogProgress("item-1", ebookLocation = "epubcfi(/6/4!/4)", lastUpdate = 1700L))
         val translator = FakeTranslator(cfiResult = { locatorJson }, locatorResult = { it })
-        val remote = AbsEbookProgressRemote(api, "http://abs", "tok", false, "item-1", translator) { 0.5f }
-        val read = remote.get()
+        val read = ebookRemote(peer, translator).get()
         assertEquals(locatorJson, read?.position)
         assertEquals(1700L, read?.lastUpdate)
-        assertEquals("item-1", api.getItemId)
     }
 
     @Test
     fun `ebook get - returns null when translation fails (CFI unresolvable)`() = runTest {
-        val api = FakeSessionApi(
-            NetworkResult.Success(serverProgress(cfi = "epubcfi(/6/4!/4)", lastUpdate = 1700L)),
-            NetworkResult.Success(0L),
-        )
+        val peer = FakePeer(progress = CatalogProgress("item-1", ebookLocation = "epubcfi(/6/4!/4)", lastUpdate = 1700L))
         val translator = FakeTranslator(cfiResult = { null }, locatorResult = { null })
-        val remote = AbsEbookProgressRemote(api, "http://abs", "tok", false, "item-1", translator) { 0.5f }
-        assertNull(remote.get())
+        assertNull(ebookRemote(peer, translator).get())
     }
 
     @Test
-    fun `ebook get - blank ebookLocation (never-opened book) passes through as empty without translation`() = runTest {
-        val api = FakeSessionApi(
-            NetworkResult.Success(serverProgress(cfi = "", lastUpdate = 0L)),
-            NetworkResult.Success(0L),
-        )
+    fun `ebook get - blank ebookLocation passes through as empty without translation`() = runTest {
+        val peer = FakePeer(progress = CatalogProgress("item-1", ebookLocation = "", lastUpdate = 0L))
         val translator = FakeTranslator(cfiResult = { error("should not be called") }, locatorResult = { it })
-        val remote = AbsEbookProgressRemote(api, "http://abs", "tok", false, "item-1", translator) { 0.5f }
-        val read = remote.get()
+        val read = ebookRemote(peer, translator).get()
         assertEquals("", read?.position)
         assertEquals(0L, read?.lastUpdate)
     }
 
     @Test
     fun `ebook get - returns null on network error`() = runTest {
-        val api = FakeSessionApi(
-            NetworkResult.Offline(RuntimeException("down")),
-            NetworkResult.Success(0L),
-        )
+        val peer = FakePeer(failGet = true)
         val translator = FakeTranslator(cfiResult = { locatorJson }, locatorResult = { it })
-        val remote = AbsEbookProgressRemote(api, "http://abs", "tok", false, "item-1", translator) { 0.5f }
-        assertNull(remote.get())
+        assertNull(ebookRemote(peer, translator).get())
     }
 
     // --- ebook patch ---
 
     @Test
     fun `ebook patch - null translator returns null without sending PATCH`() = runTest {
-        val api = FakeSessionApi(
-            NetworkResult.Success(serverProgress()),
-            NetworkResult.Success(1800L),
-        )
-        val remote = AbsEbookProgressRemote(api, "http://abs", "tok", false, "item-1", translator = null) { 0.73f }
-        assertNull(remote.patch(locatorJson))
-        assertNull(api.ebookPayload)
+        val peer = FakePeer()
+        assertNull(ebookRemote(peer, translator = null, progress = 0.73f).patch(locatorJson))
+        assertNull(peer.lastEbook)
     }
 
     @Test
     fun `ebook patch - translates Locator JSON to epubcfi and sends it with progress fraction`() = runTest {
-        val api = FakeSessionApi(
-            NetworkResult.Success(serverProgress()),
-            NetworkResult.Success(1800L),
-        )
+        val peer = FakePeer()
         val translator = FakeTranslator(cfiResult = { it }, locatorResult = { "epubcfi(/6/8!/2)" })
-        val remote = AbsEbookProgressRemote(api, "http://abs", "tok", false, "item-1", translator) { 0.73f }
-        val stamp = remote.patch(locatorJson)
+        val stamp = ebookRemote(peer, translator, progress = 0.73f).patch(locatorJson)
         assertEquals(1800L, stamp)
-        assertEquals("epubcfi(/6/8!/2)", api.ebookPayload?.ebookLocation)
-        assertEquals(0.73f, api.ebookPayload?.ebookProgress)
+        assertEquals("epubcfi(/6/8!/2)", peer.lastEbook?.location)
+        assertEquals(0.73f, peer.lastEbook?.progress)
     }
 
     @Test
     fun `ebook patch - returns null without sending PATCH when translation fails`() = runTest {
-        val api = FakeSessionApi(
-            NetworkResult.Success(serverProgress()),
-            NetworkResult.Success(1800L),
-        )
+        val peer = FakePeer()
         val translator = FakeTranslator(cfiResult = { it }, locatorResult = { null })
-        val remote = AbsEbookProgressRemote(api, "http://abs", "tok", false, "item-1", translator) { 0.5f }
-        assertNull(remote.patch(locatorJson))
-        assertNull(api.ebookPayload)
+        assertNull(ebookRemote(peer, translator).patch(locatorJson))
+        assertNull(peer.lastEbook)
     }
 
     @Test
     fun `ebook patch - returns null on network error`() = runTest {
-        val api = FakeSessionApi(
-            NetworkResult.Success(serverProgress()),
-            NetworkResult.Offline(RuntimeException("down")),
-        )
+        val peer = FakePeer(failPush = true)
         val translator = FakeTranslator(cfiResult = { it }, locatorResult = { it })
-        val remote = AbsEbookProgressRemote(api, "http://abs", "tok", false, "item-1", translator) { 0.5f }
-        assertNull(remote.patch("epubcfi(/6/4!/4)"))
-    }
-
-    @Test
-    fun `ebook patch - passes through a legacy raw epubcfi unchanged`() = runTest {
-        val api = FakeSessionApi(
-            NetworkResult.Success(serverProgress()),
-            NetworkResult.Success(1800L),
-        )
-        // Simulates EbookCfiTranslatorImpl.locatorJsonToCfi: raw epubcfi passes through
-        val translator = FakeTranslator(cfiResult = { it }, locatorResult = { input ->
-            if (input.startsWith("epubcfi(")) input else null
-        })
-        val remote = AbsEbookProgressRemote(api, "http://abs", "tok", false, "item-1", translator) { 0.5f }
-        val stamp = remote.patch("epubcfi(/6/8!/2)")
-        assertEquals(1800L, stamp)
-        assertEquals("epubcfi(/6/8!/2)", api.ebookPayload?.ebookLocation)
+        assertNull(ebookRemote(peer, translator).patch("epubcfi(/6/4!/4)"))
     }
 
     // --- audio ---
 
     @Test
     fun `audio get maps currentTime and lastUpdate`() = runTest {
-        val api = FakeSessionApi(
-            NetworkResult.Success(serverProgress(currentTime = 942.0, lastUpdate = 1700L)),
-            NetworkResult.Success(0L),
-        )
-        val remote = AbsAudioProgressRemote(api, "http://abs", "tok", false, "item-1") { 3600.0 }
-        val read = remote.get()
+        val peer = FakePeer(progress = CatalogProgress("item-1", audioCurrentTime = 942.0, lastUpdate = 1700L))
+        val read = audioRemote(peer).get()
         assertEquals(942.0, read?.position!!, 0.0001)
         assertEquals(1700L, read.lastUpdate)
     }
 
     @Test
-    fun `audio patch sends seconds with the supplied duration and returns the source stamp`() = runTest {
-        val api = FakeSessionApi(
-            NetworkResult.Success(serverProgress()),
-            NetworkResult.Success(1900L),
-        )
-        val remote = AbsAudioProgressRemote(api, "http://abs", "tok", false, "item-1") { 3600.0 }
-        val stamp = remote.patch(1234.5)
-        assertEquals(1900L, stamp)
-        assertEquals(1234.5, api.audioPayload?.currentTime!!, 0.0001)
-        assertEquals(3600.0, api.audioPayload?.duration!!, 0.0001)
+    fun `audio patch sends seconds with the supplied duration and returns the write stamp`() = runTest {
+        val peer = FakePeer()
+        val stamp = audioRemote(peer).patch(1234.5)
+        assertEquals(1800L, stamp)
+        assertEquals(1234.5, peer.lastAudio?.currentTimeSec!!, 0.0001)
+        assertEquals(3600.0, peer.lastAudio?.durationSec!!, 0.0001)
     }
 
     @Test
     fun `audio get and patch return null on network error`() = runTest {
-        val api = FakeSessionApi(
-            NetworkResult.Offline(RuntimeException("down")),
-            NetworkResult.Offline(RuntimeException("down")),
-        )
-        val remote = AbsAudioProgressRemote(api, "http://abs", "tok", false, "item-1") { 3600.0 }
-        assertNull(remote.get())
-        assertNull(remote.patch(10.0))
+        val peer = FakePeer(failGet = true, failPush = true)
+        assertNull(audioRemote(peer).get())
+        assertNull(audioRemote(peer).patch(10.0))
     }
 }

@@ -595,10 +595,10 @@ class AbsCatalogTest {
         }
     }
 
-    @Test fun `buildStreamUrl mirrors AbsAudioUrl track pattern`() {
+    @Test fun `buildStreamUrl mirrors AbsAudioUrl track pattern and bakes the auth token in`() {
         val url = catalog.buildStreamUrl(itemId = "it-1", trackIno = "a")
 
-        assertEquals("https://abs.example.com/api/items/it-1/file/a", url)
+        assertEquals("https://abs.example.com/api/items/it-1/file/a?token=T", url)
     }
 
     // endregion

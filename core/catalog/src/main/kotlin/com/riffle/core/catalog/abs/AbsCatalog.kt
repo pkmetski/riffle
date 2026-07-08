@@ -277,15 +277,13 @@ class AbsCatalog(
         progress: Float,
         isFinished: Boolean,
         lastUpdateEpochMs: Long,
-    ) {
-        sessionApi.syncEbookProgress(
-            config.baseUrl,
-            itemId,
-            NetworkEbookProgressPayload(ebookLocation = location, ebookProgress = progress, isFinished = isFinished),
-            config.token,
-            config.insecureAllowed,
-        ).unwrap()
-    }
+    ): Long? = sessionApi.syncEbookProgress(
+        config.baseUrl,
+        itemId,
+        NetworkEbookProgressPayload(ebookLocation = location, ebookProgress = progress, isFinished = isFinished),
+        config.token,
+        config.insecureAllowed,
+    ).unwrap()
 
     override suspend fun pushAudiobookProgress(
         itemId: String,
@@ -293,13 +291,10 @@ class AbsCatalog(
         durationSec: Double,
         isFinished: Boolean,
         lastUpdateEpochMs: Long,
-    ) {
+    ): Long? {
         // ABS derives finished-state server-side from progress==1.0 for audiobook records (ADR 0029),
-        // so the `isFinished` param is captured for capability parity but not forwarded here. A
-        // Source that needs to explicitly signal "mark finished at t<duration" would have to send
-        // the ebook side of the shared media-progress record (see `pushEbookProgress`) with the
-        // same itemId — see project_mark_read_unread_audiobook_bug for the shape of that path.
-        sessionApi.syncAudiobookProgress(
+        // so the `isFinished` param is captured for capability parity but not forwarded here.
+        return sessionApi.syncAudiobookProgress(
             config.baseUrl,
             itemId,
             NetworkAudiobookProgressPayload(currentTime = currentTimeSec, duration = durationSec),

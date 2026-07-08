@@ -89,9 +89,8 @@ class MarkUnreadServerResetTest {
         }
     }
 
-    private fun repo(api: AbsSessionApi) = ReadingSessionRepositoryImpl(
-        api = api,
-        sourceRepository = object : SourceRepository {
+    private fun repo(api: AbsSessionApi): ReadingSessionRepositoryImpl {
+        val sourceRepo = object : SourceRepository {
             val source = Source("s1", SourceUrl.parse("http://localhost")!!, true, false, "")
             override fun observeAll(): Flow<List<Source>> = flowOf(listOf(source))
             override suspend fun getActive(): Source = source
@@ -100,13 +99,11 @@ class MarkUnreadServerResetTest {
             override suspend fun setActive(sourceId: String) = Unit
             override suspend fun remove(sourceId: String) = Unit
             override suspend fun getSourceVersion(sourceId: String): String? = null
-        },
-        tokenStorage = object : TokenStorage {
-            override suspend fun saveToken(sourceId: String, token: String) = Unit
-            override suspend fun getToken(sourceId: String): String? = "tok"
-            override suspend fun deleteToken(sourceId: String) = Unit
-        },
-        positionStore = object : ReadingPositionStore {
+        }
+        return ReadingSessionRepositoryImpl(
+            catalogRegistry = InlineCatalogRegistry(testAbsCatalog(sessionApi = api, libraryApi = com.riffle.core.data.NoopLibraryApi)),
+            sourceRepository = sourceRepo,
+            positionStore = object : ReadingPositionStore {
             override suspend fun save(sourceId: String, itemId: String, payload: String) = Unit
             override suspend fun load(sourceId: String, itemId: String): String? = null
             override suspend fun loadLocalUpdatedAt(sourceId: String, itemId: String): Long = 0L
@@ -125,7 +122,8 @@ class MarkUnreadServerResetTest {
         },
         libraryItemDao = FakeLibraryItemDao(),
             clock = com.riffle.core.domain.TestClock(),
-    )
+        )
+    }
 
     // The crux of the phantom: an audiobook item read to the middle. After mark-unread the source's
     // currentTime/progress MUST be 0, or the reader's audiobook peer reads currentTime>0 on reopen and

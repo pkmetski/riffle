@@ -1,12 +1,21 @@
 package com.riffle.core.data
 
+import com.riffle.core.catalog.BookFormat
+import com.riffle.core.catalog.Catalog
+import com.riffle.core.catalog.CatalogFileHandle
+import com.riffle.core.catalog.CatalogFileStream
+import com.riffle.core.catalog.CatalogHealth
+import com.riffle.core.catalog.CatalogItem
+import com.riffle.core.catalog.CatalogRegistry
+import com.riffle.core.catalog.CatalogRoot
+import com.riffle.core.catalog.SortKey
+import com.riffle.core.domain.PositionSnapshot
 import com.riffle.core.domain.ProgressReconciler
 import com.riffle.core.domain.ProgressRemote
 import com.riffle.core.domain.RemoteProgress
 import com.riffle.core.domain.Source
-import com.riffle.core.domain.SourceUrl
+import com.riffle.core.domain.SourceType
 import com.riffle.core.domain.SyncPositionStore
-import com.riffle.core.domain.PositionSnapshot
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -14,7 +23,7 @@ import org.junit.Test
 
 /**
  * The bookmark pass of the durable dirty sweep (ADR 0030, Task 12): bookmarks reconcile on the SAME
- * cadence as positions. Per source (unioned with position-dirty servers), every itemId with at least
+ * cadence as positions. Per source (unioned with position-dirty sources), every itemId with at least
  * one dirty bookmark row reconciles once under its own per-target lock. Exercised over fakes.
  */
 class ProgressSweepBookmarkTest {
@@ -28,23 +37,37 @@ class ProgressSweepBookmarkTest {
     }
 
     private class NoopFactory : ProgressRemoteFactory {
-        override fun ebook(source: Source, token: String, itemId: String): ProgressRemote<String> =
+        override suspend fun ebook(sourceId: String, itemId: String): ProgressRemote<String> =
             object : ProgressRemote<String> { override suspend fun get() = RemoteProgress("noop", 0L); override suspend fun patch(position: String) = 0L }
-        override fun audio(source: Source, token: String, itemId: String): ProgressRemote<Double> =
+        override suspend fun audio(sourceId: String, itemId: String): ProgressRemote<Double> =
             object : ProgressRemote<Double> { override suspend fun get() = RemoteProgress(0.0, 0L); override suspend fun patch(position: Double) = 0L }
     }
 
-    /** Records every reconcile call's full arg tuple. */
+    /** Records every reconcile call. */
     private class RecordingBookmarkReconcile : BookmarkReconcile {
-        data class Call(val sourceId: String, val itemId: String, val baseUrl: String, val token: String, val insecure: Boolean)
+        data class Call(val sourceId: String, val itemId: String)
         val calls = mutableListOf<Call>()
-        override suspend fun reconcile(sourceId: String, itemId: String, baseUrl: String, token: String, insecureAllowed: Boolean) {
-            calls += Call(sourceId, itemId, baseUrl, token, insecureAllowed)
+        override suspend fun reconcile(sourceId: String, itemId: String) {
+            calls += Call(sourceId, itemId)
         }
     }
 
-    private fun source(id: String) =
-        Source(id, SourceUrl.parse("http://$id")!!, isActive = false, insecureConnectionAllowed = false, username = "u")
+    private class FakeRegistry(private val available: Set<String>) : CatalogRegistry {
+        override suspend fun forActive(): Catalog? = null
+        override suspend fun forSource(source: Source): Catalog? = if (source.id in available) DummyCatalog else null
+        override suspend fun forSourceId(sourceId: String): Catalog? = if (sourceId in available) DummyCatalog else null
+    }
+
+    private object DummyCatalog : Catalog {
+        override val sourceType = SourceType.ABS
+        override suspend fun listRoots() = emptyList<CatalogRoot>()
+        override suspend fun browse(rootId: String, sort: SortKey, page: Int, pageSize: Int) = emptyList<CatalogItem>()
+        override suspend fun search(rootId: String, query: String, page: Int, pageSize: Int) = emptyList<CatalogItem>()
+        override suspend fun getItem(itemId: String): CatalogItem? = null
+        override suspend fun fetchFile(itemId: String, format: BookFormat): CatalogFileHandle = throw UnsupportedOperationException()
+        override suspend fun openFile(itemId: String, format: BookFormat, handleHint: String?): CatalogFileStream = throw UnsupportedOperationException()
+        override suspend fun connectivityCheck() = CatalogHealth(isReachable = false)
+    }
 
     private fun positionLedger(servers: List<String>) = object : DirtyProgressLedger {
         override suspend fun serversWithDirty() = servers
@@ -64,44 +87,37 @@ class ProgressSweepBookmarkTest {
         positionLedger: DirtyProgressLedger,
         bookmarkLedger: DirtyBookmarkLedger,
         bookmarkReconcile: BookmarkReconcile,
-        resolver: ServerTokenResolver,
+        registry: CatalogRegistry,
         openTargets: OpenReconcileTargets = OpenReconcileTargets(),
     ) = ProgressSweep(
-        positionLedger, resolver,
+        positionLedger, registry,
         ProgressReconciler(NoopStore<String>()), ProgressReconciler(NoopStore<Double>()),
         NoopFactory(), ReconcileLocks(), openTargets,
         bookmarkLedger, bookmarkReconcile,
     )
 
     @Test
-    fun `reconciles a dirty bookmark item with the resolved base url, token and insecure flag`() = runTest {
+    fun `reconciles a dirty bookmark item on a resolvable source`() = runTest {
         val rec = RecordingBookmarkReconcile()
-        val resolver = ServerTokenResolver { id ->
-            Source(id, SourceUrl.parse("https://$id")!!, isActive = false, insecureConnectionAllowed = true, username = "u") to "tok-$id"
-        }
 
         sweep(
             positionLedger(listOf("s1")),
             bookmarkLedger(listOf("s1"), items = mapOf("s1" to listOf("i1"))),
-            rec, resolver,
+            rec, FakeRegistry(setOf("s1")),
         ).run()
 
         assertEquals(1, rec.calls.size)
-        assertEquals(
-            RecordingBookmarkReconcile.Call("s1", "i1", "https://s1", "tok-s1", true),
-            rec.calls.single(),
-        )
+        assertEquals(RecordingBookmarkReconcile.Call("s1", "i1"), rec.calls.single())
     }
 
     @Test
     fun `a source with only dirty bookmarks and no dirty positions is still processed`() = runTest {
         val rec = RecordingBookmarkReconcile()
-        val resolver = ServerTokenResolver { id -> source(id) to "tok" }
 
         sweep(
-            positionLedger(emptyList()), // no position-dirty servers at all
+            positionLedger(emptyList()),
             bookmarkLedger(listOf("s9"), items = mapOf("s9" to listOf("i9"))),
-            rec, resolver,
+            rec, FakeRegistry(setOf("s9")),
         ).run()
 
         assertEquals(listOf("s9" to "i9"), rec.calls.map { it.sourceId to it.itemId })
@@ -115,7 +131,7 @@ class ProgressSweepBookmarkTest {
         sweep(
             positionLedger(emptyList()),
             bookmarkLedger(listOf("s1"), items = mapOf("s1" to listOf("open", "closed"))),
-            rec, ServerTokenResolver { id -> source(id) to "tok" }, openTargets,
+            rec, FakeRegistry(setOf("s1")), openTargets,
         ).run()
 
         assertEquals(listOf("closed"), rec.calls.map { it.itemId })
@@ -123,14 +139,13 @@ class ProgressSweepBookmarkTest {
     }
 
     @Test
-    fun `skips a bookmark-dirty source with no token, leaving it for a later sweep`() = runTest {
+    fun `skips a bookmark-dirty source whose Catalog cannot be resolved, leaving it for a later sweep`() = runTest {
         val rec = RecordingBookmarkReconcile()
-        val resolver = ServerTokenResolver { id -> if (id == "s2") null else source(id) to "tok" }
 
         sweep(
             positionLedger(emptyList()),
             bookmarkLedger(listOf("s1", "s2"), items = mapOf("s1" to listOf("i1"), "s2" to listOf("i2"))),
-            rec, resolver,
+            rec, FakeRegistry(setOf("s1")),
         ).run()
 
         assertEquals(listOf("s1" to "i1"), rec.calls.map { it.sourceId to it.itemId })
