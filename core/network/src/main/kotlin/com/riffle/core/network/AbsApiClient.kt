@@ -13,6 +13,8 @@ import com.riffle.core.network.model.AbsEbookProgressRequest
 import com.riffle.core.network.model.AbsItemResponse
 import com.riffle.core.network.model.AbsLibrariesResponse
 import com.riffle.core.network.model.AbsLibraryItemsResponse
+import com.riffle.core.network.model.AbsLibrarySearchResponse
+import com.riffle.core.network.model.AbsListeningStatsResponse
 import com.riffle.core.network.model.AbsLoginRequest
 import com.riffle.core.network.model.AbsLoginResponse
 import com.riffle.core.network.model.AbsMeResponse
@@ -120,32 +122,51 @@ class AbsApiClient(
         val response = get(baseUrl, "/api/libraries/$libraryId/items", token, insecureAllowed)
         val raw = response.requireSuccessful().requireBody()
         val parsed = json.decodeFromString<AbsLibraryItemsResponse>(raw)
-        parsed.results.map { dto ->
-            // Prefer a real (>0) ebook position, else the audiobook `progress`; a 0 `ebookProgress`
-            // must not shadow a real audiobook position (ADR 0029). Null when no progress record.
-            val progress = dto.userMediaProgress?.let { it.ebookProgress?.takeIf { p -> p > 0f } ?: it.progress }
-            NetworkLibraryItem(
-                id = dto.id,
-                libraryId = dto.libraryId,
-                title = dto.media.metadata.title,
-                author = dto.media.metadata.authorName,
-                readingProgress = progress,
-                ebookFormat = EbookFormat.from(dto.media.ebookFormat),
-                ebookFileIno = dto.media.ebookFile?.ino?.takeIf { it.isNotEmpty() },
-                hasAudio = dto.media.hasAudio,
-                audioDurationSec = dto.media.audioDurationSec,
-                description = dto.media.metadata.description,
-                seriesName = dto.media.metadata.seriesName,
-                publishedYear = dto.media.metadata.publishedYear,
-                genres = dto.media.metadata.genres,
-                publisher = dto.media.metadata.publisher,
-                language = dto.media.metadata.language,
-                addedAt = dto.addedAt,
-                updatedAt = dto.updatedAt,
-                isbn = dto.media.metadata.isbn,
-                asin = dto.media.metadata.asin,
-            )
-        }
+        parsed.results.map { it.toNetworkLibraryItem() }
+    }
+
+    private fun AbsLibraryItemsResponse.AbsLibraryItemDto.toNetworkLibraryItem(
+        fallbackLibraryId: String = "",
+    ): NetworkLibraryItem {
+        // Prefer a real (>0) ebook position, else the audiobook `progress`; a 0 `ebookProgress`
+        // must not shadow a real audiobook position (ADR 0029). Null when no progress record.
+        val progress = userMediaProgress?.let { it.ebookProgress?.takeIf { p -> p > 0f } ?: it.progress }
+        return NetworkLibraryItem(
+            id = id,
+            libraryId = libraryId.ifEmpty { fallbackLibraryId },
+            title = media.metadata.title,
+            author = media.metadata.authorName,
+            readingProgress = progress,
+            ebookFormat = EbookFormat.from(media.ebookFormat),
+            ebookFileIno = media.ebookFile?.ino?.takeIf { it.isNotEmpty() },
+            hasAudio = media.hasAudio,
+            audioDurationSec = media.audioDurationSec,
+            description = media.metadata.description,
+            seriesName = media.metadata.seriesName,
+            publishedYear = media.metadata.publishedYear,
+            genres = media.metadata.genres,
+            publisher = media.metadata.publisher,
+            language = media.metadata.language,
+            addedAt = addedAt,
+            updatedAt = updatedAt,
+            isbn = media.metadata.isbn,
+            asin = media.metadata.asin,
+        )
+    }
+
+    override suspend fun searchLibrary(
+        baseUrl: String,
+        libraryId: String,
+        query: String,
+        limit: Int,
+        token: String,
+        insecureAllowed: Boolean,
+    ): NetworkResult<List<NetworkLibraryItem>> = OkHttpClassifier.classify(dispatchers.io) {
+        val encoded = java.net.URLEncoder.encode(query, "UTF-8")
+        val response = get(baseUrl, "/api/libraries/$libraryId/search?q=$encoded&limit=$limit", token, insecureAllowed)
+        val raw = response.requireSuccessful().requireBody()
+        val parsed = json.decodeFromString<AbsLibrarySearchResponse>(raw)
+        parsed.book.map { it.libraryItem.toNetworkLibraryItem(libraryId) }
     }
 
     override suspend fun getSeries(
@@ -502,6 +523,66 @@ class AbsApiClient(
         )
     }
 
+    override suspend fun syncPlaybackSession(
+        baseUrl: String,
+        sessionId: String,
+        currentTimeSec: Double,
+        timeListenedSec: Double,
+        token: String,
+        insecureAllowed: Boolean,
+    ): NetworkResult<Unit> = OkHttpClassifier.classify(dispatchers.io) {
+        val body = json.encodeToString(AbsSessionSyncRequest(currentTimeSec, timeListenedSec))
+            .toRequestBody(jsonMediaType)
+        val request = Request.Builder()
+            .url("$baseUrl/api/session/$sessionId/sync")
+            .addHeader("Authorization", "Bearer $token")
+            .post(body)
+            .build()
+        client(insecureAllowed).newCall(request).execute().use { it.requireSuccessful() }
+        Unit
+    }
+
+    override suspend fun closePlaybackSession(
+        baseUrl: String,
+        sessionId: String,
+        currentTimeSec: Double,
+        timeListenedSec: Double,
+        token: String,
+        insecureAllowed: Boolean,
+    ): NetworkResult<Unit> = OkHttpClassifier.classify(dispatchers.io) {
+        val body = json.encodeToString(AbsSessionSyncRequest(currentTimeSec, timeListenedSec))
+            .toRequestBody(jsonMediaType)
+        val request = Request.Builder()
+            .url("$baseUrl/api/session/$sessionId/close")
+            .addHeader("Authorization", "Bearer $token")
+            .post(body)
+            .build()
+        client(insecureAllowed).newCall(request).execute().use { it.requireSuccessful() }
+        Unit
+    }
+
+    override suspend fun getItem(
+        baseUrl: String,
+        itemId: String,
+        token: String,
+        insecureAllowed: Boolean,
+    ): NetworkResult<NetworkLibraryItem?> = OkHttpClassifier.classify(dispatchers.io) {
+        val response = get(baseUrl, "/api/items/$itemId?expanded=1", token, insecureAllowed)
+        if (response.code == 404) {
+            response.body?.close()
+            null
+        } else {
+            val raw = response.requireSuccessful().requireBody()
+            json.decodeFromString<AbsLibraryItemsResponse.AbsLibraryItemDto>(raw).toNetworkLibraryItem()
+        }
+    }
+
+    @Serializable
+    private data class AbsSessionSyncRequest(
+        val currentTime: Double,
+        val timeListened: Double,
+    )
+
     override suspend fun getServerInfo(
         baseUrl: String,
         token: String,
@@ -528,6 +609,17 @@ class AbsApiClient(
             json.decodeFromString<AbsMeResponse>(response.requireBody()).id.takeIf { it.isNotBlank() }
         }
         return result.getOrNull()
+    }
+
+    override suspend fun getListeningStats(
+        baseUrl: String,
+        token: String,
+        insecureAllowed: Boolean,
+    ): NetworkResult<NetworkListeningStats> = OkHttpClassifier.classify(dispatchers.io) {
+        val response = get(baseUrl, "/api/me/listening-stats", token, insecureAllowed)
+        val raw = response.requireSuccessful().requireBody()
+        val parsed = json.decodeFromString<AbsListeningStatsResponse>(raw)
+        NetworkListeningStats(totalTimeSec = parsed.totalTime)
     }
 
     override suspend fun createBookmark(

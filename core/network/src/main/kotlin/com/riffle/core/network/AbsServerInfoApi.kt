@@ -1,5 +1,9 @@
 package com.riffle.core.network
 
+data class NetworkListeningStats(
+    val totalTimeSec: Double,
+)
+
 interface AbsServerInfoApi {
     suspend fun getServerInfo(
         baseUrl: String,
@@ -17,4 +21,15 @@ interface AbsServerInfoApi {
         token: String,
         insecureAllowed: Boolean,
     ): String?
+
+    /**
+     * `GET /api/me/listening-stats`. Returns aggregate listening time in seconds. Item counts
+     * (in-progress / finished) are computed by the Catalog from `/api/me` mediaProgress and are
+     * not part of this payload.
+     */
+    suspend fun getListeningStats(
+        baseUrl: String,
+        token: String,
+        insecureAllowed: Boolean,
+    ): NetworkResult<NetworkListeningStats> = throw UnsupportedOperationException("getListeningStats not implemented")
 }

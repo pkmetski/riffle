@@ -39,4 +39,24 @@ interface AbsPlaybackApi {
         token: String,
         insecureAllowed: Boolean,
     ): NetworkResult<NetworkPlaybackSession>
+
+    /** `POST /api/session/:sessionId/sync` — periodic position + listened-time update. */
+    suspend fun syncPlaybackSession(
+        baseUrl: String,
+        sessionId: String,
+        currentTimeSec: Double,
+        timeListenedSec: Double,
+        token: String,
+        insecureAllowed: Boolean,
+    ): NetworkResult<Unit> = throw UnsupportedOperationException("syncPlaybackSession not implemented")
+
+    /** `POST /api/session/:sessionId/close` — final position + listened-time; session ends. */
+    suspend fun closePlaybackSession(
+        baseUrl: String,
+        sessionId: String,
+        currentTimeSec: Double,
+        timeListenedSec: Double,
+        token: String,
+        insecureAllowed: Boolean,
+    ): NetworkResult<Unit> = throw UnsupportedOperationException("closePlaybackSession not implemented")
 }
