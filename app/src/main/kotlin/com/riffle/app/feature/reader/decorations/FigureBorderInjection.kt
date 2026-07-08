@@ -62,11 +62,22 @@ internal fun figureBorderApplyJs(
             document.head.appendChild(style);
           }
           style.textContent = `$css`;
-          // Match annotated SVGs by outerHTML prefix and apply an inline outline. Clears any
-          // stale outlines we set previously so a delete/recolor reflects immediately.
+          // Match annotated SVGs and apply an inline outline. Clears any stale outlines we set
+          // previously so a delete/recolor reflects immediately.
+          //
+          // Fingerprint comparison uses the SAME serialiser the annotation was stored with
+          // (XMLSerializer, from FigureCaptionWalker.SVG_SERIALIZER_JS's `serializeSvg`).
+          // Earlier attempts compared the stored value against `element.outerHTML` — subtly
+          // different (different attribute order, namespace handling) — so the prefix never
+          // matched. To further tolerate re-serialisation drift on reload, we also match on
+          // element.innerHTML prefix as a fallback.
           try {
             var matches = $svgJson;
+            var ser = null;
+            try { ser = new XMLSerializer(); } catch (e2) {}
             var svgs = document.querySelectorAll('svg');
+            // TEMP-DIAG: log what we have to compare so `adb logcat -s chromium` shows both sides.
+            try { console.log('[RiffleFigBorder] matches=' + JSON.stringify(matches.map(function(m){return m.fp.slice(0,60);}))); } catch (e3) {}
             for (var i = 0; i < svgs.length; i++) {
               var s = svgs[i];
               if (s.__riffleBorderApplied) {
@@ -74,9 +85,12 @@ internal fun figureBorderApplyJs(
                 s.style.outlineOffset = '';
                 s.__riffleBorderApplied = false;
               }
-              var oh = s.outerHTML || '';
+              var outer = ser ? ser.serializeToString(s) : (s.outerHTML || '');
+              var inner = s.innerHTML || '';
+              try { console.log('[RiffleFigBorder] svg#' + i + ' outer[0..60]=' + outer.slice(0, 60)); } catch (e4) {}
               for (var j = 0; j < matches.length; j++) {
-                if (oh.indexOf(matches[j].fp) === 0) {
+                var fp = matches[j].fp;
+                if (outer.indexOf(fp) === 0 || (inner.length && fp.indexOf(inner.slice(0, 40)) !== -1)) {
                   s.style.outline = '2px solid ' + matches[j].color;
                   s.style.outlineOffset = '2px';
                   s.__riffleBorderApplied = true;
