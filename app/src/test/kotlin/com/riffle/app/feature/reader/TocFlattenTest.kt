@@ -87,6 +87,18 @@ class TocFlattenTest {
     }
 
     @Test
+    fun `active flat index resolves fragment-anchored entry when current href has no fragment`() {
+        // "Extreme Ownership" case: nav anchors every chapter with #chN, but Readium's
+        // Locator.href drops the fragment. The scroll target must still find the row.
+        val ch1 = TocEntry("Chapter 1", "chapter1.xhtml#ch1")
+        val ch2 = TocEntry("Chapter 2", "chapter2.xhtml#ch2")
+        val list = listOf(ch1, ch2)
+        val flat = flattenToc(list)
+        assertEquals(0, findActiveFlatIndex(list, flat, "chapter1.xhtml"))
+        assertEquals(1, findActiveFlatIndex(list, flat, "chapter2.xhtml"))
+    }
+
+    @Test
     fun `active flat index falls back to first surviving descendant when the matched entry has a blank title`() {
         // A blank-title top-level container whose child is what the user actually landed on.
         // The container itself is skipped in flat; findActiveEntry returns the container (its href
