@@ -76,8 +76,20 @@ internal fun figureBorderApplyJs(
             var ser = null;
             try { ser = new XMLSerializer(); } catch (e2) {}
             var svgs = document.querySelectorAll('svg');
-            // TEMP-DIAG: log what we have to compare so `adb logcat -s chromium` shows both sides.
-            try { console.log('[RiffleFigBorder] matches=' + JSON.stringify(matches.map(function(m){return m.fp.slice(0,60);}))); } catch (e3) {}
+            // TEMP-DIAG: if we have any SVG matches to apply, briefly outline EVERY svg in red so
+            // we can visually confirm this JS is even running when the border flow fires. Red
+            // flash → JS runs (fingerprint match is the problem). No flash → the LaunchedEffect
+            // that calls applyFigureBorders isn't firing on annotation change (upstream problem).
+            if (matches.length > 0) {
+              for (var d = 0; d < svgs.length; d++) {
+                var ds = svgs[d];
+                var pdo = ds.style.outline;
+                var pdoo = ds.style.outlineOffset;
+                ds.style.outline = '3px dashed #ff1744';
+                ds.style.outlineOffset = '4px';
+                setTimeout(function(el, o, oo) { return function() { el.style.outline = o; el.style.outlineOffset = oo; }; }(ds, pdo, pdoo), 400);
+              }
+            }
             for (var i = 0; i < svgs.length; i++) {
               var s = svgs[i];
               if (s.__riffleBorderApplied) {
@@ -87,7 +99,6 @@ internal fun figureBorderApplyJs(
               }
               var outer = ser ? ser.serializeToString(s) : (s.outerHTML || '');
               var inner = s.innerHTML || '';
-              try { console.log('[RiffleFigBorder] svg#' + i + ' outer[0..60]=' + outer.slice(0, 60)); } catch (e4) {}
               for (var j = 0; j < matches.length; j++) {
                 var fp = matches[j].fp;
                 if (outer.indexOf(fp) === 0 || (inner.length && fp.indexOf(inner.slice(0, 40)) !== -1)) {
