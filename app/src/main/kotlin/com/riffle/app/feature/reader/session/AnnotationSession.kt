@@ -19,10 +19,12 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 import org.readium.r2.shared.publication.Locator
 
 /**
@@ -354,10 +356,30 @@ class AnnotationSession @AssistedInject constructor(
         _highlightToEdit.value = null
         if (_noteEditorTarget.value != null) return
         val id = target?.id ?: return
-        val row = _annotations.value.firstOrNull { it.id == id } ?: return
-        if (row.type != AnnotationEntity.TYPE_HIGHLIGHT) return
-        scope.launch { mergeAfterEdit(id, row.color, row.note) }
+        scope.launch {
+            // If the popup was opened right after a create, the observed-annotations Room Flow
+            // may not have re-emitted with the new row yet — a synchronous firstOrNull would
+            // return null and silently drop the merge. Suspend until the row shows up (bounded
+            // so a genuinely-missing id doesn't hang the coroutine). Fixed the "two adjacent
+            // fresh highlights don't merge on dismiss" race — spec:
+            // 2026-07-05-highlight-auto-merge-design.md.
+            val row = awaitAnnotation(id) ?: return@launch
+            if (row.type != AnnotationEntity.TYPE_HIGHLIGHT) return@launch
+            mergeAfterEdit(id, row.color, row.note)
+        }
     }
+
+    /**
+     * Suspend until [_annotations] contains a row with [id], or [timeoutMs] elapses. Returns the
+     * row, or null if it never showed up within the window (unknown id, deletion race).
+     *
+     * Extracted so the flow-race fix is JVM-testable and reused wherever a just-created annotation
+     * is looked up by id — see [dismissHighlightActions] and callers of [mergeAfterEdit].
+     */
+    internal suspend fun awaitAnnotation(id: String, timeoutMs: Long = 500): Annotation? =
+        withTimeoutOrNull(timeoutMs) {
+            _annotations.first { list -> list.any { it.id == id } }.first { it.id == id }
+        }
 
     /**
      * Emit a locator directly to the annotation navigation channel. Used by the VM's
