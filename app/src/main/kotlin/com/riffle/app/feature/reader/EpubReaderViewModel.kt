@@ -1448,10 +1448,15 @@ class EpubReaderViewModel @Inject constructor(
             } else {
                 buildHighlightCfiRangeForSelection(spineStep, html, progression, snippet)
             } ?: return@launch
-            // Figures enclosed by the highlight's range (Task 7). The resolver is a stub until a
-            // JS CFI→DOM resolver lands (see FiguresInRangeResolver's class doc) — today this
-            // always resolves to an empty list, which the store normalizes to a null column.
-            val embeddedFigures = figuresInRangeResolver.resolve(cfiRange)
+            // Figures enclosed by the highlight's range. The continuous ChapterWebView's selection
+            // reader (see ChapterWebView.withSelectionTextAndProgression) walks the live range
+            // BEFORE this callback fires and stashes any enclosed <img>/<svg>/<figure>/<picture>
+            // in SelectionFiguresStash — reading the stash here consumes+clears it. Empty list
+            // when the range didn't cross any figures OR when we're in paginated mode (Readium's
+            // own selection path doesn't route through our stash yet — a documented follow-up).
+            val stashFigures = SelectionFiguresStash.consume()
+            val embeddedFigures = if (stashFigures.isNotEmpty()) stashFigures
+                else figuresInRangeResolver.resolve(cfiRange)
             val created = annotationStore.createHighlight(
                 sourceId = sourceId,
                 itemId = itemId,

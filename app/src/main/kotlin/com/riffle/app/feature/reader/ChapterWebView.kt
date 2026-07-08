@@ -624,6 +624,31 @@ internal class ChapterWebView(context: Context) : WebView(context), ChapterWebVi
                     (obj.optDouble("r", 0.0) * dpr).toInt(),
                     (obj.optDouble("b", 0.0) * dpr).toInt(),
                 )
+                // Figures enclosed by the selection range — captured by SELECTION_SPAN_TRACKER_JS
+                // while the range was still live (raster figures rasterised via canvas to a data
+                // URI; SVG serialised verbatim). Stashed here so EpubReaderViewModel.createHighlight
+                // can attach them to the highlight without needing a CFI→DOM resolver.
+                val figuresJson = obj.optJSONArray("figures")
+                if (figuresJson != null && figuresJson.length() > 0) {
+                    val figures = mutableListOf<com.riffle.core.domain.EmbeddedFigure>()
+                    for (i in 0 until figuresJson.length()) {
+                        val f = figuresJson.optJSONObject(i) ?: continue
+                        figures += com.riffle.core.domain.EmbeddedFigure(
+                            href = f.optString("href").takeIf { !f.isNull("href") && it.isNotEmpty() },
+                            svg = f.optString("svg").takeIf { !f.isNull("svg") && it.isNotEmpty() },
+                            caption = f.optString("caption", ""),
+                            order = f.optInt("order", i),
+                        )
+                        // NOTE: `bytes` field carries the data URI for raster figures. We drop it
+                        // here because EmbeddedFigure has no imageBytes field — the persisted
+                        // annotation only stores href/svg/caption/order per the current schema.
+                        // Raster embedded figures render as placeholder in Highlights mode until
+                        // that column arrives.
+                    }
+                    SelectionFiguresStash.set(figures)
+                } else {
+                    SelectionFiguresStash.set(emptyList())
+                }
             } catch (_: Exception) {
                 return@evaluateJavascript
             }
