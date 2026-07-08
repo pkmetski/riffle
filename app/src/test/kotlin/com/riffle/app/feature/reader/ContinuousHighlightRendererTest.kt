@@ -85,6 +85,7 @@ class ContinuousHighlightRendererTest {
         note: String? = null,
         before: String? = null,
         after: String? = null,
+        useAccentBarStyle: Boolean = false,
     ) = EpubReaderViewModel.HighlightRender(
         id = id,
         locator = Locator(
@@ -94,6 +95,7 @@ class ContinuousHighlightRendererTest {
         ),
         color = color,
         note = note,
+        useAccentBarStyle = useAccentBarStyle,
     )
 
     /** Creates a [Locator] with href and text highlight, suitable for search result tests. */
@@ -236,6 +238,34 @@ class ContinuousHighlightRendererTest {
         val ann = fakeTarget.appliedAnnotations.single().values.single().single()
         assertEquals("", ann.before)
         assertEquals("", ann.after)
+    }
+
+    // Regression: in the annotations reading view (ADR 0041 Highlights mode) the highlight must
+    // NOT paint over the text — only the synthesised HTML's left accent bar. Paginated/vertical
+    // already honour this via [HighlightAccentBarStyle]; continuous mode used to always paint the
+    // palette colour as the <mark>'s background because [applyAnnotations] didn't check
+    // [HighlightRender.useAccentBarStyle]. Pin: when useAccentBarStyle=true, the emitted
+    // AnnotationHighlight.cssColor is `transparent` so the mark exists (tap-to-edit still fires)
+    // but paints nothing. If reverted, the palette colour flows back into cssColor and the fill
+    // reappears on device in continuous mode.
+    @Test
+    fun `applyAnnotations emits transparent cssColor when useAccentBarStyle is true`() = runTest {
+        val renders = listOf(
+            makeRender("h1", "ch1.xhtml", "text one", color = "yellow", useAccentBarStyle = true),
+        )
+        renderer.applyAnnotations(renders)
+        val ann = fakeTarget.appliedAnnotations.single().values.single().single()
+        assertEquals(ContinuousHighlightRenderer.ACCENT_BAR_TRANSPARENT_CSS, ann.cssColor)
+    }
+
+    @Test
+    fun `applyAnnotations emits palette color when useAccentBarStyle is false`() = runTest {
+        val renders = listOf(
+            makeRender("h1", "ch1.xhtml", "text one", color = "yellow", useAccentBarStyle = false),
+        )
+        renderer.applyAnnotations(renders)
+        val ann = fakeTarget.appliedAnnotations.single().values.single().single()
+        assertEquals(HighlightColor.fromToken("yellow").argb.toCssRgba(), ann.cssColor)
     }
 
     // ---- applyNoteGlyphs (no-op) --------------------------------------------

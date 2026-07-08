@@ -21,6 +21,16 @@ internal class ContinuousHighlightRenderer(
     /** Href of the chapter that holds the current sentence highlight, for clearing on chapter change. */
     private var prevSentenceHref: String? = null
 
+    companion object {
+        /**
+         * CSS colour token emitted for Highlights-mode (ADR 0041) annotation marks in continuous
+         * mode. The `<mark>` still wraps the text so annotation locator resolution works, but the
+         * fill is transparent — paginated/vertical don't paint any decoration for accent-bar
+         * highlights either. `internal` for regression pinning.
+         */
+        internal const val ACCENT_BAR_TRANSPARENT_CSS = "transparent"
+    }
+
     override suspend fun applySentenceHighlight(
         fragmentRef: String?,
         quotes: Map<String, SentenceQuote>,
@@ -62,10 +72,25 @@ internal class ContinuousHighlightRenderer(
                     AnnotationHighlight(
                         id = h.id,
                         text = h.locator.text.highlight!!,
-                        cssColor = HighlightColor.fromToken(h.color).argb.toCssRgba(),
+                        // Highlights-mode (ADR 0041): paginated/vertical emit no Readium decoration
+                        // and rely entirely on the synthesised HTML's border-left as the visible
+                        // accent bar. Continuous still wraps the text itself in a <mark>, so a
+                        // palette background here would paint on-text fill that the other modes
+                        // don't paint. Emit a transparent background instead — the mark stays only
+                        // to satisfy annotation locator resolution; tap dispatch is owned by the
+                        // accent-bar span baked into the synthesised HTML.
+                        cssColor = if (h.useAccentBarStyle) {
+                            ACCENT_BAR_TRANSPARENT_CSS
+                        } else {
+                            HighlightColor.fromToken(h.color).argb.toCssRgba()
+                        },
                         hasNote = h.note != null,
                         before = h.locator.text.before.orEmpty(),
                         after = h.locator.text.after.orEmpty(),
+                        // Highlights-mode: the on-text tap listener MUST NOT fire — the accent-bar
+                        // span baked into the synthesised HTML owns tap dispatch. See
+                        // AnnotationHighlight.suppressMarkClick.
+                        suppressMarkClick = h.useAccentBarStyle,
                     )
                 }
             }
