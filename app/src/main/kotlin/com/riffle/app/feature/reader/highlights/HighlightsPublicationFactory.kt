@@ -106,22 +106,33 @@ class HighlightsPublicationFactory @Inject constructor() {
                 // Riffle's [Book Search] results card style — the text itself renders in the
                 // theme's normal body colour so dense highlights don't fatigue the eye. `!important`
                 // so ReadiumCSS's theme rules (e.g. Dark's `:not(a){border-color: currentColor}`)
-                // can't strip the colour. Tap dispatch still flows through Readium's decoration
-                // overlay on the <span data-ann-id> — see [highlightsAnnotationToRender].
+                // can't strip the colour. Tap dispatch runs off the injected [ACCENT_BAR_TAP_CLASS]
+                // span below, which navigates to a [buildAnnotationTapUrl]; both continuous
+                // (ChapterWebView) and paginated/vertical (EpubReaderScreen) intercept that URL and
+                // open the highlight-actions popup. Tapping the text itself does nothing — the
+                // reason this HTML is authored here and not decorated on top of it via Readium.
                 val accent = highlightBackgroundCss(highlight.color)
+                val idEscaped = highlight.id.xmlEscape()
+                val tapUrl = buildAnnotationTapUrl(highlight.id).xmlEscape()
                 append("  <p style=\"")
                 append(PARAGRAPH_GAP_STYLE)
-                append("; border-left: 4px solid ")
+                append("; position: relative; border-left: 4px solid ")
                 append(accent)
-                append(" !important; padding-left: 12px;\"><span class=\"riffle-hl\" data-ann-id=\"")
-                append(highlight.id.xmlEscape())
+                append(" !important; padding-left: 12px;\"><span class=\"")
+                append(ACCENT_BAR_TAP_CLASS)
+                append("\" data-ann-id=\"")
+                append(idEscaped)
+                append("\" onclick=\"var e=event,x=e.clientX,y=e.clientY;location.href='")
+                append(tapUrl)
+                append("?l='+x+'&amp;t='+y+'&amp;r='+(x+1)+'&amp;b='+(y+1);return false;\"></span><span class=\"riffle-hl\" data-ann-id=\"")
+                append(idEscaped)
                 append("\">")
                 append(highlight.textSnippet.xmlEscape())
                 append("</span></p>\n")
                 val note = highlight.note
                 if (note != null) {
                     append("  <aside class=\"riffle-note\" data-ann-id=\"")
-                    append(highlight.id.xmlEscape())
+                    append(idEscaped)
                     append("\" style=\"border-left: 2px solid ")
                     append(accent)
                     append(" !important; padding-left: 12px; font-style: italic; opacity: 0.75;\">")
@@ -133,7 +144,7 @@ class HighlightsPublicationFactory @Inject constructor() {
         val title = chapter.title.xmlEscape()
         return """
             |<?xml version="1.0" encoding="UTF-8"?>
-            |<html xmlns="http://www.w3.org/1999/xhtml"><head><title>$title</title>$READIUM_DEFAULT_CSS_LINK</head>
+            |<html xmlns="http://www.w3.org/1999/xhtml"><head><title>$title</title>$READIUM_DEFAULT_CSS_LINK<style>$ACCENT_BAR_TAP_CSS</style></head>
             |<body>
             |  <h1>$title</h1>
             |${body.trimEnd('\n')}
@@ -141,6 +152,23 @@ class HighlightsPublicationFactory @Inject constructor() {
         """.trimMargin()
     }
 }
+
+// Class name on the transparent absolute-positioned span that owns tap dispatch for a highlight.
+// Injected inside each synthesised `<p>` next to the visible text; its CSS (see
+// [ACCENT_BAR_TAP_CSS]) sizes it to overlap the paragraph's border-left + padding-left gutter so a
+// tap on the visible colored bar lands here and NOT on the text. The `<span>` intentionally has no
+// text content; its `onclick` navigates to a [buildAnnotationTapUrl] which is intercepted by both
+// reader modes' URL handlers. Kept `internal const` so JVM regression tests can pin the class name
+// against the rendered HTML.
+internal const val ACCENT_BAR_TAP_CLASS = "riffle-hl-tap"
+
+// Sizes the tap element to cover the paragraph's 4px border-left + 12px padding-left plus a small
+// extra margin outward — inline with what the reader actually paints. `pointer-events: auto`
+// defends against a ReadiumCSS reset stripping default cursor semantics. `background: transparent`
+// stays invisible on every theme.
+internal const val ACCENT_BAR_TAP_CSS =
+    ".$ACCENT_BAR_TAP_CLASS{position:absolute;left:-4px;top:0;bottom:0;width:20px;" +
+        "background:transparent;cursor:pointer;pointer-events:auto;}"
 
 /**
  * Guaranteed-visible background paint for a synthesised `<p class="riffle-hl">` (Fix A,

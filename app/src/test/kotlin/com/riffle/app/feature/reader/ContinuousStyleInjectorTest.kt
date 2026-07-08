@@ -627,17 +627,34 @@ class ContinuousStyleInjectorTest {
     @Test
     fun `glyph is added when annotation gains a note`() {
         val js = applyJs(AnnotationHighlight("ann1", "text", "#abc", hasNote = true))
-        // The branch: if ann.n && !eg → makeGlyph
-        assertTrue(js.contains("ann.n && !eg"))
+        // The branch: if ann.n && !eg && !ann.s → makeGlyph. Highlights mode gates on `!ann.s`
+        // because the glyph would overlap the accent-bar tap span.
+        assertTrue(js.contains("ann.n && !eg && !ann.s"))
         assertTrue(js.contains("makeGlyph"))
     }
 
     @Test
     fun `glyph is removed when annotation loses its note`() {
         val js = applyJs(AnnotationHighlight("ann1", "text", "#abc", hasNote = false))
-        // The branch: !ann.n && eg → eg.remove()
-        assertTrue(js.contains("!ann.n && eg"))
+        // The branch: (!ann.n || ann.s) && eg → eg.remove(). Removing on ann.s covers the
+        // FullBook → Highlights toggle so a stale glyph doesn't linger after the transition.
+        assertTrue(js.contains("(!ann.n || ann.s) && eg"))
         assertTrue(js.contains("eg.remove()"))
+    }
+
+    // Highlights-mode annotations must NOT get a note glyph — the glyph sits in the same left
+    // gutter as the accent-bar tap span and, injected later than the static tap span, catches the
+    // click first (only the note reader opens instead of highlight actions). Both the new-mark
+    // branch and the in-place update branch are gated on `!ann.s`; reverting either regresses.
+    @Test
+    fun `Highlights mode suppresses the note glyph on new marks`() {
+        val js = applyJs(
+            AnnotationHighlight("ann1", "text", "#abc", hasNote = true, suppressMarkClick = true),
+        )
+        assertTrue(
+            "new-mark glyph creation gated on !ann.s",
+            js.contains("firstMark && ann.n && !ann.s"),
+        )
     }
 
     @Test
@@ -657,6 +674,32 @@ class ContinuousStyleInjectorTest {
     fun `mark click calls onAnnotationTap bridge method`() {
         val js = applyJs(AnnotationHighlight("ann1", "text", "#abc"))
         assertTrue(js.contains("onAnnotationTap"))
+    }
+
+    // Highlights-mode annotations must NOT install a mark click listener — the accent-bar span in
+    // the synthesised HTML owns tap dispatch. The `s:` field on the emitted annotation payload
+    // gates the addEventListener call; regressing either the JSON field or the `if (!ann.s)` guard
+    // reinstates the on-text tap that the Highlights view explicitly disallows.
+    @Test
+    fun `suppressMarkClick emits s field of 1 in JSON payload`() {
+        val js = applyJs(AnnotationHighlight("ann1", "text", "#abc", suppressMarkClick = true))
+        assertTrue("s:1 in payload", js.contains("s:1"))
+    }
+
+    @Test
+    fun `default suppressMarkClick emits s field of 0 (FullBook mode)`() {
+        val js = applyJs(AnnotationHighlight("ann1", "text", "#abc"))
+        assertTrue("s:0 in payload", js.contains("s:0"))
+    }
+
+    @Test
+    fun `mark addEventListener call is gated by the s field so Highlights mode taps skip the mark`() {
+        val js = applyJs(AnnotationHighlight("ann1", "text", "#abc", suppressMarkClick = true))
+        // The guard: `if (!ann.s) { … markEl.addEventListener('click', …) … }`. Verifying both the
+        // guard and the listener call are present in the SAME JS body — reverting the guard would
+        // let the click listener attach unconditionally.
+        assertTrue("guard uses !ann.s", js.contains("if (!ann.s)"))
+        assertTrue("addEventListener is present inside the guarded block", js.contains("markEl.addEventListener('click'"))
     }
 
     @Test

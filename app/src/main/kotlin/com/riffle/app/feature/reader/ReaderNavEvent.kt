@@ -7,4 +7,12 @@ package com.riffle.app.feature.reader
  */
 sealed interface ReaderNavEvent {
     data class OpenInSourceBook(val sourceId: String, val itemId: String, val cfi: String) : ReaderNavEvent
+
+    /**
+     * Highlights-mode reader has no highlights left (user deleted the last one). The synthesised
+     * Publication would have an empty readingOrder — Readium's navigator crashes on that — so the
+     * nav host must pop the reader off the back stack instead of letting the VM reopen an empty
+     * book.
+     */
+    object CloseEmptyHighlights : ReaderNavEvent
 }

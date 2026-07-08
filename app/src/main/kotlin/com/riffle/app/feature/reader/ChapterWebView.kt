@@ -268,6 +268,28 @@ internal class ChapterWebView(context: Context) : WebView(context), ChapterWebVi
                 // chapter's content; route in-book links to the parent (which navigates the reader
                 // with a return card) and external links out to a browser.
                 val url = request.url.toString()
+                // Highlights-mode accent-bar tap: the synthesised HTML's tap span navigates here.
+                // Route the annotation id + tap rect back to the highlight-actions popup and
+                // swallow the navigation so the chapter content stays put. The URL carries the
+                // tap element's bounding rect in CSS pixels (see HighlightsPublicationFactory);
+                // convert to device px so the downstream binder (ChapterWebViewBinder.onAnnotationTap)
+                // sees the same shape it would from the JS bridge's HeightBridge.onAnnotationTap.
+                val parts = com.riffle.app.feature.reader.highlights.parseAnnotationTapUrlParts(url)
+                if (parts != null) {
+                    val dpr = resources.displayMetrics.density
+                    val rect = if (parts.hasRect()) {
+                        android.graphics.Rect(
+                            (parts.cssLeft!! * dpr).toInt(),
+                            (parts.cssTop!! * dpr).toInt(),
+                            (parts.cssRight!! * dpr).toInt(),
+                            (parts.cssBottom!! * dpr).toInt(),
+                        )
+                    } else {
+                        android.graphics.Rect()
+                    }
+                    onAnnotationTap?.invoke(parts.annotationId, rect)
+                    return true
+                }
                 val internal = ContinuousPositionTracker.internalLinkHref(url)
                 return if (internal != null) {
                     onInternalLink?.invoke(internal)

@@ -17,6 +17,7 @@ import dagger.hilt.android.HiltAndroidApp
 import dagger.hilt.components.SingletonComponent
 import okhttp3.Interceptor
 import okhttp3.OkHttpClient
+import org.acra.ACRA
 import org.acra.ReportField
 import org.acra.config.dialog
 import org.acra.config.limiter
@@ -70,6 +71,7 @@ class RiffleApplication : Application(), ImageLoaderFactory {
 
     override fun onCreate() {
         super.onCreate()
+        if (shouldSkipMainProcessStartup(ACRA.isACRASenderServiceProcess())) return
         val entryPoint = EntryPointAccessors.fromApplication(this, MigratorEntryPoint::class.java)
         val applicationScope = entryPoint.applicationScope()
 
@@ -127,6 +129,15 @@ class RiffleApplication : Application(), ImageLoaderFactory {
             }
             .build()
 }
+
+/**
+ * ACRA spawns a private `:acra` process to render the crash dialog, and `Application.onCreate` runs
+ * in that process too. WorkManager's ContentProvider auto-initializer is scoped to the main
+ * process, so touching WorkManager from `:acra` (as `ProgressSyncScheduler.sweepNow` does) throws
+ * `WorkManager is not initialized properly` and crash-loops the reporter. Skip main-process init
+ * when we're the ACRA process.
+ */
+internal fun shouldSkipMainProcessStartup(isAcraProcess: Boolean): Boolean = isAcraProcess
 
 /** 100 MB cap for the on-disk cover cache. */
 internal const val IMAGE_DISK_CACHE_MAX_BYTES = 100L * 1024 * 1024

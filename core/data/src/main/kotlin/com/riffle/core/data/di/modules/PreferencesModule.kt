@@ -6,6 +6,7 @@ import androidx.datastore.preferences.core.Preferences
 import com.riffle.core.data.AudioPlaybackPreferencesStoreImpl
 import com.riffle.core.data.BookFormattingPreferencesStoreImpl
 import com.riffle.core.data.FormattingPreferencesStoreImpl
+import com.riffle.core.data.FormattingPreferencesStoreProviderImpl
 import com.riffle.core.data.LastOpenedLibraryStoreImpl
 import com.riffle.core.data.LibraryOrderPreferencesStoreImpl
 import com.riffle.core.data.LibraryVisibilityPreferencesStoreImpl
@@ -16,6 +17,7 @@ import com.riffle.core.data.di.CoverGridDensityDataStore
 import com.riffle.core.data.di.DeviceIdDataStore
 import com.riffle.core.data.di.DeviceLabelDataStore
 import com.riffle.core.data.di.FormattingPreferencesDataStore
+import com.riffle.core.data.di.HighlightsFormattingPreferencesDataStore
 import com.riffle.core.data.di.HighlightColorPreferencesDataStore
 import com.riffle.core.data.di.HighlightsResumePreferencesDataStore
 import com.riffle.core.data.di.LastOpenedLibraryDataStore
@@ -31,6 +33,7 @@ import com.riffle.core.data.di.coverGridDensityDataStore
 import com.riffle.core.data.di.deviceIdDataStore
 import com.riffle.core.data.di.deviceLabelDataStore
 import com.riffle.core.data.di.formattingPreferencesDataStore
+import com.riffle.core.data.di.formattingPreferencesHighlightsDataStore
 import com.riffle.core.data.di.highlightColorPreferencesDataStore
 import com.riffle.core.data.di.highlightsResumePreferencesDataStore
 import com.riffle.core.data.di.lastOpenedLibraryDataStore
@@ -46,6 +49,8 @@ import com.riffle.core.domain.AudioPlaybackPreferencesStore
 import com.riffle.core.domain.BookFormattingPreferencesStore
 import com.riffle.core.domain.CoverGridDensityStore
 import com.riffle.core.domain.FormattingPreferencesStore
+import com.riffle.core.domain.FormattingPreferencesStoreProvider
+import com.riffle.core.domain.FormattingScope
 import com.riffle.core.domain.HighlightColorPreferencesStore
 import com.riffle.core.domain.HighlightsResumeStore
 import com.riffle.core.domain.LastOpenedLibraryStore
@@ -110,6 +115,23 @@ abstract class PreferencesModule {
     companion object {
         @Provides @Singleton @FormattingPreferencesDataStore
         fun provideFormattingPreferencesDataStore(@ApplicationContext c: Context): DataStore<Preferences> = c.formattingPreferencesDataStore
+
+        @Provides @Singleton @HighlightsFormattingPreferencesDataStore
+        fun provideHighlightsFormattingPreferencesDataStore(@ApplicationContext c: Context): DataStore<Preferences> = c.formattingPreferencesHighlightsDataStore
+
+        // FormattingPreferencesStoreProvider gives [FormattingSession] the right global store per
+        // reading context. The unqualified [FormattingPreferencesStore] binding continues to point
+        // at the FullBook instance so consumers that don't care about scope (e.g. Settings) work
+        // unchanged; the Highlights instance is constructed here around its own DataStore file.
+        @Provides
+        @Singleton
+        fun provideFormattingPreferencesStoreProvider(
+            fullBook: FormattingPreferencesStoreImpl,
+            @HighlightsFormattingPreferencesDataStore highlightsDs: DataStore<Preferences>,
+        ): FormattingPreferencesStoreProvider = FormattingPreferencesStoreProviderImpl(
+            fullBook = fullBook,
+            highlights = FormattingPreferencesStoreImpl(highlightsDs),
+        )
 
         @Provides @Singleton @LibraryVisibilityPreferencesDataStore
         fun provideLibraryVisibilityPreferencesDataStore(@ApplicationContext c: Context): DataStore<Preferences> = c.libraryVisibilityPreferencesDataStore

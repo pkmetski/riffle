@@ -4,23 +4,25 @@ import com.riffle.core.database.BookFormattingPreferencesDao
 import com.riffle.core.database.BookFormattingPreferencesEntity
 import com.riffle.core.domain.BookFormattingOverrides
 import com.riffle.core.domain.BookFormattingPreferencesStore
+import com.riffle.core.domain.FormattingScope
 import com.riffle.core.domain.ReaderFontFamily
 import com.riffle.core.domain.ReaderOrientation
 import com.riffle.core.domain.ReaderTheme
 import com.riffle.core.domain.SourceRepository
 import javax.inject.Inject
 
-// Formatting is per-device but keyed by (sourceId, itemId) so two Servers' colliding item ids
-// don't share one row (ADR 0025). Like LibraryRepositoryImpl, the active Server is resolved here
-// — you format the book you're actively reading — keeping the domain interface itemId-only.
+// Formatting is per-device but keyed by (sourceId, itemId, scope) so two Sources' colliding item
+// ids don't share one row (ADR 0025) and so the annotations reading view keeps a chain independent
+// from the full-book reader. Like LibraryRepositoryImpl, the active Source is resolved here — you
+// format the book you're actively reading — keeping the domain interface itemId-only.
 class BookFormattingPreferencesStoreImpl @Inject constructor(
     private val dao: BookFormattingPreferencesDao,
     private val sourceRepository: SourceRepository,
 ) : BookFormattingPreferencesStore {
 
-    override suspend fun load(itemId: String): BookFormattingOverrides {
+    override suspend fun load(itemId: String, scope: FormattingScope): BookFormattingOverrides {
         val sourceId = sourceRepository.getActive()?.id ?: return BookFormattingOverrides()
-        val entity = dao.getByItemId(sourceId, itemId) ?: return BookFormattingOverrides()
+        val entity = dao.getByItemId(sourceId, itemId, scope.name) ?: return BookFormattingOverrides()
         return BookFormattingOverrides(
             fontSize = entity.fontSize,
             theme = entity.theme?.let { runCatching { ReaderTheme.valueOf(it) }.getOrNull() },
@@ -37,16 +39,17 @@ class BookFormattingPreferencesStoreImpl @Inject constructor(
         )
     }
 
-    override suspend fun save(itemId: String, overrides: BookFormattingOverrides) {
+    override suspend fun save(itemId: String, scope: FormattingScope, overrides: BookFormattingOverrides) {
         val sourceId = sourceRepository.getActive()?.id ?: return
         if (overrides.isEmpty) {
-            dao.deleteByItemId(sourceId, itemId)
+            dao.deleteByItemId(sourceId, itemId, scope.name)
             return
         }
         dao.upsert(
             BookFormattingPreferencesEntity(
                 sourceId = sourceId,
                 itemId = itemId,
+                scope = scope.name,
                 fontSize = overrides.fontSize,
                 theme = overrides.theme?.name,
                 fontFamily = overrides.fontFamily?.encodePersistName(),
@@ -63,8 +66,8 @@ class BookFormattingPreferencesStoreImpl @Inject constructor(
         )
     }
 
-    override suspend fun clear(itemId: String) {
+    override suspend fun clear(itemId: String, scope: FormattingScope) {
         val sourceId = sourceRepository.getActive()?.id ?: return
-        dao.deleteByItemId(sourceId, itemId)
+        dao.deleteByItemId(sourceId, itemId, scope.name)
     }
 }

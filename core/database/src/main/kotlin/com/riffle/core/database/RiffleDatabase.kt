@@ -28,7 +28,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         TocCacheEntity::class,
         AudiobookChapterCacheEntity::class,
     ],
-    version = 44,
+    version = 45,
     exportSchema = true,
 )
 abstract class RiffleDatabase : RoomDatabase() {
@@ -791,6 +791,53 @@ abstract class RiffleDatabase : RoomDatabase() {
         val MIGRATION_42_43 = object : Migration(42, 43) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("ALTER TABLE `annotations` ADD COLUMN `lastSyncedAt` INTEGER NOT NULL DEFAULT 0")
+            }
+        }
+
+        // Annotations reading view gets its own formatting-prefs chain, independent from the
+        // full-book reader. Add `scope` to book_formatting_preferences' PK so a book can carry
+        // two rows — one per FormattingScope. Existing rows are the full-book prefs, backfilled to
+        // scope='FullBook'. Rebuild the table (Room migration pattern for PK changes) preserving
+        // every other column verbatim. Runs after MIGRATION_43_44 (Server → Source rename), so
+        // the column is `sourceId` and the FK targets `sources(id)`.
+        val MIGRATION_44_45 = object : Migration(44, 45) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `book_formatting_preferences_new` (" +
+                        "`sourceId` TEXT NOT NULL, " +
+                        "`itemId` TEXT NOT NULL, " +
+                        "`scope` TEXT NOT NULL, " +
+                        "`fontSize` REAL, " +
+                        "`theme` TEXT, " +
+                        "`fontFamily` TEXT, " +
+                        "`lineSpacing` REAL, " +
+                        "`margins` REAL, " +
+                        "`orientation` TEXT, " +
+                        "`showChapterMap` INTEGER, " +
+                        "`showReadingProgressLabels` INTEGER, " +
+                        "`showCurrentChapterLabel` INTEGER, " +
+                        "`doublePageSpread` INTEGER, " +
+                        "`justifyText` INTEGER, " +
+                        "`showReadingTimeEstimate` INTEGER, " +
+                        "PRIMARY KEY(`sourceId`, `itemId`, `scope`), " +
+                        "FOREIGN KEY(`sourceId`) REFERENCES `sources`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE)"
+                )
+                db.execSQL(
+                    "INSERT INTO `book_formatting_preferences_new` " +
+                        "(sourceId, itemId, scope, fontSize, theme, fontFamily, lineSpacing, margins, " +
+                        "orientation, showChapterMap, showReadingProgressLabels, showCurrentChapterLabel, " +
+                        "doublePageSpread, justifyText, showReadingTimeEstimate) " +
+                        "SELECT sourceId, itemId, 'FullBook', fontSize, theme, fontFamily, lineSpacing, " +
+                        "margins, orientation, showChapterMap, showReadingProgressLabels, " +
+                        "showCurrentChapterLabel, doublePageSpread, justifyText, showReadingTimeEstimate " +
+                        "FROM `book_formatting_preferences`"
+                )
+                db.execSQL("DROP TABLE `book_formatting_preferences`")
+                db.execSQL("ALTER TABLE `book_formatting_preferences_new` RENAME TO `book_formatting_preferences`")
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS `index_book_formatting_preferences_sourceId` " +
+                        "ON `book_formatting_preferences` (`sourceId`)"
+                )
             }
         }
 

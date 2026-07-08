@@ -1781,6 +1781,71 @@ class MigrationTest {
     }
 
     @Test
+    fun migration44To45_addsScopeToBookFormattingPreferencesPk() {
+        helper.createDatabase(TEST_DB, 44).use { db ->
+            // Seed a source (FK target) and one book_formatting_preferences row so we can verify
+            // pre-existing rows are preserved verbatim and backfilled with scope='FullBook'.
+            db.execSQL(
+                "INSERT INTO sources (id, url, isActive, insecureConnectionAllowed, username, serverType, absUserId, type) " +
+                    "VALUES ('srv-A', 'https://abs.example.com', 1, 0, 'alice', 'AUDIOBOOKSHELF', NULL, 'ABS')"
+            )
+            db.execSQL(
+                "INSERT INTO book_formatting_preferences " +
+                    "(sourceId, itemId, fontSize, theme, fontFamily, lineSpacing, margins, orientation, " +
+                    " showChapterMap, showReadingProgressLabels, showCurrentChapterLabel, doublePageSpread, " +
+                    " justifyText, showReadingTimeEstimate) " +
+                    "VALUES ('srv-A', 'item-1', 1.5, 'Dark', 'Serif', 1.3, 1.2, 'Vertical', " +
+                    " 1, 1, 0, 0, 1, 1)"
+            )
+        }
+        helper.runMigrationsAndValidate(TEST_DB, 45, true, RiffleDatabase.MIGRATION_44_45).use { db ->
+            // Pre-existing row landed as FullBook with every column preserved.
+            db.query(
+                "SELECT sourceId, itemId, scope, fontSize, theme, fontFamily, lineSpacing, margins, " +
+                    "orientation, showChapterMap, showReadingProgressLabels, showCurrentChapterLabel, " +
+                    "doublePageSpread, justifyText, showReadingTimeEstimate " +
+                    "FROM book_formatting_preferences WHERE sourceId = 'srv-A' AND itemId = 'item-1'"
+            ).use { c ->
+                assertEquals(1, c.count)
+                c.moveToFirst()
+                assertEquals("srv-A", c.getString(0))
+                assertEquals("item-1", c.getString(1))
+                assertEquals("FullBook", c.getString(2))  // backfilled — this is the whole point.
+                assertEquals(1.5, c.getDouble(3), 0.001)
+                assertEquals("Dark", c.getString(4))
+                assertEquals("Serif", c.getString(5))
+                assertEquals(1.3, c.getDouble(6), 0.001)
+                assertEquals(1.2, c.getDouble(7), 0.001)
+                assertEquals("Vertical", c.getString(8))
+                assertEquals(1, c.getInt(9))
+                assertEquals(1, c.getInt(10))
+                assertEquals(0, c.getInt(11))
+                assertEquals(0, c.getInt(12))
+                assertEquals(1, c.getInt(13))
+                assertEquals(1, c.getInt(14))
+            }
+            // Highlights-scope row must not collide with the FullBook row on the same book — the
+            // whole point of promoting `scope` into the PK.
+            db.execSQL(
+                "INSERT INTO book_formatting_preferences (sourceId, itemId, scope, fontSize) " +
+                    "VALUES ('srv-A', 'item-1', 'Highlights', 2.0)"
+            )
+            db.query(
+                "SELECT scope, fontSize FROM book_formatting_preferences " +
+                    "WHERE sourceId = 'srv-A' AND itemId = 'item-1' ORDER BY scope"
+            ).use { c ->
+                assertEquals(2, c.count)
+                c.moveToFirst()
+                assertEquals("FullBook", c.getString(0))
+                assertEquals(1.5, c.getDouble(1), 0.001)
+                c.moveToNext()
+                assertEquals("Highlights", c.getString(0))
+                assertEquals(2.0, c.getDouble(1), 0.001)
+            }
+        }
+    }
+
+    @Test
     fun migrateFullChain() {
         helper.createDatabase(TEST_DB, 1).use { db ->
             db.execSQL(
@@ -1789,7 +1854,7 @@ class MigrationTest {
         }
 
         val db = helper.runMigrationsAndValidate(
-            TEST_DB, 44, true,
+            TEST_DB, 45, true,
             RiffleDatabase.MIGRATION_1_2,
             RiffleDatabase.MIGRATION_2_3,
             RiffleDatabase.MIGRATION_3_4,
@@ -1833,6 +1898,7 @@ class MigrationTest {
             RiffleDatabase.MIGRATION_41_42,
             RiffleDatabase.MIGRATION_42_43,
             RiffleDatabase.MIGRATION_43_44,
+            RiffleDatabase.MIGRATION_44_45,
         )
 
         db.query("SELECT url, username, serverType, absUserId, type FROM sources WHERE id = 's1'").use { cursor ->

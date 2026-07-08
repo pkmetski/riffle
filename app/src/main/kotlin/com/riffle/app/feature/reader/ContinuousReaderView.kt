@@ -30,6 +30,14 @@ internal data class AnnotationHighlight(
     val hasNote: Boolean = false,
     val before: String = "",
     val after: String = "",
+    /**
+     * Highlights-mode (ADR 0041): when true, the injected `<mark>` MUST NOT carry a click listener.
+     * Tap dispatch is owned by the accent-bar span baked into the synthesised HTML by
+     * [com.riffle.app.feature.reader.highlights.HighlightsPublicationFactory] — a `<mark>` listener
+     * here would let a tap on the text itself open the highlight menu, which the annotations view
+     * explicitly disallows.
+     */
+    val suppressMarkClick: Boolean = false,
 )
 
 internal class ContinuousReaderView @JvmOverloads constructor(

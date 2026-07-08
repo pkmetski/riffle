@@ -10,8 +10,10 @@ import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.readium.r2.shared.util.RelativeUrl
 import org.readium.r2.shared.util.Url
@@ -197,6 +199,45 @@ class EpubReaderViewModelHighlightsSourceTest {
         val chapters = buildChapterElisions(listOf(highlight("h1", "chA.xhtml", spineIndex = 0)))
         assertEquals(null, highlightsResumeAnnotationIdForHref(chapters, "not-a-highlights-href.xhtml"))
         assertEquals(null, highlightsResumeAnnotationIdForHref(chapters, "highlights/ch7.xhtml"))
+    }
+
+    // ---- Delete-last-annotation crash fix ---------------------------------------------------
+
+    // Regression: deleting the last remaining annotation in the annotations reading view (ADR 0041
+    // "Highlights" reader) used to hard-crash — deleteAnnotation reloaded openBook(), which built a
+    // synthesised Publication with an empty readingOrder, and Readium's EpubNavigatorFragment
+    // throws on that. The fix keys off this predicate: when no live highlights remain, close the
+    // reader (via ReaderNavEvent.CloseEmptyHighlights) instead of reloading. If the fix is
+    // reverted, [reloadOrCloseHighlightsAfterDelete] returns false for the empty case and the
+    // reader crashes again on device.
+    @Test
+    fun `highlightsShouldCloseAfterDelete is true when only a soft-deleted highlight remains`() {
+        val rows = listOf(highlight("h1", "chA.xhtml", spineIndex = 0, deleted = true))
+        assertTrue(highlightsShouldCloseAfterDelete(rows))
+    }
+
+    @Test
+    fun `highlightsShouldCloseAfterDelete is true when the book has zero rows at all`() {
+        assertTrue(highlightsShouldCloseAfterDelete(emptyList()))
+    }
+
+    @Test
+    fun `highlightsShouldCloseAfterDelete is true when only bookmarks remain`() {
+        // Bookmarks are stripped by buildChapterElisions, so a book whose only remaining rows are
+        // bookmarks is empty from Highlights mode's perspective — the reader must close.
+        val rows = listOf(
+            highlight("b1", "chA.xhtml", spineIndex = 0, type = AnnotationEntity.TYPE_BOOKMARK),
+        )
+        assertTrue(highlightsShouldCloseAfterDelete(rows))
+    }
+
+    @Test
+    fun `highlightsShouldCloseAfterDelete is false when at least one live highlight remains`() {
+        val rows = listOf(
+            highlight("h1", "chA.xhtml", spineIndex = 0),
+            highlight("h2", "chB.xhtml", spineIndex = 1, deleted = true),
+        )
+        assertFalse(highlightsShouldCloseAfterDelete(rows))
     }
 
     // ---- Important #2: case-insensitive ReaderSource decoding -----------------------------

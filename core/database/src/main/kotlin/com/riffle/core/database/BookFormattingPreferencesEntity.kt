@@ -4,13 +4,15 @@ import androidx.room.Entity
 import androidx.room.ForeignKey
 import androidx.room.Index
 
-// Formatting stays per-device (never synced, never per-user), but the row must point at the *right*
-// book: once item ids collide across Sources, itemId alone would let two different books share one
-// formatting row (ADR 0025). sourceId is added for *identity*, not as a per-source feature; it
-// FK-cascades so a removed Source's formatting is cleared.
+// Formatting stays per-device (never synced, never per-user). The row must point at the *right*
+// book and the *right* reading context: once item ids collide across Sources, itemId alone would
+// let two different books share one formatting row (ADR 0025), and once the annotations reading
+// view got its own preferences chain, sourceId+itemId alone would let the annotations view and
+// full-book view collide on the same book. `sourceId` FK-cascades so a removed Source's
+// formatting is cleared. `scope` is the `FormattingScope` enum name ("FullBook" / "Highlights").
 @Entity(
     tableName = "book_formatting_preferences",
-    primaryKeys = ["sourceId", "itemId"],
+    primaryKeys = ["sourceId", "itemId", "scope"],
     foreignKeys = [
         ForeignKey(
             entity = SourceEntity::class,
@@ -24,6 +26,7 @@ import androidx.room.Index
 data class BookFormattingPreferencesEntity(
     val sourceId: String,
     val itemId: String,
+    val scope: String,
     val fontSize: Float? = null,
     val theme: String? = null,
     val fontFamily: String? = null,

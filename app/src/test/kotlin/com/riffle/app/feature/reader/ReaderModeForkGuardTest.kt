@@ -87,6 +87,11 @@ class ReaderModeForkGuardTest {
         // on isContinuous to pick the right presenter (Continuous window scan vs. Readium
         // rendererBridge + latestLocator pair). Both refs live inside one LaunchedEffect and are
         // load-bearing — Cadence can't seed at the visible sentence otherwise.
-        private const val MAX_MODE_BRANCHES = 33
+        //
+        // Raised from 33 to 35 for the continuous backdrop paint (see the `// MODE-FORK:` comment
+        // above `containerModifier`). Continuous needs Modifier.background(theme.palette.background)
+        // when paginated-viewport-align is off; otherwise a short chapter (Highlights view, few
+        // annotations) leaves app-chrome grey visible beneath ContinuousReaderView.
+        private const val MAX_MODE_BRANCHES = 35
     }
 }
