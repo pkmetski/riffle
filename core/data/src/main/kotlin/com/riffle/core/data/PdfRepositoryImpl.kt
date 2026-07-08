@@ -1,5 +1,7 @@
 package com.riffle.core.data
 
+import com.riffle.core.catalog.BookFormat
+import com.riffle.core.catalog.CatalogRegistry
 import com.riffle.core.domain.LibraryItem
 import com.riffle.core.domain.LocalStore
 import com.riffle.core.domain.PdfDownloadResult
@@ -7,26 +9,19 @@ import com.riffle.core.domain.PdfOpenResult
 import com.riffle.core.domain.PdfRepository
 import com.riffle.core.domain.ReadingPositionStore
 import com.riffle.core.domain.SourceRepository
-import com.riffle.core.domain.TokenStorage
-import com.riffle.core.network.AbsLibraryApi
-import com.riffle.core.network.NetworkResult
-import com.riffle.core.network.errorAsThrowable
 import java.io.File
 
 class PdfRepositoryImpl(
-    private val api: AbsLibraryApi,
+    private val catalogRegistry: CatalogRegistry,
     private val cacheStore: LocalStore,
     private val downloadsStore: LocalStore,
     private val positionStore: ReadingPositionStore,
     private val sourceRepository: SourceRepository,
-    private val tokenStorage: TokenStorage,
 ) : PdfRepository {
 
     override suspend fun openPdf(item: LibraryItem): PdfOpenResult {
-        // Resolve the item's OWN server row, not `getActive()`. See EpubRepositoryImpl.openEpub
+        // Resolve the item's OWN source, not the active one. See EpubRepositoryImpl.openEpub
         // for the rationale — this is the same bug on the PDF side.
-        val source = sourceRepository.getById(item.sourceId)
-            ?: return PdfOpenResult.NetworkError(IllegalStateException("No server for item"))
         val local = (downloadsStore.get(item.sourceId, item.id) ?: cacheStore.get(item.sourceId, item.id))?.takeIf { it.isValidPdf() }
         if (local == null) {
             cacheStore.delete(item.sourceId, item.id)
@@ -34,15 +29,15 @@ class PdfRepositoryImpl(
         val pdfFile = if (local != null) {
             local
         } else {
-            val token = tokenStorage.getToken(source.id)
-                ?: return PdfOpenResult.NetworkError(IllegalStateException("No token for server"))
-            val ino = item.ebookFileIno ?: run {
-                val r = api.getItemEbookFileIno(source.url.value, item.id, token, source.insecureConnectionAllowed)
-                if (r is NetworkResult.Success) r.value else return PdfOpenResult.NetworkError(r.errorAsThrowable())
+            val catalog = catalogRegistry.forSourceId(item.sourceId)
+                ?: return PdfOpenResult.NetworkError(IllegalStateException("No catalog for item"))
+            try {
+                catalog.openFile(item.id, BookFormat.Pdf, handleHint = item.ebookFileIno).use { stream ->
+                    cacheStore.save(item.sourceId, item.id, stream.byteStream())
+                }
+            } catch (t: Throwable) {
+                return PdfOpenResult.NetworkError(t)
             }
-            val result = api.downloadEpub(source.url.value, item.id, ino, token, source.insecureConnectionAllowed)
-            if (result !is NetworkResult.Success) return PdfOpenResult.NetworkError(result.errorAsThrowable())
-            result.value.use { body -> cacheStore.save(item.sourceId, item.id, body.byteStream()) }
         }
         val activeSource = sourceRepository.getActive()
         val lastPosition = activeSource?.let { positionStore.load(it.id, item.id) }
@@ -63,23 +58,17 @@ class PdfRepositoryImpl(
             cacheStore.delete(item.sourceId, item.id)
             return PdfDownloadResult.Success
         }
-        // Same rationale as [openPdf]: resolve by item.sourceId so a user-switch (or any second
-        // SourceEntity row for the same URL) still fetches from the item's owning server.
-        val source = sourceRepository.getById(item.sourceId)
-            ?: return PdfDownloadResult.NetworkError(IllegalStateException("No server for item"))
-        val token = tokenStorage.getToken(source.id)
-            ?: return PdfDownloadResult.NetworkError(IllegalStateException("No token for server"))
-        val ino = item.ebookFileIno ?: run {
-            val r = api.getItemEbookFileIno(source.url.value, item.id, token, source.insecureConnectionAllowed)
-            if (r is NetworkResult.Success) r.value else return PdfDownloadResult.NetworkError(r.errorAsThrowable())
+        val catalog = catalogRegistry.forSourceId(item.sourceId)
+            ?: return PdfDownloadResult.NetworkError(IllegalStateException("No catalog for item"))
+        return try {
+            catalog.openFile(item.id, BookFormat.Pdf, handleHint = item.ebookFileIno).use { stream ->
+                val progressStream = ProgressReportingInputStream(stream.byteStream(), stream.contentLength, onProgress)
+                downloadsStore.save(item.sourceId, item.id, progressStream)
+            }
+            PdfDownloadResult.Success
+        } catch (t: Throwable) {
+            PdfDownloadResult.NetworkError(t)
         }
-        val result = api.downloadEpub(source.url.value, item.id, ino, token, source.insecureConnectionAllowed)
-        if (result !is NetworkResult.Success) return PdfDownloadResult.NetworkError(result.errorAsThrowable())
-        result.value.use { body ->
-            val stream = ProgressReportingInputStream(body.byteStream(), body.contentLength(), onProgress)
-            downloadsStore.save(item.sourceId, item.id, stream)
-        }
-        return PdfDownloadResult.Success
     }
 
     override suspend fun removeDownload(sourceId: String, itemId: String) {

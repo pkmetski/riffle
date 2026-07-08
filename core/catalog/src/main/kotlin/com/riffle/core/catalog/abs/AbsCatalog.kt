@@ -2,17 +2,23 @@ package com.riffle.core.catalog.abs
 
 import com.riffle.core.catalog.AudiobookMediaCapability
 import com.riffle.core.catalog.BookFormat
+import com.riffle.core.catalog.BookmarksCapability
 import com.riffle.core.catalog.Catalog
 import com.riffle.core.catalog.CatalogAudioFingerprint
 import com.riffle.core.catalog.CatalogAudioTrack
+import com.riffle.core.catalog.CatalogAudiobookChapter
+import com.riffle.core.catalog.CatalogAudiobookStream
+import com.riffle.core.catalog.CatalogBookmark
 import com.riffle.core.catalog.CatalogCollection
 import com.riffle.core.catalog.CatalogFileHandle
+import com.riffle.core.catalog.CatalogFileStream
 import com.riffle.core.catalog.CatalogHealth
 import com.riffle.core.catalog.CatalogItem
 import com.riffle.core.catalog.CatalogPlaylist
 import com.riffle.core.catalog.CatalogProgress
 import com.riffle.core.catalog.CatalogRoot
 import com.riffle.core.catalog.CatalogSeries
+import com.riffle.core.catalog.CatalogSeriesEntry
 import com.riffle.core.catalog.CatalogSessionHandle
 import com.riffle.core.catalog.CatalogStats
 import com.riffle.core.catalog.CollectionsCapability
@@ -35,14 +41,17 @@ import com.riffle.core.network.AbsPlaybackApi
 import com.riffle.core.network.AbsServerInfoApi
 import com.riffle.core.network.AbsSessionApi
 import com.riffle.core.network.NetworkAbsAudioTrack
+import com.riffle.core.network.NetworkAbsBookmark
 import com.riffle.core.network.NetworkAudiobookProgressPayload
 import com.riffle.core.network.NetworkCollection
 import com.riffle.core.network.NetworkEbookProgressPayload
 import com.riffle.core.network.NetworkLibrary
 import com.riffle.core.network.NetworkLibraryItem
 import com.riffle.core.network.NetworkPlaylist
+import com.riffle.core.network.NetworkResult
 import com.riffle.core.network.NetworkSeries
 import com.riffle.core.network.NetworkServerProgress
+import com.riffle.core.network.errorAsThrowable
 
 /**
  * The ABS-backed [Catalog] implementation. Wraps the existing ABS HTTP client (split across
@@ -71,6 +80,7 @@ class AbsCatalog(
     ReadingSessionsCapability,
     StatsCapability,
     AudiobookMediaCapability,
+    BookmarksCapability,
     OfflineBrowseCapability {
 
     override val sourceType: SourceType = SourceType.ABS
@@ -134,6 +144,32 @@ class AbsCatalog(
         }
     }
 
+    override suspend fun openFile(
+        itemId: String,
+        format: BookFormat,
+        handleHint: String?,
+    ): CatalogFileStream {
+        return when (format) {
+            BookFormat.Epub, BookFormat.Pdf -> {
+                val ino = handleHint?.takeIf { it.isNotEmpty() }
+                    ?: libraryApi.getItemEbookFileIno(config.baseUrl, itemId, config.token, config.insecureAllowed).unwrap()
+                val body = when (val r = libraryApi.downloadEpub(config.baseUrl, itemId, ino, config.token, config.insecureAllowed)) {
+                    is NetworkResult.Success -> r.value
+                    else -> throw CatalogException.Unknown(r.errorAsThrowable())
+                }
+                object : CatalogFileStream {
+                    override val contentLength: Long = body.contentLength()
+                    override fun byteStream(): java.io.InputStream = body.byteStream()
+                    override fun close() { body.close() }
+                }
+            }
+            BookFormat.Audiobook -> throw CatalogException.UnsupportedFormat(
+                "Audiobook file streams are per-track — use AudiobookMediaCapability.buildStreamUrl",
+            )
+            BookFormat.Unsupported -> throw CatalogException.UnsupportedFormat("Cannot open Unsupported format")
+        }
+    }
+
     override suspend fun connectivityCheck(): CatalogHealth {
         // AbsApiClient.getServerInfo swallows failures and returns null on any error, so we can't
         // surface a specific error string — reachability collapses to (version != null).
@@ -173,9 +209,12 @@ class AbsCatalog(
                 ebookFileIno = book.ebookFileIno,
                 description = book.description,
                 seriesName = book.seriesName,
+                seriesSequence = book.sequence,
                 publishedYear = book.publishedYear,
                 genres = book.genres,
                 publisher = book.publisher,
+                readingProgress = book.readingProgress,
+                updatedAt = book.updatedAt,
             )
         }
     }
@@ -286,6 +325,7 @@ class AbsCatalog(
                     audioCurrentTime = 0.0,
                     audioDuration = 0.0,
                     isFinished = p.finishedAt != null,
+                    finishedAt = p.finishedAt,
                     lastUpdate = p.lastUpdate ?: 0L,
                 )
             }
@@ -346,13 +386,99 @@ class AbsCatalog(
             ?: throw CatalogException.Unknown(IllegalStateException("Item $itemId has no audiobook"))
         return CatalogAudioFingerprint(
             itemId = itemId,
+            fileSizeBytes = fp.fileSizeBytes,
             totalDurationSec = fp.durationSec,
             trackDurations = fp.trackDurationsSec,
         )
     }
 
-    override fun buildStreamUrl(itemId: String, trackIno: String): String =
-        AbsAudioUrl.track(config.baseUrl, itemId, trackIno)
+    override suspend fun getAudiobookChapters(itemId: String): List<CatalogAudiobookChapter> {
+        val detail = when (val r = libraryApi.getItemDetail(config.baseUrl, itemId, config.token, config.insecureAllowed)) {
+            is NetworkResult.Success -> r.value
+            else -> return emptyList()
+        }
+        return detail.media.chapters.mapIndexed { i, c ->
+            CatalogAudiobookChapter(index = i, startSec = c.startSec, endSec = c.endSec, title = c.title)
+        }
+    }
+
+    override fun buildStreamUrl(itemId: String, trackIno: String): String {
+        val base = AbsAudioUrl.track(config.baseUrl, itemId, trackIno)
+        val sep = if (base.contains("?")) "&" else "?"
+        return "$base${sep}token=${config.token}"
+    }
+
+    override suspend fun openAudiobook(itemId: String, deviceLabel: String): CatalogAudiobookStream? {
+        val session = when (
+            val r = playbackApi.openPlaybackSession(config.baseUrl, itemId, config.deviceId, config.token, config.insecureAllowed)
+        ) {
+            is NetworkResult.Success -> r.value
+            else -> return null
+        }
+        if (session.tracks.isEmpty()) return null
+
+        val baseTrimmed = config.baseUrl.trimEnd('/')
+        val trackUrls = session.tracks.map { t ->
+            val path = if (t.contentUrl.startsWith("/")) t.contentUrl else "/${t.contentUrl}"
+            val sep = if (t.contentUrl.contains("?")) "&" else "?"
+            "$baseTrimmed$path${sep}token=${config.token}"
+        }
+        val tracks = session.tracks.map { t ->
+            CatalogAudioTrack(
+                ino = t.contentUrl.substringAfterLast("/"),
+                index = t.index,
+                startOffsetSec = t.startOffsetSec,
+                durationSec = t.durationSec,
+                contentUrl = "$baseTrimmed${if (t.contentUrl.startsWith("/")) t.contentUrl else "/${t.contentUrl}"}",
+                mimeType = t.mimeType,
+            )
+        }
+        val chapters = session.chapters.mapIndexed { i, c ->
+            CatalogAudiobookChapter(index = i, startSec = c.startSec, endSec = c.endSec, title = c.title)
+        }
+        val serverLastUpdate = (
+            sessionApi.getProgress(config.baseUrl, itemId, config.token, config.insecureAllowed) as? NetworkResult.Success
+        )?.value?.lastUpdate ?: 0L
+
+        return CatalogAudiobookStream(
+            trackUrls = trackUrls,
+            tracks = tracks,
+            chapters = chapters,
+            totalDurationSec = session.durationSec,
+            serverCurrentTimeSec = session.currentTimeSec,
+            serverLastUpdate = serverLastUpdate,
+        )
+    }
+
+    // endregion
+
+    // region BookmarksCapability
+
+    override suspend fun listAllBookmarks(): List<CatalogBookmark> =
+        bookmarkApi.listBookmarks(config.baseUrl, config.token, config.insecureAllowed)
+            .unwrap()
+            .map { it.toCatalogBookmark() }
+
+    override suspend fun createBookmark(itemId: String, timeSec: Int, title: String): CatalogBookmark =
+        bookmarkApi.createBookmark(config.baseUrl, itemId, timeSec, title, config.token, config.insecureAllowed)
+            .unwrap()
+            .toCatalogBookmark()
+
+    override suspend fun deleteBookmark(itemId: String, timeSec: Int) {
+        bookmarkApi.deleteBookmark(config.baseUrl, itemId, timeSec, config.token, config.insecureAllowed).unwrap()
+    }
+
+    override suspend fun renameBookmark(itemId: String, timeSec: Int, newTitle: String): CatalogBookmark =
+        bookmarkApi.updateBookmark(config.baseUrl, itemId, timeSec, newTitle, config.token, config.insecureAllowed)
+            .unwrap()
+            .toCatalogBookmark()
+
+    private fun NetworkAbsBookmark.toCatalogBookmark(): CatalogBookmark = CatalogBookmark(
+        itemId = libraryItemId,
+        timeSec = timeSec,
+        title = title,
+        createdAt = createdAt,
+    )
 
     // endregion
 
@@ -387,6 +513,8 @@ class AbsCatalog(
         addedAt = addedAt,
         isbn = isbn,
         asin = asin,
+        readingProgress = readingProgress,
+        updatedAt = updatedAt,
     )
 
     private fun NetworkSeries.toCatalogSeries(): CatalogSeries = CatalogSeries(
@@ -395,6 +523,7 @@ class AbsCatalog(
         name = name,
         coverUrl = items.firstOrNull()?.let { coverUrl(it.id, it.updatedAt) },
         bookCount = bookCount,
+        items = items.map { CatalogSeriesEntry(itemId = it.id, sequence = it.sequence) },
     )
 
     private fun NetworkCollection.toCatalogCollection(): CatalogCollection = CatalogCollection(
@@ -402,6 +531,7 @@ class AbsCatalog(
         rootId = libraryId,
         name = name,
         bookCount = bookCount,
+        itemIds = items.map { it.id },
     )
 
     private fun NetworkPlaylist.toCatalogPlaylist(): CatalogPlaylist = CatalogPlaylist(
@@ -409,6 +539,7 @@ class AbsCatalog(
         rootId = libraryId,
         name = name,
         bookCount = bookCount,
+        itemIds = items.map { it.id },
     )
 
     private fun NetworkServerProgress.toCatalogProgress(itemId: String): CatalogProgress = CatalogProgress(

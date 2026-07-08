@@ -1,5 +1,6 @@
 package com.riffle.core.data.di.modules
 
+import com.riffle.core.catalog.CatalogRegistry
 import com.riffle.core.data.AnnotationSyncConfigStoreImpl
 import com.riffle.core.data.AudiobookPositionStoreImpl
 import com.riffle.core.data.ReadaloudMatchingService
@@ -59,25 +60,14 @@ abstract class SyncModule {
     abstract fun bindStorytellerReadaloudCacheSyncer(impl: StorytellerReadaloudSyncer): com.riffle.core.domain.StorytellerReadaloudCacheSyncer
 
     companion object {
-        // Durable offline progress reconcile (ADR 0030): resolve a sourceId to its server+token
-        // (null ⇒ skip), and assemble the multi-server dirty sweep over the single-target primitive.
-        @Provides
-        @Singleton
-        fun provideServerTokenResolver(
-            sourceRepository: SourceRepository,
-            tokenStorage: TokenStorage,
-        ): com.riffle.core.data.ServerTokenResolver =
-            com.riffle.core.data.ServerTokenResolver { sourceId ->
-                val server = sourceRepository.getById(sourceId) ?: return@ServerTokenResolver null
-                val token = tokenStorage.getToken(sourceId) ?: return@ServerTokenResolver null
-                server to token
-            }
-
+        // Durable offline progress reconcile (ADR 0030): assemble the multi-source dirty sweep
+        // over the single-target primitive. Skipping unresolvable sources (no row / no token /
+        // no factory) is baked into ProgressSweep via CatalogRegistry.forSourceId.
         @Provides
         @Singleton
         fun provideProgressSweep(
             ledger: com.riffle.core.data.DirtyProgressLedger,
-            resolver: com.riffle.core.data.ServerTokenResolver,
+            catalogRegistry: CatalogRegistry,
             remoteFactory: com.riffle.core.data.ProgressRemoteFactory,
             locks: com.riffle.core.data.ReconcileLocks,
             openTargets: com.riffle.core.data.OpenReconcileTargets,
@@ -87,19 +77,20 @@ abstract class SyncModule {
             bookmarkReconciler: com.riffle.core.data.AudiobookBookmarkReconciler,
         ): com.riffle.core.data.ProgressSweep =
             com.riffle.core.data.ProgressSweep(
-                ledger, resolver,
+                ledger,
+                catalogRegistry,
                 com.riffle.core.domain.ProgressReconciler(ebookStore),
                 com.riffle.core.domain.ProgressReconciler(audioStore),
                 remoteFactory, locks, openTargets,
                 // Bookmarks ride the sweep at the same cadence as positions: enumerate dirty
-                // (server, item) pairs straight off the bookmark DAO (ADR 0030, Task 12).
+                // (source, item) pairs straight off the bookmark DAO (ADR 0030, Task 12).
                 object : com.riffle.core.data.DirtyBookmarkLedger {
                     override suspend fun serversWithDirty() = bookmarkDao.sourcesWithDirtyRows()
                     override suspend fun dirtyItems(sourceId: String) =
                         bookmarkDao.dirtyForSource(sourceId).map { it.itemId }.distinct()
                 },
-                com.riffle.core.data.BookmarkReconcile { sourceId, itemId, baseUrl, token, insecureAllowed ->
-                    bookmarkReconciler.reconcile(sourceId, itemId, baseUrl, token, insecureAllowed)
+                com.riffle.core.data.BookmarkReconcile { sourceId, itemId ->
+                    bookmarkReconciler.reconcile(sourceId, itemId)
                 },
             )
 

@@ -3,17 +3,17 @@ package com.riffle.core.data
 import com.riffle.core.domain.AudiobookFingerprint
 import com.riffle.core.domain.AudiobookIdentity
 import com.riffle.core.domain.AudiobookIdentityResult
-import com.riffle.core.network.NetworkResult
 
 /**
  * Resolves the two fetched fingerprints into an [AudiobookIdentityResult] (ADR 0028). A fetch
  * failure resolves to [AudiobookIdentityResult.UNKNOWN] — never a false VERIFIED — so an offline
- * or flaky check can only ever keep a book on the (safe) bundle path.
+ * or flaky check can only ever keep a book on the (safe) bundle path. A successful fetch with no
+ * audiobook attached resolves to [AudiobookIdentityResult.NO_AUDIOBOOK].
  */
 object AudiobookIdentityResolver {
     fun resolve(
-        storyteller: NetworkResult<AudiobookFingerprint?>,
-        abs: NetworkResult<AudiobookFingerprint?>,
+        storyteller: Result<AudiobookFingerprint?>,
+        abs: Result<AudiobookFingerprint?>,
     ): AudiobookIdentityResult {
         val storytellerFp = storyteller.fingerprintOr { return it }
         val absFp = abs.fingerprintOr { return it }
@@ -24,11 +24,10 @@ object AudiobookIdentityResolver {
         }
     }
 
-    /** Either the fingerprint, or an early-return verdict for the non-success cases. */
-    private inline fun NetworkResult<AudiobookFingerprint?>.fingerprintOr(
+    private inline fun Result<AudiobookFingerprint?>.fingerprintOr(
         onNonSuccess: (AudiobookIdentityResult) -> Nothing,
-    ): AudiobookFingerprint = when (this) {
-        is NetworkResult.Success -> value ?: onNonSuccess(AudiobookIdentityResult.NO_AUDIOBOOK)
-        else -> onNonSuccess(AudiobookIdentityResult.UNKNOWN)
-    }
+    ): AudiobookFingerprint = fold(
+        onSuccess = { it ?: onNonSuccess(AudiobookIdentityResult.NO_AUDIOBOOK) },
+        onFailure = { onNonSuccess(AudiobookIdentityResult.UNKNOWN) },
+    )
 }

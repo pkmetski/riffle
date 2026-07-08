@@ -45,6 +45,21 @@ interface Catalog {
     /** Openable handle for [itemId] in [format]. Throws on unsupported [format]. */
     suspend fun fetchFile(itemId: String, format: BookFormat): CatalogFileHandle
 
+    /**
+     * Open a byte stream over [itemId] in [format]. Encapsulates Source-specific transport
+     * concerns (auth headers, self-signed TLS trust, local file access) so callers only see bytes.
+     * Caller must [CatalogFileStream.close] the returned stream. Throws on unsupported [format].
+     *
+     * [handleHint] is a Source-specific opaque identifier that lets the Catalog skip a lookup when
+     * the caller already knows it (e.g. ABS's `ebookFileIno` persisted on the local library row).
+     * `null` means "resolve it yourself".
+     */
+    suspend fun openFile(
+        itemId: String,
+        format: BookFormat,
+        handleHint: String? = null,
+    ): CatalogFileStream
+
     /** Reachability + server-side identifiers; safe to call unauthenticated. */
     suspend fun connectivityCheck(): CatalogHealth
 }

@@ -35,8 +35,7 @@ import com.riffle.core.domain.ReadingPositionStore
 import com.riffle.core.domain.ReadingSessionRepository
 import com.riffle.core.domain.SourceRepository
 import com.riffle.core.domain.TocRepository
-import com.riffle.core.domain.TokenStorage
-import com.riffle.core.network.AbsLibraryApi
+import com.riffle.core.catalog.CatalogRegistry
 import dagger.Binds
 import dagger.Module
 import dagger.Provides
@@ -100,24 +99,22 @@ abstract class RepositoriesModule {
         @Provides
         @Singleton
         fun provideEpubRepository(
-            api: AbsLibraryApi,
+            catalogRegistry: CatalogRegistry,
             @EpubCacheStore cacheStore: LocalStore,
             @EpubDownloadsStore downloadsStore: LocalStore,
             positionStore: ReadingPositionStore,
             sourceRepository: SourceRepository,
-            tokenStorage: TokenStorage,
-        ): EpubRepository = EpubRepositoryImpl(api, cacheStore, downloadsStore, positionStore, sourceRepository, tokenStorage)
+        ): EpubRepository = EpubRepositoryImpl(catalogRegistry, cacheStore, downloadsStore, positionStore, sourceRepository)
 
         @Provides
         @Singleton
         fun providePdfRepository(
-            api: AbsLibraryApi,
+            catalogRegistry: CatalogRegistry,
             @PdfCacheStore cacheStore: LocalStore,
             @PdfDownloadsStore downloadsStore: LocalStore,
             positionStore: ReadingPositionStore,
             sourceRepository: SourceRepository,
-            tokenStorage: TokenStorage,
-        ): PdfRepository = PdfRepositoryImpl(api, cacheStore, downloadsStore, positionStore, sourceRepository, tokenStorage)
+        ): PdfRepository = PdfRepositoryImpl(catalogRegistry, cacheStore, downloadsStore, positionStore, sourceRepository)
 
         @Provides
         @Singleton

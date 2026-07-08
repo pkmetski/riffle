@@ -1,5 +1,7 @@
 package com.riffle.core.data
 
+import com.riffle.core.catalog.BookFormat
+import com.riffle.core.catalog.CatalogRegistry
 import com.riffle.core.data.di.EpubCacheStore
 import com.riffle.core.data.di.EpubDownloadsStore
 import com.riffle.core.domain.ApplicationScope
@@ -11,11 +13,6 @@ import com.riffle.core.domain.EpubChecksum
 import com.riffle.core.domain.EpubContentExtractor
 import com.riffle.core.domain.LocalStore
 import com.riffle.core.domain.ReadaloudLink
-import com.riffle.core.domain.Source
-import com.riffle.core.domain.SourceRepository
-import com.riffle.core.domain.TokenStorage
-import com.riffle.core.network.AbsLibraryApi
-import com.riffle.core.network.NetworkResult
 import kotlinx.coroutines.launch
 import java.io.File
 import java.util.Collections
@@ -30,20 +27,14 @@ import javax.inject.Singleton
  * checksums already exists) and degrades to *deferred* — never a partial/wrong index — when
  * a prerequisite EPUB isn't available yet.
  *
- * The ABS publisher EPUB is small and is downloaded-then-cached on the first build. The Storyteller
- * side, however, is the *synced bundle* (ADR 0023) — the full readaloud audio, hundreds of MB — so
- * this service never downloads it proactively: it builds only once that bundle is already present
- * locally (i.e. after the user has downloaded readaloud for the book). Pulling and caching one synced
- * bundle per Confirmed match in the background would fill the device's storage, starving real user
- * downloads and truncating in-flight ones. This isn't a functional regression: the canonical reconciliation cycle
- * ([ReaderSyncFactory]) already gates on that same locally-present bundle, so an index built
- * before the bundle exists could never be used anyway.
+ * The Source-side publisher EPUB is small and is downloaded-then-cached on the first build. The
+ * Storyteller side, however, is the *synced bundle* (ADR 0023) — the full readaloud audio, hundreds
+ * of MB — so this service never downloads it proactively: it builds only once that bundle is already
+ * present locally (i.e. after the user has downloaded readaloud for the book).
  */
 @Singleton
 class CrossEpubIndexBuilderService(
-    private val sourceRepository: SourceRepository,
-    private val tokenStorage: TokenStorage,
-    private val absApi: AbsLibraryApi,
+    private val catalogRegistry: CatalogRegistry,
     @EpubCacheStore private val cacheStore: LocalStore,
     @EpubDownloadsStore private val downloadsStore: LocalStore,
     private val store: CrossEpubIndexStore,
@@ -52,15 +43,13 @@ class CrossEpubIndexBuilderService(
     applicationScope: ApplicationScope,
 ) : CrossEpubIndexBuildTrigger {
     @Inject constructor(
-        sourceRepository: SourceRepository,
-        tokenStorage: TokenStorage,
-        absApi: AbsLibraryApi,
+        catalogRegistry: CatalogRegistry,
         @EpubCacheStore cacheStore: LocalStore,
         @EpubDownloadsStore downloadsStore: LocalStore,
         store: CrossEpubIndexStore,
         sidecarStore: ReadaloudSidecarStore,
         applicationScope: ApplicationScope,
-    ) : this(sourceRepository, tokenStorage, absApi, cacheStore, downloadsStore, store, sidecarStore, System::currentTimeMillis, applicationScope)
+    ) : this(catalogRegistry, cacheStore, downloadsStore, store, sidecarStore, System::currentTimeMillis, applicationScope)
 
     private val scope = applicationScope.coroutineScope
     private val inFlight = Collections.synchronizedSet(mutableSetOf<Pair<String, String>>())
@@ -88,19 +77,12 @@ class CrossEpubIndexBuilderService(
 
     private suspend fun loadInputs(link: ReadaloudLink): CrossEpubBuildInputs? {
         // Storyteller text for the index: the downloaded bundle if present, otherwise the ~1 MB sidecar
-        // (ADR 0028) — the sidecar is the Storyteller EPUB minus audio, so it feeds the index identically
-        // and lets a streamed book (no bundle) get the same three-peer sync as a bundle book. Use ONLY the
-        // already-prepared sidecar (cachedFile, non-blocking) — never fetch it here: enqueueBuild fires for
-        // every Confirmed match, so a fetch would hammer /synced with one full-bundle generation per match
-        // concurrently (observed: ~18 at once, all failing). The /synced fetch belongs to prepare-on-open,
-        // which runs one book at a time. Absent both → defer; the build re-runs once the sidecar is prepared.
+        // (ADR 0028). Use ONLY the already-prepared sidecar (cachedFile, non-blocking) — never fetch here.
         val storytellerFile = cachedFile(link.storytellerSourceId, link.storytellerBookId)
             ?: sidecarStore.cachedFile(link.storytellerSourceId, link.storytellerBookId)
             ?: return null
 
-        val absServer = sourceRepository.getById(link.absSourceId) ?: return null
-        val absToken = tokenStorage.getToken(link.absSourceId) ?: return null
-        val absFile = absEpubFile(absServer, absToken, link.absLibraryItemId) ?: return null
+        val absFile = absEpubFile(link.absSourceId, link.absLibraryItemId) ?: return null
 
         // extract() reads only the OPF + spine chapters + SMIL from the zip, and of() streams the
         // file — so the hundreds-of-MB synced bundle (ADR 0023) is never held in memory.
@@ -118,11 +100,13 @@ class CrossEpubIndexBuilderService(
     private fun cachedFile(sourceId: String, itemId: String): File? =
         downloadsStore.get(sourceId, itemId) ?: cacheStore.get(sourceId, itemId)
 
-    private suspend fun absEpubFile(source: Source, token: String, itemId: String): File? {
-        cachedFile(source.id, itemId)?.let { return it }
-        val ino = (absApi.getItemEbookFileIno(source.url.value, itemId, token, source.insecureConnectionAllowed)
-            as? NetworkResult.Success)?.value ?: return null
-        val download = absApi.downloadEpub(source.url.value, itemId, ino, token, source.insecureConnectionAllowed)
-        return (download as? NetworkResult.Success)?.value?.use { cacheStore.save(source.id, itemId, it.byteStream()) }
+    private suspend fun absEpubFile(sourceId: String, itemId: String): File? {
+        cachedFile(sourceId, itemId)?.let { return it }
+        val catalog = catalogRegistry.forSourceId(sourceId) ?: return null
+        return runCatching {
+            catalog.openFile(itemId, BookFormat.Epub).use { stream ->
+                cacheStore.save(sourceId, itemId, stream.byteStream())
+            }
+        }.getOrNull()
     }
 }
