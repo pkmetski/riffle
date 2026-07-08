@@ -277,14 +277,18 @@ private fun appendTextHighlight(sb: StringBuilder, highlight: AnnotationEntity) 
 private fun appendImageAnnotation(sb: StringBuilder, annotation: AnnotationEntity) {
     sb.append("  <figure class=\"riffle-fig\">\n")
     val svg = annotation.imageSvg
-    val href = annotation.imageHref
     val bytes = annotation.imageBytes
     when {
         // Prefer the captured data URI — needs no source-Publication container access at render
-        // time. Falls through to synthetic-path/SVG when the annotation predates data-URI capture.
+        // time. Inline SVG is embedded verbatim (also self-contained).
         bytes != null -> sb.append("<img src=\"").append(bytes.xmlAttrEscape()).append("\" style=\"max-width:100%;height:auto\"/>")
         svg != null -> sb.append(svg)
-        href != null -> sb.append("<img src=\"").append(syntheticPath(href)).append("\" style=\"max-width:100%;height:auto\"/>")
+        // Legacy TYPE_IMAGE annotations captured before imageBytes existed have only imageHref,
+        // which points at the source Publication's container. Emitting `<img src="synthetic/…">`
+        // here crashed Readium's WebViewServer with an NPE on Url.relativize when the elided
+        // reader tried to fetch it. Fall back to a placeholder line — the caption below still
+        // tells the reader which figure this was.
+        else -> sb.append("<p class=\"riffle-fig-placeholder\">[figure image not captured]</p>")
     }
     if (!annotation.textSnippet.isBlank()) {
         sb.append("\n    <figcaption>").append(annotation.textSnippet.xmlEscape()).append("</figcaption>")
@@ -301,10 +305,12 @@ private fun appendImageAnnotation(sb: StringBuilder, annotation: AnnotationEntit
 private fun appendFigureBlock(sb: StringBuilder, figure: EmbeddedFigure) {
     sb.append("  <figure class=\"riffle-fig\">\n")
     val svg = figure.svg
-    val href = figure.href
     when {
         svg != null -> sb.append(svg)
-        href != null -> sb.append("<img src=\"").append(syntheticPath(href)).append("\"/>")
+        // Same guard as appendImageAnnotation: emitting `<img src="synthetic/…">` triggers a
+        // Readium WebViewServer NPE. Embedded figures never get an imageBytes capture (only the
+        // parent highlight's range walk knows about them), so all we can do here is placeholder.
+        else -> sb.append("<p class=\"riffle-fig-placeholder\">[figure image not captured]</p>")
     }
     if (figure.caption.isNotBlank()) {
         sb.append("\n    <figcaption>").append(figure.caption.xmlEscape()).append("</figcaption>")

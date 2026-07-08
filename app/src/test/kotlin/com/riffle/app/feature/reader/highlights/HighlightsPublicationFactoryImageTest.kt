@@ -49,6 +49,7 @@ class HighlightsPublicationFactoryImageTest {
         id: String = "img1",
         imageHref: String? = null,
         imageSvg: String? = null,
+        imageBytes: String? = null,
         caption: String = "",
     ): AnnotationEntity = AnnotationEntity(
         id = id,
@@ -60,6 +61,7 @@ class HighlightsPublicationFactoryImageTest {
         chapterHref = "ch0.xhtml",
         imageHref = imageHref,
         imageSvg = imageSvg,
+        imageBytes = imageBytes,
         createdAt = 0L,
         updatedAt = 0L,
         originDeviceId = "test",
@@ -89,7 +91,26 @@ class HighlightsPublicationFactoryImageTest {
         Json.encodeToString(ListSerializer(EmbeddedFigure.serializer()), figures)
 
     @Test
-    fun `TYPE_IMAGE annotation renders figure block with img and caption`() {
+    fun `TYPE_IMAGE annotation with imageBytes renders inline data-URI img and caption`() {
+        val dataUri = "data:image/jpeg;base64,/9j/4AAQ=="
+        val ann = imageAnnotation(imageHref = "images/g.png", imageBytes = dataUri, caption = "Fig 1")
+        val pub = factory.build(
+            "S1",
+            "B1",
+            "Book",
+            listOf(ChapterElision("ch1.xhtml", "One", listOf(ann))),
+            urlFactory = ::fakeUrl,
+        )
+        val html = readChapterHtml(pub)
+        assertTrue(html.contains("<figure"))
+        assertTrue(html.contains("src=\"data:image/jpeg;base64,"))
+        assertTrue(html.contains("<figcaption>Fig 1</figcaption>"))
+    }
+
+    @Test
+    fun `legacy TYPE_IMAGE annotation without imageBytes emits placeholder not broken img`() {
+        // Reverting this test would let the synthetic/… <img> back in, which crashes Readium's
+        // WebViewServer with an NPE on Url.relativize in the elided reader.
         val ann = imageAnnotation(imageHref = "images/g.png", caption = "Fig 1")
         val pub = factory.build(
             "S1",
@@ -100,8 +121,8 @@ class HighlightsPublicationFactoryImageTest {
         )
         val html = readChapterHtml(pub)
         assertTrue(html.contains("<figure"))
-        assertTrue(html.contains("src=\"synthetic/figures/"))
-        assertTrue(html.contains("<figcaption>Fig 1</figcaption>"))
+        assertTrue(html.contains("[figure image not captured]"))
+        assertTrue(!html.contains("src=\"synthetic/figures/"))
     }
 
     @Test
@@ -119,12 +140,12 @@ class HighlightsPublicationFactoryImageTest {
     }
 
     @Test
-    fun `TYPE_HIGHLIGHT with embeddedFigures renders text then figures in order`() {
+    fun `TYPE_HIGHLIGHT with embeddedFigures renders text then caption placeholders in order`() {
         val ann = highlightAnnotation(
             textSnippet = "highlighted text",
             embedded = listOf(
-                EmbeddedFigure(href = "a.png", svg = null, caption = "A", order = 0),
-                EmbeddedFigure(href = "b.png", svg = null, caption = "B", order = 1),
+                EmbeddedFigure(href = "a.png", svg = null, caption = "figure A", order = 0),
+                EmbeddedFigure(href = "b.png", svg = null, caption = "figure B", order = 1),
             ),
         )
         val pub = factory.build(
@@ -135,9 +156,11 @@ class HighlightsPublicationFactoryImageTest {
             urlFactory = ::fakeUrl,
         )
         val html = readChapterHtml(pub)
+        // Embedded figures don't carry captured bytes (only the parent highlight's range walk knows
+        // about them), so all we emit is caption + placeholder — order-preserved via `order`.
         val text = html.indexOf("highlighted text")
-        val a = html.indexOf("a.png")
-        val b = html.indexOf("b.png")
+        val a = html.indexOf("figure A")
+        val b = html.indexOf("figure B")
         assertTrue(text >= 0 && a >= 0 && b >= 0)
         assertTrue(text < a && a < b)
     }
