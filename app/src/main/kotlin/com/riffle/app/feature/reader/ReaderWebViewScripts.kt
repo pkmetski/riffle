@@ -354,11 +354,68 @@ internal val SELECTION_SPAN_TRACKER_JS = """
                 aft = afterR.toString().slice(0, 60);
               } catch (e) { aft = ''; }
             }
+            // Figures enclosed by the selection range (item 5 of the figure-annotations feature).
+            // Walk the range for <img>, <svg>, <picture>, and single-image <figure> nodes so
+            // createHighlight can persist them as embeddedFigures on the annotation. Rasterises
+            // each raster figure to a data URI via canvas so the annotation carries the pixels
+            // (mirrors the long-press capture in FigureTapScript). SVG is serialized verbatim.
+            var figures = [];
+            try {
+              var rng2 = rng.cloneRange();
+              var walker = document.createTreeWalker(
+                rng2.commonAncestorContainer,
+                NodeFilter.SHOW_ELEMENT,
+                { acceptNode: function (n) {
+                    var tag2 = (n.tagName || '').toLowerCase();
+                    if (tag2 !== 'img' && tag2 !== 'svg' && tag2 !== 'picture' && tag2 !== 'figure') return NodeFilter.FILTER_SKIP;
+                    return rng2.intersectsNode(n) ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT;
+                  } }
+              );
+              var seen = new Set(), order = 0, fnode;
+              while ((fnode = walker.nextNode())) {
+                var t2 = fnode.tagName.toLowerCase();
+                var target = t2 === 'figure' ? (fnode.querySelector('img') || fnode.querySelector('svg') || fnode.querySelector('picture')) : fnode;
+                if (!target || seen.has(target)) continue;
+                seen.add(target);
+                var tt = target.tagName.toLowerCase();
+                var caption = '';
+                var figParent = target.closest ? target.closest('figure') : null;
+                if (figParent) {
+                  var cap = figParent.querySelector('figcaption');
+                  if (cap) caption = (cap.textContent || '').trim();
+                }
+                if (!caption) caption = target.getAttribute('alt') || target.getAttribute('aria-label') || '';
+                var entry = { caption: caption, order: order++, href: null, svg: null, bytes: null };
+                if (tt === 'svg') {
+                  try { entry.svg = new XMLSerializer().serializeToString(target); } catch (e) {}
+                } else {
+                  var img2 = tt === 'picture' ? target.querySelector('img') : target;
+                  if (img2) {
+                    entry.href = img2.currentSrc || img2.getAttribute('src') || null;
+                    try {
+                      var w = img2.naturalWidth || 0, h = img2.naturalHeight || 0;
+                      if (w > 0 && h > 0) {
+                        var maxSide = 800, sc = Math.min(1, maxSide / Math.max(w, h));
+                        var cvs = document.createElement('canvas');
+                        cvs.width = Math.round(w * sc); cvs.height = Math.round(h * sc);
+                        var cx = cvs.getContext('2d');
+                        cx.fillStyle = '#ffffff';
+                        cx.fillRect(0, 0, cvs.width, cvs.height);
+                        cx.drawImage(img2, 0, 0, cvs.width, cvs.height);
+                        entry.bytes = cvs.toDataURL('image/jpeg', 0.85);
+                      }
+                    } catch (e) {}
+                  }
+                }
+                figures.push(entry);
+              }
+            } catch (e) { figures = []; }
             window.__riffleSelData = {
               text: text,
               p: Math.max(0, Math.min(1, br2.top / docH)),
               l: br2.left, t: br2.top, r: br2.right, b: br2.bottom,
-              bef: bef, aft: aft
+              bef: bef, aft: aft,
+              figures: figures
             };
           }
         } catch (e) {}

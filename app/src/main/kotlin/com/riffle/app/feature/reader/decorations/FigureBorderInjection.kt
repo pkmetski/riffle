@@ -57,13 +57,15 @@ internal fun figureBorderApplyJs(
         val escFn = m.filename.replace("\\", "\\\\").replace("\"", "\\\"")
         "{\"fn\":\"$escFn\",\"note\":${if (m.hasNote) 1 else 0}}"
     }
-    // Percent-encoded SVG of the same note-alt icon used by NoteGlyphDecoration. Small enough to
-    // inline without base64.
+    // Percent-encoded SVG of the same note-alt icon used by NoteGlyphDecoration. The literal
+    // single quotes inside the SVG attributes are percent-encoded (%27) — otherwise Kotlin's
+    // string interpolation drops them into the surrounding JS single-quoted string and closes
+    // it early, breaking the whole injection script.
     val noteIconDataUri =
         "data:image/svg+xml," +
-            "%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E" +
-            "%3Cpath d='M22,10l-6,-6H4C2.9,4,2,4.9,2,6v12c0,1.1,0.9,2,2,2h16c1.1,0,2,-0.9,2,-2V10Z" +
-            "M16,4l4,4h-4V4ZM13,18H7v-2h6V18ZM17,14H7v-2h10V14ZM17,10H7V8h10V10Z'/%3E" +
+            "%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 24 24%27%3E" +
+            "%3Cpath d=%27M22,10l-6,-6H4C2.9,4,2,4.9,2,6v12c0,1.1,0.9,2,2,2h16c1.1,0,2,-0.9,2,-2V10Z" +
+            "M16,4l4,4h-4V4ZM13,18H7v-2h6V18ZM17,14H7v-2h10V14ZM17,10H7V8h10V10Z%27/%3E" +
             "%3C/svg%3E"
     return """
         (function() {
