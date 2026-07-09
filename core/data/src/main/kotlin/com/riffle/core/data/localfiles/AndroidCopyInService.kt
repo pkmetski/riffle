@@ -2,6 +2,8 @@ package com.riffle.core.data.localfiles
 
 import android.content.Context
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.InputStream
 import javax.inject.Inject
@@ -19,7 +21,7 @@ class AndroidCopyInService @Inject constructor(
         sourceItemId: String,
         extension: String,
         stream: InputStream,
-    ): File {
+    ): File = withContext(Dispatchers.IO) {
         val out = bookFile(sourceId, sourceItemId, extension)
         out.parentFile?.mkdirs()
         try {
@@ -28,7 +30,7 @@ class AndroidCopyInService @Inject constructor(
             out.delete()
             throw e
         }
-        return out
+        out
     }
 
     override suspend fun writeCover(
@@ -36,23 +38,30 @@ class AndroidCopyInService @Inject constructor(
         sourceItemId: String,
         extension: String,
         bytes: ByteArray,
-    ): File {
+    ): File = withContext(Dispatchers.IO) {
         val out = coverFile(sourceId, sourceItemId, extension)
         out.parentFile?.mkdirs()
-        out.writeBytes(bytes)
-        return out
+        try {
+            out.writeBytes(bytes)
+        } catch (e: Exception) {
+            // A partial-write file would otherwise be surfaced to the library grid as a broken
+            // cover on subsequent scans (identity is unchanged so no re-extraction happens).
+            out.delete()
+            throw e
+        }
+        out
     }
 
-    override suspend fun deleteBook(sourceId: String, sourceItemId: String) {
+    override suspend fun deleteBook(sourceId: String, sourceItemId: String): Unit = withContext(Dispatchers.IO) {
         val dir = sourceDir(sourceId)
-        if (!dir.exists()) return
+        if (!dir.exists()) return@withContext
         dir.listFiles { f -> f.isFile && f.nameWithoutExtension == sourceItemId }
             ?.forEach { it.delete() }
     }
 
-    override suspend fun deleteCover(sourceId: String, sourceItemId: String) {
+    override suspend fun deleteCover(sourceId: String, sourceItemId: String): Unit = withContext(Dispatchers.IO) {
         val dir = File(sourceDir(sourceId), "covers")
-        if (!dir.exists()) return
+        if (!dir.exists()) return@withContext
         dir.listFiles { f -> f.isFile && f.nameWithoutExtension == sourceItemId }
             ?.forEach { it.delete() }
     }

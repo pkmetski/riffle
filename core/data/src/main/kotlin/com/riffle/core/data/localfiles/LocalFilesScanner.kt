@@ -10,6 +10,8 @@ import com.riffle.core.domain.EpubMetadata
 import com.riffle.core.domain.EpubMetadataExtractor
 import com.riffle.core.domain.PdfMetadata
 import com.riffle.core.domain.PdfMetadataExtractor
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import javax.inject.Inject
 
 /**
@@ -44,18 +46,25 @@ class LocalFilesScanner @Inject constructor(
 
     data class ScanFailure(val displayName: String, val reason: String)
 
-    suspend fun scan(sourceId: String): ScanReport {
+    suspend fun scan(sourceId: String): ScanReport = withContext(Dispatchers.IO) {
         val scanStart = clock.nowMs()
         val folders = folderDao.forSource(sourceId)
         var added = 0
         var refreshed = 0
         val failures = mutableListOf<ScanFailure>()
+        // We only prune stale rows when every folder walked cleanly AND every ingest succeeded.
+        // A single transient walk/ingest failure suppresses the sweep for this pass — otherwise a
+        // DocumentsProvider hiccup on a folder full of previously-ingested books would wipe every
+        // one of them (their lastSeenAt never gets touched because the walk aborts). We accept
+        // that a mixed-success scan doesn't reclaim deleted books until the next fully-clean scan.
+        var completed = true
 
         for (folder in folders) {
             val files = try {
                 walker.walk(folder.treeUri)
             } catch (e: Exception) {
                 failures += ScanFailure(folder.displayName, "walk-failed: ${e.message ?: e::class.simpleName}")
+                completed = false
                 continue
             }
             for (file in files) {
@@ -63,6 +72,7 @@ class LocalFilesScanner @Inject constructor(
                     ingest(sourceId, folder.treeUri, file, scanStart)
                 } catch (e: Exception) {
                     failures += ScanFailure(file.displayName, "ingest-failed: ${e.message ?: e::class.simpleName}")
+                    completed = false
                     continue
                 }
                 when (outcome) {
@@ -73,6 +83,11 @@ class LocalFilesScanner @Inject constructor(
             }
         }
 
+        val removed = if (completed) sweepStale(sourceId, scanStart) else 0
+        ScanReport(added = added, refreshed = refreshed, removed = removed, failures = failures)
+    }
+
+    private suspend fun sweepStale(sourceId: String, scanStart: Long): Int {
         val stale = fileDao.stale(sourceId, scanStart)
         for (row in stale) {
             libraryItemDao.deleteById(row.sourceId, row.sourceItemId)
@@ -80,8 +95,7 @@ class LocalFilesScanner @Inject constructor(
             if (row.coverPath != null) copyIn.deleteCover(row.sourceId, row.sourceItemId)
             fileDao.delete(row.sourceId, row.sourceItemId)
         }
-
-        return ScanReport(added = added, refreshed = refreshed, removed = stale.size, failures = failures)
+        return stale.size
     }
 
     private enum class Outcome { ADDED, REFRESHED, SKIPPED }

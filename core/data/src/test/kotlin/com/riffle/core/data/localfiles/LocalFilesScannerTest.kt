@@ -161,20 +161,49 @@ class LocalFilesScannerTest {
     // --- walker failure -----------------------------------------------------
 
     @Test
-    fun `folder-walk failure records a failure and marks folder rows stale`() = runTest {
+    fun `folder-walk failure records a failure and preserves rows (no stale sweep on incomplete scan)`() = runTest {
         val h = harness()
         // First scan lands one file.
         h.configureFolder("f1", files = listOf(fakeEpub("A", "B", "a.epub")))
         h.scanner.scan(sourceId)
         assertEquals(1, h.files.rows.size)
 
-        // Second scan: walker throws. Row must not be seen — hence stale — hence deleted.
+        // Second scan: walker throws. A transient walker failure must NOT cascade to deletion —
+        // otherwise a DocumentsProvider hiccup wipes previously-ingested books whose lastSeenAt
+        // was never touched. Row survives; sweep runs on the next fully-clean scan.
         h.clock.advanceMs(1000)
         h.walker.throwFor("f1")
         val report = h.scanner.scan(sourceId)
-        assertEquals(1, report.removed)
+        assertEquals(0, report.removed)
         assertEquals(1, report.failures.size)
-        assertEquals(0, h.files.rows.size)
+        assertEquals(1, h.files.rows.size)
+    }
+
+    @Test
+    fun `ingest failure suppresses the stale sweep for this pass`() = runTest {
+        val h = harness()
+        // First scan: two books, both land.
+        val good = fakeEpub("Good", "A", "good.epub")
+        val bad = WalkedFile(
+            originalUri = "content://f1/bad.epub",
+            displayName = "bad.epub",
+            sizeBytes = 100,
+            mtimeEpochMs = 0,
+            openStream = { throw java.io.IOException("SAF read failed") },
+        )
+        h.configureFolder("f1", files = listOf(good))
+        h.scanner.scan(sourceId)
+        assertEquals(1, h.files.rows.size)
+
+        // Second scan: `bad` is a new file that throws during head-read; `good` is gone. Under the
+        // old (unsafe) behavior good's row would be pruned because its lastSeenAt wasn't touched.
+        // Correct behavior: the ingest exception suppresses the sweep entirely — good is preserved.
+        h.clock.advanceMs(1000)
+        h.configureFolder("f1", files = listOf(bad))
+        val report = h.scanner.scan(sourceId)
+        assertEquals(0, report.removed)
+        assertEquals(1, report.failures.size)
+        assertEquals(1, h.files.rows.size)
     }
 
     // --- multi-folder same file --------------------------------------------
