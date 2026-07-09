@@ -32,6 +32,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.disabled
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import com.riffle.app.ui.TabletContentWidthContainer
 
@@ -118,9 +120,15 @@ fun SourceTypePickerScreen(
 
 @Composable
 private fun SourceTypeCardRow(card: SourceTypeCard, onClick: (() -> Unit)?) {
+    // Merge descendants so the whole card presents as one semantic node — TalkBack reads
+    // title+subtitle+"Coming soon" together, and Compose UI tests can find the click action
+    // via `onNodeWithText(card.title)` (not only via the test tag).
     val baseModifier = Modifier
         .fillMaxWidth()
         .testTag(testTagFor(card.type))
+        .semantics(mergeDescendants = true) {
+            if (!card.enabled) disabled()
+        }
     val cardModifier = if (onClick != null) baseModifier.clickable(onClick = onClick) else baseModifier
     Card(
         modifier = cardModifier,

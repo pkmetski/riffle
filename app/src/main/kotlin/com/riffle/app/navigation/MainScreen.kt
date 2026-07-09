@@ -176,23 +176,30 @@ fun MainScreen(
                     },
                 )
             }
-            navigation(startDestination = ADD_SOURCE_TYPE_PICKER, route = SOURCE_SETUP_GRAPH) {
-                composable(ADD_SOURCE_TYPE_PICKER) {
-                    val cameFromSettings = navController.previousBackStackEntry
-                        ?.destination?.route == SETTINGS
-                    com.riffle.app.feature.server.SourceTypePickerScreen(
-                        windowSizeClass = windowSizeClass,
-                        onNavigateBack = {
-                            if (cameFromSettings) navController.popBackStack()
-                            else navController.navigateAsRoot(HOME)
-                        },
-                        onPickAudiobookshelf = {
-                            navController.navigate("$ADD_SOURCE?type=audiobookshelf") {
-                                popUpTo(ADD_SOURCE_TYPE_PICKER) { inclusive = true }
-                            }
-                        },
-                    )
-                }
+            // The Source Type picker lives at NavHost level (not inside SOURCE_SETUP_GRAPH) so
+            // that entering the setup graph directly for Storyteller/WebDAV/edit paths does NOT
+            // implicitly push the picker as the graph's start destination onto the back stack.
+            // With this shape the back stack for those flows stays [caller, ADD_SOURCE], and
+            // `previousBackStackEntry.route == SETTINGS` remains the right predicate for
+            // "should top-app-bar back pop to Settings?".
+            composable(ADD_SOURCE_TYPE_PICKER) {
+                val cameFromSettings = navController.previousBackStackEntry
+                    ?.destination?.route == SETTINGS
+                com.riffle.app.feature.server.SourceTypePickerScreen(
+                    windowSizeClass = windowSizeClass,
+                    onNavigateBack = {
+                        if (cameFromSettings) navController.popBackStack()
+                        else navController.navigateAsRoot(HOME)
+                    },
+                    onPickAudiobookshelf = {
+                        navController.navigate("$ADD_SOURCE?type=audiobookshelf") {
+                            // Drop the picker so back from the form returns to the caller.
+                            popUpTo(ADD_SOURCE_TYPE_PICKER) { inclusive = true }
+                        }
+                    },
+                )
+            }
+            navigation(startDestination = ADD_SOURCE_ROUTE, route = SOURCE_SETUP_GRAPH) {
                 composable(
                     route = ADD_SOURCE_ROUTE,
                     arguments = listOf(
