@@ -107,11 +107,14 @@ internal object ContinuousPositionTracker {
     }
 
     /**
-     * Pixels to scroll for a volume-key "page" in continuous mode: one viewport minus a small overlap
-     * so the line at the seam isn't skipped. Returns 0 for a non-positive viewport.
+     * Pixels to scroll for a volume-key "page" in continuous mode: one viewport minus overlap so the
+     * line at the seam isn't skipped. Matches the 0·8-viewport delta the paginated/vertical volume-key
+     * path uses via [ScrollBoundaryNavigationContainer.handleVolumeScroll] — keeping both modes on the
+     * same step size is what makes rapid presses feel identical instead of "faster" in one mode.
+     * Returns 0 for a non-positive viewport.
      */
     fun pageScrollDelta(viewportHeightPx: Int): Int =
-        if (viewportHeightPx <= 0) 0 else (viewportHeightPx * 0.9f).toInt()
+        if (viewportHeightPx <= 0) 0 else (viewportHeightPx * 0.8f).toInt()
 
     /**
      * Resolve a text selection to the narrated-sentence id whose sentence contains it, for

@@ -58,10 +58,16 @@ internal class ContinuousReaderView @JvmOverloads constructor(
     private val port = object : ContinuousScrollPort {
         override val viewportHeightPx: Int get() = height
         override val currentScrollY: Int get() = scrollY
+        // computeVerticalScrollRange/Extent are @RestrictedApi on NestedScrollView; the equivalent
+        // for a NestedScrollView with a single vertical LinearLayout child is (child.height - viewport).
+        override val maxScrollY: Int get() =
+            ((getChildAt(0)?.height ?: 0) - height).coerceAtLeast(0)
         override fun scrollTo(y: Int) = this@ContinuousReaderView.scrollTo(0, y)
         override fun scrollBy(dy: Int) = this@ContinuousReaderView.scrollBy(0, dy)
         override fun smoothScrollTo(y: Int) = this@ContinuousReaderView.smoothScrollTo(0, y)
         override fun smoothScrollBy(dy: Int) = this@ContinuousReaderView.smoothScrollBy(0, dy)
+        override fun smoothScrollBy(dy: Int, durationMs: Int) =
+            this@ContinuousReaderView.smoothScrollBy(0, dy, durationMs)
         override fun abortFling() = this@ContinuousReaderView.abortFling()
         override fun post(block: () -> Unit) { this@ContinuousReaderView.post(block) }
         override fun postOnAnimation(block: () -> Unit) { this@ContinuousReaderView.postOnAnimation(block) }
