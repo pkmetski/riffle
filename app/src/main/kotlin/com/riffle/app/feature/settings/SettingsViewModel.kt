@@ -28,6 +28,7 @@ import com.riffle.app.feature.annotationsync.AnnotationSyncKind
 import com.riffle.app.feature.annotationsync.deriveAnnotationSyncKind
 import com.riffle.core.data.AnnotationSyncStatusStore
 import com.riffle.core.data.CycleOutcome
+import com.riffle.core.data.localfiles.LocalFilesFolderHealthChecker
 import com.riffle.core.data.localfiles.LocalFilesFolderRepository
 import com.riffle.core.data.localfiles.LocalFilesScanner
 import com.riffle.core.data.localfiles.LocalFilesSourceInstaller
@@ -84,6 +85,7 @@ class SettingsViewModel @Inject constructor(
     private val localFilesFolderRepository: LocalFilesFolderRepository,
     private val localFilesScanner: LocalFilesScanner,
     private val localFilesSourceInstaller: LocalFilesSourceInstaller,
+    private val localFilesFolderHealthChecker: LocalFilesFolderHealthChecker,
     annotationSyncConfigStore: com.riffle.core.domain.AnnotationSyncConfigStore,
     annotationSyncStatusStore: AnnotationSyncStatusStore,
     annotationDao: AnnotationDao,
@@ -248,6 +250,18 @@ class SettingsViewModel @Inject constructor(
             else localFilesFolderDao.observeForSource(source.id)
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    /**
+     * (treeUri → isHealthy) for every configured LocalFiles folder. Unhealthy folders had their
+     * persistable URI grant revoked by the user in system Settings; already-copied bytes stay
+     * readable, but rescanning and picking up new files needs a re-pick.
+     *
+     * Re-derives every time the folder set changes so users returning from system Settings pick
+     * up the fresh state without a manual refresh gesture.
+     */
+    val localFilesFolderHealth: StateFlow<Map<String, Boolean>> = localFilesFolders
+        .map { folders -> localFilesFolderHealthChecker.healthFor(folders.map { it.treeUri }) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
 
     /** Ids of the configured Storyteller servers, feeding the per-server readaloud summaries. */
     private val storytellerServerIds: StateFlow<List<String>> = servers

@@ -108,6 +108,7 @@ fun SettingsScreen(
     val servers by viewModel.servers.collectAsState()
     val localFilesSource by viewModel.localFilesSource.collectAsState()
     val localFilesFolders by viewModel.localFilesFolders.collectAsState()
+    val localFilesFolderHealth by viewModel.localFilesFolderHealth.collectAsState()
     val serverVersions by viewModel.serverVersions.collectAsState()
     val libraryItemsByServer by viewModel.libraryUiItemsByServer.collectAsState()
     val readaloudSummaries by viewModel.readaloudSummaries.collectAsState()
@@ -200,6 +201,7 @@ fun SettingsScreen(
                 LocalFilesSection(
                     source = localFilesSource,
                     folders = localFilesFolders,
+                    folderHealth = localFilesFolderHealth,
                     onAddFolder = { viewModel.openAddLocalFolder() },
                     onRemoveFolder = { treeUri -> viewModel.removeLocalFolder(treeUri) },
                     onRemoveSource = { viewModel.removeLocalFilesSource() },
@@ -1008,10 +1010,12 @@ private fun AnnotationSyncBadge(badge: AnnotationSyncRowState.Badge) {
 private fun LocalFilesSection(
     source: com.riffle.core.domain.Source?,
     folders: List<com.riffle.core.database.LocalFilesFolderEntity>,
+    folderHealth: Map<String, Boolean>,
     onAddFolder: () -> Unit,
     onRemoveFolder: (String) -> Unit,
     onRemoveSource: () -> Unit,
 ) {
+    val unhealthyCount = folders.count { folderHealth[it.treeUri] == false }
     var pendingFolderRemoval by remember { mutableStateOf<com.riffle.core.database.LocalFilesFolderEntity?>(null) }
     var pendingSourceRemoval by remember { mutableStateOf(false) }
 
@@ -1023,6 +1027,30 @@ private fun LocalFilesSection(
     )
     HorizontalDivider()
 
+    if (unhealthyCount > 0) {
+        ListItem(
+            leadingContent = {
+                Icon(
+                    Icons.Default.Warning,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.error,
+                )
+            },
+            headlineContent = {
+                Text(
+                    "$unhealthyCount folder${if (unhealthyCount == 1) "" else "s"} need${if (unhealthyCount == 1) "s" else ""} attention",
+                )
+            },
+            supportingContent = {
+                Text(
+                    "Riffle no longer has access to these folders — they were removed or their " +
+                        "permission was revoked in system Settings. Remove and re-add each one " +
+                        "to resume scanning. Books already stored on this device stay readable.",
+                )
+            },
+        )
+    }
+
     if (source == null) {
         ListItem(
             headlineContent = { Text("No local folders configured") },
@@ -1030,14 +1058,25 @@ private fun LocalFilesSection(
         )
     } else {
         folders.forEach { folder ->
+            val isHealthy = folderHealth[folder.treeUri] != false
             ListItem(
                 modifier = Modifier.testTag("LocalFilesFolder.${folder.treeUri}"),
+                leadingContent = {
+                    if (!isHealthy) {
+                        Icon(
+                            Icons.Default.Warning,
+                            contentDescription = "Permission revoked",
+                            tint = MaterialTheme.colorScheme.error,
+                        )
+                    }
+                },
                 headlineContent = { Text(folder.displayName) },
                 supportingContent = {
                     Text(
-                        folder.treeUri,
+                        if (isHealthy) folder.treeUri else "Permission revoked — remove and re-add",
                         style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        color = if (isHealthy) MaterialTheme.colorScheme.onSurfaceVariant
+                        else MaterialTheme.colorScheme.error,
                     )
                 },
                 trailingContent = {
