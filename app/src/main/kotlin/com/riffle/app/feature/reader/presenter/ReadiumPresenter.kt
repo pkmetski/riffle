@@ -280,6 +280,13 @@ internal class ReadiumPresenter(
         bridge.snapCadenceColumn(fragmentId, columnIndex)
     }
 
+    override suspend fun applyHighlightDomPatch(
+        patch: com.riffle.app.feature.reader.highlights.HighlightsDomPatch,
+    ) {
+        if (fragment == null) return
+        bridge.applyHighlightDomPatch(patch)
+    }
+
     override suspend fun scrollBoundary(): ScrollBoundary {
         if (fragment == null) return ScrollBoundary.None
         val (atForward, atBackward) = bridge.scrollBoundary()

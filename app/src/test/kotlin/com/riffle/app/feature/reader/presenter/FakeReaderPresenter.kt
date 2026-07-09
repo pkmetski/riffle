@@ -92,6 +92,14 @@ internal class FakeReaderPresenter : ReaderPresenter {
     var scrollBoundaryResult: ScrollBoundary = ScrollBoundary.None
     override suspend fun scrollBoundary(): ScrollBoundary = scrollBoundaryResult
 
+    val recordedHighlightDomPatches: MutableList<com.riffle.app.feature.reader.highlights.HighlightsDomPatch> =
+        mutableListOf()
+    override suspend fun applyHighlightDomPatch(
+        patch: com.riffle.app.feature.reader.highlights.HighlightsDomPatch,
+    ) {
+        recordedHighlightDomPatches += patch
+    }
+
     // ----- Event drivers (for tests) -------------------------------------------------------
 
     suspend fun emitPosition(position: ReaderPosition) {

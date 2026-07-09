@@ -364,6 +364,10 @@ internal class ContinuousReaderView @JvmOverloads constructor(
 
     override fun scrollByPage(forward: Boolean) = controller.scrollByPage(forward)
 
+    override fun applyHighlightDomPatch(
+        patch: com.riffle.app.feature.reader.highlights.HighlightsDomPatch,
+    ) = controller.applyHighlightDomPatch(patch)
+
     override fun highlightInChapter(href: String, fragmentId: String?, text: String, cssColor: String) =
         controller.highlightInChapter(href, fragmentId, text, cssColor)
 

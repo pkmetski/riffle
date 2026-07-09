@@ -1,6 +1,7 @@
 package com.riffle.app.feature.reader.presenter
 
 import com.riffle.app.feature.reader.ContinuousNavigationView
+import com.riffle.app.feature.reader.highlights.HighlightsDomPatch
 import com.riffle.core.domain.FormattingPreferences
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.launch
@@ -27,6 +28,7 @@ class ContinuousPresenterTest {
         data class NavCall(val href: String, val progression: Float, val alignToTop: Boolean)
         val navCalls: MutableList<NavCall> = mutableListOf()
         val pageCalls: MutableList<Boolean> = mutableListOf()
+        val domPatches: MutableList<HighlightsDomPatch> = mutableListOf()
         override fun navigateTo(href: String, progression: Float, alignToTop: Boolean) {
             navCalls += NavCall(href, progression, alignToTop)
         }
@@ -34,6 +36,9 @@ class ContinuousPresenterTest {
             pageCalls += forward
         }
         override fun updatePreferences(prefs: FormattingPreferences) = Unit
+        override fun applyHighlightDomPatch(patch: HighlightsDomPatch) {
+            domPatches += patch
+        }
     }
 
     @Test
@@ -246,6 +251,38 @@ class ContinuousPresenterTest {
 
         assertEquals(listOf("ch2.xhtml" to 0.25), collected)
         job.cancel()
+    }
+
+    // Regression guard for the "Annotations View live-update dead in continuous mode" bug.
+    // Before this fix, DOM patches from EpubReaderViewModel's Highlights-mode observer were
+    // dispatched via RendererBridge only, which wraps Readium's EpubNavigatorFragment. In
+    // continuous mode the fragment is parked at height=0 and holds no elided DOM, so patches
+    // silently disappeared and recolour / note-edit / delete never repainted the Annotations
+    // View. The presenter now owns the seam and continuous mode fans out to its live chapter
+    // WebViews — reverting to a bridge-only dispatch would break this test.
+    @Test
+    fun `applyHighlightDomPatch forwards patches to the attached continuous view`() = runTest {
+        val presenter = ContinuousPresenter()
+        val view = FakeView()
+        presenter.attach(view)
+
+        val recolor = HighlightsDomPatch.Recolor("ann-1", "rgba(255,255,0,0.4)")
+        val setNote = HighlightsDomPatch.SetNote("ann-2", "rgba(255,255,0,0.4)", "hello")
+        val remove = HighlightsDomPatch.Remove("ann-3")
+
+        presenter.applyHighlightDomPatch(recolor)
+        presenter.applyHighlightDomPatch(setNote)
+        presenter.applyHighlightDomPatch(remove)
+
+        assertEquals(listOf(recolor, setNote, remove), view.domPatches)
+    }
+
+    @Test
+    fun `applyHighlightDomPatch is a no-op before attach`() = runTest {
+        val presenter = ContinuousPresenter()
+        // No exception, no observable effect when the view isn't bound yet — mirrors the
+        // navigate/scrollByPage safety contract elsewhere on the presenter.
+        presenter.applyHighlightDomPatch(HighlightsDomPatch.Remove("ann-1"))
     }
 
     @Test

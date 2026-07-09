@@ -124,6 +124,22 @@ internal interface ReaderPresenter {
     suspend fun snapCadenceColumn(fragmentId: String, columnIndex: Int)
 
     /**
+     * Apply one [com.riffle.app.feature.reader.highlights.HighlightsDomPatch] to the currently
+     * loaded elided-reader chapter. Idempotent by design: an unrecognised `data-ann-id` is a
+     * no-op, so it's safe to invoke against any live document.
+     *
+     * Implementations:
+     * - Paginated / vertical (Readium): delegates to
+     *   [com.riffle.app.feature.reader.renderer.RendererBridge.applyHighlightDomPatch], which
+     *   evaluates the patch JS in the single attached fragment WebView.
+     * - Continuous: fans the patch out to every loaded chapter WebView in the sliding window.
+     *   The Readium fragment is parked at height=0 in continuous mode, so routing through the
+     *   bridge would silently drop the patch — which is exactly why the Annotations View stopped
+     *   live-updating in continuous mode.
+     */
+    suspend fun applyHighlightDomPatch(patch: com.riffle.app.feature.reader.highlights.HighlightsDomPatch)
+
+    /**
      * Current native-scroll boundary state for the rendered content. Used by the vertical-mode
      * chapter-boundary gesture (ADR 0014) and by volume-key navigation to decide whether the
      * next page-step should turn the chapter or scroll within it.
