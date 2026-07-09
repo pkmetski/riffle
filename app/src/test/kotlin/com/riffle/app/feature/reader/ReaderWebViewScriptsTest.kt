@@ -233,6 +233,35 @@ class ReaderWebViewScriptsTest {
         assertTrue("guard sits BEFORE the walker call", guardIdx < walkerIdx)
     }
 
+    // Regression for the "selection menu jumps to the top of the screen for big selections" bug:
+    // in paginated mode, a selection extended across a CSS column-break makes
+    // Range.getBoundingClientRect() return a garbage union rect (negative top / cross-column
+    // right). Feeding that to onGetContentRect anchors the FloatingToolbar above the top of the
+    // screen. SELECTION_SPAN_TRACKER_JS must prefer the first per-line rect from getClientRects()
+    // that lies inside the visual viewport when reporting the anchor to RiffleSelBridge.onRect,
+    // and only fall back to the bounding rect when nothing is in-view.
+    @Test
+    fun `SELECTION_SPAN_TRACKER_JS anchors onRect to the first in-viewport client rect not the union bounding rect`() {
+        val js = SELECTION_SPAN_TRACKER_JS
+        val onRectIdx = js.indexOf("RiffleSelBridge.onRect(")
+        assertTrue("bridge call present", onRectIdx >= 0)
+        // The picker must scan getClientRects() and select an in-viewport rect (top>=0 &&
+        // top<vh && left>=0 && left<vw). Assertions target that logic; deleting or loosening it
+        // brings the bug back.
+        assertTrue("scans per-line client rects", js.contains("rng.getClientRects()"))
+        assertTrue("filters by top in [0, vh)", js.contains("r.top >= 0 && r.top < vh"))
+        assertTrue("filters by left in [0, vw)", js.contains("r.left >= 0 && r.left < vw"))
+        assertTrue("bounding rect kept only as fallback", js.contains("var use = anchor || br"))
+        // The call must pass the chosen `use` rect — not `br` directly — so a garbage bounding
+        // rect can never reach the bridge when an in-viewport line rect exists.
+        val onRectCall = js.substring(onRectIdx, js.indexOf(")", onRectIdx) + 1)
+        assertTrue(
+            "onRect uses the picked anchor rect, not the bounding rect directly, in: $onRectCall",
+            onRectCall.contains("use.left") && onRectCall.contains("use.top") &&
+                onRectCall.contains("use.right") && onRectCall.contains("use.bottom"),
+        )
+    }
+
     @Test
     fun `measureNarratedColumnsJs guards createTreeWalker against a null document body (issue 428)`() {
         // measureNarratedColumnsJs inlines narratedColumnsPreludeJs (private), so this exercises the
