@@ -6,6 +6,8 @@ import com.riffle.core.database.LibraryEntity
 import com.riffle.core.database.SourceDao
 import com.riffle.core.database.SourceEntity
 import com.riffle.core.domain.SourceType
+import com.riffle.core.logging.LogChannel
+import com.riffle.core.logging.Logger
 import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -26,6 +28,7 @@ class LocalFilesSourceInstaller @Inject constructor(
     private val libraryDao: LibraryDao,
     private val folderRepository: LocalFilesFolderRepository,
     private val scanner: LocalFilesScanner,
+    private val logger: Logger,
 ) {
 
     data class InstallResult(
@@ -39,9 +42,17 @@ class LocalFilesSourceInstaller @Inject constructor(
      * outcome so callers can surface add/failure counts.
      */
     suspend fun installFolder(treeUri: Uri): InstallResult {
+        logger.d(LogChannel.LocalFiles) { "installFolder start uri=$treeUri" }
         val sourceId = ensureLocalFilesSource()
+        logger.d(LogChannel.LocalFiles) { "installFolder sourceId=$sourceId" }
         folderRepository.addFolder(sourceId, treeUri)
+        logger.d(LogChannel.LocalFiles) { "installFolder folder attached, starting scan" }
         val report = scanner.scan(sourceId)
+        logger.d(LogChannel.LocalFiles) {
+            "installFolder scan done added=${report.added} refreshed=${report.refreshed} " +
+                "removed=${report.removed} failures=${report.failures.size} " +
+                "failureSample=${report.failures.take(3).joinToString { "${it.displayName}:${it.reason}" }}"
+        }
         return InstallResult(sourceId = sourceId, scan = report)
     }
 

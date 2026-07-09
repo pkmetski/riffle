@@ -61,9 +61,6 @@ fun AddLocalFilesScreen(
             launcher.launch(Unit)
         }
     }
-    LaunchedEffect(state) {
-        if (state is AddLocalFilesViewModel.State.Success) onDone()
-    }
 
     Scaffold(
         topBar = {
@@ -92,7 +89,11 @@ fun AddLocalFilesScreen(
                         onNavigateBack = onNavigateBack,
                     )
                     AddLocalFilesViewModel.State.Installing -> InstallingView()
-                    is AddLocalFilesViewModel.State.Success -> SuccessView(s.report.added, s.report.failures.size)
+                    is AddLocalFilesViewModel.State.Success -> SuccessView(
+                        added = s.report.added,
+                        failures = s.report.failures.size,
+                        onDone = onDone,
+                    )
                     is AddLocalFilesViewModel.State.Error -> ErrorView(
                         message = s.message,
                         onRetry = { launcher.launch(Unit) },
@@ -114,19 +115,30 @@ private fun InstallingView() {
 }
 
 @Composable
-private fun SuccessView(added: Int, failures: Int) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+private fun SuccessView(added: Int, failures: Int, onDone: () -> Unit) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
         Text(
             "Added $added book${if (added == 1) "" else "s"}.",
             style = MaterialTheme.typography.titleMedium,
         )
         if (failures > 0) {
-            Spacer(Modifier.size(4.dp))
             Text(
                 "$failures item${if (failures == 1) "" else "s"} could not be read.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+        } else if (added == 0) {
+            Text(
+                "No EPUBs or PDFs were found in that folder.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        Button(onClick = onDone, modifier = Modifier.testTag("AddLocalFiles.Done")) {
+            Text("Done")
         }
     }
 }

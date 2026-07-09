@@ -260,6 +260,7 @@ class LocalFilesScannerTest {
             copyIn = copyIn,
             pdfMetadata = NoOpPdfMetadataExtractor,
             clock = clock,
+            logger = com.riffle.core.logging.NoopLogger,
         )
 
         suspend fun configureFolder(treeUri: String, files: List<WalkedFile>) {

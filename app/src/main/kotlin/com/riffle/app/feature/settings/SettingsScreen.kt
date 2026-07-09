@@ -166,7 +166,10 @@ fun SettingsScreen(
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
                 )
                 HorizontalDivider()
-                servers.filter { it.serverType == ServerType.AUDIOBOOKSHELF }.forEach { server ->
+                servers.filter {
+                    it.serverType == ServerType.AUDIOBOOKSHELF &&
+                        it.type == com.riffle.core.domain.SourceType.ABS
+                }.forEach { server ->
                     ServerRow(
                         server = server,
                         isExpanded = expandedServers[server.id] == true,
