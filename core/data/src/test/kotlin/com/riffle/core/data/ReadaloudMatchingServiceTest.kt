@@ -388,6 +388,7 @@ class ReadaloudMatchingServiceTest {
         override suspend fun insertOrIgnore(items: List<LibraryItemEntity>) = Unit
         override suspend fun updateMetadata(metadata: com.riffle.core.database.LibraryItemMetadata) = Unit
         override suspend fun getById(sourceId: String, itemId: String): LibraryItemEntity? = byId[itemId]
+        override suspend fun listByLibraryId(sourceId: String, libraryId: String): List<LibraryItemEntity> = emptyList()
         override fun observeById(sourceId: String, itemId: String): Flow<LibraryItemEntity?> = flowOf(byId[itemId])
         override suspend fun findSourceIdForItem(itemId: String): String? = byId[itemId]?.sourceId
         override suspend fun deleteByLibraryId(sourceId: String, libraryId: String) = Unit

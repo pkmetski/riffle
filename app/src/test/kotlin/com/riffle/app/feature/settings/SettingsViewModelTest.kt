@@ -196,6 +196,22 @@ class SettingsViewModelTest {
         override val isOnline: kotlinx.coroutines.flow.StateFlow<Boolean> = isOnlineFlow
     }
 
+    // LocalFiles dependencies are unused by these settings tests — they still need to satisfy the
+    // constructor's non-null parameters, so route them through relaxed mockk mocks.
+    private val fakeLocalFilesFolderDao = io.mockk.mockk<com.riffle.core.database.LocalFilesFolderDao>(relaxed = true).also {
+        io.mockk.every { it.observeForSource(any()) } returns flowOf(emptyList())
+    }
+    private val fakeLocalFilesFolderRepository =
+        io.mockk.mockk<com.riffle.core.data.localfiles.LocalFilesFolderRepository>(relaxed = true)
+    private val fakeLocalFilesScanner =
+        io.mockk.mockk<com.riffle.core.data.localfiles.LocalFilesScanner>(relaxed = true)
+    private val fakeLocalFilesSourceInstaller =
+        io.mockk.mockk<com.riffle.core.data.localfiles.LocalFilesSourceInstaller>(relaxed = true)
+    private val fakeLocalFilesFolderHealthChecker =
+        io.mockk.mockk<com.riffle.core.data.localfiles.LocalFilesFolderHealthChecker>(relaxed = true).also {
+            io.mockk.every { it.healthFor(any()) } returns emptyMap()
+        }
+
     private val fakeAppUpdateRepo = object : com.riffle.core.domain.AppUpdateRepository {
         override suspend fun checkForUpdate(currentVersionCode: Int) =
             com.riffle.core.domain.UpdateCheckResult.UpToDate
@@ -242,6 +258,11 @@ class SettingsViewModelTest {
         },
         annotationSyncStatusStore = annotationSyncStatusStore,
         annotationDao = annotationDao,
+        localFilesFolderDao = fakeLocalFilesFolderDao,
+        localFilesFolderRepository = fakeLocalFilesFolderRepository,
+        localFilesScanner = fakeLocalFilesScanner,
+        localFilesSourceInstaller = fakeLocalFilesSourceInstaller,
+        localFilesFolderHealthChecker = fakeLocalFilesFolderHealthChecker,
     )
 
     private fun stubAnnotationDao(pendingBookCount: Int): AnnotationDao = object : AnnotationDao {
@@ -306,6 +327,11 @@ class SettingsViewModelTest {
         annotationSyncConfigStore = configStore,
         annotationSyncStatusStore = statusStore,
         annotationDao = annotationDao,
+        localFilesFolderDao = fakeLocalFilesFolderDao,
+        localFilesFolderRepository = fakeLocalFilesFolderRepository,
+        localFilesScanner = fakeLocalFilesScanner,
+        localFilesSourceInstaller = fakeLocalFilesSourceInstaller,
+        localFilesFolderHealthChecker = fakeLocalFilesFolderHealthChecker,
     )
 
     // --- crash report list tests ---

@@ -6,9 +6,9 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * Pins the SourceType picker's data model (#435). LocalFiles must stay disabled with a
- * "Coming soon" flag until #7 lands. If any of these assertions flip, the picker's
- * contract has changed and the change must be intentional.
+ * Pins the SourceType picker's data model (#435, #438). Both source types are enabled once
+ * the LocalFiles Catalog and Add-Source flow have landed (#438). If any of these assertions
+ * flip, the picker's contract has changed and the change must be intentional.
  */
 class SourceTypePickerTest {
 
@@ -29,10 +29,10 @@ class SourceTypePickerTest {
     }
 
     @Test
-    fun `LocalFiles card is disabled and coming soon`() {
+    fun `LocalFiles card is enabled once 438 has landed`() {
         val lf = sourceTypeCards().first { it.type is SourceTypeChoice.LocalFiles }
-        assertFalse(lf.enabled)
-        assertTrue(lf.comingSoon)
+        assertTrue(lf.enabled)
+        assertFalse(lf.comingSoon)
         assertEquals("Local files", lf.title)
     }
 }
