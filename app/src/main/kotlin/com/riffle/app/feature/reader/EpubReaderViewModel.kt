@@ -894,7 +894,7 @@ class EpubReaderViewModel @Inject constructor(
             // Start observing (once per (sourceId, itemId)). Kept alive across the openBook()
             // reruns triggered by reloadHighlightsView, since cancelling and re-launching each
             // rebuild would drop emissions during the Loading→Ready gap.
-            ensureHighlightsObserver(sourceId, itemId, chapters)
+            ensureHighlightsObserver(sourceId, itemId)
             // Book title composed as "<real title> — Annotations" so the reader's own top-bar
             // label makes clear which book's highlights are shown. Falls back to plain "Annotations"
             // when the local library_items row is gone (orphaned book).
@@ -1752,18 +1752,22 @@ class EpubReaderViewModel @Inject constructor(
      * is against what's actually on screen — this suppresses the redundant echo emission that
      * every local write triggers via Room's Flow.
      */
-    private fun ensureHighlightsObserver(
-        sourceId: String,
-        itemId: String,
-        initialChapters: List<ChapterElision>,
-    ) {
+    private fun ensureHighlightsObserver(sourceId: String, itemId: String) {
         if (highlightsObserverJob?.isActive == true) return
         highlightsObserverJob = viewModelScope.launch {
-            // Snapshot of "which chapter hrefs are in the current spine" — updated by every
-            // full rebuild via [openBook]; used to detect adds into a brand-new chapter.
-            var spineChapterHrefs: Set<String> = initialChapters.map { it.href }.toSet()
             annotationDao.observeAnnotationsByPosition(sourceId, itemId).collect { annotations ->
-                val incomingById = annotations.associateBy { it.id }
+                // Filter to highlights only — the elided reader's spine, chapter HTML, and every
+                // downstream patch/rewrite is highlights-only. If we left bookmarks in this stream:
+                //  (1) a chapter's byte rewrite would render bookmarks as fake highlight paragraphs
+                //      (renderChapterHtml paints every row as an accent-bar <p>);
+                //  (2) the empty-set close check would fire late when a chapter had highlights
+                //      deleted but a bookmark remained, blocking [reloadOrCloseHighlightsAfterDelete];
+                //  (3) a bookmark ADD would count as a structural change and re-introduce the
+                //      full-rebuild flash the DOM-patch pipeline was written to eliminate.
+                val incomingById = annotations
+                    .asSequence()
+                    .filter { it.type == AnnotationEntity.TYPE_HIGHLIGHT }
+                    .associateBy { it.id }
                 if (sameById(incomingById, highlightsRenderedById)) return@collect
 
                 val handle = highlightsPublicationHandle
@@ -1803,7 +1807,6 @@ class EpubReaderViewModel @Inject constructor(
                 if (structural || handle == null) {
                     if (reloadOrCloseHighlightsAfterDelete()) return@collect
                     reloadHighlightsView()
-                    spineChapterHrefs = highlightsResumeChapters?.map { it.href }?.toSet().orEmpty()
                     return@collect
                 }
 

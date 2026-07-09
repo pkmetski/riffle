@@ -34,9 +34,9 @@ class HighlightsLiveUpdateObserverTest {
             ?: error("openBook not found in EpubReaderViewModel.kt")
         val hlBranch = body.substringAfter("source == ReaderSource.Highlights")
         assertTrue(
-            "openBook Highlights branch must call ensureHighlightsObserver(sourceId, itemId, chapters) " +
-                "so the observer knows the initial spine shape for its structural-vs-partial diff.",
-            hlBranch.contains(Regex("ensureHighlightsObserver\\([^)]*chapters[^)]*\\)")),
+            "openBook Highlights branch must call ensureHighlightsObserver(sourceId, itemId) so " +
+                "the observer subscribes to per-book annotation changes.",
+            hlBranch.contains("ensureHighlightsObserver("),
         )
         assertTrue(
             "openBook Highlights branch must snapshot the rendered set by id (highlightsRenderedById) " +
@@ -94,6 +94,14 @@ class HighlightsLiveUpdateObserverTest {
             "ensureHighlightsObserver must refresh highlightsRenderedById after applying patches so " +
                 "the next emission's diff is against what's actually on screen.",
             body.contains("highlightsRenderedById = incomingById"),
+        )
+        assertTrue(
+            "ensureHighlightsObserver must filter the store Flow to TYPE_HIGHLIGHT only — bookmarks " +
+                "share the annotations table but the elided reader's spine, patches, and byte " +
+                "rewrites are highlights-only; a bookmark leaking through would (a) be rendered as a " +
+                "fake highlight paragraph after a byte rewrite, (b) block the empty-close check, and " +
+                "(c) count as a structural add and re-trigger the flash-through-Loading rebuild.",
+            body.contains("AnnotationEntity.TYPE_HIGHLIGHT"),
         )
     }
 
