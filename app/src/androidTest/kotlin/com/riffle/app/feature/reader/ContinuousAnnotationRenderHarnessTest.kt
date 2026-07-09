@@ -185,6 +185,12 @@ class ContinuousAnnotationRenderHarnessTest {
     }
 
     private fun addServerAndBrowseLibrary() {
+        // With no sources, HomeScreen navigates to the Source Type picker (#435).
+        // Tap the Audiobookshelf card to advance to the connect form.
+        composeTestRule.waitUntil(timeoutMillis = 5_000) {
+            composeTestRule.onAllNodesWithText("Audiobookshelf").fetchSemanticsNodes().isNotEmpty()
+        }
+        composeTestRule.onNodeWithText("Audiobookshelf").performClick()
         composeTestRule.waitUntil(timeoutMillis = 5_000) {
             composeTestRule.onAllNodesWithText("Connect").fetchSemanticsNodes().isNotEmpty()
         }

@@ -1,6 +1,7 @@
 package com.riffle.app.feature.server
 
 import androidx.activity.ComponentActivity
+import androidx.compose.material3.windowsizeclass.ExperimentalMaterial3WindowSizeClassApi
 import androidx.compose.material3.windowsizeclass.calculateWindowSizeClass
 import androidx.compose.ui.test.assertHasClickAction
 import androidx.compose.ui.test.assertHasNoClickAction
@@ -20,6 +21,7 @@ import org.junit.runner.RunWith
  * LocalFiles-disabled contract at the composable level; JVM-side data-model pinning
  * lives in [SourceTypePickerTest].
  */
+@OptIn(ExperimentalMaterial3WindowSizeClassApi::class)
 @RunWith(AndroidJUnit4::class)
 class SourceTypePickerScreenTest {
 
