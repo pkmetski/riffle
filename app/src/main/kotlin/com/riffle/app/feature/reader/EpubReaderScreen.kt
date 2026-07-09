@@ -499,6 +499,7 @@ fun EpubReaderScreen(
                         onRecolorHighlight = viewModel::recolorHighlight,
                         onDeleteHighlight = viewModel::deleteHighlight,
                         onUpdateHighlightNote = viewModel::updateHighlightNote,
+                        highlightDomPatches = viewModel.highlightDomPatches,
                         showOpenInBook = shouldShowOpenInBook(viewModel.readerSource),
                         onOpenInBook = viewModel::openHighlightInSourceBook,
                         autoScrollDeltas = viewModel.autoScrollScrollDeltas,
@@ -1295,6 +1296,7 @@ private fun EpubNavigatorView(
     onRecolorHighlight: (String, HighlightColor) -> Unit,
     onDeleteHighlight: (String) -> Unit,
     onUpdateHighlightNote: (String, String?) -> Unit,
+    highlightDomPatches: Flow<com.riffle.app.feature.reader.highlights.HighlightsDomPatch>,
     showOpenInBook: Boolean = false,
     onOpenInBook: (String) -> Unit = {},
     autoScrollDeltas: Flow<Int>,
@@ -1392,6 +1394,19 @@ private fun EpubNavigatorView(
         val presenter = readiumPresenter ?: return@LaunchedEffect
         val fragment = fragmentRef.value ?: return@LaunchedEffect
         presenter.attach(fragment)
+    }
+
+    // Highlights mode (ADR 0041) live DOM patches — recolour / note edit / delete of a single
+    // annotation is applied as a targeted `document.querySelector(...)` mutation on the Readium
+    // WebView, so the Annotations View refreshes IN PLACE instead of transitioning through
+    // Loading and rebuilding the whole Publication. Bytes for the affected chapter are rewritten
+    // in the InMemoryContainer by the VM, so navigating chapter-back-and-forth still shows the
+    // updated HTML. Patch is a no-op in continuous mode (the fragment is null and the bridge
+    // short-circuits); continuous keeps falling back to the observer's structural reload path.
+    LaunchedEffect(rendererBridge, highlightDomPatches) {
+        highlightDomPatches.collect { patch ->
+            rendererBridge.applyHighlightDomPatch(patch)
+        }
     }
 
     // Forward per-chapter viewport-fraction measurements from the active renderer into the VM's

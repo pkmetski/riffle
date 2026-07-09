@@ -30,6 +30,27 @@ data class ChapterElision(
 )
 
 /**
+ * Handle returned by [HighlightsPublicationFactory.buildHandle]. Bundles the synthesised
+ * [publication] with the mutable byte store backing its `InMemoryContainer` so per-annotation
+ * edits (recolour, note change, delete, in-chapter insert) can rewrite one chapter's HTML in
+ * place — a subsequent navigation back to that chapter re-reads the FRESH bytes, and Compose is
+ * never asked to reload the reader. The [chapterUrls] map lets callers translate a real EPUB
+ * `chapterHref` into the synthetic `highlights/chN.xhtml` URL Readium routes on.
+ */
+class HighlightsPublicationHandle internal constructor(
+    val publication: Publication,
+    val chapterUrls: Map<String, Url>,
+    private val byteStore: MutableMap<Url, ByteArray>,
+) {
+    /** Overwrite the bytes for [chapterHref] with [freshHtml]'s UTF-8 encoding. No-op if the
+     *  chapter isn't in the current spine (i.e. this handle predates a structural change). */
+    fun setChapterBytes(chapterHref: String, freshHtml: String) {
+        val url = chapterUrls[chapterHref] ?: return
+        byteStore[url] = freshHtml.toByteArray(Charsets.UTF_8)
+    }
+}
+
+/**
  * Synthesises an in-memory Readium [Publication] out of a set of [ChapterElision]s so the elided
  * "highlights only" reader (ADR 0041) can be driven by the exact same [EpubNavigatorFragment] /
  * [EpubReaderViewModel] machinery as a full book — Readium never needs to know the content didn't
@@ -62,16 +83,32 @@ class HighlightsPublicationFactory @Inject constructor() {
         bookTitle: String?,
         chapters: List<ChapterElision>,
         urlFactory: (String) -> Url? = { Url(it) },
-    ): Publication {
+    ): Publication = buildHandle(sourceId, itemId, bookTitle, chapters, urlFactory).publication
+
+    /**
+     * Same as [build] but returns the handle that lets the caller rewrite a chapter's bytes in
+     * place. The elided reader ([EpubReaderViewModel]) uses this so per-annotation edits patch the
+     * DOM live via [RendererBridge.applyHighlightDomPatch] AND persist to the container — so a
+     * subsequent chapter-back navigation reads the fresh HTML.
+     */
+    fun buildHandle(
+        sourceId: String,
+        itemId: String,
+        bookTitle: String?,
+        chapters: List<ChapterElision>,
+        urlFactory: (String) -> Url? = { Url(it) },
+    ): HighlightsPublicationHandle {
         val nonEmptyChapters = chapters.filter { it.highlights.isNotEmpty() }
 
         val entries = mutableMapOf<Url, ByteArray>()
         val readingOrder = mutableListOf<Link>()
+        val chapterUrls = mutableMapOf<String, Url>()
 
         nonEmptyChapters.forEachIndexed { index, chapter ->
             val href = "highlights/ch$index.xhtml"
             val url = requireNotNull(urlFactory(href)) { "Failed to build synthetic Url for $href" }
             entries[url] = renderChapterHtml(chapter).toByteArray(Charsets.UTF_8)
+            chapterUrls[chapter.href] = url
             readingOrder += Link(
                 href = url,
                 mediaType = MediaType.XHTML,
@@ -93,13 +130,20 @@ class HighlightsPublicationFactory @Inject constructor() {
             tableOfContents = readingOrder,
         )
 
-        return Publication(
+        val publication = Publication(
             manifest = manifest,
             container = InMemoryContainer(entries),
         )
+        return HighlightsPublicationHandle(publication, chapterUrls, entries)
     }
 
-    private fun renderChapterHtml(chapter: ChapterElision): String {
+    /**
+     * Render one chapter's synthesised HTML — the full XHTML document that Readium serves as the
+     * chapter resource. Exposed `internal` so [EpubReaderViewModel] can regenerate a single
+     * chapter's bytes after a per-annotation edit and write them back through
+     * [HighlightsPublicationHandle.setChapterBytes] without rebuilding the whole Publication.
+     */
+    internal fun renderChapterHtml(chapter: ChapterElision): String {
         val body = buildString {
             for (highlight in chapter.highlights) {
                 // The highlight is presented as a left accent bar in the palette colour, matching
@@ -255,14 +299,23 @@ private fun String.xmlEscape(): String =
  * than provide storage), so this is a minimal from-scratch implementation.
  */
 private class InMemoryContainer(
-    private val data: Map<Url, ByteArray>,
+    // Mutable map so [HighlightsPublicationHandle.setChapterBytes] can rewrite one chapter's
+    // synthesised HTML after a per-annotation DOM patch — Readium re-fetches the resource from
+    // this container on the NEXT navigation into that chapter, so the fresh bytes surface without
+    // touching the Publication object.
+    private val data: MutableMap<Url, ByteArray>,
 ) : Container<Resource> {
 
-    override val entries: Set<Url> = data.keys
+    // Snapshot at Publication-build time — the spine's shape is fixed for the lifetime of this
+    // container. Byte-content mutations don't add/remove keys, they only rewrite the value.
+    override val entries: Set<Url> = data.keys.toSet()
 
     override fun get(url: Url): Resource? {
-        val bytes = data[url] ?: return null
-        return BytesResource(url as? AbsoluteUrl, bytes)
+        // Fresh lambda per read so subsequent [read()] calls surface the LATEST bytes rather than
+        // whatever snapshot was captured at first-get time. Without this, a rewrite via
+        // [setChapterBytes] wouldn't be visible until the Resource itself was re-vended.
+        if (url !in data) return null
+        return BytesResource(url as? AbsoluteUrl) { data[url] ?: ByteArray(0) }
     }
 
     override fun close() = Unit
@@ -270,16 +323,17 @@ private class InMemoryContainer(
 
 private class BytesResource(
     override val sourceUrl: AbsoluteUrl?,
-    private val bytes: ByteArray,
+    private val bytesProvider: () -> ByteArray,
 ) : Resource {
 
     override suspend fun properties(): Try<Resource.Properties, ReadError> =
         Try.success(Resource.Properties())
 
     override suspend fun length(): Try<Long, ReadError> =
-        Try.success(bytes.size.toLong())
+        Try.success(bytesProvider().size.toLong())
 
     override suspend fun read(range: LongRange?): Try<ByteArray, ReadError> {
+        val bytes = bytesProvider()
         val result = if (range == null) {
             bytes
         } else {
