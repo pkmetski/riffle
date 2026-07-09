@@ -103,6 +103,25 @@ class ContinuousReaderViewSelectionInterceptTest {
     }
 
     @Test
+    fun onSelectionActiveChanged_firesOnlyOnCountTransitionEdges() {
+        // Regression: the reader hooks this to pause Auto-Scroll / Cadence while the user is
+        // selecting text (handles are invisible if the viewport keeps moving under them). The
+        // callback MUST fire only on 0↔1 transitions of the counter — never on inner increments
+        // during an overlapping-selection recycle race — otherwise a mid-drag re-entry would
+        // toggle pause and resume within one drag.
+        val v = view()
+        val events = mutableListOf<Boolean>()
+        onMain { v.onSelectionActiveChanged = { events += it } }
+        onMain {
+            v.onSelectionActiveForTest(true)       // 0 → 1: fire true
+            v.onSelectionActiveForTest(true)       // 1 → 2: no-op
+            v.onSelectionActiveForTest(false)      // 2 → 1: no-op
+            v.onSelectionActiveForTest(false)      // 1 → 0: fire false
+        }
+        assertEquals(listOf(true, false), events)
+    }
+
+    @Test
     fun overlappingSelections_decrementOnlyClearsWhenAllEnd() {
         val v = view()
         onMain {

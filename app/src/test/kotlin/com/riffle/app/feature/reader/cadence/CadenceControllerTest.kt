@@ -194,4 +194,49 @@ class CadenceControllerTest {
         assertNull(c.currentFragment.value)
         assertEquals(CadenceState.Idle, c.state.value)
     }
+
+    // setPaused(true, cause) → setPaused(false, cause) resumes; setPaused(false, otherCause)
+    // does NOT. Backs the pause-while-selecting behaviour so a `TextSelection` resume can't
+    // silently un-park a longer-lived cause (e.g. `PanelOpen`) that started mid-selection.
+    @Test
+    fun `setPaused with matching cause resumes`() = runController { c ->
+        c.bind(FakeSource(listOf("c#s0" to "one two three four five six seven eight")))
+        c.dispatch(CadenceEvent.Start)
+        runCurrent()
+        c.setPaused(paused = true, cause = PauseCause.TextSelection)
+        assertTrue(c.state.value is CadenceState.Paused)
+        assertEquals(PauseCause.TextSelection, (c.state.value as CadenceState.Paused).cause)
+
+        c.setPaused(paused = false, cause = PauseCause.TextSelection)
+        assertTrue(c.state.value is CadenceState.Running)
+    }
+
+    @Test
+    fun `setPaused with non-matching resume cause does not resume`() = runController { c ->
+        c.bind(FakeSource(listOf("c#s0" to "one two three four five six seven eight")))
+        c.dispatch(CadenceEvent.Start)
+        runCurrent()
+        c.setPaused(paused = true, cause = PauseCause.PanelOpen)
+
+        // Selection ended → attempts a scoped resume with TextSelection. The reducer's current
+        // cause is PanelOpen, so this MUST be ignored — otherwise closing a selection would
+        // un-park a panel-open pause that started while the selection was still active.
+        c.setPaused(paused = false, cause = PauseCause.TextSelection)
+        assertTrue(c.state.value is CadenceState.Paused)
+        assertEquals(PauseCause.PanelOpen, (c.state.value as CadenceState.Paused).cause)
+    }
+
+    @Test
+    fun `setPaused pausing while already paused updates the cause`() = runController { c ->
+        c.bind(FakeSource(listOf("c#s0" to "one two three four five six seven eight")))
+        c.dispatch(CadenceEvent.Start)
+        runCurrent()
+        c.setPaused(paused = true, cause = PauseCause.TextSelection)
+        // A panel opens during the selection: pause carrier flips to PanelOpen.
+        c.setPaused(paused = true, cause = PauseCause.PanelOpen)
+        assertEquals(PauseCause.PanelOpen, (c.state.value as CadenceState.Paused).cause)
+        // The selection then ends: a scoped TextSelection resume must NOT un-park.
+        c.setPaused(paused = false, cause = PauseCause.TextSelection)
+        assertTrue(c.state.value is CadenceState.Paused)
+    }
 }

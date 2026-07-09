@@ -163,6 +163,25 @@ open class CadenceController internal constructor(
         dispatch(CadenceEvent.Pause(cause))
     }
 
+    /**
+     * Scoped pause/resume — mirrors `FormattingSession.setAutoScrollPaused`.
+     * `paused = true` dispatches [CadenceEvent.Pause] with [cause].
+     * `paused = false` only dispatches [CadenceEvent.Resume] when the current pause cause matches
+     * [cause], so a short-lived cause (e.g. [PauseCause.TextSelection]) can't silently un-park a
+     * longer-lived one (e.g. [PauseCause.PanelOpen]) that started while the selection was still
+     * active. Called from the reader ViewModel.
+     */
+    fun setPaused(paused: Boolean, cause: PauseCause) {
+        if (paused) {
+            dispatch(CadenceEvent.Pause(cause))
+        } else {
+            val current = _state.value
+            if (current is CadenceState.Paused && current.cause == cause) {
+                dispatch(CadenceEvent.Resume)
+            }
+        }
+    }
+
     /** Called on the ticker itself, once a fragment lookup succeeds and we can position at it. */
     fun goTo(fragment: FragmentRef) {
         ticker?.goTo(fragment)

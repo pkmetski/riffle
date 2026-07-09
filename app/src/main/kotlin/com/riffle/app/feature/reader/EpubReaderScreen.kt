@@ -276,6 +276,10 @@ fun EpubReaderScreen(
 
     val annotationsAvailable by viewModel.annotationsAvailable.collectAsState()
     val annotationsPanelVisible by viewModel.annotationsPanelVisible.collectAsState()
+    // Set by [EpubNavigatorView]'s onSelectionActiveChanged callback (paged/vertical fire the
+    // Readium selectionActionModeCallback; continuous fires ContinuousReaderView's own callback).
+    // Combined with [highlightToEdit] / [noteEditorTarget] below to gate Auto-Scroll / Cadence.
+    var readerSelectionActive by remember { mutableStateOf(false) }
     val annotations by viewModel.annotations.collectAsState()
     val isCurrentPageBookmarked by viewModel.isCurrentPageBookmarked.collectAsState()
     val highlightRenders by viewModel.highlightRenders.collectAsState()
@@ -391,6 +395,25 @@ fun EpubReaderScreen(
                             cause = com.riffle.core.domain.autoscroll.PauseCause.PanelOpen,
                         )
                     }
+                    // Pause Auto-Scroll AND Cadence while text is being selected or the resulting
+                    // annotation popup / note editor is open — selection handles are invisible if
+                    // the viewport keeps advancing under them. Scoped resume (see
+                    // FormattingSession.setAutoScrollPaused / EpubReaderViewModel.setCadencePaused)
+                    // guarantees this can't un-park a longer-lived cause (e.g. PanelOpen) that
+                    // started mid-selection. Applies to all three reader modes.
+                    LaunchedEffect(readerSelectionActive, highlightToEdit, noteEditorTarget) {
+                        val anyOn = readerSelectionActive ||
+                            highlightToEdit != null ||
+                            noteEditorTarget != null
+                        viewModel.setAutoScrollPaused(
+                            paused = anyOn,
+                            cause = com.riffle.core.domain.autoscroll.PauseCause.TextSelection,
+                        )
+                        viewModel.setCadencePaused(
+                            paused = anyOn,
+                            cause = com.riffle.core.domain.cadence.PauseCause.TextSelection,
+                        )
+                    }
                     val spinePositions by viewModel.spinePositionCounts.collectAsState()
                     // Mutual-exclusion OR for the sentence-highlight pipeline (issue #403): when
                     // Cadence is running, its currentFragment / quotes / colour replace
@@ -461,6 +484,7 @@ fun EpubReaderScreen(
                             // transition on pre-R.
                             if (immersiveState.isImmersive) immersiveState.hide(force = true)
                         },
+                        onSelectionActiveChanged = { active -> readerSelectionActive = active },
                         latestLocator = { viewModel.latestLocator },
                         onFootnoteTapped = viewModel::showFootnotePopup,
                         returnNavEvents = viewModel.returnNavEvents,
@@ -1266,6 +1290,7 @@ private fun EpubNavigatorView(
     volumeNavEvents: Flow<VolumeNavEvent>,
     onTap: () -> Unit,
     onSelectionEnded: () -> Unit,
+    onSelectionActiveChanged: (Boolean) -> Unit,
     latestLocator: () -> Locator?,
     onFootnoteTapped: (content: FootnoteContent) -> Unit,
     returnNavEvents: Flow<Locator>,
@@ -1492,6 +1517,7 @@ private fun EpubNavigatorView(
     // without needing to be re-created when onTap changes.
     val currentOnTap by rememberUpdatedState(onTap)
     val currentOnSelectionEnded by rememberUpdatedState(onSelectionEnded)
+    val currentOnSelectionActiveChanged by rememberUpdatedState(onSelectionActiveChanged)
     val currentOnFootnoteTapped by rememberUpdatedState(onFootnoteTapped)
     val currentLatestLocator by rememberUpdatedState(latestLocator)
     val currentOnCaptureReturnTarget by rememberUpdatedState(onCaptureReturnTarget)
@@ -1575,8 +1601,19 @@ private fun EpubNavigatorView(
     val searchMenuId = remember { View.generateViewId() }
     val shareMenuId = remember { View.generateViewId() }
     val playFromHereActionMode = remember {
+        // See [SelectionHandoffLatch]. Latched by the highlightMenuId branch and cleared by the
+        // coroutine's `finally`, this bridges the frame-scale gap between mode.finish() (which
+        // synchronously fires onDestroyActionMode and would otherwise resume Auto-Scroll) and
+        // `highlightToEdit` becoming non-null (which re-latches the LaunchedEffect's pause).
+        val handoff = SelectionHandoffLatch()
         object : android.view.ActionMode.Callback {
             override fun onCreateActionMode(mode: android.view.ActionMode, menu: android.view.Menu): Boolean {
+                // Selection begins here in paged/vertical mode: pause Auto-Scroll / Cadence so the
+                // selection handles are visible while the user drags them. Paired with the
+                // onDestroyActionMode → onSelectionActiveChanged(false) below. Continuous mode has
+                // its own selection-active plumbing on ContinuousReaderView.
+                currentOnSelectionActiveChanged(true)
+                handoff.reset()
                 menu.add(0, copyMenuId, 0, android.R.string.copy)
                 if (currentAnnotationsAvailable) {
                     menu.add(0, highlightMenuId, 1, "Highlight")
@@ -1624,13 +1661,27 @@ private fun EpubNavigatorView(
                         val selectable = fragmentRef.value as? org.readium.r2.navigator.SelectableNavigator
                             ?: return false
                         val container = containerRef.value ?: return false
+                        // Suppress the synchronous selection-active clear in onDestroyActionMode
+                        // below; defer it to the coroutine's `finally` so `highlightToEdit` has a
+                        // chance to become non-null (which re-latches the pause via
+                        // [LaunchedEffect]) before selection-active flips off.
+                        handoff.beginHighlightHandoff()
                         coroutineScope.launch {
-                            val selection = selectable.currentSelection() ?: return@launch
-                            val rawRect = selection.rect
-                                ?: run { selectable.clearSelection(); return@launch }
-                            val rect = rawRect.toWindowIntRect(container)
-                            currentOnHighlight(selection.locator, rect)
-                            selectable.clearSelection()
+                            try {
+                                val selection = selectable.currentSelection() ?: return@launch
+                                val rawRect = selection.rect
+                                    ?: run { selectable.clearSelection(); return@launch }
+                                val rect = rawRect.toWindowIntRect(container)
+                                currentOnHighlight(selection.locator, rect)
+                                selectable.clearSelection()
+                            } finally {
+                                // Runs on all exits — success, early-out on null selection/rect,
+                                // and cancellation. If `currentOnHighlight` populated
+                                // `highlightToEdit`, the LaunchedEffect stays paused; if not (the
+                                // early-out paths), the pause resumes here as intended.
+                                handoff.endHighlightHandoff()
+                                currentOnSelectionActiveChanged(false)
+                            }
                         }
                     }
                     playFromHereMenuId -> {
@@ -1691,6 +1742,9 @@ private fun EpubNavigatorView(
                 // the OS leaves the system bars in a transparent-overlay state that the topInset
                 // watcher can't see. Force-re-hide restores true immersive.
                 currentOnSelectionEnded()
+                // Skip the selection-active clear when a highlight is in flight — the
+                // highlightMenuId coroutine's `finally` owns it. See [SelectionHandoffLatch].
+                if (handoff.shouldClearOnDestroy()) currentOnSelectionActiveChanged(false)
             }
         }
     }
@@ -2704,6 +2758,7 @@ private fun EpubNavigatorView(
                         view.readaloudAvailable = currentReadaloudAvailable
                         view.onFigureTap = { payload -> onFigureTap(payload) }
                         view.onSelectionEnded = { currentOnSelectionEnded() }
+                        view.onSelectionActiveChanged = { active -> currentOnSelectionActiveChanged(active) }
                     }
                 },
                 // Availability flags can flip mid-session; keep the selection menu gates in sync.
