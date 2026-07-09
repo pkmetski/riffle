@@ -154,7 +154,7 @@ fun SettingsScreen(
                 HorizontalDivider()
 
                 Text(
-                    text = "Audiobookshelf servers",
+                    text = "Sources",
                     style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.Bold,
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
@@ -186,7 +186,7 @@ fun SettingsScreen(
                         .fillMaxWidth()
                         .padding(horizontal = 16.dp, vertical = 8.dp),
                 ) {
-                    Text("Add server")
+                    Text("Add source")
                 }
                 HorizontalDivider()
 

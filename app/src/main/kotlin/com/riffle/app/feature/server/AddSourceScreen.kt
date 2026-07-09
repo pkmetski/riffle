@@ -200,14 +200,14 @@ fun AddSourceScreen(
     }
 }
 
-private fun screenTitle(backend: AddSourceBackend, isEditing: Boolean): String = when (backend) {
-    AddSourceBackend.AUDIOBOOKSHELF -> if (isEditing) "Edit Audiobookshelf server" else "Add Audiobookshelf server"
+internal fun screenTitle(backend: AddSourceBackend, isEditing: Boolean): String = when (backend) {
+    AddSourceBackend.AUDIOBOOKSHELF -> if (isEditing) "Edit Audiobookshelf" else "Add Audiobookshelf"
     AddSourceBackend.STORYTELLER -> if (isEditing) "Edit Storyteller" else "Add Storyteller"
     AddSourceBackend.WEBDAV -> if (isEditing) "Edit WebDAV" else "Add WebDAV"
 }
 
-private fun removeButtonLabel(backend: AddSourceBackend): String = when (backend) {
-    AddSourceBackend.AUDIOBOOKSHELF -> "Remove server"
+internal fun removeButtonLabel(backend: AddSourceBackend): String = when (backend) {
+    AddSourceBackend.AUDIOBOOKSHELF -> "Remove source"
     AddSourceBackend.STORYTELLER -> "Remove Storyteller"
     AddSourceBackend.WEBDAV -> "Disable sync"
 }
