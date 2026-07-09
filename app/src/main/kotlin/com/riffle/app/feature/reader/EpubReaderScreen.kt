@@ -1601,6 +1601,11 @@ private fun EpubNavigatorView(
     val searchMenuId = remember { View.generateViewId() }
     val shareMenuId = remember { View.generateViewId() }
     val playFromHereActionMode = remember {
+        // See [SelectionHandoffLatch]. Latched by the highlightMenuId branch and cleared by the
+        // coroutine's `finally`, this bridges the frame-scale gap between mode.finish() (which
+        // synchronously fires onDestroyActionMode and would otherwise resume Auto-Scroll) and
+        // `highlightToEdit` becoming non-null (which re-latches the LaunchedEffect's pause).
+        val handoff = SelectionHandoffLatch()
         object : android.view.ActionMode.Callback {
             override fun onCreateActionMode(mode: android.view.ActionMode, menu: android.view.Menu): Boolean {
                 // Selection begins here in paged/vertical mode: pause Auto-Scroll / Cadence so the
@@ -1608,6 +1613,7 @@ private fun EpubNavigatorView(
                 // onDestroyActionMode → onSelectionActiveChanged(false) below. Continuous mode has
                 // its own selection-active plumbing on ContinuousReaderView.
                 currentOnSelectionActiveChanged(true)
+                handoff.reset()
                 menu.add(0, copyMenuId, 0, android.R.string.copy)
                 if (currentAnnotationsAvailable) {
                     menu.add(0, highlightMenuId, 1, "Highlight")
@@ -1655,13 +1661,27 @@ private fun EpubNavigatorView(
                         val selectable = fragmentRef.value as? org.readium.r2.navigator.SelectableNavigator
                             ?: return false
                         val container = containerRef.value ?: return false
+                        // Suppress the synchronous selection-active clear in onDestroyActionMode
+                        // below; defer it to the coroutine's `finally` so `highlightToEdit` has a
+                        // chance to become non-null (which re-latches the pause via
+                        // [LaunchedEffect]) before selection-active flips off.
+                        handoff.beginHighlightHandoff()
                         coroutineScope.launch {
-                            val selection = selectable.currentSelection() ?: return@launch
-                            val rawRect = selection.rect
-                                ?: run { selectable.clearSelection(); return@launch }
-                            val rect = rawRect.toWindowIntRect(container)
-                            currentOnHighlight(selection.locator, rect)
-                            selectable.clearSelection()
+                            try {
+                                val selection = selectable.currentSelection() ?: return@launch
+                                val rawRect = selection.rect
+                                    ?: run { selectable.clearSelection(); return@launch }
+                                val rect = rawRect.toWindowIntRect(container)
+                                currentOnHighlight(selection.locator, rect)
+                                selectable.clearSelection()
+                            } finally {
+                                // Runs on all exits — success, early-out on null selection/rect,
+                                // and cancellation. If `currentOnHighlight` populated
+                                // `highlightToEdit`, the LaunchedEffect stays paused; if not (the
+                                // early-out paths), the pause resumes here as intended.
+                                handoff.endHighlightHandoff()
+                                currentOnSelectionActiveChanged(false)
+                            }
                         }
                     }
                     playFromHereMenuId -> {
@@ -1722,7 +1742,9 @@ private fun EpubNavigatorView(
                 // the OS leaves the system bars in a transparent-overlay state that the topInset
                 // watcher can't see. Force-re-hide restores true immersive.
                 currentOnSelectionEnded()
-                currentOnSelectionActiveChanged(false)
+                // Skip the selection-active clear when a highlight is in flight — the
+                // highlightMenuId coroutine's `finally` owns it. See [SelectionHandoffLatch].
+                if (handoff.shouldClearOnDestroy()) currentOnSelectionActiveChanged(false)
             }
         }
     }
