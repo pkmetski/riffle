@@ -53,6 +53,7 @@ import java.net.URLEncoder
 private const val HOME = "home"
 private const val SOURCE_SETUP_GRAPH = "source_setup"
 private const val ADD_SOURCE_TYPE_PICKER = "add_source_type_picker"
+private const val ADD_LOCAL_FILES = "add_local_files"
 private const val ADD_SOURCE = "add_source"
 private const val ADD_SOURCE_ROUTE = "add_source?type={type}&editId={editId}"
 private const val SELECT_LIBRARIES = "select_libraries"
@@ -196,6 +197,26 @@ fun MainScreen(
                             // Drop the picker so back from the form returns to the caller.
                             popUpTo(ADD_SOURCE_TYPE_PICKER) { inclusive = true }
                         }
+                    },
+                    onPickLocalFiles = {
+                        navController.navigate(ADD_LOCAL_FILES) {
+                            popUpTo(ADD_SOURCE_TYPE_PICKER) { inclusive = true }
+                        }
+                    },
+                )
+            }
+            composable(ADD_LOCAL_FILES) {
+                val cameFromSettings = navController.previousBackStackEntry
+                    ?.destination?.route == SETTINGS
+                com.riffle.app.feature.source.localfiles.AddLocalFilesScreen(
+                    windowSizeClass = windowSizeClass,
+                    onDone = {
+                        if (cameFromSettings) navController.popBackStack()
+                        else navController.navigateAsRoot(HOME)
+                    },
+                    onNavigateBack = {
+                        if (cameFromSettings) navController.popBackStack()
+                        else navController.navigateAsRoot(HOME)
                     },
                 )
             }

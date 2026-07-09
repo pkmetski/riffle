@@ -15,6 +15,7 @@ import com.riffle.core.domain.Source
 import com.riffle.core.domain.SourceFilesCleaner
 import com.riffle.core.domain.SourceRepository
 import com.riffle.core.domain.ServerType
+import com.riffle.core.domain.SourceType
 import com.riffle.core.domain.SourceUrl
 import com.riffle.core.domain.TokenStorage
 import com.riffle.core.network.AbsApi
@@ -246,6 +247,7 @@ class SourceRepositoryImpl @Inject constructor(
             isActive = isActive,
             insecureConnectionAllowed = insecureConnectionAllowed,
             username = username,
+            type = runCatching { SourceType.valueOf(type) }.getOrDefault(SourceType.ABS),
             serverType = ServerType.fromStorageString(serverType),
             absUserId = absUserId,
         )
