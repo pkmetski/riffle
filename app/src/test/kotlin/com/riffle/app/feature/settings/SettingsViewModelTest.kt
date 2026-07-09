@@ -376,7 +376,7 @@ class SettingsViewModelTest {
     }
 
     @Test
-    fun `removeServer last server emits NavigateToAddServer event`() = runTest {
+    fun `removeServer last server emits NavigateToAddSource event`() = runTest {
         serversFlow.value = listOf(server("srv-1", active = true))
         val vm = makeViewModel()
         backgroundScope.launch { vm.servers.collect {} }
@@ -386,7 +386,7 @@ class SettingsViewModelTest {
         testDispatcher.scheduler.advanceUntilIdle()
 
         val event = vm.navigationEvents.first()
-        assertTrue(event is SettingsNavEvent.NavigateToAddServer)
+        assertTrue(event is SettingsNavEvent.NavigateToAddSource)
     }
 
     // --- library visibility ---

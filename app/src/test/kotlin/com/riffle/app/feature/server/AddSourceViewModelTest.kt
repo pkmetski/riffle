@@ -42,7 +42,7 @@ import org.junit.Before
 import org.junit.Test
 
 @OptIn(ExperimentalCoroutinesApi::class)
-class AddServerViewModelTest {
+class AddSourceViewModelTest {
 
     private val testDispatcher = StandardTestDispatcher()
 
@@ -167,7 +167,7 @@ class AddServerViewModelTest {
         clock: com.riffle.core.domain.Clock = MutableClock(),
         annotationDao: AnnotationDao = stubAnnotationDao(pendingBookCount = 0),
         bannerTicker: Flow<Unit> = flowOf(Unit),
-    ): AddServerViewModel = AddServerViewModel(
+    ): AddSourceViewModel = AddSourceViewModel(
         repository = repository,
         webdavConfigStore = configStore,
         webdavTargetFactory = WebDavAnnotationSyncTargetFactory(OkHttpClient(), com.riffle.core.domain.DefaultDispatcherProvider),
@@ -355,7 +355,7 @@ class AddServerViewModelTest {
         val vm = makeVm(repo, savedState = savedState, tokenStorage = tokens)
         testDispatcher.scheduler.advanceUntilIdle()
 
-        assertEquals(AddServerBackend.STORYTELLER, vm.backend)
+        assertEquals(AddSourceBackend.STORYTELLER, vm.backend)
         assertTrue(vm.isEditing)
         assertEquals("http://", vm.scheme)
         assertEquals("media-server:8001", vm.host)
@@ -380,7 +380,7 @@ class AddServerViewModelTest {
         )
         testDispatcher.scheduler.advanceUntilIdle()
 
-        assertEquals(AddServerBackend.WEBDAV, vm.backend)
+        assertEquals(AddSourceBackend.WEBDAV, vm.backend)
         assertTrue(vm.isEditingWebdav)
         assertEquals("https://", vm.scheme)
         assertEquals("dav.example.com/store", vm.host)
@@ -399,7 +399,7 @@ class AddServerViewModelTest {
         )
         testDispatcher.scheduler.advanceUntilIdle()
 
-        assertEquals(AddServerBackend.WEBDAV, vm.backend)
+        assertEquals(AddSourceBackend.WEBDAV, vm.backend)
         assertFalse(vm.isEditingWebdav)
         assertEquals("", vm.host)
         assertEquals("", vm.username)

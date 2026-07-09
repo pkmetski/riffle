@@ -37,9 +37,9 @@ import com.riffle.app.feature.navigation.NavigationDrawerViewModel
 import com.riffle.app.feature.navigation.RiffleNavigationDrawer
 import com.riffle.app.feature.reader.EpubReaderScreen
 import com.riffle.app.feature.reader.PdfReaderScreen
-import com.riffle.app.feature.server.AddServerScreen
+import com.riffle.app.feature.server.AddSourceScreen
 import com.riffle.app.feature.server.SelectLibrariesScreen
-import com.riffle.app.feature.server.ServerSetupViewModel
+import com.riffle.app.feature.server.SourceSetupViewModel
 import com.riffle.app.feature.settings.SettingsScreen
 import com.riffle.app.feature.settings.annotationsync.AnnotationSyncMaintenanceScreen
 import com.riffle.app.feature.settings.debug.DebugLogScreen
@@ -165,7 +165,7 @@ fun MainScreen(
         NavHost(navController = navController, startDestination = HOME) {
             composable(HOME) {
                 HomeScreen(
-                    onNavigateToAddServer = {
+                    onNavigateToAddSource = {
                         navController.navigateAsRoot("$ADD_SERVER?type=audiobookshelf")
                     },
                     onNavigateToLibrary = { libraryId, libraryName ->
@@ -192,10 +192,10 @@ fun MainScreen(
                     val parentEntry = remember(backStackEntry) {
                         navController.getBackStackEntry(SERVER_SETUP_GRAPH)
                     }
-                    val setupVm: ServerSetupViewModel = hiltViewModel(parentEntry)
+                    val setupVm: SourceSetupViewModel = hiltViewModel(parentEntry)
                     val cameFromSettings = navController.previousBackStackEntry
                         ?.destination?.route == SETTINGS
-                    AddServerScreen(
+                    AddSourceScreen(
                         windowSizeClass = windowSizeClass,
                         onNavigateBack = {
                             if (cameFromSettings) navController.popBackStack()
@@ -215,7 +215,7 @@ fun MainScreen(
                     val parentEntry = remember(backStackEntry) {
                         navController.getBackStackEntry(SERVER_SETUP_GRAPH)
                     }
-                    val setupVm: ServerSetupViewModel = hiltViewModel(parentEntry)
+                    val setupVm: SourceSetupViewModel = hiltViewModel(parentEntry)
                     val pending = setupVm.pendingServer
                     if (pending == null) {
                         LaunchedEffect(Unit) { navController.popBackStack() }
@@ -235,7 +235,7 @@ fun MainScreen(
                 SettingsScreen(
                     windowSizeClass = windowSizeClass,
                     onNavigateBack = { navController.popBackStack() },
-                    onNavigateToAddServer = { backend, editId ->
+                    onNavigateToAddSource = { backend, editId ->
                         val params = buildList {
                             add("type=${backend.name.lowercase()}")
                             if (!editId.isNullOrEmpty()) add("editId=${URLEncoder.encode(editId, "UTF-8")}")

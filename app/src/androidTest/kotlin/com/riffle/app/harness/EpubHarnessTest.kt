@@ -201,7 +201,7 @@ class EpubHarnessTest {
     // ── Helpers ─────────────────────────────────────────────────────────────
 
     private fun addServerAndBrowseLibrary() {
-        // With no servers, HomeScreen automatically navigates to AddServerScreen.
+        // With no servers, HomeScreen automatically navigates to AddSourceScreen.
         // Wait for the form to appear before filling it in.
         composeTestRule.waitUntil(timeoutMillis = 5_000) {
             composeTestRule.onAllNodesWithText("Connect").fetchSemanticsNodes().isNotEmpty()

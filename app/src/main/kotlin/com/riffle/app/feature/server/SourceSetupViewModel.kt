@@ -7,11 +7,11 @@ import javax.inject.Inject
 
 /**
  * Scoped to the `server_setup` nested navigation graph. Holds the
- * authenticated-but-not-yet-persisted PendingSource so AddServerScreen and
+ * authenticated-but-not-yet-persisted PendingSource so AddSourceScreen and
  * SelectLibrariesScreen can share it without routing the auth token through
  * nav arguments.
  */
 @HiltViewModel
-class ServerSetupViewModel @Inject constructor() : ViewModel() {
+class SourceSetupViewModel @Inject constructor() : ViewModel() {
     var pendingServer: PendingSource? = null
 }

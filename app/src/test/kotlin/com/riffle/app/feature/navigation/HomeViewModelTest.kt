@@ -127,9 +127,9 @@ class HomeViewModelTest {
     )
 
     @Test
-    fun `getStartDestination returns AddServer when no servers`() = runTest {
+    fun `getStartDestination returns AddSource when no servers`() = runTest {
         val result = makeVm().getStartDestination()
-        assertEquals(HomeViewModel.StartDestination.AddServer, result)
+        assertEquals(HomeViewModel.StartDestination.AddSource, result)
     }
 
     @Test
@@ -154,13 +154,13 @@ class HomeViewModelTest {
     }
 
     @Test
-    fun `getStartDestination returns AddServer when server exists but refresh yields no libraries`() = runTest {
+    fun `getStartDestination returns AddSource when server exists but refresh yields no libraries`() = runTest {
         serversFlow.value = listOf(server("srv-1", active = true))
         // libraries remain empty even after a successful refresh — server has no book libraries
 
         val result = makeVm().getStartDestination()
 
-        assertEquals(HomeViewModel.StartDestination.AddServer, result)
+        assertEquals(HomeViewModel.StartDestination.AddSource, result)
     }
 
     @Test

@@ -24,14 +24,14 @@ class HomeViewModel @Inject constructor(
 ) : ViewModel() {
 
     sealed class StartDestination {
-        data object AddServer : StartDestination()
+        data object AddSource : StartDestination()
         data object NoLibraries : StartDestination()
         data class Library(val libraryId: String, val libraryName: String) : StartDestination()
     }
 
     suspend fun getStartDestination(): StartDestination = withContext(dispatchers.io) {
         val servers = sourceRepository.observeAll().first()
-        if (servers.isEmpty()) return@withContext StartDestination.AddServer
+        if (servers.isEmpty()) return@withContext StartDestination.AddSource
 
         val activeServer = servers.firstOrNull { it.isActive } ?: servers.first()
         var libraries = libraryObserver.observeLibraries().first()
@@ -41,7 +41,7 @@ class HomeViewModel @Inject constructor(
             libraries = libraryObserver.observeLibraries().first()
             if (libraries.isEmpty()) {
                 return@withContext when (refreshResult) {
-                    LibraryRefreshResult.Success -> StartDestination.AddServer
+                    LibraryRefreshResult.Success -> StartDestination.AddSource
                     else -> StartDestination.NoLibraries
                 }
             }

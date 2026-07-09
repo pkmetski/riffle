@@ -73,7 +73,7 @@ import com.riffle.app.feature.reader.behaviorSummary
 import com.riffle.app.feature.reader.displaySummary
 import com.riffle.app.feature.reader.formattingSummary
 import com.riffle.app.ui.TabletContentWidthContainer
-import com.riffle.app.feature.server.AddServerBackend
+import com.riffle.app.feature.server.AddSourceBackend
 import com.riffle.core.domain.AppTheme
 import com.riffle.core.domain.HighlightColor
 import com.riffle.core.domain.Source
@@ -89,7 +89,7 @@ internal fun crashReportShareSubject(timestamp: String): String =
 fun SettingsScreen(
     windowSizeClass: WindowSizeClass,
     onNavigateBack: () -> Unit,
-    onNavigateToAddServer: (backend: AddServerBackend, editId: String?) -> Unit,
+    onNavigateToAddSource: (backend: AddSourceBackend, editId: String?) -> Unit,
     onNavigateToReadaloudMatches: (String) -> Unit = {},
     onNavigateToAnnotationSyncMaintenance: () -> Unit = {},
     onNavigateToDebugLogs: () -> Unit = {},
@@ -124,7 +124,7 @@ fun SettingsScreen(
     LaunchedEffect(Unit) {
         viewModel.navigationEvents.collect { event ->
             when (event) {
-                is SettingsNavEvent.NavigateToAddServer -> onNavigateToAddServer(AddServerBackend.AUDIOBOOKSHELF, null)
+                is SettingsNavEvent.NavigateToAddSource -> onNavigateToAddSource(AddSourceBackend.AUDIOBOOKSHELF, null)
                 is SettingsNavEvent.NavigateToReadaloudMatches -> onNavigateToReadaloudMatches(event.sourceId)
             }
         }
@@ -181,7 +181,7 @@ fun SettingsScreen(
                     )
                 }
                 Button(
-                    onClick = { onNavigateToAddServer(AddServerBackend.AUDIOBOOKSHELF, null) },
+                    onClick = { onNavigateToAddSource(AddSourceBackend.AUDIOBOOKSHELF, null) },
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 16.dp, vertical = 8.dp),
@@ -308,7 +308,7 @@ fun SettingsScreen(
                 val storytellerServers = servers.filter { it.serverType == ServerType.STORYTELLER }
                 if (storytellerServers.isEmpty()) {
                     ListItem(
-                        modifier = Modifier.clickable { onNavigateToAddServer(AddServerBackend.STORYTELLER, null) },
+                        modifier = Modifier.clickable { onNavigateToAddSource(AddSourceBackend.STORYTELLER, null) },
                         leadingContent = { StorytellerBadge(configured = false) },
                         headlineContent = { Text("Configure Storyteller") },
                         supportingContent = { Text("Not configured") },
@@ -336,7 +336,7 @@ fun SettingsScreen(
                         }
                         ListItem(
                             modifier = Modifier.clickable {
-                                onNavigateToAddServer(AddServerBackend.STORYTELLER, server.id)
+                                onNavigateToAddSource(AddSourceBackend.STORYTELLER, server.id)
                             },
                             leadingContent = { StorytellerBadge(configured = true) },
                             headlineContent = { Text("Storyteller") },
@@ -463,7 +463,7 @@ fun SettingsScreen(
                 val annotationSyncRow by viewModel.annotationSyncRow.collectAsState()
                 ListItem(
                     modifier = Modifier.clickable {
-                        onNavigateToAddServer(AddServerBackend.WEBDAV, null)
+                        onNavigateToAddSource(AddSourceBackend.WEBDAV, null)
                     },
                     leadingContent = { AnnotationSyncBadge(annotationSyncRow.badge) },
                     headlineContent = { Text("Configure WebDAV") },

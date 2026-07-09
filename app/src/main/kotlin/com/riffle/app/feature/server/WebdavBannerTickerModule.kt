@@ -1,6 +1,6 @@
 package com.riffle.app.feature.server
 
-import com.riffle.app.feature.server.AddServerViewModel.Companion.WEBDAV_BANNER_TICKER
+import com.riffle.app.feature.server.AddSourceViewModel.Companion.WEBDAV_BANNER_TICKER
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -12,7 +12,7 @@ import javax.inject.Named
 import javax.inject.Singleton
 
 /**
- * Wall-clock ticker driving the [AddServerViewModel.webdavBanner] combine — emits Unit once a
+ * Wall-clock ticker driving the [AddSourceViewModel.webdavBanner] combine — emits Unit once a
  * minute so the "Last sync N ago" relative label advances even while nothing upstream changes.
  * Without it the banner freezes whenever offline: WorkManager gates the sweep on CONNECTED, so
  * no CycleOutcome reports fire, and the label sticks at whatever value was computed when
