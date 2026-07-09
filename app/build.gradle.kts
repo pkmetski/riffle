@@ -164,6 +164,10 @@ dependencies {
     implementation(libs.readium.streamer)
     implementation(libs.readium.navigator)
     implementation(libs.readium.adapter.pdfium)
+    // Readium 3.3.0 ships marain87's PdfiumAndroid fork (namespace `com.shockwave.pdfium`) at
+    // runtime. We just need the class on the compile classpath to bind our metadata extractor,
+    // so use compileOnly to avoid a manifest namespace clash between the two forks.
+    compileOnly(libs.pdfium.android)
 
     implementation(libs.acra.core)
     implementation(libs.acra.toast)

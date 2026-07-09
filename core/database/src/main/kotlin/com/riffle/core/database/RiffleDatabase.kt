@@ -27,8 +27,10 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         AudiobookBookmarkEntity::class,
         TocCacheEntity::class,
         AudiobookChapterCacheEntity::class,
+        LocalFilesFolderEntity::class,
+        LocalFilesFileEntity::class,
     ],
-    version = 45,
+    version = 46,
     exportSchema = true,
 )
 abstract class RiffleDatabase : RoomDatabase() {
@@ -50,6 +52,8 @@ abstract class RiffleDatabase : RoomDatabase() {
     abstract fun audiobookBookmarkDao(): AudiobookBookmarkDao
     abstract fun tocCacheDao(): TocCacheDao
     abstract fun audiobookChapterCacheDao(): AudiobookChapterCacheDao
+    abstract fun localFilesFolderDao(): LocalFilesFolderDao
+    abstract fun localFilesFileDao(): LocalFilesFileDao
 
     companion object {
         val MIGRATION_1_2 = object : Migration(1, 2) {
@@ -1239,6 +1243,47 @@ abstract class RiffleDatabase : RoomDatabase() {
                 } finally {
                     db.execSQL("PRAGMA foreign_keys=ON")
                 }
+            }
+        }
+
+        // ADR 0041 phase 5a (issue #437): LocalFiles ingestion pipeline. Adds two additive tables
+        // backing configured folders and per-file ingest records under a LocalFiles Source. No
+        // existing tables are touched. Both tables FK-cascade on sources(id) so a Source removal
+        // clears its folder configuration and file records; the actual library_items rows and the
+        // copied bytes on disk are still cleaned up by the scanner's stale-row sweep (or by the
+        // library_items FK cascade on Source removal — which also removes them).
+        val MIGRATION_45_46 = object : Migration(45, 46) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `local_files_folders` (" +
+                        "`sourceId` TEXT NOT NULL, " +
+                        "`treeUri` TEXT NOT NULL, " +
+                        "`displayName` TEXT NOT NULL, " +
+                        "`addedAtEpochMs` INTEGER NOT NULL, " +
+                        "PRIMARY KEY(`sourceId`, `treeUri`), " +
+                        "FOREIGN KEY(`sourceId`) REFERENCES `sources`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )"
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS `index_local_files_folders_sourceId` ON `local_files_folders` (`sourceId`)"
+                )
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `local_files_files` (" +
+                        "`sourceId` TEXT NOT NULL, " +
+                        "`sourceItemId` TEXT NOT NULL, " +
+                        "`folderTreeUri` TEXT NOT NULL, " +
+                        "`originalUri` TEXT NOT NULL, " +
+                        "`copiedPath` TEXT NOT NULL, " +
+                        "`coverPath` TEXT, " +
+                        "`format` TEXT NOT NULL, " +
+                        "`sizeBytes` INTEGER NOT NULL, " +
+                        "`mtimeEpochMs` INTEGER NOT NULL, " +
+                        "`lastSeenAtEpochMs` INTEGER NOT NULL, " +
+                        "PRIMARY KEY(`sourceId`, `sourceItemId`), " +
+                        "FOREIGN KEY(`sourceId`) REFERENCES `sources`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )"
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS `index_local_files_files_sourceId` ON `local_files_files` (`sourceId`)"
+                )
             }
         }
     }

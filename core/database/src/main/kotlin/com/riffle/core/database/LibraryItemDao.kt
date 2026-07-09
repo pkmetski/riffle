@@ -73,6 +73,9 @@ interface LibraryItemDao {
     @Query("DELETE FROM library_items WHERE sourceId = :sourceId AND libraryId = :libraryId")
     suspend fun deleteByLibraryId(sourceId: String, libraryId: String)
 
+    @Query("DELETE FROM library_items WHERE sourceId = :sourceId AND id = :itemId")
+    suspend fun deleteById(sourceId: String, itemId: String)
+
     @Transaction
     suspend fun replaceAllForLibrary(sourceId: String, libraryId: String, items: List<LibraryItemEntity>) {
         if (items.isEmpty()) {

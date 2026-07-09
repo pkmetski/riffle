@@ -26,6 +26,7 @@ internal object ThrowingLibraryItemDao : LibraryItemDao {
     override fun observeById(sourceId: String, itemId: String): Flow<LibraryItemEntity?> = flowOf(null)
     override suspend fun findSourceIdForItem(itemId: String): String? = null
     override suspend fun deleteByLibraryId(sourceId: String, libraryId: String) = Unit
+    override suspend fun deleteById(sourceId: String, itemId: String) = Unit
     override suspend fun deleteRemovedFromLibrary(sourceId: String, libraryId: String, serverItemIds: List<String>) = Unit
     override suspend fun updateLastOpenedAt(sourceId: String, itemId: String, timestamp: Long) = Unit
     override suspend fun updateReadingProgress(sourceId: String, itemId: String, progress: Float) = Unit
