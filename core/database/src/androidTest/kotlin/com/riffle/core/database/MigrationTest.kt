@@ -1846,6 +1846,71 @@ class MigrationTest {
     }
 
     @Test
+    fun migration45To46_addsLocalFilesTables() {
+        helper.createDatabase(TEST_DB, 45).use { db ->
+            // Pre-existing Source row must survive the additive migration.
+            db.execSQL(
+                "INSERT INTO sources (id, url, isActive, insecureConnectionAllowed, username, serverType, absUserId, type) " +
+                    "VALUES ('src-A', 'https://abs.example.com', 1, 0, 'alice', 'AUDIOBOOKSHELF', NULL, 'ABS')"
+            )
+        }
+        helper.runMigrationsAndValidate(TEST_DB, 46, true, RiffleDatabase.MIGRATION_45_46).use { db ->
+            // Pre-existing sources row untouched.
+            db.query("SELECT COUNT(*) FROM sources WHERE id = 'src-A'").use { c ->
+                c.moveToFirst(); assertEquals(1, c.getInt(0))
+            }
+
+            // local_files_folders exists and accepts insertions.
+            db.execSQL(
+                "INSERT INTO local_files_folders (sourceId, treeUri, displayName, addedAtEpochMs) " +
+                    "VALUES ('src-A', 'content://books', 'Books', 100)"
+            )
+            db.query(
+                "SELECT sourceId, treeUri, displayName, addedAtEpochMs FROM local_files_folders " +
+                    "WHERE sourceId = 'src-A' AND treeUri = 'content://books'"
+            ).use { c ->
+                assertEquals(1, c.count)
+                c.moveToFirst()
+                assertEquals("src-A", c.getString(0))
+                assertEquals("content://books", c.getString(1))
+                assertEquals("Books", c.getString(2))
+                assertEquals(100L, c.getLong(3))
+            }
+
+            // local_files_files exists with expected shape including nullable coverPath.
+            db.execSQL(
+                "INSERT INTO local_files_files " +
+                    "(sourceId, sourceItemId, folderTreeUri, originalUri, copiedPath, coverPath, " +
+                    " format, sizeBytes, mtimeEpochMs, lastSeenAtEpochMs) " +
+                    "VALUES ('src-A', 'hash-1', 'content://books', 'content://books/a.epub', " +
+                    " '/data/books/hash-1.epub', NULL, 'epub', 1024, 500, 1000)"
+            )
+            db.query(
+                "SELECT sourceItemId, coverPath, format, sizeBytes, lastSeenAtEpochMs FROM local_files_files " +
+                    "WHERE sourceId = 'src-A'"
+            ).use { c ->
+                assertEquals(1, c.count)
+                c.moveToFirst()
+                assertEquals("hash-1", c.getString(0))
+                assertTrue("coverPath defaults nullable", c.isNull(1))
+                assertEquals("epub", c.getString(2))
+                assertEquals(1024L, c.getLong(3))
+                assertEquals(1000L, c.getLong(4))
+            }
+
+            // Sources FK-cascades to both new tables.
+            db.execSQL("PRAGMA foreign_keys = ON")
+            db.execSQL("DELETE FROM sources WHERE id = 'src-A'")
+            db.query("SELECT COUNT(*) FROM local_files_folders WHERE sourceId = 'src-A'").use { c ->
+                c.moveToFirst(); assertEquals(0, c.getInt(0))
+            }
+            db.query("SELECT COUNT(*) FROM local_files_files WHERE sourceId = 'src-A'").use { c ->
+                c.moveToFirst(); assertEquals(0, c.getInt(0))
+            }
+        }
+    }
+
+    @Test
     fun migrateFullChain() {
         helper.createDatabase(TEST_DB, 1).use { db ->
             db.execSQL(
@@ -1899,6 +1964,7 @@ class MigrationTest {
             RiffleDatabase.MIGRATION_42_43,
             RiffleDatabase.MIGRATION_43_44,
             RiffleDatabase.MIGRATION_44_45,
+            RiffleDatabase.MIGRATION_45_46,
         )
 
         db.query("SELECT url, username, serverType, absUserId, type FROM sources WHERE id = 's1'").use { cursor ->

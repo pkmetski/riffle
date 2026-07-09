@@ -158,6 +158,9 @@ class ServerRepositoryTest {
             rows[libraryId]?.removeAll { it.sourceId == sourceId }
             if (rows[libraryId]?.isEmpty() == true) rows.remove(libraryId)
         }
+        override suspend fun deleteById(sourceId: String, itemId: String) {
+            rows.forEach { (_, v) -> v.removeAll { it.sourceId == sourceId && it.id == itemId } }
+        }
         override suspend fun deleteRemovedFromLibrary(sourceId: String, libraryId: String, serverItemIds: List<String>) = Unit
         override suspend fun updateLastOpenedAt(sourceId: String, itemId: String, timestamp: Long) {}
         override suspend fun getLastOpenedAtMap(sourceId: String, libraryId: String) = emptyList<com.riffle.core.database.LastOpenedAtRow>()

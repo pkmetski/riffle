@@ -10,6 +10,8 @@ import com.riffle.core.database.BookFormattingPreferencesDao
 import com.riffle.core.database.CollectionDao
 import com.riffle.core.database.LibraryDao
 import com.riffle.core.database.LibraryItemDao
+import com.riffle.core.database.LocalFilesFileDao
+import com.riffle.core.database.LocalFilesFolderDao
 import com.riffle.core.database.CrossEpubIndexDao
 import com.riffle.core.database.ReadaloudCandidateDao
 import com.riffle.core.database.ReadaloudDismissalDao
@@ -80,6 +82,7 @@ object DatabaseModule {
                 RiffleDatabase.MIGRATION_42_43,
                 RiffleDatabase.MIGRATION_43_44,
                 RiffleDatabase.MIGRATION_44_45,
+                RiffleDatabase.MIGRATION_45_46,
             )
             .build()
 
@@ -156,4 +159,12 @@ object DatabaseModule {
     @Singleton
     fun provideAudiobookChapterCacheDao(db: RiffleDatabase): AudiobookChapterCacheDao =
         db.audiobookChapterCacheDao()
+
+    @Provides
+    @Singleton
+    fun provideLocalFilesFolderDao(db: RiffleDatabase): LocalFilesFolderDao = db.localFilesFolderDao()
+
+    @Provides
+    @Singleton
+    fun provideLocalFilesFileDao(db: RiffleDatabase): LocalFilesFileDao = db.localFilesFileDao()
 }

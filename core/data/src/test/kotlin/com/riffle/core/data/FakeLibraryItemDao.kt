@@ -109,6 +109,12 @@ internal class FakeLibraryItemDao : LibraryItemDao {
         roomData[libraryId]!!.value = current.filterNot { it.sourceId == sourceId }
     }
 
+    override suspend fun deleteById(sourceId: String, itemId: String) {
+        roomData.forEach { (_, flow) ->
+            flow.value = flow.value.filterNot { it.sourceId == sourceId && it.id == itemId }
+        }
+    }
+
     override suspend fun updateLastOpenedAt(sourceId: String, itemId: String, timestamp: Long) {}
 
     override suspend fun getLastOpenedAtMap(sourceId: String, libraryId: String): List<LastOpenedAtRow> =

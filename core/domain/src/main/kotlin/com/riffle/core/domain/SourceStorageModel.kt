@@ -12,6 +12,7 @@ package com.riffle.core.domain
  */
 fun SourceType.hasCacheTier(): Boolean = when (this) {
     SourceType.ABS -> true
+    SourceType.LOCAL_FILES -> false
 }
 
 /**
