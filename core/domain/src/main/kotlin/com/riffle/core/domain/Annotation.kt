@@ -46,4 +46,14 @@ data class EmbeddedFigure(
      * the Highlights-mode elided reader render it inline without needing the source Publication.
      */
     val imageBytes: String? = null,
+    /**
+     * Position of this figure within the highlight's readable-text stream, measured in the same
+     * char-count model as [com.riffle.core.domain.countBodyChars] — i.e. blank-text-node-aware and
+     * counting a void `<img>` as zero chars. Captured at create-time from
+     * `findEnclosedFiguresInHtml` and used by the annotations panel / elided reader to split the
+     * highlight's `textSnippet` at the figure's true position so the graph renders in-flow between
+     * the text before and after it (fix 2026-07-09). Null on annotations created before this
+     * field existed — callers fall back to "figures render after all text", the v1 behaviour.
+     */
+    val charOffset: Long? = null,
 )

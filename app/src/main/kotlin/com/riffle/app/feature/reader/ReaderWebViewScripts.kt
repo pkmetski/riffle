@@ -362,17 +362,21 @@ internal val SELECTION_SPAN_TRACKER_JS = """
             var figures = [];
             try {
               var rng2 = rng.cloneRange();
-              var walker = document.createTreeWalker(
-                rng2.commonAncestorContainer,
-                NodeFilter.SHOW_ELEMENT,
-                { acceptNode: function (n) {
-                    var tag2 = (n.tagName || '').toLowerCase();
-                    if (tag2 !== 'img' && tag2 !== 'svg' && tag2 !== 'picture' && tag2 !== 'figure') return NodeFilter.FILTER_SKIP;
-                    return rng2.intersectsNode(n) ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT;
-                  } }
-              );
-              var seen = new Set(), order = 0, fnode;
-              while ((fnode = walker.nextNode())) {
+              // Use querySelectorAll + intersectsNode instead of TreeWalker + a filter callback:
+              // TreeWalker's acceptNode callback ran but Chromium's paginated-mode Readium WebView
+              // never yielded any figure between the two selected paragraphs — the FILTER_ACCEPT
+              // branch never fired for the enclosed <img>. The observable symptom was highlights
+              // spanning an equation image landing in the DB with empty embeddedFigures.
+              // querySelectorAll on the range's scope avoids the acceptNode-callback path entirely
+              // and matches every candidate up-front; range.intersectsNode then filters the enclosed
+              // subset. Same set of tags, same output shape.
+              var scope = rng2.commonAncestorContainer;
+              if (!scope || scope.nodeType !== 1) scope = (scope && scope.parentElement) || document.body;
+              var candidates = scope ? scope.querySelectorAll('img, svg, picture, figure') : [];
+              var seen = new Set(), order = 0;
+              for (var wi = 0; wi < candidates.length; wi++) {
+                var fnode = candidates[wi];
+                if (!rng2.intersectsNode(fnode)) continue;
                 var t2 = fnode.tagName.toLowerCase();
                 var target = t2 === 'figure' ? (fnode.querySelector('img') || fnode.querySelector('svg') || fnode.querySelector('picture')) : fnode;
                 if (!target || seen.has(target)) continue;

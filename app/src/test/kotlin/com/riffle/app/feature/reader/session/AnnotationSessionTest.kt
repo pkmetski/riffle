@@ -221,7 +221,7 @@ class AnnotationSessionTest {
     private fun defaultBind(
         session: AnnotationSession,
         store: FakeAnnotationStore = FakeAnnotationStore(),
-        highlightRenderResolver: suspend (Annotation) -> EpubReaderViewModel.HighlightRender? = { null },
+        highlightRenderResolver: suspend (Annotation) -> List<EpubReaderViewModel.HighlightRender> = { emptyList() },
         cfiLocatorResolver: suspend (String) -> Locator? = { null },
     ) {
         session.bind(
@@ -252,7 +252,7 @@ class AnnotationSessionTest {
             sourceId = "srv1",
             namespace = "ns1",
             itemId = "item1",
-            highlightRenderResolver = { a -> if (a.id == anno.id) render else null },
+            highlightRenderResolver = { a -> if (a.id == anno.id) listOf(render) else emptyList() },
             cfiLocatorResolver = { null },
         )
 
@@ -364,7 +364,7 @@ class AnnotationSessionTest {
             sourceId = "srv1",
             namespace = "ns1",
             itemId = "item2",
-            highlightRenderResolver = { null },
+            highlightRenderResolver = { emptyList() },
             cfiLocatorResolver = { null },
         )
         assertEquals(HighlightColor.RED, session.lastUsedHighlightColor.value)
@@ -645,7 +645,7 @@ class AnnotationSessionTest {
             sourceId = "srv1",
             namespace = "ns1",
             itemId = "item1",
-            highlightRenderResolver = { null },
+            highlightRenderResolver = { emptyList() },
             cfiLocatorResolver = { cfi -> if (cfi == anno.cfi) targetLocator else null },
         )
 
@@ -695,7 +695,7 @@ class AnnotationSessionTest {
             sourceId = "srv1",
             namespace = "ns1",
             itemId = "item1",
-            highlightRenderResolver = { null },
+            highlightRenderResolver = { emptyList() },
             cfiLocatorResolver = { _ -> targetLocator },
         )
 
@@ -802,7 +802,7 @@ class AnnotationSessionTest {
             sourceId = "srv1",
             namespace = "ns1",
             itemId = "item2",
-            highlightRenderResolver = { null },
+            highlightRenderResolver = { emptyList() },
             cfiLocatorResolver = { null },
         )
         val secondJob = syncOps.lastLiveSyncJob

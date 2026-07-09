@@ -176,17 +176,15 @@ class HighlightsPublicationFactory @Inject constructor() {
                 when (annotation.type) {
                     AnnotationEntity.TYPE_IMAGE -> appendImageAnnotation(this, annotation)
                     else -> {
-                        appendTextHighlight(this, annotation)
-                        // v1 interleaving approximation (ADR 0041 follow-up): we don't record
-                        // character offsets for where a figure sat inside the highlighted range
-                        // (Task 7 captures the figure set but not offsets), so we cannot split
-                        // textSnippet at the figure's true position. Render the full highlight
-                        // text, then every embedded figure in `order` sequence. See
-                        // HighlightsPublicationFactory's class KDoc / task-9 brief for the
-                        // full rationale; a future task can tighten this once offsets exist.
-                        annotation.decodedEmbeddedFigures()?.sortedBy { it.order }?.forEach { fig ->
-                            appendFigureBlock(this, fig)
-                        }
+                        // Interleave text and figures at their captured [EmbeddedFigure.charOffset]
+                        // (fix 2026-07-09) so a graph sitting between two paragraphs of the
+                        // highlighted range renders IN PLACE — not dumped at the end. When any
+                        // enclosed figure was captured without an offset (legacy row, or a
+                        // JS-stash-only figure that never went through the Kotlin walker), the
+                        // whole highlight falls back to "text first, then figures" — the v1
+                        // behaviour matches what shipped before offsets existed. See
+                        // appendInterleavedHighlight's KDoc.
+                        appendInterleavedHighlight(this, annotation)
                     }
                 }
             }
@@ -194,7 +192,8 @@ class HighlightsPublicationFactory @Inject constructor() {
         val title = chapter.title.xmlEscape()
         return """
             |<?xml version="1.0" encoding="UTF-8"?>
-            |<html xmlns="http://www.w3.org/1999/xhtml"><head><title>$title</title>$READIUM_DEFAULT_CSS_LINK<style>$ACCENT_BAR_TAP_CSS</style></head>
+            |<html xmlns="http://www.w3.org/1999/xhtml"><head><title>$title</title>$READIUM_DEFAULT_CSS_LINK<style>$ACCENT_BAR_TAP_CSS
+            |$FIGURE_CENTERING_CSS</style></head>
             |<body>
             |  <h1>$title</h1>
             |${body.trimEnd('\n')}
@@ -220,10 +219,98 @@ internal const val ACCENT_BAR_TAP_CSS =
     ".$ACCENT_BAR_TAP_CLASS{position:absolute;left:-4px;top:0;bottom:0;width:20px;" +
         "background:transparent;cursor:pointer;pointer-events:auto;}"
 
+// Centers annotated figures (`<figure class="riffle-fig">`) horizontally in the elided reader.
+// `<figure>`'s browser default is `margin: 1em 40px`, which visually reads as left-aligned when
+// the container is wider than the image. Setting `margin: 1em auto` centers the figure block, and
+// `text-align: center` centers the inline `<img>`/`<svg>` inside it plus any `<figcaption>`. The
+// `display: block` on the inner image defends against a ReadiumCSS or publisher rule that would
+// otherwise force the img to inline flow with residual whitespace. Matches how graphs render in
+// the source book (which centers them via publisher CSS we don't preserve in the synthesised view).
+internal const val FIGURE_CENTERING_CSS =
+    ".riffle-fig{margin:1em auto !important;text-align:center;position:relative;}" +
+        ".riffle-fig>img,.riffle-fig>svg{display:block;margin:0 auto;max-width:100%;height:auto;}"
+
+/**
+ * Renders a TYPE_HIGHLIGHT with its embedded figures interleaved at each figure's
+ * [EmbeddedFigure.charOffset] — text-before, `<figure>`, text-after (fix 2026-07-09).
+ *
+ * Falls back to "text first, then figures" (the v1 rendering pinned by
+ * `TYPE_HIGHLIGHT with embeddedFigures renders text then caption placeholders in order`) when the
+ * highlight has NO embedded figures OR when ANY figure lacks a `charOffset` (legacy rows written
+ * before offsets existed, plus JS-stash-only figures that didn't go through the Kotlin walker).
+ * The fallback keeps the shipped elided-reader semantics intact for annotations that predate this
+ * change.
+ */
+private fun appendInterleavedHighlight(sb: StringBuilder, highlight: com.riffle.core.database.AnnotationEntity) {
+    val figures = highlight.decodedEmbeddedFigures()?.sortedBy { it.order }.orEmpty()
+    if (figures.isEmpty() || figures.any { it.charOffset == null }) {
+        appendTextHighlight(sb, highlight)
+        figures.forEach { appendFigureBlock(sb, it, highlight.id, highlight.color) }
+        return
+    }
+    val chunks = com.riffle.app.feature.reader.splitSnippetForFiguresAt(
+        snippet = highlight.textSnippet,
+        offsets = figures.map { it.charOffset },
+    )
+    // Emit alternating: chunk[0], figure[0], chunk[1], figure[1], ..., chunk[last].
+    chunks.forEachIndexed { index, chunk ->
+        if (chunk.isNotEmpty()) {
+            appendHighlightTextChunk(sb, highlight, chunk)
+        }
+        figures.getOrNull(index)?.let { fig ->
+            appendFigureBlock(sb, fig, highlight.id, highlight.color)
+        }
+    }
+    val note = highlight.note
+    if (note != null) {
+        val accent = highlightBackgroundCss(highlight.color)
+        val idEscaped = highlight.id.xmlEscape()
+        sb.append("  <aside class=\"riffle-note\" data-ann-id=\"")
+        sb.append(idEscaped)
+        sb.append("\" style=\"border-left: 2px solid ")
+        sb.append(accent)
+        sb.append(" !important; padding-left: 12px; font-style: italic; opacity: 0.75;\">")
+        sb.append(note.xmlEscape())
+        sb.append("</aside>\n")
+    }
+}
+
+/**
+ * Emits ONE `<p>` chunk of a split highlight — same accent bar + tap span as [appendTextHighlight],
+ * but only wrapping [chunk] (a portion of the highlight's snippet, not the whole thing). Callers
+ * emit multiple chunks around interleaved figures; the accent-bar-tap span carries the SAME
+ * annotation id on every chunk so a tap anywhere along the highlight opens the same popup.
+ */
+private fun appendHighlightTextChunk(
+    sb: StringBuilder,
+    highlight: com.riffle.core.database.AnnotationEntity,
+    chunk: String,
+) {
+    val accent = highlightBackgroundCss(highlight.color)
+    val idEscaped = highlight.id.xmlEscape()
+    val tapUrl = buildAnnotationTapUrl(highlight.id).xmlEscape()
+    sb.append("  <p style=\"")
+    sb.append(PARAGRAPH_GAP_STYLE)
+    sb.append("; position: relative; border-left: 4px solid ")
+    sb.append(accent)
+    sb.append(" !important; padding-left: 12px;\"><span class=\"")
+    sb.append(ACCENT_BAR_TAP_CLASS)
+    sb.append("\" data-ann-id=\"")
+    sb.append(idEscaped)
+    sb.append("\" onclick=\"var e=event,x=e.clientX,y=e.clientY;location.href='")
+    sb.append(tapUrl)
+    sb.append("?l='+x+'&amp;t='+y+'&amp;r='+(x+1)+'&amp;b='+(y+1);return false;\"></span><span class=\"riffle-hl\" data-ann-id=\"")
+    sb.append(idEscaped)
+    sb.append("\">")
+    sb.append(chunk.xmlEscape())
+    sb.append("</span></p>\n")
+}
+
 /**
  * Renders a TYPE_HIGHLIGHT annotation's own `<p>`/`<aside>` block — the pre-Task-9 rendering,
  * extracted unchanged out of [HighlightsPublicationFactory.renderChapterHtml] so figure-block
- * emission (TYPE_IMAGE, embedded figures) can be dispatched independently.
+ * emission (TYPE_IMAGE, embedded figures) can be dispatched independently. Now also serves as the
+ * `charOffset == null` fallback path from [appendInterleavedHighlight].
  */
 private fun appendTextHighlight(sb: StringBuilder, highlight: AnnotationEntity) {
     // The highlight is presented as a left accent bar in the palette colour, matching
@@ -275,25 +362,14 @@ private fun appendTextHighlight(sb: StringBuilder, highlight: AnnotationEntity) 
  * skipped entirely when blank — a TYPE_IMAGE annotation with no caption gets no `<figcaption>`.
  */
 private fun appendImageAnnotation(sb: StringBuilder, annotation: AnnotationEntity) {
-    sb.append("  <figure class=\"riffle-fig\">\n")
-    val svg = annotation.imageSvg
-    val bytes = annotation.imageBytes
-    when {
-        // Prefer the captured data URI — needs no source-Publication container access at render
-        // time. Inline SVG is embedded verbatim (also self-contained).
-        bytes != null -> sb.append("<img src=\"").append(bytes.xmlAttrEscape()).append("\" style=\"max-width:100%;height:auto\"/>")
-        svg != null -> sb.append(svg)
-        // Legacy TYPE_IMAGE annotations captured before imageBytes existed have only imageHref,
-        // which points at the source Publication's container. Emitting `<img src="synthetic/…">`
-        // here crashed Readium's WebViewServer with an NPE on Url.relativize when the elided
-        // reader tried to fetch it. Fall back to a placeholder line — the caption below still
-        // tells the reader which figure this was.
-        else -> sb.append("<p class=\"riffle-fig-placeholder\">[figure image not captured]</p>")
-    }
-    if (!annotation.textSnippet.isBlank()) {
-        sb.append("\n    <figcaption>").append(annotation.textSnippet.xmlEscape()).append("</figcaption>")
-    }
-    sb.append("\n  </figure>\n")
+    appendFigureFigure(
+        sb = sb,
+        annotationId = annotation.id,
+        colorToken = annotation.color,
+        svg = annotation.imageSvg,
+        bytes = annotation.imageBytes,
+        caption = annotation.textSnippet,
+    )
 }
 
 /**
@@ -302,21 +378,69 @@ private fun appendImageAnnotation(sb: StringBuilder, annotation: AnnotationEntit
  * [HighlightsPublicationFactory.renderChapterHtml]'s inline KDoc). Mirrors
  * [appendImageAnnotation]'s SVG-vs-raster branching and caption handling.
  */
-private fun appendFigureBlock(sb: StringBuilder, figure: EmbeddedFigure) {
-    sb.append("  <figure class=\"riffle-fig\">\n")
-    val svg = figure.svg
-    val bytes = figure.imageBytes
+private fun appendFigureBlock(
+    sb: StringBuilder,
+    figure: EmbeddedFigure,
+    ownerAnnotationId: String,
+    ownerColorToken: String,
+) {
+    appendFigureFigure(
+        sb = sb,
+        annotationId = ownerAnnotationId,
+        colorToken = ownerColorToken,
+        svg = figure.svg,
+        bytes = figure.imageBytes,
+        caption = figure.caption,
+    )
+}
+
+/**
+ * Shared `<figure class="riffle-fig">` emitter for [appendImageAnnotation] (standalone TYPE_IMAGE)
+ * and [appendFigureBlock] (embedded figure inside a TYPE_HIGHLIGHT). Both need:
+ *  - The same coloured left accent bar the text `<p>` gets (fix: "annotated graph is missing the
+ *    vertical colored line") — inline `border-left` on the `<figure>`, `position:relative` so the
+ *    tap span can absolute-position over it.
+ *  - The [ACCENT_BAR_TAP_CLASS] span for tap-to-open dispatch, using [buildAnnotationTapUrl] with
+ *    the annotation id. For an embedded figure inside a highlight, the id points at the OWNING
+ *    highlight so a tap opens the highlight's editor (not a phantom separate annotation).
+ *  - Centering behaviour from [FIGURE_CENTERING_CSS] on `.riffle-fig`; nothing more to do here.
+ *
+ * When neither [svg] nor [bytes] is available, emits the placeholder line — the caller's caption
+ * still identifies which figure this was.
+ */
+private fun appendFigureFigure(
+    sb: StringBuilder,
+    annotationId: String,
+    colorToken: String,
+    svg: String?,
+    bytes: String?,
+    caption: String,
+) {
+    val accent = highlightBackgroundCss(colorToken)
+    val idEscaped = annotationId.xmlEscape()
+    val tapUrl = buildAnnotationTapUrl(annotationId).xmlEscape()
+    sb.append("  <figure class=\"riffle-fig\" style=\"border-left: 4px solid ")
+    sb.append(accent)
+    sb.append(" !important; padding-left: 12px;\">\n")
+    // Tap-dispatch strip over the accent bar, matching the text-paragraph tap seam. `pointer-events`
+    // are `auto` per [ACCENT_BAR_TAP_CSS] so a tap on the coloured bar lands here rather than on
+    // the image (which is a plain content tap and does nothing in the elided view).
+    sb.append("    <span class=\"").append(ACCENT_BAR_TAP_CLASS)
+        .append("\" data-ann-id=\"").append(idEscaped)
+        .append("\" onclick=\"var e=event,x=e.clientX,y=e.clientY;location.href='")
+        .append(tapUrl)
+        .append("?l='+x+'&amp;t='+y+'&amp;r='+(x+1)+'&amp;b='+(y+1);return false;\"></span>\n")
     when {
-        // Prefer the data URI captured at selection-change time — no source-Publication container
-        // needed, no synthetic path that would crash Readium's WebViewServer.
-        bytes != null -> sb.append("<img src=\"").append(bytes.xmlAttrEscape()).append("\" style=\"max-width:100%;height:auto\"/>")
-        svg != null -> sb.append(svg)
-        // Legacy embedded figures captured before EmbeddedFigure.imageBytes existed: show a
-        // placeholder rather than a synthetic-path <img> (which would NPE WebViewServer).
-        else -> sb.append("<p class=\"riffle-fig-placeholder\">[figure image not captured]</p>")
+        bytes != null -> sb.append("    <img src=\"").append(bytes.xmlAttrEscape())
+            .append("\" data-ann-id=\"").append(idEscaped).append("\"/>")
+        svg != null -> sb.append("    ").append(sanitizeSvgForElidedView(svg))
+        // Legacy figures with only imageHref: emitting a synthetic-path <img> crashed
+        // WebViewServer with an NPE on Url.relativize. Fall back to a placeholder line — the
+        // caption below still tells the reader which figure this was.
+        else -> sb.append("    <p class=\"riffle-fig-placeholder\">[figure image not captured]</p>")
     }
-    if (figure.caption.isNotBlank()) {
-        sb.append("\n    <figcaption>").append(figure.caption.xmlEscape()).append("</figcaption>")
+    if (caption.isNotBlank()) {
+        sb.append("\n    <figcaption>").append(caption.xmlEscape()).append("</figcaption>")
     }
     sb.append("\n  </figure>\n")
 }
@@ -330,6 +454,29 @@ private fun appendFigureBlock(sb: StringBuilder, figure: EmbeddedFigure) {
  * can never drift out of sync.
  */
 private fun syntheticPath(href: String): String = "synthetic/figures/" + href.replace('/', '_')
+
+/**
+ * Strips external references (`<image href|xlink:href="…">` and `<use href|xlink:href="…">`) from
+ * an inline SVG before embedding it in the elided Highlights view. Without this, Chromium
+ * resolves those hrefs against the elided chapter's URL (`https://readium_package/highlights/chN.xhtml`)
+ * and requests them from `WebViewServer` — whose `packageBaseHref.relativize(url)` throws
+ * `IllegalStateException: Required value was null` when the resulting relative URL can't be
+ * re-parsed, tearing down the reader process (same NPE class as the pre-725ee000e synthetic-`<img>`
+ * crash). Data URIs are left intact — Chromium doesn't route them through WebViewServer.
+ *
+ * The sanitizer is a regex — jsoup on the elided-render hot path is overkill, and SVG's namespace
+ * quirks make a proper XML parse fragile. If either substitution ever needs to grow into a real
+ * parser, promote at that time.
+ */
+internal fun sanitizeSvgForElidedView(svg: String): String {
+    // Drop <image ...> and <use ...> elements that point at a non-data URL. Preserve the whole
+    // element tree otherwise so the SVG still renders (paths, rects, etc.).
+    val externalImageOrUse = Regex(
+        """<(image|use)\b[^>]*?(?:xlink:)?href\s*=\s*["'](?!data:)[^"']*["'][^>]*/?>""",
+        setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL),
+    )
+    return externalImageOrUse.replace(svg, "")
+}
 
 private val embeddedFiguresJson = Json { ignoreUnknownKeys = true }
 private val embeddedFiguresSerializer = ListSerializer(EmbeddedFigure.serializer())

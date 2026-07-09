@@ -326,16 +326,17 @@ class EpubReaderViewModelHighlightsSourceTest {
             urlFactory = ::testUrlFactory,
         )
 
-        assertNotNull(render)
-        assertEquals("highlights/ch1.xhtml", render!!.locator.href.toString())
-        assertEquals("the spice must flow", render.locator.text.highlight)
-        assertEquals("h2", render.id)
+        assertTrue(render.isNotEmpty())
+        val single = render.first()
+        assertEquals("highlights/ch1.xhtml", single.locator.href.toString())
+        assertEquals("the spice must flow", single.locator.text.highlight)
+        assertEquals("h2", single.id)
     }
 
     @Test
-    fun `highlightsAnnotationToRender returns null when the highlight is not in any chapter`() {
+    fun `highlightsAnnotationToRender returns empty when the highlight is not in any chapter`() {
         val chapters = buildChapterElisions(listOf(highlight("h1", "chA.xhtml", spineIndex = 0)))
-        assertNull(highlightsAnnotationToRender(chapters, annotation("missing"), urlFactory = ::testUrlFactory))
+        assertTrue(highlightsAnnotationToRender(chapters, annotation("missing"), urlFactory = ::testUrlFactory).isEmpty())
     }
 
     @Test
@@ -345,8 +346,8 @@ class EpubReaderViewModelHighlightsSourceTest {
             chapters,
             annotation("h1", color = "blue", note = "my thought"),
             urlFactory = ::testUrlFactory,
-        )
-        assertEquals("blue", render!!.color)
+        ).first()
+        assertEquals("blue", render.color)
         assertEquals("my thought", render.note)
     }
 

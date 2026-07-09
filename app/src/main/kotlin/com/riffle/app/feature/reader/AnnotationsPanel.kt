@@ -129,7 +129,13 @@ internal enum class RowKind { Bookmark, Highlight, Image }
  */
 internal fun rowKindFor(annotation: Annotation): RowKind = when (annotation.type) {
     AnnotationEntity.TYPE_BOOKMARK -> RowKind.Bookmark
-    AnnotationEntity.TYPE_HIGHLIGHT -> RowKind.Highlight
+    // A HIGHLIGHT whose selection enclosed a figure with captured bytes gets the Image row so
+    // the panel shows the figure thumbnail — same visual weight as a standalone TYPE_IMAGE. The
+    // text snippet still renders alongside via the row's title column. Highlights without a
+    // captured figure (or figures without bytes) fall back to the plain color-dot row.
+    AnnotationEntity.TYPE_HIGHLIGHT ->
+        if (annotation.embeddedFigures.orEmpty().any { !it.imageBytes.isNullOrBlank() })
+            RowKind.Image else RowKind.Highlight
     AnnotationEntity.TYPE_IMAGE -> RowKind.Image
     else -> RowKind.Highlight
 }
@@ -143,17 +149,14 @@ private fun AnnotationRow(
 ) {
     val rowKind = rowKindFor(annotation)
     Row(
-        verticalAlignment = Alignment.CenterVertically,
+        verticalAlignment = Alignment.Top,
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick)
             .padding(horizontal = 16.dp, vertical = 12.dp),
     ) {
         Box(
-            modifier = Modifier.size(
-                width = if (rowKind == RowKind.Image) 96.dp else 32.dp,
-                height = if (rowKind == RowKind.Image) 80.dp else 32.dp,
-            ),
+            modifier = Modifier.size(width = 32.dp, height = 32.dp),
             contentAlignment = Alignment.Center,
         ) {
             when (rowKind) {
@@ -162,31 +165,11 @@ private fun AnnotationRow(
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-                RowKind.Image -> {
-                    val highlightColor = HighlightColor.fromToken(annotation.color)
-                    val borderColor = Color(highlightColor.argb.toLong() and 0xFFFFFFFFL)
-                    val bytesUri = annotation.imageBytes
-                    val bitmap = remember(bytesUri) { decodeImageDataUri(bytesUri) }
-                    if (bitmap != null) {
-                        ComposeImage(
-                            bitmap = bitmap.asImageBitmap(),
-                            contentDescription = null,
-                            contentScale = ContentScale.Fit,
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .clip(RoundedCornerShape(6.dp))
-                                .border(2.dp, borderColor, RoundedCornerShape(6.dp)),
-                        )
-                    } else {
-                        Icon(
-                            Icons.Filled.Image,
-                            contentDescription = null,
-                            tint = borderColor,
-                            modifier = Modifier.size(48.dp),
-                        )
-                    }
-                }
-                RowKind.Highlight -> {
+                // Image and Highlight rows share the same colour dot marker in the leading slot —
+                // fix #2 (2026-07-09): the figure thumbnail is no longer rendered on the left, it
+                // now sits inline between the text runs in the content column (see below), matching
+                // how the book itself lays out prose around a figure.
+                RowKind.Image, RowKind.Highlight -> {
                     val highlightColor = HighlightColor.fromToken(annotation.color)
                     Surface(
                         shape = CircleShape,
@@ -198,34 +181,189 @@ private fun AnnotationRow(
         }
         Spacer(Modifier.width(16.dp))
         Column(modifier = Modifier.weight(1f)) {
-            val title = if (rowKind == RowKind.Bookmark) {
-                annotation.bookmarkTitle.ifBlank { "Bookmark" }
-            } else {
-                annotation.textSnippet
-            }
-            Text(
-                text = title,
-                style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onSurface,
-                maxLines = maxLinesForAnnotationTitle(annotation.type),
-                overflow = TextOverflow.Ellipsis,
-            )
-            val note = annotation.note
-            if (rowKind == RowKind.Highlight && !note.isNullOrBlank()) {
-                Text(
-                    text = note.take(60),
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
+            AnnotationContent(annotation = annotation, rowKind = rowKind)
         }
         Spacer(Modifier.width(16.dp))
         AnnotationOverflow(
             isBookmark = rowKind == RowKind.Bookmark,
             onDelete = onDelete,
             onRename = onRename,
+        )
+    }
+}
+
+/**
+ * Content column of an annotation row. For rows that carry a figure ([RowKind.Image]), the figure
+ * is rendered INLINE between the text runs — mirroring how the graph sits between paragraphs in
+ * the source book (fix #2, 2026-07-09). Since [EmbeddedFigure] doesn't record where within the
+ * highlighted range each figure sat (v1 approximation — see HighlightsPublicationFactory's class
+ * KDoc), we split the highlight's snippet at newline boundaries and interleave figures at those
+ * gaps in `order` sequence. When no boundaries exist, figures render after the snippet as a
+ * fallback — the standalone TYPE_IMAGE row hits this fallback intentionally (image over caption).
+ */
+@Composable
+private fun AnnotationContent(annotation: Annotation, rowKind: RowKind) {
+    if (rowKind == RowKind.Bookmark) {
+        val title = annotation.bookmarkTitle.ifBlank { "Bookmark" }
+        Text(
+            text = title,
+            style = MaterialTheme.typography.bodyLarge,
+            color = MaterialTheme.colorScheme.onSurface,
+            maxLines = maxLinesForAnnotationTitle(annotation.type),
+            overflow = TextOverflow.Ellipsis,
+        )
+        return
+    }
+    val highlightColor = HighlightColor.fromToken(annotation.color)
+    val figureBorderColor = Color(highlightColor.argb.toLong() and 0xFFFFFFFFL)
+    val figures: List<InlineFigure> = when (rowKind) {
+        RowKind.Image -> collectInlineFigures(annotation)
+        else -> emptyList()
+    }
+    if (figures.isEmpty()) {
+        Text(
+            text = annotation.textSnippet,
+            style = MaterialTheme.typography.bodyLarge,
+            color = MaterialTheme.colorScheme.onSurface,
+            maxLines = maxLinesForAnnotationTitle(annotation.type),
+            overflow = TextOverflow.Ellipsis,
+        )
+    } else {
+        val textChunks = splitSnippetForFiguresAt(
+            snippet = annotation.textSnippet,
+            offsets = figures.map { it.charOffset },
+        )
+        textChunks.forEachIndexed { index, chunk ->
+            if (chunk.isNotBlank()) {
+                Text(
+                    text = chunk,
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
+                Spacer(Modifier.size(6.dp))
+            }
+            figures.getOrNull(index)?.let { figure ->
+                InlineFigureImage(figure = figure, borderColor = figureBorderColor)
+                Spacer(Modifier.size(6.dp))
+            }
+        }
+    }
+    val note = annotation.note
+    if (rowKind == RowKind.Highlight && !note.isNullOrBlank()) {
+        Text(
+            text = note.take(60),
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+    }
+}
+
+/** A figure to render inline in an annotation row — decoded bitmap or the caption fallback. */
+private data class InlineFigure(
+    val bytesUri: String?,
+    val caption: String,
+    /** Position within the highlight's snippet (see [EmbeddedFigure.charOffset]); null → append. */
+    val charOffset: Long?,
+)
+
+private fun collectInlineFigures(annotation: Annotation): List<InlineFigure> {
+    val fromEmbedded = annotation.embeddedFigures
+        ?.sortedBy { it.order }
+        ?.mapNotNull { fig ->
+            val bytes = fig.imageBytes
+            if (!bytes.isNullOrBlank()) InlineFigure(bytes, fig.caption, fig.charOffset) else null
+        }
+        ?: emptyList()
+    if (fromEmbedded.isNotEmpty()) return fromEmbedded
+    // Standalone TYPE_IMAGE — its own imageBytes drives the single inline figure.
+    val bytes = annotation.imageBytes
+    return if (!bytes.isNullOrBlank()) listOf(InlineFigure(bytes, "", charOffset = null)) else emptyList()
+}
+
+/**
+ * Splits the highlight's [snippet] into [figureCount] + 1 chunks so figures can be interleaved
+ * between them. When [snippet] contains one or more newlines, splits at those boundaries (matching
+ * paragraph breaks Readium captured in the concatenated snippet). Otherwise emits the whole
+ * snippet followed by empty chunks — figures render after the text, which is the best v1 can do
+ * without character-offset metadata on [EmbeddedFigure] (see class KDoc in
+ * `HighlightsPublicationFactory`). Blank chunks are filtered out at render time.
+ */
+/**
+ * Splits [snippet] at each figure's [offsets] (see [EmbeddedFigure.charOffset]) so the returned
+ * `offsets.size + 1` chunks can be interleaved with figures in DOM order. Any null entry in
+ * [offsets] falls back to the heuristic in [splitSnippetForFigures] — figures at the end. Offsets
+ * are clamped into the snippet's char range and de-duplicated in order; a figure at offset 0 gets
+ * an empty leading chunk (figure renders first, then all text).
+ *
+ * The snippet's char index space matches Readium's captured `text.highlight`, which concatenates
+ * readable text nodes verbatim (a void `<img>` contributes zero chars, exactly matching
+ * `findEnclosedFiguresInHtml`'s counter). So an offset captured from that walk lands at the same
+ * position in the snippet — no reshaping required.
+ */
+internal fun splitSnippetForFiguresAt(snippet: String, offsets: List<Long?>): List<String> {
+    if (offsets.isEmpty()) return listOf(snippet)
+    if (offsets.all { it == null }) return splitSnippetForFigures(snippet, offsets.size)
+    val chunks = mutableListOf<String>()
+    var cursor = 0
+    val maxLen = snippet.length
+    var lastOffset = 0
+    for (offset in offsets) {
+        val clamped = when (offset) {
+            null -> maxLen
+            else -> offset.toInt().coerceIn(lastOffset, maxLen)
+        }
+        chunks += snippet.substring(cursor, clamped)
+        cursor = clamped
+        lastOffset = clamped
+    }
+    chunks += snippet.substring(cursor, maxLen)
+    return chunks
+}
+
+internal fun splitSnippetForFigures(snippet: String, figureCount: Int): List<String> {
+    if (figureCount <= 0) return listOf(snippet)
+    val parts = snippet.split('\n').filter { it.isNotBlank() }
+    return when {
+        parts.size >= figureCount + 1 -> {
+            // More paragraphs than needed splits — merge the trailing extras into the last chunk.
+            parts.take(figureCount) + listOf(parts.drop(figureCount).joinToString("\n"))
+        }
+        parts.isEmpty() -> listOf(snippet) + List(figureCount) { "" }
+        else -> parts + List(figureCount + 1 - parts.size) { "" }
+    }
+}
+
+@Composable
+private fun InlineFigureImage(figure: InlineFigure, borderColor: Color) {
+    val bitmap = remember(figure.bytesUri) { decodeImageDataUri(figure.bytesUri) }
+    if (bitmap != null) {
+        ComposeImage(
+            bitmap = bitmap.asImageBitmap(),
+            contentDescription = figure.caption.takeIf { it.isNotBlank() },
+            contentScale = ContentScale.Fit,
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(6.dp))
+                .border(2.dp, borderColor, RoundedCornerShape(6.dp)),
+        )
+    } else {
+        Icon(
+            Icons.Filled.Image,
+            contentDescription = null,
+            tint = borderColor,
+            modifier = Modifier.size(48.dp),
+        )
+    }
+    if (figure.caption.isNotBlank()) {
+        Spacer(Modifier.size(2.dp))
+        Text(
+            text = figure.caption,
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
         )
     }
 }

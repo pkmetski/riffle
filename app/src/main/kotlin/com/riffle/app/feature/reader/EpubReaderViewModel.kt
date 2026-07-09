@@ -734,11 +734,19 @@ class EpubReaderViewModel @Inject constructor(
     val highlightToEdit: StateFlow<HighlightEditTarget?> = annotationSession.highlightToEdit
 
     fun openHighlightActions(id: String, anchorRect: IntRect) =
-        annotationSession.openHighlightActions(id, anchorRect)
+        annotationSession.openHighlightActions(annotationIdOf(id), anchorRect)
 
     /** Opens the popup in note-only read mode (no colour pickers, no delete). Used by the margin glyph. */
     fun openNoteReader(id: String, anchorRect: IntRect) =
-        annotationSession.openNoteReader(id, anchorRect)
+        annotationSession.openNoteReader(annotationIdOf(id), anchorRect)
+
+    /**
+     * Strip the segment suffix (`#segN`) from a decoration id so tap dispatch resolves to the
+     * underlying annotation. A cross-figure highlight paints as multiple decorations — one per
+     * text segment either side of the figure — with ids `"<annotationId>#seg0"`, `"…#seg1"`, …;
+     * see `annotationToRender`. Non-segmented decorations pass through unchanged.
+     */
+    private fun annotationIdOf(decorationId: String): String = decorationId.substringBefore('#')
 
     fun dismissHighlightActions() = annotationSession.dismissHighlightActions()
 
@@ -1448,15 +1456,71 @@ class EpubReaderViewModel @Inject constructor(
             } else {
                 buildHighlightCfiRangeForSelection(spineStep, html, progression, snippet)
             } ?: return@launch
-            // Figures enclosed by the highlight's range. The continuous ChapterWebView's selection
-            // reader (see ChapterWebView.withSelectionTextAndProgression) walks the live range
-            // BEFORE this callback fires and stashes any enclosed <img>/<svg>/<figure>/<picture>
-            // in SelectionFiguresStash — reading the stash here consumes+clears it. Empty list
-            // when the range didn't cross any figures OR when we're in paginated mode (Readium's
-            // own selection path doesn't route through our stash yet — a documented follow-up).
+            // Figures enclosed by the highlight's range. Two independent sources:
+            //   1. JS-side stash written by SELECTION_SPAN_TRACKER_JS on selectionchange
+            //      (raster figures rasterised via canvas to a data URI, SVG serialised verbatim).
+            //      When live, it carries `imageBytes` — best for the elided Highlights view.
+            //   2. Kotlin-side walk of the same chapter HTML we already loaded to build the CFI
+            //      range. Cannot rasterise (no canvas here), but gives us the enclosed figures'
+            //      `href` reliably — the JS walker silently missed enclosed <img>s in paginated
+            //      Readium, so this is the source of truth for whether the range crossed a figure.
+            // Prefer stash entries for their `imageBytes`; supplement with the Kotlin walk so a
+            // figure the JS walker missed still lands on the highlight (border-only, no bytes).
             val stashFigures = SelectionFiguresStash.consume()
-            val embeddedFigures = if (stashFigures.isNotEmpty()) stashFigures
-                else figuresInRangeResolver.resolve(cfiRange)
+            // Anchor the range to the snippet's actual position in the body text — progression is
+            // too imprecise (off by 40-60 chars mid-chapter), which pushes the endpoint one char
+            // short of an enclosed figure and misses it entirely. See anchorRangeToSnippet's KDoc.
+            val (htmlStartChar, htmlEndChar) = anchorRangeToSnippet(
+                html = html,
+                snippet = snippet,
+                textBefore = selectionLocator.text.before ?: "",
+                progression = progression,
+            )
+            val htmlFigures = findEnclosedFiguresInHtml(html, htmlStartChar, htmlEndChar)
+            // The Kotlin walker finds the href but has no way to rasterise (no canvas). Load the
+            // image bytes straight from the Readium publication so the annotations list can render
+            // a thumbnail — without bytes, rowKindFor drops back to the color-dot Highlight row and
+            // the figure never surfaces visually in the list. Best-effort: any failure keeps the
+            // walker entry as-is (border still draws in the reader; the list just shows the dot).
+            // Image srcs in EPUB XHTML are relative to the chapter file, so we try both the raw href
+            // and the chapter-directory-resolved form. The Publication resolves against its manifest
+            // root, so a bare "image_rsrc2H6.jpg" from a chapter at "OEBPS/part0006.xhtml" needs to
+            // become "OEBPS/image_rsrc2H6.jpg" before pub.get() will hand back the bytes.
+            val chapterDir = href.substringBeforeLast('/', "").let { if (it.isEmpty()) "" else "$it/" }
+            val htmlFiguresWithBytes = htmlFigures.map { fig ->
+                val figHref = fig.href
+                if (fig.imageBytes != null || figHref == null) return@map fig
+                val candidates = listOf(figHref, chapterDir + figHref).distinct()
+                val bytes = candidates.firstNotNullOfOrNull { candidate ->
+                    runCatching {
+                        val url = org.readium.r2.shared.util.Url(candidate) ?: return@runCatching null
+                        pub.get(url)?.read()?.getOrNull()
+                    }.getOrNull()
+                } ?: return@map fig
+                val mime = when {
+                    figHref.endsWith(".png", ignoreCase = true) -> "image/png"
+                    figHref.endsWith(".gif", ignoreCase = true) -> "image/gif"
+                    figHref.endsWith(".webp", ignoreCase = true) -> "image/webp"
+                    else -> "image/jpeg"
+                }
+                val base64 = android.util.Base64.encodeToString(bytes, android.util.Base64.NO_WRAP)
+                fig.copy(imageBytes = "data:$mime;base64,$base64")
+            }
+            val embeddedFigures = mergeEnclosedFigures(stashFigures, htmlFiguresWithBytes)
+            // Absorb standalone TYPE_IMAGE annotations that live at the same figure(s) this
+            // highlight now encloses — the covering highlight subsumes them (same rule the
+            // overlapping-highlight dedup above enforces for text, applied to figures). Their
+            // imageBytes/note aren't ported forward: the highlight's own embeddedFigures carry the
+            // figure, and once the highlight border shows, the standalone IMAGE annotation is
+            // redundant UI.
+            val absorbedFilenames = embeddedFigures.mapNotNull { it.href }.map(::figureHrefFilename).toSet()
+            if (absorbedFilenames.isNotEmpty()) {
+                annotationSession.annotations.value
+                    .filter { it.type == com.riffle.core.database.AnnotationEntity.TYPE_IMAGE }
+                    .filter { normalizeEpubHref(it.chapterHref) == normalizeEpubHref(href) }
+                    .filter { it.imageHref?.let(::figureHrefFilename) in absorbedFilenames }
+                    .forEach { annotationStore.delete(it.id) }
+            }
             val created = annotationStore.createHighlight(
                 sourceId = sourceId,
                 itemId = itemId,
@@ -1507,6 +1571,14 @@ class EpubReaderViewModel @Inject constructor(
             }
             return
         }
+        if (current.type == AnnotationEntity.TYPE_IMAGE) {
+            // Symmetric with text-highlight dismiss (memory `annotations-text-graph-symmetric`):
+            // a dismissed TYPE_IMAGE popup checks for an adjacent same-colour no-note highlight
+            // that can absorb this figure. If one exists, the figure is absorbed and this row is
+            // deleted; otherwise no-op.
+            absorbFigureIntoAdjacentHighlight(current, effectiveColor, effectiveNote)
+            return
+        }
         if (current.type != AnnotationEntity.TYPE_HIGHLIGHT) {
             logger.d(LogChannel.HighlightMerge) { "edit-merge skip id=$id reason=type=${current.type}" }
             return
@@ -1533,27 +1605,55 @@ class EpubReaderViewModel @Inject constructor(
                 "before='${trialAnchor.textBefore.takeLast(30)}' after='${trialAnchor.textAfter.take(30)}' " +
                 "poolSize=${pool.size}"
         }
-        while (true) {
-            val match = findAnyMergeableNeighbor(trialAnchor, pool, excludeIds = absorbedIds) ?: break
-            logger.d(LogChannel.HighlightMerge) {
-                "edit-merge absorb neighborId=${match.neighbor.id} side=${match.side} " +
-                    "neighborSnippet='${match.neighbor.textSnippet.take(30)}'"
-            }
-            when (match.side) {
-                MergeSide.CANDIDATE_BEFORE_ANCHOR -> leftmost = match.neighbor.toMergeAnchor()
-                MergeSide.CANDIDATE_AFTER_ANCHOR -> rightmost = match.neighbor.toMergeAnchor()
-            }
-            toAbsorb += match.neighbor
-            absorbedIds += match.neighbor.id
-            trialAnchor = applyMerge(trialAnchor, match)
-        }
-        if (toAbsorb.isEmpty()) {
-            debugLogNoMergeReasons(trialAnchor, pool, id)
-            return
-        }
+        // Load the chapter HTML up front so figure-adjacency can inspect the DOM. Cross-figure
+        // merges are FIRST-CLASS supported — a figure between two same-colour text highlights is
+        // absorbed into the merged annotation, not rejected. See memory
+        // `annotations-text-graph-symmetric`.
         val html = readChapterHtml(trialAnchor.spineIndex)
         if (html == null) {
             logger.d(LogChannel.HighlightMerge) { "edit-merge FAIL id=$id reason=no-html spine=${trialAnchor.spineIndex}" }
+            return
+        }
+        val toAbsorbImages = mutableListOf<Annotation>()
+        while (true) {
+            val match = findAnyMergeableNeighbor(
+                trialAnchor,
+                pool,
+                excludeIds = absorbedIds,
+                html = html,
+            ) ?: break
+            logger.d(LogChannel.HighlightMerge) {
+                "edit-merge absorb neighborId=${match.neighbor.id} type=${match.neighbor.type} " +
+                    "side=${match.side} neighborSnippet='${match.neighbor.textSnippet.take(30)}'"
+            }
+            if (match.neighbor.type == com.riffle.core.database.AnnotationEntity.TYPE_IMAGE) {
+                toAbsorbImages += match.neighbor
+            } else {
+                when (match.side) {
+                    MergeSide.CANDIDATE_BEFORE_ANCHOR -> leftmost = match.neighbor.toMergeAnchor()
+                    MergeSide.CANDIDATE_AFTER_ANCHOR -> rightmost = match.neighbor.toMergeAnchor()
+                }
+                toAbsorb += match.neighbor
+            }
+            absorbedIds += match.neighbor.id
+            trialAnchor = applyMerge(trialAnchor, match)
+        }
+        // Second-pass image absorption: catches TYPE_IMAGE annotations whose figure sits inside
+        // the highlight's (possibly expanded) range but wasn't picked up as a text-adjacent
+        // candidate. Combined with the trial-loop absorptions, this covers all "figure adjacent
+        // to highlight" cases symmetrically. See memory `annotations-text-graph-symmetric`.
+        val extraAbsorbableImages = findAbsorbableImageAnnotations(
+            html = html,
+            snippet = trialAnchor.textSnippet,
+            textBefore = trialAnchor.textBefore,
+            color = trialAnchor.color,
+            chapterHref = trialAnchor.chapterHref,
+            pool = pool,
+            excludeIds = absorbedIds,
+        )
+        val allAbsorbedImages = (toAbsorbImages + extraAbsorbableImages).distinctBy { it.id }
+        if (toAbsorb.isEmpty() && allAbsorbedImages.isEmpty()) {
+            debugLogNoMergeReasons(trialAnchor, pool, id)
             return
         }
         val totalChars = com.riffle.core.domain.countBodyChars(org.jsoup.Jsoup.parse(html).body())
@@ -1612,8 +1712,24 @@ class EpubReaderViewModel @Inject constructor(
             return
         }
         val storedProgression = startChar.toDouble() / totalChars.toDouble()
+        // Build the merged highlight's embeddedFigures: figures enclosed by the merged range
+        // (walked here so positions are relative to the NEW range start) unioned with any bytes
+        // captured on absorbed TYPE_IMAGE annotations that map to those figures. This is what
+        // makes the merged highlight render correctly in the elided view + annotations panel
+        // even when the merge crossed a figure. Symmetric with the create-time embeddedFigures
+        // capture in createHighlight.
+        val mergedEmbeddedFigures = buildMergedEmbeddedFigures(
+            html = html,
+            mergedStartChar = startChar,
+            mergedEndChar = endChar,
+            absorbedImages = allAbsorbedImages,
+            anchorId = id,
+            pool = pool,
+        )
         // All computations succeeded — commit: delete neighbours, then replace the anchor row.
+        // Redundant standalone TYPE_IMAGE annotations covered by the merged range also drop here.
         toAbsorb.forEach { annotationStore.delete(it.id) }
+        allAbsorbedImages.forEach { annotationStore.delete(it.id) }
         annotationStore.delete(id)
         val created = annotationStore.createHighlight(
             sourceId = sourceId,
@@ -1626,10 +1742,57 @@ class EpubReaderViewModel @Inject constructor(
             color = trialAnchor.color,
             spineIndex = trialAnchor.spineIndex,
             progression = storedProgression,
+            embeddedFigures = mergedEmbeddedFigures,
         )
         logger.d(LogChannel.HighlightMerge) {
-            "edit-merge done anchorReplaced=$id newId=${created.id} absorbedCount=${toAbsorb.size} " +
+            "edit-merge done anchorReplaced=$id newId=${created.id} absorbedText=${toAbsorb.size} " +
+                "absorbedImages=${allAbsorbedImages.size} figures=${mergedEmbeddedFigures?.size ?: 0} " +
                 "domLen=${domSnippet.length} startChar=$startChar"
+        }
+    }
+
+    /**
+     * Walk the merged range in the chapter DOM to compute embedded figures with position offsets
+     * relative to the merged start; then attach imageBytes/imageSvg from any absorbed TYPE_IMAGE
+     * annotations that identify the same figures (by [figureHrefFilename] correlation). Returns
+     * null iff no figures — normalized to null on the persisted entity by AnnotationStore.
+     *
+     * The anchor's original embeddedFigures are NOT preserved verbatim — the merged range walk
+     * IS the authoritative source, and the merged range covers the anchor's range too, so any
+     * figure that WAS in the anchor gets re-walked here. Bytes preservation happens via the
+     * absorbed-image lookup (which includes the anchor's original TYPE_IMAGE neighbours).
+     */
+    private fun buildMergedEmbeddedFigures(
+        html: String,
+        mergedStartChar: Long,
+        mergedEndChar: Long,
+        absorbedImages: List<Annotation>,
+        anchorId: String,
+        pool: List<Annotation>,
+    ): List<com.riffle.core.domain.EmbeddedFigure>? {
+        val walked = findEnclosedFiguresInHtml(html, mergedStartChar, mergedEndChar - 1L)
+        if (walked.isEmpty() && absorbedImages.isEmpty()) return null
+        // Index absorbed image bytes by filename so a figure walked from the DOM picks up its
+        // captured raster bytes. Also include existing image annotations in the pool with a
+        // matching figure href — this catches the pre-existing anchor annotation's own image
+        // data when the anchor itself is TYPE_IMAGE (dismiss-of-image path).
+        val bytesByFilename = mutableMapOf<String, String>()
+        val svgByFilename = mutableMapOf<String, String>()
+        fun index(ann: Annotation) {
+            val href = ann.imageHref ?: return
+            val key = figureHrefFilename(href)
+            ann.imageBytes?.takeIf { it.isNotBlank() }?.let { bytesByFilename[key] = it }
+            ann.imageSvg?.takeIf { it.isNotBlank() }?.let { svgByFilename[key] = it }
+        }
+        absorbedImages.forEach(::index)
+        pool.firstOrNull { it.id == anchorId }?.let(::index)
+        return walked.mapIndexed { i, fig ->
+            val key = fig.href?.let(::figureHrefFilename)
+            fig.copy(
+                order = i,
+                imageBytes = fig.imageBytes ?: key?.let(bytesByFilename::get),
+                svg = fig.svg ?: key?.let(svgByFilename::get),
+            )
         }
     }
 
@@ -1645,6 +1808,93 @@ class EpubReaderViewModel @Inject constructor(
         val na = a.filterNot { it.isWhitespace() }
         val nb = b.filterNot { it.isWhitespace() }
         return na.equals(nb, ignoreCase = true)
+    }
+
+    /**
+     * Dismiss-of-TYPE_IMAGE symmetric merge path (memory `annotations-text-graph-symmetric`).
+     * If a same-chapter same-colour no-note TYPE_HIGHLIGHT sits adjacent to this figure's DOM
+     * position, absorb the figure into that highlight and delete the standalone TYPE_IMAGE.
+     * "Adjacent" means the figure's char position falls inside the highlight's range widened by
+     * 1 char — same rule the reverse path uses.
+     *
+     * When multiple highlights are adjacent, the first-found wins; when none are adjacent, no-op.
+     * The absorbed highlight is recreated with the figure attached to its `embeddedFigures`
+     * (mirrors `buildMergedEmbeddedFigures`).
+     */
+    private suspend fun absorbFigureIntoAdjacentHighlight(
+        figure: Annotation,
+        effectiveColor: String,
+        effectiveNote: String?,
+    ) {
+        if (!effectiveNote.isNullOrBlank()) {
+            logger.d(LogChannel.HighlightMerge) { "image-dismiss skip id=${figure.id} reason=note-still-present" }
+            return
+        }
+        val sourceId = annotationServerId ?: run {
+            logger.d(LogChannel.HighlightMerge) { "image-dismiss skip id=${figure.id} reason=no-sourceId" }
+            return
+        }
+        val html = readChapterHtml(figure.spineIndex) ?: run {
+            logger.d(LogChannel.HighlightMerge) { "image-dismiss skip id=${figure.id} reason=no-html" }
+            return
+        }
+        val pool = annotationSession.annotations.value
+        // Same-chapter same-colour no-note text highlights in the pool.
+        val eligibleHighlights = pool.filter {
+            it.id != figure.id &&
+                it.type == AnnotationEntity.TYPE_HIGHLIGHT &&
+                it.spineIndex == figure.spineIndex &&
+                it.color.equals(effectiveColor, ignoreCase = true) &&
+                it.note.isNullOrBlank() &&
+                normalizeEpubHref(it.chapterHref) == normalizeEpubHref(figure.chapterHref)
+        }
+        // Find one whose (widened) range covers this figure's position — same rule as the
+        // TYPE_HIGHLIGHT absorb path in reverse.
+        val figureFilename = figure.imageHref?.let(::figureHrefFilename)
+        val target = eligibleHighlights.firstOrNull { hl ->
+            val start = locateSnippetInBody(html, hl.textSnippet, hl.textBefore) ?: return@firstOrNull false
+            val end = start + hl.textSnippet.length
+            val figs = findEnclosedFiguresInHtml(html, (start - 1L).coerceAtLeast(0L), end + 1L)
+            figs.any { it.href?.let(::figureHrefFilename) == figureFilename }
+        }
+        if (target == null) {
+            logger.d(LogChannel.HighlightMerge) {
+                "image-dismiss no-adjacent-highlight id=${figure.id} eligibleCount=${eligibleHighlights.size}"
+            }
+            return
+        }
+        // Recreate the target highlight with the figure absorbed into embeddedFigures. CFI + text
+        // are unchanged (the figure was already within the range).
+        val totalChars = com.riffle.core.domain.countBodyChars(org.jsoup.Jsoup.parse(html).body())
+        val startChar = locateSnippetInBody(html, target.textSnippet, target.textBefore) ?: return
+        val endChar = (startChar + target.textSnippet.length).coerceAtMost(totalChars)
+        val embeddedFigures = buildMergedEmbeddedFigures(
+            html = html,
+            mergedStartChar = startChar,
+            mergedEndChar = endChar,
+            absorbedImages = listOf(figure),
+            anchorId = target.id,
+            pool = pool,
+        )
+        annotationStore.delete(figure.id)
+        annotationStore.delete(target.id)
+        val created = annotationStore.createHighlight(
+            sourceId = sourceId,
+            itemId = itemId,
+            cfi = target.cfi,
+            textSnippet = target.textSnippet,
+            chapterHref = target.chapterHref,
+            textBefore = target.textBefore,
+            textAfter = target.textAfter,
+            color = target.color,
+            spineIndex = target.spineIndex,
+            progression = target.progression,
+            embeddedFigures = embeddedFigures,
+        )
+        logger.d(LogChannel.HighlightMerge) {
+            "image-dismiss absorbed figureId=${figure.id} intoHighlight=${target.id} newId=${created.id} " +
+                "figures=${embeddedFigures?.size ?: 0}"
+        }
     }
 
     /** Per-neighbour reason line, so a "why no merge?" can be answered from a single logcat grep. */
@@ -1762,6 +2012,33 @@ class EpubReaderViewModel @Inject constructor(
         )
         if (existing != null) {
             openHighlightActions(existing.id, anchorRect)
+            return
+        }
+
+        // Also check for a HIGHLIGHT whose embeddedFigures cover this figure — the text
+        // highlight and its enclosed figure are ONE annotation; long-pressing the outlined
+        // figure should route to the same edit popup, so a subsequent delete removes both the
+        // text highlight AND the figure's border together. Match by filename (raster) or by
+        // SVG-prefix (inline SVG) — mirrors FigureBorderDecoration's newest-wins matcher.
+        val payloadFilename = payload.href?.let(::figureHrefFilename)
+        val payloadSvgPrefix = payload.svg?.take(200)
+        val enclosingHighlight = annotationSession.annotations.value.firstOrNull { a ->
+            a.type == com.riffle.core.database.AnnotationEntity.TYPE_HIGHLIGHT &&
+                normalizeEpubHref(a.chapterHref) == normalizeEpubHref(href) &&
+                a.embeddedFigures.orEmpty().any { fig ->
+                    val figHref = fig.href
+                    val figSvg = fig.svg
+                    when {
+                        payloadFilename != null && figHref != null ->
+                            figureHrefFilename(figHref) == payloadFilename
+                        payloadSvgPrefix != null && figSvg != null ->
+                            figSvg.take(200) == payloadSvgPrefix
+                        else -> false
+                    }
+                }
+        }
+        if (enclosingHighlight != null) {
+            openHighlightActions(enclosingHighlight.id, anchorRect)
             return
         }
 
@@ -2045,27 +2322,53 @@ class EpubReaderViewModel @Inject constructor(
     // Reconstruct a persisted highlight into a renderable Readium locator. The CFI start re-anchors
     // the within-chapter position; the text snippet lets Readium's decorator locate the range.
     // Called as the highlightRenderResolver injected into annotationSession.bind().
-    private suspend fun annotationToRender(a: Annotation): HighlightRender? {
-        val pub = lifecycle.publication.value ?: return null
-        val spineIndex = epubCfiToSpineIndex(a.cfi) ?: return null
-        val link = pub.readingOrder.getOrNull(spineIndex) ?: return null
-        val html = readChapterHtml(spineIndex) ?: return null
-        val progression = highlightStartProgression(a.cfi, html) ?: return null
-        val locator = try {
-            Locator.fromJSON(
-                JSONObject()
-                    .put("href", link.href.toString())
-                    .put("type", "application/xhtml+xml")
-                    .put("locations", JSONObject().put("progression", progression))
-                    .put("text", JSONObject()
-                        .put("before", a.textBefore)
-                        .put("highlight", a.textSnippet)
-                        .put("after", a.textAfter)),
-            )
-        } catch (_: Exception) {
-            null
-        } ?: return null
-        return HighlightRender(a.id, locator, a.color, a.note)
+    /**
+     * Emit one HighlightRender per contiguous text segment of the annotation. For a highlight
+     * that doesn't cross a figure this is a single render (unchanged behaviour). For a highlight
+     * whose snippet crosses one or more figures — captured via each figure's `charOffset` — this
+     * emits N+1 renders, one per text segment either side of the figures. Each segment carries
+     * its OWN snippet (a run of contiguous text that actually exists in the DOM) so Readium's
+     * decoration matcher can locate + paint it; the segments share the same base annotation id
+     * with a `#segN` suffix so `annotationIdOf` can strip it back at tap-dispatch time.
+     */
+    private suspend fun annotationToRender(a: Annotation): List<HighlightRender> {
+        val pub = lifecycle.publication.value ?: return emptyList()
+        val spineIndex = epubCfiToSpineIndex(a.cfi) ?: return emptyList()
+        val link = pub.readingOrder.getOrNull(spineIndex) ?: return emptyList()
+        val html = readChapterHtml(spineIndex) ?: return emptyList()
+        val progression = highlightStartProgression(a.cfi, html) ?: return emptyList()
+        val href = link.href.toString()
+        // Split points inside the snippet where a figure sits. Legacy rows without offsets → one
+        // segment covering the whole snippet (v1 behaviour).
+        val offsets = a.embeddedFigures
+            ?.sortedBy { it.order }
+            ?.mapNotNull { it.charOffset }
+            .orEmpty()
+        val segments: List<String> = if (offsets.isEmpty()) {
+            listOf(a.textSnippet)
+        } else {
+            splitSnippetForFiguresAt(a.textSnippet, offsets)
+        }
+        return segments
+            .mapIndexedNotNull { index, segmentText ->
+                if (segmentText.isBlank()) return@mapIndexedNotNull null
+                val locator = try {
+                    Locator.fromJSON(
+                        JSONObject()
+                            .put("href", href)
+                            .put("type", "application/xhtml+xml")
+                            .put("locations", JSONObject().put("progression", progression))
+                            .put("text", JSONObject()
+                                .put("before", if (index == 0) a.textBefore else "")
+                                .put("highlight", segmentText)
+                                .put("after", if (index == segments.lastIndex) a.textAfter else "")),
+                    )
+                } catch (_: Exception) {
+                    null
+                } ?: return@mapIndexedNotNull null
+                val decorationId = if (segments.size == 1) a.id else "${a.id}#seg$index"
+                HighlightRender(decorationId, locator, a.color, a.note)
+            }
     }
 
     private suspend fun readChapterHtml(spineIndex: Int): String? {
@@ -2504,12 +2807,12 @@ internal fun highlightsAnnotationToRender(
     chapters: List<ChapterElision>,
     a: Annotation,
     urlFactory: (String) -> Url? = { Url(it) },
-): EpubReaderViewModel.HighlightRender? {
+): List<EpubReaderViewModel.HighlightRender> {
     val nonEmptyChapters = chapters.filter { it.highlights.isNotEmpty() }
     val chapterIndex = nonEmptyChapters.indexOfFirst { chapter -> chapter.highlights.any { it.id == a.id } }
-    if (chapterIndex < 0) return null
+    if (chapterIndex < 0) return emptyList()
     val href = "highlights/ch$chapterIndex.xhtml"
-    val url = urlFactory(href) ?: return null
+    val url = urlFactory(href) ?: return emptyList()
     val locator = Locator(
         href = url,
         mediaType = org.readium.r2.shared.util.mediatype.MediaType.XHTML,
@@ -2521,7 +2824,7 @@ internal fun highlightsAnnotationToRender(
     // owned by the injected accent-bar span in the synthesised HTML (see HighlightsPublicationFactory
     // + AnnotationTapUrl). FullBook's annotationToRender leaves this false so tinted highlights and
     // whole-selection tap targets stay unchanged.
-    return EpubReaderViewModel.HighlightRender(a.id, locator, a.color, a.note, useAccentBarStyle = true)
+    return listOf(EpubReaderViewModel.HighlightRender(a.id, locator, a.color, a.note, useAccentBarStyle = true))
 }
 
 /**

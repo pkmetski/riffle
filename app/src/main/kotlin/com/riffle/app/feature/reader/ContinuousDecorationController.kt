@@ -58,6 +58,12 @@ internal class ContinuousDecorationController(
         cadenceOnChapterLoaded = hook
     }
 
+    // Once a chapter WebView has received figure-border JS at least once, it may be carrying an
+    // applied outline; every subsequent transition to "no rules" must still push the empty CSS to
+    // clear it. `applyFigureBordersTo` uses this to distinguish "never applied, safe to skip" from
+    // "was applied, need to un-apply".
+    private val figureBordersEverAppliedTo = java.util.WeakHashMap<ChapterWebViewLike, Boolean>()
+
     /** Called by [ContinuousReaderView.onPageFinished] once a chapter's page has loaded so it
      *  re-applies whatever decorations belong to it. */
     fun onChapterLoaded(wv: ChapterWebViewLike, onAnnotationsApplied: () -> Unit = {}) {
@@ -105,14 +111,21 @@ internal class ContinuousDecorationController(
     }
 
     private fun applyFigureBordersTo(wv: ChapterWebViewLike) {
-        // Skip when there's nothing to apply — keeps onChapterLoaded's JS-call count predictable
-        // for chapters that carry no figure annotations, matching the annotation-highlights path.
-        if (currentFigureCssRules.isEmpty() && currentSvgMatches.isEmpty() && currentRasterMarks.isEmpty()) return
+        val nothingToApply =
+            currentFigureCssRules.isEmpty() && currentSvgMatches.isEmpty() && currentRasterMarks.isEmpty()
+        // First-load fast path: a chapter that has never received figure-border JS AND has no
+        // rules to push carries no outline that could go stale, so skipping the eval saves work.
+        // But once we've pushed anything to this WebView, every subsequent "no rules" transition
+        // MUST still push the empty CSS — otherwise deleting the last figure-enclosing highlight
+        // leaves the previously-applied outline on the image forever (the CSS style block from
+        // the earlier eval keeps matching).
+        if (nothingToApply && figureBordersEverAppliedTo[wv] != true) return
         wv.evaluateJavascript(com.riffle.app.feature.reader.decorations.figureBorderInjectionJs(), null)
         wv.evaluateJavascript(
             com.riffle.app.feature.reader.decorations.figureBorderApplyJs(currentFigureCssRules, currentSvgMatches, currentRasterMarks),
             null,
         )
+        figureBordersEverAppliedTo[wv] = true
     }
 
     override fun applyAnnotationHighlights(annotationsByHref: Map<String, List<AnnotationHighlight>>) {

@@ -41,6 +41,45 @@ class AnnotationsPanelRowKindTest {
         assertEquals(RowKind.Bookmark, rowKindFor(annotationOfType(AnnotationEntity.TYPE_BOOKMARK)))
     }
 
+    // Regression pin: a HIGHLIGHT that enclosed a figure with captured bytes must render as
+    // the Image row so the panel shows the figure's thumbnail. Falling back to the plain
+    // color-dot row is the old bug — the annotations list looked like a text-only highlight
+    // and hid the diagram the user actually wanted to see.
+    @Test
+    fun `highlight with embedded figure bytes routes to Image row`() {
+        val ann = annotationOfType(AnnotationEntity.TYPE_HIGHLIGHT).copy(
+            embeddedFigures = listOf(
+                com.riffle.core.domain.EmbeddedFigure(
+                    href = "images/eq.png",
+                    svg = null,
+                    caption = "",
+                    order = 0,
+                    imageBytes = "data:image/jpeg;base64,AAAA",
+                ),
+            ),
+        )
+        assertEquals(RowKind.Image, rowKindFor(ann))
+    }
+
+    // Highlights with embedded figures BUT no captured bytes stay as the color-dot row — the
+    // Image row without a bitmap would fall back to a generic icon that looks the same as (or
+    // worse than) the dot.
+    @Test
+    fun `highlight with embedded figure but no bytes stays as Highlight row`() {
+        val ann = annotationOfType(AnnotationEntity.TYPE_HIGHLIGHT).copy(
+            embeddedFigures = listOf(
+                com.riffle.core.domain.EmbeddedFigure(
+                    href = "images/eq.png",
+                    svg = null,
+                    caption = "",
+                    order = 0,
+                    imageBytes = null,
+                ),
+            ),
+        )
+        assertEquals(RowKind.Highlight, rowKindFor(ann))
+    }
+
     @Test
     fun `unknown type falls back to Highlight row`() {
         assertEquals(RowKind.Highlight, rowKindFor(annotationOfType("SOMETHING_ELSE")))
