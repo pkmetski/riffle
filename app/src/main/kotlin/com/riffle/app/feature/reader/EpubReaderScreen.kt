@@ -276,6 +276,10 @@ fun EpubReaderScreen(
 
     val annotationsAvailable by viewModel.annotationsAvailable.collectAsState()
     val annotationsPanelVisible by viewModel.annotationsPanelVisible.collectAsState()
+    // Set by [EpubNavigatorView]'s onSelectionActiveChanged callback (paged/vertical fire the
+    // Readium selectionActionModeCallback; continuous fires ContinuousReaderView's own callback).
+    // Combined with [highlightToEdit] / [noteEditorTarget] below to gate Auto-Scroll / Cadence.
+    var readerSelectionActive by remember { mutableStateOf(false) }
     val annotations by viewModel.annotations.collectAsState()
     val isCurrentPageBookmarked by viewModel.isCurrentPageBookmarked.collectAsState()
     val highlightRenders by viewModel.highlightRenders.collectAsState()
@@ -391,6 +395,25 @@ fun EpubReaderScreen(
                             cause = com.riffle.core.domain.autoscroll.PauseCause.PanelOpen,
                         )
                     }
+                    // Pause Auto-Scroll AND Cadence while text is being selected or the resulting
+                    // annotation popup / note editor is open — selection handles are invisible if
+                    // the viewport keeps advancing under them. Scoped resume (see
+                    // FormattingSession.setAutoScrollPaused / EpubReaderViewModel.setCadencePaused)
+                    // guarantees this can't un-park a longer-lived cause (e.g. PanelOpen) that
+                    // started mid-selection. Applies to all three reader modes.
+                    LaunchedEffect(readerSelectionActive, highlightToEdit, noteEditorTarget) {
+                        val anyOn = readerSelectionActive ||
+                            highlightToEdit != null ||
+                            noteEditorTarget != null
+                        viewModel.setAutoScrollPaused(
+                            paused = anyOn,
+                            cause = com.riffle.core.domain.autoscroll.PauseCause.TextSelection,
+                        )
+                        viewModel.setCadencePaused(
+                            paused = anyOn,
+                            cause = com.riffle.core.domain.cadence.PauseCause.TextSelection,
+                        )
+                    }
                     val spinePositions by viewModel.spinePositionCounts.collectAsState()
                     // Mutual-exclusion OR for the sentence-highlight pipeline (issue #403): when
                     // Cadence is running, its currentFragment / quotes / colour replace
@@ -461,6 +484,7 @@ fun EpubReaderScreen(
                             // transition on pre-R.
                             if (immersiveState.isImmersive) immersiveState.hide(force = true)
                         },
+                        onSelectionActiveChanged = { active -> readerSelectionActive = active },
                         latestLocator = { viewModel.latestLocator },
                         onFootnoteTapped = viewModel::showFootnotePopup,
                         returnNavEvents = viewModel.returnNavEvents,
@@ -1266,6 +1290,7 @@ private fun EpubNavigatorView(
     volumeNavEvents: Flow<VolumeNavEvent>,
     onTap: () -> Unit,
     onSelectionEnded: () -> Unit,
+    onSelectionActiveChanged: (Boolean) -> Unit,
     latestLocator: () -> Locator?,
     onFootnoteTapped: (content: FootnoteContent) -> Unit,
     returnNavEvents: Flow<Locator>,
@@ -1492,6 +1517,7 @@ private fun EpubNavigatorView(
     // without needing to be re-created when onTap changes.
     val currentOnTap by rememberUpdatedState(onTap)
     val currentOnSelectionEnded by rememberUpdatedState(onSelectionEnded)
+    val currentOnSelectionActiveChanged by rememberUpdatedState(onSelectionActiveChanged)
     val currentOnFootnoteTapped by rememberUpdatedState(onFootnoteTapped)
     val currentLatestLocator by rememberUpdatedState(latestLocator)
     val currentOnCaptureReturnTarget by rememberUpdatedState(onCaptureReturnTarget)
@@ -1577,6 +1603,11 @@ private fun EpubNavigatorView(
     val playFromHereActionMode = remember {
         object : android.view.ActionMode.Callback {
             override fun onCreateActionMode(mode: android.view.ActionMode, menu: android.view.Menu): Boolean {
+                // Selection begins here in paged/vertical mode: pause Auto-Scroll / Cadence so the
+                // selection handles are visible while the user drags them. Paired with the
+                // onDestroyActionMode → onSelectionActiveChanged(false) below. Continuous mode has
+                // its own selection-active plumbing on ContinuousReaderView.
+                currentOnSelectionActiveChanged(true)
                 menu.add(0, copyMenuId, 0, android.R.string.copy)
                 if (currentAnnotationsAvailable) {
                     menu.add(0, highlightMenuId, 1, "Highlight")
@@ -1691,6 +1722,7 @@ private fun EpubNavigatorView(
                 // the OS leaves the system bars in a transparent-overlay state that the topInset
                 // watcher can't see. Force-re-hide restores true immersive.
                 currentOnSelectionEnded()
+                currentOnSelectionActiveChanged(false)
             }
         }
     }
@@ -2704,6 +2736,7 @@ private fun EpubNavigatorView(
                         view.readaloudAvailable = currentReadaloudAvailable
                         view.onFigureTap = { payload -> onFigureTap(payload) }
                         view.onSelectionEnded = { currentOnSelectionEnded() }
+                        view.onSelectionActiveChanged = { active -> currentOnSelectionActiveChanged(active) }
                     }
                 },
                 // Availability flags can flip mid-session; keep the selection menu gates in sync.

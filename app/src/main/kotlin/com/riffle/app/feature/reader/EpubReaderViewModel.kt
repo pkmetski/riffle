@@ -599,6 +599,11 @@ class EpubReaderViewModel @Inject constructor(
     fun resumeCadenceIfPaused() =
         cadenceController.dispatch(com.riffle.core.domain.cadence.CadenceEvent.Resume)
 
+    fun setCadencePaused(
+        paused: Boolean,
+        cause: com.riffle.core.domain.cadence.PauseCause,
+    ) = cadenceController.setPaused(paused, cause)
+
     /**
      * Snapshot the currently-running feature and apply [com.riffle.core.domain.cadence.onStart]'s
      * pause fan-out. Called before dispatching a Start event to [starting]'s own controller.

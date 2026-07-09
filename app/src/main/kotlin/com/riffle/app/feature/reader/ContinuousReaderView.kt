@@ -185,13 +185,24 @@ internal class ContinuousReaderView @JvmOverloads constructor(
      */
     private var selectionActiveCount = 0
 
+    /**
+     * Called on the main thread with the current selection-active state whenever it transitions
+     * (i.e. on every 0↔1 boundary of [selectionActiveCount]). Distinct from [onSelectionEnded],
+     * which only fires on the falling edge — the reader uses this to also pause Auto-Scroll /
+     * Cadence the moment a selection begins.
+     */
+    var onSelectionActiveChanged: ((Boolean) -> Unit)? = null
+
     private fun onChildSelectionActiveChanged(active: Boolean) {
+        val wasActive = selectionActiveCount > 0
         if (active) {
             selectionActiveCount++
         } else if (selectionActiveCount > 0) {
             selectionActiveCount--
             if (selectionActiveCount == 0) onSelectionEnded?.invoke()
         }
+        val nowActive = selectionActiveCount > 0
+        if (nowActive != wasActive) onSelectionActiveChanged?.invoke(nowActive)
     }
 
     /** Test seam: drives the same counter the production [ChapterWebView] callback does, without
