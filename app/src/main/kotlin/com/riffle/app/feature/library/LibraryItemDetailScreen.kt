@@ -385,6 +385,14 @@ private fun LibraryItemDetailContent(
             )
         }
 
+        if (item.isListenable && item.audioDurationSec > 0) {
+            AudiobookDurationLine(item.audioDurationSec, item.readingProgress)
+        }
+
+        if (item.readingProgress > 0f) {
+            ReadingProgressIndicator(progress = item.readingProgress, listened = item.isListenable && !item.isReadable)
+        }
+
         ActionRow(
             item = item,
             isInToRead = isInToRead,
@@ -465,14 +473,6 @@ private fun LibraryItemDetailContent(
                     onClick = { showChaptersSheet = true },
                 ),
             )
-        }
-
-        if (item.isListenable && item.audioDurationSec > 0) {
-            AudiobookDurationLine(item.audioDurationSec, item.readingProgress)
-        }
-
-        if (item.readingProgress > 0f) {
-            ReadingProgressIndicator(progress = item.readingProgress, listened = item.isListenable && !item.isReadable)
         }
 
         item.description?.takeIf { it.isNotBlank() }?.let { desc ->
