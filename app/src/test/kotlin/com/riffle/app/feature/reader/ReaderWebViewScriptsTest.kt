@@ -146,6 +146,29 @@ class ReaderWebViewScriptsTest {
         assertTrue("returns before/after context (bef/aft)", js.contains("bef: stash.bef") && js.contains("aft: stash.aft"))
     }
 
+    // Regression pin: the figure walker inside SELECTION_SPAN_TRACKER_JS must scan the range's scope
+    // with querySelectorAll + range.intersectsNode, NOT document.createTreeWalker + an acceptNode
+    // callback. The TreeWalker form never yielded any enclosed <img> in Chromium's paginated Readium
+    // WebView — highlights spanning an equation image landed in the DB with empty embeddedFigures
+    // and the FigureBorderDecoration then produced no border rule for the figure. Flipping this
+    // back to TreeWalker reintroduces the bug.
+    @Test
+    fun `SELECTION_SPAN_TRACKER_JS walks enclosed figures with querySelectorAll + intersectsNode`() {
+        val js = SELECTION_SPAN_TRACKER_JS
+        assertTrue(
+            "queries figure candidates in the range's scope",
+            js.contains("querySelectorAll('img, svg, picture, figure')"),
+        )
+        assertTrue(
+            "filters candidates by range.intersectsNode",
+            js.contains("rng2.intersectsNode(fnode)"),
+        )
+        assertTrue(
+            "does NOT use TreeWalker (the failed approach)",
+            !js.contains("createTreeWalker"),
+        )
+    }
+
     // Regression pin: touchstart snapshot in SELECTION_SPAN_TRACKER_JS is what lets the paged
     // InputListener.onTap swallow a tap-to-dismiss instead of toggling immersive. If this listener
     // stops firing (removed, moved out of the capture phase, or renamed away from onActiveAtDown),

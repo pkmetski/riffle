@@ -35,12 +35,14 @@ class ChapterWebViewBinderTest {
         override var onFootnoteContent: ((FootnoteContent) -> Unit)? = null
         override var onCrossReferenceTap: ((String) -> Unit)? = null
         override var onFigureTap: ((String) -> Unit)? = null
+        override var onFigureLongPress: ((FigureLongPressPayload) -> Unit)? = null
 
         fun emitTap() = onTap?.invoke()
         fun emitAnnotationTap(id: String, rect: Rect) = onAnnotationTap?.invoke(id, rect)
         fun emitAnnotationNoteTap(id: String, rect: Rect) = onAnnotationNoteTap?.invoke(id, rect)
         fun emitFootnoteContent(content: FootnoteContent) = onFootnoteContent?.invoke(content)
         fun emitCrossReferenceTap(fragmentId: String) = onCrossReferenceTap?.invoke(fragmentId)
+        fun emitFigureLongPress(payload: FigureLongPressPayload) = onFigureLongPress?.invoke(payload)
     }
 
     private class RecordingNav : ContinuousNavigationSink {
@@ -152,6 +154,41 @@ class ChapterWebViewBinderTest {
         fake.emitCrossReferenceTap("c03-fig-0001")
 
         assertEquals(listOf("ch03.xhtml" to "c03-fig-0001"), calls)
+    }
+
+    @Test
+    fun `figure long-press translates CSS-px payload rect to screen IntRect via density and screenRectOf`() {
+        // Regression: onFigureLongPress at the binder layer must convert the payload's CSS-px,
+        // WebView-viewport-relative rect to device px (× density) before handing it to
+        // screenRectOf — the same pipeline as onHighlight/onAnnotationTap. If this conversion is
+        // dropped, HighlightActionsPopup anchors at (0,0) instead of the figure.
+        val fake = FakeChapterWebView(chapterHref = "chapter-1.xhtml")
+        val received = mutableListOf<Pair<FigureLongPressPayload, IntRect>>()
+        val binder = ChapterWebViewBinder(
+            navigation = RecordingNav(),
+            links = NoopLinks,
+            annotations = RecordingAnn(),
+            screenRectOf = { _, r -> rectOf(r.left + 100, r.top + 200, r.right + 100, r.bottom + 200) },
+            onRenderGone = {},
+            onInternalLink = {},
+            onCrossReference = { _, _ -> },
+            onSelectionActiveChanged = {},
+            onFigureLongPress = { payload, rect -> received += payload to rect },
+            densityOf = { 2f },
+        )
+        binder.bind(fake, annotationsAvailable = true, readaloudAvailable = true)
+
+        val payload = FigureLongPressPayload(
+            kind = "img", caption = "Fig 1", href = "a.png", svg = null, elementId = null,
+            rectX = 10, rectY = 20, rectW = 30, rectH = 40,
+        )
+        fake.emitFigureLongPress(payload)
+
+        assertEquals(1, received.size)
+        val (recvPayload, rect) = received.single()
+        assertEquals(payload, recvPayload)
+        // CSS px * density(2) = device px (20,40)-(80,120); screenRectOf adds (100,200).
+        assertEquals(IntRect(120, 240, 180, 320), rect)
     }
 
     @Test

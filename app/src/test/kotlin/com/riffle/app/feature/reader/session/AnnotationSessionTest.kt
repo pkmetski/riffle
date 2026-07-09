@@ -68,6 +68,7 @@ class AnnotationSessionTest {
             sourceId: String, itemId: String, cfi: String, textSnippet: String,
             chapterHref: String, textBefore: String, textAfter: String, color: String,
             spineIndex: Int, progression: Double,
+            embeddedFigures: List<com.riffle.core.domain.EmbeddedFigure>?,
         ): Annotation {
             createHighlightCalls.add(
                 CreateHighlightArgs(sourceId, itemId, cfi, textSnippet, chapterHref, textBefore, textAfter, color, spineIndex, progression)
@@ -78,11 +79,18 @@ class AnnotationSessionTest {
             sourceId: String, itemId: String, cfi: String, textSnippet: String,
             chapterHref: String, spineIndex: Int, progression: Double, bookmarkTitle: String,
         ): Annotation = makeAnnotation(id = "b1", type = "bookmark", cfi = cfi)
+        override suspend fun createImageAnnotation(
+            sourceId: String, itemId: String, cfi: String, textSnippet: String, chapterHref: String,
+            spineIndex: Int, progression: Double, imageHref: String?, imageSvg: String?, imageBytes: String?, color: String,
+        ): Annotation = makeAnnotation(id = "img1", type = "image", cfi = cfi, color = color)
         override suspend fun delete(id: String) { deletedIds.add(id) }
         override suspend fun recolor(id: String, color: String) { recoloredIds.add(id to color) }
         override suspend fun updateNote(id: String, note: String?) { updatedNotes.add(id to note) }
         override suspend fun renameBookmark(id: String, title: String) {}
         override suspend fun findByItemAndCfi(sourceId: String, itemId: String, cfi: String): Annotation? = null
+        override suspend fun findImageAnnotationForFigure(
+            sourceId: String, itemId: String, chapterHref: String, imageHref: String?, imageSvg: String?,
+        ): Annotation? = null
     }
 
     /**
@@ -213,7 +221,7 @@ class AnnotationSessionTest {
     private fun defaultBind(
         session: AnnotationSession,
         store: FakeAnnotationStore = FakeAnnotationStore(),
-        highlightRenderResolver: suspend (Annotation) -> EpubReaderViewModel.HighlightRender? = { null },
+        highlightRenderResolver: suspend (Annotation) -> List<EpubReaderViewModel.HighlightRender> = { emptyList() },
         cfiLocatorResolver: suspend (String) -> Locator? = { null },
     ) {
         session.bind(
@@ -244,7 +252,7 @@ class AnnotationSessionTest {
             sourceId = "srv1",
             namespace = "ns1",
             itemId = "item1",
-            highlightRenderResolver = { a -> if (a.id == anno.id) render else null },
+            highlightRenderResolver = { a -> if (a.id == anno.id) listOf(render) else emptyList() },
             cfiLocatorResolver = { null },
         )
 
@@ -356,7 +364,7 @@ class AnnotationSessionTest {
             sourceId = "srv1",
             namespace = "ns1",
             itemId = "item2",
-            highlightRenderResolver = { null },
+            highlightRenderResolver = { emptyList() },
             cfiLocatorResolver = { null },
         )
         assertEquals(HighlightColor.RED, session.lastUsedHighlightColor.value)
@@ -637,7 +645,7 @@ class AnnotationSessionTest {
             sourceId = "srv1",
             namespace = "ns1",
             itemId = "item1",
-            highlightRenderResolver = { null },
+            highlightRenderResolver = { emptyList() },
             cfiLocatorResolver = { cfi -> if (cfi == anno.cfi) targetLocator else null },
         )
 
@@ -687,7 +695,7 @@ class AnnotationSessionTest {
             sourceId = "srv1",
             namespace = "ns1",
             itemId = "item1",
-            highlightRenderResolver = { null },
+            highlightRenderResolver = { emptyList() },
             cfiLocatorResolver = { _ -> targetLocator },
         )
 
@@ -794,7 +802,7 @@ class AnnotationSessionTest {
             sourceId = "srv1",
             namespace = "ns1",
             itemId = "item2",
-            highlightRenderResolver = { null },
+            highlightRenderResolver = { emptyList() },
             cfiLocatorResolver = { null },
         )
         val secondJob = syncOps.lastLiveSyncJob

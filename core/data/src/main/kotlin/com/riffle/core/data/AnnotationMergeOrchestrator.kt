@@ -139,6 +139,9 @@ internal class AnnotationMergeOrchestrator(
                     lastModifiedByDeviceId = w3cAnnotation.lastModifiedByDeviceId,
                     deleted = w3cAnnotation.deleted,
                     lastSyncedAt = preservedLastSyncedAt,
+                    embeddedFigures = embeddedFiguresListToColumn(w3cAnnotation.embeddedFigures),
+                    imageHref = w3cAnnotation.imageHref,
+                    imageSvg = w3cAnnotation.imageSvg,
                 )
             }
 

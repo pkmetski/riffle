@@ -46,6 +46,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import com.riffle.app.feature.reader.decorations.FigureBorderDecoration
 import com.riffle.app.feature.reader.formatting.RenderCapabilities
 import com.riffle.app.feature.reader.highlights.shouldShowChapterRail
 import com.riffle.app.feature.reader.highlights.shouldShowOpenInBook
@@ -107,6 +108,7 @@ import com.riffle.core.domain.SentenceQuote
 import com.riffle.core.domain.ReaderTheme
 import com.riffle.core.domain.TimeRemaining
 import kotlin.math.roundToInt
+import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.filter
@@ -510,6 +512,7 @@ fun EpubReaderScreen(
                         // creatable here (createHighlight is a no-op in Highlights mode, ADR 0041),
                         // so surfacing the option would be dead UI.
                         annotationsAvailable = annotationsAvailable && viewModel.readerSource != ReaderSource.Highlights,
+                        annotations = annotations,
                         highlightRenders = highlightRenders,
                         onHighlight = viewModel::createHighlight,
                         highlightToEdit = highlightToEdit,
@@ -586,6 +589,9 @@ fun EpubReaderScreen(
                         onAutoScrollPause = viewModel::pauseAutoScroll,
                         onAutoScrollResume = viewModel::resumeAutoScrollIfPaused,
                         onFigureTap = viewModel::onFigureTapPayload,
+                        onFigureLongPress = { payload, anchorRect ->
+                            viewModel.viewModelScope.launch { viewModel.onFigureLongPress(payload, anchorRect) }
+                        },
                         dispatchers = viewModel.dispatchers,
                         logger = viewModel.logger,
                         modifier = Modifier
@@ -1308,6 +1314,7 @@ private fun EpubNavigatorView(
     readaloudReservePx: Int = 0,
     readaloudHighlightColor: HighlightColor,
     annotationsAvailable: Boolean,
+    annotations: List<com.riffle.core.domain.Annotation>,
     highlightRenders: List<EpubReaderViewModel.HighlightRender>,
     onHighlight: (Locator, androidx.compose.ui.unit.IntRect) -> Unit,
     highlightToEdit: EpubReaderViewModel.HighlightEditTarget?,
@@ -1329,6 +1336,7 @@ private fun EpubNavigatorView(
     onAutoScrollPause: (com.riffle.core.domain.autoscroll.PauseCause) -> Unit,
     onAutoScrollResume: () -> Unit,
     onFigureTap: (payload: String) -> Unit,
+    onFigureLongPress: (FigureLongPressPayload, androidx.compose.ui.unit.IntRect) -> Unit,
     dispatchers: com.riffle.core.domain.DispatcherProvider,
     logger: com.riffle.core.logging.Logger,
     // Cadence per-chapter hook (issue #403). Non-null in the outer caller when Cadence is enabled;
@@ -1968,7 +1976,30 @@ private fun EpubNavigatorView(
     // RiffleChapter bridge already, so it doesn't need this hook.
     DisposableEffect(Unit) {
         FigureTapBridge.setHandler { payload -> onFigureTap(payload) }
-        onDispose { FigureTapBridge.setHandler(null) }
+        FigureTapBridge.setLongPressHandler { payload ->
+            // Translate the payload's CSS-px, WebView-viewport-relative rect to a screen-space
+            // IntRect so the popup anchors at the figure — same density*px → screenRectOf(container)
+            // pipeline the continuous path runs inside ChapterWebViewBinder, but done here because
+            // paged/vertical mode has no ChapterWebView; the Readium fragment's container view (and
+            // its density) is only available at this composable's level.
+            val container = containerRef.value
+            val anchorRect = if (container != null) {
+                val density = container.resources.displayMetrics.density
+                android.graphics.RectF(
+                    payload.rectX * density,
+                    payload.rectY * density,
+                    (payload.rectX + payload.rectW) * density,
+                    (payload.rectY + payload.rectH) * density,
+                ).toWindowIntRect(container)
+            } else {
+                IntRect.Zero
+            }
+            onFigureLongPress(payload, anchorRect)
+        }
+        onDispose {
+            FigureTapBridge.setHandler(null)
+            FigureTapBridge.setLongPressHandler(null)
+        }
     }
 
     DisposableEffect(Unit) {
@@ -2242,6 +2273,24 @@ private fun EpubNavigatorView(
 
     LaunchedEffect(highlightRenderer, highlightRenders, reflowGeneration, pageLoadGeneration.value) {
         highlightRenderer.applyNoteGlyphs(highlightRenders)
+    }
+
+    // ---- Figure borders (Task 8) ------------------------------------------------------------
+    // MODE-FORK: paginated/vertical only for now — rendererBridge is the only JS seam available
+    // at this level (continuous mode owns its WebViews directly via ContinuousReaderView and has
+    // no equivalent "apply to the live document" call wired up yet — see Task 8 report). The rule
+    // set itself already reflects "newest wins" (FigureBorderDecoration.buildCssRules), so no
+    // dedup/ordering work is needed here — just re-push on every relevant reflow/page-load/
+    // annotations-change tick, same cadence as the persisted-highlights effect above.
+    LaunchedEffect(rendererBridge, isContinuous, continuousViewRef.value, annotations, reflowGeneration, pageLoadGeneration.value) {
+        val cssRules = FigureBorderDecoration.buildCssRules(annotations)
+        val svgMatches = FigureBorderDecoration.buildSvgMatches(annotations)
+        val rasterMarks = FigureBorderDecoration.buildRasterMarks(annotations)
+        if (isContinuous) {
+            continuousViewRef.value?.applyFigureBorders(cssRules, svgMatches, rasterMarks)
+        } else {
+            rendererBridge.applyFigureBorders(cssRules, svgMatches, rasterMarks)
+        }
     }
 
     // ---- Decoration tap listener (annotations) ---------------------------------------------
@@ -2764,6 +2813,7 @@ private fun EpubNavigatorView(
                         view.annotationsAvailable = currentAnnotationsAvailable
                         view.readaloudAvailable = currentReadaloudAvailable
                         view.onFigureTap = { payload -> onFigureTap(payload) }
+                        view.onFigureLongPress = { payload, anchorRect -> onFigureLongPress(payload, anchorRect) }
                         view.onSelectionEnded = { currentOnSelectionEnded() }
                         view.onSelectionActiveChanged = { active -> currentOnSelectionActiveChanged(active) }
                     }
@@ -2909,10 +2959,16 @@ private fun EpubNavigatorView(
         val editTarget = highlightToEdit
         if (editTarget != null) {
             val current = highlightRenders.firstOrNull { it.id == editTarget.id }
+            // TYPE_IMAGE annotations don't produce a HighlightRender (they have no text-selection
+            // decoration), so `current` above is always null for image annotations. Fall back to
+            // the full annotations list so the palette can still show the current colour selected.
+            val currentAnnotation = annotations.firstOrNull { it.id == editTarget.id }
+            val selectedColor = current?.let { HighlightColor.fromToken(it.color) }
+                ?: currentAnnotation?.let { HighlightColor.fromToken(it.color) }
             HighlightActionsPopup(
                 anchorRect = editTarget.anchorRect,
-                selected = current?.let { HighlightColor.fromToken(it.color) },
-                note = current?.note,
+                selected = selectedColor,
+                note = current?.note ?: currentAnnotation?.note,
                 onPick = { color -> onRecolorHighlight(editTarget.id, color) },
                 onDelete = { onDeleteHighlight(editTarget.id) },
                 onOpenNoteEditor = { onOpenNoteEditor(editTarget.id, editTarget.anchorRect) },
@@ -3119,5 +3175,36 @@ internal class RiffleSelectionRectBridge(
     @android.webkit.JavascriptInterface
     fun onActiveAtDown(active: Boolean) {
         activeAtDown.set(active)
+    }
+
+    /**
+     * Called from SELECTION_SPAN_TRACKER_JS on every selectionchange with a JSON array of the
+     * figures enclosed by the current live range (raster figures rasterised via canvas to a data
+     * URI while the range was still live; SVG serialised verbatim). Fills
+     * [SelectionFiguresStash] so [EpubReaderViewModel.createHighlight] picks them up when the user
+     * confirms the highlight from Readium's paginated action-mode menu — the paginated path
+     * doesn't go through [ChapterWebView.withSelectionTextAndProgression], which is why we bridge
+     * the figures here on the paginated Readium WebView too.
+     */
+    @android.webkit.JavascriptInterface
+    fun onFigures(json: String) {
+        val figures = mutableListOf<com.riffle.core.domain.EmbeddedFigure>()
+        try {
+            val arr = org.json.JSONArray(json)
+            for (i in 0 until arr.length()) {
+                val f = arr.optJSONObject(i) ?: continue
+                figures += com.riffle.core.domain.EmbeddedFigure(
+                    href = f.optString("href").takeIf { !f.isNull("href") && it.isNotEmpty() },
+                    svg = f.optString("svg").takeIf { !f.isNull("svg") && it.isNotEmpty() },
+                    caption = f.optString("caption", ""),
+                    order = f.optInt("order", i),
+                    imageBytes = f.optString("bytes").takeIf { !f.isNull("bytes") && it.isNotEmpty() },
+                )
+            }
+        } catch (_: Exception) {
+            // Malformed payload — drop everything to a defined empty state rather than partial.
+            figures.clear()
+        }
+        SelectionFiguresStash.set(figures)
     }
 }

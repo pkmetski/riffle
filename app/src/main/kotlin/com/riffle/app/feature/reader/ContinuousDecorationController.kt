@@ -42,6 +42,9 @@ internal class ContinuousDecorationController(
 
     private var currentAnnotationsByHref: Map<String, List<AnnotationHighlight>> = emptyMap()
     private var currentSearchHighlights: SearchHighlightsState? = null
+    private var currentFigureCssRules: List<String> = emptyList()
+    private var currentSvgMatches: List<com.riffle.app.feature.reader.decorations.FigureBorderDecoration.SvgMatch> = emptyList()
+    private var currentRasterMarks: List<com.riffle.app.feature.reader.decorations.FigureBorderDecoration.RasterMark> = emptyList()
 
     /**
      * Cadence chapter-load hook (issue #403). The reader screen sets this on session bind so
@@ -54,6 +57,12 @@ internal class ContinuousDecorationController(
     fun setCadenceOnChapterLoaded(hook: ((wv: ChapterWebViewLike) -> Unit)?) {
         cadenceOnChapterLoaded = hook
     }
+
+    // Once a chapter WebView has received figure-border JS at least once, it may be carrying an
+    // applied outline; every subsequent transition to "no rules" must still push the empty CSS to
+    // clear it. `applyFigureBordersTo` uses this to distinguish "never applied, safe to skip" from
+    // "was applied, need to un-apply".
+    private val figureBordersEverAppliedTo = java.util.WeakHashMap<ChapterWebViewLike, Boolean>()
 
     /** Called by [ContinuousReaderView.onPageFinished] once a chapter's page has loaded so it
      *  re-applies whatever decorations belong to it. */
@@ -79,6 +88,44 @@ internal class ContinuousDecorationController(
         // Cadence tokenises the chapter DOM once per chapter enter — the reader screen's hook
         // runs CadenceDomScript.tokeniseChapterJs and hands the parsed maps back to the VM.
         cadenceOnChapterLoaded?.invoke(wv)
+        // Figure borders: a freshly loaded chapter needs the current rule set injected too so
+        // annotated figures show their outline the moment they scroll into view.
+        applyFigureBordersTo(wv)
+    }
+
+    /**
+     * Push the given figure-border rules (raster CSS + inline-SVG JS matches, from
+     * [com.riffle.app.feature.reader.decorations.FigureBorderDecoration]) to every loaded chapter
+     * WebView, and remember them so chapters entering the sliding window later
+     * (via [onChapterLoaded]) automatically pick them up.
+     */
+    fun applyFigureBorders(
+        cssRules: List<String>,
+        svgMatches: List<com.riffle.app.feature.reader.decorations.FigureBorderDecoration.SvgMatch>,
+        rasterMarks: List<com.riffle.app.feature.reader.decorations.FigureBorderDecoration.RasterMark> = emptyList(),
+    ) {
+        currentFigureCssRules = cssRules
+        currentSvgMatches = svgMatches
+        currentRasterMarks = rasterMarks
+        port.forEachLoadedWebView { applyFigureBordersTo(it) }
+    }
+
+    private fun applyFigureBordersTo(wv: ChapterWebViewLike) {
+        val nothingToApply =
+            currentFigureCssRules.isEmpty() && currentSvgMatches.isEmpty() && currentRasterMarks.isEmpty()
+        // First-load fast path: a chapter that has never received figure-border JS AND has no
+        // rules to push carries no outline that could go stale, so skipping the eval saves work.
+        // But once we've pushed anything to this WebView, every subsequent "no rules" transition
+        // MUST still push the empty CSS — otherwise deleting the last figure-enclosing highlight
+        // leaves the previously-applied outline on the image forever (the CSS style block from
+        // the earlier eval keeps matching).
+        if (nothingToApply && figureBordersEverAppliedTo[wv] != true) return
+        wv.evaluateJavascript(com.riffle.app.feature.reader.decorations.figureBorderInjectionJs(), null)
+        wv.evaluateJavascript(
+            com.riffle.app.feature.reader.decorations.figureBorderApplyJs(currentFigureCssRules, currentSvgMatches, currentRasterMarks),
+            null,
+        )
+        figureBordersEverAppliedTo[wv] = true
     }
 
     override fun applyAnnotationHighlights(annotationsByHref: Map<String, List<AnnotationHighlight>>) {

@@ -354,12 +354,83 @@ internal val SELECTION_SPAN_TRACKER_JS = """
                 aft = afterR.toString().slice(0, 60);
               } catch (e) { aft = ''; }
             }
+            // Figures enclosed by the selection range (item 5 of the figure-annotations feature).
+            // Walk the range for <img>, <svg>, <picture>, and single-image <figure> nodes so
+            // createHighlight can persist them as embeddedFigures on the annotation. Rasterises
+            // each raster figure to a data URI via canvas so the annotation carries the pixels
+            // (mirrors the long-press capture in FigureTapScript). SVG is serialized verbatim.
+            var figures = [];
+            try {
+              var rng2 = rng.cloneRange();
+              // Use querySelectorAll + intersectsNode instead of TreeWalker + a filter callback:
+              // TreeWalker's acceptNode callback ran but Chromium's paginated-mode Readium WebView
+              // never yielded any figure between the two selected paragraphs — the FILTER_ACCEPT
+              // branch never fired for the enclosed <img>. The observable symptom was highlights
+              // spanning an equation image landing in the DB with empty embeddedFigures.
+              // querySelectorAll on the range's scope avoids the acceptNode-callback path entirely
+              // and matches every candidate up-front; range.intersectsNode then filters the enclosed
+              // subset. Same set of tags, same output shape.
+              var scope = rng2.commonAncestorContainer;
+              if (!scope || scope.nodeType !== 1) scope = (scope && scope.parentElement) || document.body;
+              var candidates = scope ? scope.querySelectorAll('img, svg, picture, figure') : [];
+              var seen = new Set(), order = 0;
+              for (var wi = 0; wi < candidates.length; wi++) {
+                var fnode = candidates[wi];
+                if (!rng2.intersectsNode(fnode)) continue;
+                var t2 = fnode.tagName.toLowerCase();
+                var target = t2 === 'figure' ? (fnode.querySelector('img') || fnode.querySelector('svg') || fnode.querySelector('picture')) : fnode;
+                if (!target || seen.has(target)) continue;
+                seen.add(target);
+                var tt = target.tagName.toLowerCase();
+                var caption = '';
+                var figParent = target.closest ? target.closest('figure') : null;
+                if (figParent) {
+                  var cap = figParent.querySelector('figcaption');
+                  if (cap) caption = (cap.textContent || '').trim();
+                }
+                if (!caption) caption = target.getAttribute('alt') || target.getAttribute('aria-label') || '';
+                var entry = { caption: caption, order: order++, href: null, svg: null, bytes: null };
+                if (tt === 'svg') {
+                  try { entry.svg = new XMLSerializer().serializeToString(target); } catch (e) {}
+                } else {
+                  var img2 = tt === 'picture' ? target.querySelector('img') : target;
+                  if (img2) {
+                    entry.href = img2.currentSrc || img2.getAttribute('src') || null;
+                    try {
+                      var w = img2.naturalWidth || 0, h = img2.naturalHeight || 0;
+                      if (w > 0 && h > 0) {
+                        var maxSide = 800, sc = Math.min(1, maxSide / Math.max(w, h));
+                        var cvs = document.createElement('canvas');
+                        cvs.width = Math.round(w * sc); cvs.height = Math.round(h * sc);
+                        var cx = cvs.getContext('2d');
+                        cx.fillStyle = '#ffffff';
+                        cx.fillRect(0, 0, cvs.width, cvs.height);
+                        cx.drawImage(img2, 0, 0, cvs.width, cvs.height);
+                        entry.bytes = cvs.toDataURL('image/jpeg', 0.85);
+                      }
+                    } catch (e) {}
+                  }
+                }
+                figures.push(entry);
+              }
+            } catch (e) { figures = []; }
             window.__riffleSelData = {
               text: text,
               p: Math.max(0, Math.min(1, br2.top / docH)),
               l: br2.left, t: br2.top, r: br2.right, b: br2.bottom,
-              bef: bef, aft: aft
+              bef: bef, aft: aft,
+              figures: figures
             };
+            // Also bridge figures to Kotlin directly. Continuous mode reads them out of
+            // window.__riffleSelData in ChapterWebView.withSelectionTextAndProgression, but
+            // paginated mode goes through Readium's own selection callback and never reads our
+            // stash — the bridge is the way to reach paginated too. Only fires when the bridge is
+            // registered (paginated Readium WebView); a no-op in continuous ChapterWebView.
+            try {
+              if (window.RiffleSelBridge && window.RiffleSelBridge.onFigures) {
+                window.RiffleSelBridge.onFigures(JSON.stringify(figures));
+              }
+            } catch (e) {}
           }
         } catch (e) {}
       });

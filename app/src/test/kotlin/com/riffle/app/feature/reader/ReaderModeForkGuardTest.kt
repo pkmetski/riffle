@@ -92,6 +92,12 @@ class ReaderModeForkGuardTest {
         // above `containerModifier`). Continuous needs Modifier.background(theme.palette.background)
         // when paginated-viewport-align is off; otherwise a short chapter (Highlights view, few
         // annotations) leaves app-chrome grey visible beneath ContinuousReaderView.
-        private const val MAX_MODE_BRANCHES = 35
+        //
+        // Raised from 35 to 37 for the Task 8 figure-border LaunchedEffect (paginated/vertical
+        // only — see the `// MODE-FORK:` comment above it in EpubReaderScreen.kt). Two refs: the
+        // LaunchedEffect key on isContinuous and the early-return guard inside it. Continuous mode
+        // has no JS seam wired up yet for figure borders (rendererBridge is paginated/vertical
+        // only); adding one is a follow-up, not something typeable behind ReaderPresenter today.
+        private const val MAX_MODE_BRANCHES = 37
     }
 }

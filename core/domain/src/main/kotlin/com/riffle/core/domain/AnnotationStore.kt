@@ -27,6 +27,9 @@ interface AnnotationStore {
         color: String = DEFAULT_COLOR,
         spineIndex: Int = 0,
         progression: Double = 0.0,
+        /** Figures enclosed by the highlight's CFI range (Task 7), or null when none / not yet
+         *  resolved. An empty list is normalized to null on the persisted entity. */
+        embeddedFigures: List<EmbeddedFigure>? = null,
     ): Annotation
 
     suspend fun createBookmark(
@@ -40,6 +43,25 @@ interface AnnotationStore {
         bookmarkTitle: String,
     ): Annotation
 
+    /**
+     * Create a `TYPE_IMAGE` annotation from a figure long-press. Exactly one of [imageHref] /
+     * [imageSvg] should be non-null (raster figure vs. inline SVG) — [embeddedFigures] never
+     * applies here, that field is TYPE_HIGHLIGHT-only.
+     */
+    suspend fun createImageAnnotation(
+        sourceId: String,
+        itemId: String,
+        cfi: String,
+        textSnippet: String,
+        chapterHref: String,
+        spineIndex: Int,
+        progression: Double,
+        imageHref: String?,
+        imageSvg: String?,
+        imageBytes: String?,
+        color: String = DEFAULT_COLOR,
+    ): Annotation
+
     suspend fun delete(id: String)
     suspend fun recolor(id: String, color: String)
     suspend fun updateNote(id: String, note: String?)
@@ -51,6 +73,20 @@ interface AnnotationStore {
      *  at open-from-library so the continuous reader can scroll to the annotation's DOM decoration
      *  (a precise post-reflow Y) instead of guessing from char-fraction × measured-WebView-height. */
     suspend fun findByItemAndCfi(sourceId: String, itemId: String, cfi: String): Annotation?
+
+    /**
+     * One-shot lookup of the live `TYPE_IMAGE` annotation already anchored to this figure in this
+     * chapter, or null if the figure hasn't been annotated yet. Callers pass exactly one of
+     * [imageHref] / [imageSvg] — mirroring [createImageAnnotation]'s raster-vs-svg split. Used to
+     * dispatch edit-vs-create on a figure long-press instead of stacking a duplicate annotation.
+     */
+    suspend fun findImageAnnotationForFigure(
+        sourceId: String,
+        itemId: String,
+        chapterHref: String,
+        imageHref: String?,
+        imageSvg: String?,
+    ): Annotation?
 
     companion object {
         const val DEFAULT_COLOR = "yellow"

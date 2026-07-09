@@ -21,6 +21,14 @@ internal object FigureTapBridge {
         handler = h
     }
 
+    @Volatile
+    private var longPressHandler: ((FigureLongPressPayload) -> Unit)? = null
+
+    /** Set by the reader screen to [EpubReaderViewModel.onFigureLongPress]. */
+    fun setLongPressHandler(h: ((FigureLongPressPayload) -> Unit)?) {
+        longPressHandler = h
+    }
+
     val bridge: Bridge = Bridge()
 
     class Bridge {
@@ -28,6 +36,17 @@ internal object FigureTapBridge {
         @JavascriptInterface
         fun onFigureTap(payload: String) {
             handler?.invoke(payload)
+        }
+
+        /**
+         * Called from JS with the richer long-press payload built by
+         * [FigureTapScript.installScript]'s `touchstart` listener. Parsed via
+         * [FigureLongPressMessageParser] so JSON `null` fields survive as Kotlin `null` rather than
+         * collapsing to `""`.
+         */
+        @JavascriptInterface
+        fun onFigureLongPress(json: String) {
+            longPressHandler?.invoke(FigureLongPressMessageParser.parse(json))
         }
     }
 }

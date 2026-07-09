@@ -40,6 +40,7 @@ class BookmarksControllerTest {
             sourceId: String, itemId: String, cfi: String, textSnippet: String,
             chapterHref: String, textBefore: String, textAfter: String, color: String,
             spineIndex: Int, progression: Double,
+            embeddedFigures: List<com.riffle.core.domain.EmbeddedFigure>?,
         ): Annotation {
             val a = Annotation(
                 id = "highlight-${created.size}",
@@ -49,6 +50,7 @@ class BookmarksControllerTest {
                 textSnippet = textSnippet, textBefore = textBefore, textAfter = textAfter,
                 chapterHref = chapterHref, spineIndex = spineIndex, progression = progression,
                 bookmarkTitle = "", createdAt = 0L, updatedAt = 0L,
+                embeddedFigures = embeddedFigures,
             )
             created.add(a)
             return a
@@ -72,6 +74,25 @@ class BookmarksControllerTest {
             return a
         }
 
+        override suspend fun createImageAnnotation(
+            sourceId: String, itemId: String, cfi: String, textSnippet: String,
+            chapterHref: String, spineIndex: Int, progression: Double,
+            imageHref: String?, imageSvg: String?, imageBytes: String?, color: String,
+        ): Annotation {
+            val a = Annotation(
+                id = "img-${created.size}",
+                sourceId = sourceId, itemId = itemId,
+                type = "image",
+                cfi = cfi, color = color, note = null,
+                textSnippet = textSnippet, textBefore = "", textAfter = "",
+                chapterHref = chapterHref, spineIndex = spineIndex, progression = progression,
+                bookmarkTitle = "", createdAt = 0L, updatedAt = 0L,
+                imageHref = imageHref, imageSvg = imageSvg,
+            )
+            created.add(a)
+            return a
+        }
+
         override suspend fun delete(id: String) {
             deleted.add(id)
             bookmarks.value = bookmarks.value.filter { it.id != id }
@@ -81,6 +102,9 @@ class BookmarksControllerTest {
         override suspend fun updateNote(id: String, note: String?) = Unit
         override suspend fun renameBookmark(id: String, title: String) { renamed[id] = title }
         override suspend fun findByItemAndCfi(sourceId: String, itemId: String, cfi: String): Annotation? = null
+        override suspend fun findImageAnnotationForFigure(
+            sourceId: String, itemId: String, chapterHref: String, imageHref: String?, imageSvg: String?,
+        ): Annotation? = null
     }
 
     private fun makeAnnotation(

@@ -55,10 +55,24 @@ data class AnnotationEntity(
     val deleted: Boolean = false,
     /** ADR 0036: stamp of the last successful PUT for this row. `updatedAt > lastSyncedAt` ⇒ dirty. */
     val lastSyncedAt: Long = 0L,
+    /** JSON list of figures enclosed by a TYPE_HIGHLIGHT annotation's range. Null on TYPE_IMAGE and TYPE_BOOKMARK. */
+    val embeddedFigures: String? = null,
+    /** Href of the source image for a TYPE_IMAGE annotation. */
+    val imageHref: String? = null,
+    /** Inline SVG markup for a TYPE_IMAGE annotation, when the figure is an SVG. */
+    val imageSvg: String? = null,
+    /**
+     * Data URI (`data:image/…;base64,…`) of the annotated figure's rendered bitmap, captured at
+     * long-press time. Used to display the figure as a thumbnail in the annotations panel and as
+     * a full-size image in the Highlights-mode elided reader, without needing the source
+     * Publication's container to be loaded.
+     */
+    val imageBytes: String? = null,
 ) {
     companion object {
         const val TYPE_HIGHLIGHT = "HIGHLIGHT"
         const val TYPE_BOOKMARK = "BOOKMARK"
+        const val TYPE_IMAGE = "IMAGE"
         const val COLOR_YELLOW = "yellow"
     }
 }

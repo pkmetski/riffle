@@ -2,6 +2,7 @@ package com.riffle.app.feature.reader
 
 import com.riffle.core.database.AnnotationEntity
 import com.riffle.core.domain.Annotation
+import com.riffle.core.domain.normalizeEpubHref
 
 // Auto-merge adjacent highlights (2026-07-05 spec). Pure text-anchored logic so both the
 // create-time path (fresh selection, no id yet) and the edit-time path (existing row that just
@@ -51,11 +52,17 @@ internal fun Annotation.toMergeAnchor(): MergeAnchor = MergeAnchor(
 )
 
 /**
- * Static eligibility gate — same chapter, same colour, both notes empty/blank.
- * Adjacency is checked separately by [findAdjacency].
+ * Static eligibility gate — same chapter, same colour, both notes empty/blank. Accepts either
+ * TYPE_HIGHLIGHT or TYPE_IMAGE candidates: annotations do not distinguish text from graph — a
+ * user's mental model treats them identically, so a figure adjacent to a same-colour highlight is
+ * as eligible for absorption as another text highlight would be. See feedback memory
+ * `annotations-text-graph-symmetric`. Adjacency (which decides WHERE in the range the candidate
+ * sits) is a separate check in [findAdjacency] / [findFigureAdjacency].
  */
 internal fun isMergeEligible(anchor: MergeAnchor, candidate: Annotation): Boolean {
-    if (candidate.type != AnnotationEntity.TYPE_HIGHLIGHT) return false
+    if (candidate.type != AnnotationEntity.TYPE_HIGHLIGHT &&
+        candidate.type != AnnotationEntity.TYPE_IMAGE
+    ) return false
     if (anchor.spineIndex != candidate.spineIndex) return false
     if (!anchor.color.equals(candidate.color, ignoreCase = true)) return false
     if (!anchor.note.isNullOrBlank()) return false
@@ -75,6 +82,13 @@ internal fun isMergeEligible(anchor: MergeAnchor, candidate: Annotation): Boolea
  *
  * "Modulo a single whitespace run" means zero-or-more whitespace chars, all contiguous. Any
  * non-whitespace character between = not adjacent.
+ *
+ * A void figure element (`<img>`) between the two counts as zero readable chars in the stream that
+ * Readium uses to build `textBefore`/`textAfter`, so this same textual check catches figures that
+ * sit visually between two adjacent same-colour text highlights — that's the desired behaviour
+ * (feedback memory `annotations-text-graph-symmetric`): text-with-figure-between is still text-
+ * adjacent. The figure gets absorbed as an embedded figure at merge time via
+ * `findAbsorbableImageAnnotations` / the create-time range walk.
  */
 internal fun findAdjacency(anchor: MergeAnchor, candidate: Annotation): MergeCandidate? {
     val anchorSnippet = anchor.textSnippet.takeIf { it.isNotBlank() } ?: return null
@@ -168,9 +182,19 @@ private const val MIN_MATCH_CHARS = 12
 /**
  * Apply a merge: produce a new anchor whose snippet spans both sides and whose text-before /
  * text-after / progression are inherited from the outermost endpoints.
+ *
+ * For a TYPE_IMAGE candidate the text is unchanged — the figure is absorbed into the merged
+ * highlight's `embeddedFigures` later by the commit path, not into `textSnippet`. The anchor's
+ * spatial extent still needs to grow so the merged CFI covers the figure position; that spatial
+ * extension is done by the commit path via the figure's `charOffset`, not here.
  */
 internal fun applyMerge(anchor: MergeAnchor, match: MergeCandidate): MergeAnchor {
     val neighbor = match.neighbor
+    if (neighbor.type == AnnotationEntity.TYPE_IMAGE) {
+        // Text stays the same. Note stays empty (both sides eligibility-checked as no-note). No
+        // textBefore/textAfter change either — the figure is invisible in the readable-text stream.
+        return anchor
+    }
     return when (match.side) {
         MergeSide.CANDIDATE_AFTER_ANCHOR -> anchor.copy(
             textSnippet = anchor.textSnippet + match.whitespaceBetween + neighbor.textSnippet,
@@ -188,17 +212,113 @@ internal fun applyMerge(anchor: MergeAnchor, match: MergeCandidate): MergeAnchor
  * Find any eligible + adjacent neighbour in [pool]. Returns the first match; the caller loops
  * (chain-merge until no more matches). [excludeIds] carries the anchor's own id (if it already
  * exists) plus any neighbours already absorbed this round.
+ *
+ * TYPE_HIGHLIGHT candidates use [findAdjacency]'s text-context check. TYPE_IMAGE candidates use
+ * [findFigureAdjacency], which needs the chapter [html] to locate the figure's DOM position and
+ * compare it against the anchor's range endpoints; when [html] is null (unit-test paths without a
+ * chapter body), TYPE_IMAGE candidates are silently skipped.
  */
 internal fun findAnyMergeableNeighbor(
     anchor: MergeAnchor,
     pool: List<Annotation>,
     excludeIds: Set<String>,
+    html: String? = null,
 ): MergeCandidate? {
     for (candidate in pool) {
         if (candidate.id in excludeIds) continue
         if (!isMergeEligible(anchor, candidate)) continue
-        val adjacency = findAdjacency(anchor, candidate) ?: continue
+        val adjacency = when (candidate.type) {
+            AnnotationEntity.TYPE_HIGHLIGHT -> findAdjacency(anchor, candidate)
+            AnnotationEntity.TYPE_IMAGE ->
+                if (html != null) findFigureAdjacency(html, anchor, candidate) else null
+            else -> null
+        } ?: continue
         return adjacency
     }
     return null
 }
+
+/**
+ * Figure-adjacency: does the [imageCandidate]'s figure sit touching the [anchor]'s text range in
+ * the chapter DOM? "Touching" means the figure's readable-text position (as counted by
+ * `findEnclosedFiguresInHtml`) is at either endpoint of the anchor's range (widened by 1 char on
+ * each side to catch void figures whose zero-char span coincides with the boundary), or strictly
+ * inside the range.
+ *
+ * Symmetric to [findAdjacency] for text neighbours — TYPE_IMAGE candidates are merged in the same
+ * way (feedback memory `annotations-text-graph-symmetric`): the outcome absorbs the figure into
+ * the merged highlight's embedded figures. Returns the [MergeCandidate] with an empty
+ * whitespace-between run (figures are void — no whitespace to preserve).
+ */
+internal fun findFigureAdjacency(
+    html: String,
+    anchor: MergeAnchor,
+    imageCandidate: Annotation,
+): MergeCandidate? {
+    if (imageCandidate.type != AnnotationEntity.TYPE_IMAGE) return null
+    val figureHref = imageCandidate.imageHref ?: return null
+    val anchorStart = locateSnippetInBody(html, anchor.textSnippet, anchor.textBefore) ?: return null
+    val anchorEnd = anchorStart + anchor.textSnippet.length
+    val enclosed = findEnclosedFiguresInHtml(
+        html,
+        (anchorStart - 1L).coerceAtLeast(0L),
+        anchorEnd + 1L,
+    )
+    if (enclosed.isEmpty()) return null
+    val filename = figureHrefFilename(figureHref)
+    val match = enclosed.firstOrNull { it.href?.let(::figureHrefFilename) == filename } ?: return null
+    // Determine which side of the anchor the figure sits on so downstream commit logic can extend
+    // the merged range correctly. `charOffset` is measured from the anchor's start.
+    val offset = match.charOffset ?: 0L
+    val side = if (offset >= (anchor.textSnippet.length / 2).toLong()) {
+        MergeSide.CANDIDATE_AFTER_ANCHOR
+    } else {
+        MergeSide.CANDIDATE_BEFORE_ANCHOR
+    }
+    return MergeCandidate(imageCandidate, side, whitespaceBetween = "")
+}
+
+/**
+ * Standalone TYPE_IMAGE annotations that are absorbable by the text highlight anchored at
+ * ([snippet], [textBefore]) — i.e. their figure sits inside (or immediately adjacent to) the
+ * highlight's char range in [html] AND they share the highlight's [color] and [chapterHref] AND
+ * carry no note. Called by `mergeAdjacentIntoHighlight` (fix #1, 2026-07-09) so a TYPE_IMAGE
+ * annotated separately on a figure the highlight now covers gets collapsed on the next popup
+ * dismiss — the same rule the create-time absorbedFilenames loop enforces, extended to edit-time.
+ *
+ * Adjacency uses a 1-char widening on each side of the range so a figure sitting exactly AT the
+ * boundary (its position coincides with the range start or end) is still caught — void figures
+ * contribute zero readable chars so their position equals the surrounding text position.
+ *
+ * [excludeIds] carries the anchor's own id plus any candidates already absorbed by the text-merge
+ * pass, so we never re-consider the anchor or double-absorb the same row.
+ */
+internal fun findAbsorbableImageAnnotations(
+    html: String,
+    snippet: String,
+    textBefore: String,
+    color: String,
+    chapterHref: String,
+    pool: List<Annotation>,
+    excludeIds: Set<String>,
+): List<Annotation> {
+    val start = locateSnippetInBody(html, snippet, textBefore) ?: return emptyList()
+    val end = start + snippet.length
+    val figures = findEnclosedFiguresInHtml(
+        html,
+        (start - 1L).coerceAtLeast(0L),
+        end + 1L,
+    )
+    if (figures.isEmpty()) return emptyList()
+    val enclosedFilenames = figures.mapNotNull { it.href }.map(::figureHrefFilename).toSet()
+    if (enclosedFilenames.isEmpty()) return emptyList()
+    return pool.filter { ann ->
+        ann.id !in excludeIds &&
+            ann.type == AnnotationEntity.TYPE_IMAGE &&
+            ann.color.equals(color, ignoreCase = true) &&
+            ann.note.isNullOrBlank() &&
+            normalizeEpubHref(ann.chapterHref) == normalizeEpubHref(chapterHref) &&
+            ann.imageHref?.let(::figureHrefFilename) in enclosedFilenames
+    }
+}
+

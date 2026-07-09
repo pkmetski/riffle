@@ -219,7 +219,7 @@ class AnnotationSession @AssistedInject constructor(
         sourceId: String,
         namespace: String,
         itemId: String,
-        highlightRenderResolver: suspend (Annotation) -> EpubReaderViewModel.HighlightRender?,
+        highlightRenderResolver: suspend (Annotation) -> List<EpubReaderViewModel.HighlightRender>,
         cfiLocatorResolver: suspend (String) -> Locator?,
     ) {
         // Cancel previous book's jobs before starting new ones (single-flight guarantee).
@@ -249,7 +249,7 @@ class AnnotationSession @AssistedInject constructor(
         // Observe highlights → reconstruct HighlightRenders reactively.
         highlightObserveJob = scope.launch {
             annotationStore.observeHighlights(sourceId, itemId).collect { annotations ->
-                _highlightRenders.value = annotations.mapNotNull { highlightRenderResolver(it) }
+                _highlightRenders.value = annotations.flatMap { highlightRenderResolver(it) }
             }
         }
 
@@ -364,7 +364,12 @@ class AnnotationSession @AssistedInject constructor(
             // fresh highlights don't merge on dismiss" race — spec:
             // 2026-07-05-highlight-auto-merge-design.md.
             val row = awaitAnnotation(id) ?: return@launch
-            if (row.type != AnnotationEntity.TYPE_HIGHLIGHT) return@launch
+            // BOTH TYPE_HIGHLIGHT and TYPE_IMAGE anchors fire the merge check — annotations do
+            // not distinguish text from graph (memory `annotations-text-graph-symmetric`).
+            // TYPE_BOOKMARK is excluded because it's a point, not a range.
+            if (row.type != AnnotationEntity.TYPE_HIGHLIGHT &&
+                row.type != AnnotationEntity.TYPE_IMAGE
+            ) return@launch
             mergeAfterEdit(id, row.color, row.note)
         }
     }

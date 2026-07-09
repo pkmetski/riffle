@@ -109,6 +109,14 @@ internal class ContinuousReaderView @JvmOverloads constructor(
     var onFigureTap: ((payload: String) -> Unit)? = null
 
     /**
+     * Called on the main thread with the already-parsed long-press payload emitted by
+     * figure-tap.js's `touchstart` listener, plus the figure's on-screen anchor rect (translated
+     * from the payload's CSS-px rect by [ChapterWebViewBinder]). Set by the reader screen to
+     * [EpubReaderViewModel.onFigureLongPress].
+     */
+    var onFigureLongPress: ((payload: FigureLongPressPayload, anchorRect: androidx.compose.ui.unit.IntRect) -> Unit)? = null
+
+    /**
      * Called on the main thread when the last active text-selection action mode ends (either
      * via a menu-item finish() or a tap-outside dismissal). Used by the reader to force-re-apply
      * immersive mode: after ActionMode dismissal the OS leaves the system bars in a "transparent
@@ -159,6 +167,7 @@ internal class ContinuousReaderView @JvmOverloads constructor(
             onCrossReference = onCrossReference,
             onSelectionActiveChanged = ::onChildSelectionActiveChanged,
             onFigureTap = { payload -> onFigureTap?.invoke(payload) },
+            onFigureLongPress = { payload, anchorRect -> onFigureLongPress?.invoke(payload, anchorRect) },
         )
         controller.install(binder)
     }
@@ -384,6 +393,18 @@ internal class ContinuousReaderView @JvmOverloads constructor(
 
     override fun applyAnnotationHighlights(annotationsByHref: Map<String, List<AnnotationHighlight>>) =
         controller.applyAnnotationHighlights(annotationsByHref)
+
+    /**
+     * Push the current figure-border rules to every loaded chapter WebView. Mirrors the
+     * paginated path in [com.riffle.app.feature.reader.renderer.DefaultRendererBridge.applyFigureBorders]
+     * — same CSS + SVG-matching JS, applied per chapter. State is remembered so chapters entering
+     * the sliding window later (via [ContinuousDecorationController.onChapterLoaded]) re-apply.
+     */
+    fun applyFigureBorders(
+        cssRules: List<String>,
+        svgMatches: List<com.riffle.app.feature.reader.decorations.FigureBorderDecoration.SvgMatch>,
+        rasterMarks: List<com.riffle.app.feature.reader.decorations.FigureBorderDecoration.RasterMark> = emptyList(),
+    ) = controller.applyFigureBorders(cssRules, svgMatches, rasterMarks)
 
     /**
      * Abort any in-progress fling animation so that the OverScroller stops updating scrollY.

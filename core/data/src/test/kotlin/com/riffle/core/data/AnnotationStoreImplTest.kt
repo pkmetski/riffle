@@ -32,6 +32,19 @@ class AnnotationStoreImplTest {
         override suspend fun getByItemAndCfi(sourceId: String, itemId: String, cfi: String): AnnotationEntity? =
             rows.value.firstOrNull { it.sourceId == sourceId && it.itemId == itemId && it.cfi == cfi && !it.deleted }
 
+        override suspend fun findImageForFigure(
+            sourceId: String,
+            itemId: String,
+            chapterHref: String,
+            imageHref: String?,
+            imageSvg: String?,
+        ): AnnotationEntity? = rows.value.firstOrNull {
+            it.sourceId == sourceId && it.itemId == itemId && it.chapterHref == chapterHref &&
+                it.type == AnnotationEntity.TYPE_IMAGE && !it.deleted &&
+                (imageHref == null || it.imageHref == imageHref) &&
+                (imageSvg == null || it.imageSvg == imageSvg)
+        }
+
         override suspend fun upsert(entity: AnnotationEntity) {
             rows.value = rows.value.filterNot { it.id == entity.id } + entity
         }
@@ -292,5 +305,66 @@ class AnnotationStoreImplTest {
 
         val forSrv1 = store.observeAnnotationsForSource("srv1").first()
         assertEquals(setOf("b1", "b2"), forSrv1.map { it.itemId }.toSet())
+    }
+
+    @Test
+    fun `findImageAnnotationForFigure finds an existing image annotation by href`() = runTest {
+        val s = store()
+        val created = s.createImageAnnotation(
+            sourceId = "abs1", itemId = "item1", cfi = "epubcfi(/6/4!/4/2:0)", textSnippet = "Fig 1",
+            chapterHref = "ch1.xhtml", spineIndex = 0, progression = 0.5,
+            imageHref = "images/g.png", imageSvg = null,
+            imageBytes = null,
+        )
+        val found = s.findImageAnnotationForFigure(
+            sourceId = "abs1", itemId = "item1", chapterHref = "ch1.xhtml",
+            imageHref = "images/g.png", imageSvg = null,)
+        assertEquals(created.id, found?.id)
+    }
+
+    @Test
+    fun `findImageAnnotationForFigure finds an existing image annotation by svg`() = runTest {
+        val s = store()
+        val created = s.createImageAnnotation(
+            sourceId = "abs1", itemId = "item1", cfi = "epubcfi(/6/4!/4/2:0)", textSnippet = "Diagram",
+            chapterHref = "ch1.xhtml", spineIndex = 0, progression = 0.5,
+            imageHref = null, imageSvg = "<svg><rect/></svg>",
+            imageBytes = null,
+        )
+        val found = s.findImageAnnotationForFigure(
+            sourceId = "abs1", itemId = "item1", chapterHref = "ch1.xhtml",
+            imageHref = null, imageSvg = "<svg><rect/></svg>",)
+        assertEquals(created.id, found?.id)
+    }
+
+    @Test
+    fun `findImageAnnotationForFigure returns null when no annotation matches this figure`() = runTest {
+        val s = store()
+        s.createImageAnnotation(
+            sourceId = "abs1", itemId = "item1", cfi = "epubcfi(/6/4!/4/2:0)", textSnippet = "Fig 1",
+            chapterHref = "ch1.xhtml", spineIndex = 0, progression = 0.5,
+            imageHref = "images/g.png", imageSvg = null,
+            imageBytes = null,
+        )
+        val found = s.findImageAnnotationForFigure(
+            sourceId = "abs1", itemId = "item1", chapterHref = "ch1.xhtml",
+            imageHref = "images/other.png", imageSvg = null,)
+        assertNull(found)
+    }
+
+    @Test
+    fun `findImageAnnotationForFigure ignores soft-deleted rows`() = runTest {
+        val s = store()
+        val created = s.createImageAnnotation(
+            sourceId = "abs1", itemId = "item1", cfi = "epubcfi(/6/4!/4/2:0)", textSnippet = "Fig 1",
+            chapterHref = "ch1.xhtml", spineIndex = 0, progression = 0.5,
+            imageHref = "images/g.png", imageSvg = null,
+            imageBytes = null,
+        )
+        s.delete(created.id)
+        val found = s.findImageAnnotationForFigure(
+            sourceId = "abs1", itemId = "item1", chapterHref = "ch1.xhtml",
+            imageHref = "images/g.png", imageSvg = null,)
+        assertNull(found)
     }
 }

@@ -40,6 +40,14 @@ internal class FakeAnnotationDao : AnnotationDao {
     override suspend fun getByItemAndCfi(sourceId: String, itemId: String, cfi: String): AnnotationEntity? =
         error("not used by this fake")
 
+    override suspend fun findImageForFigure(
+        sourceId: String,
+        itemId: String,
+        chapterHref: String,
+        imageHref: String?,
+        imageSvg: String?,
+    ): AnnotationEntity? = error("not used by this fake")
+
     override suspend fun upsert(entity: AnnotationEntity) = error("not used by this fake")
 
     override suspend fun upsertAll(annotations: List<AnnotationEntity>) = error("not used by this fake")

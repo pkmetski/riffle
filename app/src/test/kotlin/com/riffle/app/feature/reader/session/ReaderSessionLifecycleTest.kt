@@ -157,10 +157,15 @@ class ReaderSessionLifecycleTest {
         override suspend fun createHighlight(
             sourceId: String, itemId: String, cfi: String, textSnippet: String, chapterHref: String,
             textBefore: String, textAfter: String, color: String, spineIndex: Int, progression: Double,
+            embeddedFigures: List<com.riffle.core.domain.EmbeddedFigure>?,
         ): Annotation = error("not needed")
         override suspend fun createBookmark(
             sourceId: String, itemId: String, cfi: String, textSnippet: String, chapterHref: String,
             spineIndex: Int, progression: Double, bookmarkTitle: String,
+        ): Annotation = error("not needed")
+        override suspend fun createImageAnnotation(
+            sourceId: String, itemId: String, cfi: String, textSnippet: String, chapterHref: String,
+            spineIndex: Int, progression: Double, imageHref: String?, imageSvg: String?, imageBytes: String?, color: String,
         ): Annotation = error("not needed")
         override suspend fun delete(id: String) {}
         override suspend fun recolor(id: String, color: String) {}
@@ -168,6 +173,9 @@ class ReaderSessionLifecycleTest {
         override suspend fun renameBookmark(id: String, title: String) {}
         override suspend fun findByItemAndCfi(sourceId: String, itemId: String, cfi: String): Annotation? =
             byCfi[Triple(sourceId, itemId, cfi)]
+        override suspend fun findImageAnnotationForFigure(
+            sourceId: String, itemId: String, chapterHref: String, imageHref: String?, imageSvg: String?,
+        ): Annotation? = null
     }
 
     // ── Helpers ──────────────────────────────────────────────────────────────────────────

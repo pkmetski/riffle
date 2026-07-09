@@ -26,6 +26,7 @@ internal interface ChapterWebViewLike {
     var onFootnoteContent: ((FootnoteContent) -> Unit)?
     var onCrossReferenceTap: ((String) -> Unit)?
     var onFigureTap: ((String) -> Unit)?
+    var onFigureLongPress: ((FigureLongPressPayload) -> Unit)?
 }
 
 /**
@@ -56,6 +57,17 @@ internal class ChapterWebViewBinder(
     private val onCrossReference: (chapterHref: String, fragmentId: String) -> Unit,
     private val onSelectionActiveChanged: (Boolean) -> Unit,
     private val onFigureTap: (payload: String) -> Unit = {},
+    // Default no-op is only exercised by callers that don't care (e.g. some test doubles);
+    // the real handler is ContinuousReaderView.onFigureLongPress → EpubReaderViewModel.onFigureLongPress.
+    // anchorRect is already translated to screen coordinates (see the wv.onFigureLongPress wiring
+    // below), mirroring wv.onHighlight / wv.onAnnotationTap's screenRectOf(wv, rect) pattern.
+    private val onFigureLongPress: (payload: FigureLongPressPayload, anchorRect: IntRect) -> Unit = { _, _ -> },
+    // Density used to convert the payload's CSS-px rect to WebView-relative device px before
+    // handing it to screenRectOf. Defaults to reading the live WebView's DisplayMetrics; overridable
+    // so tests can drive a fake ChapterWebViewLike that isn't a real android.view.View.
+    private val densityOf: (ChapterWebViewLike) -> Float = {
+        (it as? android.view.View)?.resources?.displayMetrics?.density ?: 1f
+    },
 ) {
     fun bind(wv: ChapterWebViewLike, annotationsAvailable: Boolean, readaloudAvailable: Boolean) {
         wv.onTap = { navigation.onTap() }
@@ -95,5 +107,20 @@ internal class ChapterWebViewBinder(
         wv.readaloudAvailable = readaloudAvailable
         wv.onFootnoteContent = { links.onFootnote(it) }
         wv.onFigureTap = { payload -> onFigureTap(payload) }
+        wv.onFigureLongPress = { payload ->
+            val density = densityOf(wv)
+            // Built via the no-arg constructor + field assignment rather than Rect(l,t,r,b):
+            // that 4-arg constructor is a no-op under the plain-JVM android.jar unit-test stub
+            // (see ChapterWebViewBinderTest's rectOf helper), so this form is the only one that
+            // behaves identically under JVM tests and on a real device.
+            val local = Rect().apply {
+                left = (payload.rectX * density).toInt()
+                top = (payload.rectY * density).toInt()
+                right = ((payload.rectX + payload.rectW) * density).toInt()
+                bottom = ((payload.rectY + payload.rectH) * density).toInt()
+            }
+            val screen = screenRectOf(wv, local)
+            onFigureLongPress(payload, IntRect(screen.left, screen.top, screen.right, screen.bottom))
+        }
     }
 }

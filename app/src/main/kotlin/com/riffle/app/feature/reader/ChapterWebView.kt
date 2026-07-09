@@ -96,6 +96,13 @@ internal class ChapterWebView(context: Context) : WebView(context), ChapterWebVi
     override var onFigureTap: ((payload: String) -> Unit)? = null
 
     /**
+     * Called on the main thread when the user long-presses a figure. [payload] is already parsed
+     * (unlike [onFigureTap], which forwards the raw JSON) since [FigureLongPressMessageParser] has
+     * no dependency on WebView/Android types and can run directly on the JS binder thread.
+     */
+    override var onFigureLongPress: ((payload: FigureLongPressPayload) -> Unit)? = null
+
+    /**
      * The raw HTML of the chapter document currently loaded, retained so a footnote tap can resolve
      * the note body without a re-fetch. Set the first time an HTML resource is served for a load (the
      * main document is fetched first), cleared on each [loadChapter]. The parsed form is cached lazily
@@ -617,6 +624,27 @@ internal class ChapterWebView(context: Context) : WebView(context), ChapterWebVi
                     (obj.optDouble("r", 0.0) * dpr).toInt(),
                     (obj.optDouble("b", 0.0) * dpr).toInt(),
                 )
+                // Figures enclosed by the selection range — captured by SELECTION_SPAN_TRACKER_JS
+                // while the range was still live (raster figures rasterised via canvas to a data
+                // URI; SVG serialised verbatim). Stashed here so EpubReaderViewModel.createHighlight
+                // can attach them to the highlight without needing a CFI→DOM resolver.
+                val figuresJson = obj.optJSONArray("figures")
+                if (figuresJson != null && figuresJson.length() > 0) {
+                    val figures = mutableListOf<com.riffle.core.domain.EmbeddedFigure>()
+                    for (i in 0 until figuresJson.length()) {
+                        val f = figuresJson.optJSONObject(i) ?: continue
+                        figures += com.riffle.core.domain.EmbeddedFigure(
+                            href = f.optString("href").takeIf { !f.isNull("href") && it.isNotEmpty() },
+                            svg = f.optString("svg").takeIf { !f.isNull("svg") && it.isNotEmpty() },
+                            caption = f.optString("caption", ""),
+                            order = f.optInt("order", i),
+                            imageBytes = f.optString("bytes").takeIf { !f.isNull("bytes") && it.isNotEmpty() },
+                        )
+                    }
+                    SelectionFiguresStash.set(figures)
+                } else {
+                    SelectionFiguresStash.set(emptyList())
+                }
             } catch (_: Exception) {
                 return@evaluateJavascript
             }
@@ -729,6 +757,18 @@ internal class ChapterWebView(context: Context) : WebView(context), ChapterWebVi
         @JavascriptInterface
         fun onFigureTap(payload: String) {
             post { this@ChapterWebView.onFigureTap?.invoke(payload) }
+        }
+
+        /**
+         * Figure long-press event; [json] is the JSON built by [FigureTapScript]'s `touchstart`
+         * listener. Parsed here (off the main thread, on the JS binder thread) via
+         * [FigureLongPressMessageParser] before hopping to the main thread — same shape as
+         * [onFootnoteAnchorTap]'s Jsoup parse above.
+         */
+        @JavascriptInterface
+        fun onFigureLongPress(json: String) {
+            val payload = FigureLongPressMessageParser.parse(json)
+            post { this@ChapterWebView.onFigureLongPress?.invoke(payload) }
         }
     }
 }

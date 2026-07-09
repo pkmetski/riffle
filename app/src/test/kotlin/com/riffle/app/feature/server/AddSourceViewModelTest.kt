@@ -189,6 +189,13 @@ class AddSourceViewModelTest {
         override suspend fun getAllForItemIncludingDeleted(sourceId: String, itemId: String) = emptyList<AnnotationEntity>()
         override suspend fun getById(id: String): AnnotationEntity? = null
         override suspend fun getByItemAndCfi(sourceId: String, itemId: String, cfi: String): AnnotationEntity? = null
+        override suspend fun findImageForFigure(
+            sourceId: String,
+            itemId: String,
+            chapterHref: String,
+            imageHref: String?,
+            imageSvg: String?,
+        ): AnnotationEntity? = null
         override suspend fun upsert(entity: AnnotationEntity) {}
         override suspend fun upsertAll(annotations: List<AnnotationEntity>) {}
         override suspend fun tombstone(id: String, updatedAt: Long, deviceId: String) {}
@@ -503,6 +510,13 @@ class AddSourceViewModelTest {
             override suspend fun getAllForItemIncludingDeleted(sourceId: String, itemId: String) = emptyList<AnnotationEntity>()
             override suspend fun getById(id: String): AnnotationEntity? = null
             override suspend fun getByItemAndCfi(sourceId: String, itemId: String, cfi: String): AnnotationEntity? = null
+            override suspend fun findImageForFigure(
+                sourceId: String,
+                itemId: String,
+                chapterHref: String,
+                imageHref: String?,
+                imageSvg: String?,
+            ): AnnotationEntity? = null
             override suspend fun upsert(entity: AnnotationEntity) {}
             override suspend fun upsertAll(annotations: List<AnnotationEntity>) {}
             override suspend fun tombstone(id: String, updatedAt: Long, deviceId: String) {}
