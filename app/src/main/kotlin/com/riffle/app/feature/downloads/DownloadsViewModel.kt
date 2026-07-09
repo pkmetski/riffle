@@ -5,6 +5,8 @@ import androidx.lifecycle.viewModelScope
 import com.riffle.core.domain.DownloadsRepository
 import com.riffle.core.domain.LibraryItem
 import com.riffle.core.domain.LibraryObserver
+import com.riffle.core.domain.SourceRepository
+import com.riffle.core.domain.showCachedSectionFor
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -22,6 +24,11 @@ data class DownloadsUiState(
     val downloadedItems: List<LocalItemUi> = emptyList(),
     val cachedItems: List<LocalItemUi> = emptyList(),
     val readaloudSidecars: List<LocalItemUi> = emptyList(),
+    /**
+     * Whether the active Source's storage model exposes a separate Cache tier. When false (e.g.
+     * LocalFiles, single-tier), the Downloads Screen renders one section instead of two.
+     */
+    val showCachedSection: Boolean = true,
 ) {
     val downloadedTotalBytes: Long get() = downloadedItems.sumOf { it.sizeBytes }
     val cachedTotalBytes: Long get() = cachedItems.sumOf { it.sizeBytes }
@@ -33,6 +40,7 @@ class DownloadsViewModel @Inject constructor(
     private val downloadsRepository: DownloadsRepository,
     private val libraryObserver: LibraryObserver,
     private val sidecarStore: com.riffle.core.data.ReadaloudSidecarStore,
+    private val sourceRepository: SourceRepository,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(DownloadsUiState())
@@ -69,6 +77,7 @@ class DownloadsViewModel @Inject constructor(
                 downloadedItems = downloadedItems,
                 cachedItems = cachedItems,
                 readaloudSidecars = readaloudSidecars,
+                showCachedSection = showCachedSectionFor(sourceRepository.getActive()),
             )
         }
     }

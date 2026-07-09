@@ -112,26 +112,28 @@ fun DownloadsScreen(
                     }
                 }
 
-                item {
-                    SectionHeader(
-                        title = "Cached",
-                        totalLabel = if (uiState.cachedItems.isNotEmpty()) formatBytes(uiState.cachedTotalBytes) else null,
-                        actionLabel = if (uiState.cachedItems.isNotEmpty()) "Clear all" else null,
-                        onAction = { viewModel.clearAllCached() },
-                    )
-                }
-                if (uiState.cachedItems.isEmpty()) {
+                if (uiState.showCachedSection) {
                     item {
-                        EmptySection("No cached books")
-                    }
-                } else {
-                    items(uiState.cachedItems, key = { it.sourceId + "/" + it.item.id }) { entry ->
-                        LocalItemRow(
-                            entry = entry,
-                            pillColor = PillColor.Cached,
-                            onClick = { onItemSelected(entry.item) },
-                            onRemove = { viewModel.removeCachedItem(entry.sourceId, entry.item.id) },
+                        SectionHeader(
+                            title = "Cached",
+                            totalLabel = if (uiState.cachedItems.isNotEmpty()) formatBytes(uiState.cachedTotalBytes) else null,
+                            actionLabel = if (uiState.cachedItems.isNotEmpty()) "Clear all" else null,
+                            onAction = { viewModel.clearAllCached() },
                         )
+                    }
+                    if (uiState.cachedItems.isEmpty()) {
+                        item {
+                            EmptySection("No cached books")
+                        }
+                    } else {
+                        items(uiState.cachedItems, key = { it.sourceId + "/" + it.item.id }) { entry ->
+                            LocalItemRow(
+                                entry = entry,
+                                pillColor = PillColor.Cached,
+                                onClick = { onItemSelected(entry.item) },
+                                onRemove = { viewModel.removeCachedItem(entry.sourceId, entry.item.id) },
+                            )
+                        }
                     }
                 }
 
