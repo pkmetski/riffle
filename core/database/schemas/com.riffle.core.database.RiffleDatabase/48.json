@@ -2,7 +2,7 @@
   "formatVersion": 1,
   "database": {
     "version": 48,
-    "identityHash": "18e18e9526397d5a66e390acf64490b1",
+    "identityHash": "e2c5f526725585147b466a5044bd1385",
     "entities": [
       {
         "tableName": "sources",
@@ -503,7 +503,7 @@
       },
       {
         "tableName": "book_formatting_preferences",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`sourceId` TEXT NOT NULL, `itemId` TEXT NOT NULL, `fontSize` REAL, `theme` TEXT, `fontFamily` TEXT, `lineSpacing` REAL, `margins` REAL, `orientation` TEXT, `showChapterMap` INTEGER, `showReadingProgressLabels` INTEGER, `showCurrentChapterLabel` INTEGER, `doublePageSpread` INTEGER, `justifyText` INTEGER, `showReadingTimeEstimate` INTEGER, PRIMARY KEY(`sourceId`, `itemId`), FOREIGN KEY(`sourceId`) REFERENCES `sources`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`sourceId` TEXT NOT NULL, `itemId` TEXT NOT NULL, `scope` TEXT NOT NULL, `fontSize` REAL, `theme` TEXT, `fontFamily` TEXT, `lineSpacing` REAL, `margins` REAL, `orientation` TEXT, `showChapterMap` INTEGER, `showReadingProgressLabels` INTEGER, `showCurrentChapterLabel` INTEGER, `doublePageSpread` INTEGER, `justifyText` INTEGER, `showReadingTimeEstimate` INTEGER, PRIMARY KEY(`sourceId`, `itemId`, `scope`), FOREIGN KEY(`sourceId`) REFERENCES `sources`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
         "fields": [
           {
             "fieldPath": "sourceId",
@@ -514,6 +514,12 @@
           {
             "fieldPath": "itemId",
             "columnName": "itemId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "scope",
+            "columnName": "scope",
             "affinity": "TEXT",
             "notNull": true
           },
@@ -582,7 +588,8 @@
           "autoGenerate": false,
           "columnNames": [
             "sourceId",
-            "itemId"
+            "itemId",
+            "scope"
           ]
         },
         "indices": [
@@ -1432,11 +1439,168 @@
             "itemId"
           ]
         }
+      },
+      {
+        "tableName": "local_files_folders",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`sourceId` TEXT NOT NULL, `treeUri` TEXT NOT NULL, `displayName` TEXT NOT NULL, `addedAtEpochMs` INTEGER NOT NULL, PRIMARY KEY(`sourceId`, `treeUri`), FOREIGN KEY(`sourceId`) REFERENCES `sources`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "fields": [
+          {
+            "fieldPath": "sourceId",
+            "columnName": "sourceId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "treeUri",
+            "columnName": "treeUri",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "displayName",
+            "columnName": "displayName",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "addedAtEpochMs",
+            "columnName": "addedAtEpochMs",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "sourceId",
+            "treeUri"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_local_files_folders_sourceId",
+            "unique": false,
+            "columnNames": [
+              "sourceId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_local_files_folders_sourceId` ON `${TABLE_NAME}` (`sourceId`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "sources",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "sourceId"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "local_files_files",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`sourceId` TEXT NOT NULL, `sourceItemId` TEXT NOT NULL, `folderTreeUri` TEXT NOT NULL, `originalUri` TEXT NOT NULL, `copiedPath` TEXT NOT NULL, `coverPath` TEXT, `format` TEXT NOT NULL, `sizeBytes` INTEGER NOT NULL, `mtimeEpochMs` INTEGER NOT NULL, `lastSeenAtEpochMs` INTEGER NOT NULL, PRIMARY KEY(`sourceId`, `sourceItemId`), FOREIGN KEY(`sourceId`) REFERENCES `sources`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "fields": [
+          {
+            "fieldPath": "sourceId",
+            "columnName": "sourceId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sourceItemId",
+            "columnName": "sourceItemId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "folderTreeUri",
+            "columnName": "folderTreeUri",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "originalUri",
+            "columnName": "originalUri",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "copiedPath",
+            "columnName": "copiedPath",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "coverPath",
+            "columnName": "coverPath",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "format",
+            "columnName": "format",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sizeBytes",
+            "columnName": "sizeBytes",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "mtimeEpochMs",
+            "columnName": "mtimeEpochMs",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "lastSeenAtEpochMs",
+            "columnName": "lastSeenAtEpochMs",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "sourceId",
+            "sourceItemId"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_local_files_files_sourceId",
+            "unique": false,
+            "columnNames": [
+              "sourceId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_local_files_files_sourceId` ON `${TABLE_NAME}` (`sourceId`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "sources",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "sourceId"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          }
+        ]
       }
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '18e18e9526397d5a66e390acf64490b1')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'e2c5f526725585147b466a5044bd1385')"
     ]
   }
 }
