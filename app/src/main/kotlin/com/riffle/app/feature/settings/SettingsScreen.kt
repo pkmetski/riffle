@@ -3,6 +3,7 @@ package com.riffle.app.feature.settings
 import android.content.Intent
 import android.net.Uri
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.core.content.FileProvider
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloatAsState
@@ -27,9 +28,11 @@ import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Schedule
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.outlined.CloudOff
 import androidx.compose.material.icons.outlined.Headphones
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -90,6 +93,7 @@ fun SettingsScreen(
     windowSizeClass: WindowSizeClass,
     onNavigateBack: () -> Unit,
     onNavigateToAddSource: (backend: AddSourceBackend, editId: String?) -> Unit,
+    onNavigateToAddLocalFolder: () -> Unit = {},
     onNavigateToReadaloudMatches: (String) -> Unit = {},
     onNavigateToAnnotationSyncMaintenance: () -> Unit = {},
     onNavigateToDebugLogs: () -> Unit = {},
@@ -102,6 +106,8 @@ fun SettingsScreen(
     val invertVolumeKeys by viewModel.invertVolumeKeys.collectAsState()
     val appTheme by viewModel.appTheme.collectAsState()
     val servers by viewModel.servers.collectAsState()
+    val localFilesSource by viewModel.localFilesSource.collectAsState()
+    val localFilesFolders by viewModel.localFilesFolders.collectAsState()
     val serverVersions by viewModel.serverVersions.collectAsState()
     val libraryItemsByServer by viewModel.libraryUiItemsByServer.collectAsState()
     val readaloudSummaries by viewModel.readaloudSummaries.collectAsState()
@@ -125,6 +131,7 @@ fun SettingsScreen(
         viewModel.navigationEvents.collect { event ->
             when (event) {
                 is SettingsNavEvent.NavigateToAddSource -> onNavigateToAddSource(AddSourceBackend.AUDIOBOOKSHELF, null)
+                is SettingsNavEvent.NavigateToAddLocalFolder -> onNavigateToAddLocalFolder()
                 is SettingsNavEvent.NavigateToReadaloudMatches -> onNavigateToReadaloudMatches(event.sourceId)
             }
         }
@@ -188,6 +195,15 @@ fun SettingsScreen(
                 ) {
                     Text("Add source")
                 }
+                HorizontalDivider()
+
+                LocalFilesSection(
+                    source = localFilesSource,
+                    folders = localFilesFolders,
+                    onAddFolder = { viewModel.openAddLocalFolder() },
+                    onRemoveFolder = { treeUri -> viewModel.removeLocalFolder(treeUri) },
+                    onRemoveSource = { viewModel.removeLocalFilesSource() },
+                )
                 HorizontalDivider()
 
                 Text(
@@ -985,6 +1001,118 @@ private fun AnnotationSyncBadge(badge: AnnotationSyncRowState.Badge) {
         contentAlignment = Alignment.Center,
     ) {
         Icon(imageVector = glyph, contentDescription = null, tint = fg, modifier = Modifier.size(18.dp))
+    }
+}
+
+@Composable
+private fun LocalFilesSection(
+    source: com.riffle.core.domain.Source?,
+    folders: List<com.riffle.core.database.LocalFilesFolderEntity>,
+    onAddFolder: () -> Unit,
+    onRemoveFolder: (String) -> Unit,
+    onRemoveSource: () -> Unit,
+) {
+    var pendingFolderRemoval by remember { mutableStateOf<com.riffle.core.database.LocalFilesFolderEntity?>(null) }
+    var pendingSourceRemoval by remember { mutableStateOf(false) }
+
+    Text(
+        text = "Local Files",
+        style = MaterialTheme.typography.titleSmall,
+        fontWeight = FontWeight.Bold,
+        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+    )
+    HorizontalDivider()
+
+    if (source == null) {
+        ListItem(
+            headlineContent = { Text("No local folders configured") },
+            supportingContent = { Text("Add a folder on this device to read EPUBs and PDFs offline.") },
+        )
+    } else {
+        folders.forEach { folder ->
+            ListItem(
+                modifier = Modifier.testTag("LocalFilesFolder.${folder.treeUri}"),
+                headlineContent = { Text(folder.displayName) },
+                supportingContent = {
+                    Text(
+                        folder.treeUri,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                },
+                trailingContent = {
+                    IconButton(onClick = { pendingFolderRemoval = folder }) {
+                        Icon(Icons.Default.Delete, contentDescription = "Remove folder")
+                    }
+                },
+            )
+        }
+        if (folders.isEmpty()) {
+            ListItem(
+                headlineContent = { Text("No folders yet") },
+                supportingContent = { Text("Add a folder to start scanning for local books.") },
+            )
+        }
+    }
+
+    Button(
+        onClick = onAddFolder,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 8.dp)
+            .testTag("LocalFilesAddFolder"),
+    ) {
+        Text(if (source == null || folders.isEmpty()) "Add a local folder" else "Add another folder")
+    }
+
+    if (source != null && folders.isNotEmpty()) {
+        TextButton(
+            onClick = { pendingSourceRemoval = true },
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp),
+        ) {
+            Text("Remove Local Files source", color = MaterialTheme.colorScheme.error)
+        }
+    }
+
+    pendingFolderRemoval?.let { folder ->
+        AlertDialog(
+            onDismissRequest = { pendingFolderRemoval = null },
+            title = { Text("Remove folder?") },
+            text = {
+                Text(
+                    "\"${folder.displayName}\" will be removed and any books that came from it " +
+                        "will be deleted from this device. Books shared with another configured " +
+                        "folder are kept.",
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    onRemoveFolder(folder.treeUri)
+                    pendingFolderRemoval = null
+                }) { Text("Remove") }
+            },
+            dismissButton = {
+                TextButton(onClick = { pendingFolderRemoval = null }) { Text("Cancel") }
+            },
+        )
+    }
+    if (pendingSourceRemoval) {
+        AlertDialog(
+            onDismissRequest = { pendingSourceRemoval = false },
+            title = { Text("Remove Local Files source?") },
+            text = { Text("Every configured folder and every locally-stored book will be deleted from this device.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    onRemoveSource()
+                    pendingSourceRemoval = false
+                }) { Text("Remove") }
+            },
+            dismissButton = {
+                TextButton(onClick = { pendingSourceRemoval = false }) { Text("Cancel") }
+            },
+        )
     }
 }
 

@@ -28,7 +28,12 @@ import com.riffle.app.feature.annotationsync.AnnotationSyncKind
 import com.riffle.app.feature.annotationsync.deriveAnnotationSyncKind
 import com.riffle.core.data.AnnotationSyncStatusStore
 import com.riffle.core.data.CycleOutcome
+import com.riffle.core.data.localfiles.LocalFilesFolderRepository
+import com.riffle.core.data.localfiles.LocalFilesScanner
+import com.riffle.core.data.localfiles.LocalFilesSourceInstaller
 import com.riffle.core.database.AnnotationDao
+import com.riffle.core.database.LocalFilesFolderDao
+import com.riffle.core.database.LocalFilesFolderEntity
 import com.riffle.core.domain.VolumeKeyPreferencesStore
 import com.riffle.core.domain.WakeLockPreferencesStore
 import com.riffle.core.domain.SourceRepository
@@ -75,6 +80,10 @@ class SettingsViewModel @Inject constructor(
     private val connectivityObserver: ConnectivityObserver,
     private val appUpdateRepository: AppUpdateRepository,
     private val readaloudPreferencesStore: ReadaloudPreferencesStore,
+    private val localFilesFolderDao: LocalFilesFolderDao,
+    private val localFilesFolderRepository: LocalFilesFolderRepository,
+    private val localFilesScanner: LocalFilesScanner,
+    private val localFilesSourceInstaller: LocalFilesSourceInstaller,
     annotationSyncConfigStore: com.riffle.core.domain.AnnotationSyncConfigStore,
     annotationSyncStatusStore: AnnotationSyncStatusStore,
     annotationDao: AnnotationDao,
@@ -222,6 +231,22 @@ class SettingsViewModel @Inject constructor(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), AppTheme.System)
 
     val servers: StateFlow<List<Source>> = sourceRepository.observeAll()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    /**
+     * The singleton LocalFiles Source row if one has been installed (there is at most one per
+     * device — multi-folder lives inside it). Null before the first Add-Source LocalFiles pass.
+     */
+    val localFilesSource: StateFlow<Source?> = servers
+        .map { list -> list.firstOrNull { it.type == com.riffle.core.domain.SourceType.LOCAL_FILES } }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+
+    /** Configured folder rows under the LocalFiles Source, reactive. Empty when no source yet. */
+    val localFilesFolders: StateFlow<List<LocalFilesFolderEntity>> = localFilesSource
+        .flatMapLatest { source ->
+            if (source == null) MutableStateFlow(emptyList())
+            else localFilesFolderDao.observeForSource(source.id)
+        }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     /** Ids of the configured Storyteller servers, feeding the per-server readaloud summaries. */
@@ -392,6 +417,36 @@ class SettingsViewModel @Inject constructor(
 
     private fun shortHost(rawUrl: String): String =
         runCatching { java.net.URI(rawUrl).host ?: rawUrl }.getOrDefault(rawUrl)
+
+    // region LocalFiles folder management
+
+    fun openAddLocalFolder() {
+        viewModelScope.launch { _navigationEvents.send(SettingsNavEvent.NavigateToAddLocalFolder) }
+    }
+
+    /**
+     * Remove one configured LocalFiles folder from the singleton LocalFiles Source. Releases the
+     * SAF grant, deletes the folder row, then runs a scan so the sweep-stale pass hard-deletes
+     * every file that lived only in this folder (identity-hashed rows shared with another folder
+     * survive automatically). Callers confirm via a dialog.
+     */
+    fun removeLocalFolder(treeUri: String) {
+        val source = localFilesSource.value ?: return
+        viewModelScope.launch {
+            localFilesFolderRepository.removeFolder(source.id, treeUri)
+            localFilesScanner.scan(source.id)
+        }
+    }
+
+    /**
+     * Remove the entire LocalFiles Source (all folders, all copied-in files). Wired through the
+     * standard [removeServer] path so the cascade — DB, tokens, files-on-disk — stays uniform.
+     */
+    fun removeLocalFilesSource() {
+        localFilesSource.value?.id?.let { removeServer(it) }
+    }
+
+    // endregion
 }
 
 /** Counts shown in a Storyteller server's expanded "Readaloud matches" summary (gradient order). */

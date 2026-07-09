@@ -296,6 +296,7 @@ fun MainScreen(
                             navController.navigate("$ADD_SOURCE?$params")
                         }
                     },
+                    onNavigateToAddLocalFolder = { navController.navigate(ADD_LOCAL_FILES) },
                     onNavigateToReadaloudMatches = { sourceId ->
                         val encoded = URLEncoder.encode(sourceId, "UTF-8")
                         navController.navigate("readaloud_matches/$encoded")
