@@ -69,6 +69,7 @@ import com.riffle.app.feature.reader.highlights.toFormattingScope
 import com.riffle.core.logging.LogChannel
 import com.riffle.core.logging.Logger
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -335,6 +336,18 @@ class EpubReaderViewModel @Inject constructor(
     private val _syncErrorEvents = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
     val syncErrorEvents: SharedFlow<Unit> = _syncErrorEvents.asSharedFlow()
 
+    // Highlights mode (ADR 0041) live DOM patch bus. Each per-annotation store change turns into
+    // one [HighlightsDomPatch]; the screen collects and dispatches through the RendererBridge.
+    // BUFFERED replay=0 — patches are stateless deltas; on subscribe we don't want stale events.
+    // The extra buffer keeps rapid bursts (e.g. sync inserts N highlights) from suspending the
+    // observer coroutine before the screen collector runs its first tick.
+    private val _highlightDomPatches =
+        MutableSharedFlow<com.riffle.app.feature.reader.highlights.HighlightsDomPatch>(
+            extraBufferCapacity = 32,
+        )
+    val highlightDomPatches: SharedFlow<com.riffle.app.feature.reader.highlights.HighlightsDomPatch> =
+        _highlightDomPatches.asSharedFlow()
+
     // Nav events the screen can't service itself — e.g. leaving the elided Highlights-mode reader
     // to open the real source book at a tapped highlight's CFI (Task 9, ADR 0041).
     private val _readerNavEvents = Channel<ReaderNavEvent>(Channel.BUFFERED)
@@ -385,6 +398,22 @@ class EpubReaderViewModel @Inject constructor(
     // locator update back to a highlight id without rebuilding the Publication. Null in FullBook mode.
     private var highlightsResumeChapters: List<ChapterElision>? = null
     private var highlightsResumeServerId: String? = null
+    // Highlights mode only: subscription to annotationStore.observeAnnotations so the elided
+    // reader updates live when annotations change (colour/note/delete edits from anywhere, and
+    // additions arriving via AnnotationSyncController's remote pull). Kept alive across the
+    // per-chapter openBook() reruns that a structural rebuild triggers.
+    private var highlightsObserverJob: Job? = null
+    // Full snapshot of each annotation currently rendered in the elided reader — keyed by id.
+    // The observer compares an incoming emission against this snapshot per-id to decide whether
+    // to emit a targeted [HighlightsDomPatch] (colour/note/delete, in-chapter add) or fall back
+    // to a full [reloadHighlightsView] rebuild (new-chapter add, chapter emptied, spine shape
+    // change). Updated at the end of every openBook() and after each successful patch dispatch.
+    private var highlightsRenderedById: Map<String, AnnotationEntity> = emptyMap()
+    // Handle to the currently-loaded Highlights Publication, kept so per-annotation patches can
+    // rewrite ONE chapter's synthesised HTML in place (see [HighlightsPublicationHandle.setChapterBytes])
+    // — so a subsequent chapter-back navigation still renders the fresh state without a rebuild.
+    private var highlightsPublicationHandle:
+        com.riffle.app.feature.reader.highlights.HighlightsPublicationHandle? = null
     // True after the navigator emits its first locator (the restored position on open).
     // The first emission is not new user progress — the position is already in DB — so we skip
     // the DB write to avoid stomping localUpdatedAt before the initial sync cycle runs.
@@ -858,16 +887,26 @@ class EpubReaderViewModel @Inject constructor(
             }
             highlightsResumeChapters = chapters
             highlightsResumeServerId = sourceId
+            // Snapshot what we just rendered so the observer can diff each incoming emission
+            // per-annotation and pick the right response: targeted DOM patch for a colour/note/
+            // delete/in-chapter-add, or a full rebuild for a structural change.
+            highlightsRenderedById = rows.associateBy { it.id }
+            // Start observing (once per (sourceId, itemId)). Kept alive across the openBook()
+            // reruns triggered by reloadHighlightsView, since cancelling and re-launching each
+            // rebuild would drop emissions during the Loading→Ready gap.
+            ensureHighlightsObserver(sourceId, itemId, chapters)
             // Book title composed as "<real title> — Annotations" so the reader's own top-bar
             // label makes clear which book's highlights are shown. Falls back to plain "Annotations"
             // when the local library_items row is gone (orphaned book).
             val realBookTitle = libraryItemDao.getById(sourceId, itemId)?.title
-            val pub = highlightsPublicationFactory.build(
+            val handle = highlightsPublicationFactory.buildHandle(
                 sourceId = sourceId,
                 itemId = itemId,
                 bookTitle = realBookTitle?.let { "$it — Annotations" },
                 chapters = chapters,
             )
+            highlightsPublicationHandle = handle
+            val pub = handle.publication
             // Per-device resume (Task 10, ADR 0041): jump back to the chapter containing the
             // last-viewed highlight, at chapter-level precision. The synthesised Publication's
             // hrefs ("highlights/ch$index.xhtml") are rebuilt fresh every open from `chapters`'
@@ -1671,14 +1710,12 @@ class EpubReaderViewModel @Inject constructor(
         }
     }
 
-    /** Recolour an existing highlight; annotationStore re-emits → decoration re-applies. */
+    /** Recolour an existing highlight; annotationStore re-emits → decoration re-applies.
+     *  Highlights mode: the observer diffs the store re-emit and dispatches a targeted DOM
+     *  patch via [highlightDomPatches], so the accent bar refreshes in place — no rebuild. */
     fun recolorHighlight(id: String, color: HighlightColor) {
         viewModelScope.launch {
             annotationSession.recolorHighlight(id, color)
-            // Highlights mode bakes the accent-bar colour into the synthesised HTML at build
-            // time; a live decoration recolour doesn't reach the border-left CSS. Reload so the
-            // accent bar tracks the new palette pick.
-            if (source == ReaderSource.Highlights) reloadHighlightsView()
         }
     }
 
@@ -1697,22 +1734,162 @@ class EpubReaderViewModel @Inject constructor(
         openBook()
     }
 
-    /** Soft-delete a highlight; annotationStore re-emits without it → decoration is removed. */
+    /**
+     * Subscribe (once) to the annotation store for this book. Each emission is diffed
+     * per-annotation against [highlightsRenderedById]:
+     *  - **Colour edited** ⇒ emit [HighlightsDomPatch.Recolor] + rewrite the chapter's bytes.
+     *  - **Note edited** ⇒ emit [HighlightsDomPatch.SetNote] + rewrite the chapter's bytes.
+     *  - **Removed (deleted OR missing from the new set)** ⇒ if the highlight was the LAST one
+     *    on its chapter, the spine shrinks → fall back to [reloadHighlightsView] (or to the
+     *    empty-book close event via [reloadOrCloseHighlightsAfterDelete]); otherwise emit
+     *    [HighlightsDomPatch.Remove] + rewrite bytes.
+     *  - **Added and its chapter is already in the current spine** ⇒ TODO — for now fall back
+     *    to [reloadHighlightsView] so the insert lands in CFI order without complex DOM math.
+     *    Adds are the least-common case (sync inserts) and the rebuild is only visible for
+     *    that one event.
+     *  - **Added into a brand-new chapter** ⇒ [reloadHighlightsView] (structural change).
+     * The by-id snapshot is refreshed at the end of every dispatch so the next emission's diff
+     * is against what's actually on screen — this suppresses the redundant echo emission that
+     * every local write triggers via Room's Flow.
+     */
+    private fun ensureHighlightsObserver(
+        sourceId: String,
+        itemId: String,
+        initialChapters: List<ChapterElision>,
+    ) {
+        if (highlightsObserverJob?.isActive == true) return
+        highlightsObserverJob = viewModelScope.launch {
+            // Snapshot of "which chapter hrefs are in the current spine" — updated by every
+            // full rebuild via [openBook]; used to detect adds into a brand-new chapter.
+            var spineChapterHrefs: Set<String> = initialChapters.map { it.href }.toSet()
+            annotationDao.observeAnnotationsByPosition(sourceId, itemId).collect { annotations ->
+                val incomingById = annotations.associateBy { it.id }
+                if (sameById(incomingById, highlightsRenderedById)) return@collect
+
+                val handle = highlightsPublicationHandle
+                val previous = highlightsRenderedById
+
+                // Empty set — close the reader; the elided Publication would need an empty spine
+                // and Readium crashes on that.
+                if (incomingById.isEmpty()) {
+                    if (reloadOrCloseHighlightsAfterDelete()) return@collect
+                    reloadHighlightsView(); return@collect
+                }
+
+                val removedIds = previous.keys - incomingById.keys
+                val addedIds = incomingById.keys - previous.keys
+                val changedIds = incomingById.keys.intersect(previous.keys).filter { id ->
+                    val prev = previous.getValue(id)
+                    val next = incomingById.getValue(id)
+                    prev.color != next.color ||
+                        prev.note != next.note ||
+                        prev.chapterHref != next.chapterHref
+                }
+
+                // Structural changes → full rebuild.
+                //   * Any add whose chapterHref isn't already in the spine (new chapter needs adding).
+                //   * Any add at all (in-chapter insert not yet implemented — falls back to rebuild).
+                //   * Any remove that empties its chapter.
+                //   * Any change that moved a highlight between chapters (rare — sync-only reorder).
+                val structural = addedIds.isNotEmpty() ||
+                    removedIds.any { id ->
+                        val chapterHref = previous.getValue(id).chapterHref
+                        val livePeersInChapter = incomingById.values.count { it.chapterHref == chapterHref }
+                        livePeersInChapter == 0
+                    } ||
+                    changedIds.any { id ->
+                        previous.getValue(id).chapterHref != incomingById.getValue(id).chapterHref
+                    }
+                if (structural || handle == null) {
+                    if (reloadOrCloseHighlightsAfterDelete()) return@collect
+                    reloadHighlightsView()
+                    spineChapterHrefs = highlightsResumeChapters?.map { it.href }?.toSet().orEmpty()
+                    return@collect
+                }
+
+                // Partial path — recolour / note / delete on chapters that already exist.
+                val touchedChapters = mutableSetOf<String>()
+                for (id in removedIds) {
+                    _highlightDomPatches.tryEmit(
+                        com.riffle.app.feature.reader.highlights.HighlightsDomPatch.Remove(id),
+                    )
+                    previous[id]?.chapterHref?.let(touchedChapters::add)
+                }
+                for (id in changedIds) {
+                    val next = incomingById.getValue(id)
+                    val previousRow = previous.getValue(id)
+                    val accent = highlightAccentCssRgba(next.color)
+                    if (previousRow.color != next.color) {
+                        _highlightDomPatches.tryEmit(
+                            com.riffle.app.feature.reader.highlights.HighlightsDomPatch.Recolor(id, accent),
+                        )
+                    }
+                    if (previousRow.note != next.note) {
+                        _highlightDomPatches.tryEmit(
+                            com.riffle.app.feature.reader.highlights.HighlightsDomPatch
+                                .SetNote(id, accent, next.note),
+                        )
+                    }
+                    touchedChapters += next.chapterHref
+                }
+
+                // Rewrite bytes for every touched chapter so a subsequent chapter-back
+                // navigation surfaces the updated HTML instead of the pre-edit baked snapshot.
+                if (touchedChapters.isNotEmpty()) {
+                    val incomingByChapter = incomingById.values.groupBy { it.chapterHref }
+                    // Chapter titles were derived at open-time from the TOC — reuse them.
+                    val titleByHref =
+                        highlightsResumeChapters?.associate { it.href to it.title } ?: emptyMap()
+                    for (chapterHref in touchedChapters) {
+                        val livePeers = incomingByChapter[chapterHref].orEmpty()
+                            .sortedWith(compareBy({ it.spineIndex }, { it.progression }, { it.createdAt }, { it.id }))
+                        if (livePeers.isEmpty()) continue // Empty chapter would be structural — handled above.
+                        val chapter = ChapterElision(
+                            href = chapterHref,
+                            title = titleByHref[chapterHref] ?: chapterHref,
+                            highlights = livePeers,
+                        )
+                        val freshHtml = highlightsPublicationFactory.renderChapterHtml(chapter)
+                        handle.setChapterBytes(chapterHref, freshHtml)
+                    }
+                }
+
+                // Refresh the by-id snapshot to what's now on screen. Without this the NEXT
+                // emission would re-observe the same "changed" annotation and re-emit the same
+                // patch on every Room re-emit.
+                highlightsRenderedById = incomingById
+            }
+        }
+    }
+
+    /** Compare two id-keyed AnnotationEntity maps by the fields the elided reader actually
+     *  renders (colour, note, chapterHref, position within chapter). A pure-equality check on
+     *  the full entity would over-trigger on unrelated bumps to `updatedAt` / `lastSyncedAt` /
+     *  provenance fields — those get rewritten on every sync round-trip and would cause the
+     *  observer to think "changed" every time. */
+    private fun sameById(a: Map<String, AnnotationEntity>, b: Map<String, AnnotationEntity>): Boolean {
+        if (a.size != b.size) return false
+        for ((id, aRow) in a) {
+            val bRow = b[id] ?: return false
+            if (aRow.color != bRow.color) return false
+            if (aRow.note != bRow.note) return false
+            if (aRow.chapterHref != bRow.chapterHref) return false
+        }
+        return true
+    }
+
+    /** Palette CSS the elided reader paints an accent bar / note border with. Kept identical to
+     *  what [HighlightsPublicationFactory.renderChapterHtml] bakes into the initial HTML so a
+     *  live recolour lands on the SAME colour a fresh page load would produce. */
+    private fun highlightAccentCssRgba(colorToken: String): String =
+        com.riffle.core.domain.HighlightColor.fromToken(colorToken).argb.toCssRgba()
+
+    /** Soft-delete a highlight; annotationStore re-emits without it → decoration is removed.
+     *  Highlights mode: the observer sees the id disappear and dispatches a Remove DOM patch
+     *  (or, if the chapter empties, falls back to reloadOrCloseHighlightsAfterDelete). */
     fun deleteHighlight(id: String) {
         viewModelScope.launch {
             annotationSession.deleteHighlight(id)
-            // Highlights mode's spine is baked from the annotation snapshot at openBook() time —
-            // decoration removal alone leaves the synthesised <p class="riffle-hl"> visible.
-            // Reload so the deleted highlight's paragraph disappears entirely.
-            if (source == ReaderSource.Highlights) {
-                if (reloadOrCloseHighlightsAfterDelete()) return@launch
-                // Force the reader composable to unmount its WebView by transitioning through
-                // Loading — a Ready→Ready swap with a new Publication instance isn't seen by
-                // Readium's fragment as a reload, and the deleted highlight's <p> stays on
-                // screen until next open.
-                _state.value = ReaderState.Loading
-                openBook()
-            }
         }
     }
 
@@ -1722,19 +1899,11 @@ class EpubReaderViewModel @Inject constructor(
     /** Rename a bookmark; delegates to BookmarksController which calls scheduleAnnotationSync. */
     fun renameBookmark(id: String, title: String) = bookmarks.renameBookmark(id, title)
 
-    /** Soft-delete any annotation (highlight or bookmark); clears highlight-edit state if needed. */
+    /** Soft-delete any annotation (highlight or bookmark); clears highlight-edit state if needed.
+     *  Highlights mode: observer takes over as with [deleteHighlight]. */
     fun deleteAnnotation(id: String) {
         viewModelScope.launch {
             annotationSession.deleteAnnotation(id)
-            if (source == ReaderSource.Highlights) {
-                if (reloadOrCloseHighlightsAfterDelete()) return@launch
-                // Force the reader composable to unmount its WebView by transitioning through
-                // Loading — a Ready→Ready swap with a new Publication instance isn't seen by
-                // Readium's fragment as a reload, and the deleted highlight's <p> stays on
-                // screen until next open.
-                _state.value = ReaderState.Loading
-                openBook()
-            }
         }
     }
 
@@ -1753,16 +1922,11 @@ class EpubReaderViewModel @Inject constructor(
         return true
     }
 
-    /** Save (or clear) the note on a highlight; blank text is treated as null (removes the note). */
+    /** Save (or clear) the note on a highlight; blank text is treated as null (removes the note).
+     *  Highlights mode: observer emits a SetNote DOM patch (add / update / remove aside). */
     fun updateHighlightNote(id: String, note: String?) {
         viewModelScope.launch {
             annotationSession.updateHighlightNote(id, note)
-            // Highlights mode's synthesised HTML bakes the note into the chapter body as an
-            // <aside>. The runtime decoration path doesn't touch that body, so the note change
-            // is invisible until the reader reopens — reload for the same reason
-            // [deleteHighlight] does. Note edits never empty the book, so the close-if-empty
-            // branch never applies.
-            if (source == ReaderSource.Highlights) reloadHighlightsView()
         }
     }
 

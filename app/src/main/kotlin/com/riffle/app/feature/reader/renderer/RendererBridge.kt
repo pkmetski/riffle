@@ -116,6 +116,20 @@ internal interface RendererBridge {
     /** Id-based [snapNarratedColumn] for Cadence — resolves the target via `getElementById`. */
     suspend fun snapCadenceColumn(fragmentId: String, columnIndex: Int)
 
+    // ── Highlights-mode (elided reader) live DOM patches (ADR 0041) ───────────────────────────
+
+    /**
+     * Apply one [com.riffle.app.feature.reader.highlights.HighlightsDomPatch] to the currently
+     * loaded elided-reader chapter. Each patch is a targeted `document.querySelector(...)`
+     * mutation on the synthesised chapter's baked HTML — recolour a paragraph's accent bar, add/
+     * update/remove a note aside, or delete a highlight paragraph — so the Annotations View
+     * refreshes in place instead of the earlier full-Publication rebuild (which flashed through
+     * Loading and unmounted the Readium fragment). Idempotent by design: an unrecognised
+     * `data-ann-id` is a no-op, so it's safe to invoke against any chapter without checking
+     * "is this the current one?" first.
+     */
+    suspend fun applyHighlightDomPatch(patch: com.riffle.app.feature.reader.highlights.HighlightsDomPatch)
+
     // ── Selection / readaloud probes ────────────────────────────────────────────────────────
 
     /**

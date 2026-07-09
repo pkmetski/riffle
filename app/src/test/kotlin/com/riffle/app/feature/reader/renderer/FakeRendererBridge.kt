@@ -143,4 +143,14 @@ internal class FakeRendererBridge(
         calls += "cadenceStartSpanId"
         return cadenceStartSpanIdResult
     }
+
+    val appliedHighlightPatches: MutableList<com.riffle.app.feature.reader.highlights.HighlightsDomPatch> =
+        mutableListOf()
+
+    override suspend fun applyHighlightDomPatch(
+        patch: com.riffle.app.feature.reader.highlights.HighlightsDomPatch,
+    ) {
+        calls += "applyHighlightDomPatch"
+        appliedHighlightPatches += patch
+    }
 }

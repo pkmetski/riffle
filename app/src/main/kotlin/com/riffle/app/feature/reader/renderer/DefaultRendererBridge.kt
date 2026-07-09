@@ -198,6 +198,12 @@ internal class DefaultRendererBridge(
         return com.riffle.app.feature.reader.cadence.CadenceDomScript.parseCadenceStartId(raw)
     }
 
+    override suspend fun applyHighlightDomPatch(
+        patch: com.riffle.app.feature.reader.highlights.HighlightsDomPatch,
+    ) {
+        fragment?.evaluateJavascript(patch.applyJs())
+    }
+
     override suspend fun readViewportFraction(): Double? {
         val frag = fragment ?: return null
         val raw = frag.evaluateJavascript(
