@@ -2637,7 +2637,11 @@ private fun EpubNavigatorView(
                         publication = state.publication,
                         configuration = sharedEpubNavigatorConfig,
                     ).createFragmentFactory(
-                        initialLocator = latestLocator() ?: state.initialLocator,
+                        initialLocator = pickInitialLocator(
+                            focusAnnotationId = state.initialFocusAnnotationId,
+                            latest = latestLocator(),
+                            initial = state.initialLocator,
+                        ),
                         initialPreferences = formattingPrefs.toEpubPreferences(isLandscape, isFixedLayout),
                         configuration = formattingPrefs.toFragmentConfiguration(isLandscape, isFixedLayout).apply {
                             registerBundledFonts()
