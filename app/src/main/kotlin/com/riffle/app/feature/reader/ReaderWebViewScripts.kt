@@ -302,9 +302,28 @@ internal val SELECTION_SPAN_TRACKER_JS = """
           window.__riffleSelRect = { top: rr.top, left: rr.left, bottom: rr.bottom };
         } catch (e) { window.__riffleSelRect = null; }
         try {
+          // Anchor rect for Android's FloatingToolbar. In Readium's paginated mode a selection
+          // that has been extended across a CSS column-break makes Range.getBoundingClientRect()
+          // return a garbage union rect (negative top, cross-column right) — feeding that to
+          // onGetContentRect places the toolbar above the top of the screen. Prefer the first
+          // in-viewport per-line rect from getClientRects() and only fall back to the bounding
+          // rect when nothing is in-view (selection fully off-screen).
+          var vw = (window.visualViewport ? window.visualViewport.width : window.innerWidth) || 0;
+          var vh = (window.visualViewport ? window.visualViewport.height : window.innerHeight) || 0;
+          var rc = rng.getClientRects();
+          var anchor = null;
+          if (rc) {
+            for (var i = 0; i < rc.length; i++) {
+              var r = rc[i];
+              if (r.top >= 0 && r.top < vh && r.left >= 0 && r.left < vw) {
+                anchor = r; break;
+              }
+            }
+          }
           var br = rng.getBoundingClientRect();
+          var use = anchor || br;
           if (window.RiffleSelBridge) {
-            window.RiffleSelBridge.onRect(br.left, br.top, br.right, br.bottom);
+            window.RiffleSelBridge.onRect(use.left, use.top, use.right, use.bottom);
           }
         } catch (e) {}
         // Stash the full selection payload (text + progression + range rect + before/after context)
