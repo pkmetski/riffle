@@ -54,8 +54,8 @@ class RiffleApplication : Application(), ImageLoaderFactory {
             dialog {
                 text = "Riffle crashed. Open Settings → Crash reports to view or share the details."
                 title = "Crash report"
-                positiveButtonText = "OK"
-                negativeButtonText = "Dismiss"
+                positiveButtonText = "Save report"
+                negativeButtonText = "Discard"
             }
             // Cap retention so a looping bug can't fill the disk between launches. Pairs with
             // FileCrashReportSender.pruneToMax — Limiter bounds the upstream queue, the sender
