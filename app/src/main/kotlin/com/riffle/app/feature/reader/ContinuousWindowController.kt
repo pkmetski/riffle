@@ -588,21 +588,35 @@ internal class ContinuousWindowController(
             "onAnnotationHighlightsApplied href='${wv.chapterHref}' matchesPendingTarget=$matches pendingTargetHref='$pendingTargetHref'"
         }
         if (!matches) return
-        reapplyLandingAfterFallback?.invoke()
-        scrollToPendingFocusAnnotation(wv.chapterHref)
+        val annotationReland = annotationFocusRelandClosure(
+            pendingFocusAnnotationId = pendingFocusAnnotationId,
+            chapterHref = wv.chapterHref,
+            landOnAnnotation = ::scrollToFocusAnnotation,
+        )
+        if (annotationReland != null) {
+            // Promote the annotation-focus landing to be the re-land closure so subsequent
+            // target-height remeasures (typography settle, late image decodes, style re-injection)
+            // re-land on the annotation's current offset rather than on the paragraph anchor.
+            // Without this, the anchor-based `reapplyLandingAfterFallback` invoked from
+            // appendChapter's onHeightMeasured loop yanks the scroll off the annotation whenever
+            // the target chapter reflows.
+            reapplyLandingAfterFallback = annotationReland
+            annotationReland()
+            pendingFocusAnnotationId = null
+        } else {
+            reapplyLandingAfterFallback?.invoke()
+        }
     }
 
-    private fun scrollToPendingFocusAnnotation(href: String) {
-        val id = pendingFocusAnnotationId ?: return
+    private fun scrollToFocusAnnotation(href: String, id: String) {
         val wv = webViewIndexFor(href)?.let { webViews.getOrNull(it) } ?: return
         wv.annotationOffsetTopDevicePx(id) { annOffset ->
             if (annOffset == null) return@annotationOffsetTopDevicePx
-            val i = pendingTargetHref?.let { webViewIndexFor(it) } ?: return@annotationOffsetTopDevicePx
+            val i = webViewIndexFor(href) ?: return@annotationOffsetTopDevicePx
             val slot = buildWindow().getOrNull(i) ?: return@annotationOffsetTopDevicePx
             val y = (slot.top + annOffset).coerceAtLeast(0)
             clearLandingHold()
             port.post { port.scrollTo(y) }
-            pendingFocusAnnotationId = null
         }
     }
 
@@ -832,6 +846,30 @@ internal class ContinuousWindowController(
         if (href.isEmpty()) return
         onViewportFractionMeasured(href, vh.toDouble() / measuredPx)
     }
+}
+
+/**
+ * Given the state at `onAnnotationHighlightsApplied`, produce the closure that
+ * [ContinuousWindowController] should install as `reapplyLandingAfterFallback` so subsequent
+ * target-height remeasures re-land on the annotation's current offset (typography settle, late
+ * image decodes, style re-injection can all shift the annotation after the initial land).
+ *
+ * Returns:
+ *  - a closure that invokes [landOnAnnotation] when a focus id is pending — the caller installs
+ *    it AND invokes it once immediately; the height-change loop in `appendChapter.onHeightMeasured`
+ *    then re-invokes it on every subsequent remeasure of the target chapter until height stabilises.
+ *  - `null` when no focus id is pending — the caller keeps the existing paragraph-anchor closure.
+ *
+ * Extracted as a top-level `internal` function so the decision is JVM-testable:
+ * [ContinuousWindowController] requires an Android `Context` to construct.
+ */
+internal fun annotationFocusRelandClosure(
+    pendingFocusAnnotationId: String?,
+    chapterHref: String,
+    landOnAnnotation: (href: String, id: String) -> Unit,
+): (() -> Unit)? {
+    val id = pendingFocusAnnotationId ?: return null
+    return { landOnAnnotation(chapterHref, id) }
 }
 
 /**
