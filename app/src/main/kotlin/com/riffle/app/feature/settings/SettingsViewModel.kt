@@ -434,27 +434,6 @@ class SettingsViewModel @Inject constructor(
 
     // region LocalFiles folder management
 
-    private val _rescanning = MutableStateFlow(false)
-    val localFilesRescanning: StateFlow<Boolean> = _rescanning.asStateFlow()
-
-    /**
-     * Re-walk every configured folder for the LocalFiles source and ingest anything new. Users
-     * dropping a new EPUB into their picked folder don't have to remove and re-add the source;
-     * this button drives the same [LocalFilesScanner.scan] pipeline used by first-install.
-     */
-    fun rescanLocalFiles() {
-        val source = localFilesSource.value ?: return
-        if (_rescanning.value) return
-        viewModelScope.launch {
-            _rescanning.value = true
-            try {
-                localFilesScanner.scan(source.id)
-            } finally {
-                _rescanning.value = false
-            }
-        }
-    }
-
     /**
      * Remove one configured LocalFiles folder from the singleton LocalFiles Source. Releases the
      * SAF grant, deletes the folder row, then runs a scan so the sweep-stale pass hard-deletes

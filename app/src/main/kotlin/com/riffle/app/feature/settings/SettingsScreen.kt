@@ -109,7 +109,6 @@ fun SettingsScreen(
     val localFilesSource by viewModel.localFilesSource.collectAsState()
     val localFilesFolders by viewModel.localFilesFolders.collectAsState()
     val localFilesFolderHealth by viewModel.localFilesFolderHealth.collectAsState()
-    val localFilesRescanning by viewModel.localFilesRescanning.collectAsState()
     val serverVersions by viewModel.serverVersions.collectAsState()
     val libraryItemsByServer by viewModel.libraryUiItemsByServer.collectAsState()
     val readaloudSummaries by viewModel.readaloudSummaries.collectAsState()
@@ -197,11 +196,9 @@ fun SettingsScreen(
                         folders = localFilesFolders,
                         folderHealth = localFilesFolderHealth,
                         isExpanded = expandedServers[lfs.id] == true,
-                        isRescanning = localFilesRescanning,
                         onToggleExpanded = {
                             expandedServers[lfs.id] = expandedServers[lfs.id] != true
                         },
-                        onRescan = { viewModel.rescanLocalFiles() },
                         onRemoveFolder = { treeUri -> viewModel.removeLocalFolder(treeUri) },
                         onRemoveSource = { viewModel.removeLocalFilesSource() },
                     )
@@ -1029,9 +1026,7 @@ private fun LocalFilesSourceRow(
     folders: List<com.riffle.core.database.LocalFilesFolderEntity>,
     folderHealth: Map<String, Boolean>,
     isExpanded: Boolean,
-    isRescanning: Boolean,
     onToggleExpanded: () -> Unit,
-    onRescan: () -> Unit,
     onRemoveFolder: (String) -> Unit,
     onRemoveSource: () -> Unit,
 ) {
@@ -1112,26 +1107,6 @@ private fun LocalFilesSourceRow(
                                 }
                             },
                         )
-                    }
-                }
-                Button(
-                    onClick = onRescan,
-                    enabled = !isRescanning && folders.isNotEmpty(),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 8.dp)
-                        .testTag("LocalFilesRescan"),
-                ) {
-                    if (isRescanning) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(18.dp),
-                            strokeWidth = 2.dp,
-                            color = MaterialTheme.colorScheme.onPrimary,
-                        )
-                        Spacer(Modifier.size(12.dp))
-                        Text("Scanning…")
-                    } else {
-                        Text("Scan for new books")
                     }
                 }
                 TextButton(
