@@ -93,7 +93,6 @@ fun SettingsScreen(
     windowSizeClass: WindowSizeClass,
     onNavigateBack: () -> Unit,
     onNavigateToAddSource: (backend: AddSourceBackend, editId: String?) -> Unit,
-    onNavigateToAddLocalFolder: () -> Unit = {},
     onNavigateToReadaloudMatches: (String) -> Unit = {},
     onNavigateToAnnotationSyncMaintenance: () -> Unit = {},
     onNavigateToDebugLogs: () -> Unit = {},
@@ -132,7 +131,6 @@ fun SettingsScreen(
         viewModel.navigationEvents.collect { event ->
             when (event) {
                 is SettingsNavEvent.NavigateToAddSource -> onNavigateToAddSource(AddSourceBackend.AUDIOBOOKSHELF, null)
-                is SettingsNavEvent.NavigateToAddLocalFolder -> onNavigateToAddLocalFolder()
                 is SettingsNavEvent.NavigateToReadaloudMatches -> onNavigateToReadaloudMatches(event.sourceId)
             }
         }
@@ -188,6 +186,19 @@ fun SettingsScreen(
                         onOpenReadaloudMatches = { viewModel.openReadaloudMatches(server.id) },
                     )
                 }
+                localFilesSource?.let { lfs ->
+                    LocalFilesSourceRow(
+                        source = lfs,
+                        folders = localFilesFolders,
+                        folderHealth = localFilesFolderHealth,
+                        isExpanded = expandedServers[lfs.id] == true,
+                        onToggleExpanded = {
+                            expandedServers[lfs.id] = expandedServers[lfs.id] != true
+                        },
+                        onRemoveFolder = { treeUri -> viewModel.removeLocalFolder(treeUri) },
+                        onRemoveSource = { viewModel.removeLocalFilesSource() },
+                    )
+                }
                 Button(
                     onClick = { onNavigateToAddSource(AddSourceBackend.AUDIOBOOKSHELF, null) },
                     modifier = Modifier
@@ -196,16 +207,6 @@ fun SettingsScreen(
                 ) {
                     Text("Add source")
                 }
-                HorizontalDivider()
-
-                LocalFilesSection(
-                    source = localFilesSource,
-                    folders = localFilesFolders,
-                    folderHealth = localFilesFolderHealth,
-                    onAddFolder = { viewModel.openAddLocalFolder() },
-                    onRemoveFolder = { treeUri -> viewModel.removeLocalFolder(treeUri) },
-                    onRemoveSource = { viewModel.removeLocalFilesSource() },
-                )
                 HorizontalDivider()
 
                 Text(
@@ -1006,112 +1007,113 @@ private fun AnnotationSyncBadge(badge: AnnotationSyncRowState.Badge) {
     }
 }
 
+/**
+ * Sources-list row for the singleton LocalFiles Source. Mirrors [ServerRow]'s chevron-expand
+ * shape so the two Source types read as siblings in the "Sources" section: header + collapsed
+ * summary; expanding drops down the configured folders with per-folder revocation warnings and
+ * a per-folder / whole-source removal path. Adding another folder goes through the standard
+ * Add-source picker — [com.riffle.core.data.localfiles.LocalFilesSourceInstaller.ensureLocalFilesSource]
+ * is idempotent, so "Add source > Local files" attaches to the existing row instead of creating
+ * a duplicate.
+ */
 @Composable
-private fun LocalFilesSection(
-    source: com.riffle.core.domain.Source?,
+private fun LocalFilesSourceRow(
+    source: com.riffle.core.domain.Source,
     folders: List<com.riffle.core.database.LocalFilesFolderEntity>,
     folderHealth: Map<String, Boolean>,
-    onAddFolder: () -> Unit,
+    isExpanded: Boolean,
+    onToggleExpanded: () -> Unit,
     onRemoveFolder: (String) -> Unit,
     onRemoveSource: () -> Unit,
 ) {
-    val unhealthyCount = folders.count { folderHealth[it.treeUri] == false }
     var pendingFolderRemoval by remember { mutableStateOf<com.riffle.core.database.LocalFilesFolderEntity?>(null) }
     var pendingSourceRemoval by remember { mutableStateOf(false) }
-
-    Text(
-        text = "Local Files",
-        style = MaterialTheme.typography.titleSmall,
-        fontWeight = FontWeight.Bold,
-        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+    val unhealthyCount = folders.count { folderHealth[it.treeUri] == false }
+    val chevronRotation by androidx.compose.animation.core.animateFloatAsState(
+        targetValue = if (isExpanded) 90f else 0f,
+        label = "chevron",
     )
-    HorizontalDivider()
 
-    if (unhealthyCount > 0) {
+    Column {
         ListItem(
+            modifier = Modifier
+                .clickable { onToggleExpanded() }
+                .testTag("LocalFilesSourceRow"),
             leadingContent = {
                 Icon(
-                    Icons.Default.Warning,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.error,
+                    Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                    contentDescription = if (isExpanded) "Collapse" else "Expand",
+                    modifier = Modifier.rotate(chevronRotation),
                 )
             },
-            headlineContent = {
-                Text(
-                    "$unhealthyCount folder${if (unhealthyCount == 1) "" else "s"} need${if (unhealthyCount == 1) "s" else ""} attention",
-                )
-            },
+            headlineContent = { Text("Local files") },
             supportingContent = {
-                Text(
-                    "Riffle no longer has access to these folders — they were removed or their " +
-                        "permission was revoked in system Settings. Remove and re-add each one " +
-                        "to resume scanning. Books already stored on this device stay readable.",
-                )
+                val folderWord = if (folders.size == 1) "folder" else "folders"
+                val summary = buildString {
+                    append("${folders.size} $folderWord on this device")
+                    if (unhealthyCount > 0) append(" · $unhealthyCount need attention")
+                }
+                Text(summary)
             },
+            trailingContent = if (unhealthyCount > 0) {
+                {
+                    Icon(
+                        Icons.Default.Warning,
+                        contentDescription = "Some folders need attention",
+                        tint = MaterialTheme.colorScheme.error,
+                    )
+                }
+            } else null,
         )
-    }
-
-    if (source == null) {
-        ListItem(
-            headlineContent = { Text("No local folders configured") },
-            supportingContent = { Text("Add a folder on this device to read EPUBs and PDFs offline.") },
-        )
-    } else {
-        folders.forEach { folder ->
-            val isHealthy = folderHealth[folder.treeUri] != false
-            ListItem(
-                modifier = Modifier.testTag("LocalFilesFolder.${folder.treeUri}"),
-                leadingContent = {
-                    if (!isHealthy) {
-                        Icon(
-                            Icons.Default.Warning,
-                            contentDescription = "Permission revoked",
-                            tint = MaterialTheme.colorScheme.error,
+        androidx.compose.animation.AnimatedVisibility(visible = isExpanded) {
+            Column {
+                if (folders.isEmpty()) {
+                    ListItem(
+                        headlineContent = { Text("No folders yet") },
+                        supportingContent = {
+                            Text("Use \"Add source\" below to pick a folder for this device.")
+                        },
+                    )
+                } else {
+                    folders.forEach { folder ->
+                        val isHealthy = folderHealth[folder.treeUri] != false
+                        ListItem(
+                            modifier = Modifier.testTag("LocalFilesFolder.${folder.treeUri}"),
+                            leadingContent = {
+                                if (!isHealthy) {
+                                    Icon(
+                                        Icons.Default.Warning,
+                                        contentDescription = "Permission revoked",
+                                        tint = MaterialTheme.colorScheme.error,
+                                    )
+                                }
+                            },
+                            headlineContent = { Text(folder.displayName) },
+                            supportingContent = {
+                                Text(
+                                    if (isHealthy) folder.treeUri else "Permission revoked — remove and re-add",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = if (isHealthy) MaterialTheme.colorScheme.onSurfaceVariant
+                                    else MaterialTheme.colorScheme.error,
+                                )
+                            },
+                            trailingContent = {
+                                IconButton(onClick = { pendingFolderRemoval = folder }) {
+                                    Icon(Icons.Default.Delete, contentDescription = "Remove folder")
+                                }
+                            },
                         )
                     }
-                },
-                headlineContent = { Text(folder.displayName) },
-                supportingContent = {
-                    Text(
-                        if (isHealthy) folder.treeUri else "Permission revoked — remove and re-add",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = if (isHealthy) MaterialTheme.colorScheme.onSurfaceVariant
-                        else MaterialTheme.colorScheme.error,
-                    )
-                },
-                trailingContent = {
-                    IconButton(onClick = { pendingFolderRemoval = folder }) {
-                        Icon(Icons.Default.Delete, contentDescription = "Remove folder")
-                    }
-                },
-            )
-        }
-        if (folders.isEmpty()) {
-            ListItem(
-                headlineContent = { Text("No folders yet") },
-                supportingContent = { Text("Add a folder to start scanning for local books.") },
-            )
-        }
-    }
-
-    Button(
-        onClick = onAddFolder,
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 8.dp)
-            .testTag("LocalFilesAddFolder"),
-    ) {
-        Text(if (source == null || folders.isEmpty()) "Add a local folder" else "Add another folder")
-    }
-
-    if (source != null && folders.isNotEmpty()) {
-        TextButton(
-            onClick = { pendingSourceRemoval = true },
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp),
-        ) {
-            Text("Remove Local Files source", color = MaterialTheme.colorScheme.error)
+                }
+                TextButton(
+                    onClick = { pendingSourceRemoval = true },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 4.dp),
+                ) {
+                    Text("Remove Local Files source", color = MaterialTheme.colorScheme.error)
+                }
+            }
         }
     }
 

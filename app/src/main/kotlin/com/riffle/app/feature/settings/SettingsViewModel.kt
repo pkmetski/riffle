@@ -434,10 +434,6 @@ class SettingsViewModel @Inject constructor(
 
     // region LocalFiles folder management
 
-    fun openAddLocalFolder() {
-        viewModelScope.launch { _navigationEvents.send(SettingsNavEvent.NavigateToAddLocalFolder) }
-    }
-
     /**
      * Remove one configured LocalFiles folder from the singleton LocalFiles Source. Releases the
      * SAF grant, deletes the folder row, then runs a scan so the sweep-stale pass hard-deletes
