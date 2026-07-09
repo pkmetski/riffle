@@ -106,6 +106,28 @@ class HighlightsLiveUpdateObserverTest {
     }
 
     @Test
+    fun `screen dispatches DOM patches through the presenter, not the renderer bridge`() {
+        // Regression guard for the "Annotations View live-update dead in continuous mode" bug.
+        // RendererBridge wraps only Readium's EpubNavigatorFragment; in continuous mode the
+        // fragment is parked at height=0 and holds no elided DOM, so a bridge-only dispatch
+        // silently drops every non-structural patch. Routing through ReaderPresenter lets
+        // ContinuousPresenter fan the patch out to its live chapter WebViews.
+        val screen = File("src/main/kotlin/com/riffle/app/feature/reader/EpubReaderScreen.kt")
+            .let { if (it.exists()) it else File("app/src/main/kotlin/com/riffle/app/feature/reader/EpubReaderScreen.kt") }
+        val text = screen.readText()
+        assertTrue(
+            "EpubReaderScreen must dispatch highlightDomPatches through readerPresenter." +
+                "applyHighlightDomPatch — a bridge-only dispatch drops the patch in continuous mode.",
+            text.contains("readerPresenter.applyHighlightDomPatch("),
+        )
+        assertFalse(
+            "EpubReaderScreen must NOT dispatch highlightDomPatches via rendererBridge directly; " +
+                "the bridge is Readium-only and silently drops patches in continuous mode.",
+            text.contains("rendererBridge.applyHighlightDomPatch("),
+        )
+    }
+
+    @Test
     fun `mutation methods do not fire reloadHighlightsView directly anymore`() {
         val source = vmSource()
         val names = listOf(

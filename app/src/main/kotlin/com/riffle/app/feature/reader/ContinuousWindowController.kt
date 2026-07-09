@@ -141,6 +141,20 @@ internal class ContinuousWindowController(
         decorations.setCadenceOnChapterLoaded(hook)
     }
 
+    /**
+     * Fan an ADR-0041 Highlights-mode DOM patch out to every loaded chapter WebView in the sliding
+     * window. Each patch's JS resolves its target via `data-ann-id` and no-ops on chapters that
+     * don't hold the annotation, so the broadcast is safe. Paginated / vertical mode route this
+     * through [com.riffle.app.feature.reader.renderer.RendererBridge]; continuous mode must fan
+     * out here because the Readium fragment is parked at height=0 and holds no elided DOM.
+     */
+    override fun applyHighlightDomPatch(patch: com.riffle.app.feature.reader.highlights.HighlightsDomPatch) {
+        val js = patch.applyJs()
+        for (wv in webViews) {
+            wv.evaluateJavascript(js, null as ((String?) -> Unit)?)
+        }
+    }
+
 
     /** True while a window-shift operation (removeTop/removeBottom/prependChapter) is in progress. */
     private var shiftInProgress = false

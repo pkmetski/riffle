@@ -163,6 +163,15 @@ internal class ContinuousPresenter : ReaderPresenter {
     override suspend fun measureCadenceColumns(fragmentId: String): List<Double> = emptyList()
     override suspend fun snapCadenceColumn(fragmentId: String, columnIndex: Int) = Unit
 
+    override suspend fun applyHighlightDomPatch(
+        patch: com.riffle.app.feature.reader.highlights.HighlightsDomPatch,
+    ) {
+        // Fan out to every loaded chapter WebView. The patch's `querySelector('[data-ann-id=…]')`
+        // is a no-op on chapters that don't contain the annotation, so an untargeted broadcast is
+        // safe and lets a mid-scroll patch land on whichever chapter currently owns the DOM.
+        view?.applyHighlightDomPatch(patch)
+    }
+
     // Continuous mode's chapter boundaries are tracked internally by ContinuousReaderView (window
     // shifting, infinite-scroll math), so the screen's ScrollBoundaryNavigationContainer is bypassed
     // entirely in this mode. The seam returns None so the (vertical-only) boundary-poll loop in

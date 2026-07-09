@@ -1422,15 +1422,18 @@ private fun EpubNavigatorView(
     }
 
     // Highlights mode (ADR 0041) live DOM patches — recolour / note edit / delete of a single
-    // annotation is applied as a targeted `document.querySelector(...)` mutation on the Readium
-    // WebView, so the Annotations View refreshes IN PLACE instead of transitioning through
+    // annotation is applied as a targeted `document.querySelector(...)` mutation on the reader's
+    // WebView(s), so the Annotations View refreshes IN PLACE instead of transitioning through
     // Loading and rebuilding the whole Publication. Bytes for the affected chapter are rewritten
     // in the InMemoryContainer by the VM, so navigating chapter-back-and-forth still shows the
-    // updated HTML. Patch is a no-op in continuous mode (the fragment is null and the bridge
-    // short-circuits); continuous keeps falling back to the observer's structural reload path.
-    LaunchedEffect(rendererBridge, highlightDomPatches) {
+    // updated HTML. Dispatched via the presenter so continuous mode fans the patch out to every
+    // loaded chapter WebView (in paginated/vertical the presenter delegates to the renderer
+    // bridge). Routing through the bridge directly would silently drop the patch in continuous
+    // because its fragment is parked at height=0 — issue: Annotations View live-update was dead
+    // in continuous mode for recolour / note edit / delete.
+    LaunchedEffect(readerPresenter, highlightDomPatches) {
         highlightDomPatches.collect { patch ->
-            rendererBridge.applyHighlightDomPatch(patch)
+            readerPresenter.applyHighlightDomPatch(patch)
         }
     }
 

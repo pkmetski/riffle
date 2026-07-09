@@ -26,4 +26,13 @@ internal interface ContinuousNavigationView {
 
     /** Live-update typography for the running continuous session. */
     fun updatePreferences(prefs: FormattingPreferences)
+
+    /**
+     * Apply one [com.riffle.app.feature.reader.highlights.HighlightsDomPatch] (ADR 0041) to every
+     * currently loaded chapter WebView in the sliding window. Each patch's JS looks up its target
+     * by `data-ann-id` and no-ops on chapters that don't contain it, so a fan-out broadcast is
+     * safe and works regardless of which chapter is scrolled into view. Default is a no-op so
+     * lightweight fakes for the presenter's JVM tests need not override.
+     */
+    fun applyHighlightDomPatch(patch: com.riffle.app.feature.reader.highlights.HighlightsDomPatch) {}
 }
