@@ -36,6 +36,9 @@ internal class ContinuousWindowController(
      * NOT be invoked from scroll callbacks — see the flake-avoidance rules in the issue.
      */
     private val onViewportFractionMeasured: (href: String, fraction: Double) -> Unit = { _, _ -> },
+    /** Injectable clock so [PageScrollCoalescer]'s validity window is testable without touching
+     *  Android SDK time APIs. Defaults to [android.os.SystemClock.uptimeMillis] in production. */
+    private val nowMs: () -> Long = { android.os.SystemClock.uptimeMillis() },
 ) : ContinuousHighlightTarget, ContinuousNavigationView {
 
     companion object {
@@ -58,6 +61,14 @@ internal class ContinuousWindowController(
         /** How long after the initial land to override framework smooth-scroll restoration of a
          *  stale scrollY. */
         private const val LANDING_HOLD_MS = 600L
+
+        /**
+         * Fixed animation duration for a volume-key page scroll. Matches the Chromium `behavior:
+         * 'smooth'` scroll duration used by paginated/vertical mode via [ScrollBoundaryNavigationContainer]
+         * closely enough that rapid presses feel the same in both modes. Also the validity window for
+         * [PageScrollCoalescer], so a new press coalesces iff its predecessor is still animating.
+         */
+        internal const val PAGE_SCROLL_DURATION_MS = 300
     }
 
     /** The [LinearLayout] the [ContinuousReaderView] wraps; controller owns and mutates its children. */
@@ -572,12 +583,20 @@ internal class ContinuousWindowController(
         }
     }
 
-    /** Scroll one viewport-page forward/backward (wired to the volume keys). */
+    /** Scroll one viewport-page forward/backward (wired to the volume keys). Rapid presses coalesce
+     *  through [pageScrollCoalescer] so each new press extends the in-flight animation's target
+     *  rather than restarting from the current (still-animating) position. */
     override fun scrollByPage(forward: Boolean) {
         val delta = ContinuousPositionTracker.pageScrollDelta(port.viewportHeightPx)
+        if (delta == 0) return
         clearLandingHold()
-        port.smoothScrollBy(if (forward) delta else -delta)
+        val signedDelta = if (forward) delta else -delta
+        val current = port.currentScrollY
+        val target = pageScrollCoalescer.computeTarget(current, signedDelta, nowMs())
+        port.smoothScrollBy(target - current, PAGE_SCROLL_DURATION_MS)
     }
+
+    private val pageScrollCoalescer = PageScrollCoalescer(PAGE_SCROLL_DURATION_MS.toLong())
 
     override fun highlightInChapter(href: String, fragmentId: String?, text: String, cssColor: String) {
         decorations.highlightInChapter(href, fragmentId, text, cssColor)
@@ -815,6 +834,9 @@ internal class ContinuousWindowController(
         pendingFocusAnnotationId = null
         landingHoldTargetY = -1
         landingHoldUntilUptimeMs = 0L
+        // A manual scroll may leave [port.currentScrollY] far from the coalescer's pending target;
+        // reset so the next volume press bases its animation on the user's new position.
+        pageScrollCoalescer.reset()
     }
 
     /**
@@ -897,6 +919,10 @@ internal interface ContinuousScrollPort {
     fun scrollBy(dy: Int)
     fun smoothScrollTo(y: Int)
     fun smoothScrollBy(dy: Int)
+    /** Fixed-duration variant used by the volume-key page-scroll path so consecutive presses share a
+     *  predictable animation length instead of NestedScrollView's velocity-derived default (which
+     *  makes rapid presses stutter as each new animation restarts from the current position). */
+    fun smoothScrollBy(dy: Int, durationMs: Int)
     fun abortFling()
     fun post(block: () -> Unit)
     fun postOnAnimation(block: () -> Unit)

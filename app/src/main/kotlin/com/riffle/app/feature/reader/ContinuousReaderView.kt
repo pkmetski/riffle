@@ -62,6 +62,8 @@ internal class ContinuousReaderView @JvmOverloads constructor(
         override fun scrollBy(dy: Int) = this@ContinuousReaderView.scrollBy(0, dy)
         override fun smoothScrollTo(y: Int) = this@ContinuousReaderView.smoothScrollTo(0, y)
         override fun smoothScrollBy(dy: Int) = this@ContinuousReaderView.smoothScrollBy(0, dy)
+        override fun smoothScrollBy(dy: Int, durationMs: Int) =
+            this@ContinuousReaderView.smoothScrollBy(0, dy, durationMs)
         override fun abortFling() = this@ContinuousReaderView.abortFling()
         override fun post(block: () -> Unit) { this@ContinuousReaderView.post(block) }
         override fun postOnAnimation(block: () -> Unit) { this@ContinuousReaderView.postOnAnimation(block) }

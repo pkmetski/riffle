@@ -375,7 +375,10 @@ class ContinuousPositionTrackerTest {
 
     @Test
     fun `pageScrollDelta is a viewport minus a small overlap`() {
-        assertEquals(900, ContinuousPositionTracker.pageScrollDelta(1000))
+        // 0·8 of the viewport — matches the paginated/vertical volume-key path so rapid presses
+        // travel the same distance in both reader modes. Regression pin: if this drifts back to
+        // 0·9, the assertion flips red.
+        assertEquals(800, ContinuousPositionTracker.pageScrollDelta(1000))
     }
 
     @Test
