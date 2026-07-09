@@ -25,7 +25,7 @@ import kotlinx.coroutines.withContext
 
 @Composable
 fun HomeScreen(
-    onNavigateToAddServer: () -> Unit,
+    onNavigateToAddSource: () -> Unit,
     onNavigateToLibrary: (libraryId: String, libraryName: String) -> Unit,
     viewModel: HomeViewModel = hiltViewModel(),
 ) {
@@ -41,7 +41,7 @@ fun HomeScreen(
         // LifecycleRegistry.setCurrentState() which requires the main thread.
         withContext(viewModel.dispatchers.mainImmediate) {
             when (dest) {
-                is HomeViewModel.StartDestination.AddServer -> onNavigateToAddServer()
+                is HomeViewModel.StartDestination.AddSource -> onNavigateToAddSource()
                 is HomeViewModel.StartDestination.Library -> onNavigateToLibrary(dest.libraryId, dest.libraryName)
                 is HomeViewModel.StartDestination.NoLibraries -> showRetry = true
             }

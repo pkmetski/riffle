@@ -37,9 +37,9 @@ import com.riffle.app.feature.navigation.NavigationDrawerViewModel
 import com.riffle.app.feature.navigation.RiffleNavigationDrawer
 import com.riffle.app.feature.reader.EpubReaderScreen
 import com.riffle.app.feature.reader.PdfReaderScreen
-import com.riffle.app.feature.server.AddServerScreen
+import com.riffle.app.feature.server.AddSourceScreen
 import com.riffle.app.feature.server.SelectLibrariesScreen
-import com.riffle.app.feature.server.ServerSetupViewModel
+import com.riffle.app.feature.server.SourceSetupViewModel
 import com.riffle.app.feature.settings.SettingsScreen
 import com.riffle.app.feature.settings.annotationsync.AnnotationSyncMaintenanceScreen
 import com.riffle.app.feature.settings.debug.DebugLogScreen
@@ -51,9 +51,10 @@ import java.net.URLDecoder
 import java.net.URLEncoder
 
 private const val HOME = "home"
-private const val SERVER_SETUP_GRAPH = "server_setup"
-private const val ADD_SERVER = "add_server"
-private const val ADD_SERVER_ROUTE = "add_server?type={type}&editId={editId}"
+private const val SOURCE_SETUP_GRAPH = "source_setup"
+private const val ADD_SOURCE_TYPE_PICKER = "add_source_type_picker"
+private const val ADD_SOURCE = "add_source"
+private const val ADD_SOURCE_ROUTE = "add_source?type={type}&editId={editId}"
 private const val SELECT_LIBRARIES = "select_libraries"
 private const val SETTINGS = "settings"
 private const val ANNOTATION_SYNC_MAINTENANCE = "settings/annotation_sync/maintenance"
@@ -165,8 +166,8 @@ fun MainScreen(
         NavHost(navController = navController, startDestination = HOME) {
             composable(HOME) {
                 HomeScreen(
-                    onNavigateToAddServer = {
-                        navController.navigateAsRoot("$ADD_SERVER?type=audiobookshelf")
+                    onNavigateToAddSource = {
+                        navController.navigateAsRoot(ADD_SOURCE_TYPE_PICKER)
                     },
                     onNavigateToLibrary = { libraryId, libraryName ->
                         viewModel.setActiveLibrary(libraryId)
@@ -175,9 +176,32 @@ fun MainScreen(
                     },
                 )
             }
-            navigation(startDestination = ADD_SERVER_ROUTE, route = SERVER_SETUP_GRAPH) {
+            // The Source Type picker lives at NavHost level (not inside SOURCE_SETUP_GRAPH) so
+            // that entering the setup graph directly for Storyteller/WebDAV/edit paths does NOT
+            // implicitly push the picker as the graph's start destination onto the back stack.
+            // With this shape the back stack for those flows stays [caller, ADD_SOURCE], and
+            // `previousBackStackEntry.route == SETTINGS` remains the right predicate for
+            // "should top-app-bar back pop to Settings?".
+            composable(ADD_SOURCE_TYPE_PICKER) {
+                val cameFromSettings = navController.previousBackStackEntry
+                    ?.destination?.route == SETTINGS
+                com.riffle.app.feature.server.SourceTypePickerScreen(
+                    windowSizeClass = windowSizeClass,
+                    onNavigateBack = {
+                        if (cameFromSettings) navController.popBackStack()
+                        else navController.navigateAsRoot(HOME)
+                    },
+                    onPickAudiobookshelf = {
+                        navController.navigate("$ADD_SOURCE?type=audiobookshelf") {
+                            // Drop the picker so back from the form returns to the caller.
+                            popUpTo(ADD_SOURCE_TYPE_PICKER) { inclusive = true }
+                        }
+                    },
+                )
+            }
+            navigation(startDestination = ADD_SOURCE_ROUTE, route = SOURCE_SETUP_GRAPH) {
                 composable(
-                    route = ADD_SERVER_ROUTE,
+                    route = ADD_SOURCE_ROUTE,
                     arguments = listOf(
                         navArgument("type") {
                             type = NavType.StringType
@@ -190,12 +214,12 @@ fun MainScreen(
                     ),
                 ) { backStackEntry ->
                     val parentEntry = remember(backStackEntry) {
-                        navController.getBackStackEntry(SERVER_SETUP_GRAPH)
+                        navController.getBackStackEntry(SOURCE_SETUP_GRAPH)
                     }
-                    val setupVm: ServerSetupViewModel = hiltViewModel(parentEntry)
+                    val setupVm: SourceSetupViewModel = hiltViewModel(parentEntry)
                     val cameFromSettings = navController.previousBackStackEntry
                         ?.destination?.route == SETTINGS
-                    AddServerScreen(
+                    AddSourceScreen(
                         windowSizeClass = windowSizeClass,
                         onNavigateBack = {
                             if (cameFromSettings) navController.popBackStack()
@@ -213,9 +237,9 @@ fun MainScreen(
                 }
                 composable(SELECT_LIBRARIES) { backStackEntry ->
                     val parentEntry = remember(backStackEntry) {
-                        navController.getBackStackEntry(SERVER_SETUP_GRAPH)
+                        navController.getBackStackEntry(SOURCE_SETUP_GRAPH)
                     }
-                    val setupVm: ServerSetupViewModel = hiltViewModel(parentEntry)
+                    val setupVm: SourceSetupViewModel = hiltViewModel(parentEntry)
                     val pending = setupVm.pendingServer
                     if (pending == null) {
                         LaunchedEffect(Unit) { navController.popBackStack() }
@@ -235,12 +259,21 @@ fun MainScreen(
                 SettingsScreen(
                     windowSizeClass = windowSizeClass,
                     onNavigateBack = { navController.popBackStack() },
-                    onNavigateToAddServer = { backend, editId ->
-                        val params = buildList {
-                            add("type=${backend.name.lowercase()}")
-                            if (!editId.isNullOrEmpty()) add("editId=${URLEncoder.encode(editId, "UTF-8")}")
-                        }.joinToString("&")
-                        navController.navigate("$ADD_SERVER?$params")
+                    onNavigateToAddSource = { backend, editId ->
+                        // The Source Type picker only fronts the "add a fresh ABS Source" flow.
+                        // Storyteller/WebDAV are Services (not Sources) and deep-link straight
+                        // to the form; editing an existing ABS Source also skips the picker
+                        // (Source Type is already known).
+                        val isNewAbs = backend == com.riffle.app.feature.server.AddSourceBackend.AUDIOBOOKSHELF && editId.isNullOrEmpty()
+                        if (isNewAbs) {
+                            navController.navigate(ADD_SOURCE_TYPE_PICKER)
+                        } else {
+                            val params = buildList {
+                                add("type=${backend.name.lowercase()}")
+                                if (!editId.isNullOrEmpty()) add("editId=${URLEncoder.encode(editId, "UTF-8")}")
+                            }.joinToString("&")
+                            navController.navigate("$ADD_SOURCE?$params")
+                        }
                     },
                     onNavigateToReadaloudMatches = { sourceId ->
                         val encoded = URLEncoder.encode(sourceId, "UTF-8")

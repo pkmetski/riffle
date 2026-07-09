@@ -55,12 +55,12 @@ import com.riffle.core.domain.PendingSource
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AddServerScreen(
+fun AddSourceScreen(
     windowSizeClass: WindowSizeClass,
     onNavigateBack: () -> Unit,
     onAuthenticated: (PendingSource) -> Unit,
     onAutoCompleted: () -> Unit,
-    viewModel: AddServerViewModel = hiltViewModel(),
+    viewModel: AddSourceViewModel = hiltViewModel(),
 ) {
     LaunchedEffect(Unit) {
         viewModel.navigateToSelectLibraries.collect { onAuthenticated(it) }
@@ -72,9 +72,9 @@ fun AddServerScreen(
     val backend = viewModel.backend
     val isEditing = viewModel.isEditing
     val title = screenTitle(backend, isEditing)
-    val urlLabel = if (backend == AddServerBackend.WEBDAV) "WebDAV URL" else "Source URL"
+    val urlLabel = if (backend == AddSourceBackend.WEBDAV) "WebDAV URL" else "Source URL"
     val urlPlaceholder = when (backend) {
-        AddServerBackend.WEBDAV -> "server.example.com/dav/annotations"
+        AddSourceBackend.WEBDAV -> "server.example.com/dav/annotations"
         else -> "abs.example.com"
     }
     val submitLabel = if (isEditing) "Save" else "Connect"
@@ -118,7 +118,7 @@ fun AddServerScreen(
                     )
                 }
                 val webdavBanner by viewModel.webdavBanner.collectAsState()
-                if (backend == AddServerBackend.WEBDAV) {
+                if (backend == AddSourceBackend.WEBDAV) {
                     webdavBanner?.let { WebdavStatusCard(it) }
                 }
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -200,27 +200,27 @@ fun AddServerScreen(
     }
 }
 
-private fun screenTitle(backend: AddServerBackend, isEditing: Boolean): String = when (backend) {
-    AddServerBackend.AUDIOBOOKSHELF -> if (isEditing) "Edit Audiobookshelf server" else "Add Audiobookshelf server"
-    AddServerBackend.STORYTELLER -> if (isEditing) "Edit Storyteller" else "Add Storyteller"
-    AddServerBackend.WEBDAV -> if (isEditing) "Edit WebDAV" else "Add WebDAV"
+internal fun screenTitle(backend: AddSourceBackend, isEditing: Boolean): String = when (backend) {
+    AddSourceBackend.AUDIOBOOKSHELF -> if (isEditing) "Edit Audiobookshelf" else "Add Audiobookshelf"
+    AddSourceBackend.STORYTELLER -> if (isEditing) "Edit Storyteller" else "Add Storyteller"
+    AddSourceBackend.WEBDAV -> if (isEditing) "Edit WebDAV" else "Add WebDAV"
 }
 
-private fun removeButtonLabel(backend: AddServerBackend): String = when (backend) {
-    AddServerBackend.AUDIOBOOKSHELF -> "Remove server"
-    AddServerBackend.STORYTELLER -> "Remove Storyteller"
-    AddServerBackend.WEBDAV -> "Disable sync"
+internal fun removeButtonLabel(backend: AddSourceBackend): String = when (backend) {
+    AddSourceBackend.AUDIOBOOKSHELF -> "Remove source"
+    AddSourceBackend.STORYTELLER -> "Remove Storyteller"
+    AddSourceBackend.WEBDAV -> "Disable sync"
 }
 
 // User-facing description of what Riffle does with each backend. Keep in sync
 // with what the app actually supports — when a backend gains/loses a capability
 // (e.g. audiobook streaming, readaloud sync), revisit this copy.
-private fun backendHelpText(backend: AddServerBackend): String = when (backend) {
-    AddServerBackend.AUDIOBOOKSHELF ->
+private fun backendHelpText(backend: AddSourceBackend): String = when (backend) {
+    AddSourceBackend.AUDIOBOOKSHELF ->
         "Stream ebooks and audiobooks from your Audiobookshelf server, with progress synced across devices."
-    AddServerBackend.STORYTELLER ->
+    AddSourceBackend.STORYTELLER ->
         "Storyteller hosts aligned ebook + audiobook \"readalouds.\" Riffle matches each readaloud to a book on your Audiobookshelf server, enabling synchronized text + audio playback inside the reader."
-    AddServerBackend.WEBDAV ->
+    AddSourceBackend.WEBDAV ->
         "Sync highlights, notes, and bookmarks between your devices via a WebDAV server."
 }
 

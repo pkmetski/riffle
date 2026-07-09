@@ -42,14 +42,14 @@ import javax.inject.Inject
 import javax.inject.Named
 
 /**
- * Backend kind selectable in [AddServerScreen]. Distinct from [ServerType] because WebDAV is
+ * Backend kind selectable in [AddSourceScreen]. Distinct from [ServerType] because WebDAV is
  * not a content "server" in the domain sense — it just shares the same URL+username+password
  * shape — and we want a single screen for adding any of them.
  */
-enum class AddServerBackend { AUDIOBOOKSHELF, STORYTELLER, WEBDAV }
+enum class AddSourceBackend { AUDIOBOOKSHELF, STORYTELLER, WEBDAV }
 
 @HiltViewModel
-class AddServerViewModel @Inject constructor(
+class AddSourceViewModel @Inject constructor(
     private val repository: SourceRepository,
     private val webdavConfigStore: AnnotationSyncConfigStore,
     private val webdavTargetFactory: WebDavAnnotationSyncTargetFactory,
@@ -64,7 +64,7 @@ class AddServerViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
 
-    var backend by mutableStateOf(AddServerBackend.AUDIOBOOKSHELF)
+    var backend by mutableStateOf(AddSourceBackend.AUDIOBOOKSHELF)
         private set
     /** Source id when editing an existing Storyteller/ABS server; null for add or for WebDAV. */
     var editingServerId by mutableStateOf<String?>(null)
@@ -116,14 +116,14 @@ class AddServerViewModel @Inject constructor(
 
     private suspend fun initFromRoute() {
         when (backend) {
-            AddServerBackend.AUDIOBOOKSHELF, AddServerBackend.STORYTELLER -> {
+            AddSourceBackend.AUDIOBOOKSHELF, AddSourceBackend.STORYTELLER -> {
                 val id = editingServerId ?: return
                 val server = repository.getById(id) ?: return
                 applyUrl(server.url.value)
                 username = server.username
                 password = tokenStorage.getPassword(id).orEmpty()
             }
-            AddServerBackend.WEBDAV -> {
+            AddSourceBackend.WEBDAV -> {
                 val existing = webdavConfigStore.observe().first()
                 if (existing != null) {
                     isEditingWebdav = true
@@ -176,8 +176,8 @@ class AddServerViewModel @Inject constructor(
     fun onConnect() {
         error = null
         when (backend) {
-            AddServerBackend.AUDIOBOOKSHELF, AddServerBackend.STORYTELLER -> connectServer()
-            AddServerBackend.WEBDAV -> connectWebdav()
+            AddSourceBackend.AUDIOBOOKSHELF, AddSourceBackend.STORYTELLER -> connectServer()
+            AddSourceBackend.WEBDAV -> connectWebdav()
         }
     }
 
@@ -275,9 +275,9 @@ class AddServerViewModel @Inject constructor(
     fun onRemove() {
         viewModelScope.launch {
             when (backend) {
-                AddServerBackend.AUDIOBOOKSHELF, AddServerBackend.STORYTELLER ->
+                AddSourceBackend.AUDIOBOOKSHELF, AddSourceBackend.STORYTELLER ->
                     editingServerId?.let { repository.remove(it) }
-                AddServerBackend.WEBDAV -> webdavConfigStore.clear()
+                AddSourceBackend.WEBDAV -> webdavConfigStore.clear()
             }
             _navigateHome.send(Unit)
         }
@@ -348,7 +348,7 @@ class AddServerViewModel @Inject constructor(
     companion object {
         /**
          * Hilt qualifier for the [webdavBanner]'s wall-clock ticker. See [WebdavBannerTickerModule]
-         * for the production ticker (once a minute), and [AddServerViewModelTest] for the test
+         * for the production ticker (once a minute), and [AddSourceViewModelTest] for the test
          * override.
          */
         const val WEBDAV_BANNER_TICKER = "webdavBannerTicker"
@@ -366,14 +366,14 @@ data class WebdavBanner(
     val prescription: String?,
 )
 
-private fun parseBackend(raw: String?): AddServerBackend = when (raw?.lowercase()) {
-    "storyteller" -> AddServerBackend.STORYTELLER
-    "webdav" -> AddServerBackend.WEBDAV
-    else -> AddServerBackend.AUDIOBOOKSHELF
+private fun parseBackend(raw: String?): AddSourceBackend = when (raw?.lowercase()) {
+    "storyteller" -> AddSourceBackend.STORYTELLER
+    "webdav" -> AddSourceBackend.WEBDAV
+    else -> AddSourceBackend.AUDIOBOOKSHELF
 }
 
-private fun AddServerBackend.toServerType(): ServerType? = when (this) {
-    AddServerBackend.AUDIOBOOKSHELF -> ServerType.AUDIOBOOKSHELF
-    AddServerBackend.STORYTELLER -> ServerType.STORYTELLER
-    AddServerBackend.WEBDAV -> null
+private fun AddSourceBackend.toServerType(): ServerType? = when (this) {
+    AddSourceBackend.AUDIOBOOKSHELF -> ServerType.AUDIOBOOKSHELF
+    AddSourceBackend.STORYTELLER -> ServerType.STORYTELLER
+    AddSourceBackend.WEBDAV -> null
 }

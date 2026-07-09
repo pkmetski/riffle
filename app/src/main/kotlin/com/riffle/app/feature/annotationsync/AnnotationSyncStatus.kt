@@ -7,7 +7,7 @@ import com.riffle.core.domain.AnnotationSyncConfig
  * Single source of truth for the WebDAV sync "kind" (Local / Synced / Pending / Error) rendered by
  * the main Settings row ([com.riffle.app.feature.settings.SettingsViewModel.annotationSyncRow]) and
  * the AddServer WebDAV banner
- * ([com.riffle.app.feature.server.AddServerViewModel.webdavBanner]).
+ * ([com.riffle.app.feature.server.AddSourceViewModel.webdavBanner]).
  *
  * Both surfaces observe the same singleton [com.riffle.core.data.AnnotationSyncStatusStore] and the
  * same pending-book count, and both call this function to decide their badge/kind — so the two

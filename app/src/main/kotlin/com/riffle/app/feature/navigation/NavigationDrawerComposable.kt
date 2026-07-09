@@ -197,7 +197,7 @@ private fun DrawerHeader(
     ) {
         ListItem(
             headlineContent = {
-                val name = activeServer?.serverType?.label ?: "No server"
+                val name = activeServer?.serverType?.label ?: "No source"
                 val username = activeServer?.username?.takeIf { it.isNotEmpty() }
                 if (username != null) {
                     Text(
@@ -224,7 +224,7 @@ private fun DrawerHeader(
             trailingContent = {
                 Icon(
                     imageVector = if (switcherExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
-                    contentDescription = "Toggle server switcher",
+                    contentDescription = "Toggle source switcher",
                 )
             },
             modifier = Modifier.clickable { switcherExpanded = !switcherExpanded },

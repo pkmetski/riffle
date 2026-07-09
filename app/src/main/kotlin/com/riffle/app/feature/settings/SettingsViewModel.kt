@@ -366,7 +366,7 @@ class SettingsViewModel @Inject constructor(
                 if (next != null) {
                     sourceRepository.setActive(next.id)
                 } else {
-                    _navigationEvents.send(SettingsNavEvent.NavigateToAddServer)
+                    _navigationEvents.send(SettingsNavEvent.NavigateToAddSource)
                 }
             }
         }
