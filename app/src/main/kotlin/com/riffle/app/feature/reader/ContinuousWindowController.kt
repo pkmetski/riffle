@@ -592,7 +592,13 @@ internal class ContinuousWindowController(
         clearLandingHold()
         val signedDelta = if (forward) delta else -delta
         val current = port.currentScrollY
-        val target = pageScrollCoalescer.computeTarget(current, signedDelta, nowMs())
+        val target = pageScrollCoalescer.computeTarget(
+            currentScrollY = current,
+            dy = signedDelta,
+            nowMs = nowMs(),
+            minScrollY = 0,
+            maxScrollY = port.maxScrollY,
+        )
         port.smoothScrollBy(target - current, PAGE_SCROLL_DURATION_MS)
     }
 
@@ -915,6 +921,10 @@ internal fun annotationFocusRelandClosure(
 internal interface ContinuousScrollPort {
     val viewportHeightPx: Int
     val currentScrollY: Int
+    /** Maximum scrollable Y (content height minus viewport, floor 0). Used to clamp coalesced
+     *  page-scroll targets so a run of volume presses at end-of-content doesn't leave a phantom
+     *  target far past the actual max, which would silently absorb the first reversal press. */
+    val maxScrollY: Int
     fun scrollTo(y: Int)
     fun scrollBy(dy: Int)
     fun smoothScrollTo(y: Int)

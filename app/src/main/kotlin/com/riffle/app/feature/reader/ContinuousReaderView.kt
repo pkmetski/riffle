@@ -58,6 +58,8 @@ internal class ContinuousReaderView @JvmOverloads constructor(
     private val port = object : ContinuousScrollPort {
         override val viewportHeightPx: Int get() = height
         override val currentScrollY: Int get() = scrollY
+        override val maxScrollY: Int get() =
+            (computeVerticalScrollRange() - computeVerticalScrollExtent()).coerceAtLeast(0)
         override fun scrollTo(y: Int) = this@ContinuousReaderView.scrollTo(0, y)
         override fun scrollBy(dy: Int) = this@ContinuousReaderView.scrollBy(0, dy)
         override fun smoothScrollTo(y: Int) = this@ContinuousReaderView.smoothScrollTo(0, y)

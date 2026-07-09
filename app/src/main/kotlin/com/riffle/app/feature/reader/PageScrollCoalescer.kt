@@ -21,11 +21,20 @@ internal class PageScrollCoalescer(private val validityWindowMs: Long) {
     /**
      * Absolute scroll target for a new page-scroll press. If a previous press is still in flight
      * (elapsed since it was computed < [validityWindowMs]), extends that target by [dy]; otherwise
-     * bases the target on [currentScrollY].
+     * bases the target on [currentScrollY]. The result is clamped to [[minScrollY], [maxScrollY]] so
+     * repeated presses at a content boundary cannot leave a phantom target beyond the scrollable
+     * range — otherwise the first reversal press would silently spend itself unwinding the phantom
+     * before the user saw any motion.
      */
-    fun computeTarget(currentScrollY: Int, dy: Int, nowMs: Long): Int {
+    fun computeTarget(
+        currentScrollY: Int,
+        dy: Int,
+        nowMs: Long,
+        minScrollY: Int = Int.MIN_VALUE,
+        maxScrollY: Int = Int.MAX_VALUE,
+    ): Int {
         val base = if (nowMs < validUntilMs) pendingTargetY else currentScrollY
-        val target = base + dy
+        val target = (base + dy).coerceIn(minScrollY, maxScrollY)
         pendingTargetY = target
         validUntilMs = nowMs + validityWindowMs
         return target
