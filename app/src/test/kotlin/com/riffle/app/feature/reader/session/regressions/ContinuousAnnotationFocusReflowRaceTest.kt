@@ -1,7 +1,10 @@
 package com.riffle.app.feature.reader.session.regressions
 
 import com.riffle.app.feature.reader.ContinuousPositionTracker
+import com.riffle.app.feature.reader.annotationFocusRelandClosure
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -232,6 +235,113 @@ class ContinuousAnnotationFocusReflowRaceTest {
         val fired = sm.onHeightMeasured("ch1.xhtml", 800)
         assertEquals("Re-land must NOT fire after disarm", false, fired)
         assertEquals(0, fireCount)
+    }
+
+    // ---------------------------------------------------------------------------
+    // 3. Annotation-focus reland decision
+    //
+    // Regression coverage for the one-shot bug in `onAnnotationHighlightsApplied`:
+    // before the fix, the focus-annotation scroll fired once and nulled
+    // `pendingFocusAnnotationId`, leaving `reapplyLandingAfterFallback` pointed at the
+    // paragraph-anchor closure. Any subsequent target-height remeasure then re-landed
+    // on the paragraph anchor and knocked the reader off the annotation.
+    //
+    // Post-fix, `annotationFocusRelandClosure` returns a NEW closure (calling
+    // `landOnAnnotation` with the target chapter's href + the focus id) that the caller
+    // installs as `reapplyLandingAfterFallback`, so the existing height-change loop in
+    // `appendChapter.onHeightMeasured` re-lands on the annotation offset on every
+    // target remeasure until height stabilises.
+    // ---------------------------------------------------------------------------
+
+    @Test
+    fun `annotationFocusRelandClosure returns null when no focus id is pending`() {
+        val closure = annotationFocusRelandClosure(
+            pendingFocusAnnotationId = null,
+            chapterHref = "ch1.xhtml",
+            landOnAnnotation = { _, _ -> },
+        )
+        assertNull("With no focus id the anchor reland must be left in place", closure)
+    }
+
+    @Test
+    fun `annotationFocusRelandClosure returns a closure that lands on the annotation when a focus id is pending`() {
+        val calls = mutableListOf<Pair<String, String>>()
+        val closure = annotationFocusRelandClosure(
+            pendingFocusAnnotationId = "ann-42",
+            chapterHref = "ch1.xhtml",
+            landOnAnnotation = { href, id -> calls.add(href to id) },
+        )
+        assertNotNull("With a focus id, must return a non-null reland closure", closure)
+        closure!!.invoke()
+        assertEquals(1, calls.size)
+        assertEquals("ch1.xhtml" to "ann-42", calls[0])
+    }
+
+    @Test
+    fun `annotationFocusRelandClosure is NOT one-shot — repeated invocations each land on the annotation`() {
+        val calls = mutableListOf<Pair<String, String>>()
+        val closure = annotationFocusRelandClosure(
+            pendingFocusAnnotationId = "ann-42",
+            chapterHref = "ch1.xhtml",
+            landOnAnnotation = { href, id -> calls.add(href to id) },
+        )!!
+        // The remeasure loop invokes the closure on every target-height change. If the closure
+        // is one-shot (the pre-fix bug) the loop stops re-landing on the annotation after the
+        // first fire and the reader drifts off the annotation as the target reflows.
+        closure()
+        closure()
+        closure()
+        assertEquals("Every remeasure must re-land on the annotation", 3, calls.size)
+        assertTrue(
+            "Every invocation must land on the same annotation on the same chapter",
+            calls.all { it == "ch1.xhtml" to "ann-42" },
+        )
+    }
+
+    /**
+     * End-to-end model of the fix: an anchor-based reland is initially armed. When highlights
+     * apply for the target chapter with a focus id pending, the reland closure is swapped for
+     * the annotation-based one. A subsequent target-height remeasure invokes the NEW closure,
+     * which calls `landOnAnnotation` — proving the anchor reland has been replaced.
+     *
+     * Before the fix, `reapplyLandingAfterFallback` was NOT swapped; the height-change loop
+     * kept invoking the anchor closure, and `landOnAnnotation` was never called on remeasure.
+     */
+    @Test
+    fun `after highlights apply with focus id, the height-change loop re-lands on the annotation`() {
+        val anchorLandings = mutableListOf<Int>()
+        val annotationLandings = mutableListOf<Pair<String, String>>()
+        val sm = ReapplyStateMachine(
+            targetHref = "ch1.xhtml",
+            initialHeightPx = 400,
+            onReland = { h -> anchorLandings.add(h) },
+        )
+
+        // Simulate onAnnotationHighlightsApplied: focus id is pending, compute the new reland
+        // closure and swap it into place (mirrors ContinuousWindowController lines 591-603).
+        val annotationReland = annotationFocusRelandClosure(
+            pendingFocusAnnotationId = "ann-42",
+            chapterHref = "ch1.xhtml",
+            landOnAnnotation = { href, id -> annotationLandings.add(href to id) },
+        )!!
+        sm.reapplyLandingAfterFallback = annotationReland
+        annotationReland()  // initial invocation
+
+        // Target chapter reflows further after highlights applied.
+        assertTrue(sm.onHeightMeasured("ch1.xhtml", 650))
+        assertTrue(sm.onHeightMeasured("ch1.xhtml", 800))
+
+        assertEquals(
+            "The anchor closure MUST NOT be invoked after highlights apply — the swap replaces it",
+            0,
+            anchorLandings.size,
+        )
+        assertEquals(
+            "Every remeasure of the target must re-land on the annotation (1 initial + 2 remeasures)",
+            3,
+            annotationLandings.size,
+        )
+        assertTrue(annotationLandings.all { it == "ch1.xhtml" to "ann-42" })
     }
 
     @Test
