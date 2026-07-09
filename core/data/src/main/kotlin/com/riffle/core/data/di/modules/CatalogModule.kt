@@ -5,6 +5,10 @@ import com.riffle.core.catalog.CatalogRegistry
 import com.riffle.core.catalog.DefaultCatalogRegistry
 import com.riffle.core.domain.SourceType
 import com.riffle.core.catalog.abs.AbsCatalogFactory
+import com.riffle.core.data.localfiles.LocalFilesCatalogFactory
+import com.riffle.core.database.LibraryItemDao
+import com.riffle.core.database.LocalFilesFileDao
+import com.riffle.core.database.LocalFilesFolderDao
 import com.riffle.core.domain.Clock
 import com.riffle.core.domain.DeviceIdStore
 import com.riffle.core.domain.SourceRepository
@@ -26,12 +30,26 @@ import javax.inject.Singleton
  * implementation registers its factory here via `@IntoMap` + `@SourceTypeKey`; repositories
  * consume [CatalogRegistry] rather than the map directly.
  *
- * LocalFiles will bind its factory here once the LocalFiles source implementation lands
- * (issue #437 / #438).
+ * LocalFiles factory (#438) reads catalog data from the local Room DAOs populated by
+ * [LocalFilesScanner]; ABS factory pulls per-Source auth from [TokenStorage] and speaks HTTP.
  */
 @Module
 @InstallIn(SingletonComponent::class)
 object CatalogModule {
+
+    @Provides
+    @Singleton
+    @IntoMap
+    @SourceTypeKey(SourceType.LOCAL_FILES)
+    fun provideLocalFilesCatalogFactory(
+        folderDao: LocalFilesFolderDao,
+        fileDao: LocalFilesFileDao,
+        itemDao: LibraryItemDao,
+    ): CatalogFactory = LocalFilesCatalogFactory(
+        folderDao = folderDao,
+        fileDao = fileDao,
+        itemDao = itemDao,
+    )
 
     @Provides
     @Singleton
