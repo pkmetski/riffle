@@ -165,6 +165,7 @@ fun LibraryItemsScreen(
     val isLoading by viewModel.isLoading.collectAsState()
     val linkedItemIds by viewModel.linkedItemIds.collectAsState()
     val notStartedFilterActive by viewModel.notStartedFilterActive.collectAsState()
+    val tabVisibility by viewModel.tabVisibility.collectAsState()
 
     val coversAreSquare by viewModel.coversAreSquare.collectAsState()
     // Versioned key: v2 = post-Annotations-tab-insertion. Without the version bump, a user
@@ -172,6 +173,12 @@ fun LibraryItemsScreen(
     // (also index 2) after the shuffle. Bumping the key discards the old saved int and resets
     // everyone to Home on first launch after upgrade.
     var selectedTab by rememberSaveable(key = "library_selected_tab_v2") { mutableIntStateOf(0) }
+
+    // Reset to Home when the previously-selected tab is no longer visible for the active Source
+    // (e.g. user was on Series, then switched to a LocalFiles Source that lacks SeriesCapability).
+    LaunchedEffect(tabVisibility) {
+        if (!isTabVisible(selectedTab, tabVisibility)) selectedTab = 0
+    }
 
     // Drive the grids off a local live scale so a pinch reflows instantly; the
     // persisted value (collected here) seeds it and wins on any external change.
@@ -237,7 +244,11 @@ fun LibraryItemsScreen(
         },
         bottomBar = {
             if (searchQuery.isEmpty()) {
-                LibraryTabBar(selectedTab = selectedTab, onTabSelected = { selectedTab = it })
+                LibraryTabBar(
+                    selectedTab = selectedTab,
+                    onTabSelected = { selectedTab = it },
+                    visibility = tabVisibility,
+                )
             }
         },
     ) { padding ->
@@ -1234,34 +1245,57 @@ internal fun LibraryItemCard(
  */
 internal fun tabIndexForAnnotations(): Int = 2
 
+/**
+ * True when the tab currently rendered at [selectedTab] is still valid given the active Source's
+ * [visibility]. Callers use this to fall back to Home (index 0) after a Source switch hides the
+ * previously-selected tab. Home / Annotations / All Books are always visible.
+ */
+internal fun isTabVisible(selectedTab: Int, visibility: LibraryTabVisibility): Boolean =
+    when (selectedTab) {
+        1 -> visibility.toRead
+        3 -> visibility.series
+        4 -> visibility.collections
+        else -> true
+    }
+
 @Composable
-private fun LibraryTabBar(selectedTab: Int, onTabSelected: (Int) -> Unit) {
+private fun LibraryTabBar(
+    selectedTab: Int,
+    onTabSelected: (Int) -> Unit,
+    visibility: LibraryTabVisibility,
+) {
     NavigationBar {
         NavigationBarItem(
             selected = selectedTab == 0,
             onClick = { onTabSelected(0) },
             icon = { Icon(Icons.Filled.Home, contentDescription = "Home") },
         )
-        NavigationBarItem(
-            selected = selectedTab == 1,
-            onClick = { onTabSelected(1) },
-            icon = { Icon(RiffleIcons.ToReadFilled, contentDescription = "To Read") },
-        )
+        if (visibility.toRead) {
+            NavigationBarItem(
+                selected = selectedTab == 1,
+                onClick = { onTabSelected(1) },
+                icon = { Icon(RiffleIcons.ToReadFilled, contentDescription = "To Read") },
+            )
+        }
         NavigationBarItem(
             selected = selectedTab == tabIndexForAnnotations(),
             onClick = { onTabSelected(tabIndexForAnnotations()) },
             icon = { Icon(RiffleIcons.Annotations, contentDescription = "Annotations") },
         )
-        NavigationBarItem(
-            selected = selectedTab == 3,
-            onClick = { onTabSelected(3) },
-            icon = { Icon(Icons.Filled.FormatListNumbered, contentDescription = "Series") },
-        )
-        NavigationBarItem(
-            selected = selectedTab == 4,
-            onClick = { onTabSelected(4) },
-            icon = { Icon(Icons.Filled.Folder, contentDescription = "Collections") },
-        )
+        if (visibility.series) {
+            NavigationBarItem(
+                selected = selectedTab == 3,
+                onClick = { onTabSelected(3) },
+                icon = { Icon(Icons.Filled.FormatListNumbered, contentDescription = "Series") },
+            )
+        }
+        if (visibility.collections) {
+            NavigationBarItem(
+                selected = selectedTab == 4,
+                onClick = { onTabSelected(4) },
+                icon = { Icon(Icons.Filled.Folder, contentDescription = "Collections") },
+            )
+        }
         NavigationBarItem(
             selected = selectedTab == 5,
             onClick = { onTabSelected(5) },

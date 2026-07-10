@@ -28,6 +28,14 @@ class ReadingSessionCoordinator(
     private val readingSpeedStore: ReadingSpeedStore,
     private val scope: CoroutineScope,
     private val syncIntervalMs: Long = SYNC_INTERVAL_MS,
+    // Whether reading-session lifecycle actions should fire at all. Evaluated per call so the
+    // Catalog capability check can be resolved after construction (readers set this once the
+    // active Source's Catalog is known). False when the active Source has no
+    // ReadingSessionsCapability (issue #439 / ADR 0041) — LocalFiles, for example. Both
+    // [onResumed] and [onClosed] become no-ops so the heartbeat never starts and the
+    // speed-tracker session is never flushed. Defaults to `always-on` to keep pre-#439 callers
+    // (and every ABS Source) unchanged.
+    private val enabled: () -> Boolean = { true },
 ) {
 
     private var syncJob: Job? = null
@@ -47,6 +55,7 @@ class ReadingSessionCoordinator(
      *   themselves alongside [onResumed].
      */
     fun onResumed(initialTotalProgression: Float?, onTick: suspend () -> Unit) {
+        if (!enabled()) return
         sessionStartProgression = initialTotalProgression
         sessionStartMs = clock.nowMs()
         syncJob?.cancel()
@@ -68,6 +77,7 @@ class ReadingSessionCoordinator(
      *   value the rail uses. A zero total skips the speed write (we'd divide by zero).
      */
     fun onClosed(currentTotalProgression: Float?, totalPositions: Float) {
+        if (!enabled()) return
         syncJob?.cancel()
         syncJob = null
         flushSpeedSession(currentTotalProgression, totalPositions)

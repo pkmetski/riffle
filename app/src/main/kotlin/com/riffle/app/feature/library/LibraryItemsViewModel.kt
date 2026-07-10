@@ -20,6 +20,10 @@ import com.riffle.core.domain.usecase.RefreshLibraryItems
 import com.riffle.core.domain.usecase.RefreshSeries
 import com.riffle.core.domain.Series
 import com.riffle.core.data.ToReadRepository
+import com.riffle.core.catalog.CatalogRegistry
+import com.riffle.core.catalog.CollectionsCapability
+import com.riffle.core.catalog.PlaylistsCapability
+import com.riffle.core.catalog.SeriesCapability
 import com.riffle.core.domain.SourceRepository
 import com.riffle.core.domain.TokenStorage
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -63,6 +67,7 @@ class LibraryItemsViewModel @Inject constructor(
     private val coverGridDensityStore: com.riffle.core.domain.CoverGridDensityStore,
     private val annotationStore: AnnotationStore,
     private val audiobookBookmarkStore: AudiobookBookmarkStore,
+    private val catalogRegistry: CatalogRegistry,
 ) : ViewModel() {
 
     val libraryId: String = savedStateHandle.get<String>("libraryId") ?: ""
@@ -202,6 +207,27 @@ class LibraryItemsViewModel @Inject constructor(
 
     val projection: StateFlow<LibraryProjection> = filterEngine.projection
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), LibraryProjection.Empty)
+
+    /**
+     * Which optional Library tabs are visible for the active Source. Home, Annotations, and All
+     * Books are always available; the rest are gated on the active Catalog's capabilities per
+     * issue #439 / ADR 0041. An unresolved active Source (missing credentials, no factory) hides
+     * every optional tab — safer than showing a tab that will crash on selection.
+     */
+    val tabVisibility: StateFlow<LibraryTabVisibility> =
+        kotlinx.coroutines.flow.flow {
+            // Raw `is` checks in place of the inline `Catalog.has<T>()` extension: core:catalog
+            // compiles at JVM target 21 (its module leaves target unset) but the app / core:data
+            // modules pin to JVM target 17, so an inline call across the boundary fails to compile.
+            val catalog = catalogRegistry.forActive()
+            emit(
+                LibraryTabVisibility(
+                    toRead = catalog is PlaylistsCapability,
+                    series = catalog is SeriesCapability,
+                    collections = catalog is CollectionsCapability,
+                ),
+            )
+        }.stateIn(viewModelScope, SharingStarted.Eagerly, LibraryTabVisibility.Empty)
 
     var authToken: String by mutableStateOf("")
         private set

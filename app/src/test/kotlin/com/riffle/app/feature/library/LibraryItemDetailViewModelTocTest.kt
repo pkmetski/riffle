@@ -165,6 +165,11 @@ class LibraryItemDetailViewModelTocTest {
         sidecarPrefetcher = { _, _ -> },
         extractEpubTocUseCase = extractEpubTocUseCase,
         fetchAudiobookChaptersUseCase = fetchAudiobookChaptersUseCase,
+        catalogRegistry = object : com.riffle.core.catalog.CatalogRegistry {
+            override suspend fun forActive(): com.riffle.core.catalog.Catalog? = null
+            override suspend fun forSource(source: com.riffle.core.domain.Source): com.riffle.core.catalog.Catalog? = null
+            override suspend fun forSourceId(sourceId: String): com.riffle.core.catalog.Catalog? = null
+        },
     )
 
     private val epubItem = LibraryItem(

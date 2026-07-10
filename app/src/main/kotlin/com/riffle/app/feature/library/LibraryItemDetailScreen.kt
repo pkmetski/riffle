@@ -196,6 +196,7 @@ fun LibraryItemDetailScreen(
                     LibraryItemDetailContentPhoneLandscape(
                         item = state.item,
                         seriesId = state.seriesId,
+                        capabilities = state.capabilities,
                         onFacet = onFacet,
                         onSeriesClick = onSeriesClick,
                         isInToRead = state.isInToRead,
@@ -227,6 +228,7 @@ fun LibraryItemDetailScreen(
                     LibraryItemDetailContentTablet(
                         item = state.item,
                         seriesId = state.seriesId,
+                        capabilities = state.capabilities,
                         onFacet = onFacet,
                         onSeriesClick = onSeriesClick,
                         isInToRead = state.isInToRead,
@@ -258,6 +260,7 @@ fun LibraryItemDetailScreen(
                     LibraryItemDetailContent(
                         item = state.item,
                         seriesId = state.seriesId,
+                        capabilities = state.capabilities,
                         onFacet = onFacet,
                         onSeriesClick = onSeriesClick,
                         isInToRead = state.isInToRead,
@@ -320,6 +323,7 @@ private fun CollapsibleDescription(description: String) {
 private fun LibraryItemDetailContent(
     item: LibraryItem,
     seriesId: String?,
+    capabilities: DetailCapabilities = DetailCapabilities.All,
     onFacet: (FacetType, String) -> Unit,
     onSeriesClick: (String, String) -> Unit,
     isInToRead: Boolean,
@@ -396,6 +400,7 @@ private fun LibraryItemDetailContent(
         ActionRow(
             item = item,
             isInToRead = isInToRead,
+            capabilities = capabilities,
             downloadState = downloadState,
             isCachedOrDownloaded = isCachedOrDownloaded,
             isOffline = isOffline,
@@ -421,8 +426,10 @@ private fun LibraryItemDetailContent(
         )
         AuthorByline(author = item.author, onAuthorClick = { onFacet(FacetType.AUTHOR, it) })
 
-        item.seriesName?.let { series ->
-            SeriesLine(seriesName = series, seriesId = seriesId, onSeriesClick = onSeriesClick)
+        if (capabilities.hasSeries) {
+            item.seriesName?.let { series ->
+                SeriesLine(seriesName = series, seriesId = seriesId, onSeriesClick = onSeriesClick)
+            }
         }
 
         // TOC row — EPUB items only; hidden if TOC loaded as empty
@@ -537,6 +544,7 @@ private fun formatAudiobookDuration(durationSec: Double): String {
 internal fun LibraryItemDetailContentTablet(
     item: LibraryItem,
     seriesId: String? = null,
+    capabilities: DetailCapabilities = DetailCapabilities.All,
     onFacet: (FacetType, String) -> Unit = { _, _ -> },
     onSeriesClick: (String, String) -> Unit = { _, _ -> },
     isInToRead: Boolean,
@@ -619,6 +627,7 @@ internal fun LibraryItemDetailContentTablet(
             ActionRow(
                 item = item,
                 isInToRead = isInToRead,
+                capabilities = capabilities,
                 downloadState = downloadState,
                 isCachedOrDownloaded = isCachedOrDownloaded,
                 isOffline = isOffline,
@@ -699,8 +708,10 @@ internal fun LibraryItemDetailContentTablet(
             item.description?.takeIf { it.isNotBlank() }?.let { desc ->
                 CollapsibleDescription(desc)
             }
-            item.seriesName?.let { series ->
-                SeriesLine(seriesName = series, seriesId = seriesId, onSeriesClick = onSeriesClick)
+            if (capabilities.hasSeries) {
+                item.seriesName?.let { series ->
+                    SeriesLine(seriesName = series, seriesId = seriesId, onSeriesClick = onSeriesClick)
+                }
             }
             MetadataLines(item = item, onFacet = onFacet)
         }
@@ -739,6 +750,7 @@ internal fun LibraryItemDetailContentTablet(
 internal fun LibraryItemDetailContentPhoneLandscape(
     item: LibraryItem,
     seriesId: String? = null,
+    capabilities: DetailCapabilities = DetailCapabilities.All,
     onFacet: (FacetType, String) -> Unit = { _, _ -> },
     onSeriesClick: (String, String) -> Unit = { _, _ -> },
     isInToRead: Boolean,
@@ -808,8 +820,10 @@ internal fun LibraryItemDetailContentPhoneLandscape(
                 onReadaloudClick = { onFacet(FacetType.READALOUD, "all") },
             )
             AuthorByline(author = item.author, onAuthorClick = { onFacet(FacetType.AUTHOR, it) })
-            item.seriesName?.let { series ->
-                SeriesLine(seriesName = series, seriesId = seriesId, onSeriesClick = onSeriesClick)
+            if (capabilities.hasSeries) {
+                item.seriesName?.let { series ->
+                    SeriesLine(seriesName = series, seriesId = seriesId, onSeriesClick = onSeriesClick)
+                }
             }
             if (item.isListenable && item.audioDurationSec > 0) {
                 AudiobookDurationLine(item.audioDurationSec, item.readingProgress)
@@ -820,6 +834,7 @@ internal fun LibraryItemDetailContentPhoneLandscape(
             ActionRow(
                 item = item,
                 isInToRead = isInToRead,
+                capabilities = capabilities,
                 downloadState = downloadState,
                 isCachedOrDownloaded = isCachedOrDownloaded,
                 isOffline = isOffline,
@@ -1028,6 +1043,7 @@ private fun FacetValue(
 private fun ActionRow(
     item: LibraryItem,
     isInToRead: Boolean,
+    capabilities: DetailCapabilities = DetailCapabilities.All,
     downloadState: DownloadState,
     isCachedOrDownloaded: Boolean,
     isOffline: Boolean,
@@ -1047,8 +1063,12 @@ private fun ActionRow(
 ) {
     // An item may be readable (has an ebook), listenable (an Audiobook — ADR 0029), both (a
     // combined item), or neither. The action row offers Read and Listen independently; only a wholly
-    // un-openable item shows the empty-state message.
-    if (!item.isPlayable) {
+    // un-openable item shows the empty-state message. When the active Source lacks
+    // AudiobookMediaCapability (e.g. LocalFiles has no audiobook player yet, issue #439), a nominally
+    // listenable item is treated as un-openable on the listen side — no Listen button, and if there's
+    // also no readable ebook the empty-state message wins.
+    val effectivelyListenable = item.isListenable && capabilities.hasAudiobookMedia
+    if (!item.isReadable && !effectivelyListenable) {
         Text(
             text = "Nothing to read or listen to for this item on the server.",
             style = MaterialTheme.typography.bodyLarge,
@@ -1086,7 +1106,7 @@ private fun ActionRow(
                 }
             }
         }
-        if (item.isListenable) {
+        if (item.isListenable && capabilities.hasAudiobookMedia) {
             // The audiobook player resolves download > bundle > ABS stream (ADR 0029), so Listen needs
             // connectivity only when neither a dedicated audiobook download nor a readaloud bundle is
             // present locally — either local source plays offline.
@@ -1118,10 +1138,12 @@ private fun ActionRow(
             onMarkAsRead = onMarkAsRead,
             onMarkAsUnread = onMarkAsUnread,
         )
-        ToReadToggleButton(
-            isInToRead = isInToRead,
-            onToggle = onToggleToRead,
-        )
+        if (capabilities.hasPlaylists) {
+            ToReadToggleButton(
+                isInToRead = isInToRead,
+                onToggle = onToggleToRead,
+            )
+        }
         // The base DownloadButton manages the ABS EPUB, so it only applies to a readable item. A
         // matched ABS item additionally gets the ReadaloudDownloadButton below, which fetches the
         // Storyteller synced bundle (ADR 0023/0026) for audio + highlight.

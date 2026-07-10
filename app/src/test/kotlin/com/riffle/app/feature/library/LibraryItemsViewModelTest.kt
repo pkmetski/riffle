@@ -211,6 +211,7 @@ class LibraryItemsViewModelTest {
         },
         annotationStore: com.riffle.core.domain.AnnotationStore = fakeAnnotationStore(),
         audiobookBookmarkStore: com.riffle.core.domain.AudiobookBookmarkStore = fakeAudiobookBookmarkStore(),
+        catalogRegistry: com.riffle.core.catalog.CatalogRegistry = fakeCatalogRegistry(),
     ) = LibraryItemsViewModel(
         savedStateHandle = savedStateHandle,
         libraryObserver = libraryRepository,
@@ -234,7 +235,16 @@ class LibraryItemsViewModelTest {
         coverGridDensityStore = coverGridDensityStore,
         annotationStore = annotationStore,
         audiobookBookmarkStore = audiobookBookmarkStore,
+        catalogRegistry = catalogRegistry,
     )
+
+    private fun fakeCatalogRegistry(
+        catalog: com.riffle.core.catalog.Catalog? = null,
+    ): com.riffle.core.catalog.CatalogRegistry = object : com.riffle.core.catalog.CatalogRegistry {
+        override suspend fun forActive(): com.riffle.core.catalog.Catalog? = catalog
+        override suspend fun forSource(source: com.riffle.core.domain.Source): com.riffle.core.catalog.Catalog? = catalog
+        override suspend fun forSourceId(sourceId: String): com.riffle.core.catalog.Catalog? = catalog
+    }
 
     private fun series(name: String) = Series("id-$name", "lib-1", name, null, 1)
     private fun collection(name: String) = Collection("id-$name", "lib-1", name, 1)

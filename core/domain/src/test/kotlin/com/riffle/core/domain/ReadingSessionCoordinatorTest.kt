@@ -175,4 +175,62 @@ class ReadingSessionCoordinatorTest {
     fun `the default interval is 30s`() {
         assertEquals(30_000L, ReadingSessionCoordinator.SYNC_INTERVAL_MS)
     }
+
+    @Test
+    fun `disabled coordinator does not start the heartbeat`() = runTest {
+        // Regression for #439: a Source without ReadingSessionsCapability must never
+        // heartbeat. Otherwise every LocalFiles reader session would kick off a
+        // 30s timer that either no-ops via ProgressSyncController or worse, tries
+        // to post to a server that isn't there.
+        val clock = TestClock()
+        val store = FakeSpeedStore(initial = 100.0)
+        val coord = ReadingSessionCoordinator(
+            clock = clock,
+            readingSpeedStore = store,
+            scope = this,
+            syncIntervalMs = 30_000L,
+            enabled = { false },
+        )
+        var ticks = 0
+        coord.onResumed(initialTotalProgression = 0.10f, onTick = { ticks++ })
+
+        advanceTimeBy(90_001L)
+        assertEquals(0, ticks)
+
+        // And onClosed must not flush the speed store either, otherwise a disabled
+        // Source would silently update the shared speed tracker with garbage deltas.
+        clock.advance(600_000L)
+        coord.onClosed(currentTotalProgression = 0.15f, totalPositions = 100f)
+        advanceUntilIdle()
+        assertEquals(100.0, store.current, 1e-9)
+    }
+
+    @Test
+    fun `enabled gate is re-evaluated on every call`() = runTest {
+        // The reader ViewModels flip the enabled flag once the active Source's Catalog
+        // resolves — a coordinator constructed before the flip must still respect the
+        // flag at call time, not at construction time.
+        val clock = TestClock()
+        val store = FakeSpeedStore(initial = 100.0)
+        var enabled = false
+        val coord = ReadingSessionCoordinator(
+            clock = clock,
+            readingSpeedStore = store,
+            scope = this,
+            syncIntervalMs = 30_000L,
+            enabled = { enabled },
+        )
+        var ticks = 0
+        coord.onResumed(initialTotalProgression = 0.10f, onTick = { ticks++ })
+        advanceTimeBy(30_001L)
+        assertEquals(0, ticks)
+
+        enabled = true
+        coord.onResumed(initialTotalProgression = 0.10f, onTick = { ticks++ })
+        advanceTimeBy(30_001L)
+        assertEquals(1, ticks)
+
+        coord.onClosed(currentTotalProgression = 0.15f, totalPositions = 100f)
+        advanceUntilIdle()
+    }
 }
