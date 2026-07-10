@@ -2,8 +2,12 @@ package com.riffle.app.feature.settings
 
 import android.content.Intent
 import android.net.Uri
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.platform.testTag
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import androidx.core.content.FileProvider
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloatAsState
@@ -135,6 +139,17 @@ fun SettingsScreen(
                 is SettingsNavEvent.NavigateToReadaloudMatches -> onNavigateToReadaloudMatches(event.sourceId)
             }
         }
+    }
+
+    // Returning from system Settings after revoking a SAF grant doesn't change the DB folder set,
+    // so the local-files-health map would stay stale. Kick a recompute on every resume.
+    val settingsLifecycle = LocalLifecycleOwner.current.lifecycle
+    DisposableEffect(settingsLifecycle) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) viewModel.refreshLocalFilesFolderHealth()
+        }
+        settingsLifecycle.addObserver(observer)
+        onDispose { settingsLifecycle.removeObserver(observer) }
     }
 
     Scaffold(

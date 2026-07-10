@@ -93,7 +93,15 @@ class LocalFilesCatalog(
     ): CatalogFileStream {
         val file = requireFile(itemId, format)
         val f = File(file.copiedPath)
-        val length = if (f.exists()) f.length() else -1L
+        // Row exists but the copied-in blob is gone (external cleanup, storage corruption). Surface
+        // this the same way the "no row" branch does so reader code catching CatalogException gets
+        // a uniform error rather than a raw FileNotFoundException.
+        if (!f.exists()) {
+            throw CatalogException.UnsupportedFormat(
+                "LocalFiles copied path missing for itemId=$itemId path=${file.copiedPath}",
+            )
+        }
+        val length = f.length()
         val stream = FileInputStream(f)
         return object : CatalogFileStream {
             override val contentLength: Long = length

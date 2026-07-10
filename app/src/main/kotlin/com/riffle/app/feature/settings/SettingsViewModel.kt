@@ -256,12 +256,23 @@ class SettingsViewModel @Inject constructor(
      * persistable URI grant revoked by the user in system Settings; already-copied bytes stay
      * readable, but rescanning and picking up new files needs a re-pick.
      *
-     * Re-derives every time the folder set changes so users returning from system Settings pick
-     * up the fresh state without a manual refresh gesture.
+     * Re-derives when the folder set changes OR when [refreshLocalFilesFolderHealth] is called —
+     * the Settings screen pokes it on Lifecycle.ON_RESUME so returning from system Settings picks
+     * up freshly-revoked grants without any user gesture. Without that trigger the map would go
+     * stale (the DB folder set didn't change; only the OS grant list did).
      */
-    val localFilesFolderHealth: StateFlow<Map<String, Boolean>> = localFilesFolders
-        .map { folders -> localFilesFolderHealthChecker.healthFor(folders.map { it.treeUri }) }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
+    private val folderHealthRefreshTicks = MutableStateFlow(0L)
+    val localFilesFolderHealth: StateFlow<Map<String, Boolean>> = combine(
+        localFilesFolders,
+        folderHealthRefreshTicks,
+    ) { folders, _ ->
+        localFilesFolderHealthChecker.healthFor(folders.map { it.treeUri })
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
+
+    /** Kicks a re-check of every configured folder's SAF grant. Cheap; safe to call on RESUME. */
+    fun refreshLocalFilesFolderHealth() {
+        folderHealthRefreshTicks.value = folderHealthRefreshTicks.value + 1L
+    }
 
     /** Ids of the configured Storyteller servers, feeding the per-server readaloud summaries. */
     private val storytellerServerIds: StateFlow<List<String>> = servers
@@ -312,7 +323,15 @@ class SettingsViewModel @Inject constructor(
     }
 
     private val absServers: StateFlow<List<Source>> = servers
-        .map { list -> list.filter { it.serverType == ServerType.AUDIOBOOKSHELF } }
+        // Match by (type, serverType) rather than serverType alone: LocalFiles rows persist
+        // `serverType = AUDIOBOOKSHELF` as a placeholder (see [LocalFilesSourceInstaller]) and
+        // would otherwise leak into every ABS-only downstream (library refresh, cover tokens).
+        .map { list ->
+            list.filter {
+                it.type == com.riffle.core.domain.SourceType.ABS &&
+                    it.serverType == ServerType.AUDIOBOOKSHELF
+            }
+        }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     /**

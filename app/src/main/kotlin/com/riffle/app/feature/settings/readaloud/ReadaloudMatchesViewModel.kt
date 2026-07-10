@@ -56,7 +56,13 @@ class ReadaloudMatchesViewModel @Inject constructor(
      */
     val activeAbsServerId: StateFlow<String> = sourceRepository.observeAll()
         .map { servers ->
-            val abs = servers.filter { it.serverType == ServerType.AUDIOBOOKSHELF }
+            // Filter by SourceType.ABS too — LocalFiles rows carry
+            // `serverType = AUDIOBOOKSHELF` as a placeholder and would otherwise be picked as
+            // "active ABS", pointing readaloud matching at a source with no ABS API.
+            val abs = servers.filter {
+                it.type == com.riffle.core.domain.SourceType.ABS &&
+                    it.serverType == ServerType.AUDIOBOOKSHELF
+            }
             (abs.firstOrNull { it.isActive } ?: abs.firstOrNull())?.id ?: ""
         }
         .stateIn(viewModelScope, SharingStarted.Eagerly, "")

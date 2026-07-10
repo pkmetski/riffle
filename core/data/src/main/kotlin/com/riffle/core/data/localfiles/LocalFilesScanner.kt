@@ -193,7 +193,7 @@ class LocalFilesScanner @Inject constructor(
         val entity = LibraryItemEntity(
             sourceId = sourceId,
             id = identity,
-            libraryId = LOCAL_ROOT_LIBRARY_ID,
+            libraryId = LocalFilesCatalog.LOCAL_ROOT_ID,
             title = metadata.title?.ifBlank { null } ?: stripExtension(file.displayName),
             author = metadata.author?.ifBlank { null } ?: "",
             coverUrl = null,
@@ -214,7 +214,7 @@ class LocalFilesScanner @Inject constructor(
     ): LibraryItemEntity = LibraryItemEntity(
         sourceId = sourceId,
         id = identity,
-        libraryId = LOCAL_ROOT_LIBRARY_ID,
+        libraryId = LocalFilesCatalog.LOCAL_ROOT_ID,
         title = metadata.title?.ifBlank { null } ?: stripExtension(file.displayName),
         author = metadata.author?.ifBlank { null } ?: "",
         coverUrl = coverFile?.toURI()?.toString(),
@@ -243,7 +243,6 @@ class LocalFilesScanner @Inject constructor(
     }
 
     companion object {
-        const val LOCAL_ROOT_LIBRARY_ID: String = "local:root"
         const val EBOOK_FORMAT_EPUB: String = "epub"
         const val EBOOK_FORMAT_PDF: String = "pdf"
         const val EBOOK_FORMAT_UNSUPPORTED: String = "unsupported"
