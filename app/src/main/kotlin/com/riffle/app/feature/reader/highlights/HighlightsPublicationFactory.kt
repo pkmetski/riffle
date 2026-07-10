@@ -198,18 +198,24 @@ class HighlightsPublicationFactory @Inject constructor() {
             }
         }
         val title = chapter.title.xmlEscape()
-        // Apply the book's body font to `<body>` so `<h1>` (chapter title), `<aside>` (notes) and
-        // anything else in the synthesised document inherits the origin's face instead of
-        // ReadiumCSS's serif default. Per-excerpt `<p>` inline `font-family` from
-        // [appendOriginFontFamilyStyle] still overrides for annotations that captured their own
-        // per-range font. Issue #484.
+        // Apply the book's body font to `<body>`, every heading, and `<aside>` so the whole
+        // synthesised document inherits the origin's face instead of ReadiumCSS's serif default.
+        // `!important` is load-bearing: ReadiumCSS-default.css sets its own `font-family` on
+        // headings (via `--RS__*Font*` variables) with equal-or-higher specificity, so a plain
+        // inline `<body>` style loses on `<h1>`. Per-excerpt `<p>` inline styles from
+        // [appendOriginFontFamilyStyle] still override this — inline `!important` beats
+        // stylesheet `!important` at equal specificity. Issue #484.
         val safeBodyFont = sanitizeCssFontFamily(bookBodyFontFamily)
-        val bodyStyle = if (safeBodyFont != null) " style=\"font-family: ${safeBodyFont.xmlEscape()};\"" else ""
+        val bodyFontStyleBlock = if (safeBodyFont != null) {
+            val escaped = safeBodyFont.xmlEscape()
+            "body, h1, h2, h3, h4, h5, h6, aside, figcaption, .riffle-fig { font-family: $escaped !important; }"
+        } else ""
         return """
             |<?xml version="1.0" encoding="UTF-8"?>
             |<html xmlns="http://www.w3.org/1999/xhtml"><head><title>$title</title>$READIUM_DEFAULT_CSS_LINK<style>$ACCENT_BAR_TAP_CSS
-            |$FIGURE_CENTERING_CSS</style></head>
-            |<body$bodyStyle>
+            |$FIGURE_CENTERING_CSS
+            |$bodyFontStyleBlock</style></head>
+            |<body>
             |  <h1>$title</h1>
             |${body.trimEnd('\n')}
             |</body></html>
@@ -394,9 +400,12 @@ private fun appendOriginFontFamilyStyle(
 ) {
     val raw = originFontFamily?.takeIf { it.isNotBlank() } ?: bookBodyFontFamily?.takeIf { it.isNotBlank() }
     val safe = sanitizeCssFontFamily(raw) ?: return
+    // `!important` needed to win against the equally-important body/heading override rule
+    // emitted by [renderChapterHtml] — inline `!important` beats stylesheet `!important`
+    // at equal specificity, so the per-excerpt annotation font wins.
     sb.append(" font-family: ")
     sb.append(safe.xmlEscape())
-    sb.append(";")
+    sb.append(" !important;")
 }
 
 /**

@@ -320,7 +320,7 @@ class HighlightsPublicationFactoryTest {
         val html = readChapterHtml(pub, index = 0)
         assertTrue(
             "excerpt <p> carries an inline font-family with the captured value; html was: $html",
-            html.contains("font-family: &quot;Fira Sans&quot;, sans-serif;")
+            html.contains("font-family: &quot;Fira Sans&quot;, sans-serif !important;")
         )
     }
 
@@ -343,15 +343,17 @@ class HighlightsPublicationFactoryTest {
         val html = readChapterHtml(pub, index = 0)
         assertTrue(
             "excerpt <p> falls back to book body font; html was: $html",
-            html.contains("font-family: Georgia, serif;")
+            html.contains("font-family: Georgia, serif !important;")
         )
     }
 
-    // The `bookBodyFontFamily` is also applied to `<body>` so chapter titles (`<h1>`), notes
-    // (`<aside>`), and anything else non-`<p>` inherits the origin's face — matches "the elided
-    // view must inherit the origin's font" for the whole document, not just excerpts.
+    // The `bookBodyFontFamily` is applied via a `<style>` block that targets `<body>` + every
+    // heading tag so the chapter title, notes, and figcaptions inherit the origin's face —
+    // matches "the elided view must inherit the origin's font" for the whole document, not just
+    // excerpts. `!important` is load-bearing because ReadiumCSS-default.css sets its own
+    // font-family on headings via `--RS__*Font*` CSS variables.
     @Test
-    fun bookBodyFontFamily_isSetOnBodyElementForTitleAndNotes() {
+    fun bookBodyFontFamily_isAppliedToHeadingsAndAsideViaStyleBlock() {
         val pub = factory.build(
             sourceId = "S1", itemId = "B1", bookTitle = null,
             chapters = listOf(
@@ -365,8 +367,11 @@ class HighlightsPublicationFactoryTest {
         )
         val html = readChapterHtml(pub, index = 0)
         assertTrue(
-            "<body> must carry the book body font-family so <h1>/<aside> inherit it; html was: $html",
-            html.contains("<body style=\"font-family: Georgia, serif;\">")
+            "<style> block must set the book body font on body + headings + aside; html was: $html",
+            html.contains(
+                "body, h1, h2, h3, h4, h5, h6, aside, figcaption, .riffle-fig " +
+                    "{ font-family: Georgia, serif !important; }"
+            )
         )
     }
 
