@@ -112,11 +112,11 @@ class ReaderSessionLifecycle @AssistedInject constructor(
         _publication.value = pub
 
         val activeServer: Source? = sourceRepository.getActive()
-        val isStorytellerServer = activeServer?.serverType == ServerType.STORYTELLER
+        val isStorytellerService = activeServer?.serverType == ServerType.STORYTELLER_SERVICE
 
         // Matched ABS book → key the bundle by the linked Storyteller book id (the bundle is
         // stored under that id, not the ABS item id). Storyteller side keeps itemId.
-        val link = if (!isStorytellerServer && activeServer != null) {
+        val link = if (!isStorytellerService && activeServer != null) {
             readaloudLinkRepository.findByAbsItem(activeServer.id, params.itemId)
         } else {
             null
@@ -210,7 +210,7 @@ class ReaderSessionLifecycle @AssistedInject constructor(
             effectiveInitialLocator = effectiveInitial,
             openAtLocator = openAtLocator,
             activeServer = activeServer,
-            isStorytellerServer = isStorytellerServer,
+            isStorytellerService = isStorytellerService,
             resolvedAudioBookId = resolvedAudioBookId,
             resolvedAudioServerId = resolvedAudioServerId,
             resolvedReaderServerId = resolvedReaderServerId,
@@ -278,7 +278,7 @@ class ReaderSessionLifecycle @AssistedInject constructor(
             val effectiveInitialLocator: Locator?,
             val openAtLocator: Locator?,
             val activeServer: Source?,
-            val isStorytellerServer: Boolean,
+            val isStorytellerService: Boolean,
             val resolvedAudioBookId: String,
             val resolvedAudioServerId: String,
             val resolvedReaderServerId: String?,

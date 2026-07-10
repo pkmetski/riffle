@@ -628,7 +628,7 @@ class ReadaloudSessionTest {
             )
             // Make available
             session._readaloudAvailable.value = true
-            // isStorytellerServer=false → no storyteller sync; connectivityObserver.isOnline returns true
+            // isStorytellerService=false → no storyteller sync; connectivityObserver.isOnline returns true
             // No bundle and no streaming session → shows download prompt (probeSizeBytes=500)
             session.audioBookId = "book1"
             session.audioServerId = "srv1"
@@ -1011,7 +1011,7 @@ class ReadaloudSessionTest {
             session.bind(
                 sourceId = "srv-reader",
                 itemId = "ebook-abc",
-                isStorytellerServer = true,
+                isStorytellerService = true,
                 audioBookId = "styteller-book-99",
                 audioServerId = "srv-st",
                 audioSettingsIdentity = expectedIdentity,
@@ -1026,12 +1026,12 @@ class ReadaloudSessionTest {
             assertEquals("itemId must be stored", "ebook-abc", session.itemId)
             assertEquals("readerServerId must be stored", "srv-reader", session.readerServerId)
             assertEquals("readerSyncServerId must be stored", "srv-reader", session.readerSyncServerId)
-            assertEquals("isStorytellerServer must be stored", true, session.isStorytellerServer)
+            assertEquals("isStorytellerService must be stored", true, session.isStorytellerService)
             assertEquals("audioBookId must be stored", "styteller-book-99", session.audioBookId)
             assertEquals("audioServerId must be stored", "srv-st", session.audioServerId)
             assertEquals("audioSettingsIdentity must be stored", expectedIdentity, session.audioSettingsIdentity)
             assertEquals("audiobookItemId must be stored", "abs-audiobook-777", session.audiobookItemId.value)
-            // Storyteller server → readaloud is always available and visible
+            // Storyteller service → readaloud is always available and visible
             assertTrue("readaloudAvailable must be true for Storyteller", session.readaloudAvailable.value)
             assertTrue("readaloudVisible must be true for Storyteller", session.readaloudVisible.value)
         } finally {
@@ -1045,7 +1045,7 @@ class ReadaloudSessionTest {
         try {
             val bundle = java.io.File.createTempFile("bundle", ".zip")
             bundle.deleteOnExit()
-            // Use a Storyteller server (always available) so the pre-warm path is reached
+            // Use a Storyteller service (always available) so the pre-warm path is reached
             val fakeRepo = FakeReadaloudAudioRepository(bundleFileVal = bundle)
             val session = makeSessionForBind(scope = sessionScope, audioRepository = fakeRepo)
 
@@ -1057,7 +1057,7 @@ class ReadaloudSessionTest {
             session.bind(
                 sourceId = "srv1",
                 itemId = "book1",
-                isStorytellerServer = true,
+                isStorytellerService = true,
                 audioBookId = "book1",
                 audioServerId = "srv1",
                 audioSettingsIdentity = com.riffle.core.domain.AudioIdentity("srv1", "book1"),
@@ -1134,7 +1134,7 @@ class ReadaloudSessionTest {
             session.bind(
                 sourceId = "srv1",
                 itemId = "book1",
-                isStorytellerServer = true,
+                isStorytellerService = true,
                 audioBookId = "book1",
                 audioServerId = "srv1",
                 audioSettingsIdentity = AudioIdentity("srv1", "book1"),
@@ -1222,7 +1222,7 @@ class ReadaloudSessionTest {
             session.bind(
                 sourceId = "srv-reader",
                 itemId = "abs-book",
-                isStorytellerServer = false,
+                isStorytellerService = false,
                 audioBookId = "st-book",
                 audioServerId = "srv-st",
                 audioSettingsIdentity = AudioIdentity("srv-st", "st-book"),

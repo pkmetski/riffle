@@ -95,7 +95,7 @@ sealed interface WriteResult {
  * Note: the local Room store is **not** a `ProgressPeer` — it is the canonical authority the cycle
  * is reconciling toward, and its write semantics are compare-and-swap (`ifLocalUpdatedAt` guarded
  * via [SyncPositionStore]) rather than push-then-stamp. Storyteller is also not a peer: there is
- * no progress-write endpoint on the Storyteller server. Both are intentionally absent; do not add
+ * no progress-write endpoint on the Storyteller service. Both are intentionally absent; do not add
  * a no-op peer to satisfy a symmetry that doesn't exist.
  */
 interface ProgressPeer {

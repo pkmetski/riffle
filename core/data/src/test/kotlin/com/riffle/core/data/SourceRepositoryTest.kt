@@ -310,13 +310,13 @@ class ServerRepositoryTest {
 
         val result = repo.authenticate(
             SourceUrl.parse("http://media-source:8001")!!, "plamen", "pw", insecureAllowed = false,
-            serverType = ServerType.STORYTELLER,
+            serverType = ServerType.STORYTELLER_SERVICE,
         )
 
         assertTrue(result is AuthenticateResult.Success)
         val pending = (result as AuthenticateResult.Success).pending
         assertEquals("tok-st", pending.token)
-        assertEquals(ServerType.STORYTELLER, pending.serverType)
+        assertEquals(ServerType.STORYTELLER_SERVICE, pending.serverType)
         // Storyteller contributes no browsable Library (ADR 0026) — the namespace row is created
         // at commit time, not surfaced as a pending library.
         assertTrue(pending.libraries.isEmpty())
@@ -333,14 +333,14 @@ class ServerRepositoryTest {
 
         val result = repo.authenticate(
             SourceUrl.parse("http://media-source:8001")!!, "plamen", "wrong", insecureAllowed = false,
-            serverType = ServerType.STORYTELLER,
+            serverType = ServerType.STORYTELLER_SERVICE,
         )
 
         assertTrue(result is AuthenticateResult.WrongCredentials)
     }
 
     @Test
-    fun `two Storyteller servers commit independently, each with their own Readaloud library row`() = runTest {
+    fun `two Storyteller services commit independently, each with their own Readaloud library row`() = runTest {
         val dao = fakeDao(); val tokens = fakeTokenStorage()
         val libDao = fakeLibraryDao(); val visibility = fakeVisibilityStore()
         val absApi = AbsApi { _, _, _, _ -> error("not called") }
@@ -352,14 +352,14 @@ class ServerRepositoryTest {
             username = "plamen", userId = "", token = "tok-A", password = "",
             insecureConnectionAllowed = false,
             libraries = emptyList(),
-            serverType = ServerType.STORYTELLER,
+            serverType = ServerType.STORYTELLER_SERVICE,
         )
         val pendingB = PendingSource(
             url = SourceUrl.parse("https://readalouds.example.com")!!,
             username = "plamen", userId = "", token = "tok-B", password = "",
             insecureConnectionAllowed = false,
             libraries = emptyList(),
-            serverType = ServerType.STORYTELLER,
+            serverType = ServerType.STORYTELLER_SERVICE,
         )
 
         val resultA = repo.commit(pendingA, hiddenLibraryIds = emptySet())
@@ -371,8 +371,8 @@ class ServerRepositoryTest {
         val serverB = (resultB as CommitSourceResult.Success).source
 
         assertEquals(2, dao.allCount())
-        assertEquals(ServerType.STORYTELLER, serverA.serverType)
-        assertEquals(ServerType.STORYTELLER, serverB.serverType)
+        assertEquals(ServerType.STORYTELLER_SERVICE, serverA.serverType)
+        assertEquals(ServerType.STORYTELLER_SERVICE, serverB.serverType)
         // Each source gets its own Readaloud library row with a distinct source-scoped id —
         // the disambiguation requested in #34's acceptance criterion. The library name itself
         // remains the working "Readalouds" label; the active-source context (drawer header /
@@ -400,7 +400,7 @@ class ServerRepositoryTest {
             username = "plamen", userId = "", token = "tok-st", password = "",
             insecureConnectionAllowed = false,
             libraries = emptyList(),
-            serverType = ServerType.STORYTELLER,
+            serverType = ServerType.STORYTELLER_SERVICE,
         )
 
         val result = repo.commit(pending, hiddenLibraryIds = emptySet())
@@ -425,7 +425,7 @@ class ServerRepositoryTest {
             username = "plamen", userId = "", token = "tok-st", password = "",
             insecureConnectionAllowed = false,
             libraries = emptyList(),
-            serverType = ServerType.STORYTELLER,
+            serverType = ServerType.STORYTELLER_SERVICE,
         )
 
         val result = repo.commit(pending, hiddenLibraryIds = emptySet())
@@ -449,14 +449,14 @@ class ServerRepositoryTest {
             username = "plamen", userId = "uid-1", token = "tok-st", password = "",
             insecureConnectionAllowed = false,
             libraries = emptyList(),
-            serverType = com.riffle.core.domain.ServerType.STORYTELLER,
+            serverType = com.riffle.core.domain.ServerType.STORYTELLER_SERVICE,
         )
 
         val result = repo.commit(pending, hiddenLibraryIds = emptySet())
 
         assertTrue(result is CommitSourceResult.Success)
         val source = (result as CommitSourceResult.Success).source
-        assertEquals(com.riffle.core.domain.ServerType.STORYTELLER, source.serverType)
+        assertEquals(com.riffle.core.domain.ServerType.STORYTELLER_SERVICE, source.serverType)
     }
 
     @Test
@@ -528,7 +528,7 @@ class ServerRepositoryTest {
 
     @Test
     fun `remove cascades libraries and library_items for a Storyteller source`() = runTest {
-        val entity = SourceEntity("st-1", "http://media-source:8001", true, false, username = "plamen", serverType = "STORYTELLER")
+        val entity = SourceEntity("st-1", "http://media-source:8001", true, false, username = "plamen", serverType = "STORYTELLER_SERVICE")
         val dao = fakeDao(entity)
         val tokens = fakeTokenStorage()
         tokens.tokens["st-1"] = "tok-st"
@@ -596,7 +596,7 @@ class ServerRepositoryTest {
     @Test
     fun `setActive ignores a Storyteller source so it never becomes the active browsable source`() = runTest {
         val abs = SourceEntity("abs", "https://abs.example.com", true, false, username = "")
-        val st = SourceEntity("st", "http://media-source:8001", false, false, username = "", serverType = ServerType.STORYTELLER.name)
+        val st = SourceEntity("st", "http://media-source:8001", false, false, username = "", serverType = ServerType.STORYTELLER_SERVICE.name)
         val dao = fakeDao(abs, st)
         val absApi = AbsApi { _, _, _, _ -> NetworkResult.Auth }
         val repo = SourceRepositoryImpl(
@@ -655,7 +655,7 @@ class ServerRepositoryTest {
                 username = "plamen", userId = "", token = "tok-st", password = "",
                 insecureConnectionAllowed = false,
                 libraries = emptyList(),
-                serverType = ServerType.STORYTELLER,
+                serverType = ServerType.STORYTELLER_SERVICE,
             ),
             hiddenLibraryIds = emptySet(),
         )
@@ -722,7 +722,7 @@ class ServerRepositoryTest {
 
     @Test
     fun `ensureAbsUserId returns null for a Storyteller source without fetching api me`() = runTest {
-        val entity = SourceEntity("st-1", "http://media-source:8001", false, false, username = "u", serverType = ServerType.STORYTELLER.name)
+        val entity = SourceEntity("st-1", "http://media-source:8001", false, false, username = "u", serverType = ServerType.STORYTELLER_SERVICE.name)
         val infoApi = RecordingServerInfoApi(userId = "should-not-be-called")
         val repo = SourceRepositoryImpl(
             fakeDao(entity), fakeTokenStorage(), AbsApi { _, _, _, _ -> error("not called") },

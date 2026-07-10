@@ -690,8 +690,8 @@ class EpubReaderViewModel @Inject constructor(
 
     // ---- Readaloud (ADR 0023) ----------------------------------------------------------------
 
-    // isStorytellerServer and readerServerId now live on [lifecycle] (issue #376). The single
-    // remaining read site (annotation binding) captures activeServer + isStorytellerServer from
+    // isStorytellerService and readerServerId now live on [lifecycle] (issue #376). The single
+    // remaining read site (annotation binding) captures activeServer + isStorytellerService from
     // the Ready payload directly.
 
     // ---- Annotations (ADR 0024 / 0025) -------------------------------------------------------
@@ -1017,7 +1017,7 @@ class EpubReaderViewModel @Inject constructor(
         readaloud.bind(
             sourceId = o.resolvedReaderServerId ?: "",
             itemId = itemId,
-            isStorytellerServer = o.isStorytellerServer,
+            isStorytellerService = o.isStorytellerService,
             audioBookId = o.resolvedAudioBookId,
             audioServerId = o.resolvedAudioServerId,
             audioSettingsIdentity = o.resolvedAudioSettingsIdentity,
@@ -1072,7 +1072,7 @@ class EpubReaderViewModel @Inject constructor(
 
         // ── Annotation binding — ABS-side only (ADR 0024) ────────────────────────────
         val activeServer = o.activeServer
-        if (!o.isStorytellerServer && activeServer != null) {
+        if (!o.isStorytellerService && activeServer != null) {
             annotationServerId = activeServer.id
             // Bind the bookmarks controller so it can observe bookmarks and track the current
             // locator for page-bookmark detection.

@@ -374,7 +374,7 @@ class ReadaloudMatchingServiceTest {
         private val byId = entities.associateBy { it.id }
 
         override suspend fun listMatchableBySourceType(serverType: String): List<MatchableItemRow> = when (serverType) {
-            "STORYTELLER" -> storyteller
+            "STORYTELLER_SERVICE" -> storyteller
             "AUDIOBOOKSHELF" -> abs
             else -> emptyList()
         }

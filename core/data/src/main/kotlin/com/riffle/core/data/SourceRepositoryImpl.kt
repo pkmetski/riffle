@@ -57,7 +57,7 @@ class SourceRepositoryImpl @Inject constructor(
         serverType: ServerType,
     ): AuthenticateResult = when (serverType) {
         ServerType.AUDIOBOOKSHELF -> authenticateAbs(url, username, password, insecureAllowed)
-        ServerType.STORYTELLER -> authenticateStoryteller(url, username, password, insecureAllowed)
+        ServerType.STORYTELLER_SERVICE -> authenticateStoryteller(url, username, password, insecureAllowed)
     }
 
     private suspend fun authenticateAbs(
@@ -119,7 +119,7 @@ class SourceRepositoryImpl @Inject constructor(
                 // readaloud backend. The local namespace row that hosts its books as matcher input
                 // is created in [commit], not surfaced to the user.
                 libraries = emptyList(),
-                serverType = ServerType.STORYTELLER,
+                serverType = ServerType.STORYTELLER_SERVICE,
             )
         )
         else -> AuthenticateResult.NetworkError(result.errorAsThrowable())
@@ -146,7 +146,7 @@ class SourceRepositoryImpl @Inject constructor(
         // A Storyteller Source is a Settings-only readaloud backend (ADR 0026) — it must never
         // become the active browsable Source, not even as the first source added. ABS sources keep
         // the "first source becomes active" convenience.
-        val inserted = if (pending.serverType == ServerType.STORYTELLER) {
+        val inserted = if (pending.serverType == ServerType.STORYTELLER_SERVICE) {
             dao.upsert(entity)
             entity
         } else {
@@ -162,7 +162,7 @@ class SourceRepositoryImpl @Inject constructor(
         // matcher's library→source join resolves their serverType and the source-removal cascade
         // cleans them up. This row is never surfaced in the drawer or any library picker — the
         // Source is never the active browsable Source.
-        if (pending.serverType == ServerType.STORYTELLER) {
+        if (pending.serverType == ServerType.STORYTELLER_SERVICE) {
             libraryRows += LibraryEntity(
                 id = readaloudLibraryId(id),
                 name = "Readalouds",
@@ -181,7 +181,7 @@ class SourceRepositoryImpl @Inject constructor(
         // A Storyteller Source is a Settings-only readaloud backend (ADR 0026) — it can never be the
         // active browsable Source. Enforce the invariant here so no caller (source removal, deep
         // links, future UI) can promote one, and a stale DB row can't be re-activated.
-        if (dao.getById(sourceId)?.serverType == ServerType.STORYTELLER.name) return
+        if (dao.getById(sourceId)?.serverType == ServerType.STORYTELLER_SERVICE.name) return
         dao.setActiveAtomic(sourceId)
     }
 
@@ -203,7 +203,7 @@ class SourceRepositoryImpl @Inject constructor(
     override suspend fun getSourceVersion(sourceId: String): String? {
         val source = dao.getById(sourceId)?.toDomain() ?: return null
         // Storyteller exposes no /server-info endpoint; the UI deliberately shows no version for it.
-        if (source.serverType == ServerType.STORYTELLER) return null
+        if (source.serverType == ServerType.STORYTELLER_SERVICE) return null
         val token = tokenStorage.getToken(sourceId) ?: return null
         return serverInfoApi.getServerInfo(
             baseUrl = source.url.value,
@@ -225,7 +225,7 @@ class SourceRepositoryImpl @Inject constructor(
 
     override suspend fun ensureAbsUserId(sourceId: String): String? {
         val row = dao.getById(sourceId) ?: return null
-        if (row.serverType == ServerType.STORYTELLER.name) return null
+        if (row.serverType == ServerType.STORYTELLER_SERVICE.name) return null
         row.absUserId?.takeIf { it.isNotBlank() }?.let { return it }
         // Legacy row (added before the column existed) — backfill from /api/me.
         val token = tokenStorage.getToken(sourceId) ?: return null

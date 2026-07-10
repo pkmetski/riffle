@@ -15,7 +15,7 @@ data class SourceEntity(
      * Cross-device-stable identity for this ABS account, taken from `/api/me`'s `user.id`.
      * Used by annotation sync as the WebDAV path namespace so two devices pointing at the same
      * ABS server see each other's files (the primary-key [id] is a per-device random UUID and
-     * cannot serve this purpose). Null on Storyteller servers and on ABS rows that were added
+     * cannot serve this purpose). Null on Storyteller services and on ABS rows that were added
      * before this column existed — backfilled lazily on the next successful `/api/me` call.
      */
     val absUserId: String? = null,

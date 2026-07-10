@@ -30,7 +30,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         LocalFilesFolderEntity::class,
         LocalFilesFileEntity::class,
     ],
-    version = 48,
+    version = 49,
     exportSchema = true,
 )
 abstract class RiffleDatabase : RoomDatabase() {
@@ -359,7 +359,7 @@ abstract class RiffleDatabase : RoomDatabase() {
         //    server columns FK-cascade so candidates clear when either Server is removed.
         // 2. `readaloud_dismissals` records sticky user decisions: a per-book "don't ask again"
         //    (BOOK scope, empty ABS ids) and per-candidate dismissals (CANDIDATE scope). Only
-        //    the Storyteller server FK-cascades; the ABS id is a sentinel for book scope.
+        //    the Storyteller service FK-cascades; the ABS id is a sentinel for book scope.
         val MIGRATION_22_23 = object : Migration(22, 23) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL(
@@ -446,7 +446,7 @@ abstract class RiffleDatabase : RoomDatabase() {
         }
 
         // 25 → 26: key Library Items by (serverId, itemId) end-to-end (issue #81, ADR 0025).
-        // Item ids are unique only within a Server — two Storyteller Servers each emit "1", "2", …
+        // Item ids are unique only within a Server — two Storyteller Services each emit "1", "2", …
         // — so itemId-alone keying collides. Recreate `library_items` with a `serverId` column and
         // a composite PK (serverId, id), backfilling serverId from each item's owning library
         // (libraryId → libraries.serverId); an FK to servers cascade-deletes a Server's items.
@@ -1304,6 +1304,16 @@ abstract class RiffleDatabase : RoomDatabase() {
         val MIGRATION_47_48 = object : Migration(47, 48) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("ALTER TABLE annotations ADD COLUMN imageBytes TEXT")
+            }
+        }
+
+        // Rename Storyteller Server → Storyteller Service per ADR 0041: Storyteller is a
+        // Service (a sidecar that enriches items), not a Server or Source. The row stays in
+        // the `sources` table for zero-cost storage — only the enum-encoded discriminator
+        // in the `serverType` column changes from "STORYTELLER" to "STORYTELLER_SERVICE".
+        val MIGRATION_48_49 = object : Migration(48, 49) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("UPDATE sources SET serverType = 'STORYTELLER_SERVICE' WHERE serverType = 'STORYTELLER'")
             }
         }
     }

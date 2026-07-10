@@ -73,7 +73,7 @@ class ReadaloudReviewRepositoryImpl(
         allLinks: List<ReadaloudLinkEntity>,
         candidates: List<ReadaloudCandidateEntity>,
     ): ReadaloudReview {
-        val books = libraryItemDao.listMatchableBySourceType(ServerType.STORYTELLER.name)
+        val books = libraryItemDao.listMatchableBySourceType(ServerType.STORYTELLER_SERVICE.name)
             .filter { it.sourceId == storytellerSourceId }
 
         val linksForServer = allLinks.filter { it.storytellerSourceId == storytellerSourceId }

@@ -401,7 +401,7 @@ class ReadaloudReviewRepositoryTest {
         override suspend fun listMatchableBySourceType(serverType: String): List<MatchableItemRow> {
             val serverIds = when (serverType) {
                 ServerType.AUDIOBOOKSHELF.name -> absServerIds
-                ServerType.STORYTELLER.name -> storytellerServerIds
+                ServerType.STORYTELLER_SERVICE.name -> storytellerServerIds
                 else -> emptySet()
             }
             return items.filter { it.sourceId in serverIds }

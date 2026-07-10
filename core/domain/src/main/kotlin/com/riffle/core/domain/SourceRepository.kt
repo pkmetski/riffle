@@ -38,7 +38,7 @@ interface SourceRepository {
     /**
      * Return the ABS-side stable user identity for this source, fetching it from `/api/me` if
      * it hasn't been persisted yet (legacy rows created before the column existed). Returns
-     * null for Storyteller servers, for unknown source ids, and when the fetch fails (offline,
+     * null for Storyteller services, for unknown source ids, and when the fetch fails (offline,
      * server down, invalid token). A successful fetch is persisted so subsequent calls are
      * a single DB lookup.
      */

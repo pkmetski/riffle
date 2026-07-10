@@ -189,7 +189,7 @@ class ReaderSessionLifecycleTest {
         serverType = ServerType.AUDIOBOOKSHELF,
     )
 
-    private val storytellerServer = activeServer.copy(id = "srv-st", serverType = ServerType.STORYTELLER)
+    private val storytellerServer = activeServer.copy(id = "srv-st", serverType = ServerType.STORYTELLER_SERVICE)
 
     private val ebookItem = LibraryItem(
         id = "item-1",
@@ -286,7 +286,7 @@ class ReaderSessionLifecycleTest {
         val (lifecycle, _) = makeLifecycle(openReconcileTargets = reconcile)
         val outcome = lifecycle.open(params()) as ReaderSessionLifecycle.OpenOutcome.Ready
 
-        assertFalse(outcome.isStorytellerServer)
+        assertFalse(outcome.isStorytellerService)
         assertEquals("item-1", outcome.resolvedAudioBookId)
         assertEquals("srv-abs", outcome.resolvedAudioServerId)
         assertEquals("srv-abs", outcome.resolvedReaderServerId)
@@ -333,13 +333,13 @@ class ReaderSessionLifecycleTest {
     }
 
     @Test
-    fun `open on Storyteller server keeps itemId as audio ids`() = runTest {
+    fun `open on Storyteller service keeps itemId as audio ids`() = runTest {
         val (lifecycle, _) = makeLifecycle(
             sourceRepository = FakeServerRepository(storytellerServer),
         )
         val outcome = lifecycle.open(params()) as ReaderSessionLifecycle.OpenOutcome.Ready
 
-        assertTrue(outcome.isStorytellerServer)
+        assertTrue(outcome.isStorytellerService)
         assertEquals("item-1", outcome.resolvedAudioBookId)
         assertEquals("srv-st", outcome.resolvedAudioServerId)
     }

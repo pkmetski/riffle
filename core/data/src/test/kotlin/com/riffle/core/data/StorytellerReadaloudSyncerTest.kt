@@ -27,7 +27,7 @@ private fun stServer(id: String) = Source(
     isActive = true,
     insecureConnectionAllowed = false,
     username = "user",
-    serverType = ServerType.STORYTELLER,
+    serverType = ServerType.STORYTELLER_SERVICE,
 )
 
 private fun absServer(id: String) = Source(

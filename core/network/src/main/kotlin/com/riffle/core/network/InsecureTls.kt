@@ -10,7 +10,7 @@ import javax.net.ssl.X509TrustManager
  * Returns a copy of this client that accepts self-signed / untrusted TLS certificates.
  *
  * Callers gate this on the per-server `insecureAllowed` flag (self-hosted Audiobookshelf and
- * Storyteller servers commonly run behind self-signed certs on homelab domains). Never call
+ * Storyteller services commonly run behind self-signed certs on homelab domains). Never call
  * unconditionally: the returned client bypasses certificate validation entirely.
  */
 internal fun OkHttpClient.withInsecureTls(): OkHttpClient {

@@ -31,7 +31,7 @@ data class AnnotationsListUiState(
  * Backs the per-Library Annotations tab in the Library Tab Bar — books with at least one live
  * highlight on the active server, scoped to [libraryId] read from `SavedStateHandle`, following the
  * same pattern as `LibraryItemsViewModel`. Follows the active-server derivation shape used by
- * `NavigationDrawerViewModel` (Storyteller servers are excluded there too, but they never carry
+ * `NavigationDrawerViewModel` (Storyteller services are excluded there too, but they never carry
  * annotations to begin with since annotation sync is ABS-server-scoped).
  */
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -47,7 +47,7 @@ class AnnotationsListViewModel @Inject constructor(
 
     private val activeServerId: kotlinx.coroutines.flow.Flow<String?> = sourceRepository.observeAll()
         .map { servers ->
-            servers.firstOrNull { it.isActive && it.serverType != ServerType.STORYTELLER }?.id
+            servers.firstOrNull { it.isActive && it.serverType != ServerType.STORYTELLER_SERVICE }?.id
         }
 
     val state: StateFlow<AnnotationsListUiState> = activeServerId

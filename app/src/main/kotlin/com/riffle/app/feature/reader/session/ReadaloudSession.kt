@@ -234,8 +234,8 @@ class ReadaloudSession @AssistedInject constructor(
     // --- Audio-source identity (bundle key) — set by VM init coroutine via property setters ---
     internal var audioBookId: String = ""
     internal var audioServerId: String = ""
-    // True when the active server is a Storyteller server; drives availability and sync behaviour.
-    internal var isStorytellerServer: Boolean = false
+    // True when the active server is a Storyteller service; drives availability and sync behaviour.
+    internal var isStorytellerService: Boolean = false
     // The reader's active server id, keys readaloud resume position (both seed-on-open and save-on-close).
     internal var readerServerId: String? = null
 
@@ -735,7 +735,7 @@ class ReadaloudSession @AssistedInject constructor(
     fun bind(
         sourceId: String,
         itemId: String,
-        isStorytellerServer: Boolean,
+        isStorytellerService: Boolean,
         audioBookId: String,
         audioServerId: String,
         audioSettingsIdentity: AudioIdentity,
@@ -752,7 +752,7 @@ class ReadaloudSession @AssistedInject constructor(
         // readerSyncServerId is derived from the VM's readerSyncServerId (same server as sourceId
         // for the ebook side). Wire it now so mirrorReadingToAudiobook is non-null immediately.
         this.readerSyncServerId = sourceId
-        this.isStorytellerServer = isStorytellerServer
+        this.isStorytellerService = isStorytellerService
         this.audioBookId = audioBookId
         this.audioServerId = audioServerId
         this.audioSettingsIdentity = audioSettingsIdentity
@@ -767,7 +767,7 @@ class ReadaloudSession @AssistedInject constructor(
         val isMatchedAbs = audioBookId != itemId
         val bundlePresent = readaloudAudioRepository.isAudioAvailable(audioServerId, audioBookId)
         val control = readaloudControlState(
-            isStoryteller = isStorytellerServer,
+            isStoryteller = isStorytellerService,
             isMatchedAbs = isMatchedAbs,
             bundlePresent = bundlePresent,
         )
@@ -1064,7 +1064,7 @@ class ReadaloudSession @AssistedInject constructor(
     }
 
     private fun startStorytellerSync() {
-        if (!isStorytellerServer) return
+        if (!isStorytellerService) return
         // A matched book runs the canonical reconciliation cycle; don't also run the standalone Storyteller loop.
         if (readerSyncProvider() != null) return
         if (storytellerSyncJob?.isActive == true) return

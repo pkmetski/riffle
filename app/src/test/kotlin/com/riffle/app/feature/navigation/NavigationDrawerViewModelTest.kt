@@ -256,12 +256,12 @@ class NavigationDrawerViewModelTest {
     }
 
     @Test
-    fun `allServers excludes Storyteller servers from the switcher`() = runTest {
+    fun `allServers excludes Storyteller services from the switcher`() = runTest {
         // Storyteller is a Settings-only readaloud backend (ADR 0026) — it must never appear in the
         // drawer's Source Switcher, so it can never become the active browsable server.
         serversFlow.value = listOf(
             server("abs-1", active = true),
-            server("st-1", serverType = ServerType.STORYTELLER),
+            server("st-1", serverType = ServerType.STORYTELLER_SERVICE),
         )
 
         val vm = makeVm()

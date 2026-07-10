@@ -1,8 +1,8 @@
 package com.riffle.core.domain
 
 /**
- * The full review surface for one Storyteller Server's readalouds (ADR 0021): the three sections
- * shown under Settings → [Storyteller Server] → Readaloud matches.
+ * The full review surface for one Storyteller Service's readalouds (ADR 0021): the three sections
+ * shown under Settings → [Storyteller Service] → Readaloud matches.
  */
 data class ReadaloudReview(
     val pending: List<PendingReadaloud>,

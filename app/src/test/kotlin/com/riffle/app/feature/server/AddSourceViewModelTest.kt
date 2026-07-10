@@ -350,7 +350,7 @@ class AddSourceViewModelTest {
             isActive = false,
             insecureConnectionAllowed = true,
             username = "plamen",
-            serverType = com.riffle.core.domain.ServerType.STORYTELLER,
+            serverType = com.riffle.core.domain.ServerType.STORYTELLER_SERVICE,
         )
         val repo = RecordingRepository(
             authResult = AuthenticateResult.WrongCredentials("x"),
@@ -620,7 +620,7 @@ class AddSourceViewModelTest {
             isActive = false,
             insecureConnectionAllowed = false,
             username = "plamen",
-            serverType = com.riffle.core.domain.ServerType.STORYTELLER,
+            serverType = com.riffle.core.domain.ServerType.STORYTELLER_SERVICE,
         )
         val repo = RecordingRepository(
             authResult = AuthenticateResult.WrongCredentials("Bad creds"),
@@ -646,7 +646,7 @@ class AddSourceViewModelTest {
             isActive = false,
             insecureConnectionAllowed = true,
             username = "plamen",
-            serverType = com.riffle.core.domain.ServerType.STORYTELLER,
+            serverType = com.riffle.core.domain.ServerType.STORYTELLER_SERVICE,
         )
         val repo = RecordingRepository(
             authResult = AuthenticateResult.WrongCredentials("x"),
