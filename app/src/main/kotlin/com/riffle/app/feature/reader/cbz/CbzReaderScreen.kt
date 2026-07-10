@@ -31,6 +31,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -50,7 +51,9 @@ import coil.compose.SubcomposeAsyncImage
 import coil.request.ImageRequest
 import com.riffle.app.feature.reader.VolumeNavEvent
 import com.riffle.app.feature.reader.rememberImmersiveModeState
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -208,7 +211,11 @@ private fun CbzPage(
     var scale by remember(pageIndex) { mutableStateOf(1f) }
     var offsetX by remember(pageIndex) { mutableStateOf(0f) }
     var offsetY by remember(pageIndex) { mutableStateOf(0f) }
-    val bytes = remember(pageIndex, source) { source.imageBytes(pageIndex) }
+    // Decode the page off the UI thread — comic pages routinely run into multi-MB and
+    // reading + allocating them during composition janks every page turn.
+    val bytes by produceState<ByteArray?>(initialValue = null, key1 = pageIndex, key2 = source) {
+        value = withContext(Dispatchers.IO) { source.imageBytes(pageIndex) }
+    }
     val context = LocalContext.current
 
     Box(
