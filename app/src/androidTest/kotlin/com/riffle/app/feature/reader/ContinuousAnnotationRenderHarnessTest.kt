@@ -162,6 +162,7 @@ class ContinuousAnnotationRenderHarnessTest {
             cfi = cfi,
             textSnippet = targetPhrase,
             chapterHref = "chapter1.xhtml",
+            originFontFamily = "Georgia, serif",
         )
     }
 

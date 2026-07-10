@@ -79,6 +79,7 @@ class BookmarkIndicatorReopenInstrumentedTest {
             spineIndex = 0,
             progression = 0.30,
             bookmarkTitle = "Test",
+            originFontFamily = "Georgia, serif",
         )
 
         // Session B: same chapter, different port.
@@ -107,6 +108,7 @@ class BookmarkIndicatorReopenInstrumentedTest {
             spineIndex = 0,
             progression = 0.30,
             bookmarkTitle = "Test",
+            originFontFamily = "Georgia, serif",
         )
 
         val reopened = store.observeBookmarks("abs1", "item-1").first()
@@ -132,6 +134,7 @@ class BookmarkIndicatorReopenInstrumentedTest {
             spineIndex = 0,
             progression = 0.10,
             bookmarkTitle = "Test",
+            originFontFamily = "Georgia, serif",
         )
 
         val reopened = store.observeBookmarks("abs1", "item-1").first()

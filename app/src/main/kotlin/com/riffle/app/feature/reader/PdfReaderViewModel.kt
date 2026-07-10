@@ -440,6 +440,11 @@ class PdfReaderViewModel @Inject constructor(
                     spineIndex = 0,
                     progression = totalProg,
                     bookmarkTitle = "Page $position",
+                    // PDFs have no HTML DOM to sample a font from — the excerpt in the elided view
+                    // shows "" for a PDF bookmark's textSnippet anyway (issue #484 render is a
+                    // no-op on blank snippets). Plain serif placeholder satisfies the store's
+                    // non-null contract.
+                    originFontFamily = "serif",
                 )
             }
         }

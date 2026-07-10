@@ -624,6 +624,9 @@ internal class ChapterWebView(context: Context) : WebView(context), ChapterWebVi
                     (obj.optDouble("r", 0.0) * dpr).toInt(),
                     (obj.optDouble("b", 0.0) * dpr).toInt(),
                 )
+                // Origin font-family at the selection's start element (issue #484). Stashed for
+                // EpubReaderViewModel.createHighlight/toggleBookmark to persist onto the entity.
+                SelectionFontStash.set(obj.optString("ff", ""))
                 // Figures enclosed by the selection range — captured by SELECTION_SPAN_TRACKER_JS
                 // while the range was still live (raster figures rasterised via canvas to a data
                 // URI; SVG serialised verbatim). Stashed here so EpubReaderViewModel.createHighlight

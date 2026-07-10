@@ -3215,4 +3215,17 @@ internal class RiffleSelectionRectBridge(
         }
         SelectionFiguresStash.set(figures)
     }
+
+    /**
+     * Called from [ReaderWebViewScripts.SELECTION_SPAN_TRACKER_JS] on every selectionchange with
+     * the computed `font-family` at the range's start element (issue #484). Stashed so the
+     * paginated action-mode's Highlight handler ([EpubReaderViewModel.createHighlight]) can
+     * persist it onto the annotation — the paginated path doesn't route through
+     * [ChapterWebView.withSelectionTextAndProgression], which is where continuous mode reads
+     * `ff` out of the stashed JSON payload.
+     */
+    @android.webkit.JavascriptInterface
+    fun onFontFamily(fontFamily: String) {
+        SelectionFontStash.set(fontFamily)
+    }
 }

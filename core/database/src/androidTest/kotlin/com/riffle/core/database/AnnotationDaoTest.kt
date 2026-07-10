@@ -101,6 +101,21 @@ class AnnotationDaoTest {
         assertEquals("the selected text", a.textSnippet)
     }
 
+    // The captured `originFontFamily` (per-annotation, from getComputedStyle at the source
+    // range) round-trips intact; legacy rows without a value read back as null. Pins that the
+    // Annotations View can retrieve the origin's font-family for each excerpt.
+    @Test
+    fun originFontFamily_roundTripsAndDefaultsNull() = runTest {
+        dao.upsert(highlight("h1"))
+        dao.upsert(highlight("h2").copy(originFontFamily = "\"Fira Sans\", sans-serif"))
+
+        val legacy = requireNotNull(dao.getById("h1")) { "h1 must exist" }
+        val captured = requireNotNull(dao.getById("h2")) { "h2 must exist" }
+
+        assertEquals(null, legacy.originFontFamily)
+        assertEquals("\"Fira Sans\", sans-serif", captured.originFontFamily)
+    }
+
     // A CFI *range* string must survive storage byte-for-byte — it is the load-bearing anchor.
     @Test
     fun cfiRange_persistsIntact() = runTest {

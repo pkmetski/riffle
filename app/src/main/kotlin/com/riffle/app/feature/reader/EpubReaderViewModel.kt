@@ -109,6 +109,33 @@ import javax.inject.Inject
 // Debounce window for persisting a playback-speed change, so a granular scrub/slide settles to a
 // single write rather than one per intermediate 0.05× value.
 private const val SPEED_SAVE_DEBOUNCE_MS = 400L
+
+/**
+ * Placeholder `font-family` value written on the entity when a live WebView probe returned
+ * nothing at annotation-create time (rare selection-teardown race, or bookmarks toggled without
+ * a prior selection). Deliberately plain "serif" so the elided view still declares a
+ * font-family — [HighlightsPublicationFactory]'s sanitizer will let this pass through while
+ * anything the DB coughs up beyond the safe allowlist is dropped. Issue #484.
+ */
+private const val FALLBACK_ORIGIN_FONT_FAMILY = "serif"
+
+/** Convenience for the merge-inherit path: returns [Annotation.originFontFamily] on the
+ *  domain projection, or null when the annotation predates issue #484 and hasn't been touched
+ *  by lazy backfill yet. Callers fall back to [FALLBACK_ORIGIN_FONT_FAMILY]. */
+private fun entityFontFamily(annotation: Annotation): String? =
+    annotation.originFontFamily?.takeIf { it.isNotBlank() }
+
+/** Plurality (mode) `originFontFamily` across every annotation in [chapters], skipping blanks.
+ *  Returns null when nothing has a value yet — callers use that to mean "emit no `font-family`
+ *  at all" (falls through to ReadiumCSS default). Ties broken by first-seen order. Issue #484. */
+private fun pluralityOriginFont(chapters: List<ChapterElision>): String? =
+    chapters.asSequence()
+        .flatMap { it.highlights.asSequence() }
+        .mapNotNull { it.originFontFamily?.takeIf { f -> f.isNotBlank() } }
+        .groupingBy { it }
+        .eachCount()
+        .maxByOrNull { it.value }
+        ?.key
 // Characters of textAfter used to build each highlight's context window for position
 // disambiguation in the overlap-detection logic (see createHighlight).
 private const val OVERLAP_CONTEXT_LEN = 60
@@ -407,6 +434,13 @@ class EpubReaderViewModel @Inject constructor(
     // locator update back to a highlight id without rebuilding the Publication. Null in FullBook mode.
     private var highlightsResumeChapters: List<ChapterElision>? = null
     private var highlightsResumeServerId: String? = null
+    // Plurality [AnnotationEntity.originFontFamily] across the currently-loaded elided chapters
+    // (issue #484). Recomputed on every full elided rebuild in [loadHighlightsPublication] and
+    // re-used as the `bookBodyFontFamily` fallback on partial re-renders (post-edit setChapterBytes)
+    // so a chapter refreshed after a recolour keeps the same fallback face as its neighbours. Null
+    // when no annotation on the book has a captured font yet — factory then emits no
+    // font-family and the elided reader falls back to ReadiumCSS default (pre-fix behaviour).
+    private var elidedBodyFontFamily: String? = null
     // Highlights mode only: subscription to annotationStore.observeAnnotations so the elided
     // reader updates live when annotations change (colour/note/delete edits from anywhere, and
     // additions arriving via AnnotationSyncController's remote pull). Kept alive across the
@@ -934,11 +968,19 @@ class EpubReaderViewModel @Inject constructor(
             // label makes clear which book's highlights are shown. Falls back to plain "Annotations"
             // when the local library_items row is gone (orphaned book).
             val realBookTitle = libraryItemDao.getById(sourceId, itemId)?.title
+            // Fallback body-font for excerpts whose annotation has null `originFontFamily`
+            // (legacy rows, W3C sync ingest). Pick the plurality font across the captured set —
+            // it converges to the book's dominant face as the user creates new annotations.
+            // Null (no captured fonts anywhere) → factory emits no `font-family`, falls all the
+            // way back to ReadiumCSS default (pre-issue-484 behaviour). See issue #484 and
+            // [HighlightsPublicationFactory.buildHandle].
+            elidedBodyFontFamily = pluralityOriginFont(chapters)
             val handle = highlightsPublicationFactory.buildHandle(
                 sourceId = sourceId,
                 itemId = itemId,
                 bookTitle = realBookTitle?.let { "$it — Annotations" },
                 chapters = chapters,
+                bookBodyFontFamily = elidedBodyFontFamily,
             )
             highlightsPublicationHandle = handle
             val pub = handle.publication
@@ -1542,6 +1584,11 @@ class EpubReaderViewModel @Inject constructor(
                     .filter { it.imageHref?.let(::figureHrefFilename) in absorbedFilenames }
                     .forEach { annotationStore.delete(it.id) }
             }
+            // Origin font-family at the selection start (issue #484). Non-blank contract on the
+            // store — fall back to the store's plain-serif default when the WebView side happened
+            // to return empty (rare selection-teardown race). The lazy backfill on chapter-load
+            // rewrites approximated values as they get corrected against the real DOM.
+            val originFont = SelectionFontStash.consume().takeIf { it.isNotBlank() } ?: FALLBACK_ORIGIN_FONT_FAMILY
             val created = annotationStore.createHighlight(
                 sourceId = sourceId,
                 itemId = itemId,
@@ -1554,6 +1601,7 @@ class EpubReaderViewModel @Inject constructor(
                 spineIndex = spineIndex,
                 progression = progression,
                 embeddedFigures = embeddedFigures,
+                originFontFamily = originFont,
             )
             openHighlightActions(created.id, anchorRect)
             scheduleAnnotationSync()
@@ -1726,6 +1774,13 @@ class EpubReaderViewModel @Inject constructor(
         // All computations succeeded — commit: delete neighbours, then replace the anchor row.
         toAbsorb.forEach { annotationStore.delete(it.id) }
         annotationStore.delete(id)
+        // The merged row inherits the anchor's origin font-family (issue #484); if the anchor was
+        // a legacy row with none, fall back to the first non-null neighbour, then to the plain
+        // serif default the elided view falls through to anyway.
+        val anchorRow = pool.firstOrNull { it.id == id }
+        val mergedOriginFont = anchorRow?.let { entityFontFamily(it) }
+            ?: toAbsorb.firstNotNullOfOrNull { entityFontFamily(it) }
+            ?: FALLBACK_ORIGIN_FONT_FAMILY
         val created = annotationStore.createHighlight(
             sourceId = sourceId,
             itemId = itemId,
@@ -1738,6 +1793,7 @@ class EpubReaderViewModel @Inject constructor(
             spineIndex = trialAnchor.spineIndex,
             progression = storedProgression,
             embeddedFigures = mergedEmbeddedFigures,
+            originFontFamily = mergedOriginFont,
         )
         logger.d(LogChannel.HighlightMerge) {
             "edit-merge done anchorReplaced=$id newId=${created.id} absorbedText=${toAbsorb.size} " +
@@ -1869,6 +1925,11 @@ class EpubReaderViewModel @Inject constructor(
                 }
                 val cfi = locator.toPayload().ebookLocation
                 val snippet = locator.text.before?.take(200).orEmpty()
+                // Bookmarks have no live text selection to read a range font from — fall back to
+                // the last captured selection font when one is pending, else the plain-serif
+                // placeholder (issue #484). Backfill will refine legacy rows on chapter-load.
+                val bookmarkFont = SelectionFontStash.consume().takeIf { it.isNotBlank() }
+                    ?: FALLBACK_ORIGIN_FONT_FAMILY
                 annotationStore.createBookmark(
                     sourceId = sourceId,
                     itemId = itemId,
@@ -1878,6 +1939,7 @@ class EpubReaderViewModel @Inject constructor(
                     spineIndex = spineIdx,
                     progression = prog,
                     bookmarkTitle = title,
+                    originFontFamily = bookmarkFont,
                 )
                 scheduleAnnotationSync()
             }
@@ -2114,7 +2176,7 @@ class EpubReaderViewModel @Inject constructor(
                             title = titleByHref[chapterHref] ?: chapterHref,
                             highlights = livePeers,
                         )
-                        val freshHtml = highlightsPublicationFactory.renderChapterHtml(chapter)
+                        val freshHtml = highlightsPublicationFactory.renderChapterHtml(chapter, elidedBodyFontFamily)
                         handle.setChapterBytes(chapterHref, freshHtml)
                     }
                 }

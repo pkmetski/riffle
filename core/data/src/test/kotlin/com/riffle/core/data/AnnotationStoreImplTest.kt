@@ -13,6 +13,8 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
+private const val TEST_FONT = "Georgia, serif"
+
 class AnnotationStoreImplTest {
 
     private val rows = MutableStateFlow<List<AnnotationEntity>>(emptyList())
@@ -126,16 +128,59 @@ class AnnotationStoreImplTest {
         val created = store().createHighlight(
             sourceId = "abs1", itemId = "item1", cfi = "epubcfi(/6/4!/4/2,/1:0,/1:10)",
             textSnippet = "t", chapterHref = "c.xhtml", color = "green",
+            originFontFamily = TEST_FONT,
         )
         assertEquals("green", created.color)
         assertEquals("green", dao.getById(created.id)?.color)
+    }
+
+    // Issue #484: `originFontFamily` must round-trip from the createHighlight/createBookmark call
+    // to the persisted entity — non-null contract on the local write path.
+    @Test
+    fun `createHighlight persists originFontFamily to the entity`() = runTest {
+        val created = store().createHighlight(
+            sourceId = "abs1", itemId = "item1", cfi = "epubcfi(/6/4!/4/2,/1:0,/1:10)",
+            textSnippet = "t", chapterHref = "c.xhtml",
+            originFontFamily = "\"Fira Sans\", sans-serif",
+        )
+        assertEquals("\"Fira Sans\", sans-serif", created.let { dao.getById(it.id)?.originFontFamily })
+    }
+
+    @Test
+    fun `createBookmark persists originFontFamily to the entity`() = runTest {
+        val created = store().createBookmark(
+            sourceId = "abs1", itemId = "item1", cfi = "epubcfi(/6/6!/4/1:0)",
+            textSnippet = "", chapterHref = "ch2.xhtml",
+            spineIndex = 0, progression = 0.0, bookmarkTitle = "x",
+            originFontFamily = "\"Merriweather\", serif",
+        )
+        assertEquals("\"Merriweather\", serif", dao.getById(created.id)?.originFontFamily)
+    }
+
+    @Test(expected = IllegalArgumentException::class)
+    fun `createHighlight rejects blank originFontFamily`() = runTest {
+        store().createHighlight(
+            sourceId = "abs1", itemId = "item1", cfi = "epubcfi(/6/4!/4/2,/1:0,/1:10)",
+            textSnippet = "t", chapterHref = "c.xhtml",
+            originFontFamily = "  ",
+        )
+    }
+
+    @Test(expected = IllegalArgumentException::class)
+    fun `createBookmark rejects blank originFontFamily`() = runTest {
+        store().createBookmark(
+            sourceId = "abs1", itemId = "item1", cfi = "epubcfi(/6/6!/4/1:0)",
+            textSnippet = "", chapterHref = "c.xhtml",
+            spineIndex = 0, progression = 0.0, bookmarkTitle = "",
+            originFontFamily = "",
+        )
     }
 
     @Test
     fun `findByItemAndCfi returns the matching live annotation`() = runTest {
         val s = store()
         val cfi = "epubcfi(/6/4!/4/26[s3],/1:0,/1:24)"
-        val created = s.createHighlight("abs1", "item1", cfi, "Section 1.3", "c.xhtml")
+        val created = s.createHighlight("abs1", "item1", cfi, "Section 1.3", "c.xhtml", originFontFamily = TEST_FONT)
         val found = s.findByItemAndCfi("abs1", "item1", cfi)
         assertEquals(created.id, found?.id)
     }
@@ -143,7 +188,7 @@ class AnnotationStoreImplTest {
     @Test
     fun `findByItemAndCfi returns null on CFI mismatch`() = runTest {
         val s = store()
-        s.createHighlight("abs1", "item1", "epubcfi(/6/4!/4/26[s3],/1:0,/1:24)", "t", "c.xhtml")
+        s.createHighlight("abs1", "item1", "epubcfi(/6/4!/4/26[s3],/1:0,/1:24)", "t", "c.xhtml", originFontFamily = TEST_FONT)
         assertNull(s.findByItemAndCfi("abs1", "item1", "epubcfi(/6/4!/4/22,/1:0,/1:5)"))
     }
 
@@ -151,7 +196,7 @@ class AnnotationStoreImplTest {
     fun `findByItemAndCfi scopes by sourceId and itemId`() = runTest {
         val s = store()
         val cfi = "epubcfi(/6/4!/4/2,/1:0,/1:10)"
-        s.createHighlight("abs1", "item1", cfi, "t", "c.xhtml")
+        s.createHighlight("abs1", "item1", cfi, "t", "c.xhtml", originFontFamily = TEST_FONT)
         // Same CFI but different source / item — must NOT match.
         assertNull(s.findByItemAndCfi("abs2", "item1", cfi))
         assertNull(s.findByItemAndCfi("abs1", "item2", cfi))
@@ -161,7 +206,7 @@ class AnnotationStoreImplTest {
     fun `findByItemAndCfi skips tombstoned annotations`() = runTest {
         val s = store()
         val cfi = "epubcfi(/6/4!/4/2,/1:0,/1:10)"
-        val created = s.createHighlight("abs1", "item1", cfi, "t", "c.xhtml")
+        val created = s.createHighlight("abs1", "item1", cfi, "t", "c.xhtml", originFontFamily = TEST_FONT)
         s.delete(created.id) // tombstones the row
         assertNull(s.findByItemAndCfi("abs1", "item1", cfi))
     }
@@ -169,7 +214,7 @@ class AnnotationStoreImplTest {
     @Test
     fun `recolor updates the colour and bumps updatedAt and device`() = runTest {
         val s = store()
-        val created = s.createHighlight("abs1", "item1", "epubcfi(/6/4!/4/2,/1:0,/1:10)", "t", "c.xhtml")
+        val created = s.createHighlight("abs1", "item1", "epubcfi(/6/4!/4/2,/1:0,/1:10)", "t", "c.xhtml", originFontFamily = TEST_FONT)
         now = 5000L
 
         s.recolor(created.id, "blue")
@@ -183,7 +228,7 @@ class AnnotationStoreImplTest {
     @Test
     fun `updateNote adds a note and bumps updatedAt and device`() = runTest {
         val s = store()
-        val created = s.createHighlight("abs1", "item1", "epubcfi(/6/4!/4/2,/1:0,/1:10)", "t", "c.xhtml")
+        val created = s.createHighlight("abs1", "item1", "epubcfi(/6/4!/4/2,/1:0,/1:10)", "t", "c.xhtml", originFontFamily = TEST_FONT)
         now = 7000L
 
         s.updateNote(created.id, "My note")
@@ -197,7 +242,7 @@ class AnnotationStoreImplTest {
     @Test
     fun `updateNote edits an existing note`() = runTest {
         val s = store()
-        val created = s.createHighlight("abs1", "item1", "epubcfi(/6/4!/4/2,/1:0,/1:10)", "t", "c.xhtml")
+        val created = s.createHighlight("abs1", "item1", "epubcfi(/6/4!/4/2,/1:0,/1:10)", "t", "c.xhtml", originFontFamily = TEST_FONT)
         s.updateNote(created.id, "First")
         now = 8000L
 
@@ -210,7 +255,7 @@ class AnnotationStoreImplTest {
     @Test
     fun `updateNote with null clears the note and leaves the highlight intact`() = runTest {
         val s = store()
-        val created = s.createHighlight("abs1", "item1", "epubcfi(/6/4!/4/2,/1:0,/1:10)", "t", "c.xhtml")
+        val created = s.createHighlight("abs1", "item1", "epubcfi(/6/4!/4/2,/1:0,/1:10)", "t", "c.xhtml", originFontFamily = TEST_FONT)
         s.updateNote(created.id, "To be removed")
 
         s.updateNote(created.id, null)
@@ -224,7 +269,7 @@ class AnnotationStoreImplTest {
     @Test
     fun `tombstoned highlights are excluded from observeHighlights (and thus from rendering)`() = runTest {
         val s = store()
-        val created = s.createHighlight("abs1", "item1", "epubcfi(/6/4!/4/2,/1:0,/1:10)", "t", "c.xhtml")
+        val created = s.createHighlight("abs1", "item1", "epubcfi(/6/4!/4/2,/1:0,/1:10)", "t", "c.xhtml", originFontFamily = TEST_FONT)
         assertEquals(1, s.observeHighlights("abs1", "item1").first().size)
 
         s.delete(created.id)
@@ -239,6 +284,7 @@ class AnnotationStoreImplTest {
             cfi = "epubcfi(/6/6!/4/1:0)",
             textSnippet = "", chapterHref = "ch2.xhtml",
             spineIndex = 3, progression = 0.42, bookmarkTitle = "The Egg · 42%",
+            originFontFamily = TEST_FONT,
         )
         assertEquals(3, created.spineIndex)
         assertEquals(0.42, created.progression, 0.001)
@@ -251,6 +297,7 @@ class AnnotationStoreImplTest {
         val created = s.createBookmark(
             "abs1", "item1", "epubcfi(/6/6!/4/1:0)", "", "ch2.xhtml",
             spineIndex = 0, progression = 0.0, bookmarkTitle = "42%",
+            originFontFamily = TEST_FONT,
         )
         s.renameBookmark(created.id, "Where it gets weird")
         val updated = dao.getById(created.id)
@@ -269,12 +316,12 @@ class AnnotationStoreImplTest {
         val s = storeWithUniqueIds()
         // Insert out-of-order
         s.createHighlight("abs1", "item1", "cfi1", "text", "ch3.xhtml",
-            textBefore = "", textAfter = "")
+            textBefore = "", textAfter = "", originFontFamily = TEST_FONT)
             .also { rows.value = rows.value.map { e -> if (e.id == it.id) e.copy(spineIndex = 2, progression = 0.1) else e } }
         s.createBookmark("abs1", "item1", "cfi2", "", "ch1.xhtml",
-            spineIndex = 0, progression = 0.9, bookmarkTitle = "bm1")
+            spineIndex = 0, progression = 0.9, bookmarkTitle = "bm1", originFontFamily = TEST_FONT)
         s.createHighlight("abs1", "item1", "cfi3", "text2", "ch1.xhtml",
-            textBefore = "", textAfter = "")
+            textBefore = "", textAfter = "", originFontFamily = TEST_FONT)
             .also { rows.value = rows.value.map { e -> if (e.id == it.id) e.copy(spineIndex = 0, progression = 0.2) else e } }
 
         val result = storeWithUniqueIds().observeAnnotations("abs1", "item1").first()
@@ -289,7 +336,7 @@ class AnnotationStoreImplTest {
     fun `observeAnnotations excludes tombstoned annotations`() = runTest {
         val s = store()
         val bm = s.createBookmark("abs1", "item1", "cfi", "", "ch.xhtml",
-            spineIndex = 0, progression = 0.0, bookmarkTitle = "x")
+            spineIndex = 0, progression = 0.0, bookmarkTitle = "x", originFontFamily = TEST_FONT)
         s.delete(bm.id)
         val result = s.observeAnnotations("abs1", "item1").first()
         assertTrue(result.isEmpty())
@@ -299,9 +346,9 @@ class AnnotationStoreImplTest {
     fun observeAnnotationsForServerReturnsAllNonDeletedForServer() = runTest {
         var idSeq = 0
         val store = AnnotationStoreImpl(dao, deviceIdStore, clock = { 0L }, idGenerator = { "id-${idSeq++}" })
-        store.createHighlight("srv1", "b1", "epubcfi(/6/4!/4)", "snippet", "ch.html")
-        store.createBookmark("srv1", "b2", "epubcfi(/6/6!/2)", "top", "ch2.html", 1, 0.1, "mark")
-        store.createHighlight("srv2", "b9", "epubcfi(/6/4!/4)", "other source", "ch.html")
+        store.createHighlight("srv1", "b1", "epubcfi(/6/4!/4)", "snippet", "ch.html", originFontFamily = TEST_FONT)
+        store.createBookmark("srv1", "b2", "epubcfi(/6/6!/2)", "top", "ch2.html", 1, 0.1, "mark", originFontFamily = TEST_FONT)
+        store.createHighlight("srv2", "b9", "epubcfi(/6/4!/4)", "other source", "ch.html", originFontFamily = TEST_FONT)
 
         val forSrv1 = store.observeAnnotationsForSource("srv1").first()
         assertEquals(setOf("b1", "b2"), forSrv1.map { it.itemId }.toSet())

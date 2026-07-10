@@ -14,6 +14,8 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
+private const val TEST_FONT = "Georgia, serif"
+
 class AnnotationStoreTest {
 
     private class FakeAnnotationDao : AnnotationDao {
@@ -124,6 +126,7 @@ class AnnotationStoreTest {
             cfi = "epubcfi(/6/4!/4/2,/1:0,/1:10)",
             textSnippet = "selected words",
             chapterHref = "chap01.xhtml",
+            originFontFamily = TEST_FONT,
         )
 
         val saved = dao.getById("uuid-1")!!
@@ -146,7 +149,7 @@ class AnnotationStoreTest {
     fun `createHighlight returns the created annotation`() = runTest {
         val store = buildStore(idGenerator = { "uuid-1" })
 
-        val created = store.createHighlight("abs1", "item1", "epubcfi(x)", "snip", "c.xhtml")
+        val created = store.createHighlight("abs1", "item1", "epubcfi(x)", "snip", "c.xhtml", originFontFamily = TEST_FONT)
 
         assertEquals("uuid-1", created.id)
         assertEquals("epubcfi(x)", created.cfi)
@@ -159,8 +162,8 @@ class AnnotationStoreTest {
         var n = 0
         val store = buildStore(dao = dao, idGenerator = { "id-${n++}" })
 
-        store.createHighlight("abs1", "item1", "epubcfi(a)", "s", "c")
-        store.createHighlight("abs1", "item2", "epubcfi(b)", "s", "c")
+        store.createHighlight("abs1", "item1", "epubcfi(a)", "s", "c", originFontFamily = TEST_FONT)
+        store.createHighlight("abs1", "item2", "epubcfi(b)", "s", "c", originFontFamily = TEST_FONT)
 
         val list = store.observeHighlights("abs1", "item1").first()
         assertEquals(1, list.size)
@@ -171,7 +174,7 @@ class AnnotationStoreTest {
     fun `delete tombstones the annotation so it leaves the live query`() = runTest {
         val dao = FakeAnnotationDao()
         val store = buildStore(dao = dao, deviceId = "device-A", clock = { 7000L }, idGenerator = { "uuid-1" })
-        store.createHighlight("abs1", "item1", "epubcfi(a)", "s", "c")
+        store.createHighlight("abs1", "item1", "epubcfi(a)", "s", "c", originFontFamily = TEST_FONT)
 
         store.delete("uuid-1")
 
@@ -195,6 +198,7 @@ class AnnotationStoreTest {
             spineIndex = 0,
             progression = 0.0,
             bookmarkTitle = "",
+            originFontFamily = TEST_FONT,
         )
 
         val saved = dao.getById("bm-1")!!
@@ -216,7 +220,7 @@ class AnnotationStoreTest {
         val store = buildStore(idGenerator = { "bm-1" })
 
         val created = store.createBookmark("abs1", "item1", "epubcfi(/6/4!/4/2)", "snip", "c.xhtml",
-            spineIndex = 0, progression = 0.0, bookmarkTitle = "")
+            spineIndex = 0, progression = 0.0, bookmarkTitle = "", originFontFamily = TEST_FONT)
 
         assertEquals("bm-1", created.id)
         assertEquals(AnnotationEntity.TYPE_BOOKMARK, created.type)
@@ -228,11 +232,11 @@ class AnnotationStoreTest {
         var n = 0
         val store = buildStore(dao = dao, idGenerator = { "id-${n++}" })
 
-        store.createHighlight("abs1", "item1", "epubcfi(a)", "h", "c")
+        store.createHighlight("abs1", "item1", "epubcfi(a)", "h", "c", originFontFamily = TEST_FONT)
         store.createBookmark("abs1", "item1", "epubcfi(b)", "snip", "c",
-            spineIndex = 0, progression = 0.0, bookmarkTitle = "")
+            spineIndex = 0, progression = 0.0, bookmarkTitle = "", originFontFamily = TEST_FONT)
         store.createBookmark("abs1", "item2", "epubcfi(c)", "snip", "c",
-            spineIndex = 0, progression = 0.0, bookmarkTitle = "")  // different item
+            spineIndex = 0, progression = 0.0, bookmarkTitle = "", originFontFamily = TEST_FONT)  // different item
 
         val list = store.observeBookmarks("abs1", "item1").first()
         assertEquals(1, list.size)
@@ -244,7 +248,7 @@ class AnnotationStoreTest {
         val dao = FakeAnnotationDao()
         val store = buildStore(dao = dao, idGenerator = { "bm-1" })
         store.createBookmark("abs1", "item1", "epubcfi(/6/4!/4/2)", "snip", "c",
-            spineIndex = 0, progression = 0.0, bookmarkTitle = "")
+            spineIndex = 0, progression = 0.0, bookmarkTitle = "", originFontFamily = TEST_FONT)
 
         store.delete("bm-1")
 
@@ -257,9 +261,9 @@ class AnnotationStoreTest {
         var n = 0
         val store = buildStore(dao = dao, idGenerator = { "id-${n++}" })
 
-        store.createHighlight("abs1", "item1", "epubcfi(a)", "h", "c")
+        store.createHighlight("abs1", "item1", "epubcfi(a)", "h", "c", originFontFamily = TEST_FONT)
         store.createBookmark("abs1", "item1", "epubcfi(b)", "snip", "c",
-            spineIndex = 0, progression = 0.0, bookmarkTitle = "")
+            spineIndex = 0, progression = 0.0, bookmarkTitle = "", originFontFamily = TEST_FONT)
 
         val highlights = store.observeHighlights("abs1", "item1").first()
         assertEquals(1, highlights.size)

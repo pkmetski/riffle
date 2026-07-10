@@ -152,6 +152,7 @@ class EpubReaderViewModelEmbeddedFiguresTest {
         spineIndex = 0,
         progression = 0.2,
         embeddedFigures = resolver.resolve(cfiRange),
+        originFontFamily = "Georgia, serif",
     )
 
     @Test

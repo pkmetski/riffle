@@ -68,6 +68,14 @@ data class AnnotationEntity(
      * Publication's container to be loaded.
      */
     val imageBytes: String? = null,
+    /**
+     * Computed `font-family` at the annotation's source range (start-element `getComputedStyle`
+     * result). Captured at creation time so the Annotations View can render each excerpt in the
+     * face the reader saw in the origin, even when the origin came from publisher CSS. Nullable
+     * because rows created before this column existed (and W3C sync ingest) have no value;
+     * lazy-backfilled on source-chapter load in FullBook mode.
+     */
+    val originFontFamily: String? = null,
 ) {
     companion object {
         const val TYPE_HIGHLIGHT = "HIGHLIGHT"
