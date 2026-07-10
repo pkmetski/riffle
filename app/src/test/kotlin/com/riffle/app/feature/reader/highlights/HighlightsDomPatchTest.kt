@@ -85,6 +85,13 @@ class HighlightsDomPatchTest {
             "Remove JS must also drop any figure.riffle-fig block carrying this id (fix 2026-07-10)",
             js.contains("figure.riffle-fig[data-ann-id="),
         )
+        // Multi-chunk annotations (text-figure-text) emit MULTIPLE <span class="riffle-hl"> — a
+        // querySelector would only drop the first chunk's <p>. Remove JS must loop over every
+        // match and drop each host paragraph.
+        assertTrue(
+            "Remove JS must iterate span.riffle-hl matches (querySelectorAll) to catch every chunk",
+            js.contains("querySelectorAll('span.riffle-hl["),
+        )
     }
 
     @Test

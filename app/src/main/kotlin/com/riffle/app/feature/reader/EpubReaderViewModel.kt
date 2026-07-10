@@ -1700,6 +1700,7 @@ class EpubReaderViewModel @Inject constructor(
             mergedEndChar = endChar,
             anchorId = id,
             pool = pool,
+            absorbedHighlights = toAbsorb,
         )
         // All computations succeeded — commit: delete neighbours, then replace the anchor row.
         toAbsorb.forEach { annotationStore.delete(it.id) }
@@ -1740,19 +1741,25 @@ class EpubReaderViewModel @Inject constructor(
         mergedEndChar: Long,
         anchorId: String,
         pool: List<Annotation>,
+        absorbedHighlights: List<Annotation> = emptyList(),
     ): List<com.riffle.core.domain.EmbeddedFigure>? {
         val walked = findEnclosedFiguresInHtml(html, mergedStartChar, mergedEndChar - 1L)
         if (walked.isEmpty()) return null
-        // Index bytes/svg from the anchor's existing embeddedFigures so a re-walk of the merged
-        // range doesn't drop image data that was already captured at create time.
+        // Index bytes/svg from every source row's embeddedFigures so a re-walk of the merged
+        // range doesn't drop image data that was already captured at create time. Absorbed
+        // neighbours count: an absorbed text-figure-text highlight carries the figure's imageBytes
+        // even when the anchor row itself had none.
         val bytesByFilename = mutableMapOf<String, String>()
         val svgByFilename = mutableMapOf<String, String>()
-        val anchor = pool.firstOrNull { it.id == anchorId }
-        anchor?.embeddedFigures.orEmpty().forEach { fig ->
-            val key = fig.href?.let(::figureHrefFilename) ?: return@forEach
-            fig.imageBytes?.takeIf { it.isNotBlank() }?.let { bytesByFilename[key] = it }
-            fig.svg?.takeIf { it.isNotBlank() }?.let { svgByFilename[key] = it }
+        fun indexRow(ann: Annotation?) {
+            ann?.embeddedFigures.orEmpty().forEach { fig ->
+                val key = fig.href?.let(::figureHrefFilename) ?: return@forEach
+                fig.imageBytes?.takeIf { it.isNotBlank() }?.let { bytesByFilename.putIfAbsent(key, it) }
+                fig.svg?.takeIf { it.isNotBlank() }?.let { svgByFilename.putIfAbsent(key, it) }
+            }
         }
+        indexRow(pool.firstOrNull { it.id == anchorId })
+        absorbedHighlights.forEach(::indexRow)
         return walked.mapIndexed { i, fig ->
             val key = fig.href?.let(::figureHrefFilename)
             fig.copy(

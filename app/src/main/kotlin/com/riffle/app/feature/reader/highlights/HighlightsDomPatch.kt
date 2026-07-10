@@ -132,13 +132,17 @@ internal fun buildRemoveJs(annotationId: String): String {
         |  var id = $idJs;
         |  var aside = document.querySelector('aside.riffle-note[data-ann-id="' + id + '"]');
         |  if (aside) aside.remove();
-        |  var hlSpan = document.querySelector('span.riffle-hl[data-ann-id="' + id + '"]');
-        |  if (hlSpan) {
-        |    var p = hlSpan.closest('p');
-        |    if (p) p.remove();
+        |  // Multi-chunk (text-figure-text) annotations emit multiple <span class="riffle-hl">
+        |  // wrappers, one per chunk. Removing only the first <p> would leave the other chunk(s)
+        |  // orphaned in the DOM. Iterate every match and drop each host <p>.
+        |  var spans = document.querySelectorAll('span.riffle-hl[data-ann-id="' + id + '"]');
+        |  var seen = [];
+        |  for (var i = 0; i < spans.length; i++) {
+        |    var p = spans[i].closest('p');
+        |    if (p && seen.indexOf(p) === -1) { seen.push(p); p.remove(); }
         |  }
         |  var figs = document.querySelectorAll('figure.riffle-fig[data-ann-id="' + id + '"]');
-        |  for (var i = 0; i < figs.length; i++) figs[i].remove();
+        |  for (var j = 0; j < figs.length; j++) figs[j].remove();
         |})();
     """.trimMargin()
 }
