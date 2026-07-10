@@ -137,6 +137,14 @@ internal class FakeLibraryItemDao : LibraryItemDao {
             .map { ReadingProgressRow(it.id, it.readingProgress) }
 
     override suspend fun updateReadingProgress(sourceId: String, itemId: String, progress: Float) {}
+    override suspend fun updateLibraryId(sourceId: String, itemId: String, libraryId: String) {
+        val entry = roomData.entries.firstOrNull { e ->
+            e.value.value.any { it.sourceId == sourceId && it.id == itemId }
+        } ?: return
+        entry.value.value = entry.value.value.map {
+            if (it.sourceId == sourceId && it.id == itemId) it.copy(libraryId = libraryId) else it
+        }
+    }
 
     override suspend fun updateFinishedAt(sourceId: String, itemId: String, finishedAt: Long?) {}
 

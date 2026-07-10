@@ -166,6 +166,11 @@ class LocalFilesScanner @Inject constructor(
                     lastSeenAtEpochMs = scanStart,
                 ),
             )
+            // Retag the library_items compatibility hint at the currently-walked folder so
+            // library_items.libraryId always names a still-configured folder library. Without
+            // this, removing the "home" folder of a shared book would leave the row pointing at
+            // a deleted LibraryEntity even though the book still lives in another folder.
+            libraryItemDao.updateLibraryId(sourceId, identity, folderLibraryId)
             return Outcome.REFRESHED
         }
 

@@ -400,6 +400,7 @@ class ReadaloudMatchingServiceTest {
         override suspend fun deleteRemovedFromLibrary(sourceId: String, libraryId: String, serverItemIds: List<String>) = Unit
         override suspend fun updateLastOpenedAt(sourceId: String, itemId: String, timestamp: Long) = Unit
         override suspend fun updateReadingProgress(sourceId: String, itemId: String, progress: Float) = Unit
+        override suspend fun updateLibraryId(sourceId: String, itemId: String, libraryId: String) = Unit
         override suspend fun updateFinishedAt(sourceId: String, itemId: String, finishedAt: Long?) = Unit
         override suspend fun getLastOpenedAtMap(sourceId: String, libraryId: String): List<LastOpenedAtRow> = emptyList()
         override suspend fun getReadingProgressMap(sourceId: String, libraryId: String): List<ReadingProgressRow> = emptyList()

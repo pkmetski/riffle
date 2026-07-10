@@ -92,5 +92,14 @@ class LocalFilesFolderRepository @Inject constructor(
 
     suspend fun folders(sourceId: String): List<LocalFilesFolderEntity> = folderDao.forSource(sourceId)
 
-    private fun newFolderLibraryId(): String = "local:folder:" + UUID.randomUUID().toString()
+    private fun newFolderLibraryId(): String = LOCAL_FILES_LIBRARY_ID_PREFIX + UUID.randomUUID().toString()
+
+    companion object {
+        /**
+         * Prefix for the stable per-folder [LibraryEntity.id]. The full id is
+         * `local:folder:<uuid>`, generated once at folder-add time and stored on both the folder
+         * row and the library row so the two stay linked across SAF re-grants.
+         */
+        const val LOCAL_FILES_LIBRARY_ID_PREFIX: String = "local:folder:"
+    }
 }

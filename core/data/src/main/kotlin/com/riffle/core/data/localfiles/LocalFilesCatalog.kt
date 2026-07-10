@@ -160,7 +160,9 @@ class LocalFilesCatalog(
         val folder = folderDao.getByLibraryId(sourceId, libraryId) ?: return emptyList()
         val ids = fileFolderDao.itemIdsInFolder(sourceId, folder.treeUri)
         if (ids.isEmpty()) return emptyList()
-        return itemDao.listByIds(sourceId, ids)
+        // Chunk to stay under SQLite's SQLITE_MAX_VARIABLE_NUMBER (999 on pre-Android 12 devices).
+        // A single folder library over 999 books would otherwise crash on browse/search.
+        return ids.chunked(BIND_VAR_CHUNK).flatMap { itemDao.listByIds(sourceId, it) }
     }
 
     private suspend fun requireFile(itemId: String, format: BookFormat): LocalFilesFileEntity {
@@ -230,5 +232,11 @@ class LocalFilesCatalog(
         if (from >= size) return emptyList()
         val to = (from + pageSize).coerceAtMost(size)
         return subList(from, to)
+    }
+
+    companion object {
+        // Below SQLITE_MAX_VARIABLE_NUMBER=999 on pre-Android-12 devices, with headroom for the
+        // WHERE clause's non-bind-var operands.
+        private const val BIND_VAR_CHUNK: Int = 900
     }
 }
