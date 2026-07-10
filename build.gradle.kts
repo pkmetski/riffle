@@ -1,4 +1,5 @@
 import com.riffle.buildlogic.RiffleLogTagLint
+import com.riffle.buildlogic.ServerReferenceLint
 
 plugins {
     alias(libs.plugins.android.application) apply false
@@ -160,11 +161,43 @@ tasks.register("checkRendererBridgeUsage") {
     }
 }
 
+// Enforces the Source/Service taxonomy (ADR 0041, #443): fails if a Kotlin file
+// outside the grandfathered allowlist introduces a `\bServer[A-Z]` identifier
+// (e.g. ServerType, ServerRepository) or the bare literal `serverId`. Test source
+// sets and comment-only lines are skipped. Detection logic lives in
+// buildSrc/.../ServerReferenceLint.kt so it's JUnit-testable.
+tasks.register("checkNoServerReferences") {
+    group = "verification"
+    description = "Fails if new `\\bServer[A-Z]` identifiers or bare `serverId` literals leak in outside the Source/Service allowlist."
+    notCompatibleWithConfigurationCache("reading the file system at execution time")
+
+    doLast {
+        val projectRoot = layout.projectDirectory.asFile
+        val offenders = ServerReferenceLint.findServerReferenceOffenders(
+            scanRoots = listOf(
+                layout.projectDirectory.dir("app/src").asFile,
+                layout.projectDirectory.dir("core").asFile,
+            ),
+            projectRoot = projectRoot,
+        )
+        if (offenders.isNotEmpty()) {
+            throw GradleException(
+                "The taxonomy is Source/Service (ADR 0041). Rename `ServerFoo` → `SourceFoo` / `ServiceFoo`\n" +
+                    "and `serverId` → `sourceId` at the introducing site, or (if the file legitimately\n" +
+                    "belongs to Storyteller-adjacent internals / historical migration SQL) add it to\n" +
+                    "ServerReferenceLint.ALLOWLIST with a one-line justification.\n" +
+                    offenders.joinToString("\n") { it.render(projectRoot) },
+            )
+        }
+    }
+}
+
 // Make it part of the normal `./gradlew check` run.
 allprojects {
     tasks.matching { it.name == "check" }.configureEach {
         dependsOn(rootProject.tasks.named("checkRiffleLogTags"))
         dependsOn(rootProject.tasks.named("checkRiffleInfraSeams"))
         dependsOn(rootProject.tasks.named("checkRendererBridgeUsage"))
+        dependsOn(rootProject.tasks.named("checkNoServerReferences"))
     }
 }
