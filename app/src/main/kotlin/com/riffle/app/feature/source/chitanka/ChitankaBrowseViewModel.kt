@@ -7,6 +7,7 @@ import com.riffle.core.catalog.CatalogFacet
 import com.riffle.core.catalog.CatalogItem
 import com.riffle.core.catalog.CatalogRegistry
 import com.riffle.core.catalog.FacetSelection
+import com.riffle.core.catalog.chitanka.ChitankaCatalog
 import com.riffle.core.domain.SourceRepository
 import com.riffle.core.domain.SourceType
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -34,7 +35,7 @@ class ChitankaBrowseViewModel @Inject constructor(
     private val catalogRegistry: CatalogRegistry,
 ) : ViewModel() {
 
-    val rootId: String = savedStateHandle.get<String>("rootId") ?: "books"
+    val rootId: String = savedStateHandle.get<String>("rootId") ?: ChitankaCatalog.ROOT_BOOKS
 
     private val _facets = MutableStateFlow<List<CatalogFacet>>(emptyList())
     val facets: StateFlow<List<CatalogFacet>> = _facets.asStateFlow()
@@ -55,10 +56,11 @@ class ChitankaBrowseViewModel @Inject constructor(
     val query: StateFlow<String> = _query.asStateFlow()
 
     private var searchDebounceJob: Job? = null
+    private var refreshJob: Job? = null
 
     init {
         viewModelScope.launch { loadFacets() }
-        viewModelScope.launch { refresh() }
+        refresh()
     }
 
     private suspend fun activeCatalog() =
@@ -87,7 +89,11 @@ class ChitankaBrowseViewModel @Inject constructor(
     }
 
     fun refresh() {
-        viewModelScope.launch { refreshOnce() }
+        // Cancel any in-flight refresh before starting a new one. Without this a slow response
+        // from a previous facet/query can arrive after a newer one and overwrite _items with
+        // stale results (chip strip shows B, grid shows A's late-arriving items).
+        refreshJob?.cancel()
+        refreshJob = viewModelScope.launch { refreshOnce() }
     }
 
     private suspend fun refreshOnce() {

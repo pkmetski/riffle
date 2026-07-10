@@ -67,6 +67,27 @@ class ChitankaHttpClient(
         }
     }
 
+    /**
+     * Content-Length reported by the origin on a HEAD, or `null` on non-2xx / network error.
+     * Used by the audiobook capability to estimate per-track duration (bytes / assumed bitrate)
+     * since Gramofonche exposes no per-track duration metadata.
+     */
+    suspend fun headContentLength(url: String): Long? = withContext(Dispatchers.IO) {
+        try {
+            val request = Request.Builder()
+                .url(url)
+                .header("User-Agent", userAgent)
+                .head()
+                .build()
+            client.newCall(request).execute().use { r ->
+                if (!r.isSuccessful) return@withContext null
+                r.header("Content-Length")?.toLongOrNull()
+            }
+        } catch (_: IOException) {
+            null
+        }
+    }
+
     companion object {
         val DEFAULT_RETRY_DELAYS_MS: List<Long> = listOf(1_500L, 3_000L)
     }

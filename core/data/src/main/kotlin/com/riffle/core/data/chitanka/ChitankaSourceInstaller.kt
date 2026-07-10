@@ -1,5 +1,6 @@
 package com.riffle.core.data.chitanka
 
+import com.riffle.core.catalog.chitanka.ChitankaCatalog
 import com.riffle.core.database.LibraryDao
 import com.riffle.core.database.LibraryEntity
 import com.riffle.core.database.SourceDao
@@ -33,9 +34,15 @@ class ChitankaSourceInstaller @Inject constructor(
      */
     suspend fun install(): String {
         logger.d(LogChannel.Chitanka) { "chitanka install start" }
-        sourceDao.getByType(SourceType.CHITANKA.name)?.let {
-            logger.d(LogChannel.Chitanka) { "chitanka already installed: ${it.id}" }
-            return it.id
+        sourceDao.getByType(SourceType.CHITANKA.name)?.let { existing ->
+            logger.d(LogChannel.Chitanka) { "chitanka already installed: ${existing.id}" }
+            // Self-heal the two Library rows on every install. Idempotent because upsertAll is
+            // (sourceId, id)-keyed; a re-invocation is a no-op when both rows already exist, but
+            // repairs the drawer if either was removed out-of-band (partial cascade, manual DB
+            // edit, migration edge case). Without this, "reinstall from Add-Source" cannot
+            // recover a Source row with missing libraries.
+            libraryDao.upsertAll(defaultLibraries(existing.id))
+            return existing.id
         }
         val id = UUID.randomUUID().toString()
         val entity = SourceEntity(
@@ -51,29 +58,17 @@ class ChitankaSourceInstaller @Inject constructor(
             type = SourceType.CHITANKA.name,
         )
         val inserted = sourceDao.upsertAsFirstIfNoActive(entity)
-        libraryDao.upsertAll(
-            listOf(
-                LibraryEntity(
-                    id = ROOT_BOOKS,
-                    name = "Chitanka",
-                    mediaType = "book",
-                    sourceId = inserted.id,
-                ),
-                LibraryEntity(
-                    id = ROOT_AUDIOBOOKS,
-                    name = "Gramofonche",
-                    mediaType = "audiobook",
-                    sourceId = inserted.id,
-                ),
-            ),
-        )
+        libraryDao.upsertAll(defaultLibraries(inserted.id))
         logger.d(LogChannel.Chitanka) { "chitanka installed id=${inserted.id}" }
         return inserted.id
     }
 
+    private fun defaultLibraries(sourceId: String): List<LibraryEntity> = listOf(
+        LibraryEntity(id = ChitankaCatalog.ROOT_BOOKS, name = "Chitanka", mediaType = "book", sourceId = sourceId),
+        LibraryEntity(id = ChitankaCatalog.ROOT_AUDIOBOOKS, name = "Gramofonche", mediaType = "audiobook", sourceId = sourceId),
+    )
+
     companion object {
         const val CHITANKA_URL_PLACEHOLDER: String = "https://chitanka.invalid"
-        const val ROOT_BOOKS: String = "books"
-        const val ROOT_AUDIOBOOKS: String = "audiobooks"
     }
 }

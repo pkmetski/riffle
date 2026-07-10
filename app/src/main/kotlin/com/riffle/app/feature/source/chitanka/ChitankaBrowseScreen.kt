@@ -55,6 +55,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import coil.compose.AsyncImage
 import com.riffle.app.ui.TabletContentWidthContainer
 import com.riffle.core.catalog.CatalogItem
+import com.riffle.core.catalog.chitanka.ChitankaCatalog
 
 /**
  * Chitanka Source browse screen. Dedicated route ("chitanka_browse/{rootId}/{name}")
@@ -83,7 +84,7 @@ fun ChitankaBrowseScreen(
     var searchOpen by remember { mutableStateOf(false) }
     var detailItem by remember { mutableStateOf<CatalogItem?>(null) }
 
-    val isAudioRoot = viewModel.rootId == "audiobooks"
+    val isAudioRoot = viewModel.rootId == ChitankaCatalog.ROOT_AUDIOBOOKS
 
     Scaffold(
         topBar = {

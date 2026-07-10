@@ -78,6 +78,13 @@ class ChitankaCatalog(
     }
 
     private suspend fun booksFacets(): List<CatalogFacet> {
+        // Session-scoped in-memory cache: the /books/category page changes weekly at most and
+        // ChitankaBrowseViewModel calls listFacets() every screen entry. Without this, repeated
+        // drawer→Books navigation re-scrapes ~40 categories over the network on every entry —
+        // and if the request fails (runCatching-swallowed in the ViewModel), the chip strip
+        // goes empty even though the previous entry populated it. ADR 0042 spec'd a 7-day
+        // Room cache; this is the strictly-smaller in-process interim.
+        cachedBooksFacets?.let { return it }
         val html = http.getString("${ChitankaScraper.BASE}/books/category")
         val entries = ChitankaScraper.parseCategories(html)
         val cats = entries.mapIndexed { idx, e ->
@@ -89,8 +96,12 @@ class ChitankaCatalog(
             )
         }
         // Editorial "collections" per ADR 0042: two extra chips at the tail.
-        return cats + EDITORIAL_COLLECTIONS
+        val result = cats + EDITORIAL_COLLECTIONS
+        cachedBooksFacets = result
+        return result
     }
+
+    @Volatile private var cachedBooksFacets: List<CatalogFacet>? = null
 
     // ---- Browse -------------------------------------------------------------
 
@@ -348,15 +359,33 @@ class ChitankaCatalog(
     override suspend fun getTracks(itemId: String): List<CatalogAudioTrack> {
         val (root, detail) = resolveItem(itemId) ?: return emptyList()
         if (root != ROOT_AUDIOBOOKS) return emptyList()
+        // Gramofonche exposes no per-track duration metadata, so estimate from Content-Length
+        // via HEAD + the site's uniform ~128 kbps MP3 encoding. This isn't perfectly accurate
+        // but gives non-zero startOffsetSec / durationSec so the audiobook player's global
+        // timeline math (AudiobookTracks#trackAt / #absoluteSec) resolves the correct track
+        // across a multi-file book — with zeros, the resolver collapses every playback position
+        // onto the last track's timeline and multi-track resume/scrubbing/chapter-nav break.
+        val durationsSec = coroutineScope {
+            detail.downloads.map { d ->
+                async(Dispatchers.IO) {
+                    val bytes = http.headContentLength(d.url) ?: return@async 0.0
+                    bytes.toDouble() / GRAMOFONCHE_ASSUMED_BYTES_PER_SEC
+                }
+            }.awaitAll()
+        }
+        var cumulativeStart = 0.0
         return detail.downloads.mapIndexed { idx, d ->
-            CatalogAudioTrack(
+            val dur = durationsSec[idx]
+            val track = CatalogAudioTrack(
                 ino = d.url,
                 index = idx,
-                startOffsetSec = 0.0,
-                durationSec = 0.0,
+                startOffsetSec = cumulativeStart,
+                durationSec = dur,
                 contentUrl = d.url,
                 mimeType = "audio/mpeg",
             )
+            cumulativeStart += dur
+            track
         }
     }
 
@@ -428,6 +457,15 @@ class ChitankaCatalog(
             CatalogFacet(key = "collection:school", label = "Училищна програма", sortOrder = 10_000),
             CatalogFacet(key = "collection:university", label = "Университет", sortOrder = 10_001),
         )
+
+        /**
+         * Gramofonche's MP3 encoding is broadly ~128 kbps. Duration is estimated as
+         * `Content-Length / 16 000` when the origin does not report duration directly. Off by ~5%
+         * for the occasional 96 kbps or 160 kbps title — small enough that the timeline resolver
+         * still picks the correct track, and the player corrects the absolute position from
+         * ExoPlayer's real duration once decoded.
+         */
+        internal const val GRAMOFONCHE_ASSUMED_BYTES_PER_SEC: Long = 16_000L
 
         internal val AUDIO_FACETS: List<CatalogFacet> = listOf(
             CatalogFacet(key = "prikazki", label = "Приказки", sortOrder = 1),

@@ -61,9 +61,9 @@ class ChitankaSourceInstallerTest {
         val libs = libraryDao.forSource(sourceId).sortedBy { it.id }
         assertEquals(2, libs.size)
         val (audio, books) = libs
-        assertEquals(ChitankaSourceInstaller.ROOT_AUDIOBOOKS, audio.id)
+        assertEquals(com.riffle.core.catalog.chitanka.ChitankaCatalog.ROOT_AUDIOBOOKS, audio.id)
         assertEquals("audiobook", audio.mediaType)
-        assertEquals(ChitankaSourceInstaller.ROOT_BOOKS, books.id)
+        assertEquals(com.riffle.core.catalog.chitanka.ChitankaCatalog.ROOT_BOOKS, books.id)
         assertEquals("book", books.mediaType)
     }
 

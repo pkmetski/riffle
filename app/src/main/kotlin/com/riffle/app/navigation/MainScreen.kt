@@ -180,7 +180,16 @@ fun MainScreen(
                     onNavigateToLibrary = { libraryId, libraryName ->
                         viewModel.setActiveLibrary(libraryId)
                         val encoded = URLEncoder.encode(libraryName, "UTF-8")
-                        navController.navigateAsRoot("library_items/$libraryId/$encoded")
+                        // Mirror the drawer's dispatch (see onLibrarySelected above): Chitanka
+                        // libraries route to the dedicated browse screen because the standard
+                        // library_items screen assumes a Room-mirrored catalogue which Chitanka
+                        // does not populate (ADR 0042). Without this, cold-launching into HOME
+                        // with an active Chitanka source materialises its browse results into
+                        // library_items and shows them in the ABS-shaped grid.
+                        val isChitanka = activeServer?.type == com.riffle.core.domain.SourceType.CHITANKA
+                        val route = if (isChitanka) "chitanka_browse/$libraryId/$encoded"
+                        else "library_items/$libraryId/$encoded"
+                        navController.navigateAsRoot(route)
                     },
                 )
             }
