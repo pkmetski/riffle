@@ -123,4 +123,62 @@ class ChitankaCatalogTest {
         assertTrue(ChitankaCatalog.CYRILLIC_LETTERS.contains("А"))
         assertTrue(ChitankaCatalog.CYRILLIC_LETTERS.contains("Я"))
     }
+
+    // region browseUrlFor — URL dispatch by (rootId, facet, page). If any of these regress,
+    // browse() silently hits the wrong endpoint and returns empty results, which is the exact
+    // "chip filter looks fine but shows no books" failure mode the browse UI would present.
+
+    @Test fun `books null facet dispatches to new arrivals`() {
+        val url = catalog().browseUrlFor("books", null, 0)
+        assertEquals("https://chitanka.info/new", url)
+    }
+
+    @Test fun `books category facet builds books-category url`() {
+        val url = catalog().browseUrlFor("books", FacetSelection("cat:antichna-literatura"), 0)
+        assertEquals("https://chitanka.info/books/category/antichna-literatura", url)
+    }
+
+    @Test fun `books collection school dispatches to collections url`() {
+        val url = catalog().browseUrlFor("books", FacetSelection("collection:school"), 0)
+        assertEquals("https://chitanka.info/collections/school", url)
+    }
+
+    @Test fun `books collection university dispatches to collections url`() {
+        val url = catalog().browseUrlFor("books", FacetSelection("collection:university"), 0)
+        assertEquals("https://chitanka.info/collections/university", url)
+    }
+
+    @Test fun `audiobooks null facet defaults to prikazki`() {
+        val url = catalog().browseUrlFor("audiobooks", null, 0)
+        assertEquals("https://gramofonche.chitanka.info/prikazki/", url)
+    }
+
+    @Test fun `audiobooks pesnicki facet dispatches to pesnicki`() {
+        val url = catalog().browseUrlFor("audiobooks", FacetSelection("pesnicki"), 0)
+        assertEquals("https://gramofonche.chitanka.info/pesnicki/", url)
+    }
+
+    @Test fun `audiobooks zagolemi facet dispatches to zagolemi`() {
+        val url = catalog().browseUrlFor("audiobooks", FacetSelection("zagolemi"), 0)
+        assertEquals("https://gramofonche.chitanka.info/zagolemi/", url)
+    }
+
+    @Test fun `page 1 appends page 2 query parameter`() {
+        // Chitanka pages are 1-indexed on the site; our page is 0-indexed. page=1 → ?page=2.
+        val url = catalog().browseUrlFor("books", null, 1)
+        assertEquals("https://chitanka.info/new?page=2", url)
+    }
+
+    @Test fun `unknown root returns null`() {
+        assertNull(catalog().browseUrlFor("nonesuch", null, 0))
+    }
+
+    @Test fun `books unknown facet key falls back to new arrivals`() {
+        // A facet key the catalog doesn't recognise should not silently 404 on a bogus URL —
+        // fall back to the safe default surface.
+        val url = catalog().browseUrlFor("books", FacetSelection("garbage:xyz"), 0)
+        assertEquals("https://chitanka.info/new", url)
+    }
+
+    // endregion
 }

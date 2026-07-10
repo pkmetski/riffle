@@ -111,7 +111,7 @@ class ChitankaCatalog(
         return listing.items.map { it.toCatalogItem(rootId) }.take(pageSize)
     }
 
-    private fun browseUrlFor(rootId: String, facet: FacetSelection?, page: Int): String? {
+    internal fun browseUrlFor(rootId: String, facet: FacetSelection?, page: Int): String? {
         val pageQuery = if (page > 0) "?page=${page + 1}" else ""
         return when (rootId) {
             ROOT_BOOKS -> {
