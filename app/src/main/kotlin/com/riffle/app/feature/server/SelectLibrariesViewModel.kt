@@ -56,7 +56,7 @@ class SelectLibrariesViewModel @Inject constructor(
             val hidden = p.libraries.map { it.id }.toSet() - selectedIds
             when (val r = repository.commit(p, hidden)) {
                 is CommitSourceResult.Success -> _navigateHome.send(Unit)
-                is CommitSourceResult.Failure -> errorMessage = "Couldn't save server: ${r.cause.message}"
+                is CommitSourceResult.Failure -> errorMessage = "Couldn't save source: ${r.cause.message}"
             }
             isSubmitting = false
         }

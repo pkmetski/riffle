@@ -912,7 +912,7 @@ class EpubReaderViewModel @Inject constructor(
         if (source == ReaderSource.Highlights) {
             val sourceId = navServerId ?: sourceRepository.getActive()?.id
             if (sourceId == null) {
-                _state.value = ReaderState.Error("No active server")
+                _state.value = ReaderState.Error("No active source")
                 return
             }
             val rows = annotationDao.getForItem(sourceId, itemId)

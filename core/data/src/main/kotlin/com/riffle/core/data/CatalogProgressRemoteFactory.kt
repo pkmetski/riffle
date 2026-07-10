@@ -19,7 +19,7 @@ import javax.inject.Inject
  * the local store always holds canonical Locator JSON. When the EPUB isn't cached the factory
  * returns null and the remote defers (leaves the row dirty) rather than writing a raw CFI.
  */
-class AbsProgressRemoteFactory @Inject constructor(
+class CatalogProgressRemoteFactory @Inject constructor(
     private val catalogRegistry: CatalogRegistry,
     private val libraryItemDao: LibraryItemDao,
     private val translatorFactory: EbookCfiTranslatorFactory,

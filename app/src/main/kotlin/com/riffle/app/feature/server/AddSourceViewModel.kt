@@ -255,7 +255,7 @@ class AddSourceViewModel @Inject constructor(
                                 _navigateHome.send(Unit)
                             }
                             is CommitSourceResult.Failure ->
-                                error = "Couldn't save server: ${c.cause.message}"
+                                error = "Couldn't save source: ${c.cause.message}"
                         }
                     } else {
                         _navigateToSelectLibraries.send(pending)

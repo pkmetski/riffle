@@ -74,7 +74,7 @@ fun SelectLibrariesScreen(
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
                     Text(
-                        "This server doesn't expose any book libraries.",
+                        "This source doesn't expose any book libraries.",
                         style = MaterialTheme.typography.bodyLarge,
                     )
                     Button(onClick = onNavigateBack) { Text("Go back") }

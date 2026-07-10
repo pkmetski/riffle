@@ -16,7 +16,7 @@ import org.junit.Test
  * polluted with a foreign format. A null translator defers (returns null) — row stays dirty for
  * the next sweep once the EPUB is cached.
  */
-class AbsProgressRemoteTest {
+class CatalogProgressRemoteFactoryTest {
 
     private class FakePeer(
         var progress: CatalogProgress? = null,

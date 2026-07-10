@@ -55,7 +55,7 @@ fun HomeScreen(
                 verticalArrangement = Arrangement.Center,
             ) {
                 Text(
-                    text = "Unable to connect to server",
+                    text = "Unable to connect to source",
                     style = MaterialTheme.typography.bodyLarge,
                 )
                 Spacer(modifier = Modifier.height(16.dp))
