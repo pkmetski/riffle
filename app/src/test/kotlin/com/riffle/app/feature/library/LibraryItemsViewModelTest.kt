@@ -1214,7 +1214,7 @@ class LibraryItemsViewModelTest {
         com.riffle.core.catalog.PlaylistsCapability {
         override val sourceType = com.riffle.core.domain.SourceType.ABS
         override suspend fun listRoots() = emptyList<com.riffle.core.catalog.CatalogRoot>()
-        override suspend fun browse(rootId: String, sort: com.riffle.core.catalog.SortKey, page: Int, pageSize: Int) = emptyList<com.riffle.core.catalog.CatalogItem>()
+        override suspend fun browse(rootId: String, sort: com.riffle.core.catalog.SortKey, page: Int, pageSize: Int, facet: com.riffle.core.catalog.FacetSelection?) = emptyList<com.riffle.core.catalog.CatalogItem>()
         override suspend fun search(rootId: String, query: String, page: Int, pageSize: Int) = emptyList<com.riffle.core.catalog.CatalogItem>()
         override suspend fun getItem(itemId: String) = null
         override suspend fun fetchFile(itemId: String, format: com.riffle.core.catalog.BookFormat) = error("unused")
@@ -1233,7 +1233,7 @@ class LibraryItemsViewModelTest {
         com.riffle.core.catalog.SeriesCapability {
         override val sourceType = com.riffle.core.domain.SourceType.LOCAL_FILES
         override suspend fun listRoots() = emptyList<com.riffle.core.catalog.CatalogRoot>()
-        override suspend fun browse(rootId: String, sort: com.riffle.core.catalog.SortKey, page: Int, pageSize: Int) = emptyList<com.riffle.core.catalog.CatalogItem>()
+        override suspend fun browse(rootId: String, sort: com.riffle.core.catalog.SortKey, page: Int, pageSize: Int, facet: com.riffle.core.catalog.FacetSelection?) = emptyList<com.riffle.core.catalog.CatalogItem>()
         override suspend fun search(rootId: String, query: String, page: Int, pageSize: Int) = emptyList<com.riffle.core.catalog.CatalogItem>()
         override suspend fun getItem(itemId: String) = null
         override suspend fun fetchFile(itemId: String, format: com.riffle.core.catalog.BookFormat) = error("unused")

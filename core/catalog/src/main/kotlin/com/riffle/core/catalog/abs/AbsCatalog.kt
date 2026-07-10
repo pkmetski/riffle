@@ -5,6 +5,7 @@ import com.riffle.core.catalog.BookFormat
 import com.riffle.core.catalog.BookmarksCapability
 import com.riffle.core.catalog.Catalog
 import com.riffle.core.catalog.CatalogAudioFingerprint
+import com.riffle.core.catalog.FacetSelection
 import com.riffle.core.catalog.CatalogAudioTrack
 import com.riffle.core.catalog.CatalogAudiobookChapter
 import com.riffle.core.catalog.CatalogAudiobookStream
@@ -98,7 +99,9 @@ class AbsCatalog(
         sort: SortKey,
         page: Int,
         pageSize: Int,
+        facet: FacetSelection?,
     ): List<CatalogItem> {
+        // ABS exposes no server-side facets today — `facet` is ignored.
         val items = libraryApi.getLibraryItems(config.baseUrl, rootId, config.token, config.insecureAllowed)
             .unwrap()
             .map { it.toCatalogItem() }

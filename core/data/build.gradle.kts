@@ -40,6 +40,7 @@ dependencies {
     implementation(project(":core:network"))
     implementation(project(":core:database"))
     implementation(project(":core:catalog"))
+    implementation(project(":core:catalog-chitanka"))
     implementation(project(":core:logging"))
     implementation(libs.androidx.work.runtime.ktx)
     implementation(libs.androidx.lifecycle.process)

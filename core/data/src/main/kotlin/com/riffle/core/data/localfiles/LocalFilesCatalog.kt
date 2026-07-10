@@ -9,6 +9,7 @@ import com.riffle.core.catalog.CatalogItem
 import com.riffle.core.catalog.CatalogRoot
 import com.riffle.core.catalog.CatalogSeries
 import com.riffle.core.catalog.CatalogSeriesEntry
+import com.riffle.core.catalog.FacetSelection
 import com.riffle.core.catalog.OfflineBrowseCapability
 import com.riffle.core.catalog.SeriesCapability
 import com.riffle.core.catalog.SeriesEntryOrdering
@@ -55,7 +56,9 @@ class LocalFilesCatalog(
         sort: SortKey,
         page: Int,
         pageSize: Int,
+        facet: FacetSelection?,
     ): List<CatalogItem> {
+        // LocalFiles has no server-side facets — `facet` is ignored.
         val items = itemDao.listByLibraryId(sourceId, rootId)
             .map { it.toCatalogItem() }
             .sortedWith(comparatorFor(sort))

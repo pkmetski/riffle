@@ -5,6 +5,7 @@ import com.riffle.core.catalog.CatalogRegistry
 import com.riffle.core.catalog.DefaultCatalogRegistry
 import com.riffle.core.domain.SourceType
 import com.riffle.core.catalog.abs.AbsCatalogFactory
+import com.riffle.core.catalog.chitanka.ChitankaCatalogFactory
 import com.riffle.core.data.localfiles.LocalFilesCatalogFactory
 import com.riffle.core.database.LibraryItemDao
 import com.riffle.core.database.LocalFilesFileDao
@@ -18,6 +19,7 @@ import com.riffle.core.network.AbsLibraryApi
 import com.riffle.core.network.AbsPlaybackApi
 import com.riffle.core.network.AbsServerInfoApi
 import com.riffle.core.network.AbsSessionApi
+import okhttp3.OkHttpClient
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -73,6 +75,17 @@ object CatalogModule {
         tokenStorage = tokenStorage,
         deviceIdStore = deviceIdStore,
         clock = clock,
+    )
+
+    @Provides
+    @Singleton
+    @IntoMap
+    @SourceTypeKey(SourceType.CHITANKA)
+    fun provideChitankaCatalogFactory(
+        okHttpClient: OkHttpClient,
+    ): CatalogFactory = ChitankaCatalogFactory(
+        okHttpClient = okHttpClient,
+        userAgent = "Riffle/dev (Android) chitanka-source",
     )
 
     @Provides

@@ -23,12 +23,27 @@ interface Catalog {
      */
     suspend fun listRoots(): List<CatalogRoot>
 
-    /** Items in [rootId]. Paged; [page] is 0-indexed. */
+    /**
+     * Server-side facets exposed by [rootId] — a Source-local filter dimension (e.g. genre category
+     * on Chitanka). The Library screen renders these as a chip strip; selecting one issues a
+     * [browse] with the chosen [FacetSelection]. Sources without server-side facets return the
+     * default empty list — no strip renders. See ADR 0042.
+     */
+    suspend fun listFacets(rootId: String): List<CatalogFacet> = emptyList()
+
+    /**
+     * Items in [rootId]. Paged; [page] is 0-indexed.
+     *
+     * [facet] narrows results to a facet returned by [listFacets] on the same [rootId]. Sources
+     * that expose no server-side facets ignore this parameter. Unrecognised keys are ignored; the
+     * caller only ever passes keys it just retrieved from [listFacets], so mismatch is a bug.
+     */
     suspend fun browse(
         rootId: String,
         sort: SortKey = SortKey.TITLE,
         page: Int = 0,
         pageSize: Int = 50,
+        facet: FacetSelection? = null,
     ): List<CatalogItem>
 
     /** Free-text search within [rootId]. Paged like [browse]. */
