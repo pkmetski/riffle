@@ -55,13 +55,13 @@ class ChitankaSourceInstaller @Inject constructor(
             listOf(
                 LibraryEntity(
                     id = ROOT_BOOKS,
-                    name = "Books",
+                    name = "Chitanka",
                     mediaType = "book",
                     sourceId = inserted.id,
                 ),
                 LibraryEntity(
                     id = ROOT_AUDIOBOOKS,
-                    name = "Audiobooks",
+                    name = "Gramofonche",
                     mediaType = "audiobook",
                     sourceId = inserted.id,
                 ),

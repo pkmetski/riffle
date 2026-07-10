@@ -57,8 +57,8 @@ class ChitankaCatalog(
     // ---- Roots --------------------------------------------------------------
 
     override suspend fun listRoots(): List<CatalogRoot> = listOf(
-        CatalogRoot(id = ROOT_BOOKS, name = "Books", mediaType = "book"),
-        CatalogRoot(id = ROOT_AUDIOBOOKS, name = "Audiobooks", mediaType = "audiobook"),
+        CatalogRoot(id = ROOT_BOOKS, name = "Chitanka", mediaType = "book"),
+        CatalogRoot(id = ROOT_AUDIOBOOKS, name = "gramofonche", mediaType = "audiobook"),
     )
 
     // ---- Facets -------------------------------------------------------------
