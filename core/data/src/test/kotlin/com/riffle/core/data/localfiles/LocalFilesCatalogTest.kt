@@ -159,7 +159,7 @@ class LocalFilesCatalogTest {
     }
 
     @Test
-    fun `listSeries aggregates library_items by seriesName and lists items alphabetically`() = runTest {
+    fun `listSeries aggregates library_items by seriesName and falls back to title when sequence is missing`() = runTest {
         val items = FakeLibraryItemDao()
         items.emit(
             sourceId,
@@ -180,6 +180,32 @@ class LocalFilesCatalogTest {
 
         val inCycle = catalog.listItemsInSeries(libraryId, "Cycle")
         assertEquals(listOf("Book A", "Book B"), inCycle.map { it.title })
+    }
+
+    // Regression pin: if this ever flips back to alphabetical-by-title, "Book 10" will land
+    // before "Book 2" again. LocalFilesCatalog MUST delegate to SeriesEntryOrdering; the shared
+    // ordering interprets the persisted seriesSequence as numeric when possible.
+    @Test
+    fun `listSeries orders entries by numeric seriesSequence, not by title`() = runTest {
+        val items = FakeLibraryItemDao()
+        items.emit(
+            sourceId,
+            listOf(
+                epubItem("ten", "Book Ten", seriesName = "Cycle", seriesSequence = "10"),
+                epubItem("two", "Book Two", seriesName = "Cycle", seriesSequence = "2"),
+                epubItem("one", "Book One", seriesName = "Cycle", seriesSequence = "1"),
+            ),
+        )
+        val catalog = catalog(items = items)
+
+        val cycle = catalog.listSeries(libraryId).first()
+        assertEquals(listOf("one", "two", "ten"), cycle.items.map { it.itemId })
+        assertEquals(listOf("1", "2", "10"), cycle.items.map { it.sequence })
+
+        assertEquals(
+            listOf("Book One", "Book Two", "Book Ten"),
+            catalog.listItemsInSeries(libraryId, "Cycle").map { it.title },
+        )
     }
 
     @Test
@@ -239,6 +265,7 @@ class LocalFilesCatalogTest {
         author: String = "",
         addedAt: Long? = null,
         seriesName: String? = null,
+        seriesSequence: String? = null,
     ): LibraryItemEntity = LibraryItemEntity(
         sourceId = sourceId,
         id = id,
@@ -250,6 +277,7 @@ class LocalFilesCatalogTest {
         ebookFormat = "epub",
         addedAt = addedAt,
         seriesName = seriesName,
+        seriesSequence = seriesSequence,
     )
 
     // endregion

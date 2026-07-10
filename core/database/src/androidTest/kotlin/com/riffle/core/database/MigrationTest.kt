@@ -1968,6 +1968,7 @@ class MigrationTest {
             RiffleDatabase.MIGRATION_46_47,
             RiffleDatabase.MIGRATION_47_48,
             RiffleDatabase.MIGRATION_48_49,
+            RiffleDatabase.MIGRATION_49_50,
         )
 
         db.query("SELECT url, username, serverType, absUserId, type FROM sources WHERE id = 's1'").use { cursor ->
@@ -2151,6 +2152,46 @@ class MigrationTest {
         db.query("SELECT serverType FROM sources WHERE id = 'abs-1'").use { c ->
             assertTrue(c.moveToFirst())
             assertEquals("AUDIOBOOKSHELF", c.getString(0))
+        }
+        db.close()
+    }
+
+    // Adds `seriesSequence` (TEXT NULL) to library_items so LocalFiles can persist the EPUB3
+    // group-position / calibre:series_index value and the shared SeriesEntryOrdering can sort
+    // "Book 10" after "Book 2". Existing rows must keep every other column intact and default
+    // the new column to NULL.
+    @Test
+    fun migration49To50_addsSeriesSequenceToLibraryItems() {
+        helper.createDatabase(TEST_DB, 49).apply {
+            execSQL(
+                "INSERT INTO sources (id, url, isActive, insecureConnectionAllowed, username, serverType, absUserId, type) " +
+                    "VALUES ('s1', 'http://localhost', 1, 0, 'test', 'LOCAL_FILES', NULL, 'LOCAL_FILES')"
+            )
+            execSQL(
+                "INSERT INTO libraries (id, name, mediaType, sourceId, isUnsupported) " +
+                    "VALUES ('lib1', 'Local', 'book', 's1', 0)"
+            )
+            execSQL(
+                """
+                INSERT INTO library_items (
+                    sourceId, id, libraryId, title, author, coverUrl, readingProgress,
+                    ebookFileIno, ebookFormat, hasAudio, audioDurationSec, description,
+                    seriesName, publishedYear, genres, publisher, language, lastOpenedAt,
+                    addedAt, isbn, asin, finishedAt
+                ) VALUES ('s1','i1','lib1','Book Two','Author',NULL,0.0,
+                          NULL,'epub',0,0.0,NULL,
+                          'The Series','2020','','Publisher','en',NULL,
+                          NULL,NULL,NULL,NULL)
+                """.trimIndent()
+            )
+            close()
+        }
+        val db = helper.runMigrationsAndValidate(TEST_DB, 50, true, RiffleDatabase.MIGRATION_49_50)
+        db.query("SELECT id, seriesName, seriesSequence FROM library_items WHERE id = 'i1'").use { c ->
+            assertTrue(c.moveToFirst())
+            assertEquals("i1", c.getString(0))
+            assertEquals("The Series", c.getString(1))
+            assertTrue("new seriesSequence column defaults to NULL", c.isNull(2))
         }
         db.close()
     }

@@ -263,12 +263,19 @@ class LibraryRepositoryImpl @Inject constructor(
             )
         }
         val seriesItemEntities = series.flatMap { s ->
+            // Nulls have to sort AFTER every numeric entry within the same series — `series_items`
+            // is ORDER BY sequenceOrder ASC in SeriesDao, so a plain (index+1) fallback lets an
+            // unnumbered book land between "2" and "10". Shift nulls past the max numeric so they
+            // trail (preserving their input order, which the Catalog already delivers per
+            // SeriesEntryOrdering).
+            val maxNumeric = s.items.mapNotNull { it.sequence?.toFloatOrNull() }.maxOrNull() ?: 0f
             s.items.mapIndexed { index, entry ->
                 SeriesItemEntity(
                     seriesId = s.id,
                     sourceId = source.id,
                     itemId = entry.itemId,
-                    sequenceOrder = entry.sequence?.toFloatOrNull() ?: (index + 1).toFloat(),
+                    sequenceOrder = entry.sequence?.toFloatOrNull()
+                        ?: (maxNumeric + 1f + index.toFloat()),
                 )
             }
         }

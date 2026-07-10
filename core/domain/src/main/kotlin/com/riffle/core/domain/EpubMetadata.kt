@@ -16,6 +16,13 @@ data class EpubMetadata(
     val isbn: String?,
     val asin: String?,
     val seriesName: String?,
+    /**
+     * Position within [seriesName], verbatim from OPF (EPUB3 `group-position` refinement of the
+     * `belongs-to-collection` entry, or the EPUB2 `<meta name="calibre:series_index">` value).
+     * Null when the EPUB carries a series name but no position — the shared series comparator
+     * falls back to title in that case.
+     */
+    val seriesSequence: String?,
     val genres: List<String>,
     val coverBytes: ByteArray?,
     val coverExtension: String?,
@@ -26,7 +33,8 @@ data class EpubMetadata(
         return title == other.title && author == other.author && language == other.language &&
             publisher == other.publisher && publishedYear == other.publishedYear &&
             description == other.description && isbn == other.isbn && asin == other.asin &&
-            seriesName == other.seriesName && genres == other.genres &&
+            seriesName == other.seriesName && seriesSequence == other.seriesSequence &&
+            genres == other.genres &&
             coverExtension == other.coverExtension &&
             (coverBytes?.contentEquals(other.coverBytes) ?: (other.coverBytes == null))
     }
@@ -41,6 +49,7 @@ data class EpubMetadata(
         r = 31 * r + (isbn?.hashCode() ?: 0)
         r = 31 * r + (asin?.hashCode() ?: 0)
         r = 31 * r + (seriesName?.hashCode() ?: 0)
+        r = 31 * r + (seriesSequence?.hashCode() ?: 0)
         r = 31 * r + genres.hashCode()
         r = 31 * r + (coverBytes?.contentHashCode() ?: 0)
         r = 31 * r + (coverExtension?.hashCode() ?: 0)
@@ -51,7 +60,8 @@ data class EpubMetadata(
         val EMPTY = EpubMetadata(
             title = null, author = null, language = null, publisher = null,
             publishedYear = null, description = null, isbn = null, asin = null,
-            seriesName = null, genres = emptyList(), coverBytes = null, coverExtension = null,
+            seriesName = null, seriesSequence = null, genres = emptyList(),
+            coverBytes = null, coverExtension = null,
         )
     }
 }

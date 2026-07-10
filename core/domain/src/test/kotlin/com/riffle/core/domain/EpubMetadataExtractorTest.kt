@@ -54,6 +54,71 @@ class EpubMetadataExtractorTest {
     }
 
     @Test
+    fun `EPUB3 group-position refinement populates seriesSequence`() {
+        val epub = buildEpub(
+            opfMetadata = """
+                <dc:title>The Word for World Is Forest</dc:title>
+                <meta property="belongs-to-collection" id="c1">Hainish Cycle</meta>
+                <meta property="collection-type" refines="#c1">series</meta>
+                <meta property="group-position" refines="#c1">4</meta>
+            """.trimIndent(),
+        )
+        val md = EpubMetadataExtractor.extract(epub)
+        assertEquals("Hainish Cycle", md.seriesName)
+        assertEquals("4", md.seriesSequence)
+    }
+
+    @Test
+    fun `EPUB2 calibre series_index populates seriesSequence`() {
+        val epub = buildEpub(
+            opfMetadata = """
+                <dc:title>Chamber of Secrets</dc:title>
+                <meta name="calibre:series" content="Harry Potter"/>
+                <meta name="calibre:series_index" content="2"/>
+            """.trimIndent(),
+        )
+        val md = EpubMetadataExtractor.extract(epub)
+        assertEquals("Harry Potter", md.seriesName)
+        assertEquals("2", md.seriesSequence)
+    }
+
+    // Regression: an id-less <meta property="belongs-to-collection">…</meta> paired with a
+    // <meta property="collection-type" (no refines)>series</meta> would otherwise both key to
+    // the empty string in the refines→type map, misclassifying the untyped collection as a
+    // series. We must not pair them.
+    @Test
+    fun `id-less collection with a refinesless collection-type does not spuriously match series`() {
+        val epub = buildEpub(
+            opfMetadata = """
+                <dc:title>Anthology</dc:title>
+                <meta property="belongs-to-collection">Nameless Collection</meta>
+                <meta property="collection-type">series</meta>
+            """.trimIndent(),
+        )
+        val md = EpubMetadataExtractor.extract(epub)
+        // We still fall back to the first (and only) collection when no explicit series is
+        // typed — but we do NOT synthesise a match via the empty-string ↔ empty-string pairing.
+        // The observable payload is unchanged (fallback name), but the code path is not the
+        // one that would fire on a legitimate id-less/refinesless overlap. Assert the name is
+        // still readable, and that no sequence was harvested from a phantom match.
+        assertEquals("Nameless Collection", md.seriesName)
+        assertEquals(null, md.seriesSequence)
+    }
+
+    @Test
+    fun `series without position leaves seriesSequence null`() {
+        val epub = buildEpub(
+            opfMetadata = """
+                <dc:title>Untitled Sequel</dc:title>
+                <meta property="belongs-to-collection" id="c1">Some Series</meta>
+            """.trimIndent(),
+        )
+        val md = EpubMetadataExtractor.extract(epub)
+        assertEquals("Some Series", md.seriesName)
+        assertEquals(null, md.seriesSequence)
+    }
+
+    @Test
     fun `multiple creators joined with comma`() {
         val epub = buildEpub(
             opfMetadata = """

@@ -44,7 +44,7 @@ object EpubMetadataExtractor {
         val description = metadataEl?.firstDcText("description")
         val (isbn, asin) = metadataEl?.let { parseIdentifiers(it) } ?: (null to null)
         val genres = metadataEl?.collectDcText("subject") ?: emptyList()
-        val seriesName = metadataEl?.let { parseSeries(it) }
+        val (seriesName, seriesSequence) = metadataEl?.let { parseSeries(it) } ?: (null to null)
 
         // Cover: EPUB3 (manifest item with properties="cover-image") preferred, EPUB2 (<meta
         // name="cover" content="X"> → manifest[id=X]) fallback.
@@ -60,6 +60,7 @@ object EpubMetadataExtractor {
             isbn = isbn,
             asin = asin,
             seriesName = seriesName,
+            seriesSequence = seriesSequence,
             genres = genres,
             coverBytes = coverBytes,
             coverExtension = coverExt,
@@ -86,27 +87,50 @@ object EpubMetadataExtractor {
         return isbn to asin
     }
 
-    private fun parseSeries(metadata: Element): String? {
+    private fun parseSeries(metadata: Element): Pair<String?, String?> {
         // EPUB3: <meta property="belongs-to-collection" refines="…">Name</meta> with a sibling
-        // <meta property="collection-type" refines="#id">series</meta>. We accept any collection
-        // if we can't confirm the type, since many publishers omit collection-type entirely.
+        // <meta property="collection-type" refines="#id">series</meta> (optional) and a sibling
+        // <meta property="group-position" refines="#id">N</meta> (also optional) that carries the
+        // book's position within the collection. We accept any collection when collection-type is
+        // missing, since many publishers omit it entirely.
         val collections = metadata.elementsByTag("meta")
             .filter { it.getAttribute("property") == "belongs-to-collection" }
         if (collections.isEmpty()) {
-            // EPUB2 (calibre): <meta name="calibre:series" content="Name">.
-            val calibre = metadata.elementsByTag("meta")
+            // EPUB2 (calibre): <meta name="calibre:series" content="Name">, with the position in
+            // a sibling <meta name="calibre:series_index" content="N">.
+            val name = metadata.elementsByTag("meta")
                 .firstOrNull { it.getAttribute("name") == "calibre:series" }
-            return calibre?.getAttribute("content")?.ifEmpty { null }
+                ?.getAttribute("content")?.ifEmpty { null }
+                ?: return null to null
+            val sequence = metadata.elementsByTag("meta")
+                .firstOrNull { it.getAttribute("name") == "calibre:series_index" }
+                ?.getAttribute("content")?.trim()?.ifEmpty { null }
+            return name to sequence
         }
-        // Prefer a collection whose sibling collection-type is 'series'.
-        val idToType = metadata.elementsByTag("meta")
+        // Prefer a collection whose sibling collection-type is 'series'. Guard against the
+        // degenerate "no id / empty refines" case — a `collection-type` meta with no refines
+        // would otherwise pair with an id-less collection via the "" ↔ "" match and misclassify
+        // any nameless collection as a series.
+        val refinesToType = metadata.elementsByTag("meta")
             .filter { it.getAttribute("property") == "collection-type" }
-            .associate { it.getAttribute("refines").removePrefix("#") to it.textContent.trim().lowercase() }
+            .mapNotNull { m ->
+                val refinesId = m.getAttribute("refines").removePrefix("#").ifEmpty { null } ?: return@mapNotNull null
+                refinesId to m.textContent.trim().lowercase()
+            }
+            .toMap()
         val series = collections.firstOrNull { c ->
-            val id = c.getAttribute("id")
-            idToType[id] == "series"
+            val id = c.getAttribute("id").ifEmpty { null } ?: return@firstOrNull false
+            refinesToType[id] == "series"
         } ?: collections.first()
-        return series.textContent?.trim()?.ifEmpty { null }
+        val name = series.textContent?.trim()?.ifEmpty { null } ?: return null to null
+        val seriesId = series.getAttribute("id").ifEmpty { null }
+        val sequence = seriesId?.let { id ->
+            metadata.elementsByTag("meta").firstOrNull {
+                it.getAttribute("property") == "group-position" &&
+                    it.getAttribute("refines").removePrefix("#") == id
+            }
+        }?.textContent?.trim()?.ifEmpty { null }
+        return name to sequence
     }
 
     private fun findCover(

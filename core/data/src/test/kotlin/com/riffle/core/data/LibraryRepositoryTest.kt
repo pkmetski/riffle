@@ -868,6 +868,44 @@ class LibraryRepositoryTest {
         assertTrue(result is LibraryRefreshResult.NetworkError)
     }
 
+    // Regression: LocalFilesCatalog delivers items in SeriesEntryOrdering order but only some
+    // carry a numeric sequence. If refreshSeries fell back to (index+1) for null sequences, a
+    // book with real sequence "10" would land at sequenceOrder=10.0 while an unnumbered book
+    // at list index 2 would land at 3.0 — reordering "10" AFTER the unnumbered one when the
+    // DAO sorts by sequenceOrder ASC. The fix shifts null-sequence rows past the max numeric.
+    @Test
+    fun `refreshSeries places null-sequence entries after every numeric entry in the same series`() = runTest {
+        fakeServerRepository.activeServer = activeServer()
+        fakeTokenStorage.tokens["s1"] = "tok"
+        val dao = FakeSeriesDao()
+        val api = object : AbsLibraryApi {
+            override suspend fun getLibraries(baseUrl: String, token: String, insecureAllowed: Boolean): NetworkResult<List<NetworkLibrary>> =
+                NetworkResult.Success(emptyList())
+            override suspend fun getLibraryItems(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean): NetworkResult<List<NetworkLibraryItem>> =
+                NetworkResult.Success(emptyList())
+            override suspend fun getSeries(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean): NetworkResult<List<NetworkSeries>> =
+                NetworkResult.Success(listOf(
+                    NetworkSeries("ser-1", "lib-1", "Cycle", listOf(
+                        NetworkSeriesItem("num-1", "lib-1", "One", "A", "1", 0f, EbookFormat.Epub),
+                        NetworkSeriesItem("num-10", "lib-1", "Ten", "A", "10", 0f, EbookFormat.Epub),
+                        NetworkSeriesItem("no-seq", "lib-1", "Extra", "A", null, 0f, EbookFormat.Epub),
+                    )),
+                ))
+            override suspend fun getCollections(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean): NetworkResult<List<NetworkCollection>> =
+                NetworkResult.Success(emptyList())
+        }
+        makeRepo(seriesDao = dao, api = api).refreshSeries("lib-1")
+        val ordered = dao.upsertedItems.sortedBy { it.sequenceOrder }
+        assertEquals(listOf("num-1", "num-10", "no-seq"), ordered.map { it.itemId })
+        // Extra's sequenceOrder must exceed 10 so it doesn't slot between "1" and "10" — the
+        // whole point of the fix. (Old (index+1) fallback would have given it 3.0.)
+        val extra = dao.upsertedItems.first { it.itemId == "no-seq" }
+        assertTrue(
+            "null-sequence sequenceOrder (${extra.sequenceOrder}) must exceed the max numeric (10)",
+            extra.sequenceOrder > 10f,
+        )
+    }
+
     @Test
     fun `refreshSeries uses first book updatedAt as cache-buster in cover URL`() = runTest {
         fakeServerRepository.activeServer = activeServer()
