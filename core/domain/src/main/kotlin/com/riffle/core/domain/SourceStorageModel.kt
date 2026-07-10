@@ -13,6 +13,9 @@ package com.riffle.core.domain
 fun SourceType.hasCacheTier(): Boolean = when (this) {
     SourceType.ABS -> true
     SourceType.LOCAL_FILES -> false
+    // Chitanka has a remote catalog, but the on-open cache is a tacit page cache rather than
+    // an explicit user-visible tier — no separate "Cached" section in the Downloads Screen.
+    SourceType.CHITANKA -> false
 }
 
 /**

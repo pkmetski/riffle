@@ -133,6 +133,7 @@ dependencies {
     // Three-peer reader sync constructs SyncRemotes over the position APIs directly (issue #38).
     implementation(project(":core:network"))
     implementation(project(":core:catalog"))
+    implementation(project(":core:catalog-chitanka"))
 
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.webkit)

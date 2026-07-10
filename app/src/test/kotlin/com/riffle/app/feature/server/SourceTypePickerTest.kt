@@ -13,11 +13,20 @@ import org.junit.Test
 class SourceTypePickerTest {
 
     @Test
-    fun `cards are ordered ABS first then LocalFiles`() {
+    fun `cards are ordered ABS first then LocalFiles then Chitanka`() {
         val cards = sourceTypeCards()
-        assertEquals(2, cards.size)
+        assertEquals(3, cards.size)
         assertEquals(SourceTypeChoice.Audiobookshelf, cards[0].type)
         assertEquals(SourceTypeChoice.LocalFiles, cards[1].type)
+        assertEquals(SourceTypeChoice.Chitanka, cards[2].type)
+    }
+
+    @Test
+    fun `Chitanka card is enabled and not coming soon`() {
+        val ch = sourceTypeCards().first { it.type is SourceTypeChoice.Chitanka }
+        assertTrue(ch.enabled)
+        assertFalse(ch.comingSoon)
+        assertEquals("Chitanka", ch.title)
     }
 
     @Test

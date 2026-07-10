@@ -29,10 +29,11 @@ class SourceTypePickerScreenTest {
     val composeRule = createAndroidComposeRule<ComponentActivity>()
 
     @Test
-    fun bothCards_areDisplayed() {
+    fun allCards_areDisplayed() {
         setContent()
         composeRule.onNodeWithText("Audiobookshelf").assertIsDisplayed()
         composeRule.onNodeWithText("Local files").assertIsDisplayed()
+        composeRule.onNodeWithText("Chitanka").assertIsDisplayed()
     }
 
     @Test
@@ -51,9 +52,18 @@ class SourceTypePickerScreenTest {
         assertEquals(1, lfCount)
     }
 
+    @Test
+    fun chitankaCard_click_invokesCallback() {
+        var chCount = 0
+        setContent(onPickChitanka = { chCount++ })
+        composeRule.onNodeWithTag("SourceTypeCard.Chitanka").assertHasClickAction().performClick()
+        assertEquals(1, chCount)
+    }
+
     private fun setContent(
         onPickAbs: () -> Unit = {},
         onPickLocal: () -> Unit = {},
+        onPickChitanka: () -> Unit = {},
     ) {
         composeRule.setContent {
             val wsc = calculateWindowSizeClass(composeRule.activity)
@@ -62,6 +72,7 @@ class SourceTypePickerScreenTest {
                 onNavigateBack = {},
                 onPickAudiobookshelf = onPickAbs,
                 onPickLocalFiles = onPickLocal,
+                onPickChitanka = onPickChitanka,
             )
         }
     }

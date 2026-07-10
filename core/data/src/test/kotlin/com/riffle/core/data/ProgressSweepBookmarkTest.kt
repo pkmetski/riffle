@@ -9,6 +9,7 @@ import com.riffle.core.catalog.CatalogItem
 import com.riffle.core.catalog.CatalogRegistry
 import com.riffle.core.catalog.CatalogRoot
 import com.riffle.core.catalog.SortKey
+import com.riffle.core.catalog.FacetSelection
 import com.riffle.core.domain.PositionSnapshot
 import com.riffle.core.domain.ProgressReconciler
 import com.riffle.core.domain.ProgressRemote
@@ -61,7 +62,7 @@ class ProgressSweepBookmarkTest {
     private object DummyCatalog : Catalog {
         override val sourceType = SourceType.ABS
         override suspend fun listRoots() = emptyList<CatalogRoot>()
-        override suspend fun browse(rootId: String, sort: SortKey, page: Int, pageSize: Int) = emptyList<CatalogItem>()
+        override suspend fun browse(rootId: String, sort: SortKey, page: Int, pageSize: Int, facet: FacetSelection?) = emptyList<CatalogItem>()
         override suspend fun search(rootId: String, query: String, page: Int, pageSize: Int) = emptyList<CatalogItem>()
         override suspend fun getItem(itemId: String): CatalogItem? = null
         override suspend fun fetchFile(itemId: String, format: BookFormat): CatalogFileHandle = throw UnsupportedOperationException()

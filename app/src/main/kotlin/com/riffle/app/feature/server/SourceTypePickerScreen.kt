@@ -15,6 +15,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Cloud
 import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.MenuBook
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -40,6 +41,7 @@ import com.riffle.app.ui.TabletContentWidthContainer
 sealed interface SourceTypeChoice {
     data object Audiobookshelf : SourceTypeChoice
     data object LocalFiles : SourceTypeChoice
+    data object Chitanka : SourceTypeChoice
 }
 
 data class SourceTypeCard(
@@ -65,16 +67,25 @@ internal fun sourceTypeCards(): List<SourceTypeCard> = listOf(
         enabled = true,
         comingSoon = false,
     ),
+    SourceTypeCard(
+        type = SourceTypeChoice.Chitanka,
+        title = "Chitanka",
+        subtitle = "Browse Bulgarian ebooks (chitanka.info) and audiobooks (gramofonche).",
+        enabled = true,
+        comingSoon = false,
+    ),
 )
 
 private fun iconFor(type: SourceTypeChoice): ImageVector = when (type) {
     SourceTypeChoice.Audiobookshelf -> Icons.Default.Cloud
     SourceTypeChoice.LocalFiles -> Icons.Default.Folder
+    SourceTypeChoice.Chitanka -> Icons.Default.MenuBook
 }
 
 private fun testTagFor(type: SourceTypeChoice): String = when (type) {
     SourceTypeChoice.Audiobookshelf -> "SourceTypeCard.Audiobookshelf"
     SourceTypeChoice.LocalFiles -> "SourceTypeCard.LocalFiles"
+    SourceTypeChoice.Chitanka -> "SourceTypeCard.Chitanka"
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -84,6 +95,7 @@ fun SourceTypePickerScreen(
     onNavigateBack: () -> Unit,
     onPickAudiobookshelf: () -> Unit,
     onPickLocalFiles: () -> Unit,
+    onPickChitanka: () -> Unit,
 ) {
     Scaffold(
         topBar = {
@@ -111,6 +123,7 @@ fun SourceTypePickerScreen(
                         onClick = when (card.type) {
                             SourceTypeChoice.Audiobookshelf -> onPickAudiobookshelf
                             SourceTypeChoice.LocalFiles -> onPickLocalFiles
+                            SourceTypeChoice.Chitanka -> onPickChitanka
                         },
                     )
                 }

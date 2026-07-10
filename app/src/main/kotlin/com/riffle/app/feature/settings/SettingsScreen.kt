@@ -113,6 +113,7 @@ fun SettingsScreen(
     val localFilesSource by viewModel.localFilesSource.collectAsState()
     val localFilesFolders by viewModel.localFilesFolders.collectAsState()
     val localFilesFolderHealth by viewModel.localFilesFolderHealth.collectAsState()
+    val chitankaSource by viewModel.chitankaSource.collectAsState()
     val serverVersions by viewModel.serverVersions.collectAsState()
     val libraryItemsByServer by viewModel.libraryUiItemsByServer.collectAsState()
     val readaloudSummaries by viewModel.readaloudSummaries.collectAsState()
@@ -216,6 +217,11 @@ fun SettingsScreen(
                         },
                         onRemoveFolder = { treeUri -> viewModel.removeLocalFolder(treeUri) },
                         onRemoveSource = { viewModel.removeLocalFilesSource() },
+                    )
+                }
+                chitankaSource?.let { _ ->
+                    ChitankaSourceRow(
+                        onRemove = { viewModel.removeChitankaSource() },
                     )
                 }
                 Button(
@@ -1176,3 +1182,38 @@ private fun LocalFilesSourceRow(
     }
 }
 
+/**
+ * Minimal sources-list row for the singleton Chitanka Source. No sub-UI (unlike
+ * [LocalFilesSourceRow] which manages folders) — Chitanka is zero-config; the only
+ * user-facing controls are "browse" (via the drawer) and "remove" (this row).
+ */
+@Composable
+private fun ChitankaSourceRow(
+    onRemove: () -> Unit,
+) {
+    var pendingRemoval by remember { mutableStateOf(false) }
+    ListItem(
+        modifier = Modifier.testTag("ChitankaSourceRow"),
+        headlineContent = { Text("Chitanka") },
+        supportingContent = { Text("chitanka.info · gramofonche.chitanka.info") },
+        trailingContent = {
+            TextButton(onClick = { pendingRemoval = true }) { Text("Remove") }
+        },
+    )
+    if (pendingRemoval) {
+        AlertDialog(
+            onDismissRequest = { pendingRemoval = false },
+            title = { Text("Remove Chitanka source?") },
+            text = { Text("You can add it back at any time. Downloaded content from this source will be removed.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    onRemove()
+                    pendingRemoval = false
+                }) { Text("Remove") }
+            },
+            dismissButton = {
+                TextButton(onClick = { pendingRemoval = false }) { Text("Cancel") }
+            },
+        )
+    }
+}

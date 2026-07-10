@@ -47,6 +47,7 @@ class SourceStorageModelTest {
             val expected = when (type) {
                 SourceType.ABS -> true
                 SourceType.LOCAL_FILES -> false
+                SourceType.CHITANKA -> false
             }
             assertEquals("SourceType.$type disagrees with hasCacheTier()", expected, type.hasCacheTier())
         }

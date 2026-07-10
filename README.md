@@ -1,6 +1,6 @@
 # Riffle
 
-An Android ebook reader and audiobook player for [Audiobookshelf](https://www.audiobookshelf.org/) and [Storyteller](https://storyteller-platform.gitlab.io/storyteller) self-hosted servers.
+An Android ebook reader and audiobook player for [Audiobookshelf](https://www.audiobookshelf.org/) and [Storyteller](https://storyteller-platform.gitlab.io/storyteller) self-hosted servers, [chitanka.info](https://chitanka.info) / [gramofonche.chitanka.info](https://gramofonche.chitanka.info), and EPUB/PDF files on your device.
 
 [![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/pkmetski)
 
@@ -102,8 +102,13 @@ Riffle lets you browse your library, read EPUB and PDF files, listen to audioboo
 - Storyteller **Readaloud** in the reader: synced sentence highlight, auto-page-turn, "Play from here," and background playback
 - Listening and reading positions stay in sync for matched books — pick up in the reader exactly where you stopped listening, and vice versa
 
+### Sources
+- **Audiobookshelf** and **Storyteller** self-hosted servers — full read, listen, and sync
+- **Chitanka** (chitanka.info + gramofonche.chitanka.info) — anonymous, zero-config access to the Bulgarian public catalogue of EPUB ebooks and MP3 audiobooks; browsable by category, genre, and series
+- **Local files** — import EPUB and PDF files from device storage and read them alongside your server libraries, with the same reader, highlights, and progress tracking
+
 ### Library
-- Multi-server support with library visibility controls
+- Multi-source support with per-library visibility controls
 - Browse by Home, To Read, Series, Collections, and All Books
 - Cover grid with book details
 - Read/unread and "To Read" toggles
@@ -125,7 +130,7 @@ Riffle lets you browse your library, read EPUB and PDF files, listen to audioboo
 ## Requirements
 
 - Android 7.0 (API 24) or higher
-- A running [Audiobookshelf](https://www.audiobookshelf.org/) or [Storyteller](https://storyteller-platform.gitlab.io/storyteller) server
+- One or more of: a running [Audiobookshelf](https://www.audiobookshelf.org/) or [Storyteller](https://storyteller-platform.gitlab.io/storyteller) server, internet access for Chitanka, or EPUB/PDF files on your device
 
 ## Distribution
 
