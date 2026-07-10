@@ -139,7 +139,7 @@ fun DebugLogScreen(
                     modifier = Modifier.fillMaxSize(),
                     reverseLayout = true,
                 ) {
-                    items(filtered, key = { it.hashCode() }) { entry ->
+                    items(filtered, key = { it.seq }) { entry ->
                         LogRow(entry)
                         HorizontalDivider(color = Color(0x11000000))
                     }

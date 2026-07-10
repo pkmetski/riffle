@@ -54,6 +54,25 @@ class InMemoryLogBufferTest {
     }
 
     @Test
+    fun `append stamps monotonically increasing unique seq even for identical entries`() {
+        // Regression: DebugLogScreen's LazyColumn crashed with "Key was already used" when
+        // two log entries hashed to the same value (same timestamp/level/channel/message).
+        // Every appended entry must carry a distinct seq so it can serve as the LazyColumn key.
+        val buf = InMemoryLogBuffer()
+        val duplicate = InMemoryLogBuffer.Entry(
+            timestampMs = 42L,
+            level = InMemoryLogBuffer.Entry.Level.D,
+            channel = LogChannel.ReaderDecoration,
+            message = "same",
+            throwableSummary = null,
+        )
+        repeat(3) { buf.append(duplicate) }
+        val seqs = buf.snapshot().map { it.seq }
+        assertEquals(3, seqs.toSet().size)
+        assertEquals(seqs.sorted(), seqs)
+    }
+
+    @Test
     fun `snapshot is independent of subsequent appends`() {
         val buf = InMemoryLogBuffer()
         buf.append(entry(1))

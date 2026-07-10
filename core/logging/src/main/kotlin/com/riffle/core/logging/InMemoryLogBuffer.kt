@@ -3,6 +3,7 @@ package com.riffle.core.logging
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import java.util.concurrent.atomic.AtomicLong
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -24,20 +25,27 @@ class InMemoryLogBuffer @Inject constructor() {
         val channel: LogChannel,
         val message: String,
         val throwableSummary: String?,
+        // Monotonic, process-wide unique id assigned in [append]. Callers may leave it at 0L;
+        // the buffer stamps a fresh value on insertion so consumers (e.g. the debug log
+        // LazyColumn) always have a stable, unique key even when two entries share
+        // timestamp/level/channel/message.
+        val seq: Long = 0L,
     ) {
         enum class Level { D, W, E }
     }
 
     private val lock = Any()
     private val ring = ArrayDeque<Entry>(CAPACITY)
+    private val seqGen = AtomicLong(0L)
     private val _entries = MutableStateFlow<List<Entry>>(emptyList())
 
     val entries: StateFlow<List<Entry>> = _entries.asStateFlow()
 
     fun append(entry: Entry) {
+        val stamped = entry.copy(seq = seqGen.incrementAndGet())
         val snapshot: List<Entry> = synchronized(lock) {
             if (ring.size >= CAPACITY) ring.removeFirst()
-            ring.addLast(entry)
+            ring.addLast(stamped)
             ring.toList()
         }
         _entries.value = snapshot
