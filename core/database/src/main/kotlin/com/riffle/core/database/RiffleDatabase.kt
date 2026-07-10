@@ -30,7 +30,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         LocalFilesFolderEntity::class,
         LocalFilesFileEntity::class,
     ],
-    version = 49,
+    version = 50,
     exportSchema = true,
 )
 abstract class RiffleDatabase : RoomDatabase() {
@@ -1314,6 +1314,17 @@ abstract class RiffleDatabase : RoomDatabase() {
         val MIGRATION_48_49 = object : Migration(48, 49) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("UPDATE sources SET serverType = 'STORYTELLER_SERVICE' WHERE serverType = 'STORYTELLER'")
+            }
+        }
+
+        // Position within a series ("1", "2.5", …), populated by the LocalFiles scanner from EPUB3
+        // `group-position` / Calibre `series_index`. Nullable — books outside a series and books
+        // whose OPF omits a position both carry NULL, and the shared SeriesEntryOrdering falls
+        // back to title. No backfill: pre-existing rows will pick up a value the next time their
+        // Source refreshes them.
+        val MIGRATION_49_50 = object : Migration(49, 50) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `library_items` ADD COLUMN `seriesSequence` TEXT")
             }
         }
     }

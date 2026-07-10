@@ -222,6 +222,7 @@ class LocalFilesScanner @Inject constructor(
         ebookFormat = EBOOK_FORMAT_EPUB,
         description = metadata.description,
         seriesName = metadata.seriesName,
+        seriesSequence = metadata.seriesSequence,
         publishedYear = metadata.publishedYear,
         genres = metadata.genres.joinToString(","),
         publisher = metadata.publisher,

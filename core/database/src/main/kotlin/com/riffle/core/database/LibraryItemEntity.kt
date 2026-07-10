@@ -33,6 +33,7 @@ data class LibraryItemEntity(
     val audioDurationSec: Double = 0.0,
     val description: String? = null,
     val seriesName: String? = null,
+    val seriesSequence: String? = null,
     val publishedYear: String? = null,
     val genres: String = "",
     val publisher: String? = null,

@@ -54,6 +54,48 @@ class EpubMetadataExtractorTest {
     }
 
     @Test
+    fun `EPUB3 group-position refinement populates seriesSequence`() {
+        val epub = buildEpub(
+            opfMetadata = """
+                <dc:title>The Word for World Is Forest</dc:title>
+                <meta property="belongs-to-collection" id="c1">Hainish Cycle</meta>
+                <meta property="collection-type" refines="#c1">series</meta>
+                <meta property="group-position" refines="#c1">4</meta>
+            """.trimIndent(),
+        )
+        val md = EpubMetadataExtractor.extract(epub)
+        assertEquals("Hainish Cycle", md.seriesName)
+        assertEquals("4", md.seriesSequence)
+    }
+
+    @Test
+    fun `EPUB2 calibre series_index populates seriesSequence`() {
+        val epub = buildEpub(
+            opfMetadata = """
+                <dc:title>Chamber of Secrets</dc:title>
+                <meta name="calibre:series" content="Harry Potter"/>
+                <meta name="calibre:series_index" content="2"/>
+            """.trimIndent(),
+        )
+        val md = EpubMetadataExtractor.extract(epub)
+        assertEquals("Harry Potter", md.seriesName)
+        assertEquals("2", md.seriesSequence)
+    }
+
+    @Test
+    fun `series without position leaves seriesSequence null`() {
+        val epub = buildEpub(
+            opfMetadata = """
+                <dc:title>Untitled Sequel</dc:title>
+                <meta property="belongs-to-collection" id="c1">Some Series</meta>
+            """.trimIndent(),
+        )
+        val md = EpubMetadataExtractor.extract(epub)
+        assertEquals("Some Series", md.seriesName)
+        assertEquals(null, md.seriesSequence)
+    }
+
+    @Test
     fun `multiple creators joined with comma`() {
         val epub = buildEpub(
             opfMetadata = """

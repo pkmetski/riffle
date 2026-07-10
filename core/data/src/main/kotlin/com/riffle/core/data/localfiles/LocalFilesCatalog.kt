@@ -11,6 +11,7 @@ import com.riffle.core.catalog.CatalogSeries
 import com.riffle.core.catalog.CatalogSeriesEntry
 import com.riffle.core.catalog.OfflineBrowseCapability
 import com.riffle.core.catalog.SeriesCapability
+import com.riffle.core.catalog.SeriesEntryOrdering
 import com.riffle.core.catalog.SortKey
 import com.riffle.core.catalog.abs.CatalogException
 import com.riffle.core.database.LibraryItemDao
@@ -29,8 +30,11 @@ import java.io.FileInputStream
  * is trivially offline-safe, which is why LocalFiles implements [OfflineBrowseCapability]. The
  * catalog exposes a single synthetic root (`local:root`) matching the `libraryId` the scanner
  * writes for every ingested file. [SeriesCapability] is derived from EPUB `belongs-to-collection`
- * metadata already extracted into `library_items.seriesName` — the tab hides itself in the UI
- * when the aggregation yields zero series.
+ * metadata already extracted into `library_items.seriesName` — position within the series comes
+ * from `library_items.seriesSequence` (EPUB3 `group-position` / Calibre `series_index`), and
+ * ordering flows through [SeriesEntryOrdering] so numbered entries sort by value, non-numeric
+ * sequences fall in after, and unnumbered books land last by title. The Series tab hides itself
+ * in the UI when the aggregation yields zero series.
  */
 class LocalFilesCatalog(
     private val sourceId: String,
@@ -130,14 +134,14 @@ class LocalFilesCatalog(
         return rows.groupBy { it.seriesName!! }
             .toSortedMap()
             .map { (name, items) ->
-                val sorted = items.sortedWith(seriesEntryComparator)
+                val sorted = items.sortedWith(entityOrdering)
                 CatalogSeries(
                     id = name,
                     rootId = rootId,
                     name = name,
                     coverUrl = sorted.firstNotNullOfOrNull { it.coverUrl },
                     bookCount = sorted.size,
-                    items = sorted.map { CatalogSeriesEntry(itemId = it.id, sequence = null) },
+                    items = sorted.map { CatalogSeriesEntry(itemId = it.id, sequence = it.seriesSequence) },
                 )
             }
     }
@@ -145,7 +149,7 @@ class LocalFilesCatalog(
     override suspend fun listItemsInSeries(rootId: String, seriesId: String): List<CatalogItem> =
         itemDao.listByLibraryId(sourceId, rootId)
             .filter { it.seriesName == seriesId }
-            .sortedWith(seriesEntryComparator)
+            .sortedWith(entityOrdering)
             .map { it.toCatalogItem() }
 
     // endregion
@@ -197,7 +201,10 @@ class LocalFilesCatalog(
         updatedAt = null,
     )
 
-    private val seriesEntryComparator: Comparator<LibraryItemEntity> = compareBy { it.title.lowercase() }
+    // Delegated to SeriesEntryOrdering so the sequence semantics (numeric-first, non-numeric next,
+    // missing last, title tiebreaker) match every other Catalog. Never sort a series by title alone.
+    private val entityOrdering: Comparator<LibraryItemEntity> =
+        SeriesEntryOrdering.comparator(sequenceOf = { it.seriesSequence }, titleOf = { it.title })
 
     private fun comparatorFor(sort: SortKey): Comparator<CatalogItem> = when (sort) {
         SortKey.TITLE -> compareBy { it.title.lowercase() }
