@@ -9,6 +9,7 @@ import com.riffle.app.sync.kickSweepsOnReconnect
 import com.riffle.core.data.AnnotationSweep
 import com.riffle.core.data.LocalStoreMigrator
 import com.riffle.core.data.ProgressSweep
+import com.riffle.core.data.localfiles.LocalFilesFolderWatcher
 import com.riffle.core.domain.ApplicationScope
 import dagger.hilt.EntryPoint
 import dagger.hilt.InstallIn
@@ -36,6 +37,7 @@ class RiffleApplication : Application(), ImageLoaderFactory {
         fun applicationScope(): ApplicationScope
         fun annotationSweep(): AnnotationSweep
         fun progressSweep(): ProgressSweep
+        fun localFilesFolderWatcher(): LocalFilesFolderWatcher
     }
 
     override fun attachBaseContext(base: Context) {
@@ -119,6 +121,10 @@ class RiffleApplication : Application(), ImageLoaderFactory {
                 runAnnotationSweep = { runCatching { annotationSweep.run() } },
             )
         }
+
+        // Auto-scan configured LocalFiles folders on app foreground and on SAF change events.
+        // Users adding a book to a picked folder never have to hit a manual "Rescan" button.
+        entryPoint.localFilesFolderWatcher().start()
     }
 
     override fun newImageLoader(): ImageLoader =

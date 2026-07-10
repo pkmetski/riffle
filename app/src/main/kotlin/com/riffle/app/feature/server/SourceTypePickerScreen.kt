@@ -62,8 +62,8 @@ internal fun sourceTypeCards(): List<SourceTypeCard> = listOf(
         type = SourceTypeChoice.LocalFiles,
         title = "Local files",
         subtitle = "Read EPUBs and PDFs from a folder on this device.",
-        enabled = false,
-        comingSoon = true,
+        enabled = true,
+        comingSoon = false,
     ),
 )
 
@@ -83,6 +83,7 @@ fun SourceTypePickerScreen(
     windowSizeClass: WindowSizeClass,
     onNavigateBack: () -> Unit,
     onPickAudiobookshelf: () -> Unit,
+    onPickLocalFiles: () -> Unit,
 ) {
     Scaffold(
         topBar = {
@@ -109,7 +110,7 @@ fun SourceTypePickerScreen(
                         card = card,
                         onClick = when (card.type) {
                             SourceTypeChoice.Audiobookshelf -> onPickAudiobookshelf
-                            SourceTypeChoice.LocalFiles -> null
+                            SourceTypeChoice.LocalFiles -> onPickLocalFiles
                         },
                     )
                 }

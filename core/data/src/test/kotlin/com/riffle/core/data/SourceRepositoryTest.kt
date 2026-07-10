@@ -67,6 +67,7 @@ class ServerRepositoryTest {
         override fun observeAll() = flowOf(store.toList())
         override suspend fun getActive() = store.firstOrNull { it.isActive }
         override suspend fun getById(id: String): SourceEntity? = store.firstOrNull { it.id == id }
+        override suspend fun getByType(type: String): SourceEntity? = store.firstOrNull { it.type == type }
         override suspend fun upsert(source: SourceEntity) {
             store.removeAll { it.id == source.id }
             store.add(source)
@@ -144,6 +145,8 @@ class ServerRepositoryTest {
         override fun observeRecentlyAdded(sourceId: String, libraryId: String) = flowOf(emptyList<com.riffle.core.database.LibraryItemEntity>())
         override fun observeAllBooks(sourceId: String, libraryId: String) = flowOf(emptyList<com.riffle.core.database.LibraryItemEntity>())
         override suspend fun getById(sourceId: String, itemId: String) = rows.values.flatten().firstOrNull { it.id == itemId }
+        override suspend fun listByLibraryId(sourceId: String, libraryId: String) =
+            rows[libraryId].orEmpty().filter { it.sourceId == sourceId }.toList()
         override fun observeById(sourceId: String, itemId: String) = flowOf(rows.values.flatten().firstOrNull { it.id == itemId })
         override suspend fun findSourceIdForItem(itemId: String): String? = rows.values.flatten().firstOrNull { it.id == itemId }?.sourceId
         override suspend fun upsertAll(items: List<com.riffle.core.database.LibraryItemEntity>) {

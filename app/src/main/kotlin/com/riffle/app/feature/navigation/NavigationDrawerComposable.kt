@@ -49,6 +49,7 @@ import androidx.compose.ui.unit.dp
 import com.riffle.app.BuildConfig
 import com.riffle.core.domain.Library
 import com.riffle.core.domain.Source
+import com.riffle.core.domain.SourceType
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -188,8 +189,10 @@ private fun DrawerHeader(
 
     // Same product type appearing more than once forces the host to appear in the supporting
     // line so users can tell the two instances apart. With a single instance the host is noise.
+    // LocalFiles has no meaningful host (placeholder URL), so the host is never useful there.
     val activeNeedsHost = activeServer != null &&
-        allServers.count { it.serverType == activeServer.serverType } > 1
+        activeServer.type != SourceType.LOCAL_FILES &&
+        allServers.count { it.serverType == activeServer.serverType && it.type == activeServer.type } > 1
 
     Box(modifier = Modifier
         .fillMaxWidth()
@@ -197,8 +200,10 @@ private fun DrawerHeader(
     ) {
         ListItem(
             headlineContent = {
-                val name = activeServer?.serverType?.label ?: "No source"
-                val username = activeServer?.username?.takeIf { it.isNotEmpty() }
+                val name = activeServer?.let(::sourceDisplayName) ?: "No source"
+                val username = activeServer
+                    ?.takeIf { it.type != SourceType.LOCAL_FILES }
+                    ?.username?.takeIf { it.isNotEmpty() }
                 if (username != null) {
                     Text(
                         buildAnnotatedString {
@@ -214,11 +219,13 @@ private fun DrawerHeader(
                 }
             },
             supportingContent = {
-                val host = activeServer?.url?.authority().orEmpty()
-                val support = buildSupportingLine(
-                    host = if (activeNeedsHost) host else null,
-                    version = activeVersion,
-                )
+                val support = activeServer?.let {
+                    sourceSubtitle(
+                        source = it,
+                        host = if (activeNeedsHost) it.url.authority() else null,
+                        version = activeVersion,
+                    )
+                }
                 if (support != null) Text(support)
             },
             trailingContent = {
@@ -235,15 +242,19 @@ private fun DrawerHeader(
             modifier = if (headerWidth != Dp.Unspecified) Modifier.width(headerWidth) else Modifier,
         ) {
             allServers.forEach { server ->
-                val needsHost = allServers.count { it.serverType == server.serverType } > 1
+                val needsHost = server.type != SourceType.LOCAL_FILES &&
+                    allServers.count { it.serverType == server.serverType && it.type == server.type } > 1
                 DropdownMenuItem(
                     text = {
                         Column {
-                            val username = server.username.takeIf { it.isNotEmpty() }
+                            val displayName = sourceDisplayName(server)
+                            val username = server
+                                .takeIf { it.type != SourceType.LOCAL_FILES }
+                                ?.username?.takeIf { it.isNotEmpty() }
                             if (username != null) {
                                 Text(
                                     buildAnnotatedString {
-                                        append(server.serverType.label)
+                                        append(displayName)
                                         append(" ")
                                         withStyle(SpanStyle(color = MaterialTheme.colorScheme.onSurfaceVariant)) {
                                             append("[$username]")
@@ -251,9 +262,10 @@ private fun DrawerHeader(
                                     }
                                 )
                             } else {
-                                Text(server.serverType.label)
+                                Text(displayName)
                             }
-                            val support = buildSupportingLine(
+                            val support = sourceSubtitle(
+                                source = server,
                                 host = if (needsHost) server.url.authority() else null,
                                 version = serverVersions[server.id],
                             )
@@ -296,3 +308,24 @@ private fun buildSupportingLine(host: String?, version: String?): String? {
         else -> null
     }
 }
+
+/**
+ * Display label for the source-switcher header + dropdown. LocalFiles gets its own name so it
+ * doesn't inherit its placeholder [ServerType.AUDIOBOOKSHELF] value (LocalFiles has no product
+ * server); everything else falls back to the server product label.
+ */
+private fun sourceDisplayName(source: Source): String = when (source.type) {
+    SourceType.LOCAL_FILES -> "Local files"
+    else -> source.serverType.label
+}
+
+/**
+ * Subtitle for the source-switcher row. LocalFiles shows "on this device" — its URL column is a
+ * non-network placeholder ("localfiles.invalid") that would otherwise leak into the UI. ABS
+ * sources reuse [buildSupportingLine] (host · version).
+ */
+private fun sourceSubtitle(source: Source, host: String?, version: String?): String? =
+    when (source.type) {
+        SourceType.LOCAL_FILES -> "on this device"
+        else -> buildSupportingLine(host, version)
+    }

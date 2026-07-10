@@ -23,6 +23,7 @@ internal object ThrowingLibraryItemDao : LibraryItemDao {
     override suspend fun insertOrIgnore(items: List<LibraryItemEntity>) = Unit
     override suspend fun updateMetadata(metadata: LibraryItemMetadata) = Unit
     override suspend fun getById(sourceId: String, itemId: String): LibraryItemEntity? = null
+    override suspend fun listByLibraryId(sourceId: String, libraryId: String): List<LibraryItemEntity> = emptyList()
     override fun observeById(sourceId: String, itemId: String): Flow<LibraryItemEntity?> = flowOf(null)
     override suspend fun findSourceIdForItem(itemId: String): String? = null
     override suspend fun deleteByLibraryId(sourceId: String, libraryId: String) = Unit

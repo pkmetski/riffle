@@ -49,7 +49,7 @@ class LocalFilesScannerTest {
         val item = h.libraryItems.upserted.single()
         assertEquals("Dune", item.title)
         assertEquals("Frank Herbert", item.author)
-        assertEquals(LocalFilesScanner.LOCAL_ROOT_LIBRARY_ID, item.libraryId)
+        assertEquals(LocalFilesCatalog.LOCAL_ROOT_ID, item.libraryId)
         assertEquals(LocalFilesScanner.EBOOK_FORMAT_EPUB, item.ebookFormat)
         assertNotNull(item.coverUrl) // fakeEpub embeds a cover
 
@@ -260,6 +260,7 @@ class LocalFilesScannerTest {
             copyIn = copyIn,
             pdfMetadata = NoOpPdfMetadataExtractor,
             clock = clock,
+            logger = com.riffle.core.logging.NoopLogger,
         )
 
         suspend fun configureFolder(treeUri: String, files: List<WalkedFile>) {

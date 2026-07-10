@@ -2,7 +2,12 @@ package com.riffle.app.feature.settings
 
 import android.content.Intent
 import android.net.Uri
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.compose.ui.platform.testTag
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import androidx.core.content.FileProvider
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloatAsState
@@ -17,6 +22,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.rememberScrollState
@@ -27,9 +33,11 @@ import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Schedule
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.outlined.CloudOff
 import androidx.compose.material.icons.outlined.Headphones
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -102,6 +110,9 @@ fun SettingsScreen(
     val invertVolumeKeys by viewModel.invertVolumeKeys.collectAsState()
     val appTheme by viewModel.appTheme.collectAsState()
     val servers by viewModel.servers.collectAsState()
+    val localFilesSource by viewModel.localFilesSource.collectAsState()
+    val localFilesFolders by viewModel.localFilesFolders.collectAsState()
+    val localFilesFolderHealth by viewModel.localFilesFolderHealth.collectAsState()
     val serverVersions by viewModel.serverVersions.collectAsState()
     val libraryItemsByServer by viewModel.libraryUiItemsByServer.collectAsState()
     val readaloudSummaries by viewModel.readaloudSummaries.collectAsState()
@@ -128,6 +139,17 @@ fun SettingsScreen(
                 is SettingsNavEvent.NavigateToReadaloudMatches -> onNavigateToReadaloudMatches(event.sourceId)
             }
         }
+    }
+
+    // Returning from system Settings after revoking a SAF grant doesn't change the DB folder set,
+    // so the local-files-health map would stay stale. Kick a recompute on every resume.
+    val settingsLifecycle = LocalLifecycleOwner.current.lifecycle
+    DisposableEffect(settingsLifecycle) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) viewModel.refreshLocalFilesFolderHealth()
+        }
+        settingsLifecycle.addObserver(observer)
+        onDispose { settingsLifecycle.removeObserver(observer) }
     }
 
     Scaffold(
@@ -160,7 +182,10 @@ fun SettingsScreen(
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
                 )
                 HorizontalDivider()
-                servers.filter { it.serverType == ServerType.AUDIOBOOKSHELF }.forEach { server ->
+                servers.filter {
+                    it.serverType == ServerType.AUDIOBOOKSHELF &&
+                        it.type == com.riffle.core.domain.SourceType.ABS
+                }.forEach { server ->
                     ServerRow(
                         server = server,
                         isExpanded = expandedServers[server.id] == true,
@@ -178,6 +203,19 @@ fun SettingsScreen(
                             viewModel.setLibraryOrder(server.id, orderedIds)
                         },
                         onOpenReadaloudMatches = { viewModel.openReadaloudMatches(server.id) },
+                    )
+                }
+                localFilesSource?.let { lfs ->
+                    LocalFilesSourceRow(
+                        source = lfs,
+                        folders = localFilesFolders,
+                        folderHealth = localFilesFolderHealth,
+                        isExpanded = expandedServers[lfs.id] == true,
+                        onToggleExpanded = {
+                            expandedServers[lfs.id] = expandedServers[lfs.id] != true
+                        },
+                        onRemoveFolder = { treeUri -> viewModel.removeLocalFolder(treeUri) },
+                        onRemoveSource = { viewModel.removeLocalFilesSource() },
                     )
                 }
                 Button(
@@ -985,6 +1023,156 @@ private fun AnnotationSyncBadge(badge: AnnotationSyncRowState.Badge) {
         contentAlignment = Alignment.Center,
     ) {
         Icon(imageVector = glyph, contentDescription = null, tint = fg, modifier = Modifier.size(18.dp))
+    }
+}
+
+/**
+ * Sources-list row for the singleton LocalFiles Source. Mirrors [ServerRow]'s chevron-expand
+ * shape so the two Source types read as siblings in the "Sources" section: header + collapsed
+ * summary; expanding drops down the configured folders with per-folder revocation warnings and
+ * a per-folder / whole-source removal path. Adding another folder goes through the standard
+ * Add-source picker — [com.riffle.core.data.localfiles.LocalFilesSourceInstaller.ensureLocalFilesSource]
+ * is idempotent, so "Add source > Local files" attaches to the existing row instead of creating
+ * a duplicate.
+ */
+@Composable
+private fun LocalFilesSourceRow(
+    source: com.riffle.core.domain.Source,
+    folders: List<com.riffle.core.database.LocalFilesFolderEntity>,
+    folderHealth: Map<String, Boolean>,
+    isExpanded: Boolean,
+    onToggleExpanded: () -> Unit,
+    onRemoveFolder: (String) -> Unit,
+    onRemoveSource: () -> Unit,
+) {
+    var pendingFolderRemoval by remember { mutableStateOf<com.riffle.core.database.LocalFilesFolderEntity?>(null) }
+    var pendingSourceRemoval by remember { mutableStateOf(false) }
+    val unhealthyCount = folders.count { folderHealth[it.treeUri] == false }
+    val chevronRotation by androidx.compose.animation.core.animateFloatAsState(
+        targetValue = if (isExpanded) 90f else 0f,
+        label = "chevron",
+    )
+
+    Column {
+        ListItem(
+            modifier = Modifier
+                .clickable { onToggleExpanded() }
+                .testTag("LocalFilesSourceRow"),
+            leadingContent = {
+                Icon(
+                    Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                    contentDescription = if (isExpanded) "Collapse" else "Expand",
+                    modifier = Modifier.rotate(chevronRotation),
+                )
+            },
+            headlineContent = { Text("Local files") },
+            supportingContent = {
+                val folderWord = if (folders.size == 1) "folder" else "folders"
+                val summary = buildString {
+                    append("${folders.size} $folderWord on this device")
+                    if (unhealthyCount > 0) append(" · $unhealthyCount need attention")
+                }
+                Text(summary)
+            },
+            trailingContent = if (unhealthyCount > 0) {
+                {
+                    Icon(
+                        Icons.Default.Warning,
+                        contentDescription = "Some folders need attention",
+                        tint = MaterialTheme.colorScheme.error,
+                    )
+                }
+            } else null,
+        )
+        androidx.compose.animation.AnimatedVisibility(visible = isExpanded) {
+            Column {
+                if (folders.isEmpty()) {
+                    ListItem(
+                        headlineContent = { Text("No folders yet") },
+                        supportingContent = {
+                            Text("Use \"Add source\" below to pick a folder for this device.")
+                        },
+                    )
+                } else {
+                    folders.forEach { folder ->
+                        val isHealthy = folderHealth[folder.treeUri] != false
+                        ListItem(
+                            modifier = Modifier.testTag("LocalFilesFolder.${folder.treeUri}"),
+                            leadingContent = {
+                                if (!isHealthy) {
+                                    Icon(
+                                        Icons.Default.Warning,
+                                        contentDescription = "Permission revoked",
+                                        tint = MaterialTheme.colorScheme.error,
+                                    )
+                                }
+                            },
+                            headlineContent = { Text(folder.displayName) },
+                            supportingContent = {
+                                Text(
+                                    if (isHealthy) folder.treeUri else "Permission revoked — remove and re-add",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = if (isHealthy) MaterialTheme.colorScheme.onSurfaceVariant
+                                    else MaterialTheme.colorScheme.error,
+                                )
+                            },
+                            trailingContent = {
+                                IconButton(onClick = { pendingFolderRemoval = folder }) {
+                                    Icon(Icons.Default.Delete, contentDescription = "Remove folder")
+                                }
+                            },
+                        )
+                    }
+                }
+                TextButton(
+                    onClick = { pendingSourceRemoval = true },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 4.dp),
+                ) {
+                    Text("Remove Local Files source", color = MaterialTheme.colorScheme.error)
+                }
+            }
+        }
+    }
+
+    pendingFolderRemoval?.let { folder ->
+        AlertDialog(
+            onDismissRequest = { pendingFolderRemoval = null },
+            title = { Text("Remove folder?") },
+            text = {
+                Text(
+                    "\"${folder.displayName}\" will be removed and any books that came from it " +
+                        "will be deleted from this device. Books shared with another configured " +
+                        "folder are kept.",
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    onRemoveFolder(folder.treeUri)
+                    pendingFolderRemoval = null
+                }) { Text("Remove") }
+            },
+            dismissButton = {
+                TextButton(onClick = { pendingFolderRemoval = null }) { Text("Cancel") }
+            },
+        )
+    }
+    if (pendingSourceRemoval) {
+        AlertDialog(
+            onDismissRequest = { pendingSourceRemoval = false },
+            title = { Text("Remove Local Files source?") },
+            text = { Text("Every configured folder and every locally-stored book will be deleted from this device.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    onRemoveSource()
+                    pendingSourceRemoval = false
+                }) { Text("Remove") }
+            },
+            dismissButton = {
+                TextButton(onClick = { pendingSourceRemoval = false }) { Text("Cancel") }
+            },
+        )
     }
 }
 

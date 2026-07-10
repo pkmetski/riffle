@@ -14,6 +14,9 @@ interface LibraryItemDao {
     @Query("SELECT * FROM library_items WHERE sourceId = :sourceId AND libraryId = :libraryId ORDER BY title ASC")
     fun observeByLibraryId(sourceId: String, libraryId: String): Flow<List<LibraryItemEntity>>
 
+    @Query("SELECT * FROM library_items WHERE sourceId = :sourceId AND libraryId = :libraryId")
+    suspend fun listByLibraryId(sourceId: String, libraryId: String): List<LibraryItemEntity>
+
     /** All library items owned by a Source, across every library. Used by the Annotations View
      *  library list, which joins against highlight summaries that aren't library-scoped. */
     @Query("SELECT * FROM library_items WHERE sourceId = :sourceId")

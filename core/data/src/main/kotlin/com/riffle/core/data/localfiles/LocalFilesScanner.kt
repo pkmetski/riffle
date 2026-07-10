@@ -10,6 +10,8 @@ import com.riffle.core.domain.EpubMetadata
 import com.riffle.core.domain.EpubMetadataExtractor
 import com.riffle.core.domain.PdfMetadata
 import com.riffle.core.domain.PdfMetadataExtractor
+import com.riffle.core.logging.LogChannel
+import com.riffle.core.logging.Logger
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
@@ -35,6 +37,7 @@ class LocalFilesScanner @Inject constructor(
     private val copyIn: CopyInService,
     private val pdfMetadata: PdfMetadataExtractor,
     private val clock: Clock,
+    private val logger: Logger,
 ) {
 
     data class ScanReport(
@@ -49,6 +52,7 @@ class LocalFilesScanner @Inject constructor(
     suspend fun scan(sourceId: String): ScanReport = withContext(Dispatchers.IO) {
         val scanStart = clock.nowMs()
         val folders = folderDao.forSource(sourceId)
+        logger.d(LogChannel.LocalFiles) { "scan start sourceId=$sourceId folders=${folders.size}" }
         var added = 0
         var refreshed = 0
         val failures = mutableListOf<ScanFailure>()
@@ -63,9 +67,14 @@ class LocalFilesScanner @Inject constructor(
             val files = try {
                 walker.walk(folder.treeUri)
             } catch (e: Exception) {
+                logger.d(LogChannel.LocalFiles, e) { "walk failed for ${folder.displayName}" }
                 failures += ScanFailure(folder.displayName, "walk-failed: ${e.message ?: e::class.simpleName}")
                 completed = false
                 continue
+            }
+            logger.d(LogChannel.LocalFiles) {
+                "walked folder=${folder.displayName} files=${files.size} " +
+                    "sample=${files.take(3).joinToString { it.displayName }}"
             }
             for (file in files) {
                 val outcome = try {
@@ -117,6 +126,10 @@ class LocalFilesScanner @Inject constructor(
             if (total == buf.size) buf else buf.copyOf(total)
         }
         val kind = FileClassifier.classify(file.displayName, head)
+        logger.d(LogChannel.LocalFiles) {
+            "classify name=${file.displayName} kind=$kind headBytes=${head.size} " +
+                "head4=${head.take(4).joinToString(",") { "%02x".format(it) }}"
+        }
         if (kind == FileClassifier.Kind.UNKNOWN) return Outcome.SKIPPED
 
         val identity = IdentityHasher.hash(head, file.sizeBytes)
@@ -180,7 +193,7 @@ class LocalFilesScanner @Inject constructor(
         val entity = LibraryItemEntity(
             sourceId = sourceId,
             id = identity,
-            libraryId = LOCAL_ROOT_LIBRARY_ID,
+            libraryId = LocalFilesCatalog.LOCAL_ROOT_ID,
             title = metadata.title?.ifBlank { null } ?: stripExtension(file.displayName),
             author = metadata.author?.ifBlank { null } ?: "",
             coverUrl = null,
@@ -201,7 +214,7 @@ class LocalFilesScanner @Inject constructor(
     ): LibraryItemEntity = LibraryItemEntity(
         sourceId = sourceId,
         id = identity,
-        libraryId = LOCAL_ROOT_LIBRARY_ID,
+        libraryId = LocalFilesCatalog.LOCAL_ROOT_ID,
         title = metadata.title?.ifBlank { null } ?: stripExtension(file.displayName),
         author = metadata.author?.ifBlank { null } ?: "",
         coverUrl = coverFile?.toURI()?.toString(),
@@ -230,7 +243,6 @@ class LocalFilesScanner @Inject constructor(
     }
 
     companion object {
-        const val LOCAL_ROOT_LIBRARY_ID: String = "local:root"
         const val EBOOK_FORMAT_EPUB: String = "epub"
         const val EBOOK_FORMAT_PDF: String = "pdf"
         const val EBOOK_FORMAT_UNSUPPORTED: String = "unsupported"

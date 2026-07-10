@@ -13,6 +13,8 @@ import com.riffle.core.database.CollectionDao
 import com.riffle.core.database.CrossEpubIndexDao
 import com.riffle.core.database.LibraryDao
 import com.riffle.core.database.LibraryItemDao
+import com.riffle.core.database.LocalFilesFileDao
+import com.riffle.core.database.LocalFilesFolderDao
 import com.riffle.core.database.ReadaloudCandidateDao
 import com.riffle.core.database.ReadaloudDismissalDao
 import com.riffle.core.database.ReadaloudLinkDao
@@ -63,6 +65,14 @@ object TestDatabaseModule {
     @Provides
     @Singleton
     fun provideLibraryItemDao(db: RiffleDatabase): LibraryItemDao = db.libraryItemDao()
+
+    @Provides
+    @Singleton
+    fun provideLocalFilesFolderDao(db: RiffleDatabase): LocalFilesFolderDao = db.localFilesFolderDao()
+
+    @Provides
+    @Singleton
+    fun provideLocalFilesFileDao(db: RiffleDatabase): LocalFilesFileDao = db.localFilesFileDao()
 
     @Provides
     @Singleton

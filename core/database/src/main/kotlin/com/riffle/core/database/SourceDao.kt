@@ -42,6 +42,13 @@ interface SourceDao {
     @Query("SELECT * FROM sources WHERE id = :id LIMIT 1")
     suspend fun getById(id: String): SourceEntity?
 
+    /**
+     * First source row whose [SourceEntity.type] matches [type] (there is at most one LocalFiles
+     * source per device; this returns it or `null` when none has been installed yet).
+     */
+    @Query("SELECT * FROM sources WHERE type = :type LIMIT 1")
+    suspend fun getByType(type: String): SourceEntity?
+
     @Query("DELETE FROM sources WHERE id = :id")
     suspend fun deleteById(id: String)
 

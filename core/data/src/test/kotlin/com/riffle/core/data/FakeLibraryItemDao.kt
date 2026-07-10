@@ -98,6 +98,9 @@ internal class FakeLibraryItemDao : LibraryItemDao {
     override suspend fun getById(sourceId: String, itemId: String): LibraryItemEntity? =
         roomData.values.flatMap { it.value }.firstOrNull { it.sourceId == sourceId && it.id == itemId }
 
+    override suspend fun listByLibraryId(sourceId: String, libraryId: String): List<LibraryItemEntity> =
+        scoped(sourceId, libraryId)
+
     override fun observeById(sourceId: String, itemId: String): Flow<LibraryItemEntity?> =
         MutableStateFlow(roomData.values.flatMap { it.value }.firstOrNull { it.sourceId == sourceId && it.id == itemId })
 
