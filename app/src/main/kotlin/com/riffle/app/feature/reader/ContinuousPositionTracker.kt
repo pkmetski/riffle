@@ -107,6 +107,33 @@ internal object ContinuousPositionTracker {
     }
 
     /**
+     * Whether [targetHref]'s chapter is currently loaded in the sliding window that spans
+     * `[topIndex, topIndex + loadedChapterCount)`. Used by the reader screen to suppress the
+     * cross-resource nav-cover for a navigation that stays in-window — the cover otherwise hides
+     * the already-smooth `NestedScrollView.smoothScrollTo` animation and the user only sees a
+     * fade-to-snap.
+     */
+    fun isTargetInWindow(
+        hrefs: List<String>,
+        targetHref: String,
+        topIndex: Int,
+        loadedChapterCount: Int,
+    ): Boolean {
+        val idx = chapterIndexForHref(hrefs, targetHref)
+        return idx in topIndex until (topIndex + loadedChapterCount)
+    }
+
+    /**
+     * Pre-landing scrollY for a cross-window navigation that wants a smooth-tail reveal: land half
+     * a viewport short of [targetY] under the still-showing nav cover, then the caller reveals
+     * the cover and animates the remaining half-viewport with `smoothScrollTo(targetY)`. That
+     * closes the "back button feels abrupt" gap in continuous mode without regressing the
+     * hard-landing paths (initial open, resume, annotation focus) that still call `scrollTo`.
+     */
+    fun preLandY(targetY: Int, viewportHeight: Int): Int =
+        (targetY - viewportHeight / 2).coerceAtLeast(0)
+
+    /**
      * Pixels to scroll for a volume-key "page" in continuous mode: one viewport minus overlap so the
      * line at the seam isn't skipped. Matches the 0·8-viewport delta the paginated/vertical volume-key
      * path uses via [ScrollBoundaryNavigationContainer.handleVolumeScroll] — keeping both modes on the

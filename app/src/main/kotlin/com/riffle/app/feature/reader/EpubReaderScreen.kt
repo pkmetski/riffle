@@ -2096,7 +2096,15 @@ private fun EpubNavigatorView(
             // Continuous mode's view is created synchronously on first composition, so no wait needed.
             snapshotFlow { fragmentRef.value }.filterNotNull().first()
         }
-        val cover = href.substringBefore('#') != currentHrefHolder[0]?.substringBefore('#')
+        // Continuous mode: if the destination chapter is already in the sliding window,
+        // [ContinuousWindowController.navigateTo] takes the in-window smooth-scroll branch
+        // ([ContinuousScrollPort.smoothScrollTo]). Draping the cover over that hides the
+        // animation and the user only sees fade-to-snap — the "back link feels abrupt" symptom.
+        // Suppress the cover for the in-window case so the smoothScroll is visible; cross-window
+        // rebuilds still cover (and the controller does its own smooth-tail on reveal).
+        val inWindowContinuous = isContinuous && continuousViewRef.value?.isTargetInWindow(href) == true
+        val cover = href.substringBefore('#') != currentHrefHolder[0]?.substringBefore('#') &&
+            !inWindowContinuous
         navigating = cover
         try {
             readerPresenter.navigateTo(target, opts)

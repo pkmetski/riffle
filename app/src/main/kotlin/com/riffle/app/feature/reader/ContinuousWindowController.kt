@@ -305,6 +305,17 @@ internal class ContinuousWindowController(
         anchorFragment: String = "",
         alignToTop: Boolean = false,
         focusAnnotationId: String? = null,
+        /**
+         * When true the first initial land pre-scrolls half a viewport short of the target under
+         * the still-showing nav-cover, then reveals the container and animates the remaining
+         * half-viewport with [ContinuousScrollPort.smoothScrollTo]. Used only by [navigateTo]'s
+         * cross-window branch so the "back link" (and any cross-chapter jump that rebuilds the
+         * window) arrives with visible motion instead of a hard snap on cover-reveal. Other
+         * callers (book open, resume, annotation focus, renderer-gone recovery) keep the hard
+         * land — a smooth tail on a cold open would just delay first content by ~300ms with no
+         * gesture to justify it.
+         */
+        smoothTail: Boolean = false,
     ) {
         pendingFallbackRunnable?.let { port.removeCallbacks(it) }
         pendingFallbackRunnable = null
@@ -331,6 +342,11 @@ internal class ContinuousWindowController(
         pendingInitialMeasureIndices.clear()
         pendingInitialMeasureIndices.addAll(0..targetWindowIndex)
         val targetHref = initialHref
+        // Only the FIRST invocation of the pending-initial-scroll closure runs the smooth-tail
+        // dance. Subsequent invocations from [reapplyLandingAfterFallback] on target-chapter
+        // remeasure are corrective micro-adjustments while the user is already looking at the
+        // destination — a smooth animation there would look like the page moved on its own.
+        var landCount = 0
         pendingInitialScroll = {
             fun postLandAt(offsetWithinTargetPx: Int?) {
                 port.post {
@@ -348,11 +364,24 @@ internal class ContinuousWindowController(
                             slot.top, slot.height, initialProgression, port.viewportHeightPx,
                         )
                     }
+                    val isFirstLand = landCount == 0
+                    landCount++
                     port.abortFling()
-                    port.scrollTo(y)
-                    landingHoldTargetY = y
-                    landingHoldUntilUptimeMs = android.os.SystemClock.uptimeMillis() + LANDING_HOLD_MS
-                    port.postOnAnimation { container.visibility = android.view.View.VISIBLE }
+                    if (smoothTail && isFirstLand) {
+                        val pre = ContinuousPositionTracker.preLandY(y, port.viewportHeightPx)
+                        port.scrollTo(pre)
+                        // Don't arm the landing hold: it would fight the tail animation by
+                        // reverting each frame back to `pre` until LANDING_HOLD_MS elapses.
+                        landingHoldTargetY = -1
+                        landingHoldUntilUptimeMs = 0L
+                        port.postOnAnimation { container.visibility = android.view.View.VISIBLE }
+                        port.post { port.smoothScrollTo(y) }
+                    } else {
+                        port.scrollTo(y)
+                        landingHoldTargetY = y
+                        landingHoldUntilUptimeMs = android.os.SystemClock.uptimeMillis() + LANDING_HOLD_MS
+                        port.postOnAnimation { container.visibility = android.view.View.VISIBLE }
+                    }
                 }
             }
             val targetWv = webViewIndexFor(targetHref)?.let { webViews.getOrNull(it) }
@@ -429,6 +458,14 @@ internal class ContinuousWindowController(
         navigateTo(href, progression, alignToTop, focusAnnotationId = null)
     }
 
+    override fun isTargetInWindow(href: String): Boolean =
+        ContinuousPositionTracker.isTargetInWindow(
+            hrefs = allChapters.map { it.link.href.toString() },
+            targetHref = href,
+            topIndex = topIndex,
+            loadedChapterCount = webViews.size,
+        )
+
     /**
      * Continuous-mode annotation navigation with mark-precise landing. When [focusAnnotationId] is
      * non-null and the chapter is in the sliding window, the landing anchors on the actual
@@ -470,6 +507,7 @@ internal class ContinuousWindowController(
                 anchorFragment = fragment,
                 alignToTop = alignToTop,
                 focusAnnotationId = focusAnnotationId,
+                smoothTail = true,
             )
         }
     }

@@ -348,6 +348,8 @@ internal class ContinuousReaderView @JvmOverloads constructor(
     override fun navigateTo(href: String, progression: Float, alignToTop: Boolean, focusAnnotationId: String?) =
         controller.navigateTo(href, progression, alignToTop, focusAnnotationId)
 
+    override fun isTargetInWindow(href: String): Boolean = controller.isTargetInWindow(href)
+
     /**
      * Resolve the parent-viewport Y (in scrollY-space) of anchor [fragmentId] within [chapterHref].
      * See [ContinuousWindowController.anchorAbsoluteY]. Used to make an in-view same-document
