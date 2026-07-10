@@ -118,7 +118,11 @@ internal class DefaultRendererBridge(
         fragment?.evaluateJavascript(ColumnSnap.scrollToColumnJs(fragmentId))?.trim('"') == "moved"
 
     override suspend fun snapCadenceSpan(fragmentId: String): String? =
-        fragment?.evaluateJavascript(ColumnSnap.scrollToColumnJs(fragmentId))?.trim('"')
+        // Readaloud follow ticks every sentence and needs the highlight to stay locked to the
+        // audio; a 250 ms tween per tick would visually drift because the supersede counter
+        // cancels in-flight animations before they land. Instant snap here (animated=false);
+        // internal-link taps still animate via [snapToElement].
+        fragment?.evaluateJavascript(ColumnSnap.scrollToColumnJs(fragmentId, animated = false))?.trim('"')
 
     override suspend fun landedAtEnd(): Boolean =
         fragment?.evaluateJavascript(ColumnSnap.LANDED_AT_END_JS)?.trim('"') == "true"

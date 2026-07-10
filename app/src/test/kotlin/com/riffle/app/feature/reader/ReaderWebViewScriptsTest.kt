@@ -88,8 +88,16 @@ class ReaderWebViewScriptsTest {
         assertTrue(
             "same-doc branch must start the animation from the stashed pre-go scrollTop",
             verticalBranch.contains("window.__riffleOriginY") &&
-                verticalBranch.contains("window.__riffleOriginHref===location.href") &&
                 verticalBranch.contains("startV=window.__riffleOriginY"),
+        )
+        // Fragment-stripped href compare: Readium's `go(locator)` on a same-doc jump often
+        // appends the target `#anchor` to `location.href` (browser-standard hash update). If the
+        // compare used bare `location.href` on both sides, EVERY same-doc jump would fail the
+        // same-doc check and default to the pre-land branch — the exact pre-land flash the
+        // stash+animate mechanism was written to eliminate.
+        assertTrue(
+            "same-doc href compare must strip the fragment on both sides",
+            verticalBranch.contains("location.href.split('#')[0]"),
         )
         // Cross-doc fallback: origin stash absent (new document), pre-land half a viewport short
         // under the nav cover so the tail rides visibly on cover-reveal.
@@ -121,10 +129,41 @@ class ReaderWebViewScriptsTest {
     // new document (undefined, harmless) — but if a future refactor keeps the stash across
     // resources, the href check is what still keeps cross-doc correct. Contract-pin both fields.
     @Test
-    fun `STASH_VERTICAL_ORIGIN_JS captures both scrollTop and href on window`() {
+    fun `STASH_VERTICAL_ORIGIN_JS captures scrollTop and fragment-stripped href on window`() {
         val js = ColumnSnap.STASH_VERTICAL_ORIGIN_JS
         assertTrue("stashes scrollTop", js.contains("window.__riffleOriginY=se.scrollTop"))
-        assertTrue("stashes location.href", js.contains("window.__riffleOriginHref=location.href"))
+        // Strips the fragment so a hash-only change on the SAME document (Readium's `go(locator)`
+        // appending `#anchor` to `location.href`) still compares equal in
+        // `snapToTargetColumnJs`'s same-doc branch. Without this strip, every same-doc back-nav
+        // hits the pre-land branch and flashes as "goes back a bit and then returns."
+        assertTrue(
+            "stashes fragment-stripped location.href",
+            js.contains("window.__riffleOriginHref=location.href.split('#')[0]"),
+        )
+    }
+
+    // The animated=false variant is what SentencePlaybackController's cadence follow needs: every
+    // narrated sentence tick calls snapCadenceSpan → scrollToColumnJs, and a 250 ms tween per
+    // tick would (a) drift because the supersede counter cancels in-flight tweens before they
+    // land and (b) desync from the audio. Verify the two variants emit different vertical
+    // behaviours so a future refactor can't silently make cadence follow animated.
+    @Test
+    fun `scrollToColumnJs animated=false uses instant scrollTop write in vertical mode`() {
+        val instant = ColumnSnap.scrollToColumnJs("cd-1", animated = false)
+        val animated = ColumnSnap.scrollToColumnJs("cd-1", animated = true)
+        val instantVertical = instant.substringAfter("scrollHeight > window.innerHeight")
+            .substringBefore("var iw=window.innerWidth")
+        val animatedVertical = animated.substringAfter("scrollHeight > window.innerHeight")
+            .substringBefore("var iw=window.innerWidth")
+        assertTrue(
+            "animated=false must write scrollTop synchronously (no rAF tween)",
+            instantVertical.contains("se.scrollTop=targetV") &&
+                !instantVertical.contains("requestAnimationFrame"),
+        )
+        assertTrue(
+            "animated=true must use the shared rAF tween",
+            animatedVertical.contains("requestAnimationFrame") && animatedVertical.contains("_dur=250"),
+        )
     }
 
     // Vertical (scroll) mode cross-reference tap must land the anchor at the VIEWPORT MIDPOINT, not
