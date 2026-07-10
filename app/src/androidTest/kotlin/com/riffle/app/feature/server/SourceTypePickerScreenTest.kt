@@ -17,8 +17,8 @@ import org.junit.Test
 import org.junit.runner.RunWith
 
 /**
- * Instrumentation coverage for #435's SourceTypePickerScreen. Locks the ABS-enabled +
- * LocalFiles-disabled contract at the composable level; JVM-side data-model pinning
+ * Instrumentation coverage for #435's SourceTypePickerScreen. Locks the "both cards enabled and
+ * routable" contract now that #438 has landed the LocalFiles wiring; JVM-side data-model pinning
  * lives in [SourceTypePickerTest].
  */
 @OptIn(ExperimentalMaterial3WindowSizeClassApi::class)
@@ -37,26 +37,31 @@ class SourceTypePickerScreenTest {
 
     @Test
     fun audiobookshelfCard_click_invokesCallback() {
-        var pickCount = 0
-        setContent(onPick = { pickCount++ })
+        var absCount = 0
+        setContent(onPickAbs = { absCount++ })
         composeRule.onNodeWithTag("SourceTypeCard.Audiobookshelf").assertHasClickAction().performClick()
-        assertEquals(1, pickCount)
+        assertEquals(1, absCount)
     }
 
     @Test
-    fun localFilesCard_isDisabled_showsComingSoon() {
-        setContent()
-        composeRule.onNodeWithText("Coming soon").assertIsDisplayed()
-        composeRule.onNodeWithTag("SourceTypeCard.LocalFiles").assertHasNoClickAction()
+    fun localFilesCard_click_invokesCallback() {
+        var lfCount = 0
+        setContent(onPickLocal = { lfCount++ })
+        composeRule.onNodeWithTag("SourceTypeCard.LocalFiles").assertHasClickAction().performClick()
+        assertEquals(1, lfCount)
     }
 
-    private fun setContent(onPick: () -> Unit = {}) {
+    private fun setContent(
+        onPickAbs: () -> Unit = {},
+        onPickLocal: () -> Unit = {},
+    ) {
         composeRule.setContent {
             val wsc = calculateWindowSizeClass(composeRule.activity)
             SourceTypePickerScreen(
                 windowSizeClass = wsc,
                 onNavigateBack = {},
-                onPickAudiobookshelf = onPick,
+                onPickAudiobookshelf = onPickAbs,
+                onPickLocalFiles = onPickLocal,
             )
         }
     }
