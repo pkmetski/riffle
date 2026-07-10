@@ -49,7 +49,7 @@ abstract class SyncModule {
 
     @Binds
     @Singleton
-    abstract fun bindProgressRemoteFactory(impl: com.riffle.core.data.AbsProgressRemoteFactory): com.riffle.core.data.ProgressRemoteFactory
+    abstract fun bindProgressRemoteFactory(impl: com.riffle.core.data.CatalogProgressRemoteFactory): com.riffle.core.data.ProgressRemoteFactory
 
     @Binds
     @Singleton

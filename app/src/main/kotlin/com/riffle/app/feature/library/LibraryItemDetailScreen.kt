@@ -1070,7 +1070,7 @@ private fun ActionRow(
     val effectivelyListenable = item.isListenable && capabilities.hasAudiobookMedia
     if (!item.isReadable && !effectivelyListenable) {
         Text(
-            text = "Nothing to read or listen to for this item on the server.",
+            text = "Nothing to read or listen to for this item on the source.",
             style = MaterialTheme.typography.bodyLarge,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
