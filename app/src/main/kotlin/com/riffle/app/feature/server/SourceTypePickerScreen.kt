@@ -28,8 +28,6 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.windowsizeclass.WindowSizeClass
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -38,7 +36,6 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.disabled
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
-import androidx.hilt.navigation.compose.hiltViewModel
 import com.riffle.app.ui.TabletContentWidthContainer
 
 sealed interface SourceTypeChoice {
@@ -113,9 +110,8 @@ fun SourceTypePickerScreen(
     onPickAudiobookshelf: () -> Unit,
     onPickLocalFiles: () -> Unit,
     onPickChitanka: () -> Unit,
-    viewModel: SourceTypePickerViewModel = hiltViewModel(),
+    hasLocalFilesSource: Boolean = false,
 ) {
-    val hasLocalFilesSource by viewModel.hasLocalFilesSource.collectAsState()
     Scaffold(
         topBar = {
             TopAppBar(
