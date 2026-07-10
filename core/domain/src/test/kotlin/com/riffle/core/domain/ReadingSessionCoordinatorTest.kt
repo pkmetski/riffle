@@ -177,11 +177,10 @@ class ReadingSessionCoordinatorTest {
     }
 
     @Test
-    fun `disabled coordinator does not start the heartbeat`() = runTest {
-        // Regression for #439: a Source without ReadingSessionsCapability must never
-        // heartbeat. Otherwise every LocalFiles reader session would kick off a
-        // 30s timer that either no-ops via ProgressSyncController or worse, tries
-        // to post to a server that isn't there.
+    fun `disabled coordinator does not fire onTick and does not flush speed`() = runTest {
+        // Regression for #439: a Source without ReadingSessionsCapability must never sync a
+        // reading tick or update the shared speed store. The tick job itself may spin (that's
+        // free) but the observable behaviour — onTick calls and speed writes — must be zero.
         val clock = TestClock()
         val store = FakeSpeedStore(initial = 100.0)
         val coord = ReadingSessionCoordinator(
@@ -197,8 +196,6 @@ class ReadingSessionCoordinatorTest {
         advanceTimeBy(90_001L)
         assertEquals(0, ticks)
 
-        // And onClosed must not flush the speed store either, otherwise a disabled
-        // Source would silently update the shared speed tracker with garbage deltas.
         clock.advance(600_000L)
         coord.onClosed(currentTotalProgression = 0.15f, totalPositions = 100f)
         advanceUntilIdle()
@@ -206,10 +203,12 @@ class ReadingSessionCoordinatorTest {
     }
 
     @Test
-    fun `enabled gate is re-evaluated on every call`() = runTest {
-        // The reader ViewModels flip the enabled flag once the active Source's Catalog
-        // resolves — a coordinator constructed before the flip must still respect the
-        // flag at call time, not at construction time.
+    fun `enabled flipping true after onResumed lets subsequent ticks fire`() = runTest {
+        // The reader ViewModels resolve the active Source's Catalog asynchronously — the
+        // coordinator's [onResumed] can be called BEFORE the enabled gate has resolved. If the
+        // gate were checked once at [onResumed] entry, an ABS session that races the catalog
+        // probe would silently drop the entire session's heartbeat. Checking per tick keeps
+        // the session alive across the resolve window.
         val clock = TestClock()
         val store = FakeSpeedStore(initial = 100.0)
         var enabled = false
@@ -222,14 +221,20 @@ class ReadingSessionCoordinatorTest {
         )
         var ticks = 0
         coord.onResumed(initialTotalProgression = 0.10f, onTick = { ticks++ })
+
+        // First tick fires during the resolve window; enabled is still false so it skips.
         advanceTimeBy(30_001L)
         assertEquals(0, ticks)
 
+        // Catalog resolves — subsequent ticks land.
         enabled = true
-        coord.onResumed(initialTotalProgression = 0.10f, onTick = { ticks++ })
-        advanceTimeBy(30_001L)
+        advanceTimeBy(30_000L)
         assertEquals(1, ticks)
+        advanceTimeBy(30_000L)
+        assertEquals(2, ticks)
 
+        // Flush the started session so it also runs the speed write once at close.
+        clock.advance(600_000L)
         coord.onClosed(currentTotalProgression = 0.15f, totalPositions = 100f)
         advanceUntilIdle()
     }

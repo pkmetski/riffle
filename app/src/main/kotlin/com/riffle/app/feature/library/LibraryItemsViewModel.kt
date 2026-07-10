@@ -211,23 +211,30 @@ class LibraryItemsViewModel @Inject constructor(
     /**
      * Which optional Library tabs are visible for the active Source. Home, Annotations, and All
      * Books are always available; the rest are gated on the active Catalog's capabilities per
-     * issue #439 / ADR 0041. An unresolved active Source (missing credentials, no factory) hides
-     * every optional tab — safer than showing a tab that will crash on selection.
+     * issue #439 / ADR 0041.
+     *
+     * Null before the active Source's Catalog resolves — composables read this and skip the
+     * "clamp selected tab back to Home" effect while unresolved, so a `rememberSaveable`-restored
+     * selected-tab isn't wiped by the initial empty state on cold start.
+     *
+     * Reactive against `sourceRepository.observeAll()` so an in-place Source switch (drawer tap,
+     * background sync, etc.) re-derives the visibility set instead of latching on whichever
+     * Source happened to be active when this VM was constructed. Raw `is X` checks stand in for
+     * the inline `Catalog.has<T>()` extension: core:catalog compiles at JVM target 21 (implicit)
+     * while every consumer pins target 17, so the inline can't cross the boundary today.
      */
-    val tabVisibility: StateFlow<LibraryTabVisibility> =
-        kotlinx.coroutines.flow.flow {
-            // Raw `is` checks in place of the inline `Catalog.has<T>()` extension: core:catalog
-            // compiles at JVM target 21 (its module leaves target unset) but the app / core:data
-            // modules pin to JVM target 17, so an inline call across the boundary fails to compile.
-            val catalog = catalogRegistry.forActive()
-            emit(
-                LibraryTabVisibility(
-                    toRead = catalog is PlaylistsCapability,
-                    series = catalog is SeriesCapability,
-                    collections = catalog is CollectionsCapability,
-                ),
+    val tabVisibility: StateFlow<LibraryTabVisibility?> = sourceRepository.observeAll()
+        .map { servers -> servers.firstOrNull { it.isActive }?.id }
+        .distinctUntilChanged()
+        .map { sourceId ->
+            val catalog = sourceId?.let { catalogRegistry.forSourceId(it) }
+            LibraryTabVisibility(
+                toRead = catalog is PlaylistsCapability,
+                series = catalog is SeriesCapability,
+                collections = catalog is CollectionsCapability,
             )
-        }.stateIn(viewModelScope, SharingStarted.Eagerly, LibraryTabVisibility.Empty)
+        }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
     var authToken: String by mutableStateOf("")
         private set

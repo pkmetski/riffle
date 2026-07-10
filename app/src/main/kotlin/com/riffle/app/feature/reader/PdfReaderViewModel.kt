@@ -73,9 +73,11 @@ class PdfReaderViewModel @Inject constructor(
 
     init {
         viewModelScope.launch {
-            val catalog = sourceRepository.getActive()?.let { catalogRegistry.forSource(it) }
-            // Raw `is` check in place of the inline has<T>() extension — see
+            // getActive() is captured once at reader-open time. In practice the reader is opened
+            // from a tap on the currently-active Source's library, so this matches the item's
+            // Source. Raw `is` check in place of the inline has<T>() extension — see
             // LibraryItemsViewModel.tabVisibility for the JVM-target rationale.
+            val catalog = sourceRepository.getActive()?.let { catalogRegistry.forSource(it) }
             readingSessionsEnabled.set(catalog is com.riffle.core.catalog.ReadingSessionsCapability)
         }
     }

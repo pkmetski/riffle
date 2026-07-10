@@ -212,9 +212,13 @@ class LibraryItemDetailViewModel @Inject constructor(
                     // the detail screen stuck in Loading for the network timeout (~10s).
                     val isInToRead = toReadRepository.isInToRead(item.id, item.libraryId)
                     val seriesId = item.seriesName?.let { libraryObserver.getSeriesIdForItem(item.sourceId, item.id) }
-                    // Raw `is` checks (see LibraryItemsViewModel.tabVisibility for the JVM-target
-                    // rationale).
-                    val catalog = server?.let { catalogRegistry.forSource(it) }
+                    // Key capabilities off the item's OWN Source, not the currently-active one.
+                    // Details screens outlive Source switches (deep-links from Annotations across
+                    // Sources, an item pinned to a specific Source while another is active) — using
+                    // getActive() would surface ABS-shape controls for a LocalFiles item, or vice
+                    // versa. Raw `is` checks (see LibraryItemsViewModel.tabVisibility for the
+                    // JVM-target rationale).
+                    val catalog = catalogRegistry.forSourceId(item.sourceId)
                     val capabilities = DetailCapabilities(
                         hasSeries = catalog is SeriesCapability,
                         hasPlaylists = catalog is PlaylistsCapability,

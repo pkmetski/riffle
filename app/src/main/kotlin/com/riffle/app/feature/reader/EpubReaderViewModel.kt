@@ -834,9 +834,13 @@ class EpubReaderViewModel @Inject constructor(
         // provide ReadingSessionsCapability. LocalFiles (no capability) never enables sessions;
         // ABS flips it on once its Catalog resolves.
         viewModelScope.launch {
-            val catalog = sourceRepository.getActive()?.let { catalogRegistry.forSource(it) }
-            // Raw `is` check in place of the inline has<T>() extension — see
-            // LibraryItemsViewModel.tabVisibility for the JVM-target rationale.
+            // Key on the book's own Source, not the currently-active one — a reader can outlive
+            // a Source switch (issue #439 / ADR 0041). Fall back to the active Source when nav
+            // didn't carry a sourceId (normal FullBook open), matching the resolution pattern
+            // used elsewhere in this VM. Raw `is` check in place of the inline has<T>() extension —
+            // see LibraryItemsViewModel.tabVisibility for the JVM-target rationale.
+            val sourceId = navServerId ?: sourceRepository.getActive()?.id
+            val catalog = sourceId?.let { catalogRegistry.forSourceId(it) }
             readingSessionsEnabled.set(catalog is com.riffle.core.catalog.ReadingSessionsCapability)
         }
         viewModelScope.launch {

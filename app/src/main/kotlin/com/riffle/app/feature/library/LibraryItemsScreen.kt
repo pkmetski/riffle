@@ -176,8 +176,11 @@ fun LibraryItemsScreen(
 
     // Reset to Home when the previously-selected tab is no longer visible for the active Source
     // (e.g. user was on Series, then switched to a LocalFiles Source that lacks SeriesCapability).
+    // Skip while tabVisibility is null (Catalog still resolving) so a `rememberSaveable`-restored
+    // selectedTab isn't silently clobbered before the real capability set lands.
     LaunchedEffect(tabVisibility) {
-        if (!isTabVisible(selectedTab, tabVisibility)) selectedTab = 0
+        val visibility = tabVisibility ?: return@LaunchedEffect
+        if (!isTabVisible(selectedTab, visibility)) selectedTab = 0
     }
 
     // Drive the grids off a local live scale so a pinch reflows instantly; the
@@ -244,10 +247,15 @@ fun LibraryItemsScreen(
         },
         bottomBar = {
             if (searchQuery.isEmpty()) {
+                // Fall back to the full ABS-shape while the active Catalog is resolving so the
+                // tab bar renders immediately — hiding tabs mid-load would flash the bar layout.
+                // The LaunchedEffect above waits for a real emission before clamping selectedTab,
+                // so this permissive fallback can never route the user into a truly unavailable
+                // tab.
                 LibraryTabBar(
                     selectedTab = selectedTab,
                     onTabSelected = { selectedTab = it },
-                    visibility = tabVisibility,
+                    visibility = tabVisibility ?: LibraryTabVisibility.All,
                 )
             }
         },

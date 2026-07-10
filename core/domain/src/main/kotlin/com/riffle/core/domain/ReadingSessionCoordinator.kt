@@ -28,13 +28,14 @@ class ReadingSessionCoordinator(
     private val readingSpeedStore: ReadingSpeedStore,
     private val scope: CoroutineScope,
     private val syncIntervalMs: Long = SYNC_INTERVAL_MS,
-    // Whether reading-session lifecycle actions should fire at all. Evaluated per call so the
-    // Catalog capability check can be resolved after construction (readers set this once the
-    // active Source's Catalog is known). False when the active Source has no
-    // ReadingSessionsCapability (issue #439 / ADR 0041) — LocalFiles, for example. Both
-    // [onResumed] and [onClosed] become no-ops so the heartbeat never starts and the
-    // speed-tracker session is never flushed. Defaults to `always-on` to keep pre-#439 callers
-    // (and every ABS Source) unchanged.
+    // Whether reading-session ticks and the terminal speed flush should fire. Evaluated INSIDE
+    // the tick loop (not at [onResumed] entry) so the check keeps working across a Catalog
+    // capability resolution that lands after the reader is already mounted (issue #439 / ADR
+    // 0041). If [enabled] were checked once at start, a race between the reader's async catalog
+    // probe and its own [onResumed] call would silently kill the whole session — an ABS regression
+    // as well as the LocalFiles case. Deferring the check to per-tick pays a cheap `delay(30s)`
+    // every heartbeat interval for LocalFiles, which is what "zero-op" was ever going to cost
+    // anyway. Defaults to always-on to keep pre-#439 callers unchanged.
     private val enabled: () -> Boolean = { true },
 ) {
 
@@ -55,14 +56,13 @@ class ReadingSessionCoordinator(
      *   themselves alongside [onResumed].
      */
     fun onResumed(initialTotalProgression: Float?, onTick: suspend () -> Unit) {
-        if (!enabled()) return
         sessionStartProgression = initialTotalProgression
         sessionStartMs = clock.nowMs()
         syncJob?.cancel()
         syncJob = scope.launch {
             while (true) {
                 delay(syncIntervalMs)
-                onTick()
+                if (enabled()) onTick()
             }
         }
     }
@@ -77,10 +77,9 @@ class ReadingSessionCoordinator(
      *   value the rail uses. A zero total skips the speed write (we'd divide by zero).
      */
     fun onClosed(currentTotalProgression: Float?, totalPositions: Float) {
-        if (!enabled()) return
         syncJob?.cancel()
         syncJob = null
-        flushSpeedSession(currentTotalProgression, totalPositions)
+        if (enabled()) flushSpeedSession(currentTotalProgression, totalPositions)
     }
 
     private fun flushSpeedSession(currentTotalProgression: Float?, totalPositions: Float) {
