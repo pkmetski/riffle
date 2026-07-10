@@ -419,7 +419,12 @@ private fun appendFigureFigure(
     val accent = highlightBackgroundCss(colorToken)
     val idEscaped = annotationId.xmlEscape()
     val tapUrl = buildAnnotationTapUrl(annotationId).xmlEscape()
-    sb.append("  <figure class=\"riffle-fig\" style=\"border-left: 4px solid ")
+    // `data-ann-id` on the <figure> itself so the live DOM-patch pipeline (buildRecolorJs /
+    // buildRemoveJs in HighlightsDomPatch) can find and recolour or delete the figure block
+    // when the owning highlight is edited — without it, `document.querySelectorAll('[data-ann-id]')`
+    // only matches the inner tap span, and `.closest('p')` returns null so recolour no-ops.
+    sb.append("  <figure class=\"riffle-fig\" data-ann-id=\"").append(idEscaped)
+    sb.append("\" style=\"border-left: 4px solid ")
     sb.append(accent)
     sb.append(" !important; padding-left: 12px;\">\n")
     // Tap-dispatch strip over the accent bar, matching the text-paragraph tap seam. `pointer-events`

@@ -50,9 +50,12 @@ sealed class HighlightsDomPatch {
 internal fun buildRecolorJs(annotationId: String, accentCssRgba: String): String {
     val idJs = jsQuoteString(annotationId)
     val colorJs = jsQuoteString(accentCssRgba)
-    // Update both the paragraph and any adjacent aside sharing the same data-ann-id — the note's
-    // border-left uses the same accent colour by design. Setting borderLeftColor is enough since
-    // the width/style are already inline (4px solid / 2px solid respectively, set at build time).
+    // Update the paragraph, adjacent aside, AND figure block sharing the same data-ann-id — the
+    // aside's and figure's border-left uses the same accent colour by design. Setting
+    // borderLeftColor is enough since the width/style are already inline (4px solid / 2px solid
+    // respectively, set at build time). `closest('p, figure')` covers text highlights (span inside
+    // <p>), embedded figures inside a highlight (span inside <figure class="riffle-fig">), and the
+    // <figure> itself now that we tag it with data-ann-id (fix 2026-07-10).
     return """
         |(function(){
         |  var id = $idJs;
@@ -60,7 +63,8 @@ internal fun buildRecolorJs(annotationId: String, accentCssRgba: String): String
         |  var nodes = document.querySelectorAll('[data-ann-id="' + id + '"]');
         |  for (var i = 0; i < nodes.length; i++) {
         |    var el = nodes[i];
-        |    var host = el.tagName === 'ASIDE' ? el : el.closest('p');
+        |    var host = el.tagName === 'ASIDE' || el.tagName === 'FIGURE'
+        |      ? el : el.closest('p, figure');
         |    if (host) host.style.setProperty('border-left-color', color, 'important');
         |  }
         |})();
@@ -73,9 +77,13 @@ internal fun buildSetNoteJs(annotationId: String, accentCssRgba: String, noteTex
     val noteJs = if (noteText == null) "null" else jsQuoteString(noteText)
     // Look up the aside by its own data-ann-id (not by sibling-adjacency to the paragraph);
     // Readium's HTMLInjector sometimes lands wrappers/text nodes between the two, so an
-    // adjacency-only check misses the pair. When creating a new aside we still need the
-    // paragraph to know WHERE to insert (right after it), so we resolve `p` via the highlight
-    // span; insertion uses `p.nextSibling` which is safe even when p has no next element.
+    // adjacency-only check misses the pair.
+    //
+    // For a text-figure-text (or more generally multi-chunk) annotation the aside must sit AFTER
+    // the LAST DOM node that belongs to this annotation, not after the FIRST paragraph — otherwise
+    // the note visually splits the annotation body (bug 2026-07-10: "adding a note to a grouped
+    // annotation shows the note under the first text"). Find every element with this data-ann-id
+    // and anchor the insertion to the last one's parent block (its <p> or <figure> host).
     return """
         |(function(){
         |  var id = $idJs;
@@ -87,17 +95,22 @@ internal fun buildSetNoteJs(annotationId: String, accentCssRgba: String, noteTex
         |    return;
         |  }
         |  if (!aside) {
-        |    var hlSpan = document.querySelector('span.riffle-hl[data-ann-id="' + id + '"]');
-        |    if (!hlSpan) return;
-        |    var p = hlSpan.closest('p');
-        |    if (!p) return;
+        |    var nodes = document.querySelectorAll('[data-ann-id="' + id + '"]');
+        |    var anchorHost = null;
+        |    for (var i = nodes.length - 1; i >= 0; i--) {
+        |      var el = nodes[i];
+        |      if (el.tagName === 'ASIDE') continue;
+        |      anchorHost = el.tagName === 'FIGURE' ? el : el.closest('p, figure');
+        |      if (anchorHost) break;
+        |    }
+        |    if (!anchorHost) return;
         |    aside = document.createElement('aside');
         |    aside.setAttribute('class', 'riffle-note');
         |    aside.setAttribute('data-ann-id', id);
         |    aside.setAttribute('style',
         |      'border-left: 2px solid ' + color + ' !important; padding-left: 12px; ' +
         |      'font-style: italic; opacity: 0.75;');
-        |    p.parentNode.insertBefore(aside, p.nextSibling);
+        |    anchorHost.parentNode.insertBefore(aside, anchorHost.nextSibling);
         |  } else {
         |    aside.style.setProperty('border-left-color', color, 'important');
         |  }
@@ -124,6 +137,8 @@ internal fun buildRemoveJs(annotationId: String): String {
         |    var p = hlSpan.closest('p');
         |    if (p) p.remove();
         |  }
+        |  var figs = document.querySelectorAll('figure.riffle-fig[data-ann-id="' + id + '"]');
+        |  for (var i = 0; i < figs.length; i++) figs[i].remove();
         |})();
     """.trimMargin()
 }

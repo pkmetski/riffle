@@ -18,7 +18,14 @@ class HighlightsDomPatchTest {
         // The recolour must touch BOTH the paragraph (via closest('p')) AND any aside that
         // carries the same data-ann-id — otherwise a note's border colour drifts from the bar.
         assertTrue("recolor JS must find nodes by data-ann-id", js.contains("data-ann-id="))
-        assertTrue("recolor JS must fall through to the paragraph via closest('p')", js.contains("closest('p')"))
+        assertTrue(
+            "recolor JS must fall through to the paragraph OR figure via closest('p, figure')",
+            js.contains("closest('p, figure')"),
+        )
+        assertTrue(
+            "recolor JS must treat a <figure> host as directly-target-able (fix 2026-07-10)",
+            js.contains("FIGURE"),
+        )
         assertTrue("recolor JS must set border-left-color", js.contains("border-left-color"))
         assertTrue("recolor JS must use setProperty with 'important' to defeat ReadiumCSS theming",
             js.contains("'important'") || js.contains("!important"))
@@ -37,6 +44,14 @@ class HighlightsDomPatchTest {
         assertTrue("must look up the existing aside by its own data-ann-id (adjacency is unreliable through Readium's HTMLInjector)",
             js.contains("aside.riffle-note[data-ann-id="))
         assertTrue("must update textContent (not innerHTML — avoid injection)", js.contains("textContent"))
+        // Fix 2026-07-10: for text-figure-text annotations the aside must sit after the LAST
+        // element carrying this data-ann-id, not the first — otherwise the note splits the
+        // annotation body. Loop from `nodes.length - 1` picks the last host block; the guard
+        // skips any existing aside with the same id so we don't chain a second aside onto the first.
+        assertTrue(
+            "SetNote must scan nodes from the END to place the aside after the last chunk",
+            js.contains("i = nodes.length - 1"),
+        )
     }
 
     @Test
@@ -66,6 +81,10 @@ class HighlightsDomPatchTest {
         assertTrue("Remove JS must look up the aside directly by data-ann-id",
             js.contains("aside.riffle-note[data-ann-id="))
         assertTrue(js.contains("closest('p')"))
+        assertTrue(
+            "Remove JS must also drop any figure.riffle-fig block carrying this id (fix 2026-07-10)",
+            js.contains("figure.riffle-fig[data-ann-id="),
+        )
     }
 
     @Test
