@@ -52,6 +52,32 @@ class HighlightsLiveUpdateObserverTest {
     }
 
     @Test
+    fun `openBook Highlights branch filters the baseline snapshot to TYPE_HIGHLIGHT`() {
+        // Regression guard for the elided-view infinite-load + repeated-WebDAV-push bug:
+        // getForItem returns ALL annotation types (highlights, bookmarks, images), but the observer
+        // filters incomingById to TYPE_HIGHLIGHT. If openBook's baseline associated over the raw
+        // rows, every bookmark would appear as a removed id on the first emission, structural=true
+        // fires (any bookmark in a chapter with zero highlights), reloadHighlightsView() runs → openBook
+        // rewrites the same all-types baseline → infinite loop, each cycle re-binding the annotation
+        // session and firing a WebDAV syncOnOpen.
+        val body = extractFunctionBody(vmSource(), "openBook")
+            ?: error("openBook not found in EpubReaderViewModel.kt")
+        val hlBranch = body.substringAfter("source == ReaderSource.Highlights")
+        val assignment = Regex(
+            """highlightsRenderedById\s*=\s*rows[\s\S]*?\.associateBy\s*\{\s*it\.id\s*}""",
+        ).find(hlBranch)?.value ?: error(
+            "highlightsRenderedById = rows…associateBy { it.id } not found in Highlights branch",
+        )
+        assertTrue(
+            "openBook's Highlights baseline must filter rows to AnnotationEntity.TYPE_HIGHLIGHT " +
+                "before associating by id — otherwise bookmarks in the same book perpetually mismatch " +
+                "the observer's TYPE_HIGHLIGHT-filtered incomingById and reloadHighlightsView() loops " +
+                "forever, firing a WebDAV syncOnOpen on every cycle.",
+            assignment.contains("AnnotationEntity.TYPE_HIGHLIGHT"),
+        )
+    }
+
+    @Test
     fun `ensureHighlightsObserver subscribes and emits DOM patches on partial change`() {
         val body = extractFunctionBody(vmSource(), "ensureHighlightsObserver")
             ?: error("ensureHighlightsObserver not found — did it move?")
