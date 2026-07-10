@@ -44,4 +44,15 @@ class SourceTypePickerTest {
         assertFalse(lf.comingSoon)
         assertEquals("Local files", lf.title)
     }
+
+    // LocalFiles is a device singleton — once installed, the Add-Source picker must not offer
+    // to "add" a second one. Adding another folder to the existing source is a dedicated action
+    // in Settings. If this predicate ever flips, the picker will start creating duplicate rows
+    // (or silently no-op'ing) instead of guiding the user to the right entry point.
+    @Test
+    fun `LocalFiles card is hidden once a LocalFiles source exists`() {
+        val cards = sourceTypeCards(hasLocalFilesSource = true)
+        assertEquals(1, cards.size)
+        assertEquals(SourceTypeChoice.Audiobookshelf, cards.single().type)
+    }
 }
