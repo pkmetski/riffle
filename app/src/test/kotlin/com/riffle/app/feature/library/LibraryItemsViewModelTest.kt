@@ -211,6 +211,7 @@ class LibraryItemsViewModelTest {
         },
         annotationStore: com.riffle.core.domain.AnnotationStore = fakeAnnotationStore(),
         audiobookBookmarkStore: com.riffle.core.domain.AudiobookBookmarkStore = fakeAudiobookBookmarkStore(),
+        catalogRegistry: com.riffle.core.catalog.CatalogRegistry = fakeCatalogRegistry(),
     ) = LibraryItemsViewModel(
         savedStateHandle = savedStateHandle,
         libraryObserver = libraryRepository,
@@ -234,7 +235,16 @@ class LibraryItemsViewModelTest {
         coverGridDensityStore = coverGridDensityStore,
         annotationStore = annotationStore,
         audiobookBookmarkStore = audiobookBookmarkStore,
+        catalogRegistry = catalogRegistry,
     )
+
+    private fun fakeCatalogRegistry(
+        catalog: com.riffle.core.catalog.Catalog? = null,
+    ): com.riffle.core.catalog.CatalogRegistry = object : com.riffle.core.catalog.CatalogRegistry {
+        override suspend fun forActive(): com.riffle.core.catalog.Catalog? = catalog
+        override suspend fun forSource(source: com.riffle.core.domain.Source): com.riffle.core.catalog.Catalog? = catalog
+        override suspend fun forSourceId(sourceId: String): com.riffle.core.catalog.Catalog? = catalog
+    }
 
     private fun series(name: String) = Series("id-$name", "lib-1", name, null, 1)
     private fun collection(name: String) = Collection("id-$name", "lib-1", name, 1)
@@ -1111,6 +1121,124 @@ class LibraryItemsViewModelTest {
         // No query set — blank by default
         testDispatcher.scheduler.advanceUntilIdle()
         assertEquals(emptyList<AnnotationSearchResult>(), vm.projection.value.annotations)
+    }
+
+    // Regression pins for #439: tabVisibility must map from the active Catalog's capabilities and
+    // must re-derive when the active Source changes in place.
+    @Test
+    fun `tabVisibility maps active Catalog capabilities to per-tab flags`() = runTest {
+        val srv = source("s-abs", active = true)
+        val serversFlow = MutableStateFlow(listOf(srv))
+        val srcRepo = object : SourceRepository {
+            override fun observeAll(): Flow<List<Source>> = serversFlow
+            override suspend fun getActive(): Source? = serversFlow.value.firstOrNull { it.isActive }
+            override suspend fun authenticate(url: SourceUrl, username: String, password: String, insecureAllowed: Boolean, serverType: com.riffle.core.domain.ServerType) = throw UnsupportedOperationException()
+            override suspend fun commit(pending: com.riffle.core.domain.PendingSource, hiddenLibraryIds: Set<String>) = throw UnsupportedOperationException()
+            override suspend fun setActive(sourceId: String) {}
+            override suspend fun remove(sourceId: String) {}
+            override suspend fun getSourceVersion(sourceId: String): String? = null
+        }
+        val vm = makeViewModel(
+            sourceRepository = srcRepo,
+            catalogRegistry = catalogRegistryReturning(SeriesAndPlaylistsOnlyCatalog),
+        )
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        val visibility = vm.tabVisibility.value
+        assertEquals(true, visibility?.series)
+        assertEquals(true, visibility?.toRead)
+        assertEquals(false, visibility?.collections)
+    }
+
+    @Test
+    fun `tabVisibility re-emits when the active Source flips to one with a different capability set`() = runTest {
+        val abs = source("s-abs", active = true)
+        val local = source("s-local", active = false)
+        val serversFlow = MutableStateFlow(listOf(abs, local))
+        val srcRepo = object : SourceRepository {
+            override fun observeAll(): Flow<List<Source>> = serversFlow
+            override suspend fun getActive(): Source? = serversFlow.value.firstOrNull { it.isActive }
+            override suspend fun authenticate(url: SourceUrl, username: String, password: String, insecureAllowed: Boolean, serverType: com.riffle.core.domain.ServerType) = throw UnsupportedOperationException()
+            override suspend fun commit(pending: com.riffle.core.domain.PendingSource, hiddenLibraryIds: Set<String>) = throw UnsupportedOperationException()
+            override suspend fun setActive(sourceId: String) {}
+            override suspend fun remove(sourceId: String) {}
+            override suspend fun getSourceVersion(sourceId: String): String? = null
+        }
+        // ABS → SeriesAndPlaylistsOnlyCatalog; LocalFiles → SeriesOnlyCatalog. The mapping keys on
+        // source id so we can prove the flow re-fires on switch, not just latches the first value.
+        val registry = object : com.riffle.core.catalog.CatalogRegistry {
+            override suspend fun forActive(): com.riffle.core.catalog.Catalog? = null
+            override suspend fun forSource(source: Source): com.riffle.core.catalog.Catalog? = forSourceId(source.id)
+            override suspend fun forSourceId(sourceId: String): com.riffle.core.catalog.Catalog? = when (sourceId) {
+                "s-abs" -> SeriesAndPlaylistsOnlyCatalog
+                "s-local" -> SeriesOnlyCatalog
+                else -> null
+            }
+        }
+        val vm = makeViewModel(sourceRepository = srcRepo, catalogRegistry = registry)
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(true, vm.tabVisibility.value?.toRead)
+
+        // Flip active to the LocalFiles-shaped source.
+        serversFlow.value = listOf(abs.copy(isActive = false), local.copy(isActive = true))
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        val v = vm.tabVisibility.value
+        assertEquals(true, v?.series)
+        assertEquals(false, v?.toRead)
+    }
+
+    private fun source(id: String, active: Boolean) = Source(
+        id = id,
+        url = checkNotNull(SourceUrl.parse("https://example.test/$id")),
+        isActive = active,
+        insecureConnectionAllowed = false,
+        username = "u",
+        type = if (id == "s-local") com.riffle.core.domain.SourceType.LOCAL_FILES else com.riffle.core.domain.SourceType.ABS,
+        serverType = com.riffle.core.domain.ServerType.AUDIOBOOKSHELF,
+    )
+
+    private fun catalogRegistryReturning(catalog: com.riffle.core.catalog.Catalog?): com.riffle.core.catalog.CatalogRegistry =
+        object : com.riffle.core.catalog.CatalogRegistry {
+            override suspend fun forActive(): com.riffle.core.catalog.Catalog? = catalog
+            override suspend fun forSource(source: Source): com.riffle.core.catalog.Catalog? = catalog
+            override suspend fun forSourceId(sourceId: String): com.riffle.core.catalog.Catalog? = catalog
+        }
+
+    private object SeriesAndPlaylistsOnlyCatalog :
+        com.riffle.core.catalog.Catalog,
+        com.riffle.core.catalog.SeriesCapability,
+        com.riffle.core.catalog.PlaylistsCapability {
+        override val sourceType = com.riffle.core.domain.SourceType.ABS
+        override suspend fun listRoots() = emptyList<com.riffle.core.catalog.CatalogRoot>()
+        override suspend fun browse(rootId: String, sort: com.riffle.core.catalog.SortKey, page: Int, pageSize: Int) = emptyList<com.riffle.core.catalog.CatalogItem>()
+        override suspend fun search(rootId: String, query: String, page: Int, pageSize: Int) = emptyList<com.riffle.core.catalog.CatalogItem>()
+        override suspend fun getItem(itemId: String) = null
+        override suspend fun fetchFile(itemId: String, format: com.riffle.core.catalog.BookFormat) = error("unused")
+        override suspend fun openFile(itemId: String, format: com.riffle.core.catalog.BookFormat, handleHint: String?) = error("unused")
+        override suspend fun connectivityCheck() = error("unused")
+        override suspend fun listSeries(rootId: String) = emptyList<com.riffle.core.catalog.CatalogSeries>()
+        override suspend fun listItemsInSeries(rootId: String, seriesId: String) = emptyList<com.riffle.core.catalog.CatalogItem>()
+        override suspend fun listPlaylists(rootId: String) = emptyList<com.riffle.core.catalog.CatalogPlaylist>()
+        override suspend fun createPlaylist(rootId: String, name: String) = error("unused")
+        override suspend fun addItemToPlaylist(playlistId: String, itemId: String) {}
+        override suspend fun removeItemFromPlaylist(playlistId: String, itemId: String) {}
+    }
+
+    private object SeriesOnlyCatalog :
+        com.riffle.core.catalog.Catalog,
+        com.riffle.core.catalog.SeriesCapability {
+        override val sourceType = com.riffle.core.domain.SourceType.LOCAL_FILES
+        override suspend fun listRoots() = emptyList<com.riffle.core.catalog.CatalogRoot>()
+        override suspend fun browse(rootId: String, sort: com.riffle.core.catalog.SortKey, page: Int, pageSize: Int) = emptyList<com.riffle.core.catalog.CatalogItem>()
+        override suspend fun search(rootId: String, query: String, page: Int, pageSize: Int) = emptyList<com.riffle.core.catalog.CatalogItem>()
+        override suspend fun getItem(itemId: String) = null
+        override suspend fun fetchFile(itemId: String, format: com.riffle.core.catalog.BookFormat) = error("unused")
+        override suspend fun openFile(itemId: String, format: com.riffle.core.catalog.BookFormat, handleHint: String?) = error("unused")
+        override suspend fun connectivityCheck() = error("unused")
+        override suspend fun listSeries(rootId: String) = emptyList<com.riffle.core.catalog.CatalogSeries>()
+        override suspend fun listItemsInSeries(rootId: String, seriesId: String) = emptyList<com.riffle.core.catalog.CatalogItem>()
     }
 
     // Regression: on ON_RESUME we always refresh so `_refreshFailed` clears if the server is back.

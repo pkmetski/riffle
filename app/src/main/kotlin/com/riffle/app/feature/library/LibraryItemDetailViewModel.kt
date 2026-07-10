@@ -19,6 +19,10 @@ import com.riffle.core.domain.usecase.MarkReadAcrossDimensions
 import com.riffle.core.domain.usecase.RecordItemOpened
 import com.riffle.core.domain.usecase.UpdateReadingProgress
 import com.riffle.core.data.ToReadRepository
+import com.riffle.core.catalog.AudiobookMediaCapability
+import com.riffle.core.catalog.CatalogRegistry
+import com.riffle.core.catalog.PlaylistsCapability
+import com.riffle.core.catalog.SeriesCapability
 import com.riffle.core.domain.SourceRepository
 import com.riffle.core.domain.TocEntry
 import com.riffle.core.domain.TokenStorage
@@ -50,8 +54,29 @@ sealed interface LibraryItemDetailUiState {
         // True when the device is currently offline. Reactive — updated via combine with
         // ConnectivityObserver.isOnline in the ViewModel.
         val isOffline: Boolean = false,
+        // Capability snapshot for the item's Source. Composables gate the Series chip / Listen
+        // button / To Read icon on these instead of the item shape alone (issue #439). A Source
+        // that lacks the capability hides the surface even when the item nominally supports it
+        // (e.g. an audiobook file dropped into a LocalFiles Source: `isListenable` is true, but
+        // `hasAudiobookMedia` is false, so no Listen button appears — LocalFiles has no player yet).
+        val capabilities: DetailCapabilities = DetailCapabilities.Empty,
     ) : LibraryItemDetailUiState
     data object Error : LibraryItemDetailUiState
+}
+
+/** Per-Source capability flags consumed by the item-detail screen. */
+data class DetailCapabilities(
+    val hasSeries: Boolean,
+    val hasPlaylists: Boolean,
+    val hasAudiobookMedia: Boolean,
+) {
+    companion object {
+        /** Every capability present — matches the ABS shape used by the majority of items. */
+        val All = DetailCapabilities(hasSeries = true, hasPlaylists = true, hasAudiobookMedia = true)
+
+        /** No capability present — safe default when the active Source's Catalog can't be resolved. */
+        val Empty = DetailCapabilities(hasSeries = false, hasPlaylists = false, hasAudiobookMedia = false)
+    }
 }
 
 sealed interface DownloadState {
@@ -104,6 +129,7 @@ class LibraryItemDetailViewModel @Inject constructor(
     private val sidecarPrefetcher: com.riffle.core.data.ReadaloudSidecarPrefetcher,
     private val extractEpubTocUseCase: ExtractEpubTocUseCase,
     private val fetchAudiobookChaptersUseCase: FetchAudiobookChaptersUseCase,
+    private val catalogRegistry: CatalogRegistry,
 ) : ViewModel() {
 
     private val itemId: String = savedStateHandle.get<String>("itemId") ?: ""
@@ -186,12 +212,25 @@ class LibraryItemDetailViewModel @Inject constructor(
                     // the detail screen stuck in Loading for the network timeout (~10s).
                     val isInToRead = toReadRepository.isInToRead(item.id, item.libraryId)
                     val seriesId = item.seriesName?.let { libraryObserver.getSeriesIdForItem(item.sourceId, item.id) }
+                    // Key capabilities off the item's OWN Source, not the currently-active one.
+                    // Details screens outlive Source switches (deep-links from Annotations across
+                    // Sources, an item pinned to a specific Source while another is active) — using
+                    // getActive() would surface ABS-shape controls for a LocalFiles item, or vice
+                    // versa. Raw `is` checks (see LibraryItemsViewModel.tabVisibility for the
+                    // JVM-target rationale).
+                    val catalog = catalogRegistry.forSourceId(item.sourceId)
+                    val capabilities = DetailCapabilities(
+                        hasSeries = catalog is SeriesCapability,
+                        hasPlaylists = catalog is PlaylistsCapability,
+                        hasAudiobookMedia = catalog is AudiobookMediaCapability,
+                    )
                     LibraryItemDetailUiState.Ready(
                         item = item,
                         seriesId = seriesId,
                         isInToRead = isInToRead,
                         isCachedOrDownloaded = isCachedOrDownloaded,
                         isOffline = !connectivityObserver.isOnline.value,
+                        capabilities = capabilities,
                     )
                 } else {
                     LibraryItemDetailUiState.Error

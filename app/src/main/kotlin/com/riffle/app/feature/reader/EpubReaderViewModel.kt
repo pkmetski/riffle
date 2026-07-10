@@ -198,7 +198,14 @@ class EpubReaderViewModel @Inject constructor(
     private val highlightsResumeStore: HighlightsResumeStore,
     private val tocRepository: TocRepository,
     private val figuresInRangeResolver: FiguresInRangeResolver,
+    private val catalogRegistry: com.riffle.core.catalog.CatalogRegistry,
 ) : AndroidViewModel(application) {
+
+    // ReadingSessionCoordinator's per-call enabled gate reads this atomic; init below flips it once
+    // the active Catalog's capability set is known (issue #439). Starts false so a coordinator tick
+    // that fires before init completes stays a no-op — the coordinator won't heartbeat/flush until
+    // the capability is confirmed.
+    private val readingSessionsEnabled = java.util.concurrent.atomic.AtomicBoolean(false)
 
     // Formatting/typography/auto-scroll orchestrator — constructed with viewModelScope so
     // teardown is deterministic (the orchestrator's coroutines cancel when the VM is cleared).
@@ -367,6 +374,7 @@ class EpubReaderViewModel @Inject constructor(
         clock = clock,
         readingSpeedStore = readingSpeedStore,
         scope = viewModelScope,
+        enabled = { readingSessionsEnabled.get() },
     )
 
     private val positionSaveCoordinator = PositionSaveCoordinator<String>(
@@ -822,6 +830,19 @@ class EpubReaderViewModel @Inject constructor(
         readaloud.onAudioPlayingChanged = { isPlaying -> readerStateHolder.isAudioPlaying = isPlaying }
         // Wire the Storyteller pulled-locator callback once — position is constructed by this point.
         readaloud.storytellerServerLocatorCallback = { locator -> position.requestServerJump(locator) }
+        // Issue #439: ReadingSessionCoordinator no-ops until the active Source is confirmed to
+        // provide ReadingSessionsCapability. LocalFiles (no capability) never enables sessions;
+        // ABS flips it on once its Catalog resolves.
+        viewModelScope.launch {
+            // Key on the book's own Source, not the currently-active one — a reader can outlive
+            // a Source switch (issue #439 / ADR 0041). Fall back to the active Source when nav
+            // didn't carry a sourceId (normal FullBook open), matching the resolution pattern
+            // used elsewhere in this VM. Raw `is` check in place of the inline has<T>() extension —
+            // see LibraryItemsViewModel.tabVisibility for the JVM-target rationale.
+            val sourceId = navServerId ?: sourceRepository.getActive()?.id
+            val catalog = sourceId?.let { catalogRegistry.forSourceId(it) }
+            readingSessionsEnabled.set(catalog is com.riffle.core.catalog.ReadingSessionsCapability)
+        }
         viewModelScope.launch {
             // Sequential: formatting prefs must be available before openBook() so the
             // navigator never sees the stateIn default on first paint (FormattingSession.bindToBook

@@ -278,7 +278,17 @@ class LibraryItemDetailViewModelTest {
         sidecarPrefetcher = { _, _ -> },
         extractEpubTocUseCase = extractEpubTocUseCase,
         fetchAudiobookChaptersUseCase = fetchAudiobookChaptersUseCase,
+        catalogRegistry = detailFakeCatalogRegistry(),
     )
+
+    // These tests exercise ViewModel state and side-effects; none read Ready.capabilities.
+    // Returning null keeps the fake tiny.
+    private fun detailFakeCatalogRegistry(): com.riffle.core.catalog.CatalogRegistry =
+        object : com.riffle.core.catalog.CatalogRegistry {
+            override suspend fun forActive(): com.riffle.core.catalog.Catalog? = null
+            override suspend fun forSource(source: com.riffle.core.domain.Source): com.riffle.core.catalog.Catalog? = null
+            override suspend fun forSourceId(sourceId: String): com.riffle.core.catalog.Catalog? = null
+        }
 
     /** Records the links handed to the index-build trigger (the download-complete trigger, ADR 0031). */
     private class RecordingBuildTrigger : com.riffle.core.data.CrossEpubIndexBuildTrigger {

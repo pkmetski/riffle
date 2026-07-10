@@ -20,6 +20,10 @@ import com.riffle.core.domain.usecase.RefreshLibraryItems
 import com.riffle.core.domain.usecase.RefreshSeries
 import com.riffle.core.domain.Series
 import com.riffle.core.data.ToReadRepository
+import com.riffle.core.catalog.CatalogRegistry
+import com.riffle.core.catalog.CollectionsCapability
+import com.riffle.core.catalog.PlaylistsCapability
+import com.riffle.core.catalog.SeriesCapability
 import com.riffle.core.domain.SourceRepository
 import com.riffle.core.domain.TokenStorage
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -63,6 +67,7 @@ class LibraryItemsViewModel @Inject constructor(
     private val coverGridDensityStore: com.riffle.core.domain.CoverGridDensityStore,
     private val annotationStore: AnnotationStore,
     private val audiobookBookmarkStore: AudiobookBookmarkStore,
+    private val catalogRegistry: CatalogRegistry,
 ) : ViewModel() {
 
     val libraryId: String = savedStateHandle.get<String>("libraryId") ?: ""
@@ -202,6 +207,34 @@ class LibraryItemsViewModel @Inject constructor(
 
     val projection: StateFlow<LibraryProjection> = filterEngine.projection
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), LibraryProjection.Empty)
+
+    /**
+     * Which optional Library tabs are visible for the active Source. Home, Annotations, and All
+     * Books are always available; the rest are gated on the active Catalog's capabilities per
+     * issue #439 / ADR 0041.
+     *
+     * Null before the active Source's Catalog resolves — composables read this and skip the
+     * "clamp selected tab back to Home" effect while unresolved, so a `rememberSaveable`-restored
+     * selected-tab isn't wiped by the initial empty state on cold start.
+     *
+     * Reactive against `sourceRepository.observeAll()` so an in-place Source switch (drawer tap,
+     * background sync, etc.) re-derives the visibility set instead of latching on whichever
+     * Source happened to be active when this VM was constructed. Raw `is X` checks stand in for
+     * the inline `Catalog.has<T>()` extension: core:catalog compiles at JVM target 21 (implicit)
+     * while every consumer pins target 17, so the inline can't cross the boundary today.
+     */
+    val tabVisibility: StateFlow<LibraryTabVisibility?> = sourceRepository.observeAll()
+        .map { servers -> servers.firstOrNull { it.isActive }?.id }
+        .distinctUntilChanged()
+        .map { sourceId ->
+            val catalog = sourceId?.let { catalogRegistry.forSourceId(it) }
+            LibraryTabVisibility(
+                toRead = catalog is PlaylistsCapability,
+                series = catalog is SeriesCapability,
+                collections = catalog is CollectionsCapability,
+            )
+        }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
     var authToken: String by mutableStateOf("")
         private set

@@ -192,6 +192,27 @@ class LocalFilesCatalogTest {
     }
 
     @Test
+    fun `capability set excludes every non-LocalFiles surface`() {
+        // Regression pin for issue #439's promise: a LocalFiles user sees no Collections tab, no
+        // To Read tab, no Reading Sessions, no Reading Statistics, and no Listen affordance.
+        // LocalFilesCatalog does implement SeriesCapability (folder-inferred series) and
+        // OfflineBrowseCapability. If any assertion below flips green, either LocalFilesCatalog
+        // silently gained a capability it doesn't actually implement, or the marker mixins have
+        // drifted. Uses raw `is` checks — this module's JVM target (17) can't inline
+        // `Catalog.has<T>()` emitted by core:catalog (target 21).
+        val catalog: com.riffle.core.catalog.Catalog = catalog()
+
+        assertTrue(catalog is com.riffle.core.catalog.SeriesCapability)
+        assertTrue(catalog is com.riffle.core.catalog.OfflineBrowseCapability)
+
+        assertEquals(false, catalog is com.riffle.core.catalog.CollectionsCapability)
+        assertEquals(false, catalog is com.riffle.core.catalog.PlaylistsCapability)
+        assertEquals(false, catalog is com.riffle.core.catalog.AudiobookMediaCapability)
+        assertEquals(false, catalog is com.riffle.core.catalog.ReadingSessionsCapability)
+        assertEquals(false, catalog is com.riffle.core.catalog.StatsCapability)
+    }
+
+    @Test
     fun `RECENTLY_OPENED sort is not supported at the Catalog layer`() = runTest {
         val items = FakeLibraryItemDao().also { it.emit(sourceId, listOf(epubItem("a", "a"))) }
         val catalog = catalog(items = items)

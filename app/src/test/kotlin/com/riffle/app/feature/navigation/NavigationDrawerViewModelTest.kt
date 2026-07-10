@@ -148,9 +148,17 @@ class NavigationDrawerViewModelTest {
         orderStore = fakeOrderStore(),
         lastOpenedLibraryStore = fakeLastOpenedStore(),
         connectivityObserver = fakeConnectivity(),
+        catalogRegistry = fakeCatalogRegistry(),
         nowPlayingNavigator = com.riffle.app.playback.NowPlayingNavigator(),
         nowPlayingStore = com.riffle.app.playback.NowPlayingStore(),
     )
+
+    private fun fakeCatalogRegistry(): com.riffle.core.catalog.CatalogRegistry =
+        object : com.riffle.core.catalog.CatalogRegistry {
+            override suspend fun forActive(): com.riffle.core.catalog.Catalog? = null
+            override suspend fun forSource(source: com.riffle.core.domain.Source): com.riffle.core.catalog.Catalog? = null
+            override suspend fun forSourceId(sourceId: String): com.riffle.core.catalog.Catalog? = null
+        }
 
     @Test
     fun `redirectToLibrary emits next visible library when active library is hidden`() = runTest(testDispatcher) {

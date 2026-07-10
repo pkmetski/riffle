@@ -65,7 +65,22 @@ class PdfReaderViewModel @Inject constructor(
     private val volumeKeyDispatcher: VolumeKeyDispatcher,
     clock: Clock,
     readingSpeedStore: ReadingSpeedStore,
+    private val catalogRegistry: com.riffle.core.catalog.CatalogRegistry,
 ) : AndroidViewModel(application) {
+
+    // See EpubReaderViewModel — mirrors the #439 gate for PDF's coordinator.
+    private val readingSessionsEnabled = java.util.concurrent.atomic.AtomicBoolean(false)
+
+    init {
+        viewModelScope.launch {
+            // getActive() is captured once at reader-open time. In practice the reader is opened
+            // from a tap on the currently-active Source's library, so this matches the item's
+            // Source. Raw `is` check in place of the inline has<T>() extension — see
+            // LibraryItemsViewModel.tabVisibility for the JVM-target rationale.
+            val catalog = sourceRepository.getActive()?.let { catalogRegistry.forSource(it) }
+            readingSessionsEnabled.set(catalog is com.riffle.core.catalog.ReadingSessionsCapability)
+        }
+    }
 
     private val itemId: String = checkNotNull(savedStateHandle["itemId"])
 
@@ -152,6 +167,7 @@ class PdfReaderViewModel @Inject constructor(
         clock = clock,
         readingSpeedStore = readingSpeedStore,
         scope = viewModelScope,
+        enabled = { readingSessionsEnabled.get() },
     )
 
     // Cached at book-open so navigateToEntry can resolve a TocEntry click back to

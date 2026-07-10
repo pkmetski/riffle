@@ -13,6 +13,8 @@ import com.riffle.core.domain.Source
 import com.riffle.core.domain.SourceRepository
 import com.riffle.core.domain.ServerType
 import com.riffle.core.domain.isReadaloud
+import com.riffle.core.catalog.Catalog
+import com.riffle.core.catalog.CatalogRegistry
 import com.riffle.app.playback.NowPlaying
 import com.riffle.app.playback.NowPlayingNavigator
 import com.riffle.app.playback.NowPlayingStore
@@ -41,6 +43,7 @@ class NavigationDrawerViewModel @Inject constructor(
     private val orderStore: LibraryOrderPreferencesStore,
     private val lastOpenedLibraryStore: LastOpenedLibraryStore,
     private val connectivityObserver: ConnectivityObserver,
+    private val catalogRegistry: CatalogRegistry,
     nowPlayingNavigator: NowPlayingNavigator,
     private val nowPlayingStore: NowPlayingStore,
 ) : ViewModel() {
@@ -58,6 +61,13 @@ class NavigationDrawerViewModel @Inject constructor(
 
     val activeServer: StateFlow<Source?> = allServers
         .map { servers -> servers.firstOrNull { it.isActive } }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, null)
+
+    // Capability-gated UI (issue #439) reads this to hide surfaces the active Source can't
+    // support. Null before the first Source loads or when the active Source can't yield a
+    // Catalog (missing credentials, unregistered factory). Composables treat null as "hide".
+    val activeCatalog: StateFlow<Catalog?> = activeServer
+        .map { source -> source?.let { catalogRegistry.forSource(it) } }
         .stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
     private val versionsCache = mutableMapOf<String, String>()
