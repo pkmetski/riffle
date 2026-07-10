@@ -1,13 +1,15 @@
 package com.riffle.core.data
 
+import com.riffle.core.catalog.BookFormat
 import com.riffle.core.catalog.Catalog
-import com.riffle.core.catalog.CatalogRegistry
 import com.riffle.core.catalog.CatalogFileHandle
 import com.riffle.core.catalog.CatalogFileStream
-import com.riffle.core.catalog.BookFormat
 import com.riffle.core.catalog.CatalogHealth
 import com.riffle.core.catalog.CatalogItem
+import com.riffle.core.catalog.CatalogProgress
+import com.riffle.core.catalog.CatalogRegistry
 import com.riffle.core.catalog.CatalogRoot
+import com.riffle.core.catalog.ProgressPeerCapability
 import com.riffle.core.catalog.SortKey
 import com.riffle.core.domain.PositionSnapshot
 import com.riffle.core.domain.ProgressReconciler
@@ -89,12 +91,17 @@ class ProgressSweepTest {
      */
     private class FakeRegistry(private val available: Set<String>) : CatalogRegistry {
         override suspend fun forActive(): Catalog? = null
-        override suspend fun forSource(source: Source): Catalog? = if (source.id in available) DummyCatalog else null
-        override suspend fun forSourceId(sourceId: String): Catalog? = if (sourceId in available) DummyCatalog else null
+        override suspend fun forSource(source: Source): Catalog? = if (source.id in available) DummyCatalog.PEER else null
+        override suspend fun forSourceId(sourceId: String): Catalog? = if (sourceId in available) DummyCatalog.PEER else null
     }
 
-    /** No-op Catalog — sweep never invokes its methods; only presence/absence matters. */
-    private object DummyCatalog : Catalog {
+    /**
+     * A Catalog that implements [ProgressPeerCapability] — sweep gates sources on the capability
+     * (ADR 0041), so the fake registry's presence-check maps 1:1 to "is a progress peer" for these
+     * tests. All methods no-op; only presence/absence matters. The [asPeer] flag lets a test opt out
+     * of the capability to simulate a zero-peer source (LocalFiles).
+     */
+    private open class DummyCatalog(val asPeer: Boolean = true) : Catalog {
         override val sourceType = SourceType.ABS
         override suspend fun listRoots() = emptyList<CatalogRoot>()
         override suspend fun browse(rootId: String, sort: SortKey, page: Int, pageSize: Int) = emptyList<CatalogItem>()
@@ -105,6 +112,18 @@ class ProgressSweepTest {
         override suspend fun openFile(itemId: String, format: BookFormat, handleHint: String?): CatalogFileStream =
             throw UnsupportedOperationException()
         override suspend fun connectivityCheck() = CatalogHealth(isReachable = false)
+
+        companion object {
+            val PEER: Catalog = PeerCatalog()
+            val NON_PEER: Catalog = DummyCatalog(asPeer = false)
+        }
+
+        private class PeerCatalog : DummyCatalog(asPeer = true), ProgressPeerCapability {
+            override suspend fun pushEbookProgress(itemId: String, location: String, progress: Float, isFinished: Boolean?, lastUpdateEpochMs: Long) = null
+            override suspend fun pushAudiobookProgress(itemId: String, currentTimeSec: Double, durationSec: Double, isFinished: Boolean?, lastUpdateEpochMs: Long) = null
+            override suspend fun pullProgress(itemId: String): CatalogProgress? = null
+            override suspend fun pullAllProgress(): List<CatalogProgress> = emptyList()
+        }
     }
 
     private fun ledger(
@@ -211,6 +230,28 @@ class ProgressSweepTest {
 
         assertFalse(ebookStore.dirty("s1", "i1"))
         assertFalse(audioStore.dirty("s1", "i1"))
+    }
+
+    @Test
+    fun `skips sources whose Catalog is not a ProgressPeerCapability, leaving their rows dirty`() = runTest {
+        // A LocalFiles Source has a Catalog but no ProgressPeerCapability (ADR 0041). Its dirty
+        // position rows are legal zero-peer entries — the sweep must drain them immediately (no
+        // work) and never build a remote for them. `localUpdatedAt` stays as the reader wrote it.
+        val store = FakeStore<String>().apply { rows["local-fs" to "book"] = Triple("local", 300L, 100L) }
+        val factory = RecordingFactory()
+        val registry = object : CatalogRegistry {
+            override suspend fun forActive(): Catalog? = null
+            override suspend fun forSource(source: Source): Catalog? = DummyCatalog.NON_PEER
+            override suspend fun forSourceId(sourceId: String): Catalog? = DummyCatalog.NON_PEER
+        }
+
+        sweep(
+            ledger(listOf("local-fs"), ebook = mapOf("local-fs" to listOf("book"))),
+            registry, store, FakeStore(), factory,
+        ).run()
+
+        assertTrue("row remains at its local timestamp — nothing to sync against", store.dirty("local-fs", "book"))
+        assertFalse("no remote must be built for a zero-peer source", factory.ebookBuilt.contains("local-fs" to "book"))
     }
 
     @Test

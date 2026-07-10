@@ -1,6 +1,7 @@
 package com.riffle.core.data
 
 import com.riffle.core.catalog.CatalogProgress
+import com.riffle.core.catalog.CfiDialect
 import com.riffle.core.catalog.ProgressPeerCapability
 import com.riffle.core.domain.Clock
 import com.riffle.core.domain.EbookCfiTranslator
@@ -21,6 +22,7 @@ class AbsProgressRemoteTest {
         var progress: CatalogProgress? = null,
         var failGet: Boolean = false,
         var failPush: Boolean = false,
+        override val cfiDialect: CfiDialect = CfiDialect.EPUB_JS,
     ) : ProgressPeerCapability {
         data class Ebook(val itemId: String, val location: String, val progress: Float, val isFinished: Boolean?, val ts: Long)
         data class Audio(val itemId: String, val currentTimeSec: Double, val durationSec: Double, val isFinished: Boolean?, val ts: Long)
@@ -140,6 +142,40 @@ class AbsProgressRemoteTest {
         val peer = FakePeer(failPush = true)
         val translator = FakeTranslator(cfiResult = { it }, locatorResult = { it })
         assertNull(ebookRemote(peer, translator).patch("epubcfi(/6/4!/4)"))
+    }
+
+    // --- ebook, READIUM_NATIVE dialect: translator MUST be skipped ---
+
+    @Test
+    fun `ebook get - READIUM_NATIVE dialect passes ebookLocation through verbatim without translator`() = runTest {
+        val peer = FakePeer(
+            progress = CatalogProgress("item-1", ebookLocation = locatorJson, lastUpdate = 1700L),
+            cfiDialect = CfiDialect.READIUM_NATIVE,
+        )
+        val translator = FakeTranslator(cfiResult = { error("must not translate for READIUM_NATIVE") }, locatorResult = { error("must not translate") })
+        val read = ebookRemote(peer, translator).get()
+        assertEquals(locatorJson, read?.position)
+        assertEquals(1700L, read?.lastUpdate)
+    }
+
+    @Test
+    fun `ebook get - READIUM_NATIVE dialect succeeds even without a translator`() = runTest {
+        val peer = FakePeer(
+            progress = CatalogProgress("item-1", ebookLocation = locatorJson, lastUpdate = 1700L),
+            cfiDialect = CfiDialect.READIUM_NATIVE,
+        )
+        val read = ebookRemote(peer, translator = null).get()
+        assertEquals(locatorJson, read?.position)
+    }
+
+    @Test
+    fun `ebook patch - READIUM_NATIVE dialect sends Locator JSON verbatim and stamps`() = runTest {
+        val peer = FakePeer(cfiDialect = CfiDialect.READIUM_NATIVE)
+        val translator = FakeTranslator(cfiResult = { error("must not translate") }, locatorResult = { error("must not translate") })
+        val stamp = ebookRemote(peer, translator, progress = 0.42f).patch(locatorJson)
+        assertEquals(1800L, stamp)
+        assertEquals(locatorJson, peer.lastEbook?.location)
+        assertEquals(0.42f, peer.lastEbook?.progress)
     }
 
     // --- audio ---
