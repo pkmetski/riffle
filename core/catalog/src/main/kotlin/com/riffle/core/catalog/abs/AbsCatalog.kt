@@ -129,7 +129,7 @@ class AbsCatalog(
     override suspend fun fetchFile(itemId: String, format: BookFormat): CatalogFileHandle {
         val authHeaders = mapOf("Authorization" to "Bearer ${config.token}")
         return when (format) {
-            BookFormat.Epub, BookFormat.Pdf -> {
+            BookFormat.Epub, BookFormat.Pdf, BookFormat.Cbz -> {
                 val ino = libraryApi.getItemEbookFileIno(config.baseUrl, itemId, config.token, config.insecureAllowed).unwrap()
                 CatalogFileHandle.Stream(
                     url = "${config.baseUrl.trimEnd('/')}/api/items/$itemId/ebook/$ino",
@@ -151,7 +151,7 @@ class AbsCatalog(
         handleHint: String?,
     ): CatalogFileStream {
         return when (format) {
-            BookFormat.Epub, BookFormat.Pdf -> {
+            BookFormat.Epub, BookFormat.Pdf, BookFormat.Cbz -> {
                 val ino = handleHint?.takeIf { it.isNotEmpty() }
                     ?: libraryApi.getItemEbookFileIno(config.baseUrl, itemId, config.token, config.insecureAllowed).unwrap()
                 val body = when (val r = libraryApi.downloadEpub(config.baseUrl, itemId, ino, config.token, config.insecureAllowed)) {
@@ -575,6 +575,7 @@ class AbsCatalog(
     private fun EbookFormat.toCatalogFormat(hasAudio: Boolean = false): BookFormat = when (this) {
         EbookFormat.Epub -> BookFormat.Epub
         EbookFormat.Pdf -> BookFormat.Pdf
+        EbookFormat.Cbz -> BookFormat.Cbz
         EbookFormat.Unsupported -> if (hasAudio) BookFormat.Audiobook else BookFormat.Unsupported
     }
 

@@ -43,4 +43,8 @@ data class LibraryItemEntity(
     val isbn: String? = null,
     val asin: String? = null,
     val finishedAt: Long? = null,
+    // Non-null for formats where a discrete page count is meaningful (comics today; PDF/EPUB may
+    // populate it in future). Displayed on the Detail Screen and used as the Progress-Sync
+    // denominator for comics.
+    val pageCount: Int? = null,
 )

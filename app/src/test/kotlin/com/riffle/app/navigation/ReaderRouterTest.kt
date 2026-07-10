@@ -19,6 +19,11 @@ class ReaderRouterTest {
     }
 
     @Test
+    fun `cbz item routes to cbz_reader`() {
+        assertEquals("cbz_reader/item-1", readerRouteFor(item(EbookFormat.Cbz)))
+    }
+
+    @Test
     fun `unsupported item has no route`() {
         assertNull(readerRouteFor(item(EbookFormat.Unsupported)))
     }

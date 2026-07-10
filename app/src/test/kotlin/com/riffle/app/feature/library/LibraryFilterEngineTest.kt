@@ -142,6 +142,7 @@ class LibraryFilterEngineTest {
             offlineAvailability = LibraryItemOfflineAvailability(
                 epubRepository,
                 fakePdfRepo(),
+                NoopCbzRepository(),
                 fakeAudiobookDownloadRepo(),
                 object : BundleAudiobookSource {
                     override suspend fun localSession(sourceId: String, itemId: String) = null

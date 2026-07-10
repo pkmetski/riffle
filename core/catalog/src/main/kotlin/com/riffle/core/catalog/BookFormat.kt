@@ -7,6 +7,7 @@ package com.riffle.core.catalog
 sealed class BookFormat {
     data object Epub : BookFormat()
     data object Pdf : BookFormat()
+    data object Cbz : BookFormat()
     data object Audiobook : BookFormat()
     data object Unsupported : BookFormat()
 }

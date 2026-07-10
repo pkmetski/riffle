@@ -99,6 +99,14 @@ annotation class PdfCacheStore
 @Retention(AnnotationRetention.BINARY)
 annotation class PdfDownloadsStore
 
+@Qualifier
+@Retention(AnnotationRetention.BINARY)
+annotation class CbzCacheStore
+
+@Qualifier
+@Retention(AnnotationRetention.BINARY)
+annotation class CbzDownloadsStore
+
 @Module(
     includes = [
         NetworkModule::class,

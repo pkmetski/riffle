@@ -17,6 +17,8 @@ import com.riffle.core.data.ReadingPositionStoreImpl
 import com.riffle.core.data.SourceFilesCleanerImpl
 import com.riffle.core.data.di.AudiobookDownloadsDir
 import com.riffle.core.data.di.CrashReportDir
+import com.riffle.core.data.di.CbzCacheStore
+import com.riffle.core.data.di.CbzDownloadsStore
 import com.riffle.core.data.di.EpubCacheStore
 import com.riffle.core.data.di.EpubDownloadsStore
 import com.riffle.core.data.di.PdfCacheStore
@@ -127,6 +129,18 @@ abstract class LocalStoreModule {
         fun providePdfDownloadsStore(@ApplicationContext context: Context, dispatchers: com.riffle.core.domain.DispatcherProvider): LocalStore =
             LocalStoreImpl(context.filesDir.resolve("downloads/pdfs").also { it.mkdirs() }, ".pdf", dispatchers)
 
+        @Provides
+        @Singleton
+        @CbzCacheStore
+        fun provideCbzCacheStore(@ApplicationContext context: Context, dispatchers: com.riffle.core.domain.DispatcherProvider): LocalStore =
+            LocalStoreImpl(context.cacheDir.resolve("cbz").also { it.mkdirs() }, ".cbz", dispatchers)
+
+        @Provides
+        @Singleton
+        @CbzDownloadsStore
+        fun provideCbzDownloadsStore(@ApplicationContext context: Context, dispatchers: com.riffle.core.domain.DispatcherProvider): LocalStore =
+            LocalStoreImpl(context.filesDir.resolve("downloads/cbz").also { it.mkdirs() }, ".cbz", dispatchers)
+
         // One-time relocation of legacy flat files into per-Source subdirectories (ADR 0025).
         @Provides
         @Singleton
@@ -141,6 +155,8 @@ abstract class LocalStoreModule {
                     context.filesDir.resolve("downloads/epubs") to ".epub",
                     context.cacheDir.resolve("pdfs") to ".pdf",
                     context.filesDir.resolve("downloads/pdfs") to ".pdf",
+                    context.cacheDir.resolve("cbz") to ".cbz",
+                    context.filesDir.resolve("downloads/cbz") to ".cbz",
                 ),
                 resolveServerId = { itemId -> libraryItemDao.findSourceIdForItem(itemId) },
                 dispatchers = dispatchers,
@@ -153,7 +169,13 @@ abstract class LocalStoreModule {
             @EpubDownloadsStore epubDownloadsStore: LocalStore,
             @PdfCacheStore pdfCacheStore: LocalStore,
             @PdfDownloadsStore pdfDownloadsStore: LocalStore,
-        ): DownloadsRepository = DownloadsRepositoryImpl(epubCacheStore, epubDownloadsStore, pdfCacheStore, pdfDownloadsStore)
+            @CbzCacheStore cbzCacheStore: LocalStore,
+            @CbzDownloadsStore cbzDownloadsStore: LocalStore,
+        ): DownloadsRepository = DownloadsRepositoryImpl(
+            epubCacheStore, epubDownloadsStore,
+            pdfCacheStore, pdfDownloadsStore,
+            cbzCacheStore, cbzDownloadsStore,
+        )
 
         @Provides
         @Singleton
@@ -162,10 +184,16 @@ abstract class LocalStoreModule {
             @EpubDownloadsStore epubDownloadsStore: LocalStore,
             @PdfCacheStore pdfCacheStore: LocalStore,
             @PdfDownloadsStore pdfDownloadsStore: LocalStore,
+            @CbzCacheStore cbzCacheStore: LocalStore,
+            @CbzDownloadsStore cbzDownloadsStore: LocalStore,
             @AudiobookDownloadsDir audiobookDownloadsDir: File,
             dispatchers: com.riffle.core.domain.DispatcherProvider,
         ): SourceFilesCleaner = SourceFilesCleanerImpl(
-            stores = listOf(epubCacheStore, epubDownloadsStore, pdfCacheStore, pdfDownloadsStore),
+            stores = listOf(
+                epubCacheStore, epubDownloadsStore,
+                pdfCacheStore, pdfDownloadsStore,
+                cbzCacheStore, cbzDownloadsStore,
+            ),
             audiobookDownloadsDir = audiobookDownloadsDir,
             dispatchers = dispatchers,
         )

@@ -118,12 +118,23 @@ abstract class RepositoriesModule {
 
         @Provides
         @Singleton
+        fun provideCbzRepository(
+            catalogRegistry: CatalogRegistry,
+            @com.riffle.core.data.di.CbzCacheStore cacheStore: LocalStore,
+            @com.riffle.core.data.di.CbzDownloadsStore downloadsStore: LocalStore,
+            positionStore: ReadingPositionStore,
+            sourceRepository: SourceRepository,
+        ): com.riffle.core.domain.CbzRepository = com.riffle.core.data.CbzRepositoryImpl(catalogRegistry, cacheStore, downloadsStore, positionStore, sourceRepository)
+
+        @Provides
+        @Singleton
         fun provideLibraryItemOfflineAvailability(
             epubRepository: EpubRepository,
             pdfRepository: PdfRepository,
+            cbzRepository: com.riffle.core.domain.CbzRepository,
             audiobookDownloadRepository: AudiobookDownloadRepository,
             bundleAudiobookSource: BundleAudiobookSource,
         ): LibraryItemOfflineAvailability =
-            LibraryItemOfflineAvailability(epubRepository, pdfRepository, audiobookDownloadRepository, bundleAudiobookSource)
+            LibraryItemOfflineAvailability(epubRepository, pdfRepository, cbzRepository, audiobookDownloadRepository, bundleAudiobookSource)
     }
 }

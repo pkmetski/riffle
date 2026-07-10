@@ -1919,7 +1919,7 @@ class MigrationTest {
         }
 
         val db = helper.runMigrationsAndValidate(
-            TEST_DB, 51, true,
+            TEST_DB, 52, true,
             RiffleDatabase.MIGRATION_1_2,
             RiffleDatabase.MIGRATION_2_3,
             RiffleDatabase.MIGRATION_3_4,
@@ -1970,6 +1970,7 @@ class MigrationTest {
             RiffleDatabase.MIGRATION_48_49,
             RiffleDatabase.MIGRATION_49_50,
             RiffleDatabase.MIGRATION_50_51,
+            RiffleDatabase.MIGRATION_51_52,
         )
 
         db.query("SELECT url, username, serverType, absUserId, type FROM sources WHERE id = 's1'").use { cursor ->
@@ -2252,6 +2253,44 @@ class MigrationTest {
         db.query("SELECT originFontFamily FROM annotations WHERE id = 'a-new'").use { c ->
             assertTrue(c.moveToFirst())
             assertEquals("Georgia, serif", c.getString(0))
+        }
+        db.close()
+    }
+
+    // ADR 0042: comics carry an intrinsic page count. Existing rows must default to NULL and
+    // preserve every other column.
+    @Test
+    fun migration51To52_addsPageCountToLibraryItems() {
+        helper.createDatabase(TEST_DB, 51).apply {
+            execSQL(
+                "INSERT INTO sources (id, url, isActive, insecureConnectionAllowed, username, serverType, absUserId, type) " +
+                    "VALUES ('s1', 'http://localhost', 1, 0, 'test', 'LOCAL_FILES', NULL, 'LOCAL_FILES')"
+            )
+            execSQL(
+                "INSERT INTO libraries (id, name, mediaType, sourceId, isUnsupported) " +
+                    "VALUES ('lib1', 'Local', 'book', 's1', 0)"
+            )
+            execSQL(
+                """
+                INSERT INTO library_items (
+                    sourceId, id, libraryId, title, author, coverUrl, readingProgress,
+                    ebookFileIno, ebookFormat, hasAudio, audioDurationSec, description,
+                    seriesName, seriesSequence, publishedYear, genres, publisher, language,
+                    lastOpenedAt, addedAt, isbn, asin, finishedAt
+                ) VALUES ('s1','i1','lib1','A Comic','Author',NULL,0.0,
+                          NULL,'cbz',0,0.0,NULL,
+                          NULL,NULL,'2020','','Publisher','en',
+                          NULL,NULL,NULL,NULL,NULL)
+                """.trimIndent()
+            )
+            close()
+        }
+        val db = helper.runMigrationsAndValidate(TEST_DB, 52, true, RiffleDatabase.MIGRATION_51_52)
+        db.query("SELECT id, ebookFormat, pageCount FROM library_items WHERE id = 'i1'").use { c ->
+            assertTrue(c.moveToFirst())
+            assertEquals("i1", c.getString(0))
+            assertEquals("cbz", c.getString(1))
+            assertTrue("new pageCount column defaults to NULL", c.isNull(2))
         }
         db.close()
     }

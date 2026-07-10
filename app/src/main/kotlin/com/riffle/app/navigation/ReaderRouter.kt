@@ -9,6 +9,7 @@ fun readerRouteFor(item: LibraryItem): String? {
     return when (item.ebookFormat) {
         EbookFormat.Epub -> "epub_reader/$encodedId"
         EbookFormat.Pdf -> "pdf_reader/$encodedId"
+        EbookFormat.Cbz -> "cbz_reader/$encodedId"
         EbookFormat.Unsupported -> null
     }
 }

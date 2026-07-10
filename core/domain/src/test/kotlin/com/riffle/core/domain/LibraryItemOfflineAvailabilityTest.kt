@@ -30,6 +30,7 @@ class LibraryItemOfflineAvailabilityTest {
         val availability = LibraryItemOfflineAvailability(
             epubRepository = FakeEpubRepository(downloaded = true),
             pdfRepository = FakePdfRepository(),
+            cbzRepository = FakeCbzRepository(),
             audiobookDownloadRepository = FakeAudiobookDownloadRepository(),
             bundleAudiobookSource = FakeBundleAudiobookSource(),
         )
@@ -42,6 +43,7 @@ class LibraryItemOfflineAvailabilityTest {
         val availability = LibraryItemOfflineAvailability(
             epubRepository = FakeEpubRepository(cached = true),
             pdfRepository = FakePdfRepository(),
+            cbzRepository = FakeCbzRepository(),
             audiobookDownloadRepository = FakeAudiobookDownloadRepository(),
             bundleAudiobookSource = FakeBundleAudiobookSource(),
         )
@@ -54,6 +56,7 @@ class LibraryItemOfflineAvailabilityTest {
         val availability = LibraryItemOfflineAvailability(
             epubRepository = FakeEpubRepository(),
             pdfRepository = FakePdfRepository(downloaded = true),
+            cbzRepository = FakeCbzRepository(),
             audiobookDownloadRepository = FakeAudiobookDownloadRepository(),
             bundleAudiobookSource = FakeBundleAudiobookSource(),
         )
@@ -66,6 +69,7 @@ class LibraryItemOfflineAvailabilityTest {
         val availability = LibraryItemOfflineAvailability(
             epubRepository = FakeEpubRepository(),
             pdfRepository = FakePdfRepository(),
+            cbzRepository = FakeCbzRepository(),
             audiobookDownloadRepository = FakeAudiobookDownloadRepository(downloaded = true),
             bundleAudiobookSource = FakeBundleAudiobookSource(),
         )
@@ -78,6 +82,7 @@ class LibraryItemOfflineAvailabilityTest {
         val availability = LibraryItemOfflineAvailability(
             epubRepository = FakeEpubRepository(), // ebook not downloaded/cached
             pdfRepository = FakePdfRepository(),
+            cbzRepository = FakeCbzRepository(),
             audiobookDownloadRepository = FakeAudiobookDownloadRepository(downloaded = true),
             bundleAudiobookSource = FakeBundleAudiobookSource(),
         )
@@ -90,6 +95,7 @@ class LibraryItemOfflineAvailabilityTest {
         val availability = LibraryItemOfflineAvailability(
             epubRepository = FakeEpubRepository(),
             pdfRepository = FakePdfRepository(),
+            cbzRepository = FakeCbzRepository(),
             audiobookDownloadRepository = FakeAudiobookDownloadRepository(),
             bundleAudiobookSource = FakeBundleAudiobookSource(),
         )
@@ -102,6 +108,7 @@ class LibraryItemOfflineAvailabilityTest {
         val availability = LibraryItemOfflineAvailability(
             epubRepository = FakeEpubRepository(),
             pdfRepository = FakePdfRepository(),
+            cbzRepository = FakeCbzRepository(),
             audiobookDownloadRepository = FakeAudiobookDownloadRepository(),
             bundleAudiobookSource = FakeBundleAudiobookSource(setOf("s1/i1")),
         )
@@ -114,6 +121,7 @@ class LibraryItemOfflineAvailabilityTest {
         val availability = LibraryItemOfflineAvailability(
             epubRepository = FakeEpubRepository(),
             pdfRepository = FakePdfRepository(),
+            cbzRepository = FakeCbzRepository(),
             audiobookDownloadRepository = FakeAudiobookDownloadRepository(),
             bundleAudiobookSource = FakeBundleAudiobookSource(emptySet()),
         )
@@ -144,6 +152,21 @@ class LibraryItemOfflineAvailabilityTest {
         override fun isCached(sourceId: String, itemId: String) = cached
         override suspend fun openPdf(item: LibraryItem) = error("unused")
         override suspend fun downloadPdf(
+            item: LibraryItem,
+            onProgress: (downloaded: Long, total: Long) -> Unit,
+        ) = error("unused")
+        override suspend fun removeDownload(sourceId: String, itemId: String) = error("unused")
+        override suspend fun saveReadingPosition(itemId: String, locatorJson: String) = error("unused")
+    }
+
+    private class FakeCbzRepository(
+        private val downloaded: Boolean = false,
+        private val cached: Boolean = false,
+    ) : CbzRepository {
+        override fun isDownloaded(sourceId: String, itemId: String) = downloaded
+        override fun isCached(sourceId: String, itemId: String) = cached
+        override suspend fun openCbz(item: LibraryItem) = error("unused")
+        override suspend fun downloadCbz(
             item: LibraryItem,
             onProgress: (downloaded: Long, total: Long) -> Unit,
         ) = error("unused")

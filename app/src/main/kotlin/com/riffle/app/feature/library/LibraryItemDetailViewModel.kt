@@ -118,6 +118,7 @@ class LibraryItemDetailViewModel @Inject constructor(
     private val tokenStorage: TokenStorage,
     private val epubRepository: EpubRepository,
     private val pdfRepository: PdfRepository,
+    private val cbzRepository: com.riffle.core.domain.CbzRepository,
     private val toReadRepository: ToReadRepository,
     private val readaloudLinkRepository: com.riffle.core.domain.ReadaloudLinkRepository,
     private val readaloudAudioRepository: com.riffle.core.domain.ReadaloudAudioRepository,
@@ -389,6 +390,11 @@ class LibraryItemDetailViewModel @Inject constructor(
                     PdfDownloadResult.Success, PdfDownloadResult.AlreadyDownloaded -> DownloadState.Downloaded
                     is PdfDownloadResult.NetworkError -> DownloadState.NotDownloaded
                 }
+                EbookFormat.Cbz -> when (cbzRepository.downloadCbz(item, onProgress)) {
+                    com.riffle.core.domain.CbzDownloadResult.Success,
+                    com.riffle.core.domain.CbzDownloadResult.AlreadyDownloaded -> DownloadState.Downloaded
+                    is com.riffle.core.domain.CbzDownloadResult.NetworkError -> DownloadState.NotDownloaded
+                }
                 else -> DownloadState.NotDownloaded
             }
         }
@@ -400,6 +406,7 @@ class LibraryItemDetailViewModel @Inject constructor(
             when (item?.ebookFormat) {
                 EbookFormat.Epub -> epubRepository.removeDownload(item.sourceId, item.id)
                 EbookFormat.Pdf -> pdfRepository.removeDownload(item.sourceId, item.id)
+                EbookFormat.Cbz -> cbzRepository.removeDownload(item.sourceId, item.id)
                 else -> {}
             }
             if (item != null) downloadManager.clear(ebookKey(item))
@@ -489,6 +496,7 @@ class LibraryItemDetailViewModel @Inject constructor(
     private fun isDownloadedForFormat(item: LibraryItem): Boolean = when (item.ebookFormat) {
         EbookFormat.Epub -> epubRepository.isDownloaded(item.sourceId, item.id)
         EbookFormat.Pdf -> pdfRepository.isDownloaded(item.sourceId, item.id)
+        EbookFormat.Cbz -> cbzRepository.isDownloaded(item.sourceId, item.id)
         else -> false
     }
 }

@@ -31,8 +31,12 @@ data class LibraryItem(
     // local files / DB rows must pair id with sourceId. Defaulted for construction sites (e.g.
     // tests) that don't care; the real value is set when mapping from the DB entity.
     val sourceId: String = "",
+    // Total pages for formats where that's a discrete concept — comics today (from the CBZ image
+    // count computed at Add-to-Library); potentially PDF/EPUB in future. Null for EPUB (reflowable,
+    // no natural page count) and audiobook-only items.
+    val pageCount: Int? = null,
 ) {
-    /** Has an ebook file Riffle can open in the reader (EPUB or PDF). */
+    /** Has an ebook file Riffle can open in the reader (EPUB, PDF, or CBZ). */
     val isReadable: Boolean get() = ebookFormat != EbookFormat.Unsupported
 
     /** Has audio Riffle can play in the audiobook player — an Audiobook (ADR 0029). */

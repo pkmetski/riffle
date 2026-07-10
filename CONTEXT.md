@@ -85,7 +85,7 @@ A [Library Item] that is **listenable**: its Source-side media carries audio (`h
 The full-screen surface that plays an [Audiobook]. Shows the square cover, title/author, and current chapter title. Its scrubber is a **seekable chapter map**: one continuous draggable track over the whole book, tick-marked at chapter boundaries and banded on the current chapter; the seek handle is a thin vertical playhead. Time is shown per chapter and whole book, mirroring the official Audiobookshelf app. The transport cluster is centered — rewind 15s, previous chapter, play/pause, next chapter, forward 30s — with the playback-speed control in a secondary utility row. Previous/next-chapter are enabled only when the audiobook has chapter markers; a chapterless single-file audiobook shows them disabled and its scrubber degrades to a plain track (no ticks/band, whole-book time only). The player is **audio-led**: the live audio position drives the book's canonical position and propagates outward through [Progress Sync] (see [ADR 0029]). Streams audio **directly from the Source** implementing `AudiobookMediaCapability` — not from a Storyteller bundle, even for a matched book (a bundle, when present, is consulted only to translate audio seconds to the text canonical). Launched by the **Listen** affordance on the [Library Item Detail Screen]. Distinct from the Readaloud player, which is a translucent bar inside the reader; the two share no code in v1.
 
 ### Readable / Listenable
-The two independent capabilities a [Library Item] may have. **Readable** = has an ebook file (EPUB or PDF). **Listenable** = has audio the Source can serve as an [Audiobook]. An item may be neither, either, or both.
+The two independent capabilities a [Library Item] may have. **Readable** = has an ebook file (EPUB, PDF, or [Comic Book Archive]). **Listenable** = has audio the Source can serve as an [Audiobook]. An item may be neither, either, or both.
 
 ### Unsupported Library Item
 A [Library Item] that is neither Readable nor Listenable. Displayed in the library list as dimmed; tapping it opens the [Library Item Detail Screen], which explains there is nothing to read or listen to.
@@ -123,7 +123,7 @@ A per-Source record of a single continuous reading period. Opened when the user 
 Aggregated reading data — time spent reading, books finished, current streaks. Gated on `StatsCapability`. Sources without it hide the Statistics surface entirely; a local aggregation is a possible future feature but is not shipping.
 
 ### Progress Sync
-Reconciliation of reading position between the local canonical position and every **[Progress Peer]** for the open book. A Progress Peer is a Source (via `ProgressPeerCapability`) attached to the item — for the common case, the item's own Source. Applies to all supported formats (EPUB, PDF, future).
+Reconciliation of reading position between the local canonical position and every **[Progress Peer]** for the open book. A Progress Peer is a Source (via `ProgressPeerCapability`) attached to the item — for the common case, the item's own Source. Applies to all supported formats (EPUB, PDF, [Comic Book Archive]). Comics use an integer page-index as the canonical position; on the ABS wire they piggyback on the PDF path (Readium Locator JSON) in v1 — a comic-specific fraction wire codec is on the roadmap ([ADR 0042]).
 
 The cycle runs every ~30 s and on reader resume:
 - **Unified canonical position:** the open book has a single canonical position with a single `localUpdatedAt`. Each Peer is convertible to and from the canonical position; the reconciler owns the translation.
@@ -139,6 +139,7 @@ The cycle runs every ~30 s and on reader resume:
 User-controlled reading display settings. Scope varies by format:
 - **EPUB:** font size, theme (Light / Dark / Sepia / [Auto Theme]), font family (system fonts + Literata, Merriweather, OpenDyslexic), justify text (on/off, default off), line spacing, margins, reading orientation (paginated / vertical / continuous).
 - **PDF:** theme (as colour filter, same value set including [Auto Theme]), zoom persistence. PDF is paged-only today.
+- **[Comic Book Archive]:** none in v1. Fit Whole, paginated, LTR are all hard-coded; the reader shows no Formatting Preferences button (see [ADR 0042]).
 
 Formatting Preferences are per-device and Source-agnostic.
 
@@ -157,7 +158,7 @@ The layer (`EpubCfiTranslator`) that converts between Readium's native position 
 ### Annotation
 Umbrella term for the three user-authored marks attached to a Library Item: [Highlight], [Note], and [Bookmark]. All share one storage model and one [Annotation Sync] format. Each carries a stable client-generated ID, creation and last-modified timestamps, and a device-origin tag, and anchors to an EPUB CFI. Every Annotation additionally stores the surrounding text snippet and chapter href as a human-readable fallback.
 
-Annotations are keyed by the Library Item's `(sourceId, sourceItemId)`. Since every book is read from the Source's own EPUB, Annotations are available during all reading, with or without a Readaloud.
+Annotations are keyed by the Library Item's `(sourceId, sourceItemId)`. Since every book is read from the Source's own EPUB, Annotations are available during all reading, with or without a Readaloud. Not available on PDF or [Comic Book Archive] in v1 — the anchor is EPUB CFI ([ADR 0024]); a page-anchored variant is on the roadmap alongside PDF annotations.
 
 ### Annotation Sync
 The mechanism by which [Annotation]s roam between devices. The local Room store is always the primary, queryable store; Sync is an optional [Service] layer, reached through a single `AnnotationSyncTarget` abstraction (`list / read / write-own-file`) so the backing store is swappable. On-the-wire format: **W3C Web Annotation Data Model** (JSON-LD), with a `riffle:` extension namespace carrying merge-critical fields (`device`, `updatedAt`, `deleted`). Two target *kinds* are anticipated: **blob-store** (a folder of one file per device per book, merged client-side by per-record last-write-wins) and **record-store** (per-record CRUD with server-side merge). **v1 ships local-only** (with WebDAV target scaffolded); the schema is sync-ready so enabling a target later is additive.
@@ -200,10 +201,13 @@ A global user preference (default: on) that enables page turns via the device's 
 A reader state in which the TopAppBar and Android's system bars are hidden. Toggled by tapping the reading content. The reader always opens immersive. Not persisted across sessions.
 
 ### Book Search
-An in-EPUB text search available while reading. Activated via a search icon in the reader's TopAppBar. Searches the full publication via Readium's `SearchService`; results highlighted directly in the reading content. Applies to EPUB only. Source-agnostic.
+An in-EPUB text search available while reading. Activated via a search icon in the reader's TopAppBar. Searches the full publication via Readium's `SearchService`; results highlighted directly in the reading content. Applies to EPUB only — not available on PDF or [Comic Book Archive] (both are page-image formats with no queryable text stream). Source-agnostic.
 
 ### Supported Formats
-EPUB (reflowable) and PDF (fixed-layout). Rendered via the Readium Kotlin SDK (EPUB navigator + Pdfium adapter).
+EPUB (reflowable), PDF (fixed-layout), and [Comic Book Archive] (page-image). EPUB and PDF are rendered via the Readium Kotlin SDK (EPUB navigator + Pdfium adapter); comics use a purpose-built page-image renderer over the archive's entries.
+
+### Comic Book Archive
+A page-image ebook format — a ZIP (`.cbz`) of images, one image per page, in filename-sorted order. Ships as the third [Readable] format in v1. The `.cbr` (RAR) sibling is on the roadmap; a file mislabeled `.cbz` that is actually a RAR is caught at open time via magic-byte sniff and surfaces a clean "not supported" message. Rendered by the **Comic Reader** — a purpose-built Compose surface, distinct from EPUB's Readium navigator and PDF's Pdfium fragment. Reading orientation is paginated only in v1 (no webtoon, no two-page spread); page fit is hard-coded to Fit Whole; reading direction is left-to-right (no RTL/manga toggle). Navigation clones CDisplayEx's default interaction model: horizontal tap-thirds (previous / immersive-toggle / next), horizontal swipe, pinch-to-zoom + pan + double-tap-to-reset on each page, plus a bottom page scrubber that appears with the top bar. [Volume Key Navigation], [Screen Wake Lock], [Immersive Mode], and [Progress Sync] apply unchanged; [Book Search], [Table of Contents (TOC)], [Chapter Navigation Rail], [Formatting Preferences], [Readaloud], [Cadence], [Auto-Scroll], and [Annotation]s are unavailable in v1 (see [ADR 0042]). User-facing copy calls it **Comic**.
 
 ### Library Tab Bar
 The bottom navigation surface within a Library screen. Contains up to six icon-only tabs — Home, To Read, Annotations, Series, Collections, and All Books — scoped to the currently viewed Library. Individual tabs are hidden if the active Source lacks the underlying capability (To Read without `PlaylistsCapability`, Series without `SeriesCapability`, Collections without `CollectionsCapability`). Replaces the Plex-style single scrollable feed as the primary way to browse a Library's content. The Navigation Drawer remains the navigation surface for switching Libraries, accessing Downloads, and Settings.
