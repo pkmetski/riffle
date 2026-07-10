@@ -55,6 +55,8 @@ private const val HOME = "home"
 private const val SOURCE_SETUP_GRAPH = "source_setup"
 private const val ADD_SOURCE_TYPE_PICKER = "add_source_type_picker"
 private const val ADD_LOCAL_FILES = "add_local_files"
+private const val ADD_CHITANKA = "add_chitanka"
+private const val CHITANKA_BROWSE = "chitanka_browse/{rootId}/{libraryName}"
 private const val ADD_SOURCE = "add_source"
 private const val ADD_SOURCE_ROUTE = "add_source?type={type}&editId={editId}"
 private const val SELECT_LIBRARIES = "select_libraries"
@@ -155,7 +157,10 @@ fun MainScreen(
             viewModel.setActiveLibrary(library.id)
             scope.launch { drawerState.close() }
             val encoded = URLEncoder.encode(library.name, "UTF-8")
-            navController.navigateAsRoot("library_items/${library.id}/$encoded")
+            val isChitanka = activeServer?.type == com.riffle.core.domain.SourceType.CHITANKA
+            val route = if (isChitanka) "chitanka_browse/${library.id}/$encoded"
+            else "library_items/${library.id}/$encoded"
+            navController.navigateAsRoot(route)
         },
         onDownloadsSelected = {
             scope.launch { drawerState.close() }
@@ -204,6 +209,41 @@ fun MainScreen(
                         navController.navigate(ADD_LOCAL_FILES) {
                             popUpTo(ADD_SOURCE_TYPE_PICKER) { inclusive = true }
                         }
+                    },
+                    onPickChitanka = {
+                        navController.navigate(ADD_CHITANKA) {
+                            popUpTo(ADD_SOURCE_TYPE_PICKER) { inclusive = true }
+                        }
+                    },
+                )
+            }
+            composable(
+                route = CHITANKA_BROWSE,
+                arguments = listOf(
+                    navArgument("rootId") { type = NavType.StringType },
+                    navArgument("libraryName") { type = NavType.StringType },
+                ),
+            ) { backStackEntry ->
+                val libraryName = backStackEntry.arguments?.getString("libraryName")
+                    ?.let { URLDecoder.decode(it, "UTF-8") } ?: ""
+                com.riffle.app.feature.source.chitanka.ChitankaBrowseScreen(
+                    libraryName = libraryName,
+                    windowSizeClass = windowSizeClass,
+                    onOpenDrawer = { scope.launch { drawerState.open() } },
+                )
+            }
+            composable(ADD_CHITANKA) {
+                val cameFromSettings = navController.previousBackStackEntry
+                    ?.destination?.route == SETTINGS
+                com.riffle.app.feature.source.chitanka.AddChitankaScreen(
+                    windowSizeClass = windowSizeClass,
+                    onDone = {
+                        if (cameFromSettings) navController.popBackStack()
+                        else navController.navigateAsRoot(HOME)
+                    },
+                    onNavigateBack = {
+                        if (cameFromSettings) navController.popBackStack()
+                        else navController.navigateAsRoot(HOME)
                     },
                 )
             }

@@ -17,4 +17,5 @@ enum class LogChannel(val tag: String) {
     Cadence("RIFFLE_CD"),
     Covers("RIFFLE_COVERS"),
     LocalFiles("RIFFLE_LF"),
+    Chitanka("RIFFLE_CHI"),
 }

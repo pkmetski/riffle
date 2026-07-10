@@ -243,6 +243,19 @@ class SettingsViewModel @Inject constructor(
         .map { list -> list.firstOrNull { it.type == com.riffle.core.domain.SourceType.LOCAL_FILES } }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
+    /**
+     * The Chitanka Source row when installed, `null` otherwise. Singleton per device (ADR 0042).
+     * Renders as a minimal removable row in the Sources list, no sub-UI (unlike LocalFiles which
+     * has a folder-management panel).
+     */
+    val chitankaSource: StateFlow<Source?> = servers
+        .map { list -> list.firstOrNull { it.type == com.riffle.core.domain.SourceType.CHITANKA } }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+
+    fun removeChitankaSource() {
+        chitankaSource.value?.id?.let { removeServer(it) }
+    }
+
     /** Configured folder rows under the LocalFiles Source, reactive. Empty when no source yet. */
     val localFilesFolders: StateFlow<List<LocalFilesFolderEntity>> = localFilesSource
         .flatMapLatest { source ->
