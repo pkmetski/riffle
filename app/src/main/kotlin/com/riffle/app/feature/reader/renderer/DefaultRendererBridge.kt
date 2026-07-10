@@ -81,6 +81,7 @@ internal class DefaultRendererBridge(
 
     override suspend fun snapAfterGoTo(link: Link) {
         val frag = fragment ?: return
+        frag.evaluateJavascript(ColumnSnap.STASH_VERTICAL_ORIGIN_JS)
         frag.go(link)
         frag.evaluateJavascript(ColumnSnap.snapToTargetColumnJs(navTargetFragmentId(link.href.toString())))
     }
@@ -96,6 +97,13 @@ internal class DefaultRendererBridge(
         // anchor on the DOM element directly.
         val fragmentId = locator.locations.fragments.firstOrNull()
             ?: navTargetFragmentId(locator.href.toString())
+        // Stash the pre-go scroll origin so the post-go smooth-tail can start from where the
+        // user actually was on same-doc jumps (return-to-position card, same-chapter TOC entry)
+        // instead of pre-landing half a viewport short — which flashes as "goes back a bit and
+        // then returns" because there is no nav cover to hide it on same-doc. Cross-doc jumps
+        // wipe the stash (new document, new JS context) and fall back to pre-land, which the
+        // cover hides.
+        frag.evaluateJavascript(ColumnSnap.STASH_VERTICAL_ORIGIN_JS)
         frag.go(locator)
         frag.evaluateJavascript(
             ColumnSnap.snapToTargetColumnJs(fragmentId, landAtStartWhenNoTarget),
@@ -110,7 +118,11 @@ internal class DefaultRendererBridge(
         fragment?.evaluateJavascript(ColumnSnap.scrollToColumnJs(fragmentId))?.trim('"') == "moved"
 
     override suspend fun snapCadenceSpan(fragmentId: String): String? =
-        fragment?.evaluateJavascript(ColumnSnap.scrollToColumnJs(fragmentId))?.trim('"')
+        // Readaloud follow ticks every sentence and needs the highlight to stay locked to the
+        // audio; a 250 ms tween per tick would visually drift because the supersede counter
+        // cancels in-flight animations before they land. Instant snap here (animated=false);
+        // internal-link taps still animate via [snapToElement].
+        fragment?.evaluateJavascript(ColumnSnap.scrollToColumnJs(fragmentId, animated = false))?.trim('"')
 
     override suspend fun landedAtEnd(): Boolean =
         fragment?.evaluateJavascript(ColumnSnap.LANDED_AT_END_JS)?.trim('"') == "true"

@@ -23,6 +23,53 @@ import org.json.JSONObject
 internal object ColumnSnap {
 
     /**
+     * A fixed-duration ease-out-cubic vertical scroll, in JS. Duration matches Continuous mode's
+     * [android.widget.NestedScrollView.smoothScrollTo] default (~250 ms) so both modes feel the
+     * same on internal-link taps — Chromium's `behavior:'smooth'` picks a distance-proportional
+     * duration that reads as sluggish on longer jumps and doesn't match the continuous curve.
+     *
+     * The emitted snippet expects the caller to have already declared these locals in the enclosing
+     * IIFE: `se` (scrolling element), `startV` (Number, the source scrollTop), and `targetV`
+     * (Number, the destination scrollTop). Callers do the pre-land (hard `se.scrollTop = pre`)
+     * first when the tail should ride only the last half-viewport under a nav cover; a same-doc
+     * link tap skips the pre-land and animates the full distance from where the user is.
+     *
+     * Uses `window.__riffleVsmoothGen` as a supersede counter so a later smooth scroll cancels the
+     * previous animation instead of fighting it — mirroring the `__riffleSnapGen` policy the
+     * paginated column-snap tracker already uses.
+     */
+    /**
+     * Stash the current scroll position and document URL on `window` so the post-`go(locator)`
+     * smooth-tail can decide whether the jump was same-doc (animate FROM the stashed origin, no
+     * visible pre-land) or cross-doc (stash is gone with the old document, pre-land under the nav
+     * cover). Called by [com.riffle.app.feature.reader.renderer.DefaultRendererBridge.snapAfterGoTo]
+     * BEFORE `frag.go(locator)`. Skipping this on a cross-doc jump is fine — the new document
+     * doesn't inherit the stash, and the JS reads `undefined`, which triggers the pre-land branch.
+     */
+    const val STASH_VERTICAL_ORIGIN_JS: String =
+        "(function(){var se=document.scrollingElement||document.documentElement;" +
+            "if(!se)return;" +
+            "window.__riffleOriginY=se.scrollTop;" +
+            // Store the document identity WITHOUT the fragment. Readium's `go(locator)` may
+            // append the target `#anchor` to `location.href` on same-doc jumps (browser-standard
+            // hash update on scroll-to-id), which would silently fail an `===` compare against
+            // the stashed value and drop the caller into the cross-doc pre-land branch. Same-doc
+            // is a document-identity question, not a URL-with-anchor one — strip the fragment on
+            // both sides so a hash change on the SAME document still matches.
+            "window.__riffleOriginHref=location.href.split('#')[0];})()"
+
+    private const val VERTICAL_SMOOTH_TAIL_JS: String =
+        "var _dur=250,_t0=performance.now();" +
+            "var _gen=(window.__riffleVsmoothGen=(window.__riffleVsmoothGen||0)+1);" +
+            "var _delta=targetV-startV;" +
+            "function _step(now){if(_gen!==window.__riffleVsmoothGen)return;" +
+            "var _t=Math.min(1,(now-_t0)/_dur);" +
+            "var _e=1-Math.pow(1-_t,3);" + // ease-out cubic
+            "se.scrollTop=startV+_delta*_e;" +
+            "if(_t<1)requestAnimationFrame(_step);}" +
+            "requestAnimationFrame(_step);"
+
+    /**
      * The element id a TOC/search/resume locator points at (its href fragment), or null for a
      * jump to a resource start. Drives [snapToTargetColumnJs] so the landing snaps to the column
      * the target itself occupies — robust to where go() landed and to the post-load reflow.
@@ -305,21 +352,37 @@ internal object ColumnSnap {
     //    An element already fully on screen isn't moved.
     // Returns 'moved' when the snap changed the visible page (target was off-page → offer a return),
     // 'same' when it was already visible, or 'absent' when the id isn't in this document.
-    fun scrollToColumnJs(fragmentId: String): String =
-        "(function(){var el=document.getElementById(${JSONObject.quote(fragmentId)});" +
+    /**
+     * @param animated `true` for user-facing internal-link taps (return-to-position card,
+     * cross-reference "Figure X.Y") — animate the vertical scroll on a fixed 250 ms ease-out.
+     * `false` for readaloud cadence follow (`snapCadenceSpan`) which invokes this on every
+     * sentence tick and needs instant snap to stay in sync with the audio — a 250 ms tween
+     * per tick would visually drift and the supersede counter would cancel in-flight animations
+     * before they land.
+     */
+    fun scrollToColumnJs(fragmentId: String, animated: Boolean = true): String {
+        val verticalScroll = if (animated) {
+            "var startV=beforeTop;" + VERTICAL_SMOOTH_TAIL_JS
+        } else {
+            "se.scrollTop=targetV;"
+        }
+        return "(function(){var el=document.getElementById(${JSONObject.quote(fragmentId)});" +
             "if(!el)return 'absent';" +
             "var se=document.scrollingElement||document.documentElement;" +
             "var r=el.getBoundingClientRect();" +
             "if(se.scrollHeight > window.innerHeight + 4){" + // scroll (vertical) mode → no column grid
             "if(r.top>=0 && r.bottom<=window.innerHeight)return 'same';" + // already fully visible
             "var beforeTop=se.scrollTop;" +
-            "se.scrollTop=Math.max(0, r.top + se.scrollTop - Math.floor(window.innerHeight/2));" +
-            "return (Math.abs(se.scrollTop-beforeTop)>1)?'moved':'same';}" +
+            "var targetV=Math.max(0, r.top + se.scrollTop - Math.floor(window.innerHeight/2));" +
+            "if(Math.abs(targetV-beforeTop)<=1)return 'same';" +
+            verticalScroll +
+            "return 'moved';}" +
             "var iw=window.innerWidth;" +
             "var before=se.scrollLeft;" +
             "var abs=r.left+se.scrollLeft;" +
             "var target=Math.floor(abs/iw)*iw;se.scrollLeft=target;" +
             "return (Math.abs(target-before)>1)?'moved':'same';})()"
+    }
 
     // The AT-REST backstop: a debounced scroll-idle listener that, once horizontal scrolling has gone quiet
     // in paginated mode, rounds scrollLeft to the NEAREST column boundary so the page can never come to REST
@@ -428,6 +491,35 @@ internal object ColumnSnap {
         val noTargetSnap = if (landAtStartWhenNoTarget) "se.scrollLeft=0;" else "se.scrollLeft=Math.round(se.scrollLeft/iw)*iw;"
         return "(function(){var id=$idLiteral;" +
             "var se=document.scrollingElement;" +
+            // Vertical (scroll-mode) smooth tail. Readium's `go(locator)` already teleported us to
+            // the target, so we compute `targetV` from either the fragment element's rect or the
+            // current scrollTop. The animation START point depends on whether the jump crossed
+            // documents: same-doc keeps the stashed pre-go scrollTop (no visible backward flash —
+            // return-to-position card + same-chapter TOC entries have no nav cover to hide a
+            // pre-land); cross-doc lost the stash with the old document, so we pre-land half a
+            // viewport short of target — the nav cover hides the pre-land, and the reveal shows
+            // the tail. Consuming the stash (setting to null) is important: a later same-doc
+            // background sync must not reuse a stale origin from an unrelated navigation.
+            // Skips the paginated rAF column-snap loop below — it only writes scrollLeft, which
+            // is a no-op in vertical, and the smooth animation is one-shot rather than a
+            // reflow-tracking loop.
+            "if(se && se.scrollHeight > window.innerHeight + 4){" +
+            "var targetV;" +
+            "if(id){var elV=document.getElementById(id);" +
+            "if(elV){var rV=elV.getBoundingClientRect();" +
+            "targetV=Math.max(0, rV.top + se.scrollTop - Math.floor(window.innerHeight/2));}" +
+            "else{targetV=se.scrollTop;}}" +
+            "else{targetV=se.scrollTop;}" +
+            "var _sameDoc=(typeof window.__riffleOriginY==='number')&&" +
+            "(window.__riffleOriginHref===location.href.split('#')[0]);" +
+            "var startV;" +
+            "if(_sameDoc){startV=window.__riffleOriginY;}" +
+            "else{startV=Math.max(0, targetV - Math.floor(window.innerHeight/2));}" +
+            "window.__riffleOriginY=null;window.__riffleOriginHref=null;" +
+            "if(Math.abs(targetV-startV)<=1)return;" + // origin already at target → no motion
+            "se.scrollTop=startV;" +
+            VERTICAL_SMOOTH_TAIL_JS +
+            "return;}" +
             "var gen=(window.__riffleSnapGen=(window.__riffleSnapGen||0)+1);" +
             "var lastW=-1,stable=0,frames=0;" +
             "function snap(){var iw=window.innerWidth;" +

@@ -21,6 +21,15 @@ internal interface ContinuousNavigationView {
         navigateTo(href, progression, alignToTop)
     }
 
+    /**
+     * Whether [href]'s chapter is currently loaded in the sliding window. The reader screen uses
+     * this to suppress the cross-resource nav-cover for an in-window jump — the cover otherwise
+     * hides the already-smooth [android.widget.NestedScrollView.smoothScrollTo] animation and the
+     * user sees a fade-to-snap instead of visible motion (the "back link feels abrupt" symptom).
+     * Default false so lightweight fakes for the presenter's JVM tests need not override.
+     */
+    fun isTargetInWindow(href: String): Boolean = false
+
     /** Page forward / backward; same semantics as [ContinuousReaderView.scrollByPage]. */
     fun scrollByPage(forward: Boolean)
 

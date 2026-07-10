@@ -664,4 +664,64 @@ class ContinuousPositionTrackerTest {
             ),
         )
     }
+
+    // Reading order: 6 chapters; sliding window loaded is [topIndex=2, topIndex+4) = ch2..ch5.
+    private val readingOrder = listOf("ch0.xhtml", "ch1.xhtml", "ch2.xhtml", "ch3.xhtml", "ch4.xhtml", "ch5.xhtml")
+
+    @Test
+    fun `isTargetInWindow — chapter inside the window returns true`() {
+        assertTrue(
+            ContinuousPositionTracker.isTargetInWindow(
+                hrefs = readingOrder, targetHref = "ch3.xhtml", topIndex = 2, loadedChapterCount = 4,
+            ),
+        )
+    }
+
+    @Test
+    fun `isTargetInWindow — chapter before the window is false so cover shows during rebuild`() {
+        assertFalse(
+            ContinuousPositionTracker.isTargetInWindow(
+                hrefs = readingOrder, targetHref = "ch1.xhtml", topIndex = 2, loadedChapterCount = 4,
+            ),
+        )
+    }
+
+    @Test
+    fun `isTargetInWindow — chapter one past the window is false`() {
+        // topIndex=2, loadedChapterCount=4 → last in-window index = 5; but if only 3 loaded, ch5 is out.
+        assertFalse(
+            ContinuousPositionTracker.isTargetInWindow(
+                hrefs = readingOrder, targetHref = "ch5.xhtml", topIndex = 2, loadedChapterCount = 3,
+            ),
+        )
+    }
+
+    @Test
+    fun `isTargetInWindow — fragment on either side does not prevent match`() {
+        assertTrue(
+            ContinuousPositionTracker.isTargetInWindow(
+                hrefs = readingOrder, targetHref = "ch3.xhtml#fig-4-1", topIndex = 2, loadedChapterCount = 4,
+            ),
+        )
+    }
+
+    @Test
+    fun `isTargetInWindow — unknown href is false`() {
+        assertFalse(
+            ContinuousPositionTracker.isTargetInWindow(
+                hrefs = readingOrder, targetHref = "unknown.xhtml", topIndex = 0, loadedChapterCount = 6,
+            ),
+        )
+    }
+
+    @Test
+    fun `preLandY — subtracts half a viewport so smoothScrollTo has room to animate on reveal`() {
+        // targetY = 4000, viewport = 1200 → preLand = 4000 - 600 = 3400
+        assertEquals(3400, ContinuousPositionTracker.preLandY(targetY = 4000, viewportHeight = 1200))
+    }
+
+    @Test
+    fun `preLandY — clamps at zero when target is within half a viewport of the top`() {
+        assertEquals(0, ContinuousPositionTracker.preLandY(targetY = 200, viewportHeight = 1200))
+    }
 }

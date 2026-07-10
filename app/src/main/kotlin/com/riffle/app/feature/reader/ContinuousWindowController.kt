@@ -210,6 +210,16 @@ internal class ContinuousWindowController(
     /** Target chapter height used by the last re-applied landing; re-apply again when it changes. */
     private var reapplyTargetLastHeight: Int = -1
 
+    /**
+     * True while a smooth-tail initial land is running (set by [openWindowAt] when
+     * `smoothTail = true`). Used to suppress `reapplyLandingAfterFallback` — a target-chapter
+     * remeasure during the ~250 ms smooth animation would re-invoke the initial-scroll closure
+     * and hard-scrollTo mid-animation, chopping the tween. In smoothTail mode we accept a small
+     * position offset from late reflow rather than kill the visible motion. Cleared on
+     * [onTouchDown] and by any subsequent [navigateTo].
+     */
+    private var smoothTailInProgress: Boolean = false
+
     /** Annotation id to focus on initial open. See [ContinuousReaderView.pendingFocusAnnotationId]. */
     private var pendingFocusAnnotationId: String? = null
 
@@ -305,10 +315,22 @@ internal class ContinuousWindowController(
         anchorFragment: String = "",
         alignToTop: Boolean = false,
         focusAnnotationId: String? = null,
+        /**
+         * When true the first initial land pre-scrolls half a viewport short of the target under
+         * the still-showing nav-cover, then reveals the container and animates the remaining
+         * half-viewport with [ContinuousScrollPort.smoothScrollTo]. Used only by [navigateTo]'s
+         * cross-window branch so the "back link" (and any cross-chapter jump that rebuilds the
+         * window) arrives with visible motion instead of a hard snap on cover-reveal. Other
+         * callers (book open, resume, annotation focus, renderer-gone recovery) keep the hard
+         * land — a smooth tail on a cold open would just delay first content by ~300ms with no
+         * gesture to justify it.
+         */
+        smoothTail: Boolean = false,
     ) {
         pendingFallbackRunnable?.let { port.removeCallbacks(it) }
         pendingFallbackRunnable = null
         windowManager.reset()
+        smoothTailInProgress = smoothTail
         container.visibility = android.view.View.INVISIBLE
 
         val targetIndex = ContinuousPositionTracker
@@ -331,6 +353,11 @@ internal class ContinuousWindowController(
         pendingInitialMeasureIndices.clear()
         pendingInitialMeasureIndices.addAll(0..targetWindowIndex)
         val targetHref = initialHref
+        // Only the FIRST invocation of the pending-initial-scroll closure runs the smooth-tail
+        // dance. Subsequent invocations from [reapplyLandingAfterFallback] on target-chapter
+        // remeasure are corrective micro-adjustments while the user is already looking at the
+        // destination — a smooth animation there would look like the page moved on its own.
+        var landCount = 0
         pendingInitialScroll = {
             fun postLandAt(offsetWithinTargetPx: Int?) {
                 port.post {
@@ -348,11 +375,31 @@ internal class ContinuousWindowController(
                             slot.top, slot.height, initialProgression, port.viewportHeightPx,
                         )
                     }
+                    val isFirstLand = landCount == 0
+                    landCount++
                     port.abortFling()
-                    port.scrollTo(y)
-                    landingHoldTargetY = y
-                    landingHoldUntilUptimeMs = android.os.SystemClock.uptimeMillis() + LANDING_HOLD_MS
-                    port.postOnAnimation { container.visibility = android.view.View.VISIBLE }
+                    if (smoothTail && isFirstLand) {
+                        val pre = ContinuousPositionTracker.preLandY(y, port.viewportHeightPx)
+                        port.scrollTo(pre)
+                        // Don't arm the landing hold: it would fight the tail animation by
+                        // reverting each frame back to `pre` until LANDING_HOLD_MS elapses.
+                        landingHoldTargetY = -1
+                        landingHoldUntilUptimeMs = 0L
+                        // Reveal and start the tween on the SAME animation frame. Previously the
+                        // reveal used `postOnAnimation` (next vsync) and the smoothScrollTo used
+                        // `port.post` (next Handler drain — typically fires FIRST); the tween
+                        // began ~1 frame before the container became VISIBLE, so the user saw a
+                        // partial animation from wherever the scroll had already advanced.
+                        port.postOnAnimation {
+                            container.visibility = android.view.View.VISIBLE
+                            port.smoothScrollTo(y)
+                        }
+                    } else {
+                        port.scrollTo(y)
+                        landingHoldTargetY = y
+                        landingHoldUntilUptimeMs = android.os.SystemClock.uptimeMillis() + LANDING_HOLD_MS
+                        port.postOnAnimation { container.visibility = android.view.View.VISIBLE }
+                    }
                 }
             }
             val targetWv = webViewIndexFor(targetHref)?.let { webViews.getOrNull(it) }
@@ -429,6 +476,14 @@ internal class ContinuousWindowController(
         navigateTo(href, progression, alignToTop, focusAnnotationId = null)
     }
 
+    override fun isTargetInWindow(href: String): Boolean =
+        ContinuousPositionTracker.isTargetInWindow(
+            hrefs = allChapters.map { it.link.href.toString() },
+            targetHref = href,
+            topIndex = topIndex,
+            loadedChapterCount = webViews.size,
+        )
+
     /**
      * Continuous-mode annotation navigation with mark-precise landing. When [focusAnnotationId] is
      * non-null and the chapter is in the sliding window, the landing anchors on the actual
@@ -470,6 +525,7 @@ internal class ContinuousWindowController(
                 anchorFragment = fragment,
                 alignToTop = alignToTop,
                 focusAnnotationId = focusAnnotationId,
+                smoothTail = true,
             )
         }
     }
@@ -702,7 +758,12 @@ internal class ContinuousWindowController(
                     val scroll = pendingInitialScroll
                     pendingInitialScroll = null
                     scroll?.invoke()
-                    reapplyLandingAfterFallback = scroll
+                    // In smoothTail mode the closure launched a NestedScrollView smoothScrollTo;
+                    // arming the reapply here would let a late target-chapter remeasure fire the
+                    // closure again during the 250 ms tween, taking its ELSE branch (hard
+                    // port.scrollTo) and chopping the animation. Accept a small position offset
+                    // from late reflow rather than kill the visible motion.
+                    reapplyLandingAfterFallback = if (smoothTailInProgress) null else scroll
                     val targetIdx = pendingTargetHref?.let { webViewIndexFor(it) } ?: -1
                     reapplyTargetLastHeight = measuredHeights.getOrElse(targetIdx) { measuredPx }
                 } else if (webViews.getOrNull(i)?.chapterHref == pendingTargetHref &&
@@ -848,6 +909,7 @@ internal class ContinuousWindowController(
         pendingFocusAnnotationId = null
         landingHoldTargetY = -1
         landingHoldUntilUptimeMs = 0L
+        smoothTailInProgress = false
         // A manual scroll may leave [port.currentScrollY] far from the coalescer's pending target;
         // reset so the next volume press bases its animation on the user's new position.
         pageScrollCoalescer.reset()
