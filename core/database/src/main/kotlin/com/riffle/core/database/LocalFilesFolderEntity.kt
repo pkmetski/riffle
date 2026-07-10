@@ -6,7 +6,9 @@ import androidx.room.Index
 
 /**
  * One user-picked local folder configured under a LocalFiles Source. `treeUri` is the SAF tree URI
- * the user granted persistable read permission on; scans re-walk it every time.
+ * the user granted persistable read permission on; scans re-walk it every time. `libraryId` is the
+ * stable id of the [LibraryEntity] created for this folder — each configured folder gets its own
+ * library named after the folder, and this column ties the folder row to that library.
  */
 @Entity(
     tableName = "local_files_folders",
@@ -26,4 +28,5 @@ data class LocalFilesFolderEntity(
     val treeUri: String,
     val displayName: String,
     val addedAtEpochMs: Long,
+    val libraryId: String,
 )

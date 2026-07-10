@@ -28,6 +28,8 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.windowsizeclass.WindowSizeClass
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -36,6 +38,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.disabled
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
+import androidx.hilt.navigation.compose.hiltViewModel
 import com.riffle.app.ui.TabletContentWidthContainer
 
 sealed interface SourceTypeChoice {
@@ -52,29 +55,43 @@ data class SourceTypeCard(
     val comingSoon: Boolean,
 )
 
-internal fun sourceTypeCards(): List<SourceTypeCard> = listOf(
-    SourceTypeCard(
-        type = SourceTypeChoice.Audiobookshelf,
-        title = "Audiobookshelf",
-        subtitle = "Stream ebooks and audiobooks from your Audiobookshelf server.",
-        enabled = true,
-        comingSoon = false,
-    ),
-    SourceTypeCard(
-        type = SourceTypeChoice.LocalFiles,
-        title = "Local files",
-        subtitle = "Read EPUBs and PDFs from a folder on this device.",
-        enabled = true,
-        comingSoon = false,
-    ),
-    SourceTypeCard(
-        type = SourceTypeChoice.Chitanka,
-        title = "Chitanka",
-        subtitle = "Browse Bulgarian ebooks (chitanka.info) and audiobooks (gramofonche).",
-        enabled = true,
-        comingSoon = false,
-    ),
-)
+/**
+ * The cards shown by [SourceTypePickerScreen]. When [hasLocalFilesSource] is true the "Local
+ * files" card is omitted — LocalFiles is a device singleton, so a second install would attach to
+ * the existing row, which the picker's "add source" framing hides. Adding another folder to that
+ * existing source is a dedicated action in Settings.
+ */
+internal fun sourceTypeCards(hasLocalFilesSource: Boolean = false): List<SourceTypeCard> = buildList {
+    add(
+        SourceTypeCard(
+            type = SourceTypeChoice.Audiobookshelf,
+            title = "Audiobookshelf",
+            subtitle = "Stream ebooks and audiobooks from your Audiobookshelf server.",
+            enabled = true,
+            comingSoon = false,
+        ),
+    )
+    if (!hasLocalFilesSource) {
+        add(
+            SourceTypeCard(
+                type = SourceTypeChoice.LocalFiles,
+                title = "Local files",
+                subtitle = "Read EPUBs and PDFs from a folder on this device.",
+                enabled = true,
+                comingSoon = false,
+            ),
+        )
+    }
+    add(
+        SourceTypeCard(
+            type = SourceTypeChoice.Chitanka,
+            title = "Chitanka",
+            subtitle = "Browse Bulgarian ebooks (chitanka.info) and audiobooks (gramofonche).",
+            enabled = true,
+            comingSoon = false,
+        ),
+    )
+}
 
 private fun iconFor(type: SourceTypeChoice): ImageVector = when (type) {
     SourceTypeChoice.Audiobookshelf -> Icons.Default.Cloud
@@ -96,7 +113,9 @@ fun SourceTypePickerScreen(
     onPickAudiobookshelf: () -> Unit,
     onPickLocalFiles: () -> Unit,
     onPickChitanka: () -> Unit,
+    viewModel: SourceTypePickerViewModel = hiltViewModel(),
 ) {
+    val hasLocalFilesSource by viewModel.hasLocalFilesSource.collectAsState()
     Scaffold(
         topBar = {
             TopAppBar(
@@ -117,7 +136,7 @@ fun SourceTypePickerScreen(
                 modifier = Modifier.fillMaxSize().padding(24.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp),
             ) {
-                sourceTypeCards().forEach { card ->
+                sourceTypeCards(hasLocalFilesSource = hasLocalFilesSource).forEach { card ->
                     SourceTypeCardRow(
                         card = card,
                         onClick = when (card.type) {

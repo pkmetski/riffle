@@ -61,6 +61,9 @@ interface LibraryItemDao {
     @Query("SELECT * FROM library_items WHERE sourceId = :sourceId AND id = :itemId LIMIT 1")
     suspend fun getById(sourceId: String, itemId: String): LibraryItemEntity?
 
+    @Query("SELECT * FROM library_items WHERE sourceId = :sourceId AND id IN (:itemIds)")
+    suspend fun listByIds(sourceId: String, itemIds: List<String>): List<LibraryItemEntity>
+
     /** Reactive single-item read — re-emits when the row changes (e.g. readingProgress on reader close). */
     @Query("SELECT * FROM library_items WHERE sourceId = :sourceId AND id = :itemId LIMIT 1")
     fun observeById(sourceId: String, itemId: String): Flow<LibraryItemEntity?>

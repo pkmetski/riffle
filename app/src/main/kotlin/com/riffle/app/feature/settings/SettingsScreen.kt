@@ -30,6 +30,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Schedule
@@ -98,6 +99,7 @@ fun SettingsScreen(
     windowSizeClass: WindowSizeClass,
     onNavigateBack: () -> Unit,
     onNavigateToAddSource: (backend: AddSourceBackend, editId: String?) -> Unit,
+    onNavigateToAddLocalFolder: () -> Unit = {},
     onNavigateToReadaloudMatches: (String) -> Unit = {},
     onNavigateToAnnotationSyncMaintenance: () -> Unit = {},
     onNavigateToDebugLogs: () -> Unit = {},
@@ -215,6 +217,7 @@ fun SettingsScreen(
                         onToggleExpanded = {
                             expandedServers[lfs.id] = expandedServers[lfs.id] != true
                         },
+                        onAddFolder = onNavigateToAddLocalFolder,
                         onRemoveFolder = { treeUri -> viewModel.removeLocalFolder(treeUri) },
                         onRemoveSource = { viewModel.removeLocalFilesSource() },
                     )
@@ -1048,6 +1051,7 @@ private fun LocalFilesSourceRow(
     folderHealth: Map<String, Boolean>,
     isExpanded: Boolean,
     onToggleExpanded: () -> Unit,
+    onAddFolder: () -> Unit,
     onRemoveFolder: (String) -> Unit,
     onRemoveSource: () -> Unit,
 ) {
@@ -1092,11 +1096,26 @@ private fun LocalFilesSourceRow(
         )
         androidx.compose.animation.AnimatedVisibility(visible = isExpanded) {
             Column {
+                ListItem(
+                    modifier = Modifier
+                        .clickable(onClick = onAddFolder)
+                        .testTag("LocalFilesSourceRow.AddFolder"),
+                    leadingContent = {
+                        Icon(
+                            Icons.Default.Add,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                        )
+                    },
+                    headlineContent = {
+                        Text("Add folder", color = MaterialTheme.colorScheme.primary)
+                    },
+                )
                 if (folders.isEmpty()) {
                     ListItem(
                         headlineContent = { Text("No folders yet") },
                         supportingContent = {
-                            Text("Use \"Add source\" below to pick a folder for this device.")
+                            Text("Tap \"Add folder\" above to pick a folder to monitor.")
                         },
                     )
                 } else {

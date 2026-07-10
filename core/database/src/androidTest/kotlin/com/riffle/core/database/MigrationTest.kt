@@ -1919,7 +1919,7 @@ class MigrationTest {
         }
 
         val db = helper.runMigrationsAndValidate(
-            TEST_DB, 52, true,
+            TEST_DB, 53, true,
             RiffleDatabase.MIGRATION_1_2,
             RiffleDatabase.MIGRATION_2_3,
             RiffleDatabase.MIGRATION_3_4,
@@ -1971,6 +1971,7 @@ class MigrationTest {
             RiffleDatabase.MIGRATION_49_50,
             RiffleDatabase.MIGRATION_50_51,
             RiffleDatabase.MIGRATION_51_52,
+            RiffleDatabase.MIGRATION_52_53,
         )
 
         db.query("SELECT url, username, serverType, absUserId, type FROM sources WHERE id = 's1'").use { cursor ->
@@ -2292,6 +2293,144 @@ class MigrationTest {
             assertEquals("cbz", c.getString(1))
             assertTrue("new pageCount column defaults to NULL", c.isNull(2))
         }
+        db.close()
+    }
+
+    // Library-per-folder for LocalFiles: each configured folder becomes its own Library named
+    // after the folder's displayName, and library_items rows migrate off the synthetic
+    // "local:root" library onto the per-folder library. A junction table records folder
+    // membership so a book in two folders can appear under both libraries after the next scan.
+    @Test
+    fun migration52To53_localFilesLibraryPerFolder() {
+        helper.createDatabase(TEST_DB, 52).apply {
+            execSQL(
+                "INSERT INTO sources (id, url, isActive, insecureConnectionAllowed, username, serverType, absUserId, type) " +
+                    "VALUES ('lf1', 'https://localfiles.invalid', 0, 0, '', 'AUDIOBOOKSHELF', NULL, 'LOCAL_FILES')"
+            )
+            // The synthetic root library that pre-53 LocalFiles installs seeded.
+            execSQL(
+                "INSERT INTO libraries (id, name, mediaType, sourceId, isUnsupported) " +
+                    "VALUES ('local:root', 'Local Files', 'book', 'lf1', 0)"
+            )
+            // Two configured folders on this Source.
+            execSQL(
+                "INSERT INTO local_files_folders (sourceId, treeUri, displayName, addedAtEpochMs) VALUES " +
+                    "('lf1', 'content://tree/A', 'Reading Now', 100), " +
+                    "('lf1', 'content://tree/B', 'Archive', 200)"
+            )
+            // Three files: two anchored to folder A, one to folder B. Pre-53 each file row carries
+            // a single folderTreeUri — the folder it was first ingested from.
+            execSQL(
+                "INSERT INTO local_files_files " +
+                    "(sourceId, sourceItemId, folderTreeUri, originalUri, copiedPath, coverPath, " +
+                    "format, sizeBytes, mtimeEpochMs, lastSeenAtEpochMs) VALUES " +
+                    "('lf1','fA1','content://tree/A','uriA1','/tmp/A1',NULL,'epub',1,0,10), " +
+                    "('lf1','fA2','content://tree/A','uriA2','/tmp/A2',NULL,'epub',1,0,10), " +
+                    "('lf1','fB1','content://tree/B','uriB1','/tmp/B1',NULL,'epub',1,0,10)"
+            )
+            // library_items rows for each of those files, all tagged with the synthetic root.
+            fun insertItem(id: String) = execSQL(
+                "INSERT INTO library_items " +
+                    "(sourceId, id, libraryId, title, author, coverUrl, readingProgress, " +
+                    "ebookFileIno, ebookFormat, hasAudio, audioDurationSec, description, seriesName, " +
+                    "seriesSequence, publishedYear, genres, publisher, language, lastOpenedAt, addedAt, " +
+                    "isbn, asin, finishedAt, pageCount) VALUES " +
+                    "('lf1','$id','local:root','$id-title','author',NULL,0.0,NULL,'epub',0,0.0,NULL,NULL,NULL,NULL,'',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL)"
+            )
+            insertItem("fA1"); insertItem("fA2"); insertItem("fB1")
+            // An orphan library_items row whose sourceItemId has no corresponding local_files_files
+            // row — it should be dropped by the migration since we can't attribute it to a folder.
+            execSQL(
+                "INSERT INTO library_items " +
+                    "(sourceId, id, libraryId, title, author, coverUrl, readingProgress, " +
+                    "ebookFileIno, ebookFormat, hasAudio, audioDurationSec, description, seriesName, " +
+                    "seriesSequence, publishedYear, genres, publisher, language, lastOpenedAt, addedAt, " +
+                    "isbn, asin, finishedAt) VALUES " +
+                    "('lf1','orphan','local:root','orphan-title','author',NULL,0.0,NULL,'epub',0,0.0,NULL,NULL,NULL,NULL,'',NULL,NULL,NULL,NULL,NULL,NULL,NULL)"
+            )
+            close()
+        }
+
+        val db = helper.runMigrationsAndValidate(TEST_DB, 53, true, RiffleDatabase.MIGRATION_52_53)
+
+        // Folder A and Folder B both got a distinct per-folder libraryId of the form
+        // "local:folder:<uuid>". Names lifted from the displayName column.
+        val folderALib = db.query(
+            "SELECT libraryId FROM local_files_folders WHERE sourceId = 'lf1' AND treeUri = 'content://tree/A'",
+        ).use { c -> assertTrue(c.moveToFirst()); c.getString(0) }
+        val folderBLib = db.query(
+            "SELECT libraryId FROM local_files_folders WHERE sourceId = 'lf1' AND treeUri = 'content://tree/B'",
+        ).use { c -> assertTrue(c.moveToFirst()); c.getString(0) }
+        assertTrue(folderALib.startsWith("local:folder:"))
+        assertTrue(folderBLib.startsWith("local:folder:"))
+        assertTrue("Folders must not share the same libraryId", folderALib != folderBLib)
+
+        // A LibraryEntity now exists per folder, named after the folder's displayName.
+        db.query(
+            "SELECT name FROM libraries WHERE sourceId = 'lf1' AND id = ?",
+            arrayOf<Any>(folderALib),
+        ).use { c ->
+            assertTrue(c.moveToFirst())
+            assertEquals("Reading Now", c.getString(0))
+        }
+        db.query(
+            "SELECT name FROM libraries WHERE sourceId = 'lf1' AND id = ?",
+            arrayOf<Any>(folderBLib),
+        ).use { c ->
+            assertTrue(c.moveToFirst())
+            assertEquals("Archive", c.getString(0))
+        }
+
+        // The synthetic "local:root" library row is gone.
+        db.query("SELECT COUNT(*) FROM libraries WHERE id = 'local:root'").use { c ->
+            assertTrue(c.moveToFirst())
+            assertEquals(0, c.getInt(0))
+        }
+
+        // Membership junction has one row per pre-migration file, keyed by the file's historical
+        // folderTreeUri. Cross-folder duplicates would materialise on the next scan; this test
+        // only validates the historical backfill.
+        db.query(
+            "SELECT sourceItemId, folderTreeUri FROM local_files_file_folders " +
+                "WHERE sourceId = 'lf1' ORDER BY sourceItemId",
+        ).use { c ->
+            val rows = buildList {
+                while (c.moveToNext()) add(c.getString(0) to c.getString(1))
+            }
+            assertEquals(
+                listOf(
+                    "fA1" to "content://tree/A",
+                    "fA2" to "content://tree/A",
+                    "fB1" to "content://tree/B",
+                ),
+                rows,
+            )
+        }
+
+        // library_items rows are reassigned: fA1/fA2 → folderALib, fB1 → folderBLib.
+        db.query("SELECT id, libraryId FROM library_items WHERE sourceId = 'lf1' ORDER BY id").use { c ->
+            val rows = buildList {
+                while (c.moveToNext()) add(c.getString(0) to c.getString(1))
+            }
+            assertEquals(
+                listOf(
+                    "fA1" to folderALib,
+                    "fA2" to folderALib,
+                    "fB1" to folderBLib,
+                ),
+                rows,
+            )
+        }
+
+        // `folderTreeUri` is no longer a column on `local_files_files` — table was recreated.
+        db.query("PRAGMA table_info(local_files_files)").use { c ->
+            val columns = buildList { while (c.moveToNext()) add(c.getString(1)) }
+            assertTrue("folderTreeUri must be moved off local_files_files", "folderTreeUri" !in columns)
+            // Core columns still present, verifying the recreation copied data cleanly.
+            assertTrue("sourceItemId" in columns)
+            assertTrue("copiedPath" in columns)
+        }
+
         db.close()
     }
 }

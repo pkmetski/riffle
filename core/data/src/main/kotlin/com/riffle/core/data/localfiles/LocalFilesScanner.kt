@@ -4,6 +4,8 @@ import com.riffle.core.database.LibraryItemDao
 import com.riffle.core.database.LibraryItemEntity
 import com.riffle.core.database.LocalFilesFileDao
 import com.riffle.core.database.LocalFilesFileEntity
+import com.riffle.core.database.LocalFilesFileFolderDao
+import com.riffle.core.database.LocalFilesFileFolderEntity
 import com.riffle.core.database.LocalFilesFolderDao
 import com.riffle.core.domain.Clock
 import com.riffle.core.domain.EbookFormat
@@ -22,19 +24,25 @@ import javax.inject.Inject
 /**
  * Walks the LocalFiles Source's configured folders, classifies EPUB/PDF files by extension +
  * magic bytes, computes a content-identity hash, and idempotently upserts:
- *   - a `library_items` row per unique file (title/author/…, cover URL where extractable),
+ *   - a `library_items` row per unique file (title/author/…, cover URL where extractable), with
+ *     `libraryId` set to whichever folder-library currently contains it (if a file lives in
+ *     several folders, the row's libraryId names any one of them — folder-scoped browsing goes
+ *     through `local_files_file_folders`).
  *   - a `local_files_files` row per unique file (originalUri, copiedPath, coverPath, lastSeenAt).
+ *   - one `local_files_file_folders` membership row per (file, folder) pairing found this pass.
  *
- * A single scan pass runs across *all* configured folders of the source; rows whose
- * `lastSeenAtEpochMs` predates `scanStart` after the pass are hard-deleted along with their copied
- * bytes and library rows. This unifies "file removed from folder" with "folder permission revoked"
- * — both surface as absence during the walk.
+ * A single scan pass runs across *all* configured folders of the source. After a fully-clean walk,
+ * membership rows whose `lastSeenAtEpochMs` predates `scanStart` are hard-deleted; a file that
+ * loses its last membership takes the `library_items` row, the file row, and the copied bytes with
+ * it. This unifies "file removed from folder", "folder no longer configured", and "folder
+ * permission revoked" — all surface as absence during the walk.
  *
  * Not thread-safe: only one scan should be in-flight per source at a time.
  */
 class LocalFilesScanner @Inject constructor(
     private val folderDao: LocalFilesFolderDao,
     private val fileDao: LocalFilesFileDao,
+    private val fileFolderDao: LocalFilesFileFolderDao,
     private val libraryItemDao: LibraryItemDao,
     private val walker: FolderWalker,
     private val copyIn: CopyInService,
@@ -81,7 +89,7 @@ class LocalFilesScanner @Inject constructor(
             }
             for (file in files) {
                 val outcome = try {
-                    ingest(sourceId, folder.treeUri, file, scanStart)
+                    ingest(sourceId, folder.treeUri, folder.libraryId, file, scanStart)
                 } catch (e: Exception) {
                     failures += ScanFailure(file.displayName, "ingest-failed: ${e.message ?: e::class.simpleName}")
                     completed = false
@@ -99,15 +107,25 @@ class LocalFilesScanner @Inject constructor(
         ScanReport(added = added, refreshed = refreshed, removed = removed, failures = failures)
     }
 
+    /**
+     * Prunes junction rows (file-in-folder memberships) not touched by this scan, plus any file
+     * row whose last membership just disappeared. Returns the number of removed **files** — files
+     * that lost their last folder and were fully evicted — not the number of removed memberships.
+     * Matches the pre-junction contract callers already assert.
+     */
     private suspend fun sweepStale(sourceId: String, scanStart: Long): Int {
-        val stale = fileDao.stale(sourceId, scanStart)
-        for (row in stale) {
+        val staleMemberships = fileFolderDao.stale(sourceId, scanStart)
+        for (m in staleMemberships) {
+            fileFolderDao.delete(m.sourceId, m.sourceItemId, m.folderTreeUri)
+        }
+        val orphans = fileFolderDao.orphanedFiles(sourceId)
+        for (row in orphans) {
             libraryItemDao.deleteById(row.sourceId, row.sourceItemId)
             copyIn.deleteBook(row.sourceId, row.sourceItemId)
             if (row.coverPath != null) copyIn.deleteCover(row.sourceId, row.sourceItemId)
             fileDao.delete(row.sourceId, row.sourceItemId)
         }
-        return stale.size
+        return orphans.size
     }
 
     private enum class Outcome { ADDED, REFRESHED, SKIPPED }
@@ -115,6 +133,7 @@ class LocalFilesScanner @Inject constructor(
     private suspend fun ingest(
         sourceId: String,
         folderTreeUri: String,
+        folderLibraryId: String,
         file: WalkedFile,
         scanStart: Long,
     ): Outcome {
@@ -138,7 +157,15 @@ class LocalFilesScanner @Inject constructor(
         val identity = IdentityHasher.hash(head, file.sizeBytes)
         val existing = fileDao.findById(sourceId, identity)
         if (existing != null) {
-            fileDao.touchLastSeen(sourceId, identity, folderTreeUri, scanStart)
+            fileDao.touchLastSeen(sourceId, identity, scanStart)
+            fileFolderDao.upsert(
+                LocalFilesFileFolderEntity(
+                    sourceId = sourceId,
+                    sourceItemId = identity,
+                    folderTreeUri = folderTreeUri,
+                    lastSeenAtEpochMs = scanStart,
+                ),
+            )
             return Outcome.REFRESHED
         }
 
@@ -151,9 +178,9 @@ class LocalFilesScanner @Inject constructor(
         val copied = file.openStream().use { s -> copyIn.copyBook(sourceId, identity, extension, s) }
 
         val (item, coverPath) = when (kind) {
-            FileClassifier.Kind.EPUB -> buildEpubItem(sourceId, identity, file, copied)
-            FileClassifier.Kind.PDF -> buildPdfItem(sourceId, identity, file, copied)
-            FileClassifier.Kind.CBZ -> buildCbzItem(sourceId, identity, file, copied)
+            FileClassifier.Kind.EPUB -> buildEpubItem(sourceId, identity, folderLibraryId, file, copied)
+            FileClassifier.Kind.PDF -> buildPdfItem(sourceId, identity, folderLibraryId, file, copied)
+            FileClassifier.Kind.CBZ -> buildCbzItem(sourceId, identity, folderLibraryId, file, copied)
             FileClassifier.Kind.UNKNOWN -> return Outcome.SKIPPED
         }
         libraryItemDao.upsertAll(listOf(item))
@@ -161,7 +188,6 @@ class LocalFilesScanner @Inject constructor(
             LocalFilesFileEntity(
                 sourceId = sourceId,
                 sourceItemId = identity,
-                folderTreeUri = folderTreeUri,
                 originalUri = file.originalUri,
                 copiedPath = copied.absolutePath,
                 coverPath = coverPath?.absolutePath,
@@ -171,12 +197,21 @@ class LocalFilesScanner @Inject constructor(
                 lastSeenAtEpochMs = scanStart,
             ),
         )
+        fileFolderDao.upsert(
+            LocalFilesFileFolderEntity(
+                sourceId = sourceId,
+                sourceItemId = identity,
+                folderTreeUri = folderTreeUri,
+                lastSeenAtEpochMs = scanStart,
+            ),
+        )
         return Outcome.ADDED
     }
 
     private suspend fun buildEpubItem(
         sourceId: String,
         identity: String,
+        folderLibraryId: String,
         file: WalkedFile,
         copied: java.io.File,
     ): Pair<LibraryItemEntity, java.io.File?> {
@@ -185,12 +220,13 @@ class LocalFilesScanner @Inject constructor(
         val coverFile = if (coverBytes != null) {
             copyIn.writeCover(sourceId, identity, metadata.coverExtension ?: "jpg", coverBytes)
         } else null
-        return libraryItemFromEpub(sourceId, identity, file, metadata, coverFile) to coverFile
+        return libraryItemFromEpub(sourceId, identity, folderLibraryId, file, metadata, coverFile) to coverFile
     }
 
     private suspend fun buildPdfItem(
         sourceId: String,
         identity: String,
+        folderLibraryId: String,
         file: WalkedFile,
         copied: java.io.File,
     ): Pair<LibraryItemEntity, java.io.File?> {
@@ -198,7 +234,7 @@ class LocalFilesScanner @Inject constructor(
         val entity = LibraryItemEntity(
             sourceId = sourceId,
             id = identity,
-            libraryId = LocalFilesCatalog.LOCAL_ROOT_ID,
+            libraryId = folderLibraryId,
             title = metadata.title?.ifBlank { null } ?: stripExtension(file.displayName),
             author = metadata.author?.ifBlank { null } ?: "",
             coverUrl = null,
@@ -213,6 +249,7 @@ class LocalFilesScanner @Inject constructor(
     private suspend fun buildCbzItem(
         sourceId: String,
         identity: String,
+        folderLibraryId: String,
         file: WalkedFile,
         copied: java.io.File,
     ): Pair<LibraryItemEntity, java.io.File?> {
@@ -223,7 +260,7 @@ class LocalFilesScanner @Inject constructor(
         val entity = LibraryItemEntity(
             sourceId = sourceId,
             id = identity,
-            libraryId = LocalFilesCatalog.LOCAL_ROOT_ID,
+            libraryId = folderLibraryId,
             title = stripExtension(file.displayName),
             author = "",
             coverUrl = coverFile?.toURI()?.toString(),
@@ -238,13 +275,14 @@ class LocalFilesScanner @Inject constructor(
     private fun libraryItemFromEpub(
         sourceId: String,
         identity: String,
+        folderLibraryId: String,
         file: WalkedFile,
         metadata: EpubMetadata,
         coverFile: java.io.File?,
     ): LibraryItemEntity = LibraryItemEntity(
         sourceId = sourceId,
         id = identity,
-        libraryId = LocalFilesCatalog.LOCAL_ROOT_ID,
+        libraryId = folderLibraryId,
         title = metadata.title?.ifBlank { null } ?: stripExtension(file.displayName),
         author = metadata.author?.ifBlank { null } ?: "",
         coverUrl = coverFile?.toURI()?.toString(),

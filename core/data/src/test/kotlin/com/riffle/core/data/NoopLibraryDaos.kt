@@ -24,6 +24,7 @@ internal object ThrowingLibraryItemDao : LibraryItemDao {
     override suspend fun updateMetadata(metadata: LibraryItemMetadata) = Unit
     override suspend fun getById(sourceId: String, itemId: String): LibraryItemEntity? = null
     override suspend fun listByLibraryId(sourceId: String, libraryId: String): List<LibraryItemEntity> = emptyList()
+    override suspend fun listByIds(sourceId: String, itemIds: List<String>): List<LibraryItemEntity> = emptyList()
     override fun observeById(sourceId: String, itemId: String): Flow<LibraryItemEntity?> = flowOf(null)
     override suspend fun findSourceIdForItem(itemId: String): String? = null
     override suspend fun deleteByLibraryId(sourceId: String, libraryId: String) = Unit
@@ -45,5 +46,6 @@ internal object ThrowingLibraryDao : LibraryDao {
     override suspend fun getById(sourceId: String, libraryId: String): LibraryEntity? = null
     override suspend fun upsertAll(libraries: List<LibraryEntity>) = Unit
     override suspend fun deleteBySourceId(sourceId: String) = Unit
+    override suspend fun deleteById(sourceId: String, libraryId: String) = Unit
     override suspend fun setUnsupported(sourceId: String, libraryId: String, isUnsupported: Boolean) = Unit
 }

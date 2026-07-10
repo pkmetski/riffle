@@ -11,6 +11,7 @@ import com.riffle.core.database.CollectionDao
 import com.riffle.core.database.LibraryDao
 import com.riffle.core.database.LibraryItemDao
 import com.riffle.core.database.LocalFilesFileDao
+import com.riffle.core.database.LocalFilesFileFolderDao
 import com.riffle.core.database.LocalFilesFolderDao
 import com.riffle.core.database.CrossEpubIndexDao
 import com.riffle.core.database.ReadaloudCandidateDao
@@ -89,6 +90,7 @@ object DatabaseModule {
                 RiffleDatabase.MIGRATION_49_50,
                 RiffleDatabase.MIGRATION_50_51,
                 RiffleDatabase.MIGRATION_51_52,
+                RiffleDatabase.MIGRATION_52_53,
             )
             .build()
 
@@ -173,4 +175,9 @@ object DatabaseModule {
     @Provides
     @Singleton
     fun provideLocalFilesFileDao(db: RiffleDatabase): LocalFilesFileDao = db.localFilesFileDao()
+
+    @Provides
+    @Singleton
+    fun provideLocalFilesFileFolderDao(db: RiffleDatabase): LocalFilesFileFolderDao =
+        db.localFilesFileFolderDao()
 }

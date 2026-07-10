@@ -138,6 +138,9 @@ class ChitankaSourceInstallerTest {
         override suspend fun deleteBySourceId(sourceId: String) {
             rows.removeIf { it.sourceId == sourceId }
         }
+        override suspend fun deleteById(sourceId: String, libraryId: String) {
+            rows.removeIf { it.sourceId == sourceId && it.id == libraryId }
+        }
         override suspend fun setUnsupported(sourceId: String, libraryId: String, isUnsupported: Boolean) {
             val idx = rows.indexOfFirst { it.sourceId == sourceId && it.id == libraryId }
             if (idx >= 0) rows[idx] = rows[idx].copy(isUnsupported = isUnsupported)

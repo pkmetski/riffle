@@ -101,6 +101,12 @@ internal class FakeLibraryItemDao : LibraryItemDao {
     override suspend fun listByLibraryId(sourceId: String, libraryId: String): List<LibraryItemEntity> =
         scoped(sourceId, libraryId)
 
+    override suspend fun listByIds(sourceId: String, itemIds: List<String>): List<LibraryItemEntity> {
+        val idSet = itemIds.toHashSet()
+        return roomData.values.flatMap { it.value }
+            .filter { it.sourceId == sourceId && it.id in idSet }
+    }
+
     override fun observeById(sourceId: String, itemId: String): Flow<LibraryItemEntity?> =
         MutableStateFlow(roomData.values.flatMap { it.value }.firstOrNull { it.sourceId == sourceId && it.id == itemId })
 

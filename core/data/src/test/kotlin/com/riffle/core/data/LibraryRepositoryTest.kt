@@ -96,6 +96,11 @@ class LibraryRepositoryTest {
             roomData[sourceId]?.value = emptyList()
         }
 
+        override suspend fun deleteById(sourceId: String, libraryId: String) {
+            val flow = roomData[sourceId] ?: return
+            flow.value = flow.value.filterNot { it.id == libraryId }
+        }
+
         override suspend fun setUnsupported(sourceId: String, libraryId: String, isUnsupported: Boolean) {
             val flow = roomData[sourceId] ?: return
             flow.value = flow.value.map { if (it.id == libraryId) it.copy(isUnsupported = isUnsupported) else it }

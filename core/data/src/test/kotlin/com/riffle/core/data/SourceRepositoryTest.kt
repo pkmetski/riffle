@@ -104,6 +104,9 @@ class ServerRepositoryTest {
         override suspend fun getById(sourceId: String, libraryId: String): LibraryEntity? =
             rows[sourceId].orEmpty().firstOrNull { it.id == libraryId }
         override suspend fun deleteBySourceId(sourceId: String) { rows.remove(sourceId) }
+        override suspend fun deleteById(sourceId: String, libraryId: String) {
+            rows[sourceId]?.removeIf { it.id == libraryId }
+        }
         override suspend fun setUnsupported(sourceId: String, libraryId: String, isUnsupported: Boolean) {
             rows[sourceId]?.replaceAll { if (it.id == libraryId) it.copy(isUnsupported = isUnsupported) else it }
         }
@@ -147,6 +150,10 @@ class ServerRepositoryTest {
         override suspend fun getById(sourceId: String, itemId: String) = rows.values.flatten().firstOrNull { it.id == itemId }
         override suspend fun listByLibraryId(sourceId: String, libraryId: String) =
             rows[libraryId].orEmpty().filter { it.sourceId == sourceId }.toList()
+        override suspend fun listByIds(sourceId: String, itemIds: List<String>): List<com.riffle.core.database.LibraryItemEntity> {
+            val idSet = itemIds.toHashSet()
+            return rows.values.flatten().filter { it.sourceId == sourceId && it.id in idSet }
+        }
         override fun observeById(sourceId: String, itemId: String) = flowOf(rows.values.flatten().firstOrNull { it.id == itemId })
         override suspend fun findSourceIdForItem(itemId: String): String? = rows.values.flatten().firstOrNull { it.id == itemId }?.sourceId
         override suspend fun upsertAll(items: List<com.riffle.core.database.LibraryItemEntity>) {

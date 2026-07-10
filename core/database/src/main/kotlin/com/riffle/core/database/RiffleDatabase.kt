@@ -29,8 +29,9 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         AudiobookChapterCacheEntity::class,
         LocalFilesFolderEntity::class,
         LocalFilesFileEntity::class,
+        LocalFilesFileFolderEntity::class,
     ],
-    version = 52,
+    version = 53,
     exportSchema = true,
 )
 abstract class RiffleDatabase : RoomDatabase() {
@@ -54,6 +55,7 @@ abstract class RiffleDatabase : RoomDatabase() {
     abstract fun audiobookChapterCacheDao(): AudiobookChapterCacheDao
     abstract fun localFilesFolderDao(): LocalFilesFolderDao
     abstract fun localFilesFileDao(): LocalFilesFileDao
+    abstract fun localFilesFileFolderDao(): LocalFilesFileFolderDao
 
     companion object {
         val MIGRATION_1_2 = object : Migration(1, 2) {
@@ -1342,6 +1344,141 @@ abstract class RiffleDatabase : RoomDatabase() {
         val MIGRATION_51_52 = object : Migration(51, 52) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("ALTER TABLE `library_items` ADD COLUMN `pageCount` INTEGER")
+            }
+        }
+
+        // Library-per-folder for LocalFiles Sources: each configured folder becomes its own
+        // Library named after the folder (previously every folder funnelled into one synthetic
+        // "local:root" Library). Adds:
+        //   - `libraryId` to `local_files_folders` (fresh UUID per existing folder).
+        //   - A `LibraryEntity` per folder in `libraries`, named from `displayName`.
+        //   - `local_files_file_folders` junction — one row per (file, folder) membership.
+        // Reassigns every `library_items.libraryId = 'local:root'` row to its file's owning
+        // folder's new library, drops the synthetic `local:root` `LibraryEntity`, and drops
+        // `folderTreeUri` from `local_files_files` (moved to the junction).
+        val MIGRATION_52_53 = object : Migration(52, 53) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("PRAGMA foreign_keys=OFF")
+                try {
+                    // 1. Add `libraryId` to `local_files_folders`. Table recreation (not ALTER
+                    //    ADD COLUMN) because we need a per-row UUID default that varies across rows.
+                    db.execSQL(
+                        "CREATE TABLE `local_files_folders_new` (" +
+                            "`sourceId` TEXT NOT NULL, " +
+                            "`treeUri` TEXT NOT NULL, " +
+                            "`displayName` TEXT NOT NULL, " +
+                            "`addedAtEpochMs` INTEGER NOT NULL, " +
+                            "`libraryId` TEXT NOT NULL, " +
+                            "PRIMARY KEY(`sourceId`, `treeUri`), " +
+                            "FOREIGN KEY(`sourceId`) REFERENCES `sources`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE)"
+                    )
+                    // Collect existing folder rows so we can mint a fresh UUID per row.
+                    data class OldFolder(
+                        val sourceId: String,
+                        val treeUri: String,
+                        val displayName: String,
+                        val addedAt: Long,
+                    )
+                    val oldFolders = mutableListOf<OldFolder>()
+                    db.query("SELECT sourceId, treeUri, displayName, addedAtEpochMs FROM local_files_folders").use { c ->
+                        while (c.moveToNext()) {
+                            oldFolders += OldFolder(c.getString(0), c.getString(1), c.getString(2), c.getLong(3))
+                        }
+                    }
+                    val folderToLibraryId = mutableMapOf<Pair<String, String>, String>()
+                    for (f in oldFolders) {
+                        val newLibraryId = "local:folder:" + java.util.UUID.randomUUID().toString()
+                        folderToLibraryId[f.sourceId to f.treeUri] = newLibraryId
+                        db.execSQL(
+                            "INSERT INTO `local_files_folders_new` (sourceId, treeUri, displayName, addedAtEpochMs, libraryId) VALUES (?, ?, ?, ?, ?)",
+                            arrayOf<Any>(f.sourceId, f.treeUri, f.displayName, f.addedAt, newLibraryId),
+                        )
+                    }
+                    db.execSQL("DROP TABLE `local_files_folders`")
+                    db.execSQL("ALTER TABLE `local_files_folders_new` RENAME TO `local_files_folders`")
+                    db.execSQL(
+                        "CREATE INDEX IF NOT EXISTS `index_local_files_folders_sourceId` ON `local_files_folders` (`sourceId`)"
+                    )
+
+                    // 2. Create the junction table.
+                    db.execSQL(
+                        "CREATE TABLE IF NOT EXISTS `local_files_file_folders` (" +
+                            "`sourceId` TEXT NOT NULL, " +
+                            "`sourceItemId` TEXT NOT NULL, " +
+                            "`folderTreeUri` TEXT NOT NULL, " +
+                            "`lastSeenAtEpochMs` INTEGER NOT NULL, " +
+                            "PRIMARY KEY(`sourceId`, `sourceItemId`, `folderTreeUri`), " +
+                            "FOREIGN KEY(`sourceId`) REFERENCES `sources`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE)"
+                    )
+                    db.execSQL(
+                        "CREATE INDEX IF NOT EXISTS `index_local_files_file_folders_sourceId` ON `local_files_file_folders` (`sourceId`)"
+                    )
+                    db.execSQL(
+                        "CREATE INDEX IF NOT EXISTS `index_local_files_file_folders_sourceId_folderTreeUri` " +
+                            "ON `local_files_file_folders` (`sourceId`, `folderTreeUri`)"
+                    )
+                    // Backfill: one membership row per existing file, using the file's historical
+                    // folderTreeUri. Cross-folder duplicates (a book in two folders) will
+                    // materialise on the next scan pass.
+                    db.execSQL(
+                        "INSERT INTO `local_files_file_folders` (sourceId, sourceItemId, folderTreeUri, lastSeenAtEpochMs) " +
+                            "SELECT sourceId, sourceItemId, folderTreeUri, lastSeenAtEpochMs FROM `local_files_files`"
+                    )
+
+                    // 3. Drop `folderTreeUri` from `local_files_files` via table recreation.
+                    db.execSQL(
+                        "CREATE TABLE `local_files_files_new` (" +
+                            "`sourceId` TEXT NOT NULL, " +
+                            "`sourceItemId` TEXT NOT NULL, " +
+                            "`originalUri` TEXT NOT NULL, " +
+                            "`copiedPath` TEXT NOT NULL, " +
+                            "`coverPath` TEXT, " +
+                            "`format` TEXT NOT NULL, " +
+                            "`sizeBytes` INTEGER NOT NULL, " +
+                            "`mtimeEpochMs` INTEGER NOT NULL, " +
+                            "`lastSeenAtEpochMs` INTEGER NOT NULL, " +
+                            "PRIMARY KEY(`sourceId`, `sourceItemId`), " +
+                            "FOREIGN KEY(`sourceId`) REFERENCES `sources`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE)"
+                    )
+                    db.execSQL(
+                        "INSERT INTO `local_files_files_new` (sourceId, sourceItemId, originalUri, copiedPath, coverPath, format, sizeBytes, mtimeEpochMs, lastSeenAtEpochMs) " +
+                            "SELECT sourceId, sourceItemId, originalUri, copiedPath, coverPath, format, sizeBytes, mtimeEpochMs, lastSeenAtEpochMs FROM `local_files_files`"
+                    )
+                    db.execSQL("DROP TABLE `local_files_files`")
+                    db.execSQL("ALTER TABLE `local_files_files_new` RENAME TO `local_files_files`")
+                    db.execSQL(
+                        "CREATE INDEX IF NOT EXISTS `index_local_files_files_sourceId` ON `local_files_files` (`sourceId`)"
+                    )
+
+                    // 4. Insert one `LibraryEntity` per folder.
+                    for (f in oldFolders) {
+                        val newLibraryId = folderToLibraryId.getValue(f.sourceId to f.treeUri)
+                        db.execSQL(
+                            "INSERT OR REPLACE INTO `libraries` (id, name, mediaType, sourceId, isUnsupported) VALUES (?, ?, 'book', ?, 0)",
+                            arrayOf<Any>(newLibraryId, f.displayName, f.sourceId),
+                        )
+                    }
+
+                    // 5. Reassign existing library_items.libraryId = 'local:root' rows to the
+                    //    per-folder library based on their file's historical folderTreeUri.
+                    for (f in oldFolders) {
+                        val newLibraryId = folderToLibraryId.getValue(f.sourceId to f.treeUri)
+                        db.execSQL(
+                            "UPDATE library_items SET libraryId = ? WHERE sourceId = ? AND libraryId = 'local:root' " +
+                                "AND id IN (SELECT sourceItemId FROM local_files_file_folders WHERE sourceId = ? AND folderTreeUri = ?)",
+                            arrayOf<Any>(newLibraryId, f.sourceId, f.sourceId, f.treeUri),
+                        )
+                    }
+                    // Any library_items row still tagged 'local:root' has no matching file — drop
+                    // it. It's an orphan we can't serve, and leaving it would violate the FK-like
+                    // invariant that a library_items row's libraryId names a real `libraries` row.
+                    db.execSQL("DELETE FROM library_items WHERE libraryId = 'local:root'")
+
+                    // 6. Drop the synthetic 'local:root' LibraryEntity across every LocalFiles Source.
+                    db.execSQL("DELETE FROM libraries WHERE id = 'local:root'")
+                } finally {
+                    db.execSQL("PRAGMA foreign_keys=ON")
+                }
             }
         }
     }
