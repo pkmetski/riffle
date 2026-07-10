@@ -2,7 +2,7 @@
   "formatVersion": 1,
   "database": {
     "version": 50,
-    "identityHash": "fb0c262bdff854d0b018d034368d39ce",
+    "identityHash": "7f7767d9af9c0a66584ff084bacdfc1a",
     "entities": [
       {
         "tableName": "sources",
@@ -132,7 +132,7 @@
       },
       {
         "tableName": "library_items",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`sourceId` TEXT NOT NULL, `id` TEXT NOT NULL, `libraryId` TEXT NOT NULL, `title` TEXT NOT NULL, `author` TEXT NOT NULL, `coverUrl` TEXT, `readingProgress` REAL NOT NULL, `ebookFileIno` TEXT, `ebookFormat` TEXT NOT NULL, `hasAudio` INTEGER NOT NULL, `audioDurationSec` REAL NOT NULL, `description` TEXT, `seriesName` TEXT, `publishedYear` TEXT, `genres` TEXT NOT NULL, `publisher` TEXT, `language` TEXT, `lastOpenedAt` INTEGER, `addedAt` INTEGER, `isbn` TEXT, `asin` TEXT, `finishedAt` INTEGER, PRIMARY KEY(`sourceId`, `id`), FOREIGN KEY(`sourceId`) REFERENCES `sources`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`sourceId` TEXT NOT NULL, `id` TEXT NOT NULL, `libraryId` TEXT NOT NULL, `title` TEXT NOT NULL, `author` TEXT NOT NULL, `coverUrl` TEXT, `readingProgress` REAL NOT NULL, `ebookFileIno` TEXT, `ebookFormat` TEXT NOT NULL, `hasAudio` INTEGER NOT NULL, `audioDurationSec` REAL NOT NULL, `description` TEXT, `seriesName` TEXT, `seriesSequence` TEXT, `publishedYear` TEXT, `genres` TEXT NOT NULL, `publisher` TEXT, `language` TEXT, `lastOpenedAt` INTEGER, `addedAt` INTEGER, `isbn` TEXT, `asin` TEXT, `finishedAt` INTEGER, PRIMARY KEY(`sourceId`, `id`), FOREIGN KEY(`sourceId`) REFERENCES `sources`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
         "fields": [
           {
             "fieldPath": "sourceId",
@@ -206,6 +206,11 @@
           {
             "fieldPath": "seriesName",
             "columnName": "seriesName",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "seriesSequence",
+            "columnName": "seriesSequence",
             "affinity": "TEXT"
           },
           {
@@ -906,7 +911,7 @@
       },
       {
         "tableName": "annotations",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `sourceId` TEXT NOT NULL, `itemId` TEXT NOT NULL, `type` TEXT NOT NULL, `cfi` TEXT NOT NULL, `color` TEXT NOT NULL, `note` TEXT, `textSnippet` TEXT NOT NULL, `textBefore` TEXT NOT NULL, `textAfter` TEXT NOT NULL, `chapterHref` TEXT NOT NULL, `spineIndex` INTEGER NOT NULL, `progression` REAL NOT NULL, `bookmarkTitle` TEXT NOT NULL, `createdAt` INTEGER NOT NULL, `updatedAt` INTEGER NOT NULL, `originDeviceId` TEXT NOT NULL, `lastModifiedByDeviceId` TEXT NOT NULL, `deleted` INTEGER NOT NULL, `lastSyncedAt` INTEGER NOT NULL, `embeddedFigures` TEXT, `imageHref` TEXT, `imageSvg` TEXT, `imageBytes` TEXT, `originFontFamily` TEXT, PRIMARY KEY(`id`), FOREIGN KEY(`sourceId`) REFERENCES `sources`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `sourceId` TEXT NOT NULL, `itemId` TEXT NOT NULL, `type` TEXT NOT NULL, `cfi` TEXT NOT NULL, `color` TEXT NOT NULL, `note` TEXT, `textSnippet` TEXT NOT NULL, `textBefore` TEXT NOT NULL, `textAfter` TEXT NOT NULL, `chapterHref` TEXT NOT NULL, `spineIndex` INTEGER NOT NULL, `progression` REAL NOT NULL, `bookmarkTitle` TEXT NOT NULL, `createdAt` INTEGER NOT NULL, `updatedAt` INTEGER NOT NULL, `originDeviceId` TEXT NOT NULL, `lastModifiedByDeviceId` TEXT NOT NULL, `deleted` INTEGER NOT NULL, `lastSyncedAt` INTEGER NOT NULL, `embeddedFigures` TEXT, `imageHref` TEXT, `imageSvg` TEXT, `imageBytes` TEXT, PRIMARY KEY(`id`), FOREIGN KEY(`sourceId`) REFERENCES `sources`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
         "fields": [
           {
             "fieldPath": "id",
@@ -1045,11 +1050,6 @@
           {
             "fieldPath": "imageBytes",
             "columnName": "imageBytes",
-            "affinity": "TEXT"
-          },
-          {
-            "fieldPath": "originFontFamily",
-            "columnName": "originFontFamily",
             "affinity": "TEXT"
           }
         ],
@@ -1605,7 +1605,7 @@
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'fb0c262bdff854d0b018d034368d39ce')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '7f7767d9af9c0a66584ff084bacdfc1a')"
     ]
   }
 }
