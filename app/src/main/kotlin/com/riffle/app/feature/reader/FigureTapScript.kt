@@ -67,15 +67,21 @@ internal object FigureTapScript {
                 (document.head || document.documentElement).appendChild(style);
             } catch (e) {}
             function findFigure(target) {
-                // Walk up to body FIRST looking for an anchor-with-href ancestor. If we find one
-                // before we find a figure candidate, this tap is a link — return null so the
-                // existing footnote / cross-reference / external-link router handles it. Doing
-                // the walk in two passes fixes the anchor-wrapped-image bug where returning on
-                // the first <img> match happens BEFORE we ever see the wrapping <a>.
+                // Walk up to body FIRST looking for an anchor-with-href ancestor OR a synthesised
+                // Highlights-view figure block. If either is found before we find a figure
+                // candidate, the tap is not the reader-mode "open figure zoom" gesture and we
+                // return null so the appropriate downstream handler runs:
+                //   - <a href>: existing footnote / cross-reference / external-link router.
+                //   - <figure class="riffle-fig">: the accent-bar tap span's own onclick, which
+                //     dispatches to the annotation editor via the riffle:// URL scheme. Without
+                //     this skip, the capture-phase click here would swallow the tap and open the
+                //     figure-zoom overlay instead — the "tap accent bar → zoom instead of edit"
+                //     bug (fix 2026-07-10).
                 var scan = target;
                 while (scan && scan.nodeType === 1 && scan !== document.body) {
                     var stag = scan.tagName ? scan.tagName.toLowerCase() : '';
                     if (stag === 'a' && scan.getAttribute && scan.getAttribute('href')) return null;
+                    if (stag === 'figure' && scan.classList && scan.classList.contains('riffle-fig')) return null;
                     scan = scan.parentNode;
                 }
                 // Now walk up to find the actual figure candidate.

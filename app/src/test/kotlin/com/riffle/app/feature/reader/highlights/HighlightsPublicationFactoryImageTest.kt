@@ -257,7 +257,7 @@ class HighlightsPublicationFactoryImageTest {
         val yellowRgba = HighlightColor.YELLOW.argb.toCssRgba()
         assertTrue(
             "figure must carry coloured border-left in its inline style",
-            html.contains("<figure class=\"riffle-fig\" style=\"border-left: 4px solid $yellowRgba"),
+            html.contains("<figure class=\"riffle-fig\" data-ann-id=\"${ann.id}\" style=\"border-left: 4px solid $yellowRgba"),
         )
         assertTrue(
             "figure must carry the tap-dispatch span with the annotation id",
@@ -294,7 +294,7 @@ class HighlightsPublicationFactoryImageTest {
         val figureBlock = html.substring(figureBlockStart)
         assertTrue(
             "embedded figure must inherit owner's colour on border-left",
-            figureBlock.startsWith("<figure class=\"riffle-fig\" style=\"border-left: 4px solid $blueRgba"),
+            figureBlock.startsWith("<figure class=\"riffle-fig\" data-ann-id=\"hl-1\" style=\"border-left: 4px solid $blueRgba"),
         )
         assertTrue(
             "embedded figure's tap span must carry owning-highlight id",

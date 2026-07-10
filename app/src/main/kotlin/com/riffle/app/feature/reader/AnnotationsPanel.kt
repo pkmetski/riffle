@@ -148,8 +148,12 @@ private fun AnnotationRow(
     onRename: () -> Unit,
 ) {
     val rowKind = rowKindFor(annotation)
+    // Bookmarks stay top-aligned (single-line title next to the icon); highlights + image rows
+    // centre vertically so a multi-line annotation (esp. text-figure-text) puts the colour dot
+    // in the middle of the card instead of pinned to the first line (fix 2026-07-10).
+    val leadingAlignment = if (rowKind == RowKind.Bookmark) Alignment.Top else Alignment.CenterVertically
     Row(
-        verticalAlignment = Alignment.Top,
+        verticalAlignment = leadingAlignment,
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick)
@@ -234,9 +238,15 @@ private fun AnnotationContent(annotation: Annotation, rowKind: RowKind) {
             offsets = figures.map { it.charOffset },
         )
         textChunks.forEachIndexed { index, chunk ->
-            if (chunk.isNotBlank()) {
+            // Readium's textSnippet embeds "\n\n\n" between paragraphs on either side of a void
+            // figure to represent the block break. Compose's Text renders those newlines as
+            // blank lines, producing a wide gap in the annotations-list card (bug 2026-07-10).
+            // Trim ONLY leading/trailing whitespace runs — an intentional internal line-break
+            // still renders as a single visible break.
+            val trimmed = chunk.trim()
+            if (trimmed.isNotEmpty()) {
                 Text(
-                    text = chunk,
+                    text = trimmed,
                     style = MaterialTheme.typography.bodyLarge,
                     color = MaterialTheme.colorScheme.onSurface,
                 )

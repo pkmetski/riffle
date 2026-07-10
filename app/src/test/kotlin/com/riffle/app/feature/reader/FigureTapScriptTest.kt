@@ -66,4 +66,23 @@ class FigureTapScriptTest {
         // Regression: extending the script for long-press must not disturb the existing tap wiring.
         assertTrue(script.contains("window.RiffleFigureBridge.onFigureTap(JSON.stringify(p))"))
     }
+
+    /**
+     * Fix 2026-07-10: the capture-phase click handler must NOT swallow taps inside a synthesised
+     * Highlights-view figure block (`<figure class="riffle-fig">`), otherwise the accent-bar tap
+     * span's onclick can't fire and tapping the coloured bar opens the figure-zoom overlay
+     * instead of the annotation editor. `findFigure` walks up looking for that class first and
+     * returns null when it sees it, letting the tap propagate to the span's own onclick.
+     */
+    @Test
+    fun `findFigure skips elided-view figure blocks so the accent-bar tap can fire`() {
+        assertTrue(
+            "findFigure must recognise the highlights-view figure class",
+            script.contains("'riffle-fig'"),
+        )
+        assertTrue(
+            "findFigure must bail out when it walks into a riffle-fig ancestor",
+            script.contains("classList.contains('riffle-fig')"),
+        )
+    }
 }
