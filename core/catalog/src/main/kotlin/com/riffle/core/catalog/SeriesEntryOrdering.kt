@@ -22,7 +22,10 @@ object SeriesEntryOrdering {
     fun <T> comparator(sequenceOf: (T) -> String?, titleOf: (T) -> String): Comparator<T> =
         compareBy(
             { rankOf(sequenceOf(it)) },
-            { sequenceOf(it)?.trim()?.toDoubleOrNull() ?: 0.0 },
+            // Only finite parses participate; NaN inside `compareBy` would flow past every other
+            // key, since `Double.compareTo` treats NaN as greater than +∞. Non-finite entries
+            // share 0.0 here and fall through to the string tiebreakers below.
+            { sequenceOf(it)?.trim()?.toDoubleOrNull()?.takeIf { d -> d.isFinite() } ?: 0.0 },
             { sequenceOf(it)?.trim()?.lowercase() ?: "" },
             { titleOf(it).lowercase() },
         )
@@ -31,7 +34,10 @@ object SeriesEntryOrdering {
         val trimmed = sequence?.trim()
         return when {
             trimmed.isNullOrEmpty() -> 2
-            trimmed.toDoubleOrNull() != null -> 0
+            // Reject NaN/Infinity — `"NaN".toDoubleOrNull()` is non-null and NaN sorts past +∞
+            // in `Double.compareTo`, so a stray `<meta content="NaN"/>` would otherwise land in
+            // the numeric bucket AFTER every finite entry. Treat as non-numeric instead.
+            trimmed.toDoubleOrNull()?.isFinite() == true -> 0
             else -> 1
         }
     }

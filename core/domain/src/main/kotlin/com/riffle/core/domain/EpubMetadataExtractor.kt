@@ -107,12 +107,19 @@ object EpubMetadataExtractor {
                 ?.getAttribute("content")?.trim()?.ifEmpty { null }
             return name to sequence
         }
-        // Prefer a collection whose sibling collection-type is 'series'.
+        // Prefer a collection whose sibling collection-type is 'series'. Guard against the
+        // degenerate "no id / empty refines" case — a `collection-type` meta with no refines
+        // would otherwise pair with an id-less collection via the "" ↔ "" match and misclassify
+        // any nameless collection as a series.
         val refinesToType = metadata.elementsByTag("meta")
             .filter { it.getAttribute("property") == "collection-type" }
-            .associate { it.getAttribute("refines").removePrefix("#") to it.textContent.trim().lowercase() }
+            .mapNotNull { m ->
+                val refinesId = m.getAttribute("refines").removePrefix("#").ifEmpty { null } ?: return@mapNotNull null
+                refinesId to m.textContent.trim().lowercase()
+            }
+            .toMap()
         val series = collections.firstOrNull { c ->
-            val id = c.getAttribute("id")
+            val id = c.getAttribute("id").ifEmpty { null } ?: return@firstOrNull false
             refinesToType[id] == "series"
         } ?: collections.first()
         val name = series.textContent?.trim()?.ifEmpty { null } ?: return null to null

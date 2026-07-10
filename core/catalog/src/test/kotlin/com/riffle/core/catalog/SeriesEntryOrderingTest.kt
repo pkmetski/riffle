@@ -74,6 +74,22 @@ class SeriesEntryOrderingTest {
         assertEquals(listOf("Zero-a", "One", "Blank-titled"), sorted.map { it.title })
     }
 
+    // Regression: `"NaN".toDoubleOrNull()` is non-null and NaN sorts as greater-than +∞ under
+    // Double.compareTo, which would otherwise land NaN entries in the numeric bucket AFTER every
+    // finite numeric row. Non-finite tokens must fall through to the non-numeric bucket instead.
+    @Test
+    fun `NaN and Infinity in the sequence string fall through to the non-numeric bucket`() {
+        val sorted = sort(
+            Row("Two", "2"),
+            Row("Buggy", "NaN"),
+            Row("Also Buggy", "Infinity"),
+            Row("One", "1"),
+        )
+        // "1" and "2" are the two numeric entries — they must precede the two non-finite ones,
+        // which then tiebreak alphabetically on title.
+        assertEquals(listOf("One", "Two", "Also Buggy", "Buggy"), sorted.map { it.title })
+    }
+
     @Test
     fun `equal sequence breaks tie on title case-insensitively`() {
         val sorted = sort(
