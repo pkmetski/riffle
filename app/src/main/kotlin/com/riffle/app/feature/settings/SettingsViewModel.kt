@@ -274,9 +274,9 @@ class SettingsViewModel @Inject constructor(
         folderHealthRefreshTicks.value = folderHealthRefreshTicks.value + 1L
     }
 
-    /** Ids of the configured Storyteller servers, feeding the per-server readaloud summaries. */
+    /** Ids of the configured Storyteller services, feeding the per-server readaloud summaries. */
     private val storytellerServerIds: StateFlow<List<String>> = servers
-        .map { list -> list.filter { it.serverType == ServerType.STORYTELLER }.map { it.id } }
+        .map { list -> list.filter { it.serverType == ServerType.STORYTELLER_SERVICE }.map { it.id } }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     /** Readaloud-matches counts (unmatched / suggested / partially matched / matched) per server. */
@@ -420,7 +420,7 @@ class SettingsViewModel @Inject constructor(
             if (removing.isActive) {
                 // Promote the next browsable server. A Storyteller Source is never browsable
                 // (ADR 0026) and can never be active, so skip it when choosing the successor.
-                val next = current.firstOrNull { it.id != sourceId && it.serverType != ServerType.STORYTELLER }
+                val next = current.firstOrNull { it.id != sourceId && it.serverType != ServerType.STORYTELLER_SERVICE }
                 if (next != null) {
                     sourceRepository.setActive(next.id)
                 } else {
@@ -478,7 +478,7 @@ class SettingsViewModel @Inject constructor(
     // endregion
 }
 
-/** Counts shown in a Storyteller server's expanded "Readaloud matches" summary (gradient order). */
+/** Counts shown in a Storyteller service's expanded "Readaloud matches" summary (gradient order). */
 data class ReadaloudMatchSummary(
     val unmatchedCount: Int,
     val suggestedCount: Int,

@@ -8,7 +8,7 @@ data class Library(
 )
 
 /**
- * Media type of the local-only "Readalouds" library row that namespaces a Storyteller Server's
+ * Media type of the local-only "Readalouds" library row that namespaces a Storyteller Service's
  * readaloud books as matcher input. Per ADR 0026 this row is never browsable — it must be excluded
  * from any Server Switcher or library picker.
  */

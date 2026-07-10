@@ -1919,7 +1919,7 @@ class MigrationTest {
         }
 
         val db = helper.runMigrationsAndValidate(
-            TEST_DB, 47, true,
+            TEST_DB, 49, true,
             RiffleDatabase.MIGRATION_1_2,
             RiffleDatabase.MIGRATION_2_3,
             RiffleDatabase.MIGRATION_3_4,
@@ -1966,6 +1966,8 @@ class MigrationTest {
             RiffleDatabase.MIGRATION_44_45,
             RiffleDatabase.MIGRATION_45_46,
             RiffleDatabase.MIGRATION_46_47,
+            RiffleDatabase.MIGRATION_47_48,
+            RiffleDatabase.MIGRATION_48_49,
         )
 
         db.query("SELECT url, username, serverType, absUserId, type FROM sources WHERE id = 's1'").use { cursor ->
@@ -2121,6 +2123,34 @@ class MigrationTest {
             assertTrue(c.isNull(1))
             assertTrue(c.isNull(2))
             assertTrue(c.isNull(3))
+        }
+        db.close()
+    }
+
+    // Rename Storyteller Server → Storyteller Service per ADR 0041. Legacy Storyteller rows
+    // must be rewritten from serverType='STORYTELLER' to 'STORYTELLER_SERVICE'; ABS rows and
+    // any other value stay untouched.
+    @Test
+    fun migration48To49_rewritesStorytellerServerTypeToStorytellerService() {
+        helper.createDatabase(TEST_DB, 48).apply {
+            execSQL(
+                "INSERT INTO sources (id, url, isActive, insecureConnectionAllowed, username, serverType, absUserId, type) " +
+                    "VALUES ('st-1', 'http://storyteller', 1, 0, 'test', 'STORYTELLER', NULL, 'ABS')"
+            )
+            execSQL(
+                "INSERT INTO sources (id, url, isActive, insecureConnectionAllowed, username, serverType, absUserId, type) " +
+                    "VALUES ('abs-1', 'http://abs', 1, 0, 'test', 'AUDIOBOOKSHELF', 'u1', 'ABS')"
+            )
+            close()
+        }
+        val db = helper.runMigrationsAndValidate(TEST_DB, 49, true, RiffleDatabase.MIGRATION_48_49)
+        db.query("SELECT serverType FROM sources WHERE id = 'st-1'").use { c ->
+            assertTrue(c.moveToFirst())
+            assertEquals("STORYTELLER_SERVICE", c.getString(0))
+        }
+        db.query("SELECT serverType FROM sources WHERE id = 'abs-1'").use { c ->
+            assertTrue(c.moveToFirst())
+            assertEquals("AUDIOBOOKSHELF", c.getString(0))
         }
         db.close()
     }

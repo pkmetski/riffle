@@ -1057,7 +1057,7 @@ class LibraryRepositoryTest {
         isActive = true,
         insecureConnectionAllowed = false,
         username = "plamen",
-        serverType = com.riffle.core.domain.ServerType.STORYTELLER,
+        serverType = com.riffle.core.domain.ServerType.STORYTELLER_SERVICE,
     )
 
     // Storyteller is never the active/browsable source (ADR 0026), so refreshLibraryItems/

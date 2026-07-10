@@ -393,8 +393,8 @@ class AudiobookPlayerViewModel @Inject constructor(
             // Readaloud is only actually offerable when the synced bundle is present — the same gate the
             // reader applies (readaloudControlState): a Storyteller book always qualifies, a matched ABS
             // book only once its bundle is downloaded, an unmatched ABS book never. The bundle is keyed by
-            // the linked Storyteller book (or this item, on a Storyteller server), NOT the ABS item id.
-            val isStoryteller = server?.serverType == com.riffle.core.domain.ServerType.STORYTELLER
+            // the linked Storyteller book (or this item, on a Storyteller service), NOT the ABS item id.
+            val isStoryteller = server?.serverType == com.riffle.core.domain.ServerType.STORYTELLER_SERVICE
             val audioServerId = link?.storytellerSourceId ?: sourceId
             val audioBookId = link?.storytellerBookId ?: itemId
             val readaloudAvailable = com.riffle.app.feature.reader.readaloudControlState(

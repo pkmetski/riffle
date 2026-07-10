@@ -248,7 +248,7 @@ class AddSourceViewModel @Inject constructor(
                         editingServerId?.let { repository.remove(it) }
                         when (val c = repository.commit(pending, hiddenLibraryIds = emptySet())) {
                             is CommitSourceResult.Success -> {
-                                if (serverType == ServerType.STORYTELLER) {
+                                if (serverType == ServerType.STORYTELLER_SERVICE) {
                                     runCatching { storytellerSyncer.syncStale() }
                                     runCatching { readaloudMatcher.reconcileLinks() }
                                 }
@@ -374,6 +374,6 @@ private fun parseBackend(raw: String?): AddSourceBackend = when (raw?.lowercase(
 
 private fun AddSourceBackend.toServerType(): ServerType? = when (this) {
     AddSourceBackend.AUDIOBOOKSHELF -> ServerType.AUDIOBOOKSHELF
-    AddSourceBackend.STORYTELLER -> ServerType.STORYTELLER
+    AddSourceBackend.STORYTELLER -> ServerType.STORYTELLER_SERVICE
     AddSourceBackend.WEBDAV -> null
 }

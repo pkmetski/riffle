@@ -15,7 +15,7 @@ sealed interface AudioDownloadResult {
  * cache-size cap (ADR 0024).
  */
 interface ReadaloudAudioRepository {
-    // The bundle lives on the Storyteller Server; [sourceId] is that Server (ADR 0025) — which on
+    // The bundle lives on the Storyteller Service; [sourceId] is that Server (ADR 0025) — which on
     // the ABS item-detail screen is NOT the active Server.
 
     /** True when the synced bundle is present locally (Downloads or Cache). */

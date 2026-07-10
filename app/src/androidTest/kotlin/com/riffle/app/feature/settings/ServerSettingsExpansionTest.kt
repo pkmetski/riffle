@@ -155,7 +155,7 @@ class ServerSettingsExpansionTest {
         var opened = false
         composeTestRule.setContent {
             ServerSettingsExpansion(
-                server = server(ServerType.STORYTELLER, active = true),
+                server = server(ServerType.STORYTELLER_SERVICE, active = true),
                 libraryItems = emptyList(),
                 summary = ReadaloudMatchSummary(unmatchedCount = 2, suggestedCount = 1, partiallyMatchedCount = 1, matchedCount = 3),
                 onSetLibraryVisible = { _, _ -> },

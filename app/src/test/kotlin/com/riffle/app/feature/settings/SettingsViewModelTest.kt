@@ -395,7 +395,7 @@ class SettingsViewModelTest {
         // the active ABS server must skip the Storyteller and promote the next ABS server.
         serversFlow.value = listOf(
             server("abs-1", active = true),
-            server("st-1", serverType = ServerType.STORYTELLER),
+            server("st-1", serverType = ServerType.STORYTELLER_SERVICE),
             server("abs-2"),
         )
         val vm = makeViewModel()
@@ -528,7 +528,7 @@ class SettingsViewModelTest {
 
     @Test
     fun `readaloudSummaries reports per-server unmatched suggested partially-matched and matched counts`() = runTest {
-        serversFlow.value = listOf(server("st-1", active = true, serverType = ServerType.STORYTELLER))
+        serversFlow.value = listOf(server("st-1", active = true, serverType = ServerType.STORYTELLER_SERVICE))
         reviewsFlow.value = mapOf(
             "st-1" to ReadaloudReview(
                 pending = listOf(pending("b1")),
@@ -549,7 +549,7 @@ class SettingsViewModelTest {
     }
 
     @Test
-    fun `readaloudSummaries is empty when there are no Storyteller servers`() = runTest {
+    fun `readaloudSummaries is empty when there are no Storyteller services`() = runTest {
         serversFlow.value = listOf(server("abs-1", active = true))
         val vm = makeViewModel()
         backgroundScope.launch { vm.readaloudSummaries.collect {} }

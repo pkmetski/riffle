@@ -8,7 +8,7 @@ import java.io.File
 import java.io.InputStream
 
 // Files live under dir/<sourceId>/<itemId><ext> so item ids that collide across Servers
-// (e.g. two Storyteller Servers each emitting "1") never overwrite each other (ADR 0025).
+// (e.g. two Storyteller Services each emitting "1") never overwrite each other (ADR 0025).
 class LocalStoreImpl(
     private val dir: File,
     private val extension: String,

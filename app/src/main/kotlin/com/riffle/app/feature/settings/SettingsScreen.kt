@@ -343,7 +343,7 @@ fun SettingsScreen(
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
                 )
                 HorizontalDivider()
-                val storytellerServers = servers.filter { it.serverType == ServerType.STORYTELLER }
+                val storytellerServers = servers.filter { it.serverType == ServerType.STORYTELLER_SERVICE }
                 if (storytellerServers.isEmpty()) {
                     ListItem(
                         modifier = Modifier.clickable { onNavigateToAddSource(AddSourceBackend.STORYTELLER, null) },
@@ -847,7 +847,7 @@ private fun ServerRow(
 
 /**
  * The settings revealed when a server row is expanded: ABS servers show their library visibility
- * switches; Storyteller servers show a readaloud-matches summary that opens the full matches screen.
+ * switches; Storyteller services show a readaloud-matches summary that opens the full matches screen.
  */
 @Composable
 internal fun ServerSettingsExpansion(
@@ -877,7 +877,7 @@ internal fun ServerSettingsExpansion(
                     )
                 }
             }
-            ServerType.STORYTELLER -> {
+            ServerType.STORYTELLER_SERVICE -> {
                 ExpansionHeader("Readaloud matches")
                 val counts = summary ?: ReadaloudMatchSummary(0, 0, 0, 0)
                 ListItem(

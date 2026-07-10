@@ -56,7 +56,7 @@ class NavigationDrawerViewModel @Inject constructor(
     // Storyteller is a Settings-only readaloud backend (ADR 0026): it never appears in the Source
     // Switcher and can never become the active browsable Source.
     val allServers: StateFlow<List<Source>> = sourceRepository.observeAll()
-        .map { servers -> servers.filter { it.serverType != ServerType.STORYTELLER } }
+        .map { servers -> servers.filter { it.serverType != ServerType.STORYTELLER_SERVICE } }
         .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     val activeServer: StateFlow<Source?> = allServers

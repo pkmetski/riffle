@@ -10,7 +10,7 @@ import kotlinx.coroutines.flow.Flow
 interface ReadaloudReviewRepository {
 
     /**
-     * The live three-section review for one Storyteller Server. [absSourceId] scopes the
+     * The live three-section review for one Storyteller Service. [absSourceId] scopes the
      * pending-candidate suggestions to a single ABS Server — the one the user is currently
      * matching against — so two ABS accounts pointing at the same library don't produce
      * duplicate suggestions for every readaloud. Pass `null` to keep the legacy cross-server
