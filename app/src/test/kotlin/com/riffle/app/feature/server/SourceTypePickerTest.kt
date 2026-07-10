@@ -52,7 +52,9 @@ class SourceTypePickerTest {
     @Test
     fun `LocalFiles card is hidden once a LocalFiles source exists`() {
         val cards = sourceTypeCards(hasLocalFilesSource = true)
-        assertEquals(1, cards.size)
-        assertEquals(SourceTypeChoice.Audiobookshelf, cards.single().type)
+        // ABS + Chitanka remain; the LocalFiles card is omitted because a device already has
+        // its (singleton) LocalFiles source and "add another folder" lives in Settings.
+        assertTrue(cards.none { it.type is SourceTypeChoice.LocalFiles })
+        assertTrue(cards.any { it.type is SourceTypeChoice.Audiobookshelf })
     }
 }
