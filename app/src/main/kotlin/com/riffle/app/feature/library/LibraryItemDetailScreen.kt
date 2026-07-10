@@ -393,6 +393,10 @@ private fun LibraryItemDetailContent(
             AudiobookDurationLine(item.audioDurationSec, item.readingProgress)
         }
 
+        if (item.ebookFormat == com.riffle.core.domain.EbookFormat.Cbz && (item.pageCount ?: 0) > 0) {
+            ComicPageCountLine(pageCount = item.pageCount!!)
+        }
+
         if (item.readingProgress > 0f) {
             ReadingProgressIndicator(progress = item.readingProgress, listened = item.isListenable && !item.isReadable)
         }
@@ -511,6 +515,16 @@ private fun LibraryItemDetailContent(
     }
 }
 
+/** "Comic · N pages" on the detail screen (ADR 0042). Mirrors AudiobookDurationLine's shape. */
+@Composable
+private fun ComicPageCountLine(pageCount: Int) {
+    Text(
+        text = "Comic · $pageCount pages",
+        style = MaterialTheme.typography.bodyMedium,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+}
+
 /** Total audiobook length on the detail screen, with remaining time when in progress (ADR 0029). */
 @Composable
 private fun AudiobookDurationLine(durationSec: Double, readingProgress: Float = 0f) {
@@ -620,6 +634,9 @@ internal fun LibraryItemDetailContentTablet(
             AuthorByline(author = item.author, onAuthorClick = { onFacet(FacetType.AUTHOR, it) })
             if (item.isListenable && item.audioDurationSec > 0) {
                 AudiobookDurationLine(item.audioDurationSec, item.readingProgress)
+            }
+            if (item.ebookFormat == com.riffle.core.domain.EbookFormat.Cbz && (item.pageCount ?: 0) > 0) {
+                ComicPageCountLine(pageCount = item.pageCount!!)
             }
             if (item.readingProgress > 0f) {
                 ReadingProgressIndicator(progress = item.readingProgress, listened = item.isListenable && !item.isReadable)
@@ -827,6 +844,9 @@ internal fun LibraryItemDetailContentPhoneLandscape(
             }
             if (item.isListenable && item.audioDurationSec > 0) {
                 AudiobookDurationLine(item.audioDurationSec, item.readingProgress)
+            }
+            if (item.ebookFormat == com.riffle.core.domain.EbookFormat.Cbz && (item.pageCount ?: 0) > 0) {
+                ComicPageCountLine(pageCount = item.pageCount!!)
             }
             if (item.readingProgress > 0f) {
                 ReadingProgressIndicator(progress = item.readingProgress, listened = item.isListenable && !item.isReadable)

@@ -30,7 +30,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         LocalFilesFolderEntity::class,
         LocalFilesFileEntity::class,
     ],
-    version = 51,
+    version = 52,
     exportSchema = true,
 )
 abstract class RiffleDatabase : RoomDatabase() {
@@ -1334,6 +1334,14 @@ abstract class RiffleDatabase : RoomDatabase() {
         val MIGRATION_50_51 = object : Migration(50, 51) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("ALTER TABLE annotations ADD COLUMN originFontFamily TEXT")
+            }
+        }
+
+        // Page count for formats where a discrete page total is meaningful — comic archives (CBZ,
+        // ADR 0042) today. Nullable; existing rows carry NULL and pick up a value on the next scan.
+        val MIGRATION_51_52 = object : Migration(51, 52) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `library_items` ADD COLUMN `pageCount` INTEGER")
             }
         }
     }

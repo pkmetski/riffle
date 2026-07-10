@@ -7,6 +7,7 @@ class FileClassifierTest {
 
     private val epubMagic = byteArrayOf(0x50, 0x4B, 0x03, 0x04) + ByteArray(200)
     private val pdfMagic = "%PDF-1.7".toByteArray()
+    private val zipMagic = byteArrayOf(0x50, 0x4B, 0x03, 0x04) + ByteArray(200)
 
     @Test
     fun `classifies epub extension with zip magic as EPUB`() {
@@ -37,6 +38,24 @@ class FileClassifierTest {
     @Test
     fun `pdf extension with wrong magic returns UNKNOWN`() {
         assertEquals(FileClassifier.Kind.UNKNOWN, FileClassifier.classify("book.pdf", "not a pdf".toByteArray()))
+    }
+
+    @Test
+    fun `classifies cbz extension with zip magic as CBZ`() {
+        assertEquals(FileClassifier.Kind.CBZ, FileClassifier.classify("comic.cbz", zipMagic))
+    }
+
+    @Test
+    fun `classifies CBZ extension case-insensitively`() {
+        assertEquals(FileClassifier.Kind.CBZ, FileClassifier.classify("Comic.CBZ", zipMagic))
+    }
+
+    @Test
+    fun `cbz extension with non-zip magic returns UNKNOWN`() {
+        assertEquals(
+            FileClassifier.Kind.UNKNOWN,
+            FileClassifier.classify("comic.cbz", "not a zip".toByteArray()),
+        )
     }
 
     @Test

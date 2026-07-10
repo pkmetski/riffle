@@ -10,6 +10,7 @@ package com.riffle.core.domain
 class LibraryItemOfflineAvailability(
     private val epubRepository: EpubRepository,
     private val pdfRepository: PdfRepository,
+    private val cbzRepository: CbzRepository,
     private val audiobookDownloadRepository: AudiobookDownloadRepository,
     private val bundleAudiobookSource: BundleAudiobookSource,
 ) {
@@ -19,6 +20,8 @@ class LibraryItemOfflineAvailability(
                 epubRepository.isDownloaded(item.sourceId, item.id) || epubRepository.isCached(item.sourceId, item.id)
             EbookFormat.Pdf ->
                 pdfRepository.isDownloaded(item.sourceId, item.id) || pdfRepository.isCached(item.sourceId, item.id)
+            EbookFormat.Cbz ->
+                cbzRepository.isDownloaded(item.sourceId, item.id) || cbzRepository.isCached(item.sourceId, item.id)
             EbookFormat.Unsupported -> false
         }
         return ebookAvailable ||

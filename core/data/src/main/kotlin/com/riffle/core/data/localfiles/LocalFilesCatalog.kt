@@ -19,6 +19,7 @@ import com.riffle.core.database.LibraryItemEntity
 import com.riffle.core.database.LocalFilesFileDao
 import com.riffle.core.database.LocalFilesFileEntity
 import com.riffle.core.database.LocalFilesFolderDao
+import com.riffle.core.domain.EbookFormat
 import com.riffle.core.domain.SourceType
 import java.io.File
 import java.io.FileInputStream
@@ -169,8 +170,9 @@ class LocalFilesCatalog(
     }
 
     private fun BookFormat.toStorageString(): String? = when (this) {
-        BookFormat.Epub -> "epub"
-        BookFormat.Pdf -> "pdf"
+        BookFormat.Epub -> EbookFormat.STORAGE_EPUB
+        BookFormat.Pdf -> EbookFormat.STORAGE_PDF
+        BookFormat.Cbz -> EbookFormat.STORAGE_CBZ
         BookFormat.Audiobook, BookFormat.Unsupported -> null
     }
 
@@ -181,8 +183,9 @@ class LocalFilesCatalog(
         author = author,
         coverUrl = coverUrl,
         ebookFormat = when (ebookFormat) {
-            "epub" -> BookFormat.Epub
-            "pdf" -> BookFormat.Pdf
+            EbookFormat.STORAGE_EPUB -> BookFormat.Epub
+            EbookFormat.STORAGE_PDF -> BookFormat.Pdf
+            EbookFormat.STORAGE_CBZ -> BookFormat.Cbz
             else -> BookFormat.Unsupported
         },
         hasAudio = hasAudio,

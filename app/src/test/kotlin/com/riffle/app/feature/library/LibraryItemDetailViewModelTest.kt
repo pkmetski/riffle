@@ -264,6 +264,7 @@ class LibraryItemDetailViewModelTest {
         tokenStorage = noOpTokenStorage,
         epubRepository = epubRepository,
         pdfRepository = pdfRepository,
+        cbzRepository = NoopCbzRepository(),
         toReadRepository = toReadRepo,
         readaloudLinkRepository = readaloudLinkRepository,
         readaloudAudioRepository = readaloudAudioRepository,

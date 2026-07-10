@@ -144,6 +144,7 @@ class CollectionDetailViewModelTest {
         offlineAvailability = LibraryItemOfflineAvailability(
             epubRepository,
             FakePdfRepository(),
+            NoopCbzRepository(),
             FakeAudiobookDownloadRepository(),
             object : BundleAudiobookSource {
                 override suspend fun localSession(sourceId: String, itemId: String) = null

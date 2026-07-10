@@ -763,10 +763,22 @@ class LibraryRepositoryTest {
     fun `unknown ebookFormat string maps to isReadable false`() = runTest {
         fakeServerRepository.activeServer = activeServer()
         val dao = FakeLibraryItemDao()
-        dao.upsertAll(listOf(LibraryItemEntity("s1", "item-1", "lib-1", "Comic", "Author", null, 0f, ebookFormat = "cbz")))
+        // "azw3" is not in the supported set — must fall back to Unsupported. (CBZ was previously
+        // used as the "unknown" sentinel; it's now a supported format — ADR 0042.)
+        dao.upsertAll(listOf(LibraryItemEntity("s1", "item-1", "lib-1", "Book", "Author", null, 0f, ebookFormat = "azw3")))
         val item = makeRepo(libraryItemDao = dao).observeLibraryItems("lib-1").first()[0]
         assertEquals(EbookFormat.Unsupported, item.ebookFormat)
         assertFalse(item.isReadable)
+    }
+
+    @Test
+    fun `cbz ebookFormat string maps to Cbz and isReadable true`() = runTest {
+        fakeServerRepository.activeServer = activeServer()
+        val dao = FakeLibraryItemDao()
+        dao.upsertAll(listOf(LibraryItemEntity("s1", "item-1", "lib-1", "Comic", "Author", null, 0f, ebookFormat = "cbz")))
+        val item = makeRepo(libraryItemDao = dao).observeLibraryItems("lib-1").first()[0]
+        assertEquals(EbookFormat.Cbz, item.ebookFormat)
+        assertTrue(item.isReadable)
     }
 
     // ── refreshLibraryItems: format round-trip ────────────────────────────────

@@ -17,6 +17,11 @@ class IsReaderRouteTest {
     }
 
     @Test
+    fun `cbz reader route is recognized`() {
+        assertTrue(isReaderRoute("cbz_reader/some-item-id"))
+    }
+
+    @Test
     fun `null route is not a reader route`() {
         assertFalse(isReaderRoute(null))
     }

@@ -9,39 +9,37 @@ class DownloadsRepositoryImpl(
     private val epubDownloadsStore: LocalStore,
     private val pdfCacheStore: LocalStore,
     private val pdfDownloadsStore: LocalStore,
+    private val cbzCacheStore: LocalStore,
+    private val cbzDownloadsStore: LocalStore,
 ) : DownloadsRepository {
 
+    private val downloadStores = listOf(epubDownloadsStore, pdfDownloadsStore, cbzDownloadsStore)
+    private val cacheStores = listOf(epubCacheStore, pdfCacheStore, cbzCacheStore)
+
     override fun getDownloadedItems(): List<StoredItemRef> =
-        (epubDownloadsStore.listItems() + pdfDownloadsStore.listItems()).distinct()
+        downloadStores.flatMap { it.listItems() }.distinct()
 
     override fun getCachedItems(): List<StoredItemRef> {
         val downloaded = getDownloadedItems().toHashSet()
-        return (epubCacheStore.listItems() + pdfCacheStore.listItems())
-            .distinct()
-            .filter { it !in downloaded }
+        return cacheStores.flatMap { it.listItems() }.distinct().filter { it !in downloaded }
     }
 
     override fun sizeOf(sourceId: String, itemId: String): Long =
-        listOf(epubDownloadsStore, pdfDownloadsStore, epubCacheStore, pdfCacheStore)
-            .sumOf { it.get(sourceId, itemId)?.length() ?: 0L }
+        (downloadStores + cacheStores).sumOf { it.get(sourceId, itemId)?.length() ?: 0L }
 
     override suspend fun removeDownload(sourceId: String, itemId: String) {
-        epubDownloadsStore.delete(sourceId, itemId)
-        pdfDownloadsStore.delete(sourceId, itemId)
+        downloadStores.forEach { it.delete(sourceId, itemId) }
     }
 
     override suspend fun removeCached(sourceId: String, itemId: String) {
-        epubCacheStore.delete(sourceId, itemId)
-        pdfCacheStore.delete(sourceId, itemId)
+        cacheStores.forEach { it.delete(sourceId, itemId) }
     }
 
     override suspend fun removeAllDownloads() {
-        epubDownloadsStore.clear()
-        pdfDownloadsStore.clear()
+        downloadStores.forEach { it.clear() }
     }
 
     override suspend fun clearAllCached() {
-        epubCacheStore.clear()
-        pdfCacheStore.clear()
+        cacheStores.forEach { it.clear() }
     }
 }

@@ -6,10 +6,13 @@ import com.riffle.core.database.LocalFilesFileDao
 import com.riffle.core.database.LocalFilesFileEntity
 import com.riffle.core.database.LocalFilesFolderDao
 import com.riffle.core.domain.Clock
+import com.riffle.core.domain.EbookFormat
 import com.riffle.core.domain.EpubMetadata
 import com.riffle.core.domain.EpubMetadataExtractor
 import com.riffle.core.domain.PdfMetadata
 import com.riffle.core.domain.PdfMetadataExtractor
+import com.riffle.core.domain.comic.ComicMetadata
+import com.riffle.core.domain.comic.ComicMetadataExtractor
 import com.riffle.core.logging.LogChannel
 import com.riffle.core.logging.Logger
 import kotlinx.coroutines.Dispatchers
@@ -140,8 +143,9 @@ class LocalFilesScanner @Inject constructor(
         }
 
         val extension = when (kind) {
-            FileClassifier.Kind.EPUB -> "epub"
-            FileClassifier.Kind.PDF -> "pdf"
+            FileClassifier.Kind.EPUB -> EbookFormat.STORAGE_EPUB
+            FileClassifier.Kind.PDF -> EbookFormat.STORAGE_PDF
+            FileClassifier.Kind.CBZ -> EbookFormat.STORAGE_CBZ
             FileClassifier.Kind.UNKNOWN -> return Outcome.SKIPPED
         }
         val copied = file.openStream().use { s -> copyIn.copyBook(sourceId, identity, extension, s) }
@@ -149,6 +153,7 @@ class LocalFilesScanner @Inject constructor(
         val (item, coverPath) = when (kind) {
             FileClassifier.Kind.EPUB -> buildEpubItem(sourceId, identity, file, copied)
             FileClassifier.Kind.PDF -> buildPdfItem(sourceId, identity, file, copied)
+            FileClassifier.Kind.CBZ -> buildCbzItem(sourceId, identity, file, copied)
             FileClassifier.Kind.UNKNOWN -> return Outcome.SKIPPED
         }
         libraryItemDao.upsertAll(listOf(item))
@@ -205,6 +210,31 @@ class LocalFilesScanner @Inject constructor(
         return entity to null
     }
 
+    private suspend fun buildCbzItem(
+        sourceId: String,
+        identity: String,
+        file: WalkedFile,
+        copied: java.io.File,
+    ): Pair<LibraryItemEntity, java.io.File?> {
+        val metadata = ComicMetadataExtractor.extract(copied)
+        val coverFile = metadata.coverBytes?.let { bytes ->
+            copyIn.writeCover(sourceId, identity, metadata.coverExtension ?: "jpg", bytes)
+        }
+        val entity = LibraryItemEntity(
+            sourceId = sourceId,
+            id = identity,
+            libraryId = LocalFilesCatalog.LOCAL_ROOT_ID,
+            title = stripExtension(file.displayName),
+            author = "",
+            coverUrl = coverFile?.toURI()?.toString(),
+            readingProgress = 0f,
+            ebookFormat = EBOOK_FORMAT_CBZ,
+            addedAt = clock.nowMs(),
+            pageCount = metadata.pageCount.takeIf { it > 0 },
+        )
+        return entity to coverFile
+    }
+
     private fun libraryItemFromEpub(
         sourceId: String,
         identity: String,
@@ -235,6 +265,7 @@ class LocalFilesScanner @Inject constructor(
     private fun ebookFormatOf(kind: FileClassifier.Kind): String = when (kind) {
         FileClassifier.Kind.EPUB -> EBOOK_FORMAT_EPUB
         FileClassifier.Kind.PDF -> EBOOK_FORMAT_PDF
+        FileClassifier.Kind.CBZ -> EBOOK_FORMAT_CBZ
         FileClassifier.Kind.UNKNOWN -> EBOOK_FORMAT_UNSUPPORTED
     }
 
@@ -244,9 +275,10 @@ class LocalFilesScanner @Inject constructor(
     }
 
     companion object {
-        const val EBOOK_FORMAT_EPUB: String = "epub"
-        const val EBOOK_FORMAT_PDF: String = "pdf"
-        const val EBOOK_FORMAT_UNSUPPORTED: String = "unsupported"
+        const val EBOOK_FORMAT_EPUB: String = EbookFormat.STORAGE_EPUB
+        const val EBOOK_FORMAT_PDF: String = EbookFormat.STORAGE_PDF
+        const val EBOOK_FORMAT_CBZ: String = EbookFormat.STORAGE_CBZ
+        const val EBOOK_FORMAT_UNSUPPORTED: String = EbookFormat.STORAGE_UNSUPPORTED
         private const val HEAD_BYTES: Int = 64 * 1024
     }
 }

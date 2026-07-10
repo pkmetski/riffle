@@ -7,9 +7,9 @@ package com.riffle.core.data.localfiles
  */
 object FileClassifier {
 
-    enum class Kind { EPUB, PDF, UNKNOWN }
+    enum class Kind { EPUB, PDF, CBZ, UNKNOWN }
 
-    private val EPUB_ZIP_MAGIC = byteArrayOf(0x50, 0x4B, 0x03, 0x04) // "PK\x03\x04"
+    private val ZIP_MAGIC = byteArrayOf(0x50, 0x4B, 0x03, 0x04) // "PK\x03\x04"
     private val PDF_MAGIC = "%PDF-".toByteArray(Charsets.US_ASCII)
 
     fun classify(name: String, head: ByteArray): Kind {
@@ -17,19 +17,18 @@ object FileClassifier {
         return when (ext) {
             "epub" -> if (isZip(head)) Kind.EPUB else Kind.UNKNOWN
             "pdf" -> if (isPdf(head)) Kind.PDF else Kind.UNKNOWN
+            "cbz" -> if (isZip(head)) Kind.CBZ else Kind.UNKNOWN
             else -> Kind.UNKNOWN
         }
     }
 
-    // Extension `.epub` + zip magic classifies as EPUB. We deliberately don't try to verify the
-    // uncompressed `mimetype` local-file-header here — many archivers deviate from the strict
-    // offset-30 layout, so a byte-scan would produce false negatives. The downstream
-    // EpubMetadataExtractor is the source of truth for actual EPUB validity; a zip that turns
-    // out not to be an EPUB gets an EpubMetadata.EMPTY result and the scanner falls back to the
-    // filename as title — safe degradation, no data loss.
+    // Extension `.epub`/`.cbz` + zip magic classifies as EPUB/CBZ. We deliberately don't verify the
+    // uncompressed `mimetype` local-file-header — many archivers deviate from the strict offset-30
+    // layout. The downstream metadata extractor is the source of truth; malformed archives fall back
+    // to filename as title — safe degradation, no data loss.
     private fun isZip(head: ByteArray): Boolean {
         if (head.size < 4) return false
-        for (i in 0..3) if (head[i] != EPUB_ZIP_MAGIC[i]) return false
+        for (i in 0..3) if (head[i] != ZIP_MAGIC[i]) return false
         return true
     }
 

@@ -150,6 +150,7 @@ class LibraryItemDetailViewModelTocTest {
         tokenStorage = noOpTokenStorage,
         epubRepository = FakeEpubRepo(),
         pdfRepository = FakePdfRepo(),
+        cbzRepository = NoopCbzRepository(),
         toReadRepository = noOpToReadRepository,
         readaloudLinkRepository = NoopReadaloudLinkRepository,
         readaloudAudioRepository = NoopReadaloudAudioRepository,

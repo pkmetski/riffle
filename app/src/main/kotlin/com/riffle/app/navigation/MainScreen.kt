@@ -37,6 +37,7 @@ import com.riffle.app.feature.navigation.NavigationDrawerViewModel
 import com.riffle.app.feature.navigation.RiffleNavigationDrawer
 import com.riffle.app.feature.reader.EpubReaderScreen
 import com.riffle.app.feature.reader.PdfReaderScreen
+import com.riffle.app.feature.reader.cbz.CbzReaderScreen
 import com.riffle.app.feature.server.AddSourceScreen
 import com.riffle.app.feature.server.SelectLibrariesScreen
 import com.riffle.app.feature.server.SourceSetupViewModel
@@ -71,6 +72,7 @@ private const val LIBRARY_ITEM_DETAIL = "library_item_detail/{itemId}"
 private const val EPUB_READER =
     "epub_reader/{itemId}?startReadaloudAtSec={startReadaloudAtSec}&openAtCfi={openAtCfi}&startTocHref={startTocHref}&source={source}&sourceId={sourceId}"
 private const val PDF_READER = "pdf_reader/{itemId}"
+private const val CBZ_READER = "cbz_reader/{itemId}"
 private const val ANNOTATION_SEARCH = "annotation_search/{libraryId}?query={query}"
 private const val AUDIOBOOK_PLAYER = "audiobook_player/{itemId}?startAtSec={startAtSec}"
 
@@ -599,6 +601,14 @@ fun MainScreen(
                 PdfReaderScreen(onNavigateBack = { navController.popBackStack() })
             }
             composable(
+                route = CBZ_READER,
+                arguments = listOf(
+                    navArgument("itemId") { type = NavType.StringType },
+                )
+            ) {
+                CbzReaderScreen(onNavigateBack = { navController.popBackStack() })
+            }
+            composable(
                 route = AUDIOBOOK_PLAYER,
                 arguments = listOf(
                     navArgument("itemId") { type = NavType.StringType },
@@ -652,4 +662,5 @@ internal fun NavController.navigateAsRoot(route: String) {
 
 internal fun isReaderRoute(route: String?): Boolean =
     route?.startsWith(EPUB_READER.substringBefore("{")) == true ||
-        route?.startsWith(PDF_READER.substringBefore("{")) == true
+        route?.startsWith(PDF_READER.substringBefore("{")) == true ||
+        route?.startsWith(CBZ_READER.substringBefore("{")) == true
