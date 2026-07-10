@@ -107,6 +107,27 @@ interface AnnotationDao {
     @Query("UPDATE annotations SET bookmarkTitle = :title, updatedAt = :updatedAt, lastModifiedByDeviceId = :deviceId WHERE id = :id AND type = 'BOOKMARK'")
     suspend fun renameBookmark(id: String, title: String, updatedAt: Long, deviceId: String)
 
+    /**
+     * Backfill `originFontFamily` for every legacy null-font row on this book (issue #484). Fires
+     * when the reader opens the source book and the WebView reports its computed body font.
+     * `deleted = 0` guards against pushing tombs back to peers on account of a font-only change,
+     * and `updatedAt`/`lastModifiedByDeviceId` bumps ensure the change propagates through sync.
+     * Only runs for rows where the column is still null: subsequent opens are cheap no-ops.
+     */
+    @Query(
+        "UPDATE annotations SET originFontFamily = :fontFamily, updatedAt = :updatedAt, " +
+            "lastModifiedByDeviceId = :deviceId " +
+            "WHERE sourceId = :sourceId AND itemId = :itemId AND deleted = 0 " +
+            "AND originFontFamily IS NULL"
+    )
+    suspend fun backfillNullOriginFontFamily(
+        sourceId: String,
+        itemId: String,
+        fontFamily: String,
+        updatedAt: Long,
+        deviceId: String,
+    ): Int
+
     /** Pending-row count for one book — live Flow for reader-chrome and per-book status. */
     @Query("SELECT COUNT(*) FROM annotations WHERE sourceId = :sourceId AND itemId = :itemId AND updatedAt > lastSyncedAt")
     fun observePendingCountForBook(sourceId: String, itemId: String): Flow<Int>

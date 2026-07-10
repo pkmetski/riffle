@@ -102,6 +102,14 @@ internal class ContinuousReaderView @JvmOverloads constructor(
         set(value) { controller.onPlayFromHereSelection = value }
 
     /**
+     * Set with the VM callback that consumes the source book's computed body font on chapter
+     * load (issue #484). Forwarded onto every chapter WebView the controller manages.
+     */
+    var onBookBodyFont: ((String) -> Unit)?
+        get() = controller.onBookBodyFont
+        set(value) { controller.onBookBodyFont = value }
+
+    /**
      * Called on the main thread with the raw JSON payload emitted by figure-tap.js when the user
      * taps a figure. The host parses it via [FigureTapMessageParser] and pushes the result into
      * the ViewModel's figureZoom state, causing [FigureZoomOverlay] to open above the reader.

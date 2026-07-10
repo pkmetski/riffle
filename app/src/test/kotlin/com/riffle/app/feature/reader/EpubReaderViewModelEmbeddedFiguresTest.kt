@@ -120,6 +120,23 @@ class EpubReaderViewModelEmbeddedFiguresTest {
 
         override suspend fun purgeAgedTombstones(sourceId: String, itemId: String, cutoff: Long): Int = 0
 
+        override suspend fun backfillNullOriginFontFamily(
+            sourceId: String,
+            itemId: String,
+            fontFamily: String,
+            updatedAt: Long,
+            deviceId: String,
+        ): Int {
+            var changed = 0
+            rows.value = rows.value.map {
+                if (it.sourceId == sourceId && it.itemId == itemId && !it.deleted && it.originFontFamily == null) {
+                    changed++
+                    it.copy(originFontFamily = fontFamily, updatedAt = updatedAt, lastModifiedByDeviceId = deviceId)
+                } else it
+            }
+            return changed
+        }
+
         override fun observeBooksWithHighlights(sourceId: String): Flow<List<BookHighlightSummary>> =
             flowOf(emptyList())
     }

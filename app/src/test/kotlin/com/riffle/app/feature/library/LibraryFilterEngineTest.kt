@@ -91,6 +91,7 @@ class LibraryFilterEngineTest {
         override suspend fun findImageAnnotationForFigure(
             sourceId: String, itemId: String, chapterHref: String, imageHref: String?, imageSvg: String?,
         ): com.riffle.core.domain.Annotation? = null
+        override suspend fun backfillNullOriginFontFamily(sourceId: String, itemId: String, fontFamily: String) = error("unused")
     }
 
     private fun fakeBookmarkStore(): AudiobookBookmarkStore = object : AudiobookBookmarkStore {

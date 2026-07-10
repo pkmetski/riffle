@@ -274,6 +274,27 @@ internal val SELECTION_SPAN_TRACKER_JS = """
     (function () {
       if (window.__riffleSelTrackerInstalled) return;
       window.__riffleSelTrackerInstalled = true;
+      // One-shot body-font probe (issue #484). Fires once per chapter install: reads the source
+      // book's computed body `font-family` and (a) stashes it in `window.__riffleBookBodyFont`
+      // so continuous mode can pull it via evaluateJavascript from onPageFinished, and (b)
+      // bridges it out to Kotlin directly for paginated mode via RiffleSelBridge — the elided
+      // view uses this as the fallback for legacy null-font rows AND to backfill them in the DB.
+      try {
+        var bodyEl = document.body || document.documentElement;
+        var bodyFont = '';
+        if (bodyEl) {
+          var bcs = window.getComputedStyle(bodyEl);
+          if (bcs) bodyFont = bcs.fontFamily || '';
+        }
+        window.__riffleBookBodyFont = bodyFont;
+        if (bodyFont) {
+          try {
+            if (window.RiffleSelBridge && window.RiffleSelBridge.onBookBodyFont) {
+              window.RiffleSelBridge.onBookBodyFont(bodyFont);
+            }
+          } catch (e) {}
+        }
+      } catch (e) { window.__riffleBookBodyFont = ''; }
       // Snapshot selection state at touchstart, BEFORE the browser processes the up-gesture
       // that would dismiss an active selection. Readium's InputListener.onTap fires from the
       // WebView's click event and can race with the selectionchange that clears the selection

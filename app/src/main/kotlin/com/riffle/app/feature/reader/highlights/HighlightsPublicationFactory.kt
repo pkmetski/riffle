@@ -198,11 +198,18 @@ class HighlightsPublicationFactory @Inject constructor() {
             }
         }
         val title = chapter.title.xmlEscape()
+        // Apply the book's body font to `<body>` so `<h1>` (chapter title), `<aside>` (notes) and
+        // anything else in the synthesised document inherits the origin's face instead of
+        // ReadiumCSS's serif default. Per-excerpt `<p>` inline `font-family` from
+        // [appendOriginFontFamilyStyle] still overrides for annotations that captured their own
+        // per-range font. Issue #484.
+        val safeBodyFont = sanitizeCssFontFamily(bookBodyFontFamily)
+        val bodyStyle = if (safeBodyFont != null) " style=\"font-family: ${safeBodyFont.xmlEscape()};\"" else ""
         return """
             |<?xml version="1.0" encoding="UTF-8"?>
             |<html xmlns="http://www.w3.org/1999/xhtml"><head><title>$title</title>$READIUM_DEFAULT_CSS_LINK<style>$ACCENT_BAR_TAP_CSS
             |$FIGURE_CENTERING_CSS</style></head>
-            |<body>
+            |<body$bodyStyle>
             |  <h1>$title</h1>
             |${body.trimEnd('\n')}
             |</body></html>

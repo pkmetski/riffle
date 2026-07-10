@@ -173,6 +173,21 @@ class AnnotationStoreImpl(
         return entity.toDomain()
     }
 
+    override suspend fun backfillNullOriginFontFamily(
+        sourceId: String,
+        itemId: String,
+        fontFamily: String,
+    ): Int {
+        if (fontFamily.isBlank()) return 0
+        return dao.backfillNullOriginFontFamily(
+            sourceId = sourceId,
+            itemId = itemId,
+            fontFamily = fontFamily,
+            updatedAt = clock(),
+            deviceId = deviceIdStore.getOrCreate(),
+        )
+    }
+
     override suspend fun delete(id: String) {
         dao.tombstone(id, updatedAt = clock(), deviceId = deviceIdStore.getOrCreate())
     }

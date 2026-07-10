@@ -347,6 +347,29 @@ class HighlightsPublicationFactoryTest {
         )
     }
 
+    // The `bookBodyFontFamily` is also applied to `<body>` so chapter titles (`<h1>`), notes
+    // (`<aside>`), and anything else non-`<p>` inherits the origin's face — matches "the elided
+    // view must inherit the origin's font" for the whole document, not just excerpts.
+    @Test
+    fun bookBodyFontFamily_isSetOnBodyElementForTitleAndNotes() {
+        val pub = factory.build(
+            sourceId = "S1", itemId = "B1", bookTitle = null,
+            chapters = listOf(
+                ChapterElision(
+                    "ch0.xhtml", "Chapter Title Here",
+                    listOf(hl("h1", "excerpt", note = "my note")),
+                ),
+            ),
+            urlFactory = ::testUrlFactory,
+            bookBodyFontFamily = "Georgia, serif",
+        )
+        val html = readChapterHtml(pub, index = 0)
+        assertTrue(
+            "<body> must carry the book body font-family so <h1>/<aside> inherit it; html was: $html",
+            html.contains("<body style=\"font-family: Georgia, serif;\">")
+        )
+    }
+
     // Both null → no font-family declaration at all → ReadiumCSS's default applies. Preserves
     // the pre-issue-484 behaviour for callers that don't (yet) supply a fallback.
     @Test

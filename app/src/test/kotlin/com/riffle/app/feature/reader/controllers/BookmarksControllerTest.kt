@@ -107,6 +107,11 @@ class BookmarksControllerTest {
         override suspend fun findImageAnnotationForFigure(
             sourceId: String, itemId: String, chapterHref: String, imageHref: String?, imageSvg: String?,
         ): Annotation? = null
+        override suspend fun backfillNullOriginFontFamily(
+            sourceId: String,
+            itemId: String,
+            fontFamily: String,
+        ): Int = 0
     }
 
     private fun makeAnnotation(

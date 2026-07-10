@@ -70,6 +70,18 @@ interface AnnotationStore {
         color: String = DEFAULT_COLOR,
     ): Annotation
 
+    /**
+     * Backfill `originFontFamily` on every legacy null-font annotation on this book with the
+     * book's computed body font (issue #484). Called once per Publication load once the reader
+     * WebView has reported its `getComputedStyle(document.body).fontFamily`. Returns the number
+     * of rows updated (0 on subsequent opens once the whole book is populated).
+     */
+    suspend fun backfillNullOriginFontFamily(
+        sourceId: String,
+        itemId: String,
+        fontFamily: String,
+    ): Int
+
     suspend fun delete(id: String)
     suspend fun recolor(id: String, color: String)
     suspend fun updateNote(id: String, note: String?)

@@ -1460,6 +1460,41 @@ class EpubReaderViewModel @Inject constructor(
 
     // ---- Annotations -------------------------------------------------------------------------
 
+    // Set by the WebView-side body-font probe injected in [SELECTION_SPAN_TRACKER_JS] (issue
+    // #484). Set-once — the first non-blank value the reader reports for the current book,
+    // triggers a DB backfill of every legacy null-font row for the same book, and is cached so
+    // subsequent chapter loads (which re-fire the tracker install) don't re-write the DB.
+    private val bookBodyFontFamilyReported = java.util.concurrent.atomic.AtomicReference<String>("")
+
+    /**
+     * Called by [RiffleSelectionRectBridge.onBookBodyFont] on chapter install. Caches the value
+     * on the VM (used as `bookBodyFontFamily` on subsequent elided-view opens) and, on the FIRST
+     * non-blank report for the current book, backfills every legacy null-font row on this book
+     * (issue #484). Only runs in FullBook mode — the elided view is a synthesised publication
+     * whose body font is what we WROTE, not the origin's face.
+     */
+    fun noteBookBodyFontFamily(fontFamily: String) {
+        if (source == ReaderSource.Highlights) return
+        val trimmed = fontFamily.trim()
+        if (trimmed.isBlank()) return
+        // Set-once per (VM lifecycle, book). AtomicReference.compareAndSet returns false when
+        // we've already stored a non-blank font — cheap no-op on the many repeat reports the
+        // JS tracker fires as chapters install across a reading session.
+        if (!bookBodyFontFamilyReported.compareAndSet("", trimmed)) return
+        val sourceId = annotationServerId ?: return
+        viewModelScope.launch {
+            val updated = runCatching {
+                annotationStore.backfillNullOriginFontFamily(sourceId, itemId, trimmed)
+            }.getOrElse { 0 }
+            if (updated > 0) {
+                logger.d(LogChannel.HighlightMerge) {
+                    "originFontFamily backfill sourceId=$sourceId itemId=$itemId font='$trimmed' updated=$updated"
+                }
+                scheduleAnnotationSync()
+            }
+        }
+    }
+
     // Create a highlight at the current text selection in the user's last-used colour (see
     // [AnnotationSession.lastUsedHighlightColor]; falls back to yellow first-run). Anchors on a CFI range built from
     // the selection's start progression + selected text (ADR 0024), capturing the snippet + href.
