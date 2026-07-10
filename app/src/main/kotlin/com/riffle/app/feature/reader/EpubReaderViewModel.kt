@@ -958,8 +958,15 @@ class EpubReaderViewModel @Inject constructor(
             highlightsResumeServerId = sourceId
             // Snapshot what we just rendered so the observer can diff each incoming emission
             // per-annotation and pick the right response: targeted DOM patch for a colour/note/
-            // delete/in-chapter-add, or a full rebuild for a structural change.
-            highlightsRenderedById = rows.associateBy { it.id }
+            // delete/in-chapter-add, or a full rebuild for a structural change. Filter to
+            // TYPE_HIGHLIGHT so this baseline matches the observer's own filter — otherwise every
+            // bookmark on the book appears as a "removed" id on the first emission, triggers the
+            // structural-change path, and reloadHighlightsView loops (open → observer → reload →
+            // open → …) with a WebDAV syncOnOpen fired on every cycle (issue: elided-view infinite
+            // load + repeated WebDAV pushes when the book has bookmarks).
+            highlightsRenderedById = rows
+                .filter { it.type == AnnotationEntity.TYPE_HIGHLIGHT }
+                .associateBy { it.id }
             // Start observing (once per (sourceId, itemId)). Kept alive across the openBook()
             // reruns triggered by reloadHighlightsView, since cancelling and re-launching each
             // rebuild would drop emissions during the Loading→Ready gap.
