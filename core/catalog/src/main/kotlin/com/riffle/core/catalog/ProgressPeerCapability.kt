@@ -12,6 +12,14 @@ package com.riffle.core.catalog
  */
 interface ProgressPeerCapability : CatalogCapability {
     /**
+     * Which CFI dialect this peer stores its ebook position in — see [CfiDialect]. Callers on the
+     * ebook path gate translator invocation on this: [CfiDialect.EPUB_JS] round-trips through the
+     * translator, [CfiDialect.READIUM_NATIVE] passes the local Locator JSON straight through.
+     * Defaults to [CfiDialect.EPUB_JS] since ABS is the reference impl today (ADR 0013).
+     */
+    val cfiDialect: CfiDialect get() = CfiDialect.EPUB_JS
+
+    /**
      * [isFinished] is tri-state: `null` = leave the item-level finished flag untouched (this is
      * the common case — routine reader-position saves must not touch the audio dimension of ABS's
      * shared media-progress record); `true`/`false` = explicitly set/clear it (only mark-finished

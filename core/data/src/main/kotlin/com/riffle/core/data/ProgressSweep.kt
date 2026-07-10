@@ -1,6 +1,7 @@
 package com.riffle.core.data
 
 import com.riffle.core.catalog.CatalogRegistry
+import com.riffle.core.catalog.ProgressPeerCapability
 import com.riffle.core.domain.ProgressReconciler
 import com.riffle.core.domain.ProgressRemote
 import com.riffle.core.domain.RemoteKind
@@ -59,8 +60,14 @@ class ProgressSweep(
         for (sourceId in sources) {
             // Skip sources whose catalog can't be resolved right now (no row, no token, or no
             // registered factory) — rows stay dirty for the next sweep.
-            if (catalogRegistry.forSourceId(sourceId) == null) continue
-            for (itemId in ledger.dirtyEbookItems(sourceId)) {
+            val catalog = catalogRegistry.forSourceId(sourceId) ?: continue
+            // Progress reconciliation is only defined for sources whose Catalog is a
+            // ProgressPeerCapability (ADR 0041). Zero-peer sources (LocalFiles) still get their
+            // dirty position rows enumerated, but the loops below no-op — the rows are legal
+            // zero-peer entries and drain without work. Bookmarks are gated separately, further
+            // down, on their own capability by the underlying reconciler.
+            val isProgressPeer = catalog is ProgressPeerCapability
+            if (isProgressPeer) for (itemId in ledger.dirtyEbookItems(sourceId)) {
                 // Skip a book a live surface is driving — its own cycle owns inbound jumps (ADR 0030).
                 if (openTargets.isOpen(sourceId, itemId)) continue
                 val remote = remoteFactory.ebook(sourceId, itemId) ?: continue
@@ -68,7 +75,7 @@ class ProgressSweep(
                     ebookReconciler.reconcile(sourceId, itemId, remote)
                 }
             }
-            for (itemId in ledger.dirtyAudioItems(sourceId)) {
+            if (isProgressPeer) for (itemId in ledger.dirtyAudioItems(sourceId)) {
                 if (openTargets.isOpen(sourceId, itemId)) continue
                 val remote = remoteFactory.audio(sourceId, itemId) ?: continue
                 locks.withLock(sourceId, itemId, RemoteKind.ABS_AUDIO) {

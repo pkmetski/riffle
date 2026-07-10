@@ -21,6 +21,7 @@ import com.riffle.core.catalog.CatalogSeries
 import com.riffle.core.catalog.CatalogSeriesEntry
 import com.riffle.core.catalog.CatalogSessionHandle
 import com.riffle.core.catalog.CatalogStats
+import com.riffle.core.catalog.CfiDialect
 import com.riffle.core.catalog.CollectionsCapability
 import com.riffle.core.catalog.OfflineBrowseCapability
 import com.riffle.core.catalog.PlaylistsCapability
@@ -270,6 +271,8 @@ class AbsCatalog(
     // endregion
 
     // region ProgressPeerCapability
+
+    override val cfiDialect: CfiDialect = CfiDialect.EPUB_JS
 
     override suspend fun pushEbookProgress(
         itemId: String,

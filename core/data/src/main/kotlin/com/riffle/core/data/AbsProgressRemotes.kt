@@ -1,5 +1,6 @@
 package com.riffle.core.data
 
+import com.riffle.core.catalog.CfiDialect
 import com.riffle.core.catalog.ProgressPeerCapability
 import com.riffle.core.domain.Clock
 import com.riffle.core.domain.EbookCfiTranslator
@@ -8,10 +9,16 @@ import com.riffle.core.domain.RemoteProgress
 
 /**
  * An ebook media-progress record as one reconcilable target (ADR 0030), routed through the
- * Source's [ProgressPeerCapability]. Position is stored locally as Readium Locator JSON, but ABS
- * stores it as epub.js `epubcfi(...)`; [translator] converts between the two (ADR 0013). When the
- * cached EPUB isn't available the translator is null: GET returns null (Offline — row left dirty)
- * and PATCH is skipped (PushFailed — row left dirty) so no corrupt value ever enters either side.
+ * Source's [ProgressPeerCapability]. Position is stored locally as Readium Locator JSON. Whether
+ * the peer stores that same JSON verbatim ([CfiDialect.READIUM_NATIVE]) or a foreign epub.js
+ * `epubcfi(...)` string ([CfiDialect.EPUB_JS]) is decided by [ProgressPeerCapability.cfiDialect]:
+ *
+ *  - [CfiDialect.EPUB_JS] (ABS today, ADR 0013): [translator] converts at the Catalog boundary.
+ *    When the cached EPUB isn't available the translator is null — GET returns null (Offline, row
+ *    left dirty) and PATCH is skipped (PushFailed, row left dirty) so no corrupt value ever
+ *    enters either side.
+ *  - [CfiDialect.READIUM_NATIVE]: the peer already speaks Locator JSON, so the translator MUST
+ *    NOT run — even when supplied — and a null translator is normal, not "not cached yet".
  *
  * The PATCH also needs the `ebookProgress` fraction (ABS's library % + finished-detection); since
  * the local store keeps only the Locator JSON, the fraction is supplied by [readingProgress] —
@@ -26,22 +33,32 @@ class CatalogEbookProgressRemote(
 ) : ProgressRemote<String> {
 
     override suspend fun get(): RemoteProgress<String>? {
-        val t = translator ?: return null
         val r = runCatching { peer.pullProgress(itemId) }.getOrNull() ?: return null
         val raw = r.ebookLocation.orEmpty()
-        // ABS returns blank when the book has never been opened; skip translation so the
-        // reconciler can still compare timestamps and push local progress if it's newer.
-        val locatorJson = if (raw.isBlank()) "" else t.cfiToLocatorJson(raw) ?: return null
+        val locatorJson = when (peer.cfiDialect) {
+            CfiDialect.READIUM_NATIVE -> raw
+            CfiDialect.EPUB_JS -> {
+                val t = translator ?: return null
+                // ABS returns blank when the book has never been opened; skip translation so the
+                // reconciler can still compare timestamps and push local progress if it's newer.
+                if (raw.isBlank()) "" else t.cfiToLocatorJson(raw) ?: return null
+            }
+        }
         return RemoteProgress(locatorJson, r.lastUpdate)
     }
 
     override suspend fun patch(position: String): Long? {
-        val t = translator ?: return null
-        val cfi = t.locatorJsonToCfi(position) ?: return null
+        val payload = when (peer.cfiDialect) {
+            CfiDialect.READIUM_NATIVE -> position
+            CfiDialect.EPUB_JS -> {
+                val t = translator ?: return null
+                t.locatorJsonToCfi(position) ?: return null
+            }
+        }
         return runCatching {
             val stamp = peer.pushEbookProgress(
                 itemId = itemId,
-                location = cfi,
+                location = payload,
                 progress = readingProgress(),
                 isFinished = null,
                 lastUpdateEpochMs = clock.nowMs(),
