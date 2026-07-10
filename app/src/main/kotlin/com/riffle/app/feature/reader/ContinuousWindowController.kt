@@ -96,6 +96,13 @@ internal class ContinuousWindowController(
      */
     var onPlayFromHereSelection: ((href: String, selectedText: String, evalJs: (String, (String?) -> Unit) -> Unit) -> Unit)? = null
 
+    /**
+     * Set once by the parent [ContinuousReaderView] with the VM callback that consumes the
+     * source book's computed body `font-family` on chapter load (issue #484). Chapter WebViews
+     * created after this is set forward their probe callback here.
+     */
+    var onBookBodyFont: ((String) -> Unit)? = null
+
     /** Set once via [install]. */
     private lateinit var binder: ChapterWebViewBinder
 
@@ -775,6 +782,7 @@ internal class ContinuousWindowController(
                 }
             }
         }
+        wv.onBookBodyFont = { ff -> onBookBodyFont?.invoke(ff) }
         wv.onPageFinished = {
             val styleJs = ContinuousStyleInjector.buildStyleInjectionJs(formattingPrefs)
             wv.injectStylesAndMeasure(styleJs)
@@ -804,6 +812,7 @@ internal class ContinuousWindowController(
                 if (delta != 0) port.scrollBy(delta)
             }
         }
+        wv.onBookBodyFont = { ff -> onBookBodyFont?.invoke(ff) }
         wv.onPageFinished = {
             val styleJs = ContinuousStyleInjector.buildStyleInjectionJs(formattingPrefs)
             wv.injectStylesAndMeasure(styleJs)

@@ -30,6 +30,11 @@ interface AnnotationStore {
         /** Figures enclosed by the highlight's CFI range (Task 7), or null when none / not yet
          *  resolved. An empty list is normalized to null on the persisted entity. */
         embeddedFigures: List<EmbeddedFigure>? = null,
+        /** Computed `font-family` at the source range's start element (per [issue 484](
+         *  https://github.com/pkmetski/riffle/issues/484)). Non-null contract: the reader's
+         *  write path must resolve this from the WebView's `getComputedStyle` at selection
+         *  time and fall back to the book's body font — never null in production. */
+        originFontFamily: String,
     ): Annotation
 
     suspend fun createBookmark(
@@ -41,6 +46,9 @@ interface AnnotationStore {
         spineIndex: Int,
         progression: Double,
         bookmarkTitle: String,
+        /** Computed `font-family` at the bookmark's anchor element. Same non-null contract as
+         *  [createHighlight]. */
+        originFontFamily: String,
     ): Annotation
 
     /**
@@ -61,6 +69,18 @@ interface AnnotationStore {
         imageBytes: String?,
         color: String = DEFAULT_COLOR,
     ): Annotation
+
+    /**
+     * Backfill `originFontFamily` on every legacy null-font annotation on this book with the
+     * book's computed body font (issue #484). Called once per Publication load once the reader
+     * WebView has reported its `getComputedStyle(document.body).fontFamily`. Returns the number
+     * of rows updated (0 on subsequent opens once the whole book is populated).
+     */
+    suspend fun backfillNullOriginFontFamily(
+        sourceId: String,
+        itemId: String,
+        fontFamily: String,
+    ): Int
 
     suspend fun delete(id: String)
     suspend fun recolor(id: String, color: String)

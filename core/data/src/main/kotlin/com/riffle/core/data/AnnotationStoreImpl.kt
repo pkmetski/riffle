@@ -57,7 +57,11 @@ class AnnotationStoreImpl(
         spineIndex: Int,
         progression: Double,
         embeddedFigures: List<EmbeddedFigure>?,
+        originFontFamily: String,
     ): Annotation {
+        require(originFontFamily.isNotBlank()) {
+            "originFontFamily must be non-blank for locally-created highlights (issue #484)"
+        }
         val deviceId = deviceIdStore.getOrCreate()
         val now = clock()
         val entity = AnnotationEntity(
@@ -81,6 +85,7 @@ class AnnotationStoreImpl(
             lastModifiedByDeviceId = deviceId,
             deleted = false,
             embeddedFigures = embeddedFigures.toEntityJson(),
+            originFontFamily = originFontFamily,
         )
         dao.upsert(entity)
         return entity.toDomain()
@@ -95,7 +100,11 @@ class AnnotationStoreImpl(
         spineIndex: Int,
         progression: Double,
         bookmarkTitle: String,
+        originFontFamily: String,
     ): Annotation {
+        require(originFontFamily.isNotBlank()) {
+            "originFontFamily must be non-blank for locally-created bookmarks (issue #484)"
+        }
         val deviceId = deviceIdStore.getOrCreate()
         val now = clock()
         val entity = AnnotationEntity(
@@ -116,6 +125,7 @@ class AnnotationStoreImpl(
             originDeviceId = deviceId,
             lastModifiedByDeviceId = deviceId,
             deleted = false,
+            originFontFamily = originFontFamily,
         )
         dao.upsert(entity)
         return entity.toDomain()
@@ -161,6 +171,21 @@ class AnnotationStoreImpl(
         )
         dao.upsert(entity)
         return entity.toDomain()
+    }
+
+    override suspend fun backfillNullOriginFontFamily(
+        sourceId: String,
+        itemId: String,
+        fontFamily: String,
+    ): Int {
+        if (fontFamily.isBlank()) return 0
+        return dao.backfillNullOriginFontFamily(
+            sourceId = sourceId,
+            itemId = itemId,
+            fontFamily = fontFamily,
+            updatedAt = clock(),
+            deviceId = deviceIdStore.getOrCreate(),
+        )
     }
 
     override suspend fun delete(id: String) {
@@ -235,6 +260,7 @@ internal fun Annotation.toEntity() = AnnotationEntity(
     imageHref = imageHref,
     imageSvg = imageSvg,
     imageBytes = imageBytes,
+    originFontFamily = originFontFamily,
 )
 
 internal fun AnnotationEntity.toDomain() = Annotation(
@@ -258,4 +284,5 @@ internal fun AnnotationEntity.toDomain() = Annotation(
     imageHref = imageHref,
     imageSvg = imageSvg,
     imageBytes = imageBytes,
+    originFontFamily = originFontFamily,
 )

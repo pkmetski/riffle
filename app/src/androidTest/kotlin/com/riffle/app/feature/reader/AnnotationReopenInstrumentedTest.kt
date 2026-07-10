@@ -104,6 +104,7 @@ class AnnotationReopenInstrumentedTest {
             cfi = cfiRange,
             textSnippet = selectedText,
             chapterHref = link.href.toString(),
+            originFontFamily = "Georgia, serif",
         )
 
         // Reopen: read back what's stored and re-anchor it, exactly as the ViewModel does.

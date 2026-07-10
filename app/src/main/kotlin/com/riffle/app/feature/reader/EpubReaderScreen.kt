@@ -592,6 +592,7 @@ fun EpubReaderScreen(
                         onFigureLongPress = { payload, anchorRect ->
                             viewModel.viewModelScope.launch { viewModel.onFigureLongPress(payload, anchorRect) }
                         },
+                        onBookBodyFontFamily = viewModel::noteBookBodyFontFamily,
                         dispatchers = viewModel.dispatchers,
                         logger = viewModel.logger,
                         modifier = Modifier
@@ -1337,6 +1338,10 @@ private fun EpubNavigatorView(
     onAutoScrollResume: () -> Unit,
     onFigureTap: (payload: String) -> Unit,
     onFigureLongPress: (FigureLongPressPayload, androidx.compose.ui.unit.IntRect) -> Unit,
+    // Called once per chapter install with the source book's computed `document.body`
+    // font-family (issue #484). Routed from the JS tracker via both the paginated
+    // RiffleSelBridge and the continuous ChapterWebView probe.
+    onBookBodyFontFamily: (String) -> Unit,
     dispatchers: com.riffle.core.domain.DispatcherProvider,
     logger: com.riffle.core.logging.Logger,
     // Cadence per-chapter hook (issue #403). Non-null in the outer caller when Cadence is enabled;
@@ -1501,7 +1506,14 @@ private fun EpubNavigatorView(
     // immersive mode. Written on the JS background thread; consumed on the main thread.
     val pagedSelectionActiveAtDown = remember { AtomicBoolean(false) }
     val pagedSelectionRectBridge = remember {
-        RiffleSelectionRectBridge(pagedSelectionRectCss, pagedSelectionActiveAtDown)
+        RiffleSelectionRectBridge(
+            store = pagedSelectionRectCss,
+            activeAtDown = pagedSelectionActiveAtDown,
+            // Feeds the source book's computed body font to the VM once per chapter install
+            // (issue #484). VM caches it as the elided-view fallback and backfills every legacy
+            // null-font row on this book so old annotations render in the origin's face.
+            onBodyFont = onBookBodyFontFamily,
+        )
     }
     // Tracks whether Readium is currently in vertical-scroll mode (scroll=true). Read from the
     // startActionModeForChild wrapper to route the selection popup differently — the JS-captured
@@ -2824,6 +2836,10 @@ private fun EpubNavigatorView(
                         view.onFigureLongPress = { payload, anchorRect -> onFigureLongPress(payload, anchorRect) }
                         view.onSelectionEnded = { currentOnSelectionEnded() }
                         view.onSelectionActiveChanged = { active -> currentOnSelectionActiveChanged(active) }
+                        // Continuous-mode body-font probe (issue #484). Fires once per chapter
+                        // load with the source book's computed body `font-family`; the VM caches
+                        // it as the elided-view fallback and backfills legacy null-font rows.
+                        view.onBookBodyFont = onBookBodyFontFamily
                     }
                 },
                 // Availability flags can flip mid-session; keep the selection menu gates in sync.
@@ -3170,6 +3186,7 @@ internal fun createPagedDirectionalNavigationAdapter(
 internal class RiffleSelectionRectBridge(
     private val store: java.util.concurrent.atomic.AtomicReference<android.graphics.RectF?>,
     private val activeAtDown: java.util.concurrent.atomic.AtomicBoolean,
+    private val onBodyFont: ((String) -> Unit)? = null,
 ) {
     @android.webkit.JavascriptInterface
     fun onRect(left: Double, top: Double, right: Double, bottom: Double) {
@@ -3214,5 +3231,31 @@ internal class RiffleSelectionRectBridge(
             figures.clear()
         }
         SelectionFiguresStash.set(figures)
+    }
+
+    /**
+     * Called from [ReaderWebViewScripts.SELECTION_SPAN_TRACKER_JS] on every selectionchange with
+     * the computed `font-family` at the range's start element (issue #484). Stashed so the
+     * paginated action-mode's Highlight handler ([EpubReaderViewModel.createHighlight]) can
+     * persist it onto the annotation — the paginated path doesn't route through
+     * [ChapterWebView.withSelectionTextAndProgression], which is where continuous mode reads
+     * `ff` out of the stashed JSON payload.
+     */
+    @android.webkit.JavascriptInterface
+    fun onFontFamily(fontFamily: String) {
+        SelectionFontStash.set(fontFamily)
+    }
+
+    /**
+     * Called from the SELECTION_SPAN_TRACKER_JS installer once per chapter load with the source
+     * book's computed body `font-family` (issue #484). Routes into
+     * [EpubReaderViewModel.noteBookBodyFontFamily] via [onBodyFont] — the VM caches it as the
+     * elided-view fallback and backfills every legacy null-font row on this book at the DB
+     * layer so legacy annotations render in the origin's face without waiting for the user to
+     * create a new one first.
+     */
+    @android.webkit.JavascriptInterface
+    fun onBookBodyFont(fontFamily: String) {
+        onBodyFont?.invoke(fontFamily)
     }
 }

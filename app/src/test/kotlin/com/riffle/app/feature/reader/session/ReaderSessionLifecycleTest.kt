@@ -158,10 +158,12 @@ class ReaderSessionLifecycleTest {
             sourceId: String, itemId: String, cfi: String, textSnippet: String, chapterHref: String,
             textBefore: String, textAfter: String, color: String, spineIndex: Int, progression: Double,
             embeddedFigures: List<com.riffle.core.domain.EmbeddedFigure>?,
+            originFontFamily: String,
         ): Annotation = error("not needed")
         override suspend fun createBookmark(
             sourceId: String, itemId: String, cfi: String, textSnippet: String, chapterHref: String,
             spineIndex: Int, progression: Double, bookmarkTitle: String,
+            originFontFamily: String,
         ): Annotation = error("not needed")
         override suspend fun createImageAnnotation(
             sourceId: String, itemId: String, cfi: String, textSnippet: String, chapterHref: String,
@@ -176,6 +178,11 @@ class ReaderSessionLifecycleTest {
         override suspend fun findImageAnnotationForFigure(
             sourceId: String, itemId: String, chapterHref: String, imageHref: String?, imageSvg: String?,
         ): Annotation? = null
+        override suspend fun backfillNullOriginFontFamily(
+            sourceId: String,
+            itemId: String,
+            fontFamily: String,
+        ): Int = 0
     }
 
     // ── Helpers ──────────────────────────────────────────────────────────────────────────

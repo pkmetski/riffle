@@ -23,6 +23,12 @@ data class Annotation(
     val imageHref: String? = null,
     val imageSvg: String? = null,
     val imageBytes: String? = null,
+    /**
+     * Computed `font-family` at the annotation's source range, captured at creation time so the
+     * Annotations View renders each excerpt in the origin's face (issue #484). Nullable because
+     * rows created before this field existed (and W3C sync ingest) have no value.
+     */
+    val originFontFamily: String? = null,
 )
 
 /**

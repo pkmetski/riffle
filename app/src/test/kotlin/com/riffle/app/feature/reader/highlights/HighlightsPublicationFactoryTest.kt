@@ -302,6 +302,116 @@ class HighlightsPublicationFactoryTest {
         assertTrue(html.contains("font-style: italic; opacity: 0.75;\">my thought</aside>"))
     }
 
+    // Issue #484: an annotation with a captured `originFontFamily` renders its excerpt `<p>` with
+    // an inline `font-family` declaration, so the elided view matches the face the reader saw at
+    // the source range instead of falling back to ReadiumCSS's default serif.
+    @Test
+    fun originFontFamily_isInlinedOnExcerptParagraph() {
+        val pub = factory.build(
+            sourceId = "S1", itemId = "B1", bookTitle = null,
+            chapters = listOf(
+                ChapterElision(
+                    "ch0.xhtml", "One",
+                    listOf(hl("h1", "sans excerpt", originFontFamily = "\"Fira Sans\", sans-serif")),
+                ),
+            ),
+            urlFactory = ::testUrlFactory,
+        )
+        val html = readChapterHtml(pub, index = 0)
+        assertTrue(
+            "excerpt <p> carries an inline font-family with the captured value; html was: $html",
+            html.contains("font-family: &quot;Fira Sans&quot;, sans-serif !important;")
+        )
+    }
+
+    // When the annotation has no captured font, the caller-supplied publication-wide body-font
+    // is used as fallback. Preserves the "match the book, at least approximately" experience for
+    // legacy rows written before issue #484 shipped.
+    @Test
+    fun bookBodyFontFamily_fallsBackWhenAnnotationHasNoOwnFont() {
+        val pub = factory.build(
+            sourceId = "S1", itemId = "B1", bookTitle = null,
+            chapters = listOf(
+                ChapterElision(
+                    "ch0.xhtml", "One",
+                    listOf(hl("h1", "legacy row", originFontFamily = null)),
+                ),
+            ),
+            urlFactory = ::testUrlFactory,
+            bookBodyFontFamily = "Georgia, serif",
+        )
+        val html = readChapterHtml(pub, index = 0)
+        assertTrue(
+            "excerpt <p> falls back to book body font; html was: $html",
+            html.contains("font-family: Georgia, serif !important;")
+        )
+    }
+
+    // The `bookBodyFontFamily` is applied via a `<style>` block that targets `<body>` + every
+    // heading tag so the chapter title, notes, and figcaptions inherit the origin's face —
+    // matches "the elided view must inherit the origin's font" for the whole document, not just
+    // excerpts. `!important` is load-bearing because ReadiumCSS-default.css sets its own
+    // font-family on headings via `--RS__*Font*` CSS variables.
+    @Test
+    fun bookBodyFontFamily_isAppliedToHeadingsAndAsideViaStyleBlock() {
+        val pub = factory.build(
+            sourceId = "S1", itemId = "B1", bookTitle = null,
+            chapters = listOf(
+                ChapterElision(
+                    "ch0.xhtml", "Chapter Title Here",
+                    listOf(hl("h1", "excerpt", note = "my note")),
+                ),
+            ),
+            urlFactory = ::testUrlFactory,
+            bookBodyFontFamily = "Georgia, serif",
+        )
+        val html = readChapterHtml(pub, index = 0)
+        assertTrue(
+            "<style> block must set the book body font on body + headings + aside; html was: $html",
+            html.contains(
+                "body, h1, h2, h3, h4, h5, h6, aside, figcaption, .riffle-fig " +
+                    "{ font-family: Georgia, serif !important; }"
+            )
+        )
+    }
+
+    // Both null → no font-family declaration at all → ReadiumCSS's default applies. Preserves
+    // the pre-issue-484 behaviour for callers that don't (yet) supply a fallback.
+    @Test
+    fun noFontFamilyDeclaredWhenBothAnnotationAndBookAreNull() {
+        val pub = factory.build(
+            sourceId = "S1", itemId = "B1", bookTitle = null,
+            chapters = listOf(
+                ChapterElision("ch0.xhtml", "One", listOf(hl("h1", "no font"))),
+            ),
+            urlFactory = ::testUrlFactory,
+        )
+        val html = readChapterHtml(pub, index = 0)
+        assertTrue("no inline font-family emitted", !html.contains("font-family:"))
+    }
+
+    // A font-family value whose bytes contain something outside the safe allowlist (e.g. an
+    // injected `};color:red;`) must be dropped, not written into the excerpt style attribute —
+    // the DB is not a trust boundary and CSS injection must not be possible.
+    @Test
+    fun maliciousFontFamily_isDroppedNotWritten() {
+        val pub = factory.build(
+            sourceId = "S1", itemId = "B1", bookTitle = null,
+            chapters = listOf(
+                ChapterElision(
+                    "ch0.xhtml", "One",
+                    listOf(hl("h1", "hi", originFontFamily = "serif;} body{color:red")),
+                ),
+            ),
+            urlFactory = ::testUrlFactory,
+        )
+        val html = readChapterHtml(pub, index = 0)
+        assertTrue(
+            "malicious font-family value must be dropped; html was: $html",
+            !html.contains("body{color:red") && !html.contains("font-family:")
+        )
+    }
+
     private fun hl(
         id: String,
         snippet: String,
@@ -309,6 +419,7 @@ class HighlightsPublicationFactoryTest {
         spineIndex: Int = 0,
         progression: Double = 0.0,
         color: String = AnnotationEntity.COLOR_YELLOW,
+        originFontFamily: String? = null,
     ): AnnotationEntity =
         AnnotationEntity(
             id = id,
@@ -326,6 +437,7 @@ class HighlightsPublicationFactoryTest {
             updatedAt = 0L,
             originDeviceId = "test",
             lastModifiedByDeviceId = "test",
+            originFontFamily = originFontFamily,
         )
 
     private fun readChapterHtml(pub: Publication, index: Int): String {

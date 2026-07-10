@@ -30,7 +30,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         LocalFilesFolderEntity::class,
         LocalFilesFileEntity::class,
     ],
-    version = 50,
+    version = 51,
     exportSchema = true,
 )
 abstract class RiffleDatabase : RoomDatabase() {
@@ -1325,6 +1325,15 @@ abstract class RiffleDatabase : RoomDatabase() {
         val MIGRATION_49_50 = object : Migration(49, 50) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("ALTER TABLE `library_items` ADD COLUMN `seriesSequence` TEXT")
+            }
+        }
+
+        // Origin-font capture per annotation: computed `font-family` at the source range, so the
+        // Annotations View renders each excerpt in the face the reader saw in the origin. Nullable
+        // so existing rows survive the ALTER; lazy-backfilled on source-chapter load.
+        val MIGRATION_50_51 = object : Migration(50, 51) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE annotations ADD COLUMN originFontFamily TEXT")
             }
         }
     }

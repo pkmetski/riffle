@@ -49,6 +49,7 @@ class AnnotationSessionTest {
         val color: String,
         val spineIndex: Int,
         val progression: Double,
+        val originFontFamily: String,
     )
 
     private class FakeAnnotationStore : AnnotationStore {
@@ -69,15 +70,17 @@ class AnnotationSessionTest {
             chapterHref: String, textBefore: String, textAfter: String, color: String,
             spineIndex: Int, progression: Double,
             embeddedFigures: List<com.riffle.core.domain.EmbeddedFigure>?,
+            originFontFamily: String,
         ): Annotation {
             createHighlightCalls.add(
-                CreateHighlightArgs(sourceId, itemId, cfi, textSnippet, chapterHref, textBefore, textAfter, color, spineIndex, progression)
+                CreateHighlightArgs(sourceId, itemId, cfi, textSnippet, chapterHref, textBefore, textAfter, color, spineIndex, progression, originFontFamily)
             )
             return makeAnnotation(id = "h1", type = "highlight", cfi = cfi, color = color)
         }
         override suspend fun createBookmark(
             sourceId: String, itemId: String, cfi: String, textSnippet: String,
             chapterHref: String, spineIndex: Int, progression: Double, bookmarkTitle: String,
+            originFontFamily: String,
         ): Annotation = makeAnnotation(id = "b1", type = "bookmark", cfi = cfi)
         override suspend fun createImageAnnotation(
             sourceId: String, itemId: String, cfi: String, textSnippet: String, chapterHref: String,
@@ -91,6 +94,11 @@ class AnnotationSessionTest {
         override suspend fun findImageAnnotationForFigure(
             sourceId: String, itemId: String, chapterHref: String, imageHref: String?, imageSvg: String?,
         ): Annotation? = null
+        override suspend fun backfillNullOriginFontFamily(
+            sourceId: String,
+            itemId: String,
+            fontFamily: String,
+        ): Int = 0
     }
 
     /**
@@ -908,6 +916,7 @@ class AnnotationSessionTest {
             color = "yellow",
             spineIndex = 0,
             progression = 0.5,
+            originFontFamily = "Georgia, serif",
         )
 
         val captured = store.createHighlightCalls.single()
@@ -915,6 +924,7 @@ class AnnotationSessionTest {
         assertEquals("hello", captured.textSnippet)
         assertEquals("say ", captured.textBefore)
         assertEquals(" world", captured.textAfter)
+        assertEquals("Georgia, serif", captured.originFontFamily)
         // Verify the returned annotation carries the expected identity.
         assertEquals("yellow", created.color)
     }

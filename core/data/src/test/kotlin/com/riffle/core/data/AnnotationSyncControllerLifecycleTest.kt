@@ -1024,6 +1024,28 @@ private class LifecycleInMemoryAnnotationDao : AnnotationDao {
         return before - localAnnotations.size
     }
 
+    override suspend fun backfillNullOriginFontFamily(
+        sourceId: String,
+        itemId: String,
+        fontFamily: String,
+        updatedAt: Long,
+        deviceId: String,
+    ): Int {
+        var changed = 0
+        for (i in localAnnotations.indices) {
+            val row = localAnnotations[i]
+            if (row.sourceId == sourceId && row.itemId == itemId && !row.deleted && row.originFontFamily == null) {
+                localAnnotations[i] = row.copy(
+                    originFontFamily = fontFamily,
+                    updatedAt = updatedAt,
+                    lastModifiedByDeviceId = deviceId,
+                )
+                changed++
+            }
+        }
+        return changed
+    }
+
     override fun observeBooksWithHighlights(sourceId: String) =
         kotlinx.coroutines.flow.flowOf(emptyList<com.riffle.core.database.BookHighlightSummary>())
 }

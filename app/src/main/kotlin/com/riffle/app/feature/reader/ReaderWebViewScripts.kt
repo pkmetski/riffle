@@ -224,14 +224,15 @@ internal val CONTINUOUS_SELECTION_READ_JS = """
             return JSON.stringify({
                 text: stash.text, p: stash.p,
                 l: stash.l, t: stash.t, r: stash.r, b: stash.b,
-                bef: stash.bef || '', aft: stash.aft || ''
+                bef: stash.bef || '', aft: stash.aft || '',
+                ff: stash.ff || ''
             });
         }
         var sel = window.getSelection ? window.getSelection() : null;
         var text = sel ? sel.toString() : '';
         var prog = 0.0;
         var l = 0, t = 0, r = 0, b = 0;
-        var bef = '', aft = '';
+        var bef = '', aft = '', ff = '';
         if (sel && sel.rangeCount > 0) {
             var range = sel.getRangeAt(0);
             var rect = range.getBoundingClientRect();
@@ -256,8 +257,16 @@ internal val CONTINUOUS_SELECTION_READ_JS = """
                     aft = afterR.toString().slice(0, 60);
                 } catch (e) { aft = ''; }
             }
+            try {
+                var startEl = range.startContainer;
+                if (startEl && startEl.nodeType === 3) startEl = startEl.parentElement;
+                if (startEl && startEl.nodeType === 1) {
+                    var cs = window.getComputedStyle(startEl);
+                    if (cs) ff = cs.fontFamily || '';
+                }
+            } catch (e) { ff = ''; }
         }
-        return JSON.stringify({text: text, p: prog, l: l, t: t, r: r, b: b, bef: bef, aft: aft});
+        return JSON.stringify({text: text, p: prog, l: l, t: t, r: r, b: b, bef: bef, aft: aft, ff: ff});
     })()
 """.trimIndent()
 
@@ -265,6 +274,27 @@ internal val SELECTION_SPAN_TRACKER_JS = """
     (function () {
       if (window.__riffleSelTrackerInstalled) return;
       window.__riffleSelTrackerInstalled = true;
+      // One-shot body-font probe (issue #484). Fires once per chapter install: reads the source
+      // book's computed body `font-family` and (a) stashes it in `window.__riffleBookBodyFont`
+      // so continuous mode can pull it via evaluateJavascript from onPageFinished, and (b)
+      // bridges it out to Kotlin directly for paginated mode via RiffleSelBridge — the elided
+      // view uses this as the fallback for legacy null-font rows AND to backfill them in the DB.
+      try {
+        var bodyEl = document.body || document.documentElement;
+        var bodyFont = '';
+        if (bodyEl) {
+          var bcs = window.getComputedStyle(bodyEl);
+          if (bcs) bodyFont = bcs.fontFamily || '';
+        }
+        window.__riffleBookBodyFont = bodyFont;
+        if (bodyFont) {
+          try {
+            if (window.RiffleSelBridge && window.RiffleSelBridge.onBookBodyFont) {
+              window.RiffleSelBridge.onBookBodyFont(bodyFont);
+            }
+          } catch (e) {}
+        }
+      } catch (e) { window.__riffleBookBodyFont = ''; }
       // Snapshot selection state at touchstart, BEFORE the browser processes the up-gesture
       // that would dismiss an active selection. Readium's InputListener.onTap fires from the
       // WebView's click event and can race with the selectionchange that clears the selection
@@ -414,12 +444,25 @@ internal val SELECTION_SPAN_TRACKER_JS = """
                 figures.push(entry);
               }
             } catch (e) { figures = []; }
+            // Origin font-family at the selection's start element (issue #484). Read from the
+            // start container walked up to its parent Element (text nodes have no computed
+            // style). Empty string on failure — Kotlin side falls back to the book's body font.
+            var ff = '';
+            try {
+              var startEl = rng.startContainer;
+              if (startEl && startEl.nodeType === 3) startEl = startEl.parentElement;
+              if (startEl && startEl.nodeType === 1) {
+                var cs = window.getComputedStyle(startEl);
+                if (cs) ff = cs.fontFamily || '';
+              }
+            } catch (e) { ff = ''; }
             window.__riffleSelData = {
               text: text,
               p: Math.max(0, Math.min(1, br2.top / docH)),
               l: br2.left, t: br2.top, r: br2.right, b: br2.bottom,
               bef: bef, aft: aft,
-              figures: figures
+              figures: figures,
+              ff: ff
             };
             // Also bridge figures to Kotlin directly. Continuous mode reads them out of
             // window.__riffleSelData in ChapterWebView.withSelectionTextAndProgression, but
@@ -429,6 +472,13 @@ internal val SELECTION_SPAN_TRACKER_JS = """
             try {
               if (window.RiffleSelBridge && window.RiffleSelBridge.onFigures) {
                 window.RiffleSelBridge.onFigures(JSON.stringify(figures));
+              }
+            } catch (e) {}
+            // Bridge origin font-family too (issue #484), same reasoning as figures — paginated
+            // Readium mode never reads window.__riffleSelData, so the bridge is the only path.
+            try {
+              if (window.RiffleSelBridge && window.RiffleSelBridge.onFontFamily) {
+                window.RiffleSelBridge.onFontFamily(ff);
               }
             } catch (e) {}
           }

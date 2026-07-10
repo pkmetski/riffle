@@ -46,6 +46,16 @@ internal class ChapterWebView(context: Context) : WebView(context), ChapterWebVi
     var onPageFinished: (() -> Unit)? = null
 
     /**
+     * Fires once per chapter page load with the source book's computed body `font-family`.
+     * Continuous-mode counterpart to [RiffleSelectionRectBridge.onBookBodyFont] — populates
+     * `window.__riffleBookBodyFont` from `SELECTION_SPAN_TRACKER_JS`'s install branch, then a
+     * `evaluateJavascript` reads it out and invokes this. Consumers use it as the elided-view
+     * fallback + to backfill legacy null-font annotation rows (issue #484). Empty string is
+     * skipped (probe found no body). See [EpubReaderViewModel.noteBookBodyFontFamily].
+     */
+    var onBookBodyFont: ((String) -> Unit)? = null
+
+    /**
      * Called on the main thread when the user taps the chapter (no scroll movement).
      * Wire this to the reader's chrome toggle so taps in Continuous mode show/hide the
      * top/bottom bars, matching the behaviour of the standard Readium navigator.
@@ -267,6 +277,19 @@ internal class ChapterWebView(context: Context) : WebView(context), ChapterWebVi
         webViewClient = object : WebViewClient() {
             override fun onPageFinished(view: WebView?, url: String?) {
                 this@ChapterWebView.onPageFinished?.invoke()
+                // Body-font probe (issue #484): read the value the SELECTION_SPAN_TRACKER_JS
+                // installer stashed on `window.__riffleBookBodyFont` and route to the VM via
+                // [onBookBodyFont]. Empty means the probe found no body; skip.
+                if (onBookBodyFont != null) {
+                    try {
+                        evaluateJavascript(
+                            "(function(){return window.__riffleBookBodyFont || '';})()",
+                        ) { raw ->
+                            val ff = decodeJsString(raw)
+                            if (ff.isNotBlank()) onBookBodyFont?.invoke(ff)
+                        }
+                    } catch (_: Throwable) {}
+                }
             }
 
             override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
@@ -624,6 +647,9 @@ internal class ChapterWebView(context: Context) : WebView(context), ChapterWebVi
                     (obj.optDouble("r", 0.0) * dpr).toInt(),
                     (obj.optDouble("b", 0.0) * dpr).toInt(),
                 )
+                // Origin font-family at the selection's start element (issue #484). Stashed for
+                // EpubReaderViewModel.createHighlight/toggleBookmark to persist onto the entity.
+                SelectionFontStash.set(obj.optString("ff", ""))
                 // Figures enclosed by the selection range — captured by SELECTION_SPAN_TRACKER_JS
                 // while the range was still live (raster figures rasterised via canvas to a data
                 // URI; SVG serialised verbatim). Stashed here so EpubReaderViewModel.createHighlight

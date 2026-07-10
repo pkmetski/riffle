@@ -87,14 +87,21 @@ class HighlightsPublicationFactory @Inject constructor() {
         chapters: List<ChapterElision>,
         urlFactory: (String) -> Url? = { Url(it) },
         resourceFetcher: ResourceFetcher = ResourceFetcher { null },
+        bookBodyFontFamily: String? = null,
     ): Publication =
-        buildHandle(sourceId, itemId, bookTitle, chapters, urlFactory, resourceFetcher).publication
+        buildHandle(sourceId, itemId, bookTitle, chapters, urlFactory, resourceFetcher, bookBodyFontFamily)
+            .publication
 
     /**
      * Same as [build] but returns the handle that lets the caller rewrite a chapter's bytes in
      * place. The elided reader ([EpubReaderViewModel]) uses this so per-annotation edits patch the
      * DOM live via [RendererBridge.applyHighlightDomPatch] AND persist to the container — so a
      * subsequent chapter-back navigation reads the fresh HTML.
+     *
+     * [bookBodyFontFamily] is the source book's computed body-font (issue #484), used as the
+     * per-excerpt fallback when an annotation has no [AnnotationEntity.originFontFamily] of its
+     * own (legacy row, or one that hasn't been touched by the lazy-backfill yet). Null falls
+     * back all the way to ReadiumCSS's default.
      */
     fun buildHandle(
         sourceId: String,
@@ -103,6 +110,7 @@ class HighlightsPublicationFactory @Inject constructor() {
         chapters: List<ChapterElision>,
         urlFactory: (String) -> Url? = { Url(it) },
         resourceFetcher: ResourceFetcher = ResourceFetcher { null },
+        bookBodyFontFamily: String? = null,
     ): HighlightsPublicationHandle {
         val nonEmptyChapters = chapters.filter { it.highlights.isNotEmpty() }
 
@@ -134,7 +142,7 @@ class HighlightsPublicationFactory @Inject constructor() {
         nonEmptyChapters.forEachIndexed { index, chapter ->
             val href = "highlights/ch$index.xhtml"
             val url = requireNotNull(urlFactory(href)) { "Failed to build synthetic Url for $href" }
-            entries[url] = renderChapterHtml(chapter).toByteArray(Charsets.UTF_8)
+            entries[url] = renderChapterHtml(chapter, bookBodyFontFamily).toByteArray(Charsets.UTF_8)
             chapterUrls[chapter.href] = url
             readingOrder += Link(
                 href = url,
@@ -170,7 +178,7 @@ class HighlightsPublicationFactory @Inject constructor() {
      * chapter's bytes after a per-annotation edit and write them back through
      * [HighlightsPublicationHandle.setChapterBytes] without rebuilding the whole Publication.
      */
-    internal fun renderChapterHtml(chapter: ChapterElision): String {
+    internal fun renderChapterHtml(chapter: ChapterElision, bookBodyFontFamily: String? = null): String {
         val body = buildString {
             for (annotation in chapter.highlights) {
                 when (annotation.type) {
@@ -184,16 +192,29 @@ class HighlightsPublicationFactory @Inject constructor() {
                         // whole highlight falls back to "text first, then figures" — the v1
                         // behaviour matches what shipped before offsets existed. See
                         // appendInterleavedHighlight's KDoc.
-                        appendInterleavedHighlight(this, annotation)
+                        appendInterleavedHighlight(this, annotation, bookBodyFontFamily)
                     }
                 }
             }
         }
         val title = chapter.title.xmlEscape()
+        // Apply the book's body font to `<body>`, every heading, and `<aside>` so the whole
+        // synthesised document inherits the origin's face instead of ReadiumCSS's serif default.
+        // `!important` is load-bearing: ReadiumCSS-default.css sets its own `font-family` on
+        // headings (via `--RS__*Font*` variables) with equal-or-higher specificity, so a plain
+        // inline `<body>` style loses on `<h1>`. Per-excerpt `<p>` inline styles from
+        // [appendOriginFontFamilyStyle] still override this — inline `!important` beats
+        // stylesheet `!important` at equal specificity. Issue #484.
+        val safeBodyFont = sanitizeCssFontFamily(bookBodyFontFamily)
+        val bodyFontStyleBlock = if (safeBodyFont != null) {
+            val escaped = safeBodyFont.xmlEscape()
+            "body, h1, h2, h3, h4, h5, h6, aside, figcaption, .riffle-fig { font-family: $escaped !important; }"
+        } else ""
         return """
             |<?xml version="1.0" encoding="UTF-8"?>
             |<html xmlns="http://www.w3.org/1999/xhtml"><head><title>$title</title>$READIUM_DEFAULT_CSS_LINK<style>$ACCENT_BAR_TAP_CSS
-            |$FIGURE_CENTERING_CSS</style></head>
+            |$FIGURE_CENTERING_CSS
+            |$bodyFontStyleBlock</style></head>
             |<body>
             |  <h1>$title</h1>
             |${body.trimEnd('\n')}
@@ -241,10 +262,14 @@ internal const val FIGURE_CENTERING_CSS =
  * The fallback keeps the shipped elided-reader semantics intact for annotations that predate this
  * change.
  */
-private fun appendInterleavedHighlight(sb: StringBuilder, highlight: com.riffle.core.database.AnnotationEntity) {
+private fun appendInterleavedHighlight(
+    sb: StringBuilder,
+    highlight: com.riffle.core.database.AnnotationEntity,
+    bookBodyFontFamily: String?,
+) {
     val figures = highlight.decodedEmbeddedFigures()?.sortedBy { it.order }.orEmpty()
     if (figures.isEmpty() || figures.any { it.charOffset == null }) {
-        appendTextHighlight(sb, highlight)
+        appendTextHighlight(sb, highlight, bookBodyFontFamily)
         figures.forEach { appendFigureBlock(sb, it, highlight.id, highlight.color) }
         return
     }
@@ -255,7 +280,7 @@ private fun appendInterleavedHighlight(sb: StringBuilder, highlight: com.riffle.
     // Emit alternating: chunk[0], figure[0], chunk[1], figure[1], ..., chunk[last].
     chunks.forEachIndexed { index, chunk ->
         if (chunk.isNotEmpty()) {
-            appendHighlightTextChunk(sb, highlight, chunk)
+            appendHighlightTextChunk(sb, highlight, chunk, bookBodyFontFamily)
         }
         figures.getOrNull(index)?.let { fig ->
             appendFigureBlock(sb, fig, highlight.id, highlight.color)
@@ -285,6 +310,7 @@ private fun appendHighlightTextChunk(
     sb: StringBuilder,
     highlight: com.riffle.core.database.AnnotationEntity,
     chunk: String,
+    bookBodyFontFamily: String?,
 ) {
     val accent = highlightBackgroundCss(highlight.color)
     val idEscaped = highlight.id.xmlEscape()
@@ -293,7 +319,9 @@ private fun appendHighlightTextChunk(
     sb.append(PARAGRAPH_GAP_STYLE)
     sb.append("; position: relative; border-left: 4px solid ")
     sb.append(accent)
-    sb.append(" !important; padding-left: 12px;\"><span class=\"")
+    sb.append(" !important; padding-left: 12px;")
+    appendOriginFontFamilyStyle(sb, highlight.originFontFamily, bookBodyFontFamily)
+    sb.append("\"><span class=\"")
     sb.append(ACCENT_BAR_TAP_CLASS)
     sb.append("\" data-ann-id=\"")
     sb.append(idEscaped)
@@ -312,7 +340,7 @@ private fun appendHighlightTextChunk(
  * emission (TYPE_IMAGE, embedded figures) can be dispatched independently. Now also serves as the
  * `charOffset == null` fallback path from [appendInterleavedHighlight].
  */
-private fun appendTextHighlight(sb: StringBuilder, highlight: AnnotationEntity) {
+private fun appendTextHighlight(sb: StringBuilder, highlight: AnnotationEntity, bookBodyFontFamily: String?) {
     // The highlight is presented as a left accent bar in the palette colour, matching
     // Riffle's [Book Search] results card style — the text itself renders in the
     // theme's normal body colour so dense highlights don't fatigue the eye. `!important`
@@ -329,7 +357,9 @@ private fun appendTextHighlight(sb: StringBuilder, highlight: AnnotationEntity) 
     sb.append(PARAGRAPH_GAP_STYLE)
     sb.append("; position: relative; border-left: 4px solid ")
     sb.append(accent)
-    sb.append(" !important; padding-left: 12px;\"><span class=\"")
+    sb.append(" !important; padding-left: 12px;")
+    appendOriginFontFamilyStyle(sb, highlight.originFontFamily, bookBodyFontFamily)
+    sb.append("\"><span class=\"")
     sb.append(ACCENT_BAR_TAP_CLASS)
     sb.append("\" data-ann-id=\"")
     sb.append(idEscaped)
@@ -350,6 +380,50 @@ private fun appendTextHighlight(sb: StringBuilder, highlight: AnnotationEntity) 
         sb.append(note.xmlEscape())
         sb.append("</aside>\n")
     }
+}
+
+/**
+ * Appends `; font-family: <sanitized>;` to a `<p style="…">` builder when either the annotation
+ * has a captured [AnnotationEntity.originFontFamily] (preferred) or the caller supplied a
+ * publication-wide [bookBodyFontFamily] fallback. No-op when both are null/blank — the excerpt
+ * then inherits ReadiumCSS's default face, matching the pre-issue-484 behaviour.
+ *
+ * The value is defensively sanitized (see [sanitizeCssFontFamily]) before being XML-escaped
+ * into the `style` attribute — `getComputedStyle().fontFamily` is normally well-formed, but a
+ * DB row (including a lazy backfill) is not a trust boundary and CSS injection via
+ * `};color:red;` would otherwise be trivially possible.
+ */
+private fun appendOriginFontFamilyStyle(
+    sb: StringBuilder,
+    originFontFamily: String?,
+    bookBodyFontFamily: String?,
+) {
+    val raw = originFontFamily?.takeIf { it.isNotBlank() } ?: bookBodyFontFamily?.takeIf { it.isNotBlank() }
+    val safe = sanitizeCssFontFamily(raw) ?: return
+    // `!important` needed to win against the equally-important body/heading override rule
+    // emitted by [renderChapterHtml] — inline `!important` beats stylesheet `!important`
+    // at equal specificity, so the per-excerpt annotation font wins.
+    sb.append(" font-family: ")
+    sb.append(safe.xmlEscape())
+    sb.append(" !important;")
+}
+
+/**
+ * Returns [value] unchanged if it only contains characters legal in a CSS `font-family` list
+ * (letters, digits, spaces, single/double quotes, dashes, underscores, commas, dots) — else
+ * null. This is a paranoia check: `getComputedStyle().fontFamily` from a modern browser is
+ * always a serialized CSS identifier list, but the DB is not a trust boundary and a malformed
+ * value must not be able to escape the `font-family` declaration.
+ */
+internal fun sanitizeCssFontFamily(value: String?): String? {
+    if (value.isNullOrBlank()) return null
+    val trimmed = value.trim()
+    // Reject any character outside a safe allowlist.
+    if (trimmed.any { c ->
+            !(c.isLetterOrDigit() || c == ' ' || c == '-' || c == '_' || c == ',' || c == '.' ||
+                c == '\'' || c == '"')
+        }) return null
+    return trimmed
 }
 
 /**

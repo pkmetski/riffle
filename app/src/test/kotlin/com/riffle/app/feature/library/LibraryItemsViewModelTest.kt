@@ -76,8 +76,8 @@ class LibraryItemsViewModelTest {
             override fun observeAnnotations(sourceId: String, itemId: String) = MutableStateFlow(emptyList<com.riffle.core.domain.Annotation>())
             override fun observeAnnotationsForSource(sourceId: String) =
                 annotationsFlow.map { all -> all.filter { it.sourceId == sourceId } }
-            override suspend fun createHighlight(sourceId: String, itemId: String, cfi: String, textSnippet: String, chapterHref: String, textBefore: String, textAfter: String, color: String, spineIndex: Int, progression: Double, embeddedFigures: List<com.riffle.core.domain.EmbeddedFigure>?) = error("unused")
-            override suspend fun createBookmark(sourceId: String, itemId: String, cfi: String, textSnippet: String, chapterHref: String, spineIndex: Int, progression: Double, bookmarkTitle: String) = error("unused")
+            override suspend fun createHighlight(sourceId: String, itemId: String, cfi: String, textSnippet: String, chapterHref: String, textBefore: String, textAfter: String, color: String, spineIndex: Int, progression: Double, embeddedFigures: List<com.riffle.core.domain.EmbeddedFigure>?, originFontFamily: String) = error("unused")
+            override suspend fun createBookmark(sourceId: String, itemId: String, cfi: String, textSnippet: String, chapterHref: String, spineIndex: Int, progression: Double, bookmarkTitle: String, originFontFamily: String) = error("unused")
             override suspend fun createImageAnnotation(sourceId: String, itemId: String, cfi: String, textSnippet: String, chapterHref: String, spineIndex: Int, progression: Double, imageHref: String?, imageSvg: String?, imageBytes: String?, color: String) = error("unused")
             override suspend fun delete(id: String) = error("unused")
             override suspend fun recolor(id: String, color: String) = error("unused")
@@ -87,6 +87,7 @@ class LibraryItemsViewModelTest {
             override suspend fun findImageAnnotationForFigure(
                 sourceId: String, itemId: String, chapterHref: String, imageHref: String?, imageSvg: String?,
             ): com.riffle.core.domain.Annotation? = null
+            override suspend fun backfillNullOriginFontFamily(sourceId: String, itemId: String, fontFamily: String) = error("unused")
         }
 
     private fun fakeAudiobookBookmarkStore(): com.riffle.core.domain.AudiobookBookmarkStore =

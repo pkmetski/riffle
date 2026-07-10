@@ -208,6 +208,13 @@ class AddSourceViewModelTest {
         override suspend fun dirtySourceItems() = emptyList<AnnotationDao.DirtySourceItem>()
         override suspend fun markSynced(ids: List<String>, syncedAt: Long) {}
         override suspend fun purgeAgedTombstones(sourceId: String, itemId: String, cutoff: Long): Int = 0
+        override suspend fun backfillNullOriginFontFamily(
+            sourceId: String,
+            itemId: String,
+            fontFamily: String,
+            updatedAt: Long,
+            deviceId: String,
+        ): Int = 0
         override fun observeBooksWithHighlights(sourceId: String) =
             flowOf(emptyList<com.riffle.core.database.BookHighlightSummary>())
     }
@@ -529,6 +536,13 @@ class AddSourceViewModelTest {
             override suspend fun dirtySourceItems() = emptyList<AnnotationDao.DirtySourceItem>()
             override suspend fun markSynced(ids: List<String>, syncedAt: Long) {}
             override suspend fun purgeAgedTombstones(sourceId: String, itemId: String, cutoff: Long): Int = 0
+            override suspend fun backfillNullOriginFontFamily(
+                sourceId: String,
+                itemId: String,
+                fontFamily: String,
+                updatedAt: Long,
+                deviceId: String,
+            ): Int = 0
             override fun observeBooksWithHighlights(sourceId: String) =
                 flowOf(emptyList<com.riffle.core.database.BookHighlightSummary>())
         }

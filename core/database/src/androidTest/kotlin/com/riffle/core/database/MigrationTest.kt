@@ -1919,7 +1919,7 @@ class MigrationTest {
         }
 
         val db = helper.runMigrationsAndValidate(
-            TEST_DB, 49, true,
+            TEST_DB, 51, true,
             RiffleDatabase.MIGRATION_1_2,
             RiffleDatabase.MIGRATION_2_3,
             RiffleDatabase.MIGRATION_3_4,
@@ -1969,6 +1969,7 @@ class MigrationTest {
             RiffleDatabase.MIGRATION_47_48,
             RiffleDatabase.MIGRATION_48_49,
             RiffleDatabase.MIGRATION_49_50,
+            RiffleDatabase.MIGRATION_50_51,
         )
 
         db.query("SELECT url, username, serverType, absUserId, type FROM sources WHERE id = 's1'").use { cursor ->
@@ -2192,6 +2193,65 @@ class MigrationTest {
             assertEquals("i1", c.getString(0))
             assertEquals("The Series", c.getString(1))
             assertTrue("new seriesSequence column defaults to NULL", c.isNull(2))
+        }
+        db.close()
+    }
+
+    // Origin-font capture: adds a single nullable `originFontFamily` column to `annotations`
+    // for per-annotation font-family (from `getComputedStyle` at the source range) so the
+    // Annotations View can render each excerpt in the origin's face. Pre-existing rows must
+    // survive with the new column defaulting to NULL; new rows must round-trip a value.
+    @Test
+    fun migration50To51_addsOriginFontFamilyColumnToAnnotations() {
+        helper.createDatabase(TEST_DB, 50).apply {
+            execSQL(
+                "INSERT INTO sources (id, url, isActive, insecureConnectionAllowed, username, serverType, absUserId, type) " +
+                    "VALUES ('s1', 'http://abs', 1, 0, 'test', 'AUDIOBOOKSHELF', 'u1', 'ABS')"
+            )
+            execSQL(
+                """
+                INSERT INTO annotations
+                  (id, sourceId, itemId, type, cfi, color, note, textSnippet, textBefore, textAfter,
+                   chapterHref, spineIndex, progression, bookmarkTitle, createdAt, updatedAt,
+                   originDeviceId, lastModifiedByDeviceId, deleted, lastSyncedAt,
+                   embeddedFigures, imageHref, imageSvg, imageBytes)
+                VALUES
+                  ('a-legacy','s1','i1','HIGHLIGHT','epubcfi(/6/2!/4/2,/1:0,/1:5)','yellow',NULL,
+                   'meaning','','','ch1.xhtml',0,0.5,'',1000,1000,'d1','d1',0,0,
+                   NULL,NULL,NULL,NULL)
+                """.trimIndent()
+            )
+            close()
+        }
+
+        val db = helper.runMigrationsAndValidate(TEST_DB, 51, true, RiffleDatabase.MIGRATION_50_51)
+
+        // Pre-existing row preserved; new column defaults to NULL.
+        db.query("SELECT id, textSnippet, originFontFamily FROM annotations WHERE id = 'a-legacy'").use { c ->
+            assertEquals(1, c.count)
+            assertTrue(c.moveToFirst())
+            assertEquals("a-legacy", c.getString(0))
+            assertEquals("meaning", c.getString(1))
+            assertTrue("legacy row's originFontFamily defaults to NULL", c.isNull(2))
+        }
+
+        // New rows round-trip a captured font-family.
+        db.execSQL(
+            """
+            INSERT INTO annotations
+              (id, sourceId, itemId, type, cfi, color, note, textSnippet, textBefore, textAfter,
+               chapterHref, spineIndex, progression, bookmarkTitle, createdAt, updatedAt,
+               originDeviceId, lastModifiedByDeviceId, deleted, lastSyncedAt,
+               embeddedFigures, imageHref, imageSvg, imageBytes, originFontFamily)
+            VALUES
+              ('a-new','s1','i1','HIGHLIGHT','epubcfi(/6/2!/4/2,/1:6,/1:12)','green',NULL,
+               'example','','','ch1.xhtml',0,0.6,'',2000,2000,'d1','d1',0,0,
+               NULL,NULL,NULL,NULL,'Georgia, serif')
+            """.trimIndent()
+        )
+        db.query("SELECT originFontFamily FROM annotations WHERE id = 'a-new'").use { c ->
+            assertTrue(c.moveToFirst())
+            assertEquals("Georgia, serif", c.getString(0))
         }
         db.close()
     }

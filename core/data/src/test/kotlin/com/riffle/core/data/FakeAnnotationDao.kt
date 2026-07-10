@@ -77,4 +77,12 @@ internal class FakeAnnotationDao : AnnotationDao {
 
     override suspend fun purgeAgedTombstones(sourceId: String, itemId: String, cutoff: Long): Int =
         error("not used by this fake")
+
+    override suspend fun backfillNullOriginFontFamily(
+        sourceId: String,
+        itemId: String,
+        fontFamily: String,
+        updatedAt: Long,
+        deviceId: String,
+    ): Int = error("not used by this fake")
 }
