@@ -108,3 +108,7 @@ Single-context repo — one `CONTEXT.md` + `docs/adr/` at the root. See `docs/ag
 ### Logger channels
 
 Production log tags are typed in `core/logging/src/main/kotlin/com/riffle/core/logging/LogChannel.kt` (`RIFFLE_RA`, `RIFFLE_AB`, `RIFFLE_HANDOFF`). Add a new channel by adding an enum entry; never introduce a new `Log.d("RIFFLE_*", …)` literal directly. Inject `Logger` (production: `AndroidLogger`; tests: `RecordingLogger`) and call `logger.d(LogChannel.X) { "msg" }`. The `checkRiffleLogTags` gradle task (wired into `check`) fails CI if a literal leaks back in.
+
+### Source/Service taxonomy (no new `Server`)
+
+The taxonomy is Source/Service (ADR 0041). The `checkNoServerReferences` gradle task (wired into `check`) fails CI if a Kotlin file outside the grandfathered allowlist introduces a `\bServer[A-Z]` identifier (e.g. `ServerType`, `ServerRepository`) or the bare literal `serverId`. New sites must use `SourceFoo` / `ServiceFoo` and `sourceId`; if a file legitimately belongs to Storyteller-adjacent internals or historical Room migration SQL, add it to `ServerReferenceLint.ALLOWLIST` in `buildSrc/` with a one-line justification. Detection logic lives in `buildSrc/src/main/kotlin/com/riffle/buildlogic/ServerReferenceLint.kt`.
