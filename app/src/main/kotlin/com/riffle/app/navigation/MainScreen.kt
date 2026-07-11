@@ -1,6 +1,7 @@
 package com.riffle.app.navigation
 
 import androidx.activity.compose.BackHandler
+import com.riffle.core.domain.SourceType
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.rememberDrawerState
 import androidx.compose.material3.windowsizeclass.WindowSizeClass
@@ -78,6 +79,38 @@ private const val CBZ_READER = "cbz_reader/{itemId}"
 private const val ANNOTATION_SEARCH = "annotation_search/{libraryId}?query={query}"
 private const val AUDIOBOOK_PLAYER = "audiobook_player/{itemId}?startAtSec={startAtSec}"
 
+/**
+ * URL-encodes each path segment in a series-detail route. seriesId is encoded because chitanka
+ * series ids contain slashes (`serie/foo` per ADR 0042) and would otherwise splay across the
+ * fixed [SERIES_DETAIL] template's `{seriesId}` slot, producing the "destination cannot be
+ * found in the navigation graph" crash. Nav Compose auto-decodes path arguments so the receiver
+ * (SeriesDetailViewModel) sees the original id.
+ */
+internal fun seriesDetailRoute(libraryId: String, seriesId: String, seriesName: String): String =
+    "series_detail/$libraryId/${URLEncoder.encode(seriesId, "UTF-8")}/${URLEncoder.encode(seriesName, "UTF-8")}"
+
+/** Same reasoning as [seriesDetailRoute] but for collection ids. */
+internal fun collectionDetailRoute(libraryId: String, collectionId: String, collectionName: String): String =
+    "collection_detail/$libraryId/${URLEncoder.encode(collectionId, "UTF-8")}/${URLEncoder.encode(collectionName, "UTF-8")}"
+
+/**
+ * Dispatches to the correct library entry point for [sourceType]:
+ *   - Room-mirrored catalogues (ABS, LocalFiles, …) → `library_items/…`
+ *   - Unbounded catalogues (Chitanka today; future OPDS/Gutenberg) → `chitanka_browse/…`,
+ *     the remote-browse screen that talks to `Catalog.browse` on demand instead of reading a
+ *     pre-populated Room mirror.
+ *
+ * Keeps the dispatch decision in one place so callers don't need to enumerate [SourceType]s
+ * themselves — [SourceType.isUnboundedCatalog] is the only knob a new Source needs to flip.
+ * A null [sourceType] (activeServer hasn't resolved yet on cold start) falls back to
+ * `library_items`; the drawer will correct on the next selection.
+ */
+internal fun libraryEntryRoute(sourceType: SourceType?, libraryId: String, libraryName: String): String {
+    val encoded = URLEncoder.encode(libraryName, "UTF-8")
+    return if (sourceType?.isUnboundedCatalog == true) "chitanka_browse/$libraryId/$encoded"
+    else "library_items/$libraryId/$encoded"
+}
+
 @Composable
 fun MainScreen(
     windowSizeClass: WindowSizeClass,
@@ -132,8 +165,7 @@ fun MainScreen(
 
     LaunchedEffect(Unit) {
         viewModel.redirectToLibrary.collect { library ->
-            val encoded = URLEncoder.encode(library.name, "UTF-8")
-            navController.navigateAsRoot("library_items/${library.id}/$encoded")
+            navController.navigateAsRoot(libraryEntryRoute(activeServer?.type, library.id, library.name))
             viewModel.setActiveLibrary(library.id)
         }
     }
@@ -156,11 +188,7 @@ fun MainScreen(
         onLibrarySelected = { library ->
             viewModel.setActiveLibrary(library.id)
             scope.launch { drawerState.close() }
-            val encoded = URLEncoder.encode(library.name, "UTF-8")
-            val isChitanka = activeServer?.type == com.riffle.core.domain.SourceType.CHITANKA
-            val route = if (isChitanka) "chitanka_browse/${library.id}/$encoded"
-            else "library_items/${library.id}/$encoded"
-            navController.navigateAsRoot(route)
+            navController.navigateAsRoot(libraryEntryRoute(activeServer?.type, library.id, library.name))
         },
         onDownloadsSelected = {
             scope.launch { drawerState.close() }
@@ -179,17 +207,7 @@ fun MainScreen(
                     },
                     onNavigateToLibrary = { libraryId, libraryName ->
                         viewModel.setActiveLibrary(libraryId)
-                        val encoded = URLEncoder.encode(libraryName, "UTF-8")
-                        // Mirror the drawer's dispatch (see onLibrarySelected above): Chitanka
-                        // libraries route to the dedicated browse screen because the standard
-                        // library_items screen assumes a Room-mirrored catalogue which Chitanka
-                        // does not populate (ADR 0042). Without this, cold-launching into HOME
-                        // with an active Chitanka source materialises its browse results into
-                        // library_items and shows them in the ABS-shaped grid.
-                        val isChitanka = activeServer?.type == com.riffle.core.domain.SourceType.CHITANKA
-                        val route = if (isChitanka) "chitanka_browse/$libraryId/$encoded"
-                        else "library_items/$libraryId/$encoded"
-                        navController.navigateAsRoot(route)
+                        navController.navigateAsRoot(libraryEntryRoute(activeServer?.type, libraryId, libraryName))
                     },
                 )
             }
@@ -422,12 +440,10 @@ fun MainScreen(
                     onOpenDrawer = { scope.launch { drawerState.open() } },
                     backEnabled = !drawerState.isOpen,
                     onSeriesSelected = { series ->
-                        val encodedName = URLEncoder.encode(series.name, "UTF-8")
-                        navController.navigate("series_detail/$libraryId/${series.id}/$encodedName")
+                        navController.navigate(seriesDetailRoute(libraryId, series.id, series.name))
                     },
                     onCollectionSelected = { collection ->
-                        val encodedName = URLEncoder.encode(collection.name, "UTF-8")
-                        navController.navigate("collection_detail/$libraryId/${collection.id}/$encodedName")
+                        navController.navigate(collectionDetailRoute(libraryId, collection.id, collection.name))
                     },
                     onItemSelected = { item ->
                         val encodedId = URLEncoder.encode(item.id, "UTF-8")
@@ -555,8 +571,7 @@ fun MainScreen(
                         navController.navigate("filtered_books/$libraryId/${facet.name}/$encoded")
                     },
                     onNavigateToSeries = { libraryId, seriesId, seriesName ->
-                        val encodedName = URLEncoder.encode(seriesName, "UTF-8")
-                        navController.navigate("series_detail/$libraryId/$seriesId/$encodedName")
+                        navController.navigate(seriesDetailRoute(libraryId, seriesId, seriesName))
                     },
                 )
             }

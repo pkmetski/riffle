@@ -396,12 +396,23 @@ class ChitankaCatalog(
     override suspend fun getTracks(itemId: String): List<CatalogAudioTrack> {
         val (root, detail) = resolveItem(itemId) ?: return emptyList()
         if (root != ROOT_AUDIOBOOKS) return emptyList()
-        // Gramofonche exposes no per-track duration metadata, so estimate from Content-Length
-        // via HEAD + the site's uniform ~128 kbps MP3 encoding. This isn't perfectly accurate
-        // but gives non-zero startOffsetSec / durationSec so the audiobook player's global
-        // timeline math (AudiobookTracks#trackAt / #absoluteSec) resolves the correct track
-        // across a multi-file book — with zeros, the resolver collapses every playback position
-        // onto the last track's timeline and multi-track resume/scrubbing/chapter-nav break.
+        return tracksFor(detail)
+    }
+
+    /**
+     * Turn a resolved [ChitankaDetail] into per-track spans. Split out so the caller can share a
+     * single detail-page fetch between tracks and chapter titles instead of hitting the network
+     * twice per audiobook open — [openAudiobook] and [getAudiobookChapters] both need the
+     * download list plus HEAD-estimated durations.
+     *
+     * Gramofonche exposes no per-track duration metadata, so estimate from Content-Length via
+     * HEAD + the site's uniform ~128 kbps MP3 encoding. This isn't perfectly accurate but gives
+     * non-zero startOffsetSec / durationSec so the audiobook player's global timeline math
+     * (AudiobookTracks#trackAt / #absoluteSec) resolves the correct track across a multi-file
+     * book — with zeros, the resolver collapses every playback position onto the last track's
+     * timeline and multi-track resume/scrubbing/chapter-nav break.
+     */
+    private suspend fun tracksFor(detail: ChitankaDetail): List<CatalogAudioTrack> {
         val durationsSec = coroutineScope {
             detail.downloads.map { d ->
                 async(Dispatchers.IO) {
@@ -437,32 +448,26 @@ class ChitankaCatalog(
     }
 
     override suspend fun openAudiobook(itemId: String, deviceLabel: String): CatalogAudiobookStream? {
-        val tracks = getTracks(itemId)
+        val (root, detail) = resolveItem(itemId) ?: return null
+        if (root != ROOT_AUDIOBOOKS) return null
+        val tracks = tracksFor(detail)
         if (tracks.isEmpty()) return null
-        return buildAudiobookStream(tracks)
+        return buildAudiobookStream(tracks, detail.downloads.map { it.title })
     }
 
     override suspend fun getAudiobookChapters(itemId: String): List<CatalogAudiobookChapter> {
-        // Chapter markers are absent on Gramofonche by design — chapter nav degrades to track nav.
-        return emptyList()
+        // Gramofonche has no explicit chapter markers, but each MP3 in a multi-track book is a
+        // discrete story/segment with its own title in the anchor text — mirror the ABS-upload
+        // behaviour of the reference `chitanka-to-audiobookshelf` (each file becomes one chapter)
+        // so the player's chapter drawer shows the track list instead of a blank sheet. On a
+        // transient network failure fall back to an empty list so the drawer degrades gracefully
+        // rather than propagating the exception up the ViewModel.
+        return runCatching {
+            val (root, detail) = resolveItem(itemId) ?: return@runCatching emptyList()
+            if (root != ROOT_AUDIOBOOKS) return@runCatching emptyList()
+            synthesizeChaptersFromTracks(tracksFor(detail), detail.downloads.map { it.title })
+        }.getOrElse { emptyList() }
     }
-
-    /**
-     * Wrap the per-track list into a whole-book stream. Split out so the whole-book duration
-     * (sum of estimated per-track durations) can be unit-tested without spinning up MockWebServer
-     * for the full `openAudiobook` HTTP path. The audiobook player's scrubber gets a zero-length
-     * timeline — and therefore no seek — if `totalDurationSec` is zero, so the sum invariant is
-     * load-bearing.
-     */
-    internal fun buildAudiobookStream(tracks: List<CatalogAudioTrack>): CatalogAudiobookStream =
-        CatalogAudiobookStream(
-            trackUrls = tracks.map { it.contentUrl },
-            tracks = tracks,
-            chapters = emptyList(),          // no chapter markers on Gramofonche — track-nav suffices
-            totalDurationSec = tracks.sumOf { it.durationSec },
-            serverCurrentTimeSec = 0.0,      // no server-side position for Chitanka
-            serverLastUpdate = 0L,
-        )
 
     // ---- Helpers ------------------------------------------------------------
 
@@ -526,15 +531,38 @@ class ChitankaCatalog(
          * collapse (AbsolutePositionPlayer falls back to ExoPlayer's per-track duration, so the
          * UI shows 0 until the current track resolves and never reflects the whole book).
          */
-        internal fun buildAudiobookStream(tracks: List<CatalogAudioTrack>): CatalogAudiobookStream =
+        internal fun buildAudiobookStream(
+            tracks: List<CatalogAudioTrack>,
+            trackTitles: List<String> = emptyList(),
+        ): CatalogAudiobookStream =
             CatalogAudiobookStream(
                 trackUrls = tracks.map { it.contentUrl },
                 tracks = tracks,
-                chapters = emptyList(),
+                chapters = synthesizeChaptersFromTracks(tracks, trackTitles),
                 totalDurationSec = tracks.sumOf { it.durationSec },
                 serverCurrentTimeSec = 0.0,
                 serverLastUpdate = 0L,
             )
+
+        /**
+         * Turn the per-track spans into chapter markers, one per MP3 file. Titles come from the
+         * anchor text on the detail page (e.g. "Клан-недоклан", "Щъркел и лисица" for the 14-story
+         * 14-малки БГ приказки disc); a track without a title falls back to "Track N" so the
+         * chapter drawer never renders a blank row. Empty input → empty output.
+         */
+        internal fun synthesizeChaptersFromTracks(
+            tracks: List<CatalogAudioTrack>,
+            trackTitles: List<String>,
+        ): List<CatalogAudiobookChapter> = tracks.mapIndexed { i, t ->
+            val fallback = "Track ${i + 1}"
+            val title = trackTitles.getOrNull(i)?.takeIf { it.isNotEmpty() } ?: fallback
+            CatalogAudiobookChapter(
+                index = i,
+                startSec = t.startOffsetSec,
+                endSec = t.startOffsetSec + t.durationSec,
+                title = title,
+            )
+        }
     }
 }
 
