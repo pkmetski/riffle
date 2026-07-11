@@ -238,12 +238,20 @@ class LibraryItemsViewModel @Inject constructor(
             toRead = true,
             series = catalog is SeriesCapability,
             collections = catalog is CollectionsCapability,
-            // Highlights/notes are ebook-only. An audiobook-only library never yields any, so
-            // the tab would be dead UI. Reactive against `allItems` — adding a readable item
+            // Highlights/notes are ebook-only. Hide the tab only when we've confirmed the
+            // library is audiobook-only — i.e. we have items AND none are readable. An empty
+            // list is treated as "not yet settled" (allItems' initial value is emptyList(),
+            // and a library refresh's replaceAllForLibrary window transiently drops rows) —
+            // keeping the tab visible there prevents a cold-start LaunchedEffect clamp from
+            // wiping a rememberSaveable-restored TAB_ANNOTATIONS. Adding a readable item
             // later flips the tab back on live.
-            annotations = items.any { it.isReadable },
+            annotations = items.isEmpty() || items.any { it.isReadable },
         )
     }
+        // Room emits on every DB write (progress ticks, download-state changes) but the
+        // capability + item-shape signals rarely change; collapse identical values so the
+        // tab bar doesn't recompose on every progress tick.
+        .distinctUntilChanged()
         .stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
     var authToken: String by mutableStateOf("")

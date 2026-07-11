@@ -1199,9 +1199,10 @@ class LibraryItemsViewModelTest {
         assertEquals(true, v?.toRead)
     }
 
-    // Regression pin for the Annotations tab gate: a library containing zero readable items
-    // (e.g. Chitanka's Gramofonche or any audiobook-only library) reports annotations = false so
-    // the Library Tab Bar hides the tab. Adding a readable item later flips it back on live.
+    // Regression pin for the Annotations tab gate: a library confirmed to contain only
+    // audiobook items reports annotations=false. An empty item list is treated as "not yet
+    // settled" (initial state / refresh consistency window) — annotations stays true so a
+    // cold-start LaunchedEffect clamp can't wipe a rememberSaveable-restored TAB_ANNOTATIONS.
     @Test
     fun `tabVisibility annotations reflects whether library contains any readable items`() = runTest {
         val srv = source("s-abs", active = true)
@@ -1220,7 +1221,11 @@ class LibraryItemsViewModelTest {
             catalogRegistry = catalogRegistryReturning(SeriesAndPlaylistsOnlyCatalog),
         )
 
-        // Audiobook-only: EbookFormat.Unsupported → isReadable = false.
+        // Initial empty state → visible ("not yet settled"; don't clamp cold-start restore).
+        testDispatcher.scheduler.advanceUntilIdle()
+        assertEquals(true, vm.tabVisibility.value?.annotations)
+
+        // Audiobook-only, non-empty: EbookFormat.Unsupported → isReadable = false → hide.
         val audiobook = LibraryItem(
             "id-audiobook", "lib-1", "An Audiobook", "Author", null, 0f, false, false,
             EbookFormat.Unsupported, hasAudio = true,
