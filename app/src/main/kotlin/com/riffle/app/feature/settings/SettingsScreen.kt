@@ -817,24 +817,27 @@ private fun ServerRow(
     onReorderLibraries: (orderedLibraryIds: List<String>) -> Unit,
     onOpenReadaloudMatches: () -> Unit,
 ) {
-    SwipeToDeleteRow(onDelete = onRemove) {
-        Column {
-            val username = server.username.takeIf { it.isNotEmpty() }
-            val subtitle = buildString {
-                if (username != null) {
-                    append(username)
-                    append(" · ")
-                }
-                append(server.url.value)
-                if (serverVersion != null) {
-                    append(" · v")
-                    append(serverVersion)
-                }
+    Column {
+        val username = server.username.takeIf { it.isNotEmpty() }
+        val subtitle = buildString {
+            if (username != null) {
+                append(username)
+                append(" · ")
             }
-            val chevronRotation by animateFloatAsState(
-                targetValue = if (isExpanded) 90f else 0f,
-                label = "chevron",
-            )
+            append(server.url.value)
+            if (serverVersion != null) {
+                append(" · v")
+                append(serverVersion)
+            }
+        }
+        val chevronRotation by animateFloatAsState(
+            targetValue = if (isExpanded) 90f else 0f,
+            label = "chevron",
+        )
+        // Swipe-to-delete wraps ONLY the compact header — a swipe inside the tall expanded
+        // content (which holds interactive switches and chevron buttons) would otherwise partly
+        // reveal the delete background as a stray trash-icon peek.
+        SwipeToDeleteRow(onDelete = onRemove) {
             ListItem(
                 modifier = Modifier.clickable { onToggleExpanded() },
                 leadingContent = {
@@ -850,16 +853,16 @@ private fun ServerRow(
                     { Text("Active", style = MaterialTheme.typography.labelSmall) }
                 } else null,
             )
-            AnimatedVisibility(visible = isExpanded) {
-                ServerSettingsExpansion(
-                    server = server,
-                    libraryItems = libraryItems,
-                    summary = summary,
-                    onSetLibraryVisible = onSetLibraryVisible,
-                    onReorderLibraries = onReorderLibraries,
-                    onOpenReadaloudMatches = onOpenReadaloudMatches,
-                )
-            }
+        }
+        AnimatedVisibility(visible = isExpanded) {
+            ServerSettingsExpansion(
+                server = server,
+                libraryItems = libraryItems,
+                summary = summary,
+                onSetLibraryVisible = onSetLibraryVisible,
+                onReorderLibraries = onReorderLibraries,
+                onOpenReadaloudMatches = onOpenReadaloudMatches,
+            )
         }
     }
 }
@@ -878,14 +881,9 @@ internal fun ServerSettingsExpansion(
     onOpenReadaloudMatches: () -> Unit,
 ) {
     val transparentColors = ListItemDefaults.colors(containerColor = Color.Transparent)
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)),
-    ) {
+    Column(modifier = Modifier.fillMaxWidth()) {
         when (server.serverType) {
             ServerType.AUDIOBOOKSHELF -> {
-                ExpansionHeader("Enabled libraries")
                 if (libraryItems.isEmpty()) {
                     ExpansionNote("No libraries found.")
                 } else {
@@ -1076,8 +1074,9 @@ private fun LocalFilesSourceRow(
         label = "chevron",
     )
 
-    SwipeToDeleteRow(onDelete = onRemoveSource) {
-      Column {
+    Column {
+      // Swipe wraps only the collapsed header; see [ServerRow] for the reasoning.
+      SwipeToDeleteRow(onDelete = onRemoveSource) {
         ListItem(
             modifier = Modifier
                 .clickable { onToggleExpanded() }
@@ -1108,7 +1107,8 @@ private fun LocalFilesSourceRow(
                 }
             } else null,
         )
-        androidx.compose.animation.AnimatedVisibility(visible = isExpanded) {
+      }
+      androidx.compose.animation.AnimatedVisibility(visible = isExpanded) {
             Column {
                 ListItem(
                     modifier = Modifier
@@ -1225,7 +1225,6 @@ private fun LocalFilesSourceRow(
                 }
             }
         }
-      }
     }
 
     pendingFolderRemoval?.let { folder ->
@@ -1287,8 +1286,9 @@ internal fun ChitankaSourceRow(
         targetValue = if (isExpanded) 90f else 0f,
         label = "chevron",
     )
-    SwipeToDeleteRow(onDelete = onRemove) {
-      Column {
+    Column {
+      // Swipe wraps only the collapsed header; see [ServerRow] for the reasoning.
+      SwipeToDeleteRow(onDelete = onRemove) {
         ListItem(
             modifier = Modifier
                 .clickable { onToggleExpanded() }
@@ -1303,16 +1303,15 @@ internal fun ChitankaSourceRow(
             headlineContent = { Text("Chitanka") },
             supportingContent = { Text("chitanka.info · gramofonche.chitanka.info") },
         )
-        androidx.compose.animation.AnimatedVisibility(visible = isExpanded) {
-            if (libraryItems.isNotEmpty()) {
-                ExpansionHeader("Enabled libraries")
-                ReorderableLibraryList(
-                    items = libraryItems,
-                    onSetLibraryVisible = onSetLibraryVisible,
-                    onReorder = onReorderLibraries,
-                )
-            }
-        }
+      }
+      androidx.compose.animation.AnimatedVisibility(visible = isExpanded) {
+          if (libraryItems.isNotEmpty()) {
+              ReorderableLibraryList(
+                  items = libraryItems,
+                  onSetLibraryVisible = onSetLibraryVisible,
+                  onReorder = onReorderLibraries,
+              )
+          }
       }
     }
 }
