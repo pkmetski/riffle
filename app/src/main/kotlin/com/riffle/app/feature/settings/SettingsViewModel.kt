@@ -335,23 +335,19 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
-    private val absServers: StateFlow<List<Source>> = servers
-        // Match by (type, serverType) rather than serverType alone: LocalFiles rows persist
-        // `serverType = AUDIOBOOKSHELF` as a placeholder (see [LocalFilesSourceInstaller]) and
-        // would otherwise leak into every ABS-only downstream (library refresh, cover tokens).
-        .map { list ->
-            list.filter {
-                it.type == com.riffle.core.domain.SourceType.ABS &&
-                    it.serverType == ServerType.AUDIOBOOKSHELF
-            }
-        }
+    // Every browsable source contributes to the per-source library editor. Storyteller stays
+    // excluded (Settings-only, never browsable per ADR 0026) — its expansion shows a
+    // readaloud-matches summary instead of a library list.
+    private val browsableSources: StateFlow<List<Source>> = servers
+        .map { list -> list.filter { it.serverType != ServerType.STORYTELLER_SERVICE } }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     /**
-     * Library visibility items for each Audiobookshelf server, keyed by server id. Libraries are
-     * read from the local DB per server, so a server need not be active to manage its libraries.
+     * Library visibility+order items keyed by source id, for every browsable source (ABS, Local
+     * Files, Chitanka, …). Libraries are read from the local DB per source, so a source need not
+     * be active to manage its libraries.
      */
-    val libraryUiItemsByServer: StateFlow<Map<String, List<LibraryUiItem>>> = absServers
+    val libraryUiItemsBySource: StateFlow<Map<String, List<LibraryUiItem>>> = browsableSources
         .flatMapLatest { list ->
             if (list.isEmpty()) {
                 MutableStateFlow(emptyMap<String, List<LibraryUiItem>>())

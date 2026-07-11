@@ -108,7 +108,7 @@ Riffle lets you browse your library, read EPUB, PDF, and CBZ files, listen to au
 - **Local files** — import EPUB, PDF, and CBZ files from device storage and read them alongside your server libraries, with the same reader, highlights, and progress tracking
 
 ### Library
-- Multi-source support with per-library visibility controls
+- Multi-source support with per-library visibility and ordering controls
 - Browse by Home, To Read, Series, Collections, and All Books
 - Cover grid with book details
 - Read/unread and "To Read" toggles
