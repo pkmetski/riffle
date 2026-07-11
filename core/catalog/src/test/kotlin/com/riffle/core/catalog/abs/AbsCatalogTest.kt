@@ -4,13 +4,17 @@ import com.riffle.core.catalog.AudiobookMediaCapability
 import com.riffle.core.catalog.BookFormat
 import com.riffle.core.catalog.CatalogFileHandle
 import com.riffle.core.catalog.CollectionsCapability
+import com.riffle.core.catalog.DownloadsCapability
 import com.riffle.core.catalog.OfflineBrowseCapability
 import com.riffle.core.catalog.PlaylistsCapability
 import com.riffle.core.catalog.ProgressPeerCapability
+import com.riffle.core.catalog.ReadCapability
+import com.riffle.core.catalog.ReadaloudCapability
 import com.riffle.core.catalog.ReadingSessionsCapability
 import com.riffle.core.catalog.SeriesCapability
 import com.riffle.core.catalog.SortKey
 import com.riffle.core.catalog.StatsCapability
+import com.riffle.core.catalog.ToReadListCapability
 import com.riffle.core.catalog.has
 import com.riffle.core.domain.AudiobookFingerprint
 import com.riffle.core.domain.Clock
@@ -91,6 +95,10 @@ class AbsCatalogTest {
         assertTrue(catalog.has<StatsCapability>())
         assertTrue(catalog.has<AudiobookMediaCapability>())
         assertTrue(catalog.has<OfflineBrowseCapability>())
+        assertTrue(catalog.has<DownloadsCapability>())
+        assertTrue(catalog.has<ReadaloudCapability>())
+        assertTrue(catalog.has<ToReadListCapability>())
+        assertTrue(catalog.has<ReadCapability>())
     }
 
     // endregion

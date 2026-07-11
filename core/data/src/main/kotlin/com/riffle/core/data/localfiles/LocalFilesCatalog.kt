@@ -11,9 +11,11 @@ import com.riffle.core.catalog.CatalogSeries
 import com.riffle.core.catalog.CatalogSeriesEntry
 import com.riffle.core.catalog.FacetSelection
 import com.riffle.core.catalog.OfflineBrowseCapability
+import com.riffle.core.catalog.ReadCapability
 import com.riffle.core.catalog.SeriesCapability
 import com.riffle.core.catalog.SeriesEntryOrdering
 import com.riffle.core.catalog.SortKey
+import com.riffle.core.catalog.ToReadListCapability
 import com.riffle.core.catalog.abs.CatalogException
 import com.riffle.core.database.LibraryItemDao
 import com.riffle.core.database.LibraryItemEntity
@@ -43,7 +45,11 @@ class LocalFilesCatalog(
     private val fileDao: LocalFilesFileDao,
     private val fileFolderDao: LocalFilesFileFolderDao,
     private val itemDao: LibraryItemDao,
-) : Catalog, SeriesCapability, OfflineBrowseCapability {
+) : Catalog,
+    SeriesCapability,
+    OfflineBrowseCapability,
+    ToReadListCapability,
+    ReadCapability {
 
     override val sourceType: SourceType = SourceType.LOCAL_FILES
 

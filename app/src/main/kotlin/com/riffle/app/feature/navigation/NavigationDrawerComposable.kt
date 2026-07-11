@@ -65,6 +65,7 @@ fun RiffleNavigationDrawer(
     visibleLibraries: List<Library>,
     activeLibraryId: String?,
     serverVersions: Map<String, String>,
+    showDownloadsLink: Boolean = true,
     onServerSelected: (Source) -> Unit,
     onLibrarySelected: (Library) -> Unit,
     onDownloadsSelected: () -> Unit,
@@ -78,6 +79,7 @@ fun RiffleNavigationDrawer(
             visibleLibraries = visibleLibraries,
             activeLibraryId = activeLibraryId,
             serverVersions = serverVersions,
+            showDownloadsLink = showDownloadsLink,
             onServerSelected = onServerSelected,
             onLibrarySelected = onLibrarySelected,
             onDownloadsSelected = onDownloadsSelected,
@@ -115,6 +117,7 @@ private fun DrawerSheetContent(
     visibleLibraries: List<Library>,
     activeLibraryId: String?,
     serverVersions: Map<String, String>,
+    showDownloadsLink: Boolean,
     onServerSelected: (Source) -> Unit,
     onLibrarySelected: (Library) -> Unit,
     onDownloadsSelected: () -> Unit,
@@ -141,12 +144,14 @@ private fun DrawerSheetContent(
             }
         }
         HorizontalDivider()
-        NavigationDrawerItem(
-            label = { Text("Downloads") },
-            icon = { Icon(Icons.Default.Download, contentDescription = null) },
-            selected = false,
-            onClick = onDownloadsSelected,
-        )
+        if (showDownloadsLink) {
+            NavigationDrawerItem(
+                label = { Text("Downloads") },
+                icon = { Icon(Icons.Default.Download, contentDescription = null) },
+                selected = false,
+                onClick = onDownloadsSelected,
+            )
+        }
         NavigationDrawerItem(
             label = { Text("Settings") },
             icon = { Icon(Icons.Default.Settings, contentDescription = null) },

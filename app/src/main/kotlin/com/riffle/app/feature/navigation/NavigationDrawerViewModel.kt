@@ -15,6 +15,7 @@ import com.riffle.core.domain.ServerType
 import com.riffle.core.domain.isReadaloud
 import com.riffle.core.catalog.Catalog
 import com.riffle.core.catalog.CatalogRegistry
+import com.riffle.core.catalog.DownloadsCapability
 import com.riffle.app.playback.NowPlaying
 import com.riffle.app.playback.NowPlayingNavigator
 import com.riffle.app.playback.NowPlayingStore
@@ -69,6 +70,17 @@ class NavigationDrawerViewModel @Inject constructor(
     val activeCatalog: StateFlow<Catalog?> = activeServer
         .map { source -> source?.let { catalogRegistry.forSource(it) } }
         .stateIn(viewModelScope, SharingStarted.Eagerly, null)
+
+    // Downloads-shaped surfaces (drawer link, Downloads screen) render only when the active
+    // Source's Catalog declares [DownloadsCapability]. LocalFiles omits it — the drawer hides
+    // the row so tapping it can't land on an empty destination. Null active catalog defaults to
+    // true so the transient no-source-yet UI doesn't flicker the row in and out.
+    // `is` check (not inline `has<T>()`) — core:catalog compiles at JVM target 21, this module
+    // pins 17, and the reified inline can't cross that boundary. Same rationale as
+    // [LibraryItemsViewModel.tabVisibility].
+    val showDownloadsLink: StateFlow<Boolean> = activeCatalog
+        .map { it?.let { c -> c is DownloadsCapability } ?: true }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, true)
 
     private val versionsCache = mutableMapOf<String, String>()
     private val _serverVersions = MutableStateFlow<Map<String, String>>(emptyMap())

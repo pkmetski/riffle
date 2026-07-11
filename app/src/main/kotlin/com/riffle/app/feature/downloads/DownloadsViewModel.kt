@@ -2,12 +2,12 @@ package com.riffle.app.feature.downloads
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.riffle.core.catalog.CatalogRegistry
+import com.riffle.core.catalog.DownloadsCapability
+import com.riffle.core.catalog.ReadaloudCapability
 import com.riffle.core.domain.DownloadsRepository
 import com.riffle.core.domain.LibraryItem
 import com.riffle.core.domain.LibraryObserver
-import com.riffle.core.domain.SourceRepository
-import com.riffle.core.domain.showCachedSectionFor
-import com.riffle.core.domain.showReadaloudSectionFor
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -25,16 +25,11 @@ data class DownloadsUiState(
     val downloadedItems: List<LocalItemUi> = emptyList(),
     val cachedItems: List<LocalItemUi> = emptyList(),
     val readaloudSidecars: List<LocalItemUi> = emptyList(),
-    /**
-     * Whether the active Source's storage model exposes a separate Cache tier. When false (e.g.
-     * LocalFiles, single-tier), the Downloads Screen renders one section instead of two.
-     */
+    /** True when the active Source's Catalog declares [DownloadsCapability] — gates both the
+     *  Downloaded and Cached sections (Cached is a tier of the same local store). */
     val showCachedSection: Boolean = true,
-    /**
-     * Whether the active Source can carry Storyteller readaloud bundles. Only ABS today — the
-     * Downloads Screen hides the "Readaloud (streaming)" section header for sources without it so
-     * users don't see an empty section they can never populate.
-     */
+    /** True when the active Source's Catalog declares [ReadaloudCapability] — gates the
+     *  "Readaloud (streaming)" section header. */
     val showReadaloudSection: Boolean = true,
 ) {
     val downloadedTotalBytes: Long get() = downloadedItems.sumOf { it.sizeBytes }
@@ -47,7 +42,7 @@ class DownloadsViewModel @Inject constructor(
     private val downloadsRepository: DownloadsRepository,
     private val libraryObserver: LibraryObserver,
     private val sidecarStore: com.riffle.core.data.ReadaloudSidecarStore,
-    private val sourceRepository: SourceRepository,
+    private val catalogRegistry: CatalogRegistry,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(DownloadsUiState())
@@ -80,13 +75,20 @@ class DownloadsViewModel @Inject constructor(
                 }
             }
 
-            val active = sourceRepository.getActive()
+            val activeCatalog = catalogRegistry.forActive()
+            // Absent active catalog → default to showing sections; a transient no-source-yet UI
+            // shouldn't flicker sections in and out. `is` check (not the inline `has<T>()`)
+            // because core:catalog compiles at JVM target 21 and this module pins 17 — the
+            // reified inline can't cross that boundary. Same rationale as
+            // [LibraryItemsViewModel.tabVisibility].
+            val hasDownloads = activeCatalog?.let { it is DownloadsCapability } ?: true
+            val hasReadaloud = activeCatalog?.let { it is ReadaloudCapability } ?: true
             _uiState.value = DownloadsUiState(
                 downloadedItems = downloadedItems,
                 cachedItems = cachedItems,
                 readaloudSidecars = readaloudSidecars,
-                showCachedSection = showCachedSectionFor(active),
-                showReadaloudSection = showReadaloudSectionFor(active),
+                showCachedSection = hasDownloads,
+                showReadaloudSection = hasReadaloud,
             )
         }
     }

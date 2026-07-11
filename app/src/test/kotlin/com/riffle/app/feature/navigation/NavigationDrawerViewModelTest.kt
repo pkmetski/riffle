@@ -141,24 +141,49 @@ class NavigationDrawerViewModelTest {
         override val isOnline: kotlinx.coroutines.flow.StateFlow<Boolean> = isOnlineFlow
     }
 
-    private fun makeVm() = NavigationDrawerViewModel(
+    private fun makeVm(
+        catalogRegistry: com.riffle.core.catalog.CatalogRegistry = fakeCatalogRegistry(),
+    ) = NavigationDrawerViewModel(
         sourceRepository = fakeServerRepo(),
         libraryObserver = fakeLibraryRepo(),
         visibilityStore = fakeVisibilityStore(),
         orderStore = fakeOrderStore(),
         lastOpenedLibraryStore = fakeLastOpenedStore(),
         connectivityObserver = fakeConnectivity(),
-        catalogRegistry = fakeCatalogRegistry(),
+        catalogRegistry = catalogRegistry,
         nowPlayingNavigator = com.riffle.app.playback.NowPlayingNavigator(),
         nowPlayingStore = com.riffle.app.playback.NowPlayingStore(),
     )
 
-    private fun fakeCatalogRegistry(): com.riffle.core.catalog.CatalogRegistry =
+    private fun fakeCatalogRegistry(catalog: com.riffle.core.catalog.Catalog? = null): com.riffle.core.catalog.CatalogRegistry =
         object : com.riffle.core.catalog.CatalogRegistry {
-            override suspend fun forActive(): com.riffle.core.catalog.Catalog? = null
-            override suspend fun forSource(source: com.riffle.core.domain.Source): com.riffle.core.catalog.Catalog? = null
-            override suspend fun forSourceId(sourceId: String): com.riffle.core.catalog.Catalog? = null
+            override suspend fun forActive(): com.riffle.core.catalog.Catalog? = catalog
+            override suspend fun forSource(source: com.riffle.core.domain.Source): com.riffle.core.catalog.Catalog? = catalog
+            override suspend fun forSourceId(sourceId: String): com.riffle.core.catalog.Catalog? = catalog
         }
+
+    private object NonDownloadsCatalog : com.riffle.core.catalog.Catalog by CatalogStub
+
+    private object DownloadsCatalog :
+        com.riffle.core.catalog.Catalog by CatalogStub,
+        com.riffle.core.catalog.DownloadsCapability
+
+    private object CatalogStub : com.riffle.core.catalog.Catalog {
+        override val sourceType: com.riffle.core.domain.SourceType = com.riffle.core.domain.SourceType.LOCAL_FILES
+        override suspend fun listRoots(): List<com.riffle.core.catalog.CatalogRoot> = emptyList()
+        override suspend fun browse(
+            rootId: String,
+            sort: com.riffle.core.catalog.SortKey,
+            page: Int,
+            pageSize: Int,
+            facet: com.riffle.core.catalog.FacetSelection?,
+        ): List<com.riffle.core.catalog.CatalogItem> = emptyList()
+        override suspend fun search(rootId: String, query: String, page: Int, pageSize: Int) = emptyList<com.riffle.core.catalog.CatalogItem>()
+        override suspend fun getItem(itemId: String): com.riffle.core.catalog.CatalogItem? = null
+        override suspend fun fetchFile(itemId: String, format: com.riffle.core.catalog.BookFormat) = throw UnsupportedOperationException()
+        override suspend fun openFile(itemId: String, format: com.riffle.core.catalog.BookFormat, handleHint: String?) = throw UnsupportedOperationException()
+        override suspend fun connectivityCheck() = com.riffle.core.catalog.CatalogHealth(isReachable = true)
+    }
 
     @Test
     fun `redirectToLibrary emits next visible library when active library is hidden`() = runTest(testDispatcher) {
@@ -390,5 +415,30 @@ class NavigationDrawerViewModelTest {
         testScheduler.advanceUntilIdle()
 
         assertEquals(mapOf("srv-1" to "1.2.3"), vm.serverVersions.value)
+    }
+
+    // Regression for issue #507: LocalFiles sessions must not render the drawer's "Downloads" nav
+    // link — tapping it would land on an empty destination (nothing to download from a Source
+    // whose files are already on the device).
+    @Test
+    fun `showDownloadsLink is false when active Catalog lacks DownloadsCapability`() = runTest(testDispatcher) {
+        serversFlow.value = listOf(server("srv-1", active = true))
+
+        val vm = makeVm(catalogRegistry = fakeCatalogRegistry(catalog = NonDownloadsCatalog))
+        backgroundScope.launch { vm.showDownloadsLink.collect {} }
+        testScheduler.advanceUntilIdle()
+
+        assertEquals(false, vm.showDownloadsLink.value)
+    }
+
+    @Test
+    fun `showDownloadsLink is true when active Catalog declares DownloadsCapability`() = runTest(testDispatcher) {
+        serversFlow.value = listOf(server("srv-1", active = true))
+
+        val vm = makeVm(catalogRegistry = fakeCatalogRegistry(catalog = DownloadsCatalog))
+        backgroundScope.launch { vm.showDownloadsLink.collect {} }
+        testScheduler.advanceUntilIdle()
+
+        assertEquals(true, vm.showDownloadsLink.value)
     }
 }

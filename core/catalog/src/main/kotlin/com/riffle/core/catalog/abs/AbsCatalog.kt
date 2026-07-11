@@ -24,13 +24,17 @@ import com.riffle.core.catalog.CatalogSessionHandle
 import com.riffle.core.catalog.CatalogStats
 import com.riffle.core.catalog.CfiDialect
 import com.riffle.core.catalog.CollectionsCapability
+import com.riffle.core.catalog.DownloadsCapability
 import com.riffle.core.catalog.OfflineBrowseCapability
 import com.riffle.core.catalog.PlaylistsCapability
 import com.riffle.core.catalog.ProgressPeerCapability
+import com.riffle.core.catalog.ReadCapability
+import com.riffle.core.catalog.ReadaloudCapability
 import com.riffle.core.catalog.ReadingSessionsCapability
 import com.riffle.core.catalog.SeriesCapability
 import com.riffle.core.catalog.SortKey
 import com.riffle.core.catalog.StatsCapability
+import com.riffle.core.catalog.ToReadListCapability
 import com.riffle.core.domain.AudiobookFingerprint
 import com.riffle.core.domain.Clock
 import com.riffle.core.domain.EbookFormat
@@ -83,7 +87,11 @@ class AbsCatalog(
     StatsCapability,
     AudiobookMediaCapability,
     BookmarksCapability,
-    OfflineBrowseCapability {
+    OfflineBrowseCapability,
+    DownloadsCapability,
+    ReadaloudCapability,
+    ToReadListCapability,
+    ReadCapability {
 
     override val sourceType: SourceType = SourceType.ABS
 

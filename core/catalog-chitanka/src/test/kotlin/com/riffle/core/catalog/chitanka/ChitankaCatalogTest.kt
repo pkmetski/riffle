@@ -1,9 +1,23 @@
 package com.riffle.core.catalog.chitanka
 
+import com.riffle.core.catalog.AudiobookMediaCapability
 import com.riffle.core.catalog.BookFormat
+import com.riffle.core.catalog.BookmarksCapability
 import com.riffle.core.catalog.CatalogAudioTrack
 import com.riffle.core.catalog.CatalogFacet
+import com.riffle.core.catalog.CollectionsCapability
+import com.riffle.core.catalog.DownloadsCapability
 import com.riffle.core.catalog.FacetSelection
+import com.riffle.core.catalog.OfflineBrowseCapability
+import com.riffle.core.catalog.PlaylistsCapability
+import com.riffle.core.catalog.ProgressPeerCapability
+import com.riffle.core.catalog.ReadCapability
+import com.riffle.core.catalog.ReadaloudCapability
+import com.riffle.core.catalog.ReadingSessionsCapability
+import com.riffle.core.catalog.SeriesCapability
+import com.riffle.core.catalog.StatsCapability
+import com.riffle.core.catalog.ToReadListCapability
+import com.riffle.core.catalog.has
 import kotlinx.coroutines.test.runTest
 import okhttp3.OkHttpClient
 import okhttp3.mockwebserver.Dispatcher
@@ -50,6 +64,25 @@ class ChitankaCatalogTest {
             retryDelaysMs = emptyList(),
         )
         return ChitankaCatalog(http = http)
+    }
+
+    @Test
+    fun `capability shape`() {
+        val c = catalog()
+        assertTrue(c.has<SeriesCapability>())
+        assertTrue(c.has<AudiobookMediaCapability>())
+        assertTrue(c.has<OfflineBrowseCapability>())
+        assertTrue(c.has<DownloadsCapability>())
+        assertTrue(c.has<ToReadListCapability>())
+        assertTrue(c.has<ReadCapability>())
+        // Not implemented on Chitanka:
+        assertTrue(!c.has<CollectionsCapability>())
+        assertTrue(!c.has<PlaylistsCapability>())
+        assertTrue(!c.has<ProgressPeerCapability>())
+        assertTrue(!c.has<ReadingSessionsCapability>())
+        assertTrue(!c.has<StatsCapability>())
+        assertTrue(!c.has<BookmarksCapability>())
+        assertTrue(!c.has<ReadaloudCapability>())
     }
 
     @Test

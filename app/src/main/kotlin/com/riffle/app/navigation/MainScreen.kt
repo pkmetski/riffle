@@ -97,6 +97,7 @@ fun MainScreen(
     val allServers by viewModel.allServers.collectAsState()
     val visibleLibraries by viewModel.visibleLibraries.collectAsState()
     val serverVersions by viewModel.serverVersions.collectAsState()
+    val showDownloadsLink by viewModel.showDownloadsLink.collectAsState()
 
     val currentBackStack by navController.currentBackStackEntryAsState()
     val activeLibraryId = currentBackStack
@@ -148,6 +149,7 @@ fun MainScreen(
         visibleLibraries = visibleLibraries,
         activeLibraryId = activeLibraryId,
         serverVersions = serverVersions,
+        showDownloadsLink = showDownloadsLink,
         onServerSelected = { server ->
             viewModel.setActiveServer(server.id)
             scope.launch { drawerState.close() }
