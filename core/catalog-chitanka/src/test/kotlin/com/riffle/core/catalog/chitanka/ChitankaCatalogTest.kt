@@ -1,6 +1,7 @@
 package com.riffle.core.catalog.chitanka
 
 import com.riffle.core.catalog.BookFormat
+import com.riffle.core.catalog.CatalogAudioTrack
 import com.riffle.core.catalog.CatalogFacet
 import com.riffle.core.catalog.FacetSelection
 import kotlinx.coroutines.test.runTest
@@ -89,6 +90,35 @@ class ChitankaCatalogTest {
         val url = "https://gramofonche.chitanka.info/prikazki/foo/track-1.mp3"
         val cat = catalog()
         assertEquals(url, cat.buildStreamUrl("prikazki/foo", url))
+    }
+
+    @Test
+    fun `buildAudiobookStream totalDurationSec sums per-track durations`() {
+        // Regression: openAudiobook used to hardcode totalDurationSec = 0.0, which collapsed the
+        // audiobook player's timeline math (AbsolutePositionPlayer falls back to ExoPlayer's
+        // per-track duration when the total is 0) and left the UI's total time stuck at 0.
+        val tracks = listOf(
+            CatalogAudioTrack(
+                ino = "https://gramofonche.chitanka.info/prikazki/foo/a.mp3",
+                index = 0,
+                startOffsetSec = 0.0,
+                durationSec = 1200.0,
+                contentUrl = "https://gramofonche.chitanka.info/prikazki/foo/a.mp3",
+                mimeType = "audio/mpeg",
+            ),
+            CatalogAudioTrack(
+                ino = "https://gramofonche.chitanka.info/prikazki/foo/b.mp3",
+                index = 1,
+                startOffsetSec = 1200.0,
+                durationSec = 900.5,
+                contentUrl = "https://gramofonche.chitanka.info/prikazki/foo/b.mp3",
+                mimeType = "audio/mpeg",
+            ),
+        )
+        val stream = ChitankaCatalog.buildAudiobookStream(tracks)
+        assertEquals(2100.5, stream.totalDurationSec, 1e-9)
+        assertEquals(tracks.map { it.contentUrl }, stream.trackUrls)
+        assertTrue(stream.chapters.isEmpty())
     }
 
     @Test

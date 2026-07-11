@@ -402,14 +402,7 @@ class ChitankaCatalog(
     override suspend fun openAudiobook(itemId: String, deviceLabel: String): CatalogAudiobookStream? {
         val tracks = getTracks(itemId)
         if (tracks.isEmpty()) return null
-        return CatalogAudiobookStream(
-            trackUrls = tracks.map { it.contentUrl },
-            tracks = tracks,
-            chapters = emptyList(),          // no chapter markers on Gramofonche — track-nav suffices
-            totalDurationSec = 0.0,          // unknown until playback begins
-            serverCurrentTimeSec = 0.0,      // no server-side position for Chitanka
-            serverLastUpdate = 0L,
-        )
+        return buildAudiobookStream(tracks)
     }
 
     override suspend fun getAudiobookChapters(itemId: String): List<CatalogAudiobookChapter> {
@@ -472,6 +465,22 @@ class ChitankaCatalog(
             CatalogFacet(key = "pesnicki", label = "Песнички", sortOrder = 2),
             CatalogFacet(key = "zagolemi", label = "За по-големи", sortOrder = 3),
         )
+
+        /**
+         * Assembles a Gramofonche audiobook stream from its per-track spans. The total duration
+         * is the sum of track durations — leaving it at 0 makes the player's timeline math
+         * collapse (AbsolutePositionPlayer falls back to ExoPlayer's per-track duration, so the
+         * UI shows 0 until the current track resolves and never reflects the whole book).
+         */
+        internal fun buildAudiobookStream(tracks: List<CatalogAudioTrack>): CatalogAudiobookStream =
+            CatalogAudiobookStream(
+                trackUrls = tracks.map { it.contentUrl },
+                tracks = tracks,
+                chapters = emptyList(),
+                totalDurationSec = tracks.sumOf { it.durationSec },
+                serverCurrentTimeSec = 0.0,
+                serverLastUpdate = 0L,
+            )
     }
 }
 
