@@ -120,9 +120,77 @@ class ChitankaCatalogTest {
     }
 
     @Test
-    fun `getAudiobookChapters is always empty for chitanka audiobooks`() = runTest {
+    fun `getAudiobookChapters returns empty when the detail page fails to resolve`() = runTest {
+        // No MockWebServer wired for the real gramofonche host, so resolveItem returns null and
+        // the catalog falls back to an empty chapter list — the audiobook player's chapter drawer
+        // stays empty rather than crashing.
         val cat = catalog()
         assertTrue(cat.getAudiobookChapters("prikazki/anything").isEmpty())
+    }
+
+    @Test
+    fun `synthesizeChaptersFromTracks yields one chapter per track with cumulative timing`() {
+        // Gramofonche multi-file books (e.g. `/prikazki/14-malki-bg-prikazki--cd750-kanev-balkanton/`
+        // has 14 stories) should render each MP3 as a separate chapter in the player, mirroring
+        // Audiobookshelf's default multi-file chapter synthesis. Titles come from the anchor text
+        // of each MP3 link.
+        val tracks = listOf(
+            CatalogAudioTrack(
+                ino = "a", index = 0, startOffsetSec = 0.0, durationSec = 900.0,
+                contentUrl = "a", mimeType = "audio/mpeg",
+            ),
+            CatalogAudioTrack(
+                ino = "b", index = 1, startOffsetSec = 900.0, durationSec = 720.5,
+                contentUrl = "b", mimeType = "audio/mpeg",
+            ),
+        )
+        val chapters = ChitankaCatalog.synthesizeChaptersFromTracks(
+            tracks,
+            listOf("Клан-недоклан", "Щъркел и лисица"),
+        )
+        assertEquals(2, chapters.size)
+        assertEquals(0, chapters[0].index)
+        assertEquals(0.0, chapters[0].startSec, 0.0)
+        assertEquals(900.0, chapters[0].endSec, 0.0)
+        assertEquals("Клан-недоклан", chapters[0].title)
+        assertEquals(1, chapters[1].index)
+        assertEquals(900.0, chapters[1].startSec, 0.0)
+        assertEquals(1620.5, chapters[1].endSec, 1e-9)
+        assertEquals("Щъркел и лисица", chapters[1].title)
+    }
+
+    @Test
+    fun `synthesizeChaptersFromTracks falls back to Track N when title is missing`() {
+        // A track without a title in the source anchor (or the titles list too short) still needs a
+        // non-blank chapter row so the drawer doesn't render an empty entry.
+        val tracks = listOf(
+            CatalogAudioTrack(
+                ino = "a", index = 0, startOffsetSec = 0.0, durationSec = 600.0,
+                contentUrl = "a", mimeType = "audio/mpeg",
+            ),
+        )
+        val chapters = ChitankaCatalog.synthesizeChaptersFromTracks(tracks, emptyList())
+        assertEquals("Track 1", chapters[0].title)
+    }
+
+    @Test
+    fun `buildAudiobookStream populates chapters from track titles`() {
+        // Regression: openAudiobook used to hardcode chapters = emptyList(), so the chapter drawer
+        // never showed the per-story track list for multi-file gramofonche books.
+        val tracks = listOf(
+            CatalogAudioTrack(
+                ino = "a", index = 0, startOffsetSec = 0.0, durationSec = 900.0,
+                contentUrl = "a", mimeType = "audio/mpeg",
+            ),
+            CatalogAudioTrack(
+                ino = "b", index = 1, startOffsetSec = 900.0, durationSec = 720.0,
+                contentUrl = "b", mimeType = "audio/mpeg",
+            ),
+        )
+        val stream = ChitankaCatalog.buildAudiobookStream(tracks, listOf("Клан-недоклан", "Щъркел и лисица"))
+        assertEquals(2, stream.chapters.size)
+        assertEquals("Клан-недоклан", stream.chapters[0].title)
+        assertEquals("Щъркел и лисица", stream.chapters[1].title)
     }
 
     /**
@@ -244,7 +312,10 @@ class ChitankaCatalogTest {
         val stream = ChitankaCatalog.buildAudiobookStream(tracks)
         assertEquals(2100.5, stream.totalDurationSec, 1e-9)
         assertEquals(tracks.map { it.contentUrl }, stream.trackUrls)
-        assertTrue(stream.chapters.isEmpty())
+        // Without explicit titles, chapters still fill in with "Track N" placeholders — one per
+        // track — so the chapter drawer never renders blank.
+        assertEquals(2, stream.chapters.size)
+        assertEquals(listOf("Track 1", "Track 2"), stream.chapters.map { it.title })
     }
 
     @Test

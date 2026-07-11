@@ -58,7 +58,13 @@ class ChitankaBrowseViewModelTest {
         rootId: String = ChitankaCatalog.ROOT_BOOKS,
         upserter: ChitankaLibraryItemUpserter = mockk(relaxed = true),
         sourceRepo: SourceRepository = fakeSourceRepo(chitankaSource),
-        catalog: Catalog = mockk<Catalog>(relaxed = true),
+        catalog: Catalog = mockk<Catalog>(relaxed = true).also {
+            // Relaxed mocks return a stub CatalogItem instead of null for `getItem`, which breaks
+            // the openDetail enrichment fallback in tests that don't explicitly stub it. Pin to
+            // null so the fallback lands on the listing item as it does at runtime for legacy
+            // sources without detail-page metadata.
+            coEvery { it.getItem(any()) } returns null
+        },
     ): ChitankaBrowseViewModel {
         val registry = mockk<CatalogRegistry>()
         coEvery { registry.forSource(any()) } returns catalog
@@ -135,6 +141,53 @@ class ChitankaBrowseViewModelTest {
         coVerify(exactly = 1) { upserter.upsert("chit-1", item) }
         val event = emitted.await()
         assertEquals("prikazki/1-slug", event.itemId)
+    }
+
+    @Test
+    fun `openDetail upserts the detail-enriched item so description reaches the DB row`() = runTest(dispatcher) {
+        // Regression: listing CatalogItems have description=null (ChitankaScraper.parseSearchResults
+        // never fills it). Before the enrichment call the upserter wrote null into `library_items`
+        // and the detail screen — which reads the DB via LibraryObserver.getItem — showed no summary
+        // even though ChitankaScraper.parseDetailPage would have surfaced one. If this ever regresses,
+        // gramofonche AND chitanka book summaries silently disappear from the details screen.
+        val upserter = mockk<ChitankaLibraryItemUpserter>(relaxed = true)
+        val listingItem = catalogEpub()  // description = null
+        val enrichedItem = listingItem.copy(
+            description = "Роман на Иван Вазов…",
+            publishedYear = "1889",
+        )
+        val catalog = mockk<Catalog>(relaxed = true)
+        coEvery { catalog.getItem(listingItem.id) } returns enrichedItem
+
+        val vm = makeVm(rootId = ChitankaCatalog.ROOT_BOOKS, upserter = upserter, catalog = catalog)
+        advanceUntilIdle()
+
+        val emitted = backgroundScope.async(dispatcher) { vm.openDetailEvents.first() }
+        vm.openDetail(listingItem)
+        advanceUntilIdle()
+
+        coVerify(exactly = 1) { upserter.upsert("chit-1", enrichedItem) }
+        assertEquals(listingItem.id, emitted.await().itemId)
+    }
+
+    @Test
+    fun `openDetail falls back to the listing item when catalog getItem throws`() = runTest(dispatcher) {
+        // Offline / transient 429 on the detail page must not swallow the tap — the user still sees
+        // the detail screen, just without the enriched fields, and can retry from there.
+        val upserter = mockk<ChitankaLibraryItemUpserter>(relaxed = true)
+        val listingItem = catalogEpub()
+        val catalog = mockk<Catalog>(relaxed = true)
+        coEvery { catalog.getItem(listingItem.id) } throws java.io.IOException("boom")
+
+        val vm = makeVm(rootId = ChitankaCatalog.ROOT_BOOKS, upserter = upserter, catalog = catalog)
+        advanceUntilIdle()
+
+        val emitted = backgroundScope.async(dispatcher) { vm.openDetailEvents.first() }
+        vm.openDetail(listingItem)
+        advanceUntilIdle()
+
+        coVerify(exactly = 1) { upserter.upsert("chit-1", listingItem) }
+        assertEquals(listingItem.id, emitted.await().itemId)
     }
 
     @Test

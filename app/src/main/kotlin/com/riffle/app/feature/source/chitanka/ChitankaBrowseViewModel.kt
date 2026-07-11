@@ -166,13 +166,21 @@ class ChitankaBrowseViewModel @Inject constructor(
      * it via `LibraryObserver.getItem`, then emit an [OpenDetailEvent] the screen collects to
      * navigate. No-op when there is no active Chitanka Source — the screen route wouldn't
      * have been reachable, but guard defensively.
+     *
+     * Listing [CatalogItem]s carry only the columns that the search-results HTML exposes
+     * (`ChitankaBookSummary.toCatalogItem` sets description/series/year/genres to null). The
+     * detail page is where the annotation, series, year and genres live, so fetch it via
+     * [Catalog.getItem] first and upsert the enriched item — otherwise the item-detail screen
+     * reads a DB row with description = null and renders no summary. Falls back to the listing
+     * item if the detail fetch fails (offline, transient 429) so navigation still happens.
      */
     fun openDetail(item: CatalogItem) {
         viewModelScope.launch {
             val source = sourceRepository.getActive()
                 ?.takeIf { it.type == SourceType.CHITANKA }
                 ?: return@launch
-            libraryItemUpserter.upsert(source.id, item)
+            val enriched = runCatching { activeCatalog()?.getItem(item.id) }.getOrNull() ?: item
+            libraryItemUpserter.upsert(source.id, enriched)
             _openDetailEvents.emit(OpenDetailEvent(itemId = item.id))
         }
     }
