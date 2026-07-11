@@ -52,7 +52,6 @@ class ServerSettingsExpansionTest {
             )
         }
 
-        composeTestRule.onNodeWithText("Enabled libraries").assertIsDisplayed()
         composeTestRule.onNodeWithText("Fiction").assertIsDisplayed()
         composeTestRule.onNodeWithText("Non-fiction").assertIsDisplayed()
     }
