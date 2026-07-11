@@ -15,15 +15,23 @@ internal object ChitankaScraper {
 
     const val BASE = "https://chitanka.info"
 
-    /** Resolves relative hrefs against [BASE]; percent-encodes non-ASCII as needed. */
+    /**
+     * Resolves relative hrefs against [BASE]; percent-encodes non-ASCII as needed. Gramofonche
+     * mp3 anchors carry raw spaces in the filename (e.g. `1-Vremeto na prabogovete.mp3`), which
+     * [URI] rejects with `IllegalArgumentException` — encode them to `%20` up front so the parse
+     * succeeds and the resulting URL is actually usable by OkHttp. Without this, HEAD-based
+     * per-track duration probing collapses to 0 for any book whose filenames contain spaces and
+     * the chapter drawer renders every entry as `0:00 / 0m`.
+     */
     internal fun toAbsolute(href: String?, pageUrl: String = "$BASE/"): String {
         if (href.isNullOrEmpty()) return ""
         if (href.startsWith("http")) return href
         if (href.startsWith("//")) return "https:$href"
+        val safeHref = href.replace(" ", "%20")
         return try {
-            URI(pageUrl).resolve(href).toASCIIString()
+            URI(pageUrl).resolve(safeHref).toASCIIString()
         } catch (_: Exception) {
-            "$BASE${if (href.startsWith("/")) href else "/$href"}"
+            "$BASE${if (safeHref.startsWith("/")) safeHref else "/$safeHref"}"
         }
     }
 

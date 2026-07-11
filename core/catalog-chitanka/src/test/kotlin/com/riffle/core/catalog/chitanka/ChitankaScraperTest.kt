@@ -97,6 +97,21 @@ class ChitankaScraperTest {
     }
 
     @Test
+    fun `toAbsolute percent-encodes raw spaces in relative hrefs`() {
+        // Gramofonche mp3 anchors carry raw spaces in the filename (e.g. grycki-legendi book).
+        // Without space→%20 pre-encoding, URI.resolve throws and the fallback produces a URL
+        // with literal spaces that OkHttp cannot parse — so per-track HEAD probes fail and every
+        // chapter renders as 0:00 / 0m in the drawer. Assertion would flip red on revert.
+        assertEquals(
+            "https://gramofonche.chitanka.info/prikazki/grycki-legendi/dir/1-Vremeto%20na%20prabogovete.mp3",
+            ChitankaScraper.toAbsolute(
+                "./dir/1-Vremeto na prabogovete.mp3",
+                pageUrl = "https://gramofonche.chitanka.info/prikazki/grycki-legendi/",
+            ),
+        )
+    }
+
+    @Test
     fun `empty href returns empty absolute`() {
         assertEquals("", ChitankaScraper.toAbsolute(null))
         assertEquals("", ChitankaScraper.toAbsolute(""))
