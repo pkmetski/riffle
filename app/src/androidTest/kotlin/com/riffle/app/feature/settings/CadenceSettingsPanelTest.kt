@@ -9,6 +9,8 @@ import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.riffle.app.feature.settings.panels.AutoScrollSettingsPanel
+import com.riffle.app.feature.settings.panels.CadenceSettingsPanel
 import com.riffle.core.domain.FormattingPreferences
 import com.riffle.core.domain.HighlightColor
 import org.junit.Assert.assertEquals

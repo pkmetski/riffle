@@ -8,6 +8,7 @@ import androidx.compose.ui.test.onFirst
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import com.riffle.app.feature.settings.sections.ServerSettingsExpansion
 import com.riffle.core.domain.Library
 import com.riffle.core.domain.Source
 import com.riffle.core.domain.ServerType

@@ -44,8 +44,10 @@ import com.riffle.app.feature.server.SelectLibrariesScreen
 import com.riffle.app.feature.server.SourceSetupViewModel
 import com.riffle.app.feature.settings.SettingsScreen
 import com.riffle.app.feature.settings.annotationsync.AnnotationSyncMaintenanceScreen
+import com.riffle.app.feature.settings.annotationsync.AnnotationsSyncSettingsScreen
 import com.riffle.app.feature.settings.debug.DebugLogScreen
 import com.riffle.app.feature.settings.readaloud.ReadaloudMatchesScreen
+import com.riffle.app.feature.settings.readaloud.ReadaloudSettingsScreen
 import com.riffle.app.playback.NowPlaying
 import com.riffle.app.ui.isTabletLayout
 import kotlinx.coroutines.launch
@@ -62,6 +64,8 @@ private const val ADD_SOURCE = "add_source"
 private const val ADD_SOURCE_ROUTE = "add_source?type={type}&editId={editId}"
 private const val SELECT_LIBRARIES = "select_libraries"
 private const val SETTINGS = "settings"
+private const val READALOUD_SETTINGS = "settings/readaloud"
+private const val ANNOTATIONS_SYNC_SETTINGS = "settings/annotation_sync"
 private const val ANNOTATION_SYNC_MAINTENANCE = "settings/annotation_sync/maintenance"
 private const val DEBUG_LOGS = "settings/debug_logs"
 private const val READALOUD_MATCHES = "readaloud_matches/{sourceId}?pairBookId={pairBookId}"
@@ -381,12 +385,38 @@ fun MainScreen(
                         }
                     },
                     onNavigateToAddLocalFolder = { navController.navigate(ADD_LOCAL_FILES) },
+                    onNavigateToReadaloudSettings = { navController.navigate(READALOUD_SETTINGS) },
+                    onNavigateToAnnotationsSyncSettings = { navController.navigate(ANNOTATIONS_SYNC_SETTINGS) },
+                    onNavigateToDebugLogs = { navController.navigate(DEBUG_LOGS) },
+                )
+            }
+            composable(READALOUD_SETTINGS) {
+                ReadaloudSettingsScreen(
+                    onNavigateBack = { navController.popBackStack() },
+                    onNavigateToAddSource = { backend, editId ->
+                        val params = buildList {
+                            add("type=${backend.name.lowercase()}")
+                            if (!editId.isNullOrEmpty()) add("editId=${URLEncoder.encode(editId, "UTF-8")}")
+                        }.joinToString("&")
+                        navController.navigate("$ADD_SOURCE?$params")
+                    },
                     onNavigateToReadaloudMatches = { sourceId ->
                         val encoded = URLEncoder.encode(sourceId, "UTF-8")
                         navController.navigate("readaloud_matches/$encoded")
                     },
-                    onNavigateToAnnotationSyncMaintenance = { navController.navigate(ANNOTATION_SYNC_MAINTENANCE) },
-                    onNavigateToDebugLogs = { navController.navigate(DEBUG_LOGS) },
+                )
+            }
+            composable(ANNOTATIONS_SYNC_SETTINGS) {
+                AnnotationsSyncSettingsScreen(
+                    onNavigateBack = { navController.popBackStack() },
+                    onNavigateToAddSource = { backend, editId ->
+                        val params = buildList {
+                            add("type=${backend.name.lowercase()}")
+                            if (!editId.isNullOrEmpty()) add("editId=${URLEncoder.encode(editId, "UTF-8")}")
+                        }.joinToString("&")
+                        navController.navigate("$ADD_SOURCE?$params")
+                    },
+                    onNavigateToMaintenance = { navController.navigate(ANNOTATION_SYNC_MAINTENANCE) },
                 )
             }
             composable(ANNOTATION_SYNC_MAINTENANCE) {

@@ -9,6 +9,7 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipeLeft
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.riffle.app.feature.settings.sections.ChitankaSourceRow
 import com.riffle.core.domain.Library
 import org.junit.Assert.assertTrue
 import org.junit.Rule
