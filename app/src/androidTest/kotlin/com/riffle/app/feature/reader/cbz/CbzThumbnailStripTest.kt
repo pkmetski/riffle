@@ -38,11 +38,11 @@ class CbzThumbnailStripTest {
         composeTestRule.onNodeWithTag("cbz_thumbnail_strip").assertExists()
         composeTestRule.onNodeWithTag("cbz_thumb_0").assertExists()
 
-        // 40dp thumbs at a start-aligned LazyRow — index 5 sits well inside the initial
+        // 64dp thumbs at a start-aligned LazyRow — index 3 sits well inside the initial
         // viewport on the ~320dp+ harness screen.
-        composeTestRule.onNodeWithTag("cbz_thumb_5").performClick()
+        composeTestRule.onNodeWithTag("cbz_thumb_3").performClick()
 
-        assertEquals(5, lastSeek)
+        assertEquals(3, lastSeek)
     }
 }
 

@@ -5,8 +5,11 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.calculatePan
+import androidx.compose.foundation.gestures.calculateZoom
 import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -15,6 +18,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyRow
@@ -251,15 +255,36 @@ private fun CbzPage(
                 )
             }
             .pointerInput(pageIndex) {
-                detectTransformGestures { _, pan, zoom, _ ->
-                    scale = (scale * zoom).coerceIn(1f, 5f)
-                    if (scale > 1f) {
-                        offsetX += pan.x
-                        offsetY += pan.y
-                    } else {
-                        offsetX = 0f
-                        offsetY = 0f
-                    }
+                // A single-finger drag at scale=1 must fall through to HorizontalPager
+                // so swipe-to-turn works. See [cbzPageGestureAction].
+                awaitEachGesture {
+                    awaitFirstDown(requireUnconsumed = false)
+                    do {
+                        val event = awaitPointerEvent()
+                        val pointerCount = event.changes.count { it.pressed }
+                        when (cbzPageGestureAction(pointerCount, scale)) {
+                            CbzPageGestureAction.Zoom -> {
+                                val zoom = event.calculateZoom()
+                                val pan = event.calculatePan()
+                                scale = (scale * zoom).coerceIn(1f, 5f)
+                                if (scale > 1f) {
+                                    offsetX += pan.x
+                                    offsetY += pan.y
+                                } else {
+                                    offsetX = 0f
+                                    offsetY = 0f
+                                }
+                                event.changes.forEach { it.consume() }
+                            }
+                            CbzPageGestureAction.PanZoomed -> {
+                                val pan = event.calculatePan()
+                                offsetX += pan.x
+                                offsetY += pan.y
+                                event.changes.forEach { it.consume() }
+                            }
+                            CbzPageGestureAction.Ignore -> Unit
+                        }
+                    } while (event.changes.any { it.pressed })
                 }
             },
         contentAlignment = Alignment.Center,
@@ -294,7 +319,7 @@ internal fun CbzThumbnailStrip(
 
     LaunchedEffect(currentPage) {
         val viewport = listState.layoutInfo.viewportEndOffset - listState.layoutInfo.viewportStartOffset
-        // Centre the current thumb: item width ~= 40dp, and viewport is in px. If layout hasn't happened
+        // Centre the current thumb: item width ~= 64dp, and viewport is in px. If layout hasn't happened
         // yet (viewport == 0) fall back to scrollToItem with a small leading offset so the animation
         // becomes meaningful once measured.
         val leading = if (viewport > 0) -(viewport / 2) else 0
@@ -305,6 +330,7 @@ internal fun CbzThumbnailStrip(
         modifier = Modifier
             .fillMaxWidth()
             .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.9f))
+            .navigationBarsPadding()
             .padding(vertical = 8.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
@@ -347,7 +373,7 @@ private fun CbzThumbnail(
     val borderColor = if (isCurrent) MaterialTheme.colorScheme.primary else Color.Transparent
     Box(
         modifier = Modifier
-            .size(width = 40.dp, height = 56.dp)
+            .size(width = 88.dp, height = 120.dp)
             .background(Color(0xFF1A1A1A), RoundedCornerShape(2.dp))
             .border(width = 2.dp, color = borderColor, shape = RoundedCornerShape(2.dp))
             .clickable { onClick() }
@@ -358,7 +384,7 @@ private fun CbzThumbnail(
             AsyncImage(
                 model = ImageRequest.Builder(context)
                     .data(currentBytes)
-                    .size(CoilSize(120, 168))
+                    .size(CoilSize(264, 360))
                     .crossfade(false)
                     .build(),
                 contentDescription = null,
@@ -369,3 +395,17 @@ private fun CbzThumbnail(
 }
 
 private enum class TapZone { Left, Center, Right }
+
+internal enum class CbzPageGestureAction { Ignore, Zoom, PanZoomed }
+
+/**
+ * Decides how the per-page pointer handler should react to an event.
+ *
+ * The critical case is [Ignore]: a single-finger drag at scale=1 must NOT consume
+ * pointer events, so `HorizontalPager` receives the swipe and turns the page.
+ */
+internal fun cbzPageGestureAction(pointerCount: Int, scale: Float): CbzPageGestureAction = when {
+    pointerCount >= 2 -> CbzPageGestureAction.Zoom
+    pointerCount == 1 && scale > 1f -> CbzPageGestureAction.PanZoomed
+    else -> CbzPageGestureAction.Ignore
+}
