@@ -71,9 +71,19 @@ class DetailRouteEncodingTest {
     }
 
     @Test
-    fun `libraryEntryRoute for an unbounded catalogue lands on the remote-browse screen`() {
+    fun `libraryEntryRoute for Chitanka lands on chitanka_browse`() {
         val route = libraryEntryRoute(SourceType.CHITANKA, "books", "Chitanka")
         assertEquals("chitanka_browse/books/Chitanka", route)
+    }
+
+    @Test
+    fun `libraryEntryRoute for Gutenberg lands on gutenberg_browse`() {
+        // Each unbounded Source owns its own remote-browse route — a regression that collapsed
+        // this back to `chitanka_browse` (the historical single-unbounded-route era) would land
+        // Gutenberg users on the Chitanka screen, which reads the active source as CHITANKA and
+        // therefore renders an empty grid.
+        val route = libraryEntryRoute(SourceType.GUTENBERG, "books", "Project Gutenberg")
+        assertEquals("gutenberg_browse/books/Project+Gutenberg", route)
     }
 
     @Test
@@ -96,12 +106,14 @@ class DetailRouteEncodingTest {
     }
 
     @Test
-    fun `SourceType isUnboundedCatalog flag is set exactly for CHITANKA`() {
-        // The flag is what the dispatch keys on — if a future source gets the flag by accident,
-        // the whole entry point would silently switch to remote-browse.
+    fun `SourceType isUnboundedCatalog flag is set for CHITANKA and GUTENBERG`() {
+        // The flag is what LibraryRepositoryImpl.refreshLibraryItems keys on to skip the Room
+        // mirror. If a bounded Source flipped the flag by accident, refresh would silently no-op
+        // and the ABS-shaped grid would render stale data forever.
         assertEquals(false, SourceType.ABS.isUnboundedCatalog)
         assertEquals(false, SourceType.LOCAL_FILES.isUnboundedCatalog)
         assertEquals(true, SourceType.CHITANKA.isUnboundedCatalog)
+        assertEquals(true, SourceType.GUTENBERG.isUnboundedCatalog)
     }
 
     @Test

@@ -109,7 +109,7 @@ interface LibraryItemDao {
     fun observeFinished(sourceId: String, libraryId: String): Flow<List<LibraryItemEntity>>
 
     // `addedAt > 0` filters out sentinel rows written by on-demand browse upserters
-    // (e.g. ChitankaLibraryItemUpserter). A tap-through-the-browser is not intent to add the book
+    // (e.g. WebSourceLibraryItemUpserter). A tap-through-the-browser is not intent to add the book
     // to the library — the row exists only so the reader can resolve the item. updateLastOpenedAt
     // promotes the sentinel to a real timestamp on the first reader open.
     @Query("SELECT * FROM library_items WHERE sourceId = :sourceId AND libraryId = :libraryId AND addedAt > 0 ORDER BY addedAt DESC")
@@ -119,7 +119,7 @@ interface LibraryItemDao {
     fun observeAllBooks(sourceId: String, libraryId: String): Flow<List<LibraryItemEntity>>
 
     // Opening the reader is the strong-intent signal that promotes a browse-cached row (addedAt = 0
-    // sentinel, written by on-demand upserters like ChitankaLibraryItemUpserter) into "genuinely
+    // sentinel, written by on-demand upserters like WebSourceLibraryItemUpserter) into "genuinely
     // added" so it surfaces in Recently Added. Rows with a real addedAt keep their original stamp.
     @Query(
         "UPDATE library_items SET lastOpenedAt = :timestamp, " +

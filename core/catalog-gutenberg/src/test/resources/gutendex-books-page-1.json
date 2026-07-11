@@ -1,0 +1,69 @@
+{
+  "count": 70000,
+  "next": "https://gutendex.com/books/?page=2",
+  "previous": null,
+  "results": [
+    {
+      "id": 1342,
+      "title": "Pride and Prejudice",
+      "authors": [
+        { "name": "Austen, Jane", "birth_year": 1775, "death_year": 1817 }
+      ],
+      "translators": [],
+      "subjects": [
+        "England -- Social life and customs -- 19th century -- Fiction",
+        "Love stories",
+        "Sisters -- Fiction"
+      ],
+      "bookshelves": ["Best Books Ever Listings"],
+      "languages": ["en"],
+      "copyright": false,
+      "media_type": "Text",
+      "formats": {
+        "application/epub+zip": "https://www.gutenberg.org/ebooks/1342.epub3.images",
+        "image/jpeg": "https://www.gutenberg.org/cache/epub/1342/pg1342.cover.medium.jpg",
+        "text/html": "https://www.gutenberg.org/ebooks/1342.html"
+      },
+      "download_count": 68901,
+      "summaries": [
+        "Pride and Prejudice, by Jane Austen, is a classic romance novel."
+      ]
+    },
+    {
+      "id": 84,
+      "title": "Frankenstein; Or, The Modern Prometheus",
+      "authors": [
+        { "name": "Shelley, Mary Wollstonecraft", "birth_year": 1797, "death_year": 1851 }
+      ],
+      "translators": [],
+      "subjects": ["Gothic fiction", "Horror tales"],
+      "bookshelves": ["Gothic Fiction"],
+      "languages": ["en"],
+      "copyright": false,
+      "media_type": "Text",
+      "formats": {
+        "application/epub+zip; charset=utf-8": "https://www.gutenberg.org/ebooks/84.epub3.images",
+        "image/jpeg": "https://www.gutenberg.org/cache/epub/84/pg84.cover.medium.jpg"
+      },
+      "download_count": 55123,
+      "summaries": []
+    },
+    {
+      "id": 999999,
+      "title": "Missing EPUB Title",
+      "authors": [
+        { "name": "Doe, Unknown" }
+      ],
+      "translators": [],
+      "subjects": ["Test data"],
+      "bookshelves": [],
+      "languages": ["en"],
+      "copyright": false,
+      "media_type": "Text",
+      "formats": {
+        "text/html": "https://www.gutenberg.org/ebooks/999999.html"
+      },
+      "download_count": 0
+    }
+  ]
+}

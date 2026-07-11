@@ -95,6 +95,12 @@ Every fix or new feature must be validated as actually working before it is mark
 
 JVM unit tests alone are not sufficient validation for anything that touches Readium, the WebView, or device-layer code.
 
+## After two failed fix attempts, verify on AVD before claiming a fix
+
+If a reported bug has survived two of your fix attempts (i.e. the user reproduced it a second time after you claimed it fixed), you must build the APK, install it on the AVD, drive the exact repro path yourself, and confirm the bug is gone before telling the user it's fixed. Do not push a third fix and ask them to test; the verification is on you at that point.
+
+This overrides the general "do not build or install without permission" and "do not touch other emulators" rules for that specific fix cycle — the two failed attempts are the standing authorization. Use your own dedicated AVD by serial (per the ephemeral-AVD/never-touch-other-emulators guidance elsewhere in this file), install the debug APK, and check the repro path with logcat and (for UI bugs) a screenshot. If the third attempt still doesn't work on device, say so explicitly; do not claim it's fixed based on a compile-and-tests-pass signal alone.
+
 ## Always reference constants, never the literal
 
 When a named constant exists for a value (e.g. `AnnotationEntity.TYPE_BOOKMARK = "BOOKMARK"`, `AnnotationEntity.TYPE_HIGHLIGHT`, status codes, mime types, well-known string IDs), use the constant at every call site — including inside string comparisons, when constructing fakes, and in tests. Do not redeclare a local `private const val MIRROR = "BOOKMARK"`, do not paste the literal `"BOOKMARK"` into a comparison, and do not assume the storage value is lowercase / uppercase / camelCase without checking. A typo'd literal silently fails to match the real value but reads as correct in code review — exactly how the `annotation.type == "bookmark"` bug shipped against the database's `"BOOKMARK"`. The same rule applies to tests: a fixture using a literal mirrors a production typo and lets the bug appear green.

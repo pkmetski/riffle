@@ -256,6 +256,19 @@ class SettingsViewModel @Inject constructor(
         chitankaSource.value?.id?.let { removeServer(it) }
     }
 
+    /**
+     * The Project Gutenberg Source row when installed, `null` otherwise. Singleton per device —
+     * same rationale as [chitankaSource]: a credential-less public catalogue has no
+     * disambiguating configuration for a second row.
+     */
+    val gutenbergSource: StateFlow<Source?> = servers
+        .map { list -> list.firstOrNull { it.type == com.riffle.core.domain.SourceType.GUTENBERG } }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+
+    fun removeGutenbergSource() {
+        gutenbergSource.value?.id?.let { removeServer(it) }
+    }
+
     /** Configured folder rows under the LocalFiles Source, reactive. Empty when no source yet. */
     val localFilesFolders: StateFlow<List<LocalFilesFolderEntity>> = localFilesSource
         .flatMapLatest { source ->

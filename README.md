@@ -103,6 +103,7 @@ Riffle lets you browse your library, read EPUB, PDF, and CBZ files, listen to au
 ### Sources
 - **Audiobookshelf** and **Storyteller** self-hosted servers — full read, listen, and sync
 - **Chitanka** (chitanka.info + gramofonche.chitanka.info) — anonymous, zero-config access to the Bulgarian public catalogue of EPUB ebooks and MP3 audiobooks; browsable by category, genre, and series
+- **Project Gutenberg** (via Gutendex) — anonymous, zero-config access to ~70,000 public-domain EPUBs; browsable by language, subject, and author
 - **Local files** — import EPUB, PDF, and CBZ files from device storage and read them alongside your server libraries, with the same reader, highlights, and progress tracking
 
 ### Library
@@ -128,7 +129,7 @@ Riffle lets you browse your library, read EPUB, PDF, and CBZ files, listen to au
 ## Requirements
 
 - Android 7.0 (API 24) or higher
-- One or more of: a running [Audiobookshelf](https://www.audiobookshelf.org/) or [Storyteller](https://storyteller-platform.gitlab.io/storyteller) server, internet access for Chitanka, or EPUB, PDF, or CBZ files on your device
+- One or more of: a running [Audiobookshelf](https://www.audiobookshelf.org/) or [Storyteller](https://storyteller-platform.gitlab.io/storyteller) server, internet access for Chitanka or Project Gutenberg, or EPUB, PDF, or CBZ files on your device
 
 ## Distribution
 

@@ -1,0 +1,24 @@
+{
+  "id": 1342,
+  "title": "Pride and Prejudice",
+  "authors": [
+    { "name": "Austen, Jane", "birth_year": 1775, "death_year": 1817 }
+  ],
+  "translators": [],
+  "subjects": [
+    "England -- Social life and customs -- 19th century -- Fiction",
+    "Love stories"
+  ],
+  "bookshelves": ["Best Books Ever Listings"],
+  "languages": ["en"],
+  "copyright": false,
+  "media_type": "Text",
+  "formats": {
+    "application/epub+zip": "https://www.gutenberg.org/ebooks/1342.epub3.images",
+    "image/jpeg": "https://www.gutenberg.org/cache/epub/1342/pg1342.cover.medium.jpg"
+  },
+  "download_count": 68901,
+  "summaries": [
+    "Pride and Prejudice, by Jane Austen, is a classic romance novel."
+  ]
+}

@@ -60,6 +60,8 @@ private const val ADD_SOURCE_TYPE_PICKER = "add_source_type_picker"
 private const val ADD_LOCAL_FILES = "add_local_files"
 private const val ADD_CHITANKA = "add_chitanka"
 private const val CHITANKA_BROWSE = "chitanka_browse/{libraryId}/{libraryName}"
+private const val ADD_GUTENBERG = "add_gutenberg"
+private const val GUTENBERG_BROWSE = "gutenberg_browse/{libraryId}/{libraryName}"
 private const val ADD_SOURCE = "add_source"
 private const val ADD_SOURCE_ROUTE = "add_source?type={type}&editId={editId}"
 private const val SELECT_LIBRARIES = "select_libraries"
@@ -99,20 +101,24 @@ internal fun collectionDetailRoute(libraryId: String, collectionId: String, coll
 
 /**
  * Dispatches to the correct library entry point for [sourceType]:
- *   - Room-mirrored catalogues (ABS, LocalFiles, …) → `library_items/…`
- *   - Unbounded catalogues (Chitanka today; future OPDS/Gutenberg) → `chitanka_browse/…`,
- *     the remote-browse screen that talks to `Catalog.browse` on demand instead of reading a
- *     pre-populated Room mirror.
+ *   - Room-mirrored catalogues (ABS, LocalFiles) → `library_items/…`
+ *   - Unbounded catalogues → the source's dedicated browse screen. Each unbounded Source owns
+ *     its own remote-browse route (Chitanka, Gutenberg, …) because their pagination, chip
+ *     strip, and item-cards diverge enough that a single generic screen would leak per-Source
+ *     branches everywhere.
  *
- * Keeps the dispatch decision in one place so callers don't need to enumerate [SourceType]s
- * themselves — [SourceType.isUnboundedCatalog] is the only knob a new Source needs to flip.
- * A null [sourceType] (activeServer hasn't resolved yet on cold start) falls back to
- * `library_items`; the drawer will correct on the next selection.
+ * Adding a new unbounded Source means: (1) flip [SourceType.isUnboundedCatalog], (2) add a
+ * branch to this `when`, (3) register the composable at the NavHost. A null [sourceType]
+ * (activeServer hasn't resolved yet on cold start) falls back to `library_items`; the drawer
+ * will correct on the next selection.
  */
 internal fun libraryEntryRoute(sourceType: SourceType?, libraryId: String, libraryName: String): String {
     val encoded = URLEncoder.encode(libraryName, "UTF-8")
-    return if (sourceType?.isUnboundedCatalog == true) "chitanka_browse/$libraryId/$encoded"
-    else "library_items/$libraryId/$encoded"
+    return when (sourceType) {
+        SourceType.CHITANKA -> "chitanka_browse/$libraryId/$encoded"
+        SourceType.GUTENBERG -> "gutenberg_browse/$libraryId/$encoded"
+        SourceType.ABS, SourceType.LOCAL_FILES, null -> "library_items/$libraryId/$encoded"
+    }
 }
 
 @Composable
@@ -230,6 +236,7 @@ fun MainScreen(
                     androidx.hilt.navigation.compose.hiltViewModel()
                 val hasLocalFilesSource by pickerViewModel.hasLocalFilesSource.collectAsState()
                 val hasChitankaSource by pickerViewModel.hasChitankaSource.collectAsState()
+                val hasGutenbergSource by pickerViewModel.hasGutenbergSource.collectAsState()
                 com.riffle.app.feature.server.SourceTypePickerScreen(
                     windowSizeClass = windowSizeClass,
                     onNavigateBack = {
@@ -252,8 +259,14 @@ fun MainScreen(
                             popUpTo(ADD_SOURCE_TYPE_PICKER) { inclusive = true }
                         }
                     },
+                    onPickGutenberg = {
+                        navController.navigate(ADD_GUTENBERG) {
+                            popUpTo(ADD_SOURCE_TYPE_PICKER) { inclusive = true }
+                        }
+                    },
                     hasLocalFilesSource = hasLocalFilesSource,
                     hasChitankaSource = hasChitankaSource,
+                    hasGutenbergSource = hasGutenbergSource,
                 )
             }
             composable(
@@ -282,6 +295,43 @@ fun MainScreen(
                 val cameFromSettings = navController.previousBackStackEntry
                     ?.destination?.route == SETTINGS
                 com.riffle.app.feature.source.chitanka.AddChitankaScreen(
+                    windowSizeClass = windowSizeClass,
+                    onDone = {
+                        if (cameFromSettings) navController.popBackStack()
+                        else navController.navigateAsRoot(HOME)
+                    },
+                    onNavigateBack = {
+                        if (cameFromSettings) navController.popBackStack()
+                        else navController.navigateAsRoot(HOME)
+                    },
+                )
+            }
+            composable(
+                route = GUTENBERG_BROWSE,
+                arguments = listOf(
+                    navArgument("libraryId") { type = NavType.StringType },
+                    navArgument("libraryName") { type = NavType.StringType },
+                ),
+            ) { backStackEntry ->
+                val libraryName = backStackEntry.arguments?.getString("libraryName")
+                    ?.let { URLDecoder.decode(it, "UTF-8") } ?: ""
+                com.riffle.app.feature.source.gutenberg.GutenbergBrowseScreen(
+                    libraryName = libraryName,
+                    windowSizeClass = windowSizeClass,
+                    onOpenDrawer = { scope.launch { drawerState.open() } },
+                    onOpenDetail = { itemId ->
+                        val encodedId = URLEncoder.encode(itemId, "UTF-8")
+                        navController.navigate("library_item_detail/$encodedId")
+                    },
+                    onAnnotatedBookClick = { sourceId, itemId ->
+                        navController.navigate(annotationsBookClickRoute(sourceId, itemId))
+                    },
+                )
+            }
+            composable(ADD_GUTENBERG) {
+                val cameFromSettings = navController.previousBackStackEntry
+                    ?.destination?.route == SETTINGS
+                com.riffle.app.feature.source.gutenberg.AddGutenbergScreen(
                     windowSizeClass = windowSizeClass,
                     onDone = {
                         if (cameFromSettings) navController.popBackStack()

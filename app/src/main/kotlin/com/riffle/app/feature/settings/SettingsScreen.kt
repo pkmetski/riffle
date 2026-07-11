@@ -81,6 +81,7 @@ fun SettingsScreen(
     val localFilesFolders by viewModel.localFilesFolders.collectAsState()
     val localFilesFolderHealth by viewModel.localFilesFolderHealth.collectAsState()
     val chitankaSource by viewModel.chitankaSource.collectAsState()
+    val gutenbergSource by viewModel.gutenbergSource.collectAsState()
     val serverVersions by viewModel.serverVersions.collectAsState()
     val libraryItemsBySource by viewModel.libraryUiItemsBySource.collectAsState()
     val readaloudSummaries by viewModel.readaloudSummaries.collectAsState()
@@ -142,6 +143,7 @@ fun SettingsScreen(
                     localFilesFolders = localFilesFolders,
                     localFilesFolderHealth = localFilesFolderHealth,
                     chitankaSource = chitankaSource,
+                    gutenbergSource = gutenbergSource,
                     serverVersions = serverVersions,
                     libraryItemsBySource = libraryItemsBySource,
                     readaloudSummaries = readaloudSummaries,
@@ -153,6 +155,7 @@ fun SettingsScreen(
                     onRemoveLocalFolder = viewModel::removeLocalFolder,
                     onRemoveLocalFilesSource = viewModel::removeLocalFilesSource,
                     onRemoveChitankaSource = viewModel::removeChitankaSource,
+                    onRemoveGutenbergSource = viewModel::removeGutenbergSource,
                     onSetLibraryVisible = viewModel::setLibraryVisible,
                     onReorderLibraries = viewModel::setLibraryOrder,
                 )
@@ -259,3 +262,4 @@ fun SettingsScreen(
         null -> {}
     }
 }
+

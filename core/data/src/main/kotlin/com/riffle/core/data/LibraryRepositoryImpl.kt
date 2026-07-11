@@ -176,12 +176,14 @@ class LibraryRepositoryImpl @Inject constructor(
     override suspend fun refreshLibraryItems(libraryId: String): LibraryRefreshResult {
         val source = sourceRepository.getActive() ?: return LibraryRefreshResult.NoActiveServer
         val catalog = catalogRegistry.forSource(source) ?: return LibraryRefreshResult.NoActiveServer
-        // Unbounded remote catalogues (Chitanka; future OPDS/Gutenberg) do not populate a Room
+        // Unbounded remote catalogues (Chitanka, Gutenberg; future OPDS) do not populate a Room
         // mirror of library_items — ADR 0042 explicitly names them as network-only. If refresh
         // fires against one of these (e.g. LibraryItemsViewModel reached from a non-drawer route),
         // no-op the refresh instead of scraping /new into Room and letting the ABS-shaped grid
-        // render it as if the item were owned by the local catalogue.
-        if (source.type == com.riffle.core.domain.SourceType.CHITANKA) {
+        // render it as if the item were owned by the local catalogue. Keyed on the
+        // [SourceType.isUnboundedCatalog] flag so a future Source (OPDS, …) inherits the
+        // no-refresh behaviour by flipping that one knob.
+        if (source.type.isUnboundedCatalog) {
             return LibraryRefreshResult.Success
         }
         val progressPeer = catalog as? ProgressPeerCapability

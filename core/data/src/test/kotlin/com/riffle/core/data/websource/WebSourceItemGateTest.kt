@@ -21,6 +21,9 @@ import com.riffle.core.domain.LibraryObserver
 import com.riffle.core.domain.Series
 import com.riffle.core.domain.TestClock
 import com.riffle.core.logging.RecordingLogger
+import io.mockk.coEvery
+import io.mockk.coVerify
+import io.mockk.mockk
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.flowOf
@@ -61,6 +64,9 @@ class WebSourceItemGateTest {
         sourceId = sourceId,
     )
 
+    private fun relaxedUpserter(): WebSourceLibraryItemUpserter =
+        mockk<WebSourceLibraryItemUpserter>(relaxed = true)
+
     @Test fun `within TTL and row present returns Fresh without invoking catalog`() = runTest {
         val clock = TestClock(1_000L)
         val freshness = RemoteItemFreshness(dao = InMemoryFreshnessDao(), clock = clock)
@@ -68,13 +74,15 @@ class WebSourceItemGateTest {
 
         val observer = FakeLibraryObserver(items = mutableMapOf(sourceId to (itemId to sampleLibraryItem())))
         val catalog = RecordingCatalog(item = sampleItem())
-        val gate = WebSourceItemGate(observer, freshness, RecordingLogger())
+        val upserter = relaxedUpserter()
+        val gate = WebSourceItemGate(observer, freshness, upserter, RecordingLogger())
 
         clock.advance(60_000L) // 1 minute later, well within TTL
 
-        val outcome = gate.openItem(sourceId, itemId, catalog, upsert = { fail("upsert should not run within TTL") })
+        val outcome = gate.openItem(sourceId, sampleItem(), catalog)
         assertEquals(WebSourceItemGate.Outcome.Fresh, outcome)
         assertEquals(0, catalog.getItemCalls)
+        coVerify(exactly = 0) { upserter.upsert(any(), any()) }
     }
 
     @Test fun `within TTL but no row falls through to fetch`() = runTest {
@@ -85,13 +93,13 @@ class WebSourceItemGateTest {
         val observer = FakeLibraryObserver(items = mutableMapOf()) // no row
         val fresh = sampleItem(title = "Fetched")
         val catalog = RecordingCatalog(item = fresh)
-        val gate = WebSourceItemGate(observer, freshness, RecordingLogger())
+        val upserter = relaxedUpserter()
+        val gate = WebSourceItemGate(observer, freshness, upserter, RecordingLogger())
 
-        var upserted: CatalogItem? = null
-        val outcome = gate.openItem(sourceId, itemId, catalog, upsert = { upserted = it })
+        val outcome = gate.openItem(sourceId, sampleItem(), catalog)
         assertTrue(outcome is WebSourceItemGate.Outcome.Fetched)
         assertEquals("Fetched", (outcome as WebSourceItemGate.Outcome.Fetched).item.title)
-        assertEquals(fresh, upserted)
+        coVerify(exactly = 1) { upserter.upsert(sourceId, fresh) }
         assertEquals(1, catalog.getItemCalls)
     }
 
@@ -106,13 +114,13 @@ class WebSourceItemGateTest {
         val observer = FakeLibraryObserver(items = mutableMapOf(sourceId to (itemId to sampleLibraryItem())))
         val fresh = sampleItem(title = "Refreshed")
         val catalog = RecordingCatalog(item = fresh)
-        val gate = WebSourceItemGate(observer, freshness, RecordingLogger())
+        val upserter = relaxedUpserter()
+        val gate = WebSourceItemGate(observer, freshness, upserter, RecordingLogger())
 
-        var upserted: CatalogItem? = null
-        val outcome = gate.openItem(sourceId, itemId, catalog, upsert = { upserted = it })
+        val outcome = gate.openItem(sourceId, sampleItem(), catalog)
 
         assertTrue(outcome is WebSourceItemGate.Outcome.Fetched)
-        assertEquals(fresh, upserted)
+        coVerify(exactly = 1) { upserter.upsert(sourceId, fresh) }
         assertEquals(1, catalog.getItemCalls)
         // Freshness was re-stamped to now.
         assertEquals(clock.nowMs(), dao.lastFetchedAt(sourceId, itemId))
@@ -129,25 +137,36 @@ class WebSourceItemGateTest {
 
         val observer = FakeLibraryObserver(items = mutableMapOf(sourceId to (itemId to sampleLibraryItem())))
         val catalog = RecordingCatalog(throwOnGetItem = IOException("offline"))
-        val gate = WebSourceItemGate(observer, freshness, RecordingLogger())
+        val upserter = relaxedUpserter()
+        val gate = WebSourceItemGate(observer, freshness, upserter, RecordingLogger())
 
-        val outcome = gate.openItem(sourceId, itemId, catalog, upsert = { fail("upsert should not run on failure") })
+        val outcome = gate.openItem(sourceId, sampleItem(), catalog)
         assertEquals(WebSourceItemGate.Outcome.Stale, outcome)
         assertEquals(1, catalog.getItemCalls)
         assertEquals(stampedAt, dao.lastFetchedAt(sourceId, itemId))
+        coVerify(exactly = 0) { upserter.upsert(any(), any()) }
     }
 
-    @Test fun `expired TTL, fetch fails, no row returns Failed`() = runTest {
+    @Test fun `expired TTL, fetch fails, no row upserts the listing item and returns Failed`() = runTest {
+        // Contract: Failed still leaves the caller with a Room row to navigate to. The gate
+        // upserts the listing CatalogItem (whatever fields the browse HTML exposed) so tap →
+        // detail doesn't dead-end when the detail fetch is offline or 429'd on first open.
         val clock = TestClock(1_000L)
-        val freshness = RemoteItemFreshness(InMemoryFreshnessDao(), clock)
+        val dao = InMemoryFreshnessDao()
+        val freshness = RemoteItemFreshness(dao, clock)
 
         val observer = FakeLibraryObserver(items = mutableMapOf()) // no row
         val catalog = RecordingCatalog(throwOnGetItem = IOException("offline"))
-        val gate = WebSourceItemGate(observer, freshness, RecordingLogger())
+        val upserter = relaxedUpserter()
+        val gate = WebSourceItemGate(observer, freshness, upserter, RecordingLogger())
 
-        val outcome = gate.openItem(sourceId, itemId, catalog, upsert = { fail("upsert should not run on failure") })
+        val listing = sampleItem()
+        val outcome = gate.openItem(sourceId, listing, catalog)
         assertTrue(outcome is WebSourceItemGate.Outcome.Failed)
         assertTrue((outcome as WebSourceItemGate.Outcome.Failed).cause is IOException)
+        coVerify(exactly = 1) { upserter.upsert(sourceId, listing) }
+        // A fallback upsert must NOT stamp — the next open has to retry the real fetch.
+        assertEquals(null, dao.lastFetchedAt(sourceId, itemId))
     }
 
     @Test fun `forceRefresh bypasses freshness cache and refetches`() = runTest {
@@ -157,13 +176,14 @@ class WebSourceItemGateTest {
         freshness.stamp(sourceId, itemId)
 
         val observer = FakeLibraryObserver(items = mutableMapOf(sourceId to (itemId to sampleLibraryItem())))
-        val catalog = RecordingCatalog(item = sampleItem(title = "Forced"))
-        val gate = WebSourceItemGate(observer, freshness, RecordingLogger())
+        val forced = sampleItem(title = "Forced")
+        val catalog = RecordingCatalog(item = forced)
+        val upserter = relaxedUpserter()
+        val gate = WebSourceItemGate(observer, freshness, upserter, RecordingLogger())
 
-        var upserted: CatalogItem? = null
-        val outcome = gate.openItem(sourceId, itemId, catalog, upsert = { upserted = it }, forceRefresh = true)
+        val outcome = gate.openItem(sourceId, sampleItem(), catalog, forceRefresh = true)
         assertTrue(outcome is WebSourceItemGate.Outcome.Fetched)
-        assertEquals("Forced", upserted?.title)
+        coVerify(exactly = 1) { upserter.upsert(sourceId, forced) }
         assertEquals(1, catalog.getItemCalls)
     }
 
@@ -175,13 +195,13 @@ class WebSourceItemGateTest {
         val observer = FakeLibraryObserver(items = mutableMapOf())
         val noCover = sampleItem().copy(coverUrl = null)
         val catalog = RecordingCatalog(item = noCover)
-        val gate = WebSourceItemGate(observer, freshness, RecordingLogger())
+        val upserter = relaxedUpserter()
+        val gate = WebSourceItemGate(observer, freshness, upserter, RecordingLogger())
 
-        var upserted: CatalogItem? = null
-        val outcome = gate.openItem(sourceId, itemId, catalog, upsert = { upserted = it })
+        val outcome = gate.openItem(sourceId, sampleItem(), catalog)
 
         assertTrue(outcome is WebSourceItemGate.Outcome.Fetched)
-        assertEquals(noCover, upserted)
+        coVerify(exactly = 1) { upserter.upsert(sourceId, noCover) }
         // Missing cover = incomplete fetch → no stamp → next open retries.
         assertEquals(null, dao.lastFetchedAt(sourceId, itemId))
     }
@@ -194,9 +214,10 @@ class WebSourceItemGateTest {
         val observer = FakeLibraryObserver(items = mutableMapOf())
         val blankCover = sampleItem().copy(coverUrl = "   ")
         val catalog = RecordingCatalog(item = blankCover)
-        val gate = WebSourceItemGate(observer, freshness, RecordingLogger())
+        val upserter = relaxedUpserter()
+        val gate = WebSourceItemGate(observer, freshness, upserter, RecordingLogger())
 
-        val outcome = gate.openItem(sourceId, itemId, catalog, upsert = { })
+        val outcome = gate.openItem(sourceId, sampleItem(), catalog)
         assertTrue(outcome is WebSourceItemGate.Outcome.Fetched)
         assertEquals(null, dao.lastFetchedAt(sourceId, itemId))
     }
@@ -208,15 +229,16 @@ class WebSourceItemGateTest {
 
         val observer = FakeLibraryObserver(items = mutableMapOf(sourceId to (itemId to sampleLibraryItem())))
         val catalog = RecordingCatalog(item = sampleItem().copy(coverUrl = null))
-        val gate = WebSourceItemGate(observer, freshness, RecordingLogger())
+        val upserter = relaxedUpserter()
+        val gate = WebSourceItemGate(observer, freshness, upserter, RecordingLogger())
 
         // First open: no cover, no stamp.
-        gate.openItem(sourceId, itemId, catalog, upsert = { })
+        gate.openItem(sourceId, sampleItem(), catalog)
         assertEquals(1, catalog.getItemCalls)
 
         // Second open a moment later: TTL check must fail (no stamp) and we refetch.
         clock.advance(60_000L)
-        gate.openItem(sourceId, itemId, catalog, upsert = { })
+        gate.openItem(sourceId, sampleItem(), catalog)
         assertEquals("Second open should refetch, not serve Fresh from the cover-less row", 2, catalog.getItemCalls)
     }
 
@@ -226,10 +248,30 @@ class WebSourceItemGateTest {
 
         val observer = FakeLibraryObserver(items = mutableMapOf(sourceId to (itemId to sampleLibraryItem())))
         val catalog = RecordingCatalog(item = null)
-        val gate = WebSourceItemGate(observer, freshness, RecordingLogger())
+        val upserter = relaxedUpserter()
+        val gate = WebSourceItemGate(observer, freshness, upserter, RecordingLogger())
 
-        val outcome = gate.openItem(sourceId, itemId, catalog, upsert = { fail("upsert should not run when catalog returns null") })
+        val outcome = gate.openItem(sourceId, sampleItem(), catalog)
         assertEquals(WebSourceItemGate.Outcome.Stale, outcome)
+        coVerify(exactly = 0) { upserter.upsert(any(), any()) }
+    }
+
+    @Test fun `catalog returns null with no row upserts the listing and returns Failed`() = runTest {
+        // Mirror of the IOException Failed path — catalog reporting the item as missing (rare;
+        // usually means the detail page 404'd) must still leave the caller with a row to open.
+        val clock = TestClock(1_000L)
+        val freshness = RemoteItemFreshness(InMemoryFreshnessDao(), clock)
+
+        val observer = FakeLibraryObserver(items = mutableMapOf())
+        val catalog = RecordingCatalog(item = null)
+        val upserter = relaxedUpserter()
+        val gate = WebSourceItemGate(observer, freshness, upserter, RecordingLogger())
+
+        val listing = sampleItem()
+        val outcome = gate.openItem(sourceId, listing, catalog)
+        assertTrue(outcome is WebSourceItemGate.Outcome.Failed)
+        assertTrue((outcome as WebSourceItemGate.Outcome.Failed).cause is NoSuchElementException)
+        coVerify(exactly = 1) { upserter.upsert(sourceId, listing) }
     }
 }
 

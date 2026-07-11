@@ -215,7 +215,7 @@ class LibraryItemDaoTest {
     }
 
     // observeRecentlyAdded filters out sentinel rows (addedAt == 0), which are written by
-    // on-demand browse upserters like ChitankaLibraryItemUpserter. A browse tap is not intent to
+    // on-demand browse upserters like WebSourceLibraryItemUpserter. A browse tap is not intent to
     // add the book — the row only exists so the reader / audiobook player can resolve it.
     // Reverting the `AND addedAt > 0` clause on the query flips this test red.
     @Test

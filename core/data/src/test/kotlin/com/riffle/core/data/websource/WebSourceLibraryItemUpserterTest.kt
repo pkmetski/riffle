@@ -1,12 +1,12 @@
-package com.riffle.core.data.chitanka
+package com.riffle.core.data.websource
 
 import com.riffle.core.catalog.BookFormat
 import com.riffle.core.catalog.CatalogItem
 import com.riffle.core.catalog.chitanka.ChitankaCatalog
+import com.riffle.core.database.LastOpenedAtRow
 import com.riffle.core.database.LibraryItemDao
 import com.riffle.core.database.LibraryItemEntity
 import com.riffle.core.database.LibraryItemMetadata
-import com.riffle.core.database.LastOpenedAtRow
 import com.riffle.core.database.MatchableItemRow
 import com.riffle.core.database.ReadingProgressRow
 import com.riffle.core.domain.EbookFormat
@@ -19,21 +19,24 @@ import org.junit.Assert.assertNull
 import org.junit.Test
 
 /**
- * Pins the contract for on-demand insertion of a browsed Chitanka [CatalogItem] into `library_items`.
+ * Pins the contract for on-demand insertion of a browsed web-source [CatalogItem] into
+ * `library_items`. This upserter is shared by every unbounded-catalogue Source (Chitanka,
+ * Gutenberg, and any future entry) — refreshLibraryItems does NOT populate library_items for
+ * them (ADR 0042), so the reader / audiobook player can only resolve an item once this
+ * upserter has run.
  *
- * Chitanka does NOT populate library_items via refresh (ADR 0042: unbounded catalogue), so the
- * reader / audiobook player can only resolve an item once this upserter has run. The tests here
- * pin the field mapping (CatalogItem → LibraryItemEntity) and the re-open behaviour (existing row
- * keeps its readingProgress, mirroring [LibraryItemDao.replaceAllForLibrary]).
+ * Chitanka fixtures are used here because they're the most representative — the same code
+ * path runs for every other web source without change; that's the whole point of extracting
+ * the class. The Recently-Added sentinel behaviour is the invariant every web source relies on.
  */
-class ChitankaLibraryItemUpserterTest {
+class WebSourceLibraryItemUpserterTest {
 
     private fun catalogEpub(id: String = "text/12345-x") = CatalogItem(
         id = id,
         rootId = ChitankaCatalog.ROOT_BOOKS,
         title = "Под игото",
         author = "Иван Вазов",
-        coverUrl = "https://chitanka.info/cover.jpg",
+        coverUrl = "https://example.info/cover.jpg",
         ebookFormat = BookFormat.Epub,
         hasAudio = false,
         description = "desc",
@@ -58,18 +61,18 @@ class ChitankaLibraryItemUpserterTest {
     @Test
     fun `first upsert inserts EPUB row with mapped fields`() = runTest {
         val dao = InMemoryLibraryItemDao()
-        val upserter = ChitankaLibraryItemUpserter(dao)
+        val upserter = WebSourceLibraryItemUpserter(dao)
 
-        upserter.upsert(sourceId = "chit-1", item = catalogEpub())
+        upserter.upsert(sourceId = "src-1", item = catalogEpub())
 
-        val row = dao.getById("chit-1", "text/12345-x")
+        val row = dao.getById("src-1", "text/12345-x")
         assertNotNull("row must exist", row)
-        assertEquals("chit-1", row!!.sourceId)
+        assertEquals("src-1", row!!.sourceId)
         assertEquals("text/12345-x", row.id)
         assertEquals(ChitankaCatalog.ROOT_BOOKS, row.libraryId)
         assertEquals("Под игото", row.title)
         assertEquals("Иван Вазов", row.author)
-        assertEquals("https://chitanka.info/cover.jpg", row.coverUrl)
+        assertEquals("https://example.info/cover.jpg", row.coverUrl)
         assertEquals(0f, row.readingProgress, 0.0001f)
         assertEquals(EbookFormat.Epub.toStorageString(), row.ebookFormat)
         assertEquals(false, row.hasAudio)
@@ -83,11 +86,11 @@ class ChitankaLibraryItemUpserterTest {
     @Test
     fun `audiobook item maps hasAudio true and libraryId to audio root`() = runTest {
         val dao = InMemoryLibraryItemDao()
-        val upserter = ChitankaLibraryItemUpserter(dao)
+        val upserter = WebSourceLibraryItemUpserter(dao)
 
-        upserter.upsert(sourceId = "chit-1", item = catalogAudio())
+        upserter.upsert(sourceId = "src-1", item = catalogAudio())
 
-        val row = dao.getById("chit-1", "prikazki/1-slug")
+        val row = dao.getById("src-1", "prikazki/1-slug")
         assertNotNull(row)
         assertEquals(true, row!!.hasAudio)
         assertEquals(ChitankaCatalog.ROOT_AUDIOBOOKS, row.libraryId)
@@ -99,33 +102,46 @@ class ChitankaLibraryItemUpserterTest {
     @Test
     fun `re-open preserves existing readingProgress`() = runTest {
         val dao = InMemoryLibraryItemDao()
-        val upserter = ChitankaLibraryItemUpserter(dao)
+        val upserter = WebSourceLibraryItemUpserter(dao)
         val item = catalogEpub()
 
-        upserter.upsert("chit-1", item)
+        upserter.upsert("src-1", item)
         // Simulate reader progress persisted after the first open.
-        dao.updateReadingProgress("chit-1", item.id, 0.42f)
+        dao.updateReadingProgress("src-1", item.id, 0.42f)
 
-        upserter.upsert("chit-1", item)
+        upserter.upsert("src-1", item)
 
-        val row = dao.getById("chit-1", item.id)!!
+        val row = dao.getById("src-1", item.id)!!
         assertEquals("second upsert must not overwrite locally-tracked progress", 0.42f, row.readingProgress, 0.0001f)
     }
 
     @Test
     fun `browse-tap stamps addedAt = 0 sentinel so the item stays out of Recently Added`() = runTest {
-        // A Chitanka browse tap upserts a row so the reader / audiobook player can resolve the
-        // item, but that is not "added to the library" — writing a real clock timestamp here
-        // would surface the item in the Recently Added rail immediately after browsing. The
-        // sentinel is promoted to a real timestamp by LibraryItemDao.updateLastOpenedAt on the
-        // first reader open (see LibraryItemDao test coverage). Flipping this back to
-        // clock.nowMs() flips this test red.
+        // A web-source browse tap upserts a row so the reader / audiobook player can resolve
+        // the item, but that is not "added to the library" — writing a real clock timestamp
+        // here would surface the item in the Recently Added rail immediately after browsing.
+        // The sentinel is promoted to a real timestamp by LibraryItemDao.updateLastOpenedAt on
+        // the first reader open (see LibraryItemDao test coverage). Flipping this back to
+        // clock.nowMs() flips this test red. This invariant is shared across every web source.
         val dao = InMemoryLibraryItemDao()
-        val upserter = ChitankaLibraryItemUpserter(dao)
+        val upserter = WebSourceLibraryItemUpserter(dao)
 
-        upserter.upsert(sourceId = "chit-1", item = catalogEpub().copy(addedAt = null))
+        upserter.upsert(sourceId = "src-1", item = catalogEpub().copy(addedAt = null))
 
-        assertEquals(0L, dao.getById("chit-1", "text/12345-x")!!.addedAt)
+        assertEquals(0L, dao.getById("src-1", "text/12345-x")!!.addedAt)
+    }
+
+    @Test
+    fun `browse-tap stamps sentinel even when CatalogItem carries an addedAt from remote payload`() = runTest {
+        // Some catalogues (e.g. an ABS-shaped remote) might populate `addedAt` on CatalogItem.
+        // The upserter must still write the sentinel — "the remote says it was added on date X"
+        // is not the same as "the user added it to their library on date X".
+        val dao = InMemoryLibraryItemDao()
+        val upserter = WebSourceLibraryItemUpserter(dao)
+
+        upserter.upsert(sourceId = "src-1", item = catalogEpub().copy(addedAt = 12_345L))
+
+        assertEquals(0L, dao.getById("src-1", "text/12345-x")!!.addedAt)
     }
 
     @Test
@@ -138,34 +154,61 @@ class ChitankaLibraryItemUpserterTest {
         // Recently Added. Simulating updateLastOpenedAt via updateMetadata here keeps the fake
         // dao minimal; the DAO-level test in LibraryItemDaoTest covers the actual promotion SQL.
         val dao = InMemoryLibraryItemDao()
-        val upserter = ChitankaLibraryItemUpserter(dao)
+        val upserter = WebSourceLibraryItemUpserter(dao)
         val item = catalogEpub()
 
-        upserter.upsert("chit-1", item)
+        upserter.upsert("src-1", item)
         // Simulate updateLastOpenedAt promoting the sentinel to a real timestamp.
-        val opened = dao.getById("chit-1", item.id)!!.copy(addedAt = 9_000L, lastOpenedAt = 9_000L)
+        val opened = dao.getById("src-1", item.id)!!.copy(addedAt = 9_000L, lastOpenedAt = 9_000L)
         dao.upsertAll(listOf(opened))
 
-        upserter.upsert("chit-1", item)
+        upserter.upsert("src-1", item)
 
         assertEquals(
             "re-tap must not demote the promoted addedAt back to sentinel",
             9_000L,
-            dao.getById("chit-1", item.id)!!.addedAt,
+            dao.getById("src-1", item.id)!!.addedAt,
         )
+    }
+
+    @Test
+    fun `re-tap preserves promoted lastOpenedAt and finishedAt`() = runTest {
+        // Regression: `updateMetadata` is a Room `@Update` that copies every column of
+        // `LibraryItemMetadata` — including `lastOpenedAt` and `finishedAt` — onto the existing
+        // row. A CatalogItem carries neither, so its `toEntity()` defaults both to null; without
+        // the "read the current row and preserve the surviving locals" step in the upserter, a
+        // second browse-tap after the reader has stamped either field would silently null it and
+        // erase the book from Recently Opened / undo the "finished" mark. The ADR-0043 24 h TTL
+        // cycle makes this a routine trigger: user opens the book, revisits the source next day,
+        // taps the same title from the browse listing → gate refetches → this upserter runs.
+        val dao = InMemoryLibraryItemDao()
+        val upserter = WebSourceLibraryItemUpserter(dao)
+        val item = catalogEpub()
+
+        upserter.upsert("src-1", item)
+        // Simulate the reader path stamping both timestamps.
+        val opened = dao.getById("src-1", item.id)!!
+            .copy(addedAt = 9_000L, lastOpenedAt = 12_345L, finishedAt = 34_567L)
+        dao.upsertAll(listOf(opened))
+
+        upserter.upsert("src-1", item)
+
+        val row = dao.getById("src-1", item.id)!!
+        assertEquals("re-tap must not null the promoted lastOpenedAt", 12_345L, row.lastOpenedAt)
+        assertEquals("re-tap must not undo the finished stamp", 34_567L, row.finishedAt)
     }
 
     @Test
     fun `null description and coverUrl are handled (null cover coerced to empty)`() = runTest {
         val dao = InMemoryLibraryItemDao()
-        val upserter = ChitankaLibraryItemUpserter(dao)
+        val upserter = WebSourceLibraryItemUpserter(dao)
 
         upserter.upsert(
-            sourceId = "chit-1",
+            sourceId = "src-1",
             item = catalogEpub().copy(coverUrl = null, description = null),
         )
 
-        val row = dao.getById("chit-1", "text/12345-x")!!
+        val row = dao.getById("src-1", "text/12345-x")!!
         assertEquals("", row.coverUrl)
         assertNull(row.description)
     }
