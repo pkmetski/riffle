@@ -132,7 +132,7 @@ private fun SuccessView(added: Int, failures: Int, onDone: () -> Unit) {
             )
         } else if (added == 0) {
             Text(
-                "No EPUBs or PDFs were found in that folder.",
+                "No supported books were found in that folder.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )

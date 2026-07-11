@@ -22,8 +22,8 @@ import kotlinx.coroutines.withContext
 import javax.inject.Inject
 
 /**
- * Walks the LocalFiles Source's configured folders, classifies EPUB/PDF files by extension +
- * magic bytes, computes a content-identity hash, and idempotently upserts:
+ * Walks the LocalFiles Source's configured folders, classifies supported book files (see
+ * [FileClassifier.Kind]) by extension + magic bytes, computes a content-identity hash, and idempotently upserts:
  *   - a `library_items` row per unique file (title/author/…, cover URL where extractable), with
  *     `libraryId` set to whichever folder-library currently contains it (if a file lives in
  *     several folders, the row's libraryId names any one of them — folder-scoped browsing goes
