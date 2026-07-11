@@ -14,6 +14,7 @@ import com.riffle.core.domain.SourceType
 import com.riffle.core.logging.LogChannel
 import com.riffle.core.logging.Logger
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.delay
@@ -101,10 +102,22 @@ class GutenbergBrowseViewModel @Inject constructor(
         _facets.value = runCatching { catalog.listFacets(rootId) }.getOrElse { emptyList() }
     }
 
+    private var facetDebounceJob: Job? = null
+
     fun selectFacet(key: String?) {
+        // Reflect the selection in the chip strip immediately so the UI feels responsive, but
+        // debounce the actual network fetch. Rapid tapping across facets (Fiction → History →
+        // Poetry in <1 s) would otherwise fire 3 back-to-back Gutendex requests, exhaust the
+        // HTTP/1.1 5-per-host connection budget, and stall the final one behind two doomed
+        // in-flight ones — user-visible as "the third tap infinite-loads." Refresh() cancels
+        // any in-flight fetch, but Cloudflare doesn't release the socket instantly.
         _selectedFacet.value = key
         savedStateHandle["facetKey"] = key
-        viewModelScope.launch { refresh() }
+        facetDebounceJob?.cancel()
+        facetDebounceJob = viewModelScope.launch {
+            delay(FACET_DEBOUNCE_MS)
+            refresh()
+        }
     }
 
     fun onQueryChange(q: String) {
@@ -168,6 +181,11 @@ class GutenbergBrowseViewModel @Inject constructor(
             _items.value = result
             currentPage = 0
             _hasMore.value = result.size >= GUTENDEX_PAGE_SIZE
+        } catch (ce: CancellationException) {
+            // A newer refresh cancelled this one — do NOT overwrite items/error with a stale
+            // failure. The successor coroutine is already carrying the fresh state. Rethrow so
+            // structured concurrency stays intact.
+            throw ce
         } catch (t: Throwable) {
             logger.d(LogChannel.Gutenberg) {
                 "refresh error facet=${_selectedFacet.value} query='${_query.value}' " +
@@ -205,6 +223,8 @@ class GutenbergBrowseViewModel @Inject constructor(
             }
             currentPage = nextPage
             _hasMore.value = next.size >= GUTENDEX_PAGE_SIZE
+        } catch (ce: CancellationException) {
+            throw ce
         } catch (_: Throwable) {
             // Pagination failure isn't fatal — leave hasMore true so a subsequent scroll retries.
         } finally {
@@ -222,6 +242,13 @@ class GutenbergBrowseViewModel @Inject constructor(
 
         /** The exact page size Gutendex ships — used to detect a short (final) page. */
         const val GUTENDEX_PAGE_SIZE = 32
+
+        /**
+         * How long to wait after a facet-chip tap before firing the network fetch. Small enough
+         * that a deliberate single tap feels instant; large enough that rapid taps collapse
+         * into a single request for the final selection.
+         */
+        const val FACET_DEBOUNCE_MS: Long = 250L
     }
 }
 

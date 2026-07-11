@@ -4,6 +4,8 @@ import com.riffle.core.catalog.Catalog
 import com.riffle.core.catalog.CatalogFactory
 import com.riffle.core.domain.Source
 import com.riffle.core.domain.SourceType
+import okhttp3.ConnectionPool
+import okhttp3.Dispatcher
 import okhttp3.OkHttpClient
 import okhttp3.Protocol
 import java.util.concurrent.TimeUnit
@@ -33,6 +35,19 @@ class GutenbergCatalogFactory(
     // request) is trivial for this Source's request volume.
     private val httpClient: OkHttpClient = okHttpClient.newBuilder()
         .protocols(listOf(Protocol.HTTP_1_1))
+        // Dedicated dispatcher — the app-wide singleton's dispatcher services every Source, so a
+        // burst of rapid Gutendex facet taps could starve unrelated background calls (progress
+        // sync, cover fetches). Ours caps at 8 concurrent for the Gutenberg host so a rapid
+        // Fiction→History→Poetry→Drama sequence never queues past the 4th request; combined with
+        // the 250 ms selectFacet debounce in the ViewModel, a cancel is always visible.
+        .dispatcher(Dispatcher().apply {
+            maxRequests = 8
+            maxRequestsPerHost = 8
+        })
+        // Short idle-connection lifetime so a cancelled request's socket is pruned quickly
+        // instead of lingering in the pool and starving the next request. Cloudflare in
+        // particular sometimes keeps sockets half-open after a client-side abort.
+        .connectionPool(ConnectionPool(maxIdleConnections = 4, keepAliveDuration = 15, TimeUnit.SECONDS))
         .connectTimeout(GUTENBERG_CONNECT_TIMEOUT_SEC, TimeUnit.SECONDS)
         .readTimeout(GUTENBERG_READ_TIMEOUT_SEC, TimeUnit.SECONDS)
         .callTimeout(GUTENBERG_CALL_TIMEOUT_SEC, TimeUnit.SECONDS)
