@@ -27,7 +27,14 @@ class ChitankaSourceRowTest {
     fun endToStartSwipe_invokesOnRemove() {
         var removed = false
         composeTestRule.setContent {
-            ChitankaSourceRow(onRemove = { removed = true })
+            ChitankaSourceRow(
+                libraryItems = emptyList(),
+                isExpanded = false,
+                onToggleExpanded = {},
+                onSetLibraryVisible = { _, _ -> },
+                onReorderLibraries = {},
+                onRemove = { removed = true },
+            )
         }
 
         composeTestRule.onNodeWithTag("ChitankaSourceRow").performTouchInput { swipeLeft() }
@@ -39,7 +46,14 @@ class ChitankaSourceRowTest {
     @Test
     fun row_hasNoTrailingRemoveButton() {
         composeTestRule.setContent {
-            ChitankaSourceRow(onRemove = {})
+            ChitankaSourceRow(
+                libraryItems = emptyList(),
+                isExpanded = false,
+                onToggleExpanded = {},
+                onSetLibraryVisible = { _, _ -> },
+                onReorderLibraries = {},
+                onRemove = {},
+            )
         }
 
         composeTestRule.onNodeWithText("Remove").assertDoesNotExist()

@@ -119,12 +119,14 @@ class SettingsViewModelTest {
         id: String,
         active: Boolean = false,
         serverType: ServerType = ServerType.AUDIOBOOKSHELF,
+        type: com.riffle.core.domain.SourceType = com.riffle.core.domain.SourceType.ABS,
     ) = Source(
         id = id,
         url = SourceUrl.parse("https://$id.example.com")!!,
         isActive = active,
         insecureConnectionAllowed = false,
         username = "",
+        type = type,
         serverType = serverType,
     )
 
@@ -436,7 +438,7 @@ class SettingsViewModelTest {
         serversFlow.value = listOf(server("srv-1", active = true))
         librariesFlow.value = listOf(library("lib-1"), library("lib-2"))
         val vm = makeViewModel()
-        backgroundScope.launch { vm.libraryUiItemsByServer.collect {} }
+        backgroundScope.launch { vm.libraryUiItemsBySource.collect {} }
         testDispatcher.scheduler.advanceUntilIdle()
 
         vm.setLibraryVisible(sourceId = "srv-1", libraryId = "lib-1", visible = false)
@@ -452,7 +454,7 @@ class SettingsViewModelTest {
         librariesFlow.value = listOf(library("lib-1"), library("lib-2"))
         hiddenFlow.value = mapOf("srv-1" to setOf("lib-1"))
         val vm = makeViewModel()
-        backgroundScope.launch { vm.libraryUiItemsByServer.collect {} }
+        backgroundScope.launch { vm.libraryUiItemsBySource.collect {} }
         testDispatcher.scheduler.advanceUntilIdle()
 
         vm.setLibraryVisible(sourceId = "srv-1", libraryId = "lib-1", visible = true)
@@ -472,17 +474,17 @@ class SettingsViewModelTest {
     }
 
     @Test
-    fun `libraryUiItemsByServer reflects the saved custom order`() = runTest {
+    fun `libraryUiItemsBySource reflects the saved custom order`() = runTest {
         serversFlow.value = listOf(server("srv-1", active = true))
         librariesFlow.value = listOf(library("lib-1"), library("lib-2"), library("lib-3"))
         orderFlow.value = mapOf("srv-1" to listOf("lib-2", "lib-3", "lib-1"))
         val vm = makeViewModel()
-        backgroundScope.launch { vm.libraryUiItemsByServer.collect {} }
+        backgroundScope.launch { vm.libraryUiItemsBySource.collect {} }
         testDispatcher.scheduler.advanceUntilIdle()
 
         assertEquals(
             listOf("lib-2", "lib-3", "lib-1"),
-            vm.libraryUiItemsByServer.value["srv-1"].orEmpty().map { it.library.id },
+            vm.libraryUiItemsBySource.value["srv-1"].orEmpty().map { it.library.id },
         )
     }
 
@@ -492,10 +494,10 @@ class SettingsViewModelTest {
         librariesFlow.value = listOf(library("lib-1"), library("lib-2"))
         hiddenFlow.value = mapOf("srv-1" to setOf("lib-2"))  // only lib-1 is visible
         val vm = makeViewModel()
-        backgroundScope.launch { vm.libraryUiItemsByServer.collect {} }
+        backgroundScope.launch { vm.libraryUiItemsBySource.collect {} }
         testDispatcher.scheduler.advanceUntilIdle()
 
-        val items = vm.libraryUiItemsByServer.value["srv-1"].orEmpty()
+        val items = vm.libraryUiItemsBySource.value["srv-1"].orEmpty()
         val lib1Item = items.first { it.library.id == "lib-1" }
         val lib2Item = items.first { it.library.id == "lib-2" }
         assertFalse("lib-1 is the sole visible library, its switch must be disabled", lib1Item.switchEnabled)
@@ -508,26 +510,86 @@ class SettingsViewModelTest {
         librariesFlow.value = listOf(library("lib-1"), library("lib-2"))
         // nothing hidden — both visible
         val vm = makeViewModel()
-        backgroundScope.launch { vm.libraryUiItemsByServer.collect {} }
+        backgroundScope.launch { vm.libraryUiItemsBySource.collect {} }
         testDispatcher.scheduler.advanceUntilIdle()
 
-        val items = vm.libraryUiItemsByServer.value["srv-1"].orEmpty()
+        val items = vm.libraryUiItemsBySource.value["srv-1"].orEmpty()
         assertTrue(items.all { it.switchEnabled })
     }
 
     @Test
-    fun `libraryUiItemsByServer exposes libraries for a non-active ABS server`() = runTest {
+    fun `libraryUiItemsBySource populated for a Local Files source`() = runTest {
+        serversFlow.value = listOf(
+            server("lf-1", type = com.riffle.core.domain.SourceType.LOCAL_FILES),
+        )
+        librariesFlow.value = listOf(library("folder-a"), library("folder-b"))
+        val vm = makeViewModel()
+        backgroundScope.launch { vm.libraryUiItemsBySource.collect {} }
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        val items = vm.libraryUiItemsBySource.value["lf-1"].orEmpty()
+        assertEquals(listOf("folder-a", "folder-b"), items.map { it.library.id })
+    }
+
+    @Test
+    fun `libraryUiItemsBySource populated for a Chitanka source`() = runTest {
+        serversFlow.value = listOf(
+            server("ch-1", type = com.riffle.core.domain.SourceType.CHITANKA),
+        )
+        librariesFlow.value = listOf(library("books"), library("gramofonche"))
+        val vm = makeViewModel()
+        backgroundScope.launch { vm.libraryUiItemsBySource.collect {} }
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        val items = vm.libraryUiItemsBySource.value["ch-1"].orEmpty()
+        assertEquals(listOf("books", "gramofonche"), items.map { it.library.id })
+    }
+
+    @Test
+    fun `libraryUiItemsBySource applies saved order for a Local Files source`() = runTest {
+        serversFlow.value = listOf(
+            server("lf-1", type = com.riffle.core.domain.SourceType.LOCAL_FILES),
+        )
+        librariesFlow.value = listOf(library("a"), library("b"), library("c"))
+        orderFlow.value = mapOf("lf-1" to listOf("c", "a", "b"))
+        val vm = makeViewModel()
+        backgroundScope.launch { vm.libraryUiItemsBySource.collect {} }
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(
+            listOf("c", "a", "b"),
+            vm.libraryUiItemsBySource.value["lf-1"].orEmpty().map { it.library.id },
+        )
+    }
+
+    @Test
+    fun `libraryUiItemsBySource omits Storyteller services`() = runTest {
+        serversFlow.value = listOf(
+            server("st-1", serverType = ServerType.STORYTELLER_SERVICE),
+        )
+        librariesFlow.value = listOf(library("lib-1"))
+        val vm = makeViewModel()
+        backgroundScope.launch { vm.libraryUiItemsBySource.collect {} }
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        // Storyteller is Settings-only (ADR 0026) and never appears in the drawer, so we don't
+        // surface its libraries in the reorder/visibility editor either.
+        assertNull(vm.libraryUiItemsBySource.value["st-1"])
+    }
+
+    @Test
+    fun `libraryUiItemsBySource exposes libraries for a non-active ABS server`() = runTest {
         serversFlow.value = listOf(
             server("srv-active", active = true),
             server("srv-other", active = false),
         )
         librariesFlow.value = listOf(library("lib-1"), library("lib-2"))
         val vm = makeViewModel()
-        backgroundScope.launch { vm.libraryUiItemsByServer.collect {} }
+        backgroundScope.launch { vm.libraryUiItemsBySource.collect {} }
         testDispatcher.scheduler.advanceUntilIdle()
 
         // The non-active server still has manageable library items — no activation required.
-        val items = vm.libraryUiItemsByServer.value["srv-other"].orEmpty()
+        val items = vm.libraryUiItemsBySource.value["srv-other"].orEmpty()
         assertEquals(2, items.size)
     }
 

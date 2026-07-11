@@ -114,7 +114,7 @@ fun SettingsScreen(
     val localFilesFolderHealth by viewModel.localFilesFolderHealth.collectAsState()
     val chitankaSource by viewModel.chitankaSource.collectAsState()
     val serverVersions by viewModel.serverVersions.collectAsState()
-    val libraryItemsByServer by viewModel.libraryUiItemsByServer.collectAsState()
+    val libraryItemsBySource by viewModel.libraryUiItemsBySource.collectAsState()
     val readaloudSummaries by viewModel.readaloudSummaries.collectAsState()
     val appUpdateState by viewModel.appUpdateState.collectAsState()
     val readaloudPreferences by viewModel.readaloudPreferences.collectAsState()
@@ -194,7 +194,7 @@ fun SettingsScreen(
                         },
                         onRemove = { viewModel.removeServer(server.id) },
                         serverVersion = serverVersions[server.id],
-                        libraryItems = libraryItemsByServer[server.id].orEmpty(),
+                        libraryItems = libraryItemsBySource[server.id].orEmpty(),
                         summary = readaloudSummaries[server.id],
                         onSetLibraryVisible = { libraryId, visible ->
                             viewModel.setLibraryVisible(server.id, libraryId, visible)
@@ -210,6 +210,7 @@ fun SettingsScreen(
                         source = lfs,
                         folders = localFilesFolders,
                         folderHealth = localFilesFolderHealth,
+                        libraryItems = libraryItemsBySource[lfs.id].orEmpty(),
                         isExpanded = expandedServers[lfs.id] == true,
                         onToggleExpanded = {
                             expandedServers[lfs.id] = expandedServers[lfs.id] != true
@@ -217,10 +218,27 @@ fun SettingsScreen(
                         onAddFolder = onNavigateToAddLocalFolder,
                         onRemoveFolder = { treeUri -> viewModel.removeLocalFolder(treeUri) },
                         onRemoveSource = { viewModel.removeLocalFilesSource() },
+                        onSetLibraryVisible = { libraryId, visible ->
+                            viewModel.setLibraryVisible(lfs.id, libraryId, visible)
+                        },
+                        onReorderLibraries = { orderedIds ->
+                            viewModel.setLibraryOrder(lfs.id, orderedIds)
+                        },
                     )
                 }
-                chitankaSource?.let { _ ->
+                chitankaSource?.let { source ->
                     ChitankaSourceRow(
+                        libraryItems = libraryItemsBySource[source.id].orEmpty(),
+                        isExpanded = expandedServers[source.id] == true,
+                        onToggleExpanded = {
+                            expandedServers[source.id] = expandedServers[source.id] != true
+                        },
+                        onSetLibraryVisible = { libraryId, visible ->
+                            viewModel.setLibraryVisible(source.id, libraryId, visible)
+                        },
+                        onReorderLibraries = { orderedIds ->
+                            viewModel.setLibraryOrder(source.id, orderedIds)
+                        },
                         onRemove = { viewModel.removeChitankaSource() },
                     )
                 }
@@ -1038,11 +1056,14 @@ private fun LocalFilesSourceRow(
     source: com.riffle.core.domain.Source,
     folders: List<com.riffle.core.database.LocalFilesFolderEntity>,
     folderHealth: Map<String, Boolean>,
+    libraryItems: List<LibraryUiItem>,
     isExpanded: Boolean,
     onToggleExpanded: () -> Unit,
     onAddFolder: () -> Unit,
     onRemoveFolder: (String) -> Unit,
     onRemoveSource: () -> Unit,
+    onSetLibraryVisible: (libraryId: String, visible: Boolean) -> Unit,
+    onReorderLibraries: (orderedLibraryIds: List<String>) -> Unit,
 ) {
     var pendingFolderRemoval by remember { mutableStateOf<com.riffle.core.database.LocalFilesFolderEntity?>(null) }
     var pendingSourceRemoval by remember { mutableStateOf(false) }
@@ -1139,6 +1160,14 @@ private fun LocalFilesSourceRow(
                         )
                     }
                 }
+                if (libraryItems.isNotEmpty()) {
+                    ExpansionHeader("Enabled libraries")
+                    ReorderableLibraryList(
+                        items = libraryItems,
+                        onSetLibraryVisible = onSetLibraryVisible,
+                        onReorder = onReorderLibraries,
+                    )
+                }
                 TextButton(
                     onClick = { pendingSourceRemoval = true },
                     modifier = Modifier
@@ -1193,19 +1222,50 @@ private fun LocalFilesSourceRow(
 }
 
 /**
- * Minimal sources-list row for the singleton Chitanka Source. No sub-UI (unlike
- * [LocalFilesSourceRow] which manages folders) — Chitanka is zero-config; removal is
- * via the shared end-to-start swipe gesture, matching every other configured-source row.
+ * Sources-list row for the singleton Chitanka Source. Chitanka is zero-config; the expanded body
+ * exposes the per-library visibility+order editor (Chitanka installs Books and Gramofonche
+ * libraries). Removal is via the shared end-to-start swipe gesture, matching every other
+ * configured-source row.
  */
 @Composable
 internal fun ChitankaSourceRow(
+    libraryItems: List<LibraryUiItem>,
+    isExpanded: Boolean,
+    onToggleExpanded: () -> Unit,
+    onSetLibraryVisible: (libraryId: String, visible: Boolean) -> Unit,
+    onReorderLibraries: (orderedLibraryIds: List<String>) -> Unit,
     onRemove: () -> Unit,
 ) {
+    val chevronRotation by androidx.compose.animation.core.animateFloatAsState(
+        targetValue = if (isExpanded) 90f else 0f,
+        label = "chevron",
+    )
     SwipeToDeleteRow(onDelete = onRemove) {
+      Column {
         ListItem(
-            modifier = Modifier.testTag("ChitankaSourceRow"),
+            modifier = Modifier
+                .clickable { onToggleExpanded() }
+                .testTag("ChitankaSourceRow"),
+            leadingContent = {
+                Icon(
+                    Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                    contentDescription = if (isExpanded) "Collapse" else "Expand",
+                    modifier = Modifier.rotate(chevronRotation),
+                )
+            },
             headlineContent = { Text("Chitanka") },
             supportingContent = { Text("chitanka.info · gramofonche.chitanka.info") },
         )
+        androidx.compose.animation.AnimatedVisibility(visible = isExpanded) {
+            if (libraryItems.isNotEmpty()) {
+                ExpansionHeader("Enabled libraries")
+                ReorderableLibraryList(
+                    items = libraryItems,
+                    onSetLibraryVisible = onSetLibraryVisible,
+                    onReorder = onReorderLibraries,
+                )
+            }
+        }
+      }
     }
 }
