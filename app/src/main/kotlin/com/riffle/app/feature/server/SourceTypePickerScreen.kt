@@ -53,12 +53,17 @@ data class SourceTypeCard(
 )
 
 /**
- * The cards shown by [SourceTypePickerScreen]. When [hasLocalFilesSource] is true the "Local
- * files" card is omitted — LocalFiles is a device singleton, so a second install would attach to
- * the existing row, which the picker's "add source" framing hides. Adding another folder to that
- * existing source is a dedicated action in Settings.
+ * The cards shown by [SourceTypePickerScreen]. Source types that require no login (LocalFiles,
+ * Chitanka) are device singletons: their tile is omitted once one already exists. For LocalFiles,
+ * adding another folder is a dedicated action in Settings; for Chitanka there is nothing more to
+ * configure. Rule of thumb: any credential-less source type is one-per-device — a duplicate row
+ * would have no distinguishing configuration and would be either a silent no-op or a confusing
+ * duplicate library entry.
  */
-internal fun sourceTypeCards(hasLocalFilesSource: Boolean = false): List<SourceTypeCard> = buildList {
+internal fun sourceTypeCards(
+    hasLocalFilesSource: Boolean = false,
+    hasChitankaSource: Boolean = false,
+): List<SourceTypeCard> = buildList {
     add(
         SourceTypeCard(
             type = SourceTypeChoice.Audiobookshelf,
@@ -79,15 +84,17 @@ internal fun sourceTypeCards(hasLocalFilesSource: Boolean = false): List<SourceT
             ),
         )
     }
-    add(
-        SourceTypeCard(
-            type = SourceTypeChoice.Chitanka,
-            title = "Chitanka",
-            subtitle = "Browse Bulgarian ebooks (chitanka.info) and audiobooks (gramofonche).",
-            enabled = true,
-            comingSoon = false,
-        ),
-    )
+    if (!hasChitankaSource) {
+        add(
+            SourceTypeCard(
+                type = SourceTypeChoice.Chitanka,
+                title = "Chitanka",
+                subtitle = "Browse Bulgarian ebooks (chitanka.info) and audiobooks (gramofonche).",
+                enabled = true,
+                comingSoon = false,
+            ),
+        )
+    }
 }
 
 private fun testTagFor(type: SourceTypeChoice): String = when (type) {
@@ -105,6 +112,7 @@ fun SourceTypePickerScreen(
     onPickLocalFiles: () -> Unit,
     onPickChitanka: () -> Unit,
     hasLocalFilesSource: Boolean = false,
+    hasChitankaSource: Boolean = false,
 ) {
     Scaffold(
         topBar = {
@@ -126,7 +134,10 @@ fun SourceTypePickerScreen(
                 modifier = Modifier.fillMaxSize().padding(24.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp),
             ) {
-                sourceTypeCards(hasLocalFilesSource = hasLocalFilesSource).forEach { card ->
+                sourceTypeCards(
+                    hasLocalFilesSource = hasLocalFilesSource,
+                    hasChitankaSource = hasChitankaSource,
+                ).forEach { card ->
                     SourceTypeCardRow(
                         card = card,
                         onClick = when (card.type) {

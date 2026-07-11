@@ -57,4 +57,23 @@ class SourceTypePickerTest {
         assertTrue(cards.none { it.type is SourceTypeChoice.LocalFiles })
         assertTrue(cards.any { it.type is SourceTypeChoice.Audiobookshelf })
     }
+
+    // Chitanka is a device singleton — no credentials to disambiguate a second row from the
+    // first, so a duplicate would be either a silent no-op or a confusing duplicate library
+    // entry. If this predicate ever flips, the picker will start offering to add duplicates.
+    @Test
+    fun `Chitanka card is hidden once a Chitanka source exists`() {
+        val cards = sourceTypeCards(hasChitankaSource = true)
+        assertTrue(cards.none { it.type is SourceTypeChoice.Chitanka })
+        assertTrue(cards.any { it.type is SourceTypeChoice.Audiobookshelf })
+        assertTrue(cards.any { it.type is SourceTypeChoice.LocalFiles })
+    }
+
+    // Both credential-less singletons already installed: only ABS remains addable.
+    @Test
+    fun `only ABS remains when both credential-less singletons are installed`() {
+        val cards = sourceTypeCards(hasLocalFilesSource = true, hasChitankaSource = true)
+        assertEquals(1, cards.size)
+        assertEquals(SourceTypeChoice.Audiobookshelf, cards[0].type)
+    }
 }
