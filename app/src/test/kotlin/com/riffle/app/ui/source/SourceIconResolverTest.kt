@@ -6,8 +6,8 @@ import com.riffle.core.domain.Source
 import com.riffle.core.domain.SourceType
 import com.riffle.core.domain.SourceUrl
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNull
-import org.junit.Assert.assertThrows
 import org.junit.Test
 
 /**
@@ -68,6 +68,12 @@ class SourceIconResolverTest {
     }
 
     @Test
+    fun `favicon URL for Gutenberg is null - gutendex is an API mirror, no branded favicon`() {
+        val url = SourceIconResolver.faviconUrlFor(source(type = SourceType.GUTENBERG))
+        assertNull(url)
+    }
+
+    @Test
     fun `favicon URL preserves the trailing-slash-stripping done by SourceUrl_parse`() {
         // SourceUrl.parse strips one trailing slash; the favicon URL must therefore not have a
         // double slash before the path segment.
@@ -102,9 +108,32 @@ class SourceIconResolverTest {
     }
 
     @Test
-    fun `fallback drawable for LocalFiles source throws to catch callers that forgot the branch`() {
-        assertThrows(IllegalStateException::class.java) {
-            SourceIconResolver.fallbackDrawableFor(source(type = SourceType.LOCAL_FILES))
+    fun `fallback drawable for LocalFiles source is the LocalFiles monogram`() {
+        val res = SourceIconResolver.fallbackDrawableFor(source(type = SourceType.LOCAL_FILES))
+        assertEquals(R.drawable.ic_source_local_files, res)
+    }
+
+    @Test
+    fun `fallback drawable for Gutenberg source is the Gutenberg monogram`() {
+        val res = SourceIconResolver.fallbackDrawableFor(source(type = SourceType.GUTENBERG))
+        assertEquals(R.drawable.ic_source_gutenberg, res)
+    }
+
+    /**
+     * Compile-time exhaustiveness already ensures each [SourceType] has a `when` branch, but
+     * this runtime check confirms every branch also returns a non-zero (real) drawable id. A
+     * new SourceType added without a bundled drawable would produce `0` here and fail this test
+     * before reaching a user.
+     */
+    @Test
+    fun `every SourceType resolves to a non-zero bundled drawable`() {
+        SourceType.values().forEach { type ->
+            val res = SourceIconResolver.fallbackDrawableFor(type)
+            assertNotEquals(
+                "SourceType.$type must map to a bundled drawable — see SourceIconResolver.fallbackDrawableFor",
+                0,
+                res,
+            )
         }
     }
 
@@ -126,5 +155,17 @@ class SourceIconResolverTest {
     fun `type-only lookup returns Chitanka monogram for CHITANKA regardless of serverType`() {
         val res = SourceIconResolver.fallbackDrawableFor(SourceType.CHITANKA)
         assertEquals(R.drawable.ic_source_chitanka, res)
+    }
+
+    @Test
+    fun `type-only lookup returns Gutenberg monogram for GUTENBERG regardless of serverType`() {
+        val res = SourceIconResolver.fallbackDrawableFor(SourceType.GUTENBERG)
+        assertEquals(R.drawable.ic_source_gutenberg, res)
+    }
+
+    @Test
+    fun `type-only lookup returns LocalFiles monogram for LOCAL_FILES regardless of serverType`() {
+        val res = SourceIconResolver.fallbackDrawableFor(SourceType.LOCAL_FILES)
+        assertEquals(R.drawable.ic_source_local_files, res)
     }
 }

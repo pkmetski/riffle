@@ -37,4 +37,8 @@ class SourceTypePickerViewModel @Inject constructor(
     val hasChitankaSource: StateFlow<Boolean> = sourceRepository.observeAll()
         .map { sources -> sources.any { it.type == SourceType.CHITANKA } }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), initialValue = true)
+
+    val hasGutenbergSource: StateFlow<Boolean> = sourceRepository.observeAll()
+        .map { sources -> sources.any { it.type == SourceType.GUTENBERG } }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), initialValue = true)
 }

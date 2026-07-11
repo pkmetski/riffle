@@ -13,12 +13,30 @@ import org.junit.Test
 class SourceTypePickerTest {
 
     @Test
-    fun `cards are ordered ABS first then LocalFiles then Chitanka`() {
+    fun `cards are ordered ABS first then LocalFiles then Chitanka then Gutenberg`() {
         val cards = sourceTypeCards()
-        assertEquals(3, cards.size)
+        assertEquals(4, cards.size)
         assertEquals(SourceTypeChoice.Audiobookshelf, cards[0].type)
         assertEquals(SourceTypeChoice.LocalFiles, cards[1].type)
         assertEquals(SourceTypeChoice.Chitanka, cards[2].type)
+        assertEquals(SourceTypeChoice.Gutenberg, cards[3].type)
+    }
+
+    @Test
+    fun `Gutenberg card is enabled and not coming soon`() {
+        val gb = sourceTypeCards().first { it.type is SourceTypeChoice.Gutenberg }
+        assertTrue(gb.enabled)
+        assertFalse(gb.comingSoon)
+        assertEquals("Project Gutenberg", gb.title)
+    }
+
+    // Same singleton rationale as Chitanka — a credential-less public catalogue has nothing to
+    // disambiguate a second row.
+    @Test
+    fun `Gutenberg card is hidden once a Gutenberg source exists`() {
+        val cards = sourceTypeCards(hasGutenbergSource = true)
+        assertTrue(cards.none { it.type is SourceTypeChoice.Gutenberg })
+        assertTrue(cards.any { it.type is SourceTypeChoice.Audiobookshelf })
     }
 
     @Test
@@ -69,10 +87,14 @@ class SourceTypePickerTest {
         assertTrue(cards.any { it.type is SourceTypeChoice.LocalFiles })
     }
 
-    // Both credential-less singletons already installed: only ABS remains addable.
+    // All credential-less singletons already installed: only ABS remains addable.
     @Test
-    fun `only ABS remains when both credential-less singletons are installed`() {
-        val cards = sourceTypeCards(hasLocalFilesSource = true, hasChitankaSource = true)
+    fun `only ABS remains when all credential-less singletons are installed`() {
+        val cards = sourceTypeCards(
+            hasLocalFilesSource = true,
+            hasChitankaSource = true,
+            hasGutenbergSource = true,
+        )
         assertEquals(1, cards.size)
         assertEquals(SourceTypeChoice.Audiobookshelf, cards[0].type)
     }

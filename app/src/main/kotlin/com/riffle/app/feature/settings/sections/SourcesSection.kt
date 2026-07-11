@@ -59,6 +59,7 @@ internal fun SourcesSection(
     localFilesFolders: List<LocalFilesFolderEntity>,
     localFilesFolderHealth: Map<String, Boolean>,
     chitankaSource: Source?,
+    gutenbergSource: Source?,
     serverVersions: Map<String, String>,
     libraryItemsBySource: Map<String, List<LibraryUiItem>>,
     readaloudSummaries: Map<String, ReadaloudMatchSummary>,
@@ -70,6 +71,7 @@ internal fun SourcesSection(
     onRemoveLocalFolder: (String) -> Unit,
     onRemoveLocalFilesSource: () -> Unit,
     onRemoveChitankaSource: () -> Unit,
+    onRemoveGutenbergSource: () -> Unit,
     onSetLibraryVisible: (String, String, Boolean) -> Unit,
     onReorderLibraries: (String, List<String>) -> Unit,
 ) {
@@ -131,6 +133,22 @@ internal fun SourcesSection(
                 onReorderLibraries(source.id, orderedIds)
             },
             onRemove = onRemoveChitankaSource,
+        )
+    }
+    gutenbergSource?.let { source ->
+        GutenbergSourceRow(
+            libraryItems = libraryItemsBySource[source.id].orEmpty(),
+            isExpanded = expandedServers[source.id] == true,
+            onToggleExpanded = {
+                expandedServers[source.id] = expandedServers[source.id] != true
+            },
+            onSetLibraryVisible = { libraryId, visible ->
+                onSetLibraryVisible(source.id, libraryId, visible)
+            },
+            onReorderLibraries = { orderedIds ->
+                onReorderLibraries(source.id, orderedIds)
+            },
+            onRemove = onRemoveGutenbergSource,
         )
     }
     Button(
@@ -496,6 +514,37 @@ internal fun ChitankaSourceRow(
         headerTestTag = "ChitankaSourceRow",
         headlineContent = { Text("Chitanka") },
         supportingContent = { Text("chitanka.info · gramofonche.chitanka.info") },
+    ) {
+        if (libraryItems.isNotEmpty()) {
+            ReorderableLibraryList(
+                items = libraryItems,
+                onSetLibraryVisible = onSetLibraryVisible,
+                onReorder = onReorderLibraries,
+            )
+        }
+    }
+}
+
+/**
+ * Sources-list row for the singleton Project Gutenberg Source. Same shape as
+ * [ChitankaSourceRow] — zero-config, per-library visibility+order editor, swipe-to-remove.
+ */
+@Composable
+internal fun GutenbergSourceRow(
+    libraryItems: List<LibraryUiItem>,
+    isExpanded: Boolean,
+    onToggleExpanded: () -> Unit,
+    onSetLibraryVisible: (libraryId: String, visible: Boolean) -> Unit,
+    onReorderLibraries: (orderedLibraryIds: List<String>) -> Unit,
+    onRemove: () -> Unit,
+) {
+    ExpandableSourceRow(
+        isExpanded = isExpanded,
+        onToggleExpanded = onToggleExpanded,
+        onRemove = onRemove,
+        headerTestTag = "GutenbergSourceRow",
+        headlineContent = { Text("Project Gutenberg") },
+        supportingContent = { Text("gutenberg.org · gutendex.com") },
     ) {
         if (libraryItems.isNotEmpty()) {
             ReorderableLibraryList(

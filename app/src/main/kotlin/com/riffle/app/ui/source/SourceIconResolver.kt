@@ -7,55 +7,57 @@ import com.riffle.core.domain.Source
 import com.riffle.core.domain.SourceType
 
 /**
- * Chooses the icon for a network-backed source: a favicon URL to fetch at runtime, plus a bundled
- * monogram drawable to use as the fallback when the fetch fails (or as the primary when no base
- * URL is known yet, i.e. in the "add source" type picker).
+ * Chooses the icon for a source: a favicon URL to fetch at runtime (for network-backed sources
+ * that expose one), plus a bundled monogram drawable to use as the fallback when the fetch
+ * fails or as the primary when no host is known yet.
  *
- * Chitanka's favicon is served as `.ico`, which Coil's default decoders can't handle, so we skip
- * the fetch and always show the bundled Ч monogram.
+ * ## Icon-per-SourceType is required
  *
- * LocalFiles is intentionally excluded — see call sites — because the existing Material Folder
- * treatment for local files is left as-is.
+ * Every [SourceType] must map to a bundled drawable in [fallbackDrawableFor]. The `when` is
+ * intentionally exhaustive with NO `else` branch and NO `error(…)` fallback — adding a new
+ * SourceType is a compile error until the new entry ships an icon here, which in turn requires
+ * shipping a bundled drawable resource. Do not add an `else` branch to make the compiler quiet.
+ *
+ * Call sites are free to substitute a Material icon at their own layer (the picker's LocalFiles
+ * card renders `Icons.Default.Folder` for the "from the OS" affordance), but the resolver still
+ * owns a bundled drawable so drawer/switcher/settings surfaces all have a monogram to fall back
+ * to. This keeps the "which sources have an icon?" invariant checkable in one place — the
+ * companion test iterates [SourceType.values] and asserts every entry resolves.
  */
 object SourceIconResolver {
 
     /**
-     * The URL to attempt for the source's favicon, or null when we don't try (LocalFiles,
-     * Chitanka). Callers should always pair the returned URL with [fallbackDrawableFor] so a
-     * fetch/decode failure falls back to the monogram.
+     * The URL to attempt for the source's favicon, or null when we don't try. Callers should
+     * always pair the returned URL with [fallbackDrawableFor] so a fetch/decode failure falls
+     * back to the monogram.
      */
     fun faviconUrlFor(source: Source): String? = when (source.type) {
         SourceType.LOCAL_FILES -> null
         SourceType.CHITANKA -> null
+        // Gutendex is the API mirror, not a user-visible product; no branded favicon to fetch.
+        SourceType.GUTENBERG -> null
         SourceType.ABS -> when (source.serverType) {
-            // ABS bundles /Logo.png at the web root as its PWA icon — a known PNG path we can
-            // decode without a bespoke ICO decoder.
             ServerType.AUDIOBOOKSHELF -> "${source.url.value}/Logo.png"
-            // Storyteller is Next.js; the /apple-touch-icon.png convention gives us a large PNG
-            // when the deployment ships one, and the bundled monogram covers the miss.
             ServerType.STORYTELLER_SERVICE -> "${source.url.value}/apple-touch-icon.png"
         }
     }
 
-    /**
-     * Fallback drawable for a configured [Source]. Not defined for [SourceType.LOCAL_FILES] —
-     * that surface keeps the Material Folder icon at its call sites, unchanged.
-     */
+    /** Fallback drawable for a configured [Source]. */
     @DrawableRes
     fun fallbackDrawableFor(source: Source): Int =
         fallbackDrawableFor(source.type, source.serverType)
 
     /**
-     * Fallback drawable for a source picked by type (no configured [Source] yet). Not defined
-     * for [SourceType.LOCAL_FILES] — throws to catch callers that forgot the LocalFiles branch.
+     * Fallback drawable for a source picked by type (no configured [Source] yet). Exhaustive by
+     * design — see the class doc. If you're adding a new [SourceType], add its bundled drawable
+     * to `res/drawable/` and its branch below in the same commit.
      */
     @DrawableRes
     fun fallbackDrawableFor(type: SourceType, serverType: ServerType = ServerType.AUDIOBOOKSHELF): Int =
         when (type) {
-            SourceType.LOCAL_FILES -> error(
-                "SourceIconResolver has no drawable for LOCAL_FILES — render Icons.Default.Folder at the call site."
-            )
+            SourceType.LOCAL_FILES -> R.drawable.ic_source_local_files
             SourceType.CHITANKA -> R.drawable.ic_source_chitanka
+            SourceType.GUTENBERG -> R.drawable.ic_source_gutenberg
             SourceType.ABS -> when (serverType) {
                 ServerType.AUDIOBOOKSHELF -> R.drawable.ic_source_audiobookshelf
                 ServerType.STORYTELLER_SERVICE -> R.drawable.ic_source_storyteller

@@ -199,6 +199,7 @@ private fun DrawerHeader(
     // LocalFiles has no meaningful host (placeholder URL), so the host is never useful there.
     val activeNeedsHost = activeServer != null &&
         activeServer.type != SourceType.LOCAL_FILES && activeServer.type != SourceType.CHITANKA &&
+        activeServer.type != SourceType.GUTENBERG &&
         allServers.count { it.serverType == activeServer.serverType && it.type == activeServer.type } > 1
 
     Box(modifier = Modifier
@@ -212,7 +213,7 @@ private fun DrawerHeader(
             headlineContent = {
                 val name = activeServer?.let(::sourceDisplayName) ?: "No source"
                 val username = activeServer
-                    ?.takeIf { it.type != SourceType.LOCAL_FILES && it.type != SourceType.CHITANKA }
+                    ?.takeIf { it.type != SourceType.LOCAL_FILES && it.type != SourceType.CHITANKA && it.type != SourceType.GUTENBERG }
                     ?.username?.takeIf { it.isNotEmpty() }
                 if (username != null) {
                     Text(
@@ -253,13 +254,14 @@ private fun DrawerHeader(
         ) {
             allServers.forEach { server ->
                 val needsHost = server.type != SourceType.LOCAL_FILES && server.type != SourceType.CHITANKA &&
+                    server.type != SourceType.GUTENBERG &&
                     allServers.count { it.serverType == server.serverType && it.type == server.type } > 1
                 DropdownMenuItem(
                     text = {
                         Column {
                             val displayName = sourceDisplayName(server)
                             val username = server
-                                .takeIf { it.type != SourceType.LOCAL_FILES && it.type != SourceType.CHITANKA }
+                                .takeIf { it.type != SourceType.LOCAL_FILES && it.type != SourceType.CHITANKA && it.type != SourceType.GUTENBERG }
                                 ?.username?.takeIf { it.isNotEmpty() }
                             if (username != null) {
                                 Text(
@@ -346,7 +348,8 @@ private fun buildSupportingLine(host: String?, version: String?): String? {
 private fun sourceDisplayName(source: Source): String = when (source.type) {
     SourceType.LOCAL_FILES -> "Local files"
     SourceType.CHITANKA -> "Chitanka"
-    else -> source.serverType.label
+    SourceType.GUTENBERG -> "Project Gutenberg"
+    SourceType.ABS -> source.serverType.label
 }
 
 /**
@@ -358,5 +361,6 @@ private fun sourceSubtitle(source: Source, host: String?, version: String?): Str
     when (source.type) {
         SourceType.LOCAL_FILES -> "on this device"
         SourceType.CHITANKA -> "Bulgarian public library"
-        else -> buildSupportingLine(host, version)
+        SourceType.GUTENBERG -> "Public-domain ebooks"
+        SourceType.ABS -> buildSupportingLine(host, version)
     }

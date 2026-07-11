@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Bundled fallback for the Project Gutenberg Source. Gutenberg has no
+  favicon-friendly branding to fetch at runtime (gutendex.com is the API mirror,
+  not the user-visible face), so this monogram is what every surface renders —
+  the "Add source" picker card, the Settings Sources row, and the drawer entry.
+  Design: burgundy circle (evocative of a book cover) with a stylized open book
+  in white — matches the "read from a public library" affordance the source
+  ships with.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="40dp"
+    android:height="40dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:pathData="M12,0 A12,12 0 1 0 12,24 A12,12 0 1 0 12,0z"
+        android:fillColor="#7B1F1F" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M5.5,6.5 L11,7.5 L11,17.5 L5.5,16.5 Z M12.5,7.5 L18,6.5 L18,16.5 L12.5,17.5 Z" />
+    <path
+        android:fillColor="#7B1F1F"
+        android:strokeWidth="0"
+        android:pathData="M11.7,7 L12,7 L12,17.8 L11.7,17.8 Z" />
+</vector>

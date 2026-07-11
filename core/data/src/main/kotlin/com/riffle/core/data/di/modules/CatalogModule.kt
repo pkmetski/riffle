@@ -6,6 +6,7 @@ import com.riffle.core.catalog.DefaultCatalogRegistry
 import com.riffle.core.domain.SourceType
 import com.riffle.core.catalog.abs.AbsCatalogFactory
 import com.riffle.core.catalog.chitanka.ChitankaCatalogFactory
+import com.riffle.core.catalog.gutenberg.GutenbergCatalogFactory
 import com.riffle.core.data.localfiles.LocalFilesCatalogFactory
 import com.riffle.core.database.LibraryItemDao
 import com.riffle.core.database.LocalFilesFileDao
@@ -89,6 +90,17 @@ object CatalogModule {
     ): CatalogFactory = ChitankaCatalogFactory(
         okHttpClient = okHttpClient,
         userAgent = "Riffle/dev (Android) chitanka-source",
+    )
+
+    @Provides
+    @Singleton
+    @IntoMap
+    @SourceTypeKey(SourceType.GUTENBERG)
+    fun provideGutenbergCatalogFactory(
+        okHttpClient: OkHttpClient,
+    ): CatalogFactory = GutenbergCatalogFactory(
+        okHttpClient = okHttpClient,
+        userAgent = "Riffle/dev (Android) gutenberg-source",
     )
 
     @Provides

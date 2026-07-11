@@ -13,4 +13,5 @@ enum class SourceType(
     ABS,
     LOCAL_FILES,
     CHITANKA(isUnboundedCatalog = true),
+    GUTENBERG(isUnboundedCatalog = true),
 }

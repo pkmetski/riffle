@@ -42,6 +42,7 @@ sealed interface SourceTypeChoice {
     data object Audiobookshelf : SourceTypeChoice
     data object LocalFiles : SourceTypeChoice
     data object Chitanka : SourceTypeChoice
+    data object Gutenberg : SourceTypeChoice
 }
 
 data class SourceTypeCard(
@@ -63,6 +64,7 @@ data class SourceTypeCard(
 internal fun sourceTypeCards(
     hasLocalFilesSource: Boolean = false,
     hasChitankaSource: Boolean = false,
+    hasGutenbergSource: Boolean = false,
 ): List<SourceTypeCard> = buildList {
     add(
         SourceTypeCard(
@@ -95,12 +97,24 @@ internal fun sourceTypeCards(
             ),
         )
     }
+    if (!hasGutenbergSource) {
+        add(
+            SourceTypeCard(
+                type = SourceTypeChoice.Gutenberg,
+                title = "Project Gutenberg",
+                subtitle = "Browse tens of thousands of free public-domain ebooks.",
+                enabled = true,
+                comingSoon = false,
+            ),
+        )
+    }
 }
 
 private fun testTagFor(type: SourceTypeChoice): String = when (type) {
     SourceTypeChoice.Audiobookshelf -> "SourceTypeCard.Audiobookshelf"
     SourceTypeChoice.LocalFiles -> "SourceTypeCard.LocalFiles"
     SourceTypeChoice.Chitanka -> "SourceTypeCard.Chitanka"
+    SourceTypeChoice.Gutenberg -> "SourceTypeCard.Gutenberg"
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -111,8 +125,10 @@ fun SourceTypePickerScreen(
     onPickAudiobookshelf: () -> Unit,
     onPickLocalFiles: () -> Unit,
     onPickChitanka: () -> Unit,
+    onPickGutenberg: () -> Unit,
     hasLocalFilesSource: Boolean = false,
     hasChitankaSource: Boolean = false,
+    hasGutenbergSource: Boolean = false,
 ) {
     Scaffold(
         topBar = {
@@ -137,6 +153,7 @@ fun SourceTypePickerScreen(
                 sourceTypeCards(
                     hasLocalFilesSource = hasLocalFilesSource,
                     hasChitankaSource = hasChitankaSource,
+                    hasGutenbergSource = hasGutenbergSource,
                 ).forEach { card ->
                     SourceTypeCardRow(
                         card = card,
@@ -144,6 +161,7 @@ fun SourceTypePickerScreen(
                             SourceTypeChoice.Audiobookshelf -> onPickAudiobookshelf
                             SourceTypeChoice.LocalFiles -> onPickLocalFiles
                             SourceTypeChoice.Chitanka -> onPickChitanka
+                            SourceTypeChoice.Gutenberg -> onPickGutenberg
                         },
                     )
                 }
@@ -194,6 +212,11 @@ private fun SourceTypeCardRow(card: SourceTypeCard, onClick: (() -> Unit)?) {
                 )
                 SourceTypeChoice.Chitanka -> SourceTypeIcon(
                     type = SourceType.CHITANKA,
+                    modifier = iconModifier,
+                    size = 40.dp,
+                )
+                SourceTypeChoice.Gutenberg -> SourceTypeIcon(
+                    type = SourceType.GUTENBERG,
                     modifier = iconModifier,
                     size = 40.dp,
                 )
