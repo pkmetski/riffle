@@ -21,6 +21,6 @@ class ChitankaCatalogFactory(
 
     override suspend fun create(source: Source): Catalog {
         val http = ChitankaHttpClient(client = okHttpClient, userAgent = userAgent)
-        return ChitankaCatalog(http = http, bytesClient = okHttpClient)
+        return ChitankaCatalog(http = http, bytesClient = okHttpClient, userAgent = userAgent)
     }
 }

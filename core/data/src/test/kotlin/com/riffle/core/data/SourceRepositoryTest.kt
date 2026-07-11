@@ -545,8 +545,8 @@ class ServerRepositoryTest {
         libDao.rows["st-1"] = mutableListOf(LibraryEntity(libraryId, "Readalouds", "readaloud", "st-1"))
         val itemDao = fakeLibraryItemDao()
         itemDao.seed(libraryId, listOf(
-            com.riffle.core.database.LibraryItemEntity("st-1", "1385738337074647", libraryId, "The Martian", "Andy Weir", null, 0f),
-            com.riffle.core.database.LibraryItemEntity("st-1", "99", libraryId, "Dune", "Frank Herbert", null, 0f),
+            com.riffle.core.database.LibraryItemEntity("st-1", "1385738337074647", libraryId, "The Martian", "Andy Weir", null, 0f, addedAt = 0L),
+            com.riffle.core.database.LibraryItemEntity("st-1", "99", libraryId, "Dune", "Frank Herbert", null, 0f, addedAt = 0L),
         ))
         val absApi = AbsApi { _, _, _, _ -> error("not called") }
         val repo = SourceRepositoryImpl(
@@ -574,8 +574,8 @@ class ServerRepositoryTest {
             LibraryEntity("lib-2", "Audiobooks", "book", "abs-1"),
         )
         val itemDao = fakeLibraryItemDao()
-        itemDao.seed("lib-1", listOf(com.riffle.core.database.LibraryItemEntity("s1", "i-1", "lib-1", "Dune", "Herbert", null, 0f)))
-        itemDao.seed("lib-2", listOf(com.riffle.core.database.LibraryItemEntity("s1", "i-2", "lib-2", "Foundation", "Asimov", null, 0f)))
+        itemDao.seed("lib-1", listOf(com.riffle.core.database.LibraryItemEntity("s1", "i-1", "lib-1", "Dune", "Herbert", null, 0f, addedAt = 0L)))
+        itemDao.seed("lib-2", listOf(com.riffle.core.database.LibraryItemEntity("s1", "i-2", "lib-2", "Foundation", "Asimov", null, 0f, addedAt = 0L)))
         val absApi = AbsApi { _, _, _, _ -> error("not called") }
         val repo = SourceRepositoryImpl(
             dao, tokens, absApi, storytellerApiNotCalled, fakeServerInfoApi, libsApiNotCalled, libDao, itemDao, fakeVisibilityStore(), fakeFilesCleaner()

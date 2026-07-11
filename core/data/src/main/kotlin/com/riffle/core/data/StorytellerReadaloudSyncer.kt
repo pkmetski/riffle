@@ -27,6 +27,7 @@ internal fun storytellerBooksToEntities(
     coverUrlOf: (Long) -> String,
     lastOpenedAtMap: Map<String, Long?>,
     progressMap: Map<String, Float>,
+    addedAtDefault: Long,
 ): List<LibraryItemEntity> = books.map { book ->
     val id = book.id.toString()
     LibraryItemEntity(
@@ -49,7 +50,9 @@ internal fun storytellerBooksToEntities(
         genres = "",
         publisher = null,
         lastOpenedAt = lastOpenedAtMap[id],
-        addedAt = null,
+        // Storyteller's readaloud listing carries no addedAt — stamp "when we first saw it"
+        // so items land in Recently Added rather than getting silently ordered to the tail.
+        addedAt = addedAtDefault,
         isbn = book.isbn,
         asin = book.asin,
     )
@@ -98,6 +101,7 @@ open class StorytellerReadaloudSyncer(
             coverUrlOf = { bookId -> storytellerApi.coverUrl(source.url.value, bookId) },
             lastOpenedAtMap = lastOpenedAtMap,
             progressMap = progressMap,
+            addedAtDefault = clock(),
         )
         libraryItemDao.replaceAllForLibrary(source.id, libraryId, entities)
         return true

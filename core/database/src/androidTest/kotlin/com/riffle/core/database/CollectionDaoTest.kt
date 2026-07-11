@@ -73,9 +73,9 @@ class CollectionDaoTest {
     @Test
     fun observeItemsByCollectionId_returnsItemsInTitleOrder() = runTest {
         val items = listOf(
-            LibraryItemEntity(sourceId = "s1", id = "item-z", libraryId = "lib1", title = "Zorro", author = "Author", coverUrl = null, readingProgress = 0f),
-            LibraryItemEntity(sourceId = "s1", id = "item-a", libraryId = "lib1", title = "Asimov", author = "Author", coverUrl = null, readingProgress = 0f),
-            LibraryItemEntity(sourceId = "s1", id = "item-m", libraryId = "lib1", title = "Middle", author = "Author", coverUrl = null, readingProgress = 0f),
+            LibraryItemEntity(sourceId = "s1", id = "item-z", libraryId = "lib1", title = "Zorro", author = "Author", coverUrl = null, readingProgress = 0f, addedAt = 0L),
+            LibraryItemEntity(sourceId = "s1", id = "item-a", libraryId = "lib1", title = "Asimov", author = "Author", coverUrl = null, readingProgress = 0f, addedAt = 0L),
+            LibraryItemEntity(sourceId = "s1", id = "item-m", libraryId = "lib1", title = "Middle", author = "Author", coverUrl = null, readingProgress = 0f, addedAt = 0L),
         )
         db.libraryItemDao().upsertAll(items)
         dao.upsertAll(listOf(collection("c1")))

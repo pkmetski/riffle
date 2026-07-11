@@ -108,7 +108,7 @@ interface LibraryItemDao {
     @Query("SELECT * FROM library_items WHERE sourceId = :sourceId AND libraryId = :libraryId AND readingProgress >= 0.99 ORDER BY COALESCE(finishedAt, lastOpenedAt) IS NULL ASC, COALESCE(finishedAt, lastOpenedAt) DESC")
     fun observeFinished(sourceId: String, libraryId: String): Flow<List<LibraryItemEntity>>
 
-    @Query("SELECT * FROM library_items WHERE sourceId = :sourceId AND libraryId = :libraryId ORDER BY addedAt IS NULL ASC, addedAt DESC")
+    @Query("SELECT * FROM library_items WHERE sourceId = :sourceId AND libraryId = :libraryId ORDER BY addedAt DESC")
     fun observeRecentlyAdded(sourceId: String, libraryId: String): Flow<List<LibraryItemEntity>>
 
     @Query("SELECT * FROM library_items WHERE sourceId = :sourceId AND libraryId = :libraryId ORDER BY title ASC")
@@ -182,7 +182,7 @@ data class LibraryItemMetadata(
     val publisher: String?,
     val language: String?,
     val lastOpenedAt: Long?,
-    val addedAt: Long?,
+    val addedAt: Long,
     val isbn: String?,
     val asin: String?,
     val finishedAt: Long?,

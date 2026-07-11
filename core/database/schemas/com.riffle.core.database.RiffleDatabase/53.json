@@ -132,7 +132,7 @@
       },
       {
         "tableName": "library_items",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`sourceId` TEXT NOT NULL, `id` TEXT NOT NULL, `libraryId` TEXT NOT NULL, `title` TEXT NOT NULL, `author` TEXT NOT NULL, `coverUrl` TEXT, `readingProgress` REAL NOT NULL, `ebookFileIno` TEXT, `ebookFormat` TEXT NOT NULL, `hasAudio` INTEGER NOT NULL, `audioDurationSec` REAL NOT NULL, `description` TEXT, `seriesName` TEXT, `seriesSequence` TEXT, `publishedYear` TEXT, `genres` TEXT NOT NULL, `publisher` TEXT, `language` TEXT, `lastOpenedAt` INTEGER, `addedAt` INTEGER, `isbn` TEXT, `asin` TEXT, `finishedAt` INTEGER, `pageCount` INTEGER, PRIMARY KEY(`sourceId`, `id`), FOREIGN KEY(`sourceId`) REFERENCES `sources`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`sourceId` TEXT NOT NULL, `id` TEXT NOT NULL, `libraryId` TEXT NOT NULL, `title` TEXT NOT NULL, `author` TEXT NOT NULL, `coverUrl` TEXT, `readingProgress` REAL NOT NULL, `ebookFileIno` TEXT, `ebookFormat` TEXT NOT NULL, `hasAudio` INTEGER NOT NULL, `audioDurationSec` REAL NOT NULL, `description` TEXT, `seriesName` TEXT, `seriesSequence` TEXT, `publishedYear` TEXT, `genres` TEXT NOT NULL, `publisher` TEXT, `language` TEXT, `lastOpenedAt` INTEGER, `addedAt` INTEGER NOT NULL, `isbn` TEXT, `asin` TEXT, `finishedAt` INTEGER, `pageCount` INTEGER, PRIMARY KEY(`sourceId`, `id`), FOREIGN KEY(`sourceId`) REFERENCES `sources`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
         "fields": [
           {
             "fieldPath": "sourceId",
@@ -242,7 +242,8 @@
           {
             "fieldPath": "addedAt",
             "columnName": "addedAt",
-            "affinity": "INTEGER"
+            "affinity": "INTEGER",
+            "notNull": true
           },
           {
             "fieldPath": "isbn",

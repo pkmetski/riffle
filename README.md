@@ -1,7 +1,5 @@
 # Riffle
 
-An Android ebook reader and audiobook player for [Audiobookshelf](https://www.audiobookshelf.org/) and [Storyteller](https://storyteller-platform.gitlab.io/storyteller) self-hosted servers, [chitanka.info](https://chitanka.info) / [gramofonche.chitanka.info](https://gramofonche.chitanka.info), and EPUB, PDF, and CBZ files on your device.
-
 [![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/pkmetski)
 
 Riffle lets you browse your library, read EPUB, PDF, and CBZ files, listen to audiobooks, and keep reading and listening progress in sync across devices — all from a clean, privacy-respecting Android app.

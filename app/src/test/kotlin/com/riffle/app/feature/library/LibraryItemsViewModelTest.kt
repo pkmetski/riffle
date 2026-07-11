@@ -1152,6 +1152,13 @@ class LibraryItemsViewModelTest {
         assertEquals(false, visibility?.collections)
     }
 
+    /**
+     * `toRead` is now [true] for every source since [ToReadRepositoryImpl] falls back to
+     * [com.riffle.core.data.LocalToReadStore] when the active Catalog has no PlaylistsCapability.
+     * The pre-fallback assertion (`toRead = false` for a LocalFiles-shape source) intentionally
+     * flipped as part of that consistency change — this test now pins the new invariant that
+     * `series` still tracks capability while `toRead` is universal.
+     */
     @Test
     fun `tabVisibility re-emits when the active Source flips to one with a different capability set`() = runTest {
         val abs = source("s-abs", active = true)
@@ -1188,7 +1195,8 @@ class LibraryItemsViewModelTest {
 
         val v = vm.tabVisibility.value
         assertEquals(true, v?.series)
-        assertEquals(false, v?.toRead)
+        // Universal now — local fallback provides To Read for sources without PlaylistsCapability.
+        assertEquals(true, v?.toRead)
     }
 
     private fun source(id: String, active: Boolean) = Source(

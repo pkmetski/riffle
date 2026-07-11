@@ -25,6 +25,7 @@ class AnnotationsLibraryRepositoryTest {
         coverUrl = coverUrl,
         readingProgress = 0f,
         ebookFormat = ebookFormat,
+        addedAt = 0L,
     )
 
     @Test

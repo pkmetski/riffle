@@ -379,16 +379,16 @@ class ReadaloudReviewRepositoryTest {
     )
 
     private fun absEbook(id: String) =
-        LibraryItemEntity("abs", id, "lib", id, "Author", null, 0f, ebookFormat = "epub", hasAudio = false)
+        LibraryItemEntity("abs", id, "lib", id, "Author", null, 0f, ebookFormat = "epub", hasAudio = false, addedAt = 0L)
 
     private fun absAudiobook(id: String) =
-        LibraryItemEntity("abs", id, "lib", id, "Author", null, 0f, ebookFormat = "unsupported", hasAudio = true)
+        LibraryItemEntity("abs", id, "lib", id, "Author", null, 0f, ebookFormat = "unsupported", hasAudio = true, addedAt = 0L)
 
     private fun absCombined(id: String) =
-        LibraryItemEntity("abs", id, "lib", id, "Author", null, 0f, ebookFormat = "epub", hasAudio = true)
+        LibraryItemEntity("abs", id, "lib", id, "Author", null, 0f, ebookFormat = "epub", hasAudio = true, addedAt = 0L)
 
     private fun storytellerBook(id: String) =
-        LibraryItemEntity("st", id, "lib", "Book $id", "Author", null, 0f)
+        LibraryItemEntity("st", id, "lib", "Book $id", "Author", null, 0f, addedAt = 0L)
 
     /** A [LibraryItemDao] backing both `getById` lookups and `listMatchableBySourceType` scans. */
     private class MatchableLibraryItemDao(
@@ -461,10 +461,10 @@ class ReadaloudReviewRepositoryTest {
     }
 
     private fun audiobook(sourceId: String, id: String) =
-        LibraryItemEntity(sourceId, id, "lib", "Title", "Author", null, 0f, hasAudio = true)
+        LibraryItemEntity(sourceId, id, "lib", "Title", "Author", null, 0f, hasAudio = true, addedAt = 0L)
 
     private fun ebook(sourceId: String, id: String) =
-        LibraryItemEntity(sourceId, id, "lib", "Title", "Author", null, 0f, hasAudio = false)
+        LibraryItemEntity(sourceId, id, "lib", "Title", "Author", null, 0f, hasAudio = false, addedAt = 0L)
 
     private class RecordingLibraryItemDao : LibraryItemDao by ThrowingLibraryItemDao {
         private val items = mutableMapOf<Pair<String, String>, LibraryItemEntity>()

@@ -9,6 +9,8 @@ import com.riffle.core.domain.LibraryItem
 import com.riffle.core.domain.LocalStore
 import com.riffle.core.domain.ReadingPositionStore
 import com.riffle.core.domain.SourceRepository
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 class EpubRepositoryImpl(
     private val catalogRegistry: CatalogRegistry,
@@ -17,6 +19,20 @@ class EpubRepositoryImpl(
     private val positionStore: ReadingPositionStore,
     private val sourceRepository: SourceRepository,
 ) : EpubRepository {
+
+    /**
+     * Single-flight guard: at most one network fetch may be in flight per (sourceId, itemId).
+     * Concurrent openEpub/downloadEpub for the same item (e.g. detail-page TOC extraction racing
+     * a user's Download tap) previously each fired their own HTTP request; Chitanka's Cloudflare
+     * layer rate-limits per source IP and 429s the second one. The mutex serialises the network
+     * step; the loser checks cache + downloads on entry and returns the already-fetched bytes.
+     */
+    private val fetchLocks = mutableMapOf<Pair<String, String>, Mutex>()
+    private val fetchLocksGuard = Mutex()
+
+    private suspend fun lockFor(sourceId: String, itemId: String): Mutex = fetchLocksGuard.withLock {
+        fetchLocks.getOrPut(sourceId to itemId) { Mutex() }
+    }
 
     override suspend fun openEpub(item: LibraryItem): EpubOpenResult {
         // Resolve the item's OWN Source, not the active one. A user-switch on the same URL mints a
@@ -31,12 +47,19 @@ class EpubRepositoryImpl(
         } else {
             val catalog = catalogRegistry.forSourceId(item.sourceId)
                 ?: return EpubOpenResult.NetworkError(IllegalStateException("No catalog for item"))
-            try {
-                catalog.openFile(item.id, BookFormat.Epub, handleHint = item.ebookFileIno).use { stream ->
-                    cacheStore.save(item.sourceId, item.id, stream.byteStream())
-                }
-            } catch (t: Throwable) {
-                return EpubOpenResult.NetworkError(t)
+            lockFor(item.sourceId, item.id).withLock {
+                // Re-check after acquiring: a concurrent openEpub/downloadEpub may have populated
+                // either store while we were waiting for the lock. Reuse those bytes instead of
+                // firing a second HTTP request (Chitanka 429s concurrent fetches for the same IP).
+                downloadsStore.get(item.sourceId, item.id)
+                    ?: cacheStore.get(item.sourceId, item.id)
+                    ?: try {
+                        catalog.openFile(item.id, BookFormat.Epub, handleHint = item.ebookFileIno).use { stream ->
+                            cacheStore.save(item.sourceId, item.id, stream.byteStream())
+                        }
+                    } catch (t: Throwable) {
+                        return EpubOpenResult.NetworkError(t)
+                    }
             }
         }
         // Position load intentionally stays keyed by activeSource.id — [saveReadingPosition] also
@@ -53,25 +76,37 @@ class EpubRepositoryImpl(
     ): EpubDownloadResult {
         if (downloadsStore.get(item.sourceId, item.id) != null) return EpubDownloadResult.AlreadyDownloaded
         val cached = cacheStore.get(item.sourceId, item.id)
-        if (cached != null) {
-            val size = cached.length()
-            cached.inputStream().use {
-                downloadsStore.save(item.sourceId, item.id, ProgressReportingInputStream(it, size, onProgress))
-            }
-            cacheStore.delete(item.sourceId, item.id)
-            return EpubDownloadResult.Success
-        }
+        if (cached != null) return promoteCacheToDownloads(item, cached, onProgress)
         val catalog = catalogRegistry.forSourceId(item.sourceId)
             ?: return EpubDownloadResult.NetworkError(IllegalStateException("No catalog for item"))
-        return try {
-            catalog.openFile(item.id, BookFormat.Epub, handleHint = item.ebookFileIno).use { stream ->
-                val progressStream = ProgressReportingInputStream(stream.byteStream(), stream.contentLength, onProgress)
-                downloadsStore.save(item.sourceId, item.id, progressStream)
+        return lockFor(item.sourceId, item.id).withLock {
+            // Post-lock re-check: while we waited, a concurrent openEpub may have cached the bytes.
+            // Reuse them instead of firing a duplicate HTTP request.
+            downloadsStore.get(item.sourceId, item.id)?.let { return@withLock EpubDownloadResult.AlreadyDownloaded }
+            cacheStore.get(item.sourceId, item.id)?.let { return@withLock promoteCacheToDownloads(item, it, onProgress) }
+            try {
+                catalog.openFile(item.id, BookFormat.Epub, handleHint = item.ebookFileIno).use { stream ->
+                    val progressStream = ProgressReportingInputStream(stream.byteStream(), stream.contentLength, onProgress)
+                    downloadsStore.save(item.sourceId, item.id, progressStream)
+                }
+                EpubDownloadResult.Success
+            } catch (t: Throwable) {
+                EpubDownloadResult.NetworkError(t)
             }
-            EpubDownloadResult.Success
-        } catch (t: Throwable) {
-            EpubDownloadResult.NetworkError(t)
         }
+    }
+
+    private suspend fun promoteCacheToDownloads(
+        item: LibraryItem,
+        cached: java.io.File,
+        onProgress: (downloaded: Long, total: Long) -> Unit,
+    ): EpubDownloadResult {
+        val size = cached.length()
+        cached.inputStream().use {
+            downloadsStore.save(item.sourceId, item.id, ProgressReportingInputStream(it, size, onProgress))
+        }
+        cacheStore.delete(item.sourceId, item.id)
+        return EpubDownloadResult.Success
     }
 
     override suspend fun removeDownload(sourceId: String, itemId: String) {

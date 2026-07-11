@@ -362,7 +362,7 @@ class LibraryRepositoryTest {
         fakeTokenStorage.tokens["s1"] = "tok"
         val dao = FakeLibraryItemDao()
         dao.upsertAll(listOf(
-            LibraryItemEntity("s1", "item-1", "lib-1", "My Book", "Author A", null, 0.4f, lastOpenedAt = 1_000L),
+            LibraryItemEntity("s1", "item-1", "lib-1", "My Book", "Author A", null, 0.4f, lastOpenedAt = 1_000L, addedAt = 0L),
         ))
         val api = object : AbsLibraryApi {
             override suspend fun getUserProgress(baseUrl: String, token: String, insecureAllowed: Boolean): NetworkResult<Map<String, NetworkUserMediaProgress>> =
@@ -390,7 +390,7 @@ class LibraryRepositoryTest {
         fakeTokenStorage.tokens["s1"] = "tok"
         val dao = FakeLibraryItemDao()
         dao.upsertAll(listOf(
-            LibraryItemEntity("s1", "item-1", "lib-1", "My Book", "Author A", null, 0.4f, lastOpenedAt = 9_000L),
+            LibraryItemEntity("s1", "item-1", "lib-1", "My Book", "Author A", null, 0.4f, lastOpenedAt = 9_000L, addedAt = 0L),
         ))
         val api = object : AbsLibraryApi {
             override suspend fun getUserProgress(baseUrl: String, token: String, insecureAllowed: Boolean): NetworkResult<Map<String, NetworkUserMediaProgress>> =
@@ -420,7 +420,7 @@ class LibraryRepositoryTest {
         fakeTokenStorage.tokens["s1"] = "tok"
         val dao = FakeLibraryItemDao()
         dao.upsertAll(listOf(
-            LibraryItemEntity("s1", "item-1", "lib-1", "My Book", "Author A", null, 0.75f),
+            LibraryItemEntity("s1", "item-1", "lib-1", "My Book", "Author A", null, 0.75f, addedAt = 0L),
         ))
         val api = object : AbsLibraryApi {
             override suspend fun getUserProgress(baseUrl: String, token: String, insecureAllowed: Boolean): NetworkResult<Map<String, NetworkUserMediaProgress>> =
@@ -476,7 +476,7 @@ class LibraryRepositoryTest {
         val dao = FakeLibraryItemDao()
         // Seed an existing item with a known lastOpenedAt
         dao.upsertAll(listOf(
-            LibraryItemEntity("s1", "item-1", "lib-1", "My Book", "Author A", null, 0.4f, lastOpenedAt = 99_000L),
+            LibraryItemEntity("s1", "item-1", "lib-1", "My Book", "Author A", null, 0.4f, lastOpenedAt = 99_000L, addedAt = 0L),
         ))
         val api = object : AbsLibraryApi {
             override suspend fun getLibraries(baseUrl: String, token: String, insecureAllowed: Boolean): NetworkResult<List<NetworkLibrary>> =
@@ -645,7 +645,7 @@ class LibraryRepositoryTest {
     fun `hasAudio maps from entity to domain`() = runTest {
         fakeServerRepository.activeServer = activeServer()
         val dao = FakeLibraryItemDao()
-        dao.upsertAll(listOf(LibraryItemEntity("s1", "item-1", "lib-1", "Audiobook", "Author", null, 0f, hasAudio = true)))
+        dao.upsertAll(listOf(LibraryItemEntity("s1", "item-1", "lib-1", "Audiobook", "Author", null, 0f, hasAudio = true, addedAt = 0L)))
         val item = makeRepo(libraryItemDao = dao).observeLibraryItems("lib-1").first()[0]
         assertTrue(item.hasAudio)
     }
@@ -656,7 +656,7 @@ class LibraryRepositoryTest {
     fun `observeLibraryItems emits from Room`() = runTest {
         fakeServerRepository.activeServer = activeServer()
         val dao = FakeLibraryItemDao()
-        dao.upsertAll(listOf(LibraryItemEntity("s1", "item-1", "lib-1", "My Book", "Author A", null, 0.5f)))
+        dao.upsertAll(listOf(LibraryItemEntity("s1", "item-1", "lib-1", "My Book", "Author A", null, 0.5f, addedAt = 0L)))
         val result = makeRepo(libraryItemDao = dao).observeLibraryItems("lib-1").first()
         assertEquals(1, result.size)
         assertEquals("item-1", result[0].id)
@@ -675,8 +675,8 @@ class LibraryRepositoryTest {
         fakeServerRepository.activeServer = activeServer(id = "s1")
         val dao = FakeLibraryItemDao()
         dao.upsertAll(listOf(
-            LibraryItemEntity("s1", "item-1", "lib-1", "My Book", "Author A", null, 1.0f),
-            LibraryItemEntity("s2", "item-1", "lib-1", "My Book", "Author A", null, 0.45f),
+            LibraryItemEntity("s1", "item-1", "lib-1", "My Book", "Author A", null, 1.0f, addedAt = 0L),
+            LibraryItemEntity("s2", "item-1", "lib-1", "My Book", "Author A", null, 0.45f, addedAt = 0L),
         ))
         val repo = makeRepo(libraryItemDao = dao)
 
@@ -695,9 +695,9 @@ class LibraryRepositoryTest {
         fakeServerRepository.activeServer = activeServer(id = "s1")
         val dao = FakeLibraryItemDao()
         dao.upsertAll(listOf(
-            LibraryItemEntity("s1", "item-1", "lib-shared", "S1 Book", "Author", null, 0.5f),
-            LibraryItemEntity("s2", "item-1", "lib-shared", "S2 Book", "Author", null, 0.2f),
-            LibraryItemEntity("s2", "item-99", "lib-shared", "S2 Other", "Author", null, 0.1f),
+            LibraryItemEntity("s1", "item-1", "lib-shared", "S1 Book", "Author", null, 0.5f, addedAt = 0L),
+            LibraryItemEntity("s2", "item-1", "lib-shared", "S2 Book", "Author", null, 0.2f, addedAt = 0L),
+            LibraryItemEntity("s2", "item-99", "lib-shared", "S2 Other", "Author", null, 0.1f, addedAt = 0L),
         ))
         val repo = makeRepo(libraryItemDao = dao)
 
@@ -719,8 +719,8 @@ class LibraryRepositoryTest {
         val dao = FakeLibraryItemDao()
         // Seed the inactive duplicate first so a naive distinctBy{id} would keep the wrong row.
         dao.upsertAll(listOf(
-            LibraryItemEntity("s2", "item-1", "lib-1", "My Book", "Author A", null, 0.9f),
-            LibraryItemEntity("s1", "item-1", "lib-1", "My Book", "Author A", null, 0.5f),
+            LibraryItemEntity("s2", "item-1", "lib-1", "My Book", "Author A", null, 0.9f, addedAt = 0L),
+            LibraryItemEntity("s1", "item-1", "lib-1", "My Book", "Author A", null, 0.5f, addedAt = 0L),
         ))
         val repo = makeRepo(libraryItemDao = dao)
 
@@ -738,7 +738,7 @@ class LibraryRepositoryTest {
     fun `epub ebookFormat maps to isReadable true`() = runTest {
         fakeServerRepository.activeServer = activeServer()
         val dao = FakeLibraryItemDao()
-        dao.upsertAll(listOf(LibraryItemEntity("s1", "item-1", "lib-1", "Dune", "Herbert", null, 0f, ebookFormat = "epub")))
+        dao.upsertAll(listOf(LibraryItemEntity("s1", "item-1", "lib-1", "Dune", "Herbert", null, 0f, ebookFormat = "epub", addedAt = 0L)))
         val item = makeRepo(libraryItemDao = dao).observeLibraryItems("lib-1").first()[0]
         assertEquals(EbookFormat.Epub, item.ebookFormat)
         assertTrue(item.isReadable)
@@ -748,7 +748,7 @@ class LibraryRepositoryTest {
     fun `pdf ebookFormat maps to isReadable true`() = runTest {
         fakeServerRepository.activeServer = activeServer()
         val dao = FakeLibraryItemDao()
-        dao.upsertAll(listOf(LibraryItemEntity("s1", "item-1", "lib-1", "Dune", "Herbert", null, 0f, ebookFormat = "pdf")))
+        dao.upsertAll(listOf(LibraryItemEntity("s1", "item-1", "lib-1", "Dune", "Herbert", null, 0f, ebookFormat = "pdf", addedAt = 0L)))
         val item = makeRepo(libraryItemDao = dao).observeLibraryItems("lib-1").first()[0]
         assertEquals(EbookFormat.Pdf, item.ebookFormat)
         assertTrue(item.isReadable)
@@ -758,7 +758,7 @@ class LibraryRepositoryTest {
     fun `unsupported ebookFormat maps to isReadable false`() = runTest {
         fakeServerRepository.activeServer = activeServer()
         val dao = FakeLibraryItemDao()
-        dao.upsertAll(listOf(LibraryItemEntity("s1", "item-1", "lib-1", "Dune", "Herbert", null, 0f, ebookFormat = "unsupported")))
+        dao.upsertAll(listOf(LibraryItemEntity("s1", "item-1", "lib-1", "Dune", "Herbert", null, 0f, ebookFormat = "unsupported", addedAt = 0L)))
         val item = makeRepo(libraryItemDao = dao).observeLibraryItems("lib-1").first()[0]
         assertEquals(EbookFormat.Unsupported, item.ebookFormat)
         assertFalse(item.isReadable)
@@ -770,7 +770,7 @@ class LibraryRepositoryTest {
         val dao = FakeLibraryItemDao()
         // "azw3" is not in the supported set — must fall back to Unsupported. (CBZ was previously
         // used as the "unknown" sentinel; it's now a supported format — ADR 0042.)
-        dao.upsertAll(listOf(LibraryItemEntity("s1", "item-1", "lib-1", "Book", "Author", null, 0f, ebookFormat = "azw3")))
+        dao.upsertAll(listOf(LibraryItemEntity("s1", "item-1", "lib-1", "Book", "Author", null, 0f, ebookFormat = "azw3", addedAt = 0L)))
         val item = makeRepo(libraryItemDao = dao).observeLibraryItems("lib-1").first()[0]
         assertEquals(EbookFormat.Unsupported, item.ebookFormat)
         assertFalse(item.isReadable)
@@ -780,7 +780,7 @@ class LibraryRepositoryTest {
     fun `cbz ebookFormat string maps to Cbz and isReadable true`() = runTest {
         fakeServerRepository.activeServer = activeServer()
         val dao = FakeLibraryItemDao()
-        dao.upsertAll(listOf(LibraryItemEntity("s1", "item-1", "lib-1", "Comic", "Author", null, 0f, ebookFormat = "cbz")))
+        dao.upsertAll(listOf(LibraryItemEntity("s1", "item-1", "lib-1", "Comic", "Author", null, 0f, ebookFormat = "cbz", addedAt = 0L)))
         val item = makeRepo(libraryItemDao = dao).observeLibraryItems("lib-1").first()[0]
         assertEquals(EbookFormat.Cbz, item.ebookFormat)
         assertTrue(item.isReadable)
@@ -1053,8 +1053,8 @@ class LibraryRepositoryTest {
     fun `observeSeriesItems emits items from Room in series order`() = runTest {
         fakeServerRepository.activeServer = activeServer()
         val dao = FakeSeriesDao()
-        val item1 = LibraryItemEntity("s1", "item-1", "lib-1", "WoK", "Sanderson", null, 0.5f)
-        val item2 = LibraryItemEntity("s1", "item-2", "lib-1", "WoR", "Sanderson", null, 0f)
+        val item1 = LibraryItemEntity("s1", "item-1", "lib-1", "WoK", "Sanderson", null, 0.5f, addedAt = 0L)
+        val item2 = LibraryItemEntity("s1", "item-2", "lib-1", "WoR", "Sanderson", null, 0f, addedAt = 0L)
         dao.seedItems("ser-1", listOf(item1, item2))
         val result = makeRepo(seriesDao = dao).observeSeriesItems("ser-1").first()
         assertEquals(2, result.size)
@@ -1073,12 +1073,12 @@ class LibraryRepositoryTest {
             LibraryItemEntity(
                 sourceId = "s1", id = "item-42", libraryId = "lib-1",
                 title = "Abaddon's Gate", author = "James S. A. Corey",
-                coverUrl = null, readingProgress = 0f,
+                coverUrl = null, readingProgress = 0f, addedAt = 0L,
             ),
             LibraryItemEntity(
                 sourceId = "s1", id = "item-43", libraryId = "lib-1",
                 title = "Cibola Burn", author = "James S. A. Corey",
-                coverUrl = null, readingProgress = 0f,
+                coverUrl = null, readingProgress = 0f, addedAt = 0L,
             ),
         ))
 
@@ -1097,7 +1097,7 @@ class LibraryRepositoryTest {
     fun `observeCollectionItems emits items from Room`() = runTest {
         fakeServerRepository.activeServer = activeServer()
         val dao = FakeCollectionDao()
-        val item1 = LibraryItemEntity("s1", "item-1", "lib-1", "Book A", "Author", null, 0f)
+        val item1 = LibraryItemEntity("s1", "item-1", "lib-1", "Book A", "Author", null, 0f, addedAt = 0L)
         dao.seedItems("col-1", listOf(item1))
         val result = makeRepo(collectionDao = dao).observeCollectionItems("col-1").first()
         assertEquals(1, result.size)

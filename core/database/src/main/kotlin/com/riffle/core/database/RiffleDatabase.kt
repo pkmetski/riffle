@@ -942,7 +942,10 @@ abstract class RiffleDatabase : RoomDatabase() {
                             "`publisher` TEXT, " +
                             "`language` TEXT, " +
                             "`lastOpenedAt` INTEGER, " +
-                            "`addedAt` INTEGER, " +
+                            // NOT NULL: every Source is required to stamp a real timestamp. This
+                            // migration DDL was amended in v53 (pre-ship) to enforce it; dev DBs
+                            // migrating through here backfill NULL rows with 0 via COALESCE below.
+                            "`addedAt` INTEGER NOT NULL, " +
                             "`isbn` TEXT, " +
                             "`asin` TEXT, " +
                             "`finishedAt` INTEGER, " +
@@ -951,7 +954,7 @@ abstract class RiffleDatabase : RoomDatabase() {
                     )
                     db.execSQL(
                         "INSERT INTO `library_items_new` (`sourceId`, `id`, `libraryId`, `title`, `author`, `coverUrl`, `readingProgress`, `ebookFileIno`, `ebookFormat`, `hasAudio`, `audioDurationSec`, `description`, `seriesName`, `publishedYear`, `genres`, `publisher`, `language`, `lastOpenedAt`, `addedAt`, `isbn`, `asin`, `finishedAt`) " +
-                            "SELECT `serverId`, `id`, `libraryId`, `title`, `author`, `coverUrl`, `readingProgress`, `ebookFileIno`, `ebookFormat`, `hasAudio`, `audioDurationSec`, `description`, `seriesName`, `publishedYear`, `genres`, `publisher`, `language`, `lastOpenedAt`, `addedAt`, `isbn`, `asin`, `finishedAt` FROM `library_items`"
+                            "SELECT `serverId`, `id`, `libraryId`, `title`, `author`, `coverUrl`, `readingProgress`, `ebookFileIno`, `ebookFormat`, `hasAudio`, `audioDurationSec`, `description`, `seriesName`, `publishedYear`, `genres`, `publisher`, `language`, `lastOpenedAt`, COALESCE(`addedAt`, 0), `isbn`, `asin`, `finishedAt` FROM `library_items`"
                     )
                     db.execSQL("DROP TABLE `library_items`")
                     db.execSQL("ALTER TABLE `library_items_new` RENAME TO `library_items`")
@@ -1476,6 +1479,49 @@ abstract class RiffleDatabase : RoomDatabase() {
 
                     // 6. Drop the synthetic 'local:root' LibraryEntity across every LocalFiles Source.
                     db.execSQL("DELETE FROM libraries WHERE id = 'local:root'")
+
+                    // 7. Flip `library_items.addedAt` from nullable → NOT NULL. Piggy-backed onto
+                    //    the last migration that lands v53 (pre-ship) rather than adding a new
+                    //    migration function: every Source is now required to stamp a real
+                    //    timestamp, and NULLs (from pre-fix Chitanka / Storyteller readaloud rows)
+                    //    coalesce to 0. This makes v53's schema converge to the entity — see
+                    //    LibraryItemEntity.addedAt.
+                    db.execSQL(
+                        "CREATE TABLE `library_items_new` (" +
+                            "`sourceId` TEXT NOT NULL, " +
+                            "`id` TEXT NOT NULL, " +
+                            "`libraryId` TEXT NOT NULL, " +
+                            "`title` TEXT NOT NULL, " +
+                            "`author` TEXT NOT NULL, " +
+                            "`coverUrl` TEXT, " +
+                            "`readingProgress` REAL NOT NULL, " +
+                            "`ebookFileIno` TEXT, " +
+                            "`ebookFormat` TEXT NOT NULL, " +
+                            "`hasAudio` INTEGER NOT NULL, " +
+                            "`audioDurationSec` REAL NOT NULL, " +
+                            "`description` TEXT, " +
+                            "`seriesName` TEXT, " +
+                            "`seriesSequence` TEXT, " +
+                            "`publishedYear` TEXT, " +
+                            "`genres` TEXT NOT NULL, " +
+                            "`publisher` TEXT, " +
+                            "`language` TEXT, " +
+                            "`lastOpenedAt` INTEGER, " +
+                            "`addedAt` INTEGER NOT NULL, " +
+                            "`isbn` TEXT, " +
+                            "`asin` TEXT, " +
+                            "`finishedAt` INTEGER, " +
+                            "`pageCount` INTEGER, " +
+                            "PRIMARY KEY(`sourceId`, `id`), " +
+                            "FOREIGN KEY(`sourceId`) REFERENCES `sources`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE)"
+                    )
+                    db.execSQL(
+                        "INSERT INTO `library_items_new` (`sourceId`, `id`, `libraryId`, `title`, `author`, `coverUrl`, `readingProgress`, `ebookFileIno`, `ebookFormat`, `hasAudio`, `audioDurationSec`, `description`, `seriesName`, `seriesSequence`, `publishedYear`, `genres`, `publisher`, `language`, `lastOpenedAt`, `addedAt`, `isbn`, `asin`, `finishedAt`, `pageCount`) " +
+                            "SELECT `sourceId`, `id`, `libraryId`, `title`, `author`, `coverUrl`, `readingProgress`, `ebookFileIno`, `ebookFormat`, `hasAudio`, `audioDurationSec`, `description`, `seriesName`, `seriesSequence`, `publishedYear`, `genres`, `publisher`, `language`, `lastOpenedAt`, COALESCE(`addedAt`, 0), `isbn`, `asin`, `finishedAt`, `pageCount` FROM `library_items`"
+                    )
+                    db.execSQL("DROP TABLE `library_items`")
+                    db.execSQL("ALTER TABLE `library_items_new` RENAME TO `library_items`")
+                    db.execSQL("CREATE INDEX IF NOT EXISTS `index_library_items_sourceId` ON `library_items` (`sourceId`)")
                 } finally {
                     db.execSQL("PRAGMA foreign_keys=ON")
                 }

@@ -349,7 +349,15 @@ class LibraryItemDetailViewModelTest {
         backgroundScope.launch { vm.uiState.collect {} }
         testDispatcher.scheduler.advanceUntilIdle()
 
-        assertEquals(LibraryItemDetailUiState.Ready(knownItem), vm.uiState.value)
+        // hasPlaylists is now universally true because ToReadRepository has a local fallback for
+        // Sources without a server-side PlaylistsCapability (see LocalToReadStore).
+        assertEquals(
+            LibraryItemDetailUiState.Ready(
+                knownItem,
+                capabilities = DetailCapabilities(hasSeries = false, hasPlaylists = true, hasAudiobookMedia = false),
+            ),
+            vm.uiState.value,
+        )
     }
 
     @Test

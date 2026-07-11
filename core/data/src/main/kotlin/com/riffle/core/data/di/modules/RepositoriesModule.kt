@@ -5,6 +5,8 @@ import com.riffle.core.data.AnnotationsLibraryRepositoryImpl
 import com.riffle.core.data.AppUpdateRepositoryImpl
 import com.riffle.core.data.ConnectivityObserverImpl
 import com.riffle.core.data.CrashReportRepositoryImpl
+import com.riffle.core.data.LocalToReadStore
+import com.riffle.core.data.LocalToReadStoreImpl
 import com.riffle.core.data.CrossEpubIndexBuilderService
 import com.riffle.core.data.CrossEpubIndexBuildTrigger
 import com.riffle.core.data.EpubRepositoryImpl
@@ -66,6 +68,10 @@ abstract class RepositoriesModule {
     @Binds
     @Singleton
     abstract fun bindToReadRepository(impl: ToReadRepositoryImpl): ToReadRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindLocalToReadStore(impl: LocalToReadStoreImpl): LocalToReadStore
 
     @Binds
     @Singleton

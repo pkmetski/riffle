@@ -239,7 +239,10 @@ class LibraryRepositoryImpl @Inject constructor(
                         // can lead — the local stamp wins between syncs on this device, the
                         // server stamp wins once another device has read more recently.
                         lastOpenedAt = mergeLastOpenedAt(lastOpenedAtMap[item.id], serverProgress?.lastUpdate),
-                        addedAt = item.addedAt,
+                        // Fall back to "now" for catalogs that don't supply an addedAt (some
+                        // Sources genuinely have no server-side timestamp) so the row still
+                        // participates in Recently Added ordering.
+                        addedAt = item.addedAt ?: clock.nowMs(),
                         isbn = item.isbn,
                         asin = item.asin,
                         finishedAt = serverProgress?.finishedAt,

@@ -7,6 +7,7 @@ import com.riffle.core.domain.LibraryItem
 import com.riffle.core.domain.LibraryObserver
 import com.riffle.core.domain.SourceRepository
 import com.riffle.core.domain.showCachedSectionFor
+import com.riffle.core.domain.showReadaloudSectionFor
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -29,6 +30,12 @@ data class DownloadsUiState(
      * LocalFiles, single-tier), the Downloads Screen renders one section instead of two.
      */
     val showCachedSection: Boolean = true,
+    /**
+     * Whether the active Source can carry Storyteller readaloud bundles. Only ABS today — the
+     * Downloads Screen hides the "Readaloud (streaming)" section header for sources without it so
+     * users don't see an empty section they can never populate.
+     */
+    val showReadaloudSection: Boolean = true,
 ) {
     val downloadedTotalBytes: Long get() = downloadedItems.sumOf { it.sizeBytes }
     val cachedTotalBytes: Long get() = cachedItems.sumOf { it.sizeBytes }
@@ -73,11 +80,13 @@ class DownloadsViewModel @Inject constructor(
                 }
             }
 
+            val active = sourceRepository.getActive()
             _uiState.value = DownloadsUiState(
                 downloadedItems = downloadedItems,
                 cachedItems = cachedItems,
                 readaloudSidecars = readaloudSidecars,
-                showCachedSection = showCachedSectionFor(sourceRepository.getActive()),
+                showCachedSection = showCachedSectionFor(active),
+                showReadaloudSection = showReadaloudSectionFor(active),
             )
         }
     }

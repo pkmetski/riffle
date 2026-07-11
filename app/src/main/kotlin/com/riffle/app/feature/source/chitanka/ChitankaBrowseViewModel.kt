@@ -22,6 +22,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import java.io.IOException
+import java.net.UnknownHostException
 import javax.inject.Inject
 
 /**
@@ -41,24 +43,29 @@ class ChitankaBrowseViewModel @Inject constructor(
     private val libraryItemUpserter: ChitankaLibraryItemUpserter,
 ) : ViewModel() {
 
-    val rootId: String = savedStateHandle.get<String>("rootId") ?: ChitankaCatalog.ROOT_BOOKS
+    // Chitanka's browse route uses the Riffle `libraryId` as the Catalog `rootId` — the two
+    // Chitanka "libraries" (Books and Audiobooks) each map 1:1 to a Catalog root. Reading the
+    // route arg as `libraryId` keeps this SavedStateHandle compatible with
+    // AnnotationsListViewModel (which looks for a `libraryId` key) when we embed it in the
+    // Chitanka screen's Annotations tab.
+    val rootId: String = savedStateHandle.get<String>("libraryId") ?: ChitankaCatalog.ROOT_BOOKS
 
     /**
      * Emitted once the tapped [CatalogItem] has been upserted into `library_items` and the
-     * reader / audiobook player can safely be launched for it. The screen collects this and
-     * routes to `epub_reader/{id}` or `audiobook_player/{id}` (see MainScreen).
+     * standard item detail screen can safely resolve it via `LibraryObserver.getItem`. The
+     * screen collects this and routes to `library_item_detail/{id}` (see MainScreen).
      *
      * Extra-buffer replay-0 so a nav that fires before the collector attaches (should never
      * happen — the screen collects in composition) is dropped rather than replayed on the
      * next screen return.
      */
-    data class OpenEvent(val itemId: String, val isAudio: Boolean)
+    data class OpenDetailEvent(val itemId: String)
 
-    private val _openEvents = MutableSharedFlow<OpenEvent>(
+    private val _openDetailEvents = MutableSharedFlow<OpenDetailEvent>(
         extraBufferCapacity = 1,
         onBufferOverflow = BufferOverflow.DROP_OLDEST,
     )
-    val openEvents: SharedFlow<OpenEvent> = _openEvents.asSharedFlow()
+    val openDetailEvents: SharedFlow<OpenDetailEvent> = _openDetailEvents.asSharedFlow()
 
     private val _facets = MutableStateFlow<List<CatalogFacet>>(emptyList())
     val facets: StateFlow<List<CatalogFacet>> = _facets.asStateFlow()
@@ -78,8 +85,25 @@ class ChitankaBrowseViewModel @Inject constructor(
     private val _query = MutableStateFlow("")
     val query: StateFlow<String> = _query.asStateFlow()
 
+    /**
+     * True while a next-page fetch is in flight. Distinct from [isLoading] (whole-list refresh) so
+     * the UI can show a small footer spinner without pulling the whole grid into a loading state.
+     */
+    private val _isPaging = MutableStateFlow(false)
+    val isPaging: StateFlow<Boolean> = _isPaging.asStateFlow()
+
+    /**
+     * False once a page came back with fewer items than [PAGE_SIZE] — the catalogue is exhausted
+     * for the current (facet, query, rootId) tuple. The grid stops calling [loadMore] to avoid
+     * hammering the server with empty pages.
+     */
+    private val _hasMore = MutableStateFlow(true)
+    val hasMore: StateFlow<Boolean> = _hasMore.asStateFlow()
+
+    private var currentPage = 0
     private var searchDebounceJob: Job? = null
     private var refreshJob: Job? = null
+    private var loadMoreJob: Job? = null
 
     init {
         viewModelScope.launch { loadFacets() }
@@ -116,24 +140,40 @@ class ChitankaBrowseViewModel @Inject constructor(
         // from a previous facet/query can arrive after a newer one and overwrite _items with
         // stale results (chip strip shows B, grid shows A's late-arriving items).
         refreshJob?.cancel()
+        loadMoreJob?.cancel()
+        // Reset pagination cursor on refresh so the next loadMore starts from page 1 rather than
+        // whatever the previous (facet, query) tuple was at.
+        currentPage = 0
+        _hasMore.value = true
         refreshJob = viewModelScope.launch { refreshOnce() }
     }
 
     /**
-     * Upsert the tapped item into `library_items` so the reader/player can resolve it via
-     * `LibraryObserver.getItem`, then emit an [OpenEvent] the screen collects to navigate.
-     * No-op when there is no active Chitanka Source — the screen route wouldn't have been
-     * reachable, but guard defensively.
+     * Fetch the next page and append. No-op when a whole-list refresh is still in flight, when a
+     * previous loadMore hasn't finished yet, or when [hasMore] has already been flipped to false
+     * (last page returned short). The grid drives this on end-of-list scroll.
      */
-    fun openItem(item: CatalogItem) {
+    fun loadMore() {
+        if (refreshJob?.isActive == true) return
+        if (loadMoreJob?.isActive == true) return
+        if (!_hasMore.value) return
+        if (_items.value.isEmpty()) return  // nothing to append to — a real refresh handles the first page
+        loadMoreJob = viewModelScope.launch { loadMoreOnce() }
+    }
+
+    /**
+     * Upsert the tapped item into `library_items` so the standard detail screen can resolve
+     * it via `LibraryObserver.getItem`, then emit an [OpenDetailEvent] the screen collects to
+     * navigate. No-op when there is no active Chitanka Source — the screen route wouldn't
+     * have been reachable, but guard defensively.
+     */
+    fun openDetail(item: CatalogItem) {
         viewModelScope.launch {
             val source = sourceRepository.getActive()
                 ?.takeIf { it.type == SourceType.CHITANKA }
                 ?: return@launch
             libraryItemUpserter.upsert(source.id, item)
-            _openEvents.emit(
-                OpenEvent(itemId = item.id, isAudio = rootId == ChitankaCatalog.ROOT_AUDIOBOOKS),
-            )
+            _openDetailEvents.emit(OpenDetailEvent(itemId = item.id))
         }
     }
 
@@ -144,17 +184,77 @@ class ChitankaBrowseViewModel @Inject constructor(
         try {
             val q = _query.value.trim()
             val result = if (q.isNotEmpty()) {
-                catalog.search(rootId = rootId, query = q, page = 0, pageSize = 50)
+                catalog.search(rootId = rootId, query = q, page = 0, pageSize = PAGE_SIZE)
             } else {
                 val facet = _selectedFacet.value?.let { FacetSelection(it) }
-                catalog.browse(rootId = rootId, page = 0, pageSize = 50, facet = facet)
+                catalog.browse(rootId = rootId, page = 0, pageSize = PAGE_SIZE, facet = facet)
             }
             _items.value = result
+            currentPage = 0
+            // A short first page IS the last page — nothing left to fetch. Flip hasMore so the
+            // grid stops calling loadMore.
+            _hasMore.value = result.size >= PAGE_SIZE
         } catch (t: Throwable) {
-            _error.value = t.message ?: t::class.simpleName ?: "Error"
+            _error.value = friendlyErrorMessage(t)
             _items.value = emptyList()
+            _hasMore.value = false
         } finally {
             _isLoading.value = false
         }
+    }
+
+    private suspend fun loadMoreOnce() {
+        val catalog = activeCatalog() ?: return
+        _isPaging.value = true
+        try {
+            val nextPage = currentPage + 1
+            val q = _query.value.trim()
+            val next = if (q.isNotEmpty()) {
+                catalog.search(rootId = rootId, query = q, page = nextPage, pageSize = PAGE_SIZE)
+            } else {
+                val facet = _selectedFacet.value?.let { FacetSelection(it) }
+                catalog.browse(rootId = rootId, page = nextPage, pageSize = PAGE_SIZE, facet = facet)
+            }
+            if (next.isEmpty()) {
+                _hasMore.value = false
+                return
+            }
+            // De-dup on id in case the catalogue returned overlapping pages (Chitanka's paged views
+            // occasionally repeat the tail of the previous page).
+            val existingIds = _items.value.mapTo(HashSet()) { it.id }
+            val appended = next.filter { it.id !in existingIds }
+            if (appended.isNotEmpty()) {
+                _items.value = _items.value + appended
+            }
+            currentPage = nextPage
+            _hasMore.value = next.size >= PAGE_SIZE
+        } catch (_: Throwable) {
+            // A pagination failure isn't fatal — the user still sees the pages already loaded.
+            // Leave hasMore true so a subsequent scroll retries the same page.
+        } finally {
+            _isPaging.value = false
+        }
+    }
+
+    private companion object {
+        // Matches the initial `page=0` request. Chitanka lists ~30 items per page in most views;
+        // 50 gives us a small safety margin so the grid usually has to scroll before we page again.
+        const val PAGE_SIZE = 50
+    }
+}
+
+/**
+ * Map network failures to messages users can act on. The raw OkHttp/DNS text
+ * (`Unable to resolve host "chitanka.info": No address associated with hostname`)
+ * leaks implementation and reads like a crash; offline is the by-far common cause.
+ */
+internal fun friendlyErrorMessage(t: Throwable): String {
+    val chain = generateSequence(t) { it.cause }.toList()
+    return when {
+        chain.any { it is UnknownHostException } ->
+            "You appear to be offline. Connect to the internet and try again."
+        chain.any { it is IOException } ->
+            "Couldn't reach chitanka.info. Check your connection and try again."
+        else -> t.message ?: t::class.simpleName ?: "Error"
     }
 }

@@ -52,4 +52,47 @@ class SourceStorageModelTest {
             assertEquals("SourceType.$type disagrees with hasCacheTier()", expected, type.hasCacheTier())
         }
     }
+
+    // ─── hasReadaloud ────────────────────────────────────────────────────────────────────────────
+    //
+    // Only ABS carries Storyteller-matched readaloud bundles today. Chitanka and LocalFiles have
+    // no readaloud concept at all, so the Downloads Screen's "Readaloud (streaming)" section is
+    // meaningless there and gets hidden by [showReadaloudSectionFor].
+
+    @Test fun `ABS has readaloud`() {
+        assertTrue(SourceType.ABS.hasReadaloud())
+    }
+
+    @Test fun `Chitanka has no readaloud`() {
+        assertEquals(false, SourceType.CHITANKA.hasReadaloud())
+    }
+
+    @Test fun `LocalFiles has no readaloud`() {
+        assertEquals(false, SourceType.LOCAL_FILES.hasReadaloud())
+    }
+
+    @Test fun `showReadaloudSectionFor ABS active source returns true`() {
+        assertTrue(showReadaloudSectionFor(source(SourceType.ABS)))
+    }
+
+    @Test fun `showReadaloudSectionFor Chitanka active source returns false`() {
+        assertEquals(false, showReadaloudSectionFor(source(SourceType.CHITANKA)))
+    }
+
+    @Test fun `showReadaloudSectionFor null active source defaults to true`() {
+        // Parity with [showCachedSectionFor] — null is transient, keep the section header rather
+        // than flicker it in/out during source activation.
+        assertTrue(showReadaloudSectionFor(null))
+    }
+
+    @Test fun `every SourceType has an explicit readaloud decision`() {
+        for (type in SourceType.entries) {
+            val expected = when (type) {
+                SourceType.ABS -> true
+                SourceType.LOCAL_FILES -> false
+                SourceType.CHITANKA -> false
+            }
+            assertEquals("SourceType.$type disagrees with hasReadaloud()", expected, type.hasReadaloud())
+        }
+    }
 }

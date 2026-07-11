@@ -25,3 +25,23 @@ fun SourceType.hasCacheTier(): Boolean = when (this) {
  */
 fun showCachedSectionFor(activeSource: Source?): Boolean =
     activeSource?.type?.hasCacheTier() ?: true
+
+/**
+ * Whether the Source can carry a paired Storyteller **readaloud** bundle (synced audio + text). ABS
+ * is the only Source today with matched Storyteller items; every other Source has no readaloud
+ * concept, so the Downloads Screen's "Readaloud (streaming)" section is meaningless there.
+ *
+ * Consumers use this to gate the Readaloud section header alongside [hasCacheTier].
+ */
+fun SourceType.hasReadaloud(): Boolean = when (this) {
+    SourceType.ABS -> true
+    SourceType.LOCAL_FILES -> false
+    SourceType.CHITANKA -> false
+}
+
+/**
+ * Whether the Downloads Screen should render the **Readaloud (streaming)** section for the given
+ * active Source. Null preserves the existing layout for parity with [showCachedSectionFor].
+ */
+fun showReadaloudSectionFor(activeSource: Source?): Boolean =
+    activeSource?.type?.hasReadaloud() ?: true

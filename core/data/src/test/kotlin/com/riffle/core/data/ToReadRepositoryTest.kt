@@ -16,6 +16,7 @@ import com.riffle.core.catalog.FacetSelection
 import com.riffle.core.domain.Source
 import com.riffle.core.domain.SourceType
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -24,7 +25,7 @@ import org.junit.Test
 
 class ToReadRepositoryTest {
 
-    private fun makeRepo(catalog: Catalog?) = ToReadRepositoryImpl(FakeRegistry(catalog))
+    private fun makeRepo(catalog: Catalog?) = ToReadRepositoryImpl(FakeRegistry(catalog), FakeLocalToReadStore())
 
     // ── refresh + observeToReadItemIds ────────────────────────────────────────
 
@@ -89,10 +90,25 @@ class ToReadRepositoryTest {
         assertEquals(setOf("item-1"), repo.observeToReadItemIds("lib-1").first())
     }
 
+    /**
+     * When there is no server-side [PlaylistsCapability], the repository falls back to
+     * [LocalToReadStore] — the operation now succeeds and the id is observable. Pre-fallback this
+     * test asserted `assertFalse` (the whole point of the fallback change).
+     */
     @Test
-    fun `addToToRead returns false when no catalog for active source`() = runTest {
+    fun `addToToRead uses local fallback when no PlaylistsCapability for active source`() = runTest {
         val repo = makeRepo(catalog = null)
-        assertFalse(repo.addToToRead("item-1", "lib-1"))
+        assertTrue(repo.addToToRead("item-1", "lib-1"))
+        assertEquals(setOf("item-1"), repo.observeToReadItemIds("lib-1").first())
+        assertTrue(repo.isInToRead("item-1", "lib-1"))
+    }
+
+    @Test
+    fun `removeFromToRead uses local fallback when no PlaylistsCapability for active source`() = runTest {
+        val repo = makeRepo(catalog = null)
+        repo.addToToRead("item-1", "lib-1")
+        assertTrue(repo.removeFromToRead("item-1", "lib-1"))
+        assertEquals(emptySet<String>(), repo.observeToReadItemIds("lib-1").first())
     }
 
     @Test
@@ -201,6 +217,28 @@ class ToReadRepositoryTest {
         override suspend fun removeItemFromPlaylist(playlistId: String, itemId: String) {
             if (removeFails) throw RuntimeException("boom")
             removeCalls += playlistId to itemId
+        }
+    }
+
+    /**
+     * Trivial in-memory fake for the local fallback. These tests exercise the ABS path (Catalog is
+     * PlaylistsCapability), so this fake never gets touched — it exists only to satisfy the
+     * [ToReadRepositoryImpl] constructor.
+     */
+    private class FakeLocalToReadStore : LocalToReadStore {
+        private val map = mutableMapOf<String, Set<String>>()
+        private val flow = kotlinx.coroutines.flow.MutableStateFlow<Map<String, Set<String>>>(emptyMap())
+        override fun observeItemIds(libraryId: String) =
+            flow.map { it[libraryId].orEmpty() }
+        override suspend fun isInToRead(libraryId: String, libraryItemId: String) =
+            map[libraryId]?.contains(libraryItemId) == true
+        override suspend fun add(libraryId: String, libraryItemId: String) {
+            map[libraryId] = map[libraryId].orEmpty() + libraryItemId
+            flow.value = map.toMap()
+        }
+        override suspend fun remove(libraryId: String, libraryItemId: String) {
+            map[libraryId] = map[libraryId].orEmpty() - libraryItemId
+            flow.value = map.toMap()
         }
     }
 }

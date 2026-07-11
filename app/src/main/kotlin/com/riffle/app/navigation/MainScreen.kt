@@ -56,7 +56,7 @@ private const val SOURCE_SETUP_GRAPH = "source_setup"
 private const val ADD_SOURCE_TYPE_PICKER = "add_source_type_picker"
 private const val ADD_LOCAL_FILES = "add_local_files"
 private const val ADD_CHITANKA = "add_chitanka"
-private const val CHITANKA_BROWSE = "chitanka_browse/{rootId}/{libraryName}"
+private const val CHITANKA_BROWSE = "chitanka_browse/{libraryId}/{libraryName}"
 private const val ADD_SOURCE = "add_source"
 private const val ADD_SOURCE_ROUTE = "add_source?type={type}&editId={editId}"
 private const val SELECT_LIBRARIES = "select_libraries"
@@ -235,7 +235,7 @@ fun MainScreen(
             composable(
                 route = CHITANKA_BROWSE,
                 arguments = listOf(
-                    navArgument("rootId") { type = NavType.StringType },
+                    navArgument("libraryId") { type = NavType.StringType },
                     navArgument("libraryName") { type = NavType.StringType },
                 ),
             ) { backStackEntry ->
@@ -245,13 +245,12 @@ fun MainScreen(
                     libraryName = libraryName,
                     windowSizeClass = windowSizeClass,
                     onOpenDrawer = { scope.launch { drawerState.open() } },
-                    onOpenReader = { itemId ->
+                    onOpenDetail = { itemId ->
                         val encodedId = URLEncoder.encode(itemId, "UTF-8")
-                        navController.navigate("epub_reader/$encodedId")
+                        navController.navigate("library_item_detail/$encodedId")
                     },
-                    onOpenAudiobook = { itemId ->
-                        val encodedId = URLEncoder.encode(itemId, "UTF-8")
-                        navController.navigate("audiobook_player/$encodedId")
+                    onAnnotatedBookClick = { sourceId, itemId ->
+                        navController.navigate(annotationsBookClickRoute(sourceId, itemId))
                     },
                 )
             }

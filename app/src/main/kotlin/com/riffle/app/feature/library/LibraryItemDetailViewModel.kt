@@ -229,7 +229,11 @@ class LibraryItemDetailViewModel @Inject constructor(
                     val itemSource = sourceRepository.getById(item.sourceId)
                     val capabilities = DetailCapabilities(
                         hasSeries = catalog is SeriesCapability,
-                        hasPlaylists = catalog is PlaylistsCapability,
+                        // To Read is available on every Source: [ToReadRepositoryImpl] falls back to
+                        // a local Preferences DataStore ([LocalToReadStore]) when the Catalog has no
+                        // server-side [PlaylistsCapability], so the toggle works uniformly for ABS,
+                        // Local Files, Chitanka, and any future backend-less Source.
+                        hasPlaylists = true,
                         hasAudiobookMedia = catalog is AudiobookMediaCapability,
                         isLocalSource = itemSource?.type == SourceType.LOCAL_FILES,
                     )

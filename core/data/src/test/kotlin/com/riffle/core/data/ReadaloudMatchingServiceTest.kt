@@ -364,6 +364,7 @@ class ReadaloudMatchingServiceTest {
         publishedYear = publishedYear,
         publisher = publisher,
         genres = genres,
+        addedAt = 0L,
     )
 
     private class StubLibraryItemDao(
