@@ -7,14 +7,22 @@ import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectTransformGestures
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.CircularProgressIndicator
@@ -22,7 +30,6 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
@@ -47,8 +54,10 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import coil.compose.AsyncImage
 import coil.compose.SubcomposeAsyncImage
 import coil.request.ImageRequest
+import coil.size.Size as CoilSize
 import com.riffle.app.feature.reader.VolumeNavEvent
 import com.riffle.app.feature.reader.rememberImmersiveModeState
 import kotlinx.coroutines.Dispatchers
@@ -141,9 +150,10 @@ fun CbzReaderScreen(
                 exit = slideOutVertically { it },
                 modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth(),
             ) {
-                CbzScrubber(
+                CbzThumbnailStrip(
                     currentPage = currentPage,
                     pageCount = ready.pageCount,
+                    imageSource = ready.imageSource,
                     onSeek = { viewModel.jumpToPage(it) },
                 )
             }
@@ -274,30 +284,87 @@ private fun CbzPage(
 }
 
 @Composable
-private fun CbzScrubber(
+internal fun CbzThumbnailStrip(
     currentPage: Int,
     pageCount: Int,
+    imageSource: CbzImageSource,
     onSeek: (Int) -> Unit,
 ) {
-    Row(
+    val listState = rememberLazyListState()
+
+    LaunchedEffect(currentPage) {
+        val viewport = listState.layoutInfo.viewportEndOffset - listState.layoutInfo.viewportStartOffset
+        // Centre the current thumb: item width ~= 40dp, and viewport is in px. If layout hasn't happened
+        // yet (viewport == 0) fall back to scrollToItem with a small leading offset so the animation
+        // becomes meaningful once measured.
+        val leading = if (viewport > 0) -(viewport / 2) else 0
+        listState.animateScrollToItem(currentPage, scrollOffset = leading)
+    }
+
+    Column(
         modifier = Modifier
             .fillMaxWidth()
             .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.9f))
-            .padding(horizontal = 16.dp, vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
+            .padding(vertical = 8.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Text(
             text = "${currentPage + 1} / $pageCount",
             color = MaterialTheme.colorScheme.onSurface,
         )
-        Slider(
-            value = currentPage.toFloat(),
-            onValueChange = { onSeek(it.toInt()) },
-            valueRange = 0f..(pageCount - 1).coerceAtLeast(1).toFloat(),
-            steps = (pageCount - 2).coerceAtLeast(0),
-            modifier = Modifier.weight(1f).testTag("cbz_scrubber"),
-        )
+        LazyRow(
+            state = listState,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 4.dp)
+                .testTag("cbz_thumbnail_strip"),
+            contentPadding = PaddingValues(horizontal = 12.dp),
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            items(pageCount) { index ->
+                CbzThumbnail(
+                    imageSource = imageSource,
+                    pageIndex = index,
+                    isCurrent = index == currentPage,
+                    onClick = { onSeek(index) },
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun CbzThumbnail(
+    imageSource: CbzImageSource,
+    pageIndex: Int,
+    isCurrent: Boolean,
+    onClick: () -> Unit,
+) {
+    val context = LocalContext.current
+    val bytes by produceState<ByteArray?>(initialValue = null, key1 = pageIndex, key2 = imageSource) {
+        value = withContext(Dispatchers.IO) { runCatching { imageSource.imageBytes(pageIndex) }.getOrNull() }
+    }
+    val borderColor = if (isCurrent) MaterialTheme.colorScheme.primary else Color.Transparent
+    Box(
+        modifier = Modifier
+            .size(width = 40.dp, height = 56.dp)
+            .background(Color(0xFF1A1A1A), RoundedCornerShape(2.dp))
+            .border(width = 2.dp, color = borderColor, shape = RoundedCornerShape(2.dp))
+            .clickable { onClick() }
+            .testTag("cbz_thumb_$pageIndex"),
+    ) {
+        val currentBytes = bytes
+        if (currentBytes != null) {
+            AsyncImage(
+                model = ImageRequest.Builder(context)
+                    .data(currentBytes)
+                    .size(CoilSize(120, 168))
+                    .crossfade(false)
+                    .build(),
+                contentDescription = null,
+                modifier = Modifier.fillMaxSize(),
+            )
+        }
     }
 }
 
