@@ -25,6 +25,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
@@ -39,6 +40,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.windowsizeclass.WindowSizeClass
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -72,6 +74,8 @@ fun ChitankaBrowseScreen(
     libraryName: String,
     windowSizeClass: WindowSizeClass,
     onOpenDrawer: () -> Unit,
+    onOpenReader: (itemId: String) -> Unit,
+    onOpenAudiobook: (itemId: String) -> Unit,
     viewModel: ChitankaBrowseViewModel = hiltViewModel(),
 ) {
     val items by viewModel.items.collectAsState()
@@ -85,6 +89,16 @@ fun ChitankaBrowseScreen(
     var detailItem by remember { mutableStateOf<CatalogItem?>(null) }
 
     val isAudioRoot = viewModel.rootId == ChitankaCatalog.ROOT_AUDIOBOOKS
+
+    // Collect Read/Play events from the ViewModel. Chitanka items don't live in `library_items`
+    // until this point (ADR 0042: unbounded catalogue), so the VM upserts a row first and only
+    // then emits — guaranteeing the reader / audiobook player can resolve the item.
+    LaunchedEffect(viewModel) {
+        viewModel.openEvents.collect { event ->
+            detailItem = null
+            if (event.isAudio) onOpenAudiobook(event.itemId) else onOpenReader(event.itemId)
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -189,6 +203,7 @@ fun ChitankaBrowseScreen(
         ChitankaDetailSheet(
             item = item,
             isAudio = isAudioRoot,
+            onOpen = { viewModel.openItem(item) },
             onDismiss = { detailItem = null },
         )
     }
@@ -250,6 +265,7 @@ private fun CatalogItemCard(
 private fun ChitankaDetailSheet(
     item: CatalogItem,
     isAudio: Boolean,
+    onOpen: () -> Unit,
     onDismiss: () -> Unit,
 ) {
     androidx.compose.material3.ModalBottomSheet(onDismissRequest = onDismiss) {
@@ -304,14 +320,13 @@ private fun ChitankaDetailSheet(
                 Text(desc, style = MaterialTheme.typography.bodyMedium)
             }
             Spacer(Modifier.height(4.dp))
-            Text(
-                if (isAudio)
-                    "Playback and download for Chitanka audiobooks will land in a follow-up (see PR)."
-                else
-                    "Reader and download integration for Chitanka books will land in a follow-up.",
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+            Button(
+                onClick = onOpen,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text(if (isAudio) "Play" else "Read")
+            }
+            Spacer(Modifier.height(4.dp))
         }
     }
 }

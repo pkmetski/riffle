@@ -243,6 +243,14 @@ fun MainScreen(
                     libraryName = libraryName,
                     windowSizeClass = windowSizeClass,
                     onOpenDrawer = { scope.launch { drawerState.open() } },
+                    onOpenReader = { itemId ->
+                        val encodedId = URLEncoder.encode(itemId, "UTF-8")
+                        navController.navigate("epub_reader/$encodedId")
+                    },
+                    onOpenAudiobook = { itemId ->
+                        val encodedId = URLEncoder.encode(itemId, "UTF-8")
+                        navController.navigate("audiobook_player/$encodedId")
+                    },
                 )
             }
             composable(ADD_CHITANKA) {
