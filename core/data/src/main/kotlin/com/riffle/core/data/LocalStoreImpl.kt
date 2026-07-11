@@ -26,6 +26,10 @@ class LocalStoreImpl(
             val serverDir = dir.resolve(sourceId).also { it.mkdirs() }
             val dest = serverDir.resolve("$itemId$extension")
             val tmp = serverDir.resolve("$itemId$extension.tmp")
+            // Item ids may contain '/' (e.g. Chitanka's "book/12018-…", "prikazki/…"), which lands
+            // dest/tmp inside a nested subdirectory of serverDir. Create it before opening the stream,
+            // otherwise the tmp write fails ENOENT ("No such file or directory").
+            tmp.parentFile?.mkdirs()
             try {
                 tmp.outputStream().use { out -> stream.copyTo(out) }
                 tmp.renameTo(dest)
@@ -52,10 +56,20 @@ class LocalStoreImpl(
         dir.listFiles()
             ?.filter { it.isDirectory }
             ?.flatMap { serverDir ->
-                serverDir.listFiles()
-                    ?.filter { it.name.endsWith(extension) }
-                    ?.map { StoredItemRef(sourceId = serverDir.name, itemId = it.name.removeSuffix(extension)) }
-                    ?: emptyList()
+                // Chitanka item ids contain '/' (e.g. "book/12018-…"), which puts saved files inside
+                // nested subdirectories of serverDir. Walk the whole tree so those items list, then
+                // rebuild the item id from the relative path.
+                val prefix = serverDir.absolutePath + File.separator
+                serverDir.walkTopDown()
+                    .filter { it.isFile && it.name.endsWith(extension) }
+                    .map { file ->
+                        val relative = file.absolutePath.removePrefix(prefix)
+                        StoredItemRef(
+                            sourceId = serverDir.name,
+                            itemId = relative.removeSuffix(extension),
+                        )
+                    }
+                    .toList()
             }
             ?: emptyList()
 }
