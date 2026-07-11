@@ -14,6 +14,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Download
@@ -47,6 +48,7 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.riffle.app.BuildConfig
+import com.riffle.app.ui.source.SourceIcon
 import com.riffle.core.domain.Library
 import com.riffle.core.domain.Source
 import com.riffle.core.domain.SourceType
@@ -199,6 +201,9 @@ private fun DrawerHeader(
         .onSizeChanged { headerWidth = with(density) { it.width.toDp() } }
     ) {
         ListItem(
+            leadingContent = activeServer?.let { server ->
+                { SourceRowIcon(server = server) }
+            },
             headlineContent = {
                 val name = activeServer?.let(::sourceDisplayName) ?: "No source"
                 val username = activeServer
@@ -278,9 +283,10 @@ private fun DrawerHeader(
                             }
                         }
                     },
-                    leadingIcon = {
+                    leadingIcon = { SourceRowIcon(server = server) },
+                    trailingIcon = {
                         if (server.isActive) {
-                            Icon(Icons.Default.Check, contentDescription = null)
+                            Icon(Icons.Default.Check, contentDescription = "Active source")
                         } else {
                             Spacer(modifier = Modifier.size(24.dp))
                         }
@@ -292,6 +298,24 @@ private fun DrawerHeader(
                 )
             }
         }
+    }
+}
+
+/**
+ * Leading icon for a source row in the switcher. Network sources render their server's favicon
+ * via [SourceIcon] (bundled monogram fallback); LocalFiles keeps its Material Folder treatment
+ * unchanged — the switcher had no monogram concept for LocalFiles before this change.
+ */
+@Composable
+private fun SourceRowIcon(server: Source) {
+    if (server.type == SourceType.LOCAL_FILES) {
+        Icon(
+            imageVector = Icons.Default.Folder,
+            contentDescription = null,
+            modifier = Modifier.size(24.dp),
+        )
+    } else {
+        SourceIcon(source = server, size = 24.dp)
     }
 }
 

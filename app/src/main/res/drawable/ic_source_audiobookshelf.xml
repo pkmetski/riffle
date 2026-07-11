@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Monogram fallback for Audiobookshelf sources when the server's favicon can't be
+  fetched or decoded. Uses "A" on the app's primary color as a source-type marker,
+  not the Audiobookshelf trademark.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="40dp"
+    android:height="40dp"
+    android:viewportWidth="40"
+    android:viewportHeight="40">
+    <path
+        android:pathData="M6,6h28a4,4 0 0 1 4,4v20a4,4 0 0 1 -4,4h-28a4,4 0 0 1 -4,-4v-20a4,4 0 0 1 4,-4z"
+        android:fillColor="#1E88E5" />
+    <path
+        android:pathData="M14.4,28L16.6,22.6H23.4L25.6,28H28.4L21.8,12H18.2L11.6,28ZM17.5,20.4L19.9,14.7H20.1L22.5,20.4Z"
+        android:fillColor="#FFFFFF" />
+</vector>
