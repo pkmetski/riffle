@@ -1,7 +1,9 @@
 package com.riffle.core.catalog.gutenberg
 
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.withContext
 import okhttp3.Call
 import okhttp3.Callback
 import okhttp3.OkHttpClient
@@ -33,8 +35,15 @@ class GutenbergHttpClient(
                 .header("Accept", "application/json, text/html;q=0.5")
                 .build()
             val response = client.newCall(request).await()
-            val (status, body, msg) = response.use { r ->
-                Triple(r.code, if (r.isSuccessful) r.body.string() else null, r.message)
+            // Body reading is blocking I/O — must NOT run on the resumed dispatcher, which is the
+            // caller's context (Main for a Compose ViewModel). Enqueue-based await() resumes on
+            // whatever thread the OkHttp Callback runs on but the coroutine machinery may hop back
+            // to the caller's dispatcher; without the explicit withContext hop, r.body.string()
+            // throws NetworkOnMainThreadException on strict-mode devices.
+            val (status, body, msg) = withContext(Dispatchers.IO) {
+                response.use { r ->
+                    Triple(r.code, if (r.isSuccessful) r.body.string() else null, r.message)
+                }
             }
             if ((status == 429 || status == 503) && attempt < retryDelaysMs.size) {
                 delay(retryDelaysMs[attempt])
