@@ -1199,6 +1199,42 @@ class LibraryItemsViewModelTest {
         assertEquals(true, v?.toRead)
     }
 
+    // Regression pin for the Annotations tab gate: a library containing zero readable items
+    // (e.g. Chitanka's Gramofonche or any audiobook-only library) reports annotations = false so
+    // the Library Tab Bar hides the tab. Adding a readable item later flips it back on live.
+    @Test
+    fun `tabVisibility annotations reflects whether library contains any readable items`() = runTest {
+        val srv = source("s-abs", active = true)
+        val serversFlow = MutableStateFlow(listOf(srv))
+        val srcRepo = object : SourceRepository {
+            override fun observeAll(): Flow<List<Source>> = serversFlow
+            override suspend fun getActive(): Source? = serversFlow.value.firstOrNull { it.isActive }
+            override suspend fun authenticate(url: SourceUrl, username: String, password: String, insecureAllowed: Boolean, serverType: com.riffle.core.domain.ServerType) = throw UnsupportedOperationException()
+            override suspend fun commit(pending: com.riffle.core.domain.PendingSource, hiddenLibraryIds: Set<String>) = throw UnsupportedOperationException()
+            override suspend fun setActive(sourceId: String) {}
+            override suspend fun remove(sourceId: String) {}
+            override suspend fun getSourceVersion(sourceId: String): String? = null
+        }
+        val vm = makeViewModel(
+            sourceRepository = srcRepo,
+            catalogRegistry = catalogRegistryReturning(SeriesAndPlaylistsOnlyCatalog),
+        )
+
+        // Audiobook-only: EbookFormat.Unsupported → isReadable = false.
+        val audiobook = LibraryItem(
+            "id-audiobook", "lib-1", "An Audiobook", "Author", null, 0f, false, false,
+            EbookFormat.Unsupported, hasAudio = true,
+        )
+        allItemsFlow.value = listOf(audiobook)
+        testDispatcher.scheduler.advanceUntilIdle()
+        assertEquals(false, vm.tabVisibility.value?.annotations)
+
+        // Add an EPUB → isReadable = true → tab reappears live.
+        allItemsFlow.value = listOf(audiobook, item("An Ebook", "Author"))
+        testDispatcher.scheduler.advanceUntilIdle()
+        assertEquals(true, vm.tabVisibility.value?.annotations)
+    }
+
     private fun source(id: String, active: Boolean) = Source(
         id = id,
         url = checkNotNull(SourceUrl.parse("https://example.test/$id")),
