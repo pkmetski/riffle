@@ -24,6 +24,7 @@ import com.riffle.core.data.di.LastOpenedLibraryDataStore
 import com.riffle.core.data.di.LibraryOrderPreferencesDataStore
 import com.riffle.core.data.di.LibraryVisibilityPreferencesDataStore
 import com.riffle.core.data.di.ListeningPreferencesDataStore
+import com.riffle.core.data.di.LocalToReadDataStore
 import com.riffle.core.data.di.ReadaloudPreferencesDataStore
 import com.riffle.core.data.di.ReadingSpeedDataStore
 import com.riffle.core.data.di.VolumeKeyPreferencesDataStore
@@ -40,6 +41,7 @@ import com.riffle.core.data.di.lastOpenedLibraryDataStore
 import com.riffle.core.data.di.libraryOrderPreferencesDataStore
 import com.riffle.core.data.di.libraryVisibilityPreferencesDataStore
 import com.riffle.core.data.di.listeningPreferencesDataStore
+import com.riffle.core.data.di.localToReadDataStore
 import com.riffle.core.data.di.readaloudPreferencesDataStore
 import com.riffle.core.data.di.readingSpeedDataStore
 import com.riffle.core.data.di.volumeKeyPreferencesDataStore
@@ -135,6 +137,9 @@ abstract class PreferencesModule {
 
         @Provides @Singleton @LibraryVisibilityPreferencesDataStore
         fun provideLibraryVisibilityPreferencesDataStore(@ApplicationContext c: Context): DataStore<Preferences> = c.libraryVisibilityPreferencesDataStore
+
+        @Provides @Singleton @LocalToReadDataStore
+        fun provideLocalToReadDataStore(@ApplicationContext c: Context): DataStore<Preferences> = c.localToReadDataStore
 
         @Provides @Singleton @LibraryOrderPreferencesDataStore
         fun provideLibraryOrderPreferencesDataStore(@ApplicationContext c: Context): DataStore<Preferences> = c.libraryOrderPreferencesDataStore

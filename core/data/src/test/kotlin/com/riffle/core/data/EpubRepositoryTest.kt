@@ -18,6 +18,7 @@ import com.riffle.core.domain.TokenStorage
 import com.riffle.core.network.AbsApiClient
 import com.riffle.core.network.StorytellerBundleApi
 import com.riffle.core.network.StorytellerBundleProbeApi
+import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
@@ -258,6 +259,95 @@ class EpubRepositoryTest {
         assertTrue(result is EpubDownloadResult.Success)
         assertTrue(downloadsStore.get("source-1", "item-1") != null)
         assertNull(cacheStore.get("source-1", "item-1"))
+    }
+
+    // ─── Single-flight coalescing (Chitanka 429 regression) ───────────────────────────────
+    //
+    // Chitanka's Cloudflare layer rate-limits per source IP and 429s a duplicate concurrent
+    // fetch of the same EPUB URL. Two paths reach openFile(): openEpub (from reader open /
+    // TOC extraction) and downloadEpub (from user Download tap). Before the mutex, opening
+    // the detail page fired openEpub for TOC extraction, and a same-instant Download tap
+    // fired a second concurrent HTTP request — the second one 429'd. These tests pin the fix:
+    // the second entrant waits on the (sourceId, itemId) mutex and reuses cached bytes on
+    // release. Exactly ONE network request per shared item, no matter how many concurrent
+    // openEpub/downloadEpub callers race.
+
+    @Test
+    fun `concurrent openEpub calls only issue one HTTP request`() = kotlinx.coroutines.runBlocking<Unit> {
+        source.enqueue(
+            MockResponse().setResponseCode(200).setBody(Buffer().write(epubBytes))
+                .setBodyDelay(150, java.util.concurrent.TimeUnit.MILLISECONDS)
+        )
+        // No second response enqueued: if the mutex fails to coalesce, MockWebServer either
+        // blocks forever or returns a 404 (dispatcher default). Either surfaces as a NetworkError
+        // and the assertions below flip.
+        val a = async(kotlinx.coroutines.Dispatchers.IO) { repo.openEpub(item()) }
+        val b = async(kotlinx.coroutines.Dispatchers.IO) { repo.openEpub(item()) }
+        val ra = a.await()
+        val rb = b.await()
+        assertTrue("first result should be Success but was $ra", ra is EpubOpenResult.Success)
+        assertTrue("second result should be Success but was $rb", rb is EpubOpenResult.Success)
+        assertEquals(1, source.requestCount)
+    }
+
+    @Test
+    fun `concurrent openEpub + downloadEpub only issue one HTTP request`() = kotlinx.coroutines.runBlocking<Unit> {
+        source.enqueue(
+            MockResponse().setResponseCode(200).setBody(Buffer().write(epubBytes))
+                .setBodyDelay(150, java.util.concurrent.TimeUnit.MILLISECONDS)
+        )
+        val opener = async(kotlinx.coroutines.Dispatchers.IO) { repo.openEpub(item()) }
+        val downloader = async(kotlinx.coroutines.Dispatchers.IO) { repo.downloadEpub(item()) }
+        val openResult = opener.await()
+        val downloadResult = downloader.await()
+        assertTrue("openEpub should Success but was $openResult", openResult is EpubOpenResult.Success)
+        assertTrue("downloadEpub should Success but was $downloadResult", downloadResult is EpubDownloadResult.Success)
+        assertEquals(1, source.requestCount)
+        // Downloader is expected to see cache populated by openEpub (either pre-lock or post-lock)
+        // and promote it into downloads. downloadsStore must have the bytes; cacheStore is cleared.
+        assertTrue("bytes should land in downloadsStore", downloadsStore.get("source-1", "item-1") != null)
+        assertNull(cacheStore.get("source-1", "item-1"))
+    }
+
+    @Test
+    fun `concurrent downloadEpub calls only issue one HTTP request`() = kotlinx.coroutines.runBlocking<Unit> {
+        source.enqueue(
+            MockResponse().setResponseCode(200).setBody(Buffer().write(epubBytes))
+                .setBodyDelay(150, java.util.concurrent.TimeUnit.MILLISECONDS)
+        )
+        val a = async(kotlinx.coroutines.Dispatchers.IO) { repo.downloadEpub(item()) }
+        val b = async(kotlinx.coroutines.Dispatchers.IO) { repo.downloadEpub(item()) }
+        val ra = a.await()
+        val rb = b.await()
+        // Whichever entrant wins the mutex fetches; the runner-up sees downloadsStore populated
+        // and returns AlreadyDownloaded. Either terminal is valid — the invariant is that both
+        // finish non-error AND exactly one HTTP request went out.
+        val terminals = listOf(ra, rb)
+        assertTrue("all terminals must Success/AlreadyDownloaded: $terminals", terminals.all {
+            it is EpubDownloadResult.Success || it is EpubDownloadResult.AlreadyDownloaded
+        })
+        assertEquals(1, source.requestCount)
+        assertTrue(downloadsStore.get("source-1", "item-1") != null)
+    }
+
+    @Test
+    fun `downloadEpub after openEpub reuses cached bytes without network request`() = runTest {
+        // Sequential — openEpub populates cache, then downloadEpub promotes it.
+        source.enqueue(MockResponse().setResponseCode(200).setBody(Buffer().write(epubBytes)))
+        repo.openEpub(item())
+        val result = repo.downloadEpub(item())
+        assertEquals("downloadEpub must NOT issue a second request", 1, source.requestCount)
+        assertTrue(result is EpubDownloadResult.Success)
+        assertTrue(downloadsStore.get("source-1", "item-1") != null)
+    }
+
+    @Test
+    fun `openEpub after downloadEpub reads from downloadsStore without network request`() = runTest {
+        source.enqueue(MockResponse().setResponseCode(200).setBody(Buffer().write(epubBytes)))
+        repo.downloadEpub(item())
+        val result = repo.openEpub(item())
+        assertEquals("openEpub must NOT issue a second request", 1, source.requestCount)
+        assertTrue(result is EpubOpenResult.Success)
     }
 
     // ─── User-switch regression (item.sourceId ≠ activeServer.id) ─────────────────────────────

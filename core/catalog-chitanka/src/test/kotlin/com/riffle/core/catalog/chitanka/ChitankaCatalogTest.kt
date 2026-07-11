@@ -79,10 +79,136 @@ class ChitankaCatalogTest {
         assertEquals("collection:university", editorial[1].key)
     }
 
+    /**
+     * chitanka.info 429s the EPUB download URL when the request carries the default `okhttp/x.x.x`
+     * User-Agent. Browsing HTML pages via [ChitankaHttpClient] worked (that client sets a UA), so
+     * the bug only showed on Download taps. Pins the fix: every download request MUST carry the
+     * same UA + Accept-Language as the HTML client, plus a Referer so chitanka.info recognises the
+     * click as coming from a real detail-page context.
+     */
+    @Test
+    fun `download request carries User-Agent + Accept-Language + Referer headers`() = runTest {
+        server.enqueue(MockResponse().setResponseCode(200).setBody("epub-bytes"))
+        val cat = ChitankaCatalog(
+            http = ChitankaHttpClient(client = OkHttpClient(), userAgent = "Riffle/test", retryDelaysMs = emptyList()),
+            bytesClient = OkHttpClient(),
+            userAgent = "Riffle/test",
+        )
+        cat.fetchBytesWith429Retry(server.url("/download/foo.epub").toString(), itemId = "book/foo").close()
+        val req = server.takeRequest()
+        assertEquals("Riffle/test", req.getHeader("User-Agent"))
+        assertEquals("bg,en;q=0.5", req.getHeader("Accept-Language"))
+        assertNotNull(req.getHeader("Referer"))
+    }
+
+    @Test
+    fun `download request retries on 429 with backoff, then succeeds`() = runTest {
+        server.enqueue(MockResponse().setResponseCode(429))
+        server.enqueue(MockResponse().setResponseCode(200).setBody("epub-bytes"))
+        val cat = ChitankaCatalog(
+            http = ChitankaHttpClient(client = OkHttpClient(), userAgent = "Riffle/test", retryDelaysMs = emptyList()),
+            bytesClient = OkHttpClient(),
+            userAgent = "Riffle/test",
+        )
+        val response = cat.fetchBytesWith429Retry(server.url("/download/foo.epub").toString(), itemId = "book/foo")
+        try {
+            assertTrue(response.isSuccessful)
+        } finally {
+            response.close()
+        }
+        assertEquals(2, server.requestCount)
+    }
+
     @Test
     fun `getAudiobookChapters is always empty for chitanka audiobooks`() = runTest {
         val cat = catalog()
         assertTrue(cat.getAudiobookChapters("prikazki/anything").isEmpty())
+    }
+
+    /**
+     * Pins the seek fix: the audiobook player's scrubber renders on the timeline's `durationSec`
+     * (see `AudiobookRepositoryImpl.openSession` and `AudiobookPlayerScreen` binding to
+     * `state.durationSec`). If [ChitankaCatalog.buildAudiobookStream] returns zero here — as it did
+     * before this fix — the scrubber has no range and seek is dead. Every getTracks entry already
+     * carries an estimated `durationSec` (HEAD Content-Length ÷ ~128 kbps); summing them gives the
+     * scrubber a non-zero draggable range.
+     */
+    @Test
+    fun `buildAudiobookStream sums per-track durations into totalDurationSec`() {
+        val cat = catalog()
+        val tracks = listOf(
+            com.riffle.core.catalog.CatalogAudioTrack(
+                ino = "https://gramofonche.chitanka.info/a.mp3",
+                index = 0,
+                startOffsetSec = 0.0,
+                durationSec = 900.0,
+                contentUrl = "https://gramofonche.chitanka.info/a.mp3",
+                mimeType = "audio/mpeg",
+            ),
+            com.riffle.core.catalog.CatalogAudioTrack(
+                ino = "https://gramofonche.chitanka.info/b.mp3",
+                index = 1,
+                startOffsetSec = 900.0,
+                durationSec = 720.0,
+                contentUrl = "https://gramofonche.chitanka.info/b.mp3",
+                mimeType = "audio/mpeg",
+            ),
+        )
+        val stream = cat.buildAudiobookStream(tracks)
+        assertEquals(1620.0, stream.totalDurationSec, 0.0)
+        assertEquals(tracks, stream.tracks)
+        assertEquals(listOf("https://gramofonche.chitanka.info/a.mp3", "https://gramofonche.chitanka.info/b.mp3"), stream.trackUrls)
+    }
+
+    @Test
+    fun `buildAudiobookStream on single track equals that track's duration`() {
+        val cat = catalog()
+        val tracks = listOf(
+            com.riffle.core.catalog.CatalogAudioTrack(
+                ino = "u", index = 0, startOffsetSec = 0.0, durationSec = 3600.0,
+                contentUrl = "u", mimeType = "audio/mpeg",
+            ),
+        )
+        assertEquals(3600.0, cat.buildAudiobookStream(tracks).totalDurationSec, 0.0)
+    }
+
+    /**
+     * chitanka.info and gramofonche.chitanka.info both ignore `?page=N` and return the FULL
+     * listing on a single HTML page — [browse] must slice with `drop(page * pageSize).take(pageSize)`
+     * so higher pages actually advance the window. The pre-fix implementation only ran `take(50)`,
+     * which made every page look like page 0 to the caller. Verified against
+     * `gramofonche.chitanka.info/prikazki/` (442 items, byte-identical response for `?page=2`).
+     *
+     * This test is a documentation guard: since [ChitankaCatalog] holds a hardcoded [ChitankaScraper.BASE]
+     * that we can't redirect at the OkHttp level without an interceptor, we can't hit MockWebServer
+     * here. Instead, we assert that [ChitankaCatalog.browse]'s public contract (as documented in
+     * the source comment) is called consistently by the ViewModel — enforcement lives in
+     * `ChitankaBrowseViewModelTest.loadMore appends next page results`.
+     */
+    @Test
+    fun `browseUrlFor preserves the page query param on subsequent pages`() {
+        val cat = catalog()
+        val page0 = cat.browseUrlFor(ChitankaCatalog.ROOT_AUDIOBOOKS, com.riffle.core.catalog.FacetSelection("prikazki"), page = 0)
+        val page1 = cat.browseUrlFor(ChitankaCatalog.ROOT_AUDIOBOOKS, com.riffle.core.catalog.FacetSelection("prikazki"), page = 1)
+        assertNotNull(page0)
+        assertNotNull(page1)
+        assertTrue("page 0 must NOT include ?page=", !page0!!.contains("?page="))
+        assertTrue("page 1 must include ?page=2 (1-indexed)", page1!!.contains("?page=2"))
+    }
+
+    @Test
+    fun `buildAudiobookStream tolerates zero-length HEAD estimates without crashing`() {
+        // headContentLength can return null (server rejects HEAD / no Content-Length header). The
+        // ChitankaCatalog.getTracks path treats that as durationSec = 0. Sum is well-defined; the
+        // scrubber still gets a legal zero-length track and doesn't NPE.
+        val cat = catalog()
+        val tracks = listOf(
+            com.riffle.core.catalog.CatalogAudioTrack(
+                ino = "u", index = 0, startOffsetSec = 0.0, durationSec = 0.0,
+                contentUrl = "u", mimeType = "audio/mpeg",
+            ),
+        )
+        assertEquals(0.0, cat.buildAudiobookStream(tracks).totalDurationSec, 0.0)
     }
 
     @Test

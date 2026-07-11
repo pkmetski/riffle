@@ -50,6 +50,10 @@ import java.net.URLEncoder
 class ChitankaCatalog(
     private val http: ChitankaHttpClient,
     private val bytesClient: OkHttpClient = OkHttpClient(),
+    // Must match the UA [ChitankaHttpClient] sends for HTML fetches — chitanka.info
+    // throttles/blocks requests carrying the raw `okhttp/x.x.x` default. Without this the
+    // EPUB download URL 429s on the first request even though browse succeeds.
+    private val userAgent: String = "Riffle",
 ) : Catalog, SeriesCapability, AudiobookMediaCapability, OfflineBrowseCapability {
 
     override val sourceType: SourceType = SourceType.CHITANKA
@@ -119,7 +123,13 @@ class ChitankaCatalog(
             ROOT_AUDIOBOOKS -> GramofoncheScraper.parseSearchResults(html)
             else -> return emptyList()
         }
-        return listing.items.map { it.toCatalogItem(rootId) }.take(pageSize)
+        // Both chitanka.info and gramofonche.chitanka.info return the FULL listing on a single
+        // HTML page — the `?page=N` query param is silently ignored (verified against
+        // gramofonche.chitanka.info/prikazki/ = 442 items, byte-identical response for ?page=2).
+        // Slice with drop+take so callers requesting page N>0 actually receive the next window.
+        // Without this, ChitankaBrowseViewModel's lazy-loading refetches the same first 50 items
+        // over and over and its id-dedup filters them all out — visually "pagination is broken".
+        return listing.items.map { it.toCatalogItem(rootId) }.drop(page * pageSize).take(pageSize)
     }
 
     internal fun browseUrlFor(rootId: String, facet: FacetSelection?, page: Int): String? {
@@ -289,18 +299,39 @@ class ChitankaCatalog(
         if (handle !is CatalogFileHandle.Stream) {
             throw ChitankaException("Local file handles are not produced by Chitanka Source")
         }
-        val request = Request.Builder().url(handle.url).build()
-        val response = bytesClient.newCall(request).execute()
-        if (!response.isSuccessful) {
-            response.close()
-            throw ChitankaException("Failed to fetch bytes for $itemId: ${response.code}")
-        }
+        // Same UA/headers as [ChitankaHttpClient.getString] — required or chitanka.info 429s
+        // the download URL. Also mirror its 429 backoff schedule (1.5s, 3s) for parity.
+        val response = fetchBytesWith429Retry(handle.url, itemId)
         val body = response.body
         object : CatalogFileStream {
             override val contentLength: Long = body.contentLength()
             override fun byteStream() = body.byteStream()
             override fun close() { response.close() }
         }
+    }
+
+    internal suspend fun fetchBytesWith429Retry(url: String, itemId: String): okhttp3.Response {
+        var attempt = 0
+        while (true) {
+            val request = Request.Builder()
+                .url(url)
+                .header("User-Agent", userAgent)
+                .header("Accept-Language", "bg,en;q=0.5")
+                .header("Referer", ChitankaScraper.BASE)
+                .build()
+            val response = bytesClient.newCall(request).execute()
+            if (response.isSuccessful) return response
+            val code = response.code
+            response.close()
+            if (code == 429 && attempt < ChitankaHttpClient.DEFAULT_RETRY_DELAYS_MS.size) {
+                kotlinx.coroutines.delay(ChitankaHttpClient.DEFAULT_RETRY_DELAYS_MS[attempt])
+                attempt++
+                continue
+            }
+            throw ChitankaException("Failed to fetch bytes for $itemId: $code")
+        }
+        @Suppress("UNREACHABLE_CODE")
+        error("unreachable")
     }
 
     // ---- Connectivity -------------------------------------------------------
@@ -415,6 +446,23 @@ class ChitankaCatalog(
         // Chapter markers are absent on Gramofonche by design — chapter nav degrades to track nav.
         return emptyList()
     }
+
+    /**
+     * Wrap the per-track list into a whole-book stream. Split out so the whole-book duration
+     * (sum of estimated per-track durations) can be unit-tested without spinning up MockWebServer
+     * for the full `openAudiobook` HTTP path. The audiobook player's scrubber gets a zero-length
+     * timeline — and therefore no seek — if `totalDurationSec` is zero, so the sum invariant is
+     * load-bearing.
+     */
+    internal fun buildAudiobookStream(tracks: List<CatalogAudioTrack>): CatalogAudiobookStream =
+        CatalogAudiobookStream(
+            trackUrls = tracks.map { it.contentUrl },
+            tracks = tracks,
+            chapters = emptyList(),          // no chapter markers on Gramofonche — track-nav suffices
+            totalDurationSec = tracks.sumOf { it.durationSec },
+            serverCurrentTimeSec = 0.0,      // no server-side position for Chitanka
+            serverLastUpdate = 0L,
+        )
 
     // ---- Helpers ------------------------------------------------------------
 

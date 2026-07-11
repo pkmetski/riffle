@@ -229,7 +229,11 @@ class LibraryItemsViewModel @Inject constructor(
         .map { sourceId ->
             val catalog = sourceId?.let { catalogRegistry.forSourceId(it) }
             LibraryTabVisibility(
-                toRead = catalog is PlaylistsCapability,
+                // To Read is available on every Source: [ToReadRepositoryImpl] falls back to a
+                // local Preferences DataStore when the Catalog has no server-side
+                // [PlaylistsCapability], so the tab shows for ABS, Local Files, and any future
+                // backend-less Source alike.
+                toRead = true,
                 series = catalog is SeriesCapability,
                 collections = catalog is CollectionsCapability,
             )

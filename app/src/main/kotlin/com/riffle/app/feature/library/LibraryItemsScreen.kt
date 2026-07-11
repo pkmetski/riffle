@@ -1132,7 +1132,7 @@ internal fun LibrarySearchHeader(
 }
 
 @Composable
-private fun SectionHeader(title: String) {
+internal fun SectionHeader(title: String) {
     Text(
         text = title,
         style = MaterialTheme.typography.titleMedium,
@@ -1328,7 +1328,7 @@ internal fun homeLeadingSectionKey(
 }
 
 @Composable
-private fun HomeTabContent(
+internal fun HomeTabContent(
     inProgress: List<LibraryItem>,
     continueSeries: List<LibraryItem>,
     recentlyAdded: List<LibraryItem>,
@@ -1511,7 +1511,7 @@ private fun CollectionsTabContent(
 }
 
 @Composable
-private fun ToReadTabContent(
+internal fun ToReadTabContent(
     items: List<LibraryItem>,
     isLoading: Boolean,
     token: String,
