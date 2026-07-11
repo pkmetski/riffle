@@ -8,8 +8,8 @@ import com.riffle.core.catalog.CatalogItem
 import com.riffle.core.catalog.CatalogRegistry
 import com.riffle.core.catalog.FacetSelection
 import com.riffle.core.catalog.chitanka.ChitankaCatalog
-import com.riffle.core.data.chitanka.ChitankaLibraryItemUpserter
 import com.riffle.core.data.websource.WebSourceItemGate
+import com.riffle.core.data.websource.WebSourceLibraryItemUpserter
 import com.riffle.core.domain.SourceRepository
 import com.riffle.core.domain.SourceType
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -41,7 +41,7 @@ class ChitankaBrowseViewModel @Inject constructor(
     private val savedStateHandle: SavedStateHandle,
     private val sourceRepository: SourceRepository,
     private val catalogRegistry: CatalogRegistry,
-    private val libraryItemUpserter: ChitankaLibraryItemUpserter,
+    private val libraryItemUpserter: WebSourceLibraryItemUpserter,
     private val webSourceItemGate: WebSourceItemGate,
 ) : ViewModel() {
 
@@ -167,10 +167,9 @@ class ChitankaBrowseViewModel @Inject constructor(
      * Open the tapped item's detail. Routes through [WebSourceItemGate] which enforces the
      * ADR-0043 caching policy: within TTL, no network call — the existing `library_items` row
      * is served; expired but reachable, refetch + upsert + stamp; expired but offline, serve
-     * the persisted (possibly stale) row anyway. If the gate reports [WebSourceItemGate.Outcome.Failed]
-     * (no persisted row and no network), fall back to upserting the listing [CatalogItem] as-is
-     * so navigation still happens — the detail screen renders with the fields the search-results
-     * HTML exposed (description/series/year/genres null).
+     * the persisted (possibly stale) row anyway; no row + fetch failed, the gate upserts the
+     * listing item itself so navigation still lands on a detail screen. The VM only owns the
+     * "no active catalog" defensive fallback — every network/staleness path is inside the gate.
      *
      * No-op when there is no active Chitanka Source — the screen route wouldn't have been
      * reachable, but guard defensively.
@@ -182,16 +181,14 @@ class ChitankaBrowseViewModel @Inject constructor(
                 ?: return@launch
             val catalog = activeCatalog()
             if (catalog != null) {
-                val outcome = webSourceItemGate.openItem(
+                webSourceItemGate.openItem(
                     sourceId = source.id,
-                    itemId = item.id,
+                    listing = item,
                     catalog = catalog,
-                    upsert = { libraryItemUpserter.upsert(source.id, it) },
                 )
-                if (outcome is WebSourceItemGate.Outcome.Failed) {
-                    libraryItemUpserter.upsert(source.id, item)
-                }
             } else {
+                // CatalogRegistry couldn't build a catalog for the active source — should never
+                // happen in practice, but if it does, at least keep tap → detail navigable.
                 libraryItemUpserter.upsert(source.id, item)
             }
             _openDetailEvents.emit(OpenDetailEvent(itemId = item.id))

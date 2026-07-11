@@ -18,7 +18,7 @@ import javax.inject.Inject
  * `HomeTabContent` composable as [com.riffle.app.feature.library.LibraryItemsScreen], but
  * without the ABS-shaped refresh loop — Chitanka has no server-side library mirror to
  * refresh (ADR 0041/0042), so this VM only observes rows the user has upserted via
- * [com.riffle.core.data.chitanka.ChitankaLibraryItemUpserter] on tap.
+ * [com.riffle.core.data.websource.WebSourceLibraryItemUpserter] on tap.
  */
 @HiltViewModel
 class ChitankaLibraryViewModel @Inject constructor(
@@ -45,7 +45,7 @@ class ChitankaLibraryViewModel @Inject constructor(
      * Joins the To Read id-set from [ToReadRepository] (which for Chitanka falls through to the
      * local Preferences store — see [com.riffle.core.data.LocalToReadStore]) with the Room-backed
      * catalogue rows. Only items that have already been upserted into `library_items` via
-     * [com.riffle.core.data.chitanka.ChitankaLibraryItemUpserter] can appear here — an id that's
+     * [com.riffle.core.data.websource.WebSourceLibraryItemUpserter] can appear here — an id that's
      * been added to To Read but whose row was later deleted just drops out silently.
      */
     val toReadItems: StateFlow<List<LibraryItem>> = combine(

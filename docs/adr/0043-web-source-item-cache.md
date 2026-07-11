@@ -19,13 +19,24 @@ Both layers share the same 24 h TTL. TTL governs when we *prefer* fresh over cac
 - **Pull-to-refresh is the escape hatch.** Detail-screen pull-to-refresh calls `openItem(..., forceRefresh = true)`, which skips the freshness check and refetches. Listing-screen pull-to-refresh adds `Cache-Control: no-cache` to the OkHttp request, which forces revalidation past Layer 1. Cache-clear-all is not a user-facing action; there is no "flush cache" button.
 - **No background refresh, no cross-device sync, no proactive eviction.** The OkHttp `Cache` evicts by size (LRU up to 10 MB). The `remote_item_freshness` table grows only with items ever opened — bounded by user behaviour, negligible in size, no GC needed.
 - **Missing-cover fetches don't stamp freshness.** A parsed [CatalogItem] whose `coverUrl` is null/blank is treated as an incomplete fetch (chitanka/gramofonche items almost always carry one; a missing cover is usually a transient scrape miss or upstream hiccup). The row is upserted so the browse-to-detail transition still works, but `RemoteItemFreshness.stamp` is skipped, so the very next open retries the network fetch instead of locking in the "no cover" state for 24 h. Only fully-populated items get stamped.
-- **Chitanka's `getItem` stays a pure scraper.** No change to the Catalog contract or to `ChitankaCatalog` internals; the ViewModel change is `catalog.getItem(item.id)` → `webSourceItemGate.openItem(source, catalog, item.id)` at the single call site in `ChitankaBrowseViewModel.openDetail`. The freshness table is populated on that path; subsequent detail reopens hit Room.
+- **Chitanka's `getItem` stays a pure scraper.** No change to the Catalog contract or to `ChitankaCatalog` internals; the ViewModel change is `catalog.getItem(item.id)` → `webSourceItemGate.openItem(source.id, item, catalog)` at the single call site in `ChitankaBrowseViewModel.openDetail`. The freshness table is populated on that path; subsequent detail reopens hit Room.
+- **The gate owns the last-resort listing-item upsert.** When the fetch fails and no Room row exists, the gate itself upserts the listing [CatalogItem] (whatever fields the browse HTML surfaced) as a fallback and returns `Outcome.Failed(cause)`. The caller does not repeat the upsert — every navigable-fallback path is one API call. This is what makes wiring a new web source through the gate a mechanical one-liner: `webSourceItemGate.openItem(source.id, listing, catalog)` handles fresh / expired / offline / catalog-null / row-missing without the VM having to remember error branches. `WebSourceLibraryItemUpserter` is injected into the gate so the same on-demand upsert semantics (sentinel `addedAt = 0`, preserve existing timestamps) apply universally.
 
 ## Scope of the first change
 
 Ship the migration to database version 54 (`remote_item_freshness` table + DAO + `MIGRATION_53_54`), the `@WebSourceOkHttpClient` qualifier with cache and both interceptors wired in `NetworkModule`, the `RemoteItemFreshness` Room service, and the `WebSourceItemGate` in `core:data`. Refactor `ChitankaCatalogFactory` to inject the qualified client and `ChitankaBrowseViewModel.openDetail` to route through the gate. Preserve today's stale-fallback semantics ("navigate anyway if enrichment fails") via the gate's own error branch. Tests: interceptor unit tests, gate unit test with fakes, freshness Room test, and `MigrationTest.migration53To54` following AGENTS.md.
 
 The CI gate (`checkWebSourceCatalogsUseQualifier`) is deferred until a second web source ships — with only one implementation the type/DI system already does the enforcement.
+
+## Follow-up: Gutenberg wired the same way
+
+The follow-up on branch `pkmetski/gutenberg-source` routes `GutenbergBrowseViewModel.openDetail` through the same gate — no additional infrastructure, just the same three-line wiring. The Failed-fallback upsert moves out of the caller and into `WebSourceItemGate.openItem` so every browse VM (present and future) needs only:
+
+```kotlin
+webSourceItemGate.openItem(sourceId = source.id, listing = item, catalog = catalog)
+```
+
+A new web source's browse VM inherits the entire ADR-0043 policy — freshness, stale-fallback, offline navigation, cover-missing retry — by construction.
 
 ## Amendments to existing ADRs
 

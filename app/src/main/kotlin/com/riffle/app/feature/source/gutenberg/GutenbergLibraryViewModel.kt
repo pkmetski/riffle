@@ -17,7 +17,7 @@ import javax.inject.Inject
  * Room-backed shelves for the Gutenberg library "Home" tab. Feeds the same `HomeTabContent`
  * composable as ABS libraries do, but without the ABS-shaped refresh loop — Gutenberg has no
  * server-side library mirror to refresh, so this VM only observes rows the user has upserted
- * via [com.riffle.core.data.gutenberg.GutenbergLibraryItemUpserter] on tap.
+ * via [com.riffle.core.data.websource.WebSourceLibraryItemUpserter] on tap.
  */
 @HiltViewModel
 class GutenbergLibraryViewModel @Inject constructor(

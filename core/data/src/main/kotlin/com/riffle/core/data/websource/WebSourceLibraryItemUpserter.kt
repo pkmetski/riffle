@@ -1,4 +1,4 @@
-package com.riffle.core.data.chitanka
+package com.riffle.core.data.websource
 
 import com.riffle.core.catalog.BookFormat
 import com.riffle.core.catalog.CatalogItem
@@ -11,23 +11,22 @@ import javax.inject.Inject
 /**
  * Bridges a browsed [CatalogItem] into the local `library_items` cache when the user taps it.
  *
- * Chitanka is an unbounded remote catalogue (ADR 0042) — [LibraryRepositoryImpl.refreshLibraryItems]
- * intentionally does NOT populate `library_items` for it. But the reader, the audiobook player, and
- * the detail screen resolve the item via `LibraryObserver.getItem(itemId)`, so opening a Chitanka
- * item requires a row to exist. This upserter is the on-demand hop: called from
- * [com.riffle.app.feature.source.chitanka.ChitankaBrowseViewModel] just before navigation.
+ * Web sources (Chitanka, Gutenberg, and future entries) are unbounded remote catalogues (ADR
+ * 0042) — [com.riffle.core.data.LibraryRepositoryImpl.refreshLibraryItems] intentionally does
+ * NOT populate `library_items` for them. But the reader, the audiobook player, and the detail
+ * screen resolve the item via `LibraryObserver.getItem(itemId)`, so opening a browsed item
+ * requires a row to exist. This upserter is the on-demand hop: called from each web source's
+ * BrowseViewModel just before navigation.
  *
  * The row is stamped with `addedAt = 0` (sentinel) — a browse tap is *not* an "add to library"
- * intent, and [com.riffle.core.database.LibraryItemDao.observeRecentlyAdded] filters sentinel rows
- * out. Opening the reader promotes the row via
- * [com.riffle.core.database.LibraryItemDao.updateLastOpenedAt], which is where the item genuinely
- * enters the user's library.
+ * intent, and [LibraryItemDao.observeRecentlyAdded] filters sentinel rows out. Opening the
+ * reader / audiobook player promotes the row via [LibraryItemDao.updateLastOpenedAt], which is
+ * where the item genuinely enters the user's library.
  *
- * Uses the same insert-or-ignore + updateMetadata pattern as
- * [com.riffle.core.database.LibraryItemDao.replaceAllForLibrary] so a re-open preserves the local
- * `readingProgress` value.
+ * Uses the same insert-or-ignore + updateMetadata pattern as [LibraryItemDao.replaceAllForLibrary]
+ * so a re-tap preserves the local `readingProgress` value.
  */
-class ChitankaLibraryItemUpserter @Inject constructor(
+class WebSourceLibraryItemUpserter @Inject constructor(
     private val libraryItemDao: LibraryItemDao,
 ) {
     suspend fun upsert(sourceId: String, item: CatalogItem) {

@@ -8,7 +8,8 @@ import com.riffle.core.catalog.CatalogItem
 import com.riffle.core.catalog.CatalogRegistry
 import com.riffle.core.catalog.FacetSelection
 import com.riffle.core.catalog.gutenberg.GutenbergCatalog
-import com.riffle.core.data.gutenberg.GutenbergLibraryItemUpserter
+import com.riffle.core.data.websource.WebSourceItemGate
+import com.riffle.core.data.websource.WebSourceLibraryItemUpserter
 import com.riffle.core.domain.SourceRepository
 import com.riffle.core.domain.SourceType
 import com.riffle.core.logging.LogChannel
@@ -44,7 +45,8 @@ class GutenbergBrowseViewModel @Inject constructor(
     private val savedStateHandle: SavedStateHandle,
     private val sourceRepository: SourceRepository,
     private val catalogRegistry: CatalogRegistry,
-    private val libraryItemUpserter: GutenbergLibraryItemUpserter,
+    private val libraryItemUpserter: WebSourceLibraryItemUpserter,
+    private val webSourceItemGate: WebSourceItemGate,
     private val logger: Logger,
 ) : ViewModel() {
 
@@ -146,17 +148,28 @@ class GutenbergBrowseViewModel @Inject constructor(
     }
 
     /**
-     * Upsert the tapped item into `library_items` so the standard detail screen can resolve it,
-     * then emit an [OpenDetailEvent]. Falls back to the listing item if the detail fetch fails
-     * (offline, transient 429) so navigation still happens.
+     * Open the tapped item's detail. Routes through [WebSourceItemGate] which enforces the
+     * ADR-0043 caching policy for every web source: within TTL, no network — the persisted
+     * `library_items` row is served; expired but reachable, refetch + upsert + stamp; expired
+     * but offline, serve the (possibly stale) row anyway; no row + fetch failed, the gate
+     * upserts the listing item as a fallback so navigation still lands on a detail screen.
+     * The VM only owns the "no active catalog" defensive fallback.
      */
     fun openDetail(item: CatalogItem) {
         viewModelScope.launch {
             val source = sourceRepository.getActive()
                 ?.takeIf { it.type == SourceType.GUTENBERG }
                 ?: return@launch
-            val enriched = runCatching { activeCatalog()?.getItem(item.id) }.getOrNull() ?: item
-            libraryItemUpserter.upsert(source.id, enriched)
+            val catalog = activeCatalog()
+            if (catalog != null) {
+                webSourceItemGate.openItem(
+                    sourceId = source.id,
+                    listing = item,
+                    catalog = catalog,
+                )
+            } else {
+                libraryItemUpserter.upsert(source.id, item)
+            }
             _openDetailEvents.emit(OpenDetailEvent(itemId = item.id))
         }
     }
