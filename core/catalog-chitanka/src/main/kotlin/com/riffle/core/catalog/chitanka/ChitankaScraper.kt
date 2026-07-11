@@ -134,15 +134,21 @@ internal object ChitankaScraper {
             .map { it.text().trim() }
             .filter { it.isNotEmpty() }
 
-        // Description: try meta[name=description], then book-card popover, then wiki intro.
+        // Description: try meta[name=description], then the book-anno block (present on /book/
+        // pages as `div.text-content.book-anno` — the canonical chitanka annotation), then the
+        // book-card popover, then the wiki intro.
         val genericMetaPrefix = "Универсална библиотека"
         val metaDesc = doc.selectFirst("meta[name=description]")?.attr("content")?.trim().orEmpty()
+        val bookAnnoDesc = doc.select("div.text-content.book-anno p")
+            .joinToString("\n\n") { it.text().trim() }
+            .trim()
         val popoverHtml = doc.selectFirst("h4.book-title .popover-trigger")?.attr("data-content").orEmpty()
         val popoverDesc = if (popoverHtml.isNotEmpty() && !popoverHtml.contains("blockquote")) {
             Jsoup.parse(popoverHtml).selectFirst("p")?.text()?.trim().orEmpty()
         } else ""
         val description = when {
             metaDesc.isNotEmpty() && !metaDesc.startsWith(genericMetaPrefix) -> metaDesc
+            bookAnnoDesc.isNotEmpty() -> bookAnnoDesc
             popoverDesc.isNotEmpty() -> popoverDesc
             else -> doc.selectFirst("section[data-mw-section-id=0] p")?.text()?.trim().orEmpty()
         }
