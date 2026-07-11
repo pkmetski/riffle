@@ -8,13 +8,18 @@ import com.riffle.core.catalog.CatalogItem
 import com.riffle.core.catalog.CatalogRegistry
 import com.riffle.core.catalog.FacetSelection
 import com.riffle.core.catalog.chitanka.ChitankaCatalog
+import com.riffle.core.data.chitanka.ChitankaLibraryItemUpserter
 import com.riffle.core.domain.SourceRepository
 import com.riffle.core.domain.SourceType
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -33,9 +38,27 @@ class ChitankaBrowseViewModel @Inject constructor(
     private val savedStateHandle: SavedStateHandle,
     private val sourceRepository: SourceRepository,
     private val catalogRegistry: CatalogRegistry,
+    private val libraryItemUpserter: ChitankaLibraryItemUpserter,
 ) : ViewModel() {
 
     val rootId: String = savedStateHandle.get<String>("rootId") ?: ChitankaCatalog.ROOT_BOOKS
+
+    /**
+     * Emitted once the tapped [CatalogItem] has been upserted into `library_items` and the
+     * reader / audiobook player can safely be launched for it. The screen collects this and
+     * routes to `epub_reader/{id}` or `audiobook_player/{id}` (see MainScreen).
+     *
+     * Extra-buffer replay-0 so a nav that fires before the collector attaches (should never
+     * happen — the screen collects in composition) is dropped rather than replayed on the
+     * next screen return.
+     */
+    data class OpenEvent(val itemId: String, val isAudio: Boolean)
+
+    private val _openEvents = MutableSharedFlow<OpenEvent>(
+        extraBufferCapacity = 1,
+        onBufferOverflow = BufferOverflow.DROP_OLDEST,
+    )
+    val openEvents: SharedFlow<OpenEvent> = _openEvents.asSharedFlow()
 
     private val _facets = MutableStateFlow<List<CatalogFacet>>(emptyList())
     val facets: StateFlow<List<CatalogFacet>> = _facets.asStateFlow()
@@ -94,6 +117,24 @@ class ChitankaBrowseViewModel @Inject constructor(
         // stale results (chip strip shows B, grid shows A's late-arriving items).
         refreshJob?.cancel()
         refreshJob = viewModelScope.launch { refreshOnce() }
+    }
+
+    /**
+     * Upsert the tapped item into `library_items` so the reader/player can resolve it via
+     * `LibraryObserver.getItem`, then emit an [OpenEvent] the screen collects to navigate.
+     * No-op when there is no active Chitanka Source — the screen route wouldn't have been
+     * reachable, but guard defensively.
+     */
+    fun openItem(item: CatalogItem) {
+        viewModelScope.launch {
+            val source = sourceRepository.getActive()
+                ?.takeIf { it.type == SourceType.CHITANKA }
+                ?: return@launch
+            libraryItemUpserter.upsert(source.id, item)
+            _openEvents.emit(
+                OpenEvent(itemId = item.id, isAudio = rootId == ChitankaCatalog.ROOT_AUDIOBOOKS),
+            )
+        }
     }
 
     private suspend fun refreshOnce() {

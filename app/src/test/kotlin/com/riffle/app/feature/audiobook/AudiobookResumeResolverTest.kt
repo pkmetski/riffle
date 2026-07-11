@@ -151,6 +151,29 @@ class AudiobookResumeResolverTest {
     }
 
     @Test
+    fun `zeroed session (Chitanka fresh open) → resumeSec=0, resumeStamp=0, no crash`() = runTest {
+        // Chitanka's openAudiobook returns a stream with serverCurrentTimeSec=0, serverLastUpdate=0,
+        // totalDurationSec=0 (unknown until ExoPlayer resolves each track). A fresh open has no local
+        // row either. Pin: the resolver returns (0.0, 0L) — the reconciler picks InSync (0 !> 0),
+        // audiobookResumeSec short-circuits on durationSec<=0 (no bogus fraction*0 fallback), and
+        // audiobookStartSec no-ops on durationSec<=0 (no finished-book rewind on a zero-duration).
+        val store = FakePositionStore(loadedSec = null, loadedTs = 0L)
+        val resolver = AudiobookResumeResolver(store, FakeClock(0L))
+
+        val result = resolver.resolve(
+            sourceId = "chit-1",
+            itemId = "prikazki/some-tale",
+            session = session(duration = 0.0, serverCurrentTimeSec = 0.0, serverLastUpdate = 0L),
+            readingProgressFraction = 0f,
+            startAtSec = -1.0,
+        )
+
+        assertEquals(0.0, result.resumeSec, 0.0001)
+        assertEquals(0L, result.resumeStamp)
+        assertTrue("zeroed session must not write back to store", store.saves.isEmpty())
+    }
+
+    @Test
     fun `empty sourceId → no store IO, defaults from session`() = runTest {
         val store = FakePositionStore(loadedSec = 999.0, loadedTs = 99_999L)
         val resolver = AudiobookResumeResolver(store, FakeClock(0L))
