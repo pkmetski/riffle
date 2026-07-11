@@ -11,6 +11,8 @@ import com.riffle.core.catalog.gutenberg.GutenbergCatalog
 import com.riffle.core.data.gutenberg.GutenbergLibraryItemUpserter
 import com.riffle.core.domain.SourceRepository
 import com.riffle.core.domain.SourceType
+import com.riffle.core.logging.LogChannel
+import com.riffle.core.logging.Logger
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.BufferOverflow
@@ -42,6 +44,7 @@ class GutenbergBrowseViewModel @Inject constructor(
     private val sourceRepository: SourceRepository,
     private val catalogRegistry: CatalogRegistry,
     private val libraryItemUpserter: GutenbergLibraryItemUpserter,
+    private val logger: Logger,
 ) : ViewModel() {
 
     val rootId: String = savedStateHandle.get<String>("libraryId") ?: GutenbergCatalog.ROOT_BOOKS
@@ -151,16 +154,26 @@ class GutenbergBrowseViewModel @Inject constructor(
         _error.value = null
         try {
             val q = _query.value.trim()
+            val facetKey = _selectedFacet.value
+            logger.d(LogChannel.Gutenberg) {
+                "refresh rootId=$rootId query='${q}' facet=$facetKey page=0"
+            }
             val result = if (q.isNotEmpty()) {
                 catalog.search(rootId = rootId, query = q, page = 0, pageSize = PAGE_SIZE)
             } else {
-                val facet = _selectedFacet.value?.let { FacetSelection(it) }
+                val facet = facetKey?.let { FacetSelection(it) }
                 catalog.browse(rootId = rootId, page = 0, pageSize = PAGE_SIZE, facet = facet)
             }
+            logger.d(LogChannel.Gutenberg) { "refresh ok size=${result.size}" }
             _items.value = result
             currentPage = 0
             _hasMore.value = result.size >= GUTENDEX_PAGE_SIZE
         } catch (t: Throwable) {
+            logger.d(LogChannel.Gutenberg) {
+                "refresh error facet=${_selectedFacet.value} query='${_query.value}' " +
+                    "type=${t::class.simpleName} msg=${t.message} " +
+                    "cause=${t.cause?.let { "${it::class.simpleName}:${it.message}" }}"
+            }
             _error.value = friendlyErrorMessage(t)
             _items.value = emptyList()
             _hasMore.value = false
