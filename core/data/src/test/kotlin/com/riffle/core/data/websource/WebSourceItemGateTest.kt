@@ -41,7 +41,10 @@ class WebSourceItemGateTest {
         rootId = "books",
         title = title,
         author = "Автор",
-        coverUrl = null,
+        // Non-null cover: the gate treats a missing cover as an incomplete fetch and skips
+        // stamping, which would break every test that asserts stamping. Cover-missing tests
+        // opt in explicitly via `.copy(coverUrl = null)`.
+        coverUrl = "https://chitanka.info/cover.jpg",
         ebookFormat = BookFormat.Epub,
     )
 
@@ -162,6 +165,59 @@ class WebSourceItemGateTest {
         assertTrue(outcome is WebSourceItemGate.Outcome.Fetched)
         assertEquals("Forced", upserted?.title)
         assertEquals(1, catalog.getItemCalls)
+    }
+
+    @Test fun `fetched item without cover url is upserted but not freshness-stamped`() = runTest {
+        val clock = TestClock(1_000L)
+        val dao = InMemoryFreshnessDao()
+        val freshness = RemoteItemFreshness(dao, clock)
+
+        val observer = FakeLibraryObserver(items = mutableMapOf())
+        val noCover = sampleItem().copy(coverUrl = null)
+        val catalog = RecordingCatalog(item = noCover)
+        val gate = WebSourceItemGate(observer, freshness, RecordingLogger())
+
+        var upserted: CatalogItem? = null
+        val outcome = gate.openItem(sourceId, itemId, catalog, upsert = { upserted = it })
+
+        assertTrue(outcome is WebSourceItemGate.Outcome.Fetched)
+        assertEquals(noCover, upserted)
+        // Missing cover = incomplete fetch → no stamp → next open retries.
+        assertEquals(null, dao.lastFetchedAt(sourceId, itemId))
+    }
+
+    @Test fun `fetched item with blank cover url is treated the same as null`() = runTest {
+        val clock = TestClock(1_000L)
+        val dao = InMemoryFreshnessDao()
+        val freshness = RemoteItemFreshness(dao, clock)
+
+        val observer = FakeLibraryObserver(items = mutableMapOf())
+        val blankCover = sampleItem().copy(coverUrl = "   ")
+        val catalog = RecordingCatalog(item = blankCover)
+        val gate = WebSourceItemGate(observer, freshness, RecordingLogger())
+
+        val outcome = gate.openItem(sourceId, itemId, catalog, upsert = { })
+        assertTrue(outcome is WebSourceItemGate.Outcome.Fetched)
+        assertEquals(null, dao.lastFetchedAt(sourceId, itemId))
+    }
+
+    @Test fun `no-cover fetch causes next open to retry instead of serving Fresh`() = runTest {
+        val clock = TestClock(1_000L)
+        val dao = InMemoryFreshnessDao()
+        val freshness = RemoteItemFreshness(dao, clock)
+
+        val observer = FakeLibraryObserver(items = mutableMapOf(sourceId to (itemId to sampleLibraryItem())))
+        val catalog = RecordingCatalog(item = sampleItem().copy(coverUrl = null))
+        val gate = WebSourceItemGate(observer, freshness, RecordingLogger())
+
+        // First open: no cover, no stamp.
+        gate.openItem(sourceId, itemId, catalog, upsert = { })
+        assertEquals(1, catalog.getItemCalls)
+
+        // Second open a moment later: TTL check must fail (no stamp) and we refetch.
+        clock.advance(60_000L)
+        gate.openItem(sourceId, itemId, catalog, upsert = { })
+        assertEquals("Second open should refetch, not serve Fresh from the cover-less row", 2, catalog.getItemCalls)
     }
 
     @Test fun `catalog returns null with existing row returns Stale`() = runTest {

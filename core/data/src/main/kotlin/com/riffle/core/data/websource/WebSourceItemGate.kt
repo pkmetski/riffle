@@ -21,10 +21,14 @@ import javax.inject.Inject
  * - Within the TTL, if a persisted row exists → return [Outcome.Fresh] without hitting the
  *   network. The caller navigates directly to whatever screen reads the row.
  * - Otherwise call [Catalog.getItem]:
- *   - Success → upsert via the callback, stamp freshness, return [Outcome.Fetched] with the
- *     fresh [CatalogItem].
+ *   - Success → upsert via the callback, stamp freshness (unless the fetched item is missing
+ *     its cover — see below), return [Outcome.Fetched] with the fresh [CatalogItem].
  *   - `IOException` (offline, timeout, upstream error surfaced as I/O) → if a row exists
  *     (any age) return [Outcome.Stale]; if no row return [Outcome.Failed] with the cause.
+ *
+ * Cover-missing exception: if [CatalogItem.coverUrl] is null/blank on the fetched item, we
+ * upsert the row but skip [RemoteItemFreshness.stamp]. That treats the fetch as incomplete
+ * so the very next open retries instead of locking in the "no cover" state for the full TTL.
  *
  * Pull-to-refresh passes `forceRefresh = true`, which bypasses the TTL check but still uses
  * the stale-fallback branch if the network fetch fails.
@@ -67,7 +71,19 @@ class WebSourceItemGate @Inject constructor(
             val fetched = catalog.getItem(itemId)
             if (fetched != null) {
                 upsert(fetched)
-                freshness.stamp(sourceId, itemId)
+                // Missing cover = incomplete fetch. Chitanka/gramofonche items almost always
+                // carry a cover; a null/blank one is usually a transient scrape miss (upstream
+                // hiccup, image CDN slow, HTML variant we didn't parse). Skipping the freshness
+                // stamp makes the very next open retry the fetch instead of locking in the
+                // "no cover" state for 24 h. The upsert still runs so the user sees a title
+                // in the browse-detail transition — only the freshness bookkeeping is deferred.
+                if (fetched.coverUrl.isNullOrBlank()) {
+                    logger.d(LogChannel.WebSourceCache) {
+                        "web-source fetch for $sourceId/$itemId has no cover — skipping freshness stamp so retrieval retries"
+                    }
+                } else {
+                    freshness.stamp(sourceId, itemId)
+                }
                 Outcome.Fetched(fetched)
             } else {
                 if (libraryObserver.getItem(sourceId, itemId) != null) Outcome.Stale
