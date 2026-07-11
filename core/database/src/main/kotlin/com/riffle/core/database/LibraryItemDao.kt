@@ -108,13 +108,24 @@ interface LibraryItemDao {
     @Query("SELECT * FROM library_items WHERE sourceId = :sourceId AND libraryId = :libraryId AND readingProgress >= 0.99 ORDER BY COALESCE(finishedAt, lastOpenedAt) IS NULL ASC, COALESCE(finishedAt, lastOpenedAt) DESC")
     fun observeFinished(sourceId: String, libraryId: String): Flow<List<LibraryItemEntity>>
 
-    @Query("SELECT * FROM library_items WHERE sourceId = :sourceId AND libraryId = :libraryId ORDER BY addedAt DESC")
+    // `addedAt > 0` filters out sentinel rows written by on-demand browse upserters
+    // (e.g. ChitankaLibraryItemUpserter). A tap-through-the-browser is not intent to add the book
+    // to the library — the row exists only so the reader can resolve the item. updateLastOpenedAt
+    // promotes the sentinel to a real timestamp on the first reader open.
+    @Query("SELECT * FROM library_items WHERE sourceId = :sourceId AND libraryId = :libraryId AND addedAt > 0 ORDER BY addedAt DESC")
     fun observeRecentlyAdded(sourceId: String, libraryId: String): Flow<List<LibraryItemEntity>>
 
     @Query("SELECT * FROM library_items WHERE sourceId = :sourceId AND libraryId = :libraryId ORDER BY title ASC")
     fun observeAllBooks(sourceId: String, libraryId: String): Flow<List<LibraryItemEntity>>
 
-    @Query("UPDATE library_items SET lastOpenedAt = :timestamp WHERE sourceId = :sourceId AND id = :itemId")
+    // Opening the reader is the strong-intent signal that promotes a browse-cached row (addedAt = 0
+    // sentinel, written by on-demand upserters like ChitankaLibraryItemUpserter) into "genuinely
+    // added" so it surfaces in Recently Added. Rows with a real addedAt keep their original stamp.
+    @Query(
+        "UPDATE library_items SET lastOpenedAt = :timestamp, " +
+            "addedAt = CASE WHEN addedAt = 0 THEN :timestamp ELSE addedAt END " +
+            "WHERE sourceId = :sourceId AND id = :itemId"
+    )
     suspend fun updateLastOpenedAt(sourceId: String, itemId: String, timestamp: Long)
 
     @Query("UPDATE library_items SET readingProgress = :progress WHERE sourceId = :sourceId AND id = :itemId")
