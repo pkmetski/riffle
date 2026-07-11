@@ -52,12 +52,9 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
-import androidx.compose.material3.SwipeToDismissBox
-import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.material3.windowsizeclass.WindowSizeClass
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -799,15 +796,7 @@ private fun ServerRow(
     onReorderLibraries: (orderedLibraryIds: List<String>) -> Unit,
     onOpenReadaloudMatches: () -> Unit,
 ) {
-    val dismissState = rememberSwipeToDismissBoxState(
-        confirmValueChange = { value ->
-            if (value == SwipeToDismissBoxValue.EndToStart) {
-                onRemove()
-                true
-            } else false
-        }
-    )
-    SwipeToDismissBox(state = dismissState, backgroundContent = {}) {
+    SwipeToDeleteRow(onDelete = onRemove) {
         Column {
             val username = server.username.takeIf { it.isNotEmpty() }
             val subtitle = buildString {
@@ -1063,7 +1052,8 @@ private fun LocalFilesSourceRow(
         label = "chevron",
     )
 
-    Column {
+    SwipeToDeleteRow(onDelete = onRemoveSource) {
+      Column {
         ListItem(
             modifier = Modifier
                 .clickable { onToggleExpanded() }
@@ -1159,6 +1149,7 @@ private fun LocalFilesSourceRow(
                 }
             }
         }
+      }
     }
 
     pendingFolderRemoval?.let { folder ->
