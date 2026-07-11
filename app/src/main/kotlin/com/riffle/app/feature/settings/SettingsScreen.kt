@@ -1194,36 +1194,18 @@ private fun LocalFilesSourceRow(
 
 /**
  * Minimal sources-list row for the singleton Chitanka Source. No sub-UI (unlike
- * [LocalFilesSourceRow] which manages folders) — Chitanka is zero-config; the only
- * user-facing controls are "browse" (via the drawer) and "remove" (this row).
+ * [LocalFilesSourceRow] which manages folders) — Chitanka is zero-config; removal is
+ * via the shared end-to-start swipe gesture, matching every other configured-source row.
  */
 @Composable
-private fun ChitankaSourceRow(
+internal fun ChitankaSourceRow(
     onRemove: () -> Unit,
 ) {
-    var pendingRemoval by remember { mutableStateOf(false) }
-    ListItem(
-        modifier = Modifier.testTag("ChitankaSourceRow"),
-        headlineContent = { Text("Chitanka") },
-        supportingContent = { Text("chitanka.info · gramofonche.chitanka.info") },
-        trailingContent = {
-            TextButton(onClick = { pendingRemoval = true }) { Text("Remove") }
-        },
-    )
-    if (pendingRemoval) {
-        AlertDialog(
-            onDismissRequest = { pendingRemoval = false },
-            title = { Text("Remove Chitanka source?") },
-            text = { Text("You can add it back at any time. Downloaded content from this source will be removed.") },
-            confirmButton = {
-                TextButton(onClick = {
-                    onRemove()
-                    pendingRemoval = false
-                }) { Text("Remove") }
-            },
-            dismissButton = {
-                TextButton(onClick = { pendingRemoval = false }) { Text("Cancel") }
-            },
+    SwipeToDeleteRow(onDelete = onRemove) {
+        ListItem(
+            modifier = Modifier.testTag("ChitankaSourceRow"),
+            headlineContent = { Text("Chitanka") },
+            supportingContent = { Text("chitanka.info · gramofonche.chitanka.info") },
         )
     }
 }
