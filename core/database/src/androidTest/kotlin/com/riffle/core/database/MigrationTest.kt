@@ -1919,7 +1919,7 @@ class MigrationTest {
         }
 
         val db = helper.runMigrationsAndValidate(
-            TEST_DB, 53, true,
+            TEST_DB, 54, true,
             RiffleDatabase.MIGRATION_1_2,
             RiffleDatabase.MIGRATION_2_3,
             RiffleDatabase.MIGRATION_3_4,
@@ -1972,6 +1972,7 @@ class MigrationTest {
             RiffleDatabase.MIGRATION_50_51,
             RiffleDatabase.MIGRATION_51_52,
             RiffleDatabase.MIGRATION_52_53,
+            RiffleDatabase.MIGRATION_53_54,
         )
 
         db.query("SELECT url, username, serverType, absUserId, type FROM sources WHERE id = 's1'").use { cursor ->
@@ -2429,6 +2430,74 @@ class MigrationTest {
             // Core columns still present, verifying the recreation copied data cleanly.
             assertTrue("sourceItemId" in columns)
             assertTrue("copiedPath" in columns)
+        }
+
+        db.close()
+    }
+
+    // ADR 0043: introduce `remote_item_freshness`, the freshness-timestamp table used by
+    // WebSourceItemGate to short-circuit web-source item-open flows within the 24 h TTL and
+    // fall back to the persisted row on network failure. Pre-existing data must survive the
+    // migration; the new table starts empty.
+    @Test
+    fun migration53To54_addsRemoteItemFreshnessTable() {
+        helper.createDatabase(TEST_DB, 53).apply {
+            execSQL(
+                "INSERT INTO sources (id, url, isActive, insecureConnectionAllowed, username, serverType, absUserId, type) " +
+                    "VALUES ('chi1', 'https://chitanka.info', 1, 0, '', 'AUDIOBOOKSHELF', NULL, 'CHITANKA')"
+            )
+            execSQL(
+                "INSERT INTO libraries (id, name, mediaType, sourceId, isUnsupported) " +
+                    "VALUES ('books', 'Books', 'book', 'chi1', 0)"
+            )
+            execSQL(
+                """
+                INSERT INTO library_items (
+                    sourceId, id, libraryId, title, author, coverUrl, readingProgress,
+                    ebookFileIno, ebookFormat, hasAudio, audioDurationSec, description,
+                    seriesName, seriesSequence, publishedYear, genres, publisher, language,
+                    lastOpenedAt, addedAt, isbn, asin, finishedAt, pageCount
+                ) VALUES ('chi1','text/44723-abu-hasan','books','Абу Хасан','Автор',NULL,0.0,
+                          NULL,'epub',0,0.0,'desc',
+                          NULL,NULL,'2020','','','bg',
+                          NULL,1000,NULL,NULL,NULL,NULL)
+                """.trimIndent()
+            )
+            close()
+        }
+        val db = helper.runMigrationsAndValidate(TEST_DB, 54, true, RiffleDatabase.MIGRATION_53_54)
+
+        db.query("SELECT COUNT(*) FROM remote_item_freshness").use { c ->
+            assertTrue(c.moveToFirst())
+            assertEquals(0, c.getInt(0))
+        }
+
+        db.execSQL(
+            "INSERT INTO remote_item_freshness (sourceId, sourceItemId, lastFetchedAt) " +
+                "VALUES ('chi1', 'text/44723-abu-hasan', 1700000000000)"
+        )
+        db.query(
+            "SELECT lastFetchedAt FROM remote_item_freshness " +
+                "WHERE sourceId = 'chi1' AND sourceItemId = 'text/44723-abu-hasan'"
+        ).use { c ->
+            assertTrue(c.moveToFirst())
+            assertEquals(1_700_000_000_000L, c.getLong(0))
+        }
+
+        // Pre-existing item still there.
+        db.query(
+            "SELECT title FROM library_items WHERE sourceId = 'chi1' AND id = 'text/44723-abu-hasan'"
+        ).use { c ->
+            assertTrue(c.moveToFirst())
+            assertEquals("Абу Хасан", c.getString(0))
+        }
+
+        // FK ON DELETE CASCADE from sources → remote_item_freshness.
+        db.execSQL("PRAGMA foreign_keys=ON")
+        db.execSQL("DELETE FROM sources WHERE id = 'chi1'")
+        db.query("SELECT COUNT(*) FROM remote_item_freshness").use { c ->
+            assertTrue(c.moveToFirst())
+            assertEquals(0, c.getInt(0))
         }
 
         db.close()

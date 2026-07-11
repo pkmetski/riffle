@@ -18,4 +18,5 @@ enum class LogChannel(val tag: String) {
     Covers("RIFFLE_COVERS"),
     LocalFiles("RIFFLE_LF"),
     Chitanka("RIFFLE_CHI"),
+    WebSourceCache("RIFFLE_WSC"),
 }
