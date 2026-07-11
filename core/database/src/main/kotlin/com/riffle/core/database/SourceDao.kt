@@ -10,7 +10,9 @@ import kotlinx.coroutines.flow.Flow
 @Dao
 interface SourceDao {
 
-    @Query("SELECT * FROM sources ORDER BY isActive DESC, serverType ASC, username ASC, url ASC")
+    // Order is stable across active-source changes so the switcher list doesn't reshuffle on
+    // every switch — the check-mark alone identifies the active row.
+    @Query("SELECT * FROM sources ORDER BY serverType ASC, username ASC, url ASC")
     fun observeAll(): Flow<List<SourceEntity>>
 
     @Query("SELECT * FROM sources WHERE isActive = 1 LIMIT 1")

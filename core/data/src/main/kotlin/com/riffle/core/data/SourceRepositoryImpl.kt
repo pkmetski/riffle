@@ -42,8 +42,14 @@ class SourceRepositoryImpl @Inject constructor(
     private val filesCleaner: SourceFilesCleaner,
 ) : SourceRepository {
 
+    // Sort by SourceType so consumers (Settings sources list, drawer source switcher) render in
+    // the same canonical order: ABS servers → LocalFiles → Chitanka. Kotlin's sortedBy is stable,
+    // so the DAO's alphabetical (username, url) ordering is preserved as the tiebreaker within
+    // each bucket.
     override fun observeAll(): Flow<List<Source>> =
-        dao.observeAll().map { list -> list.map { it.toDomain() } }
+        dao.observeAll().map { list ->
+            list.map { it.toDomain() }.sortedBy { it.type.ordinal }
+        }
 
     override suspend fun getActive(): Source? = dao.getActive()?.toDomain()
 
