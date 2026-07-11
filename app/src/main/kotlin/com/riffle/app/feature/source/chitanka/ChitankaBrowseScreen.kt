@@ -108,6 +108,12 @@ fun ChitankaBrowseScreen(
     val isAudioRoot = viewModel.rootId == ChitankaCatalog.ROOT_AUDIOBOOKS
     var searchOpen by remember { mutableStateOf(false) }
 
+    // Clamp if a rememberSaveable-restored selectedTab lands on Annotations after process
+    // death when we're now on the audiobook root (where that tab is hidden).
+    LaunchedEffect(isAudioRoot) {
+        if (isAudioRoot && selectedTab == TAB_ANNOTATIONS) selectedTab = TAB_HOME
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -141,11 +147,15 @@ fun ChitankaBrowseScreen(
                     onClick = { selectedTab = TAB_TO_READ },
                     icon = { Icon(RiffleIcons.ToReadFilled, contentDescription = "To Read") },
                 )
-                NavigationBarItem(
-                    selected = selectedTab == TAB_ANNOTATIONS,
-                    onClick = { selectedTab = TAB_ANNOTATIONS },
-                    icon = { Icon(RiffleIcons.Annotations, contentDescription = "Annotations") },
-                )
+                // Annotations are anchored to ebook text — Gramofonche (the audiobook root)
+                // can never surface any. Hide the tab there so it isn't dead UI.
+                if (!isAudioRoot) {
+                    NavigationBarItem(
+                        selected = selectedTab == TAB_ANNOTATIONS,
+                        onClick = { selectedTab = TAB_ANNOTATIONS },
+                        icon = { Icon(RiffleIcons.Annotations, contentDescription = "Annotations") },
+                    )
+                }
                 NavigationBarItem(
                     selected = selectedTab == TAB_LIBRARY,
                     onClick = { selectedTab = TAB_LIBRARY },
