@@ -22,6 +22,7 @@ import com.riffle.core.network.AbsServerInfoApi
 import com.riffle.core.network.NetworkLibrary
 import com.riffle.core.network.StorytellerApi
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
@@ -204,6 +205,32 @@ class ServerRepositoryTest {
             error("should not be called")
         override suspend fun getCollections(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean): NetworkResult<List<com.riffle.core.network.NetworkCollection>> =
             error("should not be called")
+    }
+
+    // Settings renders sources as ABS → LocalFiles → Chitanka; the drawer source-switcher must
+    // agree, and neither surface may reshuffle when the active source changes.
+    @Test
+    fun `observeAll orders sources by SourceType (ABS, LocalFiles, Chitanka) regardless of active`() = runTest {
+        val abs1 = SourceEntity("abs-1", "https://abs-1", isActive = false, insecureConnectionAllowed = false, username = "a", type = "ABS")
+        val abs2 = SourceEntity("abs-2", "https://abs-2", isActive = false, insecureConnectionAllowed = false, username = "b", type = "ABS")
+        val local = SourceEntity("local", "content://local", isActive = false, insecureConnectionAllowed = false, username = "", type = "LOCAL_FILES")
+        val chitanka = SourceEntity("chit", "https://chitanka.info", isActive = false, insecureConnectionAllowed = false, username = "", type = "CHITANKA")
+
+        // Feed the DAO in an order that deliberately mixes types so any missing sort would show.
+        val dao = fakeDao(chitanka, abs2, local, abs1)
+        val repo = SourceRepositoryImpl(
+            dao, fakeTokenStorage(), AbsApi { _, _, _, _ -> error("not called") }, storytellerApiNotCalled,
+            fakeServerInfoApi, libsApiNotCalled, fakeLibraryDao(), fakeLibraryItemDao(),
+            fakeVisibilityStore(), fakeFilesCleaner(),
+        )
+
+        val idsInactive = repo.observeAll().first().map { it.id }
+        assertEquals(listOf("abs-2", "abs-1", "local", "chit"), idsInactive)
+
+        // Flipping active must NOT reshuffle the switcher order.
+        dao.setActiveAtomic("chit")
+        val idsAfterActive = repo.observeAll().first().map { it.id }
+        assertEquals(idsInactive, idsAfterActive)
     }
 
     @Test
