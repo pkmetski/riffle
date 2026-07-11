@@ -142,5 +142,18 @@ class GramofoncheScraperTest {
         )
         assertEquals("Bulgarian", d.language)
         assertEquals("mp3", d.format)
+
+        // Regression: `<br>`-separated fields must not bleed into `автор:` / `изпълнение:`
+        // — `.text()` collapses `<br>` to a space, so the earlier `[^\n]+` regex was
+        // swallowing every subsequent metadata field into the author/narrator list.
+        assertEquals(listOf("Шехерезада"), d.authors)
+        assertTrue(
+            "narrators should not include stray field labels, got ${d.narrators}",
+            d.narrators.none { it.contains(":") || it.contains("издания") },
+        )
+        assertTrue(
+            "expected the first narrator to be a clean name, got ${d.narrators}",
+            d.narrators.isNotEmpty() && d.narrators.first() == "Георги Кадурин",
+        )
     }
 }

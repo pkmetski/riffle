@@ -3,7 +3,19 @@ package com.riffle.core.catalog.chitanka
 import org.jsoup.Jsoup
 import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
+import org.jsoup.nodes.TextNode
 import java.net.URI
+
+/**
+ * Returns the element's text with `<br>` treated as a line break. Bulgarian catalog pages
+ * separate metadata fields with `<br>`, and jsoup's `.text()` collapses them into a single
+ * space, which lets `[^\n]+` regexes greedily swallow every following field.
+ */
+private fun textWithLineBreaks(el: Element): String {
+    val clone = el.clone()
+    clone.select("br").forEach { it.replaceWith(TextNode("\n")) }
+    return clone.wholeText()
+}
 
 /**
  * Kotlin/jsoup port of `lib/scraper/chitanka.ts` from the reference
@@ -299,7 +311,7 @@ internal object GramofoncheScraper {
         val title = doc.selectFirst("#content-wrapper h1")?.text()?.trim().orEmpty()
             .ifEmpty { doc.selectFirst("h1")?.text()?.trim().orEmpty() }
 
-        val contentText = doc.selectFirst("#content-wrapper")?.text().orEmpty()
+        val contentText = doc.selectFirst("#content-wrapper")?.let(::textWithLineBreaks).orEmpty()
 
         val authors = mutableListOf<String>()
         Regex("автор:\\s*([^\\n]+)").find(contentText)?.let { m ->
@@ -308,7 +320,7 @@ internal object GramofoncheScraper {
 
         val narrators = mutableListOf<String>()
         doc.select("blockquote").forEach { el ->
-            val bqText = el.text()
+            val bqText = textWithLineBreaks(el)
             Regex("изпълнение:\\s*([^\\n]+)").find(bqText)?.let { m ->
                 m.groupValues[1].split(",").forEach { part ->
                     part.trim().takeIf { it.isNotEmpty() }?.let(narrators::add)
