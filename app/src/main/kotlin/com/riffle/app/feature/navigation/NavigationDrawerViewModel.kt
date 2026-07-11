@@ -71,15 +71,20 @@ class NavigationDrawerViewModel @Inject constructor(
         .map { source -> source?.let { catalogRegistry.forSource(it) } }
         .stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
-    // Downloads-shaped surfaces (drawer link, Downloads screen) render only when the active
-    // Source's Catalog declares [DownloadsCapability]. LocalFiles omits it — the drawer hides
-    // the row so tapping it can't land on an empty destination. Null active catalog defaults to
-    // true so the transient no-source-yet UI doesn't flicker the row in and out.
-    // `is` check (not inline `has<T>()`) — core:catalog compiles at JVM target 21, this module
-    // pins 17, and the reified inline can't cross that boundary. Same rationale as
-    // [LibraryItemsViewModel.tabVisibility].
-    val showDownloadsLink: StateFlow<Boolean> = activeCatalog
-        .map { it?.let { c -> c is DownloadsCapability } ?: true }
+    // Drawer "Downloads" link visible whenever ANY registered Source has a local store, not
+    // just the active one — otherwise switching active to LocalFiles would strand the user's
+    // ABS/Chitanka downloads with no UI entry point. Only truly LocalFiles-only sessions hide
+    // the link. Empty list of Sources defaults to true so the transient no-source-yet UI
+    // doesn't flicker the row in and out.
+    // `is` check (not inline `has<T>()`) — see [LibraryItemsViewModel.tabVisibility] for the
+    // JVM-target-boundary rationale.
+    val showDownloadsLink: StateFlow<Boolean> = allServers
+        .map { sources ->
+            if (sources.isEmpty()) true
+            else sources.any { source ->
+                catalogRegistry.forSource(source) is DownloadsCapability
+            }
+        }
         .stateIn(viewModelScope, SharingStarted.Eagerly, true)
 
     private val versionsCache = mutableMapOf<String, String>()

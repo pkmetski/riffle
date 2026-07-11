@@ -417,14 +417,13 @@ class NavigationDrawerViewModelTest {
         assertEquals(mapOf("srv-1" to "1.2.3"), vm.serverVersions.value)
     }
 
-    // Regression for issue #507: LocalFiles sessions must not render the drawer's "Downloads" nav
-    // link — tapping it would land on an empty destination (nothing to download from a Source
-    // whose files are already on the device).
+    // Regression for issue #507: a LocalFiles-only session must not render the drawer's
+    // "Downloads" nav link — tapping it would land on an empty destination.
     @Test
-    fun `showDownloadsLink is false when active Catalog lacks DownloadsCapability`() = runTest(testDispatcher) {
+    fun `showDownloadsLink is false when no registered Source declares DownloadsCapability`() = runTest(testDispatcher) {
         serversFlow.value = listOf(server("srv-1", active = true))
 
-        val vm = makeVm(catalogRegistry = fakeCatalogRegistry(catalog = NonDownloadsCatalog))
+        val vm = makeVm(catalogRegistry = registryAllReturning(NonDownloadsCatalog))
         backgroundScope.launch { vm.showDownloadsLink.collect {} }
         testScheduler.advanceUntilIdle()
 
@@ -432,13 +431,42 @@ class NavigationDrawerViewModelTest {
     }
 
     @Test
-    fun `showDownloadsLink is true when active Catalog declares DownloadsCapability`() = runTest(testDispatcher) {
+    fun `showDownloadsLink is true when the active Source declares DownloadsCapability`() = runTest(testDispatcher) {
         serversFlow.value = listOf(server("srv-1", active = true))
 
-        val vm = makeVm(catalogRegistry = fakeCatalogRegistry(catalog = DownloadsCatalog))
+        val vm = makeVm(catalogRegistry = registryAllReturning(DownloadsCatalog))
         backgroundScope.launch { vm.showDownloadsLink.collect {} }
         testScheduler.advanceUntilIdle()
 
         assertEquals(true, vm.showDownloadsLink.value)
     }
+
+    // The scope of the link is "any Source", not "active Source" — with a LocalFiles Source
+    // active alongside an inactive ABS Source, the user's ABS downloads still need a UI entry
+    // point, so the link stays visible.
+    @Test
+    fun `showDownloadsLink is true when a non-active Source declares DownloadsCapability`() = runTest(testDispatcher) {
+        serversFlow.value = listOf(server("srv-local", active = true), server("srv-abs", active = false))
+
+        val vm = makeVm(
+            catalogRegistry = object : com.riffle.core.catalog.CatalogRegistry {
+                override suspend fun forActive(): com.riffle.core.catalog.Catalog = NonDownloadsCatalog
+                override suspend fun forSource(source: com.riffle.core.domain.Source): com.riffle.core.catalog.Catalog =
+                    if (source.id == "srv-abs") DownloadsCatalog else NonDownloadsCatalog
+                override suspend fun forSourceId(sourceId: String): com.riffle.core.catalog.Catalog =
+                    if (sourceId == "srv-abs") DownloadsCatalog else NonDownloadsCatalog
+            }
+        )
+        backgroundScope.launch { vm.showDownloadsLink.collect {} }
+        testScheduler.advanceUntilIdle()
+
+        assertEquals(true, vm.showDownloadsLink.value)
+    }
+
+    private fun registryAllReturning(catalog: com.riffle.core.catalog.Catalog): com.riffle.core.catalog.CatalogRegistry =
+        object : com.riffle.core.catalog.CatalogRegistry {
+            override suspend fun forActive(): com.riffle.core.catalog.Catalog = catalog
+            override suspend fun forSource(source: com.riffle.core.domain.Source): com.riffle.core.catalog.Catalog = catalog
+            override suspend fun forSourceId(sourceId: String): com.riffle.core.catalog.Catalog = catalog
+        }
 }
