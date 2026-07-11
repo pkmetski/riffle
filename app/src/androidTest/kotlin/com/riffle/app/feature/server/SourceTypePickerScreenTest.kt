@@ -34,6 +34,15 @@ class SourceTypePickerScreenTest {
         composeRule.onNodeWithText("Audiobookshelf").assertIsDisplayed()
         composeRule.onNodeWithText("Local files").assertIsDisplayed()
         composeRule.onNodeWithText("Chitanka").assertIsDisplayed()
+        composeRule.onNodeWithText("Project Gutenberg").assertIsDisplayed()
+    }
+
+    @Test
+    fun gutenbergCard_click_invokesCallback() {
+        var gCount = 0
+        setContent(onPickGutenberg = { gCount++ })
+        composeRule.onNodeWithTag("SourceTypeCard.Gutenberg").assertHasClickAction().performClick()
+        assertEquals(1, gCount)
     }
 
     @Test
@@ -64,6 +73,7 @@ class SourceTypePickerScreenTest {
         onPickAbs: () -> Unit = {},
         onPickLocal: () -> Unit = {},
         onPickChitanka: () -> Unit = {},
+        onPickGutenberg: () -> Unit = {},
     ) {
         composeRule.setContent {
             val wsc = calculateWindowSizeClass(composeRule.activity)
@@ -73,6 +83,7 @@ class SourceTypePickerScreenTest {
                 onPickAudiobookshelf = onPickAbs,
                 onPickLocalFiles = onPickLocal,
                 onPickChitanka = onPickChitanka,
+                onPickGutenberg = onPickGutenberg,
             )
         }
     }
