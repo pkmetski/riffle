@@ -115,7 +115,7 @@ fun DownloadsScreen(
                 // Cached section renders only when the store actually has cached bytes.
                 // Sources with a local store but no user-visible cache tier (Chitanka's tacit
                 // page cache never populates this) then don't ship dead "No cached books" UI.
-                if (uiState.showCachedSection && uiState.cachedItems.isNotEmpty()) {
+                if (uiState.cachedItems.isNotEmpty()) {
                     item {
                         SectionHeader(
                             title = "Cached",
@@ -134,28 +134,22 @@ fun DownloadsScreen(
                     }
                 }
 
-                if (uiState.showReadaloudSection) {
+                if (uiState.readaloudSidecars.isNotEmpty()) {
                     item {
                         SectionHeader(
                             title = "Readaloud (streaming)",
-                            totalLabel = if (uiState.readaloudSidecars.isNotEmpty()) formatBytes(uiState.readaloudSidecarsTotalBytes) else null,
-                            actionLabel = if (uiState.readaloudSidecars.isNotEmpty()) "Clear all" else null,
+                            totalLabel = formatBytes(uiState.readaloudSidecarsTotalBytes),
+                            actionLabel = "Clear all",
                             onAction = { viewModel.clearAllReadaloudSidecars() },
                         )
                     }
-                    if (uiState.readaloudSidecars.isEmpty()) {
-                        item {
-                            EmptySection("No prepared readalouds")
-                        }
-                    } else {
-                        items(uiState.readaloudSidecars, key = { "sidecar/" + it.sourceId + "/" + it.item.id }) { entry ->
-                            LocalItemRow(
-                                entry = entry,
-                                pillColor = PillColor.Readaloud,
-                                onClick = { onItemSelected(entry.item) },
-                                onRemove = { viewModel.removeReadaloudSidecar(entry.sourceId, entry.item.id) },
-                            )
-                        }
+                    items(uiState.readaloudSidecars, key = { "sidecar/" + it.sourceId + "/" + it.item.id }) { entry ->
+                        LocalItemRow(
+                            entry = entry,
+                            pillColor = PillColor.Readaloud,
+                            onClick = { onItemSelected(entry.item) },
+                            onRemove = { viewModel.removeReadaloudSidecar(entry.sourceId, entry.item.id) },
+                        )
                     }
                 }
             }
