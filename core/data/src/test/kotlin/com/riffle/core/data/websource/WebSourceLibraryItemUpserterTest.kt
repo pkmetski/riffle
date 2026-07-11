@@ -172,6 +172,33 @@ class WebSourceLibraryItemUpserterTest {
     }
 
     @Test
+    fun `re-tap preserves promoted lastOpenedAt and finishedAt`() = runTest {
+        // Regression: `updateMetadata` is a Room `@Update` that copies every column of
+        // `LibraryItemMetadata` — including `lastOpenedAt` and `finishedAt` — onto the existing
+        // row. A CatalogItem carries neither, so its `toEntity()` defaults both to null; without
+        // the "read the current row and preserve the surviving locals" step in the upserter, a
+        // second browse-tap after the reader has stamped either field would silently null it and
+        // erase the book from Recently Opened / undo the "finished" mark. The ADR-0043 24 h TTL
+        // cycle makes this a routine trigger: user opens the book, revisits the source next day,
+        // taps the same title from the browse listing → gate refetches → this upserter runs.
+        val dao = InMemoryLibraryItemDao()
+        val upserter = WebSourceLibraryItemUpserter(dao)
+        val item = catalogEpub()
+
+        upserter.upsert("src-1", item)
+        // Simulate the reader path stamping both timestamps.
+        val opened = dao.getById("src-1", item.id)!!
+            .copy(addedAt = 9_000L, lastOpenedAt = 12_345L, finishedAt = 34_567L)
+        dao.upsertAll(listOf(opened))
+
+        upserter.upsert("src-1", item)
+
+        val row = dao.getById("src-1", item.id)!!
+        assertEquals("re-tap must not null the promoted lastOpenedAt", 12_345L, row.lastOpenedAt)
+        assertEquals("re-tap must not undo the finished stamp", 34_567L, row.finishedAt)
+    }
+
+    @Test
     fun `null description and coverUrl are handled (null cover coerced to empty)`() = runTest {
         val dao = InMemoryLibraryItemDao()
         val upserter = WebSourceLibraryItemUpserter(dao)

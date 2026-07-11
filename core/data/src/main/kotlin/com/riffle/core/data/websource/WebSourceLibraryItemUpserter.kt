@@ -32,12 +32,25 @@ class WebSourceLibraryItemUpserter @Inject constructor(
     suspend fun upsert(sourceId: String, item: CatalogItem) {
         val entity = item.toEntity(sourceId)
         libraryItemDao.insertOrIgnore(listOf(entity))
-        // Preserve the row's existing `addedAt`: for a fresh insert it's still the sentinel 0,
-        // but for a re-tap after the reader has promoted the row we must NOT let updateMetadata
-        // copy `entity.addedAt = 0` back on top and silently evict the book from Recently Added.
-        val existingAddedAt = libraryItemDao.getById(sourceId, entity.id)?.addedAt ?: 0L
+        // Preserve every locally-tracked timestamp on the existing row. A CatalogItem carries
+        // none of these — its toEntity() defaults them all to 0/null — so blindly copying the
+        // entity into updateMetadata would silently null them out and erase real user state.
+        // This matters most on the ADR-0043 24 h TTL cycle: a user opens a book (row picks up
+        // lastOpenedAt + maybe finishedAt), then re-taps that same book from the browse listing
+        // 24 h+ later — the gate refetches and calls this upserter, which used to overwrite:
+        //   - addedAt      → sentinel 0, evicting the book from Recently Added
+        //   - lastOpenedAt → null, evicting from Recently Opened
+        //   - finishedAt   → null, undoing the "finished" stamp
+        // Read the row once and splice the surviving locals back onto the fresh entity.
+        val existing = libraryItemDao.getById(sourceId, entity.id)
         libraryItemDao.updateMetadata(
-            LibraryItemMetadata.from(entity.copy(addedAt = existingAddedAt)),
+            LibraryItemMetadata.from(
+                entity.copy(
+                    addedAt = existing?.addedAt ?: 0L,
+                    lastOpenedAt = existing?.lastOpenedAt,
+                    finishedAt = existing?.finishedAt,
+                ),
+            ),
         )
     }
 
