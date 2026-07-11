@@ -18,6 +18,12 @@ interface LocalFilesFolderDao {
     @Query("SELECT * FROM local_files_folders WHERE sourceId = :sourceId ORDER BY addedAtEpochMs ASC")
     fun observeForSource(sourceId: String): Flow<List<LocalFilesFolderEntity>>
 
+    @Query(
+        "SELECT * FROM local_files_folders " +
+            "WHERE sourceId = :sourceId AND libraryId = :libraryId LIMIT 1",
+    )
+    suspend fun getByLibraryId(sourceId: String, libraryId: String): LocalFilesFolderEntity?
+
     @Query("DELETE FROM local_files_folders WHERE sourceId = :sourceId AND treeUri = :treeUri")
     suspend fun delete(sourceId: String, treeUri: String)
 }

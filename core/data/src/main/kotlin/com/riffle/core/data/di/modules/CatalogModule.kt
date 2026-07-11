@@ -46,10 +46,12 @@ object CatalogModule {
     fun provideLocalFilesCatalogFactory(
         folderDao: LocalFilesFolderDao,
         fileDao: LocalFilesFileDao,
+        fileFolderDao: com.riffle.core.database.LocalFilesFileFolderDao,
         itemDao: LibraryItemDao,
     ): CatalogFactory = LocalFilesCatalogFactory(
         folderDao = folderDao,
         fileDao = fileDao,
+        fileFolderDao = fileFolderDao,
         itemDao = itemDao,
     )
 

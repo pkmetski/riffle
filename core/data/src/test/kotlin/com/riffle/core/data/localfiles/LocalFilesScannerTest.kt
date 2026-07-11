@@ -3,6 +3,8 @@ package com.riffle.core.data.localfiles
 import com.riffle.core.data.FakeLibraryItemDao
 import com.riffle.core.database.LocalFilesFileDao
 import com.riffle.core.database.LocalFilesFileEntity
+import com.riffle.core.database.LocalFilesFileFolderDao
+import com.riffle.core.database.LocalFilesFileFolderEntity
 import com.riffle.core.database.LocalFilesFolderDao
 import com.riffle.core.database.LocalFilesFolderEntity
 import com.riffle.core.domain.Clock
@@ -12,7 +14,6 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
-import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.ByteArrayInputStream
@@ -37,7 +38,7 @@ class LocalFilesScannerTest {
     }
 
     @Test
-    fun `single EPUB adds one library_items row plus local_files_files row`() = runTest {
+    fun `single EPUB adds one library_items row plus local_files_files row plus one membership`() = runTest {
         val h = harness().apply {
             configureFolder("f1", files = listOf(fakeEpub("Dune", "Frank Herbert", "book.epub")))
         }
@@ -49,14 +50,21 @@ class LocalFilesScannerTest {
         val item = h.libraryItems.upserted.single()
         assertEquals("Dune", item.title)
         assertEquals("Frank Herbert", item.author)
-        assertEquals(LocalFilesCatalog.LOCAL_ROOT_ID, item.libraryId)
+        // The item's libraryId names the folder-library that contains it (per-folder library model
+        // — no more synthetic "local:root" umbrella library). Folder "f1" was configured with
+        // libraryId "lib-f1".
+        assertEquals("lib-f1", item.libraryId)
         assertEquals(LocalFilesScanner.EBOOK_FORMAT_EPUB, item.ebookFormat)
-        assertNotNull(item.coverUrl) // fakeEpub embeds a cover
+        assertNotNull(item.coverUrl)
 
         assertEquals(1, h.files.rows.size)
         val row = h.files.rows.values.single()
         assertEquals(item.id, row.sourceItemId)
         assertNotNull(row.copiedPath)
+
+        // One folder-membership row anchoring this file to folder "f1".
+        assertEquals(1, h.memberships.rows.size)
+        assertEquals("f1", h.memberships.rows.values.single().folderTreeUri)
     }
 
     @Test
@@ -71,8 +79,8 @@ class LocalFilesScannerTest {
         assertEquals(1, second.refreshed)
         assertEquals(0, second.removed)
         assertEquals(1, h.files.rows.size)
-        // library_items got a single upsert during the first scan and NOT a duplicate on the second.
         assertEquals(1, h.libraryItems.upserted.size)
+        assertEquals(1, h.memberships.rows.size)
     }
 
     @Test
@@ -81,6 +89,7 @@ class LocalFilesScannerTest {
         h.configureFolder("f1", files = listOf(fakeEpub("Dune", "Herbert", "book.epub")))
         h.scanner.scan(sourceId)
         assertEquals(1, h.files.rows.size)
+        assertEquals(1, h.memberships.rows.size)
 
         h.clock.advanceMs(1000)
         h.configureFolder("f1", files = emptyList())
@@ -88,6 +97,7 @@ class LocalFilesScannerTest {
         assertEquals(0, second.added)
         assertEquals(1, second.removed)
         assertEquals(0, h.files.rows.size)
+        assertEquals(0, h.memberships.rows.size)
         assertTrue(h.copyIn.booksOnDisk.isEmpty())
     }
 
@@ -163,26 +173,22 @@ class LocalFilesScannerTest {
     @Test
     fun `folder-walk failure records a failure and preserves rows (no stale sweep on incomplete scan)`() = runTest {
         val h = harness()
-        // First scan lands one file.
         h.configureFolder("f1", files = listOf(fakeEpub("A", "B", "a.epub")))
         h.scanner.scan(sourceId)
         assertEquals(1, h.files.rows.size)
 
-        // Second scan: walker throws. A transient walker failure must NOT cascade to deletion —
-        // otherwise a DocumentsProvider hiccup wipes previously-ingested books whose lastSeenAt
-        // was never touched. Row survives; sweep runs on the next fully-clean scan.
         h.clock.advanceMs(1000)
         h.walker.throwFor("f1")
         val report = h.scanner.scan(sourceId)
         assertEquals(0, report.removed)
         assertEquals(1, report.failures.size)
         assertEquals(1, h.files.rows.size)
+        assertEquals(1, h.memberships.rows.size)
     }
 
     @Test
     fun `ingest failure suppresses the stale sweep for this pass`() = runTest {
         val h = harness()
-        // First scan: two books, both land.
         val good = fakeEpub("Good", "A", "good.epub")
         val bad = WalkedFile(
             originalUri = "content://f1/bad.epub",
@@ -195,9 +201,6 @@ class LocalFilesScannerTest {
         h.scanner.scan(sourceId)
         assertEquals(1, h.files.rows.size)
 
-        // Second scan: `bad` is a new file that throws during head-read; `good` is gone. Under the
-        // old (unsafe) behavior good's row would be pruned because its lastSeenAt wasn't touched.
-        // Correct behavior: the ingest exception suppresses the sweep entirely — good is preserved.
         h.clock.advanceMs(1000)
         h.configureFolder("f1", files = listOf(bad))
         val report = h.scanner.scan(sourceId)
@@ -209,7 +212,7 @@ class LocalFilesScannerTest {
     // --- multi-folder same file --------------------------------------------
 
     @Test
-    fun `same file in two folders resolves to one row and survives removal from one`() = runTest {
+    fun `same file in two folders resolves to one row but has two folder memberships and survives removal from one`() = runTest {
         val bytes = buildEpub(opfMetadata = """<dc:title>Shared</dc:title>""")
         fun sharedFile(uri: String) = WalkedFile(
             originalUri = uri,
@@ -222,23 +225,32 @@ class LocalFilesScannerTest {
         h.configureFolder("f1", files = listOf(sharedFile("content://f1/shared.epub")))
         h.configureFolder("f2", files = listOf(sharedFile("content://f2/shared.epub")))
         val first = h.scanner.scan(sourceId)
-        assertEquals(1, first.added)     // ← the whole point: same identity hash ⇒ one row.
-        assertEquals(1, first.refreshed) // ← touched by the second folder's scan pass.
+        assertEquals(1, first.added)     // same identity hash ⇒ one file row.
+        assertEquals(1, first.refreshed) // touched again by folder f2's walk.
         assertEquals(1, h.files.rows.size)
+        // Both folder-memberships are recorded — this is what makes the book appear in both
+        // folder libraries. Any regression collapsing memberships back to one row would fail
+        // here first.
+        assertEquals(2, h.memberships.rows.size)
+        val folders = h.memberships.rows.values.map { it.folderTreeUri }.toSet()
+        assertEquals(setOf("f1", "f2"), folders)
 
-        // Remove from f1 only; f2 still has it → row survives.
+        // Remove from f1 only; f2 still has it → file row survives, only f1's membership goes.
         h.clock.advanceMs(1000)
         h.configureFolder("f1", files = emptyList())
         val second = h.scanner.scan(sourceId)
         assertEquals(0, second.removed)
         assertEquals(1, h.files.rows.size)
+        assertEquals(1, h.memberships.rows.size)
+        assertEquals("f2", h.memberships.rows.values.single().folderTreeUri)
 
-        // Remove from f2 too → row deleted.
+        // Remove from f2 too → file row and last membership deleted.
         h.clock.advanceMs(1000)
         h.configureFolder("f2", files = emptyList())
         val third = h.scanner.scan(sourceId)
         assertEquals(1, third.removed)
         assertEquals(0, h.files.rows.size)
+        assertEquals(0, h.memberships.rows.size)
     }
 
     // --- harness ------------------------------------------------------------
@@ -249,12 +261,14 @@ class LocalFilesScannerTest {
         val libraryItems = FakeLibraryItemDao()
         val folders = InMemoryFolderDao()
         val files = InMemoryFileDao()
+        val memberships = InMemoryFileFolderDao(files)
         val walker = InMemoryWalker()
         val copyIn = InMemoryCopyIn()
         val clock = MutableClock()
         val scanner = LocalFilesScanner(
             folderDao = folders,
             fileDao = files,
+            fileFolderDao = memberships,
             libraryItemDao = libraryItems,
             walker = walker,
             copyIn = copyIn,
@@ -264,7 +278,15 @@ class LocalFilesScannerTest {
         )
 
         suspend fun configureFolder(treeUri: String, files: List<WalkedFile>) {
-            folders.upsert(LocalFilesFolderEntity("src-1", treeUri, treeUri, clock.nowMs()))
+            folders.upsert(
+                LocalFilesFolderEntity(
+                    sourceId = "src-1",
+                    treeUri = treeUri,
+                    displayName = treeUri,
+                    addedAtEpochMs = clock.nowMs(),
+                    libraryId = "lib-$treeUri",
+                ),
+            )
             walker.set(treeUri, files)
         }
     }
@@ -303,6 +325,8 @@ class LocalFilesScannerTest {
             store.values.filter { it.sourceId == sourceId }.sortedBy { it.addedAtEpochMs }
         override fun observeForSource(sourceId: String): Flow<List<LocalFilesFolderEntity>> =
             MutableStateFlow(store.values.filter { it.sourceId == sourceId })
+        override suspend fun getByLibraryId(sourceId: String, libraryId: String): LocalFilesFolderEntity? =
+            store.values.firstOrNull { it.sourceId == sourceId && it.libraryId == libraryId }
         override suspend fun delete(sourceId: String, treeUri: String) {
             store.remove(sourceId to treeUri)
         }
@@ -317,20 +341,42 @@ class LocalFilesScannerTest {
             rows[sourceId to sourceItemId]
         override suspend fun forSource(sourceId: String): List<LocalFilesFileEntity> =
             rows.values.filter { it.sourceId == sourceId }
-        override suspend fun touchLastSeen(
-            sourceId: String,
-            sourceItemId: String,
-            folderTreeUri: String,
-            seenAt: Long,
-        ) {
+        override suspend fun touchLastSeen(sourceId: String, sourceItemId: String, seenAt: Long) {
             val row = rows[sourceId to sourceItemId] ?: return
-            rows[sourceId to sourceItemId] =
-                row.copy(lastSeenAtEpochMs = seenAt, folderTreeUri = folderTreeUri)
+            rows[sourceId to sourceItemId] = row.copy(lastSeenAtEpochMs = seenAt)
         }
-        override suspend fun stale(sourceId: String, scanStart: Long): List<LocalFilesFileEntity> =
-            rows.values.filter { it.sourceId == sourceId && it.lastSeenAtEpochMs < scanStart }
         override suspend fun delete(sourceId: String, sourceItemId: String) {
             rows.remove(sourceId to sourceItemId)
+        }
+    }
+
+    private class InMemoryFileFolderDao(
+        private val fileDao: InMemoryFileDao,
+    ) : LocalFilesFileFolderDao {
+        val rows = mutableMapOf<Triple<String, String, String>, LocalFilesFileFolderEntity>()
+        override suspend fun upsert(entity: LocalFilesFileFolderEntity) {
+            rows[Triple(entity.sourceId, entity.sourceItemId, entity.folderTreeUri)] = entity
+        }
+        override suspend fun forFile(sourceId: String, sourceItemId: String): List<LocalFilesFileFolderEntity> =
+            rows.values.filter { it.sourceId == sourceId && it.sourceItemId == sourceItemId }
+        override suspend fun forFolder(sourceId: String, folderTreeUri: String): List<LocalFilesFileFolderEntity> =
+            rows.values.filter { it.sourceId == sourceId && it.folderTreeUri == folderTreeUri }
+        override suspend fun itemIdsInFolder(sourceId: String, folderTreeUri: String): List<String> =
+            forFolder(sourceId, folderTreeUri).map { it.sourceItemId }
+        override suspend fun stale(sourceId: String, scanStart: Long): List<LocalFilesFileFolderEntity> =
+            rows.values.filter { it.sourceId == sourceId && it.lastSeenAtEpochMs < scanStart }
+        override suspend fun delete(sourceId: String, sourceItemId: String, folderTreeUri: String) {
+            rows.remove(Triple(sourceId, sourceItemId, folderTreeUri))
+        }
+        override suspend fun deleteFolder(sourceId: String, folderTreeUri: String) {
+            rows.entries.removeIf { it.value.sourceId == sourceId && it.value.folderTreeUri == folderTreeUri }
+        }
+        override suspend fun deleteFile(sourceId: String, sourceItemId: String) {
+            rows.entries.removeIf { it.value.sourceId == sourceId && it.value.sourceItemId == sourceItemId }
+        }
+        override suspend fun orphanedFiles(sourceId: String): List<LocalFilesFileEntity> {
+            val liveItemIds = rows.values.filter { it.sourceId == sourceId }.map { it.sourceItemId }.toHashSet()
+            return fileDao.rows.values.filter { it.sourceId == sourceId && it.sourceItemId !in liveItemIds }
         }
     }
 

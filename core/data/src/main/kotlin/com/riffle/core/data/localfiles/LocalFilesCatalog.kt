@@ -19,6 +19,7 @@ import com.riffle.core.database.LibraryItemDao
 import com.riffle.core.database.LibraryItemEntity
 import com.riffle.core.database.LocalFilesFileDao
 import com.riffle.core.database.LocalFilesFileEntity
+import com.riffle.core.database.LocalFilesFileFolderDao
 import com.riffle.core.database.LocalFilesFolderDao
 import com.riffle.core.domain.EbookFormat
 import com.riffle.core.domain.SourceType
@@ -26,30 +27,30 @@ import java.io.File
 import java.io.FileInputStream
 
 /**
- * The LocalFiles-backed [Catalog]. Reads from local Room storage populated by
- * [LocalFilesScanner]: `library_items` rows carry the browsable metadata, `local_files_files`
- * rows carry the copied-in file path used to serve bytes. There is no network — every method
- * is trivially offline-safe, which is why LocalFiles implements [OfflineBrowseCapability]. The
- * catalog exposes a single synthetic root (`local:root`) matching the `libraryId` the scanner
- * writes for every ingested file. [SeriesCapability] is derived from EPUB `belongs-to-collection`
- * metadata already extracted into `library_items.seriesName` — position within the series comes
- * from `library_items.seriesSequence` (EPUB3 `group-position` / Calibre `series_index`), and
- * ordering flows through [SeriesEntryOrdering] so numbered entries sort by value, non-numeric
- * sequences fall in after, and unnumbered books land last by title. The Series tab hides itself
- * in the UI when the aggregation yields zero series.
+ * The LocalFiles-backed [Catalog]. Each configured folder is its own root, named after the
+ * folder's `displayName`. Items in a root are the files whose `local_files_file_folders`
+ * membership row points at that folder's `treeUri` — a book present in two folders appears
+ * under both roots, backed by a single `library_items` row (identity-hashed).
+ *
+ * The catalog never uses `library_items.libraryId` directly for browse — the source of truth for
+ * folder membership is the junction table. `library_items.libraryId` is written for compatibility
+ * with the rest of the codebase (it names *some* folder that currently contains the book) but is
+ * a hint, not the query key.
  */
 class LocalFilesCatalog(
     private val sourceId: String,
     private val folderDao: LocalFilesFolderDao,
     private val fileDao: LocalFilesFileDao,
+    private val fileFolderDao: LocalFilesFileFolderDao,
     private val itemDao: LibraryItemDao,
 ) : Catalog, SeriesCapability, OfflineBrowseCapability {
 
     override val sourceType: SourceType = SourceType.LOCAL_FILES
 
-    override suspend fun listRoots(): List<CatalogRoot> = listOf(
-        CatalogRoot(id = LOCAL_ROOT_ID, name = "Local Files", mediaType = "book"),
-    )
+    override suspend fun listRoots(): List<CatalogRoot> =
+        folderDao.forSource(sourceId).map { folder ->
+            CatalogRoot(id = folder.libraryId, name = folder.displayName, mediaType = "book")
+        }
 
     override suspend fun browse(
         rootId: String,
@@ -59,7 +60,7 @@ class LocalFilesCatalog(
         facet: FacetSelection?,
     ): List<CatalogItem> {
         // LocalFiles has no server-side facets — `facet` is ignored.
-        val items = itemDao.listByLibraryId(sourceId, rootId)
+        val items = itemsInFolderLibrary(rootId)
             .map { it.toCatalogItem() }
             .sortedWith(comparatorFor(sort))
         return items.pageOf(page, pageSize)
@@ -73,7 +74,7 @@ class LocalFilesCatalog(
     ): List<CatalogItem> {
         val needle = query.trim().lowercase()
         if (needle.isEmpty()) return emptyList()
-        val hits = itemDao.listByLibraryId(sourceId, rootId)
+        val hits = itemsInFolderLibrary(rootId)
             .filter {
                 it.title.lowercase().contains(needle) || it.author.lowercase().contains(needle)
             }
@@ -101,9 +102,6 @@ class LocalFilesCatalog(
     ): CatalogFileStream {
         val file = requireFile(itemId, format)
         val f = File(file.copiedPath)
-        // Row exists but the copied-in blob is gone (external cleanup, storage corruption). Surface
-        // this the same way the "no row" branch does so reader code catching CatalogException gets
-        // a uniform error rather than a raw FileNotFoundException.
         if (!f.exists()) {
             throw CatalogException.UnsupportedFormat(
                 "LocalFiles copied path missing for itemId=$itemId path=${file.copiedPath}",
@@ -118,11 +116,6 @@ class LocalFilesCatalog(
         }
     }
 
-    /**
-     * LocalFiles has no server to check — it's always reachable. Callers that need to gate on
-     * "can this Source actually serve a book" use [OfflineBrowseCapability] + folder-level health
-     * (see [LocalFilesFolderHealth]), which surfaces SAF-URI revocation separately.
-     */
     override suspend fun connectivityCheck(): CatalogHealth = CatalogHealth(
         isReachable = true,
         serverVersion = "local",
@@ -132,8 +125,7 @@ class LocalFilesCatalog(
     // region SeriesCapability
 
     override suspend fun listSeries(rootId: String): List<CatalogSeries> {
-        val rows = itemDao.listByLibraryId(sourceId, rootId)
-            .filter { !it.seriesName.isNullOrBlank() }
+        val rows = itemsInFolderLibrary(rootId).filter { !it.seriesName.isNullOrBlank() }
         if (rows.isEmpty()) return emptyList()
         return rows.groupBy { it.seriesName!! }
             .toSortedMap()
@@ -151,12 +143,27 @@ class LocalFilesCatalog(
     }
 
     override suspend fun listItemsInSeries(rootId: String, seriesId: String): List<CatalogItem> =
-        itemDao.listByLibraryId(sourceId, rootId)
+        itemsInFolderLibrary(rootId)
             .filter { it.seriesName == seriesId }
             .sortedWith(entityOrdering)
             .map { it.toCatalogItem() }
 
     // endregion
+
+    /**
+     * Every library_item row whose file has a membership in the folder named by [libraryId].
+     * Callers that expect all items in a library at once — browse, search, listSeries — pull the
+     * full list and page/filter in memory, matching the pre-junction implementation. Never falls
+     * back to `library_items.libraryId`: that column is a compatibility hint, not a query key.
+     */
+    private suspend fun itemsInFolderLibrary(libraryId: String): List<LibraryItemEntity> {
+        val folder = folderDao.getByLibraryId(sourceId, libraryId) ?: return emptyList()
+        val ids = fileFolderDao.itemIdsInFolder(sourceId, folder.treeUri)
+        if (ids.isEmpty()) return emptyList()
+        // Chunk to stay under SQLite's SQLITE_MAX_VARIABLE_NUMBER (999 on pre-Android 12 devices).
+        // A single folder library over 999 books would otherwise crash on browse/search.
+        return ids.chunked(BIND_VAR_CHUNK).flatMap { itemDao.listByIds(sourceId, it) }
+    }
 
     private suspend fun requireFile(itemId: String, format: BookFormat): LocalFilesFileEntity {
         val row = fileDao.findById(sourceId, itemId)
@@ -207,8 +214,6 @@ class LocalFilesCatalog(
         updatedAt = null,
     )
 
-    // Delegated to SeriesEntryOrdering so the sequence semantics (numeric-first, non-numeric next,
-    // missing last, title tiebreaker) match every other Catalog. Never sort a series by title alone.
     private val entityOrdering: Comparator<LibraryItemEntity> =
         SeriesEntryOrdering.comparator(sequenceOf = { it.seriesSequence }, titleOf = { it.title })
 
@@ -230,6 +235,8 @@ class LocalFilesCatalog(
     }
 
     companion object {
-        const val LOCAL_ROOT_ID: String = "local:root"
+        // Below SQLITE_MAX_VARIABLE_NUMBER=999 on pre-Android-12 devices, with headroom for the
+        // WHERE clause's non-bind-var operands.
+        private const val BIND_VAR_CHUNK: Int = 900
     }
 }

@@ -1,14 +1,11 @@
 package com.riffle.core.data.localfiles
 
-import com.riffle.core.database.LibraryDao
-import com.riffle.core.database.LibraryEntity
 import com.riffle.core.database.SourceDao
 import com.riffle.core.database.SourceEntity
 import com.riffle.core.domain.SourceType
 import com.riffle.core.logging.NoopLogger
 import io.mockk.mockk
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
@@ -21,8 +18,7 @@ class LocalFilesSourceInstallerTest {
     @Test
     fun `ensureLocalFilesSource creates a fresh LOCAL_FILES source on first call`() = runTest {
         val sourceDao = InMemorySourceDao()
-        val libraryDao = InMemoryLibraryDao()
-        val installer = installer(sourceDao = sourceDao, libraryDao = libraryDao)
+        val installer = installer(sourceDao = sourceDao)
 
         val id = installer.ensureLocalFilesSource()
 
@@ -44,24 +40,9 @@ class LocalFilesSourceInstallerTest {
         val second = installer.ensureLocalFilesSource()
 
         assertEquals(first, second)
-        // Only one row survives — critical: any second insertion would give the CatalogRegistry
-        // two factories to disambiguate, and multi-folder-in-one-source is the intended model.
+        // Only one row survives — critical: LocalFiles is a device singleton, and any second
+        // insertion would give the CatalogRegistry two factories to disambiguate.
         assertEquals(1, sourceDao.rowsOfType(SourceType.LOCAL_FILES.name))
-    }
-
-    @Test
-    fun `ensureLocalFilesSource seeds the synthetic local root library row`() = runTest {
-        val libraryDao = InMemoryLibraryDao()
-        val installer = installer(libraryDao = libraryDao)
-
-        val sourceId = installer.ensureLocalFilesSource()
-
-        val libs = libraryDao.forSource(sourceId)
-        assertEquals(1, libs.size)
-        val lib = libs.single()
-        assertEquals(LocalFilesCatalog.LOCAL_ROOT_ID, lib.id)
-        assertEquals(sourceId, lib.sourceId)
-        assertEquals("book", lib.mediaType)
     }
 
     @Test
@@ -83,8 +64,6 @@ class LocalFilesSourceInstallerTest {
         val id = installer.ensureLocalFilesSource()
 
         val local = sourceDao.getById(id)!!
-        // Adding LocalFiles when an ABS source is already active must not knock it out of the
-        // active slot — first-source-active is a convenience, not a takeover.
         assertEquals(false, local.isActive)
         assertEquals(true, sourceDao.getById("abs-1")!!.isActive)
     }
@@ -93,13 +72,10 @@ class LocalFilesSourceInstallerTest {
 
     private fun installer(
         sourceDao: SourceDao = InMemorySourceDao(),
-        libraryDao: LibraryDao = InMemoryLibraryDao(),
     ): LocalFilesSourceInstaller = LocalFilesSourceInstaller(
         sourceDao = sourceDao,
-        libraryDao = libraryDao,
         // folderRepository + scanner are only exercised by installFolder; ensureLocalFilesSource
-        // touches neither. Relaxed mocks keep the constructor happy without needing an Android
-        // Context or the metadata-extractor chain.
+        // touches neither. Relaxed mocks keep the constructor happy.
         folderRepository = mockk(relaxed = true),
         scanner = mockk(relaxed = true),
         logger = NoopLogger,
@@ -134,30 +110,6 @@ class LocalFilesSourceInstallerTest {
         override suspend fun deleteById(id: String) { rows.remove(id) }
         override suspend fun setAbsUserId(id: String, absUserId: String) {
             rows[id]?.let { rows[id] = it.copy(absUserId = absUserId) }
-        }
-    }
-
-    private class InMemoryLibraryDao : LibraryDao {
-        val rows = mutableListOf<LibraryEntity>()
-        fun forSource(sourceId: String): List<LibraryEntity> = rows.filter { it.sourceId == sourceId }
-        override fun observeBySourceId(sourceId: String): Flow<List<LibraryEntity>> =
-            MutableStateFlow(rows.filter { it.sourceId == sourceId })
-        override suspend fun libraryIdsForSource(sourceId: String): List<String> =
-            rows.filter { it.sourceId == sourceId }.map { it.id }
-        override suspend fun getById(sourceId: String, libraryId: String): LibraryEntity? =
-            rows.firstOrNull { it.sourceId == sourceId && it.id == libraryId }
-        override suspend fun upsertAll(libraries: List<LibraryEntity>) {
-            for (lib in libraries) {
-                rows.removeIf { it.sourceId == lib.sourceId && it.id == lib.id }
-                rows.add(lib)
-            }
-        }
-        override suspend fun deleteBySourceId(sourceId: String) {
-            rows.removeIf { it.sourceId == sourceId }
-        }
-        override suspend fun setUnsupported(sourceId: String, libraryId: String, isUnsupported: Boolean) {
-            val idx = rows.indexOfFirst { it.sourceId == sourceId && it.id == libraryId }
-            if (idx >= 0) rows[idx] = rows[idx].copy(isUnsupported = isUnsupported)
         }
     }
 

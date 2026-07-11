@@ -1,8 +1,6 @@
 package com.riffle.core.data.localfiles
 
 import android.net.Uri
-import com.riffle.core.database.LibraryDao
-import com.riffle.core.database.LibraryEntity
 import com.riffle.core.database.SourceDao
 import com.riffle.core.database.SourceEntity
 import com.riffle.core.domain.SourceType
@@ -16,7 +14,8 @@ import javax.inject.Singleton
  * Owns the "install a LocalFiles Source" side of the Add-Source flow. Materialises the singleton
  * LocalFiles [SourceEntity] on first use (there is at most one LocalFiles source per device — the
  * user's multi-folder model runs *inside* that source), attaches the picked SAF folder to it via
- * [LocalFilesFolderRepository], and kicks the initial [LocalFilesScanner.scan].
+ * [LocalFilesFolderRepository] (which also creates a per-folder [com.riffle.core.database.LibraryEntity]
+ * named after the folder), and kicks the initial [LocalFilesScanner.scan].
  *
  * Not part of [com.riffle.core.domain.SourceRepository.commit] because there is no
  * [com.riffle.core.domain.PendingSource] step (no credentials to authenticate, no library set to
@@ -25,7 +24,6 @@ import javax.inject.Singleton
 @Singleton
 class LocalFilesSourceInstaller @Inject constructor(
     private val sourceDao: SourceDao,
-    private val libraryDao: LibraryDao,
     private val folderRepository: LocalFilesFolderRepository,
     private val scanner: LocalFilesScanner,
     private val logger: Logger,
@@ -33,27 +31,28 @@ class LocalFilesSourceInstaller @Inject constructor(
 
     data class InstallResult(
         val sourceId: String,
+        val libraryId: String,
         val scan: LocalFilesScanner.ScanReport,
     )
 
     /**
-     * Adds [treeUri] to the LocalFiles source, creating the source row and its synthetic
-     * `local:root` library on first call. Runs a first scan of the folder and returns the
-     * outcome so callers can surface add/failure counts.
+     * Adds [treeUri] to the LocalFiles source, creating the source row on first call and always
+     * creating a fresh per-folder library. Runs a first scan of the folder and returns the outcome
+     * so callers can surface add/failure counts.
      */
     suspend fun installFolder(treeUri: Uri): InstallResult {
         logger.d(LogChannel.LocalFiles) { "installFolder start uri=$treeUri" }
         val sourceId = ensureLocalFilesSource()
         logger.d(LogChannel.LocalFiles) { "installFolder sourceId=$sourceId" }
-        folderRepository.addFolder(sourceId, treeUri)
-        logger.d(LogChannel.LocalFiles) { "installFolder folder attached, starting scan" }
+        val libraryId = folderRepository.addFolder(sourceId, treeUri)
+        logger.d(LogChannel.LocalFiles) { "installFolder folder attached libraryId=$libraryId, starting scan" }
         val report = scanner.scan(sourceId)
         logger.d(LogChannel.LocalFiles) {
             "installFolder scan done added=${report.added} refreshed=${report.refreshed} " +
                 "removed=${report.removed} failures=${report.failures.size} " +
                 "failureSample=${report.failures.take(3).joinToString { "${it.displayName}:${it.reason}" }}"
         }
-        return InstallResult(sourceId = sourceId, scan = report)
+        return InstallResult(sourceId = sourceId, libraryId = libraryId, scan = report)
     }
 
     /**
@@ -76,16 +75,6 @@ class LocalFilesSourceInstaller @Inject constructor(
             type = SourceType.LOCAL_FILES.name,
         )
         val inserted = sourceDao.upsertAsFirstIfNoActive(entity)
-        libraryDao.upsertAll(
-            listOf(
-                LibraryEntity(
-                    id = LocalFilesCatalog.LOCAL_ROOT_ID,
-                    name = "Local Files",
-                    mediaType = "book",
-                    sourceId = inserted.id,
-                ),
-            ),
-        )
         return inserted.id
     }
 

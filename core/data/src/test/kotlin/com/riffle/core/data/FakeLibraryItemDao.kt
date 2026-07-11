@@ -101,6 +101,12 @@ internal class FakeLibraryItemDao : LibraryItemDao {
     override suspend fun listByLibraryId(sourceId: String, libraryId: String): List<LibraryItemEntity> =
         scoped(sourceId, libraryId)
 
+    override suspend fun listByIds(sourceId: String, itemIds: List<String>): List<LibraryItemEntity> {
+        val idSet = itemIds.toHashSet()
+        return roomData.values.flatMap { it.value }
+            .filter { it.sourceId == sourceId && it.id in idSet }
+    }
+
     override fun observeById(sourceId: String, itemId: String): Flow<LibraryItemEntity?> =
         MutableStateFlow(roomData.values.flatMap { it.value }.firstOrNull { it.sourceId == sourceId && it.id == itemId })
 
@@ -131,6 +137,14 @@ internal class FakeLibraryItemDao : LibraryItemDao {
             .map { ReadingProgressRow(it.id, it.readingProgress) }
 
     override suspend fun updateReadingProgress(sourceId: String, itemId: String, progress: Float) {}
+    override suspend fun updateLibraryId(sourceId: String, itemId: String, libraryId: String) {
+        val entry = roomData.entries.firstOrNull { e ->
+            e.value.value.any { it.sourceId == sourceId && it.id == itemId }
+        } ?: return
+        entry.value.value = entry.value.value.map {
+            if (it.sourceId == sourceId && it.id == itemId) it.copy(libraryId = libraryId) else it
+        }
+    }
 
     override suspend fun updateFinishedAt(sourceId: String, itemId: String, finishedAt: Long?) {}
 

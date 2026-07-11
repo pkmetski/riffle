@@ -202,6 +202,9 @@ fun MainScreen(
             composable(ADD_SOURCE_TYPE_PICKER) {
                 val cameFromSettings = navController.previousBackStackEntry
                     ?.destination?.route == SETTINGS
+                val pickerViewModel: com.riffle.app.feature.server.SourceTypePickerViewModel =
+                    androidx.hilt.navigation.compose.hiltViewModel()
+                val hasLocalFilesSource by pickerViewModel.hasLocalFilesSource.collectAsState()
                 com.riffle.app.feature.server.SourceTypePickerScreen(
                     windowSizeClass = windowSizeClass,
                     onNavigateBack = {
@@ -224,6 +227,7 @@ fun MainScreen(
                             popUpTo(ADD_SOURCE_TYPE_PICKER) { inclusive = true }
                         }
                     },
+                    hasLocalFilesSource = hasLocalFilesSource,
                 )
             }
             composable(
@@ -347,6 +351,7 @@ fun MainScreen(
                             navController.navigate("$ADD_SOURCE?$params")
                         }
                     },
+                    onNavigateToAddLocalFolder = { navController.navigate(ADD_LOCAL_FILES) },
                     onNavigateToReadaloudMatches = { sourceId ->
                         val encoded = URLEncoder.encode(sourceId, "UTF-8")
                         navController.navigate("readaloud_matches/$encoded")

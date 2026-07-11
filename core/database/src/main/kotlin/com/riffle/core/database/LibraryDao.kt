@@ -25,6 +25,9 @@ interface LibraryDao {
     @Query("DELETE FROM libraries WHERE sourceId = :sourceId")
     suspend fun deleteBySourceId(sourceId: String)
 
+    @Query("DELETE FROM libraries WHERE sourceId = :sourceId AND id = :libraryId")
+    suspend fun deleteById(sourceId: String, libraryId: String)
+
     @Transaction
     suspend fun replaceAllForSource(sourceId: String, libraries: List<LibraryEntity>) {
         deleteBySourceId(sourceId)

@@ -61,6 +61,9 @@ interface LibraryItemDao {
     @Query("SELECT * FROM library_items WHERE sourceId = :sourceId AND id = :itemId LIMIT 1")
     suspend fun getById(sourceId: String, itemId: String): LibraryItemEntity?
 
+    @Query("SELECT * FROM library_items WHERE sourceId = :sourceId AND id IN (:itemIds)")
+    suspend fun listByIds(sourceId: String, itemIds: List<String>): List<LibraryItemEntity>
+
     /** Reactive single-item read — re-emits when the row changes (e.g. readingProgress on reader close). */
     @Query("SELECT * FROM library_items WHERE sourceId = :sourceId AND id = :itemId LIMIT 1")
     fun observeById(sourceId: String, itemId: String): Flow<LibraryItemEntity?>
@@ -116,6 +119,15 @@ interface LibraryItemDao {
 
     @Query("UPDATE library_items SET readingProgress = :progress WHERE sourceId = :sourceId AND id = :itemId")
     suspend fun updateReadingProgress(sourceId: String, itemId: String, progress: Float)
+
+    /**
+     * Retag a library item's [libraryId]. Used by the LocalFiles scanner so a book's compatibility
+     * hint stays pointed at some *currently-configured* folder library — otherwise removing that
+     * folder leaves the row naming a deleted [LibraryEntity]. Catalog queries for LocalFiles go
+     * through `local_files_file_folders`, so this column is authoritative only outside LocalFiles.
+     */
+    @Query("UPDATE library_items SET libraryId = :libraryId WHERE sourceId = :sourceId AND id = :itemId")
+    suspend fun updateLibraryId(sourceId: String, itemId: String, libraryId: String)
 
     @Query("UPDATE library_items SET finishedAt = :finishedAt WHERE sourceId = :sourceId AND id = :itemId")
     suspend fun updateFinishedAt(sourceId: String, itemId: String, finishedAt: Long?)

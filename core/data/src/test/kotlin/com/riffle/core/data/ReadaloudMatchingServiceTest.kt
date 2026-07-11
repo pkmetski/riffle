@@ -389,6 +389,10 @@ class ReadaloudMatchingServiceTest {
         override suspend fun updateMetadata(metadata: com.riffle.core.database.LibraryItemMetadata) = Unit
         override suspend fun getById(sourceId: String, itemId: String): LibraryItemEntity? = byId[itemId]
         override suspend fun listByLibraryId(sourceId: String, libraryId: String): List<LibraryItemEntity> = emptyList()
+        override suspend fun listByIds(sourceId: String, itemIds: List<String>): List<LibraryItemEntity> {
+            val idSet = itemIds.toHashSet()
+            return byId.values.filter { it.id in idSet }
+        }
         override fun observeById(sourceId: String, itemId: String): Flow<LibraryItemEntity?> = flowOf(byId[itemId])
         override suspend fun findSourceIdForItem(itemId: String): String? = byId[itemId]?.sourceId
         override suspend fun deleteByLibraryId(sourceId: String, libraryId: String) = Unit
@@ -396,6 +400,7 @@ class ReadaloudMatchingServiceTest {
         override suspend fun deleteRemovedFromLibrary(sourceId: String, libraryId: String, serverItemIds: List<String>) = Unit
         override suspend fun updateLastOpenedAt(sourceId: String, itemId: String, timestamp: Long) = Unit
         override suspend fun updateReadingProgress(sourceId: String, itemId: String, progress: Float) = Unit
+        override suspend fun updateLibraryId(sourceId: String, itemId: String, libraryId: String) = Unit
         override suspend fun updateFinishedAt(sourceId: String, itemId: String, finishedAt: Long?) = Unit
         override suspend fun getLastOpenedAtMap(sourceId: String, libraryId: String): List<LastOpenedAtRow> = emptyList()
         override suspend fun getReadingProgressMap(sourceId: String, libraryId: String): List<ReadingProgressRow> = emptyList()
