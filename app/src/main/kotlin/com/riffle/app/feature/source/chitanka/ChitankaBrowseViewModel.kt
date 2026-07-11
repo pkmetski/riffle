@@ -9,6 +9,7 @@ import com.riffle.core.catalog.CatalogRegistry
 import com.riffle.core.catalog.FacetSelection
 import com.riffle.core.catalog.chitanka.ChitankaCatalog
 import com.riffle.core.data.chitanka.ChitankaLibraryItemUpserter
+import com.riffle.core.data.websource.WebSourceItemGate
 import com.riffle.core.domain.SourceRepository
 import com.riffle.core.domain.SourceType
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -41,6 +42,7 @@ class ChitankaBrowseViewModel @Inject constructor(
     private val sourceRepository: SourceRepository,
     private val catalogRegistry: CatalogRegistry,
     private val libraryItemUpserter: ChitankaLibraryItemUpserter,
+    private val webSourceItemGate: WebSourceItemGate,
 ) : ViewModel() {
 
     // Chitanka's browse route uses the Riffle `libraryId` as the Catalog `rootId` — the two
@@ -162,25 +164,36 @@ class ChitankaBrowseViewModel @Inject constructor(
     }
 
     /**
-     * Upsert the tapped item into `library_items` so the standard detail screen can resolve
-     * it via `LibraryObserver.getItem`, then emit an [OpenDetailEvent] the screen collects to
-     * navigate. No-op when there is no active Chitanka Source — the screen route wouldn't
-     * have been reachable, but guard defensively.
+     * Open the tapped item's detail. Routes through [WebSourceItemGate] which enforces the
+     * ADR-0043 caching policy: within TTL, no network call — the existing `library_items` row
+     * is served; expired but reachable, refetch + upsert + stamp; expired but offline, serve
+     * the persisted (possibly stale) row anyway. If the gate reports [WebSourceItemGate.Outcome.Failed]
+     * (no persisted row and no network), fall back to upserting the listing [CatalogItem] as-is
+     * so navigation still happens — the detail screen renders with the fields the search-results
+     * HTML exposed (description/series/year/genres null).
      *
-     * Listing [CatalogItem]s carry only the columns that the search-results HTML exposes
-     * (`ChitankaBookSummary.toCatalogItem` sets description/series/year/genres to null). The
-     * detail page is where the annotation, series, year and genres live, so fetch it via
-     * [Catalog.getItem] first and upsert the enriched item — otherwise the item-detail screen
-     * reads a DB row with description = null and renders no summary. Falls back to the listing
-     * item if the detail fetch fails (offline, transient 429) so navigation still happens.
+     * No-op when there is no active Chitanka Source — the screen route wouldn't have been
+     * reachable, but guard defensively.
      */
     fun openDetail(item: CatalogItem) {
         viewModelScope.launch {
             val source = sourceRepository.getActive()
                 ?.takeIf { it.type == SourceType.CHITANKA }
                 ?: return@launch
-            val enriched = runCatching { activeCatalog()?.getItem(item.id) }.getOrNull() ?: item
-            libraryItemUpserter.upsert(source.id, enriched)
+            val catalog = activeCatalog()
+            if (catalog != null) {
+                val outcome = webSourceItemGate.openItem(
+                    sourceId = source.id,
+                    itemId = item.id,
+                    catalog = catalog,
+                    upsert = { libraryItemUpserter.upsert(source.id, it) },
+                )
+                if (outcome is WebSourceItemGate.Outcome.Failed) {
+                    libraryItemUpserter.upsert(source.id, item)
+                }
+            } else {
+                libraryItemUpserter.upsert(source.id, item)
+            }
             _openDetailEvents.emit(OpenDetailEvent(itemId = item.id))
         }
     }

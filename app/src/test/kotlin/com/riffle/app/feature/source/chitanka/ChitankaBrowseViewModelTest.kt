@@ -69,7 +69,14 @@ class ChitankaBrowseViewModelTest {
         val registry = mockk<CatalogRegistry>()
         coEvery { registry.forSource(any()) } returns catalog
         val savedStateHandle = SavedStateHandle(mapOf("libraryId" to rootId))
-        return ChitankaBrowseViewModel(savedStateHandle, sourceRepo, registry, upserter)
+        val gate = mockk<com.riffle.core.data.websource.WebSourceItemGate>(relaxed = true).also {
+            // Default: gate reports "failed" (no cache, no fetched item) so tests that don't set
+            // expectations fall through to the same upsert-listing-item path they exercised before
+            // the gate existed. Tests that care about the gate stub this to a specific outcome.
+            coEvery { it.openItem(any(), any(), any(), any(), any()) } returns
+                com.riffle.core.data.websource.WebSourceItemGate.Outcome.Failed(RuntimeException("no fetch"))
+        }
+        return ChitankaBrowseViewModel(savedStateHandle, sourceRepo, registry, upserter, gate)
     }
 
     private fun item(id: String) = CatalogItem(
@@ -159,7 +166,23 @@ class ChitankaBrowseViewModelTest {
         val catalog = mockk<Catalog>(relaxed = true)
         coEvery { catalog.getItem(listingItem.id) } returns enrichedItem
 
-        val vm = makeVm(rootId = ChitankaCatalog.ROOT_BOOKS, upserter = upserter, catalog = catalog)
+        // The gate takes over the fetch-then-upsert dance now (ADR 0043). Simulate a successful
+        // fetch by invoking the upsert callback with the enriched item and returning Fetched.
+        val gate = mockk<com.riffle.core.data.websource.WebSourceItemGate>(relaxed = true)
+        coEvery { gate.openItem(any(), any(), any(), any(), any()) } coAnswers {
+            val upsertCb = arg<suspend (CatalogItem) -> Unit>(3)
+            upsertCb.invoke(enrichedItem)
+            com.riffle.core.data.websource.WebSourceItemGate.Outcome.Fetched(enrichedItem)
+        }
+        val savedStateHandle = SavedStateHandle(mapOf("libraryId" to ChitankaCatalog.ROOT_BOOKS))
+        val registry = mockk<CatalogRegistry>().also { coEvery { it.forSource(any()) } returns catalog }
+        val vm = ChitankaBrowseViewModel(
+            savedStateHandle,
+            fakeSourceRepo(chitankaSource),
+            registry,
+            upserter,
+            gate,
+        )
         advanceUntilIdle()
 
         val emitted = backgroundScope.async(dispatcher) { vm.openDetailEvents.first() }

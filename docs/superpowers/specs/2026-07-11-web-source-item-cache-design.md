@@ -55,30 +55,58 @@ class RemoteItemFreshness {
 }
 ```
 
-### Detail-open flow (per catalog)
+### Detail-open flow
 
-`ChitankaCatalog.getItem(itemId)` (and the paths that fan out through `resolveItem` — `getTracks`, `getAudiobookChapters`, `getFingerprint`) becomes:
+The gate lives at the **repository layer**, not inside `Catalog`. Reason: `Catalog` implementations sit in `core:catalog-*` modules that intentionally don't depend on `core:data` — they can't read the persisted library-item row. Keeping `Catalog.getItem` pure (always fetches fresh, matching `AbsCatalog`) and putting the freshness policy above it is the correct layering.
 
-1. If a library-item row exists and `withinTtl(source, remote, 24h)` → return the row. No network.
-2. Otherwise try the scraper:
-   - **Success** → parse, upsert row, `stamp(source, remote)`, return fresh.
-   - **Failure (`IOException`, `ChitankaHttpException`, 429-exhausted, etc.)** → if a row exists (any age) → return it. If no row → propagate the error.
-3. Pull-to-refresh on the detail screen calls `RemoteItemFreshness.clear(...)` first, so step 1 always falls through to step 2.
+New service in `core:data`, `WebSourceItemGate`:
+
+```
+class WebSourceItemGate @Inject constructor(
+    private val libraryObserver: LibraryObserver,
+    private val freshness: RemoteItemFreshness,
+    private val upserter: WebSourceLibraryItemUpserter,  // small facade over existing upserters
+) {
+    suspend fun openItem(
+        source: Source,
+        catalog: Catalog,
+        itemId: String,
+        forceRefresh: Boolean = false,
+    ): CatalogItem?
+}
+```
+
+Flow inside `openItem`:
+
+1. If `!forceRefresh` and `freshness.withinTtl(source.id, itemId, TTL_24H)` and a Room row exists → return the row. No network.
+2. Otherwise call `catalog.getItem(itemId)`:
+   - **Success** → `upserter.upsert(source, item)`, `freshness.stamp(source.id, itemId)`, return `item`.
+   - **Failure (`IOException`, `ChitankaHttpException`, 429-exhausted, etc.)** → if a Room row exists (any age) → return it as a stale-fallback. If no row → propagate the error.
+
+Pull-to-refresh calls `openItem(..., forceRefresh = true)`.
 
 Net effect: any item the user has previously opened remains accessible offline indefinitely. The TTL governs when we *prefer* fresh over cached — it never gates *access*.
 
 ### Refresh semantics
 
-- **Pull-to-refresh** on any list or detail screen forces a fresh network fetch:
-  - List screens: the OkHttp request adds `Cache-Control: no-cache`.
-  - Detail screens: `RemoteItemFreshness.clear(...)` before calling `getItem`.
+- **Pull-to-refresh on a detail screen** → `openItem(..., forceRefresh = true)`.
+- **Pull-to-refresh on a list screen** → OkHttp request adds `Cache-Control: no-cache` so listing pages bypass Layer 1.
 - **No background refresh.** Items in the user's library refresh only when opened.
 - **No per-URL TTLs.** One rule, 24h everywhere.
 
-## Generic surface
+## Generic surface — enforcement, not convention
 
-- The freshness table is keyed by `(sourceId, remoteId)` — reusable by chitanka, gramofonche (same catalog today), and any future web scraper (Gutenberg, etc.). Adding a new web source that wants item caching means one call-site change in its `getItem` (wrap with `withinTtl` / `stamp`) and reusing the shared `OkHttpClient`.
-- ABS and Storyteller catalogs do not touch this table.
+Two enforcement mechanisms make this generic across current and future web sources:
+
+1. **`@WebSourceOkHttpClient` Hilt qualifier** (mandatory). `NetworkModule` provides exactly one `@WebSourceOkHttpClient OkHttpClient` — the one with cache, `ForceCacheHeadersInterceptor(24h)`, and `OfflineStaleFallbackInterceptor` installed. `ChitankaCatalogFactory` and every future web-source factory inject via the qualifier; there is no unqualified alternative in web-source modules. A new web source physically cannot instantiate an uncached client without adding a new binding, which shows up in review.
+
+2. **`WebSourceItemGate` as the sole item-open entrypoint** (mandatory). ViewModels for web sources never call `catalog.getItem` directly — they call `webSourceItemGate.openItem(...)`. The gate is the only sanctioned way to open a web-source item, so freshness / stale-fallback / upsert are guaranteed. `AbsCatalog` and Storyteller intentionally do not route through the gate (they have their own sync semantics).
+
+The freshness table is keyed by `(sourceId, remoteId)` — reusable by chitanka, gramofonche (same catalog today), and any future web scraper (Gutenberg, etc.). A new web source that wants gating swaps `catalog.getItem(itemId)` for `gate.openItem(source, catalog, itemId)` at its browse-to-detail entry point.
+
+### CI gate (deferred)
+
+A gradle check task (`checkWebSourceCatalogsUseQualifier`) modeled after the existing `checkNoServerReferences` / `checkRiffleLogTags` — fails CI if a class in a `catalog-*` module injects an unqualified `OkHttpClient` or a ViewModel calls `catalog.getItem` on a web-source `Catalog`. Deferred until the second web source lands (Gutenberg); premature until then.
 
 ## Migration
 
@@ -90,13 +118,13 @@ Net effect: any item the user has previously opened remains accessible offline i
 - **`ForcedCacheHeaderInterceptor`** — mock a 200 response with no cache headers; assert the response coming out has `Cache-Control: public, max-age=86400`.
 - **`OfflineStaleFallbackInterceptor`** — mock an `IOException` on network; assert a follow-up request with `only-if-cached` is issued, and that a genuine cache-miss propagates the original error.
 - **`RemoteItemFreshness`** — within-TTL returns true; expired returns false; missing row returns false; `stamp()` upserts; `clear()` removes.
-- **`ChitankaCatalog.getItem` (JVM, faking `ChitankaHttpClient`)**:
-  - First call → scraper invoked, row upserted, freshness stamped.
-  - Second call within TTL → scraper never invoked, returns row from DB.
-  - Second call after TTL, scraper succeeds → row re-upserted, freshness re-stamped.
-  - Second call after TTL, scraper throws → returns stale row without stamping.
-  - Second call after TTL, scraper throws, no row → propagates error.
-  - Pull-to-refresh path → `clear()` then behaves as above.
+- **`WebSourceItemGate` (JVM, with a fake `Catalog` and in-memory freshness/observer)**:
+  - First call → catalog invoked, row upserted, freshness stamped.
+  - Second call within TTL → catalog never invoked, returns row from DB.
+  - Second call after TTL, catalog succeeds → row re-upserted, freshness re-stamped.
+  - Second call after TTL, catalog throws → returns stale row without stamping.
+  - Second call after TTL, catalog throws, no row → propagates error.
+  - `forceRefresh = true` → catalog invoked even inside TTL.
 - **`MigrationTest.migrationNToN1()`** — new table exists, primary key correct, prior rows preserved.
 
 ## Non-goals

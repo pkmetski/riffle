@@ -30,8 +30,9 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         LocalFilesFolderEntity::class,
         LocalFilesFileEntity::class,
         LocalFilesFileFolderEntity::class,
+        RemoteItemFreshnessEntity::class,
     ],
-    version = 53,
+    version = 54,
     exportSchema = true,
 )
 abstract class RiffleDatabase : RoomDatabase() {
@@ -56,6 +57,7 @@ abstract class RiffleDatabase : RoomDatabase() {
     abstract fun localFilesFolderDao(): LocalFilesFolderDao
     abstract fun localFilesFileDao(): LocalFilesFileDao
     abstract fun localFilesFileFolderDao(): LocalFilesFileFolderDao
+    abstract fun remoteItemFreshnessDao(): RemoteItemFreshnessDao
 
     companion object {
         val MIGRATION_1_2 = object : Migration(1, 2) {
@@ -1525,6 +1527,24 @@ abstract class RiffleDatabase : RoomDatabase() {
                 } finally {
                     db.execSQL("PRAGMA foreign_keys=ON")
                 }
+            }
+        }
+
+        // ADR 0043: web-source item cache freshness table. Records the last successful
+        // network refetch time for a persisted item so the WebSourceItemGate can serve
+        // the library_items row without hitting the network when it's within TTL, and
+        // fall back to the row (regardless of age) when the network is unavailable.
+        // Only web sources (chitanka today, Gutenberg etc. later) populate this table.
+        val MIGRATION_53_54 = object : Migration(53, 54) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `remote_item_freshness` (" +
+                        "`sourceId` TEXT NOT NULL, " +
+                        "`sourceItemId` TEXT NOT NULL, " +
+                        "`lastFetchedAt` INTEGER NOT NULL, " +
+                        "PRIMARY KEY(`sourceId`, `sourceItemId`), " +
+                        "FOREIGN KEY(`sourceId`) REFERENCES `sources`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE)"
+                )
             }
         }
     }

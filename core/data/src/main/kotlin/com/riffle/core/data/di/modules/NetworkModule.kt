@@ -1,8 +1,12 @@
 package com.riffle.core.data.di.modules
 
+import android.content.Context
 import com.riffle.core.domain.DispatcherProvider
 import com.riffle.core.network.AbsApi
 import com.riffle.core.network.AbsApiClient
+import com.riffle.core.data.di.qualifiers.WebSourceOkHttpClient
+import com.riffle.core.network.ForceCacheHeadersInterceptor
+import com.riffle.core.network.OfflineStaleFallbackInterceptor
 import com.riffle.core.network.AbsBookmarkApi
 import com.riffle.core.network.AbsLibraryApi
 import com.riffle.core.network.AbsPlaybackApi
@@ -20,8 +24,11 @@ import dagger.Binds
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
+import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
+import okhttp3.Cache
 import okhttp3.OkHttpClient
+import java.io.File
 import javax.inject.Singleton
 
 @Module
@@ -64,6 +71,32 @@ abstract class NetworkModule {
         @Provides
         @Singleton
         fun provideOkHttpClient(): OkHttpClient = OkHttpClient.Builder().build()
+
+        /**
+         * OkHttp client for web-source scrapers (ADR 0043). Carries a 10 MB disk cache,
+         * a network interceptor that forces `max-age=86400` (24 h) onto all successful
+         * responses since chitanka/gramofonche send no cache headers, and an application
+         * interceptor that falls back to any cached copy on network failure. Cache dir
+         * lives under `context.cacheDir/web-source-http` so Android Settings → Clear Cache
+         * discards it cleanly.
+         */
+        @Provides
+        @Singleton
+        @WebSourceOkHttpClient
+        fun provideWebSourceOkHttpClient(
+            @ApplicationContext context: Context,
+        ): OkHttpClient {
+            val cacheDir = File(context.cacheDir, "web-source-http")
+            val cache = Cache(cacheDir, WEB_SOURCE_CACHE_BYTES)
+            return OkHttpClient.Builder()
+                .cache(cache)
+                .addNetworkInterceptor(ForceCacheHeadersInterceptor(WEB_SOURCE_MAX_AGE_SECONDS))
+                .addInterceptor(OfflineStaleFallbackInterceptor())
+                .build()
+        }
+
+        private const val WEB_SOURCE_CACHE_BYTES: Long = 10L * 1024L * 1024L
+        private const val WEB_SOURCE_MAX_AGE_SECONDS: Int = 24 * 60 * 60
 
         @Provides
         @Singleton

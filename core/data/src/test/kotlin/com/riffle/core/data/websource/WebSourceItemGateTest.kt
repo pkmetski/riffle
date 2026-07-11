@@ -1,0 +1,241 @@
+package com.riffle.core.data.websource
+
+import com.riffle.core.catalog.BookFormat
+import com.riffle.core.catalog.Catalog
+import com.riffle.core.catalog.CatalogFacet
+import com.riffle.core.catalog.CatalogFileHandle
+import com.riffle.core.catalog.CatalogHealth
+import com.riffle.core.catalog.CatalogFileStream
+import com.riffle.core.catalog.CatalogItem
+import com.riffle.core.catalog.CatalogRoot
+import com.riffle.core.catalog.FacetSelection
+import com.riffle.core.catalog.SortKey
+import com.riffle.core.domain.SourceType
+import com.riffle.core.database.RemoteItemFreshnessDao
+import com.riffle.core.database.RemoteItemFreshnessEntity
+import com.riffle.core.domain.Collection
+import com.riffle.core.domain.EbookFormat
+import com.riffle.core.domain.Library
+import com.riffle.core.domain.LibraryItem
+import com.riffle.core.domain.LibraryObserver
+import com.riffle.core.domain.Series
+import com.riffle.core.domain.TestClock
+import com.riffle.core.logging.RecordingLogger
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.emptyFlow
+import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.test.runTest
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
+import org.junit.Assert.fail
+import org.junit.Test
+import java.io.IOException
+
+class WebSourceItemGateTest {
+
+    private val sourceId = "chi1"
+    private val itemId = "text/44723-abu-hasan"
+
+    private fun sampleItem(title: String = "Абу Хасан"): CatalogItem = CatalogItem(
+        id = itemId,
+        rootId = "books",
+        title = title,
+        author = "Автор",
+        coverUrl = null,
+        ebookFormat = BookFormat.Epub,
+    )
+
+    private fun sampleLibraryItem(title: String = "Абу Хасан"): LibraryItem = LibraryItem(
+        id = itemId,
+        libraryId = "books",
+        title = title,
+        author = "Автор",
+        coverUrl = null,
+        readingProgress = 0f,
+        isCached = false,
+        isDownloaded = false,
+        ebookFormat = EbookFormat.Epub,
+        sourceId = sourceId,
+    )
+
+    @Test fun `within TTL and row present returns Fresh without invoking catalog`() = runTest {
+        val clock = TestClock(1_000L)
+        val freshness = RemoteItemFreshness(dao = InMemoryFreshnessDao(), clock = clock)
+        freshness.stamp(sourceId, itemId)
+
+        val observer = FakeLibraryObserver(items = mutableMapOf(sourceId to (itemId to sampleLibraryItem())))
+        val catalog = RecordingCatalog(item = sampleItem())
+        val gate = WebSourceItemGate(observer, freshness, RecordingLogger())
+
+        clock.advance(60_000L) // 1 minute later, well within TTL
+
+        val outcome = gate.openItem(sourceId, itemId, catalog, upsert = { fail("upsert should not run within TTL") })
+        assertEquals(WebSourceItemGate.Outcome.Fresh, outcome)
+        assertEquals(0, catalog.getItemCalls)
+    }
+
+    @Test fun `within TTL but no row falls through to fetch`() = runTest {
+        val clock = TestClock(1_000L)
+        val freshness = RemoteItemFreshness(InMemoryFreshnessDao(), clock)
+        freshness.stamp(sourceId, itemId)
+
+        val observer = FakeLibraryObserver(items = mutableMapOf()) // no row
+        val fresh = sampleItem(title = "Fetched")
+        val catalog = RecordingCatalog(item = fresh)
+        val gate = WebSourceItemGate(observer, freshness, RecordingLogger())
+
+        var upserted: CatalogItem? = null
+        val outcome = gate.openItem(sourceId, itemId, catalog, upsert = { upserted = it })
+        assertTrue(outcome is WebSourceItemGate.Outcome.Fetched)
+        assertEquals("Fetched", (outcome as WebSourceItemGate.Outcome.Fetched).item.title)
+        assertEquals(fresh, upserted)
+        assertEquals(1, catalog.getItemCalls)
+    }
+
+    @Test fun `expired TTL fetches, upserts, and stamps`() = runTest {
+        val clock = TestClock(1_000L)
+        val dao = InMemoryFreshnessDao()
+        val freshness = RemoteItemFreshness(dao, clock)
+        freshness.stamp(sourceId, itemId)
+
+        clock.advance(WebSourceItemGate.TTL_MS + 1L) // now expired
+
+        val observer = FakeLibraryObserver(items = mutableMapOf(sourceId to (itemId to sampleLibraryItem())))
+        val fresh = sampleItem(title = "Refreshed")
+        val catalog = RecordingCatalog(item = fresh)
+        val gate = WebSourceItemGate(observer, freshness, RecordingLogger())
+
+        var upserted: CatalogItem? = null
+        val outcome = gate.openItem(sourceId, itemId, catalog, upsert = { upserted = it })
+
+        assertTrue(outcome is WebSourceItemGate.Outcome.Fetched)
+        assertEquals(fresh, upserted)
+        assertEquals(1, catalog.getItemCalls)
+        // Freshness was re-stamped to now.
+        assertEquals(clock.nowMs(), dao.lastFetchedAt(sourceId, itemId))
+    }
+
+    @Test fun `expired TTL, fetch fails, existing row returns Stale without stamping`() = runTest {
+        val clock = TestClock(1_000L)
+        val dao = InMemoryFreshnessDao()
+        val freshness = RemoteItemFreshness(dao, clock)
+        val stampedAt = clock.nowMs()
+        freshness.stamp(sourceId, itemId)
+
+        clock.advance(WebSourceItemGate.TTL_MS + 1L)
+
+        val observer = FakeLibraryObserver(items = mutableMapOf(sourceId to (itemId to sampleLibraryItem())))
+        val catalog = RecordingCatalog(throwOnGetItem = IOException("offline"))
+        val gate = WebSourceItemGate(observer, freshness, RecordingLogger())
+
+        val outcome = gate.openItem(sourceId, itemId, catalog, upsert = { fail("upsert should not run on failure") })
+        assertEquals(WebSourceItemGate.Outcome.Stale, outcome)
+        assertEquals(1, catalog.getItemCalls)
+        assertEquals(stampedAt, dao.lastFetchedAt(sourceId, itemId))
+    }
+
+    @Test fun `expired TTL, fetch fails, no row returns Failed`() = runTest {
+        val clock = TestClock(1_000L)
+        val freshness = RemoteItemFreshness(InMemoryFreshnessDao(), clock)
+
+        val observer = FakeLibraryObserver(items = mutableMapOf()) // no row
+        val catalog = RecordingCatalog(throwOnGetItem = IOException("offline"))
+        val gate = WebSourceItemGate(observer, freshness, RecordingLogger())
+
+        val outcome = gate.openItem(sourceId, itemId, catalog, upsert = { fail("upsert should not run on failure") })
+        assertTrue(outcome is WebSourceItemGate.Outcome.Failed)
+        assertTrue((outcome as WebSourceItemGate.Outcome.Failed).cause is IOException)
+    }
+
+    @Test fun `forceRefresh bypasses freshness cache and refetches`() = runTest {
+        val clock = TestClock(1_000L)
+        val dao = InMemoryFreshnessDao()
+        val freshness = RemoteItemFreshness(dao, clock)
+        freshness.stamp(sourceId, itemId)
+
+        val observer = FakeLibraryObserver(items = mutableMapOf(sourceId to (itemId to sampleLibraryItem())))
+        val catalog = RecordingCatalog(item = sampleItem(title = "Forced"))
+        val gate = WebSourceItemGate(observer, freshness, RecordingLogger())
+
+        var upserted: CatalogItem? = null
+        val outcome = gate.openItem(sourceId, itemId, catalog, upsert = { upserted = it }, forceRefresh = true)
+        assertTrue(outcome is WebSourceItemGate.Outcome.Fetched)
+        assertEquals("Forced", upserted?.title)
+        assertEquals(1, catalog.getItemCalls)
+    }
+
+    @Test fun `catalog returns null with existing row returns Stale`() = runTest {
+        val clock = TestClock(1_000L)
+        val freshness = RemoteItemFreshness(InMemoryFreshnessDao(), clock)
+
+        val observer = FakeLibraryObserver(items = mutableMapOf(sourceId to (itemId to sampleLibraryItem())))
+        val catalog = RecordingCatalog(item = null)
+        val gate = WebSourceItemGate(observer, freshness, RecordingLogger())
+
+        val outcome = gate.openItem(sourceId, itemId, catalog, upsert = { fail("upsert should not run when catalog returns null") })
+        assertEquals(WebSourceItemGate.Outcome.Stale, outcome)
+    }
+}
+
+private class InMemoryFreshnessDao : RemoteItemFreshnessDao {
+    private val rows = mutableMapOf<Pair<String, String>, Long>()
+    override suspend fun upsert(entity: RemoteItemFreshnessEntity) {
+        rows[entity.sourceId to entity.sourceItemId] = entity.lastFetchedAt
+    }
+    override suspend fun lastFetchedAt(sourceId: String, sourceItemId: String): Long? =
+        rows[sourceId to sourceItemId]
+    override suspend fun clear(sourceId: String, sourceItemId: String) {
+        rows.remove(sourceId to sourceItemId)
+    }
+}
+
+private class FakeLibraryObserver(
+    val items: MutableMap<String, Pair<String, LibraryItem>>,
+) : LibraryObserver {
+    override fun observeLibraries(): Flow<List<Library>> = emptyFlow()
+    override fun observeLibraries(sourceId: String): Flow<List<Library>> = emptyFlow()
+    override fun observeLibraryItems(libraryId: String): Flow<List<LibraryItem>> = emptyFlow()
+    override fun observeUngroupedLibraryItems(libraryId: String): Flow<List<LibraryItem>> = emptyFlow()
+    override fun observeInProgressItems(libraryId: String): Flow<List<LibraryItem>> = emptyFlow()
+    override fun observeFinishedItems(libraryId: String): Flow<List<LibraryItem>> = emptyFlow()
+    override fun observeRecentlyAddedItems(libraryId: String): Flow<List<LibraryItem>> = emptyFlow()
+    override fun observeAllBooks(libraryId: String): Flow<List<LibraryItem>> = emptyFlow()
+    override fun observeSeries(libraryId: String): Flow<List<Series>> = emptyFlow()
+    override fun observeCollections(libraryId: String): Flow<List<Collection>> = emptyFlow()
+    override fun observeSeriesItems(seriesId: String): Flow<List<LibraryItem>> = emptyFlow()
+    override fun observeContinueSeriesItems(libraryId: String): Flow<List<LibraryItem>> = emptyFlow()
+    override fun observeCollectionItems(collectionId: String): Flow<List<LibraryItem>> = emptyFlow()
+    override suspend fun getItem(itemId: String): LibraryItem? =
+        items.values.firstOrNull { it.first == itemId }?.second
+    override fun observeItem(itemId: String): Flow<LibraryItem?> = flowOf(getItemBlocking(itemId))
+    private fun getItemBlocking(itemId: String): LibraryItem? =
+        items.values.firstOrNull { it.first == itemId }?.second
+    override suspend fun getItem(sourceId: String, itemId: String): LibraryItem? =
+        items[sourceId]?.takeIf { it.first == itemId }?.second
+    override suspend fun getLibrary(libraryId: String): Library? = null
+    override suspend fun getSeriesIdForItem(sourceId: String, itemId: String): String? = null
+}
+
+private class RecordingCatalog(
+    private val item: CatalogItem? = null,
+    private val throwOnGetItem: Throwable? = null,
+) : Catalog {
+    var getItemCalls: Int = 0
+        private set
+
+    override val sourceType: SourceType = SourceType.CHITANKA
+    override suspend fun listRoots(): List<CatalogRoot> = emptyList()
+    override suspend fun listFacets(rootId: String): List<CatalogFacet> = emptyList()
+    override suspend fun browse(rootId: String, sort: SortKey, page: Int, pageSize: Int, facet: FacetSelection?): List<CatalogItem> = emptyList()
+    override suspend fun search(rootId: String, query: String, page: Int, pageSize: Int): List<CatalogItem> = emptyList()
+    override suspend fun getItem(itemId: String): CatalogItem? {
+        getItemCalls++
+        throwOnGetItem?.let { throw it }
+        return item
+    }
+    override suspend fun fetchFile(itemId: String, format: BookFormat): CatalogFileHandle =
+        throw UnsupportedOperationException()
+    override suspend fun openFile(itemId: String, format: BookFormat, handleHint: String?): CatalogFileStream =
+        throw UnsupportedOperationException()
+    override suspend fun connectivityCheck(): CatalogHealth = CatalogHealth(isReachable = true)
+}

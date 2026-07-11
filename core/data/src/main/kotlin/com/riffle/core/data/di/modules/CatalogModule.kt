@@ -18,6 +18,7 @@ import com.riffle.core.network.AbsBookmarkApi
 import com.riffle.core.network.AbsLibraryApi
 import com.riffle.core.network.AbsPlaybackApi
 import com.riffle.core.network.AbsServerInfoApi
+import com.riffle.core.data.di.qualifiers.WebSourceOkHttpClient
 import com.riffle.core.network.AbsSessionApi
 import okhttp3.OkHttpClient
 import dagger.Module
@@ -84,7 +85,7 @@ object CatalogModule {
     @IntoMap
     @SourceTypeKey(SourceType.CHITANKA)
     fun provideChitankaCatalogFactory(
-        okHttpClient: OkHttpClient,
+        @WebSourceOkHttpClient okHttpClient: OkHttpClient,
     ): CatalogFactory = ChitankaCatalogFactory(
         okHttpClient = okHttpClient,
         userAgent = "Riffle/dev (Android) chitanka-source",

@@ -19,6 +19,7 @@ import com.riffle.core.database.ReadaloudDismissalDao
 import com.riffle.core.database.ReadaloudLinkDao
 import com.riffle.core.database.ReadaloudResumePositionDao
 import com.riffle.core.database.ReadingPositionDao
+import com.riffle.core.database.RemoteItemFreshnessDao
 import com.riffle.core.database.RiffleDatabase
 import com.riffle.core.database.SeriesDao
 import com.riffle.core.database.SourceDao
@@ -91,6 +92,7 @@ object DatabaseModule {
                 RiffleDatabase.MIGRATION_50_51,
                 RiffleDatabase.MIGRATION_51_52,
                 RiffleDatabase.MIGRATION_52_53,
+                RiffleDatabase.MIGRATION_53_54,
             )
             .build()
 
@@ -180,4 +182,9 @@ object DatabaseModule {
     @Singleton
     fun provideLocalFilesFileFolderDao(db: RiffleDatabase): LocalFilesFileFolderDao =
         db.localFilesFileFolderDao()
+
+    @Provides
+    @Singleton
+    fun provideRemoteItemFreshnessDao(db: RiffleDatabase): RemoteItemFreshnessDao =
+        db.remoteItemFreshnessDao()
 }
