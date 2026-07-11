@@ -1164,10 +1164,13 @@ private fun ActionRow(
                 onToggle = onToggleToRead,
             )
         }
+        // LocalFiles items live on the device already — nothing to download — so every download
+        // affordance below (ebook, audiobook, readaloud bundle) is suppressed for that Source type.
+        val showDownloadAffordances = !capabilities.isLocalSource
         // The base DownloadButton manages the ABS EPUB, so it only applies to a readable item. A
         // matched ABS item additionally gets the ReadaloudDownloadButton below, which fetches the
         // Storyteller synced bundle (ADR 0023/0026) for audio + highlight.
-        if (item.isReadable) {
+        if (showDownloadAffordances && item.isReadable) {
             DownloadButton(
                 state = downloadState,
                 onDownload = onDownload,
@@ -1176,7 +1179,7 @@ private fun ActionRow(
         }
         // A listenable item gets its own download control: the ABS audiobook tracks for offline play
         // (ADR 0029). Disabled offline when not yet downloaded (can't fetch).
-        if (item.isListenable && audiobookDownloadState != null) {
+        if (showDownloadAffordances && item.isListenable && audiobookDownloadState != null) {
             val audioOfflineBlocked = isOffline && audiobookDownloadState == DownloadState.NotDownloaded
             val audioButton: @Composable () -> Unit = {
                 DownloadButton(
@@ -1196,7 +1199,7 @@ private fun ActionRow(
                 audioButton()
             }
         }
-        if (readaloudDownloadState != null) {
+        if (showDownloadAffordances && readaloudDownloadState != null) {
             val readaloudOfflineBlocked = isOffline && readaloudDownloadState == DownloadState.NotDownloaded
             val readaloudButton: @Composable () -> Unit = {
                 ReadaloudDownloadButton(
