@@ -88,8 +88,16 @@ data class DetailCapabilities(
             hasReadaloud = true,
         )
 
-        /** No capability present — safe default when the active Source's Catalog can't be resolved. */
-        val Empty = DetailCapabilities(hasSeries = false, hasPlaylists = false, hasAudiobookMedia = false)
+        /** No capability present — safe default when the active Source's Catalog can't be resolved.
+         *  Enumerated exhaustively (mirroring [All]) so a future field addition can't silently
+         *  inherit the wrong Kotlin data-class default without touching this line. */
+        val Empty = DetailCapabilities(
+            hasSeries = false,
+            hasPlaylists = false,
+            hasAudiobookMedia = false,
+            hasDownloads = false,
+            hasReadaloud = false,
+        )
     }
 }
 
