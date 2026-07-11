@@ -92,6 +92,24 @@ internal fun seriesDetailRoute(libraryId: String, seriesId: String, seriesName: 
 internal fun collectionDetailRoute(libraryId: String, collectionId: String, collectionName: String): String =
     "collection_detail/$libraryId/${URLEncoder.encode(collectionId, "UTF-8")}/${URLEncoder.encode(collectionName, "UTF-8")}"
 
+/**
+ * Dispatches to the correct library entry point for [sourceType]:
+ *   - Room-mirrored catalogues (ABS, LocalFiles, …) → `library_items/…`
+ *   - Unbounded catalogues (Chitanka today; future OPDS/Gutenberg) → `chitanka_browse/…`,
+ *     the remote-browse screen that talks to `Catalog.browse` on demand instead of reading a
+ *     pre-populated Room mirror.
+ *
+ * Keeps the dispatch decision in one place so callers don't need to enumerate [SourceType]s
+ * themselves — [SourceType.isUnboundedCatalog] is the only knob a new Source needs to flip.
+ * A null [sourceType] (activeServer hasn't resolved yet on cold start) falls back to
+ * `library_items`; the drawer will correct on the next selection.
+ */
+internal fun libraryEntryRoute(sourceType: com.riffle.core.domain.SourceType?, libraryId: String, libraryName: String): String {
+    val encoded = URLEncoder.encode(libraryName, "UTF-8")
+    return if (sourceType?.isUnboundedCatalog == true) "chitanka_browse/$libraryId/$encoded"
+    else "library_items/$libraryId/$encoded"
+}
+
 @Composable
 fun MainScreen(
     windowSizeClass: WindowSizeClass,
@@ -146,8 +164,7 @@ fun MainScreen(
 
     LaunchedEffect(Unit) {
         viewModel.redirectToLibrary.collect { library ->
-            val encoded = URLEncoder.encode(library.name, "UTF-8")
-            navController.navigateAsRoot("library_items/${library.id}/$encoded")
+            navController.navigateAsRoot(libraryEntryRoute(activeServer?.type, library.id, library.name))
             viewModel.setActiveLibrary(library.id)
         }
     }
@@ -170,11 +187,7 @@ fun MainScreen(
         onLibrarySelected = { library ->
             viewModel.setActiveLibrary(library.id)
             scope.launch { drawerState.close() }
-            val encoded = URLEncoder.encode(library.name, "UTF-8")
-            val isChitanka = activeServer?.type == com.riffle.core.domain.SourceType.CHITANKA
-            val route = if (isChitanka) "chitanka_browse/${library.id}/$encoded"
-            else "library_items/${library.id}/$encoded"
-            navController.navigateAsRoot(route)
+            navController.navigateAsRoot(libraryEntryRoute(activeServer?.type, library.id, library.name))
         },
         onDownloadsSelected = {
             scope.launch { drawerState.close() }
@@ -193,17 +206,7 @@ fun MainScreen(
                     },
                     onNavigateToLibrary = { libraryId, libraryName ->
                         viewModel.setActiveLibrary(libraryId)
-                        val encoded = URLEncoder.encode(libraryName, "UTF-8")
-                        // Mirror the drawer's dispatch (see onLibrarySelected above): Chitanka
-                        // libraries route to the dedicated browse screen because the standard
-                        // library_items screen assumes a Room-mirrored catalogue which Chitanka
-                        // does not populate (ADR 0042). Without this, cold-launching into HOME
-                        // with an active Chitanka source materialises its browse results into
-                        // library_items and shows them in the ABS-shaped grid.
-                        val isChitanka = activeServer?.type == com.riffle.core.domain.SourceType.CHITANKA
-                        val route = if (isChitanka) "chitanka_browse/$libraryId/$encoded"
-                        else "library_items/$libraryId/$encoded"
-                        navController.navigateAsRoot(route)
+                        navController.navigateAsRoot(libraryEntryRoute(activeServer?.type, libraryId, libraryName))
                     },
                 )
             }
