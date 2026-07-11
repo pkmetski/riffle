@@ -238,7 +238,13 @@ class ChitankaCatalog(
                     val textHtml = runCatching { http.getString(textUrl) }.getOrNull()
                     if (textHtml != null) {
                         val enriched = ChitankaScraper.parseDetailPage(textHtml, textUrl)
-                        return ROOT_BOOKS to enriched.copy(url = url)  // keep the original id
+                        // The /text/ surface has no book-anno block — preserve the /book/
+                        // annotation (and cover) if the enrichment came back empty.
+                        return ROOT_BOOKS to enriched.copy(
+                            url = url,  // keep the original id
+                            description = enriched.description.ifEmpty { bookDetail.description },
+                            coverUrl = enriched.coverUrl ?: bookDetail.coverUrl,
+                        )
                     }
                 }
                 ROOT_BOOKS to bookDetail

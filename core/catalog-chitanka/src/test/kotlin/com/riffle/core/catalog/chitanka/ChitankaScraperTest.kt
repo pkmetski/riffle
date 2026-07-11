@@ -55,6 +55,32 @@ class ChitankaScraperTest {
     }
 
     @Test
+    fun `detail page extracts description from book-anno block on book pages`() {
+        // Mirrors chitanka's /book/ HTML: generic meta description, real annotation in
+        // div.text-content.book-anno. Regression for missing book summaries in the app.
+        val html = """
+            <html><head>
+              <meta name="description" content="Универсална библиотека за книги и текстове.">
+            </head><body>
+              <h1><a class="selflink" itemprop="name">Пример</a></h1>
+              <div class="media-body">
+                <div class="text-content book-anno">
+                  <p id="p-1">Първи абзац от анотацията.</p>
+                  <p id="p-2">Втори абзац.</p>
+                </div>
+              </div>
+            </body></html>
+        """.trimIndent()
+
+        val d = ChitankaScraper.parseDetailPage(html, "https://chitanka.info/book/3000-primer")
+
+        assertEquals(
+            "Първи абзац от анотацията.\n\nВтори абзац.",
+            d.description,
+        )
+    }
+
+    @Test
     fun `toAbsolute resolves relative and preserves absolute urls`() {
         assertEquals(
             "https://chitanka.info/book/1",
