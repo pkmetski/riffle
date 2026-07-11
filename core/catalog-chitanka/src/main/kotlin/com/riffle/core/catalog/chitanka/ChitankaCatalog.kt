@@ -396,12 +396,23 @@ class ChitankaCatalog(
     override suspend fun getTracks(itemId: String): List<CatalogAudioTrack> {
         val (root, detail) = resolveItem(itemId) ?: return emptyList()
         if (root != ROOT_AUDIOBOOKS) return emptyList()
-        // Gramofonche exposes no per-track duration metadata, so estimate from Content-Length
-        // via HEAD + the site's uniform ~128 kbps MP3 encoding. This isn't perfectly accurate
-        // but gives non-zero startOffsetSec / durationSec so the audiobook player's global
-        // timeline math (AudiobookTracks#trackAt / #absoluteSec) resolves the correct track
-        // across a multi-file book — with zeros, the resolver collapses every playback position
-        // onto the last track's timeline and multi-track resume/scrubbing/chapter-nav break.
+        return tracksFor(detail)
+    }
+
+    /**
+     * Turn a resolved [ChitankaDetail] into per-track spans. Split out so the caller can share a
+     * single detail-page fetch between tracks and chapter titles instead of hitting the network
+     * twice per audiobook open — [openAudiobook] and [getAudiobookChapters] both need the
+     * download list plus HEAD-estimated durations.
+     *
+     * Gramofonche exposes no per-track duration metadata, so estimate from Content-Length via
+     * HEAD + the site's uniform ~128 kbps MP3 encoding. This isn't perfectly accurate but gives
+     * non-zero startOffsetSec / durationSec so the audiobook player's global timeline math
+     * (AudiobookTracks#trackAt / #absoluteSec) resolves the correct track across a multi-file
+     * book — with zeros, the resolver collapses every playback position onto the last track's
+     * timeline and multi-track resume/scrubbing/chapter-nav break.
+     */
+    private suspend fun tracksFor(detail: ChitankaDetail): List<CatalogAudioTrack> {
         val durationsSec = coroutineScope {
             detail.downloads.map { d ->
                 async(Dispatchers.IO) {
@@ -437,10 +448,11 @@ class ChitankaCatalog(
     }
 
     override suspend fun openAudiobook(itemId: String, deviceLabel: String): CatalogAudiobookStream? {
-        val tracks = getTracks(itemId)
+        val (root, detail) = resolveItem(itemId) ?: return null
+        if (root != ROOT_AUDIOBOOKS) return null
+        val tracks = tracksFor(detail)
         if (tracks.isEmpty()) return null
-        val trackTitles = resolveItem(itemId)?.second?.downloads?.map { it.title }.orEmpty()
-        return buildAudiobookStream(tracks, trackTitles)
+        return buildAudiobookStream(tracks, detail.downloads.map { it.title })
     }
 
     override suspend fun getAudiobookChapters(itemId: String): List<CatalogAudiobookChapter> {
@@ -451,31 +463,11 @@ class ChitankaCatalog(
         // transient network failure fall back to an empty list so the drawer degrades gracefully
         // rather than propagating the exception up the ViewModel.
         return runCatching {
-            val tracks = getTracks(itemId)
-            val detail = resolveItem(itemId)?.second ?: return@runCatching emptyList()
-            synthesizeChaptersFromTracks(tracks, detail.downloads.map { it.title })
+            val (root, detail) = resolveItem(itemId) ?: return@runCatching emptyList()
+            if (root != ROOT_AUDIOBOOKS) return@runCatching emptyList()
+            synthesizeChaptersFromTracks(tracksFor(detail), detail.downloads.map { it.title })
         }.getOrElse { emptyList() }
     }
-
-    /**
-     * Wrap the per-track list into a whole-book stream. Split out so the whole-book duration
-     * (sum of estimated per-track durations) can be unit-tested without spinning up MockWebServer
-     * for the full `openAudiobook` HTTP path. The audiobook player's scrubber gets a zero-length
-     * timeline — and therefore no seek — if `totalDurationSec` is zero, so the sum invariant is
-     * load-bearing.
-     */
-    internal fun buildAudiobookStream(
-        tracks: List<CatalogAudioTrack>,
-        trackTitles: List<String> = emptyList(),
-    ): CatalogAudiobookStream =
-        CatalogAudiobookStream(
-            trackUrls = tracks.map { it.contentUrl },
-            tracks = tracks,
-            chapters = synthesizeChaptersFromTracks(tracks, trackTitles),
-            totalDurationSec = tracks.sumOf { it.durationSec },
-            serverCurrentTimeSec = 0.0,      // no server-side position for Chitanka
-            serverLastUpdate = 0L,
-        )
 
     // ---- Helpers ------------------------------------------------------------
 

@@ -1,6 +1,7 @@
 package com.riffle.app.navigation
 
 import androidx.activity.compose.BackHandler
+import com.riffle.core.domain.SourceType
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.rememberDrawerState
 import androidx.compose.material3.windowsizeclass.WindowSizeClass
@@ -104,7 +105,7 @@ internal fun collectionDetailRoute(libraryId: String, collectionId: String, coll
  * A null [sourceType] (activeServer hasn't resolved yet on cold start) falls back to
  * `library_items`; the drawer will correct on the next selection.
  */
-internal fun libraryEntryRoute(sourceType: com.riffle.core.domain.SourceType?, libraryId: String, libraryName: String): String {
+internal fun libraryEntryRoute(sourceType: SourceType?, libraryId: String, libraryName: String): String {
     val encoded = URLEncoder.encode(libraryName, "UTF-8")
     return if (sourceType?.isUnboundedCatalog == true) "chitanka_browse/$libraryId/$encoded"
     else "library_items/$libraryId/$encoded"

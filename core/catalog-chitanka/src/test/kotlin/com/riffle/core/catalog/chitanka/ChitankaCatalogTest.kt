@@ -222,7 +222,7 @@ class ChitankaCatalogTest {
                 mimeType = "audio/mpeg",
             ),
         )
-        val stream = cat.buildAudiobookStream(tracks)
+        val stream = ChitankaCatalog.buildAudiobookStream(tracks)
         assertEquals(1620.0, stream.totalDurationSec, 0.0)
         assertEquals(tracks, stream.tracks)
         assertEquals(listOf("https://gramofonche.chitanka.info/a.mp3", "https://gramofonche.chitanka.info/b.mp3"), stream.trackUrls)
@@ -237,7 +237,7 @@ class ChitankaCatalogTest {
                 contentUrl = "u", mimeType = "audio/mpeg",
             ),
         )
-        assertEquals(3600.0, cat.buildAudiobookStream(tracks).totalDurationSec, 0.0)
+        assertEquals(3600.0, ChitankaCatalog.buildAudiobookStream(tracks).totalDurationSec, 0.0)
     }
 
     /**
@@ -276,7 +276,7 @@ class ChitankaCatalogTest {
                 contentUrl = "u", mimeType = "audio/mpeg",
             ),
         )
-        assertEquals(0.0, cat.buildAudiobookStream(tracks).totalDurationSec, 0.0)
+        assertEquals(0.0, ChitankaCatalog.buildAudiobookStream(tracks).totalDurationSec, 0.0)
     }
 
     @Test
