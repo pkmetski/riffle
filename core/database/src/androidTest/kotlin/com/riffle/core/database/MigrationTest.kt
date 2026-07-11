@@ -2474,7 +2474,7 @@ class MigrationTest {
 
         db.execSQL(
             "INSERT INTO remote_item_freshness (sourceId, sourceItemId, lastFetchedAt) " +
-                "VALUES ('chi1', 'text/44723-abu-hasan', 1_700_000_000_000)"
+                "VALUES ('chi1', 'text/44723-abu-hasan', 1700000000000)"
         )
         db.query(
             "SELECT lastFetchedAt FROM remote_item_freshness " +
