@@ -57,6 +57,7 @@ class LibraryItemDaoTest {
         coverUrl = null,
         readingProgress = readingProgress,
         lastOpenedAt = lastOpenedAt,
+        addedAt = 0L,
     )
 
     // A1 — observeInProgress returns only items with 0 < readingProgress < 1.0

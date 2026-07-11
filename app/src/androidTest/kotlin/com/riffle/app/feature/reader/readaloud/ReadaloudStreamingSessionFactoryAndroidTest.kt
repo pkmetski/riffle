@@ -146,7 +146,7 @@ class ReadaloudStreamingSessionFactoryAndroidTest {
                 listOf(
                     LibraryItemEntity(
                         sourceId = ABS_SERVER, id = AUDIOBOOK_ITEM, libraryId = "lib",
-                        title = "Book", author = "A", coverUrl = null, readingProgress = 0f, hasAudio = true,
+                        title = "Book", author = "A", coverUrl = null, readingProgress = 0f, hasAudio = true, addedAt = 0L,
                     ),
                 ),
             )

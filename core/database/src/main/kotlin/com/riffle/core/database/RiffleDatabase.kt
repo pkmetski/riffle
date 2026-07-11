@@ -942,7 +942,10 @@ abstract class RiffleDatabase : RoomDatabase() {
                             "`publisher` TEXT, " +
                             "`language` TEXT, " +
                             "`lastOpenedAt` INTEGER, " +
-                            "`addedAt` INTEGER, " +
+                            // NOT NULL: every Source is required to stamp a real timestamp. This
+                            // migration DDL was amended in v53 (pre-ship) to enforce it; dev DBs
+                            // migrating through here backfill NULL rows with 0 via COALESCE below.
+                            "`addedAt` INTEGER NOT NULL, " +
                             "`isbn` TEXT, " +
                             "`asin` TEXT, " +
                             "`finishedAt` INTEGER, " +
@@ -951,7 +954,7 @@ abstract class RiffleDatabase : RoomDatabase() {
                     )
                     db.execSQL(
                         "INSERT INTO `library_items_new` (`sourceId`, `id`, `libraryId`, `title`, `author`, `coverUrl`, `readingProgress`, `ebookFileIno`, `ebookFormat`, `hasAudio`, `audioDurationSec`, `description`, `seriesName`, `publishedYear`, `genres`, `publisher`, `language`, `lastOpenedAt`, `addedAt`, `isbn`, `asin`, `finishedAt`) " +
-                            "SELECT `serverId`, `id`, `libraryId`, `title`, `author`, `coverUrl`, `readingProgress`, `ebookFileIno`, `ebookFormat`, `hasAudio`, `audioDurationSec`, `description`, `seriesName`, `publishedYear`, `genres`, `publisher`, `language`, `lastOpenedAt`, `addedAt`, `isbn`, `asin`, `finishedAt` FROM `library_items`"
+                            "SELECT `serverId`, `id`, `libraryId`, `title`, `author`, `coverUrl`, `readingProgress`, `ebookFileIno`, `ebookFormat`, `hasAudio`, `audioDurationSec`, `description`, `seriesName`, `publishedYear`, `genres`, `publisher`, `language`, `lastOpenedAt`, COALESCE(`addedAt`, 0), `isbn`, `asin`, `finishedAt` FROM `library_items`"
                     )
                     db.execSQL("DROP TABLE `library_items`")
                     db.execSQL("ALTER TABLE `library_items_new` RENAME TO `library_items`")

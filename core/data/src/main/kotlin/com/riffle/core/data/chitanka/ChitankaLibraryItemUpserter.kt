@@ -5,6 +5,7 @@ import com.riffle.core.catalog.CatalogItem
 import com.riffle.core.database.LibraryItemDao
 import com.riffle.core.database.LibraryItemEntity
 import com.riffle.core.database.LibraryItemMetadata
+import com.riffle.core.domain.Clock
 import com.riffle.core.domain.EbookFormat
 import javax.inject.Inject
 
@@ -23,6 +24,7 @@ import javax.inject.Inject
  */
 class ChitankaLibraryItemUpserter @Inject constructor(
     private val libraryItemDao: LibraryItemDao,
+    private val clock: Clock,
 ) {
     suspend fun upsert(sourceId: String, item: CatalogItem) {
         val entity = item.toEntity(sourceId)
@@ -49,7 +51,9 @@ class ChitankaLibraryItemUpserter @Inject constructor(
         genres = genres.joinToString(","),
         publisher = publisher,
         language = language,
-        addedAt = addedAt,
+        // Chitanka's HTML listings carry no `addedAt`, so stamp the moment this row enters
+        // `library_items` — matches the ADR-0042 semantics of "when the user opened it".
+        addedAt = addedAt ?: clock.nowMs(),
         isbn = isbn,
         asin = asin,
     )

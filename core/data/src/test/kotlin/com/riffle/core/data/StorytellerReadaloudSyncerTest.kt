@@ -100,6 +100,7 @@ class StorytellerReadaloudSyncerTest {
             coverUrlOf = { id -> "http://s/api/books/$id/cover" },
             lastOpenedAtMap = mapOf("42" to 1234L),
             progressMap = mapOf("42" to 0.5f),
+            addedAtDefault = 9_999L,
         )
         assertEquals(1, entities.size)
         val e = entities[0]

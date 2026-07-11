@@ -342,7 +342,7 @@ class LocalFilesCatalogTest {
         coverUrl = null,
         readingProgress = 0f,
         ebookFormat = "epub",
-        addedAt = addedAt,
+        addedAt = addedAt ?: 0L,
         seriesName = seriesName,
         seriesSequence = seriesSequence,
     )

@@ -39,7 +39,12 @@ data class LibraryItemEntity(
     val publisher: String? = null,
     val language: String? = null,
     val lastOpenedAt: Long? = null,
-    val addedAt: Long? = null,
+    // Non-null so every Source is forced to stamp a real timestamp on insert. Sorting Recently
+    // Added by `addedAt DESC` used to silently push null-stamped rows to the tail (or off the
+    // top-50 list entirely) — most recently visible on Chitanka/Gramofonche and Storyteller
+    // Readaloud items, whose network payloads carry no addedAt. Callers with no server-side
+    // timestamp should stamp `clock.nowMs()` at the moment the row enters `library_items`.
+    val addedAt: Long,
     val isbn: String? = null,
     val asin: String? = null,
     val finishedAt: Long? = null,

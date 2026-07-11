@@ -47,7 +47,7 @@ class AudioIdentityResolverImplTest {
         ReadaloudLinkEntity(absSourceId, absItemId, stServerId, stBookId, ReadaloudLinkEntity.STATE_CONFIRMED, true, 1L, 1L)
 
     private fun item(sourceId: String, id: String, hasAudio: Boolean) =
-        LibraryItemEntity(sourceId, id, "lib", "Title", "Author", null, 0f, hasAudio = hasAudio)
+        LibraryItemEntity(sourceId, id, "lib", "Title", "Author", null, 0f, hasAudio = hasAudio, addedAt = 0L)
 
     private class FakeLinkDao : ReadaloudLinkDao {
         override suspend fun updateIdentityResult(absSourceId: String, absLibraryItemId: String, result: String) = Unit
