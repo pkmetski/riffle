@@ -255,31 +255,34 @@ private fun CbzPage(
                 )
             }
             .pointerInput(pageIndex) {
-                // Only consume pointer events for zoom (2+ fingers) or pan-while-zoomed.
                 // A single-finger drag at scale=1 must fall through to HorizontalPager
-                // so swipe-to-turn works.
+                // so swipe-to-turn works. See [cbzPageGestureAction].
                 awaitEachGesture {
                     awaitFirstDown(requireUnconsumed = false)
                     do {
                         val event = awaitPointerEvent()
                         val pointerCount = event.changes.count { it.pressed }
-                        if (pointerCount >= 2) {
-                            val zoom = event.calculateZoom()
-                            val pan = event.calculatePan()
-                            scale = (scale * zoom).coerceIn(1f, 5f)
-                            if (scale > 1f) {
+                        when (cbzPageGestureAction(pointerCount, scale)) {
+                            CbzPageGestureAction.Zoom -> {
+                                val zoom = event.calculateZoom()
+                                val pan = event.calculatePan()
+                                scale = (scale * zoom).coerceIn(1f, 5f)
+                                if (scale > 1f) {
+                                    offsetX += pan.x
+                                    offsetY += pan.y
+                                } else {
+                                    offsetX = 0f
+                                    offsetY = 0f
+                                }
+                                event.changes.forEach { it.consume() }
+                            }
+                            CbzPageGestureAction.PanZoomed -> {
+                                val pan = event.calculatePan()
                                 offsetX += pan.x
                                 offsetY += pan.y
-                            } else {
-                                offsetX = 0f
-                                offsetY = 0f
+                                event.changes.forEach { it.consume() }
                             }
-                            event.changes.forEach { it.consume() }
-                        } else if (scale > 1f && pointerCount == 1) {
-                            val pan = event.calculatePan()
-                            offsetX += pan.x
-                            offsetY += pan.y
-                            event.changes.forEach { it.consume() }
+                            CbzPageGestureAction.Ignore -> Unit
                         }
                     } while (event.changes.any { it.pressed })
                 }
@@ -392,3 +395,17 @@ private fun CbzThumbnail(
 }
 
 private enum class TapZone { Left, Center, Right }
+
+internal enum class CbzPageGestureAction { Ignore, Zoom, PanZoomed }
+
+/**
+ * Decides how the per-page pointer handler should react to an event.
+ *
+ * The critical case is [Ignore]: a single-finger drag at scale=1 must NOT consume
+ * pointer events, so `HorizontalPager` receives the swipe and turns the page.
+ */
+internal fun cbzPageGestureAction(pointerCount: Int, scale: Float): CbzPageGestureAction = when {
+    pointerCount >= 2 -> CbzPageGestureAction.Zoom
+    pointerCount == 1 && scale > 1f -> CbzPageGestureAction.PanZoomed
+    else -> CbzPageGestureAction.Ignore
+}
