@@ -33,6 +33,8 @@ import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Warning
@@ -52,6 +54,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -1130,7 +1133,24 @@ private fun LocalFilesSourceRow(
                         },
                     )
                 } else {
-                    folders.forEach { folder ->
+                    // Folders and libraries are 1:1 for Local Files. Drive iteration by the
+                    // libraryItems list (already ordered per the user's saved reorder), then look
+                    // up each folder by libraryId. Any folder without a matching library still
+                    // renders — falls back to its natural position at the end.
+                    val foldersByLibraryId = folders.associateBy { it.libraryId }
+                    val orderedFolders = buildList {
+                        val consumed = mutableSetOf<String>()
+                        libraryItems.forEach { item ->
+                            foldersByLibraryId[item.library.id]?.let { folder ->
+                                add(folder to item)
+                                consumed += folder.treeUri
+                            }
+                        }
+                        folders.forEach { folder ->
+                            if (folder.treeUri !in consumed) add(folder to null)
+                        }
+                    }
+                    orderedFolders.forEachIndexed { index, (folder, item) ->
                         val isHealthy = folderHealth[folder.treeUri] != false
                         ListItem(
                             modifier = Modifier.testTag("LocalFilesFolder.${folder.treeUri}"),
@@ -1153,20 +1173,47 @@ private fun LocalFilesSourceRow(
                                 )
                             },
                             trailingContent = {
-                                IconButton(onClick = { pendingFolderRemoval = folder }) {
-                                    Icon(Icons.Default.Delete, contentDescription = "Remove folder")
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    if (item != null && libraryItems.size > 1) {
+                                        IconButton(
+                                            onClick = {
+                                                onReorderLibraries(libraryItems.idsWithSwap(index, index - 1))
+                                            },
+                                            enabled = index > 0,
+                                        ) {
+                                            Icon(
+                                                Icons.Filled.KeyboardArrowUp,
+                                                contentDescription = "Move ${folder.displayName} up",
+                                            )
+                                        }
+                                        IconButton(
+                                            onClick = {
+                                                onReorderLibraries(libraryItems.idsWithSwap(index, index + 1))
+                                            },
+                                            enabled = index < libraryItems.lastIndex,
+                                        ) {
+                                            Icon(
+                                                Icons.Filled.KeyboardArrowDown,
+                                                contentDescription = "Move ${folder.displayName} down",
+                                            )
+                                        }
+                                    }
+                                    if (item != null) {
+                                        Switch(
+                                            checked = item.isVisible,
+                                            onCheckedChange = { visible ->
+                                                onSetLibraryVisible(item.library.id, visible)
+                                            },
+                                            enabled = item.switchEnabled,
+                                        )
+                                    }
+                                    IconButton(onClick = { pendingFolderRemoval = folder }) {
+                                        Icon(Icons.Default.Delete, contentDescription = "Remove folder")
+                                    }
                                 }
                             },
                         )
                     }
-                }
-                if (libraryItems.isNotEmpty()) {
-                    ExpansionHeader("Enabled libraries")
-                    ReorderableLibraryList(
-                        items = libraryItems,
-                        onSetLibraryVisible = onSetLibraryVisible,
-                        onReorder = onReorderLibraries,
-                    )
                 }
                 TextButton(
                     onClick = { pendingSourceRemoval = true },

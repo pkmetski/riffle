@@ -73,7 +73,7 @@ internal fun ReorderableLibraryList(
 }
 
 /** The list's library ids with positions [i] and [j] swapped — the new full order to persist. */
-private fun List<LibraryUiItem>.idsWithSwap(i: Int, j: Int): List<String> {
+internal fun List<LibraryUiItem>.idsWithSwap(i: Int, j: Int): List<String> {
     val ids = map { it.library.id }.toMutableList()
     val tmp = ids[i]
     ids[i] = ids[j]
