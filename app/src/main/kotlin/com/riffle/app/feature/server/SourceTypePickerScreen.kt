@@ -13,9 +13,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Cloud
 import androidx.compose.material.icons.filled.Folder
-import androidx.compose.material.icons.filled.MenuBook
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -31,12 +29,14 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.disabled
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import com.riffle.app.ui.TabletContentWidthContainer
+import com.riffle.app.ui.source.SourceTypeIcon
+import com.riffle.core.domain.ServerType
+import com.riffle.core.domain.SourceType
 
 sealed interface SourceTypeChoice {
     data object Audiobookshelf : SourceTypeChoice
@@ -88,12 +88,6 @@ internal fun sourceTypeCards(hasLocalFilesSource: Boolean = false): List<SourceT
             comingSoon = false,
         ),
     )
-}
-
-private fun iconFor(type: SourceTypeChoice): ImageVector = when (type) {
-    SourceTypeChoice.Audiobookshelf -> Icons.Default.Cloud
-    SourceTypeChoice.LocalFiles -> Icons.Default.Folder
-    SourceTypeChoice.Chitanka -> Icons.Default.MenuBook
 }
 
 private fun testTagFor(type: SourceTypeChoice): String = when (type) {
@@ -171,12 +165,28 @@ private fun SourceTypeCardRow(card: SourceTypeCard, onClick: (() -> Unit)?) {
             horizontalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             val contentAlpha = if (card.enabled) 1f else 0.5f
-            Icon(
-                imageVector = iconFor(card.type),
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.size(40.dp).alpha(contentAlpha),
-            )
+            val iconModifier = Modifier.size(40.dp).alpha(contentAlpha)
+            when (card.type) {
+                // LocalFiles intentionally keeps its Material Folder icon — see
+                // SourceIconResolver: LOCAL_FILES has no monogram drawable.
+                SourceTypeChoice.LocalFiles -> Icon(
+                    imageVector = Icons.Default.Folder,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = iconModifier,
+                )
+                SourceTypeChoice.Audiobookshelf -> SourceTypeIcon(
+                    type = SourceType.ABS,
+                    serverType = ServerType.AUDIOBOOKSHELF,
+                    modifier = iconModifier,
+                    size = 40.dp,
+                )
+                SourceTypeChoice.Chitanka -> SourceTypeIcon(
+                    type = SourceType.CHITANKA,
+                    modifier = iconModifier,
+                    size = 40.dp,
+                )
+            }
             Column(
                 modifier = Modifier.weight(1f).alpha(contentAlpha),
             ) {
