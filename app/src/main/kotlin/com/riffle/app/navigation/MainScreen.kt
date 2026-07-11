@@ -78,6 +78,20 @@ private const val CBZ_READER = "cbz_reader/{itemId}"
 private const val ANNOTATION_SEARCH = "annotation_search/{libraryId}?query={query}"
 private const val AUDIOBOOK_PLAYER = "audiobook_player/{itemId}?startAtSec={startAtSec}"
 
+/**
+ * URL-encodes each path segment in a series-detail route. seriesId is encoded because chitanka
+ * series ids contain slashes (`serie/foo` per ADR 0042) and would otherwise splay across the
+ * fixed [SERIES_DETAIL] template's `{seriesId}` slot, producing the "destination cannot be
+ * found in the navigation graph" crash. Nav Compose auto-decodes path arguments so the receiver
+ * (SeriesDetailViewModel) sees the original id.
+ */
+internal fun seriesDetailRoute(libraryId: String, seriesId: String, seriesName: String): String =
+    "series_detail/$libraryId/${URLEncoder.encode(seriesId, "UTF-8")}/${URLEncoder.encode(seriesName, "UTF-8")}"
+
+/** Same reasoning as [seriesDetailRoute] but for collection ids. */
+internal fun collectionDetailRoute(libraryId: String, collectionId: String, collectionName: String): String =
+    "collection_detail/$libraryId/${URLEncoder.encode(collectionId, "UTF-8")}/${URLEncoder.encode(collectionName, "UTF-8")}"
+
 @Composable
 fun MainScreen(
     windowSizeClass: WindowSizeClass,
@@ -422,12 +436,10 @@ fun MainScreen(
                     onOpenDrawer = { scope.launch { drawerState.open() } },
                     backEnabled = !drawerState.isOpen,
                     onSeriesSelected = { series ->
-                        val encodedName = URLEncoder.encode(series.name, "UTF-8")
-                        navController.navigate("series_detail/$libraryId/${series.id}/$encodedName")
+                        navController.navigate(seriesDetailRoute(libraryId, series.id, series.name))
                     },
                     onCollectionSelected = { collection ->
-                        val encodedName = URLEncoder.encode(collection.name, "UTF-8")
-                        navController.navigate("collection_detail/$libraryId/${collection.id}/$encodedName")
+                        navController.navigate(collectionDetailRoute(libraryId, collection.id, collection.name))
                     },
                     onItemSelected = { item ->
                         val encodedId = URLEncoder.encode(item.id, "UTF-8")
@@ -555,8 +567,7 @@ fun MainScreen(
                         navController.navigate("filtered_books/$libraryId/${facet.name}/$encoded")
                     },
                     onNavigateToSeries = { libraryId, seriesId, seriesName ->
-                        val encodedName = URLEncoder.encode(seriesName, "UTF-8")
-                        navController.navigate("series_detail/$libraryId/$seriesId/$encodedName")
+                        navController.navigate(seriesDetailRoute(libraryId, seriesId, seriesName))
                     },
                 )
             }
