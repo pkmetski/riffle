@@ -103,4 +103,65 @@ class ReadaloudRowSummaryTest {
             !summary.contains("unmatched"),
         )
     }
+
+    @Test
+    fun configured_onlySuggested_summary_surfacesSuggested() {
+        // Regression: pre-fix the summary silently dropped `suggestedCount` and rendered
+        // "0 matched" when only pending suggestions existed — misleading, because the user has
+        // work to do (accept/reject the suggestions) but the row implied nothing was there.
+        val summary = readaloudRowSummary(
+            storyteller = storytellerSource(),
+            serverVersions = emptyMap(),
+            readaloudSummaries = mapOf(
+                "sty-1" to ReadaloudMatchSummary(
+                    unmatchedCount = 0,
+                    suggestedCount = 3,
+                    partiallyMatchedCount = 0,
+                    matchedCount = 0,
+                ),
+            ),
+        )
+        assertTrue("suggested count must surface: $summary", summary.contains("3 suggested"))
+        assertTrue(
+            "must not fall back to '0 matched' when nothing is matched: $summary",
+            !summary.contains("0 matched"),
+        )
+    }
+
+    @Test
+    fun configured_onlyPartial_summary_surfacesPartial() {
+        val summary = readaloudRowSummary(
+            storyteller = storytellerSource(),
+            serverVersions = emptyMap(),
+            readaloudSummaries = mapOf(
+                "sty-1" to ReadaloudMatchSummary(
+                    unmatchedCount = 0,
+                    suggestedCount = 0,
+                    partiallyMatchedCount = 2,
+                    matchedCount = 0,
+                ),
+            ),
+        )
+        assertTrue("partial count must surface: $summary", summary.contains("2 partial"))
+    }
+
+    @Test
+    fun configured_allZero_summary_saysNoReadaloudsYet() {
+        val summary = readaloudRowSummary(
+            storyteller = storytellerSource(),
+            serverVersions = emptyMap(),
+            readaloudSummaries = mapOf(
+                "sty-1" to ReadaloudMatchSummary(
+                    unmatchedCount = 0,
+                    suggestedCount = 0,
+                    partiallyMatchedCount = 0,
+                    matchedCount = 0,
+                ),
+            ),
+        )
+        assertTrue(
+            "empty summary should collapse to 'no readalouds yet': $summary",
+            summary.endsWith("no readalouds yet"),
+        )
+    }
 }

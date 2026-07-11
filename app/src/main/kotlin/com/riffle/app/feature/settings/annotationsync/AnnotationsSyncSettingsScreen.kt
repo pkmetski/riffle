@@ -23,13 +23,13 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.riffle.app.feature.server.AddSourceBackend
 import com.riffle.app.feature.settings.AnnotationSyncBadge
 import com.riffle.app.feature.settings.AnnotationSyncRowState
 import com.riffle.app.feature.settings.DrillInChevron
+import com.riffle.app.feature.settings.SettingsSectionHeader
 import com.riffle.app.feature.settings.SettingsViewModel
 import com.riffle.app.feature.settings.disabledListItemColors
 
@@ -73,8 +73,7 @@ fun AnnotationsSyncSettingsScreen(
                 .verticalScroll(rememberScrollState()),
         ) {
             HorizontalDivider()
-            SectionHeader("Server")
-            HorizontalDivider()
+            SettingsSectionHeader("Server")
             ListItem(
                 modifier = Modifier.clickable {
                     onNavigateToAddSource(AddSourceBackend.WEBDAV, null)
@@ -95,8 +94,7 @@ fun AnnotationsSyncSettingsScreen(
             )
             HorizontalDivider()
 
-            SectionHeader("Devices")
-            HorizontalDivider()
+            SettingsSectionHeader("Devices")
             val maintenanceEnabled = row.badge != AnnotationSyncRowState.Badge.Local
             ListItem(
                 modifier = if (maintenanceEnabled) {
@@ -110,19 +108,11 @@ fun AnnotationsSyncSettingsScreen(
                     )
                 },
                 colors = if (maintenanceEnabled) ListItemDefaults.colors() else disabledListItemColors(),
-                trailingContent = { DrillInChevron() },
+                trailingContent = if (maintenanceEnabled) {
+                    { DrillInChevron() }
+                } else null,
             )
             HorizontalDivider()
         }
     }
-}
-
-@Composable
-private fun SectionHeader(text: String) {
-    Text(
-        text = text,
-        style = MaterialTheme.typography.titleSmall,
-        fontWeight = FontWeight.Bold,
-        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-    )
 }

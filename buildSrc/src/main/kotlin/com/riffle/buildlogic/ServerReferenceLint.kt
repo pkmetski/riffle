@@ -64,8 +64,9 @@ object ServerReferenceLint {
         "app/src/main/kotlin/com/riffle/app/feature/reader/session/PositionOrchestrator.kt",
         "app/src/main/kotlin/com/riffle/app/feature/settings/SettingsViewModel.kt",
         "app/src/main/kotlin/com/riffle/app/feature/settings/SettingsScreen.kt",
-        // Split-out sections/drill-in for Settings (post-#XXX). Same ServerType/serverType usage
-        // as SettingsScreen — routing per-source rendering and identifying the Storyteller Service.
+        // Split-out sections + Readaloud drill-in for Settings. Same ServerType / serverType
+        // usage as SettingsScreen — routing per-source rendering and identifying the Storyteller
+        // Service. Rename to Source-flavoured identifiers happens with the broader taxonomy sweep.
         "app/src/main/kotlin/com/riffle/app/feature/settings/sections/SourcesSection.kt",
         "app/src/main/kotlin/com/riffle/app/feature/settings/sections/ReadaloudSection.kt",
         "app/src/main/kotlin/com/riffle/app/feature/settings/readaloud/ReadaloudSettingsScreen.kt",

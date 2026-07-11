@@ -36,11 +36,11 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.riffle.app.feature.server.AddSourceBackend
 import com.riffle.app.feature.settings.DrillInChevron
+import com.riffle.app.feature.settings.SettingsSectionHeader
 import com.riffle.app.feature.settings.SettingsViewModel
 import com.riffle.app.feature.settings.StorytellerBadge
 import com.riffle.app.feature.settings.disabledListItemColors
@@ -91,8 +91,7 @@ fun ReadaloudSettingsScreen(
                 .verticalScroll(rememberScrollState()),
         ) {
             HorizontalDivider()
-            SectionHeader("Server")
-            HorizontalDivider()
+            SettingsSectionHeader("Server")
             if (storyteller == null) {
                 ListItem(
                     modifier = Modifier.clickable {
@@ -129,8 +128,7 @@ fun ReadaloudSettingsScreen(
             }
             HorizontalDivider()
 
-            SectionHeader("Matches")
-            HorizontalDivider()
+            SettingsSectionHeader("Matches")
             val summary = storyteller?.let { readaloudSummaries[it.id] }
             ListItem(
                 modifier = if (storyteller != null) {
@@ -150,12 +148,15 @@ fun ReadaloudSettingsScreen(
                     }
                 },
                 colors = if (storyteller != null) ListItemDefaults.colors() else disabledListItemColors(),
-                trailingContent = { DrillInChevron() },
+                // Only render the drill-in affordance when the row is actually tappable — a
+                // disabled row with a chevron reads as a broken link.
+                trailingContent = if (storyteller != null) {
+                    { DrillInChevron() }
+                } else null,
             )
             HorizontalDivider()
 
-            SectionHeader("Appearance")
-            HorizontalDivider()
+            SettingsSectionHeader("Appearance")
             val highlightEnabled = storyteller != null
             ListItem(
                 headlineContent = { Text("Sentence highlight") },
@@ -210,14 +211,4 @@ fun ReadaloudSettingsScreen(
             HorizontalDivider()
         }
     }
-}
-
-@Composable
-private fun SectionHeader(text: String) {
-    Text(
-        text = text,
-        style = MaterialTheme.typography.titleSmall,
-        fontWeight = FontWeight.Bold,
-        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-    )
 }

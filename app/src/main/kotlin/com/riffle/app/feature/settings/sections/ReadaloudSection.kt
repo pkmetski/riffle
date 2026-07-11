@@ -65,17 +65,32 @@ internal fun readaloudRowSummary(
         }
         if (summary != null) {
             append(" · ")
-            val hasAny = summary.unmatchedCount + summary.suggestedCount +
-                summary.partiallyMatchedCount + summary.matchedCount > 0
-            if (!hasAny) {
-                append("no readalouds yet")
-            } else if (summary.unmatchedCount == 0 && summary.partiallyMatchedCount == 0) {
-                append("${summary.matchedCount} matched")
-            } else {
-                append("${summary.unmatchedCount} unmatched · ${summary.matchedCount} matched")
-            }
+            append(matchCountsFragment(summary))
         }
     }
+}
+
+/**
+ * Compact string surfacing every non-zero count from a [ReadaloudMatchSummary]. Silent counts
+ * (zero) are dropped so the subtitle stays short — "12 matched" reads cleaner than
+ * "0 unmatched · 0 suggested · 0 partial · 12 matched" and matches the pre-collapse behaviour
+ * where the "Review matches" row showed the four counts only when there were partial/unmatched
+ * ones to act on.
+ *
+ * All four counts zero (fresh install, no readalouds discovered yet) collapses to a friendlier
+ * "no readalouds yet".
+ */
+internal fun matchCountsFragment(summary: ReadaloudMatchSummary): String {
+    val total = summary.unmatchedCount + summary.suggestedCount +
+        summary.partiallyMatchedCount + summary.matchedCount
+    if (total == 0) return "no readalouds yet"
+    val parts = buildList {
+        if (summary.unmatchedCount > 0) add("${summary.unmatchedCount} unmatched")
+        if (summary.suggestedCount > 0) add("${summary.suggestedCount} suggested")
+        if (summary.partiallyMatchedCount > 0) add("${summary.partiallyMatchedCount} partial")
+        if (summary.matchedCount > 0) add("${summary.matchedCount} matched")
+    }
+    return parts.joinToString(" · ")
 }
 
 private fun shortHost(rawUrl: String): String =

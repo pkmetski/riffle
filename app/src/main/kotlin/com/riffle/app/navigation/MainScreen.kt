@@ -326,8 +326,12 @@ fun MainScreen(
                         navController.getBackStackEntry(SOURCE_SETUP_GRAPH)
                     }
                     val setupVm: SourceSetupViewModel = hiltViewModel(parentEntry)
+                    // Add-Source can be reached from the main Settings screen or from either of
+                    // the settings drill-ins (Readaloud → Configure Storyteller; Annotations
+                    // Sync → Configure WebDAV). All three should pop back to the caller when
+                    // done; only cold entry (e.g. deep link) falls through to Home.
                     val cameFromSettings = navController.previousBackStackEntry
-                        ?.destination?.route == SETTINGS
+                        ?.destination?.route in setOf(SETTINGS, READALOUD_SETTINGS, ANNOTATIONS_SYNC_SETTINGS)
                     AddSourceScreen(
                         windowSizeClass = windowSizeClass,
                         onNavigateBack = {
@@ -390,7 +394,16 @@ fun MainScreen(
                     onNavigateToDebugLogs = { navController.navigate(DEBUG_LOGS) },
                 )
             }
-            composable(READALOUD_SETTINGS) {
+            composable(READALOUD_SETTINGS) { backStackEntry ->
+                // Reuse the parent Settings entry's SettingsViewModel so the drill-in shares the
+                // main screen's already-warm caches (versionsCache, StateFlow subscriptions) —
+                // otherwise every navigation instantiates a second ~20-dep VM and re-runs the
+                // per-source version probes.
+                val settingsEntry = remember(backStackEntry) {
+                    navController.getBackStackEntry(SETTINGS)
+                }
+                val settingsVm: com.riffle.app.feature.settings.SettingsViewModel =
+                    hiltViewModel(settingsEntry)
                 ReadaloudSettingsScreen(
                     onNavigateBack = { navController.popBackStack() },
                     onNavigateToAddSource = { backend, editId ->
@@ -404,9 +417,15 @@ fun MainScreen(
                         val encoded = URLEncoder.encode(sourceId, "UTF-8")
                         navController.navigate("readaloud_matches/$encoded")
                     },
+                    viewModel = settingsVm,
                 )
             }
-            composable(ANNOTATIONS_SYNC_SETTINGS) {
+            composable(ANNOTATIONS_SYNC_SETTINGS) { backStackEntry ->
+                val settingsEntry = remember(backStackEntry) {
+                    navController.getBackStackEntry(SETTINGS)
+                }
+                val settingsVm: com.riffle.app.feature.settings.SettingsViewModel =
+                    hiltViewModel(settingsEntry)
                 AnnotationsSyncSettingsScreen(
                     onNavigateBack = { navController.popBackStack() },
                     onNavigateToAddSource = { backend, editId ->
@@ -417,6 +436,7 @@ fun MainScreen(
                         navController.navigate("$ADD_SOURCE?$params")
                     },
                     onNavigateToMaintenance = { navController.navigate(ANNOTATION_SYNC_MAINTENANCE) },
+                    viewModel = settingsVm,
                 )
             }
             composable(ANNOTATION_SYNC_MAINTENANCE) {
