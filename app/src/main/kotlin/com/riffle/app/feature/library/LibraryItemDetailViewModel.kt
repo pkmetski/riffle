@@ -24,6 +24,7 @@ import com.riffle.core.catalog.CatalogRegistry
 import com.riffle.core.catalog.PlaylistsCapability
 import com.riffle.core.catalog.SeriesCapability
 import com.riffle.core.domain.SourceRepository
+import com.riffle.core.domain.SourceType
 import com.riffle.core.domain.TocEntry
 import com.riffle.core.domain.TokenStorage
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -69,6 +70,11 @@ data class DetailCapabilities(
     val hasSeries: Boolean,
     val hasPlaylists: Boolean,
     val hasAudiobookMedia: Boolean,
+    // True when the item lives on a LocalFiles Source — the file is already on device, so the
+    // download affordances (ebook, audiobook, readaloud bundle) have nothing to fetch and are
+    // hidden. Sourced from SourceType, not a Catalog capability: "already local" is a property of
+    // where the item comes from, not of what its Catalog implements.
+    val isLocalSource: Boolean = false,
 ) {
     companion object {
         /** Every capability present — matches the ABS shape used by the majority of items. */
@@ -220,10 +226,12 @@ class LibraryItemDetailViewModel @Inject constructor(
                     // versa. Raw `is` checks (see LibraryItemsViewModel.tabVisibility for the
                     // JVM-target rationale).
                     val catalog = catalogRegistry.forSourceId(item.sourceId)
+                    val itemSource = sourceRepository.getById(item.sourceId)
                     val capabilities = DetailCapabilities(
                         hasSeries = catalog is SeriesCapability,
                         hasPlaylists = catalog is PlaylistsCapability,
                         hasAudiobookMedia = catalog is AudiobookMediaCapability,
+                        isLocalSource = itemSource?.type == SourceType.LOCAL_FILES,
                     )
                     LibraryItemDetailUiState.Ready(
                         item = item,

@@ -851,4 +851,77 @@ class LibraryItemDetailViewModelTest {
         val after = vm.uiState.value as Ready
         assertFalse(after.isCachedOrDownloaded)
     }
+
+    // Regression for "LocalFiles item shows a Download button." A LocalFiles item lives on the
+    // device already — its DownloadButton would either be a no-op or, worse, wire "Remove" to the
+    // user's original file. The Ready-state capability flag drives the UI's suppression of every
+    // download affordance (ebook / audiobook / readaloud bundle) for LocalFiles Sources.
+    @Test
+    fun `capabilities isLocalSource is true when the item's Source is LOCAL_FILES`() = runTest {
+        val localItem = knownItem.copy(sourceId = "local-source")
+        val localSource = Source(
+            id = "local-source",
+            url = SourceUrl.parse("http://local")!!,
+            isActive = true,
+            insecureConnectionAllowed = false,
+            username = "",
+            type = com.riffle.core.domain.SourceType.LOCAL_FILES,
+        )
+        val sourceRepo = object : SourceRepository {
+            override fun observeAll(): Flow<List<Source>> = MutableStateFlow(listOf(localSource))
+            override suspend fun getActive(): Source? = localSource
+            override suspend fun getById(sourceId: String): Source? =
+                localSource.takeIf { it.id == sourceId }
+            override suspend fun authenticate(url: SourceUrl, username: String, password: String, insecureAllowed: Boolean, serverType: com.riffle.core.domain.ServerType): AuthenticateResult =
+                AuthenticateResult.WrongCredentials()
+            override suspend fun commit(pending: PendingSource, hiddenLibraryIds: Set<String>): CommitSourceResult =
+                CommitSourceResult.Failure(IOException())
+            override suspend fun setActive(sourceId: String) {}
+            override suspend fun remove(sourceId: String) {}
+            override suspend fun getSourceVersion(sourceId: String): String? = null
+        }
+        val vm = makeVm(fakeRepo(localItem), sourceRepository = sourceRepo)
+        backgroundScope.launch { vm.uiState.collect {} }
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        val ready = vm.uiState.value as Ready
+        assertTrue(
+            "LocalFiles item must flag isLocalSource so the detail screen hides download buttons",
+            ready.capabilities.isLocalSource,
+        )
+    }
+
+    // Companion to the LOCAL_FILES test: an ABS item must NOT flag isLocalSource, or the download
+    // buttons would disappear from the majority-shape flow.
+    @Test
+    fun `capabilities isLocalSource is false when the item's Source is ABS`() = runTest {
+        val absItem = knownItem.copy(sourceId = "abs-source")
+        val absSource = Source(
+            id = "abs-source",
+            url = SourceUrl.parse("https://example.com")!!,
+            isActive = true,
+            insecureConnectionAllowed = false,
+            username = "u",
+            type = com.riffle.core.domain.SourceType.ABS,
+        )
+        val sourceRepo = object : SourceRepository {
+            override fun observeAll(): Flow<List<Source>> = MutableStateFlow(listOf(absSource))
+            override suspend fun getActive(): Source? = absSource
+            override suspend fun getById(sourceId: String): Source? =
+                absSource.takeIf { it.id == sourceId }
+            override suspend fun authenticate(url: SourceUrl, username: String, password: String, insecureAllowed: Boolean, serverType: com.riffle.core.domain.ServerType): AuthenticateResult =
+                AuthenticateResult.WrongCredentials()
+            override suspend fun commit(pending: PendingSource, hiddenLibraryIds: Set<String>): CommitSourceResult =
+                CommitSourceResult.Failure(IOException())
+            override suspend fun setActive(sourceId: String) {}
+            override suspend fun remove(sourceId: String) {}
+            override suspend fun getSourceVersion(sourceId: String): String? = null
+        }
+        val vm = makeVm(fakeRepo(absItem), sourceRepository = sourceRepo)
+        backgroundScope.launch { vm.uiState.collect {} }
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        val ready = vm.uiState.value as Ready
+        assertFalse(ready.capabilities.isLocalSource)
+    }
 }
