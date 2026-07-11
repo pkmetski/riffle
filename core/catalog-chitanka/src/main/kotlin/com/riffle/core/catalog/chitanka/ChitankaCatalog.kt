@@ -15,10 +15,13 @@ import com.riffle.core.catalog.CatalogItem
 import com.riffle.core.catalog.CatalogRoot
 import com.riffle.core.catalog.CatalogSeries
 import com.riffle.core.catalog.CatalogSeriesEntry
+import com.riffle.core.catalog.DownloadsCapability
 import com.riffle.core.catalog.FacetSelection
 import com.riffle.core.catalog.OfflineBrowseCapability
+import com.riffle.core.catalog.ReadCapability
 import com.riffle.core.catalog.SeriesCapability
 import com.riffle.core.catalog.SortKey
+import com.riffle.core.catalog.ToReadListCapability
 import com.riffle.core.domain.SourceType
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
@@ -54,7 +57,13 @@ class ChitankaCatalog(
     // throttles/blocks requests carrying the raw `okhttp/x.x.x` default. Without this the
     // EPUB download URL 429s on the first request even though browse succeeds.
     private val userAgent: String = "Riffle",
-) : Catalog, SeriesCapability, AudiobookMediaCapability, OfflineBrowseCapability {
+) : Catalog,
+    SeriesCapability,
+    AudiobookMediaCapability,
+    OfflineBrowseCapability,
+    DownloadsCapability,
+    ToReadListCapability,
+    ReadCapability {
 
     override val sourceType: SourceType = SourceType.CHITANKA
 

@@ -15,6 +15,7 @@ import com.riffle.core.domain.ServerType
 import com.riffle.core.domain.isReadaloud
 import com.riffle.core.catalog.Catalog
 import com.riffle.core.catalog.CatalogRegistry
+import com.riffle.core.catalog.DownloadsCapability
 import com.riffle.app.playback.NowPlaying
 import com.riffle.app.playback.NowPlayingNavigator
 import com.riffle.app.playback.NowPlayingStore
@@ -69,6 +70,22 @@ class NavigationDrawerViewModel @Inject constructor(
     val activeCatalog: StateFlow<Catalog?> = activeServer
         .map { source -> source?.let { catalogRegistry.forSource(it) } }
         .stateIn(viewModelScope, SharingStarted.Eagerly, null)
+
+    // Drawer "Downloads" link visible whenever ANY registered Source has a local store, not
+    // just the active one — otherwise switching active to LocalFiles would strand the user's
+    // ABS/Chitanka downloads with no UI entry point. Only truly LocalFiles-only sessions hide
+    // the link. Empty list of Sources defaults to true so the transient no-source-yet UI
+    // doesn't flicker the row in and out.
+    // `is` check (not inline `has<T>()`) — see [LibraryItemsViewModel.tabVisibility] for the
+    // JVM-target-boundary rationale.
+    val showDownloadsLink: StateFlow<Boolean> = allServers
+        .map { sources ->
+            if (sources.isEmpty()) true
+            else sources.any { source ->
+                catalogRegistry.forSource(source) is DownloadsCapability
+            }
+        }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, true)
 
     private val versionsCache = mutableMapOf<String, String>()
     private val _serverVersions = MutableStateFlow<Map<String, String>>(emptyMap())

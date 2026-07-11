@@ -112,28 +112,25 @@ fun DownloadsScreen(
                     }
                 }
 
-                if (uiState.showCachedSection) {
+                // Cached section renders only when the store actually has cached bytes.
+                // Sources with a local store but no user-visible cache tier (Chitanka's tacit
+                // page cache never populates this) then don't ship dead "No cached books" UI.
+                if (uiState.showCachedSection && uiState.cachedItems.isNotEmpty()) {
                     item {
                         SectionHeader(
                             title = "Cached",
-                            totalLabel = if (uiState.cachedItems.isNotEmpty()) formatBytes(uiState.cachedTotalBytes) else null,
-                            actionLabel = if (uiState.cachedItems.isNotEmpty()) "Clear all" else null,
+                            totalLabel = formatBytes(uiState.cachedTotalBytes),
+                            actionLabel = "Clear all",
                             onAction = { viewModel.clearAllCached() },
                         )
                     }
-                    if (uiState.cachedItems.isEmpty()) {
-                        item {
-                            EmptySection("No cached books")
-                        }
-                    } else {
-                        items(uiState.cachedItems, key = { it.sourceId + "/" + it.item.id }) { entry ->
-                            LocalItemRow(
-                                entry = entry,
-                                pillColor = PillColor.Cached,
-                                onClick = { onItemSelected(entry.item) },
-                                onRemove = { viewModel.removeCachedItem(entry.sourceId, entry.item.id) },
-                            )
-                        }
+                    items(uiState.cachedItems, key = { it.sourceId + "/" + it.item.id }) { entry ->
+                        LocalItemRow(
+                            entry = entry,
+                            pillColor = PillColor.Cached,
+                            onClick = { onItemSelected(entry.item) },
+                            onRemove = { viewModel.removeCachedItem(entry.sourceId, entry.item.id) },
+                        )
                     }
                 }
 

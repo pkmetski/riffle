@@ -1,8 +1,21 @@
 package com.riffle.core.data.localfiles
 
+import com.riffle.core.catalog.AudiobookMediaCapability
 import com.riffle.core.catalog.BookFormat
+import com.riffle.core.catalog.BookmarksCapability
 import com.riffle.core.catalog.CatalogFileHandle
+import com.riffle.core.catalog.CollectionsCapability
+import com.riffle.core.catalog.DownloadsCapability
+import com.riffle.core.catalog.OfflineBrowseCapability
+import com.riffle.core.catalog.PlaylistsCapability
+import com.riffle.core.catalog.ProgressPeerCapability
+import com.riffle.core.catalog.ReadCapability
+import com.riffle.core.catalog.ReadaloudCapability
+import com.riffle.core.catalog.ReadingSessionsCapability
+import com.riffle.core.catalog.SeriesCapability
 import com.riffle.core.catalog.SortKey
+import com.riffle.core.catalog.StatsCapability
+import com.riffle.core.catalog.ToReadListCapability
 import com.riffle.core.catalog.abs.CatalogException
 import com.riffle.core.data.FakeLibraryItemDao
 import com.riffle.core.database.LibraryItemEntity
@@ -27,6 +40,29 @@ class LocalFilesCatalogTest {
     private val sourceId = "src-1"
     private val folderTreeUri = "content://tree/A"
     private val libraryId = "lib-A"
+
+    @Test
+    fun `capability shape - LocalFiles omits Downloads and Readaloud`() {
+        val c: com.riffle.core.catalog.Catalog = catalog(folderDao = InMemoryFolderDao())
+        // `is` checks not inline has<T>(): core:catalog compiles at JVM target 21 and this
+        // module pins 17, so the reified inline can't cross the boundary. Same rationale as
+        // [com.riffle.app.feature.library.LibraryItemsViewModel.tabVisibility].
+        // Declared:
+        assertTrue(c is SeriesCapability)
+        assertTrue(c is OfflineBrowseCapability)
+        assertTrue(c is ToReadListCapability)
+        assertTrue(c is ReadCapability)
+        // Not declared — LocalFiles has no fetch step, no readaloud bundles, no audiobook streaming.
+        assertTrue(c !is DownloadsCapability)
+        assertTrue(c !is ReadaloudCapability)
+        assertTrue(c !is AudiobookMediaCapability)
+        assertTrue(c !is CollectionsCapability)
+        assertTrue(c !is PlaylistsCapability)
+        assertTrue(c !is ProgressPeerCapability)
+        assertTrue(c !is ReadingSessionsCapability)
+        assertTrue(c !is StatsCapability)
+        assertTrue(c !is BookmarksCapability)
+    }
 
     @Test
     fun `listRoots returns one root per configured folder, named after the folder`() = runTest {

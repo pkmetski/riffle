@@ -249,6 +249,7 @@ class LibraryItemDetailViewModelTest {
         fetchAudiobookChaptersUseCase: FetchAudiobookChaptersUseCase = io.mockk.mockk<FetchAudiobookChaptersUseCase>().also { uc ->
             io.mockk.coEvery { uc(any<com.riffle.core.domain.LibraryItem>()) } returns emptyList<com.riffle.core.domain.AudiobookChapter>()
         },
+        catalogRegistryOverride: com.riffle.core.catalog.CatalogRegistry = detailFakeCatalogRegistry(),
     ) = LibraryItemDetailViewModel(
         savedStateHandle = SavedStateHandle(mapOf("itemId" to itemId)),
         libraryObserver = repo,
@@ -279,7 +280,7 @@ class LibraryItemDetailViewModelTest {
         sidecarPrefetcher = { _, _ -> },
         extractEpubTocUseCase = extractEpubTocUseCase,
         fetchAudiobookChaptersUseCase = fetchAudiobookChaptersUseCase,
-        catalogRegistry = detailFakeCatalogRegistry(),
+        catalogRegistry = catalogRegistryOverride,
     )
 
     // These tests exercise ViewModel state and side-effects; none read Ready.capabilities.
@@ -861,75 +862,76 @@ class LibraryItemDetailViewModelTest {
     }
 
     // Regression for "LocalFiles item shows a Download button." A LocalFiles item lives on the
-    // device already — its DownloadButton would either be a no-op or, worse, wire "Remove" to the
-    // user's original file. The Ready-state capability flag drives the UI's suppression of every
-    // download affordance (ebook / audiobook / readaloud bundle) for LocalFiles Sources.
+    // device already — its Catalog omits DownloadsCapability, so the detail screen must not surface
+    // the download affordances (ebook, audiobook, readaloud bundle).
     @Test
-    fun `capabilities isLocalSource is true when the item's Source is LOCAL_FILES`() = runTest {
+    fun `capabilities hasDownloads is false when the item's Catalog lacks DownloadsCapability`() = runTest {
         val localItem = knownItem.copy(sourceId = "local-source")
-        val localSource = Source(
-            id = "local-source",
-            url = SourceUrl.parse("http://local")!!,
-            isActive = true,
-            insecureConnectionAllowed = false,
-            username = "",
-            type = com.riffle.core.domain.SourceType.LOCAL_FILES,
+        val vm = makeVm(
+            fakeRepo(localItem),
+            catalogRegistryOverride = fakeCatalogRegistry(NonDownloadsCatalog),
         )
-        val sourceRepo = object : SourceRepository {
-            override fun observeAll(): Flow<List<Source>> = MutableStateFlow(listOf(localSource))
-            override suspend fun getActive(): Source? = localSource
-            override suspend fun getById(sourceId: String): Source? =
-                localSource.takeIf { it.id == sourceId }
-            override suspend fun authenticate(url: SourceUrl, username: String, password: String, insecureAllowed: Boolean, serverType: com.riffle.core.domain.ServerType): AuthenticateResult =
-                AuthenticateResult.WrongCredentials()
-            override suspend fun commit(pending: PendingSource, hiddenLibraryIds: Set<String>): CommitSourceResult =
-                CommitSourceResult.Failure(IOException())
-            override suspend fun setActive(sourceId: String) {}
-            override suspend fun remove(sourceId: String) {}
-            override suspend fun getSourceVersion(sourceId: String): String? = null
-        }
-        val vm = makeVm(fakeRepo(localItem), sourceRepository = sourceRepo)
         backgroundScope.launch { vm.uiState.collect {} }
         testDispatcher.scheduler.advanceUntilIdle()
 
         val ready = vm.uiState.value as Ready
-        assertTrue(
-            "LocalFiles item must flag isLocalSource so the detail screen hides download buttons",
-            ready.capabilities.isLocalSource,
+        assertFalse(
+            "Source without DownloadsCapability must not flag hasDownloads — the detail screen would render dead download buttons.",
+            ready.capabilities.hasDownloads,
+        )
+        assertFalse(
+            "Source without ReadaloudCapability must not flag hasReadaloud.",
+            ready.capabilities.hasReadaloud,
         )
     }
 
-    // Companion to the LOCAL_FILES test: an ABS item must NOT flag isLocalSource, or the download
-    // buttons would disappear from the majority-shape flow.
+    // Companion: an ABS item's Catalog declares DownloadsCapability + ReadaloudCapability so the
+    // detail screen surfaces the download affordances.
     @Test
-    fun `capabilities isLocalSource is false when the item's Source is ABS`() = runTest {
+    fun `capabilities hasDownloads is true when the item's Catalog declares DownloadsCapability`() = runTest {
         val absItem = knownItem.copy(sourceId = "abs-source")
-        val absSource = Source(
-            id = "abs-source",
-            url = SourceUrl.parse("https://example.com")!!,
-            isActive = true,
-            insecureConnectionAllowed = false,
-            username = "u",
-            type = com.riffle.core.domain.SourceType.ABS,
+        val vm = makeVm(
+            fakeRepo(absItem),
+            catalogRegistryOverride = fakeCatalogRegistry(DownloadsAndReadaloudCatalog),
         )
-        val sourceRepo = object : SourceRepository {
-            override fun observeAll(): Flow<List<Source>> = MutableStateFlow(listOf(absSource))
-            override suspend fun getActive(): Source? = absSource
-            override suspend fun getById(sourceId: String): Source? =
-                absSource.takeIf { it.id == sourceId }
-            override suspend fun authenticate(url: SourceUrl, username: String, password: String, insecureAllowed: Boolean, serverType: com.riffle.core.domain.ServerType): AuthenticateResult =
-                AuthenticateResult.WrongCredentials()
-            override suspend fun commit(pending: PendingSource, hiddenLibraryIds: Set<String>): CommitSourceResult =
-                CommitSourceResult.Failure(IOException())
-            override suspend fun setActive(sourceId: String) {}
-            override suspend fun remove(sourceId: String) {}
-            override suspend fun getSourceVersion(sourceId: String): String? = null
-        }
-        val vm = makeVm(fakeRepo(absItem), sourceRepository = sourceRepo)
         backgroundScope.launch { vm.uiState.collect {} }
         testDispatcher.scheduler.advanceUntilIdle()
 
         val ready = vm.uiState.value as Ready
-        assertFalse(ready.capabilities.isLocalSource)
+        assertTrue(ready.capabilities.hasDownloads)
+        assertTrue(ready.capabilities.hasReadaloud)
     }
+
+    private object NonDownloadsCatalog : com.riffle.core.catalog.Catalog by NoopCatalog
+
+    private object DownloadsAndReadaloudCatalog :
+        com.riffle.core.catalog.Catalog by NoopCatalog,
+        com.riffle.core.catalog.DownloadsCapability,
+        com.riffle.core.catalog.ReadaloudCapability
+
+    private object NoopCatalog : com.riffle.core.catalog.Catalog {
+        override val sourceType: com.riffle.core.domain.SourceType = com.riffle.core.domain.SourceType.ABS
+        override suspend fun listRoots(): List<com.riffle.core.catalog.CatalogRoot> = emptyList()
+        override suspend fun browse(
+            rootId: String,
+            sort: com.riffle.core.catalog.SortKey,
+            page: Int,
+            pageSize: Int,
+            facet: com.riffle.core.catalog.FacetSelection?,
+        ): List<com.riffle.core.catalog.CatalogItem> = emptyList()
+        override suspend fun search(rootId: String, query: String, page: Int, pageSize: Int) = emptyList<com.riffle.core.catalog.CatalogItem>()
+        override suspend fun getItem(itemId: String): com.riffle.core.catalog.CatalogItem? = null
+        override suspend fun fetchFile(itemId: String, format: com.riffle.core.catalog.BookFormat) =
+            throw UnsupportedOperationException()
+        override suspend fun openFile(itemId: String, format: com.riffle.core.catalog.BookFormat, handleHint: String?) =
+            throw UnsupportedOperationException()
+        override suspend fun connectivityCheck() = com.riffle.core.catalog.CatalogHealth(isReachable = true)
+    }
+
+    private fun fakeCatalogRegistry(catalog: com.riffle.core.catalog.Catalog): com.riffle.core.catalog.CatalogRegistry =
+        object : com.riffle.core.catalog.CatalogRegistry {
+            override suspend fun forActive(): com.riffle.core.catalog.Catalog = catalog
+            override suspend fun forSource(source: com.riffle.core.domain.Source): com.riffle.core.catalog.Catalog = catalog
+            override suspend fun forSourceId(sourceId: String): com.riffle.core.catalog.Catalog = catalog
+        }
 }

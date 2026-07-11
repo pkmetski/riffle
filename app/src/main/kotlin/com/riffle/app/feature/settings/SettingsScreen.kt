@@ -9,8 +9,6 @@ import androidx.compose.ui.platform.testTag
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.core.content.FileProvider
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -70,7 +68,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -807,53 +804,36 @@ private fun ServerRow(
     onReorderLibraries: (orderedLibraryIds: List<String>) -> Unit,
     onOpenReadaloudMatches: () -> Unit,
 ) {
-    Column {
-        val username = server.username.takeIf { it.isNotEmpty() }
-        val subtitle = buildString {
-            if (username != null) {
-                append(username)
-                append(" · ")
-            }
-            append(server.url.value)
-            if (serverVersion != null) {
-                append(" · v")
-                append(serverVersion)
-            }
+    val username = server.username.takeIf { it.isNotEmpty() }
+    val subtitle = buildString {
+        if (username != null) {
+            append(username)
+            append(" · ")
         }
-        val chevronRotation by animateFloatAsState(
-            targetValue = if (isExpanded) 90f else 0f,
-            label = "chevron",
+        append(server.url.value)
+        if (serverVersion != null) {
+            append(" · v")
+            append(serverVersion)
+        }
+    }
+    ExpandableSourceRow(
+        isExpanded = isExpanded,
+        onToggleExpanded = onToggleExpanded,
+        onRemove = onRemove,
+        headlineContent = { Text(server.serverType.label) },
+        supportingContent = { Text(subtitle) },
+        trailingContent = if (server.isActive) {
+            { Text("Active", style = MaterialTheme.typography.labelSmall) }
+        } else null,
+    ) {
+        ServerSettingsExpansion(
+            server = server,
+            libraryItems = libraryItems,
+            summary = summary,
+            onSetLibraryVisible = onSetLibraryVisible,
+            onReorderLibraries = onReorderLibraries,
+            onOpenReadaloudMatches = onOpenReadaloudMatches,
         )
-        // Swipe-to-delete wraps ONLY the compact header — a swipe inside the tall expanded
-        // content (which holds interactive switches and chevron buttons) would otherwise partly
-        // reveal the delete background as a stray trash-icon peek.
-        SwipeToDeleteRow(onDelete = onRemove) {
-            ListItem(
-                modifier = Modifier.clickable { onToggleExpanded() },
-                leadingContent = {
-                    Icon(
-                        Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                        contentDescription = if (isExpanded) "Collapse" else "Expand",
-                        modifier = Modifier.rotate(chevronRotation),
-                    )
-                },
-                headlineContent = { Text(server.serverType.label) },
-                supportingContent = { Text(subtitle) },
-                trailingContent = if (server.isActive) {
-                    { Text("Active", style = MaterialTheme.typography.labelSmall) }
-                } else null,
-            )
-        }
-        AnimatedVisibility(visible = isExpanded) {
-            ServerSettingsExpansion(
-                server = server,
-                libraryItems = libraryItems,
-                summary = summary,
-                onSetLibraryVisible = onSetLibraryVisible,
-                onReorderLibraries = onReorderLibraries,
-                onOpenReadaloudMatches = onOpenReadaloudMatches,
-            )
-        }
     }
 }
 
@@ -1059,47 +1039,31 @@ private fun LocalFilesSourceRow(
     var pendingFolderRemoval by remember { mutableStateOf<com.riffle.core.database.LocalFilesFolderEntity?>(null) }
     var pendingSourceRemoval by remember { mutableStateOf(false) }
     val unhealthyCount = folders.count { folderHealth[it.treeUri] == false }
-    val chevronRotation by androidx.compose.animation.core.animateFloatAsState(
-        targetValue = if (isExpanded) 90f else 0f,
-        label = "chevron",
-    )
 
-    Column {
-      // Swipe wraps only the collapsed header; see [ServerRow] for the reasoning.
-      SwipeToDeleteRow(onDelete = onRemoveSource) {
-        ListItem(
-            modifier = Modifier
-                .clickable { onToggleExpanded() }
-                .testTag("LocalFilesSourceRow"),
-            leadingContent = {
+    ExpandableSourceRow(
+        isExpanded = isExpanded,
+        onToggleExpanded = onToggleExpanded,
+        onRemove = onRemoveSource,
+        headerTestTag = "LocalFilesSourceRow",
+        headlineContent = { Text("Local files") },
+        supportingContent = {
+            val folderWord = if (folders.size == 1) "folder" else "folders"
+            val summary = buildString {
+                append("${folders.size} $folderWord on this device")
+                if (unhealthyCount > 0) append(" · $unhealthyCount need attention")
+            }
+            Text(summary)
+        },
+        trailingContent = if (unhealthyCount > 0) {
+            {
                 Icon(
-                    Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                    contentDescription = if (isExpanded) "Collapse" else "Expand",
-                    modifier = Modifier.rotate(chevronRotation),
+                    Icons.Default.Warning,
+                    contentDescription = "Some folders need attention",
+                    tint = MaterialTheme.colorScheme.error,
                 )
-            },
-            headlineContent = { Text("Local files") },
-            supportingContent = {
-                val folderWord = if (folders.size == 1) "folder" else "folders"
-                val summary = buildString {
-                    append("${folders.size} $folderWord on this device")
-                    if (unhealthyCount > 0) append(" · $unhealthyCount need attention")
-                }
-                Text(summary)
-            },
-            trailingContent = if (unhealthyCount > 0) {
-                {
-                    Icon(
-                        Icons.Default.Warning,
-                        contentDescription = "Some folders need attention",
-                        tint = MaterialTheme.colorScheme.error,
-                    )
-                }
-            } else null,
-        )
-      }
-      androidx.compose.animation.AnimatedVisibility(visible = isExpanded) {
-            Column {
+            }
+        } else null,
+    ) {
                 ListItem(
                     modifier = Modifier
                         .clickable(onClick = onAddFolder)
@@ -1216,8 +1180,6 @@ private fun LocalFilesSourceRow(
                 ) {
                     Text("Remove Local Files source", color = MaterialTheme.colorScheme.error)
                 }
-            }
-        }
     }
 
     pendingFolderRemoval?.let { folder ->
@@ -1275,36 +1237,20 @@ internal fun ChitankaSourceRow(
     onReorderLibraries: (orderedLibraryIds: List<String>) -> Unit,
     onRemove: () -> Unit,
 ) {
-    val chevronRotation by androidx.compose.animation.core.animateFloatAsState(
-        targetValue = if (isExpanded) 90f else 0f,
-        label = "chevron",
-    )
-    Column {
-      // Swipe wraps only the collapsed header; see [ServerRow] for the reasoning.
-      SwipeToDeleteRow(onDelete = onRemove) {
-        ListItem(
-            modifier = Modifier
-                .clickable { onToggleExpanded() }
-                .testTag("ChitankaSourceRow"),
-            leadingContent = {
-                Icon(
-                    Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                    contentDescription = if (isExpanded) "Collapse" else "Expand",
-                    modifier = Modifier.rotate(chevronRotation),
-                )
-            },
-            headlineContent = { Text("Chitanka") },
-            supportingContent = { Text("chitanka.info · gramofonche.chitanka.info") },
-        )
-      }
-      androidx.compose.animation.AnimatedVisibility(visible = isExpanded) {
-          if (libraryItems.isNotEmpty()) {
-              ReorderableLibraryList(
-                  items = libraryItems,
-                  onSetLibraryVisible = onSetLibraryVisible,
-                  onReorder = onReorderLibraries,
-              )
-          }
-      }
+    ExpandableSourceRow(
+        isExpanded = isExpanded,
+        onToggleExpanded = onToggleExpanded,
+        onRemove = onRemove,
+        headerTestTag = "ChitankaSourceRow",
+        headlineContent = { Text("Chitanka") },
+        supportingContent = { Text("chitanka.info · gramofonche.chitanka.info") },
+    ) {
+        if (libraryItems.isNotEmpty()) {
+            ReorderableLibraryList(
+                items = libraryItems,
+                onSetLibraryVisible = onSetLibraryVisible,
+                onReorder = onReorderLibraries,
+            )
+        }
     }
 }

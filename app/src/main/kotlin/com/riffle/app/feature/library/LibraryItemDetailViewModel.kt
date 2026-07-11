@@ -21,10 +21,11 @@ import com.riffle.core.domain.usecase.UpdateReadingProgress
 import com.riffle.core.data.ToReadRepository
 import com.riffle.core.catalog.AudiobookMediaCapability
 import com.riffle.core.catalog.CatalogRegistry
+import com.riffle.core.catalog.DownloadsCapability
 import com.riffle.core.catalog.PlaylistsCapability
+import com.riffle.core.catalog.ReadaloudCapability
 import com.riffle.core.catalog.SeriesCapability
 import com.riffle.core.domain.SourceRepository
-import com.riffle.core.domain.SourceType
 import com.riffle.core.domain.TocEntry
 import com.riffle.core.domain.TokenStorage
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -70,18 +71,33 @@ data class DetailCapabilities(
     val hasSeries: Boolean,
     val hasPlaylists: Boolean,
     val hasAudiobookMedia: Boolean,
-    // True when the item lives on a LocalFiles Source — the file is already on device, so the
-    // download affordances (ebook, audiobook, readaloud bundle) have nothing to fetch and are
-    // hidden. Sourced from SourceType, not a Catalog capability: "already local" is a property of
-    // where the item comes from, not of what its Catalog implements.
-    val isLocalSource: Boolean = false,
+    /** True when the Source's Catalog declares [DownloadsCapability] — gates the ebook and
+     *  audiobook Download buttons. LocalFiles omits the capability (nothing to fetch). */
+    val hasDownloads: Boolean = false,
+    /** True when the Source's Catalog declares [ReadaloudCapability] — gates the readaloud
+     *  bundle Download button. ABS-only today. */
+    val hasReadaloud: Boolean = false,
 ) {
     companion object {
         /** Every capability present — matches the ABS shape used by the majority of items. */
-        val All = DetailCapabilities(hasSeries = true, hasPlaylists = true, hasAudiobookMedia = true)
+        val All = DetailCapabilities(
+            hasSeries = true,
+            hasPlaylists = true,
+            hasAudiobookMedia = true,
+            hasDownloads = true,
+            hasReadaloud = true,
+        )
 
-        /** No capability present — safe default when the active Source's Catalog can't be resolved. */
-        val Empty = DetailCapabilities(hasSeries = false, hasPlaylists = false, hasAudiobookMedia = false)
+        /** No capability present — safe default when the active Source's Catalog can't be resolved.
+         *  Enumerated exhaustively (mirroring [All]) so a future field addition can't silently
+         *  inherit the wrong Kotlin data-class default without touching this line. */
+        val Empty = DetailCapabilities(
+            hasSeries = false,
+            hasPlaylists = false,
+            hasAudiobookMedia = false,
+            hasDownloads = false,
+            hasReadaloud = false,
+        )
     }
 }
 
@@ -226,7 +242,6 @@ class LibraryItemDetailViewModel @Inject constructor(
                     // versa. Raw `is` checks (see LibraryItemsViewModel.tabVisibility for the
                     // JVM-target rationale).
                     val catalog = catalogRegistry.forSourceId(item.sourceId)
-                    val itemSource = sourceRepository.getById(item.sourceId)
                     val capabilities = DetailCapabilities(
                         hasSeries = catalog is SeriesCapability,
                         // To Read is available on every Source: [ToReadRepositoryImpl] falls back to
@@ -235,7 +250,8 @@ class LibraryItemDetailViewModel @Inject constructor(
                         // Local Files, Chitanka, and any future backend-less Source.
                         hasPlaylists = true,
                         hasAudiobookMedia = catalog is AudiobookMediaCapability,
-                        isLocalSource = itemSource?.type == SourceType.LOCAL_FILES,
+                        hasDownloads = catalog is DownloadsCapability,
+                        hasReadaloud = catalog is ReadaloudCapability,
                     )
                     LibraryItemDetailUiState.Ready(
                         item = item,

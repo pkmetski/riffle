@@ -223,21 +223,35 @@ class LibraryItemsViewModel @Inject constructor(
      * the inline `Catalog.has<T>()` extension: core:catalog compiles at JVM target 21 (implicit)
      * while every consumer pins target 17, so the inline can't cross the boundary today.
      */
-    val tabVisibility: StateFlow<LibraryTabVisibility?> = sourceRepository.observeAll()
-        .map { servers -> servers.firstOrNull { it.isActive }?.id }
+    val tabVisibility: StateFlow<LibraryTabVisibility?> = combine(
+        sourceRepository.observeAll()
+            .map { servers -> servers.firstOrNull { it.isActive }?.id }
+            .distinctUntilChanged(),
+        allItems,
+    ) { sourceId, items ->
+        val catalog = sourceId?.let { catalogRegistry.forSourceId(it) }
+        LibraryTabVisibility(
+            // To Read is available on every Source: [ToReadRepositoryImpl] falls back to a
+            // local Preferences DataStore when the Catalog has no server-side
+            // [PlaylistsCapability], so the tab shows for ABS, Local Files, and any future
+            // backend-less Source alike.
+            toRead = true,
+            series = catalog is SeriesCapability,
+            collections = catalog is CollectionsCapability,
+            // Highlights/notes are ebook-only. Hide the tab only when we've confirmed the
+            // library is audiobook-only — i.e. we have items AND none are readable. An empty
+            // list is treated as "not yet settled" (allItems' initial value is emptyList(),
+            // and a library refresh's replaceAllForLibrary window transiently drops rows) —
+            // keeping the tab visible there prevents a cold-start LaunchedEffect clamp from
+            // wiping a rememberSaveable-restored TAB_ANNOTATIONS. Adding a readable item
+            // later flips the tab back on live.
+            annotations = items.isEmpty() || items.any { it.isReadable },
+        )
+    }
+        // Room emits on every DB write (progress ticks, download-state changes) but the
+        // capability + item-shape signals rarely change; collapse identical values so the
+        // tab bar doesn't recompose on every progress tick.
         .distinctUntilChanged()
-        .map { sourceId ->
-            val catalog = sourceId?.let { catalogRegistry.forSourceId(it) }
-            LibraryTabVisibility(
-                // To Read is available on every Source: [ToReadRepositoryImpl] falls back to a
-                // local Preferences DataStore when the Catalog has no server-side
-                // [PlaylistsCapability], so the tab shows for ABS, Local Files, and any future
-                // backend-less Source alike.
-                toRead = true,
-                series = catalog is SeriesCapability,
-                collections = catalog is CollectionsCapability,
-            )
-        }
         .stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
     var authToken: String by mutableStateOf("")
