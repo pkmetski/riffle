@@ -56,10 +56,20 @@ class LocalStoreImpl(
         dir.listFiles()
             ?.filter { it.isDirectory }
             ?.flatMap { serverDir ->
-                serverDir.listFiles()
-                    ?.filter { it.name.endsWith(extension) }
-                    ?.map { StoredItemRef(sourceId = serverDir.name, itemId = it.name.removeSuffix(extension)) }
-                    ?: emptyList()
+                // Chitanka item ids contain '/' (e.g. "book/12018-…"), which puts saved files inside
+                // nested subdirectories of serverDir. Walk the whole tree so those items list, then
+                // rebuild the item id from the relative path.
+                val prefix = serverDir.absolutePath + File.separator
+                serverDir.walkTopDown()
+                    .filter { it.isFile && it.name.endsWith(extension) }
+                    .map { file ->
+                        val relative = file.absolutePath.removePrefix(prefix)
+                        StoredItemRef(
+                            sourceId = serverDir.name,
+                            itemId = relative.removeSuffix(extension),
+                        )
+                    }
+                    .toList()
             }
             ?: emptyList()
 }

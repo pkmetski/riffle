@@ -101,6 +101,18 @@ class LocalStoreTest {
     }
 
     @Test
+    fun `listItems descends into nested directories to surface slash-bearing item ids`() = runTest {
+        // Companion to the nested-save fix: without a recursive walk, cached Chitanka items are
+        // silently invisible to the Downloads/Cache screens (DownloadsRepositoryImpl.getCachedItems
+        // flat-maps listItems) even though they exist on disk.
+        store.save("source-1", "book/12018-kniga", "a".toByteArray().inputStream())
+        store.save("source-1", "flat-item", "b".toByteArray().inputStream())
+        val refs = store.listItems()
+        assertTrue(refs.contains(StoredItemRef("source-1", "book/12018-kniga")))
+        assertTrue(refs.contains(StoredItemRef("source-1", "flat-item")))
+    }
+
+    @Test
     fun `save creates nested parent directories for slash-bearing item ids`() = runTest {
         // Regression: Chitanka item ids are "book/12018-…", "prikazki/…", etc. The write path
         // used to only mkdirs the serverDir, so the tmp file inside the nested "book/" folder
