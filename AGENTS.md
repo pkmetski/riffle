@@ -38,6 +38,14 @@ When adding a new Room migration:
      - Cursor assertions verifying new columns have correct default values and all pre-existing data is preserved
    - Add the new migration to the `migrateFullChain` test's `runMigrationsAndValidate` call.
 
+## Commit every uncommitted change on the branch
+
+When finalizing, `git status` is almost never empty — the user routinely piggy-backs work in progress onto whatever branch is in flight. Every modified or untracked file that isn't your own scratch/debug artifact belongs on the branch and must be committed before the rebase / PR. **Unrelated ≠ unwanted.** Never stash-and-pop across the rebase (it silently drops the WIP from the PR), and never stop to ask "is this related?" — the answer is that the user knew the state of their tree when they invoked `/finalize`.
+
+- If a change is clearly part of the same fix, fold it into the pending commit.
+- If it's a whole separate feature or unrelated fix, give it its own commit with a descriptive message and mention it in the PR body so it's not a surprise in the diff.
+- Only stop and ask when a file looks genuinely suspicious (potential secret, large binary that doesn't belong).
+
 ## Reference the source issue in the PR
 
 When the work originated from a GitHub Issue (e.g. the user asked you to "do #123"), the PR body must include a `Closes #N` line so the merge auto-closes the issue. One line per issue if the PR spans several. Put it near the top of the body, above the change summary.
