@@ -36,6 +36,13 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import com.riffle.app.ui.TabletContentWidthContainer
 
 /**
+ * Copy shown when a scan completes but no files were classifiable. Deliberately format-agnostic
+ * — the scanner's supported set is owned by `FileClassifier.Kind`, and naming EPUB/PDF/CBZ here
+ * would silently go stale the next time a format is added.
+ */
+internal const val EMPTY_SCAN_MESSAGE: String = "No supported books were found in that folder."
+
+/**
  * Entry point for the Add-Source LocalFiles flow. Auto-launches the SAF folder picker on first
  * frame; on cancel offers a retry / back path; on success surfaces the scan report before
  * handing back to the caller. No form fields — LocalFiles has no credentials to supply.
@@ -132,7 +139,7 @@ private fun SuccessView(added: Int, failures: Int, onDone: () -> Unit) {
             )
         } else if (added == 0) {
             Text(
-                "No supported books were found in that folder.",
+                EMPTY_SCAN_MESSAGE,
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
