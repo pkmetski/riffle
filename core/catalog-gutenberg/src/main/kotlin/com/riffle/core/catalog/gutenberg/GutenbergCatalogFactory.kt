@@ -5,6 +5,7 @@ import com.riffle.core.catalog.CatalogFactory
 import com.riffle.core.domain.Source
 import com.riffle.core.domain.SourceType
 import okhttp3.OkHttpClient
+import okhttp3.Protocol
 import java.util.concurrent.TimeUnit
 
 /**
@@ -25,7 +26,13 @@ class GutenbergCatalogFactory(
     private val userAgent: String,
 ) : CatalogFactory {
 
+    // HTTP/1.1-only: Gutendex sits behind Cloudflare. Empirically OkHttp's default HTTP/2
+    // path stalls on some `topic=…` queries — the connection stays open past the read timeout
+    // even though curl to the same URL returns in <200 ms. Forcing HTTP/1.1 sidesteps the H2
+    // stream-multiplexing edge case entirely; the tradeoff (a fresh TCP per unpipelined
+    // request) is trivial for this Source's request volume.
     private val httpClient: OkHttpClient = okHttpClient.newBuilder()
+        .protocols(listOf(Protocol.HTTP_1_1))
         .connectTimeout(GUTENBERG_CONNECT_TIMEOUT_SEC, TimeUnit.SECONDS)
         .readTimeout(GUTENBERG_READ_TIMEOUT_SEC, TimeUnit.SECONDS)
         .callTimeout(GUTENBERG_CALL_TIMEOUT_SEC, TimeUnit.SECONDS)
