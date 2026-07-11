@@ -129,6 +129,33 @@ class ChitankaLibraryItemUpserterTest {
     }
 
     @Test
+    fun `re-tap after reader-open preserves the promoted addedAt`() = runTest {
+        // Regression: updateMetadata is a Room @Update that copies every column of
+        // LibraryItemMetadata onto the existing row, INCLUDING addedAt. Without the "read the
+        // current addedAt and preserve it" step in the upserter, a second browse-tap on a book
+        // whose sentinel had been promoted (by updateLastOpenedAt on the first reader open)
+        // would overwrite the promoted timestamp with 0 and silently evict the book from
+        // Recently Added. Simulating updateLastOpenedAt via updateMetadata here keeps the fake
+        // dao minimal; the DAO-level test in LibraryItemDaoTest covers the actual promotion SQL.
+        val dao = InMemoryLibraryItemDao()
+        val upserter = ChitankaLibraryItemUpserter(dao)
+        val item = catalogEpub()
+
+        upserter.upsert("chit-1", item)
+        // Simulate updateLastOpenedAt promoting the sentinel to a real timestamp.
+        val opened = dao.getById("chit-1", item.id)!!.copy(addedAt = 9_000L, lastOpenedAt = 9_000L)
+        dao.upsertAll(listOf(opened))
+
+        upserter.upsert("chit-1", item)
+
+        assertEquals(
+            "re-tap must not demote the promoted addedAt back to sentinel",
+            9_000L,
+            dao.getById("chit-1", item.id)!!.addedAt,
+        )
+    }
+
+    @Test
     fun `null description and coverUrl are handled (null cover coerced to empty)`() = runTest {
         val dao = InMemoryLibraryItemDao()
         val upserter = ChitankaLibraryItemUpserter(dao)

@@ -33,7 +33,13 @@ class ChitankaLibraryItemUpserter @Inject constructor(
     suspend fun upsert(sourceId: String, item: CatalogItem) {
         val entity = item.toEntity(sourceId)
         libraryItemDao.insertOrIgnore(listOf(entity))
-        libraryItemDao.updateMetadata(LibraryItemMetadata.from(entity))
+        // Preserve the row's existing `addedAt`: for a fresh insert it's still the sentinel 0,
+        // but for a re-tap after the reader has promoted the row we must NOT let updateMetadata
+        // copy `entity.addedAt = 0` back on top and silently evict the book from Recently Added.
+        val existingAddedAt = libraryItemDao.getById(sourceId, entity.id)?.addedAt ?: 0L
+        libraryItemDao.updateMetadata(
+            LibraryItemMetadata.from(entity.copy(addedAt = existingAddedAt)),
+        )
     }
 
     private fun CatalogItem.toEntity(sourceId: String): LibraryItemEntity = LibraryItemEntity(
