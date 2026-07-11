@@ -99,4 +99,17 @@ class LocalStoreTest {
     fun `listItems returns empty list when store is empty`() {
         assertTrue(store.listItems().isEmpty())
     }
+
+    @Test
+    fun `save creates nested parent directories for slash-bearing item ids`() = runTest {
+        // Regression: Chitanka item ids are "book/12018-…", "prikazki/…", etc. The write path
+        // used to only mkdirs the serverDir, so the tmp file inside the nested "book/" folder
+        // failed ENOENT and the reader surfaced "Network error: … open failed: ENOENT".
+        val bytes = "epub-content".toByteArray()
+        val file = store.save("source-1", "book/12018-kniga", bytes.inputStream())
+        assertTrue(file.exists())
+        val result = store.get("source-1", "book/12018-kniga")
+        assertNotNull(result)
+        assertArrayEquals(bytes, result!!.readBytes())
+    }
 }

@@ -26,6 +26,10 @@ class LocalStoreImpl(
             val serverDir = dir.resolve(sourceId).also { it.mkdirs() }
             val dest = serverDir.resolve("$itemId$extension")
             val tmp = serverDir.resolve("$itemId$extension.tmp")
+            // Item ids may contain '/' (e.g. Chitanka's "book/12018-…", "prikazki/…"), which lands
+            // dest/tmp inside a nested subdirectory of serverDir. Create it before opening the stream,
+            // otherwise the tmp write fails ENOENT ("No such file or directory").
+            tmp.parentFile?.mkdirs()
             try {
                 tmp.outputStream().use { out -> stream.copyTo(out) }
                 tmp.renameTo(dest)
