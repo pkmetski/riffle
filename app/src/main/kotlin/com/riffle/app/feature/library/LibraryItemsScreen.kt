@@ -1255,12 +1255,14 @@ internal fun tabIndexForAnnotations(): Int = 2
 
 /**
  * True when the tab currently rendered at [selectedTab] is still valid given the active Source's
- * [visibility]. Callers use this to fall back to Home (index 0) after a Source switch hides the
- * previously-selected tab. Home / Annotations / All Books are always visible.
+ * [visibility]. Callers use this to fall back to Home (index 0) after a Source switch (or a
+ * library switch that hides Annotations) invalidates the previously-selected tab. Home and All
+ * Books are always visible.
  */
 internal fun isTabVisible(selectedTab: Int, visibility: LibraryTabVisibility): Boolean =
     when (selectedTab) {
         1 -> visibility.toRead
+        2 -> visibility.annotations
         3 -> visibility.series
         4 -> visibility.collections
         else -> true
@@ -1285,11 +1287,13 @@ private fun LibraryTabBar(
                 icon = { Icon(RiffleIcons.ToReadFilled, contentDescription = "To Read") },
             )
         }
-        NavigationBarItem(
-            selected = selectedTab == tabIndexForAnnotations(),
-            onClick = { onTabSelected(tabIndexForAnnotations()) },
-            icon = { Icon(RiffleIcons.Annotations, contentDescription = "Annotations") },
-        )
+        if (visibility.annotations) {
+            NavigationBarItem(
+                selected = selectedTab == tabIndexForAnnotations(),
+                onClick = { onTabSelected(tabIndexForAnnotations()) },
+                icon = { Icon(RiffleIcons.Annotations, contentDescription = "Annotations") },
+            )
+        }
         if (visibility.series) {
             NavigationBarItem(
                 selected = selectedTab == 3,

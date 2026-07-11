@@ -223,21 +223,27 @@ class LibraryItemsViewModel @Inject constructor(
      * the inline `Catalog.has<T>()` extension: core:catalog compiles at JVM target 21 (implicit)
      * while every consumer pins target 17, so the inline can't cross the boundary today.
      */
-    val tabVisibility: StateFlow<LibraryTabVisibility?> = sourceRepository.observeAll()
-        .map { servers -> servers.firstOrNull { it.isActive }?.id }
-        .distinctUntilChanged()
-        .map { sourceId ->
-            val catalog = sourceId?.let { catalogRegistry.forSourceId(it) }
-            LibraryTabVisibility(
-                // To Read is available on every Source: [ToReadRepositoryImpl] falls back to a
-                // local Preferences DataStore when the Catalog has no server-side
-                // [PlaylistsCapability], so the tab shows for ABS, Local Files, and any future
-                // backend-less Source alike.
-                toRead = true,
-                series = catalog is SeriesCapability,
-                collections = catalog is CollectionsCapability,
-            )
-        }
+    val tabVisibility: StateFlow<LibraryTabVisibility?> = combine(
+        sourceRepository.observeAll()
+            .map { servers -> servers.firstOrNull { it.isActive }?.id }
+            .distinctUntilChanged(),
+        allItems,
+    ) { sourceId, items ->
+        val catalog = sourceId?.let { catalogRegistry.forSourceId(it) }
+        LibraryTabVisibility(
+            // To Read is available on every Source: [ToReadRepositoryImpl] falls back to a
+            // local Preferences DataStore when the Catalog has no server-side
+            // [PlaylistsCapability], so the tab shows for ABS, Local Files, and any future
+            // backend-less Source alike.
+            toRead = true,
+            series = catalog is SeriesCapability,
+            collections = catalog is CollectionsCapability,
+            // Highlights/notes are ebook-only. An audiobook-only library never yields any, so
+            // the tab would be dead UI. Reactive against `allItems` — adding a readable item
+            // later flips the tab back on live.
+            annotations = items.any { it.isReadable },
+        )
+    }
         .stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
     var authToken: String by mutableStateOf("")

@@ -16,10 +16,21 @@ class LibraryTabVisibilityTest {
     @Test
     fun `unconditional tabs stay visible regardless of capabilities`() {
         val none = LibraryTabVisibility.Empty
-        // Home (0), Annotations (2 via tabIndexForAnnotations), All Books (5) are always shown.
+        // Home (0), All Books (5) are always shown. Annotations (2) is now conditional on the
+        // library containing readable items — covered separately below.
         assertTrue(isTabVisible(0, none))
-        assertTrue(isTabVisible(tabIndexForAnnotations(), none))
         assertTrue(isTabVisible(5, none))
+    }
+
+    @Test
+    fun `annotations tab is hidden when the library has no readable items`() {
+        val audiobookOnly = LibraryTabVisibility(
+            toRead = true, series = false, collections = false, annotations = false,
+        )
+        assertFalse(isTabVisible(tabIndexForAnnotations(), audiobookOnly))
+
+        val mixed = audiobookOnly.copy(annotations = true)
+        assertTrue(isTabVisible(tabIndexForAnnotations(), mixed))
     }
 
     @Test
@@ -42,7 +53,9 @@ class LibraryTabVisibilityTest {
 
     @Test
     fun `a partial visibility set only affects its own tab`() {
-        val onlyToRead = LibraryTabVisibility(toRead = true, series = false, collections = false)
+        val onlyToRead = LibraryTabVisibility(
+            toRead = true, series = false, collections = false, annotations = false,
+        )
         assertTrue(isTabVisible(1, onlyToRead))
         assertFalse(isTabVisible(3, onlyToRead))
         assertFalse(isTabVisible(4, onlyToRead))
