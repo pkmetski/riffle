@@ -205,6 +205,7 @@ fun MainScreen(
                 val pickerViewModel: com.riffle.app.feature.server.SourceTypePickerViewModel =
                     androidx.hilt.navigation.compose.hiltViewModel()
                 val hasLocalFilesSource by pickerViewModel.hasLocalFilesSource.collectAsState()
+                val hasChitankaSource by pickerViewModel.hasChitankaSource.collectAsState()
                 com.riffle.app.feature.server.SourceTypePickerScreen(
                     windowSizeClass = windowSizeClass,
                     onNavigateBack = {
@@ -228,6 +229,7 @@ fun MainScreen(
                         }
                     },
                     hasLocalFilesSource = hasLocalFilesSource,
+                    hasChitankaSource = hasChitankaSource,
                 )
             }
             composable(
