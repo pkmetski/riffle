@@ -606,14 +606,10 @@ fun SettingsScreen(
                         supportingContent = { Text("The app has not crashed since installation") },
                     )
                 } else {
-                    Text(
-                        text = "All reports",
-                        style = MaterialTheme.typography.labelMedium,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
-                    )
                     ListItem(
-                        headlineContent = { Text("${crashReports.size} crash report${if (crashReports.size == 1) "" else "s"}") },
+                        headlineContent = {
+                            Text("${crashReports.size} crash report${if (crashReports.size == 1) "" else "s"}")
+                        },
                         supportingContent = { Text("Newest first") },
                         trailingContent = {
                             Row {
@@ -636,7 +632,7 @@ fun SettingsScreen(
                                     }
                                     context.startActivity(Intent.createChooser(intent, "Share crash reports"))
                                 }) {
-                                    Text("Share")
+                                    Text("Share all")
                                 }
                                 TextButton(onClick = {
                                     viewModel.clearCrashReports()
@@ -646,12 +642,6 @@ fun SettingsScreen(
                                 }
                             }
                         },
-                    )
-                    Text(
-                        text = "Individual reports",
-                        style = MaterialTheme.typography.labelMedium,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
                     )
                     crashReports.forEach { item ->
                         val timestamp = DateFormat.getDateTimeInstance().format(Date(item.timestampMillis))
