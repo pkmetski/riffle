@@ -58,7 +58,7 @@ class ChitankaLibraryItemUpserterTest {
     @Test
     fun `first upsert inserts EPUB row with mapped fields`() = runTest {
         val dao = InMemoryLibraryItemDao()
-        val upserter = ChitankaLibraryItemUpserter(dao, com.riffle.core.domain.TestClock(initialMs = 7_000L))
+        val upserter = ChitankaLibraryItemUpserter(dao)
 
         upserter.upsert(sourceId = "chit-1", item = catalogEpub())
 
@@ -83,7 +83,7 @@ class ChitankaLibraryItemUpserterTest {
     @Test
     fun `audiobook item maps hasAudio true and libraryId to audio root`() = runTest {
         val dao = InMemoryLibraryItemDao()
-        val upserter = ChitankaLibraryItemUpserter(dao, com.riffle.core.domain.TestClock(initialMs = 7_000L))
+        val upserter = ChitankaLibraryItemUpserter(dao)
 
         upserter.upsert(sourceId = "chit-1", item = catalogAudio())
 
@@ -99,7 +99,7 @@ class ChitankaLibraryItemUpserterTest {
     @Test
     fun `re-open preserves existing readingProgress`() = runTest {
         val dao = InMemoryLibraryItemDao()
-        val upserter = ChitankaLibraryItemUpserter(dao, com.riffle.core.domain.TestClock(initialMs = 7_000L))
+        val upserter = ChitankaLibraryItemUpserter(dao)
         val item = catalogEpub()
 
         upserter.upsert("chit-1", item)
@@ -113,26 +113,25 @@ class ChitankaLibraryItemUpserterTest {
     }
 
     @Test
-    fun `addedAt falls back to clock when the CatalogItem has none`() = runTest {
-        // Regression: Chitanka listings carry no addedAt, so without a fallback these rows land
-        // with NULL addedAt and get silently ordered to the tail of Recently Added (or off the
-        // top-50 entirely when the audiobooks library also holds ABS items). Pin the stamp so
-        // reverting the fix flips this test red.
+    fun `browse-tap stamps addedAt = 0 sentinel so the item stays out of Recently Added`() = runTest {
+        // A Chitanka browse tap upserts a row so the reader / audiobook player can resolve the
+        // item, but that is not "added to the library" — writing a real clock timestamp here
+        // would surface the item in the Recently Added rail immediately after browsing. The
+        // sentinel is promoted to a real timestamp by LibraryItemDao.updateLastOpenedAt on the
+        // first reader open (see LibraryItemDao test coverage). Flipping this back to
+        // clock.nowMs() flips this test red.
         val dao = InMemoryLibraryItemDao()
-        val upserter = ChitankaLibraryItemUpserter(
-            dao,
-            com.riffle.core.domain.TestClock(initialMs = 12_345L),
-        )
+        val upserter = ChitankaLibraryItemUpserter(dao)
 
         upserter.upsert(sourceId = "chit-1", item = catalogEpub().copy(addedAt = null))
 
-        assertEquals(12_345L, dao.getById("chit-1", "text/12345-x")!!.addedAt)
+        assertEquals(0L, dao.getById("chit-1", "text/12345-x")!!.addedAt)
     }
 
     @Test
     fun `null description and coverUrl are handled (null cover coerced to empty)`() = runTest {
         val dao = InMemoryLibraryItemDao()
-        val upserter = ChitankaLibraryItemUpserter(dao, com.riffle.core.domain.TestClock(initialMs = 7_000L))
+        val upserter = ChitankaLibraryItemUpserter(dao)
 
         upserter.upsert(
             sourceId = "chit-1",

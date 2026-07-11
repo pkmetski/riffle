@@ -213,4 +213,42 @@ class LibraryItemDaoTest {
         }
         assertEquals(setOf("c", "d", "e"), emittedStates.last().map { it.id }.toSet())
     }
+
+    // observeRecentlyAdded filters out sentinel rows (addedAt == 0), which are written by
+    // on-demand browse upserters like ChitankaLibraryItemUpserter. A browse tap is not intent to
+    // add the book — the row only exists so the reader / audiobook player can resolve it.
+    // Reverting the `AND addedAt > 0` clause on the query flips this test red.
+    @Test
+    fun observeRecentlyAdded_excludesSentinelRows() = runTest {
+        dao.upsertAll(listOf(
+            item("browsed", readingProgress = 0f).copy(addedAt = 0L),
+            item("added-old", readingProgress = 0f).copy(addedAt = 1_000L),
+            item("added-new", readingProgress = 0f).copy(addedAt = 2_000L),
+        ))
+
+        val ids = dao.observeRecentlyAdded("s1", "lib1").first().map { it.id }
+
+        assertEquals(listOf("added-new", "added-old"), ids)
+    }
+
+    // updateLastOpenedAt is the strong-intent promotion for browse-cached rows: opening the
+    // reader flips the sentinel addedAt = 0 to the real timestamp, so the item now surfaces in
+    // Recently Added. Rows already carrying a real addedAt must keep it (never overwrite a
+    // canonical import date with lastOpenedAt). Removing the CASE branch flips this test red.
+    @Test
+    fun updateLastOpenedAt_promotesSentinelAddedAtOnFirstOpen() = runTest {
+        dao.upsertAll(listOf(
+            item("browsed", readingProgress = 0f).copy(addedAt = 0L),
+            item("imported", readingProgress = 0f).copy(addedAt = 500L),
+        ))
+
+        dao.updateLastOpenedAt("s1", "browsed", timestamp = 9_000L)
+        dao.updateLastOpenedAt("s1", "imported", timestamp = 9_000L)
+
+        val rows = dao.observeAllBooks("s1", "lib1").first().associateBy { it.id }
+        assertEquals(9_000L, rows.getValue("browsed").addedAt)
+        assertEquals(9_000L, rows.getValue("browsed").lastOpenedAt)
+        assertEquals(500L, rows.getValue("imported").addedAt)
+        assertEquals(9_000L, rows.getValue("imported").lastOpenedAt)
+    }
 }

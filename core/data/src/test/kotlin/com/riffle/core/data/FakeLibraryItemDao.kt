@@ -32,7 +32,11 @@ internal class FakeLibraryItemDao : LibraryItemDao {
         MutableStateFlow(scoped(sourceId, libraryId).filter { it.readingProgress == 1f })
 
     override fun observeRecentlyAdded(sourceId: String, libraryId: String): Flow<List<LibraryItemEntity>> =
-        MutableStateFlow(scoped(sourceId, libraryId).sortedByDescending { it.addedAt })
+        MutableStateFlow(
+            scoped(sourceId, libraryId)
+                .filter { it.addedAt > 0L }
+                .sortedByDescending { it.addedAt },
+        )
 
     override fun observeAllBooks(sourceId: String, libraryId: String): Flow<List<LibraryItemEntity>> =
         MutableStateFlow(scoped(sourceId, libraryId))
@@ -124,7 +128,18 @@ internal class FakeLibraryItemDao : LibraryItemDao {
         }
     }
 
-    override suspend fun updateLastOpenedAt(sourceId: String, itemId: String, timestamp: Long) {}
+    override suspend fun updateLastOpenedAt(sourceId: String, itemId: String, timestamp: Long) {
+        roomData.forEach { (_, flow) ->
+            flow.value = flow.value.map { existing ->
+                if (existing.sourceId == sourceId && existing.id == itemId) {
+                    existing.copy(
+                        lastOpenedAt = timestamp,
+                        addedAt = if (existing.addedAt == 0L) timestamp else existing.addedAt,
+                    )
+                } else existing
+            }
+        }
+    }
 
     override suspend fun getLastOpenedAtMap(sourceId: String, libraryId: String): List<LastOpenedAtRow> =
         scoped(sourceId, libraryId)
