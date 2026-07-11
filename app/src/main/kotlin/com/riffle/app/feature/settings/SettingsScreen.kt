@@ -1138,19 +1138,22 @@ private fun LocalFilesSourceRow(
                     // up each folder by libraryId. Any folder without a matching library still
                     // renders — falls back to its natural position at the end.
                     val foldersByLibraryId = folders.associateBy { it.libraryId }
-                    val orderedFolders = buildList {
+                    // Each row carries the index of its item within [libraryItems] so the reorder
+                    // swap lands on the right pair even when a library has no matching folder yet
+                    // (or vice versa) during the brief window between DAO flow emissions.
+                    val orderedFolders = buildList<Triple<com.riffle.core.database.LocalFilesFolderEntity, LibraryUiItem?, Int>> {
                         val consumed = mutableSetOf<String>()
-                        libraryItems.forEach { item ->
+                        libraryItems.forEachIndexed { libraryIndex, item ->
                             foldersByLibraryId[item.library.id]?.let { folder ->
-                                add(folder to item)
+                                add(Triple(folder, item, libraryIndex))
                                 consumed += folder.treeUri
                             }
                         }
                         folders.forEach { folder ->
-                            if (folder.treeUri !in consumed) add(folder to null)
+                            if (folder.treeUri !in consumed) add(Triple(folder, null, -1))
                         }
                     }
-                    orderedFolders.forEachIndexed { index, (folder, item) ->
+                    orderedFolders.forEach { (folder, item, libraryIndex) ->
                         val isHealthy = folderHealth[folder.treeUri] != false
                         ListItem(
                             modifier = Modifier.testTag("LocalFilesFolder.${folder.treeUri}"),
@@ -1177,9 +1180,9 @@ private fun LocalFilesSourceRow(
                                     if (item != null && libraryItems.size > 1) {
                                         IconButton(
                                             onClick = {
-                                                onReorderLibraries(libraryItems.idsWithSwap(index, index - 1))
+                                                onReorderLibraries(libraryItems.idsWithSwap(libraryIndex, libraryIndex - 1))
                                             },
-                                            enabled = index > 0,
+                                            enabled = libraryIndex > 0,
                                         ) {
                                             Icon(
                                                 Icons.Filled.KeyboardArrowUp,
@@ -1188,9 +1191,9 @@ private fun LocalFilesSourceRow(
                                         }
                                         IconButton(
                                             onClick = {
-                                                onReorderLibraries(libraryItems.idsWithSwap(index, index + 1))
+                                                onReorderLibraries(libraryItems.idsWithSwap(libraryIndex, libraryIndex + 1))
                                             },
-                                            enabled = index < libraryItems.lastIndex,
+                                            enabled = libraryIndex < libraryItems.lastIndex,
                                         ) {
                                             Icon(
                                                 Icons.Filled.KeyboardArrowDown,
