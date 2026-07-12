@@ -127,6 +127,42 @@ class KomgaCatalogTest {
         }
     }
 
+    // Regression: KomgaBookDto.toCatalogItem was dropping Komga's `created` field
+    // (addedAt = null). LibraryRepositoryImpl.refreshLibraryItems then stamped `clock.nowMs()`
+    // and LibraryItemDao.updateMetadata overwrote the column on every refresh — every book got a
+    // fresh ~now, all timestamps tied, ORDER BY addedAt DESC tie-broke by insertion order, and
+    // the top-5 Recently Added visibly reshuffled across library opens. The Komga API returns
+    // `created` as ISO-8601 (`2026-06-06T19:20:23Z`) — parse it into the CatalogItem's addedAt so
+    // the sort key is stable. This assertion would flip red if the parse-through were reverted.
+    @Test fun `browse populates addedAt from Komga's created timestamp`() = runTest {
+        server.enqueue(MockResponse().setBody("""
+            {
+              "content": [
+                {"id":"B1","libraryId":"L1","name":"one.epub","created":"2026-06-06T19:20:23Z","media":{"mediaType":"application/epub+zip"},"metadata":{"title":"One","authors":[]}},
+                {"id":"B2","libraryId":"L1","name":"two.epub","created":"2025-09-14T14:05:16Z","media":{"mediaType":"application/epub+zip"},"metadata":{"title":"Two","authors":[]}},
+                {"id":"B3","libraryId":"L1","name":"three.epub","media":{"mediaType":"application/epub+zip"},"metadata":{"title":"Three","authors":[]}}
+              ],
+              "totalPages":1,"totalElements":3,"first":true,"last":true,"empty":false
+            }
+        """.trimIndent()))
+
+        val items = catalog.browse("L1", SortKey.TITLE)
+
+        // 2026-06-06T19:20:23Z → epoch ms
+        assertEquals(java.time.Instant.parse("2026-06-06T19:20:23Z").toEpochMilli(), items[0].addedAt)
+        assertEquals(java.time.Instant.parse("2025-09-14T14:05:16Z").toEpochMilli(), items[1].addedAt)
+        // No `created` field on the book → null; the repository stamps a `now` fallback.
+        assertNull(items[2].addedAt)
+    }
+
+    @Test fun `parseIsoInstant handles null blank and malformed strings`() {
+        assertNull(KomgaCatalog.parseIsoInstant(null))
+        assertNull(KomgaCatalog.parseIsoInstant(""))
+        assertNull(KomgaCatalog.parseIsoInstant("   "))
+        assertNull(KomgaCatalog.parseIsoInstant("not-a-timestamp"))
+        assertEquals(0L, KomgaCatalog.parseIsoInstant("1970-01-01T00:00:00Z"))
+    }
+
     @Test fun `parseActuatorVersion extracts build version`() {
         val v = KomgaCatalog.parseActuatorVersion(
             """{"build":{"version":"1.10.0","artifact":"komga"}}"""

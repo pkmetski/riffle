@@ -295,11 +295,17 @@ class KomgaCatalog(
         genres = metadata.tags.take(6),
         publisher = null,
         language = null,
-        addedAt = null,
+        // Komga's `created` is when the book row landed on the Komga server — the canonical
+        // "added" timestamp for Recently Added. Falling through as null caused
+        // LibraryRepositoryImpl.refreshLibraryItems to stamp `addedAt = clock.nowMs()` on every
+        // refresh, and updateMetadata overwrites the column, so every book got a fresh ~now on
+        // every library open. All timestamps tie, ORDER BY addedAt DESC is tie-broken by row
+        // insertion order, and the top-5 Recently Added visibly reshuffled every refresh.
+        addedAt = parseIsoInstant(created),
         isbn = metadata.isbn,
         asin = null,
         readingProgress = null,
-        updatedAt = null,
+        updatedAt = parseIsoInstant(lastModified),
     )
 
     internal fun apiUrl(path: String): String = "${config.baseUrl.trimEnd('/')}/api/v1/$path"
@@ -345,6 +351,17 @@ class KomgaCatalog(
             if (n == 0f) return null
             val asInt = n.toInt()
             return if (asInt.toFloat() == n) asInt.toString() else n.toString()
+        }
+
+        /**
+         * Parse Komga's ISO-8601 timestamp strings (e.g. `2026-06-06T19:20:23Z`) into epoch
+         * milliseconds. Returns null when [raw] is null, blank, or unparseable — the caller then
+         * leaves `addedAt` unset and `LibraryRepositoryImpl.refreshLibraryItems` falls back to
+         * `clock.nowMs()`, which is meaningless but at least not a crash.
+         */
+        internal fun parseIsoInstant(raw: String?): Long? {
+            if (raw.isNullOrBlank()) return null
+            return runCatching { java.time.Instant.parse(raw).toEpochMilli() }.getOrNull()
         }
 
         /** Komga's server-side page-size cap. Requests larger than this are silently truncated. */
