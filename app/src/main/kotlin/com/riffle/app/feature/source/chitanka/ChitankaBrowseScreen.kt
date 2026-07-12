@@ -125,7 +125,11 @@ fun ChitankaBrowseScreen(
                 },
                 actions = {
                     if (selectedTab == TAB_LIBRARY) {
-                        IconButton(onClick = { searchOpen = !searchOpen }) {
+                        IconButton(onClick = {
+                            searchOpen = com.riffle.app.feature.source.common.toggleSearchOpen(searchOpen) {
+                                viewModel.onQueryChange("")
+                            }
+                        }) {
                             Icon(
                                 if (searchOpen) Icons.Default.Close else Icons.Default.Search,
                                 contentDescription = if (searchOpen) "Close search" else "Search",
