@@ -55,7 +55,8 @@ internal fun figureBorderApplyJs(
     }
     val rasterJson = rasterMarks.joinToString(",", prefix = "[", postfix = "]") { m ->
         val escFn = m.filename.replace("\\", "\\\\").replace("\"", "\\\"")
-        "{\"fn\":\"$escFn\",\"note\":${if (m.hasNote) 1 else 0}}"
+        val escColor = m.color.replace("\"", "\\\"")
+        "{\"fn\":\"$escFn\",\"color\":\"$escColor\",\"note\":${if (m.hasNote) 1 else 0}}"
     }
     // Percent-encoded SVG of the same note-alt icon used by NoteGlyphDecoration. The literal
     // single quotes inside the SVG attributes are percent-encoded (%27) — otherwise Kotlin's
@@ -128,6 +129,23 @@ internal fun figureBorderApplyJs(
             badge.innerHTML = '<span></span>';
             wrap.appendChild(badge);
           }
+          function clearAllFigcaptionTints() {
+            var stale = document.querySelectorAll('figcaption[data-riffle-fig-tint]');
+            for (var k = 0; k < stale.length; k++) {
+              stale[k].style.backgroundColor = '';
+              stale[k].removeAttribute('data-riffle-fig-tint');
+            }
+          }
+          function tintCaptionFor(el, color) {
+            if (!el) return;
+            var fig = el.closest && el.closest('figure, [role="figure"]');
+            if (!fig) return;
+            var cap = fig.querySelector('figcaption');
+            if (!cap) return;
+            cap.style.backgroundColor = color;
+            cap.setAttribute('data-riffle-fig-tint', '1');
+          }
+          clearAllFigcaptionTints();
           try {
             // Raster: iterate the matched images and add/remove note badges. Border itself comes
             // from the CSS style block above; badge lives on the wrapper we insert here.
@@ -137,6 +155,7 @@ internal fun figureBorderApplyJs(
               var imgs = document.querySelectorAll('img[src\$="' + rf.fn + '"]');
               for (var ii = 0; ii < imgs.length; ii++) {
                 var img = imgs[ii];
+                tintCaptionFor(img, rf.color);
                 if (rf.note) {
                   var col = (window.getComputedStyle && window.getComputedStyle(img).outlineColor) || 'currentColor';
                   addNoteBadge(img, col);
@@ -167,6 +186,7 @@ internal fun figureBorderApplyJs(
                   s.style.outline = '2px solid ' + matches[j].color;
                   s.style.outlineOffset = '2px';
                   s.__riffleBorderApplied = true;
+                  tintCaptionFor(s, matches[j].color);
                   if (matches[j].note) addNoteBadge(s, matches[j].color);
                   break;
                 }
