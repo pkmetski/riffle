@@ -10,8 +10,10 @@ package com.riffle.app.feature.reader
  * tags, and each constant is a self-contained `function` declaration (no trailing bare statements)
  * so callers can splice multiple of these together followed by their own call sites.
  *
- * Caption fallback order: `<figcaption>` (nearest ancestor `<figure>`) → `alt` attribute →
- * `aria-label` attribute → empty string.
+ * Caption fallback order: `<figcaption>` (nearest ancestor `<figure>`) → nearest following
+ * block whose text starts with "Figure N", "Fig. N", "Table N", or "Chart N" (bounded 3-hop
+ * ancestor walk — covers LaTeX/Kotobee/Vellum exports with obfuscated class names and no
+ * `<figure>` wrapper) → `alt` attribute → `aria-label` attribute → empty string.
  */
 internal object FigureCaptionWalker {
 
@@ -26,6 +28,22 @@ internal object FigureCaptionWalker {
             if (fig) {
                 var cap = fig.querySelector('figcaption');
                 if (cap && cap.textContent) return cap.textContent.trim();
+            }
+            var CAPTION_PREFIX_RX = /^\s*(Figure|Fig\.?|Table|Chart)\s+\d/i;
+            var cur = el;
+            for (var hops = 0; hops < 3; hops++) {
+                var parent = cur.parentElement;
+                if (!parent) break;
+                var blocks = parent.querySelectorAll('p, div');
+                for (var i = 0; i < blocks.length; i++) {
+                    var b = blocks[i];
+                    if (b === el || b.contains(el)) continue;
+                    var pos = el.compareDocumentPosition(b);
+                    if (!(pos & 4)) continue;
+                    var txt = (b.textContent || '').trim();
+                    if (CAPTION_PREFIX_RX.test(txt)) return txt;
+                }
+                cur = parent;
             }
             var alt = el.getAttribute && el.getAttribute('alt');
             if (alt) return alt;
