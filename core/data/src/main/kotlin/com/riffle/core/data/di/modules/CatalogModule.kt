@@ -97,7 +97,7 @@ object CatalogModule {
     @IntoMap
     @SourceTypeKey(SourceType.GUTENBERG)
     fun provideGutenbergCatalogFactory(
-        okHttpClient: OkHttpClient,
+        @WebSourceOkHttpClient okHttpClient: OkHttpClient,
     ): CatalogFactory = GutenbergCatalogFactory(
         okHttpClient = okHttpClient,
         userAgent = "Riffle/dev (Android) gutenberg-source",
