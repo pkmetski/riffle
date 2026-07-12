@@ -98,9 +98,8 @@ class FigureBorderInjectionTest {
                 js.contains("closest(\"figure, [role='figure']\")"),
         )
         assertTrue(
-            "apply JS should target the direct-child figcaption",
-            js.contains("querySelector(':scope > figcaption')") ||
-                js.contains("querySelector(\":scope > figcaption\")"),
+            "apply JS should target figcaption (unscoped, mirroring the persistence walker)",
+            js.contains("querySelector('figcaption')"),
         )
         assertTrue(
             "apply JS should set backgroundColor to the raster mark's color",

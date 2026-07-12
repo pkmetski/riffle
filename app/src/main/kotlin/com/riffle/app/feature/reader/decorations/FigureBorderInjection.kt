@@ -166,7 +166,11 @@ internal fun figureBorderApplyJs(
             if (!el) return;
             var cap = null;
             var fig = el.closest && el.closest('figure, [role="figure"]');
-            if (fig) cap = fig.querySelector(':scope > figcaption');
+            // Unscoped 'figcaption' (any depth) mirrors FigureCaptionWalker.resolveCaption, so an
+            // annotation whose textSnippet captures a nested <figure><div><figcaption> also gets
+            // a matching tint. HTML5 restricts figcaption to first/last child of figure, but real
+            // EPUBs nest it inside wrappers.
+            if (fig) cap = fig.querySelector('figcaption');
             if (!cap) cap = nearestCaptionBlock(el);
             if (!cap) return;
             // Use setProperty with 'important' so publisher CSS resets (Wiley et al.) don't win.

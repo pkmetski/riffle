@@ -10,7 +10,11 @@ When a `TYPE_IMAGE` annotation exists on a `<figure>` element that also contains
 
 ## Non-goals
 
-- **No heuristic caption detection.** Semantic markup only — `<figure><figcaption>` or `role="figure"` + `<figcaption>`. EPUBs that lay out captions as adjacent `<p>` or `<div>` blocks without semantic tagging are out of scope for this pass.
+- **Class-name-based heuristics.** No matching on `class="caption"` / `class~="figure"` / other bespoke class-name whitelists. Publisher CSS class names are frequently obfuscated (Kotobee, Vellum, LaTeX-to-EPUB), so any class-name whitelist would be brittle.
+
+## Post-brainstorming scope amendment
+
+Original brainstorming picked option A (semantic markup only). During implementation, verification against *A Philosophy of Software Design 2e* revealed the book uses no `<figure>` and obfuscated class names (`class_s4`, `class_s5`), so semantic-only would leave the feature dead on non-semantic EPUBs — the common case. Extended to a bounded, content-anchored text-prefix fallback: when the semantic path yields nothing, walk up to 3 ancestors and match the nearest following `<p>`/`<div>` whose text starts with `Figure N`, `Fig. N`, `Table N`, or `Chart N`. Content-anchored (not class-name-anchored), so it can't over-tint on obfuscated markup — worst case it silently finds nothing. Same fallback applied to `FigureCaptionWalker.resolveCaption` so the persisted caption also uses it, and placed AFTER `alt`/`aria-label` so per-image attributes win over proximity heuristics.
 - **No caption→figure symmetry.** Annotating just the caption text (via a normal text highlight) does *not* auto-extend to the figure. Only image-annotation → caption. See brainstorming Q1.
 - **No new annotation type, no schema change, no Room migration.** The extension is purely a rendering concern.
 - **No opt-in setting.** Silent behavior (Q3). If it proves controversial we can add a toggle later.

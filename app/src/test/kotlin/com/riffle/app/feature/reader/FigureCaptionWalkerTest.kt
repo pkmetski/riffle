@@ -24,13 +24,12 @@ class FigureCaptionWalkerTest {
 
     @Test
     fun `caption resolver has text-prefix fallback for non-semantic figures`() {
-        // Between the <figure>/<figcaption> path and the alt/aria-label fallback, the resolver
-        // walks up to 3 ancestors looking for the nearest following <p>/<div> whose text starts
-        // with "Figure|Fig|Table|Chart" + digit. Covers LaTeX/Kotobee/Vellum exports with
-        // obfuscated class names (e.g. "A Philosophy of Software Design 2e"). Reverting the
-        // fallback flips these red — image annotations on non-semantic figures would land in the
-        // DB with an empty textSnippet again and the Annotations view would render an empty
-        // caption block.
+        // After the <figure>/<figcaption> and alt/aria-label paths, the resolver walks up to 3
+        // ancestors looking for the nearest following <p>/<div> whose text starts with
+        // "Figure|Fig|Table|Chart" + digit. Covers LaTeX/Kotobee/Vellum exports with obfuscated
+        // class names (e.g. "A Philosophy of Software Design 2e"). Reverting the fallback flips
+        // these red — image annotations on non-semantic figures would land in the DB with an
+        // empty textSnippet again and the Annotations view would render an empty caption block.
         val js = FigureCaptionWalker.CAPTION_RESOLVER_JS
         assertTrue(
             "caption resolver should carry the caption-prefix regex",
@@ -40,14 +39,12 @@ class FigureCaptionWalkerTest {
             "caption resolver should walk parent chain (compareDocumentPosition)",
             js.contains("compareDocumentPosition"),
         )
-        // The fallback must sit AFTER the <figcaption> path and BEFORE the alt attribute lookup,
-        // otherwise a semantic figcaption would be shadowed by a nearby "Table 1" match or
-        // legitimate alt text would never be reached.
-        val figIdx = js.indexOf("figcaption")
+        // The fallback must sit AFTER the alt/aria-label paths so a legitimate per-image alt
+        // attribute always wins over a proximity-based heuristic that could match nearby prose
+        // like "Table 3 summarizes results...".
+        val ariaIdx = js.indexOf("'aria-label'")
         val rxIdx = js.indexOf("CAPTION_PREFIX_RX")
-        val altIdx = js.indexOf("'alt'")
-        assertTrue("text-prefix fallback must come after figcaption", figIdx in 0 until rxIdx)
-        assertTrue("text-prefix fallback must come before alt", rxIdx in 0 until altIdx)
+        assertTrue("text-prefix fallback must come after aria-label", ariaIdx in 0 until rxIdx)
     }
 
     @Test
