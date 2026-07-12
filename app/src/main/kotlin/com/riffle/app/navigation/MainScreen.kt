@@ -64,6 +64,13 @@ private const val ADD_GUTENBERG = "add_gutenberg"
 private const val GUTENBERG_BROWSE = "gutenberg_browse/{libraryId}/{libraryName}"
 private const val ADD_SOURCE = "add_source"
 private const val ADD_SOURCE_ROUTE = "add_source?type={type}&editId={editId}"
+
+/**
+ * Where the "Add source" picker routes each [SourceType] to — delegated to the descriptor
+ * (ADR 0044). Adding a new source needs no edit here.
+ */
+private fun addSourceRouteFor(type: com.riffle.core.domain.SourceType): String =
+    com.riffle.core.domain.WebSourceDescriptors.forTypeOrError(type).addRoute
 private const val SELECT_LIBRARIES = "select_libraries"
 private const val SETTINGS = "settings"
 private const val READALOUD_SETTINGS = "settings/readaloud"
@@ -114,11 +121,11 @@ internal fun collectionDetailRoute(libraryId: String, collectionId: String, coll
  */
 internal fun libraryEntryRoute(sourceType: SourceType?, libraryId: String, libraryName: String): String {
     val encoded = URLEncoder.encode(libraryName, "UTF-8")
-    return when (sourceType) {
-        SourceType.CHITANKA -> "chitanka_browse/$libraryId/$encoded"
-        SourceType.GUTENBERG -> "gutenberg_browse/$libraryId/$encoded"
-        SourceType.ABS, SourceType.LOCAL_FILES, null -> "library_items/$libraryId/$encoded"
-    }
+    val prefix = sourceType
+        ?.takeIf { it.isUnboundedCatalog }
+        ?.let { com.riffle.core.domain.WebSourceDescriptors.forType(it) }
+        ?.browseRoutePrefix
+    return if (prefix != null) "$prefix/$libraryId/$encoded" else "library_items/$libraryId/$encoded"
 }
 
 @Composable
@@ -234,39 +241,21 @@ fun MainScreen(
                     ?.destination?.route == SETTINGS
                 val pickerViewModel: com.riffle.app.feature.server.SourceTypePickerViewModel =
                     androidx.hilt.navigation.compose.hiltViewModel()
-                val hasLocalFilesSource by pickerViewModel.hasLocalFilesSource.collectAsState()
-                val hasChitankaSource by pickerViewModel.hasChitankaSource.collectAsState()
-                val hasGutenbergSource by pickerViewModel.hasGutenbergSource.collectAsState()
+                val installedTypes by pickerViewModel.installedTypes.collectAsState()
                 com.riffle.app.feature.server.SourceTypePickerScreen(
                     windowSizeClass = windowSizeClass,
                     onNavigateBack = {
                         if (cameFromSettings) navController.popBackStack()
                         else navController.navigateAsRoot(HOME)
                     },
-                    onPickAudiobookshelf = {
-                        navController.navigate("$ADD_SOURCE?type=audiobookshelf") {
+                    onPick = { type ->
+                        val route = addSourceRouteFor(type)
+                        navController.navigate(route) {
                             // Drop the picker so back from the form returns to the caller.
                             popUpTo(ADD_SOURCE_TYPE_PICKER) { inclusive = true }
                         }
                     },
-                    onPickLocalFiles = {
-                        navController.navigate(ADD_LOCAL_FILES) {
-                            popUpTo(ADD_SOURCE_TYPE_PICKER) { inclusive = true }
-                        }
-                    },
-                    onPickChitanka = {
-                        navController.navigate(ADD_CHITANKA) {
-                            popUpTo(ADD_SOURCE_TYPE_PICKER) { inclusive = true }
-                        }
-                    },
-                    onPickGutenberg = {
-                        navController.navigate(ADD_GUTENBERG) {
-                            popUpTo(ADD_SOURCE_TYPE_PICKER) { inclusive = true }
-                        }
-                    },
-                    hasLocalFilesSource = hasLocalFilesSource,
-                    hasChitankaSource = hasChitankaSource,
-                    hasGutenbergSource = hasGutenbergSource,
+                    installedTypes = installedTypes,
                 )
             }
             composable(

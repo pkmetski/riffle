@@ -1,12 +1,12 @@
 package com.riffle.app.feature.source.chitanka
 
-import com.riffle.core.data.chitanka.ChitankaSourceInstaller
+import com.riffle.core.data.websource.SingletonWebSourceInstaller
+import com.riffle.core.domain.SourceType
 import io.mockk.coEvery
 import io.mockk.mockk
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
-import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
@@ -25,6 +25,10 @@ import org.junit.Test
  * - Double-invocation while Installing / after Success is a no-op — no second network call, no
  *   duplicate source rows if the user rage-taps "Add source" mid-flight or after landing on the
  *   Success state (before the screen navigates away).
+ *
+ * Post-ADR-0044: the VM delegates to the generic [SingletonWebSourceInstaller], passing
+ * [SourceType.CHITANKA]. The mock in these tests is stubbed on the descriptor-typed
+ * `install(CHITANKA)` overload.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class AddChitankaViewModelTest {
@@ -37,8 +41,8 @@ class AddChitankaViewModelTest {
 
     @Test
     fun `install transitions Idle to Installing to Success on happy path`() = runTest(dispatcher) {
-        val installer = mockk<ChitankaSourceInstaller>()
-        coEvery { installer.install() } returns "chit-1"
+        val installer = mockk<SingletonWebSourceInstaller>()
+        coEvery { installer.install(SourceType.CHITANKA) } returns "chit-1"
         val vm = AddChitankaViewModel(installer)
 
         assertEquals(AddChitankaViewModel.State.Idle, vm.state.value)
@@ -52,8 +56,8 @@ class AddChitankaViewModelTest {
 
     @Test
     fun `install transitions to Error when installer throws`() = runTest(dispatcher) {
-        val installer = mockk<ChitankaSourceInstaller>()
-        coEvery { installer.install() } throws RuntimeException("connectivity down")
+        val installer = mockk<SingletonWebSourceInstaller>()
+        coEvery { installer.install(SourceType.CHITANKA) } throws RuntimeException("connectivity down")
         val vm = AddChitankaViewModel(installer)
 
         vm.install()
@@ -66,9 +70,9 @@ class AddChitankaViewModelTest {
 
     @Test
     fun `double-invocation while Installing is a no-op — installer runs exactly once`() = runTest(dispatcher) {
-        val installer = mockk<ChitankaSourceInstaller>()
+        val installer = mockk<SingletonWebSourceInstaller>()
         var calls = 0
-        coEvery { installer.install() } coAnswers { calls++; "chit-1" }
+        coEvery { installer.install(SourceType.CHITANKA) } coAnswers { calls++; "chit-1" }
         val vm = AddChitankaViewModel(installer)
 
         vm.install()  // enters Installing
@@ -82,9 +86,9 @@ class AddChitankaViewModelTest {
 
     @Test
     fun `re-invocation after Success is a no-op — no re-install`() = runTest(dispatcher) {
-        val installer = mockk<ChitankaSourceInstaller>()
+        val installer = mockk<SingletonWebSourceInstaller>()
         var calls = 0
-        coEvery { installer.install() } coAnswers { calls++; "chit-1" }
+        coEvery { installer.install(SourceType.CHITANKA) } coAnswers { calls++; "chit-1" }
         val vm = AddChitankaViewModel(installer)
 
         vm.install(); advanceUntilIdle()

@@ -244,30 +244,19 @@ class SettingsViewModel @Inject constructor(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     /**
-     * The Chitanka Source row when installed, `null` otherwise. Singleton per device (ADR 0042).
-     * Renders as a minimal removable row in the Sources list, no sub-UI (unlike LocalFiles which
-     * has a folder-management panel).
+     * Installed singleton web-source rows (Chitanka, Gutenberg, and any future web source with
+     * `WebSourceDescriptor.isSingleton == true` and no bespoke settings UI). Excludes ABS
+     * (multi-server) and LocalFiles (has its own folder-picker row [localFilesSource]). Each entry
+     * renders through the generic `SingletonWebSourceRow` — no per-source Kotlin surface here.
      */
-    val chitankaSource: StateFlow<Source?> = servers
-        .map { list -> list.firstOrNull { it.type == com.riffle.core.domain.SourceType.CHITANKA } }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
-
-    fun removeChitankaSource() {
-        chitankaSource.value?.id?.let { removeServer(it) }
-    }
-
-    /**
-     * The Project Gutenberg Source row when installed, `null` otherwise. Singleton per device —
-     * same rationale as [chitankaSource]: a credential-less public catalogue has no
-     * disambiguating configuration for a second row.
-     */
-    val gutenbergSource: StateFlow<Source?> = servers
-        .map { list -> list.firstOrNull { it.type == com.riffle.core.domain.SourceType.GUTENBERG } }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
-
-    fun removeGutenbergSource() {
-        gutenbergSource.value?.id?.let { removeServer(it) }
-    }
+    val singletonWebSources: StateFlow<List<Source>> = servers
+        .map { list ->
+            list.filter { source ->
+                val descriptor = com.riffle.core.domain.WebSourceDescriptors.forType(source.type)
+                descriptor?.isSingleton == true && source.type != com.riffle.core.domain.SourceType.LOCAL_FILES
+            }
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     /** Configured folder rows under the LocalFiles Source, reactive. Empty when no source yet. */
     val localFilesFolders: StateFlow<List<LocalFilesFolderEntity>> = localFilesSource

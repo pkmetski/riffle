@@ -43,6 +43,8 @@ import com.riffle.core.database.LocalFilesFolderEntity
 import com.riffle.core.domain.ServerType
 import com.riffle.core.domain.Source
 import com.riffle.core.domain.SourceType
+import com.riffle.core.domain.WebSourceDescriptor
+import com.riffle.core.domain.WebSourceDescriptors
 
 /**
  * "Sources" section on the main Settings screen. Renders one row per configured browsable source
@@ -58,8 +60,7 @@ internal fun SourcesSection(
     localFilesSource: Source?,
     localFilesFolders: List<LocalFilesFolderEntity>,
     localFilesFolderHealth: Map<String, Boolean>,
-    chitankaSource: Source?,
-    gutenbergSource: Source?,
+    singletonWebSources: List<Source>,
     serverVersions: Map<String, String>,
     libraryItemsBySource: Map<String, List<LibraryUiItem>>,
     readaloudSummaries: Map<String, ReadaloudMatchSummary>,
@@ -70,8 +71,6 @@ internal fun SourcesSection(
     onRemoveServer: (String) -> Unit,
     onRemoveLocalFolder: (String) -> Unit,
     onRemoveLocalFilesSource: () -> Unit,
-    onRemoveChitankaSource: () -> Unit,
-    onRemoveGutenbergSource: () -> Unit,
     onSetLibraryVisible: (String, String, Boolean) -> Unit,
     onReorderLibraries: (String, List<String>) -> Unit,
 ) {
@@ -119,8 +118,11 @@ internal fun SourcesSection(
             },
         )
     }
-    chitankaSource?.let { source ->
-        ChitankaSourceRow(
+    singletonWebSources.forEach { source ->
+        val descriptor = WebSourceDescriptors.forType(source.type) ?: return@forEach
+        SingletonWebSourceRow(
+            source = source,
+            descriptor = descriptor,
             libraryItems = libraryItemsBySource[source.id].orEmpty(),
             isExpanded = expandedServers[source.id] == true,
             onToggleExpanded = {
@@ -132,23 +134,7 @@ internal fun SourcesSection(
             onReorderLibraries = { orderedIds ->
                 onReorderLibraries(source.id, orderedIds)
             },
-            onRemove = onRemoveChitankaSource,
-        )
-    }
-    gutenbergSource?.let { source ->
-        GutenbergSourceRow(
-            libraryItems = libraryItemsBySource[source.id].orEmpty(),
-            isExpanded = expandedServers[source.id] == true,
-            onToggleExpanded = {
-                expandedServers[source.id] = expandedServers[source.id] != true
-            },
-            onSetLibraryVisible = { libraryId, visible ->
-                onSetLibraryVisible(source.id, libraryId, visible)
-            },
-            onReorderLibraries = { orderedIds ->
-                onReorderLibraries(source.id, orderedIds)
-            },
-            onRemove = onRemoveGutenbergSource,
+            onRemove = { onRemoveServer(source.id) },
         )
     }
     Button(
@@ -494,12 +480,18 @@ internal fun LocalFilesSourceRow(
 }
 
 /**
- * Sources-list row for the singleton Chitanka Source. Chitanka is zero-config; the expanded body
- * exposes the per-library visibility+order editor. Removal is via the shared end-to-start swipe
- * gesture, matching every other configured-source row.
+ * Sources-list row for a singleton web source (Chitanka, Gutenberg, and any future
+ * `WebSourceDescriptor.isSingleton == true` source without bespoke settings UI). Zero-config;
+ * the expanded body exposes the per-library visibility+order editor. Removal is via the shared
+ * end-to-start swipe gesture, matching every other configured-source row.
+ *
+ * Renders header text from the [descriptor] so adding a new source needs no new composable —
+ * just a `WebSourceDescriptor object` and its `@IntoSet` binding (ADR 0044).
  */
 @Composable
-internal fun ChitankaSourceRow(
+internal fun SingletonWebSourceRow(
+    source: Source,
+    descriptor: WebSourceDescriptor,
     libraryItems: List<LibraryUiItem>,
     isExpanded: Boolean,
     onToggleExpanded: () -> Unit,
@@ -507,44 +499,14 @@ internal fun ChitankaSourceRow(
     onReorderLibraries: (orderedLibraryIds: List<String>) -> Unit,
     onRemove: () -> Unit,
 ) {
+    val supportText = descriptor.supportingHosts ?: descriptor.subtitle
     ExpandableSourceRow(
         isExpanded = isExpanded,
         onToggleExpanded = onToggleExpanded,
         onRemove = onRemove,
-        headerTestTag = "ChitankaSourceRow",
-        headlineContent = { Text("Chitanka") },
-        supportingContent = { Text("chitanka.info · gramofonche.chitanka.info") },
-    ) {
-        if (libraryItems.isNotEmpty()) {
-            ReorderableLibraryList(
-                items = libraryItems,
-                onSetLibraryVisible = onSetLibraryVisible,
-                onReorder = onReorderLibraries,
-            )
-        }
-    }
-}
-
-/**
- * Sources-list row for the singleton Project Gutenberg Source. Same shape as
- * [ChitankaSourceRow] — zero-config, per-library visibility+order editor, swipe-to-remove.
- */
-@Composable
-internal fun GutenbergSourceRow(
-    libraryItems: List<LibraryUiItem>,
-    isExpanded: Boolean,
-    onToggleExpanded: () -> Unit,
-    onSetLibraryVisible: (libraryId: String, visible: Boolean) -> Unit,
-    onReorderLibraries: (orderedLibraryIds: List<String>) -> Unit,
-    onRemove: () -> Unit,
-) {
-    ExpandableSourceRow(
-        isExpanded = isExpanded,
-        onToggleExpanded = onToggleExpanded,
-        onRemove = onRemove,
-        headerTestTag = "GutenbergSourceRow",
-        headlineContent = { Text("Project Gutenberg") },
-        supportingContent = { Text("gutenberg.org · gutendex.com") },
+        headerTestTag = "${descriptor.type.name}SourceRow",
+        headlineContent = { Text(descriptor.displayName) },
+        supportingContent = supportText?.let { { Text(it) } },
     ) {
         if (libraryItems.isNotEmpty()) {
             ReorderableLibraryList(

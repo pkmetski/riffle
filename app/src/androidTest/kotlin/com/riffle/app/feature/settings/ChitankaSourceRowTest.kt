@@ -9,17 +9,24 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipeLeft
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import com.riffle.app.feature.settings.sections.ChitankaSourceRow
+import com.riffle.app.feature.settings.sections.SingletonWebSourceRow
+import com.riffle.core.domain.ChitankaWebSourceDescriptor
 import com.riffle.core.domain.Library
+import com.riffle.core.domain.ServerType
+import com.riffle.core.domain.Source
+import com.riffle.core.domain.SourceType
+import com.riffle.core.domain.SourceUrl
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 
 /**
- * Pins Chitanka's Settings row to swipe-to-delete parity with every other configured-source row:
- * end-to-start swipe invokes onRemove, and no trailing "Remove" button exists. If the row is
- * un-wrapped from SwipeToDeleteRow or a Remove button is re-added, this test fails.
+ * Pins the singleton Chitanka Settings row to swipe-to-delete parity with every other
+ * configured-source row: end-to-start swipe invokes onRemove, and no trailing "Remove" button
+ * exists. If the row is un-wrapped from SwipeToDeleteRow or a Remove button is re-added, this
+ * test fails. Post-ADR-0044 the row is the generic [SingletonWebSourceRow] parameterised by the
+ * source's [com.riffle.core.domain.WebSourceDescriptor].
  */
 @RunWith(AndroidJUnit4::class)
 class ChitankaSourceRowTest {
@@ -27,11 +34,23 @@ class ChitankaSourceRowTest {
     @get:Rule
     val composeTestRule = createAndroidComposeRule<ComponentActivity>()
 
+    private val fakeChitankaSource = Source(
+        id = "chi:test",
+        url = SourceUrl.parse("https://chitanka.info")!!,
+        isActive = false,
+        insecureConnectionAllowed = false,
+        username = "",
+        type = SourceType.CHITANKA,
+        serverType = ServerType.AUDIOBOOKSHELF,
+    )
+
     @Test
     fun endToStartSwipe_invokesOnRemove() {
         var removed = false
         composeTestRule.setContent {
-            ChitankaSourceRow(
+            SingletonWebSourceRow(
+                source = fakeChitankaSource,
+                descriptor = ChitankaWebSourceDescriptor,
                 libraryItems = emptyList(),
                 isExpanded = false,
                 onToggleExpanded = {},
@@ -41,7 +60,7 @@ class ChitankaSourceRowTest {
             )
         }
 
-        composeTestRule.onNodeWithTag("ChitankaSourceRow").performTouchInput { swipeLeft() }
+        composeTestRule.onNodeWithTag("CHITANKASourceRow").performTouchInput { swipeLeft() }
         composeTestRule.waitForIdle()
 
         assertTrue("swipe end-to-start on Chitanka row must invoke onRemove", removed)
@@ -60,7 +79,9 @@ class ChitankaSourceRowTest {
             switchEnabled = true,
         )
         composeTestRule.setContent {
-            ChitankaSourceRow(
+            SingletonWebSourceRow(
+                source = fakeChitankaSource,
+                descriptor = ChitankaWebSourceDescriptor,
                 libraryItems = listOf(books, gramofonche),
                 isExpanded = true,
                 onToggleExpanded = {},
@@ -89,7 +110,9 @@ class ChitankaSourceRowTest {
     @Test
     fun row_hasNoTrailingRemoveButton() {
         composeTestRule.setContent {
-            ChitankaSourceRow(
+            SingletonWebSourceRow(
+                source = fakeChitankaSource,
+                descriptor = ChitankaWebSourceDescriptor,
                 libraryItems = emptyList(),
                 isExpanded = false,
                 onToggleExpanded = {},

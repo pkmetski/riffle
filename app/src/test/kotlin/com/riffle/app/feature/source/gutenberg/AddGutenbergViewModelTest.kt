@@ -1,6 +1,7 @@
 package com.riffle.app.feature.source.gutenberg
 
-import com.riffle.core.data.gutenberg.GutenbergSourceInstaller
+import com.riffle.core.data.websource.SingletonWebSourceInstaller
+import com.riffle.core.domain.SourceType
 import io.mockk.coEvery
 import io.mockk.mockk
 import kotlinx.coroutines.Dispatchers
@@ -18,8 +19,8 @@ import org.junit.Test
 
 /**
  * Pins the install-flow state machine for the zero-config Gutenberg Source install screen.
- * Mirrors [com.riffle.app.feature.source.chitanka.AddChitankaViewModelTest] — the two zero-config
- * install VMs share their contract exactly.
+ * Mirrors [com.riffle.app.feature.source.chitanka.AddChitankaViewModelTest]; both VMs delegate
+ * to the generic [SingletonWebSourceInstaller] (ADR 0044 Phase 4).
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class AddGutenbergViewModelTest {
@@ -31,8 +32,8 @@ class AddGutenbergViewModelTest {
 
     @Test
     fun `install transitions Idle to Installing to Success on happy path`() = runTest(dispatcher) {
-        val installer = mockk<GutenbergSourceInstaller>()
-        coEvery { installer.install() } returns "gb-1"
+        val installer = mockk<SingletonWebSourceInstaller>()
+        coEvery { installer.install(SourceType.GUTENBERG) } returns "gb-1"
         val vm = AddGutenbergViewModel(installer)
 
         assertEquals(AddGutenbergViewModel.State.Idle, vm.state.value)
@@ -46,8 +47,8 @@ class AddGutenbergViewModelTest {
 
     @Test
     fun `install transitions to Error when installer throws`() = runTest(dispatcher) {
-        val installer = mockk<GutenbergSourceInstaller>()
-        coEvery { installer.install() } throws RuntimeException("connectivity down")
+        val installer = mockk<SingletonWebSourceInstaller>()
+        coEvery { installer.install(SourceType.GUTENBERG) } throws RuntimeException("connectivity down")
         val vm = AddGutenbergViewModel(installer)
 
         vm.install()
@@ -60,9 +61,9 @@ class AddGutenbergViewModelTest {
 
     @Test
     fun `double-invocation while Installing is a no-op — installer runs exactly once`() = runTest(dispatcher) {
-        val installer = mockk<GutenbergSourceInstaller>()
+        val installer = mockk<SingletonWebSourceInstaller>()
         var calls = 0
-        coEvery { installer.install() } coAnswers { calls++; "gb-1" }
+        coEvery { installer.install(SourceType.GUTENBERG) } coAnswers { calls++; "gb-1" }
         val vm = AddGutenbergViewModel(installer)
 
         vm.install()
