@@ -68,7 +68,7 @@ class GutenbergSourceInstaller @Inject constructor(
     private fun defaultLibraries(sourceId: String): List<LibraryEntity> = listOf(
         LibraryEntity(
             id = GutenbergCatalog.ROOT_BOOKS,
-            name = "Project Gutenberg",
+            name = "Books",
             mediaType = "book",
             sourceId = sourceId,
         ),

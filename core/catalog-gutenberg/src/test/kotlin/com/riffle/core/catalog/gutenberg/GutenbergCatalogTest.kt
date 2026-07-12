@@ -53,6 +53,7 @@ class GutenbergCatalogTest {
         val roots = catalog.listRoots()
         assertEquals(1, roots.size)
         assertEquals(GutenbergCatalog.ROOT_BOOKS, roots.single().id)
+        assertEquals("Books", roots.single().name)
     }
 
     @Test

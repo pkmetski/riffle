@@ -65,6 +65,7 @@ class GutenbergSourceInstallerTest {
         assertEquals(1, libs.size)
         val books = libs.single()
         assertEquals(GutenbergCatalog.ROOT_BOOKS, books.id)
+        assertEquals("Books", books.name)
         assertEquals("book", books.mediaType)
     }
 
