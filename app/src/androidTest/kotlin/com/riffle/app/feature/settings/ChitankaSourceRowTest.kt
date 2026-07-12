@@ -1,15 +1,14 @@
 package com.riffle.app.feature.settings
 
 import androidx.activity.ComponentActivity
-import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
-import androidx.compose.ui.test.onChildren
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipeLeft
+import com.riffle.app.ui.source.SOURCE_ICON_TEST_TAG
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.riffle.app.feature.settings.sections.SingletonWebSourceRow
 import com.riffle.core.domain.ChitankaWebSourceDescriptor
@@ -124,12 +123,11 @@ class ChitankaSourceRowTest {
             )
         }
 
-        // Chevron + source-logo icon must both be rendered inside the leading slot. Reverting the
-        // required `leadingIcon` param on ExpandableSourceRow — or wiring an empty `{}` lambda at
-        // a call site — drops this to one child and fails the assertion.
-        composeTestRule.onNodeWithTag("ExpandableSourceRow.LeadingIcon")
-            .onChildren()
-            .assertCountEquals(2)
+        // Source-logo icon must be rendered inside the leading slot alongside the chevron.
+        // Reverting the required `leadingIcon` param on ExpandableSourceRow — or wiring an empty
+        // `{}` lambda at a call site — removes the SourceIconMonogram and fails this assertion.
+        composeTestRule.onNodeWithTag(SOURCE_ICON_TEST_TAG, useUnmergedTree = true)
+            .assertIsDisplayed()
     }
 
     @Test

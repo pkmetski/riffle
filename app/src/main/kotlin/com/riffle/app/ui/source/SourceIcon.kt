@@ -9,6 +9,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -66,6 +67,9 @@ fun SourceTypeIcon(
     SourceIconMonogram(fallbackRes = fallbackRes, modifier = modifier, size = size)
 }
 
+/** Test tag on the bundled-monogram box; used by settings-row regression tests. */
+const val SOURCE_ICON_TEST_TAG = "SourceIconMonogram"
+
 @Composable
 private fun SourceIconMonogram(
     fallbackRes: Int,
@@ -78,6 +82,7 @@ private fun SourceIconMonogram(
         modifier = modifier
             .size(size)
             .clip(RoundedCornerShape(8.dp))
+            .testTag(SOURCE_ICON_TEST_TAG),
     ) {
         Image(
             painter = painterResource(id = fallbackRes),

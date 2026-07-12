@@ -60,7 +60,6 @@ internal fun ExpandableSourceRow(
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        modifier = Modifier.testTag("ExpandableSourceRow.LeadingIcon"),
                     ) {
                         Icon(
                             Icons.AutoMirrored.Filled.KeyboardArrowRight,
