@@ -9,6 +9,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -19,12 +20,10 @@ import com.riffle.core.domain.Source
 import com.riffle.core.domain.SourceType
 
 /**
- * Renders the icon for a configured [Source] in the source switcher: fetches the server's
- * favicon via Coil (using the app-scope [coil.ImageLoader] with its disk cache) and falls back
- * to the bundled monogram drawable while loading or on any error / decode failure.
- *
- * Do not call this for [SourceType.LOCAL_FILES]; the caller keeps its existing Material Folder
- * treatment. See [SourceIconResolver.fallbackDrawableFor].
+ * Renders the icon for a configured [Source]: fetches the server's favicon via Coil (using the
+ * app-scope [coil.ImageLoader] with its disk cache) and falls back to the bundled monogram
+ * drawable while loading or on any error / decode failure. For sources without a network host
+ * (e.g. [SourceType.LOCAL_FILES]) the bundled drawable is rendered directly.
  */
 @Composable
 fun SourceIcon(
@@ -68,6 +67,9 @@ fun SourceTypeIcon(
     SourceIconMonogram(fallbackRes = fallbackRes, modifier = modifier, size = size)
 }
 
+/** Test tag on the bundled-monogram box; used by settings-row regression tests. */
+const val SOURCE_ICON_TEST_TAG = "SourceIconMonogram"
+
 @Composable
 private fun SourceIconMonogram(
     fallbackRes: Int,
@@ -80,6 +82,7 @@ private fun SourceIconMonogram(
         modifier = modifier
             .size(size)
             .clip(RoundedCornerShape(8.dp))
+            .testTag(SOURCE_ICON_TEST_TAG),
     ) {
         Image(
             painter = painterResource(id = fallbackRes),

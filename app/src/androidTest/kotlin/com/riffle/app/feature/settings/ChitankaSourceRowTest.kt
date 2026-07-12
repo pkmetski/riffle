@@ -8,6 +8,7 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipeLeft
+import com.riffle.app.ui.source.SOURCE_ICON_TEST_TAG
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.riffle.app.feature.settings.sections.SingletonWebSourceRow
 import com.riffle.core.domain.ChitankaWebSourceDescriptor
@@ -105,6 +106,28 @@ class ChitankaSourceRowTest {
                 "(Books bottom=${booksBounds.bottom}, Gramofonche top=${gramofoncheBounds.top})",
             gramofoncheBounds.top >= booksBounds.bottom,
         )
+    }
+
+    @Test
+    fun row_rendersSourceLogoAlongsideChevron() {
+        composeTestRule.setContent {
+            SingletonWebSourceRow(
+                source = fakeChitankaSource,
+                descriptor = ChitankaWebSourceDescriptor,
+                libraryItems = emptyList(),
+                isExpanded = false,
+                onToggleExpanded = {},
+                onSetLibraryVisible = { _, _ -> },
+                onReorderLibraries = {},
+                onRemove = {},
+            )
+        }
+
+        // Source-logo icon must be rendered inside the leading slot alongside the chevron.
+        // Reverting the required `leadingIcon` param on ExpandableSourceRow — or wiring an empty
+        // `{}` lambda at a call site — removes the SourceIconMonogram and fails this assertion.
+        composeTestRule.onNodeWithTag(SOURCE_ICON_TEST_TAG, useUnmergedTree = true)
+            .assertIsDisplayed()
     }
 
     @Test

@@ -38,6 +38,7 @@ import com.riffle.app.feature.settings.ReadaloudMatchSummary
 import com.riffle.app.feature.settings.ReorderableLibraryList
 import com.riffle.app.feature.settings.SettingsSectionHeader
 import com.riffle.app.feature.settings.idsWithSwap
+import com.riffle.app.ui.source.SourceIcon
 import com.riffle.core.database.LocalFilesFolderEntity
 import com.riffle.core.domain.ServerType
 import com.riffle.core.domain.Source
@@ -201,6 +202,7 @@ internal fun ServerRow(
         isExpanded = isExpanded,
         onToggleExpanded = onToggleExpanded,
         onRemove = onRemove,
+        leadingIcon = { SourceIcon(source = server, size = 32.dp) },
         headlineContent = { Text(headline) },
         supportingContent = { Text(subtitle) },
         trailingContent = if (server.isActive) {
@@ -322,6 +324,7 @@ internal fun LocalFilesSourceRow(
         onToggleExpanded = onToggleExpanded,
         onRemove = onRemoveSource,
         headerTestTag = "LocalFilesSourceRow",
+        leadingIcon = { SourceIcon(source = source, size = 32.dp) },
         headlineContent = { Text("Local files") },
         supportingContent = {
             val folderWord = if (folders.size == 1) "folder" else "folders"
@@ -528,6 +531,7 @@ internal fun SingletonWebSourceRow(
         onToggleExpanded = onToggleExpanded,
         onRemove = onRemove,
         headerTestTag = "${descriptor.type.name}SourceRow",
+        leadingIcon = { SourceIcon(source = source, size = 32.dp) },
         headlineContent = { Text(descriptor.displayName) },
         supportingContent = supportText?.let { { Text(it) } },
     ) {
