@@ -162,8 +162,10 @@ interface AnnotationDao {
     )
     suspend fun purgeAgedTombstones(sourceId: String, itemId: String, cutoff: Long): Int
 
-    /** One row per book (ABS Library Item) with at least one live highlight on this source, most
-     *  recently updated first. Powers the Annotations View library list. */
+    /** One row per book (ABS Library Item) with at least one live highlight or image annotation on
+     *  this source, most recently updated first. Powers the Annotations View library list.
+     *  Bookmarks are excluded — they have their own tab. Image annotations are first-class here
+     *  since a user may annotate figures without ever making a text highlight. */
     @Query(
         """
         SELECT itemId,
@@ -171,7 +173,7 @@ interface AnnotationDao {
                MAX(updatedAt) AS latestUpdatedAt
         FROM annotations
         WHERE sourceId = :sourceId
-          AND type = 'HIGHLIGHT'
+          AND type IN ('HIGHLIGHT', 'IMAGE')
           AND deleted = 0
         GROUP BY itemId
         ORDER BY latestUpdatedAt DESC
