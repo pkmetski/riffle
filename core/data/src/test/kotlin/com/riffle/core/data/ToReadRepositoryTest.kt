@@ -15,6 +15,7 @@ import com.riffle.core.catalog.SortKey
 import com.riffle.core.catalog.FacetSelection
 import com.riffle.core.domain.Source
 import com.riffle.core.domain.SourceType
+import com.riffle.core.logging.RecordingLogger
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.test.runTest
@@ -25,7 +26,8 @@ import org.junit.Test
 
 class ToReadRepositoryTest {
 
-    private fun makeRepo(catalog: Catalog?) = ToReadRepositoryImpl(FakeRegistry(catalog), FakeLocalToReadStore())
+    private fun makeRepo(catalog: Catalog?) =
+        ToReadRepositoryImpl(FakeRegistry(catalog), FakeLocalToReadStore(), RecordingLogger())
 
     // ── refresh + observeToReadItemIds ────────────────────────────────────────
 
@@ -80,13 +82,17 @@ class ToReadRepositoryTest {
     }
 
     @Test
-    fun `addToToRead creates playlist when cache is empty + no playlist on source`() = runTest {
+    fun `addToToRead creates playlist seeded with the item when cache is empty + no playlist on source`() = runTest {
         val cap = FakeCatalog(mapOf("lib-1" to emptyList()))
         val repo = makeRepo(cap)
         repo.refresh("lib-1")
         assertTrue(repo.addToToRead("item-1", "lib-1"))
         assertEquals(listOf("lib-1" to "To Read"), cap.createCalls)
-        assertEquals(listOf("pl-new" to "item-1"), cap.addCalls)
+        // Item is passed as initialItemId in the same request — no separate addItemToPlaylist
+        // call. This is what makes the flow work on Komga (whose POST /readlists requires a
+        // non-empty bookIds array); a revert to the two-step flow would fail on Komga backends.
+        assertEquals(listOf("item-1"), cap.createSeeds)
+        assertEquals(emptyList<Pair<String, String>>(), cap.addCalls)
         assertEquals(setOf("item-1"), repo.observeToReadItemIds("lib-1").first())
     }
 
@@ -186,6 +192,7 @@ class ToReadRepositoryTest {
         val removeFails: Boolean = false,
     ) : Catalog, PlaylistsCapability {
         val createCalls = mutableListOf<Pair<String, String>>()
+        val createSeeds = mutableListOf<String?>()
         val addCalls = mutableListOf<Pair<String, String>>()
         val removeCalls = mutableListOf<Pair<String, String>>()
 
@@ -203,10 +210,17 @@ class ToReadRepositoryTest {
             return playlistsByLibrary[rootId].orEmpty()
         }
 
-        override suspend fun createPlaylist(rootId: String, name: String): CatalogPlaylist {
+        override suspend fun createPlaylist(rootId: String, name: String, initialItemId: String?): CatalogPlaylist {
             if (createFails) throw RuntimeException("boom")
             createCalls += rootId to name
-            return CatalogPlaylist(id = "pl-new", rootId = rootId, name = name, bookCount = 0)
+            createSeeds += initialItemId
+            return CatalogPlaylist(
+                id = "pl-new",
+                rootId = rootId,
+                name = name,
+                bookCount = if (initialItemId != null) 1 else 0,
+                itemIds = if (initialItemId != null) listOf(initialItemId) else emptyList(),
+            )
         }
 
         override suspend fun addItemToPlaylist(playlistId: String, itemId: String) {

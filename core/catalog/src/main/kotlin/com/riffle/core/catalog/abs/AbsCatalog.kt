@@ -264,8 +264,8 @@ class AbsCatalog(
             .unwrap()
             .map { it.toCatalogPlaylist() }
 
-    override suspend fun createPlaylist(rootId: String, name: String): CatalogPlaylist {
-        val created = libraryApi.createPlaylist(config.baseUrl, rootId, name, initialBookId = null, config.token, config.insecureAllowed)
+    override suspend fun createPlaylist(rootId: String, name: String, initialItemId: String?): CatalogPlaylist {
+        val created = libraryApi.createPlaylist(config.baseUrl, rootId, name, initialBookId = initialItemId, config.token, config.insecureAllowed)
             .unwrap()
             ?: throw CatalogException.Unknown(IllegalStateException("ABS returned null for createPlaylist"))
         return created.toCatalogPlaylist()

@@ -19,11 +19,51 @@ package com.riffle.core.domain
  *
  * Behavioural specialisation belongs in the plugin's own module, not here.
  */
+/**
+ * How a [SourceType] surfaces the "To Read" list. Set explicitly on every [WebSourceDescriptor]
+ * with **no default**: adding a new source is a compile error until the author decides which
+ * bucket applies, so we never silently ship a source that hides the tab or writes only to the
+ * device-local shadow when it should be talking to the server.
+ */
+enum class ToReadSupport {
+    /**
+     * The source's Catalog implements `PlaylistsCapability`. Riffle finds-or-creates a
+     * server-side list named `"To Read"` (ABS Playlist, Komga readlist, etc.) and every add/
+     * remove hits the server. Cross-device sync happens for free.
+     */
+    ServerBacked,
+
+    /**
+     * The source has no server-side list concept — Riffle stores To Read in a per-device
+     * DataStore ([com.riffle.core.data.LocalToReadStore]). The tab still renders, but nothing
+     * syncs across devices. Correct for offline / catalog-only sources (Local Files, Chitanka,
+     * Gutenberg) where there's no user account or per-user server state to write to.
+     */
+    LocalOnly,
+
+    /**
+     * The source explicitly does not surface a To Read tab at all. Rarely correct — pick this
+     * only when the source's model makes a wishlist meaningless. There are no such sources in
+     * Riffle today; the enum entry exists so future sources can opt out explicitly rather than
+     * by omission.
+     */
+    Unsupported,
+}
+
 interface WebSourceDescriptor {
     val type: SourceType
 
     /** Human-visible name — drawer header, source-picker card, settings row. */
     val displayName: String
+
+    /**
+     * Explicit declaration of this source's To Read behaviour. No default: every new descriptor
+     * MUST pick one of [ToReadSupport.ServerBacked], [ToReadSupport.LocalOnly], or
+     * [ToReadSupport.Unsupported] — a compile error otherwise. A runtime completeness test in
+     * `:core:data` asserts the declaration matches the Catalog's actual capability set so the
+     * two can't drift silently.
+     */
+    val toReadSupport: ToReadSupport
 
     /** Optional static subtitle. `null` when the subtitle depends on runtime data (host, version). */
     val subtitle: String? get() = null
@@ -197,6 +237,7 @@ class WebSourceRegistry(private val descriptors: Set<WebSourceDescriptor>) {
 object AbsWebSourceDescriptor : WebSourceDescriptor {
     override val type = SourceType.ABS
     override val displayName = "Audiobookshelf"
+    override val toReadSupport = ToReadSupport.ServerBacked
     override val isSingleton = false
     override val hasCredentials = true
     override val hasNetworkHost = true
@@ -251,6 +292,7 @@ object AbsWebSourceDescriptor : WebSourceDescriptor {
 object LocalFilesWebSourceDescriptor : WebSourceDescriptor {
     override val type = SourceType.LOCAL_FILES
     override val displayName = "Local files"
+    override val toReadSupport = ToReadSupport.LocalOnly
     override val subtitle = "on this device"
     override val addRoute = "add_local_files"
     override val pickerOrder = 1
@@ -260,6 +302,7 @@ object LocalFilesWebSourceDescriptor : WebSourceDescriptor {
 object ChitankaWebSourceDescriptor : WebSourceDescriptor {
     override val type = SourceType.CHITANKA
     override val displayName = "Chitanka"
+    override val toReadSupport = ToReadSupport.LocalOnly
     override val subtitle = "Bulgarian public library"
     override val supportingHosts = "chitanka.info · gramofonche.chitanka.info"
     override val addRoute = "add_chitanka"
@@ -279,6 +322,7 @@ object ChitankaWebSourceDescriptor : WebSourceDescriptor {
 object KomgaWebSourceDescriptor : WebSourceDescriptor {
     override val type = SourceType.KOMGA
     override val displayName = "Komga"
+    override val toReadSupport = ToReadSupport.ServerBacked
     override val isSingleton = false
     override val hasCredentials = true
     override val hasNetworkHost = true
@@ -302,6 +346,7 @@ object KomgaWebSourceDescriptor : WebSourceDescriptor {
 object GutenbergWebSourceDescriptor : WebSourceDescriptor {
     override val type = SourceType.GUTENBERG
     override val displayName = "Project Gutenberg"
+    override val toReadSupport = ToReadSupport.LocalOnly
     override val subtitle = "Public-domain ebooks"
     override val supportingHosts = "gutenberg.org · gutendex.com"
     override val addRoute = "add_gutenberg"

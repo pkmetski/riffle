@@ -6,12 +6,14 @@ import com.riffle.core.catalog.CatalogFileHandle
 import com.riffle.core.catalog.CatalogFileStream
 import com.riffle.core.catalog.CatalogHealth
 import com.riffle.core.catalog.CatalogItem
+import com.riffle.core.catalog.CatalogPlaylist
 import com.riffle.core.catalog.CatalogRoot
 import com.riffle.core.catalog.CatalogSeries
 import com.riffle.core.catalog.CatalogSeriesEntry
 import com.riffle.core.catalog.DownloadsCapability
 import com.riffle.core.catalog.FacetSelection
 import com.riffle.core.catalog.OfflineBrowseCapability
+import com.riffle.core.catalog.PlaylistsCapability
 import com.riffle.core.catalog.ReadCapability
 import com.riffle.core.catalog.SeriesCapability
 import com.riffle.core.catalog.SortKey
@@ -33,8 +35,11 @@ import java.net.URLEncoder
  * - Mandatory core (listRoots/browse/search/getItem/fetchFile/openFile/connectivityCheck): yes.
  * - [ReadCapability], [DownloadsCapability], [ToReadListCapability], [OfflineBrowseCapability]:
  *   marker mixins so the shared library UI enables the corresponding affordances.
- * - Absent: SeriesCapability (planned — Komga has strong series concepts, but they belong to a
- *   later slice), CollectionsCapability, ProgressPeerCapability, ReadingSessionsCapability,
+ * - [PlaylistsCapability]: server-side "To Read" sync backed by Komga's `/api/v1/readlists`.
+ *   Komga readlists are server-wide (not per-library), so the shared list is find-or-created once
+ *   and both the browse and detail toggles operate on it; per-library views are produced by
+ *   filtering the readlist's book ids to those in the requested library.
+ * - Absent: CollectionsCapability, ProgressPeerCapability, ReadingSessionsCapability,
  *   StatsCapability, AudiobookMediaCapability, BookmarksCapability, ReadaloudCapability.
  */
 class KomgaCatalog(
@@ -46,7 +51,8 @@ class KomgaCatalog(
     DownloadsCapability,
     ToReadListCapability,
     OfflineBrowseCapability,
-    SeriesCapability {
+    SeriesCapability,
+    PlaylistsCapability {
 
     override val sourceType: SourceType = SourceType.KOMGA
 
@@ -262,6 +268,188 @@ class KomgaCatalog(
             body,
         )
         return pageDto.content.map { it.toCatalogItem() }
+    }
+
+    // endregion
+
+    // region PlaylistsCapability
+
+    /**
+     * Summary of every readlist on the Komga server, with an empty `itemIds` list. Enumerating
+     * per-library book ids requires one extra request per readlist (`/readlists/{id}/books?
+     * library_id=…`), so [listPlaylists] deliberately skips that work and callers that need the
+     * bookIds (e.g. the To Read sync) should go through [findPlaylist] instead.
+     */
+    override suspend fun listPlaylists(rootId: String): List<CatalogPlaylist> =
+        fetchAllReadLists().map { rl ->
+            CatalogPlaylist(
+                id = rl.id,
+                rootId = rootId,
+                name = rl.name,
+                bookCount = 0,
+                itemIds = emptyList(),
+            )
+        }
+
+    override suspend fun findPlaylist(rootId: String, name: String): CatalogPlaylist? {
+        // Match by name AND ownership. A readlist that we CAN'T modify (owned by another user)
+        // is worse than nothing — reusing it means every add/remove 403s. Treat it as absent so
+        // [createPlaylist] falls through to POSTing a fresh readlist owned by the current user.
+        // Komga allows duplicate readlist names, so we can coexist with someone else's "To Read".
+        val readList = firstOwnedReadListNamed(name) ?: return null
+        val bookIdsInLibrary = fetchReadListBookIdsInLibrary(readList.id, rootId)
+        return CatalogPlaylist(
+            id = readList.id,
+            rootId = rootId,
+            name = readList.name,
+            bookCount = bookIdsInLibrary.size,
+            itemIds = bookIdsInLibrary,
+        )
+    }
+
+    override suspend fun createPlaylist(rootId: String, name: String, initialItemId: String?): CatalogPlaylist {
+        // Komga readlists are server-wide, not per-library. Re-check by name AND ownership
+        // before POST — concurrent first-time refreshes across two libraries shouldn't duplicate
+        // OUR "To Read", but we also must NOT hand back a readlist owned by another user (that
+        // would 403 on the next PATCH). See [firstOwnedReadListNamed].
+        val existing = firstOwnedReadListNamed(name)
+        if (existing != null) {
+            // Existing readlist — append initialItemId (idempotent) so the caller's expectation
+            // ("this playlist now contains the item I asked to seed") holds regardless of whether
+            // the list existed before.
+            if (initialItemId != null && initialItemId !in existing.bookIds) {
+                patchReadListBookIds(existing.id, existing.bookIds + initialItemId)
+            }
+            return CatalogPlaylist(
+                id = existing.id,
+                rootId = rootId,
+                name = existing.name,
+                bookCount = 0,
+                itemIds = emptyList(),
+            )
+        }
+        // Komga's POST /api/v1/readlists requires a non-empty bookIds; that's why the interface
+        // exposes [initialItemId]. If the caller passes null AND no readlist exists yet, Komga
+        // will reject the request — callers targeting Komga must always provide a seed on first
+        // create (ToReadRepositoryImpl already does this via the addToToRead path).
+        val body = KomgaJson.encodeToString(
+            KomgaReadListCreateDto.serializer(),
+            KomgaReadListCreateDto(
+                name = name,
+                bookIds = listOfNotNull(initialItemId),
+            ),
+        )
+        val response = http.postJson(apiUrl("readlists"), body)
+        val created = KomgaJson.decodeFromString(KomgaReadListDto.serializer(), response)
+        return CatalogPlaylist(
+            id = created.id,
+            rootId = rootId,
+            name = created.name,
+            bookCount = if (initialItemId != null) 1 else 0,
+            itemIds = if (initialItemId != null) listOf(initialItemId) else emptyList(),
+        )
+    }
+
+    override suspend fun addItemToPlaylist(playlistId: String, itemId: String) {
+        // Komga's PATCH replaces bookIds wholesale — read-modify-write to preserve order and
+        // append idempotently.
+        val current = fetchReadList(playlistId)
+        if (itemId in current.bookIds) return
+        patchReadListBookIds(playlistId, current.bookIds + itemId)
+    }
+
+    override suspend fun removeItemFromPlaylist(playlistId: String, itemId: String) {
+        val current = fetchReadList(playlistId)
+        val next = current.bookIds.filterNot { it == itemId }
+        if (next.isEmpty()) {
+            // Komga does NOT auto-delete empty readlists (ABS does). Mirror the ABS empty-list
+            // sweep here so the "To Read" name is free to be re-created on the next add; the
+            // caller-side snapshot already drops playlistId when itemIds go to empty (see
+            // ToReadRepositoryImpl.removeFromToRead).
+            http.delete(apiUrl("readlists/$playlistId"))
+        } else {
+            patchReadListBookIds(playlistId, next)
+        }
+    }
+
+    /**
+     * The current authenticated user's id (from `GET /api/v1/users/me`), cached for the lifetime
+     * of this catalog instance. Null when Komga refuses the query (e.g. older server without
+     * this endpoint, or transient auth failure) — callers then fall back to treating ownership
+     * as unknown, which is safe: any read/write that fails still gets logged via RIFFLE_TOREAD.
+     */
+    @Volatile private var cachedCurrentUserId: String? = null
+
+    private suspend fun currentUserId(): String? {
+        cachedCurrentUserId?.let { return it }
+        val body = runCatching { http.getString(apiUrl("users/me")) }.getOrNull() ?: return null
+        val me = runCatching { KomgaJson.decodeFromString(KomgaCurrentUserDto.serializer(), body) }.getOrNull()
+            ?: return null
+        cachedCurrentUserId = me.id
+        return me.id
+    }
+
+    /**
+     * First readlist named [name] whose owner is the currently authenticated user. Readlists
+     * without an [KomgaReadListDto.ownerId] (older Komga < 1.19) are considered a match — we
+     * have no ownership signal there and the writes will either succeed or fail loudly. A
+     * readlist owned by SOMEONE ELSE is skipped so we don't hand back an id that will 403 on
+     * every subsequent PATCH — this is the exact regression the Komga integration hit against
+     * a "To Read" readlist that had been created via Komga's web UI by a different user.
+     */
+    private suspend fun firstOwnedReadListNamed(name: String): KomgaReadListDto? {
+        val meId = currentUserId()
+        return fetchAllReadLists().firstOrNull { rl ->
+            rl.name == name && (rl.ownerId == null || rl.ownerId == meId)
+        }
+    }
+
+    private suspend fun fetchAllReadLists(): List<KomgaReadListDto> {
+        val out = mutableListOf<KomgaReadListDto>()
+        var page = 0
+        while (true) {
+            val body = http.getString(apiUrl("readlists") + "?size=$KOMGA_MAX_PAGE_SIZE&page=$page")
+            val pageDto = KomgaJson.decodeFromString(
+                KomgaPageDto.serializer(serializer<KomgaReadListDto>()),
+                body,
+            )
+            out += pageDto.content
+            if (pageDto.last || pageDto.content.isEmpty()) break
+            page++
+        }
+        return out
+    }
+
+    private suspend fun fetchReadList(id: String): KomgaReadListDto {
+        val body = http.getString(apiUrl("readlists/$id"))
+        return KomgaJson.decodeFromString(KomgaReadListDto.serializer(), body)
+    }
+
+    private suspend fun fetchReadListBookIdsInLibrary(readListId: String, libraryId: String): List<String> {
+        val out = mutableListOf<String>()
+        var page = 0
+        while (true) {
+            val url = apiUrl("readlists/$readListId/books") +
+                "?library_id=${URLEncoder.encode(libraryId, "UTF-8")}" +
+                "&size=$KOMGA_MAX_PAGE_SIZE&page=$page"
+            val body = http.getString(url)
+            val pageDto = KomgaJson.decodeFromString(
+                KomgaPageDto.serializer(serializer<KomgaBookDto>()),
+                body,
+            )
+            pageDto.content.forEach { out += it.id }
+            if (pageDto.last || pageDto.content.isEmpty()) break
+            page++
+        }
+        return out
+    }
+
+    private suspend fun patchReadListBookIds(id: String, bookIds: List<String>) {
+        val body = KomgaJson.encodeToString(
+            KomgaReadListUpdateDto.serializer(),
+            KomgaReadListUpdateDto(bookIds = bookIds),
+        )
+        http.patchJson(apiUrl("readlists/$id"), body)
     }
 
     // endregion
