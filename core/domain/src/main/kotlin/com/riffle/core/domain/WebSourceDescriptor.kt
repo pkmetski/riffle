@@ -73,6 +73,19 @@ interface WebSourceDescriptor {
      * reinstall repairs the drawer without duplicating rows.
      */
     val defaultLibraries: List<DefaultLibrary> get() = emptyList()
+
+    /**
+     * Slot in the "Add source" picker. Lower renders higher. Default `Int.MAX_VALUE` places new
+     * sources at the tail (registration order beyond that is unspecified).
+     */
+    val pickerOrder: Int get() = Int.MAX_VALUE
+
+    /**
+     * Marketing-shaped one-line blurb rendered under the picker card's title. Longer than
+     * [subtitle] because the picker card has more real estate. Falls back to [displayName] if
+     * unset — never surfaced with only a bare title.
+     */
+    val pickerBlurb: String get() = displayName
 }
 
 /** One library row to seed on singleton-source install. See [WebSourceDescriptor.defaultLibraries]. */
@@ -124,6 +137,8 @@ object AbsWebSourceDescriptor : WebSourceDescriptor {
     override val hasCredentials = true
     override val hasNetworkHost = true
     override val addRoute = "add_source?type=audiobookshelf"
+    override val pickerOrder = 0
+    override val pickerBlurb = "Stream ebooks and audiobooks from your Audiobookshelf server."
 }
 
 object LocalFilesWebSourceDescriptor : WebSourceDescriptor {
@@ -131,6 +146,8 @@ object LocalFilesWebSourceDescriptor : WebSourceDescriptor {
     override val displayName = "Local files"
     override val subtitle = "on this device"
     override val addRoute = "add_local_files"
+    override val pickerOrder = 1
+    override val pickerBlurb = "Read EPUBs and PDFs from a folder on this device."
 }
 
 object ChitankaWebSourceDescriptor : WebSourceDescriptor {
@@ -141,6 +158,8 @@ object ChitankaWebSourceDescriptor : WebSourceDescriptor {
     override val addRoute = "add_chitanka"
     override val browseRoutePrefix = "chitanka_browse"
     override val urlPlaceholder = "https://chitanka.invalid"
+    override val pickerOrder = 2
+    override val pickerBlurb = "Browse Bulgarian ebooks (chitanka.info) and audiobooks (gramofonche)."
     override val defaultLibraries = listOf(
         // ids mirror ChitankaCatalog.ROOT_BOOKS / ROOT_AUDIOBOOKS; kept duplicated here so
         // `:core:domain` doesn't have to depend on `:core:catalog-chitanka`. A test in
@@ -158,8 +177,14 @@ object GutenbergWebSourceDescriptor : WebSourceDescriptor {
     override val addRoute = "add_gutenberg"
     override val browseRoutePrefix = "gutenberg_browse"
     override val urlPlaceholder = "https://gutenberg.invalid"
+    override val pickerOrder = 3
+    override val pickerBlurb = "Browse tens of thousands of free public-domain ebooks."
     override val defaultLibraries = listOf(
         // id mirrors GutenbergCatalog.ROOT_BOOKS; see the note on ChitankaWebSourceDescriptor.
-        DefaultLibrary(id = "books", name = "Project Gutenberg", mediaType = "book"),
+        // name = "Books" matches the pre-ADR-0044 GutenbergSourceInstaller row so existing
+        // installs surviving a remove+re-add don't see the drawer library row silently rename
+        // ("Project Gutenberg" as both the source header AND the sole library row read as
+        // duplicated in the drawer).
+        DefaultLibrary(id = "books", name = "Books", mediaType = "book"),
     )
 }

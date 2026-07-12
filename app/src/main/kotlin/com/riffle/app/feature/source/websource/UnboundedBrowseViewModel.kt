@@ -11,6 +11,7 @@ import com.riffle.core.data.websource.WebSourceItemGate
 import com.riffle.core.data.websource.WebSourceLibraryItemUpserter
 import com.riffle.core.domain.SourceRepository
 import com.riffle.core.domain.SourceType
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.delay
@@ -61,6 +62,13 @@ abstract class UnboundedBrowseViewModel(
     defaultRootId: String,
     private val pageSize: Int,
     private val friendlyError: (Throwable) -> String,
+    /**
+     * Delay between a facet-chip tap and firing the network fetch. Rapid taps within the window
+     * coalesce into a single request, so cycling through chips doesn't saturate the source's
+     * per-host HTTP connection budget (e.g. Cloudflare's 5-per-host cap in front of Gutendex).
+     * Default 250 ms; subclasses override if their source doesn't share the constraint.
+     */
+    private val facetDebounceMs: Long = 250L,
 ) : ViewModel() {
 
     // The unbounded browse route uses the Riffle `libraryId` as the Catalog `rootId` — each of
@@ -119,6 +127,7 @@ abstract class UnboundedBrowseViewModel(
 
     private var currentPage = 0
     private var searchDebounceJob: Job? = null
+    private var facetDebounceJob: Job? = null
     private var refreshJob: Job? = null
     private var loadMoreJob: Job? = null
 
@@ -140,7 +149,11 @@ abstract class UnboundedBrowseViewModel(
     fun selectFacet(key: String?) {
         _selectedFacet.value = key
         savedStateHandle["facetKey"] = key
-        viewModelScope.launch { refresh() }
+        facetDebounceJob?.cancel()
+        facetDebounceJob = viewModelScope.launch {
+            delay(facetDebounceMs)
+            refresh()
+        }
     }
 
     fun onQueryChange(q: String) {
@@ -221,6 +234,11 @@ abstract class UnboundedBrowseViewModel(
             // A short first page IS the last page — nothing left to fetch. Flip hasMore so the
             // grid stops calling loadMore.
             _hasMore.value = result.size >= pageSize
+        } catch (ce: CancellationException) {
+            // The successor refresh() cancelled us mid-fetch — leave state alone so the
+            // predecessor's coroutine doesn't clobber the newer one's _items/_error/_hasMore
+            // as we unwind. Rethrow so structured concurrency treats the cancel as such.
+            throw ce
         } catch (t: Throwable) {
             _error.value = friendlyError(t)
             _items.value = emptyList()
@@ -255,6 +273,9 @@ abstract class UnboundedBrowseViewModel(
             }
             currentPage = nextPage
             _hasMore.value = next.size >= pageSize
+        } catch (ce: CancellationException) {
+            // See refreshOnce — don't let a cancelled loadMore overwrite hasMore/currentPage.
+            throw ce
         } catch (_: Throwable) {
             // A pagination failure isn't fatal — the user still sees the pages already loaded.
             // Leave hasMore true so a subsequent scroll retries the same page.

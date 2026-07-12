@@ -40,8 +40,6 @@ import com.riffle.app.feature.settings.ReorderableLibraryList
 import com.riffle.app.feature.settings.SettingsSectionHeader
 import com.riffle.app.feature.settings.idsWithSwap
 import com.riffle.core.database.LocalFilesFolderEntity
-import com.riffle.core.domain.ChitankaWebSourceDescriptor
-import com.riffle.core.domain.GutenbergWebSourceDescriptor
 import com.riffle.core.domain.ServerType
 import com.riffle.core.domain.Source
 import com.riffle.core.domain.SourceType

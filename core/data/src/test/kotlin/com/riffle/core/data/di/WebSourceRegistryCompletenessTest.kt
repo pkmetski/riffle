@@ -45,4 +45,19 @@ class WebSourceRegistryCompletenessTest {
         val expected = SourceType.values().toSet()
         assertEquals(expected, registered)
     }
+
+    // Pins the invariant that `MainScreen.libraryEntryRoute` relies on: any SourceType flagged as
+    // `isUnboundedCatalog = true` must ship a `browseRoutePrefix`, otherwise drawer library taps
+    // silently fall back to the Room-mirrored `library_items` screen and render an empty grid.
+    @Test
+    fun `every unbounded SourceType descriptor sets a browseRoutePrefix`() {
+        val missing = SourceType.values()
+            .filter { it.isUnboundedCatalog }
+            .filter { WebSourceDescriptors.forTypeOrError(it).browseRoutePrefix == null }
+        assertTrue(
+            "unbounded SourceType(s) without browseRoutePrefix: $missing — drawer library taps " +
+                "would silently route to `library_items` and render empty",
+            missing.isEmpty(),
+        )
+    }
 }

@@ -122,6 +122,7 @@ internal fun collectionDetailRoute(libraryId: String, collectionId: String, coll
 internal fun libraryEntryRoute(sourceType: SourceType?, libraryId: String, libraryName: String): String {
     val encoded = URLEncoder.encode(libraryName, "UTF-8")
     val prefix = sourceType
+        ?.takeIf { it.isUnboundedCatalog }
         ?.let { com.riffle.core.domain.WebSourceDescriptors.forType(it) }
         ?.browseRoutePrefix
     return if (prefix != null) "$prefix/$libraryId/$encoded" else "library_items/$libraryId/$encoded"

@@ -69,7 +69,7 @@ class SingletonWebSourceInstallerTest {
 
         val libraries = libraryDao.forSource(id).map { it.id to it.name }
         assertEquals(1, libraries.size)
-        assertTrue("Gutenberg Books library missing", libraries.any { it.first == "books" && it.second == "Project Gutenberg" })
+        assertTrue("Gutenberg Books library missing", libraries.any { it.first == "books" && it.second == "Books" })
     }
 
     @Test

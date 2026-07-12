@@ -50,43 +50,24 @@ data class SourceTypeCard(
 /**
  * Cards shown by [SourceTypePickerScreen]. Iterates every registered [WebSourceDescriptors]
  * entry and hides `descriptor.isSingleton` cards whose type is already in [installedTypes].
- * ADR 0044: adding a new source needs a descriptor object; no edit required here.
- *
- * The card's `subtitle` is authored per source (registered as [pickerBlurbFor]) because the
- * picker blurb is longer and more marketing-shaped than the drawer's static subtitle.
+ * ADR 0044: adding a new source needs a descriptor object with `pickerOrder` + `pickerBlurb`
+ * set; no edit required here.
  */
 internal fun sourceTypeCards(
     installedTypes: Set<SourceType> = emptySet(),
 ): List<SourceTypeCard> =
     WebSourceDescriptors.all
-        .sortedBy { pickerOrderOf(it.type) }
+        .sortedBy { it.pickerOrder }
         .mapNotNull { descriptor ->
             if (descriptor.isSingleton && descriptor.type in installedTypes) return@mapNotNull null
             SourceTypeCard(
                 type = descriptor.type,
                 title = descriptor.displayName,
-                subtitle = pickerBlurbFor(descriptor.type),
+                subtitle = descriptor.pickerBlurb,
                 enabled = true,
                 comingSoon = false,
             )
         }
-
-// Order matches the pre-refactor UI ordering: ABS, LocalFiles, Chitanka, Gutenberg, then any
-// future source in registration order. Kept as a data-driven table so a new source can pin its
-// slot by adding one entry (falling back to Int.MAX_VALUE places new sources at the end).
-private fun pickerOrderOf(type: SourceType): Int = when (type) {
-    SourceType.ABS -> 0
-    SourceType.LOCAL_FILES -> 1
-    SourceType.CHITANKA -> 2
-    SourceType.GUTENBERG -> 3
-}
-
-private fun pickerBlurbFor(type: SourceType): String = when (type) {
-    SourceType.ABS -> "Stream ebooks and audiobooks from your Audiobookshelf server."
-    SourceType.LOCAL_FILES -> "Read EPUBs and PDFs from a folder on this device."
-    SourceType.CHITANKA -> "Browse Bulgarian ebooks (chitanka.info) and audiobooks (gramofonche)."
-    SourceType.GUTENBERG -> "Browse tens of thousands of free public-domain ebooks."
-}
 
 private fun testTagFor(type: SourceType): String = "SourceTypeCard.${type.name}"
 
