@@ -68,6 +68,30 @@ internal data class KomgaBookDto(
     val media: KomgaBookMediaDto = KomgaBookMediaDto(),
     val metadata: KomgaBookMetadataDto = KomgaBookMetadataDto(),
     @SerialName("seriesTitle") val seriesTitle: String? = null,
+    val readProgress: KomgaReadProgressDto? = null,
+)
+
+/**
+ * Komga's read-progress record for one book. Present on `GET /api/v1/books/{id}` and returned
+ * embedded on bulk book listings. [page] is 1-indexed (or 0 for the never-opened case) and
+ * [completed] is Komga's finished flag. [readDate] is when the user last progressed the book;
+ * [lastModified] is when the row itself was last written (the field Riffle uses as the sync
+ * `lastUpdate` — see ADR 0030). Both are ISO-8601 strings.
+ */
+@Serializable
+internal data class KomgaReadProgressDto(
+    val page: Int = 0,
+    val completed: Boolean = false,
+    val readDate: String? = null,
+    val created: String? = null,
+    val lastModified: String? = null,
+)
+
+/** PATCH body for `PATCH /api/v1/books/{id}/read-progress`. */
+@Serializable
+internal data class KomgaReadProgressPatch(
+    val page: Int? = null,
+    val completed: Boolean? = null,
 )
 
 @Serializable

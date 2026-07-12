@@ -1,5 +1,6 @@
 package com.riffle.core.data
 
+import com.riffle.core.catalog.AudiobookProgressPeerCapability
 import com.riffle.core.catalog.CfiDialect
 import com.riffle.core.catalog.ProgressPeerCapability
 import com.riffle.core.domain.Clock
@@ -10,8 +11,9 @@ import com.riffle.core.domain.RemoteProgress
 /**
  * An ebook media-progress record as one reconcilable target (ADR 0030), routed through the
  * Source's [ProgressPeerCapability]. Position is stored locally as Readium Locator JSON. Whether
- * the peer stores that same JSON verbatim ([CfiDialect.READIUM_NATIVE]) or a foreign epub.js
- * `epubcfi(...)` string ([CfiDialect.EPUB_JS]) is decided by [ProgressPeerCapability.cfiDialect]:
+ * the peer stores that same JSON verbatim ([CfiDialect.READIUM_NATIVE]), a foreign epub.js
+ * `epubcfi(...)` string ([CfiDialect.EPUB_JS]), or an opaque page-number
+ * ([CfiDialect.PAGE_NUMBER]) is decided by [ProgressPeerCapability.cfiDialect]:
  *
  *  - [CfiDialect.EPUB_JS] (ABS today, ADR 0013): [translator] converts at the Catalog boundary.
  *    When the cached EPUB isn't available the translator is null — GET returns null (Offline, row
@@ -19,6 +21,8 @@ import com.riffle.core.domain.RemoteProgress
  *    enters either side.
  *  - [CfiDialect.READIUM_NATIVE]: the peer already speaks Locator JSON, so the translator MUST
  *    NOT run — even when supplied — and a null translator is normal, not "not cached yet".
+ *  - [CfiDialect.PAGE_NUMBER]: the peer speaks an opaque numeric page (Komga's `page`, #528). The
+ *    translator MUST NOT run; position bytes pass through verbatim.
  *
  * The PATCH also needs the `ebookProgress` fraction (ABS's library % + finished-detection); since
  * the local store keeps only the Locator JSON, the fraction is supplied by [readingProgress] —
@@ -36,7 +40,7 @@ class CatalogEbookProgressRemote(
         val r = runCatching { peer.pullProgress(itemId) }.getOrNull() ?: return null
         val raw = r.ebookLocation.orEmpty()
         val locatorJson = when (peer.cfiDialect) {
-            CfiDialect.READIUM_NATIVE -> raw
+            CfiDialect.READIUM_NATIVE, CfiDialect.PAGE_NUMBER -> raw
             CfiDialect.EPUB_JS -> {
                 val t = translator ?: return null
                 // ABS returns blank when the book has never been opened; skip translation so the
@@ -49,7 +53,7 @@ class CatalogEbookProgressRemote(
 
     override suspend fun patch(position: String): Long? {
         val payload = when (peer.cfiDialect) {
-            CfiDialect.READIUM_NATIVE -> position
+            CfiDialect.READIUM_NATIVE, CfiDialect.PAGE_NUMBER -> position
             CfiDialect.EPUB_JS -> {
                 val t = translator ?: return null
                 t.locatorJsonToCfi(position) ?: return null
@@ -70,25 +74,27 @@ class CatalogEbookProgressRemote(
 
 /**
  * An audiobook media-progress record as one reconcilable target (ADR 0030), routed through the
- * Source's [ProgressPeerCapability]. Position is the book-absolute `currentTime` in seconds. The
- * PATCH needs the track [duration]; the local store keeps only seconds, so duration is supplied
- * by the caller from `library_items.audioDurationSec`.
+ * Source's [AudiobookProgressPeerCapability]. Position is the book-absolute `currentTime` in
+ * seconds. The PATCH needs the track [duration]; the local store keeps only seconds, so duration
+ * is supplied by the caller from `library_items.audioDurationSec`. [pullPeer] supplies the
+ * unified `pullProgress` — audio and ebook share the same envelope on the ABS peer.
  */
 class CatalogAudioProgressRemote(
-    private val peer: ProgressPeerCapability,
+    private val audioPeer: AudiobookProgressPeerCapability,
+    private val pullPeer: ProgressPeerCapability,
     private val itemId: String,
     private val duration: suspend () -> Double,
     private val clock: Clock,
 ) : ProgressRemote<Double> {
 
     override suspend fun get(): RemoteProgress<Double>? {
-        val r = runCatching { peer.pullProgress(itemId) }.getOrNull() ?: return null
+        val r = runCatching { pullPeer.pullProgress(itemId) }.getOrNull() ?: return null
         return RemoteProgress(r.audioCurrentTime, r.lastUpdate)
     }
 
     override suspend fun patch(position: Double): Long? =
         runCatching {
-            val stamp = peer.pushAudiobookProgress(
+            val stamp = audioPeer.pushAudiobookProgress(
                 itemId = itemId,
                 currentTimeSec = position,
                 durationSec = duration(),

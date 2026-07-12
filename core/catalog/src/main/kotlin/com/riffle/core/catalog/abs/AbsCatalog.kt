@@ -1,6 +1,7 @@
 package com.riffle.core.catalog.abs
 
 import com.riffle.core.catalog.AudiobookMediaCapability
+import com.riffle.core.catalog.AudiobookProgressPeerCapability
 import com.riffle.core.catalog.BookFormat
 import com.riffle.core.catalog.BookmarksCapability
 import com.riffle.core.catalog.Catalog
@@ -83,6 +84,7 @@ class AbsCatalog(
     CollectionsCapability,
     PlaylistsCapability,
     ProgressPeerCapability,
+    AudiobookProgressPeerCapability,
     ReadingSessionsCapability,
     StatsCapability,
     AudiobookMediaCapability,

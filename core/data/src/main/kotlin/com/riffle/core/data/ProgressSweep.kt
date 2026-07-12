@@ -1,5 +1,6 @@
 package com.riffle.core.data
 
+import com.riffle.core.catalog.AudiobookProgressPeerCapability
 import com.riffle.core.catalog.CatalogRegistry
 import com.riffle.core.catalog.ProgressPeerCapability
 import com.riffle.core.domain.ProgressReconciler
@@ -67,27 +68,31 @@ class ProgressSweep(
             // zero-peer entries and drain without work. Bookmarks are gated separately, further
             // down, on their own capability by the underlying reconciler.
             val isProgressPeer = catalog is ProgressPeerCapability
+            val isAudioPeer = catalog is AudiobookProgressPeerCapability
             if (isProgressPeer) for (itemId in ledger.dirtyEbookItems(sourceId)) {
                 // Skip a book a live surface is driving — its own cycle owns inbound jumps (ADR 0030).
                 if (openTargets.isOpen(sourceId, itemId)) continue
                 val remote = remoteFactory.ebook(sourceId, itemId) ?: continue
-                locks.withLock(sourceId, itemId, RemoteKind.ABS_EBOOK) {
+                locks.withLock(sourceId, itemId, RemoteKind.EBOOK_POSITION) {
                     ebookReconciler.reconcile(sourceId, itemId, remote)
                 }
             }
-            if (isProgressPeer) for (itemId in ledger.dirtyAudioItems(sourceId)) {
+            // Audio pass is gated on AudiobookProgressPeerCapability (#528): ebook-only peers
+            // (Komga) never have dirty audio rows, but gate explicitly so a stale row from a
+            // deleted/downgraded source can't accidentally trigger a doomed PATCH.
+            if (isAudioPeer) for (itemId in ledger.dirtyAudioItems(sourceId)) {
                 if (openTargets.isOpen(sourceId, itemId)) continue
                 val remote = remoteFactory.audio(sourceId, itemId) ?: continue
-                locks.withLock(sourceId, itemId, RemoteKind.ABS_AUDIO) {
+                locks.withLock(sourceId, itemId, RemoteKind.AUDIO_POSITION) {
                     audioReconciler.reconcile(sourceId, itemId, remote)
                 }
             }
             for (itemId in bookmarkLedger.dirtyItems(sourceId)) {
                 // Same open-book discipline as the audio pass: an open book's bookmarks reconcile
-                // once it closes. ABS_BOOKMARK is its own lock kind, so it never contends with the
-                // position passes for the same item.
+                // once it closes. AUDIOBOOK_BOOKMARK is its own lock kind, so it never contends
+                // with the position passes for the same item.
                 if (openTargets.isOpen(sourceId, itemId)) continue
-                locks.withLock(sourceId, itemId, RemoteKind.ABS_BOOKMARK) {
+                locks.withLock(sourceId, itemId, RemoteKind.AUDIOBOOK_BOOKMARK) {
                     bookmarkReconcile.reconcile(sourceId, itemId)
                 }
             }

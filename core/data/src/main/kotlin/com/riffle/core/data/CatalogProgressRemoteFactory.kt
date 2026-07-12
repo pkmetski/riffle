@@ -1,5 +1,6 @@
 package com.riffle.core.data
 
+import com.riffle.core.catalog.AudiobookProgressPeerCapability
 import com.riffle.core.catalog.CatalogRegistry
 import com.riffle.core.catalog.ProgressPeerCapability
 import com.riffle.core.database.LibraryItemDao
@@ -10,14 +11,17 @@ import javax.inject.Inject
 
 /**
  * Builds the [ProgressRemote]s the sweep consumes, resolving each Source's Catalog through
- * [CatalogRegistry] and demanding [ProgressPeerCapability] before returning a remote. Sources
- * without a capability (LocalFiles today) are non-syncable — the factory returns null and the
- * sweep drops the (source, item) pair.
+ * [CatalogRegistry] and demanding [ProgressPeerCapability] (ebook) or
+ * [AudiobookProgressPeerCapability] (audio) before returning a remote. Sources without a
+ * capability (LocalFiles, Komga on the audio path — #528) are non-syncable — the factory returns
+ * null and the sweep drops the (source, item) pair.
  *
  * For ebook items, [translatorFactory] produces a per-item CFI↔Locator converter (ADR 0013): the
  * converter translates ABS's `epubcfi(...)` to Readium Locator JSON on GET and back on PATCH, so
  * the local store always holds canonical Locator JSON. When the EPUB isn't cached the factory
- * returns null and the remote defers (leaves the row dirty) rather than writing a raw CFI.
+ * returns null and the remote defers (leaves the row dirty) rather than writing a raw CFI. Peers
+ * with [com.riffle.core.catalog.CfiDialect.PAGE_NUMBER] or
+ * [com.riffle.core.catalog.CfiDialect.READIUM_NATIVE] bypass the translator entirely.
  */
 class CatalogProgressRemoteFactory @Inject constructor(
     private val catalogRegistry: CatalogRegistry,
@@ -38,9 +42,12 @@ class CatalogProgressRemoteFactory @Inject constructor(
     }
 
     override suspend fun audio(sourceId: String, itemId: String): ProgressRemote<Double>? {
-        val peer = catalogRegistry.forSourceId(sourceId) as? ProgressPeerCapability ?: return null
+        val catalog = catalogRegistry.forSourceId(sourceId) ?: return null
+        val pullPeer = catalog as? ProgressPeerCapability ?: return null
+        val audioPeer = catalog as? AudiobookProgressPeerCapability ?: return null
         return CatalogAudioProgressRemote(
-            peer = peer,
+            audioPeer = audioPeer,
+            pullPeer = pullPeer,
             itemId = itemId,
             duration = { libraryItemDao.getById(sourceId, itemId)?.audioDurationSec ?: 0.0 },
             clock = clock,

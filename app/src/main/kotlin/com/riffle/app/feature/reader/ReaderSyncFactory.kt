@@ -1,5 +1,6 @@
 package com.riffle.app.feature.reader
 
+import com.riffle.core.catalog.AudiobookProgressPeerCapability
 import com.riffle.core.catalog.CatalogRegistry
 import com.riffle.core.catalog.ProgressPeerCapability
 import com.riffle.core.data.CrossEpubIndexBuildTrigger
@@ -75,23 +76,23 @@ open class ReaderSyncFactory @Inject constructor(
             storytellerChapterHtml = storytellerExtract.htmlAt(),
         )
 
-        val absEbookEndpoint = endpointFor(ebookLink.absSourceId, ebookLink.absLibraryItemId)
+        val absEbookEndpoint = ebookEndpointFor(ebookLink.absSourceId, ebookLink.absLibraryItemId)
         val absAudioEndpoint = targets.audio?.let { a ->
             val durationSec = linkedMedia.firstOrNull { it.link.absLibraryItemId == a.absLibraryItemId }?.audioDurationSec ?: 0.0
-            endpointFor(a.absSourceId, a.absLibraryItemId, durationSec)
+            audioEndpointFor(a.absSourceId, a.absLibraryItemId, durationSec)
         }
 
         return ReaderSyncCoordinator(
             state = BookSyncState(
                 isMatched = true,
-                hasAbsEbookTarget = absEbookEndpoint != null,
-                hasAbsAudioTarget = absAudioEndpoint != null,
+                hasEbookPeer = absEbookEndpoint != null,
+                hasAudioPeer = absAudioEndpoint != null,
                 prerequisitesCached = true,
             ),
             translator = translator,
             clock = clock,
-            absEbookEndpoint = absEbookEndpoint,
-            absAudioEndpoint = absAudioEndpoint,
+            ebookEndpoint = absEbookEndpoint,
+            audioEndpoint = absAudioEndpoint,
         )
     }
 
@@ -110,7 +111,7 @@ open class ReaderSyncFactory @Inject constructor(
             ?: return null
         val storytellerExtract = EpubContentExtractor.extract(storytellerFile) ?: return null
         val durationSec = linkedMedia.firstOrNull { it.link.absLibraryItemId == audioTarget.absLibraryItemId }?.audioDurationSec ?: 0.0
-        val endpoint = endpointFor(audioTarget.absSourceId, audioTarget.absLibraryItemId, durationSec) ?: return null
+        val endpoint = audioEndpointFor(audioTarget.absSourceId, audioTarget.absLibraryItemId, durationSec) ?: return null
         return AudiobookFollow(
             endpoint = endpoint,
             translator = DefaultPositionTranslator(smilClips = storytellerExtract.smilClips),
@@ -122,9 +123,16 @@ open class ReaderSyncFactory @Inject constructor(
         )
     }
 
-    private suspend fun endpointFor(sourceId: String, itemId: String, durationSec: Double = 0.0): CatalogSyncEndpoint? {
+    private suspend fun ebookEndpointFor(sourceId: String, itemId: String): CatalogEbookEndpoint? {
         val peer = catalogRegistry.forSourceId(sourceId) as? ProgressPeerCapability ?: return null
-        return CatalogSyncEndpoint(peer, itemId, durationSec)
+        return CatalogEbookEndpoint(peer, itemId)
+    }
+
+    private suspend fun audioEndpointFor(sourceId: String, itemId: String, durationSec: Double): CatalogAudioEndpoint? {
+        val catalog = catalogRegistry.forSourceId(sourceId) ?: return null
+        val peer = catalog as? ProgressPeerCapability ?: return null
+        val audioPeer = catalog as? AudiobookProgressPeerCapability ?: return null
+        return CatalogAudioEndpoint(peer, audioPeer, itemId, durationSec)
     }
 
     private fun cachedFile(sourceId: String, itemId: String): java.io.File? =

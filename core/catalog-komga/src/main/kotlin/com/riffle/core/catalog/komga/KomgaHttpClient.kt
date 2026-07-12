@@ -86,7 +86,8 @@ class KomgaHttpClient(
 
     /**
      * PATCH [jsonBody] to [url]. Discards the response body — Komga PATCH endpoints typically
-     * return 204 No Content, so callers get success/failure via the exception, not a payload.
+     * return 204 No Content (e.g. `/read-progress` — #528), so callers get success/failure via
+     * the exception, not a payload.
      */
     suspend fun patchJson(url: String, jsonBody: String) {
         val request = Request.Builder()
@@ -190,3 +191,4 @@ class KomgaHttpException(
         responseBody = "",
     )
 }
+

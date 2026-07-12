@@ -2,6 +2,7 @@ package com.riffle.core.catalog.komga
 
 import com.riffle.core.catalog.BookFormat
 import com.riffle.core.catalog.CatalogFileHandle
+import com.riffle.core.catalog.CfiDialect
 import com.riffle.core.catalog.SortKey
 import kotlinx.coroutines.test.runTest
 import okhttp3.OkHttpClient
@@ -162,6 +163,133 @@ class KomgaCatalogTest {
         assertNull(KomgaCatalog.parseIsoInstant("not-a-timestamp"))
         assertEquals(0L, KomgaCatalog.parseIsoInstant("1970-01-01T00:00:00Z"))
     }
+
+    // region ProgressPeerCapability (#528) — page-based read-progress round-trip
+
+    @Test fun `cfiDialect is PAGE_NUMBER so the sweep bypasses CFI translation`() {
+        // A regression pin — CatalogEbookProgressRemote gates translator invocation on this. If a
+        // later change flipped the default back to EPUB_JS, Komga's page-shaped position strings
+        // would be handed to the CFI translator, which would return null and mark every push a
+        // no-op. This assertion flips red under exactly that regression.
+        assertEquals(CfiDialect.PAGE_NUMBER, catalog.cfiDialect)
+    }
+
+    @Test fun `pushEbookProgress PATCHes read-progress with the decoded page number`() = runTest {
+        server.enqueue(MockResponse().setResponseCode(204))
+
+        catalog.pushEbookProgress(
+            itemId = "B1",
+            location = "42",
+            progress = 0.5f,
+            isFinished = null,
+            lastUpdateEpochMs = 1_700_000L,
+        )
+
+        val recorded = server.takeRequest()
+        assertEquals("PATCH", recorded.method)
+        assertEquals("/api/v1/books/B1/read-progress", recorded.path)
+        val bodyStr = recorded.body.readUtf8()
+        // page decoded; completed derived from progress<1
+        assertTrue("page must be 42: $bodyStr", bodyStr.contains("\"page\":42"))
+        assertTrue("completed must be false: $bodyStr", bodyStr.contains("\"completed\":false"))
+    }
+
+    @Test fun `pushEbookProgress forwards explicit isFinished=true (mark-finished)`() = runTest {
+        server.enqueue(MockResponse().setResponseCode(204))
+
+        catalog.pushEbookProgress(
+            itemId = "B1",
+            location = "10",
+            progress = 1f,
+            isFinished = true,
+            lastUpdateEpochMs = 0L,
+        )
+
+        val bodyStr = server.takeRequest().body.readUtf8()
+        assertTrue(bodyStr.contains("\"completed\":true"))
+    }
+
+    @Test fun `pushEbookProgress with a non-numeric location returns null without hitting Komga`() = runTest {
+        // A Readium Locator JSON coming from a Komga-backed EPUB reader can't be decoded to a
+        // page — the push must be a no-op, not a PATCH with all-null fields (which Komga rejects).
+        val readiumLocator =
+            """{"href":"OEBPS/ch1.xhtml","locations":{"progression":0.5}}"""
+
+        val stamp = catalog.pushEbookProgress(
+            itemId = "B1",
+            location = readiumLocator,
+            progress = 0.5f,
+            isFinished = null,
+            lastUpdateEpochMs = 0L,
+        )
+
+        assertNull(stamp)
+        assertEquals("no PATCH must reach Komga for an undecodable position", 0, server.requestCount)
+    }
+
+    @Test fun `pullProgress reads the book's readProgress record into CatalogProgress`() = runTest {
+        server.enqueue(MockResponse().setBody("""
+            {"id":"B1","libraryId":"L1","name":"book","media":{"mediaType":"application/epub+zip","pagesCount":200},
+             "metadata":{"title":"Book","authors":[]},
+             "readProgress":{"page":50,"completed":false,"readDate":"2026-07-01T10:00:00Z","lastModified":"2026-07-01T10:00:00Z"}}
+        """.trimIndent()))
+
+        val p = catalog.pullProgress("B1")
+
+        assertNotNull(p)
+        assertEquals("B1", p!!.itemId)
+        assertEquals("50", p.ebookLocation)
+        assertEquals(0.25f, p.ebookProgress, 1e-6f)
+        assertEquals(false, p.isFinished)
+        assertEquals(java.time.Instant.parse("2026-07-01T10:00:00Z").toEpochMilli(), p.lastUpdate)
+    }
+
+    @Test fun `pullProgress marks completed books as finished`() = runTest {
+        server.enqueue(MockResponse().setBody("""
+            {"id":"B1","libraryId":"L1","name":"book","media":{"pagesCount":200},"metadata":{"title":"Book","authors":[]},
+             "readProgress":{"page":200,"completed":true,"readDate":"2026-07-01T10:00:00Z","lastModified":"2026-07-01T10:00:00Z"}}
+        """.trimIndent()))
+
+        val p = catalog.pullProgress("B1")!!
+        assertTrue(p.isFinished)
+        assertEquals(1f, p.ebookProgress, 1e-6f)
+        assertNotNull(p.finishedAt)
+    }
+
+    @Test fun `pullProgress returns a record even when the book has no progress (never-opened)`() = runTest {
+        // No readProgress field → dto.readProgress == null → toCatalogProgress → null.
+        server.enqueue(MockResponse().setBody("""
+            {"id":"B1","libraryId":"L1","name":"book","media":{"pagesCount":200},"metadata":{"title":"Book","authors":[]}}
+        """.trimIndent()))
+
+        assertNull("a book with no server-side progress has no CatalogProgress row", catalog.pullProgress("B1"))
+    }
+
+    @Test fun `pullAllProgress sweeps every page of in-progress books`() = runTest {
+        // Two pages back-to-back; the second is marked last=true.
+        server.enqueue(MockResponse().setBody("""
+            {"content":[
+              {"id":"B1","libraryId":"L1","name":"a","media":{"pagesCount":100},"metadata":{"title":"A","authors":[]},
+               "readProgress":{"page":10,"completed":false,"lastModified":"2026-07-01T10:00:00Z"}}
+            ],"last":false,"totalPages":2,"totalElements":2,"empty":false,"first":true,"number":0}
+        """.trimIndent()))
+        server.enqueue(MockResponse().setBody("""
+            {"content":[
+              {"id":"B2","libraryId":"L1","name":"b","media":{"pagesCount":50},"metadata":{"title":"B","authors":[]},
+               "readProgress":{"page":50,"completed":true,"lastModified":"2026-07-02T10:00:00Z"}}
+            ],"last":true,"totalPages":2,"totalElements":2,"empty":false,"first":false,"number":1}
+        """.trimIndent()))
+
+        val all = catalog.pullAllProgress()
+
+        assertEquals(2, all.size)
+        assertEquals("B1", all[0].itemId)
+        assertEquals(0.1f, all[0].ebookProgress, 1e-6f)
+        assertEquals("B2", all[1].itemId)
+        assertTrue(all[1].isFinished)
+    }
+
+    // endregion
 
     @Test fun `parseActuatorVersion extracts build version`() {
         val v = KomgaCatalog.parseActuatorVersion(

@@ -77,7 +77,7 @@ class ReconcileLocksTest {
         var annotationRan = false
 
         val progress = async {
-            locks.withLock("srv", "item", RemoteKind.ABS_EBOOK) { progressHold.await() }
+            locks.withLock("srv", "item", RemoteKind.EBOOK_POSITION) { progressHold.await() }
         }
         val annotation = async {
             locks.withAnnotationLock("srv", "item") { annotationRan = true }
@@ -98,10 +98,10 @@ class ReconcileLocksTest {
         var secondEntered = false
 
         val first = async {
-            locks.withLock("srv", "item", RemoteKind.ABS_EBOOK) { firstHold.await() }
+            locks.withLock("srv", "item", RemoteKind.EBOOK_POSITION) { firstHold.await() }
         }
         val second = async {
-            locks.withLock("srv", "item", RemoteKind.ABS_EBOOK) { secondEntered = true }
+            locks.withLock("srv", "item", RemoteKind.EBOOK_POSITION) { secondEntered = true }
         }
         advanceUntilIdle()
         assertFalse(secondEntered)
@@ -119,10 +119,10 @@ class ReconcileLocksTest {
         var audioRan = false
 
         val ebook = async {
-            locks.withLock("srv", "item", RemoteKind.ABS_EBOOK) { ebookHold.await() }
+            locks.withLock("srv", "item", RemoteKind.EBOOK_POSITION) { ebookHold.await() }
         }
         val audio = async {
-            locks.withLock("srv", "item", RemoteKind.ABS_AUDIO) { audioRan = true }
+            locks.withLock("srv", "item", RemoteKind.AUDIO_POSITION) { audioRan = true }
         }
         advanceUntilIdle()
         assertTrue("different kinds must not contend on the same book", audioRan)

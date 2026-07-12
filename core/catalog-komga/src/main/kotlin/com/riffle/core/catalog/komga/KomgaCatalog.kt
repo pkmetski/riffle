@@ -7,13 +7,16 @@ import com.riffle.core.catalog.CatalogFileStream
 import com.riffle.core.catalog.CatalogHealth
 import com.riffle.core.catalog.CatalogItem
 import com.riffle.core.catalog.CatalogPlaylist
+import com.riffle.core.catalog.CatalogProgress
 import com.riffle.core.catalog.CatalogRoot
 import com.riffle.core.catalog.CatalogSeries
 import com.riffle.core.catalog.CatalogSeriesEntry
+import com.riffle.core.catalog.CfiDialect
 import com.riffle.core.catalog.DownloadsCapability
 import com.riffle.core.catalog.FacetSelection
 import com.riffle.core.catalog.OfflineBrowseCapability
 import com.riffle.core.catalog.PlaylistsCapability
+import com.riffle.core.catalog.ProgressPeerCapability
 import com.riffle.core.catalog.ReadCapability
 import com.riffle.core.catalog.SeriesCapability
 import com.riffle.core.catalog.SortKey
@@ -35,12 +38,20 @@ import java.net.URLEncoder
  * - Mandatory core (listRoots/browse/search/getItem/fetchFile/openFile/connectivityCheck): yes.
  * - [ReadCapability], [DownloadsCapability], [ToReadListCapability], [OfflineBrowseCapability]:
  *   marker mixins so the shared library UI enables the corresponding affordances.
+ * - [SeriesCapability]: series-of-books grouping (Komga's core concept).
  * - [PlaylistsCapability]: server-side "To Read" sync backed by Komga's `/api/v1/readlists`.
  *   Komga readlists are server-wide (not per-library), so the shared list is find-or-created once
  *   and both the browse and detail toggles operate on it; per-library views are produced by
  *   filtering the readlist's book ids to those in the requested library.
- * - Absent: CollectionsCapability, ProgressPeerCapability, ReadingSessionsCapability,
- *   StatsCapability, AudiobookMediaCapability, BookmarksCapability, ReadaloudCapability.
+ * - [ProgressPeerCapability] (#528): Komga stores a per-book read-progress record with a `page`
+ *   integer (1-indexed) plus a `completed` flag. Position dialect is [CfiDialect.PAGE_NUMBER]: the
+ *   local Room store's opaque locator string is a page number for CBZ/PDF books opened from
+ *   Komga, and the ebook remote passes it through verbatim (no CFI translation). For reflowable
+ *   EPUB books served from Komga a locator-to-page mapping does not yet exist — sync degrades to
+ *   the local-only state (`get()` returns a stale RemoteProgress; PATCH is best-effort).
+ * - Absent: CollectionsCapability, ReadingSessionsCapability, StatsCapability,
+ *   AudiobookMediaCapability, AudiobookProgressPeerCapability, BookmarksCapability,
+ *   ReadaloudCapability.
  */
 class KomgaCatalog(
     private val config: KomgaCatalogConfig,
@@ -52,7 +63,8 @@ class KomgaCatalog(
     ToReadListCapability,
     OfflineBrowseCapability,
     SeriesCapability,
-    PlaylistsCapability {
+    PlaylistsCapability,
+    ProgressPeerCapability {
 
     override val sourceType: SourceType = SourceType.KOMGA
 
@@ -195,6 +207,100 @@ class KomgaCatalog(
             error = if (reachable) null else "Komga is unreachable",
         )
     }
+
+    // region ProgressPeerCapability (#528)
+
+    /**
+     * Komga stores the book position as a 1-indexed `page` integer. The engine's
+     * [CatalogEbookProgressRemote] bypasses the CFI translator for [CfiDialect.PAGE_NUMBER] and
+     * passes the position string through both ways — for CBZ/PDF (where the local Room store
+     * already holds a page-number-shaped opaque string) this is a natural fit. For reflowable
+     * EPUB from Komga the local store holds Readium Locator JSON, which Komga can't consume — the
+     * push then no-ops (page decode fails), which is the graceful degrade the ADR calls for until
+     * a locator↔page mapping ships.
+     */
+    override val cfiDialect: CfiDialect = CfiDialect.PAGE_NUMBER
+
+    override suspend fun pushEbookProgress(
+        itemId: String,
+        location: String,
+        progress: Float,
+        isFinished: Boolean?,
+        lastUpdateEpochMs: Long,
+    ): Long? {
+        // Decode the opaque payload as an integer page number (Komga's dialect). A non-numeric
+        // string (e.g. a Readium Locator JSON from a Komga-backed EPUB) means we can't push — bail
+        // early. Server-side lastUpdate isn't returned by Komga; return null so the caller adopts
+        // the client clock.
+        val page = location.trim().takeIf { it.isNotEmpty() }?.toIntOrNull()
+        val completed = isFinished ?: (progress >= 1f)
+        // Komga rejects a PATCH with all-null fields (204 vs 400 depending on version). Skip
+        // when we have neither a page nor an explicit finished flag.
+        if (page == null && isFinished == null) return null
+        val body = KomgaJson.encodeToString(
+            KomgaReadProgressPatch.serializer(),
+            KomgaReadProgressPatch(page = page, completed = completed),
+        )
+        http.patchJson(apiUrl("books/$itemId/read-progress"), body)
+        // Komga's PATCH response is 204 No Content — no server stamp. Caller adopts the client
+        // clock (see CatalogEbookProgressRemote / ReadingSessionRepositoryImpl).
+        return null
+    }
+
+    override suspend fun pullProgress(itemId: String): CatalogProgress? {
+        val body = runCatching { http.getString(apiUrl("books/$itemId")) }.getOrNull() ?: return null
+        val dto = runCatching { KomgaJson.decodeFromString(serializer<KomgaBookDto>(), body) }.getOrNull()
+            ?: return null
+        return dto.toCatalogProgress()
+    }
+
+    override suspend fun pullAllProgress(): List<CatalogProgress> {
+        // Sweep every book across every library that has a non-null readProgress. Komga has no
+        // "list all my progress" endpoint, but /books returns readProgress embedded, so we page
+        // through and filter. read_status=READ|IN_PROGRESS narrows the set server-side.
+        val out = mutableListOf<CatalogProgress>()
+        var page = 0
+        while (true) {
+            val body = http.getString(
+                apiUrl("books") +
+                    "?read_status=IN_PROGRESS,READ" +
+                    "&size=$KOMGA_MAX_PAGE_SIZE&page=$page",
+            )
+            val pageDto = KomgaJson.decodeFromString(
+                KomgaPageDto.serializer(serializer<KomgaBookDto>()),
+                body,
+            )
+            pageDto.content.forEach { book ->
+                book.toCatalogProgress()?.let { out += it }
+            }
+            if (pageDto.last || pageDto.content.isEmpty()) break
+            page++
+        }
+        return out
+    }
+
+    private fun KomgaBookDto.toCatalogProgress(): CatalogProgress? {
+        val rp = readProgress ?: return null
+        val totalPages = media.pagesCount?.takeIf { it > 0 }
+        val progress = when {
+            rp.completed -> 1f
+            totalPages != null -> (rp.page.toFloat() / totalPages.toFloat()).coerceIn(0f, 1f)
+            else -> 0f
+        }
+        val lastUpdate = parseIsoInstant(rp.lastModified) ?: parseIsoInstant(rp.readDate) ?: 0L
+        return CatalogProgress(
+            itemId = id,
+            ebookLocation = if (rp.page > 0) rp.page.toString() else null,
+            ebookProgress = progress,
+            audioCurrentTime = 0.0,
+            audioDuration = 0.0,
+            isFinished = rp.completed,
+            finishedAt = if (rp.completed) lastUpdate.takeIf { it > 0L } else null,
+            lastUpdate = lastUpdate,
+        )
+    }
+
+    // endregion
 
     // region SeriesCapability
 

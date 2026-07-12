@@ -1,7 +1,7 @@
 package com.riffle.core.domain
 
-import com.riffle.core.domain.RemoteKind.ABS_AUDIO
-import com.riffle.core.domain.RemoteKind.ABS_EBOOK
+import com.riffle.core.domain.RemoteKind.AUDIO_POSITION
+import com.riffle.core.domain.RemoteKind.EBOOK_POSITION
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
@@ -11,38 +11,38 @@ class ApplicableRemotesTest {
     fun `an unmatched book syncs ABS ebook only`() {
         val state = BookSyncState(
             isMatched = false,
-            hasAbsEbookTarget = true,
-            hasAbsAudioTarget = false,
+            hasEbookPeer = true,
+            hasAudioPeer = false,
             prerequisitesCached = false,
         )
 
-        assertEquals(setOf(ABS_EBOOK), applicableRemotes(state))
+        assertEquals(setOf(EBOOK_POSITION), applicableRemotes(state))
     }
 
     @Test
     fun `a matched book with an ebook and audio target reconciles both ABS peers`() {
-        // Two ABS peers only — Storyteller is not a sync peer (ADR 0029). ABS_AUDIO is reconciled
+        // Two ABS peers only — Storyteller is not a sync peer (ADR 0029). AUDIO_POSITION is reconciled
         // both ways: a cross-device listen wins inbound and moves the reader; reading writes it.
         val state = BookSyncState(
             isMatched = true,
-            hasAbsEbookTarget = true,
-            hasAbsAudioTarget = true,
+            hasEbookPeer = true,
+            hasAudioPeer = true,
             prerequisitesCached = true,
         )
 
-        assertEquals(setOf(ABS_EBOOK, ABS_AUDIO), applicableRemotes(state))
+        assertEquals(setOf(EBOOK_POSITION, AUDIO_POSITION), applicableRemotes(state))
     }
 
     @Test
     fun `a matched book with no matched audio item syncs ABS ebook only`() {
         val state = BookSyncState(
             isMatched = true,
-            hasAbsEbookTarget = true,
-            hasAbsAudioTarget = false,
+            hasEbookPeer = true,
+            hasAudioPeer = false,
             prerequisitesCached = true,
         )
 
-        assertEquals(setOf(ABS_EBOOK), applicableRemotes(state))
+        assertEquals(setOf(EBOOK_POSITION), applicableRemotes(state))
     }
 
     @Test
@@ -51,24 +51,24 @@ class ApplicableRemotesTest {
         // same logical book's two media, bridged by the bundle's SMIL — two ABS peers, no Storyteller.
         val state = BookSyncState(
             isMatched = true,
-            hasAbsEbookTarget = true,
-            hasAbsAudioTarget = true,
+            hasEbookPeer = true,
+            hasAudioPeer = true,
             prerequisitesCached = true,
         )
 
-        assertEquals(setOf(ABS_EBOOK, ABS_AUDIO), applicableRemotes(state))
+        assertEquals(setOf(EBOOK_POSITION, AUDIO_POSITION), applicableRemotes(state))
     }
 
     @Test
     fun `a matched book without cached prerequisites falls back to ABS ebook only`() {
         val state = BookSyncState(
             isMatched = true,
-            hasAbsEbookTarget = true,
-            hasAbsAudioTarget = true,
+            hasEbookPeer = true,
+            hasAudioPeer = true,
             prerequisitesCached = false,
         )
 
-        assertEquals(setOf(ABS_EBOOK), applicableRemotes(state))
+        assertEquals(setOf(EBOOK_POSITION), applicableRemotes(state))
     }
 
     @Test
@@ -79,12 +79,12 @@ class ApplicableRemotesTest {
         val state = BookSyncState(
             isMatched = false,
             openedMedium = OpenedMedium.AUDIO,
-            hasAbsEbookTarget = false,
-            hasAbsAudioTarget = true,
+            hasEbookPeer = false,
+            hasAudioPeer = true,
             prerequisitesCached = false,
         )
 
-        assertEquals(setOf(ABS_AUDIO), applicableRemotes(state))
+        assertEquals(setOf(AUDIO_POSITION), applicableRemotes(state))
     }
 
     @Test
@@ -95,11 +95,11 @@ class ApplicableRemotesTest {
         val state = BookSyncState(
             isMatched = true,
             openedMedium = OpenedMedium.AUDIO,
-            hasAbsEbookTarget = true,
-            hasAbsAudioTarget = true,
+            hasEbookPeer = true,
+            hasAudioPeer = true,
             prerequisitesCached = false,
         )
 
-        assertEquals(setOf(ABS_AUDIO), applicableRemotes(state))
+        assertEquals(setOf(AUDIO_POSITION), applicableRemotes(state))
     }
 }
