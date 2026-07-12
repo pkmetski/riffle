@@ -73,7 +73,7 @@ A user-defined, unordered grouping of Library Items within a Library. Definition
 A per-user, per-Library ordered list of Library Items. Definition and scoping vary by Source. Gated on `PlaylistsCapability`. On [ABS] specifically, a Playlist is scoped to `(userId, libraryId)` and accepts any Library Item, including ebook-only items. [To Read] is backed by a Playlist on Sources that support it (see [ADR 0019]).
 
 ### To Read
-A per-user, per-Library wishlist of Library Items the user intends to read. Gated on `PlaylistsCapability`: on an [ABS] Source, implemented as an ABS Playlist named `To Read` (find-or-created on first use — see [ADR 0019]); on Sources without Playlists, the To Read tab is hidden entirely in v1 (a device-local shadow is a future addition, not shipping now).
+A per-user, per-Library wishlist of Library Items the user intends to read. Gated on `PlaylistsCapability`: on an [ABS] Source, implemented as an ABS Playlist named `To Read`, scoped to `(userId, libraryId)` (find-or-created on first use — see [ADR 0019]). On a [Komga] Source, implemented as a single server-wide Komga readlist named `To Read`; the per-Library view is produced client-side by filtering the readlist's book ids to those in the requested Library. On Sources without `PlaylistsCapability`, the To Read tab is hidden entirely in v1 (a device-local shadow is a future addition, not shipping now).
 
 Surfaced as a dedicated **To Read** tab between Home and Series when available. The tab shows a grid of the user's queued Library Items; empty state reads "Nothing in To Read".
 
@@ -81,7 +81,7 @@ App-managed rules (Sources with `PlaylistsCapability` only):
 - **Find-or-create by name.** If the user renames the playlist on the server, the next toggle creates a new "To Read" playlist; the renamed one is left alone.
 - **Per-Library, not global.** A user with multiple Libraries has one "To Read" per Library.
 - **Read transitions remove from To Read.** Any transition to the Read state removes the item from "To Read". Not enforced in reverse.
-- **Empty playlists are auto-deleted by ABS.** Removing the last item deletes the playlist server-side; the next add transparently creates a fresh one.
+- **Empty playlists disappear.** Removing the last item drops the underlying list: [ABS] deletes it server-side automatically; on [Komga], Riffle explicitly issues a DELETE to match. Either way, the next add transparently creates a fresh one.
 - **Optimistic, no queueing.** Taps flip the icon immediately, fire the request, revert with a snackbar on failure. No durable mutation queue.
 
 ### Audiobook

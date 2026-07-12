@@ -3,6 +3,8 @@ package com.riffle.core.data
 import com.riffle.core.catalog.Catalog
 import com.riffle.core.catalog.CatalogRegistry
 import com.riffle.core.catalog.PlaylistsCapability
+import com.riffle.core.logging.LogChannel
+import com.riffle.core.logging.Logger
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.emitAll
@@ -30,6 +32,7 @@ private data class ToReadSnapshot(val playlistId: String?, val itemIds: Set<Stri
 class ToReadRepositoryImpl @Inject constructor(
     private val catalogRegistry: CatalogRegistry,
     private val localStore: LocalToReadStore,
+    private val logger: Logger,
 ) : ToReadRepository {
 
     private val cache = MutableStateFlow<Map<String, ToReadSnapshot>>(emptyMap())
@@ -48,8 +51,11 @@ class ToReadRepositoryImpl @Inject constructor(
         // Local backing has nothing to refresh — the DataStore IS the source of truth. Report
         // success so callers don't spin on false and think the source is offline.
         val cap = activePlaylistsCap() ?: return true
-        val playlists = runCatching { cap.listPlaylists(libraryId) }.getOrElse { return false }
-        val match = playlists.firstOrNull { it.name == TO_READ_PLAYLIST_NAME }
+        val match = runCatching { cap.findPlaylist(libraryId, TO_READ_PLAYLIST_NAME) }
+            .getOrElse {
+                logger.d(LogChannel.ToRead) { "refresh($libraryId) findPlaylist failed: $it" }
+                return false
+            }
         val snapshot = ToReadSnapshot(
             playlistId = match?.id,
             itemIds = match?.itemIds?.toSet() ?: emptySet(),
@@ -76,14 +82,35 @@ class ToReadRepositoryImpl @Inject constructor(
         cache.value = cache.value + (libraryId to before.copy(itemIds = before.itemIds + libraryItemId))
         val playlistId = before.playlistId
         val ok = if (playlistId == null) {
+            // Seed the new playlist with libraryItemId in a single request. Komga's
+            // POST /api/v1/readlists REQUIRES a non-empty bookIds, so we cannot create-empty
+            // and add-later on that backend. ABS accepts it as `initialBookId` in the same POST.
             runCatching {
-                val created = cap.createPlaylist(libraryId, TO_READ_PLAYLIST_NAME)
-                cap.addItemToPlaylist(created.id, libraryItemId)
+                val created = cap.createPlaylist(libraryId, TO_READ_PLAYLIST_NAME, initialItemId = libraryItemId)
                 cache.value = cache.value + (libraryId to ToReadSnapshot(created.id, before.itemIds + libraryItemId))
                 true
-            }.getOrDefault(false)
+            }.getOrElse {
+                logger.d(LogChannel.ToRead) { "addToToRead($libraryId, $libraryItemId) createPlaylist failed: $it" }
+                false
+            }
         } else {
-            runCatching { cap.addItemToPlaylist(playlistId, libraryItemId); true }.getOrDefault(false)
+            runCatching { cap.addItemToPlaylist(playlistId, libraryItemId); true }.getOrElse { addErr ->
+                // The cached playlistId can go stale — Komga's readlist is server-wide, so a
+                // "remove last item" in a sibling library (or from another device) DELETEs the
+                // readlist while this library's snapshot still points at it. Rather than fail
+                // the tap, fall through to create-with-seed so the tap self-heals into a fresh
+                // readlist. The recovery is bounded to one retry; a genuine network error will
+                // fail again and get logged.
+                logger.d(LogChannel.ToRead) { "addToToRead($libraryId, $libraryItemId) addItemToPlaylist failed, retrying via create: $addErr" }
+                runCatching {
+                    val created = cap.createPlaylist(libraryId, TO_READ_PLAYLIST_NAME, initialItemId = libraryItemId)
+                    cache.value = cache.value + (libraryId to ToReadSnapshot(created.id, before.itemIds + libraryItemId))
+                    true
+                }.getOrElse { createErr ->
+                    logger.d(LogChannel.ToRead) { "addToToRead($libraryId, $libraryItemId) recovery create failed: $createErr" }
+                    false
+                }
+            }
         }
         if (!ok) cache.value = cache.value + (libraryId to before)
         return ok
@@ -107,7 +134,10 @@ class ToReadRepositoryImpl @Inject constructor(
             before.copy(itemIds = remainingIds)
         }
         cache.value = cache.value + (libraryId to optimistic)
-        val ok = runCatching { cap.removeItemFromPlaylist(playlistId, libraryItemId); true }.getOrDefault(false)
+        val ok = runCatching { cap.removeItemFromPlaylist(playlistId, libraryItemId); true }.getOrElse {
+            logger.d(LogChannel.ToRead) { "removeFromToRead($libraryId, $libraryItemId) failed: $it" }
+            false
+        }
         if (!ok) cache.value = cache.value + (libraryId to before)
         return ok
     }

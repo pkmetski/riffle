@@ -20,4 +20,5 @@ enum class LogChannel(val tag: String) {
     Chitanka("RIFFLE_CHI"),
     WebSourceCache("RIFFLE_WSC"),
     Gutenberg("RIFFLE_GB"),
+    ToRead("RIFFLE_TOREAD"),
 }
