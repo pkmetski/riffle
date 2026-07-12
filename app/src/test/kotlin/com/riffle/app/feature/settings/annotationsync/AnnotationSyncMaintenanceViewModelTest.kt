@@ -312,7 +312,8 @@ class AnnotationSyncMaintenanceViewModelTest {
             absUserId = activeAbsUserId,
         )
         override suspend fun getById(sourceId: String): Source? = getActive()
-        override suspend fun ensureAbsUserId(sourceId: String): String = activeAbsUserId
+        override suspend fun ensureSyncNamespace(sourceId: String): com.riffle.core.domain.SyncNamespace =
+            com.riffle.core.domain.SyncNamespace.Configured(activeAbsUserId)
         override suspend fun commit(pending: PendingSource, hiddenLibraryIds: Set<String>): CommitSourceResult = error("not used")
         override suspend fun setActive(sourceId: String) {}
         override suspend fun remove(sourceId: String) {}

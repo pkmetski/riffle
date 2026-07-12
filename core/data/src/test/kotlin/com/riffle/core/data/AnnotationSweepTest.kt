@@ -288,7 +288,9 @@ class AnnotationSweepTest {
         private val absUserIds: Map<String, String>,
         private val usernames: Map<String, String> = emptyMap(),
     ) : SourceRepository {
-        override suspend fun ensureAbsUserId(sourceId: String): String? = absUserIds[sourceId]
+        override suspend fun ensureSyncNamespace(sourceId: String): com.riffle.core.domain.SyncNamespace =
+            absUserIds[sourceId]?.let { com.riffle.core.domain.SyncNamespace.Configured(it) }
+                ?: com.riffle.core.domain.SyncNamespace.LocalOnly("test fake")
         override suspend fun getById(sourceId: String): Source? = usernames[sourceId]?.let {
             Source(
                 id = sourceId,

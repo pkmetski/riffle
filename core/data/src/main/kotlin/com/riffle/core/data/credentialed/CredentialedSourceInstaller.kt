@@ -58,12 +58,11 @@ class CredentialedSourceInstaller @Inject constructor(
             insecureConnectionAllowed = pending.insecureConnectionAllowed,
             username = pending.username,
             serverType = pending.serverType.name,
-            // ABS exposes `user.id` on the login response — persist it now so annotation sync has
-            // a cross-device-stable namespace from first open. Storyteller's login response
-            // carries no equivalent identity (auth is username + token), so leave it null.
-            absUserId = pending.userId.takeIf {
-                it.isNotBlank() && pending.serverType == ServerType.AUDIOBOOKSHELF
-            },
+            // Persist the source's remote-user identity when the authenticator supplied one
+            // (#529). ABS exposes `user.id` on /api/me, Komga exposes `id` on /api/v2/users/me;
+            // both flow through PendingSource.userId. Storyteller's login response carries no
+            // equivalent identity — its descriptor returns SyncNamespace.LocalOnly regardless.
+            absUserId = pending.userId.takeIf { it.isNotBlank() },
             type = pending.sourceType.name,
         )
         // Save credentials BEFORE inserting the row. `SourceDao.observeAll` is a Room Flow that

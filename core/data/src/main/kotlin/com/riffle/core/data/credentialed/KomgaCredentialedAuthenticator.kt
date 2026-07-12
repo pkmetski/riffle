@@ -46,8 +46,11 @@ class KomgaCredentialedAuthenticator @Inject constructor(
         }
         val base = url.value.trimEnd('/')
 
-        // Auth probe — /api/v2/users/me returns the current user or 401.
-        val meStatus = try {
+        // Auth probe — /api/v2/users/me returns the current user or 401. We read the body when
+        // the request succeeds so the response's `id` can be stashed into PendingSource.userId
+        // (#529) as this source's cross-device annotation-sync identity; falling back to v1 for
+        // pre-Komga-1.9 builds that only serve the older endpoint shape.
+        val meResult = try {
             probeMe(http, base)
         } catch (e: SSLHandshakeException) {
             return AuthenticateResult.InsecureConnection(InsecureConnectionType.SELF_SIGNED)
@@ -55,9 +58,9 @@ class KomgaCredentialedAuthenticator @Inject constructor(
             return AuthenticateResult.NetworkError(e)
         }
         when {
-            meStatus == 401 || meStatus == 403 -> return AuthenticateResult.WrongCredentials()
-            meStatus !in 200..399 -> return AuthenticateResult.NetworkError(
-                IOException("Komga returned HTTP $meStatus at /users/me")
+            meResult.status == 401 || meResult.status == 403 -> return AuthenticateResult.WrongCredentials()
+            meResult.status !in 200..399 -> return AuthenticateResult.NetworkError(
+                IOException("Komga returned HTTP ${meResult.status} at /users/me")
             )
         }
 
@@ -76,7 +79,7 @@ class KomgaCredentialedAuthenticator @Inject constructor(
             PendingSource(
                 url = url,
                 username = username,
-                userId = "",
+                userId = meResult.userId.orEmpty(),
                 // Stash the FULL `Authorization` header value ("Basic <base64>") in the token slot
                 // so cover-image fetch sites (which read `TokenStorage.getToken`) can pass it
                 // straight through `String.asAuthHeader` without inventing a Komga-specific code
@@ -97,11 +100,33 @@ class KomgaCredentialedAuthenticator @Inject constructor(
         )
     }
 
-    private suspend fun probeMe(http: KomgaHttpClient, base: String): Int {
-        val v2 = http.getStatus("$base/api/v2/users/me")
-        if (v2 == 404) return http.getStatus("$base/api/v1/users/me")
+    private suspend fun probeMe(http: KomgaHttpClient, base: String): ProbeResult {
+        val v2 = fetchMe(http, "$base/api/v2/users/me")
+        if (v2.status == 404) return fetchMe(http, "$base/api/v1/users/me")
         return v2
     }
+
+    private suspend fun fetchMe(http: KomgaHttpClient, url: String): ProbeResult {
+        // Single GET so mock servers and real servers see exactly one request per probe. On
+        // non-2xx the client throws [KomgaHttpException] carrying the status; on 2xx we parse
+        // `id` for #529 (falling back to a userless success if the body doesn't match the
+        // shape — auth still passes).
+        return try {
+            val body = http.getString(url)
+            val id = runCatching {
+                Json { ignoreUnknownKeys = true }
+                    .decodeFromString(KomgaMeDto.serializer(), body).id.takeIf { it.isNotBlank() }
+            }.getOrNull()
+            ProbeResult(status = 200, userId = id)
+        } catch (e: KomgaHttpException) {
+            ProbeResult(status = e.code, userId = null)
+        }
+    }
+
+    private data class ProbeResult(val status: Int, val userId: String?)
+
+    @Serializable
+    private data class KomgaMeDto(@SerialName("id") val id: String)
 
     @Serializable
     private data class KomgaAuthLibraryDto(

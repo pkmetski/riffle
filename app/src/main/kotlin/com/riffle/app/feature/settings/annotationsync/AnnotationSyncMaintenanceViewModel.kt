@@ -8,6 +8,7 @@ import com.riffle.core.domain.DeviceIdStore
 import com.riffle.core.domain.DeviceLabelResolver
 import com.riffle.core.domain.DeviceLabelStore
 import com.riffle.core.domain.SourceRepository
+import com.riffle.core.domain.SyncNamespace
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -318,11 +319,19 @@ class AnnotationSyncMaintenanceViewModel @Inject constructor(
             .format(java.time.Instant.ofEpochMilli(atMs))
 
     private suspend fun resolveNamespace(): String? {
-        // Active server first (most relevant to the user), then any configured ABS server with a
-        // known absUserId — Maintenance shows files from whichever account currently owns them.
-        sourceRepository.getActive()?.absUserId?.takeIf { it.isNotBlank() }?.let { return it }
+        // Active server first (most relevant to the user), then any configured source that
+        // resolves to a Configured sync namespace — Maintenance shows files from whichever
+        // account currently owns them. Any descriptor returning LocalOnly (Storyteller peer,
+        // anonymous catalogs, local files) is skipped so its sources never crowd out a real
+        // sync-eligible source further down the list.
+        sourceRepository.getActive()?.let { active ->
+            (sourceRepository.ensureSyncNamespace(active.id) as? SyncNamespace.Configured)
+                ?.value?.let { return it }
+        }
         val all = sourceRepository.observeAll().first()
-        return all.firstNotNullOfOrNull { it.absUserId?.takeIf { id -> id.isNotBlank() } }
+        return all.firstNotNullOfOrNull { source ->
+            (sourceRepository.ensureSyncNamespace(source.id) as? SyncNamespace.Configured)?.value
+        }
     }
 
     private suspend fun currentDeviceLabel(): String =

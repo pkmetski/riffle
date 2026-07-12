@@ -35,11 +35,15 @@ interface SourceRepository {
     suspend fun getSourceVersion(sourceId: String): String?
 
     /**
-     * Return the ABS-side stable user identity for this source, fetching it from `/api/me` if
-     * it hasn't been persisted yet (legacy rows created before the column existed). Returns
-     * null for Storyteller services, for unknown source ids, and when the fetch fails (offline,
-     * server down, invalid token). A successful fetch is persisted so subsequent calls are
-     * a single DB lookup.
+     * Resolve this source's annotation-sync namespace (#529). Delegates to
+     * [WebSourceDescriptor.syncNamespaceFor]; on [SyncNamespace.PendingRemoteId] the repository
+     * calls the source-kind-specific [RemoteUserIdResolver], persists the fetched id into
+     * `Source.absUserId`, and re-evaluates the descriptor. Returns [SyncNamespace.LocalOnly]
+     * for unknown source ids so callers can render a uniform local-only state.
+     *
+     * A successful cross-device resolution is persisted so subsequent calls are a single DB
+     * lookup — the resolver only runs on the first open of a legacy row.
      */
-    suspend fun ensureAbsUserId(sourceId: String): String? = null
+    suspend fun ensureSyncNamespace(sourceId: String): SyncNamespace =
+        SyncNamespace.LocalOnly("Unknown source.")
 }
