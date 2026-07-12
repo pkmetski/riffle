@@ -441,7 +441,10 @@ internal fun LocalFilesSourceRow(
                                             enabled = item.switchEnabled,
                                         )
                                     }
-                                    IconButton(onClick = { pendingFolderRemoval = folder }) {
+                                    IconButton(
+                                        onClick = { pendingFolderRemoval = folder },
+                                        enabled = folders.size > 1,
+                                    ) {
                                         Icon(Icons.Default.Delete, contentDescription = "Remove folder")
                                     }
                                 }
