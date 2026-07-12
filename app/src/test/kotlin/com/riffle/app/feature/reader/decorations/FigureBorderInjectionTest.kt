@@ -30,6 +30,27 @@ class FigureBorderInjectionTest {
     }
 
     @Test
+    fun `apply js sets figcaption tint with important priority to beat publisher CSS`() {
+        // Publishers (e.g. Wiley's WileyTemplate) reset colors on <p>/<figcaption> via
+        // ID-scoped rules. Setting backgroundColor without 'important' loses the specificity
+        // fight and the caption stays untinted. Reverting the setProperty importance flag flips
+        // this red.
+        val marks = listOf(
+            FigureBorderDecoration.RasterMark(
+                filename = "graph.png",
+                color = "rgba(52,211,153,0.5)",
+                hasNote = false,
+            ),
+        )
+        val js = figureBorderApplyJs(cssRules = emptyList(), svgMatches = emptyList(), rasterMarks = marks)
+
+        assertTrue(
+            "tintCaptionFor must use setProperty('background-color', ..., 'important')",
+            js.contains("setProperty('background-color', color, 'important')"),
+        )
+    }
+
+    @Test
     fun `apply js falls back to text-prefix caption block for non-semantic figures`() {
         val marks = listOf(
             FigureBorderDecoration.RasterMark(

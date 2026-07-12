@@ -132,7 +132,9 @@ internal fun figureBorderApplyJs(
           function clearAllFigcaptionTints() {
             var stale = document.querySelectorAll('[data-riffle-fig-tint]');
             for (var k = 0; k < stale.length; k++) {
-              stale[k].style.backgroundColor = '';
+              // Match how we set it (setProperty with 'important'); plain assignment can leave
+              // the important-flagged declaration in place.
+              stale[k].style.removeProperty('background-color');
               stale[k].removeAttribute('data-riffle-fig-tint');
             }
           }
@@ -167,7 +169,8 @@ internal fun figureBorderApplyJs(
             if (fig) cap = fig.querySelector(':scope > figcaption');
             if (!cap) cap = nearestCaptionBlock(el);
             if (!cap) return;
-            cap.style.backgroundColor = color;
+            // Use setProperty with 'important' so publisher CSS resets (Wiley et al.) don't win.
+            cap.style.setProperty('background-color', color, 'important');
             cap.setAttribute('data-riffle-fig-tint', '1');
           }
           clearAllFigcaptionTints();
@@ -198,8 +201,8 @@ internal fun figureBorderApplyJs(
             for (var i = 0; i < svgs.length; i++) {
               var s = svgs[i];
               if (s.__riffleBorderApplied) {
-                s.style.outline = '';
-                s.style.outlineOffset = '';
+                s.style.removeProperty('outline');
+                s.style.removeProperty('outline-offset');
                 s.__riffleBorderApplied = false;
               }
               clearNoteBadgeAround(s);
@@ -208,8 +211,8 @@ internal fun figureBorderApplyJs(
               for (var j = 0; j < matches.length; j++) {
                 var fp = matches[j].fp;
                 if (outer.indexOf(fp) === 0 || (inner.length && fp.indexOf(inner.slice(0, 40)) !== -1)) {
-                  s.style.outline = '2px solid ' + matches[j].color;
-                  s.style.outlineOffset = '2px';
+                  s.style.setProperty('outline', '2px solid ' + matches[j].color, 'important');
+                  s.style.setProperty('outline-offset', '2px', 'important');
                   s.__riffleBorderApplied = true;
                   tintCaptionFor(s, matches[j].color);
                   if (matches[j].note) addNoteBadge(s, matches[j].color);
