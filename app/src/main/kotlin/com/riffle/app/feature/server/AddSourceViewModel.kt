@@ -434,13 +434,16 @@ private fun parseBackend(raw: String?): AddSourceBackend = when (raw?.lowercase(
         AddSourceBackend.Credentialed(SourceType.ABS, ServerType.STORYTELLER_SERVICE)
     "webdav" -> AddSourceBackend.Webdav
     else -> {
-        // Match any other credentialed SourceType by lowercase name (SourceType.KOMGA →
-        // "komga"). ServerType.AUDIOBOOKSHELF is a filler — non-ABS descriptors ignore the
-        // discriminator.
+        // Match any *credentialed* SourceType by lowercase name (SourceType.KOMGA → "komga").
+        // Gate on the descriptor's `hasCredentials` so a bad deep link (`type=local_files`,
+        // `type=chitanka`, `type=gutenberg`) can't produce a Credentialed backend that later
+        // crashes in doAuthenticate with "no CredentialedAuthenticator bound for LOCAL_FILES".
+        // ServerType.AUDIOBOOKSHELF is a filler — non-ABS descriptors ignore the discriminator.
         val lower = raw.lowercase()
-        val sourceType = SourceType.entries.firstOrNull { it.name.lowercase() == lower }
-        if (sourceType != null) {
-            AddSourceBackend.Credentialed(sourceType, ServerType.AUDIOBOOKSHELF)
+        val descriptor = com.riffle.core.domain.WebSourceDescriptors.all
+            .firstOrNull { it.type.name.lowercase() == lower && it.hasCredentials }
+        if (descriptor != null) {
+            AddSourceBackend.Credentialed(descriptor.type, ServerType.AUDIOBOOKSHELF)
         } else {
             AddSourceBackend.Credentialed(SourceType.ABS, ServerType.AUDIOBOOKSHELF)
         }

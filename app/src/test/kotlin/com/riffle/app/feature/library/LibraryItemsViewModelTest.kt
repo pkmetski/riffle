@@ -1262,10 +1262,12 @@ class LibraryItemsViewModelTest {
         assertEquals(false, vm.tabVisibility.value?.annotations)
     }
 
-    // Regression pin for the majority rule: a Books library dominated by EPUB/PDF but with a few
-    // stray CBZ still shows the Annotations tab. Symmetric to the all-CBZ case above.
+    // Regression pin for the ANY-annotable rule: as long as at least one item in the library can
+    // carry a highlight, the Annotations tab stays visible. A library dominated by CBZ but with a
+    // handful of EPUBs still shows it — the previous majority-vote gate lost access to those
+    // EPUBs' notes when non-annotable items outnumbered annotable ones, which was the bug.
     @Test
-    fun `tabVisibility annotations is shown when annotable items dominate`() = runTest {
+    fun `tabVisibility annotations is shown when any item is annotable even if outnumbered`() = runTest {
         val srv = source("s-abs", active = true)
         val srcRepo = object : SourceRepository {
             override fun observeAll(): Flow<List<Source>> = MutableStateFlow(listOf(srv))
@@ -1284,9 +1286,16 @@ class LibraryItemsViewModelTest {
         val cbz = LibraryItem(
             "id-cbz", "lib-1", "Comic", "A", null, 0f, false, false, EbookFormat.Cbz,
         )
-        // 10 EPUBs, 2 CBZs → annotable-dominant → tab visible.
+        // Outnumbered case (previously hidden by the majority gate): 5 EPUBs, 100 CBZs → tab
+        // still visible because the 5 EPUBs' highlights are worth reaching.
         allItemsFlow.value =
-            List(10) { epub.copy(id = "id-epub-$it") } + List(2) { cbz.copy(id = "id-cbz-$it") }
+            List(5) { epub.copy(id = "id-epub-$it") } + List(100) { cbz.copy(id = "id-cbz-$it") }
+        testDispatcher.scheduler.advanceUntilIdle()
+        assertEquals(true, vm.tabVisibility.value?.annotations)
+
+        // Tie case (previously visible; still visible under the any-annotable rule).
+        allItemsFlow.value =
+            List(50) { epub.copy(id = "id-epub-$it") } + List(50) { cbz.copy(id = "id-cbz-$it") }
         testDispatcher.scheduler.advanceUntilIdle()
         assertEquals(true, vm.tabVisibility.value?.annotations)
     }

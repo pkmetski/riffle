@@ -396,6 +396,29 @@ class AddSourceViewModelTest {
         assertEquals("remembered", vm.password)
     }
 
+    // Regression pin: `parseBackend` used to accept any `SourceType.name.lowercase()` route
+    // param, so `type=local_files` / `type=chitanka` / `type=gutenberg` would produce a
+    // `Credentialed` backend — those SourceTypes have no CredentialedAuthenticator binding, so
+    // tapping Connect would throw `IllegalStateException("no CredentialedAuthenticator bound
+    // for ...")` on the UI thread. Gate the fallback on `descriptor.hasCredentials` so bad
+    // deep links round-trip to the safe ABS default instead of crashing.
+    @Test
+    fun `init with type of a non-credentialed SourceType falls back to ABS instead of crashing`() = runTest {
+        val savedState = SavedStateHandle(mapOf("type" to "local_files"))
+        val vm = makeVm(
+            fakeRepo(AuthenticateResult.WrongCredentials("x")),
+            savedState = savedState,
+        )
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        val backend = vm.backend
+        assertTrue(backend is AddSourceBackend.Credentialed)
+        assertEquals(
+            com.riffle.core.domain.SourceType.ABS,
+            (backend as AddSourceBackend.Credentialed).sourceType,
+        )
+    }
+
     @Test
     fun `init with type=webdav and existing config enters edit mode with all fields prefilled`() = runTest {
         val existing = com.riffle.core.domain.AnnotationSyncConfig(

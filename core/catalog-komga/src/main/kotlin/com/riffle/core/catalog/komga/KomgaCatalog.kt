@@ -341,6 +341,11 @@ class KomgaCatalog(
 
         internal fun sortParamFor(sort: SortKey): String = when (sort) {
             SortKey.TITLE -> "metadata.titleSort,asc"
+            // Komga's /api/v1/books has no author-sort key — authors are a multi-role list on
+            // book metadata, not a top-level column. Falling back to titleSort keeps the result
+            // order deterministic (better than the server's default insertion order); a truly
+            // author-sorted view would require a client-side re-sort of the fully-paged set,
+            // which is out of scope for this catalog until a bulk-item cursor exists.
             SortKey.AUTHOR -> "metadata.titleSort,asc"
             SortKey.ADDED_AT -> "createdDate,desc"
             SortKey.PUBLISHED_YEAR -> "metadata.releaseDate,asc"

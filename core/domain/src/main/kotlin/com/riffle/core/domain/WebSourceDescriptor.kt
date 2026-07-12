@@ -235,11 +235,17 @@ object AbsWebSourceDescriptor : WebSourceDescriptor {
         ServerType.STORYTELLER_SERVICE -> STORYTELLER_COPY
     }
 
-    override fun iconRemoteUrl(sourceBaseUrl: String, serverType: ServerType): String =
-        when (serverType) {
-            ServerType.AUDIOBOOKSHELF -> "$sourceBaseUrl/Logo.png"
-            ServerType.STORYTELLER_SERVICE -> "$sourceBaseUrl/apple-touch-icon.png"
+    override fun iconRemoteUrl(sourceBaseUrl: String, serverType: ServerType): String {
+        // Trim a trailing slash so `https://abs.example.com/` (a common form when the user
+        // copy-pastes from the browser bar) doesn't yield `https://abs.example.com//Logo.png` —
+        // most nginx installs merge doubled slashes but some deployments (merge_slashes off) 404
+        // and Riffle silently falls back to the monogram fallback for a valid server.
+        val base = sourceBaseUrl.trimEnd('/')
+        return when (serverType) {
+            ServerType.AUDIOBOOKSHELF -> "$base/Logo.png"
+            ServerType.STORYTELLER_SERVICE -> "$base/apple-touch-icon.png"
         }
+    }
 }
 
 object LocalFilesWebSourceDescriptor : WebSourceDescriptor {
