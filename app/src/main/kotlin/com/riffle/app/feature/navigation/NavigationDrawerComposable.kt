@@ -52,6 +52,7 @@ import com.riffle.app.ui.source.SourceIcon
 import com.riffle.core.domain.Library
 import com.riffle.core.domain.Source
 import com.riffle.core.domain.SourceType
+import com.riffle.core.domain.WebSourceDescriptors
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -341,26 +342,18 @@ private fun buildSupportingLine(host: String?, version: String?): String? {
 }
 
 /**
- * Display label for the source-switcher header + dropdown. LocalFiles gets its own name so it
- * doesn't inherit its placeholder [ServerType.AUDIOBOOKSHELF] value (LocalFiles has no product
- * server); everything else falls back to the server product label.
+ * Display label for the source-switcher header + dropdown. Non-ABS sources have their name in
+ * their [com.riffle.core.domain.WebSourceDescriptor]; ABS is per-server (the same SourceType
+ * covers Audiobookshelf and Storyteller product servers) so it picks the server-type label.
  */
-private fun sourceDisplayName(source: Source): String = when (source.type) {
-    SourceType.LOCAL_FILES -> "Local files"
-    SourceType.CHITANKA -> "Chitanka"
-    SourceType.GUTENBERG -> "Project Gutenberg"
-    SourceType.ABS -> source.serverType.label
-}
+private fun sourceDisplayName(source: Source): String =
+    if (source.type == SourceType.ABS) source.serverType.label
+    else WebSourceDescriptors.forTypeOrError(source.type).displayName
 
 /**
- * Subtitle for the source-switcher row. LocalFiles shows "on this device" — its URL column is a
- * non-network placeholder ("localfiles.invalid") that would otherwise leak into the UI. ABS
- * sources reuse [buildSupportingLine] (host · version).
+ * Subtitle for the source-switcher row. Non-ABS sources have a static tagline in the descriptor;
+ * ABS reuses [buildSupportingLine] (host · version).
  */
 private fun sourceSubtitle(source: Source, host: String?, version: String?): String? =
-    when (source.type) {
-        SourceType.LOCAL_FILES -> "on this device"
-        SourceType.CHITANKA -> "Bulgarian public library"
-        SourceType.GUTENBERG -> "Public-domain ebooks"
-        SourceType.ABS -> buildSupportingLine(host, version)
-    }
+    if (source.type == SourceType.ABS) buildSupportingLine(host, version)
+    else WebSourceDescriptors.forTypeOrError(source.type).subtitle
