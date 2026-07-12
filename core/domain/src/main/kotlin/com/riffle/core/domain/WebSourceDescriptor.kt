@@ -96,6 +96,35 @@ interface WebSourceDescriptor {
      * A completeness test (`WebSourceRegistryCompletenessTest`) enforces the invariant.
      */
     val addSourceCopy: AddSourceCopy? get() = null
+
+    /**
+     * Per-[ServerType] variant of [addSourceCopy]. Overridden by [AbsWebSourceDescriptor] to
+     * return Storyteller-flavored copy when the caller is adding a Storyteller Service and
+     * Audiobookshelf-flavored copy when adding a regular Audiobookshelf server (both share
+     * [SourceType.ABS] until #441 splits them). Non-ABS descriptors ignore [serverType] and
+     * return the base [addSourceCopy].
+     */
+    fun addSourceCopyFor(serverType: ServerType): AddSourceCopy? = addSourceCopy
+
+    /**
+     * Per-[ServerType] variant of the AddSourceScreen "remove source" button label. Same
+     * rationale as [addSourceCopyFor] — ABS needs one label per product server ("Remove source"
+     * vs "Remove Storyteller"). Falls back to [addSourceCopy]?.[AddSourceCopy.removeLabel].
+     */
+    fun removeLabelFor(serverType: ServerType): String? =
+        addSourceCopyFor(serverType)?.removeLabel
+
+    /**
+     * Remote URL where the source hosts its own favicon, or null when we shouldn't try — either
+     * because the source has no branded favicon worth fetching (Chitanka, Gutendex) or because
+     * it isn't a network-backed source at all (LOCAL_FILES). Callers pair the returned URL with
+     * a bundled monogram fallback (`SourceIconResolver.fallbackDrawableFor`) so a failed fetch
+     * still renders something.
+     *
+     * [serverType] is a discriminator for ABS's Audiobookshelf/Storyteller split (they expose
+     * different logo paths); other descriptors ignore it.
+     */
+    fun iconRemoteUrl(sourceBaseUrl: String, serverType: ServerType): String? = null
 }
 
 /**
@@ -140,6 +169,7 @@ object WebSourceDescriptors {
         LocalFilesWebSourceDescriptor,
         ChitankaWebSourceDescriptor,
         GutenbergWebSourceDescriptor,
+        KomgaWebSourceDescriptor,
     )
 
     fun forType(type: SourceType): WebSourceDescriptor? =
@@ -173,7 +203,8 @@ object AbsWebSourceDescriptor : WebSourceDescriptor {
     override val addRoute = "add_source?type=audiobookshelf"
     override val pickerOrder = 0
     override val pickerBlurb = "Stream ebooks and audiobooks from your Audiobookshelf server."
-    override val addSourceCopy = AddSourceCopy(
+
+    private val AUDIOBOOKSHELF_COPY = AddSourceCopy(
         addTitle = "Add Audiobookshelf",
         editTitle = "Edit Audiobookshelf",
         urlLabel = "Source URL",
@@ -181,6 +212,40 @@ object AbsWebSourceDescriptor : WebSourceDescriptor {
         helpText = "Stream ebooks and audiobooks from your Audiobookshelf server, with progress synced across devices.",
         removeLabel = "Remove source",
     )
+
+    private val STORYTELLER_COPY = AddSourceCopy(
+        addTitle = "Add Storyteller",
+        editTitle = "Edit Storyteller",
+        urlLabel = "Source URL",
+        urlPlaceholder = "storyteller.example.com",
+        helpText = "Storyteller hosts aligned ebook + audiobook \"readalouds.\" Riffle matches each readaloud to a book on your Audiobookshelf server, enabling synchronized text + audio playback inside the reader.",
+        removeLabel = "Remove Storyteller",
+    )
+
+    override val addSourceCopy = AUDIOBOOKSHELF_COPY
+
+    // Two product servers currently share [SourceType.ABS]: Audiobookshelf (the ebook/audiobook
+    // library server) and Storyteller Service (the readaloud-alignment backend from ADR 0026).
+    // Until #441 splits Storyteller into its own SourceType, they're discriminated at the UI
+    // layer by [ServerType] — this override wires the AddSourceScreen copy to the right variant
+    // so the top bar reads "Add Storyteller" not "Add Audiobookshelf" when the picker card
+    // routes to the Storyteller flavour.
+    override fun addSourceCopyFor(serverType: ServerType): AddSourceCopy = when (serverType) {
+        ServerType.AUDIOBOOKSHELF -> AUDIOBOOKSHELF_COPY
+        ServerType.STORYTELLER_SERVICE -> STORYTELLER_COPY
+    }
+
+    override fun iconRemoteUrl(sourceBaseUrl: String, serverType: ServerType): String {
+        // Trim a trailing slash so `https://abs.example.com/` (a common form when the user
+        // copy-pastes from the browser bar) doesn't yield `https://abs.example.com//Logo.png` —
+        // most nginx installs merge doubled slashes but some deployments (merge_slashes off) 404
+        // and Riffle silently falls back to the monogram fallback for a valid server.
+        val base = sourceBaseUrl.trimEnd('/')
+        return when (serverType) {
+            ServerType.AUDIOBOOKSHELF -> "$base/Logo.png"
+            ServerType.STORYTELLER_SERVICE -> "$base/apple-touch-icon.png"
+        }
+    }
 }
 
 object LocalFilesWebSourceDescriptor : WebSourceDescriptor {
@@ -209,6 +274,29 @@ object ChitankaWebSourceDescriptor : WebSourceDescriptor {
         DefaultLibrary(id = "books", name = "Chitanka", mediaType = "book"),
         DefaultLibrary(id = "audiobooks", name = "Gramofonche", mediaType = "audiobook"),
     )
+}
+
+object KomgaWebSourceDescriptor : WebSourceDescriptor {
+    override val type = SourceType.KOMGA
+    override val displayName = "Komga"
+    override val isSingleton = false
+    override val hasCredentials = true
+    override val hasNetworkHost = true
+    override val addRoute = "add_source?type=komga"
+    override val pickerOrder = 4
+    override val pickerBlurb = "Stream comics, manga and ebooks from your Komga server."
+    override val addSourceCopy = AddSourceCopy(
+        addTitle = "Add Komga",
+        editTitle = "Edit Komga",
+        urlLabel = "Source URL",
+        urlPlaceholder = "komga.example.com",
+        helpText = "Browse and read your Komga library (comics, manga and ebooks) from any Komga server.",
+        removeLabel = "Remove source",
+    )
+
+    // Komga serves its own PWA favicon at /favicon.ico from the web-UI root.
+    override fun iconRemoteUrl(sourceBaseUrl: String, serverType: ServerType): String =
+        "${sourceBaseUrl.trimEnd('/')}/favicon.ico"
 }
 
 object GutenbergWebSourceDescriptor : WebSourceDescriptor {

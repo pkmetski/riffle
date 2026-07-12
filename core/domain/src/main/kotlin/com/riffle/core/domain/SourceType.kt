@@ -14,4 +14,5 @@ enum class SourceType(
     LOCAL_FILES,
     CHITANKA(isUnboundedCatalog = true),
     GUTENBERG(isUnboundedCatalog = true),
+    KOMGA,
 }

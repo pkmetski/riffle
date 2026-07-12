@@ -37,6 +37,7 @@ import coil.request.ImageRequest
 import com.riffle.app.feature.library.coverGridMinCellSize
 import com.riffle.app.ui.fadingScrollbar
 import com.riffle.core.data.AnnotatedBook
+import com.riffle.app.ui.source.asAuthHeader
 
 @Composable
 fun AnnotationsListScreen(
@@ -132,7 +133,7 @@ private fun AnnotatedBookCoverTile(
                 AsyncImage(
                     model = ImageRequest.Builder(LocalContext.current)
                         .data(book.coverUrl)
-                        .addHeader("Authorization", "Bearer $token")
+                        .addHeader("Authorization", token.asAuthHeader())
                         .crossfade(true)
                         .build(),
                     contentDescription = book.title,

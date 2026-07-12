@@ -100,8 +100,6 @@ class AnnotationSearchViewModelTest {
         override fun observeAll(): Flow<List<Source>> = MutableStateFlow(emptyList())
         override suspend fun getActive(): Source? =
             Source("srv1", SourceUrl.parse("http://localhost")!!, true, false, "test")
-        override suspend fun authenticate(url: SourceUrl, username: String, password: String, insecureAllowed: Boolean, serverType: ServerType) =
-            throw UnsupportedOperationException()
         override suspend fun commit(pending: PendingSource, hiddenLibraryIds: Set<String>) =
             throw UnsupportedOperationException()
         override suspend fun setActive(sourceId: String) {}

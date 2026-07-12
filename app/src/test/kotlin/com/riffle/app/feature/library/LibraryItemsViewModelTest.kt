@@ -126,8 +126,6 @@ class LibraryItemsViewModelTest {
     private fun fakeServerRepo(): SourceRepository = object : SourceRepository {
         override fun observeAll(): Flow<List<Source>> = MutableStateFlow(emptyList())
         override suspend fun getActive(): Source? = null
-        override suspend fun authenticate(url: SourceUrl, username: String, password: String, insecureAllowed: Boolean, serverType: com.riffle.core.domain.ServerType) =
-            throw UnsupportedOperationException()
         override suspend fun commit(pending: com.riffle.core.domain.PendingSource, hiddenLibraryIds: Set<String>) =
             throw UnsupportedOperationException()
         override suspend fun setActive(sourceId: String) {}
@@ -670,8 +668,6 @@ class LibraryItemsViewModelTest {
             sourceRepository = object : SourceRepository {
                 override fun observeAll(): Flow<List<Source>> = MutableStateFlow(emptyList())
                 override suspend fun getActive() = Source("srv-1", SourceUrl.parse("http://localhost")!!, true, false, "")
-                override suspend fun authenticate(url: SourceUrl, username: String, password: String, insecureAllowed: Boolean, serverType: com.riffle.core.domain.ServerType) =
-                    throw UnsupportedOperationException()
                 override suspend fun commit(pending: com.riffle.core.domain.PendingSource, hiddenLibraryIds: Set<String>) =
                     throw UnsupportedOperationException()
                 override suspend fun setActive(sourceId: String) {}
@@ -1134,7 +1130,6 @@ class LibraryItemsViewModelTest {
         val srcRepo = object : SourceRepository {
             override fun observeAll(): Flow<List<Source>> = serversFlow
             override suspend fun getActive(): Source? = serversFlow.value.firstOrNull { it.isActive }
-            override suspend fun authenticate(url: SourceUrl, username: String, password: String, insecureAllowed: Boolean, serverType: com.riffle.core.domain.ServerType) = throw UnsupportedOperationException()
             override suspend fun commit(pending: com.riffle.core.domain.PendingSource, hiddenLibraryIds: Set<String>) = throw UnsupportedOperationException()
             override suspend fun setActive(sourceId: String) {}
             override suspend fun remove(sourceId: String) {}
@@ -1167,7 +1162,6 @@ class LibraryItemsViewModelTest {
         val srcRepo = object : SourceRepository {
             override fun observeAll(): Flow<List<Source>> = serversFlow
             override suspend fun getActive(): Source? = serversFlow.value.firstOrNull { it.isActive }
-            override suspend fun authenticate(url: SourceUrl, username: String, password: String, insecureAllowed: Boolean, serverType: com.riffle.core.domain.ServerType) = throw UnsupportedOperationException()
             override suspend fun commit(pending: com.riffle.core.domain.PendingSource, hiddenLibraryIds: Set<String>) = throw UnsupportedOperationException()
             override suspend fun setActive(sourceId: String) {}
             override suspend fun remove(sourceId: String) {}
@@ -1210,7 +1204,6 @@ class LibraryItemsViewModelTest {
         val srcRepo = object : SourceRepository {
             override fun observeAll(): Flow<List<Source>> = serversFlow
             override suspend fun getActive(): Source? = serversFlow.value.firstOrNull { it.isActive }
-            override suspend fun authenticate(url: SourceUrl, username: String, password: String, insecureAllowed: Boolean, serverType: com.riffle.core.domain.ServerType) = throw UnsupportedOperationException()
             override suspend fun commit(pending: com.riffle.core.domain.PendingSource, hiddenLibraryIds: Set<String>) = throw UnsupportedOperationException()
             override suspend fun setActive(sourceId: String) {}
             override suspend fun remove(sourceId: String) {}
@@ -1236,6 +1229,73 @@ class LibraryItemsViewModelTest {
 
         // Add an EPUB → isReadable = true → tab reappears live.
         allItemsFlow.value = listOf(audiobook, item("An Ebook", "Author"))
+        testDispatcher.scheduler.advanceUntilIdle()
+        assertEquals(true, vm.tabVisibility.value?.annotations)
+    }
+
+    // Regression pin for the CBZ carve-out: a Komga Comics library is entirely CBZ (raster
+    // pages, no selectable text). CBZ items are readable but NOT annotable — an all-CBZ
+    // library must hide the Annotations tab even though every item passes the isReadable gate.
+    // Reverting the ViewModel's gate to `isReadable` flips this red.
+    @Test
+    fun `tabVisibility annotations is hidden on an all-CBZ library`() = runTest {
+        val srv = source("s-abs", active = true)
+        val srcRepo = object : SourceRepository {
+            override fun observeAll(): Flow<List<Source>> = MutableStateFlow(listOf(srv))
+            override suspend fun getActive(): Source? = srv
+            override suspend fun commit(pending: com.riffle.core.domain.PendingSource, hiddenLibraryIds: Set<String>) = throw UnsupportedOperationException()
+            override suspend fun setActive(sourceId: String) {}
+            override suspend fun remove(sourceId: String) {}
+            override suspend fun getSourceVersion(sourceId: String): String? = null
+        }
+        val vm = makeViewModel(
+            sourceRepository = srcRepo,
+            catalogRegistry = catalogRegistryReturning(SeriesAndPlaylistsOnlyCatalog),
+        )
+
+        val cbz = LibraryItem(
+            "id-cbz", "lib-1", "A Comic", "Author", null, 0f, false, false,
+            EbookFormat.Cbz,
+        )
+        allItemsFlow.value = List(50) { cbz.copy(id = "id-cbz-$it") }
+        testDispatcher.scheduler.advanceUntilIdle()
+        assertEquals(false, vm.tabVisibility.value?.annotations)
+    }
+
+    // Regression pin for the ANY-annotable rule: as long as at least one item in the library can
+    // carry a highlight, the Annotations tab stays visible. A library dominated by CBZ but with a
+    // handful of EPUBs still shows it — the previous majority-vote gate lost access to those
+    // EPUBs' notes when non-annotable items outnumbered annotable ones, which was the bug.
+    @Test
+    fun `tabVisibility annotations is shown when any item is annotable even if outnumbered`() = runTest {
+        val srv = source("s-abs", active = true)
+        val srcRepo = object : SourceRepository {
+            override fun observeAll(): Flow<List<Source>> = MutableStateFlow(listOf(srv))
+            override suspend fun getActive(): Source? = srv
+            override suspend fun commit(pending: com.riffle.core.domain.PendingSource, hiddenLibraryIds: Set<String>) = throw UnsupportedOperationException()
+            override suspend fun setActive(sourceId: String) {}
+            override suspend fun remove(sourceId: String) {}
+            override suspend fun getSourceVersion(sourceId: String): String? = null
+        }
+        val vm = makeViewModel(
+            sourceRepository = srcRepo,
+            catalogRegistry = catalogRegistryReturning(SeriesAndPlaylistsOnlyCatalog),
+        )
+
+        val epub = item("EPUB", "Author")
+        val cbz = LibraryItem(
+            "id-cbz", "lib-1", "Comic", "A", null, 0f, false, false, EbookFormat.Cbz,
+        )
+        // Outnumbered case (previously hidden by the majority gate): 5 EPUBs, 100 CBZs → tab
+        // still visible because the 5 EPUBs' highlights are worth reaching.
+        allItemsFlow.value =
+            List(5) { epub.copy(id = "id-epub-$it") } + List(100) { cbz.copy(id = "id-cbz-$it") }
+        testDispatcher.scheduler.advanceUntilIdle()
+        assertEquals(true, vm.tabVisibility.value?.annotations)
+
+        // Tie case (previously visible; still visible under the any-annotable rule).
+        allItemsFlow.value =
+            List(50) { epub.copy(id = "id-epub-$it") } + List(50) { cbz.copy(id = "id-cbz-$it") }
         testDispatcher.scheduler.advanceUntilIdle()
         assertEquals(true, vm.tabVisibility.value?.annotations)
     }

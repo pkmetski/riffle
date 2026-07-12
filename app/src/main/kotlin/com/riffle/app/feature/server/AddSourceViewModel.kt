@@ -12,6 +12,7 @@ import com.riffle.app.feature.annotationsync.deriveAnnotationSyncKind
 import com.riffle.core.data.AnnotationSyncStatusStore
 import com.riffle.core.data.CycleOutcome
 import com.riffle.core.data.ReadaloudMatchingService
+import com.riffle.core.data.credentialed.CredentialedAuthenticator
 import com.riffle.core.database.AnnotationDao
 import com.riffle.core.data.StorytellerReadaloudSyncer
 import com.riffle.core.data.TestConnectionResult
@@ -26,6 +27,7 @@ import com.riffle.core.domain.InsecureConnectionType
 import com.riffle.core.domain.PendingSource
 import com.riffle.core.domain.SourceRepository
 import com.riffle.core.domain.ServerType
+import com.riffle.core.domain.SourceType
 import com.riffle.core.domain.SourceUrl
 import com.riffle.core.domain.TokenStorage
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -42,15 +44,65 @@ import javax.inject.Inject
 import javax.inject.Named
 
 /**
- * Backend kind selectable in [AddSourceScreen]. Distinct from [ServerType] because WebDAV is
- * not a content "server" in the domain sense — it just shares the same URL+username+password
- * shape — and we want a single screen for adding any of them.
+ * Backend kind selectable in [AddSourceScreen]. WebDAV lives here as a peer to the browsable
+ * catalog sources because it shares the same URL+username+password form shape — it's not a
+ * content source in the domain sense (no [SourceType], no catalog), just a sync sidecar.
+ *
+ * Any new credentialed catalog source (Komga, Kavita, Calibre-Web, …) is a
+ * [Credentialed(sourceType, serverType)] value — the screen and ViewModel look every piece of
+ * per-source copy up on the [WebSourceDescriptor] for `sourceType`, so adding one doesn't grow
+ * either the enum or the screen's `when` blocks.
  */
-enum class AddSourceBackend { AUDIOBOOKSHELF, STORYTELLER, WEBDAV }
+sealed class AddSourceBackend {
+    /**
+     * String used as the `type=` route param when navigating to `AddSourceScreen`. Kept as a
+     * property here (instead of on the callers or the enum's `.name`) so the sealed class stays
+     * the single source of truth for both parse and serialise directions.
+     */
+    abstract val routeType: String
+
+    /**
+     * Any credentialed browsable source. `sourceType` picks the descriptor + authenticator;
+     * `serverType` disambiguates ABS's Audiobookshelf/Storyteller split (a placeholder
+     * [ServerType.AUDIOBOOKSHELF] is passed for non-ABS sources, which ignore it).
+     */
+    data class Credentialed(
+        val sourceType: SourceType,
+        val serverType: ServerType,
+    ) : AddSourceBackend() {
+        override val routeType: String = when (sourceType) {
+            // ABS carries two product-server variants under one SourceType until #441 — the
+            // routes stay `type=audiobookshelf` / `type=storyteller` to preserve deep links.
+            SourceType.ABS -> when (serverType) {
+                ServerType.AUDIOBOOKSHELF -> "audiobookshelf"
+                ServerType.STORYTELLER_SERVICE -> "storyteller"
+            }
+            else -> sourceType.name.lowercase()
+        }
+    }
+
+    /** The annotation-sync WebDAV sidecar (ADR 0033) — a peer to Add Source, not a catalog. */
+    object Webdav : AddSourceBackend() {
+        override val routeType: String = "webdav"
+    }
+
+    companion object {
+        /** Ready-to-navigate handles the Settings screens use to launch the shared Add form. */
+        val Audiobookshelf: AddSourceBackend =
+            Credentialed(SourceType.ABS, ServerType.AUDIOBOOKSHELF)
+        val Storyteller: AddSourceBackend =
+            Credentialed(SourceType.ABS, ServerType.STORYTELLER_SERVICE)
+    }
+}
 
 @HiltViewModel
 class AddSourceViewModel @Inject constructor(
     private val repository: SourceRepository,
+    // Per-SourceType credentialed authenticators (ADR 0044). Injected as a Hilt multibinding —
+    // adding a new credentialed source contributes one entry via @IntoMap without touching this
+    // ViewModel. Kept out of SourceRepository to avoid rippling a `sourceType` param through
+    // every anonymous test fake for a Kotlin interface method with a single production caller.
+    private val authenticators: Map<SourceType, @JvmSuppressWildcards CredentialedAuthenticator>,
     private val webdavConfigStore: AnnotationSyncConfigStore,
     private val webdavTargetFactory: WebDavAnnotationSyncTargetFactory,
     private val webdavStatusStore: AnnotationSyncStatusStore,
@@ -64,7 +116,9 @@ class AddSourceViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
 
-    var backend by mutableStateOf(AddSourceBackend.AUDIOBOOKSHELF)
+    var backend by mutableStateOf<AddSourceBackend>(
+        AddSourceBackend.Credentialed(SourceType.ABS, ServerType.AUDIOBOOKSHELF),
+    )
         private set
     /** Source id when editing an existing Storyteller/ABS server; null for add or for WebDAV. */
     var editingServerId by mutableStateOf<String?>(null)
@@ -116,14 +170,14 @@ class AddSourceViewModel @Inject constructor(
 
     private suspend fun initFromRoute() {
         when (backend) {
-            AddSourceBackend.AUDIOBOOKSHELF, AddSourceBackend.STORYTELLER -> {
+            is AddSourceBackend.Credentialed -> {
                 val id = editingServerId ?: return
                 val server = repository.getById(id) ?: return
                 applyUrl(server.url.value)
                 username = server.username
                 password = tokenStorage.getPassword(id).orEmpty()
             }
-            AddSourceBackend.WEBDAV -> {
+            AddSourceBackend.Webdav -> {
                 val existing = webdavConfigStore.observe().first()
                 if (existing != null) {
                     isEditingWebdav = true
@@ -176,8 +230,8 @@ class AddSourceViewModel @Inject constructor(
     fun onConnect() {
         error = null
         when (backend) {
-            AddSourceBackend.AUDIOBOOKSHELF, AddSourceBackend.STORYTELLER -> connectServer()
-            AddSourceBackend.WEBDAV -> connectWebdav()
+            is AddSourceBackend.Credentialed -> connectServer()
+            AddSourceBackend.Webdav -> connectWebdav()
         }
     }
 
@@ -235,10 +289,14 @@ class AddSourceViewModel @Inject constructor(
     }
 
     private fun doAuthenticate(serverUrl: SourceUrl, insecureAllowed: Boolean) {
-        val serverType = backend.toServerType() ?: return
+        val credentialed = backend as? AddSourceBackend.Credentialed ?: return
+        val serverType = credentialed.serverType
+        val sourceType = credentialed.sourceType
+        val authenticator = authenticators[sourceType]
+            ?: error("no CredentialedAuthenticator bound for $sourceType — check CredentialedAuthenticatorModule")
         viewModelScope.launch {
             isLoading = true
-            when (val result = repository.authenticate(serverUrl, username, password, insecureAllowed, serverType)) {
+            when (val result = authenticator.authenticate(serverUrl, username, password, insecureAllowed, serverType)) {
                 is AuthenticateResult.Success -> {
                     val pending = result.pending
                     if (pending.libraries.size <= 1) {
@@ -275,9 +333,9 @@ class AddSourceViewModel @Inject constructor(
     fun onRemove() {
         viewModelScope.launch {
             when (backend) {
-                AddSourceBackend.AUDIOBOOKSHELF, AddSourceBackend.STORYTELLER ->
+                is AddSourceBackend.Credentialed ->
                     editingServerId?.let { repository.remove(it) }
-                AddSourceBackend.WEBDAV -> webdavConfigStore.clear()
+                AddSourceBackend.Webdav -> webdavConfigStore.clear()
             }
             _navigateHome.send(Unit)
         }
@@ -366,14 +424,28 @@ data class WebdavBanner(
     val prescription: String?,
 )
 
+// Route param → backend mapping. Kept as a `when` so each Storyteller-like sub-flavour lives
+// in one obvious place. Non-ABS sources use their SourceType name in lower-kebab; ABS routes
+// spell their ServerType flavour to keep the "type=audiobookshelf/storyteller" URLs stable.
 private fun parseBackend(raw: String?): AddSourceBackend = when (raw?.lowercase()) {
-    "storyteller" -> AddSourceBackend.STORYTELLER
-    "webdav" -> AddSourceBackend.WEBDAV
-    else -> AddSourceBackend.AUDIOBOOKSHELF
-}
-
-private fun AddSourceBackend.toServerType(): ServerType? = when (this) {
-    AddSourceBackend.AUDIOBOOKSHELF -> ServerType.AUDIOBOOKSHELF
-    AddSourceBackend.STORYTELLER -> ServerType.STORYTELLER_SERVICE
-    AddSourceBackend.WEBDAV -> null
+    null, "", "audiobookshelf" ->
+        AddSourceBackend.Credentialed(SourceType.ABS, ServerType.AUDIOBOOKSHELF)
+    "storyteller" ->
+        AddSourceBackend.Credentialed(SourceType.ABS, ServerType.STORYTELLER_SERVICE)
+    "webdav" -> AddSourceBackend.Webdav
+    else -> {
+        // Match any *credentialed* SourceType by lowercase name (SourceType.KOMGA → "komga").
+        // Gate on the descriptor's `hasCredentials` so a bad deep link (`type=local_files`,
+        // `type=chitanka`, `type=gutenberg`) can't produce a Credentialed backend that later
+        // crashes in doAuthenticate with "no CredentialedAuthenticator bound for LOCAL_FILES".
+        // ServerType.AUDIOBOOKSHELF is a filler — non-ABS descriptors ignore the discriminator.
+        val lower = raw.lowercase()
+        val descriptor = com.riffle.core.domain.WebSourceDescriptors.all
+            .firstOrNull { it.type.name.lowercase() == lower && it.hasCredentials }
+        if (descriptor != null) {
+            AddSourceBackend.Credentialed(descriptor.type, ServerType.AUDIOBOOKSHELF)
+        } else {
+            AddSourceBackend.Credentialed(SourceType.ABS, ServerType.AUDIOBOOKSHELF)
+        }
+    }
 }

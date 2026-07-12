@@ -61,6 +61,7 @@ import com.riffle.core.domain.AbsPickerItem
 import com.riffle.core.domain.ConfirmedReadaloud
 import com.riffle.core.domain.PendingReadaloud
 import com.riffle.core.domain.UnmatchedReadaloud
+import com.riffle.app.ui.source.asAuthHeader
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -515,7 +516,7 @@ private fun Cover(coverUrl: String?, token: String?) {
     AsyncImage(
         model = ImageRequest.Builder(LocalContext.current)
             .data(coverUrl)
-            .apply { if (token != null) addHeader("Authorization", "Bearer $token") }
+            .apply { if (token != null) addHeader("Authorization", token.asAuthHeader()) }
             .crossfade(true)
             .build(),
         placeholder = ColorPainter(MaterialTheme.colorScheme.surfaceVariant),

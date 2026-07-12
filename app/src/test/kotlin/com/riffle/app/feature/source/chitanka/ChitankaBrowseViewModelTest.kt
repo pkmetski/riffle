@@ -346,13 +346,6 @@ class ChitankaBrowseViewModelTest {
     private fun fakeSourceRepo(active: Source?): SourceRepository = object : SourceRepository {
         override fun observeAll() = kotlinx.coroutines.flow.flowOf(listOfNotNull(active))
         override suspend fun getActive(): Source? = active
-        override suspend fun authenticate(
-            url: SourceUrl,
-            username: String,
-            password: String,
-            insecureAllowed: Boolean,
-            serverType: com.riffle.core.domain.ServerType,
-        ) = throw UnsupportedOperationException()
         override suspend fun commit(
             pending: com.riffle.core.domain.PendingSource,
             hiddenLibraryIds: Set<String>,

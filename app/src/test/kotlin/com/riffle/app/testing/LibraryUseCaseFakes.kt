@@ -110,13 +110,6 @@ private object NoopReadaloudLinkRepository : com.riffle.core.domain.ReadaloudLin
 private object NoopServerRepository : com.riffle.core.domain.SourceRepository {
     override fun observeAll() = kotlinx.coroutines.flow.flowOf(emptyList<com.riffle.core.domain.Source>())
     override suspend fun getActive(): com.riffle.core.domain.Source? = null
-    override suspend fun authenticate(
-        url: com.riffle.core.domain.SourceUrl,
-        username: String,
-        password: String,
-        insecureAllowed: Boolean,
-        serverType: com.riffle.core.domain.ServerType,
-    ): com.riffle.core.domain.AuthenticateResult = throw UnsupportedOperationException()
     override suspend fun commit(
         pending: com.riffle.core.domain.PendingSource,
         hiddenLibraryIds: Set<String>,

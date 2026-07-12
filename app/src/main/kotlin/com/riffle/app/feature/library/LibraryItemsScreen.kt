@@ -119,6 +119,7 @@ import com.riffle.core.domain.Series
 import kotlinx.coroutines.flow.filterIsInstance
 import kotlin.math.floor
 import kotlin.math.max
+import com.riffle.app.ui.source.asAuthHeader
 
 
 /**
@@ -620,7 +621,7 @@ fun BookCoverTile(
             AsyncImage(
                 model = ImageRequest.Builder(LocalContext.current)
                     .data(item.coverUrl)
-                    .addHeader("Authorization", "Bearer $token")
+                    .addHeader("Authorization", token.asAuthHeader())
                     .crossfade(true)
                     .instrumentCover("item", item.id, item.coverUrl)
                     .build(),
@@ -704,7 +705,7 @@ fun SeriesCoverTile(
         AsyncImage(
             model = ImageRequest.Builder(LocalContext.current)
                 .data(series.coverUrl)
-                .addHeader("Authorization", "Bearer $token")
+                .addHeader("Authorization", token.asAuthHeader())
                 .crossfade(true)
                 .instrumentCover("series", series.id, series.coverUrl)
                 .build(),
@@ -784,7 +785,7 @@ private fun CollectionCoverImage(url: String?, token: String, modifier: Modifier
     AsyncImage(
         model = ImageRequest.Builder(LocalContext.current)
             .data(url)
-            .addHeader("Authorization", "Bearer $token")
+            .addHeader("Authorization", token.asAuthHeader())
             .crossfade(true)
             .instrumentCover("collection", null, url)
             .build(),
@@ -844,7 +845,7 @@ private fun SearchSeriesRow(series: Series, token: String, onClick: () -> Unit) 
             AsyncImage(
                 model = ImageRequest.Builder(LocalContext.current)
                     .data(series.coverUrl)
-                    .addHeader("Authorization", "Bearer $token")
+                    .addHeader("Authorization", token.asAuthHeader())
                     .crossfade(true)
                     .build(),
                 placeholder = ColorPainter(MaterialTheme.colorScheme.surfaceVariant),
@@ -947,7 +948,7 @@ internal fun AnnotationResultRow(
                     AsyncImage(
                         model = ImageRequest.Builder(LocalContext.current)
                             .data(result.bookCoverUrl)
-                            .addHeader("Authorization", "Bearer $token")
+                            .addHeader("Authorization", token.asAuthHeader())
                             .crossfade(true)
                             .build(),
                         placeholder = ColorPainter(MaterialTheme.colorScheme.surfaceVariant),
@@ -1002,7 +1003,7 @@ internal fun AudiobookBookmarkResultRow(
                     AsyncImage(
                         model = ImageRequest.Builder(LocalContext.current)
                             .data(result.bookCoverUrl)
-                            .addHeader("Authorization", "Bearer $token")
+                            .addHeader("Authorization", token.asAuthHeader())
                             .crossfade(true)
                             .build(),
                         placeholder = ColorPainter(MaterialTheme.colorScheme.surfaceVariant),
@@ -1162,7 +1163,7 @@ internal fun LibraryItemCard(
             AsyncImage(
                 model = ImageRequest.Builder(LocalContext.current)
                     .data(item.coverUrl)
-                    .addHeader("Authorization", "Bearer $token")
+                    .addHeader("Authorization", token.asAuthHeader())
                     .crossfade(true)
                     .instrumentCover("card", item.id, item.coverUrl)
                     .build(),

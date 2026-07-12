@@ -293,7 +293,11 @@ class PdfReaderViewModel @Inject constructor(
                     onTick = { syncCurrentPosition() },
                 )
             }
-            is PdfOpenResult.NetworkError -> _state.value = ReaderState.Error("Network error: ${result.cause.message}")
+            is PdfOpenResult.NetworkError -> _state.value = ReaderState.Error(
+                // Fallback to toString() when message is null so the user sees the exception class
+                // ("java.io.IOException", "KomgaHttpException(400)…") instead of "null".
+                "Network error: ${result.cause.message ?: result.cause.toString()}",
+            )
             PdfOpenResult.Offline -> _state.value = ReaderState.Error("Book not available offline")
         }
     }

@@ -2,6 +2,12 @@ package com.riffle.core.domain
 
 import kotlinx.coroutines.flow.Flow
 
+/**
+ * Outcome of a credentialed authenticate handshake, produced by
+ * [com.riffle.core.data.credentialed.CredentialedAuthenticator] implementations and consumed by
+ * `AddSourceViewModel`. Kept in the domain module because [PendingSource] (which the Success case
+ * carries) lives here.
+ */
 sealed class AuthenticateResult {
     data class Success(val pending: PendingSource) : AuthenticateResult()
     data class WrongCredentials(val message: String = "Invalid username or password") : AuthenticateResult()
@@ -20,13 +26,6 @@ interface SourceRepository {
     suspend fun getActive(): Source?
     /** Resolve a specific source by id (e.g. the ABS and Storyteller sides of a matched book). */
     suspend fun getById(sourceId: String): Source? = null
-    suspend fun authenticate(
-        url: SourceUrl,
-        username: String,
-        password: String,
-        insecureAllowed: Boolean = false,
-        serverType: ServerType = ServerType.AUDIOBOOKSHELF,
-    ): AuthenticateResult
     suspend fun commit(
         pending: PendingSource,
         hiddenLibraryIds: Set<String>,

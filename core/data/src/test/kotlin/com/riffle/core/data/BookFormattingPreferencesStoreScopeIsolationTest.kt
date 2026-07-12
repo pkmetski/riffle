@@ -47,13 +47,6 @@ class BookFormattingPreferencesStoreScopeIsolationTest {
         override suspend fun getActive(): Source? = active
         override suspend fun getById(sourceId: String): Source? =
             active.takeIf { it.id == sourceId }
-        override suspend fun authenticate(
-            url: SourceUrl,
-            username: String,
-            password: String,
-            insecureAllowed: Boolean,
-            serverType: ServerType,
-        ): AuthenticateResult = throw UnsupportedOperationException()
         override suspend fun commit(
             pending: PendingSource,
             hiddenLibraryIds: Set<String>,

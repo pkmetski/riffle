@@ -64,7 +64,7 @@ fun SettingsScreen(
     windowSizeClass: WindowSizeClass,
     onNavigateBack: () -> Unit,
     onNavigateToAddSource: (backend: AddSourceBackend, editId: String?) -> Unit,
-    onNavigateToAddSourcePicker: () -> Unit = { onNavigateToAddSource(AddSourceBackend.AUDIOBOOKSHELF, null) },
+    onNavigateToAddSourcePicker: () -> Unit = { onNavigateToAddSource(AddSourceBackend.Audiobookshelf, null) },
     onNavigateToAddLocalFolder: () -> Unit = {},
     onNavigateToReadaloudSettings: () -> Unit = {},
     onNavigateToAnnotationsSyncSettings: () -> Unit = {},

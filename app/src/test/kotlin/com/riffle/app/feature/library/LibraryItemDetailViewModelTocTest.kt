@@ -73,13 +73,6 @@ class LibraryItemDetailViewModelTocTest {
     private val noOpServerRepo = object : SourceRepository {
         override fun observeAll(): Flow<List<com.riffle.core.domain.Source>> = MutableStateFlow(emptyList())
         override suspend fun getActive(): com.riffle.core.domain.Source? = null
-        override suspend fun authenticate(
-            url: com.riffle.core.domain.SourceUrl,
-            username: String,
-            password: String,
-            insecureAllowed: Boolean,
-            serverType: com.riffle.core.domain.ServerType,
-        ): com.riffle.core.domain.AuthenticateResult = com.riffle.core.domain.AuthenticateResult.WrongCredentials()
         override suspend fun commit(
             pending: com.riffle.core.domain.PendingSource,
             hiddenLibraryIds: Set<String>,

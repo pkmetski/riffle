@@ -7,6 +7,7 @@ import com.riffle.core.domain.SourceType
 import com.riffle.core.catalog.abs.AbsCatalogFactory
 import com.riffle.core.catalog.chitanka.ChitankaCatalogFactory
 import com.riffle.core.catalog.gutenberg.GutenbergCatalogFactory
+import com.riffle.core.catalog.komga.KomgaCatalogFactory
 import com.riffle.core.data.localfiles.LocalFilesCatalogFactory
 import com.riffle.core.database.LibraryItemDao
 import com.riffle.core.database.LocalFilesFileDao
@@ -101,6 +102,19 @@ object CatalogModule {
     ): CatalogFactory = GutenbergCatalogFactory(
         okHttpClient = okHttpClient,
         userAgent = "Riffle/dev (Android) gutenberg-source",
+    )
+
+    @Provides
+    @Singleton
+    @IntoMap
+    @SourceTypeKey(SourceType.KOMGA)
+    fun provideKomgaCatalogFactory(
+        okHttpClient: OkHttpClient,
+        tokenStorage: TokenStorage,
+    ): CatalogFactory = KomgaCatalogFactory(
+        okHttpClient = okHttpClient,
+        tokenStorage = tokenStorage,
+        userAgent = "Riffle/dev (Android) komga-source",
     )
 
     @Provides

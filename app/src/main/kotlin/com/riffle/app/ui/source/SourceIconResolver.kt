@@ -5,6 +5,7 @@ import com.riffle.app.R
 import com.riffle.core.domain.ServerType
 import com.riffle.core.domain.Source
 import com.riffle.core.domain.SourceType
+import com.riffle.core.domain.WebSourceDescriptors
 
 /**
  * Chooses the icon for a source: a favicon URL to fetch at runtime (for network-backed sources
@@ -27,20 +28,14 @@ import com.riffle.core.domain.SourceType
 object SourceIconResolver {
 
     /**
-     * The URL to attempt for the source's favicon, or null when we don't try. Callers should
-     * always pair the returned URL with [fallbackDrawableFor] so a fetch/decode failure falls
-     * back to the monogram.
+     * The URL to attempt for the source's favicon, or null when we don't try. Delegates to the
+     * source's [com.riffle.core.domain.WebSourceDescriptor] so a new SourceType ships its own
+     * URL pattern without editing this file. Callers should always pair the returned URL with
+     * [fallbackDrawableFor] so a fetch/decode failure falls back to the monogram.
      */
-    fun faviconUrlFor(source: Source): String? = when (source.type) {
-        SourceType.LOCAL_FILES -> null
-        SourceType.CHITANKA -> null
-        // Gutendex is the API mirror, not a user-visible product; no branded favicon to fetch.
-        SourceType.GUTENBERG -> null
-        SourceType.ABS -> when (source.serverType) {
-            ServerType.AUDIOBOOKSHELF -> "${source.url.value}/Logo.png"
-            ServerType.STORYTELLER_SERVICE -> "${source.url.value}/apple-touch-icon.png"
-        }
-    }
+    fun faviconUrlFor(source: Source): String? =
+        WebSourceDescriptors.forType(source.type)
+            ?.iconRemoteUrl(source.url.value, source.serverType)
 
     /** Fallback drawable for a configured [Source]. */
     @DrawableRes
@@ -58,6 +53,7 @@ object SourceIconResolver {
             SourceType.LOCAL_FILES -> R.drawable.ic_source_local_files
             SourceType.CHITANKA -> R.drawable.ic_source_chitanka
             SourceType.GUTENBERG -> R.drawable.ic_source_gutenberg
+            SourceType.KOMGA -> R.drawable.ic_source_komga
             SourceType.ABS -> when (serverType) {
                 ServerType.AUDIOBOOKSHELF -> R.drawable.ic_source_audiobookshelf
                 ServerType.STORYTELLER_SERVICE -> R.drawable.ic_source_storyteller

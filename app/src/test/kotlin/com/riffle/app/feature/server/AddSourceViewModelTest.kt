@@ -4,6 +4,7 @@ import androidx.lifecycle.SavedStateHandle
 import com.riffle.core.data.AnnotationSyncStatusStore
 import com.riffle.core.data.CycleOutcome
 import com.riffle.core.data.WebDavAnnotationSyncTargetFactory
+import com.riffle.core.data.credentialed.CredentialedAuthenticator
 import com.riffle.core.database.AnnotationDao
 import com.riffle.core.database.AnnotationEntity
 import com.riffle.core.domain.AnnotationSweepEnqueuer
@@ -82,6 +83,12 @@ class AddSourceViewModelTest {
     private fun singleLibraryPending() =
         fakePending(libraries = listOf(Library("lib-1", "Books", "book", false)))
 
+    /**
+     * Test double that plays the roles of both `SourceRepository` (for commit / remove tracking)
+     * and `CredentialedAuthenticator` (for the auth-result stub + call-time capture). Kept as a
+     * single class so callers pass one object into `makeVm` and read `lastInsecureAllowed` /
+     * `lastServerType` off the same handle they asserted `removedIds` on.
+     */
     private class RecordingRepository(
         private val authResult: AuthenticateResult,
         private val commitResult: CommitSourceResult = CommitSourceResult.Success(
@@ -94,7 +101,7 @@ class AddSourceViewModelTest {
             )
         ),
         private val storedById: Map<String, Source> = emptyMap(),
-    ) : SourceRepository {
+    ) : SourceRepository, CredentialedAuthenticator {
         var commitCallCount = 0
         var lastInsecureAllowed: Boolean? = null
         var lastServerType: com.riffle.core.domain.ServerType? = null
@@ -102,6 +109,19 @@ class AddSourceViewModelTest {
         override fun observeAll(): Flow<List<Source>> = emptyFlow()
         override suspend fun getActive(): Source? = null
         override suspend fun getById(sourceId: String): Source? = storedById[sourceId]
+        override suspend fun commit(pending: PendingSource, hiddenLibraryIds: Set<String>): CommitSourceResult {
+            commitCallCount += 1
+            return commitResult
+        }
+        override suspend fun setActive(sourceId: String) {}
+        override suspend fun remove(sourceId: String) { removedIds += sourceId }
+        override suspend fun getSourceVersion(sourceId: String): String? = null
+
+        // CredentialedAuthenticator role — the ViewModel dispatches auth via a per-SourceType map,
+        // so advertise SourceType.ABS (every AddSourceViewModel test uses the default AUDIOBOOKSHELF
+        // backend) and capture args for assertions.
+        override val sourceType: com.riffle.core.domain.SourceType =
+            com.riffle.core.domain.SourceType.ABS
         override suspend fun authenticate(
             url: SourceUrl,
             username: String,
@@ -113,13 +133,6 @@ class AddSourceViewModelTest {
             lastServerType = serverType
             return authResult
         }
-        override suspend fun commit(pending: PendingSource, hiddenLibraryIds: Set<String>): CommitSourceResult {
-            commitCallCount += 1
-            return commitResult
-        }
-        override suspend fun setActive(sourceId: String) {}
-        override suspend fun remove(sourceId: String) { removedIds += sourceId }
-        override suspend fun getSourceVersion(sourceId: String): String? = null
     }
 
     private class RecordingConfigStore(
@@ -169,6 +182,12 @@ class AddSourceViewModelTest {
         bannerTicker: Flow<Unit> = flowOf(Unit),
     ): AddSourceViewModel = AddSourceViewModel(
         repository = repository,
+        // `RecordingRepository` implements both SourceRepository and CredentialedAuthenticator, so
+        // when tests pass one in it doubles as the ABS-keyed authenticator. Anything else falls
+        // back to an empty map; the vast majority of tests never enter the auth path.
+        authenticators = (repository as? CredentialedAuthenticator)
+            ?.let { mapOf(it.sourceType to it) }
+            ?: emptyMap(),
         webdavConfigStore = configStore,
         webdavTargetFactory = WebDavAnnotationSyncTargetFactory(OkHttpClient(), com.riffle.core.domain.DefaultDispatcherProvider),
         webdavStatusStore = statusStore,
@@ -369,12 +388,35 @@ class AddSourceViewModelTest {
         val vm = makeVm(repo, savedState = savedState, tokenStorage = tokens)
         testDispatcher.scheduler.advanceUntilIdle()
 
-        assertEquals(AddSourceBackend.STORYTELLER, vm.backend)
+        assertEquals(AddSourceBackend.Storyteller, vm.backend)
         assertTrue(vm.isEditing)
         assertEquals("http://", vm.scheme)
         assertEquals("media-server:8001", vm.host)
         assertEquals("plamen", vm.username)
         assertEquals("remembered", vm.password)
+    }
+
+    // Regression pin: `parseBackend` used to accept any `SourceType.name.lowercase()` route
+    // param, so `type=local_files` / `type=chitanka` / `type=gutenberg` would produce a
+    // `Credentialed` backend — those SourceTypes have no CredentialedAuthenticator binding, so
+    // tapping Connect would throw `IllegalStateException("no CredentialedAuthenticator bound
+    // for ...")` on the UI thread. Gate the fallback on `descriptor.hasCredentials` so bad
+    // deep links round-trip to the safe ABS default instead of crashing.
+    @Test
+    fun `init with type of a non-credentialed SourceType falls back to ABS instead of crashing`() = runTest {
+        val savedState = SavedStateHandle(mapOf("type" to "local_files"))
+        val vm = makeVm(
+            fakeRepo(AuthenticateResult.WrongCredentials("x")),
+            savedState = savedState,
+        )
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        val backend = vm.backend
+        assertTrue(backend is AddSourceBackend.Credentialed)
+        assertEquals(
+            com.riffle.core.domain.SourceType.ABS,
+            (backend as AddSourceBackend.Credentialed).sourceType,
+        )
     }
 
     @Test
@@ -394,7 +436,7 @@ class AddSourceViewModelTest {
         )
         testDispatcher.scheduler.advanceUntilIdle()
 
-        assertEquals(AddSourceBackend.WEBDAV, vm.backend)
+        assertEquals(AddSourceBackend.Webdav, vm.backend)
         assertTrue(vm.isEditingWebdav)
         assertEquals("https://", vm.scheme)
         assertEquals("dav.example.com/store", vm.host)
@@ -413,7 +455,7 @@ class AddSourceViewModelTest {
         )
         testDispatcher.scheduler.advanceUntilIdle()
 
-        assertEquals(AddSourceBackend.WEBDAV, vm.backend)
+        assertEquals(AddSourceBackend.Webdav, vm.backend)
         assertFalse(vm.isEditingWebdav)
         assertEquals("", vm.host)
         assertEquals("", vm.username)

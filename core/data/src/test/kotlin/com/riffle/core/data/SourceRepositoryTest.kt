@@ -183,11 +183,10 @@ class ServerRepositoryTest {
         override fun observeBySource(sourceId: String) = flowOf(emptyList<com.riffle.core.database.LibraryItemEntity>())
     }
 
-    // Constructs the refactored SourceRepositoryImpl with the same "positional" arg list the pre-
-    // refactor tests used, so the test bodies don't have to know about CredentialedAuthenticator /
-    // CredentialedSourceInstaller. Synthesises the SourceType.ABS authenticator from the supplied
-    // AbsApi + StorytellerApi + AbsLibraryApi (what the Hilt map entry does at runtime) and hands
-    // the shared installer to the repo.
+    // Constructs the refactored SourceRepositoryImpl. Since `authenticate` is no longer part of
+    // SourceRepository (the ViewModel now calls CredentialedAuthenticator directly), tests that
+    // exercise auth build the authenticator separately via [buildAbsAuth]; only the repo itself
+    // and its installer are wired here.
     private fun buildRepo(
         dao: SourceDao,
         tokens: TokenStorage,
@@ -200,11 +199,12 @@ class ServerRepositoryTest {
         visibilityStore: LibraryVisibilityPreferencesStore,
         filesCleaner: SourceFilesCleaner,
     ): SourceRepositoryImpl {
-        val authenticator = com.riffle.core.data.credentialed.AbsCredentialedAuthenticator(
-            absApi = absApi,
-            libraryApi = libraryApi,
-            storytellerApi = storytellerApi,
-        )
+        // absApi/storytellerApi/libraryApi are still accepted so callers that don't hit the auth
+        // path can leave them as `error`-throwing stubs unchanged. They're wired into the auth
+        // helper below on demand.
+        @Suppress("UNUSED_PARAMETER") val unused1 = absApi
+        @Suppress("UNUSED_PARAMETER") val unused2 = storytellerApi
+        @Suppress("UNUSED_PARAMETER") val unused3 = libraryApi
         val installer = com.riffle.core.data.credentialed.CredentialedSourceInstaller(
             sourceDao = dao,
             libraryDao = libraryDao,
@@ -218,10 +218,21 @@ class ServerRepositoryTest {
             libraryDao = libraryDao,
             libraryItemDao = libraryItemDao,
             filesCleaner = filesCleaner,
-            authenticators = mapOf(com.riffle.core.domain.SourceType.ABS to authenticator),
             installer = installer,
         )
     }
+
+    /** Builds the SourceType.ABS authenticator on its own. Used by the auth-focussed tests. */
+    private fun buildAbsAuth(
+        absApi: AbsApi,
+        libraryApi: AbsLibraryApi,
+        storytellerApi: StorytellerApi,
+    ): com.riffle.core.data.credentialed.AbsCredentialedAuthenticator =
+        com.riffle.core.data.credentialed.AbsCredentialedAuthenticator(
+            absApi = absApi,
+            libraryApi = libraryApi,
+            storytellerApi = storytellerApi,
+        )
 
     private val storytellerApiNotCalled = StorytellerApi { _, _, _, _ -> error("should not be called") }
     private fun storytellerApiReturning(result: NetworkResult<String>) = StorytellerApi { _, _, _, _ -> result }
@@ -273,6 +284,10 @@ class ServerRepositoryTest {
         assertEquals(idsInactive, idsAfterActive)
     }
 
+    // The 4 tests below exercise the ABS authenticator directly (formerly they hit
+    // SourceRepository.authenticate, which delegated here). The repo builder is still called so
+    // the "persists nothing" assertions can inspect an untouched DAO/library table alongside the
+    // auth result.
     @Test
     fun `authenticate success returns PendingSource with libraries and persists nothing`() = runTest {
         val dao = fakeDao()
@@ -289,10 +304,11 @@ class ServerRepositoryTest {
                 )
             )
         )
-        val repo = buildRepo(dao, tokens, absApi, storytellerApiNotCalled, fakeServerInfoApi, libsApi, libDao, fakeLibraryItemDao(), visibility, fakeFilesCleaner())
+        buildRepo(dao, tokens, absApi, storytellerApiNotCalled, fakeServerInfoApi, libsApi, libDao, fakeLibraryItemDao(), visibility, fakeFilesCleaner())
+        val auth = buildAbsAuth(absApi, libsApi, storytellerApiNotCalled)
         val url = SourceUrl.parse("https://abs.example.com")!!
 
-        val result = repo.authenticate(url, "admin", "pass", insecureAllowed = false)
+        val result = auth.authenticate(url, "admin", "pass", insecureAllowed = false, serverType = ServerType.AUDIOBOOKSHELF)
 
         assertTrue(result is AuthenticateResult.Success)
         val pending = (result as AuthenticateResult.Success).pending
@@ -306,28 +322,26 @@ class ServerRepositoryTest {
     @Test
     fun `authenticate wrong credentials surfaces message and persists nothing`() = runTest {
         val dao = fakeDao(); val tokens = fakeTokenStorage()
-        val libDao = fakeLibraryDao(); val visibility = fakeVisibilityStore()
         val absApi = AbsApi { _, _, _, _ -> NetworkResult.Auth }
-        val repo = buildRepo(dao, tokens, absApi, storytellerApiNotCalled, fakeServerInfoApi, libsApiNotCalled, libDao, fakeLibraryItemDao(), visibility, fakeFilesCleaner())
+        val auth = buildAbsAuth(absApi, libsApiNotCalled, storytellerApiNotCalled)
 
-        val result = repo.authenticate(SourceUrl.parse("https://x")!!, "u", "p", false)
+        val result = auth.authenticate(SourceUrl.parse("https://x")!!, "u", "p", false, ServerType.AUDIOBOOKSHELF)
 
         assertTrue(result is AuthenticateResult.WrongCredentials)
-        // The unified classifier maps 401 → Auth; SourceRepositoryImpl surfaces a fixed user-facing message.
+        // The unified classifier maps 401 → Auth; the authenticator surfaces a fixed user-facing message.
         assertTrue((result as AuthenticateResult.WrongCredentials).message.isNotBlank())
         assertEquals(0, dao.allCount())
     }
 
     @Test
     fun `authenticate library fetch failure surfaces LibraryFetchFailed and persists nothing`() = runTest {
-        val dao = fakeDao(); val tokens = fakeTokenStorage()
-        val libDao = fakeLibraryDao(); val visibility = fakeVisibilityStore()
+        val tokens = fakeTokenStorage()
         val absApi = AbsApi { _, _, _, _ -> NetworkResult.Success(com.riffle.core.network.NetworkLoginUser("uid", "tok", "u")) }
         val cause = RuntimeException("boom")
         val libsApi = libsApiReturning(NetworkResult.Offline(cause))
-        val repo = buildRepo(dao, tokens, absApi, storytellerApiNotCalled, fakeServerInfoApi, libsApi, libDao, fakeLibraryItemDao(), visibility, fakeFilesCleaner())
+        val auth = buildAbsAuth(absApi, libsApi, storytellerApiNotCalled)
 
-        val result = repo.authenticate(SourceUrl.parse("https://x")!!, "u", "p", false)
+        val result = auth.authenticate(SourceUrl.parse("https://x")!!, "u", "p", false, ServerType.AUDIOBOOKSHELF)
 
         assertTrue(result is AuthenticateResult.LibraryFetchFailed)
         assertSame(cause, (result as AuthenticateResult.LibraryFetchFailed).cause)
@@ -336,12 +350,10 @@ class ServerRepositoryTest {
 
     @Test
     fun `authenticate returns InsecureConnection when network signals self-signed`() = runTest {
-        val dao = fakeDao(); val tokens = fakeTokenStorage()
-        val libDao = fakeLibraryDao(); val visibility = fakeVisibilityStore()
         val absApi = AbsApi { _, _, _, _ -> NetworkResult.InsecureConnection(InsecureConnectionType.SELF_SIGNED) }
-        val repo = buildRepo(dao, tokens, absApi, storytellerApiNotCalled, fakeServerInfoApi, libsApiNotCalled, libDao, fakeLibraryItemDao(), visibility, fakeFilesCleaner())
+        val auth = buildAbsAuth(absApi, libsApiNotCalled, storytellerApiNotCalled)
 
-        val result = repo.authenticate(SourceUrl.parse("https://abs.example.com")!!, "admin", "pass", insecureAllowed = false)
+        val result = auth.authenticate(SourceUrl.parse("https://abs.example.com")!!, "admin", "pass", insecureAllowed = false, serverType = ServerType.AUDIOBOOKSHELF)
 
         assertTrue(result is AuthenticateResult.InsecureConnection)
     }
@@ -377,13 +389,12 @@ class ServerRepositoryTest {
 
     @Test
     fun `authenticate STORYTELLER returns PendingSource with synthetic Readaloud library and serverType STORYTELLER`() = runTest {
-        val dao = fakeDao(); val tokens = fakeTokenStorage()
-        val libDao = fakeLibraryDao(); val visibility = fakeVisibilityStore()
+        val dao = fakeDao()
         val absApi = AbsApi { _, _, _, _ -> error("ABS auth must not be called for Storyteller") }
         val storyteller = storytellerApiReturning(NetworkResult.Success("tok-st"))
-        val repo = buildRepo(dao, tokens, absApi, storyteller, fakeServerInfoApi, libsApiNotCalled, libDao, fakeLibraryItemDao(), visibility, fakeFilesCleaner())
+        val auth = buildAbsAuth(absApi, libsApiNotCalled, storyteller)
 
-        val result = repo.authenticate(
+        val result = auth.authenticate(
             SourceUrl.parse("http://media-source:8001")!!, "plamen", "pw", insecureAllowed = false,
             serverType = ServerType.STORYTELLER_SERVICE,
         )
@@ -400,13 +411,11 @@ class ServerRepositoryTest {
 
     @Test
     fun `authenticate STORYTELLER wrong credentials surfaces WrongCredentials`() = runTest {
-        val dao = fakeDao(); val tokens = fakeTokenStorage()
-        val libDao = fakeLibraryDao(); val visibility = fakeVisibilityStore()
         val absApi = AbsApi { _, _, _, _ -> error("ABS auth must not be called for Storyteller") }
         val storyteller = storytellerApiReturning(NetworkResult.Auth)
-        val repo = buildRepo(dao, tokens, absApi, storyteller, fakeServerInfoApi, libsApiNotCalled, libDao, fakeLibraryItemDao(), visibility, fakeFilesCleaner())
+        val auth = buildAbsAuth(absApi, libsApiNotCalled, storyteller)
 
-        val result = repo.authenticate(
+        val result = auth.authenticate(
             SourceUrl.parse("http://media-source:8001")!!, "plamen", "wrong", insecureAllowed = false,
             serverType = ServerType.STORYTELLER_SERVICE,
         )

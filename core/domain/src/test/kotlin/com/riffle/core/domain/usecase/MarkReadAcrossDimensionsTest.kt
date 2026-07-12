@@ -61,9 +61,6 @@ class MarkReadAcrossDimensionsTest {
     private class FakeServerRepository(private val active: Source?) : SourceRepository {
         override fun observeAll(): Flow<List<Source>> = flowOf(listOfNotNull(active))
         override suspend fun getActive(): Source? = active
-        override suspend fun authenticate(
-            url: SourceUrl, username: String, password: String, insecureAllowed: Boolean, serverType: ServerType,
-        ) = throw UnsupportedOperationException()
         override suspend fun commit(pending: PendingSource, hiddenLibraryIds: Set<String>) =
             throw UnsupportedOperationException()
         override suspend fun setActive(sourceId: String) = Unit

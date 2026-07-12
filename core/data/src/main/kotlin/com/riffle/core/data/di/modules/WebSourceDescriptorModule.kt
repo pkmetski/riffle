@@ -3,6 +3,7 @@ package com.riffle.core.data.di.modules
 import com.riffle.core.domain.AbsWebSourceDescriptor
 import com.riffle.core.domain.ChitankaWebSourceDescriptor
 import com.riffle.core.domain.GutenbergWebSourceDescriptor
+import com.riffle.core.domain.KomgaWebSourceDescriptor
 import com.riffle.core.domain.LocalFilesWebSourceDescriptor
 import com.riffle.core.domain.WebSourceDescriptor
 import com.riffle.core.domain.WebSourceDescriptors
@@ -41,6 +42,9 @@ object WebSourceDescriptorModule {
 
     @Provides @IntoSet fun provideGutenbergDescriptor(): WebSourceDescriptor =
         GutenbergWebSourceDescriptor
+
+    @Provides @IntoSet fun provideKomgaDescriptor(): WebSourceDescriptor =
+        KomgaWebSourceDescriptor
 
     @Provides
     @Singleton
