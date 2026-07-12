@@ -85,6 +85,7 @@ import com.riffle.app.ui.isTabletLayout
 import com.riffle.core.domain.EbookFormat
 import com.riffle.core.domain.LibraryItem
 import kotlinx.coroutines.launch
+import com.riffle.app.ui.source.asAuthHeader
 
 const val LIBRARY_ITEM_DETAIL_LEFT_PANE_TAG = "library_item_detail_left_pane"
 const val LIBRARY_ITEM_DETAIL_RIGHT_PANE_TAG = "library_item_detail_right_pane"
@@ -377,7 +378,7 @@ private fun LibraryItemDetailContent(
             AsyncImage(
                 model = ImageRequest.Builder(LocalContext.current)
                     .data(url)
-                    .addHeader("Authorization", "Bearer $token")
+                    .addHeader("Authorization", token.asAuthHeader())
                     .instrumentCover("detail", item.id, url)
                     .build(),
                 contentDescription = null,
@@ -614,7 +615,7 @@ internal fun LibraryItemDetailContentTablet(
                 AsyncImage(
                     model = ImageRequest.Builder(LocalContext.current)
                         .data(url)
-                        .addHeader("Authorization", "Bearer $token")
+                        .addHeader("Authorization", token.asAuthHeader())
                         .instrumentCover("detail", item.id, url)
                         .build(),
                     contentDescription = null,
@@ -810,7 +811,7 @@ internal fun LibraryItemDetailContentPhoneLandscape(
                 AsyncImage(
                     model = ImageRequest.Builder(LocalContext.current)
                         .data(url)
-                        .addHeader("Authorization", "Bearer $token")
+                        .addHeader("Authorization", token.asAuthHeader())
                         .instrumentCover("detail", item.id, url)
                         .build(),
                     contentDescription = null,

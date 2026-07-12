@@ -108,6 +108,7 @@ class AddSourceViewModelTest {
             password: String,
             insecureAllowed: Boolean,
             serverType: com.riffle.core.domain.ServerType,
+            sourceType: com.riffle.core.domain.SourceType,
         ): AuthenticateResult {
             lastInsecureAllowed = insecureAllowed
             lastServerType = serverType

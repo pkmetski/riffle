@@ -66,6 +66,16 @@ class CredentialedSourceInstaller @Inject constructor(
             },
             type = pending.sourceType.name,
         )
+        // Save credentials BEFORE inserting the row. `SourceDao.observeAll` is a Room Flow that
+        // fires the moment the row lands; the navigation-drawer's `showDownloadsLink` derivation
+        // (and every future CatalogRegistry.forSource lookup) reads the token from `TokenStorage`
+        // synchronously to decide whether the Source supports Downloads. When credentials are
+        // saved AFTER the insert, that first read finds a null token and the drawer emits
+        // `showDownloadsLink = false`, then the token save fires but never re-triggers the
+        // sources flow — so the Downloads link stays hidden until app restart. Ordering the
+        // writes credentials-first closes the race so the first flow read already sees the token.
+        tokenStorage.saveToken(id, pending.token)
+        tokenStorage.savePassword(id, pending.password)
         // A Storyteller Source is a Settings-only readaloud backend (ADR 0026) — it must never
         // become the active browsable Source, not even as the first source added. Other
         // credentialed sources keep the "first source becomes active" convenience.
@@ -75,8 +85,6 @@ class CredentialedSourceInstaller @Inject constructor(
         } else {
             sourceDao.upsertAsFirstIfNoActive(entity)
         }
-        tokenStorage.saveToken(id, pending.token)
-        tokenStorage.savePassword(id, pending.password)
         val libraryRows = pending.libraries.map {
             LibraryEntity(id = it.id, name = it.name, mediaType = it.mediaType, sourceId = id)
         }.toMutableList()

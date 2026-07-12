@@ -352,6 +352,7 @@ class ChitankaBrowseViewModelTest {
             password: String,
             insecureAllowed: Boolean,
             serverType: com.riffle.core.domain.ServerType,
+            sourceType: com.riffle.core.domain.SourceType,
         ) = throw UnsupportedOperationException()
         override suspend fun commit(
             pending: com.riffle.core.domain.PendingSource,

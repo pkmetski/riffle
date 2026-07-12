@@ -46,6 +46,7 @@ private fun fakeServers(list: List<Source>): SourceRepository = object : SourceR
     override suspend fun authenticate(
         url: SourceUrl, username: String, password: String,
         insecureAllowed: Boolean, serverType: ServerType,
+        sourceType: com.riffle.core.domain.SourceType,
     ): AuthenticateResult = error("unused")
     override suspend fun commit(pending: PendingSource, hiddenLibraryIds: Set<String>): CommitSourceResult = error("unused")
     override suspend fun setActive(sourceId: String) = error("unused")

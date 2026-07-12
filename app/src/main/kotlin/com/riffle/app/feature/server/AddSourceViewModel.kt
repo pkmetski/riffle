@@ -26,6 +26,7 @@ import com.riffle.core.domain.InsecureConnectionType
 import com.riffle.core.domain.PendingSource
 import com.riffle.core.domain.SourceRepository
 import com.riffle.core.domain.ServerType
+import com.riffle.core.domain.SourceType
 import com.riffle.core.domain.SourceUrl
 import com.riffle.core.domain.TokenStorage
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -46,7 +47,7 @@ import javax.inject.Named
  * not a content "server" in the domain sense — it just shares the same URL+username+password
  * shape — and we want a single screen for adding any of them.
  */
-enum class AddSourceBackend { AUDIOBOOKSHELF, STORYTELLER, WEBDAV }
+enum class AddSourceBackend { AUDIOBOOKSHELF, STORYTELLER, WEBDAV, KOMGA }
 
 @HiltViewModel
 class AddSourceViewModel @Inject constructor(
@@ -116,7 +117,7 @@ class AddSourceViewModel @Inject constructor(
 
     private suspend fun initFromRoute() {
         when (backend) {
-            AddSourceBackend.AUDIOBOOKSHELF, AddSourceBackend.STORYTELLER -> {
+            AddSourceBackend.AUDIOBOOKSHELF, AddSourceBackend.STORYTELLER, AddSourceBackend.KOMGA -> {
                 val id = editingServerId ?: return
                 val server = repository.getById(id) ?: return
                 applyUrl(server.url.value)
@@ -176,7 +177,7 @@ class AddSourceViewModel @Inject constructor(
     fun onConnect() {
         error = null
         when (backend) {
-            AddSourceBackend.AUDIOBOOKSHELF, AddSourceBackend.STORYTELLER -> connectServer()
+            AddSourceBackend.AUDIOBOOKSHELF, AddSourceBackend.STORYTELLER, AddSourceBackend.KOMGA -> connectServer()
             AddSourceBackend.WEBDAV -> connectWebdav()
         }
     }
@@ -236,9 +237,10 @@ class AddSourceViewModel @Inject constructor(
 
     private fun doAuthenticate(serverUrl: SourceUrl, insecureAllowed: Boolean) {
         val serverType = backend.toServerType() ?: return
+        val sourceType = backend.toSourceType()
         viewModelScope.launch {
             isLoading = true
-            when (val result = repository.authenticate(serverUrl, username, password, insecureAllowed, serverType)) {
+            when (val result = repository.authenticate(serverUrl, username, password, insecureAllowed, serverType, sourceType)) {
                 is AuthenticateResult.Success -> {
                     val pending = result.pending
                     if (pending.libraries.size <= 1) {
@@ -275,7 +277,7 @@ class AddSourceViewModel @Inject constructor(
     fun onRemove() {
         viewModelScope.launch {
             when (backend) {
-                AddSourceBackend.AUDIOBOOKSHELF, AddSourceBackend.STORYTELLER ->
+                AddSourceBackend.AUDIOBOOKSHELF, AddSourceBackend.STORYTELLER, AddSourceBackend.KOMGA ->
                     editingServerId?.let { repository.remove(it) }
                 AddSourceBackend.WEBDAV -> webdavConfigStore.clear()
             }
@@ -369,11 +371,22 @@ data class WebdavBanner(
 private fun parseBackend(raw: String?): AddSourceBackend = when (raw?.lowercase()) {
     "storyteller" -> AddSourceBackend.STORYTELLER
     "webdav" -> AddSourceBackend.WEBDAV
+    "komga" -> AddSourceBackend.KOMGA
     else -> AddSourceBackend.AUDIOBOOKSHELF
 }
 
 private fun AddSourceBackend.toServerType(): ServerType? = when (this) {
     AddSourceBackend.AUDIOBOOKSHELF -> ServerType.AUDIOBOOKSHELF
     AddSourceBackend.STORYTELLER -> ServerType.STORYTELLER_SERVICE
+    // Komga has no ServerType subtype; ServerEntity.serverType stays "AUDIOBOOKSHELF" as filler
+    // (it's only meaningful for SourceType.ABS which owns the AUDIOBOOKSHELF/STORYTELLER split).
+    AddSourceBackend.KOMGA -> ServerType.AUDIOBOOKSHELF
     AddSourceBackend.WEBDAV -> null
+}
+
+private fun AddSourceBackend.toSourceType(): SourceType = when (this) {
+    AddSourceBackend.AUDIOBOOKSHELF, AddSourceBackend.STORYTELLER -> SourceType.ABS
+    AddSourceBackend.KOMGA -> SourceType.KOMGA
+    // WebDAV never reaches SourceType-keyed code paths (its own connectWebdav branch).
+    AddSourceBackend.WEBDAV -> SourceType.ABS
 }

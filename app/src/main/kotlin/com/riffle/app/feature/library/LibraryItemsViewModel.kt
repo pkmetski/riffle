@@ -238,14 +238,20 @@ class LibraryItemsViewModel @Inject constructor(
             toRead = true,
             series = catalog is SeriesCapability,
             collections = catalog is CollectionsCapability,
-            // Highlights/notes are ebook-only. Hide the tab only when we've confirmed the
-            // library is audiobook-only — i.e. we have items AND none are readable. An empty
-            // list is treated as "not yet settled" (allItems' initial value is emptyList(),
-            // and a library refresh's replaceAllForLibrary window transiently drops rows) —
-            // keeping the tab visible there prevents a cold-start LaunchedEffect clamp from
-            // wiping a rememberSaveable-restored TAB_ANNOTATIONS. Adding a readable item
-            // later flips the tab back on live.
-            annotations = items.isEmpty() || items.any { it.isReadable },
+            // Highlights/notes are text-anchored — EPUB and PDF only. A CBZ archive (comics/manga
+            // libraries served by Komga; the same holds for future CBR/scan-image sources) is a
+            // stack of raster pages with no selectable text, so an Annotations tab there is dead
+            // UI. Show the tab only when the ANNOTATABLE items outnumber the non-annotatable — a
+            // Komga Comics library that has 2497 CBZs and 5 stray PDFs shouldn't sprout an
+            // Annotations tab that only holds those 5 PDFs' annotations; a Books library with
+            // 328 EPUBs and 64 PDFs still gets it. Empty list is treated as "not yet settled"
+            // (allItems' initial value is emptyList(), and a library refresh's replaceAllForLibrary
+            // window transiently drops rows) — keeping the tab visible there prevents a cold-start
+            // LaunchedEffect clamp from wiping a rememberSaveable-restored TAB_ANNOTATIONS.
+            annotations = items.isEmpty() || run {
+                val annotable = items.count { it.canAnnotate }
+                annotable > 0 && annotable >= items.count { !it.canAnnotate }
+            },
         )
     }
         // Room emits on every DB write (progress ticks, download-state changes) but the

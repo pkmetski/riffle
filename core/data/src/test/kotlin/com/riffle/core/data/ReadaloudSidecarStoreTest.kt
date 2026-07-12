@@ -43,7 +43,7 @@ class ReadaloudSidecarStoreTest {
         override fun observeAll(): Flow<List<Source>> = flowOf(listOf(source))
         override suspend fun getActive(): Source? = source
         override suspend fun getById(sourceId: String): Source? = if (sourceId == "srv") source else null
-        override suspend fun authenticate(url: SourceUrl, username: String, password: String, insecureAllowed: Boolean, serverType: ServerType): AuthenticateResult = throw UnsupportedOperationException()
+        override suspend fun authenticate(url: SourceUrl, username: String, password: String, insecureAllowed: Boolean, serverType: ServerType, sourceType: com.riffle.core.domain.SourceType): AuthenticateResult = throw UnsupportedOperationException()
         override suspend fun commit(pending: PendingSource, hiddenLibraryIds: Set<String>): CommitSourceResult = throw UnsupportedOperationException()
         override suspend fun setActive(sourceId: String) = Unit
         override suspend fun remove(sourceId: String) = Unit

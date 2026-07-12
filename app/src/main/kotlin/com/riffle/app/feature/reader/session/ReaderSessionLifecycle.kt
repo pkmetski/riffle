@@ -96,7 +96,14 @@ class ReaderSessionLifecycle @AssistedInject constructor(
 
         return when (val result = epubRepository.openEpub(item)) {
             is EpubOpenResult.Success -> resolveReady(result, item.title, params)
-            is EpubOpenResult.NetworkError -> OpenOutcome.Error("Network error: ${result.cause.message}")
+            is EpubOpenResult.NetworkError -> OpenOutcome.Error(
+                // Use `toString()` as the fallback: `Throwable.message` is null for exceptions like
+                // NullPointerException / KotlinNullPointerException / IOException that were
+                // thrown with no reason, which surfaced to the user as "Network error: null".
+                // toString() includes the exception class name at minimum ("java.io.IOException")
+                // so the user gets a debuggable string instead of "null".
+                "Network error: ${result.cause.message ?: result.cause.toString()}",
+            )
             EpubOpenResult.Offline -> OpenOutcome.Error("Book not available offline")
         }
     }

@@ -36,6 +36,8 @@ object SourceIconResolver {
         SourceType.CHITANKA -> null
         // Gutendex is the API mirror, not a user-visible product; no branded favicon to fetch.
         SourceType.GUTENBERG -> null
+        // Komga serves a bundled favicon at /favicon.ico from its web UI root.
+        SourceType.KOMGA -> "${source.url.value.trimEnd('/')}/favicon.ico"
         SourceType.ABS -> when (source.serverType) {
             ServerType.AUDIOBOOKSHELF -> "${source.url.value}/Logo.png"
             ServerType.STORYTELLER_SERVICE -> "${source.url.value}/apple-touch-icon.png"
@@ -58,6 +60,7 @@ object SourceIconResolver {
             SourceType.LOCAL_FILES -> R.drawable.ic_source_local_files
             SourceType.CHITANKA -> R.drawable.ic_source_chitanka
             SourceType.GUTENBERG -> R.drawable.ic_source_gutenberg
+            SourceType.KOMGA -> R.drawable.ic_source_komga
             SourceType.ABS -> when (serverType) {
                 ServerType.AUDIOBOOKSHELF -> R.drawable.ic_source_audiobookshelf
                 ServerType.STORYTELLER_SERVICE -> R.drawable.ic_source_storyteller

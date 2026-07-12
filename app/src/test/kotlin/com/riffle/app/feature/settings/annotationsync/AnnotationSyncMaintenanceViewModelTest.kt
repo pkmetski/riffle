@@ -319,6 +319,7 @@ class AnnotationSyncMaintenanceViewModelTest {
             password: String,
             insecureAllowed: Boolean,
             serverType: ServerType,
+            sourceType: com.riffle.core.domain.SourceType,
         ): AuthenticateResult = error("not used")
         override suspend fun commit(pending: PendingSource, hiddenLibraryIds: Set<String>): CommitSourceResult = error("not used")
         override suspend fun setActive(sourceId: String) {}

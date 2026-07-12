@@ -79,6 +79,7 @@ class LibraryItemDetailViewModelTocTest {
             password: String,
             insecureAllowed: Boolean,
             serverType: com.riffle.core.domain.ServerType,
+            sourceType: com.riffle.core.domain.SourceType,
         ): com.riffle.core.domain.AuthenticateResult = com.riffle.core.domain.AuthenticateResult.WrongCredentials()
         override suspend fun commit(
             pending: com.riffle.core.domain.PendingSource,

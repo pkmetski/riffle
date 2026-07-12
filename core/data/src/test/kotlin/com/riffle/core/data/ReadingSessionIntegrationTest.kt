@@ -48,7 +48,7 @@ class ReadingSessionIntegrationTest {
             )
             override fun observeAll(): Flow<List<Source>> = flowOf(listOf(activeServer))
             override suspend fun getActive(): Source = activeServer
-            override suspend fun authenticate(url: SourceUrl, username: String, password: String, insecureAllowed: Boolean, serverType: com.riffle.core.domain.ServerType) =
+            override suspend fun authenticate(url: SourceUrl, username: String, password: String, insecureAllowed: Boolean, serverType: com.riffle.core.domain.ServerType, sourceType: com.riffle.core.domain.SourceType) =
                 throw UnsupportedOperationException()
             override suspend fun commit(pending: com.riffle.core.domain.PendingSource, hiddenLibraryIds: Set<String>) =
                 throw UnsupportedOperationException()

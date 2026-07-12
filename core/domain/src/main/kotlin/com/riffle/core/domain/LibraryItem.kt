@@ -39,6 +39,15 @@ data class LibraryItem(
     /** Has an ebook file Riffle can open in the reader (EPUB, PDF, or CBZ). */
     val isReadable: Boolean get() = ebookFormat != EbookFormat.Unsupported
 
+    /**
+     * True when the item's format can carry text highlights + notes. EPUB and PDF do; CBZ (a
+     * comic archive of raster pages) does not. Library surfaces gate the Annotations tab and per-
+     * item highlight actions on this, not on [isReadable] alone — a Comics library is entirely
+     * CBZ and would otherwise present a dead Annotations tab that never fills.
+     */
+    val canAnnotate: Boolean get() =
+        ebookFormat == EbookFormat.Epub || ebookFormat == EbookFormat.Pdf
+
     /** Has audio Riffle can play in the audiobook player — an Audiobook (ADR 0029). */
     val isListenable: Boolean get() = hasAudio
 

@@ -15,13 +15,14 @@ import org.junit.Test
 class SourceTypePickerTest {
 
     @Test
-    fun `cards are ordered ABS first then LocalFiles then Chitanka then Gutenberg`() {
+    fun `cards are ordered ABS LocalFiles Chitanka Gutenberg Komga`() {
         val cards = sourceTypeCards()
-        assertEquals(4, cards.size)
+        assertEquals(5, cards.size)
         assertEquals(SourceType.ABS, cards[0].type)
         assertEquals(SourceType.LOCAL_FILES, cards[1].type)
         assertEquals(SourceType.CHITANKA, cards[2].type)
         assertEquals(SourceType.GUTENBERG, cards[3].type)
+        assertEquals(SourceType.KOMGA, cards[4].type)
     }
 
     @Test
@@ -95,9 +96,10 @@ class SourceTypePickerTest {
         assertTrue(cards.any { it.type == SourceType.ABS })
     }
 
-    // All credential-less singletons already installed: only ABS remains addable.
+    // All credential-less singletons already installed: only ABS + Komga (both multi-instance,
+    // credentialed) remain addable.
     @Test
-    fun `only ABS remains when all credential-less singletons are installed`() {
+    fun `only ABS and Komga remain when all credential-less singletons are installed`() {
         val cards = sourceTypeCards(
             installedTypes = setOf(
                 SourceType.LOCAL_FILES,
@@ -105,7 +107,8 @@ class SourceTypePickerTest {
                 SourceType.GUTENBERG,
             ),
         )
-        assertEquals(1, cards.size)
+        assertEquals(2, cards.size)
         assertEquals(SourceType.ABS, cards[0].type)
+        assertEquals(SourceType.KOMGA, cards[1].type)
     }
 }

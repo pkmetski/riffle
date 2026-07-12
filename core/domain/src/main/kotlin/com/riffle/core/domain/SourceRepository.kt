@@ -26,6 +26,7 @@ interface SourceRepository {
         password: String,
         insecureAllowed: Boolean = false,
         serverType: ServerType = ServerType.AUDIOBOOKSHELF,
+        sourceType: SourceType = SourceType.ABS,
     ): AuthenticateResult
     suspend fun commit(
         pending: PendingSource,

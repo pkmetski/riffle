@@ -109,7 +109,7 @@ class ProgressSyncCycleTest {
                 val source = Source("s1", SourceUrl.parse("http://localhost")!!, true, false, "")
                 override fun observeAll(): Flow<List<Source>> = flowOf(listOf(source))
                 override suspend fun getActive(): Source = source
-                override suspend fun authenticate(url: SourceUrl, username: String, password: String, insecureAllowed: Boolean, serverType: com.riffle.core.domain.ServerType): AuthenticateResult = throw UnsupportedOperationException()
+                override suspend fun authenticate(url: SourceUrl, username: String, password: String, insecureAllowed: Boolean, serverType: com.riffle.core.domain.ServerType, sourceType: com.riffle.core.domain.SourceType): AuthenticateResult = throw UnsupportedOperationException()
                 override suspend fun commit(pending: PendingSource, hiddenLibraryIds: Set<String>): CommitSourceResult = throw UnsupportedOperationException()
                 override suspend fun setActive(sourceId: String) = Unit
                 override suspend fun remove(sourceId: String) = Unit

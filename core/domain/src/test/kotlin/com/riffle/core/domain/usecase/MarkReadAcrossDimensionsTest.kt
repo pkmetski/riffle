@@ -63,6 +63,7 @@ class MarkReadAcrossDimensionsTest {
         override suspend fun getActive(): Source? = active
         override suspend fun authenticate(
             url: SourceUrl, username: String, password: String, insecureAllowed: Boolean, serverType: ServerType,
+            sourceType: com.riffle.core.domain.SourceType,
         ) = throw UnsupportedOperationException()
         override suspend fun commit(pending: PendingSource, hiddenLibraryIds: Set<String>) =
             throw UnsupportedOperationException()

@@ -608,6 +608,7 @@ class AudiobookPlayerViewModelBookmarkTest {
             password: String,
             insecureAllowed: Boolean,
             serverType: com.riffle.core.domain.ServerType,
+            sourceType: com.riffle.core.domain.SourceType,
         ) = throw NotImplementedError()
         override suspend fun commit(
             pending: com.riffle.core.domain.PendingSource,
@@ -756,6 +757,7 @@ class AudiobookPlayerViewModelBookmarkTest {
             password: String,
             insecureAllowed: Boolean,
             serverType: com.riffle.core.domain.ServerType,
+            sourceType: com.riffle.core.domain.SourceType,
         ) = throw NotImplementedError()
         override suspend fun commit(pending: com.riffle.core.domain.PendingSource, hiddenLibraryIds: Set<String>) = throw NotImplementedError()
         override suspend fun setActive(sourceId: String) {}

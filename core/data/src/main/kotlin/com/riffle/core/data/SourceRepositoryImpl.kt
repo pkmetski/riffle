@@ -51,12 +51,10 @@ class SourceRepositoryImpl @Inject constructor(
         password: String,
         insecureAllowed: Boolean,
         serverType: ServerType,
+        sourceType: SourceType,
     ): AuthenticateResult {
-        // Every SourceRepository.authenticate call today comes from the ABS/Storyteller flow, so
-        // dispatch on SourceType.ABS. Komga and any future SourceType will pass their own type
-        // through here once the AddSourceScreen goes descriptor-driven (issue #526 Phase 3).
-        val authenticator = authenticators[SourceType.ABS]
-            ?: error("no CredentialedAuthenticator bound for SourceType.ABS — check CredentialedAuthenticatorModule")
+        val authenticator = authenticators[sourceType]
+            ?: error("no CredentialedAuthenticator bound for $sourceType — check CredentialedAuthenticatorModule")
         return authenticator.authenticate(url, username, password, insecureAllowed, serverType)
     }
 

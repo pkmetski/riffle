@@ -97,6 +97,7 @@ class ReaderSessionLifecycleTest {
         override suspend fun authenticate(
             url: SourceUrl, username: String, password: String,
             insecureAllowed: Boolean, serverType: ServerType,
+            sourceType: com.riffle.core.domain.SourceType,
         ) = com.riffle.core.domain.AuthenticateResult.WrongCredentials()
         override suspend fun commit(
             pending: com.riffle.core.domain.PendingSource, hiddenLibraryIds: Set<String>,

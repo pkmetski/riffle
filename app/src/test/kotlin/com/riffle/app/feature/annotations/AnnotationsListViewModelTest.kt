@@ -152,6 +152,7 @@ private class FakeSourceRepository(activeServerId: String?) : SourceRepository {
         password: String,
         insecureAllowed: Boolean,
         serverType: ServerType,
+        sourceType: com.riffle.core.domain.SourceType,
     ): AuthenticateResult = AuthenticateResult.NetworkError(IOException())
     override suspend fun commit(pending: PendingSource, hiddenLibraryIds: Set<String>): CommitSourceResult =
         CommitSourceResult.Failure(IOException())

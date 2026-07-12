@@ -129,6 +129,7 @@ class ReadaloudAudioRepositoryImplTest {
             password: String,
             insecureAllowed: Boolean,
             serverType: ServerType,
+            sourceType: com.riffle.core.domain.SourceType,
         ): AuthenticateResult = AuthenticateResult.NetworkError(UnsupportedOperationException())
         override suspend fun commit(
             pending: PendingSource,

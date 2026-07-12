@@ -53,6 +53,7 @@ class BookFormattingPreferencesStoreScopeIsolationTest {
             password: String,
             insecureAllowed: Boolean,
             serverType: ServerType,
+            sourceType: com.riffle.core.domain.SourceType,
         ): AuthenticateResult = throw UnsupportedOperationException()
         override suspend fun commit(
             pending: PendingSource,

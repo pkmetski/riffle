@@ -48,7 +48,7 @@ class SeriesIntegrationTest {
         lateinit var source: Source
         override fun observeAll() = MutableStateFlow(listOf(source))
         override suspend fun getActive() = source
-        override suspend fun authenticate(url: SourceUrl, username: String, password: String, insecureAllowed: Boolean, serverType: com.riffle.core.domain.ServerType): AuthenticateResult =
+        override suspend fun authenticate(url: SourceUrl, username: String, password: String, insecureAllowed: Boolean, serverType: com.riffle.core.domain.ServerType, sourceType: com.riffle.core.domain.SourceType): AuthenticateResult =
             AuthenticateResult.NetworkError(IOException())
         override suspend fun commit(pending: PendingSource, hiddenLibraryIds: Set<String>): CommitSourceResult =
             CommitSourceResult.Failure(IOException())

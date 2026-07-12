@@ -140,6 +140,7 @@ object WebSourceDescriptors {
         LocalFilesWebSourceDescriptor,
         ChitankaWebSourceDescriptor,
         GutenbergWebSourceDescriptor,
+        KomgaWebSourceDescriptor,
     )
 
     fun forType(type: SourceType): WebSourceDescriptor? =
@@ -208,6 +209,25 @@ object ChitankaWebSourceDescriptor : WebSourceDescriptor {
         // `:core:data` (which depends on both) asserts they stay in sync.
         DefaultLibrary(id = "books", name = "Chitanka", mediaType = "book"),
         DefaultLibrary(id = "audiobooks", name = "Gramofonche", mediaType = "audiobook"),
+    )
+}
+
+object KomgaWebSourceDescriptor : WebSourceDescriptor {
+    override val type = SourceType.KOMGA
+    override val displayName = "Komga"
+    override val isSingleton = false
+    override val hasCredentials = true
+    override val hasNetworkHost = true
+    override val addRoute = "add_source?type=komga"
+    override val pickerOrder = 4
+    override val pickerBlurb = "Stream comics, manga and ebooks from your Komga server."
+    override val addSourceCopy = AddSourceCopy(
+        addTitle = "Add Komga",
+        editTitle = "Edit Komga",
+        urlLabel = "Source URL",
+        urlPlaceholder = "komga.example.com",
+        helpText = "Browse and read your Komga library (comics, manga and ebooks) from any Komga server.",
+        removeLabel = "Remove source",
     )
 }
 

@@ -85,7 +85,7 @@ class PdfRepositoryTest {
         override fun observeAll(): Flow<List<Source>> = flowOf(servers)
         override suspend fun getActive(): Source? = servers.firstOrNull { it.id == activeId }
         override suspend fun getById(sourceId: String): Source? = servers.firstOrNull { it.id == sourceId }
-        override suspend fun authenticate(url: SourceUrl, username: String, password: String, insecureAllowed: Boolean, serverType: com.riffle.core.domain.ServerType) =
+        override suspend fun authenticate(url: SourceUrl, username: String, password: String, insecureAllowed: Boolean, serverType: com.riffle.core.domain.ServerType, sourceType: com.riffle.core.domain.SourceType) =
             throw UnsupportedOperationException()
         override suspend fun commit(pending: com.riffle.core.domain.PendingSource, hiddenLibraryIds: Set<String>) =
             throw UnsupportedOperationException()

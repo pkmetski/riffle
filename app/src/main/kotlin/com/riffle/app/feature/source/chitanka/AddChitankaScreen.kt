@@ -2,11 +2,13 @@ package com.riffle.app.feature.source.chitanka
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.Button
@@ -29,6 +31,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.riffle.app.ui.TabletContentWidthContainer
+import com.riffle.app.ui.source.SourceTypeIcon
+import com.riffle.core.domain.SourceType
 
 /**
  * Zero-config Chitanka install screen. Presents a brief description of what Riffle is about
@@ -53,7 +57,13 @@ fun AddChitankaScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Add Chitanka") },
+                title = {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        SourceTypeIcon(type = SourceType.CHITANKA, size = 28.dp)
+                        Spacer(Modifier.width(12.dp))
+                        Text("Add Chitanka")
+                    }
+                },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")

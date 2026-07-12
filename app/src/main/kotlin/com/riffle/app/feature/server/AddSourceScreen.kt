@@ -50,9 +50,12 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.riffle.app.ui.TabletContentWidthContainer
+import com.riffle.app.ui.source.SourceTypeIcon
 import com.riffle.core.domain.AddSourceCopy
 import com.riffle.core.domain.InsecureConnectionType
 import com.riffle.core.domain.PendingSource
+import com.riffle.core.domain.ServerType
+import com.riffle.core.domain.SourceType
 import com.riffle.core.domain.WebSourceDescriptors
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -102,7 +105,19 @@ fun AddSourceScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(title) },
+                title = {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        addSourceIconFor(backend)?.let { (type, serverType) ->
+                            SourceTypeIcon(
+                                type = type,
+                                serverType = serverType,
+                                size = 28.dp,
+                            )
+                            Spacer(Modifier.width(12.dp))
+                        }
+                        Text(title)
+                    }
+                },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
@@ -224,19 +239,35 @@ fun AddSourceScreen(
 internal fun descriptorCopyFor(backend: AddSourceBackend): AddSourceCopy? = when (backend) {
     AddSourceBackend.AUDIOBOOKSHELF ->
         WebSourceDescriptors.forTypeOrError(com.riffle.core.domain.SourceType.ABS).addSourceCopy
+    AddSourceBackend.KOMGA ->
+        WebSourceDescriptors.forTypeOrError(com.riffle.core.domain.SourceType.KOMGA).addSourceCopy
     AddSourceBackend.STORYTELLER, AddSourceBackend.WEBDAV -> null
+}
+
+/**
+ * Which bundled source icon (if any) to render alongside the AddSourceScreen title. WebDAV has
+ * no source-type monogram — it's a sync backend, not a browsable source — so it returns null and
+ * the top bar renders text-only.
+ */
+private fun addSourceIconFor(backend: AddSourceBackend): Pair<SourceType, ServerType>? = when (backend) {
+    AddSourceBackend.AUDIOBOOKSHELF -> SourceType.ABS to ServerType.AUDIOBOOKSHELF
+    AddSourceBackend.STORYTELLER -> SourceType.ABS to ServerType.STORYTELLER_SERVICE
+    AddSourceBackend.KOMGA -> SourceType.KOMGA to ServerType.AUDIOBOOKSHELF
+    AddSourceBackend.WEBDAV -> null
 }
 
 internal fun screenTitle(backend: AddSourceBackend, isEditing: Boolean): String = when (backend) {
     AddSourceBackend.AUDIOBOOKSHELF -> if (isEditing) "Edit Audiobookshelf" else "Add Audiobookshelf"
     AddSourceBackend.STORYTELLER -> if (isEditing) "Edit Storyteller" else "Add Storyteller"
     AddSourceBackend.WEBDAV -> if (isEditing) "Edit WebDAV" else "Add WebDAV"
+    AddSourceBackend.KOMGA -> if (isEditing) "Edit Komga" else "Add Komga"
 }
 
 internal fun removeButtonLabel(backend: AddSourceBackend): String = when (backend) {
     AddSourceBackend.AUDIOBOOKSHELF -> "Remove source"
     AddSourceBackend.STORYTELLER -> "Remove Storyteller"
     AddSourceBackend.WEBDAV -> "Disable sync"
+    AddSourceBackend.KOMGA -> "Remove source"
 }
 
 // User-facing description of what Riffle does with each backend. Keep in sync
@@ -249,6 +280,8 @@ private fun backendHelpText(backend: AddSourceBackend): String = when (backend) 
         "Storyteller hosts aligned ebook + audiobook \"readalouds.\" Riffle matches each readaloud to a book on your Audiobookshelf server, enabling synchronized text + audio playback inside the reader."
     AddSourceBackend.WEBDAV ->
         "Sync highlights, notes, and bookmarks between your devices via a WebDAV server."
+    AddSourceBackend.KOMGA ->
+        "Browse and read your Komga library (comics, manga and ebooks) from any Komga server."
 }
 
 @Composable

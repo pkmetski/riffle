@@ -59,7 +59,7 @@ class ProgressSyncIntegrationTest {
             )
             override fun observeAll(): Flow<List<Source>> = flowOf(listOf(activeServer))
             override suspend fun getActive(): Source = activeServer
-            override suspend fun authenticate(url: SourceUrl, username: String, password: String, insecureAllowed: Boolean, serverType: com.riffle.core.domain.ServerType): AuthenticateResult =
+            override suspend fun authenticate(url: SourceUrl, username: String, password: String, insecureAllowed: Boolean, serverType: com.riffle.core.domain.ServerType, sourceType: com.riffle.core.domain.SourceType): AuthenticateResult =
                 throw UnsupportedOperationException()
             override suspend fun commit(pending: PendingSource, hiddenLibraryIds: Set<String>): CommitSourceResult =
                 throw UnsupportedOperationException()
