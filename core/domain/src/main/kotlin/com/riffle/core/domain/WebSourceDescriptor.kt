@@ -113,6 +113,18 @@ interface WebSourceDescriptor {
      */
     fun removeLabelFor(serverType: ServerType): String? =
         addSourceCopyFor(serverType)?.removeLabel
+
+    /**
+     * Remote URL where the source hosts its own favicon, or null when we shouldn't try — either
+     * because the source has no branded favicon worth fetching (Chitanka, Gutendex) or because
+     * it isn't a network-backed source at all (LOCAL_FILES). Callers pair the returned URL with
+     * a bundled monogram fallback (`SourceIconResolver.fallbackDrawableFor`) so a failed fetch
+     * still renders something.
+     *
+     * [serverType] is a discriminator for ABS's Audiobookshelf/Storyteller split (they expose
+     * different logo paths); other descriptors ignore it.
+     */
+    fun iconRemoteUrl(sourceBaseUrl: String, serverType: ServerType): String? = null
 }
 
 /**
@@ -222,6 +234,12 @@ object AbsWebSourceDescriptor : WebSourceDescriptor {
         ServerType.AUDIOBOOKSHELF -> AUDIOBOOKSHELF_COPY
         ServerType.STORYTELLER_SERVICE -> STORYTELLER_COPY
     }
+
+    override fun iconRemoteUrl(sourceBaseUrl: String, serverType: ServerType): String =
+        when (serverType) {
+            ServerType.AUDIOBOOKSHELF -> "$sourceBaseUrl/Logo.png"
+            ServerType.STORYTELLER_SERVICE -> "$sourceBaseUrl/apple-touch-icon.png"
+        }
 }
 
 object LocalFilesWebSourceDescriptor : WebSourceDescriptor {
@@ -269,6 +287,10 @@ object KomgaWebSourceDescriptor : WebSourceDescriptor {
         helpText = "Browse and read your Komga library (comics, manga and ebooks) from any Komga server.",
         removeLabel = "Remove source",
     )
+
+    // Komga serves its own PWA favicon at /favicon.ico from the web-UI root.
+    override fun iconRemoteUrl(sourceBaseUrl: String, serverType: ServerType): String =
+        "${sourceBaseUrl.trimEnd('/')}/favicon.ico"
 }
 
 object GutenbergWebSourceDescriptor : WebSourceDescriptor {
