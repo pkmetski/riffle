@@ -1233,6 +1233,64 @@ class LibraryItemsViewModelTest {
         assertEquals(true, vm.tabVisibility.value?.annotations)
     }
 
+    // Regression pin for the CBZ carve-out: a Komga Comics library is entirely CBZ (raster
+    // pages, no selectable text). CBZ items are readable but NOT annotable — an all-CBZ
+    // library must hide the Annotations tab even though every item passes the isReadable gate.
+    // Reverting the ViewModel's gate to `isReadable` flips this red.
+    @Test
+    fun `tabVisibility annotations is hidden on an all-CBZ library`() = runTest {
+        val srv = source("s-abs", active = true)
+        val srcRepo = object : SourceRepository {
+            override fun observeAll(): Flow<List<Source>> = MutableStateFlow(listOf(srv))
+            override suspend fun getActive(): Source? = srv
+            override suspend fun commit(pending: com.riffle.core.domain.PendingSource, hiddenLibraryIds: Set<String>) = throw UnsupportedOperationException()
+            override suspend fun setActive(sourceId: String) {}
+            override suspend fun remove(sourceId: String) {}
+            override suspend fun getSourceVersion(sourceId: String): String? = null
+        }
+        val vm = makeViewModel(
+            sourceRepository = srcRepo,
+            catalogRegistry = catalogRegistryReturning(SeriesAndPlaylistsOnlyCatalog),
+        )
+
+        val cbz = LibraryItem(
+            "id-cbz", "lib-1", "A Comic", "Author", null, 0f, false, false,
+            EbookFormat.Cbz,
+        )
+        allItemsFlow.value = List(50) { cbz.copy(id = "id-cbz-$it") }
+        testDispatcher.scheduler.advanceUntilIdle()
+        assertEquals(false, vm.tabVisibility.value?.annotations)
+    }
+
+    // Regression pin for the majority rule: a Books library dominated by EPUB/PDF but with a few
+    // stray CBZ still shows the Annotations tab. Symmetric to the all-CBZ case above.
+    @Test
+    fun `tabVisibility annotations is shown when annotable items dominate`() = runTest {
+        val srv = source("s-abs", active = true)
+        val srcRepo = object : SourceRepository {
+            override fun observeAll(): Flow<List<Source>> = MutableStateFlow(listOf(srv))
+            override suspend fun getActive(): Source? = srv
+            override suspend fun commit(pending: com.riffle.core.domain.PendingSource, hiddenLibraryIds: Set<String>) = throw UnsupportedOperationException()
+            override suspend fun setActive(sourceId: String) {}
+            override suspend fun remove(sourceId: String) {}
+            override suspend fun getSourceVersion(sourceId: String): String? = null
+        }
+        val vm = makeViewModel(
+            sourceRepository = srcRepo,
+            catalogRegistry = catalogRegistryReturning(SeriesAndPlaylistsOnlyCatalog),
+        )
+
+        val epub = item("EPUB", "Author")
+        val cbz = LibraryItem(
+            "id-cbz", "lib-1", "Comic", "A", null, 0f, false, false, EbookFormat.Cbz,
+        )
+        // 10 EPUBs, 2 CBZs → annotable-dominant → tab visible.
+        allItemsFlow.value =
+            List(10) { epub.copy(id = "id-epub-$it") } + List(2) { cbz.copy(id = "id-cbz-$it") }
+        testDispatcher.scheduler.advanceUntilIdle()
+        assertEquals(true, vm.tabVisibility.value?.annotations)
+    }
+
     private fun source(id: String, active: Boolean) = Source(
         id = id,
         url = checkNotNull(SourceUrl.parse("https://example.test/$id")),
