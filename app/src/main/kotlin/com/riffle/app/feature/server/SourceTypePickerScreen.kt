@@ -37,16 +37,10 @@ import com.riffle.app.ui.TabletContentWidthContainer
 import com.riffle.app.ui.source.SourceTypeIcon
 import com.riffle.core.domain.ServerType
 import com.riffle.core.domain.SourceType
-
-sealed interface SourceTypeChoice {
-    data object Audiobookshelf : SourceTypeChoice
-    data object LocalFiles : SourceTypeChoice
-    data object Chitanka : SourceTypeChoice
-    data object Gutenberg : SourceTypeChoice
-}
+import com.riffle.core.domain.WebSourceDescriptors
 
 data class SourceTypeCard(
-    val type: SourceTypeChoice,
+    val type: SourceType,
     val title: String,
     val subtitle: String,
     val enabled: Boolean,
@@ -54,81 +48,55 @@ data class SourceTypeCard(
 )
 
 /**
- * The cards shown by [SourceTypePickerScreen]. Source types that require no login (LocalFiles,
- * Chitanka) are device singletons: their tile is omitted once one already exists. For LocalFiles,
- * adding another folder is a dedicated action in Settings; for Chitanka there is nothing more to
- * configure. Rule of thumb: any credential-less source type is one-per-device — a duplicate row
- * would have no distinguishing configuration and would be either a silent no-op or a confusing
- * duplicate library entry.
+ * Cards shown by [SourceTypePickerScreen]. Iterates every registered [WebSourceDescriptors]
+ * entry and hides `descriptor.isSingleton` cards whose type is already in [installedTypes].
+ * ADR 0044: adding a new source needs a descriptor object; no edit required here.
+ *
+ * The card's `subtitle` is authored per source (registered as [pickerBlurbFor]) because the
+ * picker blurb is longer and more marketing-shaped than the drawer's static subtitle.
  */
 internal fun sourceTypeCards(
-    hasLocalFilesSource: Boolean = false,
-    hasChitankaSource: Boolean = false,
-    hasGutenbergSource: Boolean = false,
-): List<SourceTypeCard> = buildList {
-    add(
-        SourceTypeCard(
-            type = SourceTypeChoice.Audiobookshelf,
-            title = "Audiobookshelf",
-            subtitle = "Stream ebooks and audiobooks from your Audiobookshelf server.",
-            enabled = true,
-            comingSoon = false,
-        ),
-    )
-    if (!hasLocalFilesSource) {
-        add(
+    installedTypes: Set<SourceType> = emptySet(),
+): List<SourceTypeCard> =
+    WebSourceDescriptors.all
+        .sortedBy { pickerOrderOf(it.type) }
+        .mapNotNull { descriptor ->
+            if (descriptor.isSingleton && descriptor.type in installedTypes) return@mapNotNull null
             SourceTypeCard(
-                type = SourceTypeChoice.LocalFiles,
-                title = "Local files",
-                subtitle = "Read EPUBs and PDFs from a folder on this device.",
+                type = descriptor.type,
+                title = descriptor.displayName,
+                subtitle = pickerBlurbFor(descriptor.type),
                 enabled = true,
                 comingSoon = false,
-            ),
-        )
-    }
-    if (!hasChitankaSource) {
-        add(
-            SourceTypeCard(
-                type = SourceTypeChoice.Chitanka,
-                title = "Chitanka",
-                subtitle = "Browse Bulgarian ebooks (chitanka.info) and audiobooks (gramofonche).",
-                enabled = true,
-                comingSoon = false,
-            ),
-        )
-    }
-    if (!hasGutenbergSource) {
-        add(
-            SourceTypeCard(
-                type = SourceTypeChoice.Gutenberg,
-                title = "Project Gutenberg",
-                subtitle = "Browse tens of thousands of free public-domain ebooks.",
-                enabled = true,
-                comingSoon = false,
-            ),
-        )
-    }
+            )
+        }
+
+// Order matches the pre-refactor UI ordering: ABS, LocalFiles, Chitanka, Gutenberg, then any
+// future source in registration order. Kept as a data-driven table so a new source can pin its
+// slot by adding one entry (falling back to Int.MAX_VALUE places new sources at the end).
+private fun pickerOrderOf(type: SourceType): Int = when (type) {
+    SourceType.ABS -> 0
+    SourceType.LOCAL_FILES -> 1
+    SourceType.CHITANKA -> 2
+    SourceType.GUTENBERG -> 3
 }
 
-private fun testTagFor(type: SourceTypeChoice): String = when (type) {
-    SourceTypeChoice.Audiobookshelf -> "SourceTypeCard.Audiobookshelf"
-    SourceTypeChoice.LocalFiles -> "SourceTypeCard.LocalFiles"
-    SourceTypeChoice.Chitanka -> "SourceTypeCard.Chitanka"
-    SourceTypeChoice.Gutenberg -> "SourceTypeCard.Gutenberg"
+private fun pickerBlurbFor(type: SourceType): String = when (type) {
+    SourceType.ABS -> "Stream ebooks and audiobooks from your Audiobookshelf server."
+    SourceType.LOCAL_FILES -> "Read EPUBs and PDFs from a folder on this device."
+    SourceType.CHITANKA -> "Browse Bulgarian ebooks (chitanka.info) and audiobooks (gramofonche)."
+    SourceType.GUTENBERG -> "Browse tens of thousands of free public-domain ebooks."
 }
+
+private fun testTagFor(type: SourceType): String = "SourceTypeCard.${type.name}"
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SourceTypePickerScreen(
     windowSizeClass: WindowSizeClass,
     onNavigateBack: () -> Unit,
-    onPickAudiobookshelf: () -> Unit,
-    onPickLocalFiles: () -> Unit,
-    onPickChitanka: () -> Unit,
-    onPickGutenberg: () -> Unit,
-    hasLocalFilesSource: Boolean = false,
-    hasChitankaSource: Boolean = false,
-    hasGutenbergSource: Boolean = false,
+    onPick: (SourceType) -> Unit,
+    installedTypes: Set<SourceType> = emptySet(),
 ) {
     Scaffold(
         topBar = {
@@ -150,20 +118,8 @@ fun SourceTypePickerScreen(
                 modifier = Modifier.fillMaxSize().padding(24.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp),
             ) {
-                sourceTypeCards(
-                    hasLocalFilesSource = hasLocalFilesSource,
-                    hasChitankaSource = hasChitankaSource,
-                    hasGutenbergSource = hasGutenbergSource,
-                ).forEach { card ->
-                    SourceTypeCardRow(
-                        card = card,
-                        onClick = when (card.type) {
-                            SourceTypeChoice.Audiobookshelf -> onPickAudiobookshelf
-                            SourceTypeChoice.LocalFiles -> onPickLocalFiles
-                            SourceTypeChoice.Chitanka -> onPickChitanka
-                            SourceTypeChoice.Gutenberg -> onPickGutenberg
-                        },
-                    )
+                sourceTypeCards(installedTypes = installedTypes).forEach { card ->
+                    SourceTypeCardRow(card = card, onClick = { onPick(card.type) })
                 }
             }
         }
@@ -198,25 +154,20 @@ private fun SourceTypeCardRow(card: SourceTypeCard, onClick: (() -> Unit)?) {
             when (card.type) {
                 // LocalFiles intentionally keeps its Material Folder icon — see
                 // SourceIconResolver: LOCAL_FILES has no monogram drawable.
-                SourceTypeChoice.LocalFiles -> Icon(
+                SourceType.LOCAL_FILES -> Icon(
                     imageVector = Icons.Default.Folder,
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.primary,
                     modifier = iconModifier,
                 )
-                SourceTypeChoice.Audiobookshelf -> SourceTypeIcon(
+                SourceType.ABS -> SourceTypeIcon(
                     type = SourceType.ABS,
                     serverType = ServerType.AUDIOBOOKSHELF,
                     modifier = iconModifier,
                     size = 40.dp,
                 )
-                SourceTypeChoice.Chitanka -> SourceTypeIcon(
-                    type = SourceType.CHITANKA,
-                    modifier = iconModifier,
-                    size = 40.dp,
-                )
-                SourceTypeChoice.Gutenberg -> SourceTypeIcon(
-                    type = SourceType.GUTENBERG,
+                else -> SourceTypeIcon(
+                    type = card.type,
                     modifier = iconModifier,
                     size = 40.dp,
                 )

@@ -12,33 +12,33 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 
 /**
- * Backs [SourceTypePickerScreen] with "is X already installed?" flags for the credential-less
- * source types (LocalFiles, Chitanka). Both are device singletons — one row max each — so after
- * the first install the picker hides that tile. For LocalFiles, adding another folder is a
- * dedicated action in Settings; for Chitanka there's nothing more to configure.
+ * Backs [SourceTypePickerScreen] with the set of already-installed [SourceType]s. The picker
+ * screen filters cards from `WebSourceDescriptors.all`, hiding descriptor-`isSingleton` types
+ * whose entry is present in [installedTypes]. Post-ADR-0044: adding a new singleton source is a
+ * descriptor registration; no per-source `has<X>Source` StateFlow to author here.
  *
- * The rule "at most one instance" applies to every source type that requires no login: without
- * credentials there's nothing to disambiguate a second row from the first, so a duplicate would
- * be either a silent no-op or a confusing duplicate library entry.
+ * A source type is a "singleton" per its `WebSourceDescriptor.isSingleton` flag — every
+ * credential-less source is one (LocalFiles, Chitanka, Gutenberg, …). Rule: without login there
+ * is nothing to disambiguate a second row from the first, so a duplicate would be a silent no-op
+ * or a confusing duplicate library entry.
  */
 @HiltViewModel
 class SourceTypePickerViewModel @Inject constructor(
     sourceRepository: SourceRepository,
 ) : ViewModel() {
 
-    // Default to true (tile hidden) so a user who already has these sources doesn't see the
-    // tile flash into view for a frame before the flow's first emission removes it. First-run
-    // users on a fresh device see the ABS card immediately and the singleton cards fade in on
-    // the first emission — a less-jarring order than "tile appears, then vanishes".
-    val hasLocalFilesSource: StateFlow<Boolean> = sourceRepository.observeAll()
-        .map { sources -> sources.any { it.type == SourceType.LOCAL_FILES } }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), initialValue = true)
-
-    val hasChitankaSource: StateFlow<Boolean> = sourceRepository.observeAll()
-        .map { sources -> sources.any { it.type == SourceType.CHITANKA } }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), initialValue = true)
-
-    val hasGutenbergSource: StateFlow<Boolean> = sourceRepository.observeAll()
-        .map { sources -> sources.any { it.type == SourceType.GUTENBERG } }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), initialValue = true)
+    /**
+     * Default to `SourceType.values()` (every singleton card hidden) so a returning user who
+     * already has these sources doesn't see cards flash into view for a frame before the flow's
+     * first emission removes them. First-run users see the ABS (multi-server) card immediately
+     * and singleton cards fade in on the first emission — a less-jarring order than "card
+     * appears, then vanishes".
+     */
+    val installedTypes: StateFlow<Set<SourceType>> = sourceRepository.observeAll()
+        .map { sources -> sources.map { it.type }.toSet() }
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = SourceType.values().toSet(),
+        )
 }

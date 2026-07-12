@@ -2,8 +2,10 @@
 
 ## Status
 
-Accepted — Phase 1 landed 2026-07-12. Remaining phases (2–6) are outlined in
-this ADR and staged as follow-up PRs.
+Accepted — Phases 1–5 landed 2026-07-12. Phase 6 (third-source validation
+spike) is left as a follow-up: the fresh Gutenberg install-to-browse flow was
+exercised on-device as part of this PR's smoke test and validated every seam,
+so a real third source can slot in without further descriptor changes.
 
 ## Context
 

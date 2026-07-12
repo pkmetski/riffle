@@ -1,14 +1,16 @@
 package com.riffle.app.feature.server
 
+import com.riffle.core.domain.SourceType
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * Pins the SourceType picker's data model (#435, #438). Both source types are enabled once
- * the LocalFiles Catalog and Add-Source flow have landed (#438). If any of these assertions
- * flip, the picker's contract has changed and the change must be intentional.
+ * Pins the SourceType picker's data model. Post-ADR-0044 the cards are derived by iterating
+ * `WebSourceDescriptors.all` and hiding `descriptor.isSingleton` types whose entry is present in
+ * the `installedTypes` set. Card type is the concrete [SourceType] enum entry; the picker screen
+ * routes `onPick(type)` to the correct add-route.
  */
 class SourceTypePickerTest {
 
@@ -16,15 +18,15 @@ class SourceTypePickerTest {
     fun `cards are ordered ABS first then LocalFiles then Chitanka then Gutenberg`() {
         val cards = sourceTypeCards()
         assertEquals(4, cards.size)
-        assertEquals(SourceTypeChoice.Audiobookshelf, cards[0].type)
-        assertEquals(SourceTypeChoice.LocalFiles, cards[1].type)
-        assertEquals(SourceTypeChoice.Chitanka, cards[2].type)
-        assertEquals(SourceTypeChoice.Gutenberg, cards[3].type)
+        assertEquals(SourceType.ABS, cards[0].type)
+        assertEquals(SourceType.LOCAL_FILES, cards[1].type)
+        assertEquals(SourceType.CHITANKA, cards[2].type)
+        assertEquals(SourceType.GUTENBERG, cards[3].type)
     }
 
     @Test
     fun `Gutenberg card is enabled and not coming soon`() {
-        val gb = sourceTypeCards().first { it.type is SourceTypeChoice.Gutenberg }
+        val gb = sourceTypeCards().first { it.type == SourceType.GUTENBERG }
         assertTrue(gb.enabled)
         assertFalse(gb.comingSoon)
         assertEquals("Project Gutenberg", gb.title)
@@ -34,14 +36,14 @@ class SourceTypePickerTest {
     // disambiguate a second row.
     @Test
     fun `Gutenberg card is hidden once a Gutenberg source exists`() {
-        val cards = sourceTypeCards(hasGutenbergSource = true)
-        assertTrue(cards.none { it.type is SourceTypeChoice.Gutenberg })
-        assertTrue(cards.any { it.type is SourceTypeChoice.Audiobookshelf })
+        val cards = sourceTypeCards(installedTypes = setOf(SourceType.GUTENBERG))
+        assertTrue(cards.none { it.type == SourceType.GUTENBERG })
+        assertTrue(cards.any { it.type == SourceType.ABS })
     }
 
     @Test
     fun `Chitanka card is enabled and not coming soon`() {
-        val ch = sourceTypeCards().first { it.type is SourceTypeChoice.Chitanka }
+        val ch = sourceTypeCards().first { it.type == SourceType.CHITANKA }
         assertTrue(ch.enabled)
         assertFalse(ch.comingSoon)
         assertEquals("Chitanka", ch.title)
@@ -49,15 +51,15 @@ class SourceTypePickerTest {
 
     @Test
     fun `ABS card is enabled and not coming soon`() {
-        val abs = sourceTypeCards().first { it.type is SourceTypeChoice.Audiobookshelf }
+        val abs = sourceTypeCards().first { it.type == SourceType.ABS }
         assertTrue(abs.enabled)
         assertFalse(abs.comingSoon)
         assertEquals("Audiobookshelf", abs.title)
     }
 
     @Test
-    fun `LocalFiles card is enabled once 438 has landed`() {
-        val lf = sourceTypeCards().first { it.type is SourceTypeChoice.LocalFiles }
+    fun `LocalFiles card is enabled`() {
+        val lf = sourceTypeCards().first { it.type == SourceType.LOCAL_FILES }
         assertTrue(lf.enabled)
         assertFalse(lf.comingSoon)
         assertEquals("Local files", lf.title)
@@ -69,11 +71,9 @@ class SourceTypePickerTest {
     // (or silently no-op'ing) instead of guiding the user to the right entry point.
     @Test
     fun `LocalFiles card is hidden once a LocalFiles source exists`() {
-        val cards = sourceTypeCards(hasLocalFilesSource = true)
-        // ABS + Chitanka remain; the LocalFiles card is omitted because a device already has
-        // its (singleton) LocalFiles source and "add another folder" lives in Settings.
-        assertTrue(cards.none { it.type is SourceTypeChoice.LocalFiles })
-        assertTrue(cards.any { it.type is SourceTypeChoice.Audiobookshelf })
+        val cards = sourceTypeCards(installedTypes = setOf(SourceType.LOCAL_FILES))
+        assertTrue(cards.none { it.type == SourceType.LOCAL_FILES })
+        assertTrue(cards.any { it.type == SourceType.ABS })
     }
 
     // Chitanka is a device singleton — no credentials to disambiguate a second row from the
@@ -81,21 +81,31 @@ class SourceTypePickerTest {
     // entry. If this predicate ever flips, the picker will start offering to add duplicates.
     @Test
     fun `Chitanka card is hidden once a Chitanka source exists`() {
-        val cards = sourceTypeCards(hasChitankaSource = true)
-        assertTrue(cards.none { it.type is SourceTypeChoice.Chitanka })
-        assertTrue(cards.any { it.type is SourceTypeChoice.Audiobookshelf })
-        assertTrue(cards.any { it.type is SourceTypeChoice.LocalFiles })
+        val cards = sourceTypeCards(installedTypes = setOf(SourceType.CHITANKA))
+        assertTrue(cards.none { it.type == SourceType.CHITANKA })
+        assertTrue(cards.any { it.type == SourceType.ABS })
+        assertTrue(cards.any { it.type == SourceType.LOCAL_FILES })
+    }
+
+    // ABS is not a singleton — a second ABS server is a first-class use case. Even with an ABS
+    // source installed, the picker still shows the ABS card.
+    @Test
+    fun `ABS card is shown even when an ABS source exists (multi-server)`() {
+        val cards = sourceTypeCards(installedTypes = setOf(SourceType.ABS))
+        assertTrue(cards.any { it.type == SourceType.ABS })
     }
 
     // All credential-less singletons already installed: only ABS remains addable.
     @Test
     fun `only ABS remains when all credential-less singletons are installed`() {
         val cards = sourceTypeCards(
-            hasLocalFilesSource = true,
-            hasChitankaSource = true,
-            hasGutenbergSource = true,
+            installedTypes = setOf(
+                SourceType.LOCAL_FILES,
+                SourceType.CHITANKA,
+                SourceType.GUTENBERG,
+            ),
         )
         assertEquals(1, cards.size)
-        assertEquals(SourceTypeChoice.Audiobookshelf, cards[0].type)
+        assertEquals(SourceType.ABS, cards[0].type)
     }
 }

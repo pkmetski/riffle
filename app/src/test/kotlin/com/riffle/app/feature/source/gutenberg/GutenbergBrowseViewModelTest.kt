@@ -12,7 +12,6 @@ import com.riffle.core.domain.Source
 import com.riffle.core.domain.SourceRepository
 import com.riffle.core.domain.SourceType
 import com.riffle.core.domain.SourceUrl
-import com.riffle.core.logging.RecordingLogger
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.mockk
@@ -76,7 +75,7 @@ class GutenbergBrowseViewModelTest {
         }
         val registry = mockk<CatalogRegistry>().also { coEvery { it.forSource(any()) } returns catalog }
         val handle = SavedStateHandle(mapOf("libraryId" to GutenbergCatalog.ROOT_BOOKS))
-        val vm = GutenbergBrowseViewModel(handle, sourceRepo, registry, upserter, gate, RecordingLogger())
+        val vm = GutenbergBrowseViewModel(handle, sourceRepo, registry, upserter, gate)
         return vm to gate
     }
 
