@@ -85,6 +85,19 @@ class FigureBorderDecorationTest {
     }
 
     @Test
+    fun `rule marks outline as important to beat publisher CSS resets`() {
+        // Wiley (WileyTemplate) and other big-publisher stylesheets ship `#sbo-rt-content img {
+        // outline: 0 }` — an ID-selector reset that outranks our attribute selector on
+        // specificity and silently drops the border. Reverting to a non-!important rule reproduces
+        // the "no border on annotated figure" bug in Influence Without Authority 3e.
+        val a = imageAnnotation(id = "a", imageHref = "n01f001.gif", color = "blue")
+
+        val rule = FigureBorderDecoration.buildCssRules(listOf(a)).single()
+
+        assertTrue("outline must be !important", rule.contains("outline: 2px solid") && rule.contains("!important"))
+    }
+
+    @Test
     fun `rule includes the annotation color`() {
         val a = imageAnnotation(id = "a", imageHref = "g.png", color = "blue")
 

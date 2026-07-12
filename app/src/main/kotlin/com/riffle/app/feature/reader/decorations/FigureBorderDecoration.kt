@@ -30,7 +30,12 @@ internal object FigureBorderDecoration {
         .sortedBy { it.filename }
         .map { ref ->
             val selector = "img[src\$=\"${ref.filename}\"]"
-            "$selector { outline: $OUTLINE_WIDTH_CSS solid ${ref.color}; outline-offset: $OUTLINE_OFFSET_CSS; }"
+            // !important is required because some publishers (e.g. Wiley's WileyTemplate) ship a
+            // CSS reset like `#sbo-rt-content img { outline: 0 }` — an ID-selector rule that
+            // beats our attribute selector on specificity and silently nukes the border. Verified
+            // against Influence Without Authority 3e.
+            "$selector { outline: $OUTLINE_WIDTH_CSS solid ${ref.color} !important; " +
+                "outline-offset: $OUTLINE_OFFSET_CSS !important; }"
         }
 
     /**

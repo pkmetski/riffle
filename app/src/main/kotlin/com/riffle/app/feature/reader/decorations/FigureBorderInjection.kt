@@ -55,7 +55,8 @@ internal fun figureBorderApplyJs(
     }
     val rasterJson = rasterMarks.joinToString(",", prefix = "[", postfix = "]") { m ->
         val escFn = m.filename.replace("\\", "\\\\").replace("\"", "\\\"")
-        "{\"fn\":\"$escFn\",\"note\":${if (m.hasNote) 1 else 0}}"
+        val escColor = m.color.replace("\"", "\\\"")
+        "{\"fn\":\"$escFn\",\"color\":\"$escColor\",\"note\":${if (m.hasNote) 1 else 0}}"
     }
     // Percent-encoded SVG of the same note-alt icon used by NoteGlyphDecoration. The literal
     // single quotes inside the SVG attributes are percent-encoded (%27) — otherwise Kotlin's
@@ -128,6 +129,55 @@ internal fun figureBorderApplyJs(
             badge.innerHTML = '<span></span>';
             wrap.appendChild(badge);
           }
+          function clearAllFigcaptionTints() {
+            var stale = document.querySelectorAll('[data-riffle-fig-tint]');
+            for (var k = 0; k < stale.length; k++) {
+              // Match how we set it (setProperty with 'important'); plain assignment can leave
+              // the important-flagged declaration in place.
+              stale[k].style.removeProperty('background-color');
+              stale[k].removeAttribute('data-riffle-fig-tint');
+            }
+          }
+          // Fallback for EPUBs that don't use semantic <figure>/<figcaption>: LaTeX/Kotobee/Vellum
+          // exports typically wrap the image and its caption in generic <div>s with obfuscated
+          // class names ("class_s4", "class_s5"), so we can't key off markup. The one deterministic
+          // signal is the caption's leading text: "Figure 5.1:", "Fig. 2", "Table 3", etc. Walk up
+          // to 3 ancestors and scan for the nearest block after the image whose text starts with
+          // that prefix. Bounded and content-anchored — won't grab body prose.
+          var CAPTION_PREFIX_RX = /^\s*(Figure|Fig\.?|Table|Chart)\s+\d/i;
+          function nearestCaptionBlock(img) {
+            var el = img;
+            for (var hops = 0; hops < 3; hops++) {
+              var parent = el.parentElement;
+              if (!parent) return null;
+              var blocks = parent.querySelectorAll('p, div');
+              for (var i = 0; i < blocks.length; i++) {
+                var b = blocks[i];
+                if (b === img || b.contains(img)) continue;
+                var pos = img.compareDocumentPosition(b);
+                if (!(pos & 4)) continue;
+                if (CAPTION_PREFIX_RX.test(b.textContent || '')) return b;
+              }
+              el = parent;
+            }
+            return null;
+          }
+          function tintCaptionFor(el, color) {
+            if (!el) return;
+            var cap = null;
+            var fig = el.closest && el.closest('figure, [role="figure"]');
+            // Unscoped 'figcaption' (any depth) mirrors FigureCaptionWalker.resolveCaption, so an
+            // annotation whose textSnippet captures a nested <figure><div><figcaption> also gets
+            // a matching tint. HTML5 restricts figcaption to first/last child of figure, but real
+            // EPUBs nest it inside wrappers.
+            if (fig) cap = fig.querySelector('figcaption');
+            if (!cap) cap = nearestCaptionBlock(el);
+            if (!cap) return;
+            // Use setProperty with 'important' so publisher CSS resets (Wiley et al.) don't win.
+            cap.style.setProperty('background-color', color, 'important');
+            cap.setAttribute('data-riffle-fig-tint', '1');
+          }
+          clearAllFigcaptionTints();
           try {
             // Raster: iterate the matched images and add/remove note badges. Border itself comes
             // from the CSS style block above; badge lives on the wrapper we insert here.
@@ -137,6 +187,7 @@ internal fun figureBorderApplyJs(
               var imgs = document.querySelectorAll('img[src\$="' + rf.fn + '"]');
               for (var ii = 0; ii < imgs.length; ii++) {
                 var img = imgs[ii];
+                tintCaptionFor(img, rf.color);
                 if (rf.note) {
                   var col = (window.getComputedStyle && window.getComputedStyle(img).outlineColor) || 'currentColor';
                   addNoteBadge(img, col);
@@ -154,8 +205,8 @@ internal fun figureBorderApplyJs(
             for (var i = 0; i < svgs.length; i++) {
               var s = svgs[i];
               if (s.__riffleBorderApplied) {
-                s.style.outline = '';
-                s.style.outlineOffset = '';
+                s.style.removeProperty('outline');
+                s.style.removeProperty('outline-offset');
                 s.__riffleBorderApplied = false;
               }
               clearNoteBadgeAround(s);
@@ -164,9 +215,10 @@ internal fun figureBorderApplyJs(
               for (var j = 0; j < matches.length; j++) {
                 var fp = matches[j].fp;
                 if (outer.indexOf(fp) === 0 || (inner.length && fp.indexOf(inner.slice(0, 40)) !== -1)) {
-                  s.style.outline = '2px solid ' + matches[j].color;
-                  s.style.outlineOffset = '2px';
+                  s.style.setProperty('outline', '2px solid ' + matches[j].color, 'important');
+                  s.style.setProperty('outline-offset', '2px', 'important');
                   s.__riffleBorderApplied = true;
+                  tintCaptionFor(s, matches[j].color);
                   if (matches[j].note) addNoteBadge(s, matches[j].color);
                   break;
                 }

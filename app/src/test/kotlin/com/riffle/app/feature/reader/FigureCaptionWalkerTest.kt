@@ -23,6 +23,31 @@ class FigureCaptionWalkerTest {
     }
 
     @Test
+    fun `caption resolver has text-prefix fallback for non-semantic figures`() {
+        // After the <figure>/<figcaption> and alt/aria-label paths, the resolver walks up to 3
+        // ancestors looking for the nearest following <p>/<div> whose text starts with
+        // "Figure|Fig|Table|Chart" + digit. Covers LaTeX/Kotobee/Vellum exports with obfuscated
+        // class names (e.g. "A Philosophy of Software Design 2e"). Reverting the fallback flips
+        // these red — image annotations on non-semantic figures would land in the DB with an
+        // empty textSnippet again and the Annotations view would render an empty caption block.
+        val js = FigureCaptionWalker.CAPTION_RESOLVER_JS
+        assertTrue(
+            "caption resolver should carry the caption-prefix regex",
+            js.contains("(Figure|Fig\\.?|Table|Chart)"),
+        )
+        assertTrue(
+            "caption resolver should walk parent chain (compareDocumentPosition)",
+            js.contains("compareDocumentPosition"),
+        )
+        // The fallback must sit AFTER the alt/aria-label paths so a legitimate per-image alt
+        // attribute always wins over a proximity-based heuristic that could match nearby prose
+        // like "Table 3 summarizes results...".
+        val ariaIdx = js.indexOf("'aria-label'")
+        val rxIdx = js.indexOf("CAPTION_PREFIX_RX")
+        assertTrue("text-prefix fallback must come after aria-label", ariaIdx in 0 until rxIdx)
+    }
+
+    @Test
     fun `caption resolver falls back to empty string`() {
         val js = FigureCaptionWalker.CAPTION_RESOLVER_JS
         assertTrue(js.contains("function resolveCaption(el)"))

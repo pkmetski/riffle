@@ -85,6 +85,30 @@ class AnnotationDaoTest {
         deleted = deleted,
     )
 
+    private fun image(
+        id: String,
+        sourceId: String = "abs1",
+        itemId: String = "item1",
+        imageHref: String? = "figure.png",
+        createdAt: Long = 1000L,
+        updatedAt: Long = createdAt,
+        deleted: Boolean = false,
+    ) = AnnotationEntity(
+        id = id,
+        sourceId = sourceId,
+        itemId = itemId,
+        type = AnnotationEntity.TYPE_IMAGE,
+        cfi = "epubcfi(/6/4!/4/2,/1:0)",
+        textSnippet = "Figure caption",
+        chapterHref = "chapter1.xhtml",
+        imageHref = imageHref,
+        createdAt = createdAt,
+        updatedAt = updatedAt,
+        originDeviceId = "device-A",
+        lastModifiedByDeviceId = "device-A",
+        deleted = deleted,
+    )
+
     // Tracer bullet: an inserted highlight round-trips back through observeForItem.
     @Test
     fun upsertedHighlight_roundTripsThroughObserveForItem() = runTest {
@@ -346,5 +370,28 @@ class AnnotationDaoTest {
         val result = dao.observeBooksWithHighlights("abs1").first()
 
         assertEquals(listOf("A"), result.map { it.itemId })
+    }
+
+    // Books whose only annotations are TYPE_IMAGE (figure highlights) must still appear in the
+    // Annotations View — otherwise a user who annotates only diagrams sees "No highlights yet"
+    // even though the book has annotations. Reverting the query to `type = 'HIGHLIGHT'` flips
+    // this red because book E would drop out and the count would fall to 1.
+    @Test
+    fun observeBooksWithHighlights_includesImageOnlyBooks() = runTest {
+        dao.upsert(highlight("a1", sourceId = "abs1", itemId = "A", createdAt = 100))
+        dao.upsert(image("e1", sourceId = "abs1", itemId = "E", createdAt = 300))
+        dao.upsert(image("e2", sourceId = "abs1", itemId = "E", createdAt = 400))
+        dao.upsert(bookmark("c1", sourceId = "abs1", itemId = "C", createdAt = 500))
+        dao.upsert(image("d1", sourceId = "abs1", itemId = "D", createdAt = 600, deleted = true))
+
+        val result = dao.observeBooksWithHighlights("abs1").first()
+
+        // Book E (image-only, newest live) sorts first; A (highlight-only) second; C (bookmark-only)
+        // excluded; D (image but soft-deleted) excluded.
+        assertEquals(2, result.size)
+        assertEquals("E", result[0].itemId)
+        assertEquals(2, result[0].highlightCount)
+        assertEquals(400L, result[0].latestUpdatedAt)
+        assertEquals("A", result[1].itemId)
     }
 }

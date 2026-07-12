@@ -11,7 +11,13 @@ package com.riffle.app.feature.reader
  * so callers can splice multiple of these together followed by their own call sites.
  *
  * Caption fallback order: `<figcaption>` (nearest ancestor `<figure>`) → `alt` attribute →
- * `aria-label` attribute → empty string.
+ * `aria-label` attribute → nearest following block whose text starts with "Figure N", "Fig. N",
+ * "Table N", or "Chart N" (bounded 3-hop ancestor walk — covers LaTeX/Kotobee/Vellum exports
+ * with obfuscated class names and no `<figure>` wrapper) → empty string.
+ *
+ * The text-prefix heuristic sits AFTER `alt`/`aria-label` because those attributes are per-image
+ * (accurate), whereas the heuristic is proximity-based (can be fooled by a nearby "Table 3
+ * summarizes…" prose block). When an image carries a meaningful alt attribute, that wins.
  */
 internal object FigureCaptionWalker {
 
@@ -31,6 +37,22 @@ internal object FigureCaptionWalker {
             if (alt) return alt;
             var aria = el.getAttribute && el.getAttribute('aria-label');
             if (aria) return aria;
+            var CAPTION_PREFIX_RX = /^\s*(Figure|Fig\.?|Table|Chart)\s+\d/i;
+            var cur = el;
+            for (var hops = 0; hops < 3; hops++) {
+                var parent = cur.parentElement;
+                if (!parent) break;
+                var blocks = parent.querySelectorAll('p, div');
+                for (var i = 0; i < blocks.length; i++) {
+                    var b = blocks[i];
+                    if (b === el || b.contains(el)) continue;
+                    var pos = el.compareDocumentPosition(b);
+                    if (!(pos & 4)) continue;
+                    var txt = (b.textContent || '').trim();
+                    if (CAPTION_PREFIX_RX.test(txt)) return txt;
+                }
+                cur = parent;
+            }
             return "";
         }
     """.trimIndent()
