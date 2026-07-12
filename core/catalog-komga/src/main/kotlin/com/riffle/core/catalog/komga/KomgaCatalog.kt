@@ -211,13 +211,13 @@ class KomgaCatalog(
     // region ProgressPeerCapability (#528)
 
     /**
-     * Komga stores the book position as a 1-indexed `page` integer. The engine's
-     * [CatalogEbookProgressRemote] bypasses the CFI translator for [CfiDialect.PAGE_NUMBER] and
-     * passes the position string through both ways — for CBZ/PDF (where the local Room store
-     * already holds a page-number-shaped opaque string) this is a natural fit. For reflowable
-     * EPUB from Komga the local store holds Readium Locator JSON, which Komga can't consume — the
-     * push then no-ops (page decode fails), which is the graceful degrade the ADR calls for until
-     * a locator↔page mapping ships.
+     * Komga stores the book position as a 1-indexed `page` integer, but Riffle's PDF and CBZ
+     * readers persist a Readium Locator JSON as the local position (e.g.
+     * `{"href":"publication.pdf","locations":{"position":18,"fragments":["page=18"]}}`). This
+     * catalog acts as the boundary translator: on push, extract the page from the locator; on
+     * pull, embed the server page back into a Locator JSON the reader can navigate to. The
+     * dialect stays [CfiDialect.PAGE_NUMBER] so the shared engine bypasses the CFI translator (it
+     * would produce nonsense for Komga positions); Komga itself owns the JSON↔page conversion.
      */
     override val cfiDialect: CfiDialect = CfiDialect.PAGE_NUMBER
 
@@ -228,14 +228,10 @@ class KomgaCatalog(
         isFinished: Boolean?,
         lastUpdateEpochMs: Long,
     ): Long? {
-        // Decode the opaque payload as an integer page number (Komga's dialect). A non-numeric
-        // string (e.g. a Readium Locator JSON from a Komga-backed EPUB) means we can't push — bail
-        // early. Server-side lastUpdate isn't returned by Komga; return null so the caller adopts
-        // the client clock.
-        val page = location.trim().takeIf { it.isNotEmpty() }?.toIntOrNull()
+        val page = extractPageFromLocation(location)
         val completed = isFinished ?: (progress >= 1f)
-        // Komga rejects a PATCH with all-null fields (204 vs 400 depending on version). Skip
-        // when we have neither a page nor an explicit finished flag.
+        // Komga rejects a PATCH with all-null fields. Skip when we have neither a page nor an
+        // explicit finished flag (mark-read/unread callers still succeed via `completed` alone).
         if (page == null && isFinished == null) return null
         val body = KomgaJson.encodeToString(
             KomgaReadProgressPatch.serializer(),
@@ -288,9 +284,15 @@ class KomgaCatalog(
             else -> 0f
         }
         val lastUpdate = parseIsoInstant(rp.lastModified) ?: parseIsoInstant(rp.readDate) ?: 0L
+        // Emit a Readium Locator JSON so the reader can navigate to the server-side page directly
+        // (Riffle's PDF/CBZ readers consume Locator JSON, not bare page numbers). Href defaults to
+        // `publication.pdf` for the PDF profile and `publication.epub` for CBZ/EPUB, matching what
+        // Readium's Streamer synthesises for single-file publications — the readers ignore the
+        // href for single-resource books and consume `locations.position` / `fragments[0]=page=N`.
+        val locator = if (rp.page > 0) locatorJsonForPage(rp.page, totalPages, media.mediaProfile) else null
         return CatalogProgress(
             itemId = id,
-            ebookLocation = if (rp.page > 0) rp.page.toString() else null,
+            ebookLocation = locator,
             ebookProgress = progress,
             audioCurrentTime = 0.0,
             audioDuration = 0.0,
@@ -698,6 +700,68 @@ class KomgaCatalog(
 
         /** Komga's server-side page-size cap. Requests larger than this are silently truncated. */
         internal const val KOMGA_MAX_PAGE_SIZE = 1000
+
+        /**
+         * Parse the 1-indexed page number out of the reader's persisted position (#528).
+         * Handles: (a) a bare integer string `"42"` (fixtures / round-tripped Komga pull);
+         * (b) a Readium Locator JSON with `locations.position` (Riffle's PDF/CBZ readers save
+         * this — `{"href":...,"locations":{"position":18,"fragments":["page=18"]}}`); (c) a
+         * `page=N` fragment on the locator, as a fallback if `position` is absent. Returns null
+         * for anything else (e.g. an epub.js CFI or an unparseable string), which makes the push
+         * a no-op — the correct graceful-degrade for a Komga-backed EPUB whose reader locator
+         * hasn't been mapped to a page yet.
+         */
+        internal fun extractPageFromLocation(location: String): Int? {
+            val trimmed = location.trim()
+            if (trimmed.isEmpty()) return null
+            trimmed.toIntOrNull()?.let { return it.takeIf { p -> p > 0 } }
+            if (!trimmed.startsWith("{")) return null
+            val root = runCatching { KomgaJson.parseToJsonElement(trimmed) as? kotlinx.serialization.json.JsonObject }
+                .getOrNull() ?: return null
+            val locations = root["locations"] as? kotlinx.serialization.json.JsonObject ?: return null
+            (locations["position"] as? kotlinx.serialization.json.JsonPrimitive)?.content?.toIntOrNull()
+                ?.let { return it.takeIf { p -> p > 0 } }
+            val fragments = locations["fragments"] as? kotlinx.serialization.json.JsonArray ?: return null
+            for (el in fragments) {
+                val s = (el as? kotlinx.serialization.json.JsonPrimitive)?.content ?: continue
+                val eq = s.indexOf('=')
+                if (eq > 0 && s.substring(0, eq).equals("page", ignoreCase = true)) {
+                    s.substring(eq + 1).toIntOrNull()?.let { return it.takeIf { p -> p > 0 } }
+                }
+            }
+            return null
+        }
+
+        /**
+         * Build a minimal Readium Locator JSON positioning at [page] of [totalPages] in a
+         * single-resource Komga book (#528). The reader consumes `locations.position` and
+         * `fragments=["page=N"]` — matching exactly the shape the PDF reader persists locally, so
+         * the inbound (`ServerWins`) branch of the sync cycle can hand the locator straight to
+         * the Navigator without any further translation.
+         */
+        internal fun locatorJsonForPage(page: Int, totalPages: Int?, mediaProfile: String?): String {
+            val progression = if (totalPages != null && totalPages > 0) {
+                (page.toDouble() / totalPages.toDouble()).coerceIn(0.0, 1.0)
+            } else 0.0
+            val isEpub = mediaProfile?.equals("EPUB", ignoreCase = true) == true
+            val (href, type) = if (isEpub) {
+                "publication.epub" to "application/epub+zip"
+            } else {
+                "publication.pdf" to "application/pdf"
+            }
+            return buildString {
+                append('{')
+                append("\"href\":\"").append(href).append("\",")
+                append("\"type\":\"").append(type).append("\",")
+                append("\"locations\":{")
+                append("\"position\":").append(page).append(',')
+                append("\"fragments\":[\"page=").append(page).append("\"],")
+                append("\"progression\":").append(progression).append(',')
+                append("\"totalProgression\":").append(progression)
+                append('}')
+                append('}')
+            }
+        }
 
         internal fun parseActuatorVersion(body: String): String? {
             val obj = runCatching { KomgaJson.parseToJsonElement(body).let { it as? kotlinx.serialization.json.JsonObject } }

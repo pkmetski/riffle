@@ -209,15 +209,51 @@ class KomgaCatalogTest {
         assertTrue(bodyStr.contains("\"completed\":true"))
     }
 
+    @Test fun `pushEbookProgress decodes the page from Riffle's Readium Locator JSON (position field)`() = runTest {
+        // The PDF reader's persisted locator carries `locations.position` (1-indexed page). This
+        // pins the boundary translator: without it, every Komga PDF push was a no-op (regression
+        // caught on-device during #528 verification).
+        server.enqueue(MockResponse().setResponseCode(204))
+        val readerLocator = """{"href":"publication.pdf","type":"application/pdf",""" +
+            """"locations":{"position":18,"fragments":["page=18"],"progression":0.032}}"""
+
+        catalog.pushEbookProgress(
+            itemId = "B1",
+            location = readerLocator,
+            progress = 0.032f,
+            isFinished = null,
+            lastUpdateEpochMs = 0L,
+        )
+
+        val bodyStr = server.takeRequest().body.readUtf8()
+        assertTrue("page must decode to 18: $bodyStr", bodyStr.contains("\"page\":18"))
+    }
+
+    @Test fun `pushEbookProgress falls back to fragments page=N when locations position absent`() = runTest {
+        server.enqueue(MockResponse().setResponseCode(204))
+        val readerLocator = """{"locations":{"fragments":["page=7"]}}"""
+
+        catalog.pushEbookProgress(
+            itemId = "B1",
+            location = readerLocator,
+            progress = 0.0f,
+            isFinished = null,
+            lastUpdateEpochMs = 0L,
+        )
+
+        val bodyStr = server.takeRequest().body.readUtf8()
+        assertTrue("page must decode to 7: $bodyStr", bodyStr.contains("\"page\":7"))
+    }
+
     @Test fun `pushEbookProgress with a non-numeric location returns null without hitting Komga`() = runTest {
-        // A Readium Locator JSON coming from a Komga-backed EPUB reader can't be decoded to a
-        // page — the push must be a no-op, not a PATCH with all-null fields (which Komga rejects).
-        val readiumLocator =
-            """{"href":"OEBPS/ch1.xhtml","locations":{"progression":0.5}}"""
+        // A Readium Locator JSON without any page marker (e.g. a Komga-backed EPUB whose reader
+        // stores only href + progression) can't be decoded to a page — the push must be a no-op,
+        // not a PATCH with all-null fields (which Komga rejects).
+        val undecodable = """{"href":"OEBPS/ch1.xhtml","locations":{"progression":0.5}}"""
 
         val stamp = catalog.pushEbookProgress(
             itemId = "B1",
-            location = readiumLocator,
+            location = undecodable,
             progress = 0.5f,
             isFinished = null,
             lastUpdateEpochMs = 0L,
@@ -229,7 +265,7 @@ class KomgaCatalogTest {
 
     @Test fun `pullProgress reads the book's readProgress record into CatalogProgress`() = runTest {
         server.enqueue(MockResponse().setBody("""
-            {"id":"B1","libraryId":"L1","name":"book","media":{"mediaType":"application/epub+zip","pagesCount":200},
+            {"id":"B1","libraryId":"L1","name":"book","media":{"mediaType":"application/pdf","pagesCount":200,"mediaProfile":"PDF"},
              "metadata":{"title":"Book","authors":[]},
              "readProgress":{"page":50,"completed":false,"readDate":"2026-07-01T10:00:00Z","lastModified":"2026-07-01T10:00:00Z"}}
         """.trimIndent()))
@@ -238,10 +274,35 @@ class KomgaCatalogTest {
 
         assertNotNull(p)
         assertEquals("B1", p!!.itemId)
-        assertEquals("50", p.ebookLocation)
+        // ebookLocation carries a Readium Locator JSON — the reader consumes it directly on
+        // ServerWins without any translation. Assert on the shape the PDF/CBZ Navigator reads
+        // (`locations.position` + `fragments=["page=N"]`).
+        val loc = p.ebookLocation!!
+        assertTrue("must be a Locator JSON, was: $loc", loc.startsWith("{"))
+        assertTrue("must carry position=50: $loc", loc.contains("\"position\":50"))
+        assertTrue("must carry page=50 fragment: $loc", loc.contains("\"page=50\""))
         assertEquals(0.25f, p.ebookProgress, 1e-6f)
         assertEquals(false, p.isFinished)
         assertEquals(java.time.Instant.parse("2026-07-01T10:00:00Z").toEpochMilli(), p.lastUpdate)
+    }
+
+    @Test fun `pullProgress round-trips through pushEbookProgress — the Locator JSON decodes back to the same page`() = runTest {
+        // Guards the boundary translator symmetry: whatever pullProgress emits must be a valid
+        // input to pushEbookProgress, so the sweep can PATCH the ServerWins position back without
+        // losing the page.
+        server.enqueue(MockResponse().setBody("""
+            {"id":"B1","libraryId":"L1","name":"book","media":{"pagesCount":500,"mediaProfile":"PDF"},
+             "metadata":{"title":"Book","authors":[]},
+             "readProgress":{"page":123,"completed":false,"lastModified":"2026-07-01T10:00:00Z"}}
+        """.trimIndent()))
+        server.enqueue(MockResponse().setResponseCode(204))
+
+        val pulled = catalog.pullProgress("B1")!!
+        catalog.pushEbookProgress("B1", pulled.ebookLocation!!, pulled.ebookProgress, null, 0L)
+
+        server.takeRequest() // GET /books/B1
+        val patchBody = server.takeRequest().body.readUtf8()
+        assertTrue("push must preserve page=123: $patchBody", patchBody.contains("\"page\":123"))
     }
 
     @Test fun `pullProgress marks completed books as finished`() = runTest {
