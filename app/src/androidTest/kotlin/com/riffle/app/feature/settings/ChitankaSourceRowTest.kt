@@ -1,9 +1,11 @@
 package com.riffle.app.feature.settings
 
 import androidx.activity.ComponentActivity
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.onChildren
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performTouchInput
@@ -105,6 +107,29 @@ class ChitankaSourceRowTest {
                 "(Books bottom=${booksBounds.bottom}, Gramofonche top=${gramofoncheBounds.top})",
             gramofoncheBounds.top >= booksBounds.bottom,
         )
+    }
+
+    @Test
+    fun row_rendersSourceLogoAlongsideChevron() {
+        composeTestRule.setContent {
+            SingletonWebSourceRow(
+                source = fakeChitankaSource,
+                descriptor = ChitankaWebSourceDescriptor,
+                libraryItems = emptyList(),
+                isExpanded = false,
+                onToggleExpanded = {},
+                onSetLibraryVisible = { _, _ -> },
+                onReorderLibraries = {},
+                onRemove = {},
+            )
+        }
+
+        // Chevron + source-logo icon must both be rendered inside the leading slot. Reverting the
+        // required `leadingIcon` param on ExpandableSourceRow — or wiring an empty `{}` lambda at
+        // a call site — drops this to one child and fails the assertion.
+        composeTestRule.onNodeWithTag("ExpandableSourceRow.LeadingIcon")
+            .onChildren()
+            .assertCountEquals(2)
     }
 
     @Test

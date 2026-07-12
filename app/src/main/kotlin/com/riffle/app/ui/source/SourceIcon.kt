@@ -19,12 +19,10 @@ import com.riffle.core.domain.Source
 import com.riffle.core.domain.SourceType
 
 /**
- * Renders the icon for a configured [Source] in the source switcher: fetches the server's
- * favicon via Coil (using the app-scope [coil.ImageLoader] with its disk cache) and falls back
- * to the bundled monogram drawable while loading or on any error / decode failure.
- *
- * Do not call this for [SourceType.LOCAL_FILES]; the caller keeps its existing Material Folder
- * treatment. See [SourceIconResolver.fallbackDrawableFor].
+ * Renders the icon for a configured [Source]: fetches the server's favicon via Coil (using the
+ * app-scope [coil.ImageLoader] with its disk cache) and falls back to the bundled monogram
+ * drawable while loading or on any error / decode failure. For sources without a network host
+ * (e.g. [SourceType.LOCAL_FILES]) the bundled drawable is rendered directly.
  */
 @Composable
 fun SourceIcon(
