@@ -56,7 +56,7 @@ class GutenbergCatalog(
     // ---- Roots --------------------------------------------------------------
 
     override suspend fun listRoots(): List<CatalogRoot> = listOf(
-        CatalogRoot(id = ROOT_BOOKS, name = "Project Gutenberg", mediaType = "book"),
+        CatalogRoot(id = ROOT_BOOKS, name = "Books", mediaType = "book"),
     )
 
     // ---- Facets -------------------------------------------------------------
