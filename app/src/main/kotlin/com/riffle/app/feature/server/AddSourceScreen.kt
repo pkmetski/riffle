@@ -50,8 +50,10 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.riffle.app.ui.TabletContentWidthContainer
+import com.riffle.core.domain.AddSourceCopy
 import com.riffle.core.domain.InsecureConnectionType
 import com.riffle.core.domain.PendingSource
+import com.riffle.core.domain.WebSourceDescriptors
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -71,13 +73,23 @@ fun AddSourceScreen(
 
     val backend = viewModel.backend
     val isEditing = viewModel.isEditing
-    val title = screenTitle(backend, isEditing)
-    val urlLabel = if (backend == AddSourceBackend.WEBDAV) "WebDAV URL" else "Source URL"
-    val urlPlaceholder = when (backend) {
+    // Descriptor-driven copy for credentialed [SourceType]s (ADR 0044 Phase 7 / issue #526).
+    // Non-null for backends whose [WebSourceDescriptor] ships an [AddSourceCopy] (currently only
+    // AUDIOBOOKSHELF-shaped SourceType.ABS descriptors). Storyteller and WebDAV keep the local
+    // when-tables until #441 splits Storyteller into its own SourceType and WebDAV moves to its
+    // own screen — both are documented as non-goals of this refactor.
+    val descriptorCopy: AddSourceCopy? = descriptorCopyFor(backend)
+    val title = descriptorCopy?.let { if (isEditing) it.editTitle else it.addTitle }
+        ?: screenTitle(backend, isEditing)
+    val urlLabel = descriptorCopy?.urlLabel
+        ?: if (backend == AddSourceBackend.WEBDAV) "WebDAV URL" else "Source URL"
+    val urlPlaceholder = descriptorCopy?.urlPlaceholder ?: when (backend) {
         AddSourceBackend.WEBDAV -> "server.example.com/dav/annotations"
         else -> "abs.example.com"
     }
-    val submitLabel = if (isEditing) "Save" else "Connect"
+    val submitLabel = descriptorCopy
+        ?.let { if (isEditing) it.submitLabelEdit else it.submitLabelAdd }
+        ?: if (isEditing) "Save" else "Connect"
 
     viewModel.insecureWarning?.let { type ->
         InsecureConnectionDialog(
@@ -109,7 +121,7 @@ fun AddSourceScreen(
                     .padding(24.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp),
             ) {
-                val helpText = backendHelpText(backend)
+                val helpText = descriptorCopy?.helpText ?: backendHelpText(backend)
                 if (helpText.isNotEmpty()) {
                     Text(
                         text = helpText,
@@ -191,13 +203,28 @@ fun AddSourceScreen(
                                 contentColor = MaterialTheme.colorScheme.error,
                             ),
                         ) {
-                            Text(removeButtonLabel(backend))
+                            Text(descriptorCopy?.removeLabel ?: removeButtonLabel(backend))
                         }
                     }
                 }
             }
         }
     }
+}
+
+/**
+ * Bridge from the legacy [AddSourceBackend] enum (which still discriminates the WebDAV path and
+ * the ABS-Audiobookshelf vs ABS-Storyteller split until #441 lands) to the descriptor-driven
+ * copy pipeline (issue #526). Returns non-null only for backends whose corresponding
+ * [com.riffle.core.domain.WebSourceDescriptor] ships an [AddSourceCopy]; today that's just
+ * AUDIOBOOKSHELF. Storyteller shares [com.riffle.core.domain.SourceType.ABS] with Audiobookshelf
+ * and can't route through the descriptor path until #441 splits it out. WebDAV is not a
+ * browsable source, so it never will.
+ */
+internal fun descriptorCopyFor(backend: AddSourceBackend): AddSourceCopy? = when (backend) {
+    AddSourceBackend.AUDIOBOOKSHELF ->
+        WebSourceDescriptors.forTypeOrError(com.riffle.core.domain.SourceType.ABS).addSourceCopy
+    AddSourceBackend.STORYTELLER, AddSourceBackend.WEBDAV -> null
 }
 
 internal fun screenTitle(backend: AddSourceBackend, isEditing: Boolean): String = when (backend) {

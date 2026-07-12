@@ -86,7 +86,41 @@ interface WebSourceDescriptor {
      * unset — never surfaced with only a bare title.
      */
     val pickerBlurb: String get() = displayName
+
+    /**
+     * Copy strings for the shared credentialed "Add source" screen (`AddSourceScreen`). Non-null
+     * for every [hasCredentials] descriptor so the screen can render title / labels / help /
+     * button copy without a `when(sourceType)`. Null for zero-config singletons whose install path
+     * is a one-tap picker card — they never reach the URL+username+password form.
+     *
+     * A completeness test (`WebSourceRegistryCompletenessTest`) enforces the invariant.
+     */
+    val addSourceCopy: AddSourceCopy? get() = null
 }
+
+/**
+ * User-facing strings the shared credentialed Add-Source form needs to render itself for one
+ * [WebSourceDescriptor]. A new credentialed source drops in by supplying this object and its
+ * Hilt `CredentialedAuthenticator` — no edits to `AddSourceScreen` required.
+ */
+data class AddSourceCopy(
+    /** Top-bar title when adding a fresh source (e.g. "Add Audiobookshelf"). */
+    val addTitle: String,
+    /** Top-bar title when editing an existing source (e.g. "Edit Audiobookshelf"). */
+    val editTitle: String,
+    /** Label rendered on the URL text field (e.g. "Source URL"). */
+    val urlLabel: String,
+    /** Placeholder shown inside the URL text field when empty (e.g. "abs.example.com"). */
+    val urlPlaceholder: String,
+    /** Small-print paragraph above the form explaining what Riffle does with this backend. */
+    val helpText: String,
+    /** Label on the primary submit button when adding a new source. */
+    val submitLabelAdd: String = "Connect",
+    /** Label on the primary submit button when editing an existing source. */
+    val submitLabelEdit: String = "Save",
+    /** Label on the destructive "Remove source" button, only shown when editing. */
+    val removeLabel: String,
+)
 
 /** One library row to seed on singleton-source install. See [WebSourceDescriptor.defaultLibraries]. */
 data class DefaultLibrary(
@@ -139,6 +173,14 @@ object AbsWebSourceDescriptor : WebSourceDescriptor {
     override val addRoute = "add_source?type=audiobookshelf"
     override val pickerOrder = 0
     override val pickerBlurb = "Stream ebooks and audiobooks from your Audiobookshelf server."
+    override val addSourceCopy = AddSourceCopy(
+        addTitle = "Add Audiobookshelf",
+        editTitle = "Edit Audiobookshelf",
+        urlLabel = "Source URL",
+        urlPlaceholder = "abs.example.com",
+        helpText = "Stream ebooks and audiobooks from your Audiobookshelf server, with progress synced across devices.",
+        removeLabel = "Remove source",
+    )
 }
 
 object LocalFilesWebSourceDescriptor : WebSourceDescriptor {

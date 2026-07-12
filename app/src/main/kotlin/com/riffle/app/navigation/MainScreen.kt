@@ -411,22 +411,21 @@ fun MainScreen(
                 SettingsScreen(
                     windowSizeClass = windowSizeClass,
                     onNavigateBack = { navController.popBackStack() },
+                    // Storyteller/WebDAV are Services (not Sources) and deep-link straight to the
+                    // form from their respective Settings drill-ins; editing an existing ABS
+                    // Source also skips the picker (the Source Type is already known). All three
+                    // paths still flow through `onNavigateToAddSource(backend, editId)`.
                     onNavigateToAddSource = { backend, editId ->
-                        // The Source Type picker only fronts the "add a fresh ABS Source" flow.
-                        // Storyteller/WebDAV are Services (not Sources) and deep-link straight
-                        // to the form; editing an existing ABS Source also skips the picker
-                        // (Source Type is already known).
-                        val isNewAbs = backend == com.riffle.app.feature.server.AddSourceBackend.AUDIOBOOKSHELF && editId.isNullOrEmpty()
-                        if (isNewAbs) {
-                            navController.navigate(ADD_SOURCE_TYPE_PICKER)
-                        } else {
-                            val params = buildList {
-                                add("type=${backend.name.lowercase()}")
-                                if (!editId.isNullOrEmpty()) add("editId=${URLEncoder.encode(editId, "UTF-8")}")
-                            }.joinToString("&")
-                            navController.navigate("$ADD_SOURCE?$params")
-                        }
+                        val params = buildList {
+                            add("type=${backend.name.lowercase()}")
+                            if (!editId.isNullOrEmpty()) add("editId=${URLEncoder.encode(editId, "UTF-8")}")
+                        }.joinToString("&")
+                        navController.navigate("$ADD_SOURCE?$params")
                     },
+                    // The "Add source" button in the Sources section always launches the picker;
+                    // once a SourceType is picked the picker itself routes to the type's addRoute
+                    // (see [addSourceRouteFor]).
+                    onNavigateToAddSourcePicker = { navController.navigate(ADD_SOURCE_TYPE_PICKER) },
                     onNavigateToAddLocalFolder = { navController.navigate(ADD_LOCAL_FILES) },
                     onNavigateToReadaloudSettings = { navController.navigate(READALOUD_SETTINGS) },
                     onNavigateToAnnotationsSyncSettings = { navController.navigate(ANNOTATIONS_SYNC_SETTINGS) },

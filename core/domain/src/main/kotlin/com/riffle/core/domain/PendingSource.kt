@@ -16,4 +16,11 @@ data class PendingSource(
     val insecureConnectionAllowed: Boolean,
     val libraries: List<Library>,
     val serverType: ServerType = ServerType.AUDIOBOOKSHELF,
+    /**
+     * The [SourceType] the credentialed installer should stamp on the persisted [Source] row.
+     * Defaults to [SourceType.ABS] for backwards compatibility with the pre-ADR-0044 Storyteller
+     * + Audiobookshelf path. Komga and any future credentialed source pass their own type so the
+     * installer no longer needs to hard-code the column value.
+     */
+    val sourceType: SourceType = SourceType.ABS,
 )

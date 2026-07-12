@@ -197,10 +197,11 @@ private fun DrawerHeader(
 
     // Same product type appearing more than once forces the host to appear in the supporting
     // line so users can tell the two instances apart. With a single instance the host is noise.
-    // LocalFiles has no meaningful host (placeholder URL), so the host is never useful there.
+    // Zero-config web sources (LocalFiles, Chitanka, Gutenberg) have `hasNetworkHost = false` in
+    // their [WebSourceDescriptor] — the descriptor is the source of truth so a new credentialed
+    // source (Komga) drops in without editing this predicate.
     val activeNeedsHost = activeServer != null &&
-        activeServer.type != SourceType.LOCAL_FILES && activeServer.type != SourceType.CHITANKA &&
-        activeServer.type != SourceType.GUTENBERG &&
+        WebSourceDescriptors.forType(activeServer.type)?.hasNetworkHost == true &&
         allServers.count { it.serverType == activeServer.serverType && it.type == activeServer.type } > 1
 
     Box(modifier = Modifier
@@ -214,7 +215,7 @@ private fun DrawerHeader(
             headlineContent = {
                 val name = activeServer?.let(::sourceDisplayName) ?: "No source"
                 val username = activeServer
-                    ?.takeIf { it.type != SourceType.LOCAL_FILES && it.type != SourceType.CHITANKA && it.type != SourceType.GUTENBERG }
+                    ?.takeIf { WebSourceDescriptors.forType(it.type)?.hasCredentials == true }
                     ?.username?.takeIf { it.isNotEmpty() }
                 if (username != null) {
                     Text(
@@ -254,15 +255,14 @@ private fun DrawerHeader(
             modifier = if (headerWidth != Dp.Unspecified) Modifier.width(headerWidth) else Modifier,
         ) {
             allServers.forEach { server ->
-                val needsHost = server.type != SourceType.LOCAL_FILES && server.type != SourceType.CHITANKA &&
-                    server.type != SourceType.GUTENBERG &&
+                val needsHost = WebSourceDescriptors.forType(server.type)?.hasNetworkHost == true &&
                     allServers.count { it.serverType == server.serverType && it.type == server.type } > 1
                 DropdownMenuItem(
                     text = {
                         Column {
                             val displayName = sourceDisplayName(server)
                             val username = server
-                                .takeIf { it.type != SourceType.LOCAL_FILES && it.type != SourceType.CHITANKA && it.type != SourceType.GUTENBERG }
+                                .takeIf { WebSourceDescriptors.forType(it.type)?.hasCredentials == true }
                                 ?.username?.takeIf { it.isNotEmpty() }
                             if (username != null) {
                                 Text(
@@ -351,9 +351,12 @@ private fun sourceDisplayName(source: Source): String =
     else WebSourceDescriptors.forTypeOrError(source.type).displayName
 
 /**
- * Subtitle for the source-switcher row. Non-ABS sources have a static tagline in the descriptor;
- * ABS reuses [buildSupportingLine] (host · version).
+ * Subtitle for the source-switcher row. Credentialed sources with a network host (ABS today,
+ * Komga tomorrow) render [buildSupportingLine] (host · version); everything else falls back to
+ * the descriptor's static subtitle. Gated on [WebSourceDescriptor.hasNetworkHost] so a new
+ * credentialed source drops in without an edit here.
  */
-private fun sourceSubtitle(source: Source, host: String?, version: String?): String? =
-    if (source.type == SourceType.ABS) buildSupportingLine(host, version)
-    else WebSourceDescriptors.forTypeOrError(source.type).subtitle
+private fun sourceSubtitle(source: Source, host: String?, version: String?): String? {
+    val descriptor = WebSourceDescriptors.forType(source.type) ?: return null
+    return if (descriptor.hasNetworkHost) buildSupportingLine(host, version) else descriptor.subtitle
+}

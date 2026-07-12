@@ -64,6 +64,7 @@ fun SettingsScreen(
     windowSizeClass: WindowSizeClass,
     onNavigateBack: () -> Unit,
     onNavigateToAddSource: (backend: AddSourceBackend, editId: String?) -> Unit,
+    onNavigateToAddSourcePicker: () -> Unit = { onNavigateToAddSource(AddSourceBackend.AUDIOBOOKSHELF, null) },
     onNavigateToAddLocalFolder: () -> Unit = {},
     onNavigateToReadaloudSettings: () -> Unit = {},
     onNavigateToAnnotationsSyncSettings: () -> Unit = {},
@@ -97,7 +98,7 @@ fun SettingsScreen(
     LaunchedEffect(Unit) {
         viewModel.navigationEvents.collect { event ->
             when (event) {
-                is SettingsNavEvent.NavigateToAddSource -> onNavigateToAddSource(AddSourceBackend.AUDIOBOOKSHELF, null)
+                is SettingsNavEvent.NavigateToAddSource -> onNavigateToAddSourcePicker()
             }
         }
     }
@@ -146,7 +147,7 @@ fun SettingsScreen(
                     libraryItemsBySource = libraryItemsBySource,
                     readaloudSummaries = readaloudSummaries,
                     expandedServers = expandedServers,
-                    onNavigateToAddSource = onNavigateToAddSource,
+                    onNavigateToAddSourcePicker = onNavigateToAddSourcePicker,
                     onNavigateToAddLocalFolder = onNavigateToAddLocalFolder,
                     onOpenReadaloudMatches = { /* Storyteller no longer appears in the Sources list; wire is a no-op. */ },
                     onRemoveServer = viewModel::removeServer,

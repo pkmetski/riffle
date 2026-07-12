@@ -32,7 +32,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
-import com.riffle.app.feature.server.AddSourceBackend
 import com.riffle.app.feature.settings.ExpandableSourceRow
 import com.riffle.app.feature.settings.LibraryUiItem
 import com.riffle.app.feature.settings.ReadaloudMatchSummary
@@ -65,7 +64,7 @@ internal fun SourcesSection(
     libraryItemsBySource: Map<String, List<LibraryUiItem>>,
     readaloudSummaries: Map<String, ReadaloudMatchSummary>,
     expandedServers: androidx.compose.runtime.snapshots.SnapshotStateMap<String, Boolean>,
-    onNavigateToAddSource: (AddSourceBackend, String?) -> Unit,
+    onNavigateToAddSourcePicker: () -> Unit,
     onNavigateToAddLocalFolder: () -> Unit,
     onOpenReadaloudMatches: (String) -> Unit,
     onRemoveServer: (String) -> Unit,
@@ -75,11 +74,22 @@ internal fun SourcesSection(
     onReorderLibraries: (String, List<String>) -> Unit,
 ) {
     SettingsSectionHeader("Sources")
-    servers.filter {
-        it.serverType == ServerType.AUDIOBOOKSHELF && it.type == SourceType.ABS
+    // Credentialed multi-instance sources: any Source whose [WebSourceDescriptor] declares
+    // hasCredentials=true && isSingleton=false renders here. Storyteller Services are excluded
+    // because they live under the Readaloud drill-in (ADR 0020) — the exclusion is by
+    // `serverType`, not by SourceType, because Storyteller currently shares SourceType.ABS with
+    // Audiobookshelf. Once #441 splits Storyteller into its own SourceType the serverType clause
+    // drops out. A new credentialed source (Komga, Calibre-Web, …) drops in without an edit
+    // here; it just needs a `WebSourceDescriptor` with `hasCredentials=true, isSingleton=false`.
+    servers.filter { source ->
+        val descriptor = WebSourceDescriptors.forType(source.type)
+        descriptor != null && descriptor.hasCredentials && !descriptor.isSingleton &&
+            source.serverType != ServerType.STORYTELLER_SERVICE
     }.forEach { server ->
+        val descriptor = WebSourceDescriptors.forType(server.type) ?: return@forEach
         ServerRow(
             server = server,
+            descriptor = descriptor,
             isExpanded = expandedServers[server.id] == true,
             onToggleExpanded = {
                 expandedServers[server.id] = expandedServers[server.id] != true
@@ -138,7 +148,7 @@ internal fun SourcesSection(
         )
     }
     Button(
-        onClick = { onNavigateToAddSource(AddSourceBackend.AUDIOBOOKSHELF, null) },
+        onClick = onNavigateToAddSourcePicker,
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 8.dp),
@@ -155,6 +165,7 @@ internal fun SourcesSection(
 @Composable
 internal fun ServerRow(
     server: Source,
+    descriptor: WebSourceDescriptor,
     isExpanded: Boolean,
     onToggleExpanded: () -> Unit,
     onRemove: () -> Unit,
@@ -167,21 +178,30 @@ internal fun ServerRow(
 ) {
     val username = server.username.takeIf { it.isNotEmpty() }
     val subtitle = buildString {
-        if (username != null) {
+        if (descriptor.hasCredentials && username != null) {
             append(username)
             append(" · ")
         }
-        append(server.url.value)
-        if (serverVersion != null) {
-            append(" · v")
-            append(serverVersion)
+        if (descriptor.hasNetworkHost) {
+            append(server.url.value)
+            if (serverVersion != null) {
+                append(" · v")
+                append(serverVersion)
+            }
         }
     }
+    // Headline: for the ABS descriptor we keep the ABS/Storyteller product label because it's the
+    // one credentialed SourceType whose displayName ("Audiobookshelf") isn't the whole story —
+    // Storyteller Services would collapse into "Audiobookshelf" in the row title otherwise. Every
+    // other credentialed source (Komga, Calibre-Web, …) uses its descriptor's displayName directly.
+    // Once #441 splits Storyteller into its own SourceType this branch collapses.
+    val headline = if (server.type == SourceType.ABS) server.serverType.label
+    else descriptor.displayName
     ExpandableSourceRow(
         isExpanded = isExpanded,
         onToggleExpanded = onToggleExpanded,
         onRemove = onRemove,
-        headlineContent = { Text(server.serverType.label) },
+        headlineContent = { Text(headline) },
         supportingContent = { Text(subtitle) },
         trailingContent = if (server.isActive) {
             { Text("Active", style = MaterialTheme.typography.labelSmall) }

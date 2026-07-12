@@ -46,6 +46,23 @@ class WebSourceRegistryCompletenessTest {
         assertEquals(expected, registered)
     }
 
+    // Every credentialed source (multi-instance, user-configured URL/creds) MUST ship an
+    // AddSourceCopy so the shared AddSourceScreen can render title/labels/help/buttons without a
+    // when(sourceType). A new credentialed descriptor without copy would fall through to `null`
+    // and crash the form at render time.
+    @Test
+    fun `every credentialed descriptor ships AddSourceCopy`() {
+        val missing = WebSourceDescriptors.all
+            .filter { it.hasCredentials }
+            .filter { it.addSourceCopy == null }
+            .map { it.type }
+        assertTrue(
+            "credentialed WebSourceDescriptor(s) without addSourceCopy: $missing — populate " +
+                "`addSourceCopy = AddSourceCopy(...)` in the descriptor object",
+            missing.isEmpty(),
+        )
+    }
+
     // Pins the invariant that `MainScreen.libraryEntryRoute` relies on: any SourceType flagged as
     // `isUnboundedCatalog = true` must ship a `browseRoutePrefix`, otherwise drawer library taps
     // silently fall back to the Room-mirrored `library_items` screen and render an empty grid.
