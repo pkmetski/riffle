@@ -1332,6 +1332,7 @@ class LibraryItemsViewModelTest {
         override suspend fun listSeries(rootId: String) = emptyList<com.riffle.core.catalog.CatalogSeries>()
         override suspend fun listItemsInSeries(rootId: String, seriesId: String) = emptyList<com.riffle.core.catalog.CatalogItem>()
         override suspend fun listPlaylists(rootId: String) = emptyList<com.riffle.core.catalog.CatalogPlaylist>()
+        override suspend fun findPlaylist(rootId: String, name: String): com.riffle.core.catalog.CatalogPlaylist? = null
         override suspend fun createPlaylist(rootId: String, name: String, initialItemId: String?) = error("unused")
         override suspend fun addItemToPlaylist(playlistId: String, itemId: String) {}
         override suspend fun removeItemFromPlaylist(playlistId: String, itemId: String) {}

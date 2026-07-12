@@ -31,7 +31,7 @@ enum class ToReadSupport {
      * server-side list named `"To Read"` (ABS Playlist, Komga readlist, etc.) and every add/
      * remove hits the server. Cross-device sync happens for free.
      */
-    ServerBacked,
+    Synced,
 
     /**
      * The source has no server-side list concept — Riffle stores To Read in a per-device
@@ -58,7 +58,7 @@ interface WebSourceDescriptor {
 
     /**
      * Explicit declaration of this source's To Read behaviour. No default: every new descriptor
-     * MUST pick one of [ToReadSupport.ServerBacked], [ToReadSupport.LocalOnly], or
+     * MUST pick one of [ToReadSupport.Synced], [ToReadSupport.LocalOnly], or
      * [ToReadSupport.Unsupported] — a compile error otherwise. A runtime completeness test in
      * `:core:data` asserts the declaration matches the Catalog's actual capability set so the
      * two can't drift silently.
@@ -237,7 +237,7 @@ class WebSourceRegistry(private val descriptors: Set<WebSourceDescriptor>) {
 object AbsWebSourceDescriptor : WebSourceDescriptor {
     override val type = SourceType.ABS
     override val displayName = "Audiobookshelf"
-    override val toReadSupport = ToReadSupport.ServerBacked
+    override val toReadSupport = ToReadSupport.Synced
     override val isSingleton = false
     override val hasCredentials = true
     override val hasNetworkHost = true
@@ -322,7 +322,7 @@ object ChitankaWebSourceDescriptor : WebSourceDescriptor {
 object KomgaWebSourceDescriptor : WebSourceDescriptor {
     override val type = SourceType.KOMGA
     override val displayName = "Komga"
-    override val toReadSupport = ToReadSupport.ServerBacked
+    override val toReadSupport = ToReadSupport.Synced
     override val isSingleton = false
     override val hasCredentials = true
     override val hasNetworkHost = true

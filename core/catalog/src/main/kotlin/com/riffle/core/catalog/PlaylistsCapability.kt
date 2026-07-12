@@ -19,12 +19,15 @@ interface PlaylistsCapability : CatalogCapability {
     suspend fun removeItemFromPlaylist(playlistId: String, itemId: String)
 
     /**
-     * Return the playlist named [name] scoped to [rootId], with `itemIds` fully populated.
-     * Sources whose native "server-wide list" model makes [listPlaylists] cheap can inherit the
-     * default (list + filter by name). Sources where enumerating every playlist's items is
-     * expensive (e.g. Komga readlists, which require one extra request per list to filter book
-     * ids by library) should override this to avoid the O(N) blow-up.
+     * Return the playlist named [name] scoped to [rootId], with `itemIds` FULLY populated. This
+     * is deliberately abstract (no default) — an earlier version defaulted to
+     * `listPlaylists(rootId).firstOrNull { it.name == name }`, which is broken for any source
+     * that treats `listPlaylists` as a summary-only projection (e.g. Komga, where enumerating
+     * every readlist's per-library bookIds is an extra HTTP round-trip per list and
+     * [listPlaylists] deliberately returns `itemIds = emptyList()`). A source that copies that
+     * optimisation without overriding [findPlaylist] would ship a broken To-Read sync with a
+     * green build. Making this abstract puts the summary/full distinction in the type system so
+     * the compiler enforces the decision.
      */
-    suspend fun findPlaylist(rootId: String, name: String): CatalogPlaylist? =
-        listPlaylists(rootId).firstOrNull { it.name == name }
+    suspend fun findPlaylist(rootId: String, name: String): CatalogPlaylist?
 }

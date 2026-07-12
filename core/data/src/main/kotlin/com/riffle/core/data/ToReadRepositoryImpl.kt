@@ -94,9 +94,22 @@ class ToReadRepositoryImpl @Inject constructor(
                 false
             }
         } else {
-            runCatching { cap.addItemToPlaylist(playlistId, libraryItemId); true }.getOrElse {
-                logger.d(LogChannel.ToRead) { "addToToRead($libraryId, $libraryItemId) addItemToPlaylist failed: $it" }
-                false
+            runCatching { cap.addItemToPlaylist(playlistId, libraryItemId); true }.getOrElse { addErr ->
+                // The cached playlistId can go stale — Komga's readlist is server-wide, so a
+                // "remove last item" in a sibling library (or from another device) DELETEs the
+                // readlist while this library's snapshot still points at it. Rather than fail
+                // the tap, fall through to create-with-seed so the tap self-heals into a fresh
+                // readlist. The recovery is bounded to one retry; a genuine network error will
+                // fail again and get logged.
+                logger.d(LogChannel.ToRead) { "addToToRead($libraryId, $libraryItemId) addItemToPlaylist failed, retrying via create: $addErr" }
+                runCatching {
+                    val created = cap.createPlaylist(libraryId, TO_READ_PLAYLIST_NAME, initialItemId = libraryItemId)
+                    cache.value = cache.value + (libraryId to ToReadSnapshot(created.id, before.itemIds + libraryItemId))
+                    true
+                }.getOrElse { createErr ->
+                    logger.d(LogChannel.ToRead) { "addToToRead($libraryId, $libraryItemId) recovery create failed: $createErr" }
+                    false
+                }
             }
         }
         if (!ok) cache.value = cache.value + (libraryId to before)

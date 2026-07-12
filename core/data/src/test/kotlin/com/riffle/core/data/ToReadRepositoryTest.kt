@@ -117,9 +117,28 @@ class ToReadRepositoryTest {
         assertEquals(emptySet<String>(), repo.observeToReadItemIds("lib-1").first())
     }
 
+    // The cache-hit branch of addToToRead now self-heals a stale playlistId (Komga's server-wide
+    // readlist can be DELETEd by a sibling library's remove-last-item while another library's
+    // snapshot still points at it — see the A5 fix). On addItemToPlaylist failure, the repo
+    // falls back to create-with-seed. So a transient add-fail no longer reverts if the recovery
+    // create succeeds — it only reverts when BOTH paths fail.
     @Test
-    fun `addToToRead reverts cache when add fails`() = runTest {
+    fun `addToToRead falls back to create when addItemToPlaylist fails on a stale playlistId`() = runTest {
         val cap = FakeCatalog(mapOf("lib-1" to listOf(playlist("pl-A", "To Read", emptyList()))), addFails = true)
+        val repo = makeRepo(cap)
+        repo.refresh("lib-1")
+        assertTrue("recovery create should heal the tap", repo.addToToRead("item-1", "lib-1"))
+        assertEquals(listOf("lib-1" to "To Read"), cap.createCalls)
+        assertEquals(setOf("item-1"), repo.observeToReadItemIds("lib-1").first())
+    }
+
+    @Test
+    fun `addToToRead reverts cache when both add and recovery-create fail`() = runTest {
+        val cap = FakeCatalog(
+            mapOf("lib-1" to listOf(playlist("pl-A", "To Read", emptyList()))),
+            addFails = true,
+            createFails = true,
+        )
         val repo = makeRepo(cap)
         repo.refresh("lib-1")
         assertFalse(repo.addToToRead("item-1", "lib-1"))
@@ -208,6 +227,11 @@ class ToReadRepositoryTest {
         override suspend fun listPlaylists(rootId: String): List<CatalogPlaylist> {
             if (listFails) throw RuntimeException("boom")
             return playlistsByLibrary[rootId].orEmpty()
+        }
+
+        override suspend fun findPlaylist(rootId: String, name: String): CatalogPlaylist? {
+            if (listFails) throw RuntimeException("boom")
+            return playlistsByLibrary[rootId].orEmpty().firstOrNull { it.name == name }
         }
 
         override suspend fun createPlaylist(rootId: String, name: String, initialItemId: String?): CatalogPlaylist {

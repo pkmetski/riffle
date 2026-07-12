@@ -317,27 +317,32 @@ class KomgaCatalog(
             // Existing readlist — append initialItemId (idempotent) so the caller's expectation
             // ("this playlist now contains the item I asked to seed") holds regardless of whether
             // the list existed before.
-            if (initialItemId != null && initialItemId !in existing.bookIds) {
-                patchReadListBookIds(existing.id, existing.bookIds + initialItemId)
+            val nextBookIds = if (initialItemId != null && initialItemId !in existing.bookIds) {
+                val merged = existing.bookIds + initialItemId
+                patchReadListBookIds(existing.id, merged)
+                merged
+            } else {
+                existing.bookIds
             }
+            // Return the true post-PATCH state so the PlaylistsCapability contract ("returned
+            // playlist already contains that item") holds on the reuse branch too. Callers that
+            // trust the return value stay correct.
             return CatalogPlaylist(
                 id = existing.id,
                 rootId = rootId,
                 name = existing.name,
-                bookCount = 0,
-                itemIds = emptyList(),
+                bookCount = nextBookIds.size,
+                itemIds = nextBookIds,
             )
         }
         // Komga's POST /api/v1/readlists requires a non-empty bookIds; that's why the interface
         // exposes [initialItemId]. If the caller passes null AND no readlist exists yet, Komga
         // will reject the request — callers targeting Komga must always provide a seed on first
         // create (ToReadRepositoryImpl already does this via the addToToRead path).
+        val seed = listOfNotNull(initialItemId)
         val body = KomgaJson.encodeToString(
             KomgaReadListCreateDto.serializer(),
-            KomgaReadListCreateDto(
-                name = name,
-                bookIds = listOfNotNull(initialItemId),
-            ),
+            KomgaReadListCreateDto(name = name, bookIds = seed),
         )
         val response = http.postJson(apiUrl("readlists"), body)
         val created = KomgaJson.decodeFromString(KomgaReadListDto.serializer(), response)
@@ -345,8 +350,8 @@ class KomgaCatalog(
             id = created.id,
             rootId = rootId,
             name = created.name,
-            bookCount = if (initialItemId != null) 1 else 0,
-            itemIds = if (initialItemId != null) listOf(initialItemId) else emptyList(),
+            bookCount = seed.size,
+            itemIds = seed,
         )
     }
 
@@ -354,12 +359,14 @@ class KomgaCatalog(
         // Komga's PATCH replaces bookIds wholesale — read-modify-write to preserve order and
         // append idempotently.
         val current = fetchReadList(playlistId)
+        refuseIfFiltered(current, action = "add $itemId")
         if (itemId in current.bookIds) return
         patchReadListBookIds(playlistId, current.bookIds + itemId)
     }
 
     override suspend fun removeItemFromPlaylist(playlistId: String, itemId: String) {
         val current = fetchReadList(playlistId)
+        refuseIfFiltered(current, action = "remove $itemId")
         val next = current.bookIds.filterNot { it == itemId }
         if (next.isEmpty()) {
             // Komga does NOT auto-delete empty readlists (ABS does). Mirror the ABS empty-list
@@ -373,18 +380,44 @@ class KomgaCatalog(
     }
 
     /**
+     * A Komga readlist with `filtered=true` is one where Komga hid one or more books from THIS
+     * caller because they lack access (e.g. sharedLibrariesIds restrictions, admin-revoked
+     * library access mid-session). The returned `bookIds` list is INCOMPLETE, so a PATCH built
+     * from it would silently DELETE the hidden books from the server-side readlist — permanent
+     * data loss the user cannot see. Refuse the mutation and let the caller surface the failure
+     * to the user (via [ToReadRepositoryImpl]'s revert path); the readlist stays intact until
+     * an admin restores access.
+     */
+    private fun refuseIfFiltered(readList: KomgaReadListDto, action: String) {
+        if (readList.filtered) {
+            throw KomgaHttpException(
+                code = 409,
+                url = apiUrl("readlists/${readList.id}"),
+                method = "GUARD",
+                statusMessage = "readlist $action refused",
+                responseBody = "Komga returned filtered=true; the local view is incomplete. " +
+                    "PATCHing would silently delete books the caller can't see — refusing.",
+            )
+        }
+    }
+
+    /**
      * The current authenticated user's id (from `GET /api/v1/users/me`), cached for the lifetime
-     * of this catalog instance. Null when Komga refuses the query (e.g. older server without
-     * this endpoint, or transient auth failure) — callers then fall back to treating ownership
-     * as unknown, which is safe: any read/write that fails still gets logged via RIFFLE_TOREAD.
+     * of this catalog instance on success. On failure the call THROWS — an earlier version
+     * silently returned null on any error, which collapsed the ownership predicate to
+     * `ownerId == null || ownerId == null` for every readlist. On modern Komga (>= 1.19) all
+     * readlists carry a non-null `ownerId`, so a transient `/users/me` 5xx would filter out
+     * every readlist the user actually owns and cause `createPlaylist` to POST a duplicate on
+     * every subsequent operation until the cache repopulated. Failing loud lets the repo layer's
+     * `runCatching` log via `RIFFLE_TOREAD` and revert the optimistic add instead of silently
+     * corrupting server state.
      */
     @Volatile private var cachedCurrentUserId: String? = null
 
-    private suspend fun currentUserId(): String? {
+    private suspend fun currentUserId(): String {
         cachedCurrentUserId?.let { return it }
-        val body = runCatching { http.getString(apiUrl("users/me")) }.getOrNull() ?: return null
-        val me = runCatching { KomgaJson.decodeFromString(KomgaCurrentUserDto.serializer(), body) }.getOrNull()
-            ?: return null
+        val body = http.getString(apiUrl("users/me")) // throws KomgaHttpException on non-2xx
+        val me = KomgaJson.decodeFromString(KomgaCurrentUserDto.serializer(), body)
         cachedCurrentUserId = me.id
         return me.id
     }

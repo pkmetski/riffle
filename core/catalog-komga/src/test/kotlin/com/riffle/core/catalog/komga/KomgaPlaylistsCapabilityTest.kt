@@ -208,6 +208,79 @@ class KomgaPlaylistsCapabilityTest {
     // (i.e. concurrent library refreshes → both hit createPlaylist with a seed), append the seed
     // to the existing bookIds so the caller's expectation ("this playlist now contains my item")
     // holds. Idempotent when the seed is already present.
+    // Regression: an earlier version returned CatalogPlaylist(bookCount=0, itemIds=emptyList())
+    // on the reuse branch — a silent contract violation ("returned playlist already contains
+    // that item" per PlaylistsCapability.createPlaylist kdoc). Callers relying on the returned
+    // itemIds would see always-empty on reuse. Now the return reflects the true post-PATCH
+    // state.
+    @Test fun `createPlaylist reuse-branch return reflects post-PATCH bookIds`() = runTest {
+        enqueueMe()
+        server.enqueue(readListPage(
+            """{"id":"RL_EXISTING","name":"To Read","bookIds":["B_OLD"],"ownerId":"USER_ME"}"""
+        ))
+        server.enqueue(MockResponse().setResponseCode(204))
+
+        val created = catalog.createPlaylist(rootId = "L1", name = "To Read", initialItemId = "B_SEED")
+
+        assertEquals("RL_EXISTING", created.id)
+        assertEquals(listOf("B_OLD", "B_SEED"), created.itemIds)
+        assertEquals(2, created.bookCount)
+    }
+
+    // Regression: Komga returns `filtered=true` when the readlist contains books the caller
+    // can't see (shared-libraries scope, mid-session access revocation). Our PATCH replaces
+    // bookIds wholesale — if we built the PATCH from a filtered readlist, we'd silently DELETE
+    // the hidden books from the server-side list. Refuse the mutation instead so the user's tap
+    // gets reverted (and logged via RIFFLE_TOREAD) rather than corrupting the shared readlist.
+    @Test fun `addItemToPlaylist refuses when server-returned readlist is filtered`() = runTest {
+        server.enqueue(MockResponse().setBody(
+            """{"id":"RL1","name":"To Read","bookIds":["B_VISIBLE"],"filtered":true}"""
+        ))
+
+        try {
+            catalog.addItemToPlaylist(playlistId = "RL1", itemId = "B_NEW")
+            org.junit.Assert.fail("expected refusal — a PATCH with a filtered bookIds list would erase hidden books")
+        } catch (e: KomgaHttpException) {
+            assertEquals("GUARD", e.method)
+            assertTrue(e.responseBody.contains("filtered"))
+        }
+        // No PATCH sent — the guard fires before the write.
+        server.takeRequest()
+        assertEquals(1, server.requestCount)
+    }
+
+    @Test fun `removeItemFromPlaylist refuses when server-returned readlist is filtered`() = runTest {
+        server.enqueue(MockResponse().setBody(
+            """{"id":"RL1","name":"To Read","bookIds":["B_VISIBLE","B_TARGET"],"filtered":true}"""
+        ))
+
+        try {
+            catalog.removeItemFromPlaylist(playlistId = "RL1", itemId = "B_TARGET")
+            org.junit.Assert.fail("expected refusal on filtered readlist")
+        } catch (e: KomgaHttpException) {
+            assertEquals("GUARD", e.method)
+        }
+        server.takeRequest()
+        assertEquals(1, server.requestCount)
+    }
+
+    // Regression: an earlier version silently swallowed /users/me failures with runCatching and
+    // returned null. On modern Komga (≥1.19) with non-null ownerId on every readlist, the
+    // ownership predicate then filtered out EVERY owned readlist → createPlaylist POSTed a
+    // duplicate on every operation while /me was flaky. Now /me failures throw and propagate
+    // so the repo layer's runCatching logs via RIFFLE_TOREAD and reverts the optimistic add.
+    @Test fun `findPlaylist throws when users me is unreachable`() = runTest {
+        server.enqueue(MockResponse().setResponseCode(500).setBody("upstream failure"))
+
+        try {
+            catalog.findPlaylist(rootId = "L1", name = "To Read")
+            org.junit.Assert.fail("expected /users/me failure to surface, not be silently swallowed")
+        } catch (e: KomgaHttpException) {
+            assertEquals(500, e.code)
+            assertTrue(e.url.endsWith("/api/v1/users/me"))
+        }
+    }
+
     @Test fun `createPlaylist appends initialItemId to existing owned readlist`() = runTest {
         enqueueMe()
         server.enqueue(readListPage(

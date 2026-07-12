@@ -264,6 +264,12 @@ class AbsCatalog(
             .unwrap()
             .map { it.toCatalogPlaylist() }
 
+    override suspend fun findPlaylist(rootId: String, name: String): CatalogPlaylist? =
+        // ABS's `listPlaylists` returns fully-populated itemIds, so the trivial "list + filter"
+        // is correct here (unlike Komga where listPlaylists is summary-only). Cheap enough to
+        // not warrant a name-scoped endpoint.
+        listPlaylists(rootId).firstOrNull { it.name == name }
+
     override suspend fun createPlaylist(rootId: String, name: String, initialItemId: String?): CatalogPlaylist {
         val created = libraryApi.createPlaylist(config.baseUrl, rootId, name, initialBookId = initialItemId, config.token, config.insecureAllowed)
             .unwrap()

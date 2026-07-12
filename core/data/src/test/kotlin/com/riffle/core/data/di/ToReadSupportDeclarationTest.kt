@@ -58,14 +58,14 @@ class ToReadSupportDeclarationTest {
     }
 
     @Test
-    fun `descriptor toReadSupport = ServerBacked iff Catalog implements PlaylistsCapability`() {
+    fun `descriptor toReadSupport = Synced iff Catalog implements PlaylistsCapability`() {
         val mismatches = mutableListOf<String>()
         catalogClassByType.forEach { (type, catalogClass) ->
             val declared = WebSourceDescriptors.forTypeOrError(type).toReadSupport
             val implementsPlaylists = PlaylistsCapability::class.java.isAssignableFrom(catalogClass.java)
             when (declared) {
-                ToReadSupport.ServerBacked -> if (!implementsPlaylists) mismatches +=
-                    "$type: descriptor says ServerBacked but ${catalogClass.simpleName} does NOT implement PlaylistsCapability " +
+                ToReadSupport.Synced -> if (!implementsPlaylists) mismatches +=
+                    "$type: descriptor says Synced but ${catalogClass.simpleName} does NOT implement PlaylistsCapability " +
                         "→ every add will silently fall through to LocalToReadStore (the Komga bug)."
                 ToReadSupport.LocalOnly,
                 ToReadSupport.Unsupported -> if (implementsPlaylists) mismatches +=
@@ -82,7 +82,7 @@ class ToReadSupportDeclarationTest {
     @Test
     fun `descriptor toReadSupport != Unsupported iff Catalog implements ToReadListCapability`() {
         // ToReadListCapability is the UI marker that makes the tab visible. It must be present
-        // when the descriptor claims either ServerBacked or LocalOnly support, and absent when
+        // when the descriptor claims either Synced or LocalOnly support, and absent when
         // the descriptor claims Unsupported. This locks the UI-visibility decision to the
         // descriptor so a source can't silently show a broken tab.
         val mismatches = mutableListOf<String>()
@@ -90,7 +90,7 @@ class ToReadSupportDeclarationTest {
             val declared = WebSourceDescriptors.forTypeOrError(type).toReadSupport
             val implementsMarker = ToReadListCapability::class.java.isAssignableFrom(catalogClass.java)
             when (declared) {
-                ToReadSupport.ServerBacked,
+                ToReadSupport.Synced,
                 ToReadSupport.LocalOnly -> if (!implementsMarker) mismatches +=
                     "$type: descriptor says $declared but ${catalogClass.simpleName} does NOT implement " +
                         "ToReadListCapability → the To Read tab will be hidden despite the descriptor promising support."
