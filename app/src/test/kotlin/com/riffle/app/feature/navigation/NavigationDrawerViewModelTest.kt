@@ -69,8 +69,6 @@ class NavigationDrawerViewModelTest {
     private fun fakeServerRepo(): SourceRepository = object : SourceRepository {
         override fun observeAll(): Flow<List<Source>> = serversFlow
         override suspend fun getActive(): Source? = serversFlow.value.firstOrNull { it.isActive }
-        override suspend fun authenticate(url: SourceUrl, username: String, password: String, insecureAllowed: Boolean, serverType: com.riffle.core.domain.ServerType, sourceType: com.riffle.core.domain.SourceType): AuthenticateResult =
-            AuthenticateResult.WrongCredentials()
         override suspend fun commit(pending: PendingSource, hiddenLibraryIds: Set<String>): CommitSourceResult =
             CommitSourceResult.Failure(IOException())
         override suspend fun setActive(sourceId: String) {

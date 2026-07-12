@@ -12,6 +12,7 @@ import com.riffle.app.feature.annotationsync.deriveAnnotationSyncKind
 import com.riffle.core.data.AnnotationSyncStatusStore
 import com.riffle.core.data.CycleOutcome
 import com.riffle.core.data.ReadaloudMatchingService
+import com.riffle.core.data.credentialed.CredentialedAuthenticator
 import com.riffle.core.database.AnnotationDao
 import com.riffle.core.data.StorytellerReadaloudSyncer
 import com.riffle.core.data.TestConnectionResult
@@ -52,6 +53,11 @@ enum class AddSourceBackend { AUDIOBOOKSHELF, STORYTELLER, WEBDAV, KOMGA }
 @HiltViewModel
 class AddSourceViewModel @Inject constructor(
     private val repository: SourceRepository,
+    // Per-SourceType credentialed authenticators (ADR 0044). Injected as a Hilt multibinding —
+    // adding a new credentialed source contributes one entry via @IntoMap without touching this
+    // ViewModel. Kept out of SourceRepository to avoid rippling a `sourceType` param through
+    // every anonymous test fake for a Kotlin interface method with a single production caller.
+    private val authenticators: Map<SourceType, @JvmSuppressWildcards CredentialedAuthenticator>,
     private val webdavConfigStore: AnnotationSyncConfigStore,
     private val webdavTargetFactory: WebDavAnnotationSyncTargetFactory,
     private val webdavStatusStore: AnnotationSyncStatusStore,
@@ -238,9 +244,11 @@ class AddSourceViewModel @Inject constructor(
     private fun doAuthenticate(serverUrl: SourceUrl, insecureAllowed: Boolean) {
         val serverType = backend.toServerType() ?: return
         val sourceType = backend.toSourceType()
+        val authenticator = authenticators[sourceType]
+            ?: error("no CredentialedAuthenticator bound for $sourceType — check CredentialedAuthenticatorModule")
         viewModelScope.launch {
             isLoading = true
-            when (val result = repository.authenticate(serverUrl, username, password, insecureAllowed, serverType, sourceType)) {
+            when (val result = authenticator.authenticate(serverUrl, username, password, insecureAllowed, serverType)) {
                 is AuthenticateResult.Success -> {
                     val pending = result.pending
                     if (pending.libraries.size <= 1) {

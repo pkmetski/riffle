@@ -123,14 +123,6 @@ class ReadaloudAudioRepositoryImplTest {
     private object NoopServerRepository : SourceRepository {
         override fun observeAll(): Flow<List<Source>> = MutableStateFlow(emptyList())
         override suspend fun getActive(): Source? = null
-        override suspend fun authenticate(
-            url: SourceUrl,
-            username: String,
-            password: String,
-            insecureAllowed: Boolean,
-            serverType: ServerType,
-            sourceType: com.riffle.core.domain.SourceType,
-        ): AuthenticateResult = AuthenticateResult.NetworkError(UnsupportedOperationException())
         override suspend fun commit(
             pending: PendingSource,
             hiddenLibraryIds: Set<String>,

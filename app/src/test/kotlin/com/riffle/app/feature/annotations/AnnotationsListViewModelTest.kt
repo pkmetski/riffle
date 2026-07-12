@@ -146,14 +146,6 @@ private class FakeSourceRepository(activeServerId: String?) : SourceRepository {
 
     override fun observeAll(): Flow<List<Source>> = servers
     override suspend fun getActive(): Source? = servers.value.firstOrNull { it.isActive }
-    override suspend fun authenticate(
-        url: SourceUrl,
-        username: String,
-        password: String,
-        insecureAllowed: Boolean,
-        serverType: ServerType,
-        sourceType: com.riffle.core.domain.SourceType,
-    ): AuthenticateResult = AuthenticateResult.NetworkError(IOException())
     override suspend fun commit(pending: PendingSource, hiddenLibraryIds: Set<String>): CommitSourceResult =
         CommitSourceResult.Failure(IOException())
     override suspend fun setActive(sourceId: String) {

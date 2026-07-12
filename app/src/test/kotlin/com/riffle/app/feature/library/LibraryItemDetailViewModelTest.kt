@@ -116,8 +116,6 @@ class LibraryItemDetailViewModelTest {
     private val noOpServerRepo = object : SourceRepository {
         override fun observeAll(): Flow<List<Source>> = MutableStateFlow(emptyList())
         override suspend fun getActive(): Source? = null
-        override suspend fun authenticate(url: SourceUrl, username: String, password: String, insecureAllowed: Boolean, serverType: com.riffle.core.domain.ServerType, sourceType: com.riffle.core.domain.SourceType): AuthenticateResult =
-            AuthenticateResult.WrongCredentials()
         override suspend fun commit(pending: PendingSource, hiddenLibraryIds: Set<String>): CommitSourceResult =
             CommitSourceResult.Failure(IOException())
         override suspend fun setActive(sourceId: String) {}
@@ -327,8 +325,6 @@ class LibraryItemDetailViewModelTest {
     private fun serverRepoReturning(server: Source) = object : SourceRepository {
         override fun observeAll(): Flow<List<Source>> = MutableStateFlow(listOf(server))
         override suspend fun getActive(): Source? = server
-        override suspend fun authenticate(url: SourceUrl, username: String, password: String, insecureAllowed: Boolean, serverType: com.riffle.core.domain.ServerType, sourceType: com.riffle.core.domain.SourceType): AuthenticateResult =
-            AuthenticateResult.WrongCredentials()
         override suspend fun commit(pending: PendingSource, hiddenLibraryIds: Set<String>): CommitSourceResult =
             CommitSourceResult.Failure(IOException())
         override suspend fun setActive(sourceId: String) {}

@@ -43,11 +43,6 @@ private fun fakeServers(list: List<Source>): SourceRepository = object : SourceR
     override fun observeAll(): Flow<List<Source>> = flowOf(list)
     override suspend fun getActive(): Source? = list.firstOrNull { it.isActive }
     override suspend fun getById(sourceId: String): Source? = list.firstOrNull { it.id == sourceId }
-    override suspend fun authenticate(
-        url: SourceUrl, username: String, password: String,
-        insecureAllowed: Boolean, serverType: ServerType,
-        sourceType: com.riffle.core.domain.SourceType,
-    ): AuthenticateResult = error("unused")
     override suspend fun commit(pending: PendingSource, hiddenLibraryIds: Set<String>): CommitSourceResult = error("unused")
     override suspend fun setActive(sourceId: String) = error("unused")
     override suspend fun remove(sourceId: String) = error("unused")

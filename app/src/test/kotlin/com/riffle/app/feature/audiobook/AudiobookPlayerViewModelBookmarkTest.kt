@@ -602,14 +602,6 @@ class AudiobookPlayerViewModelBookmarkTest {
         override fun observeAll() = throw NotImplementedError()
         override suspend fun getActive(): Source = server
         override suspend fun getById(sourceId: String): Source = server
-        override suspend fun authenticate(
-            url: SourceUrl,
-            username: String,
-            password: String,
-            insecureAllowed: Boolean,
-            serverType: com.riffle.core.domain.ServerType,
-            sourceType: com.riffle.core.domain.SourceType,
-        ) = throw NotImplementedError()
         override suspend fun commit(
             pending: com.riffle.core.domain.PendingSource,
             hiddenLibraryIds: Set<String>,
@@ -751,14 +743,6 @@ class AudiobookPlayerViewModelBookmarkTest {
     private object StubServer : SourceRepository {
         override fun observeAll() = throw NotImplementedError()
         override suspend fun getActive(): Source? = null
-        override suspend fun authenticate(
-            url: SourceUrl,
-            username: String,
-            password: String,
-            insecureAllowed: Boolean,
-            serverType: com.riffle.core.domain.ServerType,
-            sourceType: com.riffle.core.domain.SourceType,
-        ) = throw NotImplementedError()
         override suspend fun commit(pending: com.riffle.core.domain.PendingSource, hiddenLibraryIds: Set<String>) = throw NotImplementedError()
         override suspend fun setActive(sourceId: String) {}
         override suspend fun remove(sourceId: String) {}

@@ -11,9 +11,9 @@ import com.riffle.core.domain.SourceUrl
  * Hilt `@IntoMap` + [com.riffle.core.data.di.modules.SourceTypeKey], mirroring the
  * [com.riffle.core.catalog.CatalogFactory] map that already dispatches per-source catalog access.
  *
- * `SourceRepository.authenticate` looks up the entry for the caller's [SourceType] and delegates
- * the network round-trip here — the repository stays generic and a new credentialed source
- * (Komga, Calibre-Web, Jellyfin, …) drops in by contributing one binding.
+ * `AddSourceViewModel` looks up the entry for the picked [SourceType] and delegates the network
+ * round-trip here — the ViewModel stays generic and a new credentialed source (Komga,
+ * Calibre-Web, Jellyfin, …) drops in by contributing one binding.
  *
  * The returned [com.riffle.core.domain.PendingSource] carries [SourceType] via its
  * `sourceType` field so [CredentialedSourceInstaller] can stamp the correct

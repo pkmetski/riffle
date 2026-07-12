@@ -255,8 +255,6 @@ class ReadaloudStreamingSessionFactoryAndroidTest {
         override suspend fun getActive(): Source? = null
         override suspend fun getById(sourceId: String): Source? =
             urls[sourceId]?.let { Source(sourceId, SourceUrl.parse(it)!!, false, false, "u", serverType = ServerType.AUDIOBOOKSHELF) }
-        override suspend fun authenticate(url: SourceUrl, username: String, password: String, insecureAllowed: Boolean, serverType: ServerType, sourceType: com.riffle.core.domain.SourceType): AuthenticateResult =
-            throw UnsupportedOperationException()
         override suspend fun commit(pending: PendingSource, hiddenLibraryIds: Set<String>): CommitSourceResult =
             throw UnsupportedOperationException()
         override suspend fun setActive(sourceId: String) = Unit

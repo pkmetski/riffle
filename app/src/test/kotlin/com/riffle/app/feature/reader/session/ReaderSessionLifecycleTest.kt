@@ -94,11 +94,6 @@ class ReaderSessionLifecycleTest {
     private class FakeServerRepository(private val active: Source?) : SourceRepository {
         override fun observeAll(): Flow<List<Source>> = flowOf(active?.let { listOf(it) } ?: emptyList())
         override suspend fun getActive(): Source? = active
-        override suspend fun authenticate(
-            url: SourceUrl, username: String, password: String,
-            insecureAllowed: Boolean, serverType: ServerType,
-            sourceType: com.riffle.core.domain.SourceType,
-        ) = com.riffle.core.domain.AuthenticateResult.WrongCredentials()
         override suspend fun commit(
             pending: com.riffle.core.domain.PendingSource, hiddenLibraryIds: Set<String>,
         ) = com.riffle.core.domain.CommitSourceResult.Failure(RuntimeException("not needed"))

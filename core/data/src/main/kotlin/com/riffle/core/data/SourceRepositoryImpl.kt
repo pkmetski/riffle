@@ -1,20 +1,16 @@
 package com.riffle.core.data
 
-import com.riffle.core.data.credentialed.CredentialedAuthenticator
 import com.riffle.core.data.credentialed.CredentialedSourceInstaller
 import com.riffle.core.data.credentialed.toDomain
 import com.riffle.core.database.LibraryDao
 import com.riffle.core.database.LibraryItemDao
 import com.riffle.core.database.SourceDao
-import com.riffle.core.domain.AuthenticateResult
 import com.riffle.core.domain.CommitSourceResult
 import com.riffle.core.domain.PendingSource
 import com.riffle.core.domain.Source
 import com.riffle.core.domain.SourceFilesCleaner
 import com.riffle.core.domain.SourceRepository
 import com.riffle.core.domain.ServerType
-import com.riffle.core.domain.SourceType
-import com.riffle.core.domain.SourceUrl
 import com.riffle.core.domain.TokenStorage
 import com.riffle.core.network.AbsServerInfoApi
 import kotlinx.coroutines.flow.Flow
@@ -28,7 +24,6 @@ class SourceRepositoryImpl @Inject constructor(
     private val libraryDao: LibraryDao,
     private val libraryItemDao: LibraryItemDao,
     private val filesCleaner: SourceFilesCleaner,
-    private val authenticators: Map<SourceType, @JvmSuppressWildcards CredentialedAuthenticator>,
     private val installer: CredentialedSourceInstaller,
 ) : SourceRepository {
 
@@ -44,19 +39,6 @@ class SourceRepositoryImpl @Inject constructor(
     override suspend fun getActive(): Source? = dao.getActive()?.toDomain()
 
     override suspend fun getById(sourceId: String): Source? = dao.getById(sourceId)?.toDomain()
-
-    override suspend fun authenticate(
-        url: SourceUrl,
-        username: String,
-        password: String,
-        insecureAllowed: Boolean,
-        serverType: ServerType,
-        sourceType: SourceType,
-    ): AuthenticateResult {
-        val authenticator = authenticators[sourceType]
-            ?: error("no CredentialedAuthenticator bound for $sourceType — check CredentialedAuthenticatorModule")
-        return authenticator.authenticate(url, username, password, insecureAllowed, serverType)
-    }
 
     override suspend fun commit(
         pending: PendingSource,

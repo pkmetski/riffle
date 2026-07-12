@@ -52,8 +52,6 @@ class LibraryRepositoryTest {
         fun setServers(servers: List<Source>) { backing.value = servers }
         override fun observeAll() = backing
         override suspend fun getActive() = backing.value.firstOrNull { it.isActive }
-        override suspend fun authenticate(url: SourceUrl, username: String, password: String, insecureAllowed: Boolean, serverType: com.riffle.core.domain.ServerType, sourceType: com.riffle.core.domain.SourceType): AuthenticateResult =
-            AuthenticateResult.NetworkError(IOException())
         override suspend fun commit(pending: PendingSource, hiddenLibraryIds: Set<String>): CommitSourceResult =
             CommitSourceResult.Failure(IOException())
         override suspend fun setActive(sourceId: String) {}
