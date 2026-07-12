@@ -1,40 +1,41 @@
 package com.riffle.app.feature.server
 
+import com.riffle.core.domain.ServerType
+import com.riffle.core.domain.SourceType
+import com.riffle.core.domain.WebSourceDescriptors
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
 /**
- * Pins the ABS-variant AddSource copy after the #435 Server → Source rename. If any of
- * these assertions flip, the fix has been reverted line-for-line. Storyteller/WebDAV
- * strings are pinned untouched — Storyteller's rename is #441's job, WebDAV is a Service.
+ * Pins the ABS-variant and Storyteller AddSource copy after the descriptor-driven refactor.
+ * These strings now come from [com.riffle.core.domain.AbsWebSourceDescriptor.addSourceCopyFor];
+ * flipping any of them means the descriptor was retitled. Storyteller strings are pinned
+ * untouched — Storyteller's rename is #441's job. WebDAV is a Service (no descriptor), so its
+ * strings live inline in AddSourceScreen and aren't covered here.
  */
 class AddSourceCopyTest {
+    private val absDescriptor = WebSourceDescriptors.forTypeOrError(SourceType.ABS)
+
     @Test
     fun `ABS add title is Add Audiobookshelf`() {
-        assertEquals("Add Audiobookshelf", screenTitle(AddSourceBackend.AUDIOBOOKSHELF, isEditing = false))
+        assertEquals("Add Audiobookshelf", absDescriptor.addSourceCopyFor(ServerType.AUDIOBOOKSHELF)!!.addTitle)
     }
 
     @Test
     fun `ABS edit title is Edit Audiobookshelf`() {
-        assertEquals("Edit Audiobookshelf", screenTitle(AddSourceBackend.AUDIOBOOKSHELF, isEditing = true))
+        assertEquals("Edit Audiobookshelf", absDescriptor.addSourceCopyFor(ServerType.AUDIOBOOKSHELF)!!.editTitle)
     }
 
     @Test
     fun `ABS remove label is Remove source`() {
-        assertEquals("Remove source", removeButtonLabel(AddSourceBackend.AUDIOBOOKSHELF))
+        assertEquals("Remove source", absDescriptor.addSourceCopyFor(ServerType.AUDIOBOOKSHELF)!!.removeLabel)
     }
 
     @Test
     fun `Storyteller strings unchanged (kept for #441)`() {
-        assertEquals("Add Storyteller", screenTitle(AddSourceBackend.STORYTELLER, isEditing = false))
-        assertEquals("Edit Storyteller", screenTitle(AddSourceBackend.STORYTELLER, isEditing = true))
-        assertEquals("Remove Storyteller", removeButtonLabel(AddSourceBackend.STORYTELLER))
-    }
-
-    @Test
-    fun `WebDAV strings unchanged (Service not Source)`() {
-        assertEquals("Add WebDAV", screenTitle(AddSourceBackend.WEBDAV, isEditing = false))
-        assertEquals("Edit WebDAV", screenTitle(AddSourceBackend.WEBDAV, isEditing = true))
-        assertEquals("Disable sync", removeButtonLabel(AddSourceBackend.WEBDAV))
+        val copy = absDescriptor.addSourceCopyFor(ServerType.STORYTELLER_SERVICE)!!
+        assertEquals("Add Storyteller", copy.addTitle)
+        assertEquals("Edit Storyteller", copy.editTitle)
+        assertEquals("Remove Storyteller", copy.removeLabel)
     }
 }

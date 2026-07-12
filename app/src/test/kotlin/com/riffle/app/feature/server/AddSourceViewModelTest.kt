@@ -388,7 +388,7 @@ class AddSourceViewModelTest {
         val vm = makeVm(repo, savedState = savedState, tokenStorage = tokens)
         testDispatcher.scheduler.advanceUntilIdle()
 
-        assertEquals(AddSourceBackend.STORYTELLER, vm.backend)
+        assertEquals(AddSourceBackend.Storyteller, vm.backend)
         assertTrue(vm.isEditing)
         assertEquals("http://", vm.scheme)
         assertEquals("media-server:8001", vm.host)
@@ -413,7 +413,7 @@ class AddSourceViewModelTest {
         )
         testDispatcher.scheduler.advanceUntilIdle()
 
-        assertEquals(AddSourceBackend.WEBDAV, vm.backend)
+        assertEquals(AddSourceBackend.Webdav, vm.backend)
         assertTrue(vm.isEditingWebdav)
         assertEquals("https://", vm.scheme)
         assertEquals("dav.example.com/store", vm.host)
@@ -432,7 +432,7 @@ class AddSourceViewModelTest {
         )
         testDispatcher.scheduler.advanceUntilIdle()
 
-        assertEquals(AddSourceBackend.WEBDAV, vm.backend)
+        assertEquals(AddSourceBackend.Webdav, vm.backend)
         assertFalse(vm.isEditingWebdav)
         assertEquals("", vm.host)
         assertEquals("", vm.username)

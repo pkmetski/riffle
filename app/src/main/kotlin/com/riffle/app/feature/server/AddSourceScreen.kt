@@ -54,8 +54,7 @@ import com.riffle.app.ui.source.SourceTypeIcon
 import com.riffle.core.domain.AddSourceCopy
 import com.riffle.core.domain.InsecureConnectionType
 import com.riffle.core.domain.PendingSource
-import com.riffle.core.domain.ServerType
-import com.riffle.core.domain.SourceType
+import com.riffle.core.domain.WebSourceDescriptor
 import com.riffle.core.domain.WebSourceDescriptors
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -76,20 +75,21 @@ fun AddSourceScreen(
 
     val backend = viewModel.backend
     val isEditing = viewModel.isEditing
-    // Descriptor-driven copy for credentialed [SourceType]s (ADR 0044 Phase 7 / issue #526).
-    // Non-null for backends whose [WebSourceDescriptor] ships an [AddSourceCopy] (currently only
-    // AUDIOBOOKSHELF-shaped SourceType.ABS descriptors). Storyteller and WebDAV keep the local
-    // when-tables until #441 splits Storyteller into its own SourceType and WebDAV moves to its
-    // own screen — both are documented as non-goals of this refactor.
-    val descriptorCopy: AddSourceCopy? = descriptorCopyFor(backend)
-    val title = descriptorCopy?.let { if (isEditing) it.editTitle else it.addTitle }
-        ?: screenTitle(backend, isEditing)
-    val urlLabel = descriptorCopy?.urlLabel
-        ?: if (backend == AddSourceBackend.WEBDAV) "WebDAV URL" else "Source URL"
-    val urlPlaceholder = descriptorCopy?.urlPlaceholder ?: when (backend) {
-        AddSourceBackend.WEBDAV -> "server.example.com/dav/annotations"
-        else -> "abs.example.com"
+    // Every credentialed catalog source drives its copy through its [WebSourceDescriptor]
+    // (ADR 0044 Phase 7). WebDAV isn't a browsable catalog — it's an annotation-sync sidecar
+    // that happens to share the URL + username + password form shape — so it keeps a small
+    // per-screen constant block below rather than a synthetic descriptor.
+    val credentialed = backend as? AddSourceBackend.Credentialed
+    val descriptor: WebSourceDescriptor? = credentialed?.let {
+        WebSourceDescriptors.forType(it.sourceType)
     }
+    val descriptorCopy: AddSourceCopy? = credentialed?.let {
+        descriptor?.addSourceCopyFor(it.serverType)
+    }
+    val title = descriptorCopy?.let { if (isEditing) it.editTitle else it.addTitle }
+        ?: if (isEditing) "Edit WebDAV" else "Add WebDAV"
+    val urlLabel = descriptorCopy?.urlLabel ?: "WebDAV URL"
+    val urlPlaceholder = descriptorCopy?.urlPlaceholder ?: "server.example.com/dav/annotations"
     val submitLabel = descriptorCopy
         ?.let { if (isEditing) it.submitLabelEdit else it.submitLabelAdd }
         ?: if (isEditing) "Save" else "Connect"
@@ -107,10 +107,10 @@ fun AddSourceScreen(
             TopAppBar(
                 title = {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        addSourceIconFor(backend)?.let { (type, serverType) ->
+                        credentialed?.let {
                             SourceTypeIcon(
-                                type = type,
-                                serverType = serverType,
+                                type = it.sourceType,
+                                serverType = it.serverType,
                                 size = 28.dp,
                             )
                             Spacer(Modifier.width(12.dp))
@@ -136,7 +136,8 @@ fun AddSourceScreen(
                     .padding(24.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp),
             ) {
-                val helpText = descriptorCopy?.helpText ?: backendHelpText(backend)
+                val helpText = descriptorCopy?.helpText
+                    ?: "Sync highlights, notes, and bookmarks between your devices via a WebDAV server."
                 if (helpText.isNotEmpty()) {
                     Text(
                         text = helpText,
@@ -145,7 +146,7 @@ fun AddSourceScreen(
                     )
                 }
                 val webdavBanner by viewModel.webdavBanner.collectAsState()
-                if (backend == AddSourceBackend.WEBDAV) {
+                if (backend == AddSourceBackend.Webdav) {
                     webdavBanner?.let { WebdavStatusCard(it) }
                 }
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -218,70 +219,13 @@ fun AddSourceScreen(
                                 contentColor = MaterialTheme.colorScheme.error,
                             ),
                         ) {
-                            Text(descriptorCopy?.removeLabel ?: removeButtonLabel(backend))
+                            Text(descriptorCopy?.removeLabel ?: "Disable sync")
                         }
                     }
                 }
             }
         }
     }
-}
-
-/**
- * Bridge from the legacy [AddSourceBackend] enum (which still discriminates the WebDAV path and
- * the ABS-Audiobookshelf vs ABS-Storyteller split until #441 lands) to the descriptor-driven
- * copy pipeline (issue #526). Returns non-null only for backends whose corresponding
- * [com.riffle.core.domain.WebSourceDescriptor] ships an [AddSourceCopy]; today that's just
- * AUDIOBOOKSHELF. Storyteller shares [com.riffle.core.domain.SourceType.ABS] with Audiobookshelf
- * and can't route through the descriptor path until #441 splits it out. WebDAV is not a
- * browsable source, so it never will.
- */
-internal fun descriptorCopyFor(backend: AddSourceBackend): AddSourceCopy? = when (backend) {
-    AddSourceBackend.AUDIOBOOKSHELF ->
-        WebSourceDescriptors.forTypeOrError(com.riffle.core.domain.SourceType.ABS).addSourceCopy
-    AddSourceBackend.KOMGA ->
-        WebSourceDescriptors.forTypeOrError(com.riffle.core.domain.SourceType.KOMGA).addSourceCopy
-    AddSourceBackend.STORYTELLER, AddSourceBackend.WEBDAV -> null
-}
-
-/**
- * Which bundled source icon (if any) to render alongside the AddSourceScreen title. WebDAV has
- * no source-type monogram — it's a sync backend, not a browsable source — so it returns null and
- * the top bar renders text-only.
- */
-private fun addSourceIconFor(backend: AddSourceBackend): Pair<SourceType, ServerType>? = when (backend) {
-    AddSourceBackend.AUDIOBOOKSHELF -> SourceType.ABS to ServerType.AUDIOBOOKSHELF
-    AddSourceBackend.STORYTELLER -> SourceType.ABS to ServerType.STORYTELLER_SERVICE
-    AddSourceBackend.KOMGA -> SourceType.KOMGA to ServerType.AUDIOBOOKSHELF
-    AddSourceBackend.WEBDAV -> null
-}
-
-internal fun screenTitle(backend: AddSourceBackend, isEditing: Boolean): String = when (backend) {
-    AddSourceBackend.AUDIOBOOKSHELF -> if (isEditing) "Edit Audiobookshelf" else "Add Audiobookshelf"
-    AddSourceBackend.STORYTELLER -> if (isEditing) "Edit Storyteller" else "Add Storyteller"
-    AddSourceBackend.WEBDAV -> if (isEditing) "Edit WebDAV" else "Add WebDAV"
-    AddSourceBackend.KOMGA -> if (isEditing) "Edit Komga" else "Add Komga"
-}
-
-internal fun removeButtonLabel(backend: AddSourceBackend): String = when (backend) {
-    AddSourceBackend.AUDIOBOOKSHELF -> "Remove source"
-    AddSourceBackend.STORYTELLER -> "Remove Storyteller"
-    AddSourceBackend.WEBDAV -> "Disable sync"
-    AddSourceBackend.KOMGA -> "Remove source"
-}
-
-// User-facing description of what Riffle does with each backend. Keep in sync
-// with what the app actually supports — when a backend gains/loses a capability
-// (e.g. audiobook streaming, readaloud sync), revisit this copy.
-private fun backendHelpText(backend: AddSourceBackend): String = when (backend) {
-    AddSourceBackend.AUDIOBOOKSHELF ->
-        "Stream ebooks and audiobooks from your Audiobookshelf server, with progress synced across devices."
-    AddSourceBackend.STORYTELLER ->
-        "Storyteller hosts aligned ebook + audiobook \"readalouds.\" Riffle matches each readaloud to a book on your Audiobookshelf server, enabling synchronized text + audio playback inside the reader."
-    AddSourceBackend.WEBDAV ->
-        "Sync highlights, notes, and bookmarks between your devices via a WebDAV server."
-    AddSourceBackend.KOMGA ->
-        "Browse and read your Komga library (comics, manga and ebooks) from any Komga server."
 }
 
 @Composable

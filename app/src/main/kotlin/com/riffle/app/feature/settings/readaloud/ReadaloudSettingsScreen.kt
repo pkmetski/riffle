@@ -95,7 +95,7 @@ fun ReadaloudSettingsScreen(
             if (storyteller == null) {
                 ListItem(
                     modifier = Modifier.clickable {
-                        onNavigateToAddSource(AddSourceBackend.STORYTELLER, null)
+                        onNavigateToAddSource(AddSourceBackend.Storyteller, null)
                     },
                     leadingContent = { StorytellerBadge(configured = false) },
                     headlineContent = { Text("Configure Storyteller") },
@@ -118,7 +118,7 @@ fun ReadaloudSettingsScreen(
                 }
                 ListItem(
                     modifier = Modifier.clickable {
-                        onNavigateToAddSource(AddSourceBackend.STORYTELLER, storyteller.id)
+                        onNavigateToAddSource(AddSourceBackend.Storyteller, storyteller.id)
                     },
                     leadingContent = { StorytellerBadge(configured = true) },
                     headlineContent = { Text("Storyteller") },

@@ -96,6 +96,23 @@ interface WebSourceDescriptor {
      * A completeness test (`WebSourceRegistryCompletenessTest`) enforces the invariant.
      */
     val addSourceCopy: AddSourceCopy? get() = null
+
+    /**
+     * Per-[ServerType] variant of [addSourceCopy]. Overridden by [AbsWebSourceDescriptor] to
+     * return Storyteller-flavored copy when the caller is adding a Storyteller Service and
+     * Audiobookshelf-flavored copy when adding a regular Audiobookshelf server (both share
+     * [SourceType.ABS] until #441 splits them). Non-ABS descriptors ignore [serverType] and
+     * return the base [addSourceCopy].
+     */
+    fun addSourceCopyFor(serverType: ServerType): AddSourceCopy? = addSourceCopy
+
+    /**
+     * Per-[ServerType] variant of the AddSourceScreen "remove source" button label. Same
+     * rationale as [addSourceCopyFor] — ABS needs one label per product server ("Remove source"
+     * vs "Remove Storyteller"). Falls back to [addSourceCopy]?.[AddSourceCopy.removeLabel].
+     */
+    fun removeLabelFor(serverType: ServerType): String? =
+        addSourceCopyFor(serverType)?.removeLabel
 }
 
 /**
@@ -174,7 +191,8 @@ object AbsWebSourceDescriptor : WebSourceDescriptor {
     override val addRoute = "add_source?type=audiobookshelf"
     override val pickerOrder = 0
     override val pickerBlurb = "Stream ebooks and audiobooks from your Audiobookshelf server."
-    override val addSourceCopy = AddSourceCopy(
+
+    private val AUDIOBOOKSHELF_COPY = AddSourceCopy(
         addTitle = "Add Audiobookshelf",
         editTitle = "Edit Audiobookshelf",
         urlLabel = "Source URL",
@@ -182,6 +200,28 @@ object AbsWebSourceDescriptor : WebSourceDescriptor {
         helpText = "Stream ebooks and audiobooks from your Audiobookshelf server, with progress synced across devices.",
         removeLabel = "Remove source",
     )
+
+    private val STORYTELLER_COPY = AddSourceCopy(
+        addTitle = "Add Storyteller",
+        editTitle = "Edit Storyteller",
+        urlLabel = "Source URL",
+        urlPlaceholder = "storyteller.example.com",
+        helpText = "Storyteller hosts aligned ebook + audiobook \"readalouds.\" Riffle matches each readaloud to a book on your Audiobookshelf server, enabling synchronized text + audio playback inside the reader.",
+        removeLabel = "Remove Storyteller",
+    )
+
+    override val addSourceCopy = AUDIOBOOKSHELF_COPY
+
+    // Two product servers currently share [SourceType.ABS]: Audiobookshelf (the ebook/audiobook
+    // library server) and Storyteller Service (the readaloud-alignment backend from ADR 0026).
+    // Until #441 splits Storyteller into its own SourceType, they're discriminated at the UI
+    // layer by [ServerType] — this override wires the AddSourceScreen copy to the right variant
+    // so the top bar reads "Add Storyteller" not "Add Audiobookshelf" when the picker card
+    // routes to the Storyteller flavour.
+    override fun addSourceCopyFor(serverType: ServerType): AddSourceCopy = when (serverType) {
+        ServerType.AUDIOBOOKSHELF -> AUDIOBOOKSHELF_COPY
+        ServerType.STORYTELLER_SERVICE -> STORYTELLER_COPY
+    }
 }
 
 object LocalFilesWebSourceDescriptor : WebSourceDescriptor {

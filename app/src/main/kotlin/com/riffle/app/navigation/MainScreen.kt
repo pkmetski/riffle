@@ -417,7 +417,7 @@ fun MainScreen(
                     // paths still flow through `onNavigateToAddSource(backend, editId)`.
                     onNavigateToAddSource = { backend, editId ->
                         val params = buildList {
-                            add("type=${backend.name.lowercase()}")
+                            add("type=${backend.routeType}")
                             if (!editId.isNullOrEmpty()) add("editId=${URLEncoder.encode(editId, "UTF-8")}")
                         }.joinToString("&")
                         navController.navigate("$ADD_SOURCE?$params")
@@ -446,7 +446,7 @@ fun MainScreen(
                     onNavigateBack = { navController.popBackStack() },
                     onNavigateToAddSource = { backend, editId ->
                         val params = buildList {
-                            add("type=${backend.name.lowercase()}")
+                            add("type=${backend.routeType}")
                             if (!editId.isNullOrEmpty()) add("editId=${URLEncoder.encode(editId, "UTF-8")}")
                         }.joinToString("&")
                         navController.navigate("$ADD_SOURCE?$params")
@@ -468,7 +468,7 @@ fun MainScreen(
                     onNavigateBack = { navController.popBackStack() },
                     onNavigateToAddSource = { backend, editId ->
                         val params = buildList {
-                            add("type=${backend.name.lowercase()}")
+                            add("type=${backend.routeType}")
                             if (!editId.isNullOrEmpty()) add("editId=${URLEncoder.encode(editId, "UTF-8")}")
                         }.joinToString("&")
                         navController.navigate("$ADD_SOURCE?$params")

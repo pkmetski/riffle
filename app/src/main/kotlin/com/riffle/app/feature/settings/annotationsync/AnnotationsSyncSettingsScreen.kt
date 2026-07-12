@@ -76,7 +76,7 @@ fun AnnotationsSyncSettingsScreen(
             SettingsSectionHeader("Server")
             ListItem(
                 modifier = Modifier.clickable {
-                    onNavigateToAddSource(AddSourceBackend.WEBDAV, null)
+                    onNavigateToAddSource(AddSourceBackend.Webdav, null)
                 },
                 leadingContent = { AnnotationSyncBadge(row.badge) },
                 headlineContent = { Text("Configure WebDAV") },
