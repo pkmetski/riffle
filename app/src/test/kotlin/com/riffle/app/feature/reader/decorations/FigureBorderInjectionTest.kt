@@ -20,12 +20,40 @@ class FigureBorderInjectionTest {
             js.contains("data-riffle-fig-tint"),
         )
         assertTrue(
-            "apply JS should query figcaption elements with the tint marker",
-            js.contains("figcaption[data-riffle-fig-tint]"),
+            "apply JS clear pass must scan every tinted element (not just <figcaption>), so <p>/<div> caption fallbacks are also cleared on undo",
+            js.contains("querySelectorAll('[data-riffle-fig-tint]')"),
         )
         assertTrue(
             "apply JS must invoke clearAllFigcaptionTints() every pass, not just define it",
             js.contains("clearAllFigcaptionTints();"),
+        )
+    }
+
+    @Test
+    fun `apply js falls back to text-prefix caption block for non-semantic figures`() {
+        val marks = listOf(
+            FigureBorderDecoration.RasterMark(
+                filename = "graph.png",
+                color = "rgba(52,211,153,0.5)",
+                hasNote = false,
+            ),
+        )
+        val js = figureBorderApplyJs(cssRules = emptyList(), svgMatches = emptyList(), rasterMarks = marks)
+
+        // For LaTeX/Kotobee/Vellum EPUBs (obfuscated class names, no <figure> wrapper), the tint
+        // must fall back to finding the nearest block whose text starts with the caption prefix
+        // "Figure N", "Fig. N", "Table N", "Chart N". Reverting the fallback flips this red.
+        assertTrue(
+            "apply JS should define the caption-prefix regex",
+            js.contains("(Figure|Fig\\.?|Table|Chart)"),
+        )
+        assertTrue(
+            "apply JS should define the nearestCaptionBlock helper",
+            js.contains("function nearestCaptionBlock("),
+        )
+        assertTrue(
+            "tintCaptionFor should call nearestCaptionBlock when semantic path fails",
+            js.contains("nearestCaptionBlock(el)"),
         )
     }
 

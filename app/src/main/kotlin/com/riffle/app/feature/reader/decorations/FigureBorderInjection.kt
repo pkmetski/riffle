@@ -130,17 +130,42 @@ internal fun figureBorderApplyJs(
             wrap.appendChild(badge);
           }
           function clearAllFigcaptionTints() {
-            var stale = document.querySelectorAll('figcaption[data-riffle-fig-tint]');
+            var stale = document.querySelectorAll('[data-riffle-fig-tint]');
             for (var k = 0; k < stale.length; k++) {
               stale[k].style.backgroundColor = '';
               stale[k].removeAttribute('data-riffle-fig-tint');
             }
           }
+          // Fallback for EPUBs that don't use semantic <figure>/<figcaption>: LaTeX/Kotobee/Vellum
+          // exports typically wrap the image and its caption in generic <div>s with obfuscated
+          // class names ("class_s4", "class_s5"), so we can't key off markup. The one deterministic
+          // signal is the caption's leading text: "Figure 5.1:", "Fig. 2", "Table 3", etc. Walk up
+          // to 3 ancestors and scan for the nearest block after the image whose text starts with
+          // that prefix. Bounded and content-anchored — won't grab body prose.
+          var CAPTION_PREFIX_RX = /^\s*(Figure|Fig\.?|Table|Chart)\s+\d/i;
+          function nearestCaptionBlock(img) {
+            var el = img;
+            for (var hops = 0; hops < 3; hops++) {
+              var parent = el.parentElement;
+              if (!parent) return null;
+              var blocks = parent.querySelectorAll('p, div');
+              for (var i = 0; i < blocks.length; i++) {
+                var b = blocks[i];
+                if (b === img || b.contains(img)) continue;
+                var pos = img.compareDocumentPosition(b);
+                if (!(pos & 4)) continue;
+                if (CAPTION_PREFIX_RX.test(b.textContent || '')) return b;
+              }
+              el = parent;
+            }
+            return null;
+          }
           function tintCaptionFor(el, color) {
             if (!el) return;
+            var cap = null;
             var fig = el.closest && el.closest('figure, [role="figure"]');
-            if (!fig) return;
-            var cap = fig.querySelector(':scope > figcaption');
+            if (fig) cap = fig.querySelector(':scope > figcaption');
+            if (!cap) cap = nearestCaptionBlock(el);
             if (!cap) return;
             cap.style.backgroundColor = color;
             cap.setAttribute('data-riffle-fig-tint', '1');
