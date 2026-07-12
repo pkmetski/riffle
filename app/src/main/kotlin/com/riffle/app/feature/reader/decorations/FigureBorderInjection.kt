@@ -140,7 +140,7 @@ internal fun figureBorderApplyJs(
             if (!el) return;
             var fig = el.closest && el.closest('figure, [role="figure"]');
             if (!fig) return;
-            var cap = fig.querySelector('figcaption');
+            var cap = fig.querySelector(':scope > figcaption');
             if (!cap) return;
             cap.style.backgroundColor = color;
             cap.setAttribute('data-riffle-fig-tint', '1');

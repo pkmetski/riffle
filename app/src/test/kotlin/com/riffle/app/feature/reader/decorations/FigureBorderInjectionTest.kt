@@ -23,6 +23,10 @@ class FigureBorderInjectionTest {
             "apply JS should query figcaption elements with the tint marker",
             js.contains("figcaption[data-riffle-fig-tint]"),
         )
+        assertTrue(
+            "apply JS must invoke clearAllFigcaptionTints() every pass, not just define it",
+            js.contains("clearAllFigcaptionTints();"),
+        )
     }
 
     @Test
@@ -45,13 +49,17 @@ class FigureBorderInjectionTest {
                 js.contains("closest(\"figure, [role='figure']\")"),
         )
         assertTrue(
-            "apply JS should target the first child figcaption",
-            js.contains("querySelector('figcaption')") ||
-                js.contains("querySelector(\"figcaption\")"),
+            "apply JS should target the direct-child figcaption",
+            js.contains("querySelector(':scope > figcaption')") ||
+                js.contains("querySelector(\":scope > figcaption\")"),
         )
         assertTrue(
             "apply JS should set backgroundColor to the raster mark's color",
             js.contains("52,211,153"),
+        )
+        assertTrue(
+            "raster branch must call tintCaptionFor(img, rf.color)",
+            js.contains("tintCaptionFor(img, rf.color)"),
         )
     }
 
@@ -76,6 +84,10 @@ class FigureBorderInjectionTest {
             "svg branch should also invoke figure/figcaption traversal",
             js.contains("closest('figure, [role=\"figure\"]')") ||
                 js.contains("closest(\"figure, [role='figure']\")"),
+        )
+        assertTrue(
+            "svg branch must call tintCaptionFor(s, matches[j].color)",
+            js.contains("tintCaptionFor(s, matches[j].color)"),
         )
     }
 }
