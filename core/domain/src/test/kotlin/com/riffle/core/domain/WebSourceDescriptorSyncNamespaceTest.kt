@@ -94,4 +94,28 @@ class WebSourceDescriptorSyncNamespaceTest {
         assertTrue(ChitankaWebSourceDescriptor.syncNamespaceFor(src) is SyncNamespace.LocalOnly)
         assertTrue(GutenbergWebSourceDescriptor.syncNamespaceFor(src) is SyncNamespace.LocalOnly)
     }
+
+    @Test
+    fun `namespaceFromRemoteId projects a freshly-fetched id without needing the persisted absUserId`() {
+        // The repository calls this immediately after backfilling absUserId, using a source whose
+        // in-memory `absUserId` is still stale (null). The helper must return the same namespace
+        // syncNamespaceFor would produce on `source.copy(absUserId = fetched)` — same shape, no
+        // double-eval.
+        val absStale = absSource(userId = null)
+        assertEquals(
+            SyncNamespace.Configured("fresh-abs-id"),
+            AbsWebSourceDescriptor.namespaceFromRemoteId(absStale, "fresh-abs-id"),
+        )
+        val komgaStale = komgaSource(userId = null)
+        assertEquals(
+            SyncNamespace.Configured("${KomgaWebSourceDescriptor.KOMGA_NAMESPACE_PREFIX}fresh-komga-id"),
+            KomgaWebSourceDescriptor.namespaceFromRemoteId(komgaStale, "fresh-komga-id"),
+        )
+        // Storyteller stays LocalOnly even when a stray id is somehow forwarded — the invariant
+        // is enforced at the descriptor level, not at the installer/authenticator.
+        val storyStale = absSource(userId = null, serverType = ServerType.STORYTELLER_SERVICE)
+        assertTrue(
+            AbsWebSourceDescriptor.namespaceFromRemoteId(storyStale, "stray-id") is SyncNamespace.LocalOnly,
+        )
+    }
 }
