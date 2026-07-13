@@ -251,6 +251,22 @@ class LibraryRepositoryImpl @Inject constructor(
                     )
                 }
             libraryItemDao.replaceAllForLibrary(source.id, libraryId, entities)
+            // `replaceAllForLibrary.updateMetadata` intentionally preserves `readingProgress` on
+            // existing rows so an offline reader-close save can't be clobbered by a stale library
+            // refresh. But an item can end up stuck at 0 forever when the initial `pullAllProgress`
+            // returned nothing for it (network flake, race with source install, or the source only
+            // recorded progress later) — the row is inserted with `readingProgress = 0`, and no
+            // subsequent refresh will fix it because `updateMetadata` skips the field. Adopt the
+            // server value here, gated on the PRE-refresh `lastOpenedAtMap` snapshot (updateMetadata
+            // has by now stamped lastOpenedAt from mergeLastOpenedAt, so we can't consult the DB).
+            // A row that was already opened locally on this device keeps its progress; a never-
+            // touched row adopts the server side (#528).
+            for (item in items) {
+                val sp = serverProgressMap[item.id] ?: continue
+                if (sp.ebookProgress <= 0f) continue
+                if (lastOpenedAtMap[item.id] != null) continue
+                libraryItemDao.updateInitialReadingProgress(source.id, item.id, sp.ebookProgress)
+            }
             val isUnsupported = entities.isNotEmpty() && entities.none { it.ebookFormat != EbookFormat.Unsupported.toStorageString() }
             libraryDao.setUnsupported(source.id, libraryId, isUnsupported)
             LibraryRefreshResult.Success

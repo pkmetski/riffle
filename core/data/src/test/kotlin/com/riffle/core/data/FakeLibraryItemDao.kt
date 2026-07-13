@@ -154,7 +154,25 @@ internal class FakeLibraryItemDao : LibraryItemDao {
             .filter { it.readingProgress > 0f }
             .map { ReadingProgressRow(it.id, it.readingProgress) }
 
-    override suspend fun updateReadingProgress(sourceId: String, itemId: String, progress: Float) {}
+    override suspend fun updateReadingProgress(sourceId: String, itemId: String, progress: Float) {
+        roomData.forEach { (_, flow) ->
+            flow.value = flow.value.map {
+                if (it.sourceId == sourceId && it.id == itemId) it.copy(readingProgress = progress) else it
+            }
+        }
+    }
+    override suspend fun updateInitialReadingProgress(sourceId: String, itemId: String, progress: Float) {
+        roomData.forEach { (_, flow) ->
+            flow.value = flow.value.map {
+                // Race-guard mirror of the SQL WHERE clause. The caller-side pre-refresh
+                // lastOpenedAtMap check does the semantic gating; this only defends against a
+                // reader-close landing between the map fetch and this UPDATE.
+                if (it.sourceId == sourceId && it.id == itemId && it.readingProgress == 0f)
+                    it.copy(readingProgress = progress)
+                else it
+            }
+        }
+    }
     override suspend fun updateLibraryId(sourceId: String, itemId: String, libraryId: String) {
         val entry = roomData.entries.firstOrNull { e ->
             e.value.value.any { it.sourceId == sourceId && it.id == itemId }

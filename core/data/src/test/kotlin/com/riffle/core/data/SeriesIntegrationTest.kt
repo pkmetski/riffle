@@ -130,6 +130,7 @@ class SeriesIntegrationTest {
         override suspend fun getLastOpenedAtMap(sourceId: String, libraryId: String): List<LastOpenedAtRow> = emptyList()
         override suspend fun getReadingProgressMap(sourceId: String, libraryId: String): List<ReadingProgressRow> = emptyList()
         override suspend fun updateReadingProgress(sourceId: String, itemId: String, progress: Float) {}
+        override suspend fun updateInitialReadingProgress(sourceId: String, itemId: String, progress: Float) {}
         override suspend fun updateLibraryId(sourceId: String, itemId: String, libraryId: String) {}
         override suspend fun updateFinishedAt(sourceId: String, itemId: String, finishedAt: Long?) {}
         override suspend fun listMatchableBySourceType(serverType: String): List<com.riffle.core.database.MatchableItemRow> = emptyList()

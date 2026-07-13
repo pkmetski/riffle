@@ -178,6 +178,7 @@ class ServerRepositoryTest {
         override suspend fun getLastOpenedAtMap(sourceId: String, libraryId: String) = emptyList<com.riffle.core.database.LastOpenedAtRow>()
         override suspend fun getReadingProgressMap(sourceId: String, libraryId: String) = emptyList<com.riffle.core.database.ReadingProgressRow>()
         override suspend fun updateReadingProgress(sourceId: String, itemId: String, progress: Float) {}
+        override suspend fun updateInitialReadingProgress(sourceId: String, itemId: String, progress: Float) {}
         override suspend fun updateLibraryId(sourceId: String, itemId: String, libraryId: String) {}
         override suspend fun updateFinishedAt(sourceId: String, itemId: String, finishedAt: Long?) {}
         override suspend fun listMatchableBySourceType(serverType: String) = emptyList<com.riffle.core.database.MatchableItemRow>()
