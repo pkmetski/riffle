@@ -206,6 +206,7 @@ class LibraryRepositoryTest {
         )),
         libraryDao, libraryItemDao, seriesDao, collectionDao,
         fakeServerRepository, com.riffle.core.domain.TestClock(),
+        com.riffle.core.logging.RecordingLogger(),
     )
 
     private fun activeServer(id: String = "s1") = Source(

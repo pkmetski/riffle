@@ -14,7 +14,6 @@ import com.riffle.core.domain.LibraryObserver
 import com.riffle.core.domain.usecase.UpdateReadingProgress
 import com.riffle.core.domain.PdfOpenResult
 import com.riffle.core.domain.PdfRepository
-import com.riffle.core.domain.ProgressSyncController
 import com.riffle.core.domain.ReadingSessionCoordinator
 import com.riffle.core.domain.ReadingSessionRepository
 import com.riffle.core.domain.ReadingSpeedStore
@@ -141,8 +140,11 @@ class PdfReaderViewModel @Inject constructor(
     private val _syncErrorEvents = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
     val syncErrorEvents: SharedFlow<Unit> = _syncErrorEvents.asSharedFlow()
 
-    private val progressSyncController = ProgressSyncController(
-        repository = readingSessionRepository,
+    // Shared sync seam (see ReaderProgressSyncSession) — replaces the ad-hoc per-reader
+    // ProgressSyncController construction so every reader consumes sync the same way (#528).
+    private val syncSession = ReaderProgressSyncSession(
+        itemId = itemId,
+        readingSessionRepository = readingSessionRepository,
         scope = viewModelScope,
         onSyncError = { _syncErrorEvents.tryEmit(Unit) },
     )
@@ -256,7 +258,7 @@ class PdfReaderViewModel @Inject constructor(
             openBook()
         }
         viewModelScope.launch {
-            progressSyncController.serverPositionEvents.collect { serverProgress ->
+            syncSession.serverPositionEvents.collect { serverProgress ->
                 serverLocationToLocator(serverProgress.ebookLocation)?.let { _serverLocatorChannel.trySend(it) }
             }
         }
@@ -287,7 +289,7 @@ class PdfReaderViewModel @Inject constructor(
                     title = item.title,
                     initialLocator = locator,
                 )
-                progressSyncController.sync(itemId, locator?.toPayload() ?: SessionPayload("", 0f))
+                syncSession.sync(locator?.toPayload() ?: SessionPayload("", 0f))
                 readingSessionCoordinator.onResumed(
                     initialTotalProgression = null,
                     onTick = { syncCurrentPosition() },
@@ -488,7 +490,7 @@ class PdfReaderViewModel @Inject constructor(
 
     private fun syncCurrentPosition() {
         val locator = lastLocator ?: return
-        progressSyncController.sync(itemId, locator.toPayload())
+        syncSession.sync(locator.toPayload())
     }
 
     fun onReaderResumed() {
@@ -514,7 +516,7 @@ class PdfReaderViewModel @Inject constructor(
         viewModelScope.launch {
             val payload = locator.toPayload()
             positionSaveCoordinator.onClose(locator.toJSON().toString(), payload.ebookProgress)
-            progressSyncController.sync(itemId, payload)
+            syncSession.sync(payload)
         }
     }
 

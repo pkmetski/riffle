@@ -156,6 +156,7 @@ class SeriesIntegrationTest {
             collectionDao = FakeCollectionDao(),
             sourceRepository = fakeServerRepository,
             clock = com.riffle.core.domain.TestClock(),
+            logger = com.riffle.core.logging.RecordingLogger(),
         )
     }
 

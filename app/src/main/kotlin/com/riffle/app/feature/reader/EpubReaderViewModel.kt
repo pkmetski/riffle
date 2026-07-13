@@ -39,7 +39,6 @@ import com.riffle.app.feature.reader.session.FormattingSession
 import com.riffle.app.feature.reader.session.PositionOrchestrator
 import com.riffle.core.domain.LibraryObserver
 import com.riffle.core.domain.usecase.UpdateReadingProgress
-import com.riffle.core.domain.ProgressSyncController
 import com.riffle.core.domain.ReadaloudAudioRepository
 import com.riffle.core.domain.ReadaloudLinkRepository
 import com.riffle.core.domain.ReaderOrientation
@@ -391,8 +390,11 @@ class EpubReaderViewModel @Inject constructor(
     // Delegates to the session — the channel lives there now (sub-task 8.3).
     val pageTopProbeRequests: Flow<String> get() = readaloud.pageTopProbeRequests
 
-    private val progressSyncController = ProgressSyncController(
-        repository = readingSessionRepository,
+    // Shared sync seam (see ReaderProgressSyncSession) — every reader consumes sync the same
+    // way, so a new reader implementation gets it for free without re-wiring (#528).
+    private val syncSession = ReaderProgressSyncSession(
+        itemId = itemId,
+        readingSessionRepository = readingSessionRepository,
         scope = viewModelScope,
         onSyncError = { _syncErrorEvents.tryEmit(Unit) },
     )
@@ -908,7 +910,7 @@ class EpubReaderViewModel @Inject constructor(
         // see [setAutoScrollPaused] below.
         viewModelScope.launch {
             if (!shouldRunReadingSideEffects(source)) return@launch
-            progressSyncController.serverPositionEvents.collect { serverProgress ->
+            syncSession.serverPositionEvents.collect { serverProgress ->
                 val locator = serverProgressToLocator(serverProgress) ?: return@collect
                 // An explicit openAtCfi (annotation tap / search hit) takes precedence over server
                 // sync on first open — otherwise ABS's last-read position races in and yanks the
@@ -1163,7 +1165,7 @@ class EpubReaderViewModel @Inject constructor(
         if (lifecycle.matchedSync.value?.readerSync != null) {
             runReaderSyncCycle(syncLocator)
         } else {
-            progressSyncController.sync(itemId, syncLocator?.toPayload() ?: SessionPayload("", 0f))
+            syncSession.sync(syncLocator?.toPayload() ?: SessionPayload("", 0f))
         }
 
         // Heartbeat only — no speed-tracker baseline yet (openBook can fire well before the first
@@ -1184,7 +1186,7 @@ class EpubReaderViewModel @Inject constructor(
         val locator = position.snapshotLastLocator() ?: return
         viewModelScope.launch {
             if (lifecycle.matchedSync.value?.readerSync != null) runReaderSyncCycle(locator)
-            else progressSyncController.sync(itemId, locator.toPayload())
+            else syncSession.sync(locator.toPayload())
         }
     }
 
@@ -1390,7 +1392,7 @@ class EpubReaderViewModel @Inject constructor(
             val payload = locator.toPayload()
             positionSaveCoordinator.onClose(locator.toJSON().toString(), payload.ebookProgress)
             if (lifecycle.matchedSync.value?.readerSync != null) runReaderSyncCycle(locator)
-            else progressSyncController.sync(itemId, payload)
+            else syncSession.sync(payload)
         }
     }
 
