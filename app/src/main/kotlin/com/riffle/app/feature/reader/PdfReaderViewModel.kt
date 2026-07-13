@@ -259,7 +259,14 @@ class PdfReaderViewModel @Inject constructor(
         }
         viewModelScope.launch {
             syncSession.serverPositionEvents.collect { serverProgress ->
-                serverLocationToLocator(serverProgress.ebookLocation)?.let { _serverLocatorChannel.trySend(it) }
+                val locator = serverLocationToLocator(serverProgress.ebookLocation) ?: return@collect
+                // Adopt the server's locator into in-memory state alongside the channel emit.
+                // Without this, `lastLocator` stayed at the stale initial (device-loaded)
+                // position — a fast back-out before navigator.go landed would then save the
+                // stale locator with a fresh stamp and the next sync pushed it back over the
+                // server position. (#528)
+                lastLocator = locator
+                _serverLocatorChannel.trySend(locator)
             }
         }
     }

@@ -50,13 +50,17 @@ class ServerJumpCoordinator {
     /**
      * Variant used by the progressSyncController observer: honours [suppressNextServerLocator]
      * and clears it once consumed, so an explicit openAtCfi navigation is not overridden.
+     * Returns `true` when the jump was actually sent through the channel (caller can mirror the
+     * locator into in-memory state so a fast reader-close doesn't save the stale pre-jump
+     * position — #528); `false` when the jump was suppressed.
      */
-    fun requestJumpWithSuppressCheck(locator: Locator) {
+    fun requestJumpWithSuppressCheck(locator: Locator): Boolean {
         if (suppressNextServerLocator) {
             suppressNextServerLocator = false
-            return
+            return false
         }
         channel.trySend(locator)
+        return true
     }
 
     /**

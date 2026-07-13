@@ -169,9 +169,17 @@ class PositionOrchestrator @AssistedInject constructor(
     /** @see ServerJumpCoordinator.requestJump */
     fun requestServerJump(locator: Locator) = serverJump.requestJump(locator)
 
-    /** @see ServerJumpCoordinator.requestJumpWithSuppressCheck */
-    fun requestServerJumpWithSuppressCheck(locator: Locator) =
-        serverJump.requestJumpWithSuppressCheck(locator)
+    /**
+     * @see ServerJumpCoordinator.requestJumpWithSuppressCheck. When the jump is honored, also
+     * mirror the locator into [lastLocator] so a fast reader-close (before the UI-level
+     * navigator.go completes) doesn't cause `onClose` to save the stale pre-jump position and
+     * push it back over the fresh server value on the next sync (#528).
+     */
+    fun requestServerJumpWithSuppressCheck(locator: Locator) {
+        if (serverJump.requestJumpWithSuppressCheck(locator)) {
+            lastLocator = locator
+        }
+    }
 
     /** @see ServerJumpCoordinator.markSuppressNext */
     fun markSuppressNextServerLocator() = serverJump.markSuppressNext()

@@ -129,7 +129,7 @@ class ProgressSyncCycleTest {
     fun `source-newer returns ServerWins with source ebookLocation and updates localUpdatedAt`() = runTest {
         val localTs = 1_000L
         val serverTs = 2_000L
-        val positionStore = FakePositionStore(localUpdatedAt = localTs)
+        val positionStore = FakePositionStore(localUpdatedAt = localTs, storedCfi = "old-local-87pct")
         val api = FakeSessionApi(
             getResult = NetworkResult.Success(
                 NetworkServerProgress("epubcfi(/6/8!/4/1:0)", lastUpdate = serverTs)
@@ -142,7 +142,27 @@ class ProgressSyncCycleTest {
         assertEquals("epubcfi(/6/8!/4/1:0)", (result as ProgressSyncCycleResult.ServerWins).serverProgress.ebookLocation)
         assertEquals(serverTs, result.serverProgress.lastUpdate)
         assertEquals(serverTs, positionStore.updatedTimestamp)
+        // ServerWins must ALSO persist the server locator, not just the timestamp — prior code
+        // left the store's payload stale, so a fast reader-close after ServerWins pushed the
+        // stale local back over the fresh server value (#528).
+        assertEquals("epubcfi(/6/8!/4/1:0)", positionStore.savedPayload)
         assertEquals(0, api.patchCallCount)
+    }
+
+    @Test
+    fun `ServerWins does not overwrite the store's payload when the server has no locator (never-opened peer)`() = runTest {
+        // A never-opened item on the server returns an empty ebookLocation. Don't wipe the
+        // locally-persisted locator with an empty string just to adopt the newer stamp — leave
+        // the local payload untouched (the sync only cares about timestamps to compare).
+        val positionStore = FakePositionStore(localUpdatedAt = 1_000L, storedCfi = "local-cfi")
+        val api = FakeSessionApi(
+            getResult = NetworkResult.Success(NetworkServerProgress("", lastUpdate = 2_000L))
+        )
+
+        buildRepo(api, positionStore).runSyncCycle("item-1", payload)
+
+        assertEquals(null, positionStore.savedPayload) // save was NOT called with empty
+        assertEquals(2_000L, positionStore.updatedTimestamp) // stamp still adopted
     }
 
     @Test

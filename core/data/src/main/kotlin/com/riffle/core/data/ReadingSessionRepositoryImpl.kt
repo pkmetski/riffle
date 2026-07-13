@@ -55,10 +55,21 @@ class ReadingSessionRepositoryImpl @Inject constructor(
 
         return when {
             serverLastUpdate > localUpdatedAt && serverProgress != null -> {
+                // Persist the server's position AND stamp — prior code only bumped the
+                // timestamp, so positionStore.load() kept returning the stale local locator.
+                // If the reader closed before the ServerLocator UI-jump landed (fast back-out),
+                // onClose would save the stale locator with a fresh `maxOf(now, existing+1)`
+                // stamp and the next sync-cycle would push it back over the fresh server
+                // position — the "Device 2 open silently downgraded Device 1's progress" bug.
+                // Order matters: save first (sets its own stamp via TimestampedPositionStore),
+                // then overwrite the stamp to the server's exact stamp so a subsequent equal
+                // sync-cycle stays InSync (#528).
+                val serverLoc = serverProgress.ebookLocation.orEmpty()
+                if (serverLoc.isNotEmpty()) positionStore.save(source.id, itemId, serverLoc)
                 positionStore.updateLocalTimestamp(source.id, itemId, serverLastUpdate)
                 ProgressSyncCycleResult.ServerWins(
                     ServerProgress(
-                        ebookLocation = serverProgress.ebookLocation.orEmpty(),
+                        ebookLocation = serverLoc,
                         ebookProgress = serverProgress.ebookProgress,
                         lastUpdate = serverLastUpdate,
                     )
