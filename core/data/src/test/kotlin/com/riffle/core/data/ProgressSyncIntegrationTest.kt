@@ -46,8 +46,8 @@ class ProgressSyncIntegrationTest {
         override suspend fun load(sourceId: String, itemId: String): String? = null
         override suspend fun loadLocalUpdatedAt(sourceId: String, itemId: String): Long = localUpdatedAt
         override suspend fun loadLastSyncedAt(sourceId: String, itemId: String): Long = 0L
-        override suspend fun acceptServer(sourceId: String, itemId: String, payload: String, serverStamp: Long) { }
-        override suspend fun markSyncedAt(sourceId: String, itemId: String, stamp: Long) { }
+        override suspend fun acceptServer(sourceId: String, itemId: String, payload: String, serverStamp: Long) { updatedTimestamp = serverStamp }
+        override suspend fun markSyncedAt(sourceId: String, itemId: String, stamp: Long) { updatedTimestamp = stamp }
         override suspend fun updateLocalTimestamp(sourceId: String, itemId: String, millis: Long) { updatedTimestamp = millis }
     }
 
