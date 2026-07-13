@@ -31,4 +31,14 @@ interface PositionStore<P> {
      * equivalent that carries a compare-and-swap guard (#528).
      */
     suspend fun acceptServer(sourceId: String, itemId: String, payload: P, serverStamp: Long)
+
+    /**
+     * Sets BOTH `localUpdatedAt` and `lastSyncedAt` to [stamp] without touching the payload,
+     * marking the row **clean** at that stamp. Used by the live sync cycle after a successful
+     * LocalWins push (row payload already matches server) and after a ServerWins adoption where
+     * the server has no locator to write. Without this, the row would keep `localUpdatedAt >
+     * lastSyncedAt` after a successful sync and be re-flagged dirty by the sweep on every tick
+     * (#528).
+     */
+    suspend fun markSyncedAt(sourceId: String, itemId: String, stamp: Long)
 }

@@ -13,6 +13,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
+import org.junit.Assert.fail
 import org.junit.Before
 import org.junit.Test
 
@@ -197,20 +198,24 @@ class KomgaCatalogTest {
         assertTrue("completed must NOT be sent on a routine save: $bodyStr", !bodyStr.contains("completed"))
     }
 
-    @Test fun `pushEbookProgress forwards explicit isFinished=false (mark-unread) so Komga clears its Read shelf`() = runTest {
-        // Mark-unread is the other explicit case — completed:false must reach Komga.
+    @Test fun `pushEbookProgress with isFinished=false DELETEs the Komga read-progress record (#528)`() = runTest {
+        // Mark-unread routes to Komga's DELETE endpoint. Prior code PATCHed {"completed":false}
+        // with no page — Komga preserves the last-read page, so on the next pullProgress
+        // readProgress = (page=N, completed=false) and toCatalogProgress computes progress=1.0f,
+        // silently restoring the book to "In Progress" at 100% on every device.
         server.enqueue(MockResponse().setResponseCode(204))
 
         catalog.pushEbookProgress(
             itemId = "B1",
-            location = "1",
+            location = "",       // markFinished(false) clears the local locator
             progress = 0f,
             isFinished = false,
             lastUpdateEpochMs = 0L,
         )
 
-        val bodyStr = server.takeRequest().body.readUtf8()
-        assertTrue("completed must be sent as false: $bodyStr", bodyStr.contains("\"completed\":false"))
+        val recorded = server.takeRequest()
+        assertEquals("DELETE", recorded.method)
+        assertEquals("/api/v1/books/B1/read-progress", recorded.path)
     }
 
     @Test fun `pushEbookProgress forwards explicit isFinished=true (mark-finished)`() = runTest {
@@ -343,6 +348,21 @@ class KomgaCatalogTest {
         """.trimIndent()))
 
         assertNull("a book with no server-side progress has no CatalogProgress row", catalog.pullProgress("B1"))
+    }
+
+    @Test fun `pullProgress propagates network exceptions instead of swallowing them (#528)`() = runTest {
+        // Prior code caught IOException and returned null — indistinguishable from "no server
+        // progress" — so ReadingSessionRepositoryImpl.runSyncCycle saw serverLastUpdate=0 and
+        // LocalWins-PATCHed a stale local page over an unread network error. Letting the throw
+        // propagate lets the caller's `runCatching` correctly map to Offline.
+        server.enqueue(MockResponse().setResponseCode(502))
+
+        try {
+            catalog.pullProgress("B1")
+            fail("expected KomgaHttpException on a 502 pullProgress")
+        } catch (_: KomgaHttpException) {
+            // expected
+        }
     }
 
     @Test fun `pullAllProgress sweeps every page of in-progress books`() = runTest {

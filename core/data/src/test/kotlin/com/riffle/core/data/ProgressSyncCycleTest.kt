@@ -57,6 +57,12 @@ class ProgressSyncCycleTest {
             localUpdatedAt = serverStamp
             lastSyncedAt = serverStamp
         }
+        override suspend fun markSyncedAt(sourceId: String, itemId: String, stamp: Long) {
+            updatedServerId = sourceId
+            updatedTimestamp = stamp
+            localUpdatedAt = stamp
+            lastSyncedAt = stamp
+        }
         override suspend fun updateLocalTimestamp(sourceId: String, itemId: String, millis: Long) {
             updatedServerId = sourceId
             updatedTimestamp = millis
@@ -99,6 +105,7 @@ class ProgressSyncCycleTest {
         override suspend fun loadLocalUpdatedAt(sourceId: String, itemId: String): Long = 0L
         override suspend fun loadLastSyncedAt(sourceId: String, itemId: String): Long = 0L
         override suspend fun acceptServer(sourceId: String, itemId: String, payload: Double, serverStamp: Long) { }
+        override suspend fun markSyncedAt(sourceId: String, itemId: String, stamp: Long) { updatedTimestamp = stamp }
         override suspend fun updateLocalTimestamp(sourceId: String, itemId: String, millis: Long) {
             updatedTimestamp = millis
         }
@@ -197,6 +204,44 @@ class ProgressSyncCycleTest {
         assertTrue(result is ProgressSyncCycleResult.LocalWins)
         assertEquals(1, api.patchCallCount)
         assertEquals(patchResponseTs, positionStore.updatedTimestamp)
+    }
+
+    @Test
+    fun `LocalWins marks the row clean so the sweep does not re-push indefinitely (#528)`() = runTest {
+        // After a successful LocalWins, lastSyncedAt must advance to the push-returned stamp so
+        // the row is no longer classified as dirty by RoomDirtyProgressLedger (localUpdatedAt >
+        // lastSyncedAt). Prior code only touched localUpdatedAt, leaving lastSyncedAt stale, so
+        // the durable sweep re-picked the row every tick and re-PATCHed indefinitely. Also
+        // breaks the dirty-aware runSyncCycle invariant for subsequent cross-device pushes.
+        val positionStore = FakePositionStore(localUpdatedAt = 3_000L, lastSyncedAt = 1_000L)
+        val api = FakeSessionApi(
+            getResult = NetworkResult.Success(NetworkServerProgress("old-cfi", lastUpdate = 500L)),
+            patchResult = NetworkResult.Success(3_100L),
+        )
+
+        buildRepo(api, positionStore).runSyncCycle("item-1", payload)
+
+        assertEquals(3_100L, positionStore.localUpdatedAt)
+        assertEquals(3_100L, positionStore.lastSyncedAt)
+    }
+
+    @Test
+    fun `ServerWins with empty server ebookLocation still marks row clean (#528)`() = runTest {
+        // Fresh Device 2 with local=0, lastSyncedAt=0; server has lastUpdate=100 but no locator
+        // (never-opened peer). Adopt the timestamp AND set both stamps so the row is clean —
+        // prior code called updateLocalTimestamp which only advanced localUpdatedAt, leaving
+        // lastSyncedAt=0 and the row permanently marked dirty on the very cycle whose purpose
+        // was to adopt the server side.
+        val positionStore = FakePositionStore(localUpdatedAt = 0L, lastSyncedAt = 0L, storedCfi = "local-cfi")
+        val api = FakeSessionApi(
+            getResult = NetworkResult.Success(NetworkServerProgress("", lastUpdate = 100L))
+        )
+
+        buildRepo(api, positionStore).runSyncCycle("item-1", payload)
+
+        assertEquals(100L, positionStore.localUpdatedAt)
+        assertEquals(100L, positionStore.lastSyncedAt)
+        assertEquals(null, positionStore.savedPayload) // locally-persisted locator NOT clobbered
     }
 
     @Test

@@ -103,7 +103,16 @@ class CbzReaderViewModel @Inject constructor(
                 val clamped = page.coerceIn(0, ready.pageCount - 1)
                 if (clamped != _currentPage.value) {
                     _currentPage.value = clamped
-                    savePosition(clamped, ready.pageCount)
+                    lastSavedPage = clamped
+                    // Update the library display fraction. Do NOT call savePosition — the
+                    // runSyncCycle ServerWins branch has already written the server's locator
+                    // to positionStore atomically via acceptServer, and re-writing here in CBZ's
+                    // own locator shape would re-dirty the row (payload differs from what
+                    // acceptServer stored) and cause the next sync-cycle to LocalWins-PATCH the
+                    // adopted page right back to the server — a redundant round trip per open
+                    // (#528).
+                    val progressFraction = if (ready.pageCount > 1) clamped.toFloat() / (ready.pageCount - 1).toFloat() else 1f
+                    viewModelScope.launch { updateReadingProgressUseCase(itemId, progressFraction) }
                 }
             }
         }
@@ -238,8 +247,19 @@ class CbzReaderViewModel @Inject constructor(
         readerStateHolder.isPanelOpen = false
         if (closeSyncDone) return
         closeSyncDone = true
-        val ready = _state.value as? CbzReaderState.Ready
-        if (ready != null) savePosition(_currentPage.value, ready.pageCount)
+        val ready = _state.value as? CbzReaderState.Ready ?: return
+        savePosition(_currentPage.value, ready.pageCount)
+        // Match PDF/EPUB: kick a sync-cycle on close so a Komga comic advanced during the
+        // session PATCHes to the server immediately, instead of waiting for the periodic sweep
+        // (#528).
+        val page = _currentPage.value + 1
+        val progression = if (ready.pageCount > 0) page.toDouble() / ready.pageCount.toDouble() else 0.0
+        val locatorJson = JSONObject()
+            .put("href", "cbz://page")
+            .put("type", "application/vnd.comicbook+zip")
+            .put("locations", JSONObject().put("position", page).put("totalProgression", progression))
+            .toString()
+        syncSession.sync(SessionPayload(ebookLocation = locatorJson, ebookProgress = progression.toFloat()))
     }
 
     override fun onCleared() {

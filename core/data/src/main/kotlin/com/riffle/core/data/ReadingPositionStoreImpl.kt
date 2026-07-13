@@ -24,6 +24,12 @@ class ReadingPositionStoreImpl @Inject constructor(
         dao.upsert(ReadingPositionEntity(sourceId, itemId, payload, stamp, stamp))
     }
 
+    override suspend fun writeStampsOnly(sourceId: String, itemId: String, stamp: Long) {
+        // Preserve the existing payload; write both timestamps to `stamp`.
+        val existing = dao.getByItemId(sourceId, itemId)
+        dao.upsert(ReadingPositionEntity(sourceId, itemId, existing?.cfi ?: "", stamp, stamp))
+    }
+
     override suspend fun readPayload(sourceId: String, itemId: String): String? =
         dao.getByItemId(sourceId, itemId)?.cfi
 

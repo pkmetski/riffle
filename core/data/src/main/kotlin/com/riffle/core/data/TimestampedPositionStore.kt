@@ -27,6 +27,8 @@ abstract class TimestampedPositionStore<P>(
     protected abstract suspend fun writePayload(sourceId: String, itemId: String, payload: P, updatedAt: Long)
     /** Overwrite the row with [payload] and set BOTH `localUpdatedAt` and `lastSyncedAt` to [stamp]. */
     protected abstract suspend fun writeCleanAtStamp(sourceId: String, itemId: String, payload: P, stamp: Long)
+    /** Set BOTH `localUpdatedAt` and `lastSyncedAt` to [stamp] without touching the payload. */
+    protected abstract suspend fun writeStampsOnly(sourceId: String, itemId: String, stamp: Long)
     protected abstract suspend fun readPayload(sourceId: String, itemId: String): P?
     protected abstract suspend fun readUpdatedAt(sourceId: String, itemId: String): Long?
     protected abstract suspend fun readLastSyncedAt(sourceId: String, itemId: String): Long?
@@ -46,6 +48,10 @@ abstract class TimestampedPositionStore<P>(
 
     final override suspend fun acceptServer(sourceId: String, itemId: String, payload: P, serverStamp: Long) {
         writeCleanAtStamp(sourceId, itemId, payload, serverStamp)
+    }
+
+    final override suspend fun markSyncedAt(sourceId: String, itemId: String, stamp: Long) {
+        writeStampsOnly(sourceId, itemId, stamp)
     }
 
     final override suspend fun load(sourceId: String, itemId: String): P? =

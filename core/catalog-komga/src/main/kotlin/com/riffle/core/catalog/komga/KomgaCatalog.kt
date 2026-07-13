@@ -229,6 +229,16 @@ class KomgaCatalog(
         lastUpdateEpochMs: Long,
     ): Long? {
         val page = extractPageFromLocation(location)
+        // Mark-unread (`isFinished == false`) DELETEs Komga's read-progress record entirely.
+        // Prior code PATCHed `{completed:false}` without a page — Komga preserves the last-read
+        // page, so on the next pullProgress readProgress = (page=100, completed=false), and
+        // toCatalogProgress computes progress=100/100=1.0f — silently restoring the book to
+        // 100% "In Progress" on every device. Komga's DELETE endpoint is the correct semantic
+        // for clearing progress (#528).
+        if (isFinished == false) {
+            http.delete(apiUrl("books/$itemId/read-progress"))
+            return null
+        }
         // Honour the tri-state contract of [ProgressPeerCapability.pushEbookProgress]: `null`
         // must leave the server's `completed` flag untouched. Prior code derived
         // `completed = isFinished ?: (progress >= 1f)`, which routinely sent `completed = false`
@@ -252,7 +262,13 @@ class KomgaCatalog(
     }
 
     override suspend fun pullProgress(itemId: String): CatalogProgress? {
-        val body = runCatching { http.getString(apiUrl("books/$itemId")) }.getOrNull() ?: return null
+        // Let network exceptions propagate. Prior code wrapped `http.getString` in `runCatching`
+        // and returned null on any throw — indistinguishable from "server has no readProgress
+        // for this book" — so a transient IOException/5xx caused `runSyncCycle` to treat local
+        // as serverLastUpdate=0 and LocalWins-PATCH a stale local page (which then also fails
+        // silently). Throwing lets `runSyncCycle`'s outer `runCatching` map the failure to
+        // ProgressSyncCycleResult.Offline correctly (#528).
+        val body = http.getString(apiUrl("books/$itemId"))
         val dto = runCatching { KomgaJson.decodeFromString(serializer<KomgaBookDto>(), body) }.getOrNull()
             ?: return null
         return dto.toCatalogProgress()

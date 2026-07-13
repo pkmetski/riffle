@@ -23,6 +23,11 @@ class AudiobookPositionStoreImpl @Inject constructor(
         dao.upsert(AudiobookPositionEntity(sourceId, itemId, payload, stamp, stamp))
     }
 
+    override suspend fun writeStampsOnly(sourceId: String, itemId: String, stamp: Long) {
+        val existing = dao.getByItemId(sourceId, itemId)
+        dao.upsert(AudiobookPositionEntity(sourceId, itemId, existing?.positionSec ?: 0.0, stamp, stamp))
+    }
+
     override suspend fun readPayload(sourceId: String, itemId: String): Double? =
         dao.getByItemId(sourceId, itemId)?.positionSec
 

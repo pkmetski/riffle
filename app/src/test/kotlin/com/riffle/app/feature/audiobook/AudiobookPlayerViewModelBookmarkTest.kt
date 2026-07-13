@@ -692,6 +692,7 @@ class AudiobookPlayerViewModelBookmarkTest {
         override suspend fun loadLocalUpdatedAt(sourceId: String, itemId: String): Long = savedUpdatedAt
         override suspend fun loadLastSyncedAt(sourceId: String, itemId: String): Long = 0L
         override suspend fun acceptServer(sourceId: String, itemId: String, payload: Double, serverStamp: Long) {}
+        override suspend fun markSyncedAt(sourceId: String, itemId: String, stamp: Long) { }
         override suspend fun updateLocalTimestamp(sourceId: String, itemId: String, millis: Long) {}
     }
 

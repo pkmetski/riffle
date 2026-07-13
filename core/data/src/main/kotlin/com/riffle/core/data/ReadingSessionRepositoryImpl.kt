@@ -81,9 +81,10 @@ class ReadingSessionRepositoryImpl @Inject constructor(
                     positionStore.acceptServer(source.id, itemId, serverLoc, serverLastUpdate)
                 } else {
                     // Server is a never-opened peer with no locator — still adopt the timestamp
-                    // so subsequent cycles stay InSync. Don't clobber the locally-persisted
-                    // locator with "".
-                    positionStore.updateLocalTimestamp(source.id, itemId, serverLastUpdate)
+                    // AND mark clean so we don't leave the row permanently dirty (which the sweep
+                    // would re-pick up on every tick). Don't clobber the locally-persisted locator
+                    // with "" — that's what markSyncedAt guarantees vs updateLocalTimestamp (#528).
+                    positionStore.markSyncedAt(source.id, itemId, serverLastUpdate)
                 }
                 ProgressSyncCycleResult.ServerWins(
                     ServerProgress(
@@ -109,8 +110,14 @@ class ReadingSessionRepositoryImpl @Inject constructor(
                 if (stamp != null) {
                     // Adopt the source-derived stamp; a zero/absent stamp falls back to clock so the
                     // row still marks clean (matches the old sessionApi.syncEbookProgress path).
+                    // Use markSyncedAt to set BOTH stamps — prior code called updateLocalTimestamp
+                    // which only advanced localUpdatedAt, leaving lastSyncedAt stale so the row
+                    // stayed "dirty" per RoomDirtyProgressLedger's `localUpdatedAt > lastSyncedAt`
+                    // query. The sweep then re-picked the row on every tick and re-PATCHed
+                    // indefinitely, and the dirty-aware runSyncCycle comparison misclassified
+                    // subsequent cross-device pushes as LocalWins-worthy (#528).
                     val ts = stamp.takeIf { it > 0L } ?: clock.nowMs()
-                    positionStore.updateLocalTimestamp(source.id, itemId, ts)
+                    positionStore.markSyncedAt(source.id, itemId, ts)
                 }
                 ProgressSyncCycleResult.LocalWins
             }
