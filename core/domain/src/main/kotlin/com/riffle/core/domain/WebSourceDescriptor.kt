@@ -173,10 +173,23 @@ interface WebSourceDescriptor {
      * [SyncNamespace.Configured] (when the remote user id is already persisted) or
      * [SyncNamespace.PendingRemoteId] (when the identity contract exists but the id hasn't been
      * fetched from the server yet — the repository resolves it via a per-[SourceType]
-     * [RemoteUserIdResolver] and persists to `Source.absUserId`).
+     * [RemoteUserIdResolver], persists to `Source.absUserId`, and then calls
+     * [namespaceFromRemoteId] to project the freshly-resolved id into a namespace).
      */
     fun syncNamespaceFor(source: Source): SyncNamespace =
         SyncNamespace.LocalOnly("This source's books stay on this device.")
+
+    /**
+     * Project a freshly-fetched `remoteUserId` into this descriptor's namespace, without going
+     * through [syncNamespaceFor] on a synthesised `source.copy(absUserId = remoteUserId)`. The
+     * default (this base implementation) reads the persisted id off `source` via
+     * [syncNamespaceFor]; the repository never calls it on descriptors whose
+     * [syncNamespaceFor] returned [SyncNamespace.PendingRemoteId] without overriding this hook.
+     *
+     * Override on any descriptor whose [syncNamespaceFor] can return [SyncNamespace.PendingRemoteId].
+     */
+    fun namespaceFromRemoteId(source: Source, remoteUserId: String): SyncNamespace =
+        syncNamespaceFor(source)
 }
 
 /**
@@ -312,6 +325,13 @@ object AbsWebSourceDescriptor : WebSourceDescriptor {
             ?.let { SyncNamespace.Configured(it) }
             ?: SyncNamespace.PendingRemoteId
     }
+
+    override fun namespaceFromRemoteId(source: Source, remoteUserId: String): SyncNamespace =
+        when (source.serverType) {
+            ServerType.STORYTELLER_SERVICE ->
+                SyncNamespace.LocalOnly("Annotations on Storyteller readalouds sync via your paired Audiobookshelf server.")
+            ServerType.AUDIOBOOKSHELF -> SyncNamespace.Configured(remoteUserId)
+        }
 }
 
 object LocalFilesWebSourceDescriptor : WebSourceDescriptor {
@@ -373,13 +393,28 @@ object KomgaWebSourceDescriptor : WebSourceDescriptor {
     override fun iconRemoteUrl(sourceBaseUrl: String, serverType: ServerType): String =
         "${sourceBaseUrl.trimEnd('/')}/favicon.ico"
 
+    /**
+     * Namespace prefix stamped onto every Komga sync namespace. Extracted as a constant so the
+     * production site and every test/fixture reference the same value — a mis-typed literal
+     * (`"kmga_"`) at either end would otherwise round-trip green (AGENTS.md: "Always reference
+     * constants, never the literal").
+     *
+     * Guarantees non-collision with ABS: ABS namespaces are raw UUIDs (`19621aae-…`) which
+     * contain no underscore before the first hex block, so no ABS namespace can ever start
+     * with this prefix regardless of the id value.
+     */
+    const val KOMGA_NAMESPACE_PREFIX = "komga_"
+
     // Prefix with `komga_` so a Komga user id can't collide with an ABS user id (both are
     // stored in the same WebDAV share; the target's flat filename layout means the namespace
     // string alone has to distinguish source kinds).
     override fun syncNamespaceFor(source: Source): SyncNamespace =
         source.absUserId?.takeIf { it.isNotBlank() }
-            ?.let { SyncNamespace.Configured("komga_$it") }
+            ?.let { namespaceFromRemoteId(source, it) }
             ?: SyncNamespace.PendingRemoteId
+
+    override fun namespaceFromRemoteId(source: Source, remoteUserId: String): SyncNamespace =
+        SyncNamespace.Configured("$KOMGA_NAMESPACE_PREFIX$remoteUserId")
 }
 
 object GutenbergWebSourceDescriptor : WebSourceDescriptor {

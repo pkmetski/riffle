@@ -111,6 +111,10 @@ class SourceRepositoryImpl @Inject constructor(
         val fetched = resolver.resolve(source, token)?.takeIf { it.isNotBlank() }
             ?: return SyncNamespace.PendingRemoteId
         dao.setAbsUserId(sourceId, fetched)
-        return descriptor.syncNamespaceFor(source.copy(absUserId = fetched))
+        // Project the freshly-fetched id through the descriptor's dedicated hook instead of
+        // synthesising a `source.copy(absUserId = fetched)` and re-invoking syncNamespaceFor —
+        // avoids the double-eval and keeps the "how do I turn an id into a namespace" logic in
+        // one method per descriptor.
+        return descriptor.namespaceFromRemoteId(source, fetched)
     }
 }

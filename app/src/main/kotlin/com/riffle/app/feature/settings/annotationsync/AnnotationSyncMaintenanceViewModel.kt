@@ -7,8 +7,10 @@ import com.riffle.core.data.AnnotationSyncStatusStore
 import com.riffle.core.domain.DeviceIdStore
 import com.riffle.core.domain.DeviceLabelResolver
 import com.riffle.core.domain.DeviceLabelStore
+import com.riffle.core.domain.Source
 import com.riffle.core.domain.SourceRepository
 import com.riffle.core.domain.SyncNamespace
+import com.riffle.core.domain.WebSourceDescriptors
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -319,19 +321,22 @@ class AnnotationSyncMaintenanceViewModel @Inject constructor(
             .format(java.time.Instant.ofEpochMilli(atMs))
 
     private suspend fun resolveNamespace(): String? {
-        // Active server first (most relevant to the user), then any configured source that
-        // resolves to a Configured sync namespace — Maintenance shows files from whichever
-        // account currently owns them. Any descriptor returning LocalOnly (Storyteller peer,
-        // anonymous catalogs, local files) is skipped so its sources never crowd out a real
-        // sync-eligible source further down the list.
+        // Active server first, then any configured source whose descriptor already resolves to
+        // a Configured namespace from the persisted `absUserId`. Deliberately does NOT go
+        // through `ensureSyncNamespace` — that would trigger a per-source network probe for
+        // any legacy row whose id hasn't been backfilled, and Maintenance is opened often
+        // enough (and offline often enough) that N sequential connect-timeouts on screen open
+        // would be a real user-visible hitch. Backfill is the reader's and the sweep's job;
+        // Maintenance just shows what's already known.
+        fun namespaceFor(source: Source): String? {
+            val descriptor = WebSourceDescriptors.forType(source.type) ?: return null
+            return (descriptor.syncNamespaceFor(source) as? SyncNamespace.Configured)?.value
+        }
         sourceRepository.getActive()?.let { active ->
-            (sourceRepository.ensureSyncNamespace(active.id) as? SyncNamespace.Configured)
-                ?.value?.let { return it }
+            namespaceFor(active)?.let { return it }
         }
         val all = sourceRepository.observeAll().first()
-        return all.firstNotNullOfOrNull { source ->
-            (sourceRepository.ensureSyncNamespace(source.id) as? SyncNamespace.Configured)?.value
-        }
+        return all.firstNotNullOfOrNull { namespaceFor(it) }
     }
 
     private suspend fun currentDeviceLabel(): String =

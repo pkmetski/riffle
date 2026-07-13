@@ -3,6 +3,7 @@ package com.riffle.core.data.credentialed
 import com.riffle.core.catalog.komga.KomgaHttpException
 import com.riffle.core.catalog.komga.KomgaHttpClient
 import com.riffle.core.catalog.komga.buildBasicAuthHeader
+import com.riffle.core.catalog.komga.probeKomgaUserId
 import com.riffle.core.domain.AuthenticateResult
 import com.riffle.core.domain.InsecureConnectionType
 import com.riffle.core.domain.Library
@@ -51,7 +52,7 @@ class KomgaCredentialedAuthenticator @Inject constructor(
         // (#529) as this source's cross-device annotation-sync identity; falling back to v1 for
         // pre-Komga-1.9 builds that only serve the older endpoint shape.
         val meResult = try {
-            probeMe(http, base)
+            probeKomgaUserId(http, base)
         } catch (e: SSLHandshakeException) {
             return AuthenticateResult.InsecureConnection(InsecureConnectionType.SELF_SIGNED)
         } catch (e: IOException) {
@@ -99,34 +100,6 @@ class KomgaCredentialedAuthenticator @Inject constructor(
             )
         )
     }
-
-    private suspend fun probeMe(http: KomgaHttpClient, base: String): ProbeResult {
-        val v2 = fetchMe(http, "$base/api/v2/users/me")
-        if (v2.status == 404) return fetchMe(http, "$base/api/v1/users/me")
-        return v2
-    }
-
-    private suspend fun fetchMe(http: KomgaHttpClient, url: String): ProbeResult {
-        // Single GET so mock servers and real servers see exactly one request per probe. On
-        // non-2xx the client throws [KomgaHttpException] carrying the status; on 2xx we parse
-        // `id` for #529 (falling back to a userless success if the body doesn't match the
-        // shape — auth still passes).
-        return try {
-            val body = http.getString(url)
-            val id = runCatching {
-                Json { ignoreUnknownKeys = true }
-                    .decodeFromString(KomgaMeDto.serializer(), body).id.takeIf { it.isNotBlank() }
-            }.getOrNull()
-            ProbeResult(status = 200, userId = id)
-        } catch (e: KomgaHttpException) {
-            ProbeResult(status = e.code, userId = null)
-        }
-    }
-
-    private data class ProbeResult(val status: Int, val userId: String?)
-
-    @Serializable
-    private data class KomgaMeDto(@SerialName("id") val id: String)
 
     @Serializable
     private data class KomgaAuthLibraryDto(

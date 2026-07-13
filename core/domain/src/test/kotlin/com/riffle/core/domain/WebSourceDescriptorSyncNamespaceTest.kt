@@ -71,10 +71,14 @@ class WebSourceDescriptorSyncNamespaceTest {
     @Test
     fun `Komga with persisted user id resolves to Configured with a komga prefix`() {
         val ns = KomgaWebSourceDescriptor.syncNamespaceFor(komgaSource(userId = "komga-uid-abc"))
-        // Prefix prevents a numeric Komga id from colliding with an ABS UUID on the same WebDAV
-        // share — the target's flat filename layout means the namespace string has to
-        // distinguish source kinds by itself.
-        assertEquals(SyncNamespace.Configured("komga_komga-uid-abc"), ns)
+        // Reference the descriptor's own const so a rename/typo trips a compile-time diff, not
+        // a silent round-trip via a mirrored string literal (AGENTS.md: never the literal).
+        val expected = SyncNamespace.Configured(
+            "${KomgaWebSourceDescriptor.KOMGA_NAMESPACE_PREFIX}komga-uid-abc",
+        )
+        assertEquals(expected, ns)
+        // Sanity: the prefix hasn't drifted to a subtly different value.
+        assertEquals("komga_", KomgaWebSourceDescriptor.KOMGA_NAMESPACE_PREFIX)
     }
 
     @Test

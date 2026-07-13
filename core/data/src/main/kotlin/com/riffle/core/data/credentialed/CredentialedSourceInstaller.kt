@@ -60,9 +60,15 @@ class CredentialedSourceInstaller @Inject constructor(
             serverType = pending.serverType.name,
             // Persist the source's remote-user identity when the authenticator supplied one
             // (#529). ABS exposes `user.id` on /api/me, Komga exposes `id` on /api/v2/users/me;
-            // both flow through PendingSource.userId. Storyteller's login response carries no
-            // equivalent identity — its descriptor returns SyncNamespace.LocalOnly regardless.
-            absUserId = pending.userId.takeIf { it.isNotBlank() },
+            // both flow through PendingSource.userId. Storyteller is defence-in-depth-gated
+            // here: its descriptor returns SyncNamespace.LocalOnly regardless (annotations sync
+            // via the paired Audiobookshelf server), and its authenticator already sets
+            // userId="", but we belt-and-braces enforce the invariant at write time so a future
+            // authenticator refactor that stops zeroing out the id can't silently start
+            // persisting a Storyteller-side identity that then leaks into namespace logic.
+            absUserId = pending.userId.takeIf {
+                it.isNotBlank() && pending.serverType != ServerType.STORYTELLER_SERVICE
+            },
             type = pending.sourceType.name,
         )
         // Save credentials BEFORE inserting the row. `SourceDao.observeAll` is a Room Flow that

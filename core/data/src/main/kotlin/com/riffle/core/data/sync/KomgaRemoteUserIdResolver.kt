@@ -1,12 +1,11 @@
 package com.riffle.core.data.sync
 
 import com.riffle.core.catalog.komga.KomgaHttpClient
+import com.riffle.core.catalog.komga.probeKomgaUserId
 import com.riffle.core.domain.RemoteUserIdResolver
 import com.riffle.core.domain.Source
-import kotlinx.serialization.SerialName
-import kotlinx.serialization.Serializable
-import kotlinx.serialization.json.Json
 import okhttp3.OkHttpClient
+import java.io.IOException
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -16,28 +15,25 @@ import javax.inject.Singleton
  * .KomgaCredentialedAuthenticator] — pass it straight through the shared [KomgaHttpClient].
  *
  * Legacy Komga rows (installed before #529 wired the id into the add-source handshake) get
- * their id backfilled here on first sync.
+ * their id backfilled here on first sync. Delegates the actual `/users/me` handshake to
+ * [probeKomgaUserId] so the authenticator and the resolver stay in lockstep on fallback rules
+ * and cancellation semantics.
  */
 @Singleton
 class KomgaRemoteUserIdResolver @Inject constructor(
     private val okHttpClient: OkHttpClient,
 ) : RemoteUserIdResolver {
     override suspend fun resolve(source: Source, token: String): String? {
-        val base = source.url.value.trimEnd('/')
         val http = KomgaHttpClient(okHttpClient, token)
-        val json = Json { ignoreUnknownKeys = true }
-        // v2 is the current shape; v1 is the pre-Komga-1.9 fallback that still returns the same
-        // `{ "id": "..." }` envelope.
+        // Any HTTP status is preserved but only 2xx-with-parsable-body yields a usable id;
+        // callers treat a null return as "leave the source in PendingRemoteId and retry next
+        // time". IOException collapses to null too — offline resolve is a no-op, not a fatal
+        // error. CancellationException is not caught: it propagates so the enclosing scope
+        // (viewModelScope, reader lifecycle, sweep) can actually cancel the coroutine.
         return try {
-            val body = runCatching { http.getString("$base/api/v2/users/me") }
-                .recoverCatching { http.getString("$base/api/v1/users/me") }
-                .getOrElse { return null }
-            json.decodeFromString(KomgaMeDto.serializer(), body).id.takeIf { it.isNotBlank() }
-        } catch (_: Throwable) {
+            probeKomgaUserId(http, source.url.value).userId
+        } catch (_: IOException) {
             null
         }
     }
-
-    @Serializable
-    private data class KomgaMeDto(@SerialName("id") val id: String)
 }
