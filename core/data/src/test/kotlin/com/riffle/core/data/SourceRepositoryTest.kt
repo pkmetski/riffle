@@ -172,11 +172,13 @@ class ServerRepositoryTest {
         override suspend fun deleteById(sourceId: String, itemId: String) {
             rows.forEach { (_, v) -> v.removeAll { it.sourceId == sourceId && it.id == itemId } }
         }
-        override suspend fun deleteRemovedFromLibrary(sourceId: String, libraryId: String, serverItemIds: List<String>) = Unit
+        override suspend fun deleteByIds(sourceId: String, itemIds: List<String>) = Unit
+        override suspend fun idsForLibrary(sourceId: String, libraryId: String): List<String> = emptyList()
         override suspend fun updateLastOpenedAt(sourceId: String, itemId: String, timestamp: Long) {}
         override suspend fun getLastOpenedAtMap(sourceId: String, libraryId: String) = emptyList<com.riffle.core.database.LastOpenedAtRow>()
         override suspend fun getReadingProgressMap(sourceId: String, libraryId: String) = emptyList<com.riffle.core.database.ReadingProgressRow>()
         override suspend fun updateReadingProgress(sourceId: String, itemId: String, progress: Float) {}
+        override suspend fun updateInitialReadingProgress(sourceId: String, itemId: String, progress: Float) {}
         override suspend fun updateLibraryId(sourceId: String, itemId: String, libraryId: String) {}
         override suspend fun updateFinishedAt(sourceId: String, itemId: String, finishedAt: Long?) {}
         override suspend fun listMatchableBySourceType(serverType: String) = emptyList<com.riffle.core.database.MatchableItemRow>()

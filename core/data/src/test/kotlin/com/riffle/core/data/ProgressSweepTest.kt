@@ -8,6 +8,7 @@ import com.riffle.core.catalog.CatalogHealth
 import com.riffle.core.catalog.CatalogItem
 import com.riffle.core.catalog.CatalogProgress
 import com.riffle.core.catalog.CatalogRegistry
+import com.riffle.core.catalog.AudiobookProgressPeerCapability
 import com.riffle.core.catalog.CatalogRoot
 import com.riffle.core.catalog.ProgressPeerCapability
 import com.riffle.core.catalog.SortKey
@@ -119,7 +120,7 @@ class ProgressSweepTest {
             val NON_PEER: Catalog = DummyCatalog(asPeer = false)
         }
 
-        private class PeerCatalog : DummyCatalog(asPeer = true), ProgressPeerCapability {
+        private class PeerCatalog : DummyCatalog(asPeer = true), ProgressPeerCapability, AudiobookProgressPeerCapability {
             override suspend fun pushEbookProgress(itemId: String, location: String, progress: Float, isFinished: Boolean?, lastUpdateEpochMs: Long) = null
             override suspend fun pushAudiobookProgress(itemId: String, currentTimeSec: Double, durationSec: Double, isFinished: Boolean?, lastUpdateEpochMs: Long) = null
             override suspend fun pullProgress(itemId: String): CatalogProgress? = null

@@ -241,7 +241,14 @@ class AudiobookPlayerViewModel @Inject constructor(
             audiobookRepository.saveProgress(sourceId, itemId, positionSec, timeline.durationSec)
         }
         override suspend fun writeCloseFlush(positionSec: Double, fraction: Float) {
-            positionSaveCoordinator.onClose(positionSec, fraction)
+            // Persist the trailing second-delta between the last throttled hot-path tick and the
+            // close: onChanged writes the position through savePosition (which also mirrors to the
+            // ebook store and readaloud resume). onClose then updates the library `readingProgress`
+            // float. Prior code dropped the position save here, so audiobook_positions and the
+            // readaloud resume stayed at the last tick and the next reopen resumed a few seconds
+            // behind (#528).
+            positionSaveCoordinator.onChanged(positionSec)
+            positionSaveCoordinator.onClose(fraction)
         }
         override var reconciledResumeSec: Double
             get() = this@AudiobookPlayerViewModel.reconciledResumeSec

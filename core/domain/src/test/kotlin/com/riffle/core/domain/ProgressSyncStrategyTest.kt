@@ -26,14 +26,14 @@ class ProgressSyncStrategyTest {
 
         val state = BookSyncState(
             isMatched = true,
-            hasAbsEbookTarget = true,
-            hasAbsAudioTarget = true,
+            hasEbookPeer = true,
+            hasAudioPeer = true,
             prerequisitesCached = true,
         )
         strategy.runCycle(state, local)
 
         assertEquals(
-            setOf(RemoteKind.ABS_EBOOK, RemoteKind.ABS_AUDIO),
+            setOf(RemoteKind.EBOOK_POSITION, RemoteKind.AUDIO_POSITION),
             built.toSet(),
         )
     }
@@ -45,13 +45,13 @@ class ProgressSyncStrategyTest {
 
         val state = BookSyncState(
             isMatched = true,
-            hasAbsEbookTarget = true,
-            hasAbsAudioTarget = false, // no matched audio item
+            hasEbookPeer = true,
+            hasAudioPeer = false, // no matched audio item
             prerequisitesCached = true,
         )
         strategy.runCycle(state, local)
 
-        assertEquals(setOf(RemoteKind.ABS_EBOOK), built.toSet())
+        assertEquals(setOf(RemoteKind.EBOOK_POSITION), built.toSet())
     }
 
     @Test
@@ -59,20 +59,20 @@ class ProgressSyncStrategyTest {
         val built = mutableListOf<RemoteKind>()
         val strategy = ProgressSyncStrategy { kind -> built += kind; FakePeer(kind.name) }
 
-        val state = BookSyncState(isMatched = false, hasAbsEbookTarget = true, hasAbsAudioTarget = false, prerequisitesCached = false)
+        val state = BookSyncState(isMatched = false, hasEbookPeer = true, hasAudioPeer = false, prerequisitesCached = false)
         strategy.runCycle(state, local)
 
-        assertEquals(listOf(RemoteKind.ABS_EBOOK), built)
+        assertEquals(listOf(RemoteKind.EBOOK_POSITION), built)
     }
 
     @Test
     fun `a remote the factory cannot build is skipped without poisoning the cycle`() = runTest {
         // Prerequisites cached but the audiobook remote can't be constructed (e.g. bundle gone).
         val strategy = ProgressSyncStrategy { kind ->
-            if (kind == RemoteKind.ABS_AUDIO) null else FakePeer(kind.name)
+            if (kind == RemoteKind.AUDIO_POSITION) null else FakePeer(kind.name)
         }
 
-        val state = BookSyncState(isMatched = true, hasAbsEbookTarget = true, hasAbsAudioTarget = true, prerequisitesCached = true)
+        val state = BookSyncState(isMatched = true, hasEbookPeer = true, hasAudioPeer = true, prerequisitesCached = true)
         val result = strategy.runCycle(state, local)
 
         // No remote was newer than local and none can be read, so no jump; cycle still completes.

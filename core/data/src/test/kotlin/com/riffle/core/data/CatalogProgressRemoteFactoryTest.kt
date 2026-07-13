@@ -1,5 +1,6 @@
 package com.riffle.core.data
 
+import com.riffle.core.catalog.AudiobookProgressPeerCapability
 import com.riffle.core.catalog.CatalogProgress
 import com.riffle.core.catalog.CfiDialect
 import com.riffle.core.catalog.ProgressPeerCapability
@@ -14,7 +15,8 @@ import org.junit.Test
  * Catalog-backed [com.riffle.core.domain.ProgressRemote] adapters (ADR 0030 / ADR 0013): translate
  * ABS `epubcfi(...)` ↔ Riffle Locator JSON at the Catalog boundary so the local store is never
  * polluted with a foreign format. A null translator defers (returns null) — row stays dirty for
- * the next sweep once the EPUB is cached.
+ * the next sweep once the EPUB is cached. [CfiDialect.PAGE_NUMBER] short-circuits the translator
+ * so page-based peers (Komga, #528) don't need CFI plumbing.
  */
 class CatalogProgressRemoteFactoryTest {
 
@@ -23,7 +25,7 @@ class CatalogProgressRemoteFactoryTest {
         var failGet: Boolean = false,
         var failPush: Boolean = false,
         override val cfiDialect: CfiDialect = CfiDialect.EPUB_JS,
-    ) : ProgressPeerCapability {
+    ) : ProgressPeerCapability, AudiobookProgressPeerCapability {
         data class Ebook(val itemId: String, val location: String, val progress: Float, val isFinished: Boolean?, val ts: Long)
         data class Audio(val itemId: String, val currentTimeSec: Double, val durationSec: Double, val isFinished: Boolean?, val ts: Long)
         var lastEbook: Ebook? = null
@@ -67,8 +69,8 @@ class CatalogProgressRemoteFactoryTest {
     private fun ebookRemote(peer: ProgressPeerCapability, translator: EbookCfiTranslator?, progress: Float = 0.5f) =
         CatalogEbookProgressRemote(peer, "item-1", translator, { progress }, clock)
 
-    private fun audioRemote(peer: ProgressPeerCapability, duration: Double = 3600.0) =
-        CatalogAudioProgressRemote(peer, "item-1", { duration }, clock)
+    private fun audioRemote(peer: FakePeer, duration: Double = 3600.0) =
+        CatalogAudioProgressRemote(peer = peer, itemId = "item-1", duration = { duration }, clock = clock)
 
     // --- ebook get ---
 
@@ -176,6 +178,27 @@ class CatalogProgressRemoteFactoryTest {
         assertEquals(1800L, stamp)
         assertEquals(locatorJson, peer.lastEbook?.location)
         assertEquals(0.42f, peer.lastEbook?.progress)
+    }
+
+    // --- ebook, PAGE_NUMBER dialect: translator MUST be skipped, position passes through (#528) ---
+
+    @Test
+    fun `ebook get - PAGE_NUMBER dialect passes page-number location through verbatim without translator`() = runTest {
+        val peer = FakePeer(
+            progress = CatalogProgress("item-1", ebookLocation = "42", lastUpdate = 1700L),
+            cfiDialect = CfiDialect.PAGE_NUMBER,
+        )
+        val read = ebookRemote(peer, translator = null).get()
+        assertEquals("42", read?.position)
+        assertEquals(1700L, read?.lastUpdate)
+    }
+
+    @Test
+    fun `ebook patch - PAGE_NUMBER dialect sends the opaque position verbatim`() = runTest {
+        val peer = FakePeer(cfiDialect = CfiDialect.PAGE_NUMBER)
+        val stamp = ebookRemote(peer, translator = null, progress = 0.5f).patch("42")
+        assertEquals(1800L, stamp)
+        assertEquals("42", peer.lastEbook?.location)
     }
 
     // --- audio ---

@@ -140,6 +140,7 @@ The cycle runs every ~30 s and on reader resume:
 - **Durable across Offline Mode:** reconciled when connectivity returns (see [ADR 0030]), GET-before-PATCH so a newer server position is never overwritten.
 - **Zero-peer case:** for Sources without `ProgressPeerCapability` (e.g. [LocalFiles]), the cycle no-ops; progress is purely local.
 - **Matched Readaloud on ABS:** the book has two Peers — ABS ebook progress and ABS audiobook progress — both first-class ([ADR 0029]). Storyteller's own position record is not a Peer; the bundle's SMIL is used only to translate audio ↔ text.
+- **Ebook-only Peers (Komga, #528):** a Source that has no audiobook media implements only `ProgressPeerCapability` (the ebook half). The sweep gates the audio pass on the separate `AudiobookProgressPeerCapability` and skips it for ebook-only peers; every other invariant above holds. Komga's dialect is `PAGE_NUMBER` (an integer page as an opaque string); no CFI translator is invoked on either side.
 
 ### Formatting Preferences
 User-controlled reading display settings. Scope varies by format:

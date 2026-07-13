@@ -19,11 +19,23 @@ class AudiobookPositionStoreImpl @Inject constructor(
         dao.upsert(AudiobookPositionEntity(sourceId, itemId, payload, updatedAt, existing?.lastSyncedAt ?: 0L))
     }
 
+    override suspend fun writeCleanAtStamp(sourceId: String, itemId: String, payload: Double, stamp: Long) {
+        dao.upsert(AudiobookPositionEntity(sourceId, itemId, payload, stamp, stamp))
+    }
+
+    override suspend fun writeStampsOnly(sourceId: String, itemId: String, stamp: Long) {
+        val existing = dao.getByItemId(sourceId, itemId)
+        dao.upsert(AudiobookPositionEntity(sourceId, itemId, existing?.positionSec ?: 0.0, stamp, stamp))
+    }
+
     override suspend fun readPayload(sourceId: String, itemId: String): Double? =
         dao.getByItemId(sourceId, itemId)?.positionSec
 
     override suspend fun readUpdatedAt(sourceId: String, itemId: String): Long? =
         dao.getByItemId(sourceId, itemId)?.localUpdatedAt
+
+    override suspend fun readLastSyncedAt(sourceId: String, itemId: String): Long? =
+        dao.getByItemId(sourceId, itemId)?.lastSyncedAt
 
     override suspend fun writeUpdatedAt(sourceId: String, itemId: String, updatedAt: Long) {
         // upsert so a stamp before the first save still creates a row (see ReadingPositionStoreImpl).

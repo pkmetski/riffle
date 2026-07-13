@@ -92,11 +92,14 @@ internal class FakeLibraryItemDao : LibraryItemDao {
         }
     }
 
-    override suspend fun deleteRemovedFromLibrary(sourceId: String, libraryId: String, serverItemIds: List<String>) {
-        val serverIdSet = serverItemIds.toSet()
-        roomData[libraryId]?.value = roomData[libraryId]?.value
-            ?.filter { it.sourceId != sourceId || it.id in serverIdSet }
-            ?: emptyList()
+    override suspend fun idsForLibrary(sourceId: String, libraryId: String): List<String> =
+        roomData[libraryId]?.value?.filter { it.sourceId == sourceId }?.map { it.id }.orEmpty()
+
+    override suspend fun deleteByIds(sourceId: String, itemIds: List<String>) {
+        val idSet = itemIds.toHashSet()
+        roomData.forEach { (_, flow) ->
+            flow.value = flow.value.filterNot { it.sourceId == sourceId && it.id in idSet }
+        }
     }
 
     override suspend fun getById(sourceId: String, itemId: String): LibraryItemEntity? =
@@ -151,7 +154,25 @@ internal class FakeLibraryItemDao : LibraryItemDao {
             .filter { it.readingProgress > 0f }
             .map { ReadingProgressRow(it.id, it.readingProgress) }
 
-    override suspend fun updateReadingProgress(sourceId: String, itemId: String, progress: Float) {}
+    override suspend fun updateReadingProgress(sourceId: String, itemId: String, progress: Float) {
+        roomData.forEach { (_, flow) ->
+            flow.value = flow.value.map {
+                if (it.sourceId == sourceId && it.id == itemId) it.copy(readingProgress = progress) else it
+            }
+        }
+    }
+    override suspend fun updateInitialReadingProgress(sourceId: String, itemId: String, progress: Float) {
+        roomData.forEach { (_, flow) ->
+            flow.value = flow.value.map {
+                // Race-guard mirror of the SQL WHERE clause. The caller-side pre-refresh
+                // lastOpenedAtMap check does the semantic gating; this only defends against a
+                // reader-close landing between the map fetch and this UPDATE.
+                if (it.sourceId == sourceId && it.id == itemId && it.readingProgress == 0f)
+                    it.copy(readingProgress = progress)
+                else it
+            }
+        }
+    }
     override suspend fun updateLibraryId(sourceId: String, itemId: String, libraryId: String) {
         val entry = roomData.entries.firstOrNull { e ->
             e.value.value.any { it.sourceId == sourceId && it.id == itemId }

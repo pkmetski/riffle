@@ -29,6 +29,9 @@ class StorytellerPositionSyncControllerTest {
         override suspend fun save(sourceId: String, itemId: String, payload: String) { saved = payload }
         override suspend fun load(sourceId: String, itemId: String): String? = saved
         override suspend fun loadLocalUpdatedAt(sourceId: String, itemId: String): Long = ts
+        override suspend fun loadLastSyncedAt(sourceId: String, itemId: String): Long = ts
+        override suspend fun acceptServer(sourceId: String, itemId: String, payload: String, serverStamp: Long) { }
+        override suspend fun markSyncedAt(sourceId: String, itemId: String, stamp: Long) { }
         override suspend fun updateLocalTimestamp(sourceId: String, itemId: String, millis: Long) { savedTs = millis; ts = millis }
     }
 

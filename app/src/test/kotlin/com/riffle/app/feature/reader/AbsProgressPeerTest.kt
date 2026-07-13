@@ -1,5 +1,6 @@
 package com.riffle.app.feature.reader
 
+import com.riffle.core.catalog.AudiobookProgressPeerCapability
 import com.riffle.core.catalog.CatalogProgress
 import com.riffle.core.catalog.ProgressPeerCapability
 import com.riffle.core.domain.CanonicalReaderPosition
@@ -17,10 +18,10 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * Pins the [WriteResult] contract on the Catalog-backed peer adapters (#302 / #434): a translator
- * boundary that can't place the canonical position is a deliberate [WriteResult.Skipped], not a
- * [WriteResult.Failed] — the row is left for a later cycle, never marked as a sync failure to act
- * on. Network errors remain Failed.
+ * Pins the [WriteResult] contract on the Catalog-backed peer adapters (#302 / #434 / #528): a
+ * translator boundary that can't place the canonical position is a deliberate [WriteResult.Skipped],
+ * not a [WriteResult.Failed] — the row is left for a later cycle, never marked as a sync failure
+ * to act on. Network errors remain Failed.
  */
 class AbsProgressPeerTest {
 
@@ -39,7 +40,9 @@ class AbsProgressPeerTest {
         override fun nowNs() = 0L
     }
 
-    private fun endpoint(peer: ProgressPeerCapability) = CatalogSyncEndpoint(peer, "i", durationSec = 100.0)
+    private fun ebookEp(peer: ProgressPeerCapability) = CatalogEbookEndpoint(peer, "i")
+    private fun audioEp(peer: AudiobookProgressPeerCapability) =
+        CatalogAudioEndpoint(peer = peer, itemId = "i", durationSec = 100.0)
 
     private fun locator(href: String, progression: Double): String = JSONObject()
         .put("href", href)
@@ -47,7 +50,7 @@ class AbsProgressPeerTest {
         .toString()
 
     /** PATCH succeeds — peer echoes the stamp back mirroring ABS's PATCH response. */
-    private class OkPeer(private val stamp: Long) : ProgressPeerCapability {
+    private class OkPeer(private val stamp: Long) : ProgressPeerCapability, AudiobookProgressPeerCapability {
         override suspend fun pushEbookProgress(itemId: String, location: String, progress: Float, isFinished: Boolean?, lastUpdateEpochMs: Long) = stamp
         override suspend fun pushAudiobookProgress(itemId: String, currentTimeSec: Double, durationSec: Double, isFinished: Boolean?, lastUpdateEpochMs: Long) = stamp
         override suspend fun pullProgress(itemId: String): CatalogProgress? = null
@@ -55,7 +58,7 @@ class AbsProgressPeerTest {
     }
 
     /** PATCH fails at the network. */
-    private class FailPeer : ProgressPeerCapability {
+    private class FailPeer : ProgressPeerCapability, AudiobookProgressPeerCapability {
         override suspend fun pushEbookProgress(itemId: String, location: String, progress: Float, isFinished: Boolean?, lastUpdateEpochMs: Long): Long? = throw java.io.IOException("boom")
         override suspend fun pushAudiobookProgress(itemId: String, currentTimeSec: Double, durationSec: Double, isFinished: Boolean?, lastUpdateEpochMs: Long): Long? = throw java.io.IOException("boom")
         override suspend fun pullProgress(itemId: String): CatalogProgress? = null
@@ -64,35 +67,35 @@ class AbsProgressPeerTest {
 
     @Test
     fun `ebook peer Ok when network PATCH succeeds and stamp comes back`() = runTest {
-        val peer = AbsEbookProgressPeer(endpoint(OkPeer(stamp = 1234L)), translator, clock)
+        val peer = EbookProgressPeer(ebookEp(OkPeer(stamp = 1234L)), translator, clock)
         val result = peer.tryPatch(CanonicalReaderPosition(locator("c1.xhtml", 0.5)))
         assertEquals(WriteResult.Ok(1234L), result)
     }
 
     @Test
     fun `ebook peer Skipped when canonical can't be translated to a CFI (deliberate no-op)`() = runTest {
-        val peer = AbsEbookProgressPeer(endpoint(OkPeer(stamp = 1234L)), translator, clock)
+        val peer = EbookProgressPeer(ebookEp(OkPeer(stamp = 1234L)), translator, clock)
         val result = peer.tryPatch(CanonicalReaderPosition(locator("nonexistent.xhtml", 0.5)))
         assertEquals(WriteResult.Skipped, result)
     }
 
     @Test
     fun `ebook peer Failed when Catalog push errors`() = runTest {
-        val peer = AbsEbookProgressPeer(endpoint(FailPeer()), translator, clock)
+        val peer = EbookProgressPeer(ebookEp(FailPeer()), translator, clock)
         val result = peer.tryPatch(CanonicalReaderPosition(locator("c1.xhtml", 0.5)))
         assertTrue("expected Failed, was $result", result is WriteResult.Failed)
     }
 
     @Test
     fun `audiobook peer Ok when SMIL placement + PATCH succeed`() = runTest {
-        val peer = AbsAudiobookProgressPeer(endpoint(OkPeer(stamp = 9000L)), translator, clock)
+        val peer = AudiobookProgressPeerAdapter(audioEp(OkPeer(stamp = 9000L)), translator, clock)
         val result = peer.tryPatch(CanonicalReaderPosition(locator("c1.xhtml", 0.2)))
         assertEquals(WriteResult.Ok(9000L), result)
     }
 
     @Test
     fun `audiobook peer Failed when Catalog push errors`() = runTest {
-        val peer = AbsAudiobookProgressPeer(endpoint(FailPeer()), translator, clock)
+        val peer = AudiobookProgressPeerAdapter(audioEp(FailPeer()), translator, clock)
         val result = peer.tryPatch(CanonicalReaderPosition(locator("c1.xhtml", 0.2)))
         assertTrue("expected Failed, was $result", result is WriteResult.Failed)
     }

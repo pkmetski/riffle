@@ -141,7 +141,9 @@ class PdfReaderViewModel @Inject constructor(
     private val _syncErrorEvents = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
     val syncErrorEvents: SharedFlow<Unit> = _syncErrorEvents.asSharedFlow()
 
-    private val progressSyncController = ProgressSyncController(
+    // Shared sync seam — same construction pattern in every reader ViewModel (#528).
+    private val syncSession = ProgressSyncController(
+        itemId = itemId,
         repository = readingSessionRepository,
         scope = viewModelScope,
         onSyncError = { _syncErrorEvents.tryEmit(Unit) },
@@ -256,8 +258,15 @@ class PdfReaderViewModel @Inject constructor(
             openBook()
         }
         viewModelScope.launch {
-            progressSyncController.serverPositionEvents.collect { serverProgress ->
-                serverLocationToLocator(serverProgress.ebookLocation)?.let { _serverLocatorChannel.trySend(it) }
+            syncSession.serverPositionEvents.collect { serverProgress ->
+                val locator = serverLocationToLocator(serverProgress.ebookLocation) ?: return@collect
+                // Adopt the server's locator into in-memory state alongside the channel emit.
+                // Without this, `lastLocator` stayed at the stale initial (device-loaded)
+                // position — a fast back-out before navigator.go landed would then save the
+                // stale locator with a fresh stamp and the next sync pushed it back over the
+                // server position. (#528)
+                lastLocator = locator
+                _serverLocatorChannel.trySend(locator)
             }
         }
     }
@@ -287,7 +296,7 @@ class PdfReaderViewModel @Inject constructor(
                     title = item.title,
                     initialLocator = locator,
                 )
-                progressSyncController.sync(itemId, locator?.toPayload() ?: SessionPayload("", 0f))
+                syncSession.sync(locator?.toPayload() ?: SessionPayload("", 0f))
                 readingSessionCoordinator.onResumed(
                     initialTotalProgression = null,
                     onTick = { syncCurrentPosition() },
@@ -488,7 +497,7 @@ class PdfReaderViewModel @Inject constructor(
 
     private fun syncCurrentPosition() {
         val locator = lastLocator ?: return
-        progressSyncController.sync(itemId, locator.toPayload())
+        syncSession.sync(locator.toPayload())
     }
 
     fun onReaderResumed() {
@@ -513,8 +522,8 @@ class PdfReaderViewModel @Inject constructor(
         val locator = lastLocator ?: return
         viewModelScope.launch {
             val payload = locator.toPayload()
-            positionSaveCoordinator.onClose(locator.toJSON().toString(), payload.ebookProgress)
-            progressSyncController.sync(itemId, payload)
+            positionSaveCoordinator.onClose(payload.ebookProgress)
+            syncSession.sync(payload)
         }
     }
 

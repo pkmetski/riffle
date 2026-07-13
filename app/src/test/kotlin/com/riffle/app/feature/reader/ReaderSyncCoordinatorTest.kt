@@ -1,6 +1,7 @@
 package com.riffle.app.feature.reader
 
 import com.riffle.app.testing.TestApplicationScope
+import com.riffle.core.catalog.AudiobookProgressPeerCapability
 import com.riffle.core.catalog.CatalogProgress
 import com.riffle.core.catalog.ProgressPeerCapability
 import com.riffle.core.domain.BookSyncState
@@ -45,7 +46,7 @@ class ReaderSyncCoordinatorTest {
     )
 
     private val state = BookSyncState(
-        isMatched = true, hasAbsEbookTarget = true, hasAbsAudioTarget = true, prerequisitesCached = true,
+        isMatched = true, hasEbookPeer = true, hasAudioPeer = true, prerequisitesCached = true,
     )
 
     private fun locator(progression: Double) = JSONObject()
@@ -58,7 +59,7 @@ class ReaderSyncCoordinatorTest {
      * `lastUpdate` and pushEbook/pushAudio return that fresh stamp — the same shape the ABS session
      * API returns in production after PR #434.
      */
-    private class FakePeer(initial: CatalogProgress) : ProgressPeerCapability {
+    private class FakePeer(initial: CatalogProgress) : ProgressPeerCapability, AudiobookProgressPeerCapability {
         var progress = initial
         private var clock = initial.lastUpdate
         var ebookLocation: String? = null
@@ -99,8 +100,8 @@ class ReaderSyncCoordinatorTest {
 
     private fun coordinator(
         peer: FakePeer,
-        ebookEp: CatalogSyncEndpoint = CatalogSyncEndpoint(peer, "abs-item", durationSec = 100.0),
-        audioEp: CatalogSyncEndpoint? = CatalogSyncEndpoint(peer, "abs-item", durationSec = 100.0),
+        ebookEp: CatalogEbookEndpoint = CatalogEbookEndpoint(peer, "abs-item"),
+        audioEp: CatalogAudioEndpoint? = CatalogAudioEndpoint(peer = peer, itemId = "abs-item", durationSec = 100.0),
     ) = ReaderSyncCoordinator(state, translator, clock, ebookEp, audioEp)
 
     @Test
@@ -166,8 +167,8 @@ class ReaderSyncCoordinatorTest {
     @Test
     fun `pushAudiobookProgress writes only the audiobook item from the page and returns the source stamp`() = runTest {
         val peer = FakePeer(CatalogProgress("abs-item", ebookLocation = "", lastUpdate = 0L))
-        val ebookEp = CatalogSyncEndpoint(peer, "ebook-item")
-        val audioEp = CatalogSyncEndpoint(peer, "audiobook-item", durationSec = 39214.0)
+        val ebookEp = CatalogEbookEndpoint(peer, "ebook-item")
+        val audioEp = CatalogAudioEndpoint(peer = peer, itemId = "audiobook-item", durationSec = 39214.0)
         val coordinator = coordinator(peer, ebookEp, audioEp)
 
         val stamp = coordinator.pushAudiobookProgress(locator(0.9))
@@ -181,7 +182,7 @@ class ReaderSyncCoordinatorTest {
     @Test
     fun `pushAudiobookProgress is a no-op when there is no matched audiobook`() = runTest {
         val peer = FakePeer(CatalogProgress("abs-item", ebookLocation = "", lastUpdate = 0L))
-        val ebookEp = CatalogSyncEndpoint(peer, "ebook-item")
+        val ebookEp = CatalogEbookEndpoint(peer, "ebook-item")
         val coordinator = coordinator(peer, ebookEp, audioEp = null)
 
         assertNull(coordinator.pushAudiobookProgress(locator(0.9)))

@@ -1,5 +1,6 @@
 package com.riffle.app.feature.reader
 
+import com.riffle.core.catalog.AudiobookProgressPeerCapability
 import com.riffle.core.catalog.CatalogProgress
 import com.riffle.core.catalog.ProgressPeerCapability
 import com.riffle.core.domain.ChapterProgression
@@ -31,7 +32,7 @@ class AudiobookFollowTest {
     )
     private fun translator() = DefaultPositionTranslator(clips, fragmentProgressions = fragmentProgressions)
 
-    private class FakePeer(val stamp: Long = 4242L) : ProgressPeerCapability {
+    private class FakePeer(val stamp: Long = 4242L) : ProgressPeerCapability, AudiobookProgressPeerCapability {
         var sentSeconds: Double? = null
         override suspend fun pushEbookProgress(itemId: String, location: String, progress: Float, isFinished: Boolean?, lastUpdateEpochMs: Long) = 0L
         override suspend fun pushAudiobookProgress(itemId: String, currentTimeSec: Double, durationSec: Double, isFinished: Boolean?, lastUpdateEpochMs: Long): Long {
@@ -51,8 +52,8 @@ class AudiobookFollowTest {
         override fun nowNs() = 0L
     }
 
-    private fun follow(peer: ProgressPeerCapability) = AudiobookFollow(
-        endpoint = CatalogSyncEndpoint(peer, "audio-item", durationSec = 3600.0),
+    private fun follow(peer: FakePeer) = AudiobookFollow(
+        endpoint = CatalogAudioEndpoint(peer = peer, itemId = "audio-item", durationSec = 3600.0),
         translator = translator(),
         clock = clock,
         sourceId = "s1",

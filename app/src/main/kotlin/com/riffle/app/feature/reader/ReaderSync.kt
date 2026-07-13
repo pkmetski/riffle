@@ -1,5 +1,6 @@
 package com.riffle.app.feature.reader
 
+import com.riffle.core.catalog.AudiobookProgressPeerCapability
 import com.riffle.core.catalog.ProgressPeerCapability
 import com.riffle.core.domain.BookSyncState
 import com.riffle.core.domain.CanonicalReaderPosition
@@ -13,13 +14,23 @@ import com.riffle.core.domain.RemoteRead
 import com.riffle.core.domain.WriteResult
 
 /**
- * Resolved sync endpoint for a matched Library Item (its media-progress record). [durationSec] is
- * the item's total audio length, sent with audiobook progress so ABS reports a real percentage;
- * 0 for the ebook endpoint. [peer] is the Source's [ProgressPeerCapability] — sourced from the
- * Catalog for the item's Source.
+ * Resolved ebook sync endpoint for a matched Library Item. [peer] is the Source's
+ * [ProgressPeerCapability] — sourced from the Catalog for the item's Source.
  */
-data class CatalogSyncEndpoint(
+data class CatalogEbookEndpoint(
     val peer: ProgressPeerCapability,
+    val itemId: String,
+)
+
+/**
+ * Resolved audiobook sync endpoint for a matched Library Item. [peer] serves both the unified
+ * `pullProgress` (a single-record fetch that carries both dimensions on ABS-shaped peers) and
+ * the audio push, since [AudiobookProgressPeerCapability] now extends [ProgressPeerCapability]
+ * (#528). [durationSec] is the item's total audio length, sent with audiobook progress so ABS
+ * reports a real percentage.
+ */
+data class CatalogAudioEndpoint(
+    val peer: AudiobookProgressPeerCapability,
     val itemId: String,
     val durationSec: Double = 0.0,
 )
@@ -29,33 +40,35 @@ data class CatalogSyncEndpoint(
 internal val EMPTY_PEER_READ = RemoteRead(CanonicalReaderPosition(""), 0L)
 
 /**
- * Push the matched audiobook's currentTime through [ProgressPeerCapability] and return the stamp
- * the caller should adopt. Historically ABS's PATCH replied with no timestamp so a follow-up GET
- * read back `lastUpdate`; that read-back is redundant when the caller controls the write time.
+ * Push the matched audiobook's currentTime through [AudiobookProgressPeerCapability] and return
+ * the stamp the caller should adopt. Historically ABS's PATCH replied with no timestamp so a
+ * follow-up GET read back `lastUpdate`; that read-back is redundant when the caller controls the
+ * write time.
  */
-internal suspend fun ProgressPeerCapability.writeAudiobookSeconds(
-    ep: CatalogSyncEndpoint,
+internal suspend fun AudiobookProgressPeerCapability.writeAudiobookSeconds(
+    itemId: String,
+    durationSec: Double,
     seconds: Double,
     clock: Clock,
 ): Long? = runCatching {
     val now = clock.nowMs()
     val stamp = pushAudiobookProgress(
-        itemId = ep.itemId,
+        itemId = itemId,
         currentTimeSec = seconds.coerceAtLeast(0.0),
-        durationSec = ep.durationSec,
+        durationSec = durationSec,
         isFinished = null,
         lastUpdateEpochMs = now,
     )
     stamp?.takeIf { it > 0L } ?: now
 }.getOrNull()
 
-/** Ebook progress as a [ProgressPeer]: an ebookLocation CFI on the ABS EPUB. */
-internal class AbsEbookProgressPeer(
-    private val ep: CatalogSyncEndpoint,
+/** Ebook progress as a [ProgressPeer]: a locator (dialect-specific) on the ebook peer. */
+internal class EbookProgressPeer(
+    private val ep: CatalogEbookEndpoint,
     private val translator: PositionTranslator,
     private val clock: Clock,
 ) : ProgressPeer {
-    override val id = RemoteKind.ABS_EBOOK.name
+    override val id = RemoteKind.EBOOK_POSITION.name
 
     override suspend fun tryGet(): RemoteRead? {
         val p = runCatching { ep.peer.pullProgress(ep.itemId) }.getOrNull() ?: return null
@@ -81,7 +94,7 @@ internal class AbsEbookProgressPeer(
             // Adopt the source stamp when it reported one so a fresh write can't read back as newer
             // next cycle (feedback loop). A `null`/`0L` reply falls back to the client clock.
             WriteResult.Ok(stamp?.takeIf { it > 0L } ?: now)
-        }.getOrElse { WriteResult.Failed("ABS ebook PATCH network error") }
+        }.getOrElse { WriteResult.Failed("ebook PATCH network error") }
     }
 }
 
@@ -91,12 +104,12 @@ internal class AbsEbookProgressPeer(
  * reading position (so a newer listen on another device moves the reader); [tryPatch] turns the
  * winning reading position into an audiobook `currentTime` (so reading advances the audiobook).
  */
-internal class AbsAudiobookProgressPeer(
-    private val ep: CatalogSyncEndpoint,
+internal class AudiobookProgressPeerAdapter(
+    private val ep: CatalogAudioEndpoint,
     private val translator: PositionTranslator,
     private val clock: Clock,
 ) : ProgressPeer {
-    override val id = RemoteKind.ABS_AUDIO.name
+    override val id = RemoteKind.AUDIO_POSITION.name
 
     override suspend fun tryGet(): RemoteRead? {
         val p = runCatching { ep.peer.pullProgress(ep.itemId) }.getOrNull() ?: return null
@@ -108,8 +121,8 @@ internal class AbsAudiobookProgressPeer(
     override suspend fun tryPatch(canonical: CanonicalReaderPosition): WriteResult {
         val seconds = translator.canonicalToAudioSeconds(canonical.value)
             ?: return WriteResult.Skipped
-        val stamp = ep.peer.writeAudiobookSeconds(ep, seconds, clock)
-            ?: return WriteResult.Failed("ABS audiobook PATCH failed")
+        val stamp = ep.peer.writeAudiobookSeconds(ep.itemId, ep.durationSec, seconds, clock)
+            ?: return WriteResult.Failed("audiobook PATCH failed")
         return WriteResult.Ok(stamp)
     }
 }
@@ -128,18 +141,18 @@ class ReaderSyncCoordinator(
     private val state: BookSyncState,
     private val translator: PositionTranslator,
     private val clock: Clock,
-    private val absEbookEndpoint: CatalogSyncEndpoint?,
-    private val absAudioEndpoint: CatalogSyncEndpoint?,
+    private val ebookEndpoint: CatalogEbookEndpoint?,
+    private val audioEndpoint: CatalogAudioEndpoint?,
 ) {
     suspend fun runCycle(displayedLocatorJson: String, localUpdatedAt: Long, pushAudio: Boolean = true): ReaderSyncCycleResult {
         val strategy = ProgressSyncStrategy { kind ->
             when (kind) {
-                RemoteKind.ABS_EBOOK -> absEbookEndpoint?.let { AbsEbookProgressPeer(it, translator, clock) }
-                RemoteKind.ABS_AUDIO -> absAudioEndpoint?.let {
-                    val peer = AbsAudiobookProgressPeer(it, translator, clock)
+                RemoteKind.EBOOK_POSITION -> ebookEndpoint?.let { EbookProgressPeer(it, translator, clock) }
+                RemoteKind.AUDIO_POSITION -> audioEndpoint?.let {
+                    val peer = AudiobookProgressPeerAdapter(it, translator, clock)
                     if (pushAudio) peer else InboundOnlyPeer(peer)
                 }
-                RemoteKind.ABS_BOOKMARK -> null
+                RemoteKind.AUDIOBOOK_BOOKMARK -> null
             }
         }
         val local = LocalCanonical(CanonicalReaderPosition(displayedLocatorJson), localUpdatedAt)
@@ -159,9 +172,9 @@ class ReaderSyncCoordinator(
     fun fragmentForCanonical(canonicalLocatorJson: String): String? =
         translator.canonicalToFragmentRef(canonicalLocatorJson)
 
-    val hasAudioTarget: Boolean get() = absAudioEndpoint != null
-    val audioItemId: String? get() = absAudioEndpoint?.itemId
-    val ebookItemId: String? get() = absEbookEndpoint?.itemId
+    val hasAudioTarget: Boolean get() = audioEndpoint != null
+    val audioItemId: String? get() = audioEndpoint?.itemId
+    val ebookItemId: String? get() = ebookEndpoint?.itemId
 
     fun audioSecondsForCanonical(canonicalLocatorJson: String): Double? =
         translator.canonicalToAudioSeconds(canonicalLocatorJson)
@@ -202,14 +215,14 @@ class ReaderSyncCoordinator(
     }
 
     private suspend fun pushAudiobookAtSeconds(seconds: Double?): Long? {
-        val ep = absAudioEndpoint ?: return null
+        val ep = audioEndpoint ?: return null
         if (seconds == null) return null
-        return ep.peer.writeAudiobookSeconds(ep, seconds, clock)
+        return ep.peer.writeAudiobookSeconds(ep.itemId, ep.durationSec, seconds, clock)
     }
 }
 
 class AudiobookFollow(
-    private val endpoint: CatalogSyncEndpoint,
+    private val endpoint: CatalogAudioEndpoint,
     private val translator: PositionTranslator,
     private val clock: Clock,
     val sourceId: String,
@@ -229,7 +242,9 @@ class AudiobookFollow(
     }
 
     suspend fun pushFragment(fragmentRef: String): Long? =
-        secondsForFragment(fragmentRef)?.let { endpoint.peer.writeAudiobookSeconds(endpoint, it, clock) }
+        secondsForFragment(fragmentRef)?.let {
+            endpoint.peer.writeAudiobookSeconds(endpoint.itemId, endpoint.durationSec, it, clock)
+        }
 
     fun readaloudAnchorForAudioSeconds(seconds: Double): com.riffle.core.domain.ReadaloudResumePosition? {
         val ref = fragmentForAudioSeconds(seconds) ?: return null

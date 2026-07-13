@@ -124,11 +124,13 @@ class SeriesIntegrationTest {
         override suspend fun updateMetadata(metadata: com.riffle.core.database.LibraryItemMetadata) {}
         override suspend fun deleteByLibraryId(sourceId: String, libraryId: String) {}
         override suspend fun deleteById(sourceId: String, itemId: String) {}
-        override suspend fun deleteRemovedFromLibrary(sourceId: String, libraryId: String, serverItemIds: List<String>) {}
+        override suspend fun deleteByIds(sourceId: String, itemIds: List<String>) {}
+        override suspend fun idsForLibrary(sourceId: String, libraryId: String): List<String> = emptyList()
         override suspend fun updateLastOpenedAt(sourceId: String, itemId: String, timestamp: Long) {}
         override suspend fun getLastOpenedAtMap(sourceId: String, libraryId: String): List<LastOpenedAtRow> = emptyList()
         override suspend fun getReadingProgressMap(sourceId: String, libraryId: String): List<ReadingProgressRow> = emptyList()
         override suspend fun updateReadingProgress(sourceId: String, itemId: String, progress: Float) {}
+        override suspend fun updateInitialReadingProgress(sourceId: String, itemId: String, progress: Float) {}
         override suspend fun updateLibraryId(sourceId: String, itemId: String, libraryId: String) {}
         override suspend fun updateFinishedAt(sourceId: String, itemId: String, finishedAt: Long?) {}
         override suspend fun listMatchableBySourceType(serverType: String): List<com.riffle.core.database.MatchableItemRow> = emptyList()
@@ -154,6 +156,7 @@ class SeriesIntegrationTest {
             collectionDao = FakeCollectionDao(),
             sourceRepository = fakeServerRepository,
             clock = com.riffle.core.domain.TestClock(),
+            logger = com.riffle.core.logging.RecordingLogger(),
         )
     }
 

@@ -7,13 +7,16 @@ import com.riffle.core.catalog.CatalogFileStream
 import com.riffle.core.catalog.CatalogHealth
 import com.riffle.core.catalog.CatalogItem
 import com.riffle.core.catalog.CatalogPlaylist
+import com.riffle.core.catalog.CatalogProgress
 import com.riffle.core.catalog.CatalogRoot
 import com.riffle.core.catalog.CatalogSeries
 import com.riffle.core.catalog.CatalogSeriesEntry
+import com.riffle.core.catalog.CfiDialect
 import com.riffle.core.catalog.DownloadsCapability
 import com.riffle.core.catalog.FacetSelection
 import com.riffle.core.catalog.OfflineBrowseCapability
 import com.riffle.core.catalog.PlaylistsCapability
+import com.riffle.core.catalog.ProgressPeerCapability
 import com.riffle.core.catalog.ReadCapability
 import com.riffle.core.catalog.SeriesCapability
 import com.riffle.core.catalog.SortKey
@@ -35,12 +38,20 @@ import java.net.URLEncoder
  * - Mandatory core (listRoots/browse/search/getItem/fetchFile/openFile/connectivityCheck): yes.
  * - [ReadCapability], [DownloadsCapability], [ToReadListCapability], [OfflineBrowseCapability]:
  *   marker mixins so the shared library UI enables the corresponding affordances.
+ * - [SeriesCapability]: series-of-books grouping (Komga's core concept).
  * - [PlaylistsCapability]: server-side "To Read" sync backed by Komga's `/api/v1/readlists`.
  *   Komga readlists are server-wide (not per-library), so the shared list is find-or-created once
  *   and both the browse and detail toggles operate on it; per-library views are produced by
  *   filtering the readlist's book ids to those in the requested library.
- * - Absent: CollectionsCapability, ProgressPeerCapability, ReadingSessionsCapability,
- *   StatsCapability, AudiobookMediaCapability, BookmarksCapability, ReadaloudCapability.
+ * - [ProgressPeerCapability] (#528): Komga stores a per-book read-progress record with a `page`
+ *   integer (1-indexed) plus a `completed` flag. Position dialect is [CfiDialect.PAGE_NUMBER]: the
+ *   local Room store's opaque locator string is a page number for CBZ/PDF books opened from
+ *   Komga, and the ebook remote passes it through verbatim (no CFI translation). For reflowable
+ *   EPUB books served from Komga a locator-to-page mapping does not yet exist — sync degrades to
+ *   the local-only state (`get()` returns a stale RemoteProgress; PATCH is best-effort).
+ * - Absent: CollectionsCapability, ReadingSessionsCapability, StatsCapability,
+ *   AudiobookMediaCapability, AudiobookProgressPeerCapability, BookmarksCapability,
+ *   ReadaloudCapability.
  */
 class KomgaCatalog(
     private val config: KomgaCatalogConfig,
@@ -52,7 +63,8 @@ class KomgaCatalog(
     ToReadListCapability,
     OfflineBrowseCapability,
     SeriesCapability,
-    PlaylistsCapability {
+    PlaylistsCapability,
+    ProgressPeerCapability {
 
     override val sourceType: SourceType = SourceType.KOMGA
 
@@ -195,6 +207,140 @@ class KomgaCatalog(
             error = if (reachable) null else "Komga is unreachable",
         )
     }
+
+    // region ProgressPeerCapability (#528)
+
+    /**
+     * Komga stores the book position as a 1-indexed `page` integer, but Riffle's PDF and CBZ
+     * readers persist a Readium Locator JSON as the local position (e.g.
+     * `{"href":"publication.pdf","locations":{"position":18,"fragments":["page=18"]}}`). This
+     * catalog acts as the boundary translator: on push, extract the page from the locator; on
+     * pull, embed the server page back into a Locator JSON the reader can navigate to. The
+     * dialect stays [CfiDialect.PAGE_NUMBER] so the shared engine bypasses the CFI translator (it
+     * would produce nonsense for Komga positions); Komga itself owns the JSON↔page conversion.
+     */
+    override val cfiDialect: CfiDialect = CfiDialect.PAGE_NUMBER
+
+    override suspend fun pushEbookProgress(
+        itemId: String,
+        location: String,
+        progress: Float,
+        isFinished: Boolean?,
+        lastUpdateEpochMs: Long,
+    ): Long? {
+        val page = extractPageFromLocation(location)
+        // Mark-unread (`isFinished == false`) DELETEs Komga's read-progress record entirely.
+        // Prior code PATCHed `{completed:false}` without a page — Komga preserves the last-read
+        // page, so on the next pullProgress readProgress = (page=100, completed=false), and
+        // toCatalogProgress computes progress=100/100=1.0f — silently restoring the book to
+        // 100% "In Progress" on every device. Komga's DELETE endpoint is the correct semantic
+        // for clearing progress (#528).
+        if (isFinished == false) {
+            http.delete(apiUrl("books/$itemId/read-progress"))
+            return null
+        }
+        // Honour the tri-state contract of [ProgressPeerCapability.pushEbookProgress]: `null`
+        // must leave the server's `completed` flag untouched. Prior code derived
+        // `completed = isFinished ?: (progress >= 1f)`, which routinely sent `completed = false`
+        // on every reader-position save — so re-reading a book that Komga had marked completed
+        // silently un-finished it on the server the first time the sweep fired. The KomgaJson
+        // config drops null fields (`explicitNulls = false`), so passing `isFinished` through
+        // verbatim omits the field for routine saves and only mark-finished/mark-unread callers
+        // touch it.
+        if (page == null && isFinished == null) {
+            // Komga rejects a PATCH with all-null fields — nothing to send.
+            return null
+        }
+        val body = KomgaJson.encodeToString(
+            KomgaReadProgressPatch.serializer(),
+            KomgaReadProgressPatch(page = page, completed = isFinished),
+        )
+        http.patchJson(apiUrl("books/$itemId/read-progress"), body)
+        // Komga's PATCH response is 204 No Content — no server stamp. Caller adopts the client
+        // clock (see CatalogEbookProgressRemote / ReadingSessionRepositoryImpl).
+        return null
+    }
+
+    override suspend fun pullProgress(itemId: String): CatalogProgress? {
+        // Let network exceptions propagate. Prior code wrapped `http.getString` in `runCatching`
+        // and returned null on any throw — indistinguishable from "server has no readProgress
+        // for this book" — so a transient IOException/5xx caused `runSyncCycle` to treat local
+        // as serverLastUpdate=0 and LocalWins-PATCH a stale local page (which then also fails
+        // silently). Throwing lets `runSyncCycle`'s outer `runCatching` map the failure to
+        // ProgressSyncCycleResult.Offline correctly (#528).
+        val body = http.getString(apiUrl("books/$itemId"))
+        val dto = runCatching { KomgaJson.decodeFromString(serializer<KomgaBookDto>(), body) }.getOrNull()
+            ?: return null
+        return dto.toCatalogProgress()
+    }
+
+    override suspend fun pullAllProgress(): List<CatalogProgress> {
+        // Sweep every book across every library that has a non-null readProgress. Komga has no
+        // "list all my progress" endpoint, but /books returns readProgress embedded, so we page
+        // through and filter. read_status=READ|IN_PROGRESS narrows the set server-side.
+        //
+        // Per-page try/catch: a mid-stream failure on a large library (a 5xx on page N, malformed
+        // JSON, timeout) previously threw all the way to LibraryRepositoryImpl.refresh which
+        // caught and returned emptyList — every never-opened row got seeded at readingProgress=0
+        // and no later refresh could fix it (updateMetadata preserves local). Returning what we
+        // have so far is strictly better: In-Progress shows the books we DID pull, and the next
+        // sweep can catch the tail. Same "best-effort partial" shape as ProgressSweep uses in
+        // ADR 0030.
+        val out = mutableListOf<CatalogProgress>()
+        var page = 0
+        while (true) {
+            val body = try {
+                http.getString(
+                    apiUrl("books") +
+                        "?read_status=IN_PROGRESS,READ" +
+                        "&size=$KOMGA_MAX_PAGE_SIZE&page=$page",
+                )
+            } catch (_: Throwable) {
+                break
+            }
+            val pageDto = runCatching {
+                KomgaJson.decodeFromString(
+                    KomgaPageDto.serializer(serializer<KomgaBookDto>()),
+                    body,
+                )
+            }.getOrNull() ?: break
+            pageDto.content.forEach { book ->
+                book.toCatalogProgress()?.let { out += it }
+            }
+            if (pageDto.last || pageDto.content.isEmpty()) break
+            page++
+        }
+        return out
+    }
+
+    private fun KomgaBookDto.toCatalogProgress(): CatalogProgress? {
+        val rp = readProgress ?: return null
+        val totalPages = media.pagesCount?.takeIf { it > 0 }
+        val progress = when {
+            rp.completed -> 1f
+            totalPages != null -> (rp.page.toFloat() / totalPages.toFloat()).coerceIn(0f, 1f)
+            else -> 0f
+        }
+        val lastUpdate = parseIsoInstant(rp.lastModified) ?: parseIsoInstant(rp.readDate) ?: 0L
+        // Emit a Readium Locator JSON so the reader can navigate to the server-side page directly
+        // (Riffle's PDF/CBZ readers consume Locator JSON, not bare page numbers). Href defaults to
+        // `publication.pdf` for the PDF profile and `publication.epub` for CBZ/EPUB, matching what
+        // Readium's Streamer synthesises for single-file publications — the readers ignore the
+        // href for single-resource books and consume `locations.position` / `fragments[0]=page=N`.
+        val locator = if (rp.page > 0) locatorJsonForPage(rp.page, totalPages, media.mediaProfile) else null
+        return CatalogProgress(
+            itemId = id,
+            ebookLocation = locator,
+            ebookProgress = progress,
+            audioCurrentTime = 0.0,
+            audioDuration = 0.0,
+            isFinished = rp.completed,
+            finishedAt = if (rp.completed) lastUpdate.takeIf { it > 0L } else null,
+            lastUpdate = lastUpdate,
+        )
+    }
+
+    // endregion
 
     // region SeriesCapability
 
@@ -592,6 +738,68 @@ class KomgaCatalog(
 
         /** Komga's server-side page-size cap. Requests larger than this are silently truncated. */
         internal const val KOMGA_MAX_PAGE_SIZE = 1000
+
+        /**
+         * Parse the 1-indexed page number out of the reader's persisted position (#528).
+         * Handles: (a) a bare integer string `"42"` (fixtures / round-tripped Komga pull);
+         * (b) a Readium Locator JSON with `locations.position` (Riffle's PDF/CBZ readers save
+         * this — `{"href":...,"locations":{"position":18,"fragments":["page=18"]}}`); (c) a
+         * `page=N` fragment on the locator, as a fallback if `position` is absent. Returns null
+         * for anything else (e.g. an epub.js CFI or an unparseable string), which makes the push
+         * a no-op — the correct graceful-degrade for a Komga-backed EPUB whose reader locator
+         * hasn't been mapped to a page yet.
+         */
+        internal fun extractPageFromLocation(location: String): Int? {
+            val trimmed = location.trim()
+            if (trimmed.isEmpty()) return null
+            trimmed.toIntOrNull()?.let { return it.takeIf { p -> p > 0 } }
+            if (!trimmed.startsWith("{")) return null
+            val root = runCatching { KomgaJson.parseToJsonElement(trimmed) as? kotlinx.serialization.json.JsonObject }
+                .getOrNull() ?: return null
+            val locations = root["locations"] as? kotlinx.serialization.json.JsonObject ?: return null
+            (locations["position"] as? kotlinx.serialization.json.JsonPrimitive)?.content?.toIntOrNull()
+                ?.let { return it.takeIf { p -> p > 0 } }
+            val fragments = locations["fragments"] as? kotlinx.serialization.json.JsonArray ?: return null
+            for (el in fragments) {
+                val s = (el as? kotlinx.serialization.json.JsonPrimitive)?.content ?: continue
+                val eq = s.indexOf('=')
+                if (eq > 0 && s.substring(0, eq).equals("page", ignoreCase = true)) {
+                    s.substring(eq + 1).toIntOrNull()?.let { return it.takeIf { p -> p > 0 } }
+                }
+            }
+            return null
+        }
+
+        /**
+         * Build a minimal Readium Locator JSON positioning at [page] of [totalPages] in a
+         * single-resource Komga book (#528). The reader consumes `locations.position` and
+         * `fragments=["page=N"]` — matching exactly the shape the PDF reader persists locally, so
+         * the inbound (`ServerWins`) branch of the sync cycle can hand the locator straight to
+         * the Navigator without any further translation.
+         */
+        internal fun locatorJsonForPage(page: Int, totalPages: Int?, mediaProfile: String?): String {
+            val progression = if (totalPages != null && totalPages > 0) {
+                (page.toDouble() / totalPages.toDouble()).coerceIn(0.0, 1.0)
+            } else 0.0
+            val isEpub = mediaProfile?.equals("EPUB", ignoreCase = true) == true
+            val (href, type) = if (isEpub) {
+                "publication.epub" to "application/epub+zip"
+            } else {
+                "publication.pdf" to "application/pdf"
+            }
+            return buildString {
+                append('{')
+                append("\"href\":\"").append(href).append("\",")
+                append("\"type\":\"").append(type).append("\",")
+                append("\"locations\":{")
+                append("\"position\":").append(page).append(',')
+                append("\"fragments\":[\"page=").append(page).append("\"],")
+                append("\"progression\":").append(progression).append(',')
+                append("\"totalProgression\":").append(progression)
+                append('}')
+                append('}')
+            }
+        }
 
         internal fun parseActuatorVersion(body: String): String? {
             val obj = runCatching { KomgaJson.parseToJsonElement(body).let { it as? kotlinx.serialization.json.JsonObject } }

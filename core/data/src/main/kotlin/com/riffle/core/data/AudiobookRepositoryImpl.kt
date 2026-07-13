@@ -1,8 +1,8 @@
 package com.riffle.core.data
 
 import com.riffle.core.catalog.AudiobookMediaCapability
+import com.riffle.core.catalog.AudiobookProgressPeerCapability
 import com.riffle.core.catalog.CatalogRegistry
-import com.riffle.core.catalog.ProgressPeerCapability
 import com.riffle.core.domain.AudiobookChapter
 import com.riffle.core.domain.AudiobookRepository
 import com.riffle.core.domain.AudiobookSession
@@ -46,7 +46,7 @@ class AudiobookRepositoryImpl @Inject constructor(
 
     override suspend fun saveProgress(sourceId: String, itemId: String, positionSec: Double, durationSec: Double) {
         val catalog = catalogRegistry.forSourceId(sourceId) ?: return
-        val peer = catalog as? ProgressPeerCapability ?: return
+        val peer = catalog as? AudiobookProgressPeerCapability ?: return
         runCatching {
             peer.pushAudiobookProgress(
                 itemId = itemId,

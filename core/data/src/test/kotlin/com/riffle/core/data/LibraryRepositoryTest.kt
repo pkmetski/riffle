@@ -206,6 +206,7 @@ class LibraryRepositoryTest {
         )),
         libraryDao, libraryItemDao, seriesDao, collectionDao,
         fakeServerRepository, com.riffle.core.domain.TestClock(),
+        com.riffle.core.logging.RecordingLogger(),
     )
 
     private fun activeServer(id: String = "s1") = Source(
@@ -438,6 +439,77 @@ class LibraryRepositoryTest {
         }
         makeRepo(libraryItemDao = dao, api = api).refreshLibraryItems("lib-1")
         assertEquals(0.75f, dao.itemsFor("lib-1").first { it.id == "item-1" }.readingProgress, 0.001f)
+    }
+
+    @Test
+    fun `refreshLibraryItems adopts server readingProgress on a subsequent refresh for a row never opened locally (#528)`() = runTest {
+        // Regression: a Komga row was inserted with readingProgress=0 because the first
+        // pullAllProgress missed it (network flake, race, or the server only started tracking
+        // progress after install). Because updateMetadata preserves readingProgress, later
+        // refreshes never fixed it and the book was invisibly absent from "In Progress". A row
+        // that has never been opened locally (readingProgress=0 AND lastOpenedAt=null) must adopt
+        // the server value on the next refresh that supplies one.
+        fakeServerRepository.activeServer = activeServer()
+        fakeTokenStorage.tokens["s1"] = "tok"
+        val dao = FakeLibraryItemDao()
+        dao.upsertAll(listOf(
+            LibraryItemEntity("s1", "item-1", "lib-1", "Book", "A", null, 0f, addedAt = 0L),
+        ))
+        val api = object : AbsLibraryApi {
+            override suspend fun getUserProgress(baseUrl: String, token: String, insecureAllowed: Boolean): NetworkResult<Map<String, NetworkUserMediaProgress>> =
+                com.riffle.core.network.NetworkResult.Success(
+                    mapOf("item-1" to com.riffle.core.network.NetworkUserMediaProgress(ebookProgress = 0.18f, lastUpdate = 5_000L))
+                )
+            override suspend fun getLibraries(baseUrl: String, token: String, insecureAllowed: Boolean): NetworkResult<List<NetworkLibrary>> =
+                NetworkResult.Success(emptyList())
+            override suspend fun getLibraryItems(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean): NetworkResult<List<NetworkLibraryItem>> =
+                NetworkResult.Success(listOf(
+                    NetworkLibraryItem("item-1", "lib-1", "Book", "A", 0f, ebookFormat = EbookFormat.Epub)
+                ))
+            override suspend fun getSeries(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean): NetworkResult<List<NetworkSeries>> =
+                NetworkResult.Success(emptyList())
+            override suspend fun getCollections(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean): NetworkResult<List<NetworkCollection>> =
+                NetworkResult.Success(emptyList())
+        }
+        makeRepo(libraryItemDao = dao, api = api).refreshLibraryItems("lib-1")
+        assertEquals(0.18f, dao.itemsFor("lib-1").first { it.id == "item-1" }.readingProgress, 0.001f)
+    }
+
+    @Test
+    fun `refreshLibraryItems does NOT adopt server readingProgress when the row has been opened locally (#528)`() = runTest {
+        // The offline-read invariant still holds: a row with lastOpenedAt set has been touched by
+        // the reader, so a stale server value must not overwrite it. Guards the boundary of the
+        // #528 fix — updateInitialReadingProgress is a no-op here.
+        fakeServerRepository.activeServer = activeServer()
+        fakeTokenStorage.tokens["s1"] = "tok"
+        val dao = FakeLibraryItemDao()
+        dao.upsertAll(listOf(
+            LibraryItemEntity(
+                "s1", "item-1", "lib-1", "Book", "A", null, 0f,
+                lastOpenedAt = 10_000L, addedAt = 0L,
+            ),
+        ))
+        val api = object : AbsLibraryApi {
+            override suspend fun getUserProgress(baseUrl: String, token: String, insecureAllowed: Boolean): NetworkResult<Map<String, NetworkUserMediaProgress>> =
+                com.riffle.core.network.NetworkResult.Success(
+                    mapOf("item-1" to com.riffle.core.network.NetworkUserMediaProgress(ebookProgress = 0.42f, lastUpdate = 5_000L))
+                )
+            override suspend fun getLibraries(baseUrl: String, token: String, insecureAllowed: Boolean): NetworkResult<List<NetworkLibrary>> =
+                NetworkResult.Success(emptyList())
+            override suspend fun getLibraryItems(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean): NetworkResult<List<NetworkLibraryItem>> =
+                NetworkResult.Success(listOf(
+                    NetworkLibraryItem("item-1", "lib-1", "Book", "A", 0f, ebookFormat = EbookFormat.Epub)
+                ))
+            override suspend fun getSeries(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean): NetworkResult<List<NetworkSeries>> =
+                NetworkResult.Success(emptyList())
+            override suspend fun getCollections(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean): NetworkResult<List<NetworkCollection>> =
+                NetworkResult.Success(emptyList())
+        }
+        makeRepo(libraryItemDao = dao, api = api).refreshLibraryItems("lib-1")
+        // Row has lastOpenedAt=10_000 → the conditional UPDATE won't fire → local 0f is preserved.
+        // (The mergeLastOpenedAt path may still lift lastOpenedAt from the server stamp — that's
+        // orthogonal and covered by a separate test.)
+        assertEquals(0f, dao.itemsFor("lib-1").first { it.id == "item-1" }.readingProgress, 0.001f)
     }
 
     @Test
