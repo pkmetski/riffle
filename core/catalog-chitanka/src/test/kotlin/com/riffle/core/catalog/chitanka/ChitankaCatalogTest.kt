@@ -433,6 +433,27 @@ class ChitankaCatalogTest {
         assertNull(catalog().browseUrlFor("nonesuch", null, 0))
     }
 
+    // region Gramofonche duration → audioDurationSec
+
+    /**
+     * Regression: `toCatalogItem` used to hardcode `audioDurationSec = 0.0` for every Gramofonche
+     * summary, so `LibraryItemDetailScreen`'s `audioDurationSec > 0` gate hid the total-duration
+     * line for every audiobook item. The scraper already surfaces `"Nмин"`; we just need to
+     * convert it to seconds.
+     */
+    @Test fun `parseGramofoncheDurationSeconds converts minute string to seconds`() {
+        assertEquals(45.0 * 60, ChitankaCatalog.parseGramofoncheDurationSeconds("45мин"), 0.0)
+        assertEquals(9.0 * 60, ChitankaCatalog.parseGramofoncheDurationSeconds("9мин"), 0.0)
+    }
+
+    @Test fun `parseGramofoncheDurationSeconds returns zero when unknown`() {
+        assertEquals(0.0, ChitankaCatalog.parseGramofoncheDurationSeconds(null), 0.0)
+        assertEquals(0.0, ChitankaCatalog.parseGramofoncheDurationSeconds(""), 0.0)
+        assertEquals(0.0, ChitankaCatalog.parseGramofoncheDurationSeconds("unknown"), 0.0)
+    }
+
+    // endregion
+
     @Test fun `books unknown facet key falls back to new arrivals`() {
         // A facet key the catalog doesn't recognise should not silently 404 on a bogus URL —
         // fall back to the safe default surface.

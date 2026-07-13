@@ -498,7 +498,7 @@ class ChitankaCatalog(
             coverUrl = coverUrl,
             ebookFormat = format,
             hasAudio = hasAudio,
-            audioDurationSec = 0.0,
+            audioDurationSec = if (hasAudio) parseGramofoncheDurationSeconds(duration) else 0.0,
             description = null,
             language = "Bulgarian",
         )
@@ -527,6 +527,21 @@ class ChitankaCatalog(
          * ExoPlayer's real duration once decoded.
          */
         internal const val GRAMOFONCHE_ASSUMED_BYTES_PER_SEC: Long = 16_000L
+
+        private val GRAMOFONCHE_DURATION_MINUTES_REGEX = Regex("(\\d+)\\s*мин")
+
+        /**
+         * Parses the scraped Gramofonche duration string (e.g. `"45мин"`) into seconds so it can
+         * populate `CatalogItem.audioDurationSec`. `LibraryItemDetailScreen` gates the total-time
+         * line on `audioDurationSec > 0`, so returning 0 for a listing-only value keeps the whole
+         * line hidden until the per-track HEAD probes run at playback time.
+         */
+        internal fun parseGramofoncheDurationSeconds(raw: String?): Double {
+            if (raw.isNullOrEmpty()) return 0.0
+            val minutes = GRAMOFONCHE_DURATION_MINUTES_REGEX.find(raw)?.groupValues?.get(1)?.toIntOrNull()
+                ?: return 0.0
+            return minutes * 60.0
+        }
 
         internal val AUDIO_FACETS: List<CatalogFacet> = listOf(
             CatalogFacet(key = "prikazki", label = "Приказки", sortOrder = 1),
