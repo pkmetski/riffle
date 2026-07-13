@@ -24,6 +24,8 @@ import com.riffle.core.domain.LibraryRefreshResult
 import com.riffle.core.domain.LibraryRefresher
 import com.riffle.core.domain.Series
 import com.riffle.core.domain.SourceRepository
+import com.riffle.core.logging.LogChannel
+import com.riffle.core.logging.Logger
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
@@ -46,6 +48,7 @@ class LibraryRepositoryImpl @Inject constructor(
     private val collectionDao: CollectionDao,
     private val sourceRepository: SourceRepository,
     private val clock: Clock,
+    private val logger: Logger,
 ) : LibraryObserver, LibraryMutator, LibraryRefresher {
 
     @OptIn(ExperimentalCoroutinesApi::class)
@@ -193,7 +196,17 @@ class LibraryRepositoryImpl @Inject constructor(
             val progressDeferred = async {
                 try {
                     progressPeer?.pullAllProgress().orEmpty()
-                } catch (_: Throwable) {
+                } catch (t: Throwable) {
+                    // Historically swallowed silently, which hid the reason "In Progress" stayed
+                    // empty on a Komga source install when the pull threw halfway through the
+                    // paginated sweep (#528). Log so the next repro shows the real error in
+                    // `adb logcat -d | grep RIFFLE_PS`; still return empty so refresh completes
+                    // (browse succeeded — populating rows without progress is better than aborting).
+                    logger.w(LogChannel.ProgressSync) {
+                        "pullAllProgress failed for source=${source.id} lib=$libraryId — " +
+                            "readingProgress will not seed on inserts this refresh: " +
+                            "${t::class.simpleName}: ${t.message}"
+                    }
                     emptyList()
                 }
             }

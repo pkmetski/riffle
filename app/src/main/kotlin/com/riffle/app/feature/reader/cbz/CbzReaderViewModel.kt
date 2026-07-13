@@ -11,6 +11,9 @@ import com.riffle.app.feature.reader.controllers.VolumeKeyDispatcher
 import com.riffle.core.domain.CbzOpenResult
 import com.riffle.core.domain.CbzRepository
 import com.riffle.core.domain.LibraryObserver
+import com.riffle.core.domain.ProgressSyncController
+import com.riffle.core.domain.ReadingSessionRepository
+import com.riffle.core.domain.SessionPayload
 import com.riffle.core.domain.WakeLockPreferencesStore
 import com.riffle.core.domain.comic.CbzArchive
 import com.riffle.core.domain.comic.ComicArchive
@@ -45,6 +48,7 @@ class CbzReaderViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
     private val libraryObserver: LibraryObserver,
     private val cbzRepository: CbzRepository,
+    private val readingSessionRepository: ReadingSessionRepository,
     private val updateReadingProgressUseCase: UpdateReadingProgress,
     private val wakeLockPreferencesStore: WakeLockPreferencesStore,
     private val volumeNavigationController: VolumeNavigationController,
@@ -57,6 +61,18 @@ class CbzReaderViewModel @Inject constructor(
     private var archive: ComicArchive? = null
     private var lastSavedPage: Int = -1
     private var closeSyncDone: Boolean = false
+
+    /**
+     * Wires the shared server-position pull so opening a Komga comic in progress lands on the
+     * server's page instead of resuming at 0 on a fresh install (#528). Same shape as
+     * [com.riffle.app.feature.reader.PdfReaderViewModel]: `sync(itemId, payload)` fires a runSyncCycle
+     * on the active source's [ProgressPeerCapability]; a ServerWins result surfaces through
+     * `serverPositionEvents`, which we translate to a page index and apply to `_currentPage`.
+     */
+    private val progressSyncController = ProgressSyncController(
+        repository = readingSessionRepository,
+        scope = viewModelScope,
+    )
 
     private val _state = MutableStateFlow<CbzReaderState>(CbzReaderState.Loading)
     val state: StateFlow<CbzReaderState> = _state
@@ -78,6 +94,20 @@ class CbzReaderViewModel @Inject constructor(
 
     init {
         viewModelScope.launch { openBook() }
+        // Collect server-wins events from the sync cycle and jump to the server's page. Runs for
+        // the lifetime of the ViewModel so a later cycle (e.g. after the network comes back) can
+        // still move the reader (#528).
+        viewModelScope.launch {
+            progressSyncController.serverPositionEvents.collect { serverProgress ->
+                val page = parsePageIndex(serverProgress.ebookLocation) ?: return@collect
+                val ready = _state.value as? CbzReaderState.Ready ?: return@collect
+                val clamped = page.coerceIn(0, ready.pageCount - 1)
+                if (clamped != _currentPage.value) {
+                    _currentPage.value = clamped
+                    savePosition(clamped, ready.pageCount)
+                }
+            }
+        }
     }
 
     private suspend fun openBook() {
@@ -117,6 +147,13 @@ class CbzReaderViewModel @Inject constructor(
             pageCount = pageCount,
             imageSource = ArchiveImageSource(opened),
         )
+        // Kick a sync cycle so a Komga comic that has server-side progress lands on the server's
+        // page. Same pattern as the PDF reader: hand the current locator through and let
+        // ProgressSyncController raise a ServerWins if the server position is newer.
+        val payload = lastPosition?.takeIf { it.isNotEmpty() }?.let {
+            SessionPayload(ebookLocation = it, ebookProgress = 0f)
+        } ?: SessionPayload("", 0f)
+        progressSyncController.sync(itemId, payload)
     }
 
     private fun parsePageIndex(json: String): Int? = try {
