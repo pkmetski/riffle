@@ -522,7 +522,7 @@ class PdfReaderViewModel @Inject constructor(
         val locator = lastLocator ?: return
         viewModelScope.launch {
             val payload = locator.toPayload()
-            positionSaveCoordinator.onClose(locator.toJSON().toString(), payload.ebookProgress)
+            positionSaveCoordinator.onClose(payload.ebookProgress)
             syncSession.sync(payload)
         }
     }

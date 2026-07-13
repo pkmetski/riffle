@@ -25,14 +25,27 @@ abstract class TimestampedPositionStore<P>(
     protected open fun now(): Long = clock.nowMs()
 
     protected abstract suspend fun writePayload(sourceId: String, itemId: String, payload: P, updatedAt: Long)
+    /** Overwrite the row with [payload] and set BOTH `localUpdatedAt` and `lastSyncedAt` to [stamp]. */
+    protected abstract suspend fun writeCleanAtStamp(sourceId: String, itemId: String, payload: P, stamp: Long)
     protected abstract suspend fun readPayload(sourceId: String, itemId: String): P?
     protected abstract suspend fun readUpdatedAt(sourceId: String, itemId: String): Long?
+    protected abstract suspend fun readLastSyncedAt(sourceId: String, itemId: String): Long?
     protected abstract suspend fun writeUpdatedAt(sourceId: String, itemId: String, updatedAt: Long)
 
     final override suspend fun save(sourceId: String, itemId: String, payload: P) {
+        // Idempotent: if the stored payload already equals the incoming one, this is a no-op
+        // instead of a fresh timestamp bump. Protects the "reader-close race" where the reader's
+        // onClose fires with a stale in-memory locator (before the ServerWins UI-jump landed);
+        // the stale save would otherwise re-stamp the row with maxOf(now, existing+1) and the
+        // next sync-cycle would push the stale local back over the fresh server value (#528).
+        if (readPayload(sourceId, itemId) == payload) return
         val existing = readUpdatedAt(sourceId, itemId) ?: 0L
         val ts = maxOf(now(), existing + 1)
         writePayload(sourceId, itemId, payload, ts)
+    }
+
+    final override suspend fun acceptServer(sourceId: String, itemId: String, payload: P, serverStamp: Long) {
+        writeCleanAtStamp(sourceId, itemId, payload, serverStamp)
     }
 
     final override suspend fun load(sourceId: String, itemId: String): P? =
@@ -40,6 +53,9 @@ abstract class TimestampedPositionStore<P>(
 
     final override suspend fun loadLocalUpdatedAt(sourceId: String, itemId: String): Long =
         readUpdatedAt(sourceId, itemId) ?: 0L
+
+    final override suspend fun loadLastSyncedAt(sourceId: String, itemId: String): Long =
+        readLastSyncedAt(sourceId, itemId) ?: 0L
 
     final override suspend fun updateLocalTimestamp(sourceId: String, itemId: String, millis: Long) =
         writeUpdatedAt(sourceId, itemId, millis)

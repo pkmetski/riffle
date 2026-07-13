@@ -20,11 +20,18 @@ class ReadingPositionStoreImpl @Inject constructor(
         dao.upsert(ReadingPositionEntity(sourceId, itemId, payload, updatedAt, existing?.lastSyncedAt ?: 0L))
     }
 
+    override suspend fun writeCleanAtStamp(sourceId: String, itemId: String, payload: String, stamp: Long) {
+        dao.upsert(ReadingPositionEntity(sourceId, itemId, payload, stamp, stamp))
+    }
+
     override suspend fun readPayload(sourceId: String, itemId: String): String? =
         dao.getByItemId(sourceId, itemId)?.cfi
 
     override suspend fun readUpdatedAt(sourceId: String, itemId: String): Long? =
         dao.getByItemId(sourceId, itemId)?.localUpdatedAt
+
+    override suspend fun readLastSyncedAt(sourceId: String, itemId: String): Long? =
+        dao.getByItemId(sourceId, itemId)?.lastSyncedAt
 
     override suspend fun writeUpdatedAt(sourceId: String, itemId: String, updatedAt: Long) {
         // upsert (not the UPDATE-only DAO query) so a row is always created — otherwise a stamp before

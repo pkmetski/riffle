@@ -241,7 +241,10 @@ class AudiobookPlayerViewModel @Inject constructor(
             audiobookRepository.saveProgress(sourceId, itemId, positionSec, timeline.durationSec)
         }
         override suspend fun writeCloseFlush(positionSec: Double, fraction: Float) {
-            positionSaveCoordinator.onClose(positionSec, fraction)
+            // Audiobook player passes positionSec through savePosition (still used on hot path
+            // for local audiobook_positions), but onClose no longer takes a position — see
+            // PositionSaveCoordinator KDoc (#528).
+            positionSaveCoordinator.onClose(fraction)
         }
         override var reconciledResumeSec: Double
             get() = this@AudiobookPlayerViewModel.reconciledResumeSec

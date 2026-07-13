@@ -30,6 +30,8 @@ class PositionOrchestratorTest {
         override suspend fun save(sourceId: String, itemId: String, payload: String) { }
         override suspend fun load(sourceId: String, itemId: String): String? = null
         override suspend fun loadLocalUpdatedAt(sourceId: String, itemId: String): Long = localUpdatedAt
+        override suspend fun loadLastSyncedAt(sourceId: String, itemId: String): Long = 0L
+        override suspend fun acceptServer(sourceId: String, itemId: String, payload: String, serverStamp: Long) { }
         override suspend fun updateLocalTimestamp(sourceId: String, itemId: String, millis: Long) {
             savedTimestamps.add(millis to itemId)
         }

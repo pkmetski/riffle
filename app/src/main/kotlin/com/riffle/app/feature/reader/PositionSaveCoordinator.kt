@@ -7,13 +7,16 @@ package com.riffle.app.feature.reader
  * write the `readingProgress` float, because that hits `library_items` and fires Room's
  * InvalidationTracker for every active library Flow (scroll-framerate recompositions).
  *
- * Cold path ([onClose], once per pause / close): persist the position AND the `readingProgress`
- * float, so the detail and library screens reflect where the user stopped.
+ * Cold path ([onClose], once per pause / close): persist ONLY the `readingProgress` float. The
+ * position itself has already been saved by the last `onChanged` (or by a `ServerWins` adoption
+ * that ran via [com.riffle.core.domain.PositionStore.acceptServer]) — saving again on close would
+ * risk overwriting a fresh server value with a stale in-memory locator if the ServerLocator UI
+ * jump hadn't landed yet (#528).
  *
  * Only local persistence lives here; each medium's backend (ABS) sync runs *outside* this
  * coordinator — the reader's progress-sync controller / audio-led cycle. [savePosition] is optional:
- * the ebook stores its CFI locally for offline resume, while the audiobook resumes from the server
- * and so has no local position to save (it only uses the cold-path progress write).
+ * the ebook stores its CFI locally for offline resume via `onChanged`; the audiobook resumes from
+ * the server and has no local position to save at all.
  */
 class PositionSaveCoordinator<P>(
     private val updateProgress: suspend (progress: Float) -> Unit,
@@ -23,8 +26,7 @@ class PositionSaveCoordinator<P>(
         savePosition(position)
     }
 
-    suspend fun onClose(position: P, progress: Float) {
-        savePosition(position)
+    suspend fun onClose(progress: Float) {
         updateProgress(progress)
     }
 }

@@ -105,6 +105,8 @@ class PdfRepositoryTest {
         }
         override suspend fun load(sourceId: String, itemId: String): String? = store[sourceId to itemId]
         override suspend fun loadLocalUpdatedAt(sourceId: String, itemId: String): Long = 0L
+        override suspend fun loadLastSyncedAt(sourceId: String, itemId: String): Long = 0L
+        override suspend fun acceptServer(sourceId: String, itemId: String, payload: String, serverStamp: Long) { }
         override suspend fun updateLocalTimestamp(sourceId: String, itemId: String, millis: Long) = Unit
     }
 

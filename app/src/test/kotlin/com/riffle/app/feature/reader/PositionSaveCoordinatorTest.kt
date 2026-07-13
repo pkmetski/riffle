@@ -30,7 +30,7 @@ class PositionSaveCoordinatorTest {
             updateProgress = { updateCount++ },
         )
 
-        coordinator.onClose("cfi", 0.5f)
+        coordinator.onClose(0.5f)
 
         assertEquals(1, updateCount)
     }
@@ -49,21 +49,25 @@ class PositionSaveCoordinatorTest {
     }
 
     @Test
-    fun `onClose calls savePosition exactly once`() = runTest {
+    fun `onClose does NOT call savePosition — position was already written by onChanged (#528)`() = runTest {
+        // Prior contract also saved the position on close, which regressed cross-device sync:
+        // if the ServerLocator UI-jump hadn't landed yet, onClose saved the reader's stale
+        // in-memory locator over the fresh server-adopted value in the store, and the next
+        // sync-cycle pushed the stale locator back. onChanged now covers all position writes;
+        // onClose only updates the readingProgress display value.
         var saveCount = 0
         val coordinator = PositionSaveCoordinator<String>(
             savePosition = { saveCount++ },
             updateProgress = {},
         )
 
-        coordinator.onClose("cfi", 0.75f)
+        coordinator.onClose(0.75f)
 
-        assertEquals(1, saveCount)
+        assertEquals(0, saveCount)
     }
 
-    // The audiobook player constructs the coordinator without a savePosition (it resumes from ABS,
-    // so there is no local position to store). The cold-path progress write must still fire, and the
-    // omitted savePosition must be a safe no-op on both paths.
+    // The audiobook player constructs the coordinator without a savePosition. The cold-path
+    // progress write must still fire, and the omitted savePosition must be a safe no-op.
     @Test
     fun `without savePosition, onClose still updates progress and onChanged is a safe no-op`() = runTest {
         var updateCount = 0
@@ -74,7 +78,7 @@ class PositionSaveCoordinatorTest {
         repeat(10) { coordinator.onChanged(it.toDouble()) }
         assertEquals(0, updateCount)
 
-        coordinator.onClose(123.0, 0.42f)
+        coordinator.onClose(0.42f)
         assertEquals(1, updateCount)
     }
 }

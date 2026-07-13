@@ -52,21 +52,39 @@ class ReadingSessionRepositoryImpl @Inject constructor(
         val serverProgress = runCatching { peer.pullProgress(itemId) }.getOrElse { return ProgressSyncCycleResult.Offline }
         val serverLastUpdate = serverProgress?.lastUpdate ?: 0L
         val localUpdatedAt = positionStore.loadLocalUpdatedAt(source.id, itemId)
+        val lastSyncedAt = positionStore.loadLastSyncedAt(source.id, itemId)
+        // A row is CLEAN when nothing has changed locally since the last time we adopted a server
+        // stamp (via LocalWins push or ServerWins pull). The server-clock and device-clock skew
+        // means we can NOT rely on `localUpdatedAt > serverLastUpdate` alone — on a Device 2 whose
+        // wall clock runs ahead of the ABS server clock, every local save uses
+        // maxOf(now, existing+1) → local timestamps drift above the server's, and a subsequent
+        // open would mistakenly pick LocalWins and push the stale local back over Device 1's fresh
+        // server progress. Clean rows always adopt the server (nothing to preserve locally); dirty
+        // rows keep the timestamp comparison (both stamps are the best we have) (#528).
+        val localDirty = localUpdatedAt > lastSyncedAt
+        val serverAdvanced = serverLastUpdate > lastSyncedAt
 
         return when {
-            serverLastUpdate > localUpdatedAt && serverProgress != null -> {
-                // Persist the server's position AND stamp — prior code only bumped the
-                // timestamp, so positionStore.load() kept returning the stale local locator.
-                // If the reader closed before the ServerLocator UI-jump landed (fast back-out),
-                // onClose would save the stale locator with a fresh `maxOf(now, existing+1)`
-                // stamp and the next sync-cycle would push it back over the fresh server
-                // position — the "Device 2 open silently downgraded Device 1's progress" bug.
-                // Order matters: save first (sets its own stamp via TimestampedPositionStore),
-                // then overwrite the stamp to the server's exact stamp so a subsequent equal
-                // sync-cycle stays InSync (#528).
+            (!localDirty && serverAdvanced && serverProgress != null) ||
+                (localDirty && serverLastUpdate > localUpdatedAt && serverProgress != null) -> {
+                // Adopt the server's position AND stamp atomically, leaving the row CLEAN
+                // (localUpdatedAt = lastSyncedAt = serverStamp). Prior code bumped only the
+                // timestamp, leaving `positionStore.load()` returning the stale local locator
+                // AND the row marked dirty — if the reader closed before the ServerLocator
+                // UI-jump landed (fast back-out), `onClose` saved the stale locator with a
+                // fresh `maxOf(now, existing+1)` stamp and the next sync-cycle decided
+                // LocalWins on the (still) newer local stamp, pushing the stale 87% back over
+                // the server's fresh 91% — the "Device 2 open silently downgraded Device 1's
+                // progress" bug (#528).
                 val serverLoc = serverProgress.ebookLocation.orEmpty()
-                if (serverLoc.isNotEmpty()) positionStore.save(source.id, itemId, serverLoc)
-                positionStore.updateLocalTimestamp(source.id, itemId, serverLastUpdate)
+                if (serverLoc.isNotEmpty()) {
+                    positionStore.acceptServer(source.id, itemId, serverLoc, serverLastUpdate)
+                } else {
+                    // Server is a never-opened peer with no locator — still adopt the timestamp
+                    // so subsequent cycles stay InSync. Don't clobber the locally-persisted
+                    // locator with "".
+                    positionStore.updateLocalTimestamp(source.id, itemId, serverLastUpdate)
+                }
                 ProgressSyncCycleResult.ServerWins(
                     ServerProgress(
                         ebookLocation = serverLoc,
@@ -75,7 +93,10 @@ class ReadingSessionRepositoryImpl @Inject constructor(
                     )
                 )
             }
-            localUpdatedAt > serverLastUpdate -> {
+            // LocalWins only if we actually have local changes to push. A clean row (already in
+            // sync with server) never gets pushed — even if device-clock skew made the timestamps
+            // disagree, there's nothing new locally to send (#528).
+            localDirty && localUpdatedAt > serverLastUpdate -> {
                 val stamp = runCatching {
                     peer.pushEbookProgress(
                         itemId = itemId,

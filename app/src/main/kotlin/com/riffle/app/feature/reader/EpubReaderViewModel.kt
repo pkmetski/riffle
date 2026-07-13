@@ -1390,7 +1390,7 @@ class EpubReaderViewModel @Inject constructor(
         // The durable reading-position write survives a reopen/the offline sweep (ADR 0030).
         viewModelScope.launch {
             val payload = locator.toPayload()
-            positionSaveCoordinator.onClose(locator.toJSON().toString(), payload.ebookProgress)
+            positionSaveCoordinator.onClose(payload.ebookProgress)
             if (lifecycle.matchedSync.value?.readerSync != null) runReaderSyncCycle(locator)
             else syncSession.sync(payload)
         }
