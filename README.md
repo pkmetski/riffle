@@ -102,7 +102,7 @@ Riffle lets you browse your library, read EPUB, PDF, and CBZ files, listen to au
 
 ### Sources
 - **Audiobookshelf** and **Storyteller** self-hosted servers — full read, listen, and sync
-- **Komga** self-hosted server — browse and read comics, manga, and ebooks (EPUB, PDF, CBZ) from any [Komga](https://komga.org/) instance with Basic-auth credentials
+- **Komga** self-hosted server — browse, read, and sync comics, manga, and ebooks (EPUB, PDF, CBZ) from any [Komga](https://komga.org/) instance with Basic-auth credentials; page-based reading progress syncs bidirectionally across devices
 - **Chitanka** (chitanka.info + gramofonche.chitanka.info) — anonymous, zero-config access to the Bulgarian public catalogue of EPUB ebooks and MP3 audiobooks; browsable by category, genre, and series
 - **Project Gutenberg** (via Gutendex) — anonymous, zero-config access to ~70,000 public-domain EPUBs; browsable by language, subject, and author
 - **Local files** — import EPUB, PDF, and CBZ files from device storage and read them alongside your server libraries, with the same reader, highlights, and progress tracking
