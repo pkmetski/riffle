@@ -101,7 +101,7 @@ class ReaderSyncCoordinatorTest {
     private fun coordinator(
         peer: FakePeer,
         ebookEp: CatalogEbookEndpoint = CatalogEbookEndpoint(peer, "abs-item"),
-        audioEp: CatalogAudioEndpoint? = CatalogAudioEndpoint(peer = peer, audioPeer = peer, itemId = "abs-item", durationSec = 100.0),
+        audioEp: CatalogAudioEndpoint? = CatalogAudioEndpoint(peer = peer, itemId = "abs-item", durationSec = 100.0),
     ) = ReaderSyncCoordinator(state, translator, clock, ebookEp, audioEp)
 
     @Test
@@ -168,7 +168,7 @@ class ReaderSyncCoordinatorTest {
     fun `pushAudiobookProgress writes only the audiobook item from the page and returns the source stamp`() = runTest {
         val peer = FakePeer(CatalogProgress("abs-item", ebookLocation = "", lastUpdate = 0L))
         val ebookEp = CatalogEbookEndpoint(peer, "ebook-item")
-        val audioEp = CatalogAudioEndpoint(peer = peer, audioPeer = peer, itemId = "audiobook-item", durationSec = 39214.0)
+        val audioEp = CatalogAudioEndpoint(peer = peer, itemId = "audiobook-item", durationSec = 39214.0)
         val coordinator = coordinator(peer, ebookEp, audioEp)
 
         val stamp = coordinator.pushAudiobookProgress(locator(0.9))

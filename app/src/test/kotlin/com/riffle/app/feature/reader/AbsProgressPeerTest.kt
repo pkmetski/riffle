@@ -41,9 +41,8 @@ class AbsProgressPeerTest {
     }
 
     private fun ebookEp(peer: ProgressPeerCapability) = CatalogEbookEndpoint(peer, "i")
-    private fun <T> audioEp(peer: T): CatalogAudioEndpoint
-            where T : ProgressPeerCapability, T : AudiobookProgressPeerCapability =
-        CatalogAudioEndpoint(peer = peer, audioPeer = peer, itemId = "i", durationSec = 100.0)
+    private fun audioEp(peer: AudiobookProgressPeerCapability) =
+        CatalogAudioEndpoint(peer = peer, itemId = "i", durationSec = 100.0)
 
     private fun locator(href: String, progression: Double): String = JSONObject()
         .put("href", href)

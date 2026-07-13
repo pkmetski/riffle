@@ -70,7 +70,7 @@ class CatalogProgressRemoteFactoryTest {
         CatalogEbookProgressRemote(peer, "item-1", translator, { progress }, clock)
 
     private fun audioRemote(peer: FakePeer, duration: Double = 3600.0) =
-        CatalogAudioProgressRemote(audioPeer = peer, pullPeer = peer, itemId = "item-1", duration = { duration }, clock = clock)
+        CatalogAudioProgressRemote(peer = peer, itemId = "item-1", duration = { duration }, clock = clock)
 
     // --- ebook get ---
 

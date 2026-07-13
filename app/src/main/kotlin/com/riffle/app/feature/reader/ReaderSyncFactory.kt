@@ -129,10 +129,8 @@ open class ReaderSyncFactory @Inject constructor(
     }
 
     private suspend fun audioEndpointFor(sourceId: String, itemId: String, durationSec: Double): CatalogAudioEndpoint? {
-        val catalog = catalogRegistry.forSourceId(sourceId) ?: return null
-        val peer = catalog as? ProgressPeerCapability ?: return null
-        val audioPeer = catalog as? AudiobookProgressPeerCapability ?: return null
-        return CatalogAudioEndpoint(peer, audioPeer, itemId, durationSec)
+        val peer = catalogRegistry.forSourceId(sourceId) as? AudiobookProgressPeerCapability ?: return null
+        return CatalogAudioEndpoint(peer, itemId, durationSec)
     }
 
     private fun cachedFile(sourceId: String, itemId: String): java.io.File? =

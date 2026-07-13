@@ -53,7 +53,7 @@ class AudiobookFollowTest {
     }
 
     private fun follow(peer: FakePeer) = AudiobookFollow(
-        endpoint = CatalogAudioEndpoint(peer = peer, audioPeer = peer, itemId = "audio-item", durationSec = 3600.0),
+        endpoint = CatalogAudioEndpoint(peer = peer, itemId = "audio-item", durationSec = 3600.0),
         translator = translator(),
         clock = clock,
         sourceId = "s1",

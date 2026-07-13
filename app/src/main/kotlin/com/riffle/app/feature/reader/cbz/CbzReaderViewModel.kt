@@ -4,7 +4,6 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.viewModelScope
-import com.riffle.app.feature.reader.ReaderProgressSyncSession
 import com.riffle.app.feature.reader.ReaderStateHolder
 import com.riffle.app.feature.reader.VolumeNavEvent
 import com.riffle.app.feature.reader.VolumeNavigationController
@@ -12,6 +11,7 @@ import com.riffle.app.feature.reader.controllers.VolumeKeyDispatcher
 import com.riffle.core.domain.CbzOpenResult
 import com.riffle.core.domain.CbzRepository
 import com.riffle.core.domain.LibraryObserver
+import com.riffle.core.domain.ProgressSyncController
 import com.riffle.core.domain.ReadingSessionRepository
 import com.riffle.core.domain.SessionPayload
 import com.riffle.core.domain.WakeLockPreferencesStore
@@ -63,13 +63,13 @@ class CbzReaderViewModel @Inject constructor(
     private var closeSyncDone: Boolean = false
 
     /**
-     * The shared sync seam (see [ReaderProgressSyncSession] KDoc). Kicks a runSyncCycle on open
-     * and after every save; a ServerWins result surfaces through `serverPositionEvents`, which
-     * we translate to a page index and apply to `_currentPage` (#528).
+     * The "sync out of the box" seam every reader constructs (#528). Kicks a runSyncCycle on
+     * open and after every save; a ServerWins result surfaces through `serverPositionEvents`,
+     * which we translate to a page index and apply to `_currentPage`.
      */
-    private val syncSession = ReaderProgressSyncSession(
+    private val syncSession = ProgressSyncController(
         itemId = itemId,
-        readingSessionRepository = readingSessionRepository,
+        repository = readingSessionRepository,
         scope = viewModelScope,
     )
 

@@ -14,6 +14,7 @@ import com.riffle.core.domain.LibraryObserver
 import com.riffle.core.domain.usecase.UpdateReadingProgress
 import com.riffle.core.domain.PdfOpenResult
 import com.riffle.core.domain.PdfRepository
+import com.riffle.core.domain.ProgressSyncController
 import com.riffle.core.domain.ReadingSessionCoordinator
 import com.riffle.core.domain.ReadingSessionRepository
 import com.riffle.core.domain.ReadingSpeedStore
@@ -140,11 +141,10 @@ class PdfReaderViewModel @Inject constructor(
     private val _syncErrorEvents = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
     val syncErrorEvents: SharedFlow<Unit> = _syncErrorEvents.asSharedFlow()
 
-    // Shared sync seam (see ReaderProgressSyncSession) — replaces the ad-hoc per-reader
-    // ProgressSyncController construction so every reader consumes sync the same way (#528).
-    private val syncSession = ReaderProgressSyncSession(
+    // Shared sync seam — same construction pattern in every reader ViewModel (#528).
+    private val syncSession = ProgressSyncController(
         itemId = itemId,
-        readingSessionRepository = readingSessionRepository,
+        repository = readingSessionRepository,
         scope = viewModelScope,
         onSyncError = { _syncErrorEvents.tryEmit(Unit) },
     )

@@ -229,13 +229,21 @@ class KomgaCatalog(
         lastUpdateEpochMs: Long,
     ): Long? {
         val page = extractPageFromLocation(location)
-        val completed = isFinished ?: (progress >= 1f)
-        // Komga rejects a PATCH with all-null fields. Skip when we have neither a page nor an
-        // explicit finished flag (mark-read/unread callers still succeed via `completed` alone).
-        if (page == null && isFinished == null) return null
+        // Honour the tri-state contract of [ProgressPeerCapability.pushEbookProgress]: `null`
+        // must leave the server's `completed` flag untouched. Prior code derived
+        // `completed = isFinished ?: (progress >= 1f)`, which routinely sent `completed = false`
+        // on every reader-position save — so re-reading a book that Komga had marked completed
+        // silently un-finished it on the server the first time the sweep fired. The KomgaJson
+        // config drops null fields (`explicitNulls = false`), so passing `isFinished` through
+        // verbatim omits the field for routine saves and only mark-finished/mark-unread callers
+        // touch it.
+        if (page == null && isFinished == null) {
+            // Komga rejects a PATCH with all-null fields — nothing to send.
+            return null
+        }
         val body = KomgaJson.encodeToString(
             KomgaReadProgressPatch.serializer(),
-            KomgaReadProgressPatch(page = page, completed = completed),
+            KomgaReadProgressPatch(page = page, completed = isFinished),
         )
         http.patchJson(apiUrl("books/$itemId/read-progress"), body)
         // Komga's PATCH response is 204 No Content — no server stamp. Caller adopts the client
@@ -254,18 +262,32 @@ class KomgaCatalog(
         // Sweep every book across every library that has a non-null readProgress. Komga has no
         // "list all my progress" endpoint, but /books returns readProgress embedded, so we page
         // through and filter. read_status=READ|IN_PROGRESS narrows the set server-side.
+        //
+        // Per-page try/catch: a mid-stream failure on a large library (a 5xx on page N, malformed
+        // JSON, timeout) previously threw all the way to LibraryRepositoryImpl.refresh which
+        // caught and returned emptyList — every never-opened row got seeded at readingProgress=0
+        // and no later refresh could fix it (updateMetadata preserves local). Returning what we
+        // have so far is strictly better: In-Progress shows the books we DID pull, and the next
+        // sweep can catch the tail. Same "best-effort partial" shape as ProgressSweep uses in
+        // ADR 0030.
         val out = mutableListOf<CatalogProgress>()
         var page = 0
         while (true) {
-            val body = http.getString(
-                apiUrl("books") +
-                    "?read_status=IN_PROGRESS,READ" +
-                    "&size=$KOMGA_MAX_PAGE_SIZE&page=$page",
-            )
-            val pageDto = KomgaJson.decodeFromString(
-                KomgaPageDto.serializer(serializer<KomgaBookDto>()),
-                body,
-            )
+            val body = try {
+                http.getString(
+                    apiUrl("books") +
+                        "?read_status=IN_PROGRESS,READ" +
+                        "&size=$KOMGA_MAX_PAGE_SIZE&page=$page",
+                )
+            } catch (_: Throwable) {
+                break
+            }
+            val pageDto = runCatching {
+                KomgaJson.decodeFromString(
+                    KomgaPageDto.serializer(serializer<KomgaBookDto>()),
+                    body,
+                )
+            }.getOrNull() ?: break
             pageDto.content.forEach { book ->
                 book.toCatalogProgress()?.let { out += it }
             }

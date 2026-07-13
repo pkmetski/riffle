@@ -76,25 +76,25 @@ class CatalogEbookProgressRemote(
  * An audiobook media-progress record as one reconcilable target (ADR 0030), routed through the
  * Source's [AudiobookProgressPeerCapability]. Position is the book-absolute `currentTime` in
  * seconds. The PATCH needs the track [duration]; the local store keeps only seconds, so duration
- * is supplied by the caller from `library_items.audioDurationSec`. [pullPeer] supplies the
- * unified `pullProgress` — audio and ebook share the same envelope on the ABS peer.
+ * is supplied by the caller from `library_items.audioDurationSec`. The same [peer] serves both
+ * the audio push and the unified `pullProgress` since [AudiobookProgressPeerCapability] extends
+ * [ProgressPeerCapability] (#528).
  */
 class CatalogAudioProgressRemote(
-    private val audioPeer: AudiobookProgressPeerCapability,
-    private val pullPeer: ProgressPeerCapability,
+    private val peer: AudiobookProgressPeerCapability,
     private val itemId: String,
     private val duration: suspend () -> Double,
     private val clock: Clock,
 ) : ProgressRemote<Double> {
 
     override suspend fun get(): RemoteProgress<Double>? {
-        val r = runCatching { pullPeer.pullProgress(itemId) }.getOrNull() ?: return null
+        val r = runCatching { peer.pullProgress(itemId) }.getOrNull() ?: return null
         return RemoteProgress(r.audioCurrentTime, r.lastUpdate)
     }
 
     override suspend fun patch(position: Double): Long? =
         runCatching {
-            val stamp = audioPeer.pushAudiobookProgress(
+            val stamp = peer.pushAudiobookProgress(
                 itemId = itemId,
                 currentTimeSec = position,
                 durationSec = duration(),

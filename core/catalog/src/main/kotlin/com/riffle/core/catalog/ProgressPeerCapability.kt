@@ -41,15 +41,18 @@ interface ProgressPeerCapability : CatalogCapability {
 }
 
 /**
- * A peer that additionally stores **audiobook** listening progress. Split from
- * [ProgressPeerCapability] so ebook-only sources (Komga #528) don't have to stub an audio push
- * that will never run — the sweep gates audio work on `is AudiobookProgressPeerCapability` and
- * skips it for peers that lack it.
+ * A peer that **also** stores audiobook listening progress in addition to ebook progress. Split
+ * from [ProgressPeerCapability] so ebook-only sources (Komga #528) don't have to stub an audio
+ * push that will never run — the sweep gates audio work on `is AudiobookProgressPeerCapability`
+ * and skips it for peers that lack it.
  *
- * ABS is currently the only peer that implements this; it stores `currentTime`/`duration` in a
- * shared media-progress record alongside the ebook half (ADR 0029).
+ * Extends [ProgressPeerCapability]: every audio peer is by construction also a progress peer
+ * (Storyteller's own record is not a peer, ADR 0029; ABS's audio side rides the same
+ * `pullProgress` envelope as its ebook side). Codifying the relationship in the type system lets
+ * downstream endpoint types carry a single peer reference instead of the two-slot construction
+ * we had to write everywhere before (`peer = peer, audioPeer = peer`).
  */
-interface AudiobookProgressPeerCapability : CatalogCapability {
+interface AudiobookProgressPeerCapability : ProgressPeerCapability {
     suspend fun pushAudiobookProgress(
         itemId: String,
         currentTimeSec: Double,

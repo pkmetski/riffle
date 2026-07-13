@@ -174,7 +174,11 @@ class KomgaCatalogTest {
         assertEquals(CfiDialect.PAGE_NUMBER, catalog.cfiDialect)
     }
 
-    @Test fun `pushEbookProgress PATCHes read-progress with the decoded page number`() = runTest {
+    @Test fun `pushEbookProgress PATCHes read-progress with the decoded page number and omits completed on routine saves (#528)`() = runTest {
+        // isFinished=null is the routine reader-position save. Prior code sent `completed=false`
+        // on every such save, which silently un-finished a previously-completed book on Komga
+        // the first time the sweep fired. The catalog now honours the tri-state — `completed`
+        // is omitted from the JSON entirely so the server-side flag stays put.
         server.enqueue(MockResponse().setResponseCode(204))
 
         catalog.pushEbookProgress(
@@ -189,9 +193,24 @@ class KomgaCatalogTest {
         assertEquals("PATCH", recorded.method)
         assertEquals("/api/v1/books/B1/read-progress", recorded.path)
         val bodyStr = recorded.body.readUtf8()
-        // page decoded; completed derived from progress<1
         assertTrue("page must be 42: $bodyStr", bodyStr.contains("\"page\":42"))
-        assertTrue("completed must be false: $bodyStr", bodyStr.contains("\"completed\":false"))
+        assertTrue("completed must NOT be sent on a routine save: $bodyStr", !bodyStr.contains("completed"))
+    }
+
+    @Test fun `pushEbookProgress forwards explicit isFinished=false (mark-unread) so Komga clears its Read shelf`() = runTest {
+        // Mark-unread is the other explicit case — completed:false must reach Komga.
+        server.enqueue(MockResponse().setResponseCode(204))
+
+        catalog.pushEbookProgress(
+            itemId = "B1",
+            location = "1",
+            progress = 0f,
+            isFinished = false,
+            lastUpdateEpochMs = 0L,
+        )
+
+        val bodyStr = server.takeRequest().body.readUtf8()
+        assertTrue("completed must be sent as false: $bodyStr", bodyStr.contains("\"completed\":false"))
     }
 
     @Test fun `pushEbookProgress forwards explicit isFinished=true (mark-finished)`() = runTest {
@@ -348,6 +367,41 @@ class KomgaCatalogTest {
         assertEquals(0.1f, all[0].ebookProgress, 1e-6f)
         assertEquals("B2", all[1].itemId)
         assertTrue(all[1].isFinished)
+    }
+
+    @Test fun `pullAllProgress preserves partial results when a later page fails (#528)`() = runTest {
+        // Page 1 succeeds with one in-progress book, page 2 5xx-errors. Prior code threw all the
+        // way to LibraryRepositoryImpl which caught and returned emptyList — every never-opened
+        // row was seeded at readingProgress=0 and no later refresh could fix it. Best-effort
+        // partial return is strictly better: In-Progress shows what we DID pull, and the next
+        // sweep picks up the tail.
+        server.enqueue(MockResponse().setBody("""
+            {"content":[
+              {"id":"B1","libraryId":"L1","name":"a","media":{"pagesCount":100},"metadata":{"title":"A","authors":[]},
+               "readProgress":{"page":10,"completed":false,"lastModified":"2026-07-01T10:00:00Z"}}
+            ],"last":false,"totalPages":3,"totalElements":3,"empty":false,"first":true,"number":0}
+        """.trimIndent()))
+        server.enqueue(MockResponse().setResponseCode(502))
+
+        val all = catalog.pullAllProgress()
+
+        assertEquals(1, all.size)
+        assertEquals("B1", all[0].itemId)
+    }
+
+    @Test fun `pullAllProgress preserves partial results when a page body is malformed JSON`() = runTest {
+        server.enqueue(MockResponse().setBody("""
+            {"content":[
+              {"id":"B1","libraryId":"L1","name":"a","media":{"pagesCount":100},"metadata":{"title":"A","authors":[]},
+               "readProgress":{"page":10,"completed":false,"lastModified":"2026-07-01T10:00:00Z"}}
+            ],"last":false,"totalPages":3,"totalElements":3,"empty":false,"first":true,"number":0}
+        """.trimIndent()))
+        server.enqueue(MockResponse().setBody("not-json"))
+
+        val all = catalog.pullAllProgress()
+
+        assertEquals(1, all.size)
+        assertEquals("B1", all[0].itemId)
     }
 
     // endregion

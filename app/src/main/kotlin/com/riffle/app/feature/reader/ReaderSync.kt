@@ -23,14 +23,14 @@ data class CatalogEbookEndpoint(
 )
 
 /**
- * Resolved audiobook sync endpoint for a matched Library Item. [peer] serves the unified
+ * Resolved audiobook sync endpoint for a matched Library Item. [peer] serves both the unified
  * `pullProgress` (a single-record fetch that carries both dimensions on ABS-shaped peers) and
- * [audioPeer] handles the audio push. [durationSec] is the item's total audio length, sent with
- * audiobook progress so ABS reports a real percentage.
+ * the audio push, since [AudiobookProgressPeerCapability] now extends [ProgressPeerCapability]
+ * (#528). [durationSec] is the item's total audio length, sent with audiobook progress so ABS
+ * reports a real percentage.
  */
 data class CatalogAudioEndpoint(
-    val peer: ProgressPeerCapability,
-    val audioPeer: AudiobookProgressPeerCapability,
+    val peer: AudiobookProgressPeerCapability,
     val itemId: String,
     val durationSec: Double = 0.0,
 )
@@ -121,7 +121,7 @@ internal class AudiobookProgressPeerAdapter(
     override suspend fun tryPatch(canonical: CanonicalReaderPosition): WriteResult {
         val seconds = translator.canonicalToAudioSeconds(canonical.value)
             ?: return WriteResult.Skipped
-        val stamp = ep.audioPeer.writeAudiobookSeconds(ep.itemId, ep.durationSec, seconds, clock)
+        val stamp = ep.peer.writeAudiobookSeconds(ep.itemId, ep.durationSec, seconds, clock)
             ?: return WriteResult.Failed("audiobook PATCH failed")
         return WriteResult.Ok(stamp)
     }
@@ -217,7 +217,7 @@ class ReaderSyncCoordinator(
     private suspend fun pushAudiobookAtSeconds(seconds: Double?): Long? {
         val ep = audioEndpoint ?: return null
         if (seconds == null) return null
-        return ep.audioPeer.writeAudiobookSeconds(ep.itemId, ep.durationSec, seconds, clock)
+        return ep.peer.writeAudiobookSeconds(ep.itemId, ep.durationSec, seconds, clock)
     }
 }
 
@@ -243,7 +243,7 @@ class AudiobookFollow(
 
     suspend fun pushFragment(fragmentRef: String): Long? =
         secondsForFragment(fragmentRef)?.let {
-            endpoint.audioPeer.writeAudiobookSeconds(endpoint.itemId, endpoint.durationSec, it, clock)
+            endpoint.peer.writeAudiobookSeconds(endpoint.itemId, endpoint.durationSec, it, clock)
         }
 
     fun readaloudAnchorForAudioSeconds(seconds: Double): com.riffle.core.domain.ReadaloudResumePosition? {

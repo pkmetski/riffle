@@ -42,12 +42,9 @@ class CatalogProgressRemoteFactory @Inject constructor(
     }
 
     override suspend fun audio(sourceId: String, itemId: String): ProgressRemote<Double>? {
-        val catalog = catalogRegistry.forSourceId(sourceId) ?: return null
-        val pullPeer = catalog as? ProgressPeerCapability ?: return null
-        val audioPeer = catalog as? AudiobookProgressPeerCapability ?: return null
+        val peer = catalogRegistry.forSourceId(sourceId) as? AudiobookProgressPeerCapability ?: return null
         return CatalogAudioProgressRemote(
-            audioPeer = audioPeer,
-            pullPeer = pullPeer,
+            peer = peer,
             itemId = itemId,
             duration = { libraryItemDao.getById(sourceId, itemId)?.audioDurationSec ?: 0.0 },
             clock = clock,

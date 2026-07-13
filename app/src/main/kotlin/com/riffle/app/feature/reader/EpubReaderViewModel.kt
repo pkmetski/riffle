@@ -42,6 +42,7 @@ import com.riffle.core.domain.usecase.UpdateReadingProgress
 import com.riffle.core.domain.ReadaloudAudioRepository
 import com.riffle.core.domain.ReadaloudLinkRepository
 import com.riffle.core.domain.ReaderOrientation
+import com.riffle.core.domain.ProgressSyncController
 import com.riffle.core.domain.ReadingSessionCoordinator
 import com.riffle.core.domain.ReadingSessionRepository
 import com.riffle.core.domain.ServerProgress
@@ -390,11 +391,10 @@ class EpubReaderViewModel @Inject constructor(
     // Delegates to the session — the channel lives there now (sub-task 8.3).
     val pageTopProbeRequests: Flow<String> get() = readaloud.pageTopProbeRequests
 
-    // Shared sync seam (see ReaderProgressSyncSession) — every reader consumes sync the same
-    // way, so a new reader implementation gets it for free without re-wiring (#528).
-    private val syncSession = ReaderProgressSyncSession(
+    // Shared sync seam — same construction pattern in every reader ViewModel (#528).
+    private val syncSession = ProgressSyncController(
         itemId = itemId,
-        readingSessionRepository = readingSessionRepository,
+        repository = readingSessionRepository,
         scope = viewModelScope,
         onSyncError = { _syncErrorEvents.tryEmit(Unit) },
     )
