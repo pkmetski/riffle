@@ -40,7 +40,7 @@ class ServerRepositoryTest {
     }
 
     /** ServerInfo API stub that returns a fixed user id (or null) so backfill tests can drive both
-     *  the success and failure paths of [SourceRepositoryImpl.ensureAbsUserId]. */
+     *  the success and failure paths of [SourceRepositoryImpl.ensureSyncNamespace] for ABS. */
     private class RecordingServerInfoApi(private val userId: String?) : AbsServerInfoApi {
         var getCurrentUserIdCalls = 0
         override suspend fun getServerInfo(baseUrl: String, token: String, insecureAllowed: Boolean): String? = null
@@ -211,6 +211,13 @@ class ServerRepositoryTest {
             tokenStorage = tokens,
             visibilityStore = visibilityStore,
         )
+        // The repository dispatches remote-user-id probes through per-SourceType resolvers.
+        // Wire a live ABS resolver so ensureSyncNamespace's backfill path is exercised, and use
+        // the resolver map as the extension point for adding future source-kind probes.
+        val absResolver = com.riffle.core.data.sync.AbsRemoteUserIdResolver(serverInfoApi)
+        val resolvers = mapOf<com.riffle.core.domain.SourceType, com.riffle.core.domain.RemoteUserIdResolver>(
+            com.riffle.core.domain.SourceType.ABS to absResolver,
+        )
         return SourceRepositoryImpl(
             dao = dao,
             tokenStorage = tokens,
@@ -219,6 +226,7 @@ class ServerRepositoryTest {
             libraryItemDao = libraryItemDao,
             filesCleaner = filesCleaner,
             installer = installer,
+            remoteUserIdResolvers = resolvers,
         )
     }
 
@@ -781,7 +789,7 @@ class ServerRepositoryTest {
     }
 
     @Test
-    fun `ensureAbsUserId returns the persisted value without hitting the network`() = runTest {
+    fun `ensureSyncNamespace returns the persisted value without hitting the network`() = runTest {
         val entity = SourceEntity("abs-1", "https://abs.example.com", true, false, username = "u", absUserId = "persisted-user-id")
         val infoApi = RecordingServerInfoApi(userId = "should-not-be-called")
         val repo = buildRepo(
@@ -790,16 +798,16 @@ class ServerRepositoryTest {
             fakeLibraryDao(), fakeLibraryItemDao(), fakeVisibilityStore(), fakeFilesCleaner(),
         )
 
-        val result = repo.ensureAbsUserId("abs-1")
+        val result = repo.ensureSyncNamespace("abs-1")
 
-        assertEquals("persisted-user-id", result)
+        assertEquals(com.riffle.core.domain.SyncNamespace.Configured("persisted-user-id"), result)
         assertEquals("must not /api/me when value is already cached", 0, infoApi.getCurrentUserIdCalls)
     }
 
     @Test
-    fun `ensureAbsUserId backfills a null column from api me and persists it`() = runTest {
+    fun `ensureSyncNamespace backfills a null column from api me and persists it`() = runTest {
         // Legacy row added before the absUserId column existed. The first sync attempt fetches
-        // /api/me, persists the result, and subsequent calls are cache hits.
+        // /api/me via the ABS resolver, persists the result, and subsequent calls are cache hits.
         val entity = SourceEntity("abs-legacy", "https://abs.example.com", true, false, username = "u", absUserId = null)
         val dao = fakeDao(entity)
         val tokens = fakeTokenStorage().also { it.tokens["abs-legacy"] = "tok-cached" }
@@ -810,18 +818,18 @@ class ServerRepositoryTest {
             fakeLibraryDao(), fakeLibraryItemDao(), fakeVisibilityStore(), fakeFilesCleaner(),
         )
 
-        val first = repo.ensureAbsUserId("abs-legacy")
-        val second = repo.ensureAbsUserId("abs-legacy")
+        val first = repo.ensureSyncNamespace("abs-legacy")
+        val second = repo.ensureSyncNamespace("abs-legacy")
 
-        assertEquals("fetched-user-id", first)
-        assertEquals("fetched-user-id", second)
+        assertEquals(com.riffle.core.domain.SyncNamespace.Configured("fetched-user-id"), first)
+        assertEquals(com.riffle.core.domain.SyncNamespace.Configured("fetched-user-id"), second)
         // Persisted, so the second call is a DAO read — not a second network round-trip.
         assertEquals(1, infoApi.getCurrentUserIdCalls)
         assertEquals("fetched-user-id", dao.getById("abs-legacy")?.absUserId)
     }
 
     @Test
-    fun `ensureAbsUserId returns null when api me fails so callers skip sync instead of breaking`() = runTest {
+    fun `ensureSyncNamespace returns PendingRemoteId when api me fails so callers skip sync instead of breaking`() = runTest {
         val entity = SourceEntity("abs-1", "https://abs.example.com", true, false, username = "u", absUserId = null)
         val tokens = fakeTokenStorage().also { it.tokens["abs-1"] = "tok" }
         val infoApi = RecordingServerInfoApi(userId = null) // simulates offline / 5xx / parse error
@@ -831,13 +839,17 @@ class ServerRepositoryTest {
             fakeLibraryDao(), fakeLibraryItemDao(), fakeVisibilityStore(), fakeFilesCleaner(),
         )
 
-        val result = repo.ensureAbsUserId("abs-1")
+        val result = repo.ensureSyncNamespace("abs-1")
 
-        assertNull("sync must skip silently — local DB stays the source of truth", result)
+        assertEquals(
+            "sync must skip silently — local DB stays the source of truth",
+            com.riffle.core.domain.SyncNamespace.PendingRemoteId,
+            result,
+        )
     }
 
     @Test
-    fun `ensureAbsUserId returns null for a Storyteller source without fetching api me`() = runTest {
+    fun `ensureSyncNamespace returns LocalOnly for a Storyteller source without fetching api me`() = runTest {
         val entity = SourceEntity("st-1", "http://media-source:8001", false, false, username = "u", serverType = ServerType.STORYTELLER_SERVICE.name)
         val infoApi = RecordingServerInfoApi(userId = "should-not-be-called")
         val repo = buildRepo(
@@ -846,20 +858,25 @@ class ServerRepositoryTest {
             fakeLibraryDao(), fakeLibraryItemDao(), fakeVisibilityStore(), fakeFilesCleaner(),
         )
 
-        val result = repo.ensureAbsUserId("st-1")
+        val result = repo.ensureSyncNamespace("st-1")
 
-        assertNull(result)
-        assertEquals("ABS endpoint must not be called for a Storyteller source", 0, infoApi.getCurrentUserIdCalls)
+        assertTrue(
+            "Storyteller resolves to LocalOnly via the descriptor — no network probe runs",
+            result is com.riffle.core.domain.SyncNamespace.LocalOnly,
+        )
+        assertEquals(0, infoApi.getCurrentUserIdCalls)
     }
 
     @Test
-    fun `ensureAbsUserId returns null for an unknown source id`() = runTest {
+    fun `ensureSyncNamespace returns LocalOnly for an unknown source id`() = runTest {
         val repo = buildRepo(
             fakeDao(), fakeTokenStorage(), AbsApi { _, _, _, _ -> error("not called") },
             storytellerApiNotCalled, fakeServerInfoApi, libsApiNotCalled,
             fakeLibraryDao(), fakeLibraryItemDao(), fakeVisibilityStore(), fakeFilesCleaner(),
         )
 
-        assertNull(repo.ensureAbsUserId("does-not-exist"))
+        val result = repo.ensureSyncNamespace("does-not-exist")
+
+        assertTrue(result is com.riffle.core.domain.SyncNamespace.LocalOnly)
     }
 }

@@ -1023,7 +1023,8 @@ class EpubReaderViewModel @Inject constructor(
             // scheduleDebounce; a blank namespace with a resolvable WebDAV target would otherwise
             // build a malformed remote path instead of cleanly no-op'ing (only a null target is a
             // documented no-op — see AnnotationSyncController.syncOnOpen/scheduleDebounce).
-            val namespace = sourceRepository.ensureAbsUserId(sourceId)
+            val namespace = (sourceRepository.ensureSyncNamespace(sourceId)
+                as? com.riffle.core.domain.SyncNamespace.Configured)?.value
             annotationNamespace = namespace
             annotationSession.bind(
                 sourceId = sourceId,
@@ -1141,9 +1142,11 @@ class EpubReaderViewModel @Inject constructor(
                     .distinctUntilChanged()
                     .collect { bookmarks.onOrientationChanged(it) }
             }
-            // Resolve the ABS-side stable account id (`/api/me` → user.id) as the WebDAV path
-            // namespace. A null result means sync is skipped this session; DB stays canonical.
-            val namespace = sourceRepository.ensureAbsUserId(activeServer.id)
+            // Resolve the source's cross-device annotation-sync namespace (#529). Null when
+            // the source is LocalOnly (Storyteller peer, anonymous catalog, local files) or its
+            // remote id hasn't been fetched yet — sync is skipped this session; DB stays canonical.
+            val namespace = (sourceRepository.ensureSyncNamespace(activeServer.id)
+                as? com.riffle.core.domain.SyncNamespace.Configured)?.value
             annotationNamespace = namespace
             annotationSession.bind(
                 sourceId = activeServer.id,

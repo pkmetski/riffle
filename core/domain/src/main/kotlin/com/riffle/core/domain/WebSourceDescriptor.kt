@@ -165,6 +165,31 @@ interface WebSourceDescriptor {
      * different logo paths); other descriptors ignore it.
      */
     fun iconRemoteUrl(sourceBaseUrl: String, serverType: ServerType): String? = null
+
+    /**
+     * Resolve this source's annotation-sync namespace (#529). Defaults to [SyncNamespace.LocalOnly]
+     * — the safe fallback for local / anonymous / public-catalog sources whose annotations can't
+     * meaningfully leave the device. Server-backed descriptors override this to return either
+     * [SyncNamespace.Configured] (when the remote user id is already persisted) or
+     * [SyncNamespace.PendingRemoteId] (when the identity contract exists but the id hasn't been
+     * fetched from the server yet — the repository resolves it via a per-[SourceType]
+     * [RemoteUserIdResolver], persists to `Source.absUserId`, and then calls
+     * [namespaceFromRemoteId] to project the freshly-resolved id into a namespace).
+     */
+    fun syncNamespaceFor(source: Source): SyncNamespace =
+        SyncNamespace.LocalOnly("This source's books stay on this device.")
+
+    /**
+     * Project a freshly-fetched `remoteUserId` into this descriptor's namespace, without going
+     * through [syncNamespaceFor] on a synthesised `source.copy(absUserId = remoteUserId)`. The
+     * default (this base implementation) reads the persisted id off `source` via
+     * [syncNamespaceFor]; the repository never calls it on descriptors whose
+     * [syncNamespaceFor] returned [SyncNamespace.PendingRemoteId] without overriding this hook.
+     *
+     * Override on any descriptor whose [syncNamespaceFor] can return [SyncNamespace.PendingRemoteId].
+     */
+    fun namespaceFromRemoteId(source: Source, remoteUserId: String): SyncNamespace =
+        syncNamespaceFor(source)
 }
 
 /**
@@ -287,6 +312,26 @@ object AbsWebSourceDescriptor : WebSourceDescriptor {
             ServerType.STORYTELLER_SERVICE -> "$base/apple-touch-icon.png"
         }
     }
+
+    // ABS is the historical sync source — its namespace is the raw ABS user id so existing
+    // installs' WebDAV files remain addressable without a rewrite. Storyteller peers exchange
+    // auth via ABS but have no independent cross-device identity (their annotations already
+    // ride on the paired Audiobookshelf server's namespace via reader-side matching); surface
+    // them as LocalOnly here so the sync status UI can explain the state.
+    override fun syncNamespaceFor(source: Source): SyncNamespace = when (source.serverType) {
+        ServerType.STORYTELLER_SERVICE ->
+            SyncNamespace.LocalOnly("Annotations on Storyteller readalouds sync via your paired Audiobookshelf server.")
+        ServerType.AUDIOBOOKSHELF -> source.absUserId?.takeIf { it.isNotBlank() }
+            ?.let { SyncNamespace.Configured(it) }
+            ?: SyncNamespace.PendingRemoteId
+    }
+
+    override fun namespaceFromRemoteId(source: Source, remoteUserId: String): SyncNamespace =
+        when (source.serverType) {
+            ServerType.STORYTELLER_SERVICE ->
+                SyncNamespace.LocalOnly("Annotations on Storyteller readalouds sync via your paired Audiobookshelf server.")
+            ServerType.AUDIOBOOKSHELF -> SyncNamespace.Configured(remoteUserId)
+        }
 }
 
 object LocalFilesWebSourceDescriptor : WebSourceDescriptor {
@@ -297,6 +342,9 @@ object LocalFilesWebSourceDescriptor : WebSourceDescriptor {
     override val addRoute = "add_local_files"
     override val pickerOrder = 1
     override val pickerBlurb = "Read EPUBs and PDFs from a folder on this device."
+
+    override fun syncNamespaceFor(source: Source): SyncNamespace =
+        SyncNamespace.LocalOnly("Local files have no server account to sync annotations against.")
 }
 
 object ChitankaWebSourceDescriptor : WebSourceDescriptor {
@@ -317,6 +365,9 @@ object ChitankaWebSourceDescriptor : WebSourceDescriptor {
         DefaultLibrary(id = "books", name = "Chitanka", mediaType = "book"),
         DefaultLibrary(id = "audiobooks", name = "Gramofonche", mediaType = "audiobook"),
     )
+
+    override fun syncNamespaceFor(source: Source): SyncNamespace =
+        SyncNamespace.LocalOnly("Chitanka is a public catalog with no per-user account to sync against.")
 }
 
 object KomgaWebSourceDescriptor : WebSourceDescriptor {
@@ -341,6 +392,29 @@ object KomgaWebSourceDescriptor : WebSourceDescriptor {
     // Komga serves its own PWA favicon at /favicon.ico from the web-UI root.
     override fun iconRemoteUrl(sourceBaseUrl: String, serverType: ServerType): String =
         "${sourceBaseUrl.trimEnd('/')}/favicon.ico"
+
+    /**
+     * Namespace prefix stamped onto every Komga sync namespace. Extracted as a constant so the
+     * production site and every test/fixture reference the same value — a mis-typed literal
+     * (`"kmga_"`) at either end would otherwise round-trip green (AGENTS.md: "Always reference
+     * constants, never the literal").
+     *
+     * Guarantees non-collision with ABS: ABS namespaces are raw UUIDs (`19621aae-…`) which
+     * contain no underscore before the first hex block, so no ABS namespace can ever start
+     * with this prefix regardless of the id value.
+     */
+    const val KOMGA_NAMESPACE_PREFIX = "komga_"
+
+    // Prefix with `komga_` so a Komga user id can't collide with an ABS user id (both are
+    // stored in the same WebDAV share; the target's flat filename layout means the namespace
+    // string alone has to distinguish source kinds).
+    override fun syncNamespaceFor(source: Source): SyncNamespace =
+        source.absUserId?.takeIf { it.isNotBlank() }
+            ?.let { namespaceFromRemoteId(source, it) }
+            ?: SyncNamespace.PendingRemoteId
+
+    override fun namespaceFromRemoteId(source: Source, remoteUserId: String): SyncNamespace =
+        SyncNamespace.Configured("$KOMGA_NAMESPACE_PREFIX$remoteUserId")
 }
 
 object GutenbergWebSourceDescriptor : WebSourceDescriptor {
@@ -362,4 +436,7 @@ object GutenbergWebSourceDescriptor : WebSourceDescriptor {
         // duplicated in the drawer).
         DefaultLibrary(id = "books", name = "Books", mediaType = "book"),
     )
+
+    override fun syncNamespaceFor(source: Source): SyncNamespace =
+        SyncNamespace.LocalOnly("Project Gutenberg is a public catalog with no per-user account to sync against.")
 }

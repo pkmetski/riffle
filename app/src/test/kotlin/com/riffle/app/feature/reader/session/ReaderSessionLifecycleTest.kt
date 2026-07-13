@@ -100,7 +100,8 @@ class ReaderSessionLifecycleTest {
         override suspend fun setActive(sourceId: String) {}
         override suspend fun remove(sourceId: String) {}
         override suspend fun getSourceVersion(sourceId: String): String? = null
-        override suspend fun ensureAbsUserId(sourceId: String): String? = "abs-user"
+        override suspend fun ensureSyncNamespace(sourceId: String): com.riffle.core.domain.SyncNamespace =
+            com.riffle.core.domain.SyncNamespace.Configured("abs-user")
     }
 
     private class FakeReadaloudLinkRepository(

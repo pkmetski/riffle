@@ -7,11 +7,15 @@ import com.riffle.core.database.LibraryItemDao
 import com.riffle.core.database.SourceDao
 import com.riffle.core.domain.CommitSourceResult
 import com.riffle.core.domain.PendingSource
+import com.riffle.core.domain.RemoteUserIdResolver
 import com.riffle.core.domain.Source
 import com.riffle.core.domain.SourceFilesCleaner
 import com.riffle.core.domain.SourceRepository
+import com.riffle.core.domain.SourceType
 import com.riffle.core.domain.ServerType
+import com.riffle.core.domain.SyncNamespace
 import com.riffle.core.domain.TokenStorage
+import com.riffle.core.domain.WebSourceDescriptors
 import com.riffle.core.network.AbsServerInfoApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
@@ -25,6 +29,7 @@ class SourceRepositoryImpl @Inject constructor(
     private val libraryItemDao: LibraryItemDao,
     private val filesCleaner: SourceFilesCleaner,
     private val installer: CredentialedSourceInstaller,
+    private val remoteUserIdResolvers: Map<SourceType, @JvmSuppressWildcards RemoteUserIdResolver>,
 ) : SourceRepository {
 
     // Sort by SourceType so consumers (Settings sources list, drawer source switcher) render in
@@ -87,18 +92,29 @@ class SourceRepositoryImpl @Inject constructor(
             CredentialedSourceInstaller.readaloudLibraryId(sourceId)
     }
 
-    override suspend fun ensureAbsUserId(sourceId: String): String? {
-        val row = dao.getById(sourceId) ?: return null
-        if (row.serverType == ServerType.STORYTELLER_SERVICE.name) return null
-        row.absUserId?.takeIf { it.isNotBlank() }?.let { return it }
-        // Legacy row (added before the column existed) — backfill from /api/me.
-        val token = tokenStorage.getToken(sourceId) ?: return null
-        val fetched = serverInfoApi.getCurrentUserId(
-            baseUrl = row.url,
-            token = token,
-            insecureAllowed = row.insecureConnectionAllowed,
-        ) ?: return null
+    override suspend fun ensureSyncNamespace(sourceId: String): SyncNamespace {
+        val source = dao.getById(sourceId)?.toDomain()
+            ?: return SyncNamespace.LocalOnly("Unknown source.")
+        val descriptor = WebSourceDescriptors.forType(source.type)
+            ?: return SyncNamespace.LocalOnly("No descriptor for source type ${source.type}.")
+        val initial = descriptor.syncNamespaceFor(source)
+        if (initial !is SyncNamespace.PendingRemoteId) return initial
+
+        // Descriptor advertises cross-device identity but the remote user id hasn't been fetched
+        // yet — dispatch to the per-SourceType resolver. Anonymous / local descriptors never
+        // reach this branch (they return LocalOnly above), so a missing resolver here means a
+        // sync-eligible source kind wasn't wired into RemoteUserIdResolverModule.
+        val resolver = remoteUserIdResolvers[source.type]
+            ?: return SyncNamespace.LocalOnly("No remote-id resolver registered for ${source.type}.")
+        val token = tokenStorage.getToken(sourceId)
+            ?: return SyncNamespace.PendingRemoteId
+        val fetched = resolver.resolve(source, token)?.takeIf { it.isNotBlank() }
+            ?: return SyncNamespace.PendingRemoteId
         dao.setAbsUserId(sourceId, fetched)
-        return fetched
+        // Project the freshly-fetched id through the descriptor's dedicated hook instead of
+        // synthesising a `source.copy(absUserId = fetched)` and re-invoking syncNamespaceFor —
+        // avoids the double-eval and keeps the "how do I turn an id into a namespace" logic in
+        // one method per descriptor.
+        return descriptor.namespaceFromRemoteId(source, fetched)
     }
 }
