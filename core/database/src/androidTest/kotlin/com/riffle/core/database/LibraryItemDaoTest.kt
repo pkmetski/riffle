@@ -187,6 +187,27 @@ class LibraryItemDaoTest {
         assertEquals(setOf("s2" to "1"), s2.toSet())
     }
 
+    // A5b — replaceAllForLibrary must not blow past SQLite's 999-variable ceiling on API 25
+    // (#528). Komga's Comics library is 2000+ books, and the old NOT IN (?, ?, …) delete tried to
+    // bind one placeholder per server id — reproducibly crashed the app with
+    // `too many SQL variables` the first time the user tapped that library.
+    @Test
+    fun replaceAllForLibrary_survivesLibrariesLargerThanSqliteBindLimit() = runBlocking {
+        // Pre-seed with a large stale set (all should be pruned) plus a few kept ids.
+        val stale = (1..1200).map { item("stale-$it", 0f) }
+        val kept = listOf(item("keep-1", 0.5f), item("keep-2", 0.5f))
+        dao.upsertAll(stale + kept)
+
+        val fresh = (1..2500).map { item("fresh-$it", 0f) } + kept
+        dao.replaceAllForLibrary("s1", "lib1", fresh)
+
+        val all = dao.observeAllBooks("s1", "lib1").first().map { it.id }.toSet()
+        assertEquals(2500 + 2, all.size)
+        assertEquals(true, "keep-1" in all)
+        assertEquals(true, "fresh-2500" in all)
+        assertEquals(false, "stale-1" in all)
+    }
+
     // A6 — replaceAllForLibrary must never expose an empty intermediate state to observers.
     // If @Transaction is removed the delete emits before the insert, causing a visible flicker.
     @Test

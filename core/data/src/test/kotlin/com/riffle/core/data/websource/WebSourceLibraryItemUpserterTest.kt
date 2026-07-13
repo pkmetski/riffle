@@ -257,9 +257,12 @@ class WebSourceLibraryItemUpserterTest {
             )
         }
 
-        override suspend fun deleteRemovedFromLibrary(sourceId: String, libraryId: String, serverItemIds: List<String>) {
-            rows.entries.removeAll { it.value.libraryId == libraryId && it.value.sourceId == sourceId && it.value.id !in serverItemIds }
+        override suspend fun deleteByIds(sourceId: String, itemIds: List<String>) {
+            rows.entries.removeAll { it.value.sourceId == sourceId && it.value.id in itemIds }
         }
+
+        override suspend fun idsForLibrary(sourceId: String, libraryId: String): List<String> =
+            rows.values.filter { it.sourceId == sourceId && it.libraryId == libraryId }.map { it.id }
 
         override suspend fun getById(sourceId: String, itemId: String): LibraryItemEntity? = rows[sourceId to itemId]
         override suspend fun listByIds(sourceId: String, itemIds: List<String>): List<LibraryItemEntity> =

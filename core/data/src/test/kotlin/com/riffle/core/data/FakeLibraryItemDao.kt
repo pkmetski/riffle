@@ -92,11 +92,14 @@ internal class FakeLibraryItemDao : LibraryItemDao {
         }
     }
 
-    override suspend fun deleteRemovedFromLibrary(sourceId: String, libraryId: String, serverItemIds: List<String>) {
-        val serverIdSet = serverItemIds.toSet()
-        roomData[libraryId]?.value = roomData[libraryId]?.value
-            ?.filter { it.sourceId != sourceId || it.id in serverIdSet }
-            ?: emptyList()
+    override suspend fun idsForLibrary(sourceId: String, libraryId: String): List<String> =
+        roomData[libraryId]?.value?.filter { it.sourceId == sourceId }?.map { it.id }.orEmpty()
+
+    override suspend fun deleteByIds(sourceId: String, itemIds: List<String>) {
+        val idSet = itemIds.toHashSet()
+        roomData.forEach { (_, flow) ->
+            flow.value = flow.value.filterNot { it.sourceId == sourceId && it.id in idSet }
+        }
     }
 
     override suspend fun getById(sourceId: String, itemId: String): LibraryItemEntity? =

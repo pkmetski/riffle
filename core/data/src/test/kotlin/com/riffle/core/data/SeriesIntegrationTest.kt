@@ -124,7 +124,8 @@ class SeriesIntegrationTest {
         override suspend fun updateMetadata(metadata: com.riffle.core.database.LibraryItemMetadata) {}
         override suspend fun deleteByLibraryId(sourceId: String, libraryId: String) {}
         override suspend fun deleteById(sourceId: String, itemId: String) {}
-        override suspend fun deleteRemovedFromLibrary(sourceId: String, libraryId: String, serverItemIds: List<String>) {}
+        override suspend fun deleteByIds(sourceId: String, itemIds: List<String>) {}
+        override suspend fun idsForLibrary(sourceId: String, libraryId: String): List<String> = emptyList()
         override suspend fun updateLastOpenedAt(sourceId: String, itemId: String, timestamp: Long) {}
         override suspend fun getLastOpenedAtMap(sourceId: String, libraryId: String): List<LastOpenedAtRow> = emptyList()
         override suspend fun getReadingProgressMap(sourceId: String, libraryId: String): List<ReadingProgressRow> = emptyList()

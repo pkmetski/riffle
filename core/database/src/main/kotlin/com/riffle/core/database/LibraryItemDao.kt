@@ -54,9 +54,16 @@ interface LibraryItemDao {
     @Update(entity = LibraryItemEntity::class)
     suspend fun updateMetadata(metadata: LibraryItemMetadata)
 
-    /** Removes library items whose id is no longer present on the server. */
-    @Query("DELETE FROM library_items WHERE sourceId = :sourceId AND libraryId = :libraryId AND id NOT IN (:serverItemIds)")
-    suspend fun deleteRemovedFromLibrary(sourceId: String, libraryId: String, serverItemIds: List<String>)
+    /** Removes library items whose id is no longer present on the server. Bounded ID list; see
+     *  [replaceAllForLibrary] for how the caller chunks the input. */
+    @Query("DELETE FROM library_items WHERE sourceId = :sourceId AND id IN (:itemIds)")
+    suspend fun deleteByIds(sourceId: String, itemIds: List<String>)
+
+    /** All ids currently persisted for `(sourceId, libraryId)`. Used by [replaceAllForLibrary] to
+     *  compute the delete-set client-side, avoiding a `NOT IN (?, ?, …)` bind list that would
+     *  blow past SQLite's 999-variable ceiling on API 25 for large Komga libraries (#528). */
+    @Query("SELECT id FROM library_items WHERE sourceId = :sourceId AND libraryId = :libraryId")
+    suspend fun idsForLibrary(sourceId: String, libraryId: String): List<String>
 
     @Query("SELECT * FROM library_items WHERE sourceId = :sourceId AND id = :itemId LIMIT 1")
     suspend fun getById(sourceId: String, itemId: String): LibraryItemEntity?
@@ -88,12 +95,24 @@ interface LibraryItemDao {
             deleteByLibraryId(sourceId, libraryId)
             return
         }
-        // Remove items no longer present on the server.
-        deleteRemovedFromLibrary(sourceId, libraryId, items.map { it.id })
+        // Compute the delete-set client-side rather than passing every server id into a
+        // `NOT IN (?, ?, …)` bind list — SQLite on API 25 caps bound variables at 999, and Komga's
+        // Comics library has 2000+ books (#528). Chunk the resulting DELETE too, in case a large
+        // library has thousands of stale rows to prune in one refresh.
+        val serverIds = items.mapTo(HashSet(items.size)) { it.id }
+        val toDelete = idsForLibrary(sourceId, libraryId).filterNot { it in serverIds }
+        toDelete.chunked(SQLITE_MAX_BIND_ARGS).forEach { chunk -> deleteByIds(sourceId, chunk) }
         // Insert truly new items — they get the server's readingProgress as the initial seed.
         insertOrIgnore(items)
         // Update metadata for all items, preserving each row's local readingProgress.
         items.forEach { updateMetadata(LibraryItemMetadata.from(it)) }
+    }
+
+    companion object {
+        // SQLite's SQLITE_MAX_VARIABLE_NUMBER is 999 on API 25 and 32766 on newer builds. Room's
+        // `id IN (:list)` expansion binds one `?` per element plus 1 for `sourceId`, so keep the
+        // chunk well below the floor.
+        private const val SQLITE_MAX_BIND_ARGS = 900
     }
 
     @Query("""

@@ -398,7 +398,8 @@ class ReadaloudMatchingServiceTest {
         override suspend fun findSourceIdForItem(itemId: String): String? = byId[itemId]?.sourceId
         override suspend fun deleteByLibraryId(sourceId: String, libraryId: String) = Unit
         override suspend fun deleteById(sourceId: String, itemId: String) = Unit
-        override suspend fun deleteRemovedFromLibrary(sourceId: String, libraryId: String, serverItemIds: List<String>) = Unit
+        override suspend fun deleteByIds(sourceId: String, itemIds: List<String>) = Unit
+        override suspend fun idsForLibrary(sourceId: String, libraryId: String): List<String> = emptyList()
         override suspend fun updateLastOpenedAt(sourceId: String, itemId: String, timestamp: Long) = Unit
         override suspend fun updateReadingProgress(sourceId: String, itemId: String, progress: Float) = Unit
         override suspend fun updateLibraryId(sourceId: String, itemId: String, libraryId: String) = Unit
