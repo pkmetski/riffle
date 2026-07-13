@@ -88,7 +88,7 @@ Riffle lets you browse your library, read EPUB, PDF, and CBZ files, listen to au
 - Attach notes to highlights for personal commentary
 - Bookmark pages for quick return
 - Search across all highlights, notes, and bookmarks in your library
-- Optional WebDAV keeps highlights, notes, and bookmarks in sync across devices — Audiobookshelf has no native annotation API, so Riffle uses a user-supplied WebDAV target instead.
+- Optional WebDAV keeps highlights, notes, and bookmarks in sync across devices — works out of the box for every server-backed source (Audiobookshelf, Komga, …); each account gets its own namespace on the same share.
 
 ### Listening
 - Full audiobook player for any Audiobookshelf audiobook, streamed directly from your server — including audiobook-only items with no paired ebook
