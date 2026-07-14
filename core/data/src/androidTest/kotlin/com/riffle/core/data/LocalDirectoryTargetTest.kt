@@ -264,4 +264,41 @@ class LocalDirectoryTargetTest {
         assertEquals(1, filesItem11b.size)
         assertEquals(file2, filesItem11b[0])
     }
+
+    /**
+     * Legacy pre-`abs_` files (bare-UUID namespace dirs) must be renamed in place the first
+     * time the target touches the annotation-sync root. After migration, a fresh
+     * `list("abs_<uuid>", …)` call finds the legacy content under the new namespace path.
+     *
+     * Would fail if reverted: the assertion below expects the abs_-prefixed directory to
+     * exist and the legacy directory to be gone.
+     */
+    @Test
+    fun listMigratesLegacyBareUuidNamespaceDirs() = runTest {
+        val absUuid = "19621aae-1111-2222-3333-4a4a4a4a4a4a"
+        val itemId = "book1"
+        val filename = "annotations-device-legacy.jsonld"
+
+        // Seed the disk in the pre-`abs_` layout — a bare-UUID namespace dir under the root.
+        val root = File(filesDir, "annotation-sync")
+        val legacyBookDir = File(root, "$absUuid/$itemId")
+        assertTrue(legacyBookDir.mkdirs())
+        File(legacyBookDir, filename).writeText("""{"legacy":"content"}""")
+
+        // Fresh target instance so `legacyAbsMigrated` starts false; then hit list().
+        val fresh = LocalDirectoryTarget(
+            InstrumentationRegistry.getInstrumentation().targetContext,
+        )
+        val listed = fresh.list("abs_$absUuid", itemId)
+
+        assertEquals(listOf(filename), listed)
+        assertTrue("abs_-prefixed dir must exist after migration",
+            File(root, "abs_$absUuid").isDirectory)
+        assertFalse("bare-UUID dir must be gone after migration",
+            File(root, absUuid).exists())
+        assertEquals(
+            """{"legacy":"content"}""",
+            fresh.read("abs_$absUuid", itemId, filename),
+        )
+    }
 }

@@ -267,7 +267,7 @@ class WebDavAnnotationSyncTarget(
     }
 
     private suspend fun propfindBaseFilenames(): List<String> = withContext(dispatchers.io) {
-        classifyWebDavTransportErrors {
+        val raw = classifyWebDavTransportErrors {
             val request = baseRequest(basePath)
                 .header("Depth", "1")
                 .header("Content-Type", "application/xml; charset=utf-8")
@@ -284,6 +284,43 @@ class WebDavAnnotationSyncTarget(
                 }
             }
         }
+        migrateLegacyAbsNames(raw)
+    }
+
+    /**
+     * Rename any pre-`abs_` legacy ABS files in-place, so every downstream method
+     * (`list`, `enumerateDevices`, `enumerateNamespaces`, `forgetNamespace`) sees the
+     * post-migration filenames. MOVE is issued per legacy hit; the returned list swaps in
+     * the destination name on success. On any failure (network, 5xx, non-`412` collision),
+     * the legacy name is left in the returned list so callers still see the file — worst
+     * case a second sync retries the MOVE. Idempotent: a share with no legacy files does
+     * zero extra work.
+     */
+    private fun migrateLegacyAbsNames(names: List<String>): List<String> {
+        if (names.none { LegacyAbsNamespaceMigration.isLegacyAbsFilename(it) }) return names
+        return names.map { name ->
+            if (!LegacyAbsNamespaceMigration.isLegacyAbsFilename(name)) return@map name
+            val target = LegacyAbsNamespaceMigration.migratedName(name)
+            if (tryMoveOnServer(name, target)) target else name
+        }
+    }
+
+    private fun tryMoveOnServer(from: String, to: String): Boolean = try {
+        val src = basePath.newBuilder().addPathSegment(from).build()
+        val dst = basePath.newBuilder().addPathSegment(to).build()
+        val request = baseRequest(src)
+            .header("Destination", dst.toString())
+            // Fail-on-collide: another device may already have MOVE'd this file. Treat 412
+            // as "target exists — migration completed elsewhere" and return success so the
+            // caller uses the destination name.
+            .header("Overwrite", "F")
+            .method("MOVE", null)
+            .build()
+        client.newCall(request).execute().use { response ->
+            response.isSuccessful || response.code == 201 || response.code == 204 || response.code == 412
+        }
+    } catch (_: Exception) {
+        false
     }
 
     private fun put(url: HttpUrl, body: RequestBody): Response {

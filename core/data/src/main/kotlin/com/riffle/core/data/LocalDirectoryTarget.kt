@@ -24,7 +24,34 @@ import java.io.File
  */
 class LocalDirectoryTarget(private val context: Context) : AnnotationSyncTarget {
 
+    @Volatile private var legacyAbsMigrated: Boolean = false
+
+    /**
+     * Rename any bare-UUID namespace directories under [ROOT] to their `abs_<uuid>` form so
+     * pre-`abs_` local files stay addressable after the descriptor started stamping the new
+     * prefix. Runs at most once per instance — the first read/write/enumerate triggers it,
+     * every subsequent call short-circuits on [legacyAbsMigrated]. Idempotent when a fresh
+     * install has no legacy dirs (zero listFiles work).
+     */
+    private fun migrateLegacyAbsDirs() {
+        if (legacyAbsMigrated) return
+        legacyAbsMigrated = true
+        try {
+            val root = File(context.filesDir, ROOT)
+            if (!root.exists()) return
+            root.listFiles { f -> f.isDirectory }?.forEach { nsDir ->
+                if (!LegacyAbsNamespaceMigration.isLegacyAbsNamespaceSegment(nsDir.name)) return@forEach
+                val renamed = File(nsDir.parentFile, com.riffle.core.domain.AbsWebSourceDescriptor.ABS_NAMESPACE_PREFIX + nsDir.name)
+                if (renamed.exists()) return@forEach // another migration path already handled it
+                nsDir.renameTo(renamed)
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Legacy ABS dir migration failed (best-effort)", e)
+        }
+    }
+
     override suspend fun list(namespace: String, itemId: String): List<String> {
+        migrateLegacyAbsDirs()
         return try {
             val directory = bookDir(namespace, itemId)
             if (!directory.exists()) return emptyList()
@@ -38,6 +65,7 @@ class LocalDirectoryTarget(private val context: Context) : AnnotationSyncTarget 
     }
 
     override suspend fun read(namespace: String, itemId: String, filename: String): String? {
+        migrateLegacyAbsDirs()
         return try {
             val file = annotationFile(namespace, itemId, filename)
             if (!file.exists()) return null
@@ -49,6 +77,7 @@ class LocalDirectoryTarget(private val context: Context) : AnnotationSyncTarget 
     }
 
     override suspend fun write(namespace: String, itemId: String, filename: String, content: String) {
+        migrateLegacyAbsDirs()
         try {
             val directory = bookDir(namespace, itemId)
             if (!directory.exists() && !directory.mkdirs()) {
@@ -71,6 +100,7 @@ class LocalDirectoryTarget(private val context: Context) : AnnotationSyncTarget 
     }
 
     override suspend fun readDeviceMeta(namespace: String, deviceId: String): String? {
+        migrateLegacyAbsDirs()
         return try {
             val file = deviceMetaFile(namespace, deviceId)
             if (!file.exists()) null else file.readText()
@@ -81,6 +111,7 @@ class LocalDirectoryTarget(private val context: Context) : AnnotationSyncTarget 
     }
 
     override suspend fun writeDeviceMeta(namespace: String, deviceId: String, content: String) {
+        migrateLegacyAbsDirs()
         try {
             val dir = namespaceDir(namespace)
             if (!dir.exists() && !dir.mkdirs()) {
@@ -103,6 +134,7 @@ class LocalDirectoryTarget(private val context: Context) : AnnotationSyncTarget 
     }
 
     override suspend fun enumerateDevices(namespace: String): NamespaceDeviceListing {
+        migrateLegacyAbsDirs()
         return try {
             val nsDir = namespaceDir(namespace)
             if (!nsDir.exists()) return NamespaceDeviceListing(emptyList())
@@ -137,6 +169,7 @@ class LocalDirectoryTarget(private val context: Context) : AnnotationSyncTarget 
     }
 
     override suspend fun enumerateNamespaces(): List<NamespaceSummary> {
+        migrateLegacyAbsDirs()
         return try {
             val root = File(context.filesDir, ROOT)
             if (!root.exists()) return emptyList()
@@ -159,6 +192,7 @@ class LocalDirectoryTarget(private val context: Context) : AnnotationSyncTarget 
     }
 
     override suspend fun forgetNamespace(namespace: String): Int {
+        migrateLegacyAbsDirs()
         return try {
             val dir = namespaceDir(namespace)
             if (!dir.exists()) return 0

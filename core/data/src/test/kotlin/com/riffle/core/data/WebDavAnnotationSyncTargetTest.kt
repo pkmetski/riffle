@@ -473,9 +473,131 @@ class WebDavAnnotationSyncTargetTest {
         assertEquals(listOf("annotations-dev.jsonld"), result)
     }
 
+    // ===== Legacy ABS namespace migration (bare-UUID → abs_<uuid>) =====
+
+    @Test
+    fun `list MOVEs legacy bare-UUID files to abs_ prefixed names and returns them under the new namespace`() = runTest {
+        // Fixture has one legacy ABS file (bare-UUID prefix) and one already-migrated abs_ file.
+        // A list() call under the post-migration namespace `abs_<uuid>` must MOVE the legacy file
+        // in place and then match both against the composite `abs_<uuid>__book1__` prefix.
+        source.enqueue(MockResponse().setResponseCode(207).setBody(PROPFIND_LEGACY_ABS_BODY))
+        source.enqueue(MockResponse().setResponseCode(201)) // MOVE of the legacy file
+
+        val target = newTarget()
+        val result = target.list("abs_$ABS_UUID", "book1")
+
+        // Both files (post-migration) are surfaced. Would fail (empty) if the legacy file
+        // wasn't renamed and re-classified into the new namespace's composite prefix.
+        assertEquals(
+            setOf("annotations-dev-legacy.jsonld", "annotations-dev-fresh.jsonld"),
+            result.toSet(),
+        )
+
+        // Verify a real MOVE went out with Destination header pointing to the abs_ path.
+        source.takeRequest() // PROPFIND
+        val move = source.takeRequest()
+        assertEquals("MOVE", move.method)
+        assertEquals("/annotations/${ABS_UUID}__book1__annotations-dev-legacy.jsonld", move.path)
+        val dest = move.getHeader("Destination") ?: ""
+        assertTrue(
+            "Destination must point at the abs_ path, was $dest",
+            dest.endsWith("/annotations/abs_${ABS_UUID}__book1__annotations-dev-legacy.jsonld"),
+        )
+        assertEquals("F", move.getHeader("Overwrite"))
+    }
+
+    @Test
+    fun `already-migrated share is a no-op — no MOVE issued`() = runTest {
+        source.enqueue(MockResponse().setResponseCode(207).setBody(PROPFIND_ALREADY_MIGRATED_BODY))
+
+        newTarget().list("abs_$ABS_UUID", "book1")
+
+        assertEquals("only PROPFIND should have fired", 1, source.requestCount)
+    }
+
+    @Test
+    fun `komga files on the share are left alone by the ABS migration`() = runTest {
+        // A share hosting BOTH an ABS legacy file AND a komga_ file: only the ABS one migrates.
+        source.enqueue(MockResponse().setResponseCode(207).setBody(PROPFIND_ABS_AND_KOMGA_BODY))
+        source.enqueue(MockResponse().setResponseCode(201)) // MOVE of the ABS legacy file only
+
+        newTarget().list("abs_$ABS_UUID", "book1")
+
+        source.takeRequest() // PROPFIND
+        val move = source.takeRequest()
+        assertEquals("MOVE", move.method)
+        assertTrue(
+            "must migrate the ABS file, not the komga file",
+            move.path?.startsWith("/annotations/${ABS_UUID}__") == true,
+        )
+        assertEquals("no second MOVE for the komga file", 2, source.requestCount)
+    }
+
     companion object {
         private const val USER = "alice"
         private const val PASS = "s3cret"
+        // Bare-UUID namespace representing a pre-`abs_` ABS user id on the WebDAV share.
+        private const val ABS_UUID = "19621aae-1111-2222-3333-4a4a4a4a4a4a"
+
+        // One legacy ABS file (bare-UUID namespace) + one already-migrated abs_ file, both
+        // under book1. Drives the migration path: MOVE the legacy, keep the fresh one.
+        private val PROPFIND_LEGACY_ABS_BODY = """
+            <?xml version="1.0" encoding="utf-8"?>
+            <d:multistatus xmlns:d="DAV:">
+              <d:response>
+                <d:href>/annotations/</d:href>
+                <d:propstat><d:prop><d:resourcetype><d:collection/></d:resourcetype></d:prop>
+                  <d:status>HTTP/1.1 200 OK</d:status></d:propstat>
+              </d:response>
+              <d:response>
+                <d:href>/annotations/${ABS_UUID}__book1__annotations-dev-legacy.jsonld</d:href>
+                <d:propstat><d:prop><d:resourcetype/></d:prop>
+                  <d:status>HTTP/1.1 200 OK</d:status></d:propstat>
+              </d:response>
+              <d:response>
+                <d:href>/annotations/abs_${ABS_UUID}__book1__annotations-dev-fresh.jsonld</d:href>
+                <d:propstat><d:prop><d:resourcetype/></d:prop>
+                  <d:status>HTTP/1.1 200 OK</d:status></d:propstat>
+              </d:response>
+            </d:multistatus>
+        """.trimIndent()
+
+        private val PROPFIND_ALREADY_MIGRATED_BODY = """
+            <?xml version="1.0" encoding="utf-8"?>
+            <d:multistatus xmlns:d="DAV:">
+              <d:response>
+                <d:href>/annotations/</d:href>
+                <d:propstat><d:prop><d:resourcetype><d:collection/></d:resourcetype></d:prop>
+                  <d:status>HTTP/1.1 200 OK</d:status></d:propstat>
+              </d:response>
+              <d:response>
+                <d:href>/annotations/abs_${ABS_UUID}__book1__annotations-dev.jsonld</d:href>
+                <d:propstat><d:prop><d:resourcetype/></d:prop>
+                  <d:status>HTTP/1.1 200 OK</d:status></d:propstat>
+              </d:response>
+            </d:multistatus>
+        """.trimIndent()
+
+        private val PROPFIND_ABS_AND_KOMGA_BODY = """
+            <?xml version="1.0" encoding="utf-8"?>
+            <d:multistatus xmlns:d="DAV:">
+              <d:response>
+                <d:href>/annotations/</d:href>
+                <d:propstat><d:prop><d:resourcetype><d:collection/></d:resourcetype></d:prop>
+                  <d:status>HTTP/1.1 200 OK</d:status></d:propstat>
+              </d:response>
+              <d:response>
+                <d:href>/annotations/${ABS_UUID}__book1__annotations-dev.jsonld</d:href>
+                <d:propstat><d:prop><d:resourcetype/></d:prop>
+                  <d:status>HTTP/1.1 200 OK</d:status></d:propstat>
+              </d:response>
+              <d:response>
+                <d:href>/annotations/komga_${ABS_UUID}__book1__annotations-dev.jsonld</d:href>
+                <d:propstat><d:prop><d:resourcetype/></d:prop>
+                  <d:status>HTTP/1.1 200 OK</d:status></d:propstat>
+              </d:response>
+            </d:multistatus>
+        """.trimIndent()
 
         // PROPFIND fixture for the flat layout: two srv1__book1__ files (matching), one srv1__book2__
         // file (must be filtered out by prefix), plus the parent collection entry.

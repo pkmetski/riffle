@@ -63,7 +63,7 @@ class AnnotationSyncMaintenanceViewModelTest {
         // the only honest source for the current device's "Last synced". The per-device sentinel
         // on disk lags the cycle store by a network write, and per-file headers don't capture
         // pull-only cycles at all.
-        val activeNs = "alice-userid"
+        val activeNs = "abs_alice-userid"
         val target = InMemoryTarget(
             files = mutableMapOf(
                 FileKey(activeNs, "i1", "annotations-this-device.jsonld") to "[]",
@@ -88,7 +88,7 @@ class AnnotationSyncMaintenanceViewModelTest {
         // Regression for the bug where Maintenance hid "Last synced" the moment we went offline:
         // it read lastCycleOutcome and pattern-matched Success, so a subsequent Failed.Network
         // erased the timestamp even though sync had succeeded an hour earlier.
-        val activeNs = "alice-userid"
+        val activeNs = "abs_alice-userid"
         val target = InMemoryTarget(
             files = mutableMapOf(
                 FileKey(activeNs, "i1", "annotations-this-device.jsonld") to "[]",
@@ -110,7 +110,7 @@ class AnnotationSyncMaintenanceViewModelTest {
 
     @Test
     fun `this-device row shows no Last synced when the status store is NeverRun`() = runTest {
-        val activeNs = "alice-userid"
+        val activeNs = "abs_alice-userid"
         val target = InMemoryTarget(
             files = mutableMapOf(
                 FileKey(activeNs, "i1", "annotations-this-device.jsonld") to "[]",
@@ -127,8 +127,8 @@ class AnnotationSyncMaintenanceViewModelTest {
 
     @Test
     fun `foreign namespace surfaces as Other Users group labelled by username from sentinel`() = runTest {
-        val activeNs = "alice-userid"
-        val foreignNs = "bob-userid"
+        val activeNs = "abs_alice-userid"
+        val foreignNs = "abs_bob-userid"
         val target = InMemoryTarget(
             files = mutableMapOf(
                 FileKey(activeNs, "i1", "annotations-this-device.jsonld") to "[]",
@@ -161,8 +161,8 @@ class AnnotationSyncMaintenanceViewModelTest {
 
     @Test
     fun `forget on a foreign-user device routes to the foreign namespace`() = runTest {
-        val activeNs = "alice-userid"
-        val foreignNs = "bob-userid"
+        val activeNs = "abs_alice-userid"
+        val foreignNs = "abs_bob-userid"
         val target = InMemoryTarget(
             files = mutableMapOf(
                 FileKey(activeNs, "i1", "annotations-this-device.jsonld") to "[]",
@@ -188,8 +188,8 @@ class AnnotationSyncMaintenanceViewModelTest {
 
     @Test
     fun `foreign namespace with no sentinel falls back to a null displayLabel`() = runTest {
-        val activeNs = "alice-userid"
-        val foreignNs = "old-userid"
+        val activeNs = "abs_alice-userid"
+        val foreignNs = "abs_old-userid"
         val target = InMemoryTarget(
             files = mutableMapOf(
                 FileKey(activeNs, "i1", "annotations-this-device.jsonld") to "[]",
@@ -213,13 +213,19 @@ class AnnotationSyncMaintenanceViewModelTest {
         statusStore: AnnotationSyncStatusStore = AnnotationSyncStatusStore(),
     ): AnnotationSyncMaintenanceViewModel {
         val maintenance = AnnotationSyncMaintenance(targetProvider = { target })
+        // Callers name test namespaces after their conceptual role ("alice-userid",
+        // "bob-userid"); the descriptor prepends `abs_` in production, so the fake source
+        // must carry the pre-prefix id so `syncNamespaceFor` reproduces the same [activeNs].
+        val activeRawUserId = activeNs.removePrefix(
+            com.riffle.core.domain.AbsWebSourceDescriptor.ABS_NAMESPACE_PREFIX,
+        )
         return AnnotationSyncMaintenanceViewModel(
             configStore = FakeConfigStore(configured = true),
             maintenance = maintenance,
             deviceIdStore = FakeDeviceIdStore("this-device"),
             deviceLabelStore = FakeDeviceLabelStore(),
             deviceLabelResolver = FakeDeviceLabelResolver("This Device"),
-            sourceRepository = FakeServerRepository(activeAbsUserId = activeNs),
+            sourceRepository = FakeServerRepository(activeAbsUserId = activeRawUserId),
             statusStore = statusStore,
         )
     }
