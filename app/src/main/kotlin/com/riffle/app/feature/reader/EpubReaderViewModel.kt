@@ -238,11 +238,15 @@ class EpubReaderViewModel @Inject constructor(
     // the capability is confirmed.
     private val readingSessionsEnabled = java.util.concurrent.atomic.AtomicBoolean(false)
 
-    // Once-per-(VM, book) flag + helper for the caption-annotation sweep — both cleanup (dedup
-    // duplicate caption HIGHLIGHTs) and legacy TYPE_IMAGE upgrade. Declared here (BEFORE the
-    // init block that launches openBook via viewModelScope) so they're initialized in time —
-    // property initializers run in declaration order, and a later declaration would leave these
-    // null when the launched coroutine's Highlights-mode branch reads them (crash 2026-07-14).
+    // Once-per-(VM, book) flags + helper for the caption-annotation sweep. Split into two
+    // separate flags — one for the Highlights-mode cleanup-only pass, one for the FullBook
+    // full sweep (cleanup + legacy TYPE_IMAGE upgrade) — so a Highlights-first open followed
+    // by a FullBook open in the same VM still runs the legacy upgrade. A single shared flag
+    // would let whichever branch fired first consume it and skip the other. Declared BEFORE
+    // the init block that launches openBook via viewModelScope so property initialization
+    // (which runs in declaration order) can't leave them null when the launched coroutine
+    // reads them (crash 2026-07-14).
+    private val captionHighlightCleanupAttempted = java.util.concurrent.atomic.AtomicBoolean(false)
     private val legacyImageUpgradeAttempted = java.util.concurrent.atomic.AtomicBoolean(false)
     private val captionHighlightUpgrader by lazy { CaptionHighlightUpgrader(annotationStore) }
 
@@ -968,8 +972,10 @@ class EpubReaderViewModel @Inject constructor(
             // from the Annotations tab and never hits onOpenReady — without this pass, duplicate
             // caption HIGHLIGHTs the FullBook path could produce stay stacked in the elided view
             // ("the captions are still doubled" reproduced on AVD 5554). Fires once per (VM,
-            // book) via [legacyImageUpgradeAttempted]'s CAS, mirroring FullBook's own gate.
-            if (legacyImageUpgradeAttempted.compareAndSet(false, true)) {
+            // book) via [captionHighlightCleanupAttempted]'s CAS. Uses a DIFFERENT flag from
+            // FullBook's [legacyImageUpgradeAttempted] so a Highlights-first-then-FullBook open
+            // in the same VM still runs the legacy upgrade.
+            if (captionHighlightCleanupAttempted.compareAndSet(false, true)) {
                 val liveAnnotations = runCatching {
                     annotationStore.observeAnnotations(sourceId, itemId).first()
                 }.getOrDefault(emptyList())
@@ -2198,15 +2204,24 @@ class EpubReaderViewModel @Inject constructor(
                 // caption HIGHLIGHT with empty embeddedFigures — the "1.5s duplicate" the user
                 // reproduced on 2026-07-14 — and (b) a pre-existing text-selection highlight of
                 // the caption that should upgrade in place instead of getting shadowed.
-                val normalizedCaption = normalizeCaptionText(captionRange.text)
+                // Dedup by CFI equality only. A textSnippet-equality fallback would collide
+                // when two figures in the same chapter share a short caption like "Fig. 1"
+                // (common in ranges "Fig. 1a"/"Fig. 1b" or footnote-numbered plates) — the
+                // second long-press would fold figure B into figure A's annotation, leaving
+                // the user with one annotation carrying both figures and no way to distinguish
+                // them. CFI equality is exact: two DIFFERENT captions at the same DOM range
+                // don't exist. A separate text-selection highlight of the caption text sits at
+                // a different CFI range (Readium's text selection uses different boundaries
+                // than jsoup's element-bounds range) and stays separate — the intended cleanup
+                // for that case is the sweep's per-chapter merge phase (safer, has full DAO
+                // context) rather than an eager guess here.
                 val existingRows = runCatching {
                     annotationDao.getForItem(sourceId, itemId)
                 }.getOrDefault(emptyList())
                 val existingHighlight = existingRows.firstOrNull { row ->
                     row.type == com.riffle.core.database.AnnotationEntity.TYPE_HIGHLIGHT &&
                         normalizeEpubHref(row.chapterHref) == normalizeEpubHref(href) &&
-                        (row.cfi == cfiRange ||
-                            normalizeCaptionText(row.textSnippet) == normalizedCaption)
+                        row.cfi == cfiRange
                 }
                 if (existingHighlight != null) {
                     annotationStore.mergeFiguresIntoHighlight(existingHighlight.id, listOf(figure))

@@ -68,7 +68,9 @@ internal object FigureBorderDecoration {
                 AnnotationEntity.TYPE_IMAGE ->
                     a.imageHref?.let { refs += Ref(it, a.color, hasNote, a.updatedAt, tintCaption = true) }
                 AnnotationEntity.TYPE_HIGHLIGHT -> a.embeddedFigures?.forEach { fig ->
-                    fig.href?.let { refs += Ref(it, a.color, hasNote, a.updatedAt, tintCaption = false) }
+                    fig.href?.let {
+                        refs += Ref(it, a.color, hasNote, a.updatedAt, tintCaption = !highlightCoversCaption(a, fig))
+                    }
                 }
             }
         }
@@ -106,6 +108,22 @@ internal object FigureBorderDecoration {
     private const val SVG_FINGERPRINT_PREFIX_LEN = 200
 
     /**
+     * True when the highlight's captured `textSnippet` covers the figure's caption text — the
+     * signal that Readium's highlight decoration is already painting the caption for us and the
+     * render-side CSS tint would double-paint. False when the highlight range excludes the
+     * caption (e.g. a pre-caption-highlight text-selection across body prose that happens to
+     * enclose a figure — the figcaption sits below the range and only the CSS tint can reach
+     * it). Normalizes whitespace on both sides so the check matches how the text-content walks
+     * on the two rendering paths collapse.
+     */
+    private fun highlightCoversCaption(annotation: Annotation, figure: com.riffle.core.domain.EmbeddedFigure): Boolean {
+        if (figure.caption.isBlank()) return false
+        val normalizedCaption = figure.caption.replace(Regex("\\s+"), " ").trim()
+        val normalizedSnippet = annotation.textSnippet.replace(Regex("\\s+"), " ").trim()
+        return normalizedSnippet.contains(normalizedCaption)
+    }
+
+    /**
      * One entry per SVG annotation covering the current document. Newest-wins by `updatedAt` when
      * two annotations reference the same SVG (same fingerprint).
      */
@@ -134,7 +152,7 @@ internal object FigureBorderDecoration {
                 }
                 AnnotationEntity.TYPE_HIGHLIGHT -> a.embeddedFigures?.forEach { figure ->
                     figure.svg?.take(SVG_FINGERPRINT_PREFIX_LEN)?.let {
-                        refs += Ref(it, a.color, hasNote, a.updatedAt, tintCaption = false)
+                        refs += Ref(it, a.color, hasNote, a.updatedAt, tintCaption = !highlightCoversCaption(a, figure))
                     }
                 }
             }

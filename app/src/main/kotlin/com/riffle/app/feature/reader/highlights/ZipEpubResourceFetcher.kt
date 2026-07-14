@@ -22,13 +22,18 @@ internal class ZipEpubResourceFetcher private constructor(
 
     override fun fetch(href: String): ByteArray? {
         val trimmed = href.substringBefore('?').substringBefore('#')
-        val entryPath = when {
+        val stripped = when {
             trimmed.startsWith("https://readium_package/") -> trimmed.removePrefix("https://readium_package/")
             trimmed.startsWith("readium_package://") -> trimmed.removePrefix("readium_package://")
             trimmed.startsWith("/") -> trimmed.removePrefix("/")
             else -> trimmed
         }
-        val entry = zip.getEntry(entryPath) ?: return null
+        // Percent-decode: Chromium serves `img.src` as a URL-encoded string, but ZIP entry
+        // names are raw bytes. Without decoding, `OEBPS/Chapter%203/fig%201.png` misses the
+        // real entry `OEBPS/Chapter 3/fig 1.png`. Try the decoded form first, then fall back
+        // to the raw string in case the caller already pre-decoded.
+        val decoded = runCatching { java.net.URLDecoder.decode(stripped, "UTF-8") }.getOrNull()
+        val entry = decoded?.let { zip.getEntry(it) } ?: zip.getEntry(stripped) ?: return null
         return runCatching { zip.getInputStream(entry).use { it.readBytes() } }.getOrNull()
     }
 

@@ -68,6 +68,25 @@ class ZipEpubResourceFetcherTest {
     }
 
     @Test
+    fun `fetch percent-decodes href before probing zip`() {
+        // Chromium serves img.src URL-encoded (spaces → %20, unicode → %xx). ZIP entry names
+        // are raw bytes. Reverting the URLDecoder step misses every figure whose EPUB path
+        // contains a space or non-ASCII character.
+        val bytes = byteArrayOf(1, 2, 3)
+        val fetcher = ZipEpubResourceFetcher.open(
+            tempEpub(mapOf("OEBPS/Chapter 3/fig 1.png" to bytes)),
+        )!!
+        try {
+            assertArrayEquals(
+                bytes,
+                fetcher.fetch("https://readium_package/OEBPS/Chapter%203/fig%201.png"),
+            )
+        } finally {
+            fetcher.close()
+        }
+    }
+
+    @Test
     fun `fetch drops query and fragment before probing zip`() {
         val bytes = byteArrayOf(0xAA.toByte())
         val fetcher = ZipEpubResourceFetcher.open(tempEpub(mapOf("OEBPS/c.png" to bytes)))!!

@@ -301,10 +301,19 @@ private fun appendInterleavedHighlight(
         // (>1 figure, or figure caption differs from the highlight's textSnippet) keep the v1
         // "text first, figures after" fallback so a pre-caption-highlight annotation still
         // renders the same.
+        // Require an explicit caption-shape signal so a legacy text-highlight enclosing a
+        // decorative uncaptioned figure (single embeddedFigure with caption="") doesn't get
+        // its image hoisted above the paragraph text. Two accepted signals:
+        //   (a) figure.caption normalizes to the highlight's textSnippet — the shape written
+        //       before caption="" became the default (kept for back-compat with existing rows).
+        //   (b) figure.caption is blank AND textSnippet starts with the canonical caption
+        //       prefix (Figure/Fig./Table/Chart + digit) — the shape written by the new
+        //       onFigureLongPress / CaptionHighlightUpgrader code paths.
         val singleFigure = figures.singleOrNull()
         val isCaptionHighlight = singleFigure != null && (
-            singleFigure.caption.isBlank() ||
-                com.riffle.app.feature.reader.normalizeCaptionText(singleFigure.caption) == normalizedSnippetOuter
+            (singleFigure.caption.isNotBlank() &&
+                com.riffle.app.feature.reader.normalizeCaptionText(singleFigure.caption) == normalizedSnippetOuter) ||
+                (singleFigure.caption.isBlank() && CAPTION_HIGHLIGHT_PREFIX_REGEX.containsMatchIn(normalizedSnippetOuter))
             )
         if (isCaptionHighlight) {
             appendFigureBlock(sb, singleFigure!!.copy(caption = ""), highlight.id, highlight.color, dataUriByHref)
@@ -607,6 +616,14 @@ private fun appendFigureFigure(
  * can never drift out of sync.
  */
 private fun syntheticPath(href: String): String = "synthetic/figures/" + href.replace('/', '_')
+
+/**
+ * Mirror of [com.riffle.app.feature.reader.FigureCaptionWalker]'s JS `CAPTION_PREFIX_RX` — kept
+ * as an isolated pattern here so [appendInterleavedHighlight]'s caption-highlight discriminator
+ * doesn't misfire on text-highlights that happen to enclose a decorative uncaptioned figure.
+ */
+private val CAPTION_HIGHLIGHT_PREFIX_REGEX =
+    Regex("^\\s*(Figure|Fig\\.?|Table|Chart)\\s+\\d", RegexOption.IGNORE_CASE)
 
 /**
  * Best-effort MIME type from a figure href, used when inlining fetched bytes as a `data:` URI

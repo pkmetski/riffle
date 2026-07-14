@@ -105,10 +105,13 @@ class FigureBorderDecorationTest {
         // TYPE_IMAGE annotations still need the render-side tint because their caption isn't a
         // real annotated span. Reverting the tintCaption plumbing flips this red.
         val legacyImage = imageAnnotation(id = "img", imageHref = "g.png", color = "yellow")
+        // Caption-highlight shape: textSnippet contains the figure's caption text → Readium's
+        // highlight decoration paints the caption span → skip the CSS tint (would double-paint).
         val captionHighlight = highlightAnnotation(
             id = "hl",
             color = "green",
             embedded = listOf(EmbeddedFigure(href = "g2.png", svg = null, caption = "cap", order = 0)),
+            textSnippet = "cap",
         )
 
         val rasters = FigureBorderDecoration.buildRasterMarks(listOf(legacyImage, captionHighlight))
@@ -120,10 +123,33 @@ class FigureBorderDecorationTest {
             id = "hl2",
             color = "green",
             embedded = listOf(EmbeddedFigure(href = null, svg = "<svg id=\"h\"></svg>", caption = "cap", order = 0)),
+            textSnippet = "cap",
         )
         val svgs = FigureBorderDecoration.buildSvgMatches(listOf(svgImage, svgHighlight))
         assertTrue(svgs.single { it.fingerprint.contains("id=\"i\"") }.tintCaption)
         assertFalse(svgs.single { it.fingerprint.contains("id=\"h\"") }.tintCaption)
+    }
+
+    @Test
+    fun `TYPE_HIGHLIGHT whose range excludes the figcaption keeps CSS caption tint`() {
+        // Regression pin for the 2026-07-14 review finding: a legacy text-highlight of body
+        // prose that happens to enclose a figure (PR #533 shape) does NOT cover the
+        // <figcaption> text — its textSnippet is the surrounding paragraphs, not the caption.
+        // Before this fix all TYPE_HIGHLIGHT-with-embeddedFigures got tintCaption=false and
+        // the CSS tint was suppressed, silently regressing every pre-caption-highlight user's
+        // figcaption tint. Now we set tintCaption=false ONLY when the highlight's textSnippet
+        // actually contains the caption text.
+        val bodyProseHighlight = highlightAnnotation(
+            id = "hl-body",
+            color = "yellow",
+            embedded = listOf(EmbeddedFigure(href = "g.png", svg = null, caption = "Figure 1", order = 0)),
+            textSnippet = "This paragraph precedes the figure and the next paragraph follows it.",
+        )
+        val marks = FigureBorderDecoration.buildRasterMarks(listOf(bodyProseHighlight))
+        assertTrue(
+            "text-highlight whose range excludes the caption must keep the CSS caption tint",
+            marks.single().tintCaption,
+        )
     }
 
     @Test
@@ -157,12 +183,14 @@ class FigureBorderDecorationTest {
         color: String = "yellow",
         embedded: List<EmbeddedFigure>? = null,
         updatedAt: Long = 0L,
+        textSnippet: String = "",
     ): Annotation = baseAnnotation(
         id = id,
         type = AnnotationEntity.TYPE_HIGHLIGHT,
         color = color,
         updatedAt = updatedAt,
         embeddedFigures = embedded,
+        textSnippet = textSnippet,
     )
 
     private fun baseAnnotation(
@@ -173,6 +201,7 @@ class FigureBorderDecorationTest {
         imageHref: String? = null,
         imageSvg: String? = null,
         embeddedFigures: List<EmbeddedFigure>? = null,
+        textSnippet: String = "",
     ): Annotation = Annotation(
         id = id,
         sourceId = "S1",
@@ -181,7 +210,7 @@ class FigureBorderDecorationTest {
         cfi = "epubcfi(/6/2!/dummy)",
         color = color,
         note = null,
-        textSnippet = "",
+        textSnippet = textSnippet,
         textBefore = "",
         textAfter = "",
         chapterHref = "chA.xhtml",

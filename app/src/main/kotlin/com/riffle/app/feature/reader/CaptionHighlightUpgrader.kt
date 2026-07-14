@@ -139,12 +139,22 @@ internal class CaptionHighlightUpgrader(
     ): Int {
         val legacy = annotations.filter { it.type == AnnotationEntity.TYPE_IMAGE }
         if (legacy.isEmpty()) return 0
-        val highlightsByChapterCaption = annotations
-            .filter { it.type == AnnotationEntity.TYPE_HIGHLIGHT && it.textSnippet.isNotBlank() }
-            .groupBy { normalizeCaptionText(it.chapterHref) to normalizeCaptionText(it.textSnippet) }
-            .mapValues { (_, rows) ->
-                rows.maxByOrNull { (it.embeddedFigures?.size ?: 0) * 1_000_000_000L + it.updatedAt }
+        // Rebuildable running index: seeded from the input snapshot's HIGHLIGHTs, then updated
+        // as each legacy TYPE_IMAGE upgrades in place. Otherwise two legacy rows for the same
+        // figure/caption both upgrade fresh and produce a duplicate HIGHLIGHT that only the
+        // NEXT reopen's cleanup phase collapses.
+        val highlightsByChapterCaption = mutableMapOf<Pair<String, String>, Annotation>()
+        for (row in annotations) {
+            if (row.type != AnnotationEntity.TYPE_HIGHLIGHT || row.textSnippet.isBlank()) continue
+            val key = normalizeCaptionText(row.chapterHref) to normalizeCaptionText(row.textSnippet)
+            val current = highlightsByChapterCaption[key]
+            if (current == null ||
+                (row.embeddedFigures?.size ?: 0) * 1_000_000_000L + row.updatedAt >
+                (current.embeddedFigures?.size ?: 0) * 1_000_000_000L + current.updatedAt
+            ) {
+                highlightsByChapterCaption[key] = row
             }
+        }
         var upgraded = 0
         for (annotation in legacy) {
             val html = readChapterHtml(annotation.spineIndex) ?: continue
@@ -172,6 +182,11 @@ internal class CaptionHighlightUpgrader(
                     figure = plan.figure,
                 )
             }.getOrNull()
+            // On success, register the upgraded row so a SECOND legacy row for the same
+            // figure/caption folds into it via the merge branch above.
+            if (result != null) {
+                highlightsByChapterCaption[chapterKey to captionKey] = result
+            }
             if (result != null) upgraded++
         }
         return upgraded
