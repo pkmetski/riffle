@@ -446,6 +446,75 @@ class ChitankaCatalogTest {
         assertEquals(9.0 * 60, ChitankaCatalog.parseGramofoncheDurationSeconds("9мин"), 0.0)
     }
 
+    /**
+     * Regression: the parser used to match `(\d+)мин` only, so `"1час 20мин"` yielded 20 minutes
+     * (dropping the hour) and `"2часа"` yielded 0 (hiding the total-duration row entirely). Some
+     * Gramofonche reel-tape rips exceed an hour; both shapes appear in the wild.
+     */
+    @Test fun `parseGramofoncheDurationSeconds sums hours and minutes`() {
+        assertEquals((3600 + 20 * 60).toDouble(), ChitankaCatalog.parseGramofoncheDurationSeconds("1час 20мин"), 0.0)
+        assertEquals((3600 + 5 * 60).toDouble(), ChitankaCatalog.parseGramofoncheDurationSeconds("1часа 5 мин"), 0.0)
+        assertEquals(2 * 3600.0, ChitankaCatalog.parseGramofoncheDurationSeconds("2часа"), 0.0)
+        assertEquals(3600.0, ChitankaCatalog.parseGramofoncheDurationSeconds("1 час"), 0.0)
+    }
+
+    /**
+     * Regression: `getItem` returned scraped duration only. Detail pages with no `"..NNмин"`
+     * line (compilations, some reel-tape rips) yielded audioDurationSec=0, hiding the total-time
+     * row entirely. The fallback must probe per-track Xing headers in that case only — not when
+     * scraping already succeeded (probe is a full HTTP round-trip per track).
+     */
+    @Test fun `resolveAudioDurationSec keeps scraped value and does not probe when nonzero`() = runTest {
+        var probed = 0
+        val result = ChitankaCatalog.resolveAudioDurationSec(
+            root = ChitankaCatalog.ROOT_AUDIOBOOKS,
+            scraped = 2580.0,
+            hasDownloads = true,
+        ) { probed++; 9999.0 }
+        assertEquals(2580.0, result, 0.0)
+        assertEquals(0, probed)
+    }
+
+    @Test fun `resolveAudioDurationSec falls back to per-track probe when scraped is zero`() = runTest {
+        val result = ChitankaCatalog.resolveAudioDurationSec(
+            root = ChitankaCatalog.ROOT_AUDIOBOOKS,
+            scraped = 0.0,
+            hasDownloads = true,
+        ) { 1800.0 + 600.0 }
+        assertEquals(2400.0, result, 0.0)
+    }
+
+    @Test fun `resolveAudioDurationSec skips probe when no downloads to probe`() = runTest {
+        var probed = 0
+        val result = ChitankaCatalog.resolveAudioDurationSec(
+            root = ChitankaCatalog.ROOT_AUDIOBOOKS,
+            scraped = 0.0,
+            hasDownloads = false,
+        ) { probed++; 9999.0 }
+        assertEquals(0.0, result, 0.0)
+        assertEquals(0, probed)
+    }
+
+    @Test fun `resolveAudioDurationSec swallows probe failures and returns zero`() = runTest {
+        val result = ChitankaCatalog.resolveAudioDurationSec(
+            root = ChitankaCatalog.ROOT_AUDIOBOOKS,
+            scraped = 0.0,
+            hasDownloads = true,
+        ) { throw java.io.IOException("boom") }
+        assertEquals(0.0, result, 0.0)
+    }
+
+    @Test fun `resolveAudioDurationSec does not probe for non-audiobook roots`() = runTest {
+        var probed = 0
+        val result = ChitankaCatalog.resolveAudioDurationSec(
+            root = ChitankaCatalog.ROOT_BOOKS,
+            scraped = 0.0,
+            hasDownloads = true,
+        ) { probed++; 9999.0 }
+        assertEquals(0.0, result, 0.0)
+        assertEquals(0, probed)
+    }
+
     @Test fun `parseGramofoncheDurationSeconds returns zero when unknown`() {
         assertEquals(0.0, ChitankaCatalog.parseGramofoncheDurationSeconds(null), 0.0)
         assertEquals(0.0, ChitankaCatalog.parseGramofoncheDurationSeconds(""), 0.0)
