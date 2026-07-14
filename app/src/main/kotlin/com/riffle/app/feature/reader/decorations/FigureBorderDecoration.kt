@@ -115,13 +115,26 @@ internal object FigureBorderDecoration {
      * enclose a figure — the figcaption sits below the range and only the CSS tint can reach
      * it). Normalizes whitespace on both sides so the check matches how the text-content walks
      * on the two rendering paths collapse.
+     *
+     * Blank `figure.caption` is the shape written by the caption-highlight code paths
+     * (`EpubReaderViewModel.onFigureLongPress` and `CaptionHighlightUpgrader`), which deliberately
+     * store an empty string to avoid an unrelated elided-view double-render. In that case the
+     * highlight's own `textSnippet` IS the caption, so falling back to false would let the CSS
+     * tint stack on top of Readium's decoration (~2x opacity — the "duplicated" look). Detect the
+     * shape via the same canonical caption prefix used by
+     * `HighlightsPublicationFactory.appendInterleavedHighlight` and treat it as covered.
      */
     private fun highlightCoversCaption(annotation: Annotation, figure: com.riffle.core.domain.EmbeddedFigure): Boolean {
-        if (figure.caption.isBlank()) return false
-        val normalizedCaption = figure.caption.replace(Regex("\\s+"), " ").trim()
         val normalizedSnippet = annotation.textSnippet.replace(Regex("\\s+"), " ").trim()
+        if (figure.caption.isBlank()) {
+            return CAPTION_HIGHLIGHT_PREFIX_REGEX.containsMatchIn(normalizedSnippet)
+        }
+        val normalizedCaption = figure.caption.replace(Regex("\\s+"), " ").trim()
         return normalizedSnippet.contains(normalizedCaption)
     }
+
+    private val CAPTION_HIGHLIGHT_PREFIX_REGEX =
+        Regex("^\\s*(Figure|Fig\\.?|Table|Chart)\\s+\\d", RegexOption.IGNORE_CASE)
 
     /**
      * One entry per SVG annotation covering the current document. Newest-wins by `updatedAt` when
