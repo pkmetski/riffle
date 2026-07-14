@@ -178,10 +178,12 @@ fun LibraryItemsScreen(
     // Reset to Home when the previously-selected tab has no data for the active library (e.g.
     // user was on Series, then the last series was deleted, or switched to a source whose library
     // has no series). Skip while tabVisibility is null (still resolving) so a `rememberSaveable`-
-    // restored selectedTab isn't silently clobbered before the real emptiness set lands.
-    LaunchedEffect(tabVisibility) {
-        val visibility = tabVisibility ?: return@LaunchedEffect
-        if (!isTabVisible(selectedTab, visibility)) selectedTab = 0
+    // restored selectedTab isn't silently clobbered before the real emptiness set lands. Skip
+    // during search too — `LibraryFilterEngine` filters `projection.series/collections` by the
+    // active query, so an unmatched search would flip a visibility flag off, clamp the user's
+    // tab, and the clamp would survive clearing the query.
+    LaunchedEffect(tabVisibility, searchQuery) {
+        if (shouldClampSelectedTab(searchQuery, tabVisibility, selectedTab)) selectedTab = 0
     }
 
     // Drive the grids off a local live scale so a pinch reflows instantly; the
@@ -1252,6 +1254,24 @@ internal fun LibraryItemCard(
  * out of sync with each other.
  */
 internal fun tabIndexForAnnotations(): Int = 2
+
+/**
+ * True when the tab-clamp LaunchedEffect should reset [selectedTab] to Home. Returns false while
+ * the user is searching ([searchQuery] non-empty) — `LibraryFilterEngine` filters
+ * `projection.series/collections` by the active query, so an unmatched search would otherwise
+ * flip a visibility flag off, clamp the tab, and the clamp would survive clearing the query.
+ * Also false while [visibility] is null (still resolving) so a `rememberSaveable`-restored tab
+ * survives the initial load window.
+ */
+internal fun shouldClampSelectedTab(
+    searchQuery: String,
+    visibility: LibraryTabVisibility?,
+    selectedTab: Int,
+): Boolean {
+    if (searchQuery.isNotEmpty()) return false
+    if (visibility == null) return false
+    return !isTabVisible(selectedTab, visibility)
+}
 
 /**
  * True when the tab currently rendered at [selectedTab] still has data to show under the current

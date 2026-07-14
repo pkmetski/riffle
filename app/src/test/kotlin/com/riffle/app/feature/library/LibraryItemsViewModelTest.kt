@@ -1138,6 +1138,7 @@ class LibraryItemsViewModelTest {
         val vm = makeViewModel(sourceRepository = srcRepo, toReadRepository = toRead)
         backgroundScope.launch { vm.projection.collect {} }
         allBooksFlow.value = listOf(item("book", "author"))
+        allItemsFlow.value = listOf(item("book", "author"))
         testDispatcher.scheduler.advanceUntilIdle()
 
         // Baseline: library has items but no series/collections/toRead/annotations → all optional
@@ -1198,6 +1199,7 @@ class LibraryItemsViewModelTest {
         val vm = makeViewModel(sourceRepository = srcRepo, annotationsLibraryRepository = repo)
         backgroundScope.launch { vm.projection.collect {} }
         allBooksFlow.value = listOf(item("book", "author"))
+        allItemsFlow.value = listOf(item("book", "author"))
         testDispatcher.scheduler.advanceUntilIdle()
 
         assertEquals(false, vm.tabVisibility.value?.annotations)
@@ -1221,6 +1223,7 @@ class LibraryItemsViewModelTest {
         val vm = makeViewModel(sourceRepository = srcRepo, toReadRepository = toRead)
         backgroundScope.launch { vm.projection.collect {} }
         allBooksFlow.value = listOf(item("book", "author"))
+        allItemsFlow.value = listOf(item("book", "author"))
         testDispatcher.scheduler.advanceUntilIdle()
 
         // Stale ID doesn't map to any item in this library's allBooks → tab hidden.
@@ -1232,22 +1235,44 @@ class LibraryItemsViewModelTest {
         assertEquals(true, vm.tabVisibility.value?.toRead)
     }
 
+    // Regression pin for the cold-start clobber: while the library has no items loaded yet
+    // (`allItems` empty — either genuinely empty or still refreshing), tabVisibility must stay
+    // null so the UI falls back to `LibraryTabVisibility.All`. Without this gate, Room's initial
+    // `emptyList()` tick from every projection sub-flow immediately emits an all-false visibility
+    // and the LaunchedEffect clamps a `rememberSaveable`-restored selectedTab to Home before real
+    // data can land.
     @Test
-    fun `tabVisibility is Empty when no active Source and no library data has arrived`() = runTest {
+    fun `tabVisibility stays null while allItems is empty so cold-start restore isn't clobbered`() = runTest {
+        val srv = source("s-abs", active = true)
         val srcRepo = object : SourceRepository {
-            override fun observeAll(): Flow<List<Source>> = MutableStateFlow(emptyList())
-            override suspend fun getActive(): Source? = null
+            override fun observeAll(): Flow<List<Source>> = MutableStateFlow(listOf(srv))
+            override suspend fun getActive(): Source? = srv
             override suspend fun commit(pending: com.riffle.core.domain.PendingSource, hiddenLibraryIds: Set<String>) = throw UnsupportedOperationException()
             override suspend fun setActive(sourceId: String) {}
             override suspend fun remove(sourceId: String) {}
             override suspend fun getSourceVersion(sourceId: String): String? = null
         }
+        // Seed the source-side flows with values that would flip visibility ON if the settled
+        // gate weren't in place — proving null persists specifically because `allItems` is empty,
+        // not because there's nothing to show.
+        seriesFlow.value = listOf(series("Dune"))
+        collectionsFlow.value = listOf(collection("Sci-Fi"))
+        annotatedBooksFlow.value = listOf(
+            com.riffle.core.data.AnnotatedBook("s-abs", "id-book", "Book", "Author", null, 1, 0L),
+        )
         val vm = makeViewModel(sourceRepository = srcRepo)
         backgroundScope.launch { vm.projection.collect {} }
         testDispatcher.scheduler.advanceUntilIdle()
 
-        // Nothing to show → every optional tab hidden by default (Home + All Books still render).
-        assertEquals(LibraryTabVisibility.Empty, vm.tabVisibility.value)
+        assertEquals(null, vm.tabVisibility.value)
+
+        // Once allItems settles with real rows, visibility flips to the real per-tab values.
+        allItemsFlow.value = listOf(item("book", "author"))
+        allBooksFlow.value = listOf(item("book", "author"))
+        testDispatcher.scheduler.advanceUntilIdle()
+        assertEquals(true, vm.tabVisibility.value?.series)
+        assertEquals(true, vm.tabVisibility.value?.collections)
+        assertEquals(true, vm.tabVisibility.value?.annotations)
     }
 
     private fun source(id: String, active: Boolean) = Source(

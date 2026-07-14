@@ -226,19 +226,27 @@ class LibraryItemsViewModel @Inject constructor(
      * `AnnotationsListViewModel` renders — so tab visibility cannot disagree with what the tab
      * content would show.
      *
-     * Null only for a moment between VM construction and the projection's first emission; the UI
-     * treats null as "show every tab" so the initial paint doesn't hide tabs before we know.
+     * Null while the library hasn't loaded any items yet ([allItems] empty is treated as "not yet
+     * settled") — Room's initial `emptyList()` tick from every projection sub-flow would otherwise
+     * fire the tab-bar clamp before real data lands and wipe a `rememberSaveable`-restored tab.
+     * The UI treats null as "show every tab" so the initial paint is stable and the LaunchedEffect
+     * doesn't run.
      */
     val tabVisibility: StateFlow<LibraryTabVisibility?> = combine(
         projection,
         annotatedBooksInLibrary,
-    ) { p, annotated ->
-        LibraryTabVisibility(
-            toRead = p.toRead.isNotEmpty(),
-            series = p.series.isNotEmpty(),
-            collections = p.collections.isNotEmpty(),
-            annotations = annotated.isNotEmpty(),
-        )
+        allItems,
+    ) { p, annotated, items ->
+        if (items.isEmpty()) {
+            null
+        } else {
+            LibraryTabVisibility(
+                toRead = p.toRead.isNotEmpty(),
+                series = p.series.isNotEmpty(),
+                collections = p.collections.isNotEmpty(),
+                annotations = annotated.isNotEmpty(),
+            )
+        }
     }
         .distinctUntilChanged()
         .stateIn(viewModelScope, SharingStarted.Eagerly, null)
