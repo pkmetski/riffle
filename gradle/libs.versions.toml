@@ -13,7 +13,7 @@ okhttp = "5.4.0"
 navigation = "2.9.8"
 hiltNavigation = "1.4.0"
 security = "1.1.0"
-hilt = "2.60"
+hilt = "2.60.1"
 acra = "5.13.1"
 # Pinned to latest (3.3.0). The readaloud highlight is now text-anchored so it's engine-independent
 # (Readium strips media-overlay spans regardless of version). Reflowable column defaults and decoration
