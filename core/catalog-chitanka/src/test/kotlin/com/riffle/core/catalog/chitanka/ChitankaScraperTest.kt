@@ -171,4 +171,19 @@ class GramofoncheScraperTest {
             d.narrators.isNotEmpty() && d.narrators.first() == "Георги Кадурин",
         )
     }
+
+    /**
+     * Regression: the duration regex used to be `(\d+)мин` and re-materialised the value as
+     * `"${minutes}мин"`, silently dropping the hour component from combined spans and yielding
+     * an empty string for hour-only entries. Both shapes exist on the live site — pin the
+     * broader `GRAMOFONCHE_DURATION_REGEX` capture so a revert would flip these red.
+     */
+    @Test
+    fun `duration regex captures hours-only and mixed hour-minute spans`() {
+        val re = GramofoncheScraper.GRAMOFONCHE_DURATION_REGEX
+        assertEquals("43мин", re.find("размер: 22M:43мин")?.value)
+        assertEquals("1час 20мин", re.find(".. 1час 20мин\n")?.value)
+        assertEquals("2часа", re.find(".. 2часа\n")?.value)
+        assertEquals("1 час", re.find(".. 1 час\n")?.value)
+    }
 }

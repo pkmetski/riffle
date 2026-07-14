@@ -261,6 +261,21 @@ internal object GramofoncheScraper {
 
     private val CATEGORY_PATH_PATTERN = Regex("^/(prikazki|pesnicki|zagolemi)/[^/]+/$")
 
+    /**
+     * Captures a Gramofonche duration span in either the listing "..NNмин" line or the detail
+     * page. Supports the three shapes the site uses in the wild:
+     *   - minutes only: `43мин`
+     *   - hours + minutes: `1час 20мин`, `1часа 5 мин`
+     *   - hours only: `2часа`, `1 час`
+     * The parser side ([ChitankaCatalog.parseGramofoncheDurationSeconds]) picks the hour and
+     * minute numbers back out — captured together so the raw span survives the summary→detail
+     * hand-off. Was `(\d+)мин` alone, which silently returned 0 minutes for the (rare but real)
+     * hours-only entries and stripped the hour component from combined spans.
+     */
+    internal val GRAMOFONCHE_DURATION_REGEX = Regex(
+        "(?:\\d+\\s*часа?\\s*)?\\d+\\s*мин|\\d+\\s*часа?",
+    )
+
     fun parseSearchResults(html: String): ChitankaListingResult {
         val doc = Jsoup.parse(html)
         val items = mutableListOf<ChitankaBookSummary>()
@@ -292,7 +307,7 @@ internal object GramofoncheScraper {
                 ChitankaScraper.toAbsolute(imgSrc, "$BASE/") else null
 
             val elText = el.text()
-            val duration = Regex("(\\d+)мин").find(elText)?.let { "${it.groupValues[1]}мин" }
+            val duration = GRAMOFONCHE_DURATION_REGEX.find(elText)?.value
 
             if (title.isNotEmpty() && href.isNotEmpty()) {
                 items += ChitankaBookSummary(
@@ -342,7 +357,7 @@ internal object GramofoncheScraper {
         }
 
         val year = Regex("година:\\s*(\\d{4})").find(contentText)?.groupValues?.get(1).orEmpty()
-        val duration = Regex("(\\d+)мин").find(contentText)?.let { "${it.groupValues[1]}мин" }.orEmpty()
+        val duration = GRAMOFONCHE_DURATION_REGEX.find(contentText)?.value.orEmpty()
 
         val imgSrc = doc.selectFirst("div.kolona_kartinki img")?.attr("src")
         val coverUrl = if (!imgSrc.isNullOrEmpty())

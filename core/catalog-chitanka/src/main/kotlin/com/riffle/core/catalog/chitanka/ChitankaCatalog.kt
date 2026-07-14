@@ -219,7 +219,13 @@ class ChitankaCatalog(
         )
         // Layer detail-only fields onto the summary conversion.
         val base = summary.toCatalogItem(root)
+        val resolvedAudioDurationSec = resolveAudioDurationSec(
+            root = root,
+            scraped = base.audioDurationSec,
+            hasDownloads = detail.downloads.isNotEmpty(),
+        ) { tracksFor(detail).sumOf { it.durationSec } }
         return base.copy(
+            audioDurationSec = resolvedAudioDurationSec,
             description = detail.description.ifEmpty { null },
             seriesName = detail.series?.name,
             seriesSequence = detail.series?.sequence?.ifEmpty { null },
@@ -535,19 +541,41 @@ class ChitankaCatalog(
          */
         internal const val GRAMOFONCHE_FALLBACK_BITRATE_BPS: Int = 128_000
 
-        private val GRAMOFONCHE_DURATION_MINUTES_REGEX = Regex("(\\d+)\\s*мин")
+        private val GRAMOFONCHE_HOURS_REGEX = Regex("(\\d+)\\s*часа?")
+        private val GRAMOFONCHE_MINUTES_REGEX = Regex("(\\d+)\\s*мин")
 
         /**
-         * Parses the scraped Gramofonche duration string (e.g. `"45мин"`) into seconds so it can
-         * populate `CatalogItem.audioDurationSec`. `LibraryItemDetailScreen` gates the total-time
-         * line on `audioDurationSec > 0`, so returning 0 for a listing-only value keeps the whole
-         * line hidden until the per-track HEAD probes run at playback time.
+         * Parses the scraped Gramofonche duration string into seconds so it can populate
+         * `CatalogItem.audioDurationSec`. Handles the three shapes the site emits — `"45мин"`,
+         * `"1час 20мин"`, `"2часа"` — by summing whichever hour and minute captures the regex
+         * finds. `LibraryItemDetailScreen` gates the total-time line on `audioDurationSec > 0`;
+         * when both captures miss (page never mentions a duration at all), `getItem` falls back
+         * to summing per-track Xing probes so the line still renders.
          */
+        /**
+         * Picks the effective `audioDurationSec` for a Gramofonche detail page. Prefers the value
+         * scraped from the "..NNмин" line (fast, no network) and falls back to summing per-track
+         * Xing probes only when the scrape yielded 0. Some Gramofonche detail pages (compilations
+         * and older reel-tape rips in particular) simply do not print a duration; without the
+         * fallback, `LibraryItemDetailScreen`'s `audioDurationSec > 0` gate hides the total-time
+         * row entirely. Probing costs one two-range GET per track (see [tracksFor]), so we only
+         * pay it when we have downloads to probe AND nothing better on hand.
+         */
+        internal suspend fun resolveAudioDurationSec(
+            root: String,
+            scraped: Double,
+            hasDownloads: Boolean,
+            fetchProbedTotalSec: suspend () -> Double,
+        ): Double {
+            if (root != ROOT_AUDIOBOOKS || scraped > 0.0 || !hasDownloads) return scraped
+            return runCatching { fetchProbedTotalSec() }.getOrDefault(0.0)
+        }
+
         internal fun parseGramofoncheDurationSeconds(raw: String?): Double {
             if (raw.isNullOrEmpty()) return 0.0
-            val minutes = GRAMOFONCHE_DURATION_MINUTES_REGEX.find(raw)?.groupValues?.get(1)?.toIntOrNull()
-                ?: return 0.0
-            return minutes * 60.0
+            val hours = GRAMOFONCHE_HOURS_REGEX.find(raw)?.groupValues?.get(1)?.toIntOrNull() ?: 0
+            val minutes = GRAMOFONCHE_MINUTES_REGEX.find(raw)?.groupValues?.get(1)?.toIntOrNull() ?: 0
+            return (hours * 3600 + minutes * 60).toDouble()
         }
 
         internal val AUDIO_FACETS: List<CatalogFacet> = listOf(
