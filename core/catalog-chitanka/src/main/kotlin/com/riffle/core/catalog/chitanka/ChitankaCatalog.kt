@@ -412,21 +412,29 @@ class ChitankaCatalog(
      * Turn a resolved [ChitankaDetail] into per-track spans. Split out so the caller can share a
      * single detail-page fetch between tracks and chapter titles instead of hitting the network
      * twice per audiobook open — [openAudiobook] and [getAudiobookChapters] both need the
-     * download list plus HEAD-estimated durations.
+     * download list plus derived durations.
      *
-     * Gramofonche exposes no per-track duration metadata, so estimate from Content-Length via
-     * HEAD + the site's uniform ~128 kbps MP3 encoding. This isn't perfectly accurate but gives
-     * non-zero startOffsetSec / durationSec so the audiobook player's global timeline math
-     * (AudiobookTracks#trackAt / #absoluteSec) resolves the correct track across a multi-file
-     * book — with zeros, the resolver collapses every playback position onto the last track's
-     * timeline and multi-track resume/scrubbing/chapter-nav break.
+     * Gramofonche exposes no per-track duration metadata, so each track is probed in parallel
+     * via [ChitankaHttpClient.probeMp3DurationSec], which does a two-stage Range GET (10-byte
+     * ID3v2 header → audio start) and reads the Xing/Info frame count for exact duration.
+     * Gramofonche's rips are VBR-encoded with ~200 KiB ID3v2 cover-art tags — a naive
+     * "sniff the first N bytes + divide by an assumed bitrate" collapses on both fronts, and
+     * historically underestimated by up to ~40 %, leaving the scrubber pinned at end while
+     * ExoPlayer was still decoding several real minutes of audio.
+     *
+     * If the probe fails (network error, unrecognised encoding), fall back to HEAD +
+     * [GRAMOFONCHE_FALLBACK_BITRATE_BPS] so we still yield non-zero durations — needed for
+     * [AudiobookTracks#trackAt] / [#absoluteSec] to route positions to the right track in a
+     * multi-file book.
      */
     private suspend fun tracksFor(detail: ChitankaDetail): List<CatalogAudioTrack> {
         val durationsSec = coroutineScope {
             detail.downloads.map { d ->
                 async(Dispatchers.IO) {
+                    val probed = http.probeMp3DurationSec(d.url)
+                    if (probed != null && probed > 0.0) return@async probed
                     val bytes = http.headContentLength(d.url) ?: return@async 0.0
-                    bytes.toDouble() / GRAMOFONCHE_ASSUMED_BYTES_PER_SEC
+                    bytes.toDouble() * 8.0 / GRAMOFONCHE_FALLBACK_BITRATE_BPS
                 }
             }.awaitAll()
         }
@@ -520,13 +528,12 @@ class ChitankaCatalog(
         )
 
         /**
-         * Gramofonche's MP3 encoding is broadly ~128 kbps. Duration is estimated as
-         * `Content-Length / 16 000` when the origin does not report duration directly. Off by ~5%
-         * for the occasional 96 kbps or 160 kbps title — small enough that the timeline resolver
-         * still picks the correct track, and the player corrects the absolute position from
-         * ExoPlayer's real duration once decoded.
+         * Fallback CBR bitrate used when [ChitankaHttpClient.probeMp3BitrateBps] cannot read a
+         * valid MPEG frame header for a track (transient network error, or an unusual encoding
+         * we don't recognise). 128 kbps is the historical upper bound of Gramofonche MP3s;
+         * using it as the fallback preserves the pre-probe behaviour on the rare probe miss.
          */
-        internal const val GRAMOFONCHE_ASSUMED_BYTES_PER_SEC: Long = 16_000L
+        internal const val GRAMOFONCHE_FALLBACK_BITRATE_BPS: Int = 128_000
 
         private val GRAMOFONCHE_DURATION_MINUTES_REGEX = Regex("(\\d+)\\s*мин")
 
