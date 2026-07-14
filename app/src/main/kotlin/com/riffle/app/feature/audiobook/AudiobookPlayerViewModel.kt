@@ -41,10 +41,17 @@ import javax.inject.Inject
 /**
  * Maps a book-absolute listen position to the unified 0..1 `readingProgress` fraction the library
  * and detail screens render (ADR 0029). Returns 0 when the duration isn't known yet (so a not-yet-
- * prepared player never writes a bogus 100%).
+ * prepared player never writes a bogus 100%). Snaps to 1f within [AUDIOBOOK_FINISHED_EPS_SEC] of
+ * the end so a book listened all the way through displays 100%, not 99% — LAME encoder-delay/
+ * padding samples and the silent Xing/Info frame leave the reported position a hair short of the
+ * Xing-derived total, and integer truncation at the display sites would otherwise render "99%".
  */
 internal fun audiobookProgressFraction(positionSec: Double, durationSec: Double): Float =
-    if (durationSec > 0.0) (positionSec / durationSec).toFloat().coerceIn(0f, 1f) else 0f
+    when {
+        durationSec <= 0.0 -> 0f
+        positionSec >= durationSec - AUDIOBOOK_FINISHED_EPS_SEC -> 1f
+        else -> (positionSec / durationSec).toFloat().coerceIn(0f, 1f)
+    }
 
 /**
  * The book-absolute resume position. When NO position was tracked at all ([hadTrackedPosition] false —
