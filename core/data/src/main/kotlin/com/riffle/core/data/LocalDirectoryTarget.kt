@@ -29,25 +29,68 @@ class LocalDirectoryTarget(private val context: Context) : AnnotationSyncTarget 
     /**
      * Rename any bare-UUID namespace directories under [ROOT] to their `abs_<uuid>` form so
      * pre-`abs_` local files stay addressable after the descriptor started stamping the new
-     * prefix. Runs at most once per instance — the first read/write/enumerate triggers it,
-     * every subsequent call short-circuits on [legacyAbsMigrated]. Idempotent when a fresh
-     * install has no legacy dirs (zero listFiles work).
+     * prefix. Runs at most once per instance AFTER a successful sweep — a mid-sweep throw
+     * or a per-dir renameTo failure leaves [legacyAbsMigrated] false so the next call
+     * retries. Idempotent when a fresh install has no legacy dirs (zero listFiles work).
+     *
+     * When the abs_-prefixed target already exists (fresh install synced down `abs_<uuid>/`
+     * from WebDAV before the user side-loaded a legacy backup), merge each legacy child
+     * into the target instead of abandoning it — otherwise the legacy annotations would be
+     * silently invisible under the new namespace.
      */
     private fun migrateLegacyAbsDirs() {
         if (legacyAbsMigrated) return
-        legacyAbsMigrated = true
+        val root = File(context.filesDir, ROOT)
+        if (!root.exists()) {
+            legacyAbsMigrated = true
+            return
+        }
+        var allSucceeded = true
         try {
-            val root = File(context.filesDir, ROOT)
-            if (!root.exists()) return
             root.listFiles { f -> f.isDirectory }?.forEach { nsDir ->
                 if (!LegacyAbsNamespaceMigration.isLegacyAbsNamespaceSegment(nsDir.name)) return@forEach
-                val renamed = File(nsDir.parentFile, com.riffle.core.domain.AbsWebSourceDescriptor.ABS_NAMESPACE_PREFIX + nsDir.name)
-                if (renamed.exists()) return@forEach // another migration path already handled it
-                nsDir.renameTo(renamed)
+                val target = File(
+                    nsDir.parentFile,
+                    com.riffle.core.domain.AbsWebSourceDescriptor.ABS_NAMESPACE_PREFIX + nsDir.name,
+                )
+                if (!target.exists()) {
+                    if (!nsDir.renameTo(target)) allSucceeded = false
+                } else if (!mergeInto(nsDir, target)) {
+                    allSucceeded = false
+                }
             }
         } catch (e: Exception) {
             Log.e(TAG, "Legacy ABS dir migration failed (best-effort)", e)
+            allSucceeded = false
         }
+        if (allSucceeded) legacyAbsMigrated = true
+    }
+
+    /**
+     * Move every regular file under [source] into [target] (preserving relative paths),
+     * then delete [source]. Returns true iff the source ends up empty and deletable.
+     * Existing files in [target] win — legacy content only fills gaps, never overwrites
+     * fresher post-migration data.
+     */
+    private fun mergeInto(source: File, target: File): Boolean {
+        var ok = true
+        source.walkTopDown().forEach { f ->
+            if (f == source) return@forEach
+            val rel = f.relativeTo(source)
+            val dest = File(target, rel.path)
+            if (f.isDirectory) {
+                if (!dest.exists() && !dest.mkdirs()) ok = false
+            } else if (!dest.exists()) {
+                dest.parentFile?.mkdirs()
+                if (!f.renameTo(dest)) ok = false
+            }
+        }
+        // Best-effort recursive delete of anything left in the source (may include files that
+        // couldn't merge because a fresher version already existed in target — those stay
+        // dropped by design).
+        source.walkBottomUp().forEach { if (it != source) it.delete() }
+        if (!source.delete()) ok = false
+        return ok
     }
 
     override suspend fun list(namespace: String, itemId: String): List<String> {

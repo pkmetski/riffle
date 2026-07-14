@@ -516,6 +516,48 @@ class WebDavAnnotationSyncTargetTest {
     }
 
     @Test
+    fun `MOVE returning 404 (peer migrated first) still surfaces the file under the new namespace`() = runTest {
+        // Concurrent-device race: another device MOVE'd the source before us, so our MOVE
+        // returns 404 on the (now gone) source. The destination exists — we must treat 404
+        // as success and return the destination name, else list() filters it out.
+        source.enqueue(MockResponse().setResponseCode(207).setBody(PROPFIND_LEGACY_ABS_BODY))
+        source.enqueue(MockResponse().setResponseCode(404)) // MOVE — source already gone
+
+        val result = newTarget().list("abs_$ABS_UUID", "book1")
+
+        assertEquals(
+            setOf("annotations-dev-legacy.jsonld", "annotations-dev-fresh.jsonld"),
+            result.toSet(),
+        )
+    }
+
+    @Test
+    fun `MOVE returning 412 triggers DELETE of the legacy source and dedupes the list`() = runTest {
+        // Peer already wrote the abs_-prefixed file under the same book. Our PROPFIND sees
+        // BOTH the legacy source and the peer-written destination. MOVE returns 412 (dest
+        // exists, Overwrite: F); we DELETE the orphan legacy source and dedupe so the list
+        // doesn't contain the same logical filename twice.
+        source.enqueue(MockResponse().setResponseCode(207).setBody(PROPFIND_ORPHAN_LEGACY_BODY))
+        source.enqueue(MockResponse().setResponseCode(412)) // MOVE — destination exists
+        source.enqueue(MockResponse().setResponseCode(204)) // DELETE of orphan source
+
+        val result = newTarget().list("abs_$ABS_UUID", "book1")
+
+        // Deduped: only one entry per unique post-migration filename.
+        assertEquals(listOf("annotations-dev-shared.jsonld"), result)
+
+        // Confirm DELETE targeted the legacy path, not the destination.
+        source.takeRequest() // PROPFIND
+        source.takeRequest() // MOVE
+        val delete = source.takeRequest()
+        assertEquals("DELETE", delete.method)
+        assertEquals(
+            "/annotations/${ABS_UUID}__book1__annotations-dev-shared.jsonld",
+            delete.path,
+        )
+    }
+
+    @Test
     fun `komga files on the share are left alone by the ABS migration`() = runTest {
         // A share hosting BOTH an ABS legacy file AND a komga_ file: only the ABS one migrates.
         source.enqueue(MockResponse().setResponseCode(207).setBody(PROPFIND_ABS_AND_KOMGA_BODY))
@@ -572,6 +614,30 @@ class WebDavAnnotationSyncTargetTest {
               </d:response>
               <d:response>
                 <d:href>/annotations/abs_${ABS_UUID}__book1__annotations-dev.jsonld</d:href>
+                <d:propstat><d:prop><d:resourcetype/></d:prop>
+                  <d:status>HTTP/1.1 200 OK</d:status></d:propstat>
+              </d:response>
+            </d:multistatus>
+        """.trimIndent()
+
+        // Legacy source AND its already-existing abs_-prefixed destination — the shape that
+        // arises when a peer wrote the migrated file while our device was offline. Migration
+        // must DELETE the orphan legacy source and dedupe the composite.
+        private val PROPFIND_ORPHAN_LEGACY_BODY = """
+            <?xml version="1.0" encoding="utf-8"?>
+            <d:multistatus xmlns:d="DAV:">
+              <d:response>
+                <d:href>/annotations/</d:href>
+                <d:propstat><d:prop><d:resourcetype><d:collection/></d:resourcetype></d:prop>
+                  <d:status>HTTP/1.1 200 OK</d:status></d:propstat>
+              </d:response>
+              <d:response>
+                <d:href>/annotations/${ABS_UUID}__book1__annotations-dev-shared.jsonld</d:href>
+                <d:propstat><d:prop><d:resourcetype/></d:prop>
+                  <d:status>HTTP/1.1 200 OK</d:status></d:propstat>
+              </d:response>
+              <d:response>
+                <d:href>/annotations/abs_${ABS_UUID}__book1__annotations-dev-shared.jsonld</d:href>
                 <d:propstat><d:prop><d:resourcetype/></d:prop>
                   <d:status>HTTP/1.1 200 OK</d:status></d:propstat>
               </d:response>
