@@ -10,7 +10,8 @@ import org.junit.Test
  * added by overriding the hook — no changes to the sync controller, the sweep, or the reader.
  *
  * Would-fail-if-reverted assertions:
- *  - ABS Audiobookshelf with a persisted `absUserId` → `Configured(<id>)` (raw, no prefix)
+ *  - ABS Audiobookshelf with a persisted `absUserId` → `Configured("abs_<id>")` (prefixed;
+ *    legacy bare-UUID files on the WebDAV share are migrated in-place on next enumerate)
  *  - ABS Audiobookshelf without an `absUserId` → `PendingRemoteId` (repo triggers /api/me)
  *  - ABS Storyteller peer → `LocalOnly` (never opens a WebDAV namespace of its own)
  *  - Komga with a persisted id → `Configured("komga_<id>")` (prefixed so it can't collide with ABS)
@@ -44,11 +45,14 @@ class WebSourceDescriptorSyncNamespaceTest {
         )
 
     @Test
-    fun `ABS Audiobookshelf with persisted user id resolves to Configured with the raw id`() {
+    fun `ABS Audiobookshelf with persisted user id resolves to Configured with an abs prefix`() {
         val ns = AbsWebSourceDescriptor.syncNamespaceFor(absSource(userId = "abs-user-42"))
-        // Kept raw (no `abs_` prefix) so existing installs' WebDAV files stay addressable
-        // without a rewrite migration.
-        assertEquals(SyncNamespace.Configured("abs-user-42"), ns)
+        val expected = SyncNamespace.Configured(
+            "${AbsWebSourceDescriptor.ABS_NAMESPACE_PREFIX}abs-user-42",
+        )
+        assertEquals(expected, ns)
+        // Sanity: the prefix hasn't drifted to a subtly different value.
+        assertEquals("abs_", AbsWebSourceDescriptor.ABS_NAMESPACE_PREFIX)
     }
 
     @Test
@@ -103,7 +107,7 @@ class WebSourceDescriptorSyncNamespaceTest {
         // double-eval.
         val absStale = absSource(userId = null)
         assertEquals(
-            SyncNamespace.Configured("fresh-abs-id"),
+            SyncNamespace.Configured("${AbsWebSourceDescriptor.ABS_NAMESPACE_PREFIX}fresh-abs-id"),
             AbsWebSourceDescriptor.namespaceFromRemoteId(absStale, "fresh-abs-id"),
         )
         val komgaStale = komgaSource(userId = null)

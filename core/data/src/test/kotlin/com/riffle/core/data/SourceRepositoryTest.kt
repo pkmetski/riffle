@@ -802,7 +802,12 @@ class ServerRepositoryTest {
 
         val result = repo.ensureSyncNamespace("abs-1")
 
-        assertEquals(com.riffle.core.domain.SyncNamespace.Configured("persisted-user-id"), result)
+        assertEquals(
+            com.riffle.core.domain.SyncNamespace.Configured(
+                "${com.riffle.core.domain.AbsWebSourceDescriptor.ABS_NAMESPACE_PREFIX}persisted-user-id",
+            ),
+            result,
+        )
         assertEquals("must not /api/me when value is already cached", 0, infoApi.getCurrentUserIdCalls)
     }
 
@@ -823,8 +828,11 @@ class ServerRepositoryTest {
         val first = repo.ensureSyncNamespace("abs-legacy")
         val second = repo.ensureSyncNamespace("abs-legacy")
 
-        assertEquals(com.riffle.core.domain.SyncNamespace.Configured("fetched-user-id"), first)
-        assertEquals(com.riffle.core.domain.SyncNamespace.Configured("fetched-user-id"), second)
+        val expected = com.riffle.core.domain.SyncNamespace.Configured(
+            "${com.riffle.core.domain.AbsWebSourceDescriptor.ABS_NAMESPACE_PREFIX}fetched-user-id",
+        )
+        assertEquals(expected, first)
+        assertEquals(expected, second)
         // Persisted, so the second call is a DAO read — not a second network round-trip.
         assertEquals(1, infoApi.getCurrentUserIdCalls)
         assertEquals("fetched-user-id", dao.getById("abs-legacy")?.absUserId)

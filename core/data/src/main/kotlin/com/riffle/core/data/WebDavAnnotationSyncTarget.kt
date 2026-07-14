@@ -267,7 +267,7 @@ class WebDavAnnotationSyncTarget(
     }
 
     private suspend fun propfindBaseFilenames(): List<String> = withContext(dispatchers.io) {
-        classifyWebDavTransportErrors {
+        val raw = classifyWebDavTransportErrors {
             val request = baseRequest(basePath)
                 .header("Depth", "1")
                 .header("Content-Type", "application/xml; charset=utf-8")
@@ -284,6 +284,65 @@ class WebDavAnnotationSyncTarget(
                 }
             }
         }
+        migrateLegacyAbsNames(raw)
+    }
+
+    /**
+     * Rename any pre-`abs_` legacy ABS files in-place, so every downstream method
+     * (`list`, `enumerateDevices`, `enumerateNamespaces`, `forgetNamespace`) sees the
+     * post-migration filenames. MOVE is issued per legacy hit; the returned list swaps in
+     * the destination name on success. On any hard failure (network, 5xx), the legacy
+     * name is left in the returned list so callers still see the file — worst case a
+     * second sync retries the MOVE. Concurrent-device edge cases:
+     *  - 404 on the source means a peer already MOVE'd it → treat as success.
+     *  - 412 (destination exists) means a peer already wrote the migrated file → DELETE
+     *    the orphan legacy source so a subsequent PROPFIND doesn't loop on it forever.
+     * Post-mapping the list is `distinct()`-ed to collapse the pair that arises when both
+     * `<uuid>__…` and `abs_<uuid>__…` were present in the same PROPFIND.
+     * Idempotent: a share with no legacy files does zero extra work.
+     */
+    private fun migrateLegacyAbsNames(names: List<String>): List<String> {
+        if (names.none { LegacyAbsNamespaceMigration.isLegacyAbsFilename(it) }) return names
+        return names.map { name ->
+            if (!LegacyAbsNamespaceMigration.isLegacyAbsFilename(name)) return@map name
+            val target = LegacyAbsNamespaceMigration.migratedName(name)
+            if (migrateOne(name, target)) target else name
+        }.distinct()
+    }
+
+    /**
+     * Returns true iff [from] is at or has reached [to] on the server after this call.
+     * Handles the four outcomes: MOVE ok (2xx), source already gone (404 — peer got there
+     * first), destination already exists (412 — peer wrote it, so DELETE our orphan
+     * legacy source), or anything else (leave the file, caller will retry next sync).
+     */
+    private fun migrateOne(from: String, to: String): Boolean = try {
+        val src = basePath.newBuilder().addPathSegment(from).build()
+        val dst = basePath.newBuilder().addPathSegment(to).build()
+        val request = baseRequest(src)
+            .header("Destination", dst.toString())
+            .header("Overwrite", "F")
+            .method("MOVE", null)
+            .build()
+        client.newCall(request).execute().use { response ->
+            when {
+                response.isSuccessful || response.code == 201 || response.code == 204 -> true
+                // Peer already MOVEd it. Our source is gone; destination has the content.
+                response.code == 404 -> true
+                // Peer already wrote the destination independently. Delete our orphan source
+                // so a follow-up PROPFIND doesn't keep trying the same MOVE forever.
+                response.code == 412 -> {
+                    runCatching {
+                        val delReq = baseRequest(src).delete().build()
+                        client.newCall(delReq).execute().close()
+                    }
+                    true
+                }
+                else -> false
+            }
+        }
+    } catch (_: Exception) {
+        false
     }
 
     private fun put(url: HttpUrl, body: RequestBody): Response {

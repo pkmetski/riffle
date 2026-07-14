@@ -313,16 +313,25 @@ object AbsWebSourceDescriptor : WebSourceDescriptor {
         }
     }
 
-    // ABS is the historical sync source — its namespace is the raw ABS user id so existing
-    // installs' WebDAV files remain addressable without a rewrite. Storyteller peers exchange
-    // auth via ABS but have no independent cross-device identity (their annotations already
-    // ride on the paired Audiobookshelf server's namespace via reader-side matching); surface
-    // them as LocalOnly here so the sync status UI can explain the state.
+    /**
+     * Namespace prefix stamped onto every ABS sync namespace. Symmetric with
+     * [KomgaWebSourceDescriptor.KOMGA_NAMESPACE_PREFIX] so every server-backed source's namespace
+     * carries a source-tag segment on the shared WebDAV target. Legacy files written before this
+     * prefix existed (bare-UUID first segment) are migrated in-place by
+     * [com.riffle.core.data.LegacyAbsNamespaceMigration] the next time the target enumerates the
+     * base directory.
+     */
+    const val ABS_NAMESPACE_PREFIX = "abs_"
+
+    // Storyteller peers exchange auth via ABS but have no independent cross-device identity
+    // (their annotations already ride on the paired Audiobookshelf server's namespace via
+    // reader-side matching); surface them as LocalOnly here so the sync status UI can explain
+    // the state.
     override fun syncNamespaceFor(source: Source): SyncNamespace = when (source.serverType) {
         ServerType.STORYTELLER_SERVICE ->
             SyncNamespace.LocalOnly("Annotations on Storyteller readalouds sync via your paired Audiobookshelf server.")
         ServerType.AUDIOBOOKSHELF -> source.absUserId?.takeIf { it.isNotBlank() }
-            ?.let { SyncNamespace.Configured(it) }
+            ?.let { namespaceFromRemoteId(source, it) }
             ?: SyncNamespace.PendingRemoteId
     }
 
@@ -330,7 +339,7 @@ object AbsWebSourceDescriptor : WebSourceDescriptor {
         when (source.serverType) {
             ServerType.STORYTELLER_SERVICE ->
                 SyncNamespace.LocalOnly("Annotations on Storyteller readalouds sync via your paired Audiobookshelf server.")
-            ServerType.AUDIOBOOKSHELF -> SyncNamespace.Configured(remoteUserId)
+            ServerType.AUDIOBOOKSHELF -> SyncNamespace.Configured("$ABS_NAMESPACE_PREFIX$remoteUserId")
         }
 }
 
@@ -399,9 +408,9 @@ object KomgaWebSourceDescriptor : WebSourceDescriptor {
      * (`"kmga_"`) at either end would otherwise round-trip green (AGENTS.md: "Always reference
      * constants, never the literal").
      *
-     * Guarantees non-collision with ABS: ABS namespaces are raw UUIDs (`19621aae-…`) which
-     * contain no underscore before the first hex block, so no ABS namespace can ever start
-     * with this prefix regardless of the id value.
+     * Symmetric with [AbsWebSourceDescriptor.ABS_NAMESPACE_PREFIX]; every server-backed source
+     * carries its own tag so a user id from one server cannot collide with a user id from
+     * another on the shared WebDAV target.
      */
     const val KOMGA_NAMESPACE_PREFIX = "komga_"
 

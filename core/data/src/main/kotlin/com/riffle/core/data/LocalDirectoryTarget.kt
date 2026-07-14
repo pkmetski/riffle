@@ -24,7 +24,77 @@ import java.io.File
  */
 class LocalDirectoryTarget(private val context: Context) : AnnotationSyncTarget {
 
+    @Volatile private var legacyAbsMigrated: Boolean = false
+
+    /**
+     * Rename any bare-UUID namespace directories under [ROOT] to their `abs_<uuid>` form so
+     * pre-`abs_` local files stay addressable after the descriptor started stamping the new
+     * prefix. Runs at most once per instance AFTER a successful sweep — a mid-sweep throw
+     * or a per-dir renameTo failure leaves [legacyAbsMigrated] false so the next call
+     * retries. Idempotent when a fresh install has no legacy dirs (zero listFiles work).
+     *
+     * When the abs_-prefixed target already exists (fresh install synced down `abs_<uuid>/`
+     * from WebDAV before the user side-loaded a legacy backup), merge each legacy child
+     * into the target instead of abandoning it — otherwise the legacy annotations would be
+     * silently invisible under the new namespace.
+     */
+    private fun migrateLegacyAbsDirs() {
+        if (legacyAbsMigrated) return
+        val root = File(context.filesDir, ROOT)
+        if (!root.exists()) {
+            legacyAbsMigrated = true
+            return
+        }
+        var allSucceeded = true
+        try {
+            root.listFiles { f -> f.isDirectory }?.forEach { nsDir ->
+                if (!LegacyAbsNamespaceMigration.isLegacyAbsNamespaceSegment(nsDir.name)) return@forEach
+                val target = File(
+                    nsDir.parentFile,
+                    com.riffle.core.domain.AbsWebSourceDescriptor.ABS_NAMESPACE_PREFIX + nsDir.name,
+                )
+                if (!target.exists()) {
+                    if (!nsDir.renameTo(target)) allSucceeded = false
+                } else if (!mergeInto(nsDir, target)) {
+                    allSucceeded = false
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Legacy ABS dir migration failed (best-effort)", e)
+            allSucceeded = false
+        }
+        if (allSucceeded) legacyAbsMigrated = true
+    }
+
+    /**
+     * Move every regular file under [source] into [target] (preserving relative paths),
+     * then delete [source]. Returns true iff the source ends up empty and deletable.
+     * Existing files in [target] win — legacy content only fills gaps, never overwrites
+     * fresher post-migration data.
+     */
+    private fun mergeInto(source: File, target: File): Boolean {
+        var ok = true
+        source.walkTopDown().forEach { f ->
+            if (f == source) return@forEach
+            val rel = f.relativeTo(source)
+            val dest = File(target, rel.path)
+            if (f.isDirectory) {
+                if (!dest.exists() && !dest.mkdirs()) ok = false
+            } else if (!dest.exists()) {
+                dest.parentFile?.mkdirs()
+                if (!f.renameTo(dest)) ok = false
+            }
+        }
+        // Best-effort recursive delete of anything left in the source (may include files that
+        // couldn't merge because a fresher version already existed in target — those stay
+        // dropped by design).
+        source.walkBottomUp().forEach { if (it != source) it.delete() }
+        if (!source.delete()) ok = false
+        return ok
+    }
+
     override suspend fun list(namespace: String, itemId: String): List<String> {
+        migrateLegacyAbsDirs()
         return try {
             val directory = bookDir(namespace, itemId)
             if (!directory.exists()) return emptyList()
@@ -38,6 +108,7 @@ class LocalDirectoryTarget(private val context: Context) : AnnotationSyncTarget 
     }
 
     override suspend fun read(namespace: String, itemId: String, filename: String): String? {
+        migrateLegacyAbsDirs()
         return try {
             val file = annotationFile(namespace, itemId, filename)
             if (!file.exists()) return null
@@ -49,6 +120,7 @@ class LocalDirectoryTarget(private val context: Context) : AnnotationSyncTarget 
     }
 
     override suspend fun write(namespace: String, itemId: String, filename: String, content: String) {
+        migrateLegacyAbsDirs()
         try {
             val directory = bookDir(namespace, itemId)
             if (!directory.exists() && !directory.mkdirs()) {
@@ -71,6 +143,7 @@ class LocalDirectoryTarget(private val context: Context) : AnnotationSyncTarget 
     }
 
     override suspend fun readDeviceMeta(namespace: String, deviceId: String): String? {
+        migrateLegacyAbsDirs()
         return try {
             val file = deviceMetaFile(namespace, deviceId)
             if (!file.exists()) null else file.readText()
@@ -81,6 +154,7 @@ class LocalDirectoryTarget(private val context: Context) : AnnotationSyncTarget 
     }
 
     override suspend fun writeDeviceMeta(namespace: String, deviceId: String, content: String) {
+        migrateLegacyAbsDirs()
         try {
             val dir = namespaceDir(namespace)
             if (!dir.exists() && !dir.mkdirs()) {
@@ -103,6 +177,7 @@ class LocalDirectoryTarget(private val context: Context) : AnnotationSyncTarget 
     }
 
     override suspend fun enumerateDevices(namespace: String): NamespaceDeviceListing {
+        migrateLegacyAbsDirs()
         return try {
             val nsDir = namespaceDir(namespace)
             if (!nsDir.exists()) return NamespaceDeviceListing(emptyList())
@@ -137,6 +212,7 @@ class LocalDirectoryTarget(private val context: Context) : AnnotationSyncTarget 
     }
 
     override suspend fun enumerateNamespaces(): List<NamespaceSummary> {
+        migrateLegacyAbsDirs()
         return try {
             val root = File(context.filesDir, ROOT)
             if (!root.exists()) return emptyList()
@@ -159,6 +235,7 @@ class LocalDirectoryTarget(private val context: Context) : AnnotationSyncTarget 
     }
 
     override suspend fun forgetNamespace(namespace: String): Int {
+        migrateLegacyAbsDirs()
         return try {
             val dir = namespaceDir(namespace)
             if (!dir.exists()) return 0
