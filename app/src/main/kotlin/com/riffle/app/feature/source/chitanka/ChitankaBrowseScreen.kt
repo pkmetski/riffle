@@ -108,10 +108,22 @@ fun ChitankaBrowseScreen(
     val isAudioRoot = viewModel.rootId == ChitankaCatalog.ROOT_AUDIOBOOKS
     var searchOpen by remember { mutableStateOf(false) }
 
-    // Clamp if a rememberSaveable-restored selectedTab lands on Annotations after process
-    // death when we're now on the audiobook root (where that tab is hidden).
-    LaunchedEffect(isAudioRoot) {
-        if (isAudioRoot && selectedTab == TAB_ANNOTATIONS) selectedTab = TAB_HOME
+    val visibility by hiltViewModel<com.riffle.app.feature.library.LibraryTabVisibilityViewModel>()
+        .visibility.collectAsState()
+    // Annotations are anchored to ebook text — Gramofonche (the audiobook root) can never surface
+    // any, so hide the tab there on top of the generic emptiness gate.
+    val annotationsTabVisible = visibility.annotations && !isAudioRoot
+
+    // Clamp if a rememberSaveable-restored selectedTab lands on a tab that is currently hidden —
+    // either the audiobook root (Annotations always hidden there) or an empty To Read / Annotations
+    // list. Matches the LibraryTabBar clamp on the ABS/Komga side.
+    LaunchedEffect(visibility.toRead, annotationsTabVisible) {
+        val hidden = when (selectedTab) {
+            TAB_TO_READ -> !visibility.toRead
+            TAB_ANNOTATIONS -> !annotationsTabVisible
+            else -> false
+        }
+        if (hidden) selectedTab = TAB_HOME
     }
 
     Scaffold(
@@ -146,14 +158,16 @@ fun ChitankaBrowseScreen(
                     onClick = { selectedTab = TAB_HOME },
                     icon = { Icon(Icons.Filled.Home, contentDescription = "Home") },
                 )
-                NavigationBarItem(
-                    selected = selectedTab == TAB_TO_READ,
-                    onClick = { selectedTab = TAB_TO_READ },
-                    icon = { Icon(RiffleIcons.ToReadFilled, contentDescription = "To Read") },
-                )
-                // Annotations are anchored to ebook text — Gramofonche (the audiobook root)
-                // can never surface any. Hide the tab there so it isn't dead UI.
-                if (!isAudioRoot) {
+                if (visibility.toRead) {
+                    NavigationBarItem(
+                        selected = selectedTab == TAB_TO_READ,
+                        onClick = { selectedTab = TAB_TO_READ },
+                        icon = { Icon(RiffleIcons.ToReadFilled, contentDescription = "To Read") },
+                    )
+                }
+                // Annotations are anchored to ebook text — Gramofonche (the audiobook root) can
+                // never surface any, and an empty list makes the tab dead UI either way.
+                if (annotationsTabVisible) {
                     NavigationBarItem(
                         selected = selectedTab == TAB_ANNOTATIONS,
                         onClick = { selectedTab = TAB_ANNOTATIONS },

@@ -87,8 +87,22 @@ fun GutenbergBrowseScreen(
     var selectedTab by rememberSaveable(key = "gutenberg_selected_tab_v1") { mutableIntStateOf(TAB_HOME) }
     var searchOpen by remember { mutableStateOf(false) }
 
+    val visibility by hiltViewModel<com.riffle.app.feature.library.LibraryTabVisibilityViewModel>()
+        .visibility.collectAsState()
+
     LaunchedEffect(viewModel) {
         viewModel.openDetailEvents.collect { event -> onOpenDetail(event.itemId) }
+    }
+
+    // Clamp if a rememberSaveable-restored selectedTab lands on a tab that is currently hidden
+    // (empty To Read or Annotations list). Matches the LibraryTabBar clamp on the ABS/Komga side.
+    LaunchedEffect(visibility.toRead, visibility.annotations) {
+        val hidden = when (selectedTab) {
+            TAB_TO_READ -> !visibility.toRead
+            TAB_ANNOTATIONS -> !visibility.annotations
+            else -> false
+        }
+        if (hidden) selectedTab = TAB_HOME
     }
 
     Scaffold(
@@ -123,16 +137,20 @@ fun GutenbergBrowseScreen(
                     onClick = { selectedTab = TAB_HOME },
                     icon = { Icon(Icons.Filled.Home, contentDescription = "Home") },
                 )
-                NavigationBarItem(
-                    selected = selectedTab == TAB_TO_READ,
-                    onClick = { selectedTab = TAB_TO_READ },
-                    icon = { Icon(RiffleIcons.ToReadFilled, contentDescription = "To Read") },
-                )
-                NavigationBarItem(
-                    selected = selectedTab == TAB_ANNOTATIONS,
-                    onClick = { selectedTab = TAB_ANNOTATIONS },
-                    icon = { Icon(RiffleIcons.Annotations, contentDescription = "Annotations") },
-                )
+                if (visibility.toRead) {
+                    NavigationBarItem(
+                        selected = selectedTab == TAB_TO_READ,
+                        onClick = { selectedTab = TAB_TO_READ },
+                        icon = { Icon(RiffleIcons.ToReadFilled, contentDescription = "To Read") },
+                    )
+                }
+                if (visibility.annotations) {
+                    NavigationBarItem(
+                        selected = selectedTab == TAB_ANNOTATIONS,
+                        onClick = { selectedTab = TAB_ANNOTATIONS },
+                        icon = { Icon(RiffleIcons.Annotations, contentDescription = "Annotations") },
+                    )
+                }
                 NavigationBarItem(
                     selected = selectedTab == TAB_LIBRARY,
                     onClick = { selectedTab = TAB_LIBRARY },
