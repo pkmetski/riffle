@@ -95,6 +95,20 @@ class BookmarksControllerTest {
             return a
         }
 
+        override suspend fun upgradeImageToCaptionHighlight(
+            id: String,
+            cfi: String,
+            textSnippet: String,
+            textBefore: String,
+            textAfter: String,
+            figure: com.riffle.core.domain.EmbeddedFigure,
+        ): Annotation? = null
+
+        override suspend fun mergeFiguresIntoHighlight(
+            id: String,
+            newFigures: List<com.riffle.core.domain.EmbeddedFigure>,
+        ): Annotation? = null
+
         override suspend fun delete(id: String) {
             deleted.add(id)
             bookmarks.value = bookmarks.value.filter { it.id != id }

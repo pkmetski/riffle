@@ -5,6 +5,7 @@ import com.riffle.core.database.AnnotationEntity
 import com.riffle.core.domain.AnnotationMergeService
 import com.riffle.core.domain.AnnotationSyncTarget
 import com.riffle.core.domain.DeviceIdStore
+import com.riffle.core.domain.EmbeddedFigure
 import com.riffle.core.domain.W3CAnnotation
 
 /**
@@ -139,9 +140,21 @@ internal class AnnotationMergeOrchestrator(
                     lastModifiedByDeviceId = w3cAnnotation.lastModifiedByDeviceId,
                     deleted = w3cAnnotation.deleted,
                     lastSyncedAt = preservedLastSyncedAt,
-                    embeddedFigures = embeddedFiguresListToColumn(w3cAnnotation.embeddedFigures),
+                    // Preserve local imageBytes / per-figure imageBytes / per-figure charOffset
+                    // when the remote row was written by an older peer that didn't sync them.
+                    // Without this, a WebDAV round-trip resets a locally-rasterized figure to
+                    // "[figure image not captured]" and drops charOffset (which controls the
+                    // caption position in the elided view). Explicit override still wins when
+                    // the remote row does carry the extension fields.
+                    embeddedFigures = embeddedFiguresListToColumn(
+                        preserveLocalFigureExtensions(
+                            remote = w3cAnnotation.embeddedFigures,
+                            local = existing?.embeddedFigures?.let { embeddedFiguresColumnToList(it) },
+                        ),
+                    ),
                     imageHref = w3cAnnotation.imageHref,
                     imageSvg = w3cAnnotation.imageSvg,
+                    imageBytes = w3cAnnotation.imageBytes ?: existing?.imageBytes,
                 )
             }
 
@@ -155,4 +168,41 @@ internal class AnnotationMergeOrchestrator(
         }
     }
 
+    /**
+     * Merge each remote [EmbeddedFigure] with its matching local counterpart (by href filename
+     * or SVG-prefix key), promoting local's `imageBytes` and `charOffset` when the remote row's
+     * values are null. Older peers don't sync these extension fields ([AnnotationW3CCodec] added
+     * them 2026-07-14); without this promotion a round-trip resets a locally-rasterized figure
+     * and drops the figure's position-in-range, which flips the caption to render ABOVE the
+     * image in the elided view (bug reproduced on AVD 5554).
+     */
+    private fun preserveLocalFigureExtensions(
+        remote: List<EmbeddedFigure>?,
+        local: List<EmbeddedFigure>?,
+    ): List<EmbeddedFigure>? {
+        if (remote.isNullOrEmpty()) return remote
+        if (local.isNullOrEmpty()) return remote
+        val localByKey = local.associateBy { fig -> figureMatchKey(fig) }
+        return remote.map { r ->
+            val key = figureMatchKey(r)
+            val l = localByKey[key]
+            if (l == null) r
+            else r.copy(
+                imageBytes = r.imageBytes ?: l.imageBytes,
+                charOffset = r.charOffset ?: l.charOffset,
+            )
+        }
+    }
+
+    private fun figureMatchKey(fig: EmbeddedFigure): String {
+        val href = fig.href
+        if (href != null) {
+            val trimmed = href.substringBefore('?').substringBefore('#')
+            val slash = trimmed.lastIndexOf('/')
+            return "h:" + if (slash >= 0) trimmed.substring(slash + 1) else trimmed
+        }
+        val svg = fig.svg
+        if (svg != null) return "s:" + svg.take(200)
+        return "?:${fig.order}"
+    }
 }

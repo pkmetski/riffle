@@ -44,6 +44,13 @@ class HighlightsPublicationHandle internal constructor(
     val publication: Publication,
     val chapterUrls: Map<String, Url>,
     private val byteStore: MutableMap<Url, ByteArray>,
+    /** Href → data-URI map for figure bytes fetched via the [ResourceFetcher] at
+     *  [HighlightsPublicationFactory.buildHandle] time. Exposed so the reader's live-patch path
+     *  can pass the same map into [HighlightsPublicationFactory.renderChapterHtml] when
+     *  regenerating a chapter for a per-annotation edit — otherwise the regen would overwrite
+     *  the initial figure-bearing HTML with a byte-less version and the elided view would
+     *  regress to "[figure image not captured]" after the first edit. */
+    val figureBytesByHref: Map<String, String>,
 ) {
     /** Overwrite the bytes for [chapterHref] with [freshHtml]'s UTF-8 encoding. No-op if the
      *  chapter isn't in the current spine (i.e. this handle predates a structural change). */
@@ -133,8 +140,17 @@ class HighlightsPublicationFactory @Inject constructor() {
                 }
             }
             .distinct()
+        val dataUriByHref = mutableMapOf<String, String>()
         for (href in hrefs) {
             val bytes = resourceFetcher.fetch(href) ?: continue
+            // Data-URI FIRST — this is what [appendFigureFigure] uses as the render-time
+            // fallback when the annotation itself has no captured `imageBytes`. Populating the
+            // map is independent of whether we can also stage the bytes at the synthetic
+            // container path (the synthetic path derivation can trip `urlFactory` on hrefs that
+            // contain `:` after path-flattening — Readium's `Url(String)` rejects those — and
+            // gating the map on that would silently drop the fallback for exactly those hrefs).
+            dataUriByHref[href] = "data:${mimeForHref(href)};base64," +
+                java.util.Base64.getEncoder().encodeToString(bytes)
             val url = urlFactory(syntheticPath(href)) ?: continue
             entries[url] = bytes
         }
@@ -142,7 +158,7 @@ class HighlightsPublicationFactory @Inject constructor() {
         nonEmptyChapters.forEachIndexed { index, chapter ->
             val href = "highlights/ch$index.xhtml"
             val url = requireNotNull(urlFactory(href)) { "Failed to build synthetic Url for $href" }
-            entries[url] = renderChapterHtml(chapter, bookBodyFontFamily).toByteArray(Charsets.UTF_8)
+            entries[url] = renderChapterHtml(chapter, bookBodyFontFamily, dataUriByHref).toByteArray(Charsets.UTF_8)
             chapterUrls[chapter.href] = url
             readingOrder += Link(
                 href = url,
@@ -169,7 +185,7 @@ class HighlightsPublicationFactory @Inject constructor() {
             manifest = manifest,
             container = InMemoryContainer(entries),
         )
-        return HighlightsPublicationHandle(publication, chapterUrls, entries)
+        return HighlightsPublicationHandle(publication, chapterUrls, entries, dataUriByHref)
     }
 
     /**
@@ -178,11 +194,15 @@ class HighlightsPublicationFactory @Inject constructor() {
      * chapter's bytes after a per-annotation edit and write them back through
      * [HighlightsPublicationHandle.setChapterBytes] without rebuilding the whole Publication.
      */
-    internal fun renderChapterHtml(chapter: ChapterElision, bookBodyFontFamily: String? = null): String {
+    internal fun renderChapterHtml(
+        chapter: ChapterElision,
+        bookBodyFontFamily: String? = null,
+        dataUriByHref: Map<String, String> = emptyMap(),
+    ): String {
         val body = buildString {
             for (annotation in chapter.highlights) {
                 when (annotation.type) {
-                    AnnotationEntity.TYPE_IMAGE -> appendImageAnnotation(this, annotation)
+                    AnnotationEntity.TYPE_IMAGE -> appendImageAnnotation(this, annotation, dataUriByHref)
                     else -> {
                         // Interleave text and figures at their captured [EmbeddedFigure.charOffset]
                         // (fix 2026-07-09) so a graph sitting between two paragraphs of the
@@ -192,7 +212,7 @@ class HighlightsPublicationFactory @Inject constructor() {
                         // whole highlight falls back to "text first, then figures" — the v1
                         // behaviour matches what shipped before offsets existed. See
                         // appendInterleavedHighlight's KDoc.
-                        appendInterleavedHighlight(this, annotation, bookBodyFontFamily)
+                        appendInterleavedHighlight(this, annotation, bookBodyFontFamily, dataUriByHref)
                     }
                 }
             }
@@ -266,24 +286,63 @@ private fun appendInterleavedHighlight(
     sb: StringBuilder,
     highlight: com.riffle.core.database.AnnotationEntity,
     bookBodyFontFamily: String?,
+    dataUriByHref: Map<String, String> = emptyMap(),
 ) {
     val figures = highlight.decodedEmbeddedFigures()?.sortedBy { it.order }.orEmpty()
+    val normalizedSnippetOuter = com.riffle.app.feature.reader.normalizeCaptionText(highlight.textSnippet)
     if (figures.isEmpty() || figures.any { it.charOffset == null }) {
+        // Caption-highlight shape (2026-07-14): the annotation is a HIGHLIGHT that covers only
+        // the figure's caption text, with the figure as its sole embeddedFigure. Natural
+        // reading order is FIGURE first, then caption text below — matches how the source book
+        // typesets a numbered figure. When the annotation's `charOffset` survives sync
+        // (interleaved branch below), that ordering happens automatically at charOffset=0; when
+        // it doesn't (older peer / sync round-trip dropped the field), we detect the caption-
+        // highlight shape here and reorder manually. Text-selection-across-figure highlights
+        // (>1 figure, or figure caption differs from the highlight's textSnippet) keep the v1
+        // "text first, figures after" fallback so a pre-caption-highlight annotation still
+        // renders the same.
+        val singleFigure = figures.singleOrNull()
+        val isCaptionHighlight = singleFigure != null && (
+            singleFigure.caption.isBlank() ||
+                com.riffle.app.feature.reader.normalizeCaptionText(singleFigure.caption) == normalizedSnippetOuter
+            )
+        if (isCaptionHighlight) {
+            appendFigureBlock(sb, singleFigure!!.copy(caption = ""), highlight.id, highlight.color, dataUriByHref)
+            appendTextHighlight(sb, highlight, bookBodyFontFamily)
+            return
+        }
         appendTextHighlight(sb, highlight, bookBodyFontFamily)
-        figures.forEach { appendFigureBlock(sb, it, highlight.id, highlight.color) }
+        figures.forEach { fig ->
+            val effective = if (
+                fig.caption.isNotBlank() &&
+                com.riffle.app.feature.reader.normalizeCaptionText(fig.caption) == normalizedSnippetOuter
+            ) fig.copy(caption = "") else fig
+            appendFigureBlock(sb, effective, highlight.id, highlight.color, dataUriByHref)
+        }
         return
     }
     val chunks = com.riffle.app.feature.reader.splitSnippetForFiguresAt(
         snippet = highlight.textSnippet,
         offsets = figures.map { it.charOffset },
     )
+    val normalizedSnippet = com.riffle.app.feature.reader.normalizeCaptionText(highlight.textSnippet)
     // Emit alternating: chunk[0], figure[0], chunk[1], figure[1], ..., chunk[last].
     chunks.forEachIndexed { index, chunk ->
         if (chunk.isNotEmpty()) {
             appendHighlightTextChunk(sb, highlight, chunk, bookBodyFontFamily)
         }
         figures.getOrNull(index)?.let { fig ->
-            appendFigureBlock(sb, fig, highlight.id, highlight.color)
+            // Caption-highlight dedup: when the figure's own caption is identical to the highlight's
+            // textSnippet (the caption-annotation shape from 2026-07-14), the outer text-chunk
+            // above already emits the caption text — so pass the figure through with a blanked
+            // caption to avoid rendering it twice. For a text-selection-encloses-figure highlight
+            // the figure's caption is a strict subset of textSnippet, not equal to it, so this
+            // guard is caption-highlight-specific.
+            val effectiveFigure = if (
+                fig.caption.isNotBlank() &&
+                com.riffle.app.feature.reader.normalizeCaptionText(fig.caption) == normalizedSnippet
+            ) fig.copy(caption = "") else fig
+            appendFigureBlock(sb, effectiveFigure, highlight.id, highlight.color, dataUriByHref)
         }
     }
     val note = highlight.note
@@ -435,13 +494,24 @@ internal fun sanitizeCssFontFamily(value: String?): String? {
  * [HighlightsPublicationFactory.build]. [AnnotationEntity.textSnippet] is used as the caption and
  * skipped entirely when blank — a TYPE_IMAGE annotation with no caption gets no `<figcaption>`.
  */
-private fun appendImageAnnotation(sb: StringBuilder, annotation: AnnotationEntity) {
+private fun appendImageAnnotation(
+    sb: StringBuilder,
+    annotation: AnnotationEntity,
+    dataUriByHref: Map<String, String> = emptyMap(),
+) {
+    // Fallback (2026-07-14): when the annotation itself has no captured `imageBytes` (JS canvas
+    // rasterization failed at long-press — often a cross-origin taint on `readium_package://`
+    // URLs), fall through to the bytes the factory fetched from the source publication and
+    // encoded as a data URI. Keeps the elided view showing the actual image rather than the
+    // "[figure image not captured]" placeholder.
+    val effectiveBytes = annotation.imageBytes
+        ?: annotation.imageHref?.let { dataUriByHref[it] }
     appendFigureFigure(
         sb = sb,
         annotationId = annotation.id,
         colorToken = annotation.color,
         svg = annotation.imageSvg,
-        bytes = annotation.imageBytes,
+        bytes = effectiveBytes,
         caption = annotation.textSnippet,
     )
 }
@@ -457,13 +527,17 @@ private fun appendFigureBlock(
     figure: EmbeddedFigure,
     ownerAnnotationId: String,
     ownerColorToken: String,
+    dataUriByHref: Map<String, String> = emptyMap(),
 ) {
+    // See [appendImageAnnotation]'s KDoc for the fallback rationale — same pattern applied to
+    // each embedded figure inside a TYPE_HIGHLIGHT.
+    val effectiveBytes = figure.imageBytes ?: figure.href?.let { dataUriByHref[it] }
     appendFigureFigure(
         sb = sb,
         annotationId = ownerAnnotationId,
         colorToken = ownerColorToken,
         svg = figure.svg,
-        bytes = figure.imageBytes,
+        bytes = effectiveBytes,
         caption = figure.caption,
     )
 }
@@ -533,6 +607,23 @@ private fun appendFigureFigure(
  * can never drift out of sync.
  */
 private fun syntheticPath(href: String): String = "synthetic/figures/" + href.replace('/', '_')
+
+/**
+ * Best-effort MIME type from a figure href, used when inlining fetched bytes as a `data:` URI
+ * inside the elided chapter HTML. Defaults to `image/jpeg` — the WebView renders that fallback
+ * fine even when the actual bytes are a PNG/GIF, so a wrong guess degrades visually rather than
+ * failing hard.
+ */
+private fun mimeForHref(href: String): String {
+    val trimmed = href.substringBefore('?').substringBefore('#').lowercase()
+    return when {
+        trimmed.endsWith(".png") -> "image/png"
+        trimmed.endsWith(".gif") -> "image/gif"
+        trimmed.endsWith(".webp") -> "image/webp"
+        trimmed.endsWith(".svg") -> "image/svg+xml"
+        else -> "image/jpeg"
+    }
+}
 
 /**
  * Strips external references (`<image href|xlink:href="…">` and `<use href|xlink:href="…">`) from

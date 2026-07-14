@@ -188,6 +188,88 @@ class AnnotationStoreImpl(
         )
     }
 
+    override suspend fun upgradeImageToCaptionHighlight(
+        id: String,
+        cfi: String,
+        textSnippet: String,
+        textBefore: String,
+        textAfter: String,
+        figure: EmbeddedFigure,
+    ): Annotation? {
+        val existing = dao.getById(id) ?: return null
+        if (existing.deleted || existing.type != AnnotationEntity.TYPE_IMAGE) return null
+        val deviceId = deviceIdStore.getOrCreate()
+        val now = clock()
+        val upgraded = existing.copy(
+            type = AnnotationEntity.TYPE_HIGHLIGHT,
+            cfi = cfi,
+            textSnippet = textSnippet,
+            textBefore = textBefore,
+            textAfter = textAfter,
+            embeddedFigures = listOf(figure).toEntityJson(),
+            imageHref = null,
+            imageSvg = null,
+            imageBytes = null,
+            updatedAt = now,
+            lastModifiedByDeviceId = deviceId,
+        )
+        dao.upsert(upgraded)
+        return upgraded.toDomain()
+    }
+
+    override suspend fun mergeFiguresIntoHighlight(
+        id: String,
+        newFigures: List<EmbeddedFigure>,
+    ): Annotation? {
+        if (newFigures.isEmpty()) return null
+        val existing = dao.getById(id) ?: return null
+        if (existing.deleted || existing.type != AnnotationEntity.TYPE_HIGHLIGHT) return null
+        val current = existing.embeddedFigures.toEmbeddedFigures().orEmpty()
+        // Union each incoming figure into the current list. When keys (href-filename or
+        // svg-prefix) already match, PROMOTE non-null bytes/svg/caption from the incoming
+        // figure onto the matching current one — a canonical row that was picked over a
+        // duplicate whose figure had imageBytes must not silently drop those bytes just because
+        // the canonical's own figure came in bytes-less. When keys don't match, append the
+        // incoming figure with a fresh order index.
+        val merged = current.toMutableList()
+        var changed = false
+        for (incoming in newFigures) {
+            val incomingHrefKey = incoming.href?.let(::figureKeyFromHref)
+            val incomingSvgKey = incoming.svg?.take(200)
+            val matchIndex = merged.indexOfFirst { existingFig ->
+                (incomingHrefKey != null && existingFig.href?.let(::figureKeyFromHref) == incomingHrefKey) ||
+                    (incomingSvgKey != null && existingFig.svg?.take(200) == incomingSvgKey)
+            }
+            if (matchIndex >= 0) {
+                val existingFig = merged[matchIndex]
+                val promoted = existingFig.copy(
+                    href = existingFig.href ?: incoming.href,
+                    svg = existingFig.svg ?: incoming.svg,
+                    caption = if (existingFig.caption.isBlank()) incoming.caption else existingFig.caption,
+                    imageBytes = existingFig.imageBytes ?: incoming.imageBytes,
+                    charOffset = existingFig.charOffset ?: incoming.charOffset,
+                )
+                if (promoted != existingFig) {
+                    merged[matchIndex] = promoted
+                    changed = true
+                }
+            } else {
+                merged += incoming.copy(order = merged.size)
+                changed = true
+            }
+        }
+        if (!changed) return existing.toDomain()
+        val deviceId = deviceIdStore.getOrCreate()
+        val now = clock()
+        val updated = existing.copy(
+            embeddedFigures = merged.toEntityJson(),
+            updatedAt = now,
+            lastModifiedByDeviceId = deviceId,
+        )
+        dao.upsert(updated)
+        return updated.toDomain()
+    }
+
     override suspend fun delete(id: String) {
         dao.tombstone(id, updatedAt = clock(), deviceId = deviceIdStore.getOrCreate())
     }
@@ -215,6 +297,17 @@ class AnnotationStoreImpl(
         imageSvg: String?,
     ): Annotation? =
         dao.findImageForFigure(sourceId, itemId, chapterHref, imageHref, imageSvg)?.toDomain()
+}
+
+/**
+ * Filename-suffix key for an image href, matching how the reader dedupes figures across the
+ * store/decoration/mergeEnclosedFigures paths (last path segment, stripped of query/fragment).
+ * Inlined here — the app-module `figureHrefFilename` isn't visible from core/data.
+ */
+private fun figureKeyFromHref(href: String): String {
+    val trimmed = href.substringBefore('?').substringBefore('#')
+    val slash = trimmed.lastIndexOf('/')
+    return if (slash >= 0) trimmed.substring(slash + 1) else trimmed
 }
 
 private val embeddedFiguresJson = Json { ignoreUnknownKeys = true }

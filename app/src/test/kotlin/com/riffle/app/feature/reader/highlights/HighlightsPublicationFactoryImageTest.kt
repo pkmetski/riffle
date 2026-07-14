@@ -184,6 +184,65 @@ class HighlightsPublicationFactoryImageTest {
     }
 
     @Test
+    fun `caption-highlight does not render the caption twice`() {
+        // Regression: the 2026-07-14 caption-annotation shape (TYPE_HIGHLIGHT whose textSnippet is
+        // the caption text and whose single embeddedFigure carries the same caption on itself)
+        // was rendering the caption twice — once as the figure's <figcaption>, once as the outer
+        // <p> from the highlight's snippet chunk after the charOffset=0 split. Reverting the
+        // dedup in appendInterleavedHighlight flips this red.
+        val caption = "Figure 20.2: The original code for allocating new space at the end of a Buffer, using an internal chunk."
+        val ann = highlightAnnotation(
+            textSnippet = caption,
+            embedded = listOf(
+                EmbeddedFigure(
+                    href = "images/graph.png", svg = null, caption = caption, order = 0,
+                    imageBytes = "data:image/png;base64,AAA", charOffset = 0L,
+                ),
+            ),
+        )
+        val pub = factory.build(
+            "S1", "B1", "Book",
+            listOf(ChapterElision("ch1.xhtml", "One", listOf(ann))),
+            urlFactory = ::fakeUrl,
+        )
+        val html = readChapterHtml(pub)
+        // The caption text appears exactly once — either the figure's <figcaption> or the outer
+        // <p>, not both. (Renderer chooses the outer <p> since it carries the highlight's accent
+        // bar + tap dispatch; the figure's own figcaption is blanked.)
+        val count = html.split(caption).size - 1
+        assertTrue(
+            "caption must render exactly once, got $count occurrences",
+            count == 1,
+        )
+    }
+
+    @Test
+    fun `caption-highlight with blank figure caption renders caption once`() {
+        // Creation-side clean fix: new caption-highlights set embeddedFigure.caption="" so the
+        // outer <p> from the highlight's textSnippet is the sole source of the caption text.
+        // Reverting the caption="" default (or otherwise reintroducing figure.caption for the
+        // caption-highlight write path) would flip this red.
+        val caption = "Figure 20.2: The original code for allocating new space."
+        val ann = highlightAnnotation(
+            textSnippet = caption,
+            embedded = listOf(
+                EmbeddedFigure(
+                    href = "images/graph.png", svg = null, caption = "", order = 0,
+                    imageBytes = "data:image/png;base64,AAA", charOffset = 0L,
+                ),
+            ),
+        )
+        val pub = factory.build(
+            "S1", "B1", "Book",
+            listOf(ChapterElision("ch1.xhtml", "One", listOf(ann))),
+            urlFactory = ::fakeUrl,
+        )
+        val html = readChapterHtml(pub)
+        val count = html.split(caption).size - 1
+        assertTrue("caption must render exactly once, got $count", count == 1)
+    }
+
+    @Test
     fun `TYPE_HIGHLIGHT with embeddedFigures renders text then caption placeholders in order`() {
         val ann = highlightAnnotation(
             textSnippet = "highlighted text",

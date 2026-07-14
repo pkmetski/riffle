@@ -26,17 +26,16 @@ internal object FigureCaptionWalker {
      * none of the fallbacks resolve.
      */
     val CAPTION_RESOLVER_JS: String = """
-        function resolveCaption(el) {
-            if (!el) return "";
-            var fig = el.closest ? el.closest('figure') : null;
-            if (fig) {
-                var cap = fig.querySelector('figcaption');
-                if (cap && cap.textContent) return cap.textContent.trim();
-            }
-            var alt = el.getAttribute && el.getAttribute('alt');
-            if (alt) return alt;
-            var aria = el.getAttribute && el.getAttribute('aria-label');
-            if (aria) return aria;
+        function resolveFigcaptionElement(el) {
+            if (!el) return null;
+            var fig = el.closest ? el.closest('figure, [role="figure"]') : null;
+            if (!fig) return null;
+            var cap = fig.querySelector('figcaption');
+            if (cap && (cap.textContent || '').trim()) return cap;
+            return null;
+        }
+        function resolveTextPrefixElement(el) {
+            if (!el) return null;
             var CAPTION_PREFIX_RX = /^\s*(Figure|Fig\.?|Table|Chart)\s+\d/i;
             var cur = el;
             for (var hops = 0; hops < 3; hops++) {
@@ -48,12 +47,61 @@ internal object FigureCaptionWalker {
                     if (b === el || b.contains(el)) continue;
                     var pos = el.compareDocumentPosition(b);
                     if (!(pos & 4)) continue;
-                    var txt = (b.textContent || '').trim();
-                    if (CAPTION_PREFIX_RX.test(txt)) return txt;
+                    if (CAPTION_PREFIX_RX.test((b.textContent || '').trim())) return b;
                 }
                 cur = parent;
             }
+            return null;
+        }
+        function resolveCaption(el) {
+            if (!el) return "";
+            // Order matters: figcaption (per-figure semantic) → alt (per-image attribute) →
+            // aria-label (accessibility) → text-prefix block (proximity heuristic — last so a
+            // real alt="Photo of author" beats a nearby "Table 3 summarizes…" prose block).
+            var cap = resolveFigcaptionElement(el);
+            if (cap) return (cap.textContent || '').trim();
+            var alt = el.getAttribute && el.getAttribute('alt');
+            if (alt) return alt;
+            var aria = el.getAttribute && el.getAttribute('aria-label');
+            if (aria) return aria;
+            var prefix = resolveTextPrefixElement(el);
+            if (prefix) return (prefix.textContent || '').trim();
             return "";
+        }
+        function riffleCollectTextAround(capEl, direction, maxChars) {
+            // Walk the document by text-node order, starting from capEl. direction === -1 = walk
+            // backwards; +1 = forwards. Collects up to maxChars of text OUTSIDE capEl. Uses a fresh
+            // TreeWalker over document.body so caption-boundary probes match how Kotlin locates the
+            // snippet in the flattened body text via jsoup.
+            if (!capEl || !document.body || !document.body.contains(capEl)) return "";
+            var walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, null);
+            var texts = []; var current = null;
+            while ((current = walker.nextNode())) {
+                if (capEl.contains(current)) continue;
+                var pos = capEl.compareDocumentPosition(current);
+                var isBefore = (pos & 2) !== 0; // capEl follows current → current is before
+                var isAfter = (pos & 4) !== 0;  // current follows capEl
+                if (direction < 0 && isBefore) texts.push(current.data || '');
+                else if (direction > 0 && isAfter) texts.push(current.data || '');
+            }
+            var joined = texts.join('').replace(/\s+/g, ' ');
+            if (direction < 0) return joined.slice(-maxChars);
+            return joined.slice(0, maxChars);
+        }
+        function resolveCaptionRange(el) {
+            // Non-null iff the caption resolves to a DOM element (figcaption or a text-prefix p/div).
+            // Returns null for alt/aria-label captions — those aren't visible ranges we can highlight.
+            // For range resolution the figcaption path wins over text-prefix (semantic > proximity);
+            // resolveCaption's alt/aria-label paths are skipped here because they carry no range.
+            var cap = resolveFigcaptionElement(el) || resolveTextPrefixElement(el);
+            if (!cap) return null;
+            var text = (cap.textContent || '').replace(/\s+/g, ' ').trim();
+            if (!text) return null;
+            return {
+                text: text,
+                textBefore: riffleCollectTextAround(cap, -1, 40),
+                textAfter: riffleCollectTextAround(cap, 1, 40),
+            };
         }
     """.trimIndent()
 

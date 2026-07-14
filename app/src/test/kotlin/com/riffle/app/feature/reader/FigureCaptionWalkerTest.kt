@@ -39,12 +39,52 @@ class FigureCaptionWalkerTest {
             "caption resolver should walk parent chain (compareDocumentPosition)",
             js.contains("compareDocumentPosition"),
         )
-        // The fallback must sit AFTER the alt/aria-label paths so a legitimate per-image alt
-        // attribute always wins over a proximity-based heuristic that could match nearby prose
-        // like "Table 3 summarizes results...".
-        val ariaIdx = js.indexOf("'aria-label'")
-        val rxIdx = js.indexOf("CAPTION_PREFIX_RX")
-        assertTrue("text-prefix fallback must come after aria-label", ariaIdx in 0 until rxIdx)
+        // The fallback must sit AFTER the alt/aria-label paths in resolveCaption so a legitimate
+        // per-image alt attribute always wins over a proximity-based heuristic that could match
+        // nearby prose like "Table 3 summarizes results...".
+        val ariaIdx = js.indexOf("if (aria) return aria;")
+        assertTrue("resolveCaption must handle aria before falling through", ariaIdx > 0)
+        val prefixCallIdx = js.indexOf("resolveTextPrefixElement(el)", ariaIdx)
+        assertTrue(
+            "text-prefix fallback must come after aria-label inside resolveCaption",
+            prefixCallIdx > ariaIdx,
+        )
+    }
+
+    @Test
+    fun `resolveCaptionRange emits figcaption then text-prefix but no alt or aria`() {
+        // For range resolution (2026-07-14 caption-highlight upgrade), alt/aria-label are
+        // invisible attributes with no persistable text range. resolveCaptionRange picks
+        // resolveFigcaptionElement first (semantic), then resolveTextPrefixElement (proximity
+        // heuristic), and skips alt/aria entirely. Reverting this — e.g. reusing resolveCaption's
+        // full fallback chain — would return alt-only "captions" that can't be anchored, and the
+        // upgrader/onFigureLongPress would silently drop them.
+        val js = FigureCaptionWalker.CAPTION_RESOLVER_JS
+        assertTrue(js.contains("function resolveCaptionRange(el)"))
+        val rangeStart = js.indexOf("function resolveCaptionRange(el)")
+        val rangeBody = js.substring(rangeStart)
+        assertTrue(
+            "resolveCaptionRange must call resolveFigcaptionElement",
+            rangeBody.contains("resolveFigcaptionElement(el)"),
+        )
+        assertTrue(
+            "resolveCaptionRange must call resolveTextPrefixElement",
+            rangeBody.contains("resolveTextPrefixElement(el)"),
+        )
+        // Slice at the next function boundary — resolveCaptionRange's body must not read alt or
+        // aria-label. `next` is the START of `function riffleCollectTextAround` above OR
+        // undefined if resolveCaptionRange is the last function; either way the slice below is
+        // safe (substring from rangeStart to end of file if no boundary).
+        val nextBoundary = rangeBody.indexOf("function ", startIndex = 40)
+        val bodyOnly = if (nextBoundary >= 0) rangeBody.substring(0, nextBoundary) else rangeBody
+        assertFalse(
+            "resolveCaptionRange body must not consult alt",
+            bodyOnly.contains("'alt'"),
+        )
+        assertFalse(
+            "resolveCaptionRange body must not consult aria-label",
+            bodyOnly.contains("'aria-label'"),
+        )
     }
 
     @Test

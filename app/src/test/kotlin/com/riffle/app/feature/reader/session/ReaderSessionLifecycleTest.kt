@@ -166,6 +166,13 @@ class ReaderSessionLifecycleTest {
             sourceId: String, itemId: String, cfi: String, textSnippet: String, chapterHref: String,
             spineIndex: Int, progression: Double, imageHref: String?, imageSvg: String?, imageBytes: String?, color: String,
         ): Annotation = error("not needed")
+        override suspend fun upgradeImageToCaptionHighlight(
+            id: String, cfi: String, textSnippet: String, textBefore: String, textAfter: String,
+            figure: com.riffle.core.domain.EmbeddedFigure,
+        ): Annotation? = null
+        override suspend fun mergeFiguresIntoHighlight(
+            id: String, newFigures: List<com.riffle.core.domain.EmbeddedFigure>,
+        ): Annotation? = null
         override suspend fun delete(id: String) {}
         override suspend fun recolor(id: String, color: String) {}
         override suspend fun updateNote(id: String, note: String?) {}

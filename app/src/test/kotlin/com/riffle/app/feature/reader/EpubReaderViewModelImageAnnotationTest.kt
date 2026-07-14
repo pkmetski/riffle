@@ -10,6 +10,7 @@ import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -223,6 +224,99 @@ class EpubReaderViewModelImageAnnotationTest {
             imageBytes = payload.imageBytes,
         )
         return null
+    }
+
+    /**
+     * Mirrors [EpubReaderViewModel.onFigureLongPress]'s caption-highlight branch (2026-07-14):
+     * when the JS payload carried a `captionRange`, resolve the caption's char range Kotlin-side
+     * and persist as `TYPE_HIGHLIGHT` covering the caption with the figure carried as an
+     * `embeddedFigure`. Fully mirrors the production call site — a schema/type regression on
+     * either the store method or the VM branch flips this red.
+     */
+    private suspend fun onFigureLongPressWithCaptionRange(
+        store: AnnotationStoreImpl,
+        payload: FigureLongPressPayload,
+        html: String,
+        chapterHref: String,
+        spineIndex: Int,
+        progression: Double,
+    ): com.riffle.core.domain.Annotation? {
+        val captionRange = payload.captionRange ?: return null
+        val startChar = locateSnippetInBody(html, captionRange.text, captionRange.textBefore) ?: return null
+        val cfi = buildHighlightCfiRange(
+            spineStep = (spineIndex + 1) * 2,
+            html = html,
+            startChar = startChar,
+            endChar = (startChar + captionRange.text.length - 1L).coerceAtLeast(startChar),
+        ) ?: return null
+        val figure = com.riffle.core.domain.EmbeddedFigure(
+            href = payload.href,
+            svg = payload.svg,
+            caption = captionRange.text,
+            order = 0,
+            imageBytes = payload.imageBytes,
+            charOffset = 0L,
+        )
+        return store.createHighlight(
+            sourceId = "srv-abs",
+            itemId = "item-1",
+            cfi = cfi,
+            textSnippet = captionRange.text,
+            chapterHref = chapterHref,
+            textBefore = captionRange.textBefore,
+            textAfter = captionRange.textAfter,
+            spineIndex = spineIndex,
+            progression = progression,
+            embeddedFigures = listOf(figure),
+            originFontFamily = "serif",
+        )
+    }
+
+    @Test
+    fun `onFigureLongPress with captionRange persists TYPE_HIGHLIGHT with embedded figure`() = runTest {
+        val payload = FigureLongPressPayload(
+            kind = "img",
+            caption = "Figure 2. The observed distribution",
+            href = "images/g.png",
+            svg = null,
+            elementId = null,
+            imageBytes = "data:image/jpeg;base64,ZZZZ",
+            captionRange = CaptionRange(
+                text = "Figure 2. The observed distribution",
+                textBefore = "the graph",
+                textAfter = "Following prose",
+            ),
+        )
+        val html = """
+            <html><body>
+              <p>Prose before the graph</p>
+              <figure>
+                <img src="images/g.png"/>
+                <figcaption>Figure 2. The observed distribution</figcaption>
+              </figure>
+              <p>Following prose here</p>
+            </body></html>
+        """.trimIndent()
+
+        val saved = onFigureLongPressWithCaptionRange(
+            store = storeWithUniqueIds(),
+            payload = payload,
+            html = html,
+            chapterHref = "ch1.xhtml",
+            spineIndex = 0,
+            progression = 0.42,
+        )
+
+        assertNotNull(saved)
+        // Regression: this branch produces TYPE_HIGHLIGHT, not TYPE_IMAGE. A revert would show the
+        // caption's text un-highlighted and untappable — the exact bug the 2026-07-14 change fixed.
+        assertEquals(AnnotationEntity.TYPE_HIGHLIGHT, saved!!.type)
+        assertEquals("Figure 2. The observed distribution", saved.textSnippet)
+        assertNull("TYPE_HIGHLIGHT rows must not carry imageHref", saved.imageHref)
+        val figures = saved.embeddedFigures.orEmpty()
+        assertEquals(1, figures.size)
+        assertEquals("images/g.png", figures.single().href)
+        assertEquals("data:image/jpeg;base64,ZZZZ", figures.single().imageBytes)
     }
 
     @Test
