@@ -29,4 +29,21 @@ class AudiobookProgressFractionTest {
     fun `start of book is zero`() {
         assertEquals(0f, audiobookProgressFraction(positionSec = 0.0, durationSec = 300.0), 0f)
     }
+
+    // A book listened to the end sits a hair below the Xing-derived total (LAME encoder-delay/
+    // padding + silent Xing frame). Without the finished-eps snap the raw fraction is ~0.999,
+    // which the "${(p*100).toInt()}%" display sites truncate to 99%.
+    @Test
+    fun `snaps to one when within finished-eps of duration`() {
+        val duration = 12345.0
+        assertEquals(1f, audiobookProgressFraction(positionSec = duration - 0.2, durationSec = duration), 0f)
+        assertEquals(1f, audiobookProgressFraction(positionSec = duration - AUDIOBOOK_FINISHED_EPS_SEC, durationSec = duration), 0f)
+    }
+
+    @Test
+    fun `just outside finished-eps stays below one`() {
+        val duration = 12345.0
+        val fraction = audiobookProgressFraction(positionSec = duration - AUDIOBOOK_FINISHED_EPS_SEC - 0.01, durationSec = duration)
+        assertEquals(true, fraction < 1f)
+    }
 }
