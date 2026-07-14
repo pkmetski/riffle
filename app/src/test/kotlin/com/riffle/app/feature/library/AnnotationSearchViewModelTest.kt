@@ -75,6 +75,13 @@ class AnnotationSearchViewModelTest {
         override suspend fun createHighlight(sourceId: String, itemId: String, cfi: String, textSnippet: String, chapterHref: String, textBefore: String, textAfter: String, color: String, spineIndex: Int, progression: Double, embeddedFigures: List<com.riffle.core.domain.EmbeddedFigure>?, originFontFamily: String) = error("unused")
         override suspend fun createBookmark(sourceId: String, itemId: String, cfi: String, textSnippet: String, chapterHref: String, spineIndex: Int, progression: Double, bookmarkTitle: String, originFontFamily: String) = error("unused")
         override suspend fun createImageAnnotation(sourceId: String, itemId: String, cfi: String, textSnippet: String, chapterHref: String, spineIndex: Int, progression: Double, imageHref: String?, imageSvg: String?, imageBytes: String?, color: String) = error("unused")
+        override suspend fun upgradeImageToCaptionHighlight(
+            id: String, cfi: String, textSnippet: String, textBefore: String, textAfter: String,
+            figure: com.riffle.core.domain.EmbeddedFigure,
+        ): Annotation? = null
+        override suspend fun mergeFiguresIntoHighlight(
+            id: String, newFigures: List<com.riffle.core.domain.EmbeddedFigure>,
+        ): Annotation? = null
         override suspend fun delete(id: String) = error("unused")
         override suspend fun recolor(id: String, color: String) = error("unused")
         override suspend fun updateNote(id: String, note: String?) = error("unused")

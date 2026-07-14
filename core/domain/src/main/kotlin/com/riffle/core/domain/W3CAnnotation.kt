@@ -56,4 +56,8 @@ data class W3CAnnotation(
     val imageHref: String? = null,
     /** Inline SVG markup for a TYPE_IMAGE annotation, when the figure is an SVG. */
     val imageSvg: String? = null,
+    /** Data URI of the captured raster bytes for a TYPE_IMAGE annotation. Carried as an extension
+     *  field on the `riffle:image` body so a sync round-trip doesn't drop the local raster. Null
+     *  when the source didn't rasterize (or the file was written by an older peer). */
+    val imageBytes: String? = null,
 )

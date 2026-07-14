@@ -198,9 +198,11 @@ internal object FigureTapScript {
                             }
                         }
                     } catch (e5) {}
+                    var captionRange = resolveCaptionRange(longPressTarget);
                     var payload = {
                         kind: tag,
                         caption: resolveCaption(longPressTarget),
+                        captionRange: captionRange,
                         href: tag === 'svg' ? null : (longPressTarget.currentSrc || longPressTarget.getAttribute('src') || null),
                         svg: tag === 'svg' ? serializeSvg(longPressTarget) : null,
                         elementId: longPressTarget.id || null,

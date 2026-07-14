@@ -82,6 +82,36 @@ interface AnnotationStore {
         fontFamily: String,
     ): Int
 
+    /**
+     * Legacy-annotation cleanup: rewrite an existing `TYPE_IMAGE` annotation into a
+     * `TYPE_HIGHLIGHT` covering [textSnippet] with [figure] as its sole embeddedFigure. The
+     * annotation's id is preserved so sync sees the change as an update (bumped updatedAt +
+     * provenance), not a delete/create. Clears `imageHref` / `imageSvg` / `imageBytes` — those
+     * columns are TYPE_HIGHLIGHT-illegal — since the figure now lives in `embeddedFigures`.
+     * Returns the rewritten annotation, or `null` when [id] does not resolve to a live TYPE_IMAGE.
+     */
+    suspend fun upgradeImageToCaptionHighlight(
+        id: String,
+        cfi: String,
+        textSnippet: String,
+        textBefore: String,
+        textAfter: String,
+        figure: EmbeddedFigure,
+    ): Annotation?
+
+    /**
+     * Union [newFigures] into an existing `TYPE_HIGHLIGHT`'s `embeddedFigures`, deduping by
+     * href-filename (raster) and svg-prefix (inline SVG). Preserves the annotation's id, bumps
+     * `updatedAt` + provenance, and returns the merged annotation. Returns `null` when [id] does
+     * not resolve to a live TYPE_HIGHLIGHT. Used to absorb a figure long-press into a highlight
+     * that already covers its caption text (deduping the "caption-highlight duplicate" class of
+     * bug that shipped in the initial 2026-07-14 caption-annotation change).
+     */
+    suspend fun mergeFiguresIntoHighlight(
+        id: String,
+        newFigures: List<EmbeddedFigure>,
+    ): Annotation?
+
     suspend fun delete(id: String)
     suspend fun recolor(id: String, color: String)
     suspend fun updateNote(id: String, note: String?)

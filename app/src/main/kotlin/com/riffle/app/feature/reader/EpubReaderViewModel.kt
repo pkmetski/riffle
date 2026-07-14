@@ -226,6 +226,10 @@ class EpubReaderViewModel @Inject constructor(
     private val tocRepository: TocRepository,
     private val figuresInRangeResolver: FiguresInRangeResolver,
     private val catalogRegistry: com.riffle.core.catalog.CatalogRegistry,
+    @com.riffle.core.data.di.EpubDownloadsStore
+    private val epubDownloadsStore: com.riffle.core.domain.LocalStore,
+    @com.riffle.core.data.di.EpubCacheStore
+    private val epubCacheStore: com.riffle.core.domain.LocalStore,
 ) : AndroidViewModel(application) {
 
     // ReadingSessionCoordinator's per-call enabled gate reads this atomic; init below flips it once
@@ -233,6 +237,18 @@ class EpubReaderViewModel @Inject constructor(
     // that fires before init completes stays a no-op — the coordinator won't heartbeat/flush until
     // the capability is confirmed.
     private val readingSessionsEnabled = java.util.concurrent.atomic.AtomicBoolean(false)
+
+    // Once-per-(VM, book) flags + helper for the caption-annotation sweep. Split into two
+    // separate flags — one for the Highlights-mode cleanup-only pass, one for the FullBook
+    // full sweep (cleanup + legacy TYPE_IMAGE upgrade) — so a Highlights-first open followed
+    // by a FullBook open in the same VM still runs the legacy upgrade. A single shared flag
+    // would let whichever branch fired first consume it and skip the other. Declared BEFORE
+    // the init block that launches openBook via viewModelScope so property initialization
+    // (which runs in declaration order) can't leave them null when the launched coroutine
+    // reads them (crash 2026-07-14).
+    private val captionHighlightCleanupAttempted = java.util.concurrent.atomic.AtomicBoolean(false)
+    private val legacyImageUpgradeAttempted = java.util.concurrent.atomic.AtomicBoolean(false)
+    private val captionHighlightUpgrader by lazy { CaptionHighlightUpgrader(annotationStore) }
 
     // Formatting/typography/auto-scroll orchestrator — constructed with viewModelScope so
     // teardown is deterministic (the orchestrator's coroutines cancel when the VM is cleared).
@@ -951,6 +967,28 @@ class EpubReaderViewModel @Inject constructor(
                 _state.value = ReaderState.Error("No active source")
                 return
             }
+            // Duplicate-caption cleanup (2026-07-14, follow-up to the caption-annotation shape).
+            // FullBook's onOpenReady runs the full sweep, but Highlights mode is opened directly
+            // from the Annotations tab and never hits onOpenReady — without this pass, duplicate
+            // caption HIGHLIGHTs the FullBook path could produce stay stacked in the elided view
+            // ("the captions are still doubled" reproduced on AVD 5554). Fires once per (VM,
+            // book) via [captionHighlightCleanupAttempted]'s CAS. Uses a DIFFERENT flag from
+            // FullBook's [legacyImageUpgradeAttempted] so a Highlights-first-then-FullBook open
+            // in the same VM still runs the legacy upgrade.
+            if (captionHighlightCleanupAttempted.compareAndSet(false, true)) {
+                val liveAnnotations = runCatching {
+                    annotationStore.observeAnnotations(sourceId, itemId).first()
+                }.getOrDefault(emptyList())
+                val merged = runCatching {
+                    captionHighlightUpgrader.cleanupDuplicatesOnly(liveAnnotations)
+                }.getOrDefault(0)
+                if (merged > 0) {
+                    logger.d(LogChannel.HighlightMerge) {
+                        "caption-highlight cleanup (highlights-mode) sourceId=$sourceId itemId=$itemId merged=$merged"
+                    }
+                    scheduleAnnotationSync()
+                }
+            }
             val rows = annotationDao.getForItem(sourceId, itemId)
             val toc = tocRepository.getCachedToc(sourceId, itemId)?.second.orEmpty()
             val chapters = buildChapterElisions(rows).mapIndexed { index, chapter ->
@@ -984,13 +1022,34 @@ class EpubReaderViewModel @Inject constructor(
             // way back to ReadiumCSS default (pre-issue-484 behaviour). See issue #484 and
             // [HighlightsPublicationFactory.buildHandle].
             elidedBodyFontFamily = pluralityOriginFont(chapters)
-            val handle = highlightsPublicationFactory.buildHandle(
-                sourceId = sourceId,
-                itemId = itemId,
-                bookTitle = realBookTitle?.let { "$it — Annotations" },
-                chapters = chapters,
-                bookBodyFontFamily = elidedBodyFontFamily,
+            // Serve figure bytes from the source EPUB (if it's been downloaded) so annotated
+            // figures render as their real image in the elided view instead of the "[figure
+            // image not captured]" placeholder. Highlights mode never runs the normal
+            // lifecycle.open() path, so the reader has no Readium `Publication` in hand —
+            // ZipEpubResourceFetcher bypasses Readium and reads entries directly from the local
+            // EPUB. Fetcher lives only across [buildHandle] since bytes are staged/encoded
+            // during that call; safe to close immediately after.
+            // Prefer the downloaded copy (persisted, guaranteed present); fall back to the cache
+            // (short-lived, populated on every reader open for streaming books). Either works to
+            // extract raster bytes for the elided view.
+            val localEpub = epubDownloadsStore.get(sourceId, itemId)
+                ?: epubCacheStore.get(sourceId, itemId)
+            val figureFetcher = localEpub?.let(
+                com.riffle.app.feature.reader.highlights.ZipEpubResourceFetcher::open,
             )
+            val handle = try {
+                highlightsPublicationFactory.buildHandle(
+                    sourceId = sourceId,
+                    itemId = itemId,
+                    bookTitle = realBookTitle?.let { "$it — Annotations" },
+                    chapters = chapters,
+                    bookBodyFontFamily = elidedBodyFontFamily,
+                    resourceFetcher = figureFetcher
+                        ?: com.riffle.app.feature.reader.highlights.ResourceFetcher { null },
+                )
+            } finally {
+                figureFetcher?.close()
+            }
             highlightsPublicationHandle = handle
             val pub = handle.publication
             // Per-device resume (Task 10, ADR 0041): jump back to the chapter containing the
@@ -1157,6 +1216,38 @@ class EpubReaderViewModel @Inject constructor(
                 highlightRenderResolver = { a -> annotationToRender(a) },
                 cfiLocatorResolver = { cfi -> cfiStringToLocator(cfi) },
             )
+            // Opportunistic caption-annotation upgrade (2026-07-14). For each legacy
+            // TYPE_IMAGE annotation on this book whose figure and caption can both be resolved
+            // against the current publication, rewrite it to a TYPE_HIGHLIGHT covering the
+            // caption text. Fires once per (VM, book); the store update propagates through
+            // the annotation Flow → session → decorations naturally.
+            if (legacyImageUpgradeAttempted.compareAndSet(false, true)) {
+                viewModelScope.launch {
+                    val serverId = activeServer.id
+                    val legacy = runCatching {
+                        annotationStore.observeAnnotations(serverId, itemId)
+                            .first()
+                            .filter { it.type == AnnotationEntity.TYPE_IMAGE }
+                    }.getOrDefault(emptyList())
+                    if (legacy.isEmpty()) return@launch
+                    val allAnnotations = runCatching {
+                        annotationStore.observeAnnotations(serverId, itemId).first()
+                    }.getOrDefault(emptyList())
+                    val result = runCatching {
+                        captionHighlightUpgrader.sweep(
+                            annotations = allAnnotations,
+                            readChapterHtml = { spineIndex -> readChapterHtml(spineIndex) },
+                        )
+                    }.getOrNull()
+                    if (result != null && result.total > 0) {
+                        logger.d(LogChannel.HighlightMerge) {
+                            "caption-highlight sweep sourceId=$serverId itemId=$itemId " +
+                                "merged=${result.merged} upgraded=${result.upgraded} legacy=${legacy.size}"
+                        }
+                        scheduleAnnotationSync()
+                    }
+                }
+            }
         }
 
         // Sync immediately while localUpdatedAt is still the genuine stored value — before the
@@ -1477,6 +1568,12 @@ class EpubReaderViewModel @Inject constructor(
     // triggers a DB backfill of every legacy null-font row for the same book, and is cached so
     // subsequent chapter loads (which re-fire the tracker install) don't re-write the DB.
     private val bookBodyFontFamilyReported = java.util.concurrent.atomic.AtomicReference<String>("")
+
+    // (Moved out of this block to above the init launch — see the fields near the constructor
+    // parameters. Kotlin property initializers run in declaration order, and this declaration
+    // used to sit below the init { viewModelScope.launch { openBook() } } block; when the
+    // launched coroutine ran on Main.immediate it hit openBook's Highlights branch before this
+    // field had been assigned, NPE-ing at `legacyImageUpgradeAttempted.compareAndSet(...)`.)
 
     /**
      * Called by [RiffleSelectionRectBridge.onBookBodyFont] on chapter install. Caches the value
@@ -2064,6 +2161,97 @@ class EpubReaderViewModel @Inject constructor(
         }.coerceAtLeast(0)
         val progression = locator.locations.progression ?: 0.0
         val cfi = locator.toPayload().ebookLocation
+
+        // Caption-highlight path: when the JS long-press payload resolved the figure's caption to
+        // a real DOM element (figcaption or a nearby "Figure N…" block), persist the figure as a
+        // TYPE_HIGHLIGHT that covers the caption text, with the figure carried as an
+        // embeddedFigure. This makes the caption a first-class annotated span — tap/select over
+        // the caption routes to this annotation, and a fresh highlight can't land on top of it.
+        // Falls back to the TYPE_IMAGE path below if the caption can't be located Kotlin-side
+        // (e.g. the JS payload had captionRange but jsoup couldn't disambiguate two identical
+        // captions in the same chapter).
+        val captionRange = payload.captionRange
+        if (captionRange != null) {
+            val spineStep = (spineIndex + 1) * 2
+            val html = readChapterHtml(spineIndex)
+            val startChar = html?.let { locateSnippetInBody(it, captionRange.text, captionRange.textBefore) }
+            val cfiRange = if (html != null && startChar != null) {
+                buildHighlightCfiRange(
+                    spineStep = spineStep,
+                    html = html,
+                    startChar = startChar,
+                    endChar = (startChar + captionRange.text.length - 1L).coerceAtLeast(startChar),
+                )
+            } else null
+            if (cfiRange != null) {
+                // caption="" — the highlight's textSnippet already carries the caption text, and
+                // the elided-view renderer would otherwise emit both the figure's own <figcaption>
+                // and an outer <p> for the same string (the "text doubled under each graph" bug
+                // observed on 2026-07-14). Leaving the field empty keeps the DB clean for new
+                // caption-highlights; existing rows are handled render-side.
+                val figure = com.riffle.core.domain.EmbeddedFigure(
+                    href = payload.href,
+                    svg = payload.svg,
+                    caption = "",
+                    order = 0,
+                    imageBytes = payload.imageBytes,
+                    charOffset = 0L,
+                )
+                // Dedup: a same-chapter HIGHLIGHT already covering the caption text (by CFI
+                // equality or normalized-textSnippet equality) absorbs the new figure into its
+                // `embeddedFigures` instead of stacking a duplicate row. Catches both (a) a
+                // re-long-press of the same figure whose first attempt landed as a bare-text
+                // caption HIGHLIGHT with empty embeddedFigures — the "1.5s duplicate" the user
+                // reproduced on 2026-07-14 — and (b) a pre-existing text-selection highlight of
+                // the caption that should upgrade in place instead of getting shadowed.
+                // Dedup by CFI equality only. A textSnippet-equality fallback would collide
+                // when two figures in the same chapter share a short caption like "Fig. 1"
+                // (common in ranges "Fig. 1a"/"Fig. 1b" or footnote-numbered plates) — the
+                // second long-press would fold figure B into figure A's annotation, leaving
+                // the user with one annotation carrying both figures and no way to distinguish
+                // them. CFI equality is exact: two DIFFERENT captions at the same DOM range
+                // don't exist. A separate text-selection highlight of the caption text sits at
+                // a different CFI range (Readium's text selection uses different boundaries
+                // than jsoup's element-bounds range) and stays separate — the intended cleanup
+                // for that case is the sweep's per-chapter merge phase (safer, has full DAO
+                // context) rather than an eager guess here.
+                val existingRows = runCatching {
+                    annotationDao.getForItem(sourceId, itemId)
+                }.getOrDefault(emptyList())
+                val existingHighlight = existingRows.firstOrNull { row ->
+                    row.type == com.riffle.core.database.AnnotationEntity.TYPE_HIGHLIGHT &&
+                        normalizeEpubHref(row.chapterHref) == normalizeEpubHref(href) &&
+                        row.cfi == cfiRange
+                }
+                if (existingHighlight != null) {
+                    annotationStore.mergeFiguresIntoHighlight(existingHighlight.id, listOf(figure))
+                    openHighlightActions(existingHighlight.id, anchorRect)
+                    scheduleAnnotationSync()
+                    return
+                }
+                val created = annotationStore.createHighlight(
+                    sourceId = sourceId,
+                    itemId = itemId,
+                    cfi = cfiRange,
+                    textSnippet = captionRange.text,
+                    chapterHref = href,
+                    textBefore = captionRange.textBefore,
+                    textAfter = captionRange.textAfter,
+                    color = annotationSession.lastUsedHighlightColor.value.token,
+                    spineIndex = spineIndex,
+                    progression = progression,
+                    embeddedFigures = listOf(figure),
+                    originFontFamily = FALLBACK_ORIGIN_FONT_FAMILY,
+                )
+                openHighlightActions(created.id, anchorRect)
+                scheduleAnnotationSync()
+                return
+            }
+        }
+
+        // No visible caption (alt/aria-label-only, or bare image with no nearby caption block):
+        // create a TYPE_IMAGE annotation as before. These carry no persisted text range, so their
+        // figcaption tint (if any) remains the render-side CSS pass in FigureBorderInjection.
         val created = annotationStore.createImageAnnotation(
             sourceId = sourceId,
             itemId = itemId,
@@ -2223,7 +2411,11 @@ class EpubReaderViewModel @Inject constructor(
                             title = titleByHref[chapterHref] ?: chapterHref,
                             highlights = livePeers,
                         )
-                        val freshHtml = highlightsPublicationFactory.renderChapterHtml(chapter, elidedBodyFontFamily)
+                        val freshHtml = highlightsPublicationFactory.renderChapterHtml(
+                            chapter = chapter,
+                            bookBodyFontFamily = elidedBodyFontFamily,
+                            dataUriByHref = highlightsPublicationHandle?.figureBytesByHref.orEmpty(),
+                        )
                         handle.setChapterBytes(chapterHref, freshHtml)
                     }
                 }

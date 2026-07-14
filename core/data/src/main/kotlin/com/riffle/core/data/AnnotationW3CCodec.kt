@@ -12,8 +12,10 @@ import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.add
+import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.doubleOrNull
 import kotlinx.serialization.json.intOrNull
+import kotlinx.serialization.json.longOrNull
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
@@ -171,6 +173,7 @@ object AnnotationW3CCodec {
                 svg = entity.imageSvg,
                 caption = entity.textSnippet,
                 order = null,
+                imageBytes = entity.imageBytes,
             )
         } else {
             bodies += buildJsonObject {
@@ -197,6 +200,8 @@ object AnnotationW3CCodec {
                         svg = figure.svg,
                         caption = figure.caption,
                         order = figure.order,
+                        imageBytes = figure.imageBytes,
+                        charOffset = figure.charOffset,
                     )
                 }
             }
@@ -240,7 +245,14 @@ object AnnotationW3CCodec {
      * Builds a single `riffle:image` Web Annotation body. `order` is only meaningful for figures
      * embedded in a TYPE_HIGHLIGHT range (stable sort key); omitted (null) for TYPE_IMAGE.
      */
-    private fun buildRiffleImageBody(href: String?, svg: String?, caption: String, order: Int?): JsonObject =
+    private fun buildRiffleImageBody(
+        href: String?,
+        svg: String?,
+        caption: String,
+        order: Int?,
+        imageBytes: String? = null,
+        charOffset: Long? = null,
+    ): JsonObject =
         buildJsonObject {
             put("type", "riffle:image")
             put("value", buildJsonObject {
@@ -248,6 +260,11 @@ object AnnotationW3CCodec {
                 if (svg != null) put("svg", svg)
                 put("caption", caption)
                 if (order != null) put("order", JsonPrimitive(order))
+                // Extension fields (2026-07-14): preserve captured raster bytes and the figure's
+                // position-in-range so a sync round-trip doesn't reset local rendering. Older
+                // peers ignore unknown value fields, so this stays backward-compatible.
+                if (imageBytes != null) put("imageBytes", imageBytes)
+                if (charOffset != null) put("charOffset", JsonPrimitive(charOffset))
             })
         }
 
@@ -264,11 +281,17 @@ object AnnotationW3CCodec {
         if (href == null && svg == null) return null
         val caption = value["caption"]?.jsonPrimitive?.content ?: ""
         val order = value["order"]?.jsonPrimitive?.intOrNull ?: fallbackOrder
+        // Extension fields (2026-07-14): default null when the body was written by an older
+        // peer. See [buildRiffleImageBody] for the outbound half.
+        val imageBytes = value["imageBytes"]?.jsonPrimitive?.contentOrNull
+        val charOffset = value["charOffset"]?.jsonPrimitive?.longOrNull
         return EmbeddedFigure(
             href = href,
             svg = if (href != null) null else svg,
             caption = caption,
             order = order,
+            imageBytes = imageBytes,
+            charOffset = charOffset,
         )
     }
 
@@ -306,6 +329,7 @@ object AnnotationW3CCodec {
         embeddedFigures = embeddedFiguresColumnToList(entity.embeddedFigures).ifEmpty { null },
         imageHref = entity.imageHref,
         imageSvg = entity.imageSvg,
+        imageBytes = entity.imageBytes,
     )
 
     /**
@@ -443,6 +467,7 @@ object AnnotationW3CCodec {
             var embeddedFigures: List<EmbeddedFigure>? = null
             var imageHref: String? = null
             var imageSvg: String? = null
+            var imageBytes: String? = null
             if (imageBodies.isNotEmpty()) {
                 if (textBody != null) {
                     type = AnnotationEntity.TYPE_HIGHLIGHT
@@ -457,6 +482,7 @@ object AnnotationW3CCodec {
                     val figure = parseRiffleImageBody(imageBodies.first(), fallbackOrder = 0)
                     imageHref = figure?.href
                     imageSvg = figure?.svg
+                    imageBytes = figure?.imageBytes
                     if (figure != null) {
                         textSnippet = figure.caption
                     }
@@ -504,6 +530,7 @@ object AnnotationW3CCodec {
                 embeddedFigures = embeddedFigures,
                 imageHref = imageHref,
                 imageSvg = imageSvg,
+                imageBytes = imageBytes,
             )
         } catch (_: Exception) {
             return emptyAnnotation()

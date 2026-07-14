@@ -41,18 +41,36 @@ internal object FigureBorderDecoration {
     /**
      * Per-figure raster match — filename suffix (for CSS `[src$=…]` matching), the annotation's
      * CSS-ready color, and whether the annotation carries a note (drives the note-glyph badge).
+     * [tintCaption] is true only for `TYPE_IMAGE` annotations whose caption isn't a real
+     * annotated span — those get the render-side CSS caption tint. `TYPE_HIGHLIGHT` annotations
+     * whose range already covers the caption receive their tint from Readium's normal decoration
+     * pipeline, so this stays false to avoid double-painting.
      */
-    internal data class RasterMark(val filename: String, val color: String, val hasNote: Boolean)
+    internal data class RasterMark(
+        val filename: String,
+        val color: String,
+        val hasNote: Boolean,
+        val tintCaption: Boolean = true,
+    )
 
     fun buildRasterMarks(annotations: List<Annotation>): List<RasterMark> {
-        data class Ref(val href: String, val color: String, val hasNote: Boolean, val updatedAt: Long)
+        data class Ref(
+            val href: String,
+            val color: String,
+            val hasNote: Boolean,
+            val updatedAt: Long,
+            val tintCaption: Boolean,
+        )
         val refs = mutableListOf<Ref>()
         for (a in annotations) {
             val hasNote = !a.note.isNullOrBlank()
             when (a.type) {
-                AnnotationEntity.TYPE_IMAGE -> a.imageHref?.let { refs += Ref(it, a.color, hasNote, a.updatedAt) }
+                AnnotationEntity.TYPE_IMAGE ->
+                    a.imageHref?.let { refs += Ref(it, a.color, hasNote, a.updatedAt, tintCaption = true) }
                 AnnotationEntity.TYPE_HIGHLIGHT -> a.embeddedFigures?.forEach { fig ->
-                    fig.href?.let { refs += Ref(it, a.color, hasNote, a.updatedAt) }
+                    fig.href?.let {
+                        refs += Ref(it, a.color, hasNote, a.updatedAt, tintCaption = !highlightCoversCaption(a, fig))
+                    }
                 }
             }
         }
@@ -64,6 +82,7 @@ internal object FigureBorderDecoration {
                     filename = hrefFilename(it.href),
                     color = HighlightColor.fromToken(it.color).argb.toCssRgba(),
                     hasNote = it.hasNote,
+                    tintCaption = it.tintCaption,
                 )
             }
     }
@@ -89,24 +108,51 @@ internal object FigureBorderDecoration {
     private const val SVG_FINGERPRINT_PREFIX_LEN = 200
 
     /**
+     * True when the highlight's captured `textSnippet` covers the figure's caption text — the
+     * signal that Readium's highlight decoration is already painting the caption for us and the
+     * render-side CSS tint would double-paint. False when the highlight range excludes the
+     * caption (e.g. a pre-caption-highlight text-selection across body prose that happens to
+     * enclose a figure — the figcaption sits below the range and only the CSS tint can reach
+     * it). Normalizes whitespace on both sides so the check matches how the text-content walks
+     * on the two rendering paths collapse.
+     */
+    private fun highlightCoversCaption(annotation: Annotation, figure: com.riffle.core.domain.EmbeddedFigure): Boolean {
+        if (figure.caption.isBlank()) return false
+        val normalizedCaption = figure.caption.replace(Regex("\\s+"), " ").trim()
+        val normalizedSnippet = annotation.textSnippet.replace(Regex("\\s+"), " ").trim()
+        return normalizedSnippet.contains(normalizedCaption)
+    }
+
+    /**
      * One entry per SVG annotation covering the current document. Newest-wins by `updatedAt` when
      * two annotations reference the same SVG (same fingerprint).
      */
-    internal data class SvgMatch(val fingerprint: String, val color: String, val hasNote: Boolean = false)
+    internal data class SvgMatch(
+        val fingerprint: String,
+        val color: String,
+        val hasNote: Boolean = false,
+        val tintCaption: Boolean = true,
+    )
 
     fun buildSvgMatches(annotations: List<Annotation>): List<SvgMatch> {
-        data class Ref(val fingerprint: String, val color: String, val hasNote: Boolean, val updatedAt: Long)
+        data class Ref(
+            val fingerprint: String,
+            val color: String,
+            val hasNote: Boolean,
+            val updatedAt: Long,
+            val tintCaption: Boolean,
+        )
 
         val refs = mutableListOf<Ref>()
         for (a in annotations) {
             val hasNote = !a.note.isNullOrBlank()
             when (a.type) {
                 AnnotationEntity.TYPE_IMAGE -> a.imageSvg?.take(SVG_FINGERPRINT_PREFIX_LEN)?.let {
-                    refs += Ref(it, a.color, hasNote, a.updatedAt)
+                    refs += Ref(it, a.color, hasNote, a.updatedAt, tintCaption = true)
                 }
                 AnnotationEntity.TYPE_HIGHLIGHT -> a.embeddedFigures?.forEach { figure ->
                     figure.svg?.take(SVG_FINGERPRINT_PREFIX_LEN)?.let {
-                        refs += Ref(it, a.color, hasNote, a.updatedAt)
+                        refs += Ref(it, a.color, hasNote, a.updatedAt, tintCaption = !highlightCoversCaption(a, figure))
                     }
                 }
             }
@@ -120,6 +166,7 @@ internal object FigureBorderDecoration {
                     fingerprint = it.fingerprint,
                     color = HighlightColor.fromToken(it.color).argb.toCssRgba(),
                     hasNote = it.hasNote,
+                    tintCaption = it.tintCaption,
                 )
             }
     }

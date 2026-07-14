@@ -51,12 +51,14 @@ internal fun figureBorderApplyJs(
             .replace("\r", "")
             .replace("\t", " ")
         val escColor = m.color.replace("\"", "\\\"")
-        "{\"fp\":\"$escFp\",\"color\":\"$escColor\",\"note\":${if (m.hasNote) 1 else 0}}"
+        "{\"fp\":\"$escFp\",\"color\":\"$escColor\",\"note\":${if (m.hasNote) 1 else 0}," +
+            "\"tintCap\":${if (m.tintCaption) 1 else 0}}"
     }
     val rasterJson = rasterMarks.joinToString(",", prefix = "[", postfix = "]") { m ->
         val escFn = m.filename.replace("\\", "\\\\").replace("\"", "\\\"")
         val escColor = m.color.replace("\"", "\\\"")
-        "{\"fn\":\"$escFn\",\"color\":\"$escColor\",\"note\":${if (m.hasNote) 1 else 0}}"
+        "{\"fn\":\"$escFn\",\"color\":\"$escColor\",\"note\":${if (m.hasNote) 1 else 0}," +
+            "\"tintCap\":${if (m.tintCaption) 1 else 0}}"
     }
     // Percent-encoded SVG of the same note-alt icon used by NoteGlyphDecoration. The literal
     // single quotes inside the SVG attributes are percent-encoded (%27) — otherwise Kotlin's
@@ -187,7 +189,7 @@ internal fun figureBorderApplyJs(
               var imgs = document.querySelectorAll('img[src\$="' + rf.fn + '"]');
               for (var ii = 0; ii < imgs.length; ii++) {
                 var img = imgs[ii];
-                tintCaptionFor(img, rf.color);
+                if (rf.tintCap) tintCaptionFor(img, rf.color);
                 if (rf.note) {
                   var col = (window.getComputedStyle && window.getComputedStyle(img).outlineColor) || 'currentColor';
                   addNoteBadge(img, col);
@@ -218,7 +220,7 @@ internal fun figureBorderApplyJs(
                   s.style.setProperty('outline', '2px solid ' + matches[j].color, 'important');
                   s.style.setProperty('outline-offset', '2px', 'important');
                   s.__riffleBorderApplied = true;
-                  tintCaptionFor(s, matches[j].color);
+                  if (matches[j].tintCap) tintCaptionFor(s, matches[j].color);
                   if (matches[j].note) addNoteBadge(s, matches[j].color);
                   break;
                 }

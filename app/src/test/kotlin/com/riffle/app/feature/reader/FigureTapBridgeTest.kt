@@ -96,6 +96,62 @@ class FigureTapBridgeTest {
     }
 
     @Test
+    fun `bridge parses long-press payload with captionRange`() {
+        // Regression: the caption-range payload (2026-07-14) carries the DOM caption text plus a
+        // short text-context window on either side, so onFigureLongPress can persist the caption
+        // as a real annotated text range. Reverting captionRange parsing flips this red.
+        val received = AtomicReference<FigureLongPressPayload?>()
+        FigureTapBridge.setLongPressHandler { received.set(it) }
+
+        FigureTapBridge.bridge.onFigureLongPress(
+            """{"kind":"img","caption":"Fig 1. The graph","href":"a.png","svg":null,""" +
+                """"elementId":null,"captionRange":{"text":"Fig 1. The graph","textBefore":"prior text ","textAfter":" following text"}}""",
+        )
+
+        val p = received.get()
+        assertNotNull(p)
+        val cr = p!!.captionRange
+        assertNotNull(cr)
+        assertEquals("Fig 1. The graph", cr!!.text)
+        assertEquals("prior text ", cr.textBefore)
+        assertEquals(" following text", cr.textAfter)
+    }
+
+    @Test
+    fun `bridge treats missing captionRange as null`() {
+        // A long-press whose caption resolved only via alt/aria-label (invisible attribute, no
+        // range) produces no captionRange — the annotation falls back to TYPE_IMAGE. Reverting the
+        // JSONObject.has() guard on captionRange flips this red (would throw parsing null).
+        val received = AtomicReference<FigureLongPressPayload?>()
+        FigureTapBridge.setLongPressHandler { received.set(it) }
+
+        FigureTapBridge.bridge.onFigureLongPress(
+            """{"kind":"img","caption":"Photo of author","href":"a.png","svg":null,"elementId":null}""",
+        )
+
+        val p = received.get()
+        assertNotNull(p)
+        assertNull(p!!.captionRange)
+    }
+
+    @Test
+    fun `bridge treats blank captionRange text as null`() {
+        // Defensive: a captionRange with a blank text field is treated as no range at all — the
+        // caption text is what we anchor the highlight to, so blank is unlocatable.
+        val received = AtomicReference<FigureLongPressPayload?>()
+        FigureTapBridge.setLongPressHandler { received.set(it) }
+
+        FigureTapBridge.bridge.onFigureLongPress(
+            """{"kind":"img","caption":"","href":"a.png","svg":null,"elementId":null,""" +
+                """"captionRange":{"text":"","textBefore":"","textAfter":""}}""",
+        )
+
+        val p = received.get()
+        assertNotNull(p)
+        assertNull(p!!.captionRange)
+    }
+
+    @Test
     fun `bridge preserves JSON null as Kotlin null`() {
         // Regression: org.json.JSONObject#optString collapses a JSON null to "" — reverting the
         // `.takeIf { !obj.isNull(...) } ` guard in FigureLongPressMessageParser flips this red.

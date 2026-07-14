@@ -926,6 +926,78 @@ class AnnotationW3CCodecTest {
     }
 
     @Test
+    fun `charOffset and imageBytes round-trip on TYPE_HIGHLIGHT embeddedFigures`() {
+        // Regression pin for the 2026-07-14 caption-highlight sync fix. Both extension fields
+        // are needed to round-trip: charOffset drives the elided-view figure/caption interleave
+        // order, and imageBytes carries the raster the reader inlines when the annotation
+        // itself lacks captured bytes. Reverting either encoding half flips this red — an
+        // earlier pass shipped only the read half, which silently dropped both fields on push.
+        val figure = EmbeddedFigure(
+            href = "img.jpg",
+            svg = null,
+            caption = "cap",
+            order = 0,
+            imageBytes = "data:image/jpeg;base64,ZZZZ",
+            charOffset = 42L,
+        )
+        val entity = AnnotationEntity(
+            id = "uuid-hl-ext",
+            sourceId = "abs1",
+            itemId = "item1",
+            type = AnnotationEntity.TYPE_HIGHLIGHT,
+            cfi = "epubcfi(/6/4!/4/2,/1:0,/1:100)",
+            color = "yellow",
+            note = null,
+            textSnippet = "cap",
+            chapterHref = "item1",
+            createdAt = 1000L,
+            updatedAt = 1000L,
+            originDeviceId = "device-A",
+            lastModifiedByDeviceId = "device-A",
+            embeddedFigures = embeddedFiguresListToColumn(listOf(figure)),
+        )
+
+        val w3cJson = codec.annotationEntityToW3C(entity)
+        assertTrue("outbound JSON must carry charOffset", w3cJson.contains("\"charOffset\":42"))
+        assertTrue("outbound JSON must carry imageBytes", w3cJson.contains("\"imageBytes\":\"data:image/jpeg;base64,ZZZZ\""))
+
+        val parsed = codec.w3cToAnnotationEntity(w3cJson)
+        val f = parsed.embeddedFigures?.single()
+        assertEquals(42L, f?.charOffset)
+        assertEquals("data:image/jpeg;base64,ZZZZ", f?.imageBytes)
+    }
+
+    @Test
+    fun `TYPE_IMAGE imageBytes round-trips on the annotation body`() {
+        val entity = AnnotationEntity(
+            id = "uuid-img-bytes",
+            sourceId = "abs1",
+            itemId = "item1",
+            type = AnnotationEntity.TYPE_IMAGE,
+            cfi = "epubcfi(/6/4!/4/2)",
+            color = "",
+            note = null,
+            textSnippet = "Figure X",
+            chapterHref = "item1",
+            createdAt = 1000L,
+            updatedAt = 1000L,
+            originDeviceId = "device-A",
+            lastModifiedByDeviceId = "device-A",
+            imageHref = "images/g.png",
+            imageBytes = "data:image/png;base64,QQQQ",
+        )
+
+        val w3cJson = codec.annotationEntityToW3C(entity)
+        assertTrue(
+            "TYPE_IMAGE outbound JSON must carry imageBytes as an extension on the riffle:image body",
+            w3cJson.contains("\"imageBytes\":\"data:image/png;base64,QQQQ\""),
+        )
+
+        val parsed = codec.w3cToAnnotationEntity(w3cJson)
+        assertEquals("data:image/png;base64,QQQQ", parsed.imageBytes)
+    }
+
+    @Test
     fun `TYPE_HIGHLIGHT with null embeddedFigures does not emit riffle_image bodies`() {
         val entity = AnnotationEntity(
             id = "uuid-hl-no-figures",

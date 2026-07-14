@@ -112,6 +112,53 @@ class FigureBorderInjectionTest {
     }
 
     @Test
+    fun `apply js gates raster caption tint on the tintCap flag`() {
+        // Post-2026-07-14: TYPE_HIGHLIGHT annotations that cover a caption already emit a real
+        // Readium highlight over the caption text; firing tintCaptionFor for them again would
+        // double-paint. buildRasterMarks flags TYPE_IMAGE marks with tintCaption=true and
+        // TYPE_HIGHLIGHT-derived marks with tintCaption=false; the JS must respect it. Reverting
+        // the `if (rf.tintCap)` guard reintroduces the double-paint bug.
+        val marks = listOf(
+            FigureBorderDecoration.RasterMark(
+                filename = "hl.png",
+                color = "rgba(52,211,153,0.5)",
+                hasNote = false,
+                tintCaption = false,
+            ),
+        )
+        val js = figureBorderApplyJs(cssRules = emptyList(), svgMatches = emptyList(), rasterMarks = marks)
+        assertTrue(
+            "tintCap flag must be encoded in the raster JSON payload",
+            js.contains("\"tintCap\":0"),
+        )
+        assertTrue(
+            "raster branch must gate tintCaptionFor on rf.tintCap",
+            js.contains("if (rf.tintCap) tintCaptionFor(img, rf.color)"),
+        )
+    }
+
+    @Test
+    fun `apply js gates svg caption tint on the tintCap flag`() {
+        val matches = listOf(
+            FigureBorderDecoration.SvgMatch(
+                fingerprint = "<svg id=\"chart\">",
+                color = "rgba(56,189,248,0.5)",
+                hasNote = false,
+                tintCaption = false,
+            ),
+        )
+        val js = figureBorderApplyJs(cssRules = emptyList(), svgMatches = matches, rasterMarks = emptyList())
+        assertTrue(
+            "tintCap flag must be encoded in the svg JSON payload",
+            js.contains("\"tintCap\":0"),
+        )
+        assertTrue(
+            "svg branch must gate tintCaptionFor on matches[j].tintCap",
+            js.contains("if (matches[j].tintCap) tintCaptionFor(s, matches[j].color)"),
+        )
+    }
+
+    @Test
     fun `apply js tints figcaption for svg annotations`() {
         val matches = listOf(
             FigureBorderDecoration.SvgMatch(
