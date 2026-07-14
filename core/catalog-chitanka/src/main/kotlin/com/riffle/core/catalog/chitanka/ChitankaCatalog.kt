@@ -528,10 +528,10 @@ class ChitankaCatalog(
         )
 
         /**
-         * Fallback CBR bitrate used when [ChitankaHttpClient.probeMp3BitrateBps] cannot read a
-         * valid MPEG frame header for a track (transient network error, or an unusual encoding
-         * we don't recognise). 128 kbps is the historical upper bound of Gramofonche MP3s;
-         * using it as the fallback preserves the pre-probe behaviour on the rare probe miss.
+         * Fallback CBR bitrate used when [ChitankaHttpClient.probeMp3DurationSec] returns null
+         * (transient network error, missing Content-Range, unrecognised encoding). 128 kbps is
+         * the historical upper bound of Gramofonche MP3s; using it as the fallback preserves
+         * the pre-probe behaviour on the rare probe miss.
          */
         internal const val GRAMOFONCHE_FALLBACK_BITRATE_BPS: Int = 128_000
 
