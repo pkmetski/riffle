@@ -175,10 +175,10 @@ fun LibraryItemsScreen(
     // everyone to Home on first launch after upgrade.
     var selectedTab by rememberSaveable(key = "library_selected_tab_v2") { mutableIntStateOf(0) }
 
-    // Reset to Home when the previously-selected tab is no longer visible for the active Source
-    // (e.g. user was on Series, then switched to a LocalFiles Source that lacks SeriesCapability).
-    // Skip while tabVisibility is null (Catalog still resolving) so a `rememberSaveable`-restored
-    // selectedTab isn't silently clobbered before the real capability set lands.
+    // Reset to Home when the previously-selected tab has no data for the active library (e.g.
+    // user was on Series, then the last series was deleted, or switched to a source whose library
+    // has no series). Skip while tabVisibility is null (still resolving) so a `rememberSaveable`-
+    // restored selectedTab isn't silently clobbered before the real emptiness set lands.
     LaunchedEffect(tabVisibility) {
         val visibility = tabVisibility ?: return@LaunchedEffect
         if (!isTabVisible(selectedTab, visibility)) selectedTab = 0
@@ -248,11 +248,10 @@ fun LibraryItemsScreen(
         },
         bottomBar = {
             if (searchQuery.isEmpty()) {
-                // Fall back to the full ABS-shape while the active Catalog is resolving so the
-                // tab bar renders immediately — hiding tabs mid-load would flash the bar layout.
-                // The LaunchedEffect above waits for a real emission before clamping selectedTab,
-                // so this permissive fallback can never route the user into a truly unavailable
-                // tab.
+                // Fall back to the full tab set while the library is still loading so the tab
+                // bar renders immediately — hiding tabs mid-load would flash the bar layout. The
+                // LaunchedEffect above waits for a real emission before clamping selectedTab, so
+                // this permissive fallback can never route the user into a truly empty tab.
                 LibraryTabBar(
                     selectedTab = selectedTab,
                     onTabSelected = { selectedTab = it },
@@ -1255,10 +1254,9 @@ internal fun LibraryItemCard(
 internal fun tabIndexForAnnotations(): Int = 2
 
 /**
- * True when the tab currently rendered at [selectedTab] is still valid given the active Source's
- * [visibility]. Callers use this to fall back to Home (index 0) after a Source switch (or a
- * library switch that hides Annotations) invalidates the previously-selected tab. Home and All
- * Books are always visible.
+ * True when the tab currently rendered at [selectedTab] still has data to show under the current
+ * [visibility]. Callers use this to fall back to Home (index 0) when the previously-selected tab
+ * has been emptied out. Home and All Books are always visible.
  */
 internal fun isTabVisible(selectedTab: Int, visibility: LibraryTabVisibility): Boolean =
     when (selectedTab) {
