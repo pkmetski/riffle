@@ -68,6 +68,14 @@ class LibraryItemsViewModelTest {
     private val seriesItemsBySeriesId = mutableMapOf<String, MutableStateFlow<List<LibraryItem>>>()
     private val librariesFlow = MutableStateFlow<List<Library>>(emptyList())
     private val annotationsFlow = MutableStateFlow<List<com.riffle.core.domain.Annotation>>(emptyList())
+    private val annotatedBooksFlow = MutableStateFlow<List<com.riffle.core.data.AnnotatedBook>>(emptyList())
+
+    private fun fakeAnnotationsLibraryRepository(): com.riffle.core.data.AnnotationsLibraryRepository =
+        object : com.riffle.core.data.AnnotationsLibraryRepository {
+            override fun observeAnnotatedBooks(sourceId: String) = annotatedBooksFlow
+            override fun observeAnnotatedBooks(sourceId: String, libraryId: String) =
+                annotatedBooksFlow.map { it.filter { book -> book.sourceId == sourceId } }
+        }
 
     private fun fakeAnnotationStore(): com.riffle.core.domain.AnnotationStore =
         object : com.riffle.core.domain.AnnotationStore {
@@ -210,7 +218,7 @@ class LibraryItemsViewModelTest {
         },
         annotationStore: com.riffle.core.domain.AnnotationStore = fakeAnnotationStore(),
         audiobookBookmarkStore: com.riffle.core.domain.AudiobookBookmarkStore = fakeAudiobookBookmarkStore(),
-        catalogRegistry: com.riffle.core.catalog.CatalogRegistry = fakeCatalogRegistry(),
+        annotationsLibraryRepository: com.riffle.core.data.AnnotationsLibraryRepository = fakeAnnotationsLibraryRepository(),
     ) = LibraryItemsViewModel(
         savedStateHandle = savedStateHandle,
         libraryObserver = libraryRepository,
@@ -235,16 +243,8 @@ class LibraryItemsViewModelTest {
         coverGridDensityStore = coverGridDensityStore,
         annotationStore = annotationStore,
         audiobookBookmarkStore = audiobookBookmarkStore,
-        catalogRegistry = catalogRegistry,
+        annotationsLibraryRepository = annotationsLibraryRepository,
     )
-
-    private fun fakeCatalogRegistry(
-        catalog: com.riffle.core.catalog.Catalog? = null,
-    ): com.riffle.core.catalog.CatalogRegistry = object : com.riffle.core.catalog.CatalogRegistry {
-        override suspend fun forActive(): com.riffle.core.catalog.Catalog? = catalog
-        override suspend fun forSource(source: com.riffle.core.domain.Source): com.riffle.core.catalog.Catalog? = catalog
-        override suspend fun forSourceId(sourceId: String): com.riffle.core.catalog.Catalog? = catalog
-    }
 
     private fun series(name: String) = Series("id-$name", "lib-1", name, null, 1)
     private fun collection(name: String) = Collection("id-$name", "lib-1", name, 1)
@@ -1121,124 +1121,61 @@ class LibraryItemsViewModelTest {
         assertEquals(emptyList<AnnotationSearchResult>(), vm.projection.value.annotations)
     }
 
-    // Regression pins for #439: tabVisibility must map from the active Catalog's capabilities and
-    // must re-derive when the active Source changes in place.
+    // Regression pins for the emptiness-based tabVisibility. Every gate is per-library — no
+    // Catalog-capability gating, and no cross-library leakage of annotations or stale To-Read IDs.
     @Test
-    fun `tabVisibility maps active Catalog capabilities to per-tab flags`() = runTest {
+    fun `tabVisibility flips each optional flag based on its own data's emptiness`() = runTest {
         val srv = source("s-abs", active = true)
-        val serversFlow = MutableStateFlow(listOf(srv))
         val srcRepo = object : SourceRepository {
-            override fun observeAll(): Flow<List<Source>> = serversFlow
-            override suspend fun getActive(): Source? = serversFlow.value.firstOrNull { it.isActive }
+            override fun observeAll(): Flow<List<Source>> = MutableStateFlow(listOf(srv))
+            override suspend fun getActive(): Source? = srv
             override suspend fun commit(pending: com.riffle.core.domain.PendingSource, hiddenLibraryIds: Set<String>) = throw UnsupportedOperationException()
             override suspend fun setActive(sourceId: String) {}
             override suspend fun remove(sourceId: String) {}
             override suspend fun getSourceVersion(sourceId: String): String? = null
         }
-        val vm = makeViewModel(
-            sourceRepository = srcRepo,
-            catalogRegistry = catalogRegistryReturning(SeriesAndPlaylistsOnlyCatalog),
+        val toRead = FakeToReadRepository()
+        val vm = makeViewModel(sourceRepository = srcRepo, toReadRepository = toRead)
+        backgroundScope.launch { vm.projection.collect {} }
+        allBooksFlow.value = listOf(item("book", "author"))
+        allItemsFlow.value = listOf(item("book", "author"))
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        // Baseline: library has items but no series/collections/toRead/annotations → all optional
+        // tabs hidden.
+        assertEquals(
+            LibraryTabVisibility(toRead = false, series = false, collections = false, annotations = false),
+            vm.tabVisibility.value,
         )
+
+        seriesFlow.value = listOf(series("Dune"))
         testDispatcher.scheduler.advanceUntilIdle()
+        assertEquals(true, vm.tabVisibility.value?.series)
+        assertEquals(false, vm.tabVisibility.value?.collections)
 
-        val visibility = vm.tabVisibility.value
-        assertEquals(true, visibility?.series)
-        assertEquals(true, visibility?.toRead)
-        assertEquals(false, visibility?.collections)
-    }
-
-    /**
-     * `toRead` is now [true] for every source since [ToReadRepositoryImpl] falls back to
-     * [com.riffle.core.data.LocalToReadStore] when the active Catalog has no PlaylistsCapability.
-     * The pre-fallback assertion (`toRead = false` for a LocalFiles-shape source) intentionally
-     * flipped as part of that consistency change — this test now pins the new invariant that
-     * `series` still tracks capability while `toRead` is universal.
-     */
-    @Test
-    fun `tabVisibility re-emits when the active Source flips to one with a different capability set`() = runTest {
-        val abs = source("s-abs", active = true)
-        val local = source("s-local", active = false)
-        val serversFlow = MutableStateFlow(listOf(abs, local))
-        val srcRepo = object : SourceRepository {
-            override fun observeAll(): Flow<List<Source>> = serversFlow
-            override suspend fun getActive(): Source? = serversFlow.value.firstOrNull { it.isActive }
-            override suspend fun commit(pending: com.riffle.core.domain.PendingSource, hiddenLibraryIds: Set<String>) = throw UnsupportedOperationException()
-            override suspend fun setActive(sourceId: String) {}
-            override suspend fun remove(sourceId: String) {}
-            override suspend fun getSourceVersion(sourceId: String): String? = null
-        }
-        // ABS → SeriesAndPlaylistsOnlyCatalog; LocalFiles → SeriesOnlyCatalog. The mapping keys on
-        // source id so we can prove the flow re-fires on switch, not just latches the first value.
-        val registry = object : com.riffle.core.catalog.CatalogRegistry {
-            override suspend fun forActive(): com.riffle.core.catalog.Catalog? = null
-            override suspend fun forSource(source: Source): com.riffle.core.catalog.Catalog? = forSourceId(source.id)
-            override suspend fun forSourceId(sourceId: String): com.riffle.core.catalog.Catalog? = when (sourceId) {
-                "s-abs" -> SeriesAndPlaylistsOnlyCatalog
-                "s-local" -> SeriesOnlyCatalog
-                else -> null
-            }
-        }
-        val vm = makeViewModel(sourceRepository = srcRepo, catalogRegistry = registry)
+        collectionsFlow.value = listOf(collection("Sci-Fi"))
         testDispatcher.scheduler.advanceUntilIdle()
+        assertEquals(true, vm.tabVisibility.value?.collections)
 
+        // A To-Read ID pointing at an item in this library flips toRead on.
+        toRead.ids.value = setOf("id-book")
+        testDispatcher.scheduler.advanceUntilIdle()
         assertEquals(true, vm.tabVisibility.value?.toRead)
 
-        // Flip active to the LocalFiles-shaped source.
-        serversFlow.value = listOf(abs.copy(isActive = false), local.copy(isActive = true))
-        testDispatcher.scheduler.advanceUntilIdle()
-
-        val v = vm.tabVisibility.value
-        assertEquals(true, v?.series)
-        // Universal now — local fallback provides To Read for sources without PlaylistsCapability.
-        assertEquals(true, v?.toRead)
-    }
-
-    // Regression pin for the Annotations tab gate: a library confirmed to contain only
-    // audiobook items reports annotations=false. An empty item list is treated as "not yet
-    // settled" (initial state / refresh consistency window) — annotations stays true so a
-    // cold-start LaunchedEffect clamp can't wipe a rememberSaveable-restored TAB_ANNOTATIONS.
-    @Test
-    fun `tabVisibility annotations reflects whether library contains any readable items`() = runTest {
-        val srv = source("s-abs", active = true)
-        val serversFlow = MutableStateFlow(listOf(srv))
-        val srcRepo = object : SourceRepository {
-            override fun observeAll(): Flow<List<Source>> = serversFlow
-            override suspend fun getActive(): Source? = serversFlow.value.firstOrNull { it.isActive }
-            override suspend fun commit(pending: com.riffle.core.domain.PendingSource, hiddenLibraryIds: Set<String>) = throw UnsupportedOperationException()
-            override suspend fun setActive(sourceId: String) {}
-            override suspend fun remove(sourceId: String) {}
-            override suspend fun getSourceVersion(sourceId: String): String? = null
-        }
-        val vm = makeViewModel(
-            sourceRepository = srcRepo,
-            catalogRegistry = catalogRegistryReturning(SeriesAndPlaylistsOnlyCatalog),
+        // An annotated book on this (source, library) flips annotations on.
+        annotatedBooksFlow.value = listOf(
+            com.riffle.core.data.AnnotatedBook("s-abs", "id-book", "Book", "Author", null, 1, 0L),
         )
-
-        // Initial empty state → visible ("not yet settled"; don't clamp cold-start restore).
-        testDispatcher.scheduler.advanceUntilIdle()
-        assertEquals(true, vm.tabVisibility.value?.annotations)
-
-        // Audiobook-only, non-empty: EbookFormat.Unsupported → isReadable = false → hide.
-        val audiobook = LibraryItem(
-            "id-audiobook", "lib-1", "An Audiobook", "Author", null, 0f, false, false,
-            EbookFormat.Unsupported, hasAudio = true,
-        )
-        allItemsFlow.value = listOf(audiobook)
-        testDispatcher.scheduler.advanceUntilIdle()
-        assertEquals(false, vm.tabVisibility.value?.annotations)
-
-        // Add an EPUB → isReadable = true → tab reappears live.
-        allItemsFlow.value = listOf(audiobook, item("An Ebook", "Author"))
         testDispatcher.scheduler.advanceUntilIdle()
         assertEquals(true, vm.tabVisibility.value?.annotations)
     }
 
-    // Regression pin for the CBZ carve-out: a Komga Comics library is entirely CBZ (raster
-    // pages, no selectable text). CBZ items are readable but NOT annotable — an all-CBZ
-    // library must hide the Annotations tab even though every item passes the isReadable gate.
-    // Reverting the ViewModel's gate to `isReadable` flips this red.
+    // Reproduces the shipped bug: an annotated book on the same source but in a sibling library
+    // (Books, say) must not make the Annotations tab appear in the Audiobooks library. The gate
+    // uses `observeAnnotatedBooks(sourceId, libraryId)` which JOINs on library_items and excludes
+    // annotations whose item is not in this library.
     @Test
-    fun `tabVisibility annotations is hidden on an all-CBZ library`() = runTest {
+    fun `tabVisibility does not leak annotations across sibling libraries in the same source`() = runTest {
         val srv = source("s-abs", active = true)
         val srcRepo = object : SourceRepository {
             override fun observeAll(): Flow<List<Source>> = MutableStateFlow(listOf(srv))
@@ -1248,26 +1185,31 @@ class LibraryItemsViewModelTest {
             override suspend fun remove(sourceId: String) {}
             override suspend fun getSourceVersion(sourceId: String): String? = null
         }
-        val vm = makeViewModel(
-            sourceRepository = srcRepo,
-            catalogRegistry = catalogRegistryReturning(SeriesAndPlaylistsOnlyCatalog),
-        )
-
-        val cbz = LibraryItem(
-            "id-cbz", "lib-1", "A Comic", "Author", null, 0f, false, false,
-            EbookFormat.Cbz,
-        )
-        allItemsFlow.value = List(50) { cbz.copy(id = "id-cbz-$it") }
+        // Custom AnnotationsLibraryRepository: an annotation exists on s-abs but its libraryId is
+        // "other-lib", not "lib-1" — the tab must stay hidden for this VM (which is scoped to lib-1
+        // via SavedStateHandle).
+        val repo = object : com.riffle.core.data.AnnotationsLibraryRepository {
+            override fun observeAnnotatedBooks(sourceId: String) = MutableStateFlow(
+                listOf(com.riffle.core.data.AnnotatedBook("s-abs", "id-other", "T", "A", null, 1, 0L)),
+            )
+            override fun observeAnnotatedBooks(sourceId: String, libraryId: String) =
+                if (libraryId == "lib-1") MutableStateFlow(emptyList<com.riffle.core.data.AnnotatedBook>())
+                else MutableStateFlow(listOf(com.riffle.core.data.AnnotatedBook("s-abs", "id-other", "T", "A", null, 1, 0L)))
+        }
+        val vm = makeViewModel(sourceRepository = srcRepo, annotationsLibraryRepository = repo)
+        backgroundScope.launch { vm.projection.collect {} }
+        allBooksFlow.value = listOf(item("book", "author"))
+        allItemsFlow.value = listOf(item("book", "author"))
         testDispatcher.scheduler.advanceUntilIdle()
+
         assertEquals(false, vm.tabVisibility.value?.annotations)
     }
 
-    // Regression pin for the ANY-annotable rule: as long as at least one item in the library can
-    // carry a highlight, the Annotations tab stays visible. A library dominated by CBZ but with a
-    // handful of EPUBs still shows it — the previous majority-vote gate lost access to those
-    // EPUBs' notes when non-annotable items outnumbered annotable ones, which was the bug.
+    // Reproduces the shipped bug: To-Read IDs whose items don't belong to this library must not
+    // keep the tab visible. The tab renders empty content because the ID-to-item lookup falls
+    // through — the gate must mirror that lookup.
     @Test
-    fun `tabVisibility annotations is shown when any item is annotable even if outnumbered`() = runTest {
+    fun `tabVisibility toRead is hidden when To-Read IDs do not resolve to library items`() = runTest {
         val srv = source("s-abs", active = true)
         val srcRepo = object : SourceRepository {
             override fun observeAll(): Flow<List<Source>> = MutableStateFlow(listOf(srv))
@@ -1277,26 +1219,59 @@ class LibraryItemsViewModelTest {
             override suspend fun remove(sourceId: String) {}
             override suspend fun getSourceVersion(sourceId: String): String? = null
         }
-        val vm = makeViewModel(
-            sourceRepository = srcRepo,
-            catalogRegistry = catalogRegistryReturning(SeriesAndPlaylistsOnlyCatalog),
-        )
-
-        val epub = item("EPUB", "Author")
-        val cbz = LibraryItem(
-            "id-cbz", "lib-1", "Comic", "A", null, 0f, false, false, EbookFormat.Cbz,
-        )
-        // Outnumbered case (previously hidden by the majority gate): 5 EPUBs, 100 CBZs → tab
-        // still visible because the 5 EPUBs' highlights are worth reaching.
-        allItemsFlow.value =
-            List(5) { epub.copy(id = "id-epub-$it") } + List(100) { cbz.copy(id = "id-cbz-$it") }
+        val toRead = FakeToReadRepository(initial = setOf("id-stale"))
+        val vm = makeViewModel(sourceRepository = srcRepo, toReadRepository = toRead)
+        backgroundScope.launch { vm.projection.collect {} }
+        allBooksFlow.value = listOf(item("book", "author"))
+        allItemsFlow.value = listOf(item("book", "author"))
         testDispatcher.scheduler.advanceUntilIdle()
-        assertEquals(true, vm.tabVisibility.value?.annotations)
 
-        // Tie case (previously visible; still visible under the any-annotable rule).
-        allItemsFlow.value =
-            List(50) { epub.copy(id = "id-epub-$it") } + List(50) { cbz.copy(id = "id-cbz-$it") }
+        // Stale ID doesn't map to any item in this library's allBooks → tab hidden.
+        assertEquals(false, vm.tabVisibility.value?.toRead)
+
+        // The user adds the actual library item to their To Read set → tab reappears live.
+        toRead.ids.value = setOf("id-book")
         testDispatcher.scheduler.advanceUntilIdle()
+        assertEquals(true, vm.tabVisibility.value?.toRead)
+    }
+
+    // Regression pin for the cold-start clobber: while the library has no items loaded yet
+    // (`allItems` empty — either genuinely empty or still refreshing), tabVisibility must stay
+    // null so the UI falls back to `LibraryTabVisibility.All`. Without this gate, Room's initial
+    // `emptyList()` tick from every projection sub-flow immediately emits an all-false visibility
+    // and the LaunchedEffect clamps a `rememberSaveable`-restored selectedTab to Home before real
+    // data can land.
+    @Test
+    fun `tabVisibility stays null while allItems is empty so cold-start restore isn't clobbered`() = runTest {
+        val srv = source("s-abs", active = true)
+        val srcRepo = object : SourceRepository {
+            override fun observeAll(): Flow<List<Source>> = MutableStateFlow(listOf(srv))
+            override suspend fun getActive(): Source? = srv
+            override suspend fun commit(pending: com.riffle.core.domain.PendingSource, hiddenLibraryIds: Set<String>) = throw UnsupportedOperationException()
+            override suspend fun setActive(sourceId: String) {}
+            override suspend fun remove(sourceId: String) {}
+            override suspend fun getSourceVersion(sourceId: String): String? = null
+        }
+        // Seed the source-side flows with values that would flip visibility ON if the settled
+        // gate weren't in place — proving null persists specifically because `allItems` is empty,
+        // not because there's nothing to show.
+        seriesFlow.value = listOf(series("Dune"))
+        collectionsFlow.value = listOf(collection("Sci-Fi"))
+        annotatedBooksFlow.value = listOf(
+            com.riffle.core.data.AnnotatedBook("s-abs", "id-book", "Book", "Author", null, 1, 0L),
+        )
+        val vm = makeViewModel(sourceRepository = srcRepo)
+        backgroundScope.launch { vm.projection.collect {} }
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(null, vm.tabVisibility.value)
+
+        // Once allItems settles with real rows, visibility flips to the real per-tab values.
+        allItemsFlow.value = listOf(item("book", "author"))
+        allBooksFlow.value = listOf(item("book", "author"))
+        testDispatcher.scheduler.advanceUntilIdle()
+        assertEquals(true, vm.tabVisibility.value?.series)
+        assertEquals(true, vm.tabVisibility.value?.collections)
         assertEquals(true, vm.tabVisibility.value?.annotations)
     }
 
@@ -1309,49 +1284,6 @@ class LibraryItemsViewModelTest {
         type = if (id == "s-local") com.riffle.core.domain.SourceType.LOCAL_FILES else com.riffle.core.domain.SourceType.ABS,
         serverType = com.riffle.core.domain.ServerType.AUDIOBOOKSHELF,
     )
-
-    private fun catalogRegistryReturning(catalog: com.riffle.core.catalog.Catalog?): com.riffle.core.catalog.CatalogRegistry =
-        object : com.riffle.core.catalog.CatalogRegistry {
-            override suspend fun forActive(): com.riffle.core.catalog.Catalog? = catalog
-            override suspend fun forSource(source: Source): com.riffle.core.catalog.Catalog? = catalog
-            override suspend fun forSourceId(sourceId: String): com.riffle.core.catalog.Catalog? = catalog
-        }
-
-    private object SeriesAndPlaylistsOnlyCatalog :
-        com.riffle.core.catalog.Catalog,
-        com.riffle.core.catalog.SeriesCapability,
-        com.riffle.core.catalog.PlaylistsCapability {
-        override val sourceType = com.riffle.core.domain.SourceType.ABS
-        override suspend fun listRoots() = emptyList<com.riffle.core.catalog.CatalogRoot>()
-        override suspend fun browse(rootId: String, sort: com.riffle.core.catalog.SortKey, page: Int, pageSize: Int, facet: com.riffle.core.catalog.FacetSelection?) = emptyList<com.riffle.core.catalog.CatalogItem>()
-        override suspend fun search(rootId: String, query: String, page: Int, pageSize: Int) = emptyList<com.riffle.core.catalog.CatalogItem>()
-        override suspend fun getItem(itemId: String) = null
-        override suspend fun fetchFile(itemId: String, format: com.riffle.core.catalog.BookFormat) = error("unused")
-        override suspend fun openFile(itemId: String, format: com.riffle.core.catalog.BookFormat, handleHint: String?) = error("unused")
-        override suspend fun connectivityCheck() = error("unused")
-        override suspend fun listSeries(rootId: String) = emptyList<com.riffle.core.catalog.CatalogSeries>()
-        override suspend fun listItemsInSeries(rootId: String, seriesId: String) = emptyList<com.riffle.core.catalog.CatalogItem>()
-        override suspend fun listPlaylists(rootId: String) = emptyList<com.riffle.core.catalog.CatalogPlaylist>()
-        override suspend fun findPlaylist(rootId: String, name: String): com.riffle.core.catalog.CatalogPlaylist? = null
-        override suspend fun createPlaylist(rootId: String, name: String, initialItemId: String?) = error("unused")
-        override suspend fun addItemToPlaylist(playlistId: String, itemId: String) {}
-        override suspend fun removeItemFromPlaylist(playlistId: String, itemId: String) {}
-    }
-
-    private object SeriesOnlyCatalog :
-        com.riffle.core.catalog.Catalog,
-        com.riffle.core.catalog.SeriesCapability {
-        override val sourceType = com.riffle.core.domain.SourceType.LOCAL_FILES
-        override suspend fun listRoots() = emptyList<com.riffle.core.catalog.CatalogRoot>()
-        override suspend fun browse(rootId: String, sort: com.riffle.core.catalog.SortKey, page: Int, pageSize: Int, facet: com.riffle.core.catalog.FacetSelection?) = emptyList<com.riffle.core.catalog.CatalogItem>()
-        override suspend fun search(rootId: String, query: String, page: Int, pageSize: Int) = emptyList<com.riffle.core.catalog.CatalogItem>()
-        override suspend fun getItem(itemId: String) = null
-        override suspend fun fetchFile(itemId: String, format: com.riffle.core.catalog.BookFormat) = error("unused")
-        override suspend fun openFile(itemId: String, format: com.riffle.core.catalog.BookFormat, handleHint: String?) = error("unused")
-        override suspend fun connectivityCheck() = error("unused")
-        override suspend fun listSeries(rootId: String) = emptyList<com.riffle.core.catalog.CatalogSeries>()
-        override suspend fun listItemsInSeries(rootId: String, seriesId: String) = emptyList<com.riffle.core.catalog.CatalogItem>()
-    }
 
     // Regression: on ON_RESUME we always refresh so `_refreshFailed` clears if the server is back.
     // Connectivity self-heals inside the ConnectivityObserver via ProcessLifecycleOwner + the

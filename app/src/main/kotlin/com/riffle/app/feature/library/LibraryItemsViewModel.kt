@@ -19,11 +19,8 @@ import com.riffle.core.domain.usecase.RefreshCollections
 import com.riffle.core.domain.usecase.RefreshLibraryItems
 import com.riffle.core.domain.usecase.RefreshSeries
 import com.riffle.core.domain.Series
+import com.riffle.core.data.AnnotationsLibraryRepository
 import com.riffle.core.data.ToReadRepository
-import com.riffle.core.catalog.CatalogRegistry
-import com.riffle.core.catalog.CollectionsCapability
-import com.riffle.core.catalog.PlaylistsCapability
-import com.riffle.core.catalog.SeriesCapability
 import com.riffle.core.domain.SourceRepository
 import com.riffle.core.domain.TokenStorage
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -32,6 +29,7 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -67,7 +65,7 @@ class LibraryItemsViewModel @Inject constructor(
     private val coverGridDensityStore: com.riffle.core.domain.CoverGridDensityStore,
     private val annotationStore: AnnotationStore,
     private val audiobookBookmarkStore: AudiobookBookmarkStore,
-    private val catalogRegistry: CatalogRegistry,
+    private val annotationsLibraryRepository: AnnotationsLibraryRepository,
 ) : ViewModel() {
 
     val libraryId: String = savedStateHandle.get<String>("libraryId") ?: ""
@@ -208,54 +206,48 @@ class LibraryItemsViewModel @Inject constructor(
     val projection: StateFlow<LibraryProjection> = filterEngine.projection
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), LibraryProjection.Empty)
 
-    /**
-     * Which optional Library tabs are visible for the active Source. Home, Annotations, and All
-     * Books are always available; the rest are gated on the active Catalog's capabilities per
-     * issue #439 / ADR 0041.
-     *
-     * Null before the active Source's Catalog resolves — composables read this and skip the
-     * "clamp selected tab back to Home" effect while unresolved, so a `rememberSaveable`-restored
-     * selected-tab isn't wiped by the initial empty state on cold start.
-     *
-     * Reactive against `sourceRepository.observeAll()` so an in-place Source switch (drawer tap,
-     * background sync, etc.) re-derives the visibility set instead of latching on whichever
-     * Source happened to be active when this VM was constructed. Raw `is X` checks stand in for
-     * the inline `Catalog.has<T>()` extension: core:catalog compiles at JVM target 21 (implicit)
-     * while every consumer pins target 17, so the inline can't cross the boundary today.
-     */
-    val tabVisibility: StateFlow<LibraryTabVisibility?> = combine(
+    // Books with at least one live highlight in THIS library — the same query the Annotations tab
+    // content uses (AnnotationsListViewModel), so tab visibility can't disagree with what the tab
+    // would render.
+    private val annotatedBooksInLibrary: Flow<List<com.riffle.core.data.AnnotatedBook>> =
         sourceRepository.observeAll()
             .map { servers -> servers.firstOrNull { it.isActive }?.id }
-            .distinctUntilChanged(),
+            .distinctUntilChanged()
+            .flatMapLatest { sourceId ->
+                if (sourceId == null) flowOf(emptyList())
+                else annotationsLibraryRepository.observeAnnotatedBooks(sourceId, libraryId)
+            }
+
+    /**
+     * Which optional Library tabs are visible. Home and All Books are unconditional; every other
+     * tab is shown iff the exact list the tab would render is non-empty. Backed by the same
+     * [LibraryProjection] the UI already reads (mapping stale To-Read IDs through the library's
+     * items, applying the offline filter, etc.) plus the same annotated-books query
+     * `AnnotationsListViewModel` renders — so tab visibility cannot disagree with what the tab
+     * content would show.
+     *
+     * Null while the library hasn't loaded any items yet ([allItems] empty is treated as "not yet
+     * settled") — Room's initial `emptyList()` tick from every projection sub-flow would otherwise
+     * fire the tab-bar clamp before real data lands and wipe a `rememberSaveable`-restored tab.
+     * The UI treats null as "show every tab" so the initial paint is stable and the LaunchedEffect
+     * doesn't run.
+     */
+    val tabVisibility: StateFlow<LibraryTabVisibility?> = combine(
+        projection,
+        annotatedBooksInLibrary,
         allItems,
-    ) { sourceId, items ->
-        val catalog = sourceId?.let { catalogRegistry.forSourceId(it) }
-        LibraryTabVisibility(
-            // To Read is available on every Source: [ToReadRepositoryImpl] falls back to a
-            // local Preferences DataStore when the Catalog has no server-side
-            // [PlaylistsCapability], so the tab shows for ABS, Local Files, and any future
-            // backend-less Source alike.
-            toRead = true,
-            series = catalog is SeriesCapability,
-            collections = catalog is CollectionsCapability,
-            // Highlights/notes are text-anchored — EPUB and PDF only. A CBZ archive (comics/manga
-            // libraries served by Komga; the same holds for future CBR/scan-image sources) is a
-            // stack of raster pages with no selectable text, so an Annotations tab on an entirely
-            // CBZ library is dead UI. Rule: show the tab as long as at least one item CAN be
-            // annotated. A Books library with 328 EPUBs + 64 PDFs shows it. A Comics library with
-            // 2497 CBZs + 5 stray PDFs shows it too — five real annotations are worth reaching,
-            // and a mixed library of 99 EPUBs + 100 CBZs must not lose access to the 99 EPUBs'
-            // notes (the previous majority-vote gate did exactly that). Empty list is treated as
-            // "not yet settled" (allItems' initial value is emptyList(), and a library refresh's
-            // replaceAllForLibrary window transiently drops rows) — keeping the tab visible there
-            // prevents a cold-start LaunchedEffect clamp from wiping a rememberSaveable-restored
-            // TAB_ANNOTATIONS.
-            annotations = items.isEmpty() || items.any { it.canAnnotate },
-        )
+    ) { p, annotated, items ->
+        if (items.isEmpty()) {
+            null
+        } else {
+            LibraryTabVisibility(
+                toRead = p.toRead.isNotEmpty(),
+                series = p.series.isNotEmpty(),
+                collections = p.collections.isNotEmpty(),
+                annotations = annotated.isNotEmpty(),
+            )
+        }
     }
-        // Room emits on every DB write (progress ticks, download-state changes) but the
-        // capability + item-shape signals rarely change; collapse identical values so the
-        // tab bar doesn't recompose on every progress tick.
         .distinctUntilChanged()
         .stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
