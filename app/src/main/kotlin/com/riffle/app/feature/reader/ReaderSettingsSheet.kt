@@ -1,5 +1,6 @@
 package com.riffle.app.feature.reader
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
@@ -55,6 +56,8 @@ fun ReaderSettingsSheet(
 ) {
     val tabs = listOf("Formatting", "Display", "Behavior")
     var selectedTab by remember { mutableIntStateOf(0) }
+
+    BackHandler(onBack = onDismiss)
 
     Box(modifier = Modifier.fillMaxSize()) {
         // Tap-catcher above the sheet dismisses; reader pane stays visible to preview changes.
