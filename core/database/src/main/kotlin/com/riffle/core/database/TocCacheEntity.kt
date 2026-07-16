@@ -8,4 +8,5 @@ data class TocCacheEntity(
     val itemId: String,
     val ebookFileIno: String,
     val entriesJson: String,  // JSON-serialized List<TocEntry>
+    val cachedAt: Long,       // wall-clock millis when this row was written; drives TTL
 )

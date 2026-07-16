@@ -1919,7 +1919,7 @@ class MigrationTest {
         }
 
         val db = helper.runMigrationsAndValidate(
-            TEST_DB, 54, true,
+            TEST_DB, 56, true,
             RiffleDatabase.MIGRATION_1_2,
             RiffleDatabase.MIGRATION_2_3,
             RiffleDatabase.MIGRATION_3_4,
@@ -1973,6 +1973,8 @@ class MigrationTest {
             RiffleDatabase.MIGRATION_51_52,
             RiffleDatabase.MIGRATION_52_53,
             RiffleDatabase.MIGRATION_53_54,
+            RiffleDatabase.MIGRATION_54_55,
+            RiffleDatabase.MIGRATION_55_56,
         )
 
         db.query("SELECT url, username, serverType, absUserId, type FROM sources WHERE id = 's1'").use { cursor ->
@@ -2498,6 +2500,86 @@ class MigrationTest {
         db.query("SELECT COUNT(*) FROM remote_item_freshness").use { c ->
             assertTrue(c.moveToFirst())
             assertEquals(0, c.getInt(0))
+        }
+
+        db.close()
+    }
+
+    // Same TTL shape as MIGRATION_54_55 but on `toc_cache`. Content-change invalidation
+    // via ebookFileIno already existed; the TTL is the ride-along for derivation-logic
+    // fixes (Readium TOC parser bugs, etc.). Pre-existing rows carry cachedAt=0 and heal
+    // on next open.
+    @Test
+    fun migration55To56_addsCachedAtToTocCache() {
+        helper.createDatabase(TEST_DB, 55).apply {
+            execSQL(
+                "INSERT INTO toc_cache (sourceId, itemId, ebookFileIno, entriesJson) " +
+                    "VALUES ('src1', 'item1', 'ino42', '[{\"title\":\"Ch\",\"href\":\"c.html\",\"children\":[]}]')"
+            )
+            close()
+        }
+        val db = helper.runMigrationsAndValidate(TEST_DB, 56, true, RiffleDatabase.MIGRATION_55_56)
+
+        db.query(
+            "SELECT ebookFileIno, entriesJson, cachedAt FROM toc_cache " +
+                "WHERE sourceId = 'src1' AND itemId = 'item1'"
+        ).use { c ->
+            assertTrue(c.moveToFirst())
+            assertEquals("ino42", c.getString(0))
+            assertTrue("entriesJson blob preserved", c.getString(1).contains("Ch"))
+            assertEquals(0L, c.getLong(2))
+        }
+
+        db.execSQL(
+            "INSERT INTO toc_cache (sourceId, itemId, ebookFileIno, entriesJson, cachedAt) " +
+                "VALUES ('src1', 'item2', 'ino99', '[]', 1760000000000)"
+        )
+        db.query(
+            "SELECT cachedAt FROM toc_cache WHERE sourceId = 'src1' AND itemId = 'item2'"
+        ).use { c ->
+            assertTrue(c.moveToFirst())
+            assertEquals(1_760_000_000_000L, c.getLong(0))
+        }
+
+        db.close()
+    }
+
+    // TTL on the audiobook chapter cache. Adds `cachedAt INTEGER NOT NULL DEFAULT 0`; existing
+    // rows land with cachedAt=0 so the repository treats them as maximally stale and re-fetches
+    // on next open — the one-shot purge that ships alongside the Gramofonche chapter-duration
+    // fix. Pre-existing chapter blobs must survive; new writes must record the timestamp.
+    @Test
+    fun migration54To55_addsCachedAtToAudiobookChapterCache() {
+        helper.createDatabase(TEST_DB, 54).apply {
+            execSQL(
+                "INSERT INTO audiobook_chapter_cache (sourceId, itemId, chaptersJson) " +
+                    "VALUES ('chi1', 'baa1831', '[{\"index\":0,\"startSec\":0.0,\"endSec\":700.0,\"title\":\"Stale\"}]')"
+            )
+            close()
+        }
+        val db = helper.runMigrationsAndValidate(TEST_DB, 55, true, RiffleDatabase.MIGRATION_54_55)
+
+        // Pre-existing row survives, cachedAt defaults to 0.
+        db.query(
+            "SELECT chaptersJson, cachedAt FROM audiobook_chapter_cache " +
+                "WHERE sourceId = 'chi1' AND itemId = 'baa1831'"
+        ).use { c ->
+            assertTrue(c.moveToFirst())
+            assertTrue("chaptersJson blob preserved", c.getString(0).contains("Stale"))
+            assertEquals(0L, c.getLong(1))
+        }
+
+        // New writes carry the timestamp.
+        db.execSQL(
+            "INSERT INTO audiobook_chapter_cache (sourceId, itemId, chaptersJson, cachedAt) " +
+                "VALUES ('chi1', 'baa9999', '[]', 1760000000000)"
+        )
+        db.query(
+            "SELECT cachedAt FROM audiobook_chapter_cache " +
+                "WHERE sourceId = 'chi1' AND itemId = 'baa9999'"
+        ).use { c ->
+            assertTrue(c.moveToFirst())
+            assertEquals(1_760_000_000_000L, c.getLong(0))
         }
 
         db.close()

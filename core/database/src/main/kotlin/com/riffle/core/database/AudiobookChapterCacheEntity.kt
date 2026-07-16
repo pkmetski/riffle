@@ -7,4 +7,5 @@ data class AudiobookChapterCacheEntity(
     val sourceId: String,
     val itemId: String,
     val chaptersJson: String,  // JSON-serialized List<AudiobookChapter>
+    val cachedAt: Long,        // wall-clock millis when this row was written; drives TTL
 )

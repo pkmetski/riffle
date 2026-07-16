@@ -428,22 +428,36 @@ class ChitankaCatalog(
      * historically underestimated by up to ~40 %, leaving the scrubber pinned at end while
      * ExoPlayer was still decoding several real minutes of audio.
      *
-     * If the probe fails (network error, unrecognised encoding), fall back to HEAD +
-     * [GRAMOFONCHE_FALLBACK_BITRATE_BPS] so we still yield non-zero durations — needed for
-     * [AudiobookTracks#trackAt] / [#absoluteSec] to route positions to the right track in a
-     * multi-file book.
+     * If a probe fails (network error, unrecognised encoding) or the summed probes fall
+     * significantly short of the scraped total, delegate to [resolveTrackDurationsSec] which
+     * distributes the scraped total proportionally by content-length. The 128 kbps CBR
+     * fallback in [GRAMOFONCHE_FALLBACK_BITRATE_BPS] only kicks in when *neither* signal is
+     * available (probe null AND no scraped duration on the page).
      */
     private suspend fun tracksFor(detail: ChitankaDetail): List<CatalogAudioTrack> {
-        val durationsSec = coroutineScope {
+        val scrapedTotalSec = parseGramofoncheDurationSeconds(detail.duration)
+        // Fast path: probe every track first. On the healthy VBR case (Xing tag present, sum
+        // matches the scraped total) tier 1 in resolveTrackDurationsSec trusts the probes
+        // verbatim and we can skip the per-track HEAD entirely — cheaper by N round-trips on
+        // every audiobook open. Only fall back to fetching content-length when we know the
+        // probes underestimate and the byte proportions are the recovery signal.
+        val probed = coroutineScope {
             detail.downloads.map { d ->
-                async(Dispatchers.IO) {
-                    val probed = http.probeMp3DurationSec(d.url)
-                    if (probed != null && probed > 0.0) return@async probed
-                    val bytes = http.headContentLength(d.url) ?: return@async 0.0
-                    bytes.toDouble() * 8.0 / GRAMOFONCHE_FALLBACK_BITRATE_BPS
-                }
+                async(Dispatchers.IO) { http.probeMp3DurationSec(d.url)?.takeIf { it > 0.0 } }
             }.awaitAll()
         }
+        val probeOnly = probed.map { TrackProbe(probedSec = it, bytes = 0L) }
+        val probes = if (canTrustProbesAlone(probeOnly, scrapedTotalSec)) {
+            probeOnly
+        } else {
+            val bytes = coroutineScope {
+                detail.downloads.map { d ->
+                    async(Dispatchers.IO) { http.headContentLength(d.url) ?: 0L }
+                }.awaitAll()
+            }
+            probed.mapIndexed { i, p -> TrackProbe(probedSec = p, bytes = bytes[i]) }
+        }
+        val durationsSec = resolveTrackDurationsSec(probes, scrapedTotalSec)
         var cumulativeStart = 0.0
         return detail.downloads.mapIndexed { idx, d ->
             val dur = durationsSec[idx]
@@ -540,6 +554,69 @@ class ChitankaCatalog(
          * the pre-probe behaviour on the rare probe miss.
          */
         internal const val GRAMOFONCHE_FALLBACK_BITRATE_BPS: Int = 128_000
+
+        /**
+         * Ratio below which per-track probe results are considered untrustworthy relative to
+         * the scraped total. The scraped duration on Gramofonche is rounded down to whole
+         * minutes ("43мин" for 43.6 real minutes), so a genuine probe can legitimately exceed
+         * the scraped value by up to one minute. Underestimating by >10 % is the signature of
+         * probes falling through to the CBR fallback on VBR files (Gramofonche rips are ~72
+         * kbps but [GRAMOFONCHE_FALLBACK_BITRATE_BPS] assumes 128 kbps, which halves the
+         * duration and drove the "chapters total 25 min for a 43 min book" bug).
+         */
+        internal const val PROBE_UNDERESTIMATE_THRESHOLD: Double = 0.9
+
+        internal data class TrackProbe(val probedSec: Double?, val bytes: Long)
+
+        /**
+         * Chooses per-track durations from what we have: probes (Xing-accurate when the
+         * upstream MP3 exposes the tag), byte lengths (proportional distribution against the
+         * scraped total), or the [GRAMOFONCHE_FALLBACK_BITRATE_BPS] CBR estimate. Preference
+         * order:
+         *
+         * 1. All probes succeeded and their sum is at least
+         *    [PROBE_UNDERESTIMATE_THRESHOLD] of the scraped total (or there is no scraped
+         *    total to compare against) → trust the probes verbatim.
+         * 2. Scraped total is known and content-length is known for every track → distribute
+         *    the scraped total proportionally by bytes. This is the recovery path for VBR
+         *    rips where the probe misses the Xing tag and CBR math would return roughly half
+         *    the real duration.
+         * 3. Otherwise fall back per-track to `probed ?: bytes*8 / 128 kbps`, matching the
+         *    pre-recovery behaviour so a probe-less, duration-less page still yields
+         *    non-zero spans for [AudiobookTracks#trackAt] routing.
+         */
+        internal fun resolveTrackDurationsSec(
+            probes: List<TrackProbe>,
+            scrapedTotalSec: Double,
+        ): List<Double> {
+            if (probes.isEmpty()) return emptyList()
+            if (canTrustProbesAlone(probes, scrapedTotalSec)) {
+                return probes.map { it.probedSec!! }
+            }
+            val totalBytes = probes.sumOf { it.bytes }
+            val allBytesKnown = probes.all { it.bytes > 0L }
+            if (scrapedTotalSec > 0.0 && allBytesKnown && totalBytes > 0L) {
+                return probes.map { scrapedTotalSec * it.bytes / totalBytes }
+            }
+            // Last-resort per-track: probed value; else CBR math on bytes; else the equal
+            // share of the scraped total. The equal-share step matters when at least one
+            // track is missing both signals (probe null, HEAD failed → bytes=0) — without
+            // it that track would emit 0.0 sec, cumulativeStart wouldn't advance, and
+            // AudiobookTracks#trackAt would route every later position to the wrong track.
+            val equalShare = if (scrapedTotalSec > 0.0) scrapedTotalSec / probes.size else 0.0
+            return probes.map { p ->
+                p.probedSec
+                    ?: if (p.bytes > 0L) p.bytes.toDouble() * 8.0 / GRAMOFONCHE_FALLBACK_BITRATE_BPS
+                    else equalShare
+            }
+        }
+
+        private fun canTrustProbesAlone(probes: List<TrackProbe>, scrapedTotalSec: Double): Boolean {
+            if (!probes.all { it.probedSec != null }) return false
+            if (scrapedTotalSec <= 0.0) return true
+            val probedSum = probes.sumOf { it.probedSec!! }
+            return probedSum >= scrapedTotalSec * PROBE_UNDERESTIMATE_THRESHOLD
+        }
 
         private val GRAMOFONCHE_HOURS_REGEX = Regex("(\\d+)\\s*часа?")
         private val GRAMOFONCHE_MINUTES_REGEX = Regex("(\\d+)\\s*мин")
