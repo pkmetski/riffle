@@ -40,6 +40,21 @@ object ServerReferenceLint {
         "core/domain/src/main/kotlin/com/riffle/core/domain/ProgressReconciler.kt",
         "core/domain/src/main/kotlin/com/riffle/core/domain/ProgressSyncController.kt",
         "core/domain/src/main/kotlin/com/riffle/core/domain/HighlightsResumeStore.kt",
+        // WebSourceDescriptor + its ABS/Storyteller subclasses branch on ServerType to pick the
+        // right AddSource copy, icon URL, and namespace shape per credentialed web source (ADR
+        // 0044). Same grandfathering rationale as SourceRepository / Source.
+        "core/domain/src/main/kotlin/com/riffle/core/domain/WebSourceDescriptor.kt",
+        // Credentialed-authenticator layer (ADR 0044 Phase 7) — the ABS and Komga authenticators
+        // set `serverType` on the installed Source; the abstract Authenticator carries the field
+        // through. Same rationale as SourceRepositoryImpl / AbsApiClient.
+        "core/data/src/main/kotlin/com/riffle/core/data/credentialed/CredentialedAuthenticator.kt",
+        "core/data/src/main/kotlin/com/riffle/core/data/credentialed/CredentialedSourceInstaller.kt",
+        "core/data/src/main/kotlin/com/riffle/core/data/credentialed/AbsCredentialedAuthenticator.kt",
+        "core/data/src/main/kotlin/com/riffle/core/data/credentialed/KomgaCredentialedAuthenticator.kt",
+        // Source-type picker + icon resolver map ServerType → labels/icons in the add-source flow.
+        "app/src/main/kotlin/com/riffle/app/feature/server/SourceTypePickerScreen.kt",
+        "app/src/main/kotlin/com/riffle/app/ui/source/SourceIcon.kt",
+        "app/src/main/kotlin/com/riffle/app/ui/source/SourceIconResolver.kt",
         // Data layer: Source repo carries the serverType field; Storyteller +
         // WebDAV internals + reading-session repo pass `serverType` through.
         "core/data/src/main/kotlin/com/riffle/core/data/SourceRepositoryImpl.kt",

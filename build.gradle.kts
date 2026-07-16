@@ -67,6 +67,14 @@ tasks.register("checkRiffleInfraSeams") {
             "app/src/main/kotlin/com/riffle/app/feature/audiobook/AudiobookPlayerViewModel.kt",
             "app/src/main/kotlin/com/riffle/app/feature/library/LibraryItemsViewModel.kt",
             "app/src/main/kotlin/com/riffle/app/feature/server/AddServerViewModel.kt",
+            // Logger core stamps ISO timestamps for `d`/`w`/`e` calls; routing Clock through the
+            // logger primitive would invert the dependency direction. Grandfathered.
+            "core/logging/src/main/kotlin/com/riffle/core/logging/AndroidLogger.kt",
+            // ---- Grandfathered — DispatcherProvider sweep follow-up. LocalFiles ingestion
+            // pipeline (#475) does direct SAF file I/O and needs Dispatchers.IO. Migrate when the
+            // rest of the LocalFiles layer routes through DispatcherProvider.
+            "core/data/src/main/kotlin/com/riffle/core/data/localfiles/AndroidCopyInService.kt",
+            "core/data/src/main/kotlin/com/riffle/core/data/localfiles/SafFolderWalker.kt",
         )
 
         val scanRoots = listOf(
