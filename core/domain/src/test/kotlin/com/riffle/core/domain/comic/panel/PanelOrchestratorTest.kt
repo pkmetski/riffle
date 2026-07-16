@@ -75,11 +75,13 @@ class PanelOrchestratorTest {
         assertEquals(PanelSource.Auto, page.source)
         assertEquals(4, page.panels.size)
         assertNotNull(store.load("book-1", 0))
-        // Row-major order — first panel's origin is the top-left one.
-        assertEquals(20, page.panels[0].x)
-        assertEquals(20, page.panels[0].y)
-        assertEquals(210, page.panels[1].x)
-        assertEquals(20, page.panels[1].y)
+        // Row-major order — first panel's origin is the top-left one. Exact bounds vary a
+        // few pixels depending on which detection path fires (CC vs projection) and its
+        // trim/tighten thresholds, so assert an approximate match.
+        assertTrue("expected first panel near (20,20), got (${page.panels[0].x},${page.panels[0].y})",
+            page.panels[0].x in 15..25 && page.panels[0].y in 15..25)
+        assertTrue("expected second panel near (210,20), got (${page.panels[1].x},${page.panels[1].y})",
+            page.panels[1].x in 205..215 && page.panels[1].y in 15..25)
     }
 
     @Test

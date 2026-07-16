@@ -100,8 +100,11 @@ class JsonPanelStore @Inject constructor(
          *  1 — original single-pass value-based binarize + auto-invert (first landed panel view).
          *  2 — two-pass content-vs-background classifier; auto-invert removed. Files written under
          *      v1 held Fallback results for dark-gutter comics that the v2 detector handles.
+         *  3 — projection-based grid detector as the primary path; connected-component becomes
+         *      the fallback for irregular layouts. Different panel geometry from v2 on the same
+         *      page — invalidate to re-detect.
          */
-        internal const val CURRENT_SCHEMA_VERSION: Int = 2
+        internal const val CURRENT_SCHEMA_VERSION: Int = 3
 
         private val UNSAFE = Regex("[^A-Za-z0-9._-]")
         internal val PagesListSerializer = ListSerializer(PagePanels.serializer())
