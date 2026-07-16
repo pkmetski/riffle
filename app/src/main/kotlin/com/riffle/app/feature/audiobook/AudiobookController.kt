@@ -5,6 +5,7 @@ import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.session.MediaController
 import com.riffle.app.feature.audio.MediaSessionConnector
+import com.riffle.app.feature.audio.formatRemainingReadable
 import com.riffle.app.feature.reader.readaloud.SharedBundle
 import com.riffle.core.domain.ApplicationScope
 import com.riffle.core.domain.AudiobookTrackSpan
@@ -96,6 +97,10 @@ open class AudiobookController @Inject constructor(
     // so it only releases the bundle it set — never one a live Readaloud session owns (e.g. when this
     // player opened a streaming session, or failed to prepare at all, while Readaloud is still playing).
     private var ownsSharedBundle = false
+    // Whole-minute bucket of remaining book time last written to the current MediaItem's metadata.
+    // We `replaceMediaItem` only when this bucket changes, so the system notification's "3h 12m
+    // left" subtitle updates at most once per minute regardless of poll cadence.
+    private var lastRemainingMinuteBucket: Long = -1L
 
     private val listener = object : Player.Listener {
         override fun onEvents(player: Player, events: Player.Events) {
@@ -139,8 +144,11 @@ open class AudiobookController @Inject constructor(
         if (localZipFile != null) SharedBundle.current = localZipFile
         val c = ensureConnected() ?: return
         logger.d(LogChannel.Handoff) { "AB.prepare ensureConnected +${clock.nowMs() - t0}ms" }
+        val initialRemainingSec = (durationSec - startAtSec).coerceAtLeast(0.0)
+        lastRemainingMinuteBucket = (initialRemainingSec / 60.0).toLong()
         val metadata = androidx.media3.common.MediaMetadata.Builder()
             .apply { if (coverUri != null) setArtworkUri(android.net.Uri.parse(coverUri)) }
+            .setArtist(formatRemainingReadable(initialRemainingSec))
             .build()
         val items = trackUrls.map { url ->
             MediaItem.Builder().setMediaId(url).setUri(url).setMediaMetadata(metadata).build()
@@ -282,6 +290,7 @@ open class AudiobookController @Inject constructor(
         ownsSharedBundle = false
         SharedAudiobookContext.spans = emptyList()
         SharedAudiobookContext.totalDurationMs = 0L
+        lastRemainingMinuteBucket = -1L
         _state.value = PlaybackState()
     }
 
@@ -311,6 +320,7 @@ open class AudiobookController @Inject constructor(
         ownsSharedBundle = false
         SharedAudiobookContext.spans = emptyList()
         SharedAudiobookContext.totalDurationMs = 0L
+        lastRemainingMinuteBucket = -1L
         _state.value = PlaybackState()
     }
 
@@ -333,14 +343,38 @@ open class AudiobookController @Inject constructor(
 
     private fun pushState() {
         val c = controller
+        val position = currentAbsoluteSec()
         _state.value = PlaybackState(
             connected = c != null,
             isPlaying = c?.isPlaying == true,
             speed = c?.playbackParameters?.speed ?: 1f,
-            positionSec = currentAbsoluteSec(),
+            positionSec = position,
             durationSec = durationSec,
             bufferedSec = (c?.bufferedPosition ?: 0L) / 1000.0,
         )
+        maybeUpdateRemainingMetadata(c, position)
+    }
+
+    /**
+     * Refreshes the current [MediaItem]'s `artist` metadata so the system media notification /
+     * lock-screen player shows "3h 12m left" style remaining-time text under the title. Fires at
+     * most once per whole-minute change; the URI is stripped over the session Binder and rebuilt
+     * by [com.riffle.app.feature.audio.MediaItemRestorerRegistry], so this is a metadata-only
+     * update that does not re-buffer.
+     */
+    private fun maybeUpdateRemainingMetadata(c: MediaController?, positionSec: Double) {
+        if (c == null || !prepared || durationSec <= 0.0) return
+        val remaining = (durationSec - positionSec).coerceAtLeast(0.0)
+        val bucket = (remaining / 60.0).toLong()
+        if (bucket == lastRemainingMinuteBucket) return
+        val index = c.currentMediaItemIndex
+        if (index < 0) return
+        val item = c.currentMediaItem ?: return
+        lastRemainingMinuteBucket = bucket
+        val newMetadata = item.mediaMetadata.buildUpon()
+            .setArtist(formatRemainingReadable(remaining))
+            .build()
+        c.replaceMediaItem(index, item.buildUpon().setMediaMetadata(newMetadata).build())
     }
 
     companion object {
