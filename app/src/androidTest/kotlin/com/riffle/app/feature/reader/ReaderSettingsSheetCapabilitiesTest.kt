@@ -8,6 +8,7 @@ import androidx.compose.ui.test.performClick
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.riffle.app.feature.reader.formatting.RenderCapabilities
 import com.riffle.core.domain.FormattingPreferences
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -80,5 +81,24 @@ class ReaderSettingsSheetCapabilitiesTest {
         composeTestRule.onNodeWithText("Theme").assertIsDisplayed()
         composeTestRule.onNodeWithText("Current chapter label").assertIsDisplayed()
         composeTestRule.onNodeWithText("Time remaining").assertIsDisplayed()
+    }
+
+    @Test
+    fun backPress_invokesOnDismiss_insteadOfPoppingReader() {
+        var dismissed = false
+        composeTestRule.setContent {
+            ReaderSettingsSheet(
+                prefs = FormattingPreferences(),
+                capabilities = RenderCapabilities.EPUB,
+                hasBookOverrides = false,
+                onPrefsChange = {}, onReset = {}, onDismiss = { dismissed = true },
+                keepScreenOn = false, onKeepScreenOnChange = {},
+                volumeKeyNavigationEnabled = false, onVolumeKeyNavigationEnabledChange = {},
+                invertVolumeKeys = false, onInvertVolumeKeysChange = {},
+            )
+        }
+        composeTestRule.activity.onBackPressedDispatcher.onBackPressed()
+        composeTestRule.waitForIdle()
+        assertTrue("Back press while sheet is open must invoke onDismiss", dismissed)
     }
 }
