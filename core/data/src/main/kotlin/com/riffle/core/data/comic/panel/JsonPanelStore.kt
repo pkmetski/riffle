@@ -103,8 +103,12 @@ class JsonPanelStore @Inject constructor(
          *  3 — projection-based grid detector as the primary path; connected-component becomes
          *      the fallback for irregular layouts. Different panel geometry from v2 on the same
          *      page — invalidate to re-detect.
+         *  4 — sanity check rejects panels smaller than 15% of a page dimension AND rejects
+         *      detections whose total panel coverage is < 40% of the page. Prevents Panel View
+         *      from forcing users through noise-island zooms on bleed-splash pages. v3 caches
+         *      held those garbage detections — invalidate to re-detect them as Fallback.
          */
-        internal const val CURRENT_SCHEMA_VERSION: Int = 3
+        internal const val CURRENT_SCHEMA_VERSION: Int = 4
 
         private val UNSAFE = Regex("[^A-Za-z0-9._-]")
         internal val PagesListSerializer = ListSerializer(PagePanels.serializer())

@@ -215,6 +215,42 @@ class PanelDetectorTest {
         }
     }
 
+    @Test
+    fun `bleed-splash-with-noise-islands falls back to Fit Whole`() {
+        // Simulates the bleed-splash failure mode from the user video: a mostly-content page
+        // (bleed art extending to every edge) with a handful of tiny noise blobs the naive CC
+        // step would pick up as "panels" and force Panel View to zoom into as blurry noise.
+        val grid = fixture(width = 400, height = 560) { canvas ->
+            canvas.fill(background = DARK)
+            // A few small (< 15% of page) noise islands scattered around.
+            canvas.rect(x = 20, y = 20, w = 30, h = 20, color = LIGHT)
+            canvas.rect(x = 100, y = 200, w = 15, h = 15, color = LIGHT)
+            canvas.rect(x = 350, y = 500, w = 25, h = 25, color = LIGHT)
+        }
+
+        val result = detector.detect(grid, pageIndex = 0, originalWidth = 400, originalHeight = 560)
+
+        assertEquals(PanelSource.Fallback, result.source)
+        assertEquals(1, result.panels.size)
+    }
+
+    @Test
+    fun `page with meaningful panels but insufficient coverage falls back`() {
+        // Two panels covering < 30% of the page (e.g. bleed-splash with just two small
+        // rectangular insets). Coverage sanity check rejects → Fallback rather than force
+        // Panel View to zoom into the two islands and skip the wider art.
+        val grid = fixture(width = 400, height = 560) { canvas ->
+            canvas.fill(background = LIGHT)
+            // Two panels ~5% of page each (roughly 10% total) — well under the 30% floor.
+            canvas.rect(x = 20, y = 20, w = 90, h = 130, color = DARK)
+            canvas.rect(x = 290, y = 20, w = 90, h = 130, color = DARK)
+        }
+
+        val result = detector.detect(grid, pageIndex = 0, originalWidth = 400, originalHeight = 560)
+
+        assertEquals(PanelSource.Fallback, result.source)
+    }
+
     // --- Fixture builders ---
 
     private val LIGHT: Byte = 240.toByte()

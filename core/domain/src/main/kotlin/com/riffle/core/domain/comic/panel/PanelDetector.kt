@@ -41,6 +41,23 @@ class PanelDetector(
         val overlapRejectFraction: Double = 0.25,
 
         /**
+         * A panel must span at least this fraction of the page in EITHER dimension. Anything
+         * smaller isn't a real panel worth zooming to — it's a noise island (e.g. an artifact
+         * inside a bleed-splash background). Rejecting them prevents Panel View from forcing
+         * the user through blurry meaningless zooms.
+         */
+        val minPanelDimensionFraction: Double = 0.15,
+
+        /**
+         * Total detected panel area must be at least this fraction of the page. Real
+         * multi-panel pages cover 60%+ of the page in panels (excluding gutter); the threshold
+         * is set well below that so sparse-but-real layouts (2 small panels on a mostly-white
+         * page) still pass, while pure-noise detections (a handful of tiny islands on a
+         * bleed-splash) are rejected. Tuned against the Batman video regression.
+         */
+        val minTotalCoverageFraction: Double = 0.3,
+
+        /**
          * A pixel is considered content if its luma differs from the detected page background by
          * at least this much (in `[0, 255]`). Handles both light-background comics (dark art on
          * white gutter) and dark-background comics (bright figures on black gutter) uniformly.
@@ -193,13 +210,57 @@ class PanelDetector(
             }
         }
 
+        val meaningful = applyGlobalSanityChecks(regions, originalWidth, originalHeight) ?: return null
         return PagePanels(
             pageIndex = pageIndex,
             imageWidth = originalWidth,
             imageHeight = originalHeight,
-            panels = regions,
+            panels = meaningful,
             source = PanelSource.Auto,
         )
+    }
+
+    /**
+     * Post-detection sanity checks applied to BOTH the projection and CC paths:
+     *  - drop panels smaller than [Config.minPanelDimensionFraction] of the page in both axes
+     *    (noise islands that would make Panel View force blurry zooms into meaningless regions);
+     *  - reject a single whole-page-ish panel as a splash / collapse;
+     *  - reject heavy pairwise overlap as detector confusion;
+     *  - require total panel coverage of at least [Config.minTotalCoverageFraction] of the page
+     *    (rules out "we only found some tiny artifacts on a bleed-splash page").
+     *
+     * Returns the filtered list, or null if the checks reject the whole result (→ Fallback).
+     */
+    private fun applyGlobalSanityChecks(
+        regions: List<PanelRegion>,
+        originalWidth: Int,
+        originalHeight: Int,
+    ): List<PanelRegion>? {
+        val pageArea = originalWidth.toLong() * originalHeight.toLong()
+        val minWidth = (originalWidth * config.minPanelDimensionFraction).toInt().coerceAtLeast(1)
+        val minHeight = (originalHeight * config.minPanelDimensionFraction).toInt().coerceAtLeast(1)
+        val meaningful = regions.filter { it.width >= minWidth || it.height >= minHeight }
+        if (meaningful.isEmpty()) return null
+
+        if (meaningful.size == 1) {
+            val fraction = meaningful[0].area().toDouble() / pageArea.toDouble()
+            if (fraction >= config.wholePagePanelThreshold) return null
+        }
+
+        for (i in meaningful.indices) {
+            for (j in i + 1 until meaningful.size) {
+                val a = meaningful[i]
+                val b = meaningful[j]
+                val smaller = if (a.area() <= b.area()) a else b
+                val larger = if (a.area() <= b.area()) b else a
+                if (larger.overlapFraction(smaller) > config.overlapRejectFraction) return null
+            }
+        }
+
+        val totalPanelArea = meaningful.sumOf { it.area() }
+        if (totalPanelArea.toDouble() / pageArea.toDouble() < config.minTotalCoverageFraction) return null
+
+        return meaningful
     }
 
     private data class Band(val start: Int, val end: Int)
@@ -597,30 +658,12 @@ class PanelDetector(
             )
         }
 
-        val pageArea = originalWidth.toLong() * originalHeight.toLong()
-
-        // Single whole-page-ish panel → treat as splash / collapsed detection, fall back.
-        if (regions.size == 1) {
-            val fraction = regions[0].area().toDouble() / pageArea.toDouble()
-            if (fraction >= config.wholePagePanelThreshold) return null
-        }
-
-        // Heavy pairwise overlap → detector is confused, fall back.
-        for (i in regions.indices) {
-            for (j in i + 1 until regions.size) {
-                val a = regions[i]
-                val b = regions[j]
-                val smaller = if (a.area() <= b.area()) a else b
-                val larger = if (a.area() <= b.area()) b else a
-                if (larger.overlapFraction(smaller) > config.overlapRejectFraction) return null
-            }
-        }
-
+        val meaningful = applyGlobalSanityChecks(regions, originalWidth, originalHeight) ?: return null
         return PagePanels(
             pageIndex = pageIndex,
             imageWidth = originalWidth,
             imageHeight = originalHeight,
-            panels = regions,
+            panels = meaningful,
             source = PanelSource.Auto,
         )
     }
