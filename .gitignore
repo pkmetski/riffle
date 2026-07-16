@@ -34,3 +34,6 @@ gradle/gradle-daemon-jvm.properties
 
 # Local Claude Code runtime lock (transient)
 .claude/scheduled_tasks.lock
+
+# Copyrighted comic-page fixtures — see PanelDetectorRealImageTest; add locally only
+core/domain/src/test/resources/comic-panel-fixtures/batman_*.jpg
