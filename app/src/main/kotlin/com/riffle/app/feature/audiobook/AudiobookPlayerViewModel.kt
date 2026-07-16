@@ -133,6 +133,9 @@ data class AudiobookPlayerUiState(
     val speed: Float = 1f,
     val positionSec: Double = 0.0,
     val durationSec: Double = 0.0,
+    // Book-absolute position up to which audio has buffered ahead of [positionSec]. Rendered as a
+    // lighter fill on the seek bar, YouTube/Spotify-style.
+    val bufferedPositionSec: Double = 0.0,
     val currentChapterTitle: String? = null,
     val chapterStartsSec: List<Double> = emptyList(),
     // The full chapter list + the index of the chapter the playhead is in, for the Chapters sheet.
@@ -316,6 +319,7 @@ class AudiobookPlayerViewModel @Inject constructor(
                 speed = playback.speed,
                 positionSec = pos,
                 durationSec = if (playback.durationSec > 0) playback.durationSec else m.durationSec,
+                bufferedPositionSec = playback.bufferedSec,
                 currentChapterTitle = chapter?.title,
                 chapterStartsSec = timeline.chapters.map { it.startSec },
                 chapters = timeline.chapters,

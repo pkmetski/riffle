@@ -88,6 +88,9 @@ data class PlayerSurfaceState(
     val speed: Float = 1f,
     val positionSec: Double = 0.0,
     val durationSec: Double = 0.0,
+    // Book-absolute buffered-ahead position. Rendered as a lighter band between the played fill and
+    // the base track; a value ≤ [positionSec] draws nothing extra (so the default 0 is inert).
+    val bufferedPositionSec: Double = 0.0,
     val currentChapterTitle: String? = null,
     val chapterStartsSec: List<Double> = emptyList(),
     // Absolute positions (seconds, global timeline) of the user's bookmarks, drawn as thin ticks on
@@ -276,6 +279,7 @@ private fun PlayerControls(state: PlayerSurfaceState, actions: PlayerSurfaceActi
         ChapterSeekBar(
             positionSec = state.positionSec,
             durationSec = state.durationSec,
+            bufferedPositionSec = state.bufferedPositionSec,
             chapterStartsSec = state.chapterStartsSec,
             bookmarkPositionsSec = state.bookmarkPositionsSec,
             onSeek = actions.onSeek,
@@ -424,12 +428,16 @@ private fun DualTime(state: PlayerSurfaceState) {
 private fun ChapterSeekBar(
     positionSec: Double,
     durationSec: Double,
+    bufferedPositionSec: Double,
     chapterStartsSec: List<Double>,
     bookmarkPositionsSec: List<Double>,
     onSeek: (Double) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val accent = MaterialTheme.colorScheme.primary
+    // Buffered-ahead band: same hue as the played fill, muted so it reads as "loaded, not played yet"
+    // against the accent-filled portion below the playhead and the base-track above it.
+    val buffered = accent.copy(alpha = 0.35f)
     val track = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.16f)
     val tickColor = MaterialTheme.colorScheme.background
     // Bookmark ticks read over both the filled and unfilled track; onSurfaceVariant contrasts with
@@ -475,6 +483,16 @@ private fun ChapterSeekBar(
             val frac = if (durationSec > 0) (displayedSec / durationSec).coerceIn(0.0, 1.0).toFloat() else 0f
             // base track
             drawRoundRect(color = track, size = size, cornerRadius = CornerRadius(h / 2, h / 2))
+            // buffered-ahead band (rendered under the filled portion so its right edge extends past
+            // the playhead; hidden when nothing is buffered past the current position).
+            if (durationSec > 0 && bufferedPositionSec > displayedSec) {
+                val bufFrac = (bufferedPositionSec / durationSec).coerceIn(0.0, 1.0).toFloat()
+                drawRoundRect(
+                    color = buffered,
+                    size = Size(w * bufFrac, h),
+                    cornerRadius = CornerRadius(h / 2, h / 2),
+                )
+            }
             // filled portion
             drawRoundRect(
                 color = accent,
