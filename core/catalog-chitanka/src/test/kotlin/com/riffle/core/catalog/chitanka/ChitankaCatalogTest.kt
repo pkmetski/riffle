@@ -515,6 +515,71 @@ class ChitankaCatalogTest {
         assertEquals(0, probed)
     }
 
+    /**
+     * Regression: `barabanchik--duhyt-v-shisheto--baa1831` scraped "43мин" total but the
+     * chapter drawer summed to ~25 min. Xing probing fell through to the 128 kbps CBR
+     * fallback on those ~72 kbps VBR files, halving the per-track durations. When probes
+     * clearly underestimate the scraped total (< [PROBE_UNDERESTIMATE_THRESHOLD]), the
+     * scraped value is authoritative and gets distributed proportionally by content-length.
+     */
+    @Test fun `resolveTrackDurationsSec distributes scraped total by bytes when probes underestimate`() {
+        // Real-world fixture: barabanchik + duhyt_v_shisheto MP3 sizes and 128 kbps fallback probes.
+        val probes = listOf(
+            ChitankaCatalog.Companion.TrackProbe(probedSec = 760.1, bytes = 12_161_710L),  // ~half of real 1352s
+            ChitankaCatalog.Companion.TrackProbe(probedSec = 704.9, bytes = 11_279_141L),  // ~half of real 1264s
+        )
+        val scraped = 43.0 * 60.0
+        val result = ChitankaCatalog.resolveTrackDurationsSec(probes, scraped)
+        // Total must match scraped, distribution must be proportional to bytes.
+        assertEquals(scraped, result.sum(), 0.001)
+        val expectedFirst = scraped * 12_161_710.0 / (12_161_710.0 + 11_279_141.0)
+        assertEquals(expectedFirst, result[0], 0.001)
+    }
+
+    @Test fun `resolveTrackDurationsSec trusts probes when they match scraped total`() {
+        val probes = listOf(
+            ChitankaCatalog.Companion.TrackProbe(probedSec = 1352.9, bytes = 12_161_710L),
+            ChitankaCatalog.Companion.TrackProbe(probedSec = 1264.2, bytes = 11_279_141L),
+        )
+        val scraped = 43.0 * 60.0  // 2580 s; probes sum to 2617 s (>= 90% of scraped)
+        val result = ChitankaCatalog.resolveTrackDurationsSec(probes, scraped)
+        assertEquals(listOf(1352.9, 1264.2), result)
+    }
+
+    @Test fun `resolveTrackDurationsSec trusts probes when no scraped total is available`() {
+        val probes = listOf(
+            ChitankaCatalog.Companion.TrackProbe(probedSec = 1000.0, bytes = 0L),
+            ChitankaCatalog.Companion.TrackProbe(probedSec = 500.0, bytes = 0L),
+        )
+        val result = ChitankaCatalog.resolveTrackDurationsSec(probes, scrapedTotalSec = 0.0)
+        assertEquals(listOf(1000.0, 500.0), result)
+    }
+
+    @Test fun `resolveTrackDurationsSec distributes by bytes when probes all failed`() {
+        val probes = listOf(
+            ChitankaCatalog.Companion.TrackProbe(probedSec = null, bytes = 3_000_000L),
+            ChitankaCatalog.Companion.TrackProbe(probedSec = null, bytes = 1_000_000L),
+        )
+        val scraped = 400.0
+        val result = ChitankaCatalog.resolveTrackDurationsSec(probes, scraped)
+        assertEquals(300.0, result[0], 0.001)
+        assertEquals(100.0, result[1], 0.001)
+    }
+
+    @Test fun `resolveTrackDurationsSec falls back to CBR math when neither probe nor scraped total available`() {
+        val probes = listOf(
+            ChitankaCatalog.Companion.TrackProbe(probedSec = null, bytes = 128_000L),  // 8s at 128 kbps
+            ChitankaCatalog.Companion.TrackProbe(probedSec = 42.0, bytes = 0L),
+        )
+        val result = ChitankaCatalog.resolveTrackDurationsSec(probes, scrapedTotalSec = 0.0)
+        assertEquals(8.0, result[0], 0.001)
+        assertEquals(42.0, result[1], 0.001)
+    }
+
+    @Test fun `resolveTrackDurationsSec returns empty for empty input`() {
+        assertEquals(emptyList<Double>(), ChitankaCatalog.resolveTrackDurationsSec(emptyList(), 60.0))
+    }
+
     @Test fun `parseGramofoncheDurationSeconds returns zero when unknown`() {
         assertEquals(0.0, ChitankaCatalog.parseGramofoncheDurationSeconds(null), 0.0)
         assertEquals(0.0, ChitankaCatalog.parseGramofoncheDurationSeconds(""), 0.0)
