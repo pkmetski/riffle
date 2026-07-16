@@ -39,7 +39,10 @@ class JsonPanelStore @Inject constructor(
         val text = runCatching { file.readText(Charsets.UTF_8) }.getOrNull() ?: return emptyMap()
         val doc = runCatching { json.decodeFromString(BookFile.serializer(), text) }.getOrNull()
             ?: return emptyMap()
-        if (doc.bookId != bookId) return emptyMap()
+        // Any mismatch (wrong bookId → filename collision, older schema version → detector change)
+        // is treated as a miss so we re-detect on the next open. Older schema versions get
+        // silently overwritten when save/saveAll writes the current version back.
+        if (doc.bookId != bookId || doc.schemaVersion != CURRENT_SCHEMA_VERSION) return emptyMap()
         return doc.pages.associateBy { it.pageIndex }
     }
 
@@ -60,7 +63,11 @@ class JsonPanelStore @Inject constructor(
     }
 
     private fun writeBook(bookId: String, pages: List<PagePanels>) {
-        val doc = BookFile(bookId = bookId, pages = pages)
+        val doc = BookFile(
+            schemaVersion = CURRENT_SCHEMA_VERSION,
+            bookId = bookId,
+            pages = pages,
+        )
         val tmp = File(rootDir, "${safe(bookId)}.json.tmp")
         tmp.writeText(json.encodeToString(BookFile.serializer(), doc), Charsets.UTF_8)
         if (!tmp.renameTo(fileFor(bookId))) {
@@ -76,13 +83,27 @@ class JsonPanelStore @Inject constructor(
 
     @Serializable
     private data class BookFile(
+        // Missing on files written before the field was added (v1) — Serializable defaults it to
+        // 1, so those pre-versioning caches read back as v1 and mismatch the current version
+        // (currently 2, bumped when the detector algorithm changes materially).
+        val schemaVersion: Int = 1,
         val bookId: String,
         val pages: List<PagePanels>,
     )
 
     companion object {
+        /**
+         * Bump when the detector output changes materially (algorithm, coordinate space, panel
+         * geometry). Files written with a different version are treated as a cache miss.
+         *
+         * History:
+         *  1 — original single-pass value-based binarize + auto-invert (first landed panel view).
+         *  2 — two-pass content-vs-background classifier; auto-invert removed. Files written under
+         *      v1 held Fallback results for dark-gutter comics that the v2 detector handles.
+         */
+        internal const val CURRENT_SCHEMA_VERSION: Int = 2
+
         private val UNSAFE = Regex("[^A-Za-z0-9._-]")
-        // Package-private serializer for the pages list — kept for potential external callers/tests.
         internal val PagesListSerializer = ListSerializer(PagePanels.serializer())
     }
 }

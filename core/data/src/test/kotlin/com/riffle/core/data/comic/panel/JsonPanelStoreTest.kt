@@ -110,6 +110,47 @@ class JsonPanelStoreTest {
     }
 
     @Test
+    fun `on-disk file written with an older schema version is treated as a miss`() {
+        // Simulate a v1 (pre-fix) cache file with a Fallback result — the exact failure that
+        // stranded users on the whole-page reader after the detector algorithm was fixed but
+        // the cache still returned Fallback.
+        val file = File(rootDir, "book-1.json")
+        val legacyJson = """
+            {"schemaVersion":1,"bookId":"book-1","pages":[
+              {"pageIndex":0,"imageWidth":400,"imageHeight":560,
+               "panels":[{"x":0,"y":0,"width":400,"height":560}],"source":"Fallback"}
+            ]}
+        """.trimIndent()
+        file.writeText(legacyJson)
+
+        // load / loadAll should NOT return the stale Fallback — caller re-detects.
+        assertNull(store.load("book-1", 0))
+        assertTrue(store.loadAll("book-1").isEmpty())
+    }
+
+    @Test
+    fun `a file without any schemaVersion field is treated as version 1 and rejected`() {
+        // Some early builds wrote no schema field at all. kotlinx-serialization defaults the
+        // property to 1, which mismatches the current version → treated as a miss.
+        val file = File(rootDir, "book-1.json")
+        file.writeText("""{"bookId":"book-1","pages":[]}""")
+        assertNull(store.load("book-1", 0))
+    }
+
+    @Test
+    fun `saving stamps the current schema version so reloads are cache-hits`() {
+        val page = samplePage(0)
+        store.save("book-1", page)
+        // File must be tagged with the current version and reload cleanly.
+        assertEquals(page, store.load("book-1", 0))
+        val text = File(rootDir, "book-1.json").readText()
+        assertTrue(
+            "expected \"schemaVersion\":${JsonPanelStore.CURRENT_SCHEMA_VERSION} in $text",
+            text.contains("\"schemaVersion\":${JsonPanelStore.CURRENT_SCHEMA_VERSION}"),
+        )
+    }
+
+    @Test
     fun `Fallback page round-trips`() {
         val fallback = PagePanels(
             pageIndex = 2,
