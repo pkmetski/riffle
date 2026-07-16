@@ -119,6 +119,7 @@ annotation class CbzDownloadsStore
         StreamingAudioModule::class,
         RepositoriesModule::class,
         SyncModule::class,
+        com.riffle.core.data.di.modules.PanelModule::class,
     ],
 )
 @InstallIn(SingletonComponent::class)

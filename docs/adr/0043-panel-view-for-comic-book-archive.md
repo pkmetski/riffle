@@ -9,14 +9,15 @@
 Kindle's Panel View works only on comics that were authored with region metadata (Kindle Comic Creator). That model is a non-starter for Riffle: the CBZ files a user gets from their ABS instance or LocalFiles folders have no publisher panel metadata, so a metadata-only feature would be unavailable for essentially all real content. Komelia's model — client-side auto-detection — is the only one that pays off for our audience.
 
 Resolution order on each page:
-1. If the archive contains **ACBF** with `<frame>` sequences, use them verbatim.
-2. Else if the archive contains **`ComicInfo.xml`** with panel regions, use them verbatim.
-3. Else run the auto-detector (below) at first entry to the page.
-4. If detection produces an implausible result (0 panels, or 1 panel covering ≥95% of the page), fall back to Fit Whole for that page — Panel View stays on, that page just renders whole.
+1. If the archive contains **ACBF** with `<frame>` sequences, use them verbatim (polygons collapse to axis-aligned bboxes; the polygon form exists for exotic layouts and is not worth honouring in v1).
+2. Else run the auto-detector (below) at first entry to the page.
+3. If detection produces an implausible result (0 panels, or 1 panel covering ≥95% of the page), fall back to Fit Whole for that page — Panel View stays on, that page just renders whole.
+
+**Standard `ComicInfo.xml` has no panel-region field** — its `<Pages>` element only carries per-page metadata (Type, Size, ImageSize). Some downstream tools embed extensions, but none is a de-facto standard worth targeting; ACBF remains the only viable metadata source for panel regions in v1.
 
 Consequences:
 - No claim of perfect panel fidelity. The feature is best-effort by contract.
-- Layering ACBF / `ComicInfo.xml` on top of auto-detect is purely additive; the day someone drops in a properly-authored file, we honour it for free.
+- Layering ACBF on top of auto-detect is purely additive; the day someone drops in an ACBF-annotated file, we honour it for free.
 
 ### 2. Hand-rolled flood-fill-on-connected-gutter detector, no OpenCV
 
