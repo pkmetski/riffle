@@ -32,7 +32,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         LocalFilesFileFolderEntity::class,
         RemoteItemFreshnessEntity::class,
     ],
-    version = 54,
+    version = 56,
     exportSchema = true,
 )
 abstract class RiffleDatabase : RoomDatabase() {
@@ -1544,6 +1544,33 @@ abstract class RiffleDatabase : RoomDatabase() {
                         "`lastFetchedAt` INTEGER NOT NULL, " +
                         "PRIMARY KEY(`sourceId`, `sourceItemId`), " +
                         "FOREIGN KEY(`sourceId`) REFERENCES `sources`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE)"
+                )
+            }
+        }
+
+        // TTL bit on the audiobook chapter cache. Rows previously lived forever, so a bad
+        // getAudiobookChapters result (e.g. the Gramofonche 128 kbps mis-derivation that
+        // shipped chapters at half their real length) stuck on-device with no self-heal
+        // path. Add a `cachedAt` timestamp; the repository treats rows older than its TTL
+        // as absent and re-fetches. Default 0 means every pre-existing row is considered
+        // maximally stale and refreshes on next open — the desired one-shot cache purge
+        // for the Gramofonche fix.
+        val MIGRATION_54_55 = object : Migration(54, 55) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "ALTER TABLE `audiobook_chapter_cache` ADD COLUMN `cachedAt` INTEGER NOT NULL DEFAULT 0"
+                )
+            }
+        }
+
+        // Same TTL pattern for `toc_cache` — its twin. Content-change invalidation via
+        // `ebookFileIno` catches "the file changed under us," but a derivation-logic fix
+        // (say, a Readium TOC parser bug) would otherwise stick forever for anyone who
+        // opened the book before the fix. Default 0 forces re-extraction on next open.
+        val MIGRATION_55_56 = object : Migration(55, 56) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "ALTER TABLE `toc_cache` ADD COLUMN `cachedAt` INTEGER NOT NULL DEFAULT 0"
                 )
             }
         }

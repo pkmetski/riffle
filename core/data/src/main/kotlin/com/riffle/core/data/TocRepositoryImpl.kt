@@ -2,6 +2,7 @@ package com.riffle.core.data
 
 import com.riffle.core.database.TocCacheDao
 import com.riffle.core.database.TocCacheEntity
+import com.riffle.core.domain.Clock
 import com.riffle.core.domain.TocEntry
 import com.riffle.core.domain.TocRepository
 import kotlinx.serialization.encodeToString
@@ -10,12 +11,14 @@ import javax.inject.Inject
 
 class TocRepositoryImpl @Inject constructor(
     private val dao: TocCacheDao,
+    private val clock: Clock,
 ) : TocRepository {
 
     private val json = Json { ignoreUnknownKeys = true }
 
     override suspend fun getCachedToc(sourceId: String, itemId: String): Pair<String, List<TocEntry>>? {
         val entity = dao.get(sourceId, itemId) ?: return null
+        if (clock.nowMs() - entity.cachedAt >= CACHE_TTL_MS) return null
         val entries = json.decodeFromString<List<TocEntry>>(entity.entriesJson)
         return entity.ebookFileIno to entries
     }
@@ -26,6 +29,25 @@ class TocRepositoryImpl @Inject constructor(
         ebookFileIno: String,
         entries: List<TocEntry>,
     ) {
-        dao.upsert(TocCacheEntity(sourceId, itemId, ebookFileIno, json.encodeToString(entries)))
+        dao.upsert(
+            TocCacheEntity(
+                sourceId = sourceId,
+                itemId = itemId,
+                ebookFileIno = ebookFileIno,
+                entriesJson = json.encodeToString(entries),
+                cachedAt = clock.nowMs(),
+            )
+        )
+    }
+
+    companion object {
+        /**
+         * How long a cached TOC is trusted before we re-extract. Same rationale as
+         * [AudiobookChapterCacheRepositoryImpl.CACHE_TTL_MS] — bounded ride-along for
+         * derivation-logic fixes. Content changes still invalidate immediately via the
+         * ebookFileIno key mismatch in [ExtractEpubTocUseCase]; the TTL is for the case
+         * where the file is unchanged but our extraction produces a better result.
+         */
+        internal const val CACHE_TTL_MS: Long = 7L * 24L * 60L * 60L * 1000L
     }
 }

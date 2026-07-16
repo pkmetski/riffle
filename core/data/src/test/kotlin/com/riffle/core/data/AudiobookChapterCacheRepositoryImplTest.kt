@@ -20,6 +20,7 @@ import com.riffle.core.database.AudiobookChapterCacheEntity
 import com.riffle.core.domain.AudiobookChapter
 import com.riffle.core.domain.Source
 import com.riffle.core.domain.SourceType
+import com.riffle.core.domain.TestClock
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
@@ -27,6 +28,10 @@ import org.junit.Assert.assertNull
 import org.junit.Test
 
 class AudiobookChapterCacheRepositoryImplTest {
+
+    private companion object {
+        const val NOW_MS: Long = 1_760_000_000_000L
+    }
 
     private class FakeAudiobookChapterCacheDao : AudiobookChapterCacheDao {
         val store = mutableMapOf<Pair<String, String>, AudiobookChapterCacheEntity>()
@@ -67,7 +72,7 @@ class AudiobookChapterCacheRepositoryImplTest {
     @Test
     fun `getCachedChapters returns null when no cache`() = runTest {
         val dao = FakeAudiobookChapterCacheDao()
-        val repo = AudiobookChapterCacheRepositoryImpl(dao, FakeRegistry(null))
+        val repo = AudiobookChapterCacheRepositoryImpl(dao, FakeRegistry(null), TestClock(NOW_MS))
 
         assertNull(repo.getCachedChapters("srv", "item"))
     }
@@ -76,8 +81,8 @@ class AudiobookChapterCacheRepositoryImplTest {
     fun `getCachedChapters returns deserialized chapters`() = runTest {
         val dao = FakeAudiobookChapterCacheDao()
         val json = """[{"index":0,"startSec":0.0,"endSec":300.0,"title":"Intro"}]"""
-        dao.store["srv" to "item"] = AudiobookChapterCacheEntity("srv", "item", json)
-        val repo = AudiobookChapterCacheRepositoryImpl(dao, FakeRegistry(null))
+        dao.store["srv" to "item"] = AudiobookChapterCacheEntity("srv", "item", json, cachedAt = NOW_MS)
+        val repo = AudiobookChapterCacheRepositoryImpl(dao, FakeRegistry(null), TestClock(NOW_MS))
 
         val result = repo.getCachedChapters("srv", "item")
         assertNotNull(result)
@@ -90,7 +95,7 @@ class AudiobookChapterCacheRepositoryImplTest {
     fun `fetchAndCacheChapters calls catalog, maps chapters, and upserts`() = runTest {
         val dao = FakeAudiobookChapterCacheDao()
         val catalog = FakeCatalog(listOf(CatalogAudiobookChapter(0, 0.0, 600.0, "Ch 1")))
-        val repo = AudiobookChapterCacheRepositoryImpl(dao, FakeRegistry(catalog))
+        val repo = AudiobookChapterCacheRepositoryImpl(dao, FakeRegistry(catalog), TestClock(NOW_MS))
 
         val result = repo.fetchAndCacheChapters("srv", "item")
 
@@ -109,12 +114,69 @@ class AudiobookChapterCacheRepositoryImplTest {
     @Test
     fun `fetchAndCacheChapters returns empty list on network error`() = runTest {
         val dao = FakeAudiobookChapterCacheDao()
-        val repo = AudiobookChapterCacheRepositoryImpl(dao, FakeRegistry(FakeCatalog(chapters = null, fail = true)))
+        val repo = AudiobookChapterCacheRepositoryImpl(dao, FakeRegistry(FakeCatalog(chapters = null, fail = true)), TestClock(NOW_MS))
 
         val result = repo.fetchAndCacheChapters("srv", "item")
 
         assertEquals(emptyList<AudiobookChapter>(), result)
         assert(!dao.upsertCalled) { "dao.upsert should NOT have been called on error" }
+    }
+
+    /**
+     * Regression: chapter cache used to live forever, so a buggy `getAudiobookChapters`
+     * result (e.g. Gramofonche chapters at half real length before the 128 kbps fallback
+     * fix) stuck on-device with no self-heal. TTL rejects rows older than
+     * [AudiobookChapterCacheRepositoryImpl.CACHE_TTL_MS] so the next open re-fetches.
+     */
+    @Test
+    fun `getCachedChapters returns null when entry is older than TTL`() = runTest {
+        val dao = FakeAudiobookChapterCacheDao()
+        val json = """[{"index":0,"startSec":0.0,"endSec":300.0,"title":"Stale"}]"""
+        val cachedAt = NOW_MS - AudiobookChapterCacheRepositoryImpl.CACHE_TTL_MS - 1
+        dao.store["srv" to "item"] = AudiobookChapterCacheEntity("srv", "item", json, cachedAt)
+        val repo = AudiobookChapterCacheRepositoryImpl(dao, FakeRegistry(null), TestClock(NOW_MS))
+
+        assertNull(repo.getCachedChapters("srv", "item"))
+    }
+
+    @Test
+    fun `getCachedChapters returns cached entry right at the TTL boundary`() = runTest {
+        val dao = FakeAudiobookChapterCacheDao()
+        val json = """[{"index":0,"startSec":0.0,"endSec":300.0,"title":"Fresh"}]"""
+        val cachedAt = NOW_MS - AudiobookChapterCacheRepositoryImpl.CACHE_TTL_MS + 1
+        dao.store["srv" to "item"] = AudiobookChapterCacheEntity("srv", "item", json, cachedAt)
+        val repo = AudiobookChapterCacheRepositoryImpl(dao, FakeRegistry(null), TestClock(NOW_MS))
+
+        val result = repo.getCachedChapters("srv", "item")
+        assertNotNull(result)
+        assertEquals("Fresh", result!![0].title)
+    }
+
+    /**
+     * Existing rows migrated from the pre-TTL schema carry `cachedAt = 0` (DEFAULT 0 in
+     * MIGRATION_54_55). They must be treated as maximally stale so any pre-existing bad
+     * cache heals on next open — the whole reason we're shipping the TTL alongside the
+     * Gramofonche chapter-duration fix.
+     */
+    @Test
+    fun `getCachedChapters treats migrated rows with cachedAt=0 as stale`() = runTest {
+        val dao = FakeAudiobookChapterCacheDao()
+        val json = """[{"index":0,"startSec":0.0,"endSec":300.0,"title":"Pre-migration"}]"""
+        dao.store["srv" to "item"] = AudiobookChapterCacheEntity("srv", "item", json, cachedAt = 0L)
+        val repo = AudiobookChapterCacheRepositoryImpl(dao, FakeRegistry(null), TestClock(NOW_MS))
+
+        assertNull(repo.getCachedChapters("srv", "item"))
+    }
+
+    @Test
+    fun `fetchAndCacheChapters stamps cachedAt with the current clock`() = runTest {
+        val dao = FakeAudiobookChapterCacheDao()
+        val catalog = FakeCatalog(listOf(CatalogAudiobookChapter(0, 0.0, 60.0, "One")))
+        val repo = AudiobookChapterCacheRepositoryImpl(dao, FakeRegistry(catalog), TestClock(NOW_MS))
+
+        repo.fetchAndCacheChapters("srv", "item")
+
+        assertEquals(NOW_MS, dao.store["srv" to "item"]!!.cachedAt)
     }
 
     @Test
@@ -124,7 +186,7 @@ class AudiobookChapterCacheRepositoryImplTest {
             CatalogAudiobookChapter(0, 0.0, 300.0, "Prologue"),
             CatalogAudiobookChapter(1, 300.0, 900.0, "Chapter 1"),
         ))
-        val repo = AudiobookChapterCacheRepositoryImpl(dao, FakeRegistry(catalog))
+        val repo = AudiobookChapterCacheRepositoryImpl(dao, FakeRegistry(catalog), TestClock(NOW_MS))
 
         repo.fetchAndCacheChapters("srv", "item")
         val cached = repo.getCachedChapters("srv", "item")
