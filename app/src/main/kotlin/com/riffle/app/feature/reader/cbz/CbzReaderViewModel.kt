@@ -30,7 +30,6 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -168,9 +167,12 @@ class CbzReaderViewModel @Inject constructor(
             ?: 0
         _currentPage.value = resumeIndex
         lastSavedPage = resumeIndex
-        // Restore panel resume marker if it matches the page we're landing on.
-        val stored = panelViewPreferencesStore.state(bookId).first()
-        _currentPanelIndex.value = stored.panelIndexForPage(resumeIndex)
+        // Always start Panel View at the first panel on book open. Resuming to the last-seen
+        // panel across sessions is confusing — a user re-opens the book and Panel View lands
+        // them mid-page in a way that reads as "starts on the right" (or wherever they
+        // happened to close). Panel index still walks correctly during the reading session
+        // (nextPanel / previousPanel) and page turns reset it to 0.
+        _currentPanelIndex.value = 0
 
         panelBook = panelOrchestrator.forBook(
             bookId = bookId,
