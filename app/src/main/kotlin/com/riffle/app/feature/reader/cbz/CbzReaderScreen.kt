@@ -1,7 +1,11 @@
 package com.riffle.app.feature.reader.cbz
 
 import android.view.WindowManager
+import android.provider.Settings
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.snap
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
@@ -70,7 +74,7 @@ import coil.size.Size as CoilSize
 import com.riffle.app.feature.reader.VolumeNavEvent
 import com.riffle.app.feature.reader.rememberImmersiveModeState
 import com.riffle.core.domain.comic.panel.PagePanels
-import kotlin.math.min
+import com.riffle.core.domain.comic.panel.PanelFitTransform
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -410,36 +414,43 @@ private fun CbzPanelViewer(
         val fitWhole = pagePanels == null || pagePanels.isFallback || panels.isNullOrEmpty() || peeking
         val panel = if (!fitWhole) panels?.getOrNull(panelIndex.coerceIn(0, panels.size - 1)) else null
 
-        val zoomScale: Float
-        val translationX: Float
-        val translationY: Float
-        if (
-            panel != null && viewportW > 0 && viewportH > 0 &&
-            pagePanels != null && pagePanels.imageWidth > 0 && pagePanels.imageHeight > 0
-        ) {
-            val fitScale = min(
-                viewportW.toFloat() / pagePanels.imageWidth.toFloat(),
-                viewportH.toFloat() / pagePanels.imageHeight.toFloat(),
+        val transform = if (panel != null && pagePanels != null) {
+            PanelFitTransform.compute(
+                viewportWidth = viewportW,
+                viewportHeight = viewportH,
+                imageWidth = pagePanels.imageWidth,
+                imageHeight = pagePanels.imageHeight,
+                panel = panel,
             )
-            val displayedW = pagePanels.imageWidth * fitScale
-            val displayedH = pagePanels.imageHeight * fitScale
-            val letterboxX = (viewportW - displayedW) / 2f
-            val letterboxY = (viewportH - displayedH) / 2f
-            val panelDisplayedW = panel.width * fitScale
-            val panelDisplayedH = panel.height * fitScale
-            zoomScale = min(
-                viewportW.toFloat() / panelDisplayedW,
-                viewportH.toFloat() / panelDisplayedH,
-            )
-            val panelCentroidX = letterboxX + (panel.x + panel.width / 2f) * fitScale
-            val panelCentroidY = letterboxY + (panel.y + panel.height / 2f) * fitScale
-            translationX = zoomScale * (viewportW / 2f - panelCentroidX)
-            translationY = zoomScale * (viewportH / 2f - panelCentroidY)
         } else {
-            zoomScale = 1f
-            translationX = 0f
-            translationY = 0f
+            PanelFitTransform.Identity
         }
+        val zoomScale = transform.scale
+        val translationX = transform.translationX
+        val translationY = transform.translationY
+
+        // Animate scale + translation between panels. Declarative — Compose interpolates
+        // whenever the target values change, and a mid-flight change simply re-targets
+        // (interrupt semantics — ADR 0043 §4). Reduce Motion collapses to a snap.
+        val reduceMotion = remember(context) { isReduceMotionEnabled(context) }
+        val animationSpec = remember(reduceMotion) {
+            if (reduceMotion) snap<Float>() else tween<Float>(durationMillis = 250)
+        }
+        val animatedScale by animateFloatAsState(
+            targetValue = zoomScale,
+            animationSpec = animationSpec,
+            label = "cbz_panel_scale",
+        )
+        val animatedTx by animateFloatAsState(
+            targetValue = translationX,
+            animationSpec = animationSpec,
+            label = "cbz_panel_tx",
+        )
+        val animatedTy by animateFloatAsState(
+            targetValue = translationY,
+            animationSpec = animationSpec,
+            label = "cbz_panel_ty",
+        )
 
         SubcomposeAsyncImage(
             model = ImageRequest.Builder(context)
@@ -451,10 +462,10 @@ private fun CbzPanelViewer(
             modifier = Modifier
                 .fillMaxSize()
                 .graphicsLayer(
-                    scaleX = zoomScale,
-                    scaleY = zoomScale,
-                    translationX = translationX,
-                    translationY = translationY,
+                    scaleX = animatedScale,
+                    scaleY = animatedScale,
+                    translationX = animatedTx,
+                    translationY = animatedTy,
                 ),
         )
 
@@ -580,6 +591,23 @@ private fun CbzThumbnail(
 }
 
 private enum class TapZone { Left, Center, Right }
+
+/**
+ * Honour the OS Reduce Motion setting. When any of the animation scales is 0 the user has asked
+ * the platform to skip transition animations; we collapse Panel View's Matrix interpolation to
+ * an instant snap.
+ */
+private fun isReduceMotionEnabled(context: android.content.Context): Boolean {
+    val cr = context.contentResolver
+    fun getScale(name: String): Float = try {
+        Settings.Global.getFloat(cr, name, 1f)
+    } catch (_: Throwable) {
+        1f
+    }
+    return getScale(Settings.Global.ANIMATOR_DURATION_SCALE) == 0f ||
+        getScale(Settings.Global.TRANSITION_ANIMATION_SCALE) == 0f ||
+        getScale(Settings.Global.WINDOW_ANIMATION_SCALE) == 0f
+}
 
 internal enum class CbzPageGestureAction { Ignore, Zoom, PanZoomed }
 
