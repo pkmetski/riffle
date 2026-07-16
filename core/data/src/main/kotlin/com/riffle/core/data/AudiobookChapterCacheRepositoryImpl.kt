@@ -7,6 +7,7 @@ import com.riffle.core.database.AudiobookChapterCacheEntity
 import com.riffle.core.domain.AudiobookChapter
 import com.riffle.core.domain.AudiobookChapterCacheRepository
 import com.riffle.core.domain.Clock
+import com.riffle.core.domain.isDerivedCacheStale
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import javax.inject.Inject
@@ -21,8 +22,13 @@ class AudiobookChapterCacheRepositoryImpl @Inject constructor(
 
     override suspend fun getCachedChapters(sourceId: String, itemId: String): List<AudiobookChapter>? {
         val entity = dao.get(sourceId, itemId) ?: return null
-        if (clock.nowMs() - entity.cachedAt >= CACHE_TTL_MS) return null
-        return json.decodeFromString<List<AudiobookChapter>>(entity.chaptersJson)
+        if (isDerivedCacheStale(clock.nowMs(), entity.cachedAt)) return null
+        return decode(entity)
+    }
+
+    override suspend fun getStaleCachedChapters(sourceId: String, itemId: String): List<AudiobookChapter>? {
+        val entity = dao.get(sourceId, itemId) ?: return null
+        return decode(entity)
     }
 
     override suspend fun fetchAndCacheChapters(sourceId: String, itemId: String): List<AudiobookChapter> {
@@ -41,16 +47,6 @@ class AudiobookChapterCacheRepositoryImpl @Inject constructor(
         return chapters
     }
 
-    companion object {
-        /**
-         * How long a cached chapter list is trusted before we re-fetch. Chapter data changes
-         * rarely, so a week is comfortable for the steady state; the ceiling exists to give
-         * correctness fixes in `getAudiobookChapters` a bounded ride-along — the worst case
-         * for a user who hit a bad result is a one-week wait before the next open reruns the
-         * live probe. Existing rows written before the TTL migration have `cachedAt = 0` and
-         * are treated as maximally stale on the first read, so any fix rolled out with a bump
-         * of this class heals on next open regardless of TTL length.
-         */
-        internal const val CACHE_TTL_MS: Long = 7L * 24L * 60L * 60L * 1000L
-    }
+    private fun decode(entity: AudiobookChapterCacheEntity): List<AudiobookChapter> =
+        json.decodeFromString(entity.chaptersJson)
 }

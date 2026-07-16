@@ -126,13 +126,13 @@ class AudiobookChapterCacheRepositoryImplTest {
      * Regression: chapter cache used to live forever, so a buggy `getAudiobookChapters`
      * result (e.g. Gramofonche chapters at half real length before the 128 kbps fallback
      * fix) stuck on-device with no self-heal. TTL rejects rows older than
-     * [AudiobookChapterCacheRepositoryImpl.CACHE_TTL_MS] so the next open re-fetches.
+     * [com.riffle.core.domain.DERIVED_CACHE_TTL_MS] so the next open re-fetches.
      */
     @Test
     fun `getCachedChapters returns null when entry is older than TTL`() = runTest {
         val dao = FakeAudiobookChapterCacheDao()
         val json = """[{"index":0,"startSec":0.0,"endSec":300.0,"title":"Stale"}]"""
-        val cachedAt = NOW_MS - AudiobookChapterCacheRepositoryImpl.CACHE_TTL_MS - 1
+        val cachedAt = NOW_MS - com.riffle.core.domain.DERIVED_CACHE_TTL_MS - 1
         dao.store["srv" to "item"] = AudiobookChapterCacheEntity("srv", "item", json, cachedAt)
         val repo = AudiobookChapterCacheRepositoryImpl(dao, FakeRegistry(null), TestClock(NOW_MS))
 
@@ -143,7 +143,7 @@ class AudiobookChapterCacheRepositoryImplTest {
     fun `getCachedChapters returns cached entry right at the TTL boundary`() = runTest {
         val dao = FakeAudiobookChapterCacheDao()
         val json = """[{"index":0,"startSec":0.0,"endSec":300.0,"title":"Fresh"}]"""
-        val cachedAt = NOW_MS - AudiobookChapterCacheRepositoryImpl.CACHE_TTL_MS + 1
+        val cachedAt = NOW_MS - com.riffle.core.domain.DERIVED_CACHE_TTL_MS + 1
         dao.store["srv" to "item"] = AudiobookChapterCacheEntity("srv", "item", json, cachedAt)
         val repo = AudiobookChapterCacheRepositoryImpl(dao, FakeRegistry(null), TestClock(NOW_MS))
 
@@ -166,6 +166,48 @@ class AudiobookChapterCacheRepositoryImplTest {
         val repo = AudiobookChapterCacheRepositoryImpl(dao, FakeRegistry(null), TestClock(NOW_MS))
 
         assertNull(repo.getCachedChapters("srv", "item"))
+    }
+
+    /**
+     * A rolled-back device wall clock (manual set, NTP glitch) makes `now - cachedAt`
+     * negative. The stale check must treat that as stale so a bad row can't be pinned
+     * fresh indefinitely — otherwise a future correctness fix never reaches the user.
+     */
+    @Test
+    fun `getCachedChapters treats a backward clock jump as stale`() = runTest {
+        val dao = FakeAudiobookChapterCacheDao()
+        val json = """[{"index":0,"startSec":0.0,"endSec":300.0,"title":"Future-stamped"}]"""
+        dao.store["srv" to "item"] = AudiobookChapterCacheEntity("srv", "item", json, cachedAt = NOW_MS + 60_000L)
+        val repo = AudiobookChapterCacheRepositoryImpl(dao, FakeRegistry(null), TestClock(NOW_MS))
+
+        assertNull(repo.getCachedChapters("srv", "item"))
+    }
+
+    /**
+     * TTL turns [getCachedChapters] into a stale-nulling read. [getStaleCachedChapters] is the
+     * stale-safe accessor that offline callers (FetchAudiobookChaptersUseCase's last-resort
+     * tier) fall back to so a week-old cache still beats an empty chapter list.
+     */
+    @Test
+    fun `getStaleCachedChapters returns row regardless of TTL`() = runTest {
+        val dao = FakeAudiobookChapterCacheDao()
+        val json = """[{"index":0,"startSec":0.0,"endSec":300.0,"title":"Stale"}]"""
+        val cachedAt = NOW_MS - com.riffle.core.domain.DERIVED_CACHE_TTL_MS - 1
+        dao.store["srv" to "item"] = AudiobookChapterCacheEntity("srv", "item", json, cachedAt)
+        val repo = AudiobookChapterCacheRepositoryImpl(dao, FakeRegistry(null), TestClock(NOW_MS))
+
+        assertNull(repo.getCachedChapters("srv", "item"))
+        val stale = repo.getStaleCachedChapters("srv", "item")
+        assertNotNull(stale)
+        assertEquals("Stale", stale!![0].title)
+    }
+
+    @Test
+    fun `getStaleCachedChapters returns null when no row exists`() = runTest {
+        val dao = FakeAudiobookChapterCacheDao()
+        val repo = AudiobookChapterCacheRepositoryImpl(dao, FakeRegistry(null), TestClock(NOW_MS))
+
+        assertNull(repo.getStaleCachedChapters("srv", "item"))
     }
 
     @Test
