@@ -14,9 +14,10 @@ import com.riffle.core.domain.AudiobookTracks
  * When no audiobook is active ([SharedAudiobookContext.spans] is empty) every call passes through
  * to the delegate unchanged, so Readaloud playback is unaffected.
  *
- * The three overrides are mutually consistent:
- * - [getCurrentPosition] → book-absolute milliseconds
- * - [getDuration]        → total book duration in milliseconds
+ * The four overrides are mutually consistent:
+ * - [getCurrentPosition]  → book-absolute milliseconds
+ * - [getBufferedPosition] → book-absolute milliseconds (buffered-ahead frontier)
+ * - [getDuration]         → total book duration in milliseconds
  * - [seekTo] (single-arg) → resolves absolute ms → (track index, in-track offset) and delegates
  *
  * The two-argument [seekTo](mediaItemIndex, positionMs) is intentionally NOT overridden: the
@@ -32,6 +33,16 @@ class AbsolutePositionPlayer(private val exoPlayer: ExoPlayer) : ForwardingPlaye
         return (AudiobookTracks.absoluteSec(
             exoPlayer.currentMediaItemIndex,
             exoPlayer.currentPosition / 1000.0,
+            spans,
+        ) * 1000.0).toLong()
+    }
+
+    override fun getBufferedPosition(): Long {
+        val spans = SharedAudiobookContext.spans
+        if (spans.isEmpty()) return exoPlayer.bufferedPosition
+        return (AudiobookTracks.absoluteSec(
+            exoPlayer.currentMediaItemIndex,
+            exoPlayer.bufferedPosition / 1000.0,
             spans,
         ) * 1000.0).toLong()
     }

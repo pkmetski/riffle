@@ -224,6 +224,7 @@ fun AudiobookPlayerScreen(
                             speed = state.speed,
                             positionSec = state.positionSec,
                             durationSec = state.durationSec,
+                            bufferedPositionSec = state.bufferedPositionSec,
                             currentChapterTitle = state.currentChapterTitle,
                             chapterStartsSec = state.chapterStartsSec,
                             bookmarkPositionsSec = state.bookmarks.map { it.positionSec },

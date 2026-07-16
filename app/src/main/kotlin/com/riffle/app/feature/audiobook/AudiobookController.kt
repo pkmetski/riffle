@@ -60,6 +60,9 @@ open class AudiobookController @Inject constructor(
         val speed: Float = 1f,
         val positionSec: Double = 0.0,
         val durationSec: Double = 0.0,
+        // Book-absolute position up to which ExoPlayer has buffered ahead of [positionSec].
+        // Projected through [AbsolutePositionPlayer.getBufferedPosition], so no offset math here.
+        val bufferedSec: Double = 0.0,
     )
 
     // Main.immediate is required for Media3 MediaController calls; the survivable Job tree comes from
@@ -336,6 +339,7 @@ open class AudiobookController @Inject constructor(
             speed = c?.playbackParameters?.speed ?: 1f,
             positionSec = currentAbsoluteSec(),
             durationSec = durationSec,
+            bufferedSec = (c?.bufferedPosition ?: 0L) / 1000.0,
         )
     }
 
