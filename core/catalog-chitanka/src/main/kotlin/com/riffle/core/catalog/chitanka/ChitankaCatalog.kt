@@ -435,16 +435,28 @@ class ChitankaCatalog(
      * available (probe null AND no scraped duration on the page).
      */
     private suspend fun tracksFor(detail: ChitankaDetail): List<CatalogAudioTrack> {
-        val probes = coroutineScope {
+        val scrapedTotalSec = parseGramofoncheDurationSeconds(detail.duration)
+        // Fast path: probe every track first. On the healthy VBR case (Xing tag present, sum
+        // matches the scraped total) tier 1 in resolveTrackDurationsSec trusts the probes
+        // verbatim and we can skip the per-track HEAD entirely — cheaper by N round-trips on
+        // every audiobook open. Only fall back to fetching content-length when we know the
+        // probes underestimate and the byte proportions are the recovery signal.
+        val probed = coroutineScope {
             detail.downloads.map { d ->
-                async(Dispatchers.IO) {
-                    val probed = http.probeMp3DurationSec(d.url)?.takeIf { it > 0.0 }
-                    val bytes = http.headContentLength(d.url) ?: 0L
-                    TrackProbe(probedSec = probed, bytes = bytes)
-                }
+                async(Dispatchers.IO) { http.probeMp3DurationSec(d.url)?.takeIf { it > 0.0 } }
             }.awaitAll()
         }
-        val scrapedTotalSec = parseGramofoncheDurationSeconds(detail.duration)
+        val probeOnly = probed.map { TrackProbe(probedSec = it, bytes = 0L) }
+        val probes = if (canTrustProbesAlone(probeOnly, scrapedTotalSec)) {
+            probeOnly
+        } else {
+            val bytes = coroutineScope {
+                detail.downloads.map { d ->
+                    async(Dispatchers.IO) { http.headContentLength(d.url) ?: 0L }
+                }.awaitAll()
+            }
+            probed.mapIndexed { i, p -> TrackProbe(probedSec = p, bytes = bytes[i]) }
+        }
         val durationsSec = resolveTrackDurationsSec(probes, scrapedTotalSec)
         var cumulativeStart = 0.0
         return detail.downloads.mapIndexed { idx, d ->
@@ -578,9 +590,7 @@ class ChitankaCatalog(
             scrapedTotalSec: Double,
         ): List<Double> {
             if (probes.isEmpty()) return emptyList()
-            val probedSum = probes.sumOf { it.probedSec ?: 0.0 }
-            val allProbed = probes.all { it.probedSec != null }
-            if (allProbed && (scrapedTotalSec <= 0.0 || probedSum >= scrapedTotalSec * PROBE_UNDERESTIMATE_THRESHOLD)) {
+            if (canTrustProbesAlone(probes, scrapedTotalSec)) {
                 return probes.map { it.probedSec!! }
             }
             val totalBytes = probes.sumOf { it.bytes }
@@ -588,9 +598,24 @@ class ChitankaCatalog(
             if (scrapedTotalSec > 0.0 && allBytesKnown && totalBytes > 0L) {
                 return probes.map { scrapedTotalSec * it.bytes / totalBytes }
             }
+            // Last-resort per-track: probed value; else CBR math on bytes; else the equal
+            // share of the scraped total. The equal-share step matters when at least one
+            // track is missing both signals (probe null, HEAD failed → bytes=0) — without
+            // it that track would emit 0.0 sec, cumulativeStart wouldn't advance, and
+            // AudiobookTracks#trackAt would route every later position to the wrong track.
+            val equalShare = if (scrapedTotalSec > 0.0) scrapedTotalSec / probes.size else 0.0
             return probes.map { p ->
-                p.probedSec ?: (p.bytes.toDouble() * 8.0 / GRAMOFONCHE_FALLBACK_BITRATE_BPS)
+                p.probedSec
+                    ?: if (p.bytes > 0L) p.bytes.toDouble() * 8.0 / GRAMOFONCHE_FALLBACK_BITRATE_BPS
+                    else equalShare
             }
+        }
+
+        private fun canTrustProbesAlone(probes: List<TrackProbe>, scrapedTotalSec: Double): Boolean {
+            if (!probes.all { it.probedSec != null }) return false
+            if (scrapedTotalSec <= 0.0) return true
+            val probedSum = probes.sumOf { it.probedSec!! }
+            return probedSum >= scrapedTotalSec * PROBE_UNDERESTIMATE_THRESHOLD
         }
 
         private val GRAMOFONCHE_HOURS_REGEX = Regex("(\\d+)\\s*часа?")

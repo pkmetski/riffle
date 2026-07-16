@@ -576,6 +576,25 @@ class ChitankaCatalogTest {
         assertEquals(42.0, result[1], 0.001)
     }
 
+    /**
+     * Regression: tier-3 fallback used to evaluate `null ?: (0*8/128k) = 0.0` for a track
+     * with a failed probe AND failed HEAD. A single 0-second track in the middle collapses
+     * cumulativeStart in [tracksFor] and breaks AudiobookTracks#trackAt for every later
+     * position. Fall back to the equal-share of the scraped total for those tracks.
+     */
+    @Test fun `resolveTrackDurationsSec never emits zero when scraped total is known`() {
+        val probes = listOf(
+            ChitankaCatalog.Companion.TrackProbe(probedSec = 300.0, bytes = 0L),
+            ChitankaCatalog.Companion.TrackProbe(probedSec = null, bytes = 0L),    // HEAD failed too
+            ChitankaCatalog.Companion.TrackProbe(probedSec = null, bytes = 128_000L),
+        )
+        val scraped = 900.0  // 15 min total
+        val result = ChitankaCatalog.resolveTrackDurationsSec(probes, scraped)
+        assertEquals(300.0, result[0], 0.001)
+        assertEquals(300.0, result[1], 0.001)  // equal share of 900 / 3 tracks
+        assertEquals(8.0, result[2], 0.001)    // 128000 * 8 / 128000
+    }
+
     @Test fun `resolveTrackDurationsSec returns empty for empty input`() {
         assertEquals(emptyList<Double>(), ChitankaCatalog.resolveTrackDurationsSec(emptyList(), 60.0))
     }
