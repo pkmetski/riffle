@@ -89,8 +89,7 @@ data class PlayerSurfaceState(
     val positionSec: Double = 0.0,
     val durationSec: Double = 0.0,
     // Book-absolute buffered-ahead position. Rendered as a lighter band between the played fill and
-    // the base track; a value ≤ [positionSec] draws nothing extra. Readaloud (local-bundle audio)
-    // leaves this at 0 — the band simply doesn't appear.
+    // the base track; a value ≤ [positionSec] draws nothing extra (so the default 0 is inert).
     val bufferedPositionSec: Double = 0.0,
     val currentChapterTitle: String? = null,
     val chapterStartsSec: List<Double> = emptyList(),
@@ -485,8 +484,7 @@ private fun ChapterSeekBar(
             // base track
             drawRoundRect(color = track, size = size, cornerRadius = CornerRadius(h / 2, h / 2))
             // buffered-ahead band (rendered under the filled portion so its right edge extends past
-            // the playhead; hidden when nothing is buffered past the current position, which keeps
-            // Readaloud's local-bundle player free of a stray band).
+            // the playhead; hidden when nothing is buffered past the current position).
             if (durationSec > 0 && bufferedPositionSec > displayedSec) {
                 val bufFrac = (bufferedPositionSec / durationSec).coerceIn(0.0, 1.0).toFloat()
                 drawRoundRect(
