@@ -107,8 +107,12 @@ class JsonPanelStore @Inject constructor(
          *      detections whose total panel coverage is < 40% of the page. Prevents Panel View
          *      from forcing users through noise-island zooms on bleed-splash pages. v3 caches
          *      held those garbage detections — invalidate to re-detect them as Fallback.
+         *  5 — split-at-internal-gutter post-processing runs on every candidate bbox in both
+         *      the projection and CC paths. A bbox that straddles a full-crossing internal
+         *      gutter is now split into its two real panels. v4 caches held wrongly-merged
+         *      bboxes for those pages.
          */
-        internal const val CURRENT_SCHEMA_VERSION: Int = 4
+        internal const val CURRENT_SCHEMA_VERSION: Int = 5
 
         private val UNSAFE = Regex("[^A-Za-z0-9._-]")
         internal val PagesListSerializer = ListSerializer(PagePanels.serializer())

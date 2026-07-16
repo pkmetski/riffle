@@ -235,6 +235,33 @@ class PanelDetectorTest {
     }
 
     @Test
+    fun `bbox that straddles two real panels plus a gutter is split at the gutter`() {
+        // Simulate a page where CC merged two side-by-side panels via a stray bridge pixel at
+        // the top of the shared gutter. Without the internal-gutter split, Panel View would
+        // zoom into a bbox that includes both panels + gutter — exactly the "why is this a
+        // panel? it's the area between two panels" failure the user reported.
+        val grid = fixture(width = 400, height = 560) { canvas ->
+            canvas.fill(background = LIGHT)
+            // Two side-by-side panels with a wide (30px) clear vertical gutter between them.
+            canvas.rect(x = 20, y = 20, w = 160, h = 500, color = DARK)
+            canvas.rect(x = 220, y = 20, w = 160, h = 500, color = DARK)
+            // A single 1-pixel bridge at the top connects them (the kind of stray pixel that
+            // makes CC treat the pair as one component).
+            canvas.rect(x = 180, y = 25, w = 40, h = 1, color = DARK)
+        }
+
+        val result = detector.detect(grid, pageIndex = 0, originalWidth = 400, originalHeight = 560)
+
+        assertEquals(PanelSource.Auto, result.source)
+        assertEquals("expected 2 panels after split-at-internal-gutter, got ${result.panels.map { "(${it.x},${it.y})${it.width}x${it.height}" }}",
+            2, result.panels.size)
+        // Panels should each be ~160 wide, not one ~360-wide bbox spanning the gutter.
+        for (p in result.panels) {
+            assertTrue("panel width ${p.width} should be < 250 (i.e. not spanning both panels + gutter)", p.width < 250)
+        }
+    }
+
+    @Test
     fun `page with meaningful panels but insufficient coverage falls back`() {
         // Two panels covering < 30% of the page (e.g. bleed-splash with just two small
         // rectangular insets). Coverage sanity check rejects → Fallback rather than force
