@@ -41,10 +41,23 @@ class PanelDetector(
         val overlapRejectFraction: Double = 0.25,
 
         /**
-         * Binarization threshold in `[0, 255]` — pixels darker than this are content, lighter are
-         * gutter. Applied after optional dark-background inversion.
+         * A pixel is considered content if its luma differs from the detected page background by
+         * at least this much (in `[0, 255]`). Handles both light-background comics (dark art on
+         * white gutter) and dark-background comics (bright figures on black gutter) uniformly.
          */
-        val binarizeThreshold: Int = 200,
+        val backgroundContrastThreshold: Int = 32,
+
+        /**
+         * A near-background pixel is promoted to content if a 5x5 window around it contains at
+         * least this many content pixels — fills in panel-interior shadows / smooth regions that
+         * happen to match the background luma but sit spatially trapped inside a modulated
+         * panel. Kept strict so that gutter pixels adjacent to a panel edge (which see part of
+         * the panel in their window) don't get haloed into content.
+         */
+        val promotionMinContentInWindow: Int = 13,
+
+        /** Half-side of the promotion window. Radius 2 → 5x5 window (25 pixels). */
+        val promotionWindowRadius: Int = 2,
 
         /** A row/column with fewer than this many content pixels is considered outer margin. */
         val marginContentThreshold: Int = 6,
@@ -54,12 +67,6 @@ class PanelDetector(
          * carry fewer than this many content pixels (removes gutter that leaked into the bbox).
          */
         val tightenContentThreshold: Int = 2,
-
-        /**
-         * When true, sample corner pixels; if the majority are dark, invert the binary mask
-         * (so a dark-background page is treated as if the background were light).
-         */
-        val invertOnDarkBackground: Boolean = true,
     )
 
     fun detect(
@@ -88,26 +95,61 @@ class PanelDetector(
         ) ?: fallback
     }
 
-    // --- Step 1: binarize with dark-background auto-invert ---
+    // --- Step 1: binarize as content-vs-background ---
 
+    /**
+     * Two-pass classifier that handles both light-gutter and dark-gutter comics uniformly:
+     *   Pass 1 — pixels whose luma differs from the page background by at least
+     *     [Config.backgroundContrastThreshold] are content; the rest are gutter-eligible.
+     *   Pass 2 — a gutter-eligible pixel is *promoted* to content if a 5x5 window around it
+     *     contains at least [Config.promotionMinContentInWindow] already-content pixels. This
+     *     fills in panel-interior shadows / uniform regions that happen to match the background
+     *     luma but sit spatially trapped inside a modulated panel. The count threshold is strict
+     *     enough that a gutter pixel just outside a panel edge (which sees only ~10 panel pixels
+     *     in its 5x5 window) is NOT promoted — no halo grows around panels.
+     */
     private fun binarize(grid: PixelGrid): BinaryMask? {
-        val invert = config.invertOnDarkBackground && isDarkBackground(grid)
-        val mask = ByteArray(grid.width * grid.height)
+        val w = grid.width
+        val h = grid.height
+        val bg = detectBackgroundLuma(grid)
+        val cutoff = config.backgroundContrastThreshold
+        val mask = ByteArray(w * h)
+
         for (i in mask.indices) {
             val v = grid.luma[i].toInt() and 0xFF
-            val effective = if (invert) 255 - v else v
-            // 1 = content (dark), 0 = gutter (light)
-            mask[i] = if (effective < config.binarizeThreshold) 1 else 0
+            mask[i] = if (kotlin.math.abs(v - bg) >= cutoff) 1 else 0
         }
-        // If everything looks like gutter or everything looks like content, detection is impossible.
+
+        val original = mask.copyOf()
+        val radius = config.promotionWindowRadius
+        val minCount = config.promotionMinContentInWindow
+        for (y in 0 until h) {
+            for (x in 0 until w) {
+                val idx = y * w + x
+                if (original[idx] == 1.toByte()) continue
+                val y0 = maxOf(0, y - radius)
+                val y1 = minOf(h - 1, y + radius)
+                val x0 = maxOf(0, x - radius)
+                val x1 = minOf(w - 1, x + radius)
+                var count = 0
+                for (yy in y0..y1) {
+                    for (xx in x0..x1) {
+                        if (original[yy * w + xx] == 1.toByte()) count++
+                    }
+                }
+                if (count >= minCount) mask[idx] = 1
+            }
+        }
+
         var contentCount = 0
         for (b in mask) if (b == 1.toByte()) contentCount++
         val total = mask.size
         if (contentCount == 0 || contentCount == total) return null
-        return BinaryMask(grid.width, grid.height, mask)
+        return BinaryMask(w, h, mask)
     }
 
-    private fun isDarkBackground(grid: PixelGrid): Boolean {
+    /** Median luma of eight border samples — cheap and robust page-background estimator. */
+    private fun detectBackgroundLuma(grid: PixelGrid): Int {
         val w = grid.width
         val h = grid.height
         val samples = intArrayOf(
@@ -120,9 +162,10 @@ class PanelDetector(
             grid.get(0, h / 2),
             grid.get(w - 1, h / 2),
         )
-        val dark = samples.count { it < 128 }
-        return dark >= 5
+        samples.sort()
+        return (samples[3] + samples[4]) / 2
     }
+
 
     // --- Step 2: trim outer margin to content bounding box ---
 

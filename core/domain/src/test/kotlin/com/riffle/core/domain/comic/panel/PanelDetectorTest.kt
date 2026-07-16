@@ -118,7 +118,33 @@ class PanelDetectorTest {
     }
 
     @Test
-    fun `dark-background page with light panels auto-inverts and detects panels`() {
+    fun `dark-gutter page with textured panel interiors is detected without inversion`() {
+        // Regression for the real-world failure on dark-tone comics (Fables etc.): jet-black
+        // gutter AND jet-black between-panel space, panels have no drawn border, panel interiors
+        // are modulated colour (dark shadows + bright figures). Content-vs-background binarize
+        // catches the bright bits; the 5x5 promotion pass fills in panel-interior shadows that
+        // happen to match the background luma; flood-fill stops at the panel edges.
+        val grid = fixture(width = 400, height = 560) { canvas ->
+            canvas.fill(background = DARK)
+            // Six panels in a 3x2 grid, each with a fine dither of dark + mid pixels to simulate
+            // modulated content on a dark background (approximates halftone / ink texture).
+            for (row in 0..1) {
+                for (col in 0..2) {
+                    val x = 20 + col * 130
+                    val y = 20 + row * 270
+                    canvas.ditheredRect(x = x, y = y, w = 110, h = 250, base = DARK, accent = 160.toByte())
+                }
+            }
+        }
+
+        val result = detector.detect(grid, pageIndex = 0, originalWidth = 400, originalHeight = 560)
+
+        assertEquals(PanelSource.Auto, result.source)
+        assertEquals(6, result.panels.size)
+    }
+
+    @Test
+    fun `dark-background page with light panels detects panels`() {
         val grid = fixture(width = 400, height = 560) { canvas ->
             canvas.fill(background = DARK)
             // Light-fill panels on dark background: auto-invert should treat this as if the bg
@@ -221,6 +247,20 @@ class PanelDetectorTest {
             // Left and right edges
             rect(x, y, borderPx, h, color)
             rect(x + w - borderPx, y, borderPx, h, color)
+        }
+
+        /**
+         * Fill a rectangle with a 1-pixel checker of [base] and [accent] — approximates halftone
+         * / ink texture inside a real comic panel. Every 5x5 window contains ~13 of each colour,
+         * so the promotion pass classifies near-bg pixels as content when the accent pixels
+         * differ from bg.
+         */
+        fun ditheredRect(x: Int, y: Int, w: Int, h: Int, base: Byte, accent: Byte) {
+            for (yy in y until (y + h).coerceAtMost(height)) {
+                for (xx in x until (x + w).coerceAtMost(width)) {
+                    luma[yy * width + xx] = if ((xx + yy) % 2 == 0) base else accent
+                }
+            }
         }
     }
 }
