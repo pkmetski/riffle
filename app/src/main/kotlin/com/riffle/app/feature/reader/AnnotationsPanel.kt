@@ -347,7 +347,11 @@ internal fun splitSnippetForFigures(snippet: String, figureCount: Int): List<Str
 
 @Composable
 private fun InlineFigureImage(figure: InlineFigure, borderColor: Color) {
-    val bitmap = remember(figure.bytesUri) { decodeImageDataUri(figure.bytesUri) }
+    val bitmap = remember(figure.bytesUri) {
+        // Panel thumbnails render at panel width (< 1000 CSS px on any device); cap at 1024 so
+        // a captured 4000x3000 figure doesn't allocate ~48 MB per row while the user scrolls.
+        decodeImageDataUri(figure.bytesUri, reqDimensionPx = 1024)
+    }
     if (bitmap != null) {
         ComposeImage(
             bitmap = bitmap.asImageBitmap(),
@@ -422,14 +426,23 @@ internal fun maxLinesForAnnotationTitle(type: String): Int =
  * Decode a `data:image/…;base64,…` URI into a [android.graphics.Bitmap]. Null on malformed input
  * or a non-data-URI value. Used by the annotations panel to display a `TYPE_IMAGE` annotation's
  * captured thumbnail and by the Highlights-mode elided reader to render the full-size figure.
+ *
+ * [reqDimensionPx] caps the decode to `reqDimensionPx` on either axis via `inSampleSize` — set to
+ * 0 (default) for the historical full-resolution decode. The annotations panel passes a small cap
+ * so scrolling a list of large captured figures doesn't allocate tens of MB per thumbnail on a
+ * memory-constrained device.
  */
-internal fun decodeImageDataUri(dataUri: String?): android.graphics.Bitmap? {
+internal fun decodeImageDataUri(dataUri: String?, reqDimensionPx: Int = 0): android.graphics.Bitmap? {
     if (dataUri.isNullOrBlank()) return null
     val comma = dataUri.indexOf(',')
     if (comma < 0 || !dataUri.startsWith("data:")) return null
     return runCatching {
         val bytes = Base64.decode(dataUri.substring(comma + 1), Base64.DEFAULT)
-        BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+        if (reqDimensionPx > 0) {
+            decodeSampledBitmap(bytes, reqDimensionPx, reqDimensionPx)
+        } else {
+            BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+        }
     }.getOrNull()
 }
 

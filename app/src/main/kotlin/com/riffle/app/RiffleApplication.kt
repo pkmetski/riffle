@@ -38,7 +38,10 @@ class RiffleApplication : Application(), ImageLoaderFactory {
         fun annotationSweep(): AnnotationSweep
         fun progressSweep(): ProgressSweep
         fun localFilesFolderWatcher(): LocalFilesFolderWatcher
+        fun logger(): com.riffle.core.logging.Logger
     }
+
+    private var logger: com.riffle.core.logging.Logger = com.riffle.core.logging.NoopLogger
 
     override fun attachBaseContext(base: Context) {
         super.attachBaseContext(base)
@@ -79,6 +82,7 @@ class RiffleApplication : Application(), ImageLoaderFactory {
         if (shouldSkipMainProcessStartup(ACRA.isACRASenderServiceProcess())) return
         val entryPoint = EntryPointAccessors.fromApplication(this, MigratorEntryPoint::class.java)
         val applicationScope = entryPoint.applicationScope()
+        logger = entryPoint.logger()
 
         // One-time relocation of legacy flat cache/download files into per-Source dirs (ADR 0025).
         // Idempotent and best-effort; runs off the main thread and never blocks startup.
@@ -125,6 +129,31 @@ class RiffleApplication : Application(), ImageLoaderFactory {
         // Auto-scan configured LocalFiles folders on app foreground and on SAF change events.
         // Users adding a book to a picked folder never have to hit a manual "Rescan" button.
         entryPoint.localFilesFolderWatcher().start()
+    }
+
+    /**
+     * Log every memory-pressure event so a later OOM-kill (which typically leaves no crash trace on
+     * Android 7.x) can be traced back to which trim levels the system fired first. Runtime.freeMemory
+     * gives a rough app-heap snapshot to correlate with the level. See the RIFFLE_OOM channel.
+     */
+    override fun onTrimMemory(level: Int) {
+        super.onTrimMemory(level)
+        val rt = Runtime.getRuntime()
+        val usedMb = (rt.totalMemory() - rt.freeMemory()) / (1024 * 1024)
+        val maxMb = rt.maxMemory() / (1024 * 1024)
+        logger.d(com.riffle.core.logging.LogChannel.Oom) {
+            "[DEBUG-OOM] app.onTrimMemory level=$level heap=${usedMb}MB/${maxMb}MB"
+        }
+    }
+
+    override fun onLowMemory() {
+        super.onLowMemory()
+        val rt = Runtime.getRuntime()
+        val usedMb = (rt.totalMemory() - rt.freeMemory()) / (1024 * 1024)
+        val maxMb = rt.maxMemory() / (1024 * 1024)
+        logger.d(com.riffle.core.logging.LogChannel.Oom) {
+            "[DEBUG-OOM] app.onLowMemory heap=${usedMb}MB/${maxMb}MB"
+        }
     }
 
     override fun newImageLoader(): ImageLoader =

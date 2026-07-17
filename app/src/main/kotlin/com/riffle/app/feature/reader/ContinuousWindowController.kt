@@ -42,14 +42,25 @@ internal class ContinuousWindowController(
 ) : ContinuousHighlightTarget, ContinuousNavigationView {
 
     companion object {
+        // Window buffers were 3+3 (WINDOW_SIZE=7) with a recycled pool cap of WINDOW_SIZE, so
+        // Continuous mode could hold up to 14 stacked ChapterWebViews with fully rasterized tiles
+        // (setOffscreenPreRaster=true). On a 1 GB Android 7.1 tablet that is enough to trip the
+        // renderer heap and get the app killed with no crash trace. Cutting the live buffer to 2+2
+        // and the pool to 2 caps the ceiling at 7 WebViews — half the previous worst case — while
+        // still preserving a one-chapter buffer on each side for scroll smoothness.
         /** See [ContinuousReaderView.CHAPTERS_BEHIND]. */
-        private const val CHAPTERS_BEHIND = 3
+        private const val CHAPTERS_BEHIND = 2
 
         /** See [ContinuousReaderView.CHAPTERS_AHEAD]. */
-        private const val CHAPTERS_AHEAD = 3
+        private const val CHAPTERS_AHEAD = 2
 
         /** Total sliding-window size: the reader's chapter plus the behind/ahead buffers. */
         private const val WINDOW_SIZE = CHAPTERS_BEHIND + 1 + CHAPTERS_AHEAD
+
+        /** Max detached WebViews retained for reuse across window shifts. Small: pooled views keep
+         *  the previous page's DOM + rasterized tiles resident until reuse (recycle() blanks the
+         *  URL but preRaster still holds an empty document's tiles). */
+        internal const val RECYCLE_POOL_MAX = 2
 
         /**
          * Grace period after a window (re)build before the initial scroll is forced to fire even if
@@ -276,7 +287,13 @@ internal class ContinuousWindowController(
         wv.onFootnoteContent = null
         wv.onCrossReferenceTap = null
         wv.onSelectionActiveChanged = null
-        if (recycledViews.size < WINDOW_SIZE) recycledViews.addLast(wv) else wv.destroy()
+        // Release the WebView's DOM + rasterized tiles before pooling. Without this, a pooled view
+        // keeps its previous chapter's full-height tile pyramid resident (setOffscreenPreRaster is
+        // true) until obtainWebView() eventually replaces it — hundreds of MB across the whole pool
+        // on a long book. loadChapter() will replace about:blank on the next reuse.
+        wv.stopLoading()
+        wv.loadUrl("about:blank")
+        if (recycledViews.size < RECYCLE_POOL_MAX) recycledViews.addLast(wv) else wv.destroy()
     }
 
     /**
@@ -933,6 +950,25 @@ internal class ContinuousWindowController(
         webViews.clear()
         recycledViews.forEach { it.destroy() }
         recycledViews.clear()
+    }
+
+    /**
+     * Framework memory-pressure signal (forwarded from [ContinuousReaderView.onTrimMemory]).
+     * Dumps the recycled-WebView pool at [android.content.ComponentCallbacks2.TRIM_MEMORY_UI_HIDDEN]
+     * or worse — those are idle and their memory is the cheapest to release. Live chapter WebViews
+     * are NOT touched here: blanking them with loadUrl would race the wired onPageFinished ->
+     * injectStylesAndMeasure pipeline (measures about:blank to ~0 px, collapses the chapter's slot
+     * height in the container, breaks scroll math). Live-chapter shrink under pressure needs a
+     * proper "detach + reload-on-return" pathway, not a bare loadUrl.
+     */
+    fun onTrimMemory(level: Int) {
+        logger.d(LogChannel.Oom) {
+            "[DEBUG-OOM] continuous.onTrimMemory level=$level webViews=${webViews.size} pool=${recycledViews.size}"
+        }
+        if (level >= android.content.ComponentCallbacks2.TRIM_MEMORY_UI_HIDDEN) {
+            recycledViews.forEach { it.destroy() }
+            recycledViews.clear()
+        }
     }
 
     /**

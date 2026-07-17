@@ -23,4 +23,5 @@ enum class LogChannel(val tag: String) {
     ToRead("RIFFLE_TOREAD"),
     Playlists("RIFFLE_PL"),
     ProgressSync("RIFFLE_PS"),
+    Oom("RIFFLE_OOM"),
 }

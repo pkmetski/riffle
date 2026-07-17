@@ -195,8 +195,28 @@ internal class ContinuousReaderView @JvmOverloads constructor(
         }
     }
 
+    /**
+     * Framework memory-pressure listener. Registered on attach and forwarded to
+     * [ContinuousWindowController.onTrimMemory] so the controller can drop its recycled-WebView
+     * pool and blank off-screen chapters before the system kills the app. Registering here (not
+     * app-wide) keeps the listener scoped to the reader's lifetime — no leak if the reader is
+     * destroyed. Package-private so the RiffleApplication can log a matching app-wide event.
+     */
+    private val trimCallback = object : android.content.ComponentCallbacks2 {
+        override fun onTrimMemory(level: Int) = controller.onTrimMemory(level)
+        override fun onConfigurationChanged(newConfig: android.content.res.Configuration) = Unit
+        override fun onLowMemory() =
+            controller.onTrimMemory(android.content.ComponentCallbacks2.TRIM_MEMORY_COMPLETE)
+    }
+
+    override fun onAttachedToWindow() {
+        super.onAttachedToWindow()
+        context.applicationContext.registerComponentCallbacks(trimCallback)
+    }
+
     override fun onDetachedFromWindow() {
         super.onDetachedFromWindow()
+        context.applicationContext.unregisterComponentCallbacks(trimCallback)
         controller.onDetach()
     }
 
