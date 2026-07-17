@@ -42,6 +42,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.graphics.Color
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.QueueMusic
 import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Folder
@@ -143,6 +144,7 @@ fun LibraryItemsScreen(
     onShowAllAnnotations: (query: String) -> Unit,
     onSectionSeeMore: (LibrarySectionType) -> Unit,
     onAnnotatedBookClick: (sourceId: String, itemId: String) -> Unit,
+    onPlaylistSelected: (com.riffle.core.catalog.CatalogPlaylist) -> Unit = {},
     // When the navigation drawer is open, its own BackHandler must take Back so it can close
     // itself. We disable our layered Back in that case (issue #60).
     backEnabled: Boolean = true,
@@ -167,6 +169,7 @@ fun LibraryItemsScreen(
     val linkedItemIds by viewModel.linkedItemIds.collectAsState()
     val notStartedFilterActive by viewModel.notStartedFilterActive.collectAsState()
     val tabVisibility by viewModel.tabVisibility.collectAsState()
+    val playlists by viewModel.playlists.collectAsState()
 
     val coversAreSquare by viewModel.coversAreSquare.collectAsState()
     // Versioned key: v2 = post-Annotations-tab-insertion. Without the version bump, a user
@@ -330,6 +333,10 @@ fun LibraryItemsScreen(
                         collectionCoverUrls = collectionCoverUrls,
                         onCollectionSelected = onCollectionSelected,
                         onCoverScaleChange = onCoverScaleChange,
+                    )
+                    tabIndexForPlaylists() -> com.riffle.app.feature.library.playlists.PlaylistsTabContent(
+                        playlists = playlists,
+                        onPlaylistSelected = onPlaylistSelected,
                     )
                     5 -> AllBooksTabContent(
                         items = allBooks,
@@ -1256,6 +1263,13 @@ internal fun LibraryItemCard(
 internal fun tabIndexForAnnotations(): Int = 2
 
 /**
+ * Index of the Playlists tab — the 7th tab, positioned between Collections (4) and All Books (5).
+ * Only visible on ABS audiobook roots ([LibraryTabVisibility.playlists] gate). Single source of
+ * truth referenced by [LibraryTabBar]'s selected-check and [LibraryItemsScreen]'s tab switch.
+ */
+internal fun tabIndexForPlaylists(): Int = 6
+
+/**
  * True when the tab-clamp LaunchedEffect should reset [selectedTab] to Home. Returns false while
  * the user is searching ([searchQuery] non-empty) — `LibraryFilterEngine` filters
  * `projection.series/collections` by the active query, so an unmatched search would otherwise
@@ -1284,6 +1298,7 @@ internal fun isTabVisible(selectedTab: Int, visibility: LibraryTabVisibility): B
         2 -> visibility.annotations
         3 -> visibility.series
         4 -> visibility.collections
+        6 -> visibility.playlists
         else -> true
     }
 
@@ -1325,6 +1340,15 @@ private fun LibraryTabBar(
                 selected = selectedTab == 4,
                 onClick = { onTabSelected(4) },
                 icon = { Icon(Icons.Filled.Folder, contentDescription = "Collections") },
+            )
+        }
+        if (visibility.playlists) {
+            NavigationBarItem(
+                selected = selectedTab == tabIndexForPlaylists(),
+                onClick = { onTabSelected(tabIndexForPlaylists()) },
+                icon = {
+                    Icon(Icons.AutoMirrored.Filled.QueueMusic, contentDescription = "Playlists")
+                },
             )
         }
         NavigationBarItem(

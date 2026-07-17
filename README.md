@@ -97,6 +97,7 @@ Riffle lets you browse your library, read EPUB, PDF, and CBZ files, listen to au
 - Variable playback speed (0.5×–3.0×) with quick presets, remembered per book
 - Background playback with lock-screen, notification, and Bluetooth media controls
 - Download audiobooks for offline listening, with progress that reconciles when you reconnect
+- Audiobookshelf playlists surfaced as a dedicated tab on the audiobook library — play a playlist end-to-end with auto-advance that resumes each next item from its saved position, and add or remove items from the item detail sheet
 - Storyteller **Readaloud** in the reader: synced sentence highlight, auto-page-turn, "Play from here," and background playback
 - Listening and reading positions stay in sync for matched books — pick up in the reader exactly where you stopped listening, and vice versa
 

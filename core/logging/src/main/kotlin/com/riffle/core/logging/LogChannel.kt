@@ -21,5 +21,6 @@ enum class LogChannel(val tag: String) {
     WebSourceCache("RIFFLE_WSC"),
     Gutenberg("RIFFLE_GB"),
     ToRead("RIFFLE_TOREAD"),
+    Playlists("RIFFLE_PL"),
     ProgressSync("RIFFLE_PS"),
 }

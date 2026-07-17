@@ -18,6 +18,10 @@ import com.riffle.core.domain.PdfRepository
 import com.riffle.core.domain.usecase.MarkReadAcrossDimensions
 import com.riffle.core.domain.usecase.RecordItemOpened
 import com.riffle.core.domain.usecase.UpdateReadingProgress
+import com.riffle.core.catalog.CatalogPlaylist
+import com.riffle.core.data.PlaylistsRepository
+import com.riffle.core.data.RESERVED_PLAYLIST_NAMES
+import com.riffle.core.data.ReservedPlaylistNameException
 import com.riffle.core.data.ToReadRepository
 import com.riffle.core.catalog.AudiobookMediaCapability
 import com.riffle.core.catalog.CatalogRegistry
@@ -36,6 +40,9 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.emitAll
+import kotlinx.coroutines.flow.filterIsInstance
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
@@ -77,6 +84,13 @@ data class DetailCapabilities(
     /** True when the Source's Catalog declares [ReadaloudCapability] — gates the readaloud
      *  bundle Download button. ABS-only today. */
     val hasReadaloud: Boolean = false,
+    /**
+     * True when the "Add to playlist…" affordance should appear on the item detail sheet.
+     * Gate: Source's Catalog implements [PlaylistsCapability] AND the item is an audiobook (per
+     * the audiobook-playlists design — the Playlists tab lives on the ABS audiobook root only,
+     * so the picker follows the same gate to stay consistent).
+     */
+    val hasAddToPlaylist: Boolean = false,
 ) {
     companion object {
         /** Every capability present — matches the ABS shape used by the majority of items. */
@@ -86,6 +100,7 @@ data class DetailCapabilities(
             hasAudiobookMedia = true,
             hasDownloads = true,
             hasReadaloud = true,
+            hasAddToPlaylist = true,
         )
 
         /** No capability present — safe default when the active Source's Catalog can't be resolved.
@@ -97,6 +112,7 @@ data class DetailCapabilities(
             hasAudiobookMedia = false,
             hasDownloads = false,
             hasReadaloud = false,
+            hasAddToPlaylist = false,
         )
     }
 }
@@ -142,6 +158,7 @@ class LibraryItemDetailViewModel @Inject constructor(
     private val pdfRepository: PdfRepository,
     private val cbzRepository: com.riffle.core.domain.CbzRepository,
     private val toReadRepository: ToReadRepository,
+    private val playlistsRepository: PlaylistsRepository,
     private val readaloudLinkRepository: com.riffle.core.domain.ReadaloudLinkRepository,
     private val readaloudAudioRepository: com.riffle.core.domain.ReadaloudAudioRepository,
     private val audiobookDownloadRepository: com.riffle.core.domain.AudiobookDownloadRepository,
@@ -252,6 +269,10 @@ class LibraryItemDetailViewModel @Inject constructor(
                         hasAudiobookMedia = catalog is AudiobookMediaCapability,
                         hasDownloads = catalog is DownloadsCapability,
                         hasReadaloud = catalog is ReadaloudCapability,
+                        // Audiobook-only items on a Source with server-side playlists get the
+                        // "Add to playlist…" affordance. Mirrors the tab gate — ebook items on the
+                        // same Source stay out of the Playlists surface.
+                        hasAddToPlaylist = catalog is PlaylistsCapability && item.isListenable && !item.isReadable,
                     )
                     LibraryItemDetailUiState.Ready(
                         item = item,
@@ -401,6 +422,59 @@ class LibraryItemDetailViewModel @Inject constructor(
                     if (wasInToRead) "Couldn't remove from To Read" else "Couldn't add to To Read"
                 )
             }
+        }
+    }
+
+    // ── Add-to-playlist sheet ─────────────────────────────────────────────────
+    // These helpers back [com.riffle.app.feature.library.playlists.AddToPlaylistSheet]. The sheet is
+    // launched from the item-detail action row when [DetailCapabilities.hasAddToPlaylist] is true,
+    // which the ViewModel gates on Source's PlaylistsCapability + item is audiobook-only.
+
+    /** Flow of playlists for the currently-loaded item's library. "To Read" is filtered out by
+     *  [PlaylistsRepository]. Empty until the item resolves. */
+    @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+    val playlistsForCurrentItem: kotlinx.coroutines.flow.Flow<List<CatalogPlaylist>> =
+        kotlinx.coroutines.flow.flow {
+            val libraryId = _uiState
+                .filterIsInstance<LibraryItemDetailUiState.Ready>()
+                .first()
+                .item.libraryId
+            emitAll(playlistsRepository.observePlaylists(libraryId))
+        }
+
+    fun refreshPlaylists() {
+        val ready = _uiState.value as? LibraryItemDetailUiState.Ready ?: return
+        viewModelScope.launch { playlistsRepository.refresh(ready.item.libraryId) }
+    }
+
+    /** Toggles the item's membership in [playlist]. Emits a snackbar on failure. */
+    fun toggleItemInPlaylist(playlist: CatalogPlaylist) {
+        val ready = _uiState.value as? LibraryItemDetailUiState.Ready ?: return
+        val item = ready.item
+        viewModelScope.launch {
+            val ok = if (item.id in playlist.itemIds) {
+                playlistsRepository.removeItemFromPlaylist(item.libraryId, playlist.id, item.id)
+            } else {
+                playlistsRepository.addItemToPlaylist(item.libraryId, playlist.id, item.id)
+            }
+            if (!ok) _snackbarEvents.emit("Couldn't update playlist")
+        }
+    }
+
+    /** Create a new playlist with the current item seeded. Returns "" on success or an error string. */
+    suspend fun createPlaylistWithCurrentItem(name: String): String {
+        val ready = _uiState.value as? LibraryItemDetailUiState.Ready ?: return "No item"
+        val trimmed = name.trim()
+        if (trimmed.isEmpty()) return "Name can't be empty"
+        val reservedHit = RESERVED_PLAYLIST_NAMES.firstOrNull { it.equals(trimmed, ignoreCase = true) }
+        if (reservedHit != null) return "'$reservedHit' is reserved"
+        return try {
+            playlistsRepository.createPlaylist(ready.item.libraryId, trimmed, initialItemId = ready.item.id)
+            ""
+        } catch (e: ReservedPlaylistNameException) {
+            "'${e.name}' is reserved"
+        } catch (_: Exception) {
+            "Couldn't create playlist"
         }
     }
 

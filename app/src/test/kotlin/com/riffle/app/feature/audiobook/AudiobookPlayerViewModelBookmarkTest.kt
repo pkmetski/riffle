@@ -101,6 +101,7 @@ class AudiobookPlayerViewModelBookmarkTest {
     private class FakeController(var position: Double) : AudiobookController() {
         val seeks = mutableListOf<Double>()
         var preparedStartAtSec: Double? = null
+        var stopCount = 0
         override val state = MutableStateFlow(PlaybackState())
         private val ended = kotlinx.coroutines.flow.MutableSharedFlow<Unit>(extraBufferCapacity = 1)
         override val playbackEnded: kotlinx.coroutines.flow.SharedFlow<Unit> = ended.asSharedFlow()
@@ -117,6 +118,7 @@ class AudiobookPlayerViewModelBookmarkTest {
         override fun setSpeed(speed: Float) {}
         override fun currentAbsoluteSec(): Double = position
         override fun seekTo(absoluteSec: Double) { seeks.add(absoluteSec) }
+        override fun stop() { stopCount++ /* skip parent impl; connector is null anyway */ }
     }
 
     // Cancel the ViewModel's [viewModelScope] (the never-ending follow loop + bookmark observation) so
@@ -138,6 +140,8 @@ class AudiobookPlayerViewModelBookmarkTest {
         listeningStore: ListeningPreferencesStore = FakeListeningPreferencesStore,
         positionStore: com.riffle.core.domain.AudiobookPositionStore = FakePositionStore(),
         logger: RecordingLogger = RecordingLogger(),
+        playlistsRepository: com.riffle.core.data.PlaylistsRepository = NoopPlaylistsRepository,
+        savedState: Map<String, Any?> = mapOf("itemId" to itemId),
     ): AudiobookPlayerViewModel {
         val session = AudiobookSession(
             trackUrls = listOf("http://x/track0"),
@@ -149,7 +153,7 @@ class AudiobookPlayerViewModelBookmarkTest {
         val repo = FakeAudiobookRepository(session)
         lastAudiobookRepo = repo
         return AudiobookPlayerViewModel(
-            savedStateHandle = SavedStateHandle(mapOf("itemId" to itemId)),
+            savedStateHandle = SavedStateHandle(savedState),
             audiobookRepository = repo,
             audiobookDownloadRepository = NoDownloadRepo,
             bundleAudiobookSource = NoBundleSource,
@@ -197,7 +201,19 @@ class AudiobookPlayerViewModelBookmarkTest {
                 override fun nowNs(): Long = fixedNow * 1_000_000L
             },
             logger = logger,
+            playlistsRepository = playlistsRepository,
         )
+    }
+
+    private companion object {
+        val NoopPlaylistsRepository = object : com.riffle.core.data.PlaylistsRepository {
+            override fun observePlaylists(rootId: String) = kotlinx.coroutines.flow.flowOf(emptyList<com.riffle.core.catalog.CatalogPlaylist>())
+            override suspend fun refresh(rootId: String) = true
+            override suspend fun getPlaylist(rootId: String, playlistId: String) = null
+            override suspend fun createPlaylist(rootId: String, name: String, initialItemId: String?) = throw UnsupportedOperationException()
+            override suspend fun addItemToPlaylist(rootId: String, playlistId: String, itemId: String) = false
+            override suspend fun removeItemFromPlaylist(rootId: String, playlistId: String, itemId: String) = false
+        }
     }
 
     @Test
@@ -304,6 +320,109 @@ class AudiobookPlayerViewModelBookmarkTest {
         job.join()
 
         assertEquals(listOf(AudiobookPlayerEvent.Finished), collected)
+        // Non-playlist path DOES tear the singleton controller down so the foreground
+        // notification drops — the auto-advance path (next test) is the one that must NOT stop.
+        assertEquals(1, controller.stopCount)
+        vm.clearForTest()
+    }
+
+    /**
+     * Regression test for the "playback stops after auto-advance" bug (three fix attempts).
+     *
+     * On end-of-book with a playlist context that has a next item, the VM must:
+     * - Emit [AudiobookPlayerEvent.PlaylistAdvance] carrying the next itemId.
+     * - NOT call [AudiobookController.stop], because the same singleton controller is about to
+     *   be re-prepared by the incoming next-item VM. Stopping releases the connector, and when
+     *   the incoming VM's prepare() races the release, playback silently dies. The fix routes
+     *   the teardown around the auto-advance path (see [handingOffToPlaylistAdvance]).
+     * If either assertion flips, the bug is back.
+     */
+    @Test
+    fun `controller playbackEnded with playlist context advances without stopping the controller`() = runTest(testDispatcher) {
+        val controller = FakeController(position = 0.0)
+        val nextItemId = "item-next"
+        val playlist = com.riffle.core.catalog.CatalogPlaylist(
+            id = "pl-1",
+            rootId = "lib-1",
+            name = "My playlist",
+            bookCount = 2,
+            itemIds = listOf(itemId, nextItemId),
+        )
+        val playlistsRepo = object : com.riffle.core.data.PlaylistsRepository {
+            override fun observePlaylists(rootId: String) = kotlinx.coroutines.flow.flowOf(listOf(playlist))
+            override suspend fun refresh(rootId: String) = true
+            override suspend fun getPlaylist(rootId: String, playlistId: String) = playlist
+            override suspend fun createPlaylist(rootId: String, name: String, initialItemId: String?) = throw UnsupportedOperationException()
+            override suspend fun addItemToPlaylist(rootId: String, playlistId: String, itemId: String) = false
+            override suspend fun removeItemFromPlaylist(rootId: String, playlistId: String, itemId: String) = false
+        }
+        val vm = buildViewModel(
+            controller = controller,
+            bookmarkStore = FakeBookmarkStore(),
+            playlistsRepository = playlistsRepo,
+            savedState = mapOf(
+                "itemId" to itemId,
+                "playlistId" to "pl-1",
+                "libraryId" to "lib-1",
+            ),
+        )
+        runCurrent()
+
+        val collected = mutableListOf<AudiobookPlayerEvent>()
+        val job = launch { vm.events.take(1).toList(collected) }
+        runCurrent()
+
+        controller.emitEnded()
+        runCurrent()
+        job.join()
+
+        assertEquals(listOf(AudiobookPlayerEvent.PlaylistAdvance(nextItemId)), collected)
+        // The critical invariant: on auto-advance we MUST leave the singleton controller alone.
+        // If stopCount > 0, the incoming VM's playback will race a connector release and die.
+        assertEquals(0, controller.stopCount)
+        vm.clearForTest()
+    }
+
+    @Test
+    fun `controller playbackEnded on the last item of a playlist falls back to Finished`() = runTest(testDispatcher) {
+        val controller = FakeController(position = 0.0)
+        val playlist = com.riffle.core.catalog.CatalogPlaylist(
+            id = "pl-1",
+            rootId = "lib-1",
+            name = "My playlist",
+            bookCount = 1,
+            itemIds = listOf(itemId), // current IS the last (and only) item
+        )
+        val playlistsRepo = object : com.riffle.core.data.PlaylistsRepository {
+            override fun observePlaylists(rootId: String) = kotlinx.coroutines.flow.flowOf(listOf(playlist))
+            override suspend fun refresh(rootId: String) = true
+            override suspend fun getPlaylist(rootId: String, playlistId: String) = playlist
+            override suspend fun createPlaylist(rootId: String, name: String, initialItemId: String?) = throw UnsupportedOperationException()
+            override suspend fun addItemToPlaylist(rootId: String, playlistId: String, itemId: String) = false
+            override suspend fun removeItemFromPlaylist(rootId: String, playlistId: String, itemId: String) = false
+        }
+        val vm = buildViewModel(
+            controller = controller,
+            bookmarkStore = FakeBookmarkStore(),
+            playlistsRepository = playlistsRepo,
+            savedState = mapOf(
+                "itemId" to itemId,
+                "playlistId" to "pl-1",
+                "libraryId" to "lib-1",
+            ),
+        )
+        runCurrent()
+
+        val collected = mutableListOf<AudiobookPlayerEvent>()
+        val job = launch { vm.events.take(1).toList(collected) }
+        runCurrent()
+
+        controller.emitEnded()
+        runCurrent()
+        job.join()
+
+        assertEquals(listOf(AudiobookPlayerEvent.Finished), collected)
+        assertEquals(1, controller.stopCount)
         vm.clearForTest()
     }
 
