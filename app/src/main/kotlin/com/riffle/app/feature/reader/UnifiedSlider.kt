@@ -149,17 +149,22 @@ private fun SliderTrack(
             val cy = size.height / 2f
             val trackHeightPx = with(density) { 6.dp.toPx() }
             val corner = trackHeightPx / 2f
+            // Match the M3 Slider's thumb travel: the thumb centre only ranges from
+            // [thumbHalf, width - thumbHalf], so the track and ticks must live inside
+            // that same inset — otherwise the filled portion drifts away from the thumb.
+            val thumbHalfPx = with(density) { 10.dp.toPx() }
+            val usableWidth = size.width - thumbHalfPx * 2f
             drawRoundRect(
                 color = trackBaseColor,
-                topLeft = Offset(0f, cy - trackHeightPx / 2f),
-                size = Size(size.width, trackHeightPx),
+                topLeft = Offset(thumbHalfPx, cy - trackHeightPx / 2f),
+                size = Size(usableWidth, trackHeightPx),
                 cornerRadius = CornerRadius(corner, corner),
             )
             val filledFrac = ((value - min) / span).coerceIn(0f, 1f)
             drawRoundRect(
                 color = fillColor,
-                topLeft = Offset(0f, cy - trackHeightPx / 2f),
-                size = Size(size.width * filledFrac, trackHeightPx),
+                topLeft = Offset(thumbHalfPx, cy - trackHeightPx / 2f),
+                size = Size(usableWidth * filledFrac, trackHeightPx),
                 cornerRadius = CornerRadius(corner, corner),
             )
             if (steps > 0) {
@@ -167,7 +172,7 @@ private fun SliderTrack(
                     val v = min + i * step
                     val isMajor = majorEvery != null && isMajorTick(v, majorEvery)
                     if (!showMinors && !isMajor) continue
-                    val x = size.width * ((v - min) / span)
+                    val x = thumbHalfPx + usableWidth * ((v - min) / span)
                     val tickH = if (isMajor) with(density) { 12.dp.toPx() } else with(density) { 8.dp.toPx() }
                     val tickW = with(density) { 2.dp.toPx() }
                     val color = if (isMajor) fillColor else minorTickColor
@@ -183,7 +188,7 @@ private fun SliderTrack(
 
         if (interacting && trackWidthPx > 0) {
             val frac = ((value - min) / span).coerceIn(0f, 1f)
-            val thumbHalfPx = with(density) { 12.dp.toPx() }
+            val thumbHalfPx = with(density) { 10.dp.toPx() }
             val usable = trackWidthPx - thumbHalfPx * 2f
             val xPx = thumbHalfPx + frac * usable
             Box(
