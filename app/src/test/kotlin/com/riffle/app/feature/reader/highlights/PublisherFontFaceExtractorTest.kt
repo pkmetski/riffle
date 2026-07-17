@@ -126,6 +126,29 @@ class PublisherFontFaceExtractorTest {
         assertTrue(result.contains("data:font/ttf;base64,AAAA"))
     }
 
+    // Regression (review finding): a CSS `@font-face` with `src: url('/fonts/x.ttf')` (leading
+    // slash means "relative to the EPUB package root") must find the font under the EPUB's
+    // package directory (typically `OEBPS/`), not the ZIP root. Without the package-root
+    // fallback the extractor drops the rule and the elided view falls through to a generic
+    // serif — the exact class of miss the whole change is guarding against.
+    @Test
+    fun resolvesLeadingSlashUrlAgainstEpubPackageRootPrefixes() {
+        val css = """
+            @font-face { font-family: 'A'; src: url('/fonts/a.ttf'); }
+        """.trimIndent()
+        val result = PublisherFontFaceExtractor.extract(
+            cssFiles = listOf("OEBPS/css/stylesheet.css" to css.toByteArray()),
+            fontResolver = { path ->
+                // Only the OEBPS/-prefixed path resolves — mirroring the real ZIP layout.
+                if (path == "OEBPS/fonts/a.ttf") byteArrayOf(7, 7, 7) else null
+            },
+        )
+        assertTrue(
+            "expected @font-face rule to survive via OEBPS/-prefix fallback; got: $result",
+            result.contains("data:font/ttf;base64,BwcH"),
+        )
+    }
+
     @Test
     fun emitsEmptyStringWhenNoFontFaceRulesInAnyCssFile() {
         val css = "body { color: black; } p { margin: 0; }"

@@ -1611,6 +1611,21 @@ class EpubReaderViewModel @Inject constructor(
         if (source == ReaderSource.Highlights) return
         val trimmed = fontFamily.trim()
         if (trimmed.isBlank()) return
+        // Refuse the sentinel value verbatim (review finding, elided-view-serif-font-regression
+        // follow-up). Latching it into `bookBodyFontFamilyReported` via `compareAndSet` would
+        // block every subsequent real report for the whole VM session (the atomic is set-once)
+        // AND `backfillNullOriginFontFamily` would rewrite every legacy null row on this book
+        // to the sentinel string — which every render/plurality site downstream then filters as
+        // "no captured value" and drops back to browser-default serif. So on a book whose
+        // publisher CSS legitimately sets `p { font-family: serif }`, the effect is the exact
+        // regression this whole change is fixing.
+        //
+        // Skipping the sentinel here is safe: the render path treats "no probed font" and
+        // "probed font equals sentinel" identically anyway (both fall through to ReadiumCSS
+        // default), and skipping leaves the atomic empty so a later chapter whose computed
+        // font is a REAL face (e.g. `Nimbusromno9l, serif` on a chapter that mounts a font
+        // stack, not the generic keyword) can still fill it in.
+        if (trimmed == FALLBACK_ORIGIN_FONT_FAMILY) return
         // Set-once per (VM lifecycle, book). AtomicReference.compareAndSet returns false when
         // we've already stored a non-blank font — cheap no-op on the many repeat reports the
         // JS tracker fires as chapters install across a reading session.

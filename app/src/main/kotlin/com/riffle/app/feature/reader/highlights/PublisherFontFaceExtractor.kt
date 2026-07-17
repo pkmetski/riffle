@@ -121,8 +121,21 @@ internal object PublisherFontFaceExtractor {
                 anyResolved = true
                 return@replace match.value
             }
+            // Try the CSS-dir-relative resolution first (the normal EPUB case), then the raw
+            // path as given (in case the caller already handed us a package-absolute path).
+            // Finally, if the raw path starts with '/', ALSO try common EPUB-root prefixes:
+            // most EPUBs stash content under `OEBPS/` (`EPUB/` in newer builds), and a
+            // package-absolute `url('/fonts/x.ttf')` means "relative to the EPUB package root"
+            // — which is the ZIP's OEBPS directory, not the ZIP root. Without this fallback,
+            // the extractor dropped `@font-face` rules on hand-authored EPUBs that use
+            // package-absolute URLs and the elided view fell through to browser-default serif
+            // (review finding).
             val resolved = fontResolver(resolveAgainst(cssDir, rawPath))
                 ?: fontResolver(rawPath)
+                ?: if (rawPath.startsWith('/')) {
+                    val bare = rawPath.trimStart('/')
+                    EPUB_ROOT_PREFIXES.firstNotNullOfOrNull { fontResolver("$it$bare") }
+                } else null
                 ?: return@replace match.value
             anyResolved = true
             val mime = mimeForFontPath(rawPath)
@@ -133,6 +146,11 @@ internal object PublisherFontFaceExtractor {
     }
 
     private val URL_REGEX = Regex("""url\(\s*([^)]+?)\s*\)""", RegexOption.IGNORE_CASE)
+
+    /** Common EPUB "package root" directory prefixes probed when a CSS `url()` starts with `/` —
+     *  see [rewriteRule]. Ordered by prevalence (older EPUBs use `OEBPS/`, EPUB3 tooling tends
+     *  toward `EPUB/`, `content/` shows up on hand-authored books). */
+    private val EPUB_ROOT_PREFIXES = listOf("OEBPS/", "EPUB/", "content/")
 
     private fun resolveAgainst(cssDir: String, rel: String): String {
         if (rel.startsWith('/')) return rel.trimStart('/')
