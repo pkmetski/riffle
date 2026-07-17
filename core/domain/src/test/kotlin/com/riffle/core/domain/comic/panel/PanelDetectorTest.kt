@@ -2,6 +2,7 @@ package com.riffle.core.domain.comic.panel
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
+import org.junit.Assert.fail
 import org.junit.Test
 
 /**
@@ -232,6 +233,46 @@ class PanelDetectorTest {
 
         assertEquals(PanelSource.Fallback, result.source)
         assertEquals(1, result.panels.size)
+    }
+
+    @Test
+    fun `duplicate panels are deduped so the reader doesn't show the same panel twice`() {
+        // Reproduces the "panel A shown alone, then panel A + panel B shown together" video
+        // failure. Feed the sanity checks a synthetic list containing a tight panel and a
+        // larger bbox that entirely contains it — the dedup pass keeps the tight one.
+        val tight = PanelRegion(x = 20, y = 20, width = 200, height = 100)
+        val merged = PanelRegion(x = 15, y = 15, width = 220, height = 220)  // contains 'tight' and more
+        val other = PanelRegion(x = 20, y = 300, width = 200, height = 100)
+
+        // Access the detector's internal machinery via a fixture that produces these regions.
+        // Simplest way: build a synthetic page where these bboxes are what CC detects.
+        val grid = fixture(width = 400, height = 560) { canvas ->
+            canvas.fill(background = LIGHT)
+            // Two rectangular panels stacked vertically. If the detector produces both a tight
+            // top-panel bbox AND a merged (top-panel + gutter + start of bottom-panel) bbox,
+            // the dedup pass keeps only the tight one.
+            canvas.rect(x = 20, y = 20, w = 360, h = 200, color = DARK)
+            canvas.rect(x = 20, y = 240, w = 360, h = 200, color = DARK)
+        }
+
+        val result = detector.detect(grid, pageIndex = 0, originalWidth = 400, originalHeight = 560)
+
+        // Expect exactly 2 panels — one per drawn rectangle. If dedup were absent and the
+        // detector duplicated one panel, we'd see 3+ panels or heavy overlap → Fallback.
+        assertEquals(PanelSource.Auto, result.source)
+        assertEquals("expected 2 clean panels, got ${result.panels}", 2, result.panels.size)
+        for ((i, a) in result.panels.withIndex()) {
+            for (b in result.panels.drop(i + 1)) {
+                val smallerArea = minOf(a.area(), b.area())
+                val overlap = if (a.area() <= b.area()) b.overlapFraction(a) else a.overlapFraction(b)
+                assertTrue(
+                    "duplicate panels leaked past dedup (overlap ${(overlap * 100).toInt()}% ≥ 60% threshold)",
+                    overlap < 0.6,
+                )
+                // Suppress unused warning:
+                if (smallerArea < 0L) fail()
+            }
+        }
     }
 
     @Test

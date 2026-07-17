@@ -116,7 +116,7 @@ class JsonPanelStoreTest {
         // the cache still returned Fallback.
         val file = File(rootDir, "book-1.json")
         val legacyJson = """
-            {"schemaVersion":4,"bookId":"book-1","pages":[
+            {"schemaVersion":5,"bookId":"book-1","pages":[
               {"pageIndex":0,"imageWidth":400,"imageHeight":560,
                "panels":[{"x":0,"y":0,"width":400,"height":560}],"source":"Fallback"}
             ]}

@@ -111,8 +111,11 @@ class JsonPanelStore @Inject constructor(
          *      the projection and CC paths. A bbox that straddles a full-crossing internal
          *      gutter is now split into its two real panels. v4 caches held wrongly-merged
          *      bboxes for those pages.
+         *  6 — dedup pass drops merged-panel duplicates that would cause Panel View to walk
+         *      the user through the same real panel twice (once tight, once as part of a
+         *      larger merged bbox). v5 caches held those duplicates.
          */
-        internal const val CURRENT_SCHEMA_VERSION: Int = 5
+        internal const val CURRENT_SCHEMA_VERSION: Int = 6
 
         private val UNSAFE = Regex("[^A-Za-z0-9._-]")
         internal val PagesListSerializer = ListSerializer(PagePanels.serializer())

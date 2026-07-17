@@ -66,6 +66,14 @@ class PanelDetector(
         val maxSummedCoverageFraction: Double = 1.05,
 
         /**
+         * When one panel bbox contains ≥ this fraction of the smaller panel it overlaps, treat
+         * them as duplicates and keep only the smaller (tighter) one. Fixes the "same panel
+         * shown twice" failure where the detector emits both a clean panel bbox and a merged
+         * panel-plus-neighbour bbox.
+         */
+        val dedupOverlapFraction: Double = 0.6,
+
+        /**
          * A pixel is considered content if its luma differs from the detected page background by
          * at least this much (in `[0, 255]`). Handles both light-background comics (dark art on
          * white gutter) and dark-background comics (bright figures on black gutter) uniformly.
@@ -382,6 +390,26 @@ class PanelDetector(
     }
 
     /**
+     * Greedy dedup by area: sort candidates smallest-first, keep each if it doesn't overlap any
+     * already-kept panel by ≥ [Config.dedupOverlapFraction] of the smaller area. Prefers tight
+     * bboxes and discards merged big-bbox duplicates that would otherwise cause Panel View to
+     * walk the user through the same real panel twice.
+     */
+    private fun deduplicateOverlapping(regions: List<PanelRegion>): List<PanelRegion> {
+        val sorted = regions.sortedBy { it.area() }
+        val kept = mutableListOf<PanelRegion>()
+        for (candidate in sorted) {
+            val duplicatesKept = kept.any { existing ->
+                val smaller = if (candidate.area() <= existing.area()) candidate else existing
+                val larger = if (candidate.area() <= existing.area()) existing else candidate
+                larger.overlapFraction(smaller) >= config.dedupOverlapFraction
+            }
+            if (!duplicatesKept) kept.add(candidate)
+        }
+        return kept
+    }
+
+    /**
      * Post-detection sanity checks applied to BOTH the projection and CC paths:
      *  - drop panels smaller than [Config.minPanelDimensionFraction] of the page in both axes
      *    (noise islands that would make Panel View force blurry zooms into meaningless regions);
@@ -400,7 +428,15 @@ class PanelDetector(
         val pageArea = originalWidth.toLong() * originalHeight.toLong()
         val minWidth = (originalWidth * config.minPanelDimensionFraction).toInt().coerceAtLeast(1)
         val minHeight = (originalHeight * config.minPanelDimensionFraction).toInt().coerceAtLeast(1)
-        val meaningful = regions.filter { it.width >= minWidth || it.height >= minHeight }
+        val filtered = regions.filter { it.width >= minWidth || it.height >= minHeight }
+        if (filtered.isEmpty()) return null
+
+        // Deduplicate. If both a tight bbox around Panel A AND a larger bbox around Panel A +
+        // adjacent panel B make it through, Panel View walks the user through Panel A twice —
+        // once tight, once as part of the larger. Sort by area ascending and greedily keep
+        // panels that don't heavily overlap any already-kept panel. The tight (smaller) ones
+        // survive; merged big-bbox duplicates are dropped.
+        val meaningful = deduplicateOverlapping(filtered)
         if (meaningful.isEmpty()) return null
 
         if (meaningful.size == 1) {
