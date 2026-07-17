@@ -494,36 +494,6 @@ class PanelDetector(
     }
 
     /**
-     * Test-only entry point returning the intermediate masks so unit tests can dump them as
-     * PNGs and debug why detection fell back. Never called from production paths.
-     */
-    fun detectDebug(grid: PixelGrid): DebugTrace {
-        val rawMask = binarize(grid)
-        val mask = rawMask
-            ?.let { morphologyClose(it, config.morphCloseRadius) }
-            ?.let { morphologyOpen(it, config.morphOpenRadius) }
-        val cropped = mask?.let { trimMargin(it) }
-        val gutter = cropped?.let { floodFillGutter(it) }
-        val components = if (cropped != null && gutter != null) connectedComponents(cropped, gutter) else emptyList()
-        val filtered = if (cropped != null) filterAndTighten(components, cropped) else emptyList()
-        return DebugTrace(
-            gridWidth = grid.width,
-            gridHeight = grid.height,
-            binaryMaskData = mask?.data,
-            binaryMaskWidth = mask?.width ?: 0,
-            binaryMaskHeight = mask?.height ?: 0,
-            croppedMaskData = cropped?.data,
-            croppedWidth = cropped?.width ?: 0,
-            croppedHeight = cropped?.height ?: 0,
-            croppedOffsetX = cropped?.offsetX ?: 0,
-            croppedOffsetY = cropped?.offsetY ?: 0,
-            gutterMask = gutter,
-            componentBboxes = components.map { IntArray(4).apply { this[0] = it.minX; this[1] = it.minY; this[2] = it.maxX; this[3] = it.maxY } },
-            filteredBboxes = filtered.map { IntArray(4).apply { this[0] = it.minX; this[1] = it.minY; this[2] = it.maxX; this[3] = it.maxY } },
-        )
-    }
-
-    /**
      * Morphological CLOSE = dilate by [radius] then erode by [radius]. Fills small holes inside
      * content regions. Uses a separable-1D pass in each axis for O(width * height * radius)
      * cost instead of O(width * height * radius^2). Zero radius is a no-op.
@@ -601,23 +571,6 @@ class PanelDetector(
         }
         return BinaryMask(w, h, out)
     }
-
-    /** Snapshot of every intermediate stage for [detectDebug]. Arrays are row-major. */
-    data class DebugTrace(
-        val gridWidth: Int,
-        val gridHeight: Int,
-        val binaryMaskData: ByteArray?,
-        val binaryMaskWidth: Int,
-        val binaryMaskHeight: Int,
-        val croppedMaskData: ByteArray?,
-        val croppedWidth: Int,
-        val croppedHeight: Int,
-        val croppedOffsetX: Int,
-        val croppedOffsetY: Int,
-        val gutterMask: BooleanArray?,
-        val componentBboxes: List<IntArray>,
-        val filteredBboxes: List<IntArray>,
-    )
 
     // --- Step 1: binarize as content-vs-background ---
 
