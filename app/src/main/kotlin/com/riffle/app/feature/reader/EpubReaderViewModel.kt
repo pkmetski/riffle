@@ -2704,7 +2704,12 @@ class EpubReaderViewModel @Inject constructor(
 
     val railSegments: StateFlow<List<RailSegment>> = combine(state, spinePositionCounts) { s, (spineHrefs, counts) ->
         val ready = s as? ReaderState.Ready ?: return@combine emptyList()
-        val base = buildRailSegments(ready.publication.tableOfContents.toTocEntries(), ready.title)
+        val base = buildRailSegments(
+            ready.publication.tableOfContents.toTocEntries(),
+            ready.title,
+            spineHrefs = spineHrefs,
+            positionCounts = counts,
+        )
         weightSegmentsByChapterLength(base, spineHrefs, counts)
     }
         .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
