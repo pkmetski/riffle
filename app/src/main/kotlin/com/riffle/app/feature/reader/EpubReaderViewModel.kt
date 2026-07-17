@@ -82,6 +82,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.mapNotNull
@@ -2702,16 +2703,35 @@ class EpubReaderViewModel @Inject constructor(
         }
         .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList<String>() to emptyList<Int>())
 
+    // Inputs to buildRailSegments are stable within a Ready session (TOC / title / spine
+    // hrefs / positions), so squash `state` down to just those before combining. Keeps rail
+    // computation out of the per-page-turn hot path and avoids the initial rail flicker that
+    // would otherwise occur while spinePositionCounts is still emptyList — the length rule
+    // silently degrades to the no-positions fallback and produces a different (usually more
+    // collapsed) rail than the second emission moments later.
+    private data class RailInputs(
+        val toc: List<TocEntry>,
+        val title: String,
+        val spineHrefs: List<String>,
+        val positionCounts: List<Int>,
+    )
+
     val railSegments: StateFlow<List<RailSegment>> = combine(state, spinePositionCounts) { s, (spineHrefs, counts) ->
-        val ready = s as? ReaderState.Ready ?: return@combine emptyList()
-        val base = buildRailSegments(
-            ready.publication.tableOfContents.toTocEntries(),
-            ready.title,
-            spineHrefs = spineHrefs,
-            positionCounts = counts,
-        )
-        weightSegmentsByChapterLength(base, spineHrefs, counts)
+        val ready = s as? ReaderState.Ready ?: return@combine null
+        if (spineHrefs.isEmpty() || counts.isEmpty()) return@combine null
+        RailInputs(ready.publication.tableOfContents.toTocEntries(), ready.title, spineHrefs, counts)
     }
+        .filterNotNull()
+        .distinctUntilChanged()
+        .map { inputs ->
+            val base = buildRailSegments(
+                inputs.toc,
+                inputs.title,
+                spineHrefs = inputs.spineHrefs,
+                positionCounts = inputs.positionCounts,
+            )
+            weightSegmentsByChapterLength(base, inputs.spineHrefs, inputs.positionCounts)
+        }
         .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     val activeRailSegmentIndex: StateFlow<Int> = combine(

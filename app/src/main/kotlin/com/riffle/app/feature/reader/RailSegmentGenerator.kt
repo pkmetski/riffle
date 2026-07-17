@@ -9,7 +9,7 @@ fun buildRailSegments(
     positionCounts: List<Int> = emptyList(),
 ): List<RailSegment> {
     val bookTitleNorm = bookTitle.normalize()
-    val spineIndex: Map<String, Int> = spineHrefs.withIndex().associate { (i, h) -> h to i }
+    val spineIndex = spineIndexOf(spineHrefs)
     val preprocessed = absorbFlatNumericRuns(tocEntries)
     val expanded = preprocessed.flatMap { expandIfRedundant(it, bookTitleNorm, spineIndex, positionCounts) }
     // Collapse entries that point to the same spine resource via different fragments. The
@@ -129,8 +129,7 @@ private fun shouldReplaceWithChildren(
  *   hierarchy from the NCX).
  */
 private fun absorbFlatNumericRuns(toc: List<TocEntry>): List<TocEntry> {
-    val prefix = Regex("""^\s*(\d+)\s*[.)]\s+""")
-    fun numericIndex(title: String): Int? = prefix.find(title)?.groupValues?.get(1)?.toIntOrNull()
+    fun numericIndex(title: String): Int? = NUMERIC_PREFIX.find(title)?.groupValues?.get(1)?.toIntOrNull()
 
     data class Run(val range: IntRange, val startNumber: Int)
     val runs = mutableListOf<Run>()
@@ -172,6 +171,12 @@ private fun spineLength(href: String, spineIndex: Map<String, Int>, positionCoun
 // paperback pages. Below this a "chapter" is really a fragment and shouldn't earn its own
 // rail segment even if it happens to be twice the length of a still-tinier parent.
 private const val MIN_SUBSTANTIAL_POSITIONS = 3
+
+private val NUMERIC_PREFIX = Regex("""^\s*(\d+)\s*[.)]\s+""")
+
+/** Shared spine-href → index lookup used by both the expand decision and the weight math. */
+private fun spineIndexOf(spineHrefs: List<String>): Map<String, Int> =
+    spineHrefs.withIndex().associate { (i, h) -> h to i }
 
 private fun String.normalize(): String = trim().lowercase().replace(Regex("\\s+"), " ")
 
@@ -226,7 +231,7 @@ fun weightSegmentsByChapterLength(
     positionCounts: List<Int>,
 ): List<RailSegment> {
     if (segments.isEmpty()) return segments
-    val hrefToSpine: Map<String, Int> = spineHrefs.withIndex().associate { (i, h) -> h to i }
+    val hrefToSpine = spineIndexOf(spineHrefs)
     val spineForSegment: List<Int?> = segments.map { hrefToSpine[it.href.substringBefore('#')] }
     // When multiple TOC entries point to the same spine resource (sub-sections of one file),
     // split that file's positions equally across them. When a TOC entry is the sole entry for
