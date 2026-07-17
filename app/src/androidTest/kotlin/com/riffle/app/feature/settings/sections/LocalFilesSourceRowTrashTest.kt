@@ -21,7 +21,7 @@ import org.junit.runner.RunWith
 /**
  * Pins the "at least one folder must remain" invariant on the per-folder trash icon in the
  * Local Files source row. If the trash on the last remaining folder becomes tappable, a user can
- * strand the source with zero libraries; the source-wide "Remove Local Files source" action is
+ * strand the source with zero libraries; the swipe-to-remove gesture on the source row header is
  * the correct escape hatch instead.
  */
 @RunWith(AndroidJUnit4::class)
