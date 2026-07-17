@@ -102,6 +102,8 @@ open class AudiobookController @Inject constructor(
     // left" subtitle updates at most once per minute regardless of poll cadence.
     private var lastRemainingMinuteBucket: Long = -1L
 
+    private val pendingSeek = PendingSeekGate()
+
     private val listener = object : Player.Listener {
         override fun onEvents(player: Player, events: Player.Events) {
             if (events.containsAny(Player.EVENT_PLAYBACK_STATE_CHANGED, Player.EVENT_IS_PLAYING_CHANGED)) {
@@ -110,6 +112,9 @@ open class AudiobookController @Inject constructor(
             if (events.contains(Player.EVENT_PLAYBACK_STATE_CHANGED)
                 && player.playbackState == Player.STATE_ENDED) {
                 _playbackEnded.tryEmit(Unit)
+            }
+            if (events.contains(Player.EVENT_POSITION_DISCONTINUITY)) {
+                pendingSeek.onDiscontinuity()
             }
             maybeStart(player)
             pushState()
@@ -254,6 +259,7 @@ open class AudiobookController @Inject constructor(
         val clamped = absoluteSec.coerceIn(0.0, if (durationSec > 0) durationSec else absoluteSec)
         val index = AudiobookTracks.trackIndexAt(clamped, spans)
         val offset = AudiobookTracks.offsetInTrackSec(clamped, spans)
+        pendingSeek.onSeekIssued(clamped)
         controller?.seekTo(index, (offset * 1000).toLong())
         pushState()
     }
@@ -269,7 +275,7 @@ open class AudiobookController @Inject constructor(
     // track 0 and inflates the displayed position past durationSec (e.g. 19:56 books reading 27:50+).
     open fun currentAbsoluteSec(): Double {
         val c = controller ?: return 0.0
-        return c.currentPosition / 1000.0
+        return pendingSeek.sample { c.currentPosition / 1000.0 }
     }
 
     fun stop() {
@@ -291,6 +297,7 @@ open class AudiobookController @Inject constructor(
         SharedAudiobookContext.spans = emptyList()
         SharedAudiobookContext.totalDurationMs = 0L
         lastRemainingMinuteBucket = -1L
+        pendingSeek.reset()
         _state.value = PlaybackState()
     }
 
@@ -321,6 +328,7 @@ open class AudiobookController @Inject constructor(
         SharedAudiobookContext.spans = emptyList()
         SharedAudiobookContext.totalDurationMs = 0L
         lastRemainingMinuteBucket = -1L
+        pendingSeek.reset()
         _state.value = PlaybackState()
     }
 
@@ -344,13 +352,18 @@ open class AudiobookController @Inject constructor(
     private fun pushState() {
         val c = controller
         val position = currentAbsoluteSec()
+        // While a seek is pending the client's [MediaController.bufferedPosition] mirror also holds the
+        // raw local offsetMs we just issued; treating that as absolute would paint a phantom
+        // buffer band. Pin it to the pending target (== "nothing loaded past the seek yet") until the
+        // discontinuity lands and the server rebroadcasts the real projected value.
+        val bufferedSec = if (pendingSeek.pendingSec != null) position else (c?.bufferedPosition ?: 0L) / 1000.0
         _state.value = PlaybackState(
             connected = c != null,
             isPlaying = c?.isPlaying == true,
             speed = c?.playbackParameters?.speed ?: 1f,
             positionSec = position,
             durationSec = durationSec,
-            bufferedSec = (c?.bufferedPosition ?: 0L) / 1000.0,
+            bufferedSec = bufferedSec,
         )
         maybeUpdateRemainingMetadata(c, position)
     }
