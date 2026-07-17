@@ -38,13 +38,7 @@ data class PanelRegion(
 /** Where a page's panel regions came from. */
 @Serializable
 enum class PanelSource {
-    /** From `<frame>` elements in an ACBF sidecar. */
-    Acbf,
-
-    /** From a `ComicInfo.xml` with panel regions. */
-    ComicInfo,
-
-    /** From the on-device flood-fill detector. */
+    /** From the on-device panel detector. */
     Auto,
 
     /** Detector fell back to a single whole-page region; caller renders Fit Whole for this page. */

@@ -105,22 +105,6 @@ class PanelDetector(
         val tightenContentThreshold: Int = 2,
 
         /**
-         * Radius of the morphological CLOSE applied to the binary mask before flood-fill. CLOSE
-         * (dilate then erode) fills holes inside panels. Kept small so it never bridges the
-         * gutter between adjacent panels (which is typically 10+ pixels at ~1000px long-edge).
-         * Zero disables the pass.
-         */
-        val morphCloseRadius: Int = 0,
-
-        /**
-         * Radius of the morphological OPEN applied after CLOSE. OPEN (erode then dilate) breaks
-         * thin (< 2R+1 pixels) content bridges that would otherwise connect adjacent panels.
-         * Kept small so it doesn't eat real thin content (line art, speech-balloon borders).
-         * Zero disables the pass.
-         */
-        val morphOpenRadius: Int = 0,
-
-        /**
          * A row (or column) is considered part of the gutter if its content-pixel count is at or
          * below this fraction of the maximum row (or column) content in the cropped page. Used
          * by the projection-based grid detector to find gutter bands between panels.
@@ -180,9 +164,7 @@ class PanelDetector(
         require(originalWidth > 0 && originalHeight > 0) { "original dimensions must be positive" }
         val fallback = fitWhole(pageIndex, originalWidth, originalHeight)
 
-        val rawMask = binarize(grid) ?: return fallback
-        val mask = morphologyClose(rawMask, config.morphCloseRadius)
-            .let { morphologyOpen(it, config.morphOpenRadius) }
+        val mask = binarize(grid) ?: return fallback
         val cropped = trimMargin(mask) ?: return fallback
 
         // 1. Try grid detection via row/column projection profiles. Works cleanly for regular
@@ -426,9 +408,13 @@ class PanelDetector(
         originalHeight: Int,
     ): List<PanelRegion>? {
         val pageArea = originalWidth.toLong() * originalHeight.toLong()
+        // Drop panels smaller than 15% of the page in BOTH axes. A "panel" that's tiny in one
+        // dimension is a noise island; a "panel" that's tiny in one dimension AND huge in the
+        // other (e.g. 100%×8% title-strip banners) is a wide banner — also a noise island for
+        // Panel View purposes. AND-ing catches both.
         val minWidth = (originalWidth * config.minPanelDimensionFraction).toInt().coerceAtLeast(1)
         val minHeight = (originalHeight * config.minPanelDimensionFraction).toInt().coerceAtLeast(1)
-        val filtered = regions.filter { it.width >= minWidth || it.height >= minHeight }
+        val filtered = regions.filter { it.width >= minWidth && it.height >= minHeight }
         if (filtered.isEmpty()) return null
 
         // Deduplicate. If both a tight bbox around Panel A AND a larger bbox around Panel A +
@@ -491,85 +477,6 @@ class PanelDetector(
             bands.add(Band(start, projection.size - 1))
         }
         return bands
-    }
-
-    /**
-     * Morphological CLOSE = dilate by [radius] then erode by [radius]. Fills small holes inside
-     * content regions. Uses a separable-1D pass in each axis for O(width * height * radius)
-     * cost instead of O(width * height * radius^2). Zero radius is a no-op.
-     */
-    private fun morphologyClose(mask: BinaryMask, radius: Int): BinaryMask {
-        if (radius <= 0) return mask
-        val dilated = dilate1D(mask, radius, horizontal = true)
-            .let { dilate1D(it, radius, horizontal = false) }
-        return erode1D(dilated, radius, horizontal = true)
-            .let { erode1D(it, radius, horizontal = false) }
-    }
-
-    private fun morphologyOpen(mask: BinaryMask, radius: Int): BinaryMask {
-        if (radius <= 0) return mask
-        val eroded = erode1D(mask, radius, horizontal = true)
-            .let { erode1D(it, radius, horizontal = false) }
-        return dilate1D(eroded, radius, horizontal = true)
-            .let { dilate1D(it, radius, horizontal = false) }
-    }
-
-    private fun dilate1D(mask: BinaryMask, radius: Int, horizontal: Boolean): BinaryMask {
-        val w = mask.width
-        val h = mask.height
-        val out = ByteArray(w * h)
-        if (horizontal) {
-            for (y in 0 until h) {
-                val rowBase = y * w
-                for (x in 0 until w) {
-                    val x0 = maxOf(0, x - radius)
-                    val x1 = minOf(w - 1, x + radius)
-                    var any: Byte = 0
-                    for (xx in x0..x1) if (mask.data[rowBase + xx] == 1.toByte()) { any = 1; break }
-                    out[rowBase + x] = any
-                }
-            }
-        } else {
-            for (x in 0 until w) {
-                for (y in 0 until h) {
-                    val y0 = maxOf(0, y - radius)
-                    val y1 = minOf(h - 1, y + radius)
-                    var any: Byte = 0
-                    for (yy in y0..y1) if (mask.data[yy * w + x] == 1.toByte()) { any = 1; break }
-                    out[y * w + x] = any
-                }
-            }
-        }
-        return BinaryMask(w, h, out)
-    }
-
-    private fun erode1D(mask: BinaryMask, radius: Int, horizontal: Boolean): BinaryMask {
-        val w = mask.width
-        val h = mask.height
-        val out = ByteArray(w * h)
-        if (horizontal) {
-            for (y in 0 until h) {
-                val rowBase = y * w
-                for (x in 0 until w) {
-                    val x0 = maxOf(0, x - radius)
-                    val x1 = minOf(w - 1, x + radius)
-                    var all: Byte = 1
-                    for (xx in x0..x1) if (mask.data[rowBase + xx] != 1.toByte()) { all = 0; break }
-                    out[rowBase + x] = all
-                }
-            }
-        } else {
-            for (x in 0 until w) {
-                for (y in 0 until h) {
-                    val y0 = maxOf(0, y - radius)
-                    val y1 = minOf(h - 1, y + radius)
-                    var all: Byte = 1
-                    for (yy in y0..y1) if (mask.data[yy * w + x] != 1.toByte()) { all = 0; break }
-                    out[y * w + x] = all
-                }
-            }
-        }
-        return BinaryMask(w, h, out)
     }
 
     // --- Step 1: binarize as content-vs-background ---

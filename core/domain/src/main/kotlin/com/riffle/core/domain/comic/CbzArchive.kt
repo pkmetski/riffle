@@ -42,15 +42,6 @@ class CbzArchive(file: File) : ComicArchive {
 
     override fun mediaType(pageIndex: Int): String = entries[pageIndex].mediaType
 
-    override fun acbfXml(): String? {
-        val entry = zip.entries().asSequence()
-            .filter { !it.isDirectory }
-            .filter { !it.name.contains("__MACOSX", ignoreCase = false) }
-            .firstOrNull { it.name.substringAfterLast('.', "").equals("acbf", ignoreCase = true) }
-            ?: return null
-        return zip.getInputStream(entry).use { it.readBytes().toString(Charsets.UTF_8) }
-    }
-
     override fun close() {
         zip.close()
     }

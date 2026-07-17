@@ -142,7 +142,6 @@ class ImmersiveModeState internal constructor(
     // Restores both system bars on tap-exit. Clearing systemBarsHidden disables
     // auto-dismiss on page turns; the user must tap to re-enter immersive.
     fun toggle() {
-        android.util.Log.d("DEBUG-imm", "toggle entry isImmersive=$isImmersive systemBarsHidden=$systemBarsHidden")
         if (isImmersive) {
             lastToggleMs = clock()
             // systemBarsHidden must be cleared before isImmersive so that any

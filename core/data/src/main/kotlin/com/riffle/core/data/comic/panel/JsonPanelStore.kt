@@ -5,7 +5,6 @@ import com.riffle.core.domain.comic.panel.PanelStore
 import java.io.File
 import javax.inject.Inject
 import kotlinx.serialization.Serializable
-import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.Json
 
 /**
@@ -114,10 +113,12 @@ class JsonPanelStore @Inject constructor(
          *  6 — dedup pass drops merged-panel duplicates that would cause Panel View to walk
          *      the user through the same real panel twice (once tight, once as part of a
          *      larger merged bbox). v5 caches held those duplicates.
+         *  7 — PanelSource enum shrunk to Auto/Fallback (Acbf/ComicInfo removed since the
+         *      ACBF sidecar path was never actually reachable in production). v6 caches would
+         *      fail to deserialize the removed enum values.
          */
-        internal const val CURRENT_SCHEMA_VERSION: Int = 6
+        internal const val CURRENT_SCHEMA_VERSION: Int = 7
 
         private val UNSAFE = Regex("[^A-Za-z0-9._-]")
-        internal val PagesListSerializer = ListSerializer(PagePanels.serializer())
     }
 }

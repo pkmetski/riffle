@@ -75,6 +75,12 @@ tasks.register("checkRiffleInfraSeams") {
             // rest of the LocalFiles layer routes through DispatcherProvider.
             "core/data/src/main/kotlin/com/riffle/core/data/localfiles/AndroidCopyInService.kt",
             "core/data/src/main/kotlin/com/riffle/core/data/localfiles/SafFolderWalker.kt",
+            // CBZ reader dispatches: archive I/O (Dispatchers.IO), image decode for produceState
+            // in the reader Compose (Dispatchers.IO), and panel-detector prefetch
+            // (Dispatchers.Default). Same rationale as the AudiobookPlayerViewModel entry —
+            // migrate once the reader layer routes through DispatcherProvider.
+            "app/src/main/kotlin/com/riffle/app/feature/reader/cbz/CbzReaderViewModel.kt",
+            "app/src/main/kotlin/com/riffle/app/feature/reader/cbz/CbzReaderScreen.kt",
         )
 
         val scanRoots = listOf(

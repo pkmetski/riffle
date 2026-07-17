@@ -31,31 +31,7 @@ class PanelOrchestratorTest {
     }
 
     @Test
-    fun `ACBF sidecar wins over auto-detection when it has a frame for the page`() {
-        val store = InMemoryPanelStore()
-        val acbf = """
-            <?xml version="1.0" encoding="UTF-8"?>
-            <ACBF><body>
-              <page image="p1.jpg"><frame points="20,20 190,20 190,270 20,270"/></page>
-            </body></ACBF>
-        """.trimIndent()
-        val orchestrator = PanelOrchestrator(store, ThrowingDecoder())
-        val book = orchestrator.forBook(
-            bookId = "book-1",
-            imageBytes = { error("should not be called when ACBF covers the page") },
-            acbfXml = acbf,
-            pageImageDimensions = listOf(400 to 560),
-        )
-
-        val page = book.resolvePage(0)
-        assertEquals(PanelSource.Acbf, page.source)
-        assertEquals(1, page.panels.size)
-        // Written to cache.
-        assertNotNull(store.load("book-1", 0))
-    }
-
-    @Test
-    fun `on a cache miss without ACBF the detector runs and result is cached`() {
+    fun `on a cache miss the detector runs and result is cached`() {
         val store = InMemoryPanelStore()
         val syntheticGrid = buildGridWithFourPanels(width = 400, height = 560)
         val decoder = FakeDecoder(
@@ -92,14 +68,11 @@ class PanelOrchestratorTest {
         val book = orchestrator.forBook(
             bookId = "book-1",
             imageBytes = { ByteArray(1) },
-            pageImageDimensions = listOf(400 to 560),
         )
 
         val page = book.resolvePage(0)
         assertEquals(PanelSource.Fallback, page.source)
         assertEquals(1, page.panels.size)
-        assertEquals(400, page.panels[0].width)
-        assertEquals(560, page.panels[0].height)
     }
 
     @Test
@@ -109,7 +82,6 @@ class PanelOrchestratorTest {
         val book = orchestrator.forBook(
             bookId = "book-1",
             imageBytes = { error("archive read failed") },
-            pageImageDimensions = listOf(400 to 560),
         )
 
         val page = book.resolvePage(0)

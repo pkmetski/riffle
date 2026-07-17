@@ -14,7 +14,6 @@ import com.riffle.core.domain.LibraryObserver
 import com.riffle.core.domain.ProgressSyncController
 import com.riffle.core.domain.ReadingSessionRepository
 import com.riffle.core.domain.SessionPayload
-import com.riffle.core.domain.SourceRepository
 import com.riffle.core.domain.WakeLockPreferencesStore
 import com.riffle.core.domain.comic.CbzArchive
 import com.riffle.core.domain.comic.ComicArchive
@@ -26,7 +25,9 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import java.io.File
 import javax.inject.Inject
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -55,7 +56,6 @@ class CbzReaderViewModel @Inject constructor(
     private val volumeNavigationController: VolumeNavigationController,
     private val volumeKeyDispatcher: VolumeKeyDispatcher,
     private val readerStateHolder: ReaderStateHolder,
-    private val sourceRepository: SourceRepository,
     private val panelOrchestrator: PanelOrchestrator,
     private val panelViewPreferencesStore: PanelViewPreferencesStore,
 ) : AndroidViewModel(application) {
@@ -67,6 +67,13 @@ class CbzReaderViewModel @Inject constructor(
     private var closeSyncDone: Boolean = false
     private var bookId: String = itemId
     private var panelBook: PanelOrchestrator.Book? = null
+    // Cancel-and-replace the in-flight panel resolve on every page change so a stale resolver
+    // can't overwrite a newer page's PagePanels result.
+    private var panelResolveJob: Job? = null
+    // Guard so background prefetches skip store writes after the archive is closed on
+    // onCleared, otherwise a stale coroutine calling into a closed ZipFile persists a bogus
+    // 1x1 Fallback that would poison the next open's cache.
+    @Volatile private var archiveClosed: Boolean = false
 
     private val syncSession = ProgressSyncController(
         itemId = itemId,
@@ -116,10 +123,9 @@ class CbzReaderViewModel @Inject constructor(
                 val ready = _state.value as? CbzReaderState.Ready ?: return@collect
                 val clamped = page.coerceIn(0, ready.pageCount - 1)
                 if (clamped != _currentPage.value) {
-                    // ADR 0043: remote wins the page → discard local panel-index resume.
-                    panelViewPreferencesStore.clearPanelResume(bookId)
                     _currentPage.value = clamped
                     _currentPanelIndex.value = 0
+                    _currentPagePanels.value = null
                     lastSavedPage = clamped
                     onCurrentPageChanged(clamped)
                     val progressFraction = if (ready.pageCount > 1) clamped.toFloat() / (ready.pageCount - 1).toFloat() else 1f
@@ -136,8 +142,10 @@ class CbzReaderViewModel @Inject constructor(
             return
         }
         bookId = "${item.sourceId}::${item.id}"
-        // Load persisted Panel View toggle before rendering so the reader opens in the last mode.
+        // Await the FIRST DataStore emission before state becomes Ready so the reader doesn't
+        // briefly render the whole-page pager before flipping to Panel View on every open.
         val prefState = panelViewPreferencesStore.state(bookId)
+        _panelViewOn.value = prefState.first().panelViewOn
         viewModelScope.launch {
             prefState.collect { state -> _panelViewOn.value = state.panelViewOn }
         }
@@ -151,9 +159,9 @@ class CbzReaderViewModel @Inject constructor(
     }
 
     private suspend fun loadArchive(file: File, lastPosition: String?, title: String) {
-        val (opened, pageCount, acbf) = withContext(Dispatchers.IO) {
+        val (opened, pageCount) = withContext(Dispatchers.IO) {
             val a = CbzArchive(file)
-            Triple(a, a.pageCount, a.acbfXml())
+            a to a.pageCount
         }
         if (pageCount == 0) {
             _state.value = CbzReaderState.Error("Comic has no pages")
@@ -177,10 +185,6 @@ class CbzReaderViewModel @Inject constructor(
         panelBook = panelOrchestrator.forBook(
             bookId = bookId,
             imageBytes = { pageIndex -> opened.imageBytes(pageIndex) },
-            acbfXml = acbf,
-            // We don't know per-page image dimensions cheaply here; ACBF is uncommon enough that
-            // an empty list is acceptable in v1. Auto-detection paths don't need this.
-            pageImageDimensions = emptyList(),
         )
         _state.value = CbzReaderState.Ready(
             title = title,
@@ -210,9 +214,7 @@ class CbzReaderViewModel @Inject constructor(
         val ready = _state.value as? CbzReaderState.Ready ?: return
         val next = (_currentPage.value + 1).coerceAtMost(ready.pageCount - 1)
         if (next != _currentPage.value) {
-            _currentPage.value = next
-            _currentPanelIndex.value = 0
-            onCurrentPageChanged(next)
+            gotoPage(next)
             savePosition(next, ready.pageCount)
         }
     }
@@ -220,9 +222,7 @@ class CbzReaderViewModel @Inject constructor(
     fun previousPage() {
         val next = (_currentPage.value - 1).coerceAtLeast(0)
         if (next != _currentPage.value) {
-            _currentPage.value = next
-            _currentPanelIndex.value = 0
-            onCurrentPageChanged(next)
+            gotoPage(next)
             val ready = _state.value as? CbzReaderState.Ready ?: return
             savePosition(next, ready.pageCount)
         }
@@ -232,11 +232,21 @@ class CbzReaderViewModel @Inject constructor(
         val ready = _state.value as? CbzReaderState.Ready ?: return
         val clamped = index.coerceIn(0, ready.pageCount - 1)
         if (clamped != _currentPage.value) {
-            _currentPage.value = clamped
-            _currentPanelIndex.value = 0
-            onCurrentPageChanged(clamped)
+            gotoPage(clamped)
             savePosition(clamped, ready.pageCount)
         }
+    }
+
+    /**
+     * Central page-change primitive. Clears `_currentPagePanels` (so Panel View doesn't render
+     * the new page's bitmap through the previous page's panel geometry) and resets the panel
+     * index before kicking off the async resolve.
+     */
+    private fun gotoPage(newPage: Int) {
+        _currentPage.value = newPage
+        _currentPanelIndex.value = 0
+        _currentPagePanels.value = null
+        onCurrentPageChanged(newPage)
     }
 
     // --- Panel View (ADR 0043) ---
@@ -259,7 +269,6 @@ class CbzReaderViewModel @Inject constructor(
         val nextIndex = _currentPanelIndex.value + 1
         if (nextIndex < panels.size) {
             _currentPanelIndex.value = nextIndex
-            rememberResume()
         } else {
             nextPage()
         }
@@ -272,17 +281,22 @@ class CbzReaderViewModel @Inject constructor(
         val prevIndex = _currentPanelIndex.value - 1
         if (prevIndex >= 0) {
             _currentPanelIndex.value = prevIndex
-            rememberResume()
         } else {
-            // Cross-page backwards: land on the last panel of the previous page. The prefetched
-            // panels for that page are consulted after the page change lands.
-            previousPage()
-            viewModelScope.launch {
-                val pagePanels = panelBook?.resolvePage(_currentPage.value) ?: return@launch
+            // Cross-page backwards: land on the last panel of the previous page.
+            // gotoPage() cancels the current resolve; we start a new one on Dispatchers.Default
+            // (resolvePage does zip I/O + bitmap decode + detection — never run on Main) and
+            // set the landing index to the last panel once panels are known.
+            val newPage = (_currentPage.value - 1).coerceAtLeast(0)
+            if (newPage == _currentPage.value) return
+            gotoPage(newPage)
+            panelResolveJob = viewModelScope.launch {
+                val book = panelBook ?: return@launch
+                val pagePanels = withContext(Dispatchers.Default) {
+                    runCatching { book.resolvePage(newPage) }.getOrNull()
+                } ?: return@launch
+                if (_currentPage.value != newPage) return@launch  // user navigated away mid-resolve
                 _currentPagePanels.value = pagePanels
-                val landingIndex = (pagePanels.panels.size - 1).coerceAtLeast(0)
-                _currentPanelIndex.value = landingIndex
-                rememberResume()
+                _currentPanelIndex.value = (pagePanels.panels.size - 1).coerceAtLeast(0)
             }
         }
     }
@@ -296,25 +310,24 @@ class CbzReaderViewModel @Inject constructor(
     private fun onCurrentPageChanged(pageIndex: Int) {
         val book = panelBook ?: return
         val ready = _state.value as? CbzReaderState.Ready
-        viewModelScope.launch {
-            val current = withContext(Dispatchers.Default) { book.resolvePage(pageIndex) }
+        // Cancel any prior in-flight resolve/prefetch so a stale coroutine can't clobber
+        // `_currentPagePanels` with an older page's result under rapid navigation.
+        panelResolveJob?.cancel()
+        panelResolveJob = viewModelScope.launch {
+            val current = withContext(Dispatchers.Default) {
+                runCatching { book.resolvePage(pageIndex) }.getOrNull()
+            } ?: return@launch
+            if (archiveClosed || _currentPage.value != pageIndex) return@launch
             _currentPagePanels.value = current
             // Prefetch the next two pages.
             withContext(Dispatchers.Default) {
                 for (offset in 1..2) {
+                    if (archiveClosed) break
                     val target = pageIndex + offset
                     if (ready != null && target >= ready.pageCount) break
                     runCatching { book.resolvePage(target) }
                 }
             }
-        }
-    }
-
-    private fun rememberResume() {
-        val page = _currentPage.value
-        val panel = _currentPanelIndex.value
-        viewModelScope.launch {
-            panelViewPreferencesStore.rememberPositionForResume(bookId, page, panel)
         }
     }
 
@@ -338,7 +351,6 @@ class CbzReaderViewModel @Inject constructor(
             val progressFraction = if (pageCount > 1) pageIndex.toFloat() / (pageCount - 1).toFloat() else 1f
             updateReadingProgressUseCase(itemId, progressFraction)
         }
-        rememberResume()
     }
 
     fun setKeepScreenOn(value: Boolean) {
@@ -377,6 +389,11 @@ class CbzReaderViewModel @Inject constructor(
 
     override fun onCleared() {
         super.onCleared()
+        // Flag the archive closed BEFORE closing so any in-flight background prefetch skips
+        // its store.save on ZipException — otherwise a 1x1 Fallback would be persisted and
+        // served on the next open.
+        archiveClosed = true
+        panelResolveJob?.cancel()
         archive?.close()
         archive = null
     }
