@@ -72,30 +72,31 @@ internal fun WpmSliderRow(
 @Composable
 private fun SlowIcon() {
     val c = MaterialTheme.colorScheme.onSurfaceVariant
+    // A stubby left-pointing chevron — reads as "slower / rewind".
     Canvas(Modifier.size(20.dp)) {
-        val stroke = size.width * 0.10f
-        drawCircle(color = c, radius = size.minDimension / 2f - stroke / 2f, style = Stroke(width = stroke))
-        // Notch pointing left → "slower".
-        drawRect(
-            color = c,
-            topLeft = Offset(size.width * 0.20f, size.height / 2f - stroke / 2f),
-            size = Size(size.width * 0.30f, stroke),
-        )
+        val stroke = size.width * 0.14f
+        val cx = size.width * 0.35f
+        val yMid = size.height / 2f
+        val yTop = size.height * 0.22f
+        val yBot = size.height * 0.78f
+        drawLine(color = c, start = Offset(cx + size.width * 0.30f, yTop), end = Offset(cx, yMid), strokeWidth = stroke, cap = androidx.compose.ui.graphics.StrokeCap.Round)
+        drawLine(color = c, start = Offset(cx, yMid), end = Offset(cx + size.width * 0.30f, yBot), strokeWidth = stroke, cap = androidx.compose.ui.graphics.StrokeCap.Round)
     }
 }
 
 @Composable
 private fun FastIcon() {
     val c = MaterialTheme.colorScheme.onSurfaceVariant
+    // Two right-pointing chevrons — reads as "faster / fast-forward".
     Canvas(Modifier.size(20.dp)) {
-        val stroke = size.width * 0.10f
-        drawCircle(color = c, radius = size.minDimension / 2f - stroke / 2f, style = Stroke(width = stroke))
-        // Notch pointing right → "faster".
-        drawRect(
-            color = c,
-            topLeft = Offset(size.width * 0.50f, size.height / 2f - stroke / 2f),
-            size = Size(size.width * 0.30f, stroke),
-        )
+        val stroke = size.width * 0.14f
+        val yTop = size.height * 0.22f
+        val yMid = size.height / 2f
+        val yBot = size.height * 0.78f
+        listOf(size.width * 0.18f, size.width * 0.50f).forEach { cx ->
+            drawLine(color = c, start = Offset(cx, yTop), end = Offset(cx + size.width * 0.30f, yMid), strokeWidth = stroke, cap = androidx.compose.ui.graphics.StrokeCap.Round)
+            drawLine(color = c, start = Offset(cx + size.width * 0.30f, yMid), end = Offset(cx, yBot), strokeWidth = stroke, cap = androidx.compose.ui.graphics.StrokeCap.Round)
+        }
     }
 }
 

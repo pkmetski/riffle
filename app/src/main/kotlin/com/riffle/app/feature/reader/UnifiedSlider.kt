@@ -170,7 +170,8 @@ private fun SliderTrack(
                 for (i in 0..(steps + 1)) {
                     val v = min + i * step
                     val isMajor = majorEvery != null && isMajorTick(v, majorEvery)
-                    if (!showMinors && !isMajor) continue
+                    val isEndpoint = i == 0 || i == steps + 1
+                    if (!showMinors && !isMajor && !isEndpoint) continue
                     val x = thumbHalfPx + usableWidth * ((v - min) / span)
                     val tickH = if (isMajor) with(density) { 12.dp.toPx() } else with(density) { 8.dp.toPx() }
                     val tickW = with(density) { 2.dp.toPx() }
