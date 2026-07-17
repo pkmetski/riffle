@@ -1,10 +1,12 @@
 package com.riffle.app.feature.settings.panels
 
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -14,23 +16,28 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.Icon
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
+import com.riffle.app.feature.reader.UnifiedSliderRow
+import com.riffle.app.feature.reader.wpmBubble
 import com.riffle.core.domain.HighlightColor
 import com.riffle.core.domain.autoscroll.AutoScrollSpeed
 
 /**
  * Shared WPM slider — Cadence and Auto-Scroll use the same 80–600 wpm, step 10, default 250 range
  * per issue #403 (both reuse [AutoScrollSpeed]'s constants). Snapping happens inside
- * [AutoScrollSpeed.of] so the caller can't emit a mid-step value.
+ * [AutoScrollSpeed.of] so the caller can't emit a mid-step value. Renders through
+ * [UnifiedSliderRow] so it visually matches the typography sliders in the Formatting sheet.
  */
 @Composable
 internal fun WpmSliderRow(
@@ -39,23 +46,57 @@ internal fun WpmSliderRow(
     wpm: Int,
     onWpmChange: (Int) -> Unit,
 ) {
-    Text(
-        text = "$label — $wpm wpm",
-        style = MaterialTheme.typography.bodyMedium,
-        modifier = Modifier.padding(top = 8.dp, bottom = 4.dp),
-    )
-    Slider(
-        value = wpm.toFloat(),
-        onValueChange = { onWpmChange(AutoScrollSpeed.of(it.toInt()).wpm) },
-        valueRange = AutoScrollSpeed.MIN_WPM.toFloat()..AutoScrollSpeed.MAX_WPM.toFloat(),
-        steps = (AutoScrollSpeed.MAX_WPM - AutoScrollSpeed.MIN_WPM) / AutoScrollSpeed.STEP_WPM - 1,
-    )
-    Text(
-        text = helper,
-        style = MaterialTheme.typography.labelSmall,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-        modifier = Modifier.padding(bottom = 8.dp),
-    )
+    Column(modifier = Modifier.padding(top = 8.dp, bottom = 8.dp)) {
+        UnifiedSliderRow(
+            title = label,
+            caption = "$wpm wpm",
+            value = wpm.toFloat(),
+            onValueChange = { onWpmChange(AutoScrollSpeed.of(it.toInt()).wpm) },
+            valueRange = AutoScrollSpeed.MIN_WPM.toFloat()..AutoScrollSpeed.MAX_WPM.toFloat(),
+            steps = (AutoScrollSpeed.MAX_WPM - AutoScrollSpeed.MIN_WPM) / AutoScrollSpeed.STEP_WPM - 1,
+            majorEvery = 100f,
+            edgeLeft = { SlowIcon() },
+            edgeRight = { FastIcon() },
+            bubbleLabel = ::wpmBubble,
+            contentDescription = "$label speed",
+        )
+        Text(
+            text = helper,
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(top = 4.dp),
+        )
+    }
+}
+
+@Composable
+private fun SlowIcon() {
+    val c = MaterialTheme.colorScheme.onSurfaceVariant
+    Canvas(Modifier.size(20.dp)) {
+        val stroke = size.width * 0.10f
+        drawCircle(color = c, radius = size.minDimension / 2f - stroke / 2f, style = Stroke(width = stroke))
+        // Notch pointing left → "slower".
+        drawRect(
+            color = c,
+            topLeft = Offset(size.width * 0.20f, size.height / 2f - stroke / 2f),
+            size = Size(size.width * 0.30f, stroke),
+        )
+    }
+}
+
+@Composable
+private fun FastIcon() {
+    val c = MaterialTheme.colorScheme.onSurfaceVariant
+    Canvas(Modifier.size(20.dp)) {
+        val stroke = size.width * 0.10f
+        drawCircle(color = c, radius = size.minDimension / 2f - stroke / 2f, style = Stroke(width = stroke))
+        // Notch pointing right → "faster".
+        drawRect(
+            color = c,
+            topLeft = Offset(size.width * 0.50f, size.height / 2f - stroke / 2f),
+            size = Size(size.width * 0.30f, stroke),
+        )
+    }
 }
 
 /**
