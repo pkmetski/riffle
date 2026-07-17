@@ -3,7 +3,6 @@
 package com.riffle.app.feature.reader
 
 import android.annotation.SuppressLint
-import android.graphics.BitmapFactory
 import android.util.Base64
 import android.webkit.WebView
 import androidx.activity.compose.BackHandler
@@ -22,6 +21,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -93,10 +93,27 @@ private fun FigureZoomContent(
     val bitmap = remember(state.href, state.svgMarkup) {
         mutableStateOf<android.graphics.Bitmap?>(null)
     }
+    // Cap the decode at 2048px on either axis. That's the largest natural size a user can meaningfully
+    // resolve on a phone/tablet at 5x pinch (the max zoom clamp), and it prevents a 12-megapixel figure
+    // from allocating ~48 MB on decode — enough to OOM the annotations flow on a 1 GB device.
+    val decodeCapPx = 2048
     LaunchedEffect(state.href, state.svgMarkup) {
         if (state.svgMarkup != null) return@LaunchedEffect
-        val bytes = withContext(Dispatchers.IO) { loadImageBytes(state.href, publication) }
-        bitmap.value = bytes?.let { BitmapFactory.decodeByteArray(it, 0, it.size) }
+        val decoded = withContext(Dispatchers.IO) {
+            val bytes = loadImageBytes(state.href, publication) ?: return@withContext null
+            decodeSampledBitmap(bytes, decodeCapPx, decodeCapPx)
+        }
+        bitmap.value = decoded
+    }
+    // Recycle the decoded Bitmap when this overlay leaves composition or the target figure changes.
+    // Without this, quickly opening/closing several figure zooms keeps their full-resolution bitmaps
+    // in the mutableStateOf remember scope until GC pressure eventually collects them.
+    DisposableEffect(state.href, state.svgMarkup) {
+        onDispose {
+            val b = bitmap.value
+            bitmap.value = null
+            if (b != null && !b.isRecycled) b.recycle()
+        }
     }
 
     Box(
