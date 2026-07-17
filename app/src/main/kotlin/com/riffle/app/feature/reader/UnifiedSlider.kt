@@ -1,6 +1,9 @@
+@file:OptIn(ExperimentalMaterial3Api::class)
+
 package com.riffle.app.feature.reader
 
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -10,7 +13,9 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
@@ -193,6 +198,13 @@ private fun SliderTrack(
             }
         }
 
+        val sliderColors = SliderDefaults.colors(
+            thumbColor = MaterialTheme.colorScheme.primary,
+            activeTrackColor = Color.Transparent,
+            inactiveTrackColor = Color.Transparent,
+            activeTickColor = Color.Transparent,
+            inactiveTickColor = Color.Transparent,
+        )
         Slider(
             value = value,
             onValueChange = { new ->
@@ -202,13 +214,15 @@ private fun SliderTrack(
             onValueChangeFinished = { interacting = false },
             valueRange = valueRange,
             steps = steps,
-            colors = SliderDefaults.colors(
-                thumbColor = MaterialTheme.colorScheme.primary,
-                activeTrackColor = Color.Transparent,
-                inactiveTrackColor = Color.Transparent,
-                activeTickColor = Color.Transparent,
-                inactiveTickColor = Color.Transparent,
-            ),
+            colors = sliderColors,
+            thumb = {
+                Box(
+                    modifier = Modifier
+                        .size(20.dp)
+                        .background(MaterialTheme.colorScheme.primary, CircleShape),
+                )
+            },
+            track = { /* We draw the track ourselves above; keep this slot empty. */ },
             modifier = Modifier
                 .fillMaxWidth()
                 .semantics { this.contentDescription = contentDescription },
