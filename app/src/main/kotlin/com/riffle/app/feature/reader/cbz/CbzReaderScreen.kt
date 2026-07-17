@@ -1,7 +1,11 @@
 package com.riffle.app.feature.reader.cbz
 
 import android.view.WindowManager
+import android.provider.Settings
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.snap
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
@@ -10,6 +14,7 @@ import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.calculatePan
 import androidx.compose.foundation.gestures.calculateZoom
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.waitForUpOrCancellation
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -29,6 +34,9 @@ import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.GridView
+import androidx.compose.material.icons.filled.ViewCarousel
+import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -50,6 +58,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
@@ -64,9 +73,12 @@ import coil.request.ImageRequest
 import coil.size.Size as CoilSize
 import com.riffle.app.feature.reader.VolumeNavEvent
 import com.riffle.app.feature.reader.rememberImmersiveModeState
+import com.riffle.core.domain.comic.panel.PagePanels
+import com.riffle.core.domain.comic.panel.PanelFitTransform
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -77,6 +89,9 @@ fun CbzReaderScreen(
     val state by viewModel.state.collectAsState()
     val currentPage by viewModel.currentPage.collectAsState()
     val keepScreenOn by viewModel.keepScreenOn.collectAsState()
+    val panelViewOn by viewModel.panelViewOn.collectAsState()
+    val currentPagePanels by viewModel.currentPagePanels.collectAsState()
+    val currentPanelIndex by viewModel.currentPanelIndex.collectAsState()
     val context = LocalContext.current
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     val immersiveState = rememberImmersiveModeState()
@@ -116,15 +131,31 @@ fun CbzReaderScreen(
             is CbzReaderState.Error -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Text(s.message, color = MaterialTheme.colorScheme.onSurface)
             }
-            is CbzReaderState.Ready -> CbzPager(
-                state = s,
-                currentPage = currentPage,
-                onPageChanged = { viewModel.jumpToPage(it) },
-                onToggleImmersive = immersiveState::toggle,
-                volumeNavEvents = viewModel.volumeNavEvents,
-                onNext = viewModel::nextPage,
-                onPrev = viewModel::previousPage,
-            )
+            is CbzReaderState.Ready -> {
+                if (panelViewOn) {
+                    CbzPanelViewer(
+                        state = s,
+                        currentPage = currentPage,
+                        pagePanels = currentPagePanels,
+                        panelIndex = currentPanelIndex,
+                        onNextPanel = viewModel::nextPanel,
+                        onPrevPanel = viewModel::previousPanel,
+                        onSkipGuidedPage = viewModel::skipGuidedPanelsOnPage,
+                        onToggleImmersive = immersiveState::toggle,
+                        volumeNavEvents = viewModel.volumeNavEvents,
+                    )
+                } else {
+                    CbzPager(
+                        state = s,
+                        currentPage = currentPage,
+                        onPageChanged = { viewModel.jumpToPage(it) },
+                        onToggleImmersive = immersiveState::toggle,
+                        volumeNavEvents = viewModel.volumeNavEvents,
+                        onNext = viewModel::nextPage,
+                        onPrev = viewModel::previousPage,
+                    )
+                }
+            }
         }
 
         AnimatedVisibility(
@@ -141,6 +172,19 @@ fun CbzReaderScreen(
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                    }
+                },
+                actions = {
+                    if (state is CbzReaderState.Ready) {
+                        IconButton(
+                            onClick = viewModel::togglePanelView,
+                            modifier = Modifier.testTag("cbz_panel_view_toggle"),
+                        ) {
+                            Icon(
+                                imageVector = if (panelViewOn) Icons.Filled.ViewCarousel else Icons.Filled.GridView,
+                                contentDescription = if (panelViewOn) "Exit Panel View" else "Panel View",
+                            )
+                        }
                     }
                 },
             )
@@ -165,6 +209,8 @@ fun CbzReaderScreen(
     }
 }
 
+// --- Whole-page pager (Panel View OFF) ---
+
 @Composable
 private fun CbzPager(
     state: CbzReaderState.Ready,
@@ -178,11 +224,9 @@ private fun CbzPager(
     val pagerState = rememberPagerState(initialPage = currentPage) { state.pageCount }
     val scope = androidx.compose.runtime.rememberCoroutineScope()
 
-    // ViewModel is the source of truth. When the user swipes, `onPageChanged` writes it back.
     LaunchedEffect(pagerState.currentPage) {
         if (pagerState.currentPage != currentPage) onPageChanged(pagerState.currentPage)
     }
-    // Reverse direction — jumps from scrubber / volume keys / initial resume.
     LaunchedEffect(currentPage) {
         if (currentPage != pagerState.currentPage) {
             pagerState.scrollToPage(currentPage)
@@ -225,8 +269,6 @@ private fun CbzPage(
     var scale by remember(pageIndex) { mutableStateOf(1f) }
     var offsetX by remember(pageIndex) { mutableStateOf(0f) }
     var offsetY by remember(pageIndex) { mutableStateOf(0f) }
-    // Decode the page off the UI thread — comic pages routinely run into multi-MB and
-    // reading + allocating them during composition janks every page turn.
     val bytes by produceState<ByteArray?>(initialValue = null, key1 = pageIndex, key2 = source) {
         value = withContext(Dispatchers.IO) { source.imageBytes(pageIndex) }
     }
@@ -238,7 +280,6 @@ private fun CbzPage(
             .pointerInput(pageIndex) {
                 detectTapGestures(
                     onDoubleTap = {
-                        // Double-tap resets zoom + pan, matching CDisplayEx.
                         scale = 1f
                         offsetX = 0f
                         offsetY = 0f
@@ -255,8 +296,6 @@ private fun CbzPage(
                 )
             }
             .pointerInput(pageIndex) {
-                // A single-finger drag at scale=1 must fall through to HorizontalPager
-                // so swipe-to-turn works. See [cbzPageGestureAction].
                 awaitEachGesture {
                     awaitFirstDown(requireUnconsumed = false)
                     do {
@@ -308,6 +347,166 @@ private fun CbzPage(
     }
 }
 
+// --- Panel View (ADR 0043) ---
+
+@Composable
+private fun CbzPanelViewer(
+    state: CbzReaderState.Ready,
+    currentPage: Int,
+    pagePanels: PagePanels?,
+    panelIndex: Int,
+    onNextPanel: () -> Unit,
+    onPrevPanel: () -> Unit,
+    onSkipGuidedPage: () -> Unit,
+    onToggleImmersive: () -> Unit,
+    volumeNavEvents: kotlinx.coroutines.flow.SharedFlow<VolumeNavEvent>,
+) {
+    var peeking by remember(currentPage) { mutableStateOf(false) }
+
+    LaunchedEffect(volumeNavEvents) {
+        volumeNavEvents.collect { event ->
+            when (event) {
+                VolumeNavEvent.Forward -> onNextPanel()
+                VolumeNavEvent.Backward -> onPrevPanel()
+            }
+        }
+    }
+
+    val bytes by produceState<ByteArray?>(initialValue = null, key1 = currentPage, key2 = state.imageSource) {
+        value = withContext(Dispatchers.IO) { state.imageSource.imageBytes(currentPage) }
+    }
+
+    var viewportW by remember { mutableStateOf(0) }
+    var viewportH by remember { mutableStateOf(0) }
+    val context = LocalContext.current
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .onSizeChanged { size ->
+                viewportW = size.width
+                viewportH = size.height
+            }
+            .pointerInput(currentPage, panelIndex, peeking) {
+                awaitEachGesture {
+                    val down = awaitFirstDown()
+                    val longPressMs = viewConfiguration.longPressTimeoutMillis
+                    val up = withTimeoutOrNull(longPressMs) { waitForUpOrCancellation() }
+                    if (up == null) {
+                        // Long-press: open the peek overlay (persistent — ADR 0043 §5).
+                        peeking = true
+                        // Wait for the finger to lift so we don't re-trigger.
+                        waitForUpOrCancellation()
+                    } else if (!peeking) {
+                        val third = size.width / 3f
+                        when {
+                            down.position.x < third -> onPrevPanel()
+                            down.position.x > 2 * third -> onNextPanel()
+                            else -> onToggleImmersive()
+                        }
+                    }
+                }
+            }
+            .testTag("cbz_panel_viewer"),
+        contentAlignment = Alignment.Center,
+    ) {
+        val panels = pagePanels?.panels
+        val fitWhole = pagePanels == null || pagePanels.isFallback || panels.isNullOrEmpty() || peeking
+        val panel = if (!fitWhole) panels?.getOrNull(panelIndex.coerceIn(0, panels.size - 1)) else null
+
+        val transform = if (panel != null && pagePanels != null) {
+            PanelFitTransform.compute(
+                viewportWidth = viewportW,
+                viewportHeight = viewportH,
+                imageWidth = pagePanels.imageWidth,
+                imageHeight = pagePanels.imageHeight,
+                panel = panel,
+            )
+        } else {
+            PanelFitTransform.Identity
+        }
+        val zoomScale = transform.scale
+        val translationX = transform.translationX
+        val translationY = transform.translationY
+
+        // Animate scale + translation between panels. Declarative — Compose interpolates
+        // whenever the target values change, and a mid-flight change simply re-targets
+        // (interrupt semantics — ADR 0043 §4). Reduce Motion collapses to a snap.
+        val reduceMotion = remember(context) { isReduceMotionEnabled(context) }
+        val animationSpec = remember(reduceMotion) {
+            if (reduceMotion) snap<Float>() else tween<Float>(durationMillis = 250)
+        }
+        val animatedScale by animateFloatAsState(
+            targetValue = zoomScale,
+            animationSpec = animationSpec,
+            label = "cbz_panel_scale",
+        )
+        val animatedTx by animateFloatAsState(
+            targetValue = translationX,
+            animationSpec = animationSpec,
+            label = "cbz_panel_tx",
+        )
+        val animatedTy by animateFloatAsState(
+            targetValue = translationY,
+            animationSpec = animationSpec,
+            label = "cbz_panel_ty",
+        )
+
+        SubcomposeAsyncImage(
+            model = ImageRequest.Builder(context)
+                .data(bytes)
+                .crossfade(false)
+                .build(),
+            contentDescription = "Comic page ${currentPage + 1} panel ${panelIndex + 1}",
+            loading = { CircularProgressIndicator() },
+            modifier = Modifier
+                .fillMaxSize()
+                .graphicsLayer(
+                    scaleX = animatedScale,
+                    scaleY = animatedScale,
+                    translationX = animatedTx,
+                    translationY = animatedTy,
+                ),
+        )
+
+        if (peeking) {
+            CbzPanelPeekOverlay(
+                onDismiss = { peeking = false },
+                onSkip = {
+                    peeking = false
+                    onSkipGuidedPage()
+                },
+            )
+        }
+    }
+}
+
+@Composable
+private fun CbzPanelPeekOverlay(
+    onDismiss: () -> Unit,
+    onSkip: () -> Unit,
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.Black.copy(alpha = 0.35f))
+            .pointerInput(Unit) {
+                detectTapGestures(onTap = { onDismiss() })
+            }
+            .testTag("cbz_panel_peek"),
+        contentAlignment = Alignment.BottomCenter,
+    ) {
+        Button(
+            onClick = onSkip,
+            modifier = Modifier
+                .padding(24.dp)
+                .testTag("cbz_panel_peek_skip"),
+        ) {
+            Text("Skip guided panels on this page")
+        }
+    }
+}
+
 @Composable
 internal fun CbzThumbnailStrip(
     currentPage: Int,
@@ -319,9 +518,6 @@ internal fun CbzThumbnailStrip(
 
     LaunchedEffect(currentPage) {
         val viewport = listState.layoutInfo.viewportEndOffset - listState.layoutInfo.viewportStartOffset
-        // Centre the current thumb: item width ~= 64dp, and viewport is in px. If layout hasn't happened
-        // yet (viewport == 0) fall back to scrollToItem with a small leading offset so the animation
-        // becomes meaningful once measured.
         val leading = if (viewport > 0) -(viewport / 2) else 0
         listState.animateScrollToItem(currentPage, scrollOffset = leading)
     }
@@ -395,6 +591,23 @@ private fun CbzThumbnail(
 }
 
 private enum class TapZone { Left, Center, Right }
+
+/**
+ * Honour the OS Reduce Motion setting. When any of the animation scales is 0 the user has asked
+ * the platform to skip transition animations; we collapse Panel View's Matrix interpolation to
+ * an instant snap.
+ */
+private fun isReduceMotionEnabled(context: android.content.Context): Boolean {
+    val cr = context.contentResolver
+    fun getScale(name: String): Float = try {
+        Settings.Global.getFloat(cr, name, 1f)
+    } catch (_: Throwable) {
+        1f
+    }
+    return getScale(Settings.Global.ANIMATOR_DURATION_SCALE) == 0f ||
+        getScale(Settings.Global.TRANSITION_ANIMATION_SCALE) == 0f ||
+        getScale(Settings.Global.WINDOW_ANIMATION_SCALE) == 0f
+}
 
 internal enum class CbzPageGestureAction { Ignore, Zoom, PanZoomed }
 

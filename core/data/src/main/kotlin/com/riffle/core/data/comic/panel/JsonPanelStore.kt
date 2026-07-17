@@ -1,0 +1,124 @@
+package com.riffle.core.data.comic.panel
+
+import com.riffle.core.domain.comic.panel.PagePanels
+import com.riffle.core.domain.comic.panel.PanelStore
+import java.io.File
+import javax.inject.Inject
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.Json
+
+/**
+ * On-disk [PanelStore] — one JSON file per book, holding a list of [PagePanels]. Reads and writes
+ * are file-level; concurrent writes for different books are safe, but concurrent writes for the
+ * same book race and the last writer wins. That's fine: within one reader session all writes go
+ * through a single orchestrator, and cross-session races would just recompute a page whose result
+ * is deterministic anyway.
+ *
+ * File layout: `<rootDir>/<bookId-safe>.json` where `<bookId-safe>` is the `bookId` with any
+ * character outside `[A-Za-z0-9._-]` replaced by `_`. The file itself carries the original
+ * `bookId` so a collision on the safe filename doesn't produce a wrong load — we sanity-check
+ * on read.
+ */
+class JsonPanelStore @Inject constructor(
+    private val rootDir: File,
+) : PanelStore {
+
+    private val json = Json { ignoreUnknownKeys = true; prettyPrint = false }
+
+    init {
+        rootDir.mkdirs()
+    }
+
+    override fun load(bookId: String, pageIndex: Int): PagePanels? =
+        loadAll(bookId)[pageIndex]
+
+    override fun loadAll(bookId: String): Map<Int, PagePanels> {
+        val file = fileFor(bookId)
+        if (!file.exists()) return emptyMap()
+        val text = runCatching { file.readText(Charsets.UTF_8) }.getOrNull() ?: return emptyMap()
+        val doc = runCatching { json.decodeFromString(BookFile.serializer(), text) }.getOrNull()
+            ?: return emptyMap()
+        // Any mismatch (wrong bookId → filename collision, older schema version → detector change)
+        // is treated as a miss so we re-detect on the next open. Older schema versions get
+        // silently overwritten when save/saveAll writes the current version back.
+        if (doc.bookId != bookId || doc.schemaVersion != CURRENT_SCHEMA_VERSION) return emptyMap()
+        return doc.pages.associateBy { it.pageIndex }
+    }
+
+    override fun save(bookId: String, page: PagePanels) {
+        val existing = loadAll(bookId).toMutableMap()
+        existing[page.pageIndex] = page
+        writeBook(bookId, existing.values.sortedBy { it.pageIndex })
+    }
+
+    override fun saveAll(bookId: String, pages: Collection<PagePanels>) {
+        val existing = loadAll(bookId).toMutableMap()
+        for (page in pages) existing[page.pageIndex] = page
+        writeBook(bookId, existing.values.sortedBy { it.pageIndex })
+    }
+
+    override fun clear(bookId: String) {
+        fileFor(bookId).delete()
+    }
+
+    private fun writeBook(bookId: String, pages: List<PagePanels>) {
+        val doc = BookFile(
+            schemaVersion = CURRENT_SCHEMA_VERSION,
+            bookId = bookId,
+            pages = pages,
+        )
+        val tmp = File(rootDir, "${safe(bookId)}.json.tmp")
+        tmp.writeText(json.encodeToString(BookFile.serializer(), doc), Charsets.UTF_8)
+        if (!tmp.renameTo(fileFor(bookId))) {
+            // Rename can fail across some FUSE filesystems; fall back to direct write.
+            fileFor(bookId).writeText(json.encodeToString(BookFile.serializer(), doc), Charsets.UTF_8)
+            tmp.delete()
+        }
+    }
+
+    private fun fileFor(bookId: String): File = File(rootDir, "${safe(bookId)}.json")
+
+    private fun safe(bookId: String): String = bookId.replace(UNSAFE, "_")
+
+    @Serializable
+    private data class BookFile(
+        // Missing on files written before the field was added (v1) — Serializable defaults it to
+        // 1, so those pre-versioning caches read back as v1 and mismatch the current version
+        // (currently 2, bumped when the detector algorithm changes materially).
+        val schemaVersion: Int = 1,
+        val bookId: String,
+        val pages: List<PagePanels>,
+    )
+
+    companion object {
+        /**
+         * Bump when the detector output changes materially (algorithm, coordinate space, panel
+         * geometry). Files written with a different version are treated as a cache miss.
+         *
+         * History:
+         *  1 — original single-pass value-based binarize + auto-invert (first landed panel view).
+         *  2 — two-pass content-vs-background classifier; auto-invert removed. Files written under
+         *      v1 held Fallback results for dark-gutter comics that the v2 detector handles.
+         *  3 — projection-based grid detector as the primary path; connected-component becomes
+         *      the fallback for irregular layouts. Different panel geometry from v2 on the same
+         *      page — invalidate to re-detect.
+         *  4 — sanity check rejects panels smaller than 15% of a page dimension AND rejects
+         *      detections whose total panel coverage is < 40% of the page. Prevents Panel View
+         *      from forcing users through noise-island zooms on bleed-splash pages. v3 caches
+         *      held those garbage detections — invalidate to re-detect them as Fallback.
+         *  5 — split-at-internal-gutter post-processing runs on every candidate bbox in both
+         *      the projection and CC paths. A bbox that straddles a full-crossing internal
+         *      gutter is now split into its two real panels. v4 caches held wrongly-merged
+         *      bboxes for those pages.
+         *  6 — dedup pass drops merged-panel duplicates that would cause Panel View to walk
+         *      the user through the same real panel twice (once tight, once as part of a
+         *      larger merged bbox). v5 caches held those duplicates.
+         *  7 — PanelSource enum shrunk to Auto/Fallback (Acbf/ComicInfo removed since the
+         *      ACBF sidecar path was never actually reachable in production). v6 caches would
+         *      fail to deserialize the removed enum values.
+         */
+        internal const val CURRENT_SCHEMA_VERSION: Int = 7
+
+        private val UNSAFE = Regex("[^A-Za-z0-9._-]")
+    }
+}
