@@ -58,6 +58,14 @@ class PanelDetector(
         val minTotalCoverageFraction: Double = 0.3,
 
         /**
+         * Reject detections whose summed panel area exceeds this fraction of the page (i.e.
+         * panels overlap so much they can't be a valid tiling). Real panels tile with small
+         * gutters so summed coverage is < 1.0; anything > 1.05 means CC merged content across
+         * panel boundaries and produced overlapping big-blob bboxes.
+         */
+        val maxSummedCoverageFraction: Double = 1.05,
+
+        /**
          * A pixel is considered content if its luma differs from the detected page background by
          * at least this much (in `[0, 255]`). Handles both light-background comics (dark art on
          * white gutter) and dark-background comics (bright figures on black gutter) uniformly.
@@ -145,6 +153,14 @@ class PanelDetector(
          * (e.g. a wide dark shadow).
          */
         val internalGutterMinThickness: Int = 4,
+
+        /**
+         * When looking for an internal gutter inside a bbox, sample only the INNER
+         * `(1 - 2 * this)` fraction on the perpendicular axis. Prevents decorative page borders
+         * / bleed art at the bbox edges from disqualifying rows/columns that are genuinely
+         * gutter through the panel interior. 0.1 = ignore the outer 10% on each side.
+         */
+        val internalGutterInnerSampleInset: Double = 0.1,
     )
 
     fun detect(
@@ -278,21 +294,35 @@ class PanelDetector(
         val minSplitDim = 20
         if (width < minSplitDim * 2 || height < minSplitDim * 2) return listOf(bbox)
 
-        // Look for a horizontal internal gutter (row where < 5% of columns have content).
+        // Only apply the inner-sample trick to LARGE bboxes (>= 70% of the mask in a dimension) —
+        // these are the ones where a decorative page border or wraparound bleed can legitimately
+        // block detection of internal gutters through the interior. For smaller bboxes, sampling
+        // the whole width/height is more accurate (a hollow-border panel's interior looks like
+        // gutter in the inner-sample view, which would falsely split every panel).
+        val useInnerWidthSample = width >= (cropped.width * 0.7)
+        val useInnerHeightSample = height >= (cropped.height * 0.7)
+
         val edgeMarginY = (height * config.internalGutterEdgeMargin).toInt().coerceAtLeast(2)
-        val rowGutterCutoff = (width * config.internalGutterContentFraction).toInt().coerceAtLeast(1)
+        val innerMarginX = if (useInnerWidthSample) (width * config.internalGutterInnerSampleInset).toInt().coerceAtLeast(0) else 0
+        val innerMinX = bbox.minX + innerMarginX
+        val innerMaxX = bbox.maxX - innerMarginX
+        val innerWidth = (innerMaxX - innerMinX + 1).coerceAtLeast(1)
+        val rowGutterCutoff = (innerWidth * config.internalGutterContentFraction).toInt().coerceAtLeast(1)
         val horizontalGutter = widestGutterRun(
             axisStart = bbox.minY + edgeMarginY,
             axisEnd = bbox.maxY - edgeMarginY,
-        ) { y -> cropped.rowContentCount(y, bbox.minX, bbox.maxX) < rowGutterCutoff }
+        ) { y -> cropped.rowContentCount(y, innerMinX, innerMaxX) < rowGutterCutoff }
 
-        // Look for a vertical internal gutter (column where < 5% of rows have content).
         val edgeMarginX = (width * config.internalGutterEdgeMargin).toInt().coerceAtLeast(2)
-        val colGutterCutoff = (height * config.internalGutterContentFraction).toInt().coerceAtLeast(1)
+        val innerMarginY = if (useInnerHeightSample) (height * config.internalGutterInnerSampleInset).toInt().coerceAtLeast(0) else 0
+        val innerMinY = bbox.minY + innerMarginY
+        val innerMaxY = bbox.maxY - innerMarginY
+        val innerHeight = (innerMaxY - innerMinY + 1).coerceAtLeast(1)
+        val colGutterCutoff = (innerHeight * config.internalGutterContentFraction).toInt().coerceAtLeast(1)
         val verticalGutter = widestGutterRun(
             axisStart = bbox.minX + edgeMarginX,
             axisEnd = bbox.maxX - edgeMarginX,
-        ) { x -> cropped.colContentCount(x, bbox.minY, bbox.maxY) < colGutterCutoff }
+        ) { x -> cropped.colContentCount(x, innerMinY, innerMaxY) < colGutterCutoff }
 
         val bestGutter = listOfNotNull(
             horizontalGutter?.let { Triple("h", it.first, it.second) },
@@ -389,7 +419,14 @@ class PanelDetector(
         }
 
         val totalPanelArea = meaningful.sumOf { it.area() }
-        if (totalPanelArea.toDouble() / pageArea.toDouble() < config.minTotalCoverageFraction) return null
+        val summedCoverage = totalPanelArea.toDouble() / pageArea.toDouble()
+        if (summedCoverage < config.minTotalCoverageFraction) return null
+        // Summed panel area exceeding the page area means panels are overlapping meaningfully
+        // (even if pairwise overlaps are under the reject threshold). Real panels tile with
+        // small gutters; overlap sums this large indicate CC merged content across panel
+        // boundaries and gave us big-blob bboxes stacked on each other. Fall back rather than
+        // present the user with overlapping zoom windows.
+        if (summedCoverage > config.maxSummedCoverageFraction) return null
 
         return meaningful
     }
