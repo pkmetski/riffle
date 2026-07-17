@@ -1,3 +1,4 @@
+import com.riffle.buildlogic.AndroidImportLint
 import com.riffle.buildlogic.RiffleLogTagLint
 import com.riffle.buildlogic.ServerReferenceLint
 
@@ -192,6 +193,33 @@ tasks.register("checkNoServerReferences") {
     }
 }
 
+// Enforces the multi-platform-core boundary (#550): fails if any module under the
+// platform-agnostic core roots (core:models, core:net, core:sources, core:sync,
+// core:annotations) imports `android.*`, `androidx.*` (except androidx.annotation),
+// or `java.util.logging`. Empty allowlist to start; grows only with justification.
+// The listed modules may not exist yet — the check no-ops for missing directories
+// and activates automatically as later phases create each module. Detection logic
+// lives in buildSrc/.../AndroidImportLint.kt so it's JUnit-testable.
+tasks.register("checkNoAndroidImports") {
+    group = "verification"
+    description = "Fails if platform-agnostic core modules import android.*/androidx.* (except androidx.annotation) or java.util.logging."
+    notCompatibleWithConfigurationCache("reading the file system at execution time")
+
+    doLast {
+        val projectRoot = layout.projectDirectory.asFile
+        val offenders = AndroidImportLint.findAndroidImportOffenders(projectRoot)
+        if (offenders.isNotEmpty()) {
+            throw GradleException(
+                "Platform-agnostic core modules must stay pure-Kotlin (#550).\n" +
+                    "Remove the Android/androidx/java.util.logging import, or move the code to an\n" +
+                    "Android-hosting module (core:data, core:network, app, etc.). Only\n" +
+                    "`androidx.annotation` is allowed inside the multi-platform core.\n" +
+                    offenders.joinToString("\n") { it.render(projectRoot) },
+            )
+        }
+    }
+}
+
 // Make it part of the normal `./gradlew check` run.
 allprojects {
     tasks.matching { it.name == "check" }.configureEach {
@@ -199,5 +227,6 @@ allprojects {
         dependsOn(rootProject.tasks.named("checkRiffleInfraSeams"))
         dependsOn(rootProject.tasks.named("checkRendererBridgeUsage"))
         dependsOn(rootProject.tasks.named("checkNoServerReferences"))
+        dependsOn(rootProject.tasks.named("checkNoAndroidImports"))
     }
 }
