@@ -227,7 +227,11 @@ private fun SliderTrack(
                         .background(MaterialTheme.colorScheme.primary, CircleShape),
                 )
             },
-            track = { /* We draw the track ourselves above; keep this slot empty. */ },
+            // Do NOT override `track` with an empty slot — that collapses the M3 Slider's
+            // internal width to the thumb, killing drag. The default track fills width and
+            // draws transparent because both activeTrackColor and inactiveTrackColor are
+            // Color.Transparent in the SliderColors above, so nothing is painted on top of
+            // our custom Canvas.
             modifier = Modifier
                 .fillMaxWidth()
                 .semantics { this.contentDescription = contentDescription },
