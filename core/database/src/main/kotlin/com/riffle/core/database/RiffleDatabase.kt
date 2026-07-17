@@ -32,7 +32,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         LocalFilesFileFolderEntity::class,
         RemoteItemFreshnessEntity::class,
     ],
-    version = 56,
+    version = 57,
     exportSchema = true,
 )
 abstract class RiffleDatabase : RoomDatabase() {
@@ -1572,6 +1572,15 @@ abstract class RiffleDatabase : RoomDatabase() {
                 db.execSQL(
                     "ALTER TABLE `toc_cache` ADD COLUMN `cachedAt` INTEGER NOT NULL DEFAULT 0"
                 )
+            }
+        }
+
+        // ADR 0046: emphasis annotations (bold/italic/underline/strike) as a sibling of
+        // TYPE_HIGHLIGHT. New nullable column carries a comma-separated styles set for
+        // TYPE_EMPHASIS rows; null (default) on every existing row and on every other type.
+        val MIGRATION_56_57 = object : Migration(56, 57) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `annotations` ADD COLUMN `emphasisStyles` TEXT DEFAULT NULL")
             }
         }
     }

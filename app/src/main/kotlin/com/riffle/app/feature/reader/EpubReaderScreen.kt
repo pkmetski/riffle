@@ -527,6 +527,7 @@ fun EpubReaderScreen(
                         onRecolorHighlight = viewModel::recolorHighlight,
                         onDeleteHighlight = viewModel::deleteHighlight,
                         onUpdateHighlightNote = viewModel::updateHighlightNote,
+                        onToggleEmphasis = viewModel::toggleEmphasisStyle,
                         highlightDomPatches = viewModel.highlightDomPatches,
                         showOpenInBook = shouldShowOpenInBook(viewModel.readerSource),
                         onOpenInBook = viewModel::openHighlightInSourceBook,
@@ -1330,6 +1331,8 @@ private fun EpubNavigatorView(
     onRecolorHighlight: (String, HighlightColor) -> Unit,
     onDeleteHighlight: (String) -> Unit,
     onUpdateHighlightNote: (String, String?) -> Unit,
+    /** ADR 0046: toggle a single emphasis style (bold/italic/underline/strike) over a highlight's range. */
+    onToggleEmphasis: (String, com.riffle.core.domain.EmphasisStyle) -> Unit = { _, _ -> },
     highlightDomPatches: Flow<com.riffle.app.feature.reader.highlights.HighlightsDomPatch>,
     showOpenInBook: Boolean = false,
     onOpenInBook: (String) -> Unit = {},
@@ -3000,11 +3003,23 @@ private fun EpubNavigatorView(
             val currentAnnotation = annotations.firstOrNull { it.id == editTarget.id }
             val selectedColor = current?.let { HighlightColor.fromToken(it.color) }
                 ?: currentAnnotation?.let { HighlightColor.fromToken(it.color) }
+            // ADR 0046: derive the current emphasis set on this highlight's range so the popup
+            // knows which B/I/U/S chips are active. Same-CFI equality — the "layered emphasis"
+            // gesture is always relative to the visible highlight target.
+            val currentEmphasisStyles: Set<com.riffle.core.domain.EmphasisStyle> = run {
+                val hlCfi = currentAnnotation?.cfi
+                if (hlCfi.isNullOrEmpty()) emptySet()
+                else annotations.firstOrNull {
+                    it.type == com.riffle.core.database.AnnotationEntity.TYPE_EMPHASIS && it.cfi == hlCfi
+                }?.emphasisStyles.orEmpty()
+            }
             HighlightActionsPopup(
                 anchorRect = editTarget.anchorRect,
                 selected = selectedColor,
                 note = current?.note ?: currentAnnotation?.note,
+                emphasisStyles = currentEmphasisStyles,
                 onPick = { color -> onRecolorHighlight(editTarget.id, color) },
+                onToggleEmphasis = { style -> onToggleEmphasis(editTarget.id, style) },
                 onDelete = { onDeleteHighlight(editTarget.id) },
                 onOpenNoteEditor = { onOpenNoteEditor(editTarget.id, editTarget.anchorRect) },
                 onDismiss = {

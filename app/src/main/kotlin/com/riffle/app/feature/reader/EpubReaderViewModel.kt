@@ -2349,6 +2349,62 @@ class EpubReaderViewModel @Inject constructor(
     }
 
     /**
+     * ADR 0046: toggle a single emphasis style over the range of an existing highlight [highlightId].
+     *
+     * The gesture routes through the highlight's action sheet: the user has a highlight target
+     * open, taps a B/I/U/S chip, and this method resolves-or-creates the sibling emphasis row
+     * at the same CFI range as the highlight.
+     *
+     * State transitions:
+     *  - No emphasis row exists → create one with `{style}`.
+     *  - Emphasis row exists and does NOT carry [style] → update styles = existing + style.
+     *  - Emphasis row exists and DOES carry [style] → if the new set would be empty, tombstone
+     *    the row; otherwise update styles = existing - style.
+     *
+     * A single [EpubReaderViewModel] scope with the current book's [annotationSession] holds the
+     * pool from which we resolve the target row. Same-CFI equality is deliberate — this method is
+     * scoped to the "layered on this highlight" gesture; freeform emphasis-only creation from a
+     * bare selection is a separate flow (see createHighlight for the model).
+     */
+    fun toggleEmphasisStyle(highlightId: String, style: com.riffle.core.domain.EmphasisStyle) {
+        val sourceId = annotationServerId ?: return
+        val itemId = this.itemId ?: return
+        viewModelScope.launch {
+            val pool = annotationSession.annotations.value
+            val highlight = pool.firstOrNull { it.id == highlightId } ?: return@launch
+            val existing = pool.firstOrNull {
+                it.type == AnnotationEntity.TYPE_EMPHASIS && it.cfi == highlight.cfi
+            }
+            if (existing != null) {
+                val current = existing.emphasisStyles.orEmpty()
+                val next = if (style in current) current - style else current + style
+                if (next.isEmpty()) {
+                    annotationStore.delete(existing.id)
+                } else {
+                    annotationStore.updateEmphasisStyles(existing.id, next)
+                }
+            } else {
+                val originFont = highlight.originFontFamily?.takeIf { it.isNotBlank() }
+                    ?: FALLBACK_ORIGIN_FONT_FAMILY
+                annotationStore.createEmphasis(
+                    sourceId = sourceId,
+                    itemId = itemId,
+                    cfi = highlight.cfi,
+                    textSnippet = highlight.textSnippet,
+                    chapterHref = highlight.chapterHref,
+                    styles = setOf(style),
+                    textBefore = highlight.textBefore,
+                    textAfter = highlight.textAfter,
+                    spineIndex = highlight.spineIndex,
+                    progression = highlight.progression,
+                    originFontFamily = originFont,
+                )
+            }
+            scheduleAnnotationSync()
+        }
+    }
+
+    /**
      * Reload the Highlights-mode reader so the synthesised chapters re-render against the
      * updated annotation store (colour, note text, deletions). A back-to-back
      * `Loading→Ready(newPub)` set through StateFlow can be coalesced — the collector may only

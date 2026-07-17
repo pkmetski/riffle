@@ -149,6 +149,7 @@ class EpubReaderViewModelImageAnnotationTest {
 
         override fun observeBooksWithHighlights(sourceId: String): Flow<List<com.riffle.core.database.BookHighlightSummary>> =
             flowOf(emptyList())
+        override suspend fun updateEmphasisStyles(id: String, emphasisStyles: String, updatedAt: Long, deviceId: String) = Unit
     }
 
     private val deviceIdStore = object : DeviceIdStore {

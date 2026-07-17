@@ -50,6 +50,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.IntRect
 import androidx.compose.ui.window.Popup
 import androidx.compose.ui.window.PopupProperties
+import com.riffle.core.domain.EmphasisStyle
 import com.riffle.core.domain.HighlightColor
 
 /**
@@ -98,12 +99,70 @@ fun HighlightSwatchRow(
     }
 }
 
+/**
+ * ADR 0046 §4: Emphasis chip row. Four chips (B/I/U/S) rendered in their own style so the
+ * affordance mirrors the visual result. Active chips fill with the reader accent; the row is
+ * independent of the highlight-colour row above.
+ */
+@Composable
+fun EmphasisChipRow(
+    selected: Set<EmphasisStyle>,
+    onToggle: (EmphasisStyle) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Row(modifier = modifier, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        EmphasisStyle.entries.forEach { style ->
+            val isActive = style in selected
+            val bg = if (isActive) MaterialTheme.colorScheme.primary
+                else MaterialTheme.colorScheme.surfaceVariant
+            val fg = if (isActive) MaterialTheme.colorScheme.onPrimary
+                else MaterialTheme.colorScheme.onSurface
+            val label = when (style) {
+                EmphasisStyle.BOLD -> "B"
+                EmphasisStyle.ITALIC -> "I"
+                EmphasisStyle.UNDERLINE -> "U"
+                EmphasisStyle.STRIKE -> "S"
+            }
+            val chipStyle = when (style) {
+                EmphasisStyle.BOLD -> MaterialTheme.typography.titleMedium.copy(
+                    fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                )
+                EmphasisStyle.ITALIC -> MaterialTheme.typography.titleMedium.copy(
+                    fontStyle = androidx.compose.ui.text.font.FontStyle.Italic,
+                )
+                EmphasisStyle.UNDERLINE -> MaterialTheme.typography.titleMedium.copy(
+                    textDecoration = androidx.compose.ui.text.style.TextDecoration.Underline,
+                )
+                EmphasisStyle.STRIKE -> MaterialTheme.typography.titleMedium.copy(
+                    textDecoration = androidx.compose.ui.text.style.TextDecoration.LineThrough,
+                )
+            }
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier
+                    .size(width = 40.dp, height = 34.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(bg)
+                    .clickable { onToggle(style) }
+                    .semantics {
+                        contentDescription = "Emphasis " + style.token +
+                            if (isActive) ", active" else ""
+                    },
+            ) {
+                Text(text = label, color = fg, style = chipStyle)
+            }
+        }
+    }
+}
+
 @Composable
 fun HighlightActionsPopup(
     anchorRect: IntRect,
     selected: HighlightColor?,
     note: String?,
+    emphasisStyles: Set<EmphasisStyle> = emptySet(),
     onPick: (HighlightColor) -> Unit,
+    onToggleEmphasis: (EmphasisStyle) -> Unit = {},
     onDelete: () -> Unit,
     onOpenNoteEditor: () -> Unit,
     onDismiss: () -> Unit,
@@ -149,6 +208,15 @@ fun HighlightActionsPopup(
                                 tint = MaterialTheme.colorScheme.error,
                             )
                         }
+                    }
+                    // ADR 0046: Emphasis chip row lives beneath the colour row, sharing the sheet.
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        EmphasisChipRow(selected = emphasisStyles, onToggle = onToggleEmphasis)
                     }
                     HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
                 }

@@ -486,6 +486,7 @@ private class InMemoryDao(val rows: MutableStateFlow<List<AnnotationEntity>>) : 
     ) = 0
 
     override fun observeBooksWithHighlights(sourceId: String) = flowOf(emptyList<BookHighlightSummary>())
+    override suspend fun updateEmphasisStyles(id: String, emphasisStyles: String, updatedAt: Long, deviceId: String) = Unit
 }
 
 /** Reuses the internal mapper the store uses so this test's fixtures speak entity, not domain. */

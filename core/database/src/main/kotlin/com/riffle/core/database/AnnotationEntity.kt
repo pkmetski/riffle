@@ -76,11 +76,22 @@ data class AnnotationEntity(
      * lazy-backfilled on source-chapter load in FullBook mode.
      */
     val originFontFamily: String? = null,
+    /**
+     * Comma-separated tokens from [EMPHASIS_STYLE_BOLD], [EMPHASIS_STYLE_ITALIC],
+     * [EMPHASIS_STYLE_UNDERLINE], [EMPHASIS_STYLE_STRIKE] for [TYPE_EMPHASIS] rows.
+     * Null (or empty) on every other type. See ADR 0046.
+     */
+    val emphasisStyles: String? = null,
 ) {
     companion object {
         const val TYPE_HIGHLIGHT = "HIGHLIGHT"
         const val TYPE_BOOKMARK = "BOOKMARK"
         const val TYPE_IMAGE = "IMAGE"
+        const val TYPE_EMPHASIS = "EMPHASIS"
         const val COLOR_YELLOW = "yellow"
+        const val EMPHASIS_STYLE_BOLD = "bold"
+        const val EMPHASIS_STYLE_ITALIC = "italic"
+        const val EMPHASIS_STYLE_UNDERLINE = "underline"
+        const val EMPHASIS_STYLE_STRIKE = "strike"
     }
 }

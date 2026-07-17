@@ -1075,6 +1075,84 @@ class AnnotationW3CCodecTest {
         assertEquals("malformed figure", parsed.textSnippet)
     }
 
+    // ADR 0046: TYPE_EMPHASIS rows round-trip through a riffle:emphasis body carrying the
+    // encoded styles token. Regression flip: dropping the body encode or the type override on
+    // decode would leave the parsed row as TYPE_HIGHLIGHT with a null color — the renderer would
+    // paint a phantom no-color highlight instead of applying the emphasis marks.
+    @Test
+    fun `serializeEmphasis emits a riffle_emphasis body with the styles token`() {
+        val entity = AnnotationEntity(
+            id = "uuid-emph-1",
+            sourceId = "abs1",
+            itemId = "item1",
+            type = AnnotationEntity.TYPE_EMPHASIS,
+            cfi = "epubcfi(/6/4!/4/2,/1:0,/1:12)",
+            color = "",
+            note = null,
+            textSnippet = "the key phrase",
+            textBefore = "he said ",
+            textAfter = " — and then",
+            chapterHref = "chap03.xhtml",
+            createdAt = 1_700_000_000_000L,
+            updatedAt = 1_700_000_000_000L,
+            originDeviceId = "device-A",
+            lastModifiedByDeviceId = "device-A",
+            emphasisStyles = "bold,underline",
+        )
+        val json = codec.annotationEntityToW3C(entity)
+        assertTrue("body carries riffle:emphasis type", json.contains("\"type\":\"riffle:emphasis\""))
+        assertTrue("body value carries the styles token", json.contains("\"styles\":\"bold,underline\""))
+        assertTrue("motivation stays highlighting for legacy-peer fallback", json.contains("\"motivation\":\"highlighting\""))
+    }
+
+    @Test
+    fun `parseEmphasis body flips type to EMPHASIS and populates emphasisStyles`() {
+        val json = """
+            {"@context":"http://www.w3.org/ns/anno.jsonld","id":"urn:uuid:uuid-emph-2",
+             "type":"Annotation","motivation":"highlighting",
+             "target":{"source":"epub://item-item1","selector":[
+               {"type":"FragmentSelector","conformsTo":"http://idpf.org/epub/linking/cfi/epub-cfi.html","value":"epubcfi(/6/2!/4/2,/1:0,/1:5)"},
+               {"type":"TextQuoteSelector","exact":"phrase","prefix":"","suffix":""}
+             ]},
+             "body":{"type":"riffle:emphasis","value":{"styles":"italic,strike"}},
+             "created":"2024-01-01T00:00:00Z","modified":"2024-01-01T00:00:00Z",
+             "riffle:originDeviceId":"device-B","riffle:lastModifiedByDeviceId":"device-B",
+             "riffle:updatedAt":2000,"riffle:deleted":false}
+        """.trimIndent()
+
+        val parsed = codec.w3cToAnnotationEntity(json)
+
+        assertEquals(AnnotationEntity.TYPE_EMPHASIS, parsed.type)
+        assertEquals("italic,strike", parsed.emphasisStyles)
+    }
+
+    @Test
+    fun `round-trip preserves emphasis styles across encode→decode`() {
+        val entity = AnnotationEntity(
+            id = "uuid-emph-rt",
+            sourceId = "abs1",
+            itemId = "item1",
+            type = AnnotationEntity.TYPE_EMPHASIS,
+            cfi = "epubcfi(/6/4!/4/2,/1:0,/1:6)",
+            color = "",
+            note = null,
+            textSnippet = "phrase",
+            textBefore = "",
+            textAfter = "",
+            chapterHref = "chap01.xhtml",
+            createdAt = 1_000_000L,
+            updatedAt = 1_000_000L,
+            originDeviceId = "device-A",
+            lastModifiedByDeviceId = "device-A",
+            emphasisStyles = "bold,italic,underline,strike",
+        )
+
+        val roundTripped = codec.w3cToAnnotationEntity(codec.annotationEntityToW3C(entity))
+
+        assertEquals(AnnotationEntity.TYPE_EMPHASIS, roundTripped.type)
+        assertEquals("bold,italic,underline,strike", roundTripped.emphasisStyles)
+    }
+
     @Test
     fun `riffle_image body with neither href nor svg is skipped`() {
         val json = """

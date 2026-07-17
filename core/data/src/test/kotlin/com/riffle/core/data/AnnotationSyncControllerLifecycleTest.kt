@@ -1058,4 +1058,6 @@ private class LifecycleInMemoryAnnotationDao : AnnotationDao {
 
     override fun observeBooksWithHighlights(sourceId: String) =
         kotlinx.coroutines.flow.flowOf(emptyList<com.riffle.core.database.BookHighlightSummary>())
+
+    override suspend fun updateEmphasisStyles(id: String, emphasisStyles: String, updatedAt: Long, deviceId: String) = Unit
 }

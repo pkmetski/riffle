@@ -139,6 +139,19 @@ class AnnotationStoreImplTest {
 
         override fun observeBooksWithHighlights(sourceId: String): Flow<List<com.riffle.core.database.BookHighlightSummary>> =
             kotlinx.coroutines.flow.flowOf(emptyList())
+
+        override suspend fun updateEmphasisStyles(
+            id: String,
+            emphasisStyles: String,
+            updatedAt: Long,
+            deviceId: String,
+        ) {
+            rows.value = rows.value.map {
+                if (it.id == id && it.type == AnnotationEntity.TYPE_EMPHASIS) {
+                    it.copy(emphasisStyles = emphasisStyles, updatedAt = updatedAt, lastModifiedByDeviceId = deviceId)
+                } else it
+            }
+        }
     }
 
     private val deviceIdStore = object : DeviceIdStore {

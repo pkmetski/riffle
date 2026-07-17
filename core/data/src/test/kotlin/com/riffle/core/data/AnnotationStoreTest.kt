@@ -131,6 +131,23 @@ class AnnotationStoreTest {
 
         override suspend fun purgeAgedTombstones(sourceId: String, itemId: String, cutoff: Long): Int = 0
         override fun observeBooksWithHighlights(sourceId: String): Flow<List<com.riffle.core.database.BookHighlightSummary>> = kotlinx.coroutines.flow.flowOf(emptyList())
+
+        override suspend fun updateEmphasisStyles(
+            id: String,
+            emphasisStyles: String,
+            updatedAt: Long,
+            deviceId: String,
+        ) {
+            rows.value = rows.value.map {
+                if (it.id == id && it.type == AnnotationEntity.TYPE_EMPHASIS) {
+                    it.copy(
+                        emphasisStyles = emphasisStyles,
+                        updatedAt = updatedAt,
+                        lastModifiedByDeviceId = deviceId,
+                    )
+                } else it
+            }
+        }
     }
 
     private class FakeDeviceIdStore(private val id: String) : DeviceIdStore {
@@ -298,5 +315,105 @@ class AnnotationStoreTest {
         val highlights = store.observeHighlights("abs1", "item1").first()
         assertEquals(1, highlights.size)
         assertEquals(AnnotationEntity.TYPE_HIGHLIGHT, highlights[0].type)
+    }
+
+    // ADR 0046: TYPE_EMPHASIS row carries a non-empty styles set encoded as the wire form.
+    // The regression flip: reverting createEmphasis would either leave `emphasisStyles` NULL
+    // (row created but styleless) or persist the wrong type constant.
+    @Test
+    fun `createEmphasis persists a TYPE_EMPHASIS row with encoded styles`() = runTest {
+        val dao = FakeAnnotationDao()
+        val store = buildStore(dao = dao, deviceId = "device-A", clock = { 7000L }, idGenerator = { "uuid-em" })
+
+        store.createEmphasis(
+            sourceId = "abs1",
+            itemId = "item1",
+            cfi = "epubcfi(/6/4!/4/2,/1:0,/1:10)",
+            textSnippet = "the key phrase",
+            chapterHref = "chap01.xhtml",
+            styles = setOf(com.riffle.core.domain.EmphasisStyle.BOLD, com.riffle.core.domain.EmphasisStyle.UNDERLINE),
+            originFontFamily = TEST_FONT,
+        )
+
+        val saved = dao.getById("uuid-em")!!
+        assertEquals(AnnotationEntity.TYPE_EMPHASIS, saved.type)
+        assertEquals("bold,underline", saved.emphasisStyles)
+        assertEquals("", saved.color)
+        assertEquals("the key phrase", saved.textSnippet)
+        assertEquals("device-A", saved.originDeviceId)
+        assertEquals(7000L, saved.createdAt)
+    }
+
+    // Empty styles is a caller error — the ViewModel gates on non-empty before invoking the store.
+    // A regression that let the store persist an empty-styles row would create a shadow annotation
+    // the renderer can't paint and the merge logic can't equate.
+    @Test(expected = IllegalArgumentException::class)
+    fun `createEmphasis rejects an empty styles set`() = runTest {
+        val store = buildStore()
+        store.createEmphasis(
+            sourceId = "abs1",
+            itemId = "item1",
+            cfi = "epubcfi(/6/4!/4/2,/1:0,/1:10)",
+            textSnippet = "phrase",
+            chapterHref = "chap01.xhtml",
+            styles = emptySet(),
+            originFontFamily = TEST_FONT,
+        )
+    }
+
+    // Toggle-off from partial selection is a range shrink at the reader layer; here we only
+    // cover the styles mutation (the single-row edit that the ViewModel invokes when the whole
+    // selection toggles). Regression flip: the DAO's `type = 'EMPHASIS'` guard is what protects
+    // a highlight from being clobbered if a caller mis-routes here.
+    @Test
+    fun `updateEmphasisStyles rewrites styles and bumps updatedAt+provenance`() = runTest {
+        val dao = FakeAnnotationDao()
+        val store = buildStore(dao = dao, deviceId = "device-A", clock = { 7000L }, idGenerator = { "uuid-em" })
+
+        store.createEmphasis(
+            sourceId = "abs1",
+            itemId = "item1",
+            cfi = "epubcfi(/6/4!/4/2,/1:0,/1:10)",
+            textSnippet = "the key phrase",
+            chapterHref = "chap01.xhtml",
+            styles = setOf(com.riffle.core.domain.EmphasisStyle.BOLD),
+            originFontFamily = TEST_FONT,
+        )
+
+        val laterStore = buildStore(dao = dao, deviceId = "device-B", clock = { 9500L }, idGenerator = { "unused" })
+        laterStore.updateEmphasisStyles(
+            id = "uuid-em",
+            styles = setOf(com.riffle.core.domain.EmphasisStyle.BOLD, com.riffle.core.domain.EmphasisStyle.STRIKE),
+        )
+
+        val saved = dao.getById("uuid-em")!!
+        assertEquals("bold,strike", saved.emphasisStyles)
+        assertEquals(9500L, saved.updatedAt)
+        assertEquals("device-B", saved.lastModifiedByDeviceId)
+    }
+
+    @Test
+    fun `observeEmphasis filters out highlights and bookmarks`() = runTest {
+        val dao = FakeAnnotationDao()
+        var n = 0
+        val store = buildStore(dao = dao, idGenerator = { "id-${n++}" })
+
+        store.createHighlight("abs1", "item1", "epubcfi(a)", "h", "c", originFontFamily = TEST_FONT)
+        store.createBookmark("abs1", "item1", "epubcfi(b)", "snip", "c",
+            spineIndex = 0, progression = 0.0, bookmarkTitle = "", originFontFamily = TEST_FONT)
+        store.createEmphasis(
+            sourceId = "abs1",
+            itemId = "item1",
+            cfi = "epubcfi(c)",
+            textSnippet = "emph",
+            chapterHref = "c",
+            styles = setOf(com.riffle.core.domain.EmphasisStyle.ITALIC),
+            originFontFamily = TEST_FONT,
+        )
+
+        val emphasis = store.observeEmphasis("abs1", "item1").first()
+        assertEquals(1, emphasis.size)
+        assertEquals(AnnotationEntity.TYPE_EMPHASIS, emphasis[0].type)
+        assertEquals(setOf(com.riffle.core.domain.EmphasisStyle.ITALIC), emphasis[0].emphasisStyles)
     }
 }

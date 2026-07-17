@@ -2,6 +2,7 @@ package com.riffle.app.feature.reader
 
 import com.riffle.core.database.AnnotationEntity
 import com.riffle.core.domain.Annotation
+import com.riffle.core.domain.EmphasisStyle
 import com.riffle.core.domain.normalizeEpubHref
 
 // Auto-merge adjacent highlights (2026-07-05 spec). Pure text-anchored logic so both the
@@ -38,6 +39,15 @@ internal data class MergeAnchor(
     val textAfter: String,
     val progression: Double,
     val chapterHref: String,
+    /** ADR 0046: which annotation type the anchor represents. Match key varies by type — colour
+     *  for [AnnotationEntity.TYPE_HIGHLIGHT], styles set for [AnnotationEntity.TYPE_EMPHASIS] —
+     *  so an emphasis anchor never absorbs a highlight neighbour and vice versa. Defaults to
+     *  TYPE_HIGHLIGHT so existing test call-sites that construct MergeAnchor directly keep
+     *  their current semantics. */
+    val type: String = AnnotationEntity.TYPE_HIGHLIGHT,
+    /** ADR 0046: set-valued match key for [AnnotationEntity.TYPE_EMPHASIS] anchors. Null on
+     *  every other type. Two emphasis rows merge iff their sets are equal AND non-empty. */
+    val emphasisStyles: Set<EmphasisStyle>? = null,
 )
 
 internal fun Annotation.toMergeAnchor(): MergeAnchor = MergeAnchor(
@@ -49,6 +59,8 @@ internal fun Annotation.toMergeAnchor(): MergeAnchor = MergeAnchor(
     textAfter = textAfter,
     progression = progression,
     chapterHref = chapterHref,
+    type = type,
+    emphasisStyles = emphasisStyles,
 )
 
 /**
@@ -61,12 +73,25 @@ internal fun Annotation.toMergeAnchor(): MergeAnchor = MergeAnchor(
  * `createHighlight`'s `findEnclosedFiguresInHtml` walk).
  */
 internal fun isMergeEligible(anchor: MergeAnchor, candidate: Annotation): Boolean {
-    if (candidate.type != AnnotationEntity.TYPE_HIGHLIGHT) return false
+    if (anchor.type != candidate.type) return false
     if (anchor.spineIndex != candidate.spineIndex) return false
-    if (!anchor.color.equals(candidate.color, ignoreCase = true)) return false
-    if (!anchor.note.isNullOrBlank()) return false
-    if (!candidate.note.isNullOrBlank()) return false
-    return true
+    return when (anchor.type) {
+        AnnotationEntity.TYPE_HIGHLIGHT -> {
+            if (!anchor.color.equals(candidate.color, ignoreCase = true)) return false
+            if (!anchor.note.isNullOrBlank()) return false
+            if (!candidate.note.isNullOrBlank()) return false
+            true
+        }
+        AnnotationEntity.TYPE_EMPHASIS -> {
+            // ADR 0046: mirror of the highlight (colour, no-note) gate — same-styles-set match,
+            // no-note gate collapsed (Emphasis has no note field). Empty sets never merge; that
+            // state isn't a legal Emphasis row, but be defensive.
+            val anchorStyles = anchor.emphasisStyles?.takeIf { it.isNotEmpty() } ?: return false
+            val candidateStyles = candidate.emphasisStyles?.takeIf { it.isNotEmpty() } ?: return false
+            anchorStyles == candidateStyles
+        }
+        else -> false
+    }
 }
 
 /**

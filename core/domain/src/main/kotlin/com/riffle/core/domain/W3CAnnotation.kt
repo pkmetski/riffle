@@ -60,4 +60,8 @@ data class W3CAnnotation(
      *  field on the `riffle:image` body so a sync round-trip doesn't drop the local raster. Null
      *  when the source didn't rasterize (or the file was written by an older peer). */
     val imageBytes: String? = null,
+    /** ADR 0046: comma-separated encoding of the emphasis styles set (same wire form as the entity
+     *  column). Non-null iff [type] == TYPE_EMPHASIS. Peers ignorant of TYPE_EMPHASIS simply
+     *  ignore the unrecognised body type and drop the row cleanly. */
+    val emphasisStyles: String? = null,
 )

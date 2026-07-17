@@ -116,4 +116,5 @@ private class NoOpAnnotationDao : AnnotationDao {
     ): Int = 0
 
     override fun observeBooksWithHighlights(sourceId: String): Flow<List<com.riffle.core.database.BookHighlightSummary>> = flowOf(emptyList())
+    override suspend fun updateEmphasisStyles(id: String, emphasisStyles: String, updatedAt: Long, deviceId: String) = Unit
 }
