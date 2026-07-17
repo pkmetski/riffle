@@ -37,6 +37,27 @@ internal class ZipEpubResourceFetcher private constructor(
         return runCatching { zip.getInputStream(entry).use { it.readBytes() } }.getOrNull()
     }
 
+    /**
+     * Returns every ZIP entry whose name ends in one of [suffixes] (case-insensitive), paired with
+     * its raw bytes. Used by [HighlightsPublicationFactory] to discover the source EPUB's CSS
+     * files (`.css`) and font files (`.ttf` / `.otf` / `.woff` / `.woff2`) so the elided view can
+     * inline the publisher's `@font-face` rules — without this the synthesised HTML falls back to
+     * whatever generic serif the WebView happens to pick when it can't resolve the captured
+     * `originFontFamily` name (elided-view-serif-font-regression).
+     */
+    fun listEntries(suffixes: Collection<String>): List<Pair<String, ByteArray>> {
+        val lowered = suffixes.map { it.lowercase() }
+        return zip.entries().asSequence()
+            .filter { !it.isDirectory }
+            .filter { entry -> lowered.any { entry.name.lowercase().endsWith(it) } }
+            .mapNotNull { entry ->
+                runCatching { zip.getInputStream(entry).use { it.readBytes() } }
+                    .getOrNull()
+                    ?.let { entry.name to it }
+            }
+            .toList()
+    }
+
     override fun close() {
         runCatching { zip.close() }
     }

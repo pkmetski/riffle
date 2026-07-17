@@ -83,6 +83,22 @@ interface AnnotationStore {
     ): Int
 
     /**
+     * Heal every row whose `originFontFamily` is the [sentinel] "no captured value" marker
+     * (`"serif"` — see `EpubReaderViewModel.FALLBACK_ORIGIN_FONT_FAMILY`) to the freshly
+     * reported publisher font [fontFamily]. Runs alongside [backfillNullOriginFontFamily] on
+     * every first-per-session body-font report so books whose annotations were all created
+     * before a live selection could feed the font stash (bookmarks, caption highlights, or a
+     * selectionchange race) get corrected without the user having to create a new annotation.
+     * No-op — and returns 0 — when [fontFamily] equals the sentinel value.
+     */
+    suspend fun healSentinelOriginFontFamily(
+        sourceId: String,
+        itemId: String,
+        sentinel: String,
+        fontFamily: String,
+    ): Int
+
+    /**
      * Legacy-annotation cleanup: rewrite an existing `TYPE_IMAGE` annotation into a
      * `TYPE_HIGHLIGHT` covering [textSnippet] with [figure] as its sole embeddedFigure. The
      * annotation's id is preserved so sync sees the change as an update (bumped updatedAt +

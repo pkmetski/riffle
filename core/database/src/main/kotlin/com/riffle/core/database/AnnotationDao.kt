@@ -128,6 +128,33 @@ interface AnnotationDao {
         deviceId: String,
     ): Int
 
+    /**
+     * Heal every row whose `originFontFamily` equals the [sentinel] value (`"serif"`, written by
+     * legacy annotation-create paths when the live WebView probe returned nothing — see
+     * `EpubReaderViewModel.FALLBACK_ORIGIN_FONT_FAMILY`) to the freshly reported publisher font
+     * for this book. Guarded on `fontFamily != sentinel` at the call site — a book whose CSS
+     * legitimately sets `body { font-family: serif }` reports back the sentinel value verbatim
+     * and must not trigger an updatedAt bump on every open (would churn sync).
+     *
+     * Runs alongside [backfillNullOriginFontFamily] on the first non-blank body-font report per
+     * book per session; both queries then no-op on subsequent chapter loads. Same provenance +
+     * timestamp rules apply so peers see one consolidated update.
+     */
+    @Query(
+        "UPDATE annotations SET originFontFamily = :fontFamily, updatedAt = :updatedAt, " +
+            "lastModifiedByDeviceId = :deviceId " +
+            "WHERE sourceId = :sourceId AND itemId = :itemId AND deleted = 0 " +
+            "AND originFontFamily = :sentinel"
+    )
+    suspend fun healSentinelOriginFontFamily(
+        sourceId: String,
+        itemId: String,
+        sentinel: String,
+        fontFamily: String,
+        updatedAt: Long,
+        deviceId: String,
+    ): Int
+
     /** Pending-row count for one book — live Flow for reader-chrome and per-book status. */
     @Query("SELECT COUNT(*) FROM annotations WHERE sourceId = :sourceId AND itemId = :itemId AND updatedAt > lastSyncedAt")
     fun observePendingCountForBook(sourceId: String, itemId: String): Flow<Int>

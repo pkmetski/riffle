@@ -188,6 +188,23 @@ class AnnotationStoreImpl(
         )
     }
 
+    override suspend fun healSentinelOriginFontFamily(
+        sourceId: String,
+        itemId: String,
+        sentinel: String,
+        fontFamily: String,
+    ): Int {
+        if (fontFamily.isBlank() || sentinel.isBlank() || fontFamily == sentinel) return 0
+        return dao.healSentinelOriginFontFamily(
+            sourceId = sourceId,
+            itemId = itemId,
+            sentinel = sentinel,
+            fontFamily = fontFamily,
+            updatedAt = clock(),
+            deviceId = deviceIdStore.getOrCreate(),
+        )
+    }
+
     override suspend fun upgradeImageToCaptionHighlight(
         id: String,
         cfi: String,

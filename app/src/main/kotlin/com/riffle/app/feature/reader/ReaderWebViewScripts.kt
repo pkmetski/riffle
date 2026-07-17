@@ -274,16 +274,59 @@ internal val SELECTION_SPAN_TRACKER_JS = """
     (function () {
       if (window.__riffleSelTrackerInstalled) return;
       window.__riffleSelTrackerInstalled = true;
-      // One-shot body-font probe (issue #484). Fires once per chapter install: reads the source
-      // book's computed body `font-family` and (a) stashes it in `window.__riffleBookBodyFont`
-      // so continuous mode can pull it via evaluateJavascript from onPageFinished, and (b)
-      // bridges it out to Kotlin directly for paginated mode via RiffleSelBridge — the elided
-      // view uses this as the fallback for legacy null-font rows AND to backfill them in the DB.
+      // One-shot body-font probe (issue #484 + elided-view-serif-font-regression). Fires
+      // once per chapter install: reads the source book's computed font on a REAL content
+      // element and stashes it on `window.__riffleBookBodyFont` (continuous mode pulls from
+      // there via evaluateJavascript on onPageFinished) AND bridges it out to Kotlin directly
+      // for paginated mode via `RiffleSelBridge.onBookBodyFont`. Elided-view backfill/heal
+      // uses this to render annotations in the publisher's face.
+      //
+      // We probe a content element (`<p>`/`<li>`/`<span>`) BEFORE falling back to `<body>`
+      // because publisher CSS typically styles paragraphs, not the body. On books like
+      // "A Philosophy of Software Design" the body reports Chromium's default
+      // `"Times New Roman", serif` while `<p>` computes to the publisher's actual face — a
+      // body-only probe stamped every annotation as browser-default serif and defeated the
+      // whole "elided view inherits the origin's font" contract (elided-view-serif-font-
+      // regression). `<body>` remains the final fallback for chapter shells that don't yet
+      // have inner content (the tracker re-fires on the next install once content mounts).
       try {
-        var bodyEl = document.body || document.documentElement;
+        var probeEl = null;
+        // Prefer real body-text elements over chapter-header wrappers. `<p>` and `<li>` are the
+        // canonical body-text carriers publisher CSS styles; the earlier version fell straight
+        // through to `<div>`/`<span>` and picked up leading `<div class="chapternum">7</div>`
+        // (or drop-caps, running heads, etc.) whose computed font is a display face, not the
+        // body face — that value then got backfilled/healed onto every annotation on the book.
+        //
+        // Length gate: candidates with `textContent.trim().length < 40` are almost always
+        // ornamentation (chapter numbers, single-letter drop caps, "Chapter N" labels) rather
+        // than body prose. Skip them and keep looking; if nothing meets the threshold we fall
+        // through to the generic pass, then to `<body>` — never worse than the pre-fix probe.
+        var primary = document.querySelectorAll('p, li');
+        for (var i = 0; i < primary.length && i < 30; i++) {
+          var c = primary[i];
+          if (c && (c.textContent || '').trim().length >= 40) { probeEl = c; break; }
+        }
+        if (!probeEl) {
+          // Second pass: same selectors, no length gate — for chapters whose only body carrier
+          // is a very short paragraph (frontmatter dedications, epigraphs).
+          for (var j = 0; j < primary.length && j < 10; j++) {
+            var c2 = primary[j];
+            if (c2 && (c2.textContent || '').trim().length > 0) { probeEl = c2; break; }
+          }
+        }
+        if (!probeEl) {
+          // Third pass: fall back to any non-empty container. Kept ordered so a real
+          // paragraph elsewhere still wins over a wrapper.
+          var fallback = document.querySelectorAll('div, span, article, section');
+          for (var k = 0; k < fallback.length && k < 20; k++) {
+            var c3 = fallback[k];
+            if (c3 && (c3.textContent || '').trim().length >= 40) { probeEl = c3; break; }
+          }
+        }
+        if (!probeEl) probeEl = document.body || document.documentElement;
         var bodyFont = '';
-        if (bodyEl) {
-          var bcs = window.getComputedStyle(bodyEl);
+        if (probeEl) {
+          var bcs = window.getComputedStyle(probeEl);
           if (bcs) bodyFont = bcs.fontFamily || '';
         }
         window.__riffleBookBodyFont = bodyFont;

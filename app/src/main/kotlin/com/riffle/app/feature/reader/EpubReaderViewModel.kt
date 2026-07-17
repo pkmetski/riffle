@@ -111,28 +111,40 @@ import javax.inject.Inject
 // single write rather than one per intermediate 0.05× value.
 private const val SPEED_SAVE_DEBOUNCE_MS = 400L
 
-/**
- * Placeholder `font-family` value written on the entity when a live WebView probe returned
- * nothing at annotation-create time (rare selection-teardown race, or bookmarks toggled without
- * a prior selection). Deliberately plain "serif" so the elided view still declares a
- * font-family — [HighlightsPublicationFactory]'s sanitizer will let this pass through while
- * anything the DB coughs up beyond the safe allowlist is dropped. Issue #484.
- */
-private const val FALLBACK_ORIGIN_FONT_FAMILY = "serif"
+// Placeholder `font-family` sentinel written on the entity when no live WebView probe value was
+// available at annotation-create time (rare selection-teardown race, bookmarks toggled without a
+// prior selection, TYPE_IMAGE caption highlights). The store contract requires a non-blank
+// string, so we keep the sentinel; render-time callers (plurality + per-<p> emitter) treat this
+// exact value as "no captured font" and fall back to the book-body probe / ReadiumCSS default.
+// Aliased to [com.riffle.app.feature.reader.highlights.FALLBACK_ORIGIN_FONT_FAMILY] so tests and
+// factory logic reference a single source of truth. Issue #484.
+private const val FALLBACK_ORIGIN_FONT_FAMILY =
+    com.riffle.app.feature.reader.highlights.FALLBACK_ORIGIN_FONT_FAMILY
 
 /** Convenience for the merge-inherit path: returns [Annotation.originFontFamily] on the
  *  domain projection, or null when the annotation predates issue #484 and hasn't been touched
- *  by lazy backfill yet. Callers fall back to [FALLBACK_ORIGIN_FONT_FAMILY]. */
+ *  by lazy backfill yet, OR when the stored value is the [FALLBACK_ORIGIN_FONT_FAMILY] sentinel
+ *  (which is not a real captured font and must not propagate through merges). */
 private fun entityFontFamily(annotation: Annotation): String? =
-    annotation.originFontFamily?.takeIf { it.isNotBlank() }
+    annotation.originFontFamily
+        ?.takeIf { it.isNotBlank() && it != FALLBACK_ORIGIN_FONT_FAMILY }
 
-/** Plurality (mode) `originFontFamily` across every annotation in [chapters], skipping blanks.
- *  Returns null when nothing has a value yet — callers use that to mean "emit no `font-family`
- *  at all" (falls through to ReadiumCSS default). Ties broken by first-seen order. Issue #484. */
-private fun pluralityOriginFont(chapters: List<ChapterElision>): String? =
+/** Plurality (mode) `originFontFamily` across every annotation in [chapters], skipping blanks
+ *  AND the [FALLBACK_ORIGIN_FONT_FAMILY] sentinel — a book whose annotations were all created
+ *  before the WebView probe fired would otherwise plurality-vote the sentinel and force the
+ *  elided view's chapter titles + body to render as bare `serif`, defeating the "inherit the
+ *  origin's face" contract of issue #484.
+ *  Returns null when nothing has a real captured value yet — callers layer the in-memory
+ *  body-font probe on top, then emit no `font-family` at all if that too is unknown. Ties
+ *  broken by first-seen order. */
+internal fun pluralityOriginFont(chapters: List<ChapterElision>): String? =
     chapters.asSequence()
         .flatMap { it.highlights.asSequence() }
-        .mapNotNull { it.originFontFamily?.takeIf { f -> f.isNotBlank() } }
+        .mapNotNull {
+            it.originFontFamily?.takeIf { f ->
+                f.isNotBlank() && f != FALLBACK_ORIGIN_FONT_FAMILY
+            }
+        }
         .groupingBy { it }
         .eachCount()
         .maxByOrNull { it.value }
@@ -250,6 +262,21 @@ class EpubReaderViewModel @Inject constructor(
     private val captionHighlightCleanupAttempted = java.util.concurrent.atomic.AtomicBoolean(false)
     private val legacyImageUpgradeAttempted = java.util.concurrent.atomic.AtomicBoolean(false)
     private val captionHighlightUpgrader by lazy { CaptionHighlightUpgrader(annotationStore) }
+
+    // Set by the WebView-side body-font probe injected in [SELECTION_SPAN_TRACKER_JS] (issue
+    // #484). Set-once — the first non-blank value the reader reports for the current book,
+    // triggers a DB backfill of every legacy null-font row for the same book, and is cached so
+    // subsequent chapter loads (which re-fire the tracker install) don't re-write the DB.
+    //
+    // Also consulted from [loadHighlightsPublication] as the fallback for `elidedBodyFontFamily`
+    // when annotation-plurality yields no real captured font (issue: elided view forced to
+    // serif when every existing annotation was stamped with the [FALLBACK_ORIGIN_FONT_FAMILY]
+    // sentinel). Hoisted next to the other pre-init AtomicRefs so the `viewModelScope.launch {
+    // openBook() }` in `init` doesn't touch a null field when Main.immediate reaches the
+    // Highlights branch before this property has been initialised — same crash class as the
+    // `legacyImageUpgradeAttempted` regression this comment block also documents at its
+    // original site.
+    private val bookBodyFontFamilyReported = java.util.concurrent.atomic.AtomicReference<String>("")
 
     // Formatting/typography/auto-scroll orchestrator — constructed with viewModelScope so
     // teardown is deterministic (the orchestrator's coroutines cancel when the VM is cleared).
@@ -1019,10 +1046,15 @@ class EpubReaderViewModel @Inject constructor(
             // Fallback body-font for excerpts whose annotation has null `originFontFamily`
             // (legacy rows, W3C sync ingest). Pick the plurality font across the captured set —
             // it converges to the book's dominant face as the user creates new annotations.
-            // Null (no captured fonts anywhere) → factory emits no `font-family`, falls all the
-            // way back to ReadiumCSS default (pre-issue-484 behaviour). See issue #484 and
-            // [HighlightsPublicationFactory.buildHandle].
+            // When plurality is null (every captured value is blank or the sentinel), fall back
+            // to whatever the full-book WebView reported this VM session; this heals books whose
+            // annotation set is dominated by sentinel-stamped rows (bookmarks / caption
+            // highlights created without a prior selection). Only null (both plurality AND
+            // in-memory probe unknown) means "emit no `font-family`, ReadiumCSS default wins" —
+            // pre-issue-484 behaviour and the pre-regression rendering for chapter titles.
             elidedBodyFontFamily = pluralityOriginFont(chapters)
+                ?: bookBodyFontFamilyReported.get()
+                    .takeIf { it.isNotBlank() && it != FALLBACK_ORIGIN_FONT_FAMILY }
             // Serve figure bytes from the source EPUB (if it's been downloaded) so annotated
             // figures render as their real image in the elided view instead of the "[figure
             // image not captured]" placeholder. Highlights mode never runs the normal
@@ -1564,17 +1596,9 @@ class EpubReaderViewModel @Inject constructor(
 
     // ---- Annotations -------------------------------------------------------------------------
 
-    // Set by the WebView-side body-font probe injected in [SELECTION_SPAN_TRACKER_JS] (issue
-    // #484). Set-once — the first non-blank value the reader reports for the current book,
-    // triggers a DB backfill of every legacy null-font row for the same book, and is cached so
-    // subsequent chapter loads (which re-fire the tracker install) don't re-write the DB.
-    private val bookBodyFontFamilyReported = java.util.concurrent.atomic.AtomicReference<String>("")
-
-    // (Moved out of this block to above the init launch — see the fields near the constructor
-    // parameters. Kotlin property initializers run in declaration order, and this declaration
-    // used to sit below the init { viewModelScope.launch { openBook() } } block; when the
-    // launched coroutine ran on Main.immediate it hit openBook's Highlights branch before this
-    // field had been assigned, NPE-ing at `legacyImageUpgradeAttempted.compareAndSet(...)`.)
+    // (`bookBodyFontFamilyReported` lives up near the constructor-adjacent fields — same
+    // pre-init-hoist reason as `legacyImageUpgradeAttempted`; the openBook() launch in `init`
+    // touches it via the Highlights branch's `elidedBodyFontFamily` fallback.)
 
     /**
      * Called by [RiffleSelectionRectBridge.onBookBodyFont] on chapter install. Caches the value
@@ -1587,18 +1611,50 @@ class EpubReaderViewModel @Inject constructor(
         if (source == ReaderSource.Highlights) return
         val trimmed = fontFamily.trim()
         if (trimmed.isBlank()) return
+        // Refuse the sentinel value verbatim (review finding, elided-view-serif-font-regression
+        // follow-up). Latching it into `bookBodyFontFamilyReported` via `compareAndSet` would
+        // block every subsequent real report for the whole VM session (the atomic is set-once)
+        // AND `backfillNullOriginFontFamily` would rewrite every legacy null row on this book
+        // to the sentinel string — which every render/plurality site downstream then filters as
+        // "no captured value" and drops back to browser-default serif. So on a book whose
+        // publisher CSS legitimately sets `p { font-family: serif }`, the effect is the exact
+        // regression this whole change is fixing.
+        //
+        // Skipping the sentinel here is safe: the render path treats "no probed font" and
+        // "probed font equals sentinel" identically anyway (both fall through to ReadiumCSS
+        // default), and skipping leaves the atomic empty so a later chapter whose computed
+        // font is a REAL face (e.g. `Nimbusromno9l, serif` on a chapter that mounts a font
+        // stack, not the generic keyword) can still fill it in.
+        if (trimmed == FALLBACK_ORIGIN_FONT_FAMILY) return
         // Set-once per (VM lifecycle, book). AtomicReference.compareAndSet returns false when
         // we've already stored a non-blank font — cheap no-op on the many repeat reports the
         // JS tracker fires as chapters install across a reading session.
         if (!bookBodyFontFamilyReported.compareAndSet("", trimmed)) return
         val sourceId = annotationServerId ?: return
         viewModelScope.launch {
-            val updated = runCatching {
+            val backfilled = runCatching {
                 annotationStore.backfillNullOriginFontFamily(sourceId, itemId, trimmed)
             }.getOrElse { 0 }
+            // Also heal rows stamped with the [FALLBACK_ORIGIN_FONT_FAMILY] sentinel — the
+            // "no captured value" marker written by legacy create paths whose live selection
+            // reported nothing (bookmarks, caption highlights, or a selectionchange race).
+            // Without this, a book whose annotations are all sentinel-stamped stays serif in
+            // the elided view even after the user opens the source book. The store no-ops
+            // when [trimmed] equals the sentinel, so a book whose CSS legitimately sets
+            // `body { font-family: serif }` doesn't churn sync.
+            val healed = runCatching {
+                annotationStore.healSentinelOriginFontFamily(
+                    sourceId = sourceId,
+                    itemId = itemId,
+                    sentinel = FALLBACK_ORIGIN_FONT_FAMILY,
+                    fontFamily = trimmed,
+                )
+            }.getOrElse { 0 }
+            val updated = backfilled + healed
             if (updated > 0) {
                 logger.d(LogChannel.HighlightMerge) {
-                    "originFontFamily backfill sourceId=$sourceId itemId=$itemId font='$trimmed' updated=$updated"
+                    "originFontFamily backfill sourceId=$sourceId itemId=$itemId font='$trimmed'" +
+                        " nullBackfilled=$backfilled sentinelHealed=$healed"
                 }
                 scheduleAnnotationSync()
             }
@@ -1730,10 +1786,15 @@ class EpubReaderViewModel @Inject constructor(
                     .forEach { annotationStore.delete(it.id) }
             }
             // Origin font-family at the selection start (issue #484). Non-blank contract on the
-            // store — fall back to the store's plain-serif default when the WebView side happened
-            // to return empty (rare selection-teardown race). The lazy backfill on chapter-load
-            // rewrites approximated values as they get corrected against the real DOM.
-            val originFont = SelectionFontStash.consume().takeIf { it.isNotBlank() } ?: FALLBACK_ORIGIN_FONT_FAMILY
+            // store — fall back through two layers when the WebView side happened to return empty
+            // (rare selection-teardown race, or a paginated selectionchange that raced the Highlight
+            // tap): (a) the book's computed body font this VM session already probed, (b) the
+            // [FALLBACK_ORIGIN_FONT_FAMILY] sentinel. Preferring (a) means the elided view's
+            // per-excerpt `<p>` still renders in the publisher's face for annotations created in
+            // rare-race sessions, avoiding the pre-fix "elided body forced to browser serif" bug.
+            val originFont = SelectionFontStash.consume().takeIf { it.isNotBlank() }
+                ?: bookBodyFontFamilyReported.get().takeIf { it.isNotBlank() }
+                ?: FALLBACK_ORIGIN_FONT_FAMILY
             val created = annotationStore.createHighlight(
                 sourceId = sourceId,
                 itemId = itemId,
@@ -2070,10 +2131,14 @@ class EpubReaderViewModel @Inject constructor(
                 }
                 val cfi = locator.toPayload().ebookLocation
                 val snippet = locator.text.before?.take(200).orEmpty()
-                // Bookmarks have no live text selection to read a range font from — fall back to
-                // the last captured selection font when one is pending, else the plain-serif
-                // placeholder (issue #484). Backfill will refine legacy rows on chapter-load.
+                // Bookmarks have no live text selection to read a range font from — fall back
+                // through the last captured selection font, then the book's computed body font
+                // this VM session already probed (issue: elided view forced browser serif when
+                // the entire book was bookmark-only). Only if both are unknown do we stamp the
+                // [FALLBACK_ORIGIN_FONT_FAMILY] sentinel; the sentinel is filtered at render time
+                // and healed by the next full-book open. Issue #484.
                 val bookmarkFont = SelectionFontStash.consume().takeIf { it.isNotBlank() }
+                    ?: bookBodyFontFamilyReported.get().takeIf { it.isNotBlank() }
                     ?: FALLBACK_ORIGIN_FONT_FAMILY
                 annotationStore.createBookmark(
                     sourceId = sourceId,
@@ -2242,7 +2307,11 @@ class EpubReaderViewModel @Inject constructor(
                     spineIndex = spineIndex,
                     progression = progression,
                     embeddedFigures = listOf(figure),
-                    originFontFamily = FALLBACK_ORIGIN_FONT_FAMILY,
+                    // Caption highlight originates from a long-press on the figure, never a live
+                    // text selection — the range font is inferred from the book's computed body
+                    // font this VM session already probed; sentinel only if that's still empty.
+                    originFontFamily = bookBodyFontFamilyReported.get().takeIf { it.isNotBlank() }
+                        ?: FALLBACK_ORIGIN_FONT_FAMILY,
                 )
                 openHighlightActions(created.id, anchorRect)
                 scheduleAnnotationSync()
@@ -2416,6 +2485,8 @@ class EpubReaderViewModel @Inject constructor(
                             chapter = chapter,
                             bookBodyFontFamily = elidedBodyFontFamily,
                             dataUriByHref = highlightsPublicationHandle?.figureBytesByHref.orEmpty(),
+                            publisherFontFaceCss = highlightsPublicationHandle
+                                ?.publisherFontFaceCss.orEmpty(),
                         )
                         handle.setChapterBytes(chapterHref, freshHtml)
                     }

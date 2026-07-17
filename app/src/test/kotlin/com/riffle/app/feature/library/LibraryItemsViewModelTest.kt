@@ -103,6 +103,7 @@ class LibraryItemsViewModelTest {
                 sourceId: String, itemId: String, chapterHref: String, imageHref: String?, imageSvg: String?,
             ): com.riffle.core.domain.Annotation? = null
             override suspend fun backfillNullOriginFontFamily(sourceId: String, itemId: String, fontFamily: String) = error("unused")
+            override suspend fun healSentinelOriginFontFamily(sourceId: String, itemId: String, sentinel: String, fontFamily: String) = error("unused")
         }
 
     private fun fakeAudiobookBookmarkStore(): com.riffle.core.domain.AudiobookBookmarkStore =
