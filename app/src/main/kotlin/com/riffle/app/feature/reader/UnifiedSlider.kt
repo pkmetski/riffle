@@ -3,7 +3,7 @@
 package com.riffle.app.feature.reader
 
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.background
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -13,7 +13,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
@@ -210,6 +209,7 @@ private fun SliderTrack(
             activeTickColor = Color.Transparent,
             inactiveTickColor = Color.Transparent,
         )
+        val interactionSource = remember { MutableInteractionSource() }
         Slider(
             value = value,
             onValueChange = { new ->
@@ -220,11 +220,14 @@ private fun SliderTrack(
             valueRange = valueRange,
             steps = steps,
             colors = sliderColors,
+            interactionSource = interactionSource,
             thumb = {
-                Box(
-                    modifier = Modifier
-                        .size(20.dp)
-                        .background(MaterialTheme.colorScheme.primary, CircleShape),
+                // Use M3's own Thumb sized down — keeps the layout math consistent with
+                // SliderImpl so the thumb sits at the correct fraction of the track.
+                SliderDefaults.Thumb(
+                    interactionSource = interactionSource,
+                    colors = sliderColors,
+                    thumbSize = androidx.compose.ui.unit.DpSize(20.dp, 20.dp),
                 )
             },
             // Do NOT override `track` with an empty slot — that collapses the M3 Slider's
