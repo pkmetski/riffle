@@ -19,7 +19,9 @@ import com.riffle.core.domain.usecase.RefreshCollections
 import com.riffle.core.domain.usecase.RefreshLibraryItems
 import com.riffle.core.domain.usecase.RefreshSeries
 import com.riffle.core.domain.Series
+import com.riffle.core.catalog.CatalogPlaylist
 import com.riffle.core.data.AnnotationsLibraryRepository
+import com.riffle.core.data.PlaylistsRepository
 import com.riffle.core.data.ToReadRepository
 import com.riffle.core.domain.SourceRepository
 import com.riffle.core.domain.TokenStorage
@@ -61,6 +63,7 @@ class LibraryItemsViewModel @Inject constructor(
     private val offlineAvailability: LibraryItemOfflineAvailability,
     private val connectivityObserver: ConnectivityObserver,
     private val toReadRepository: ToReadRepository,
+    private val playlistsRepository: PlaylistsRepository,
     private val readaloudLinkRepository: com.riffle.core.domain.ReadaloudLinkRepository,
     private val coverGridDensityStore: com.riffle.core.domain.CoverGridDensityStore,
     private val annotationStore: AnnotationStore,
@@ -151,10 +154,17 @@ class LibraryItemsViewModel @Inject constructor(
 
     // An audiobooks-only library: every item is a listen-only Audiobook. Drives square covers across
     // every tile in the library — including Series / Collection / "+ N more" tiles that carry no
-    // per-item audio signal of their own (ADR 0029).
-    val coversAreSquare: StateFlow<Boolean> = allItems
+    // per-item audio signal of their own (ADR 0029). Also gates the Playlists tab (audiobook root
+    // only, per the audiobook-playlists design).
+    val isAudiobooksOnlyLibrary: StateFlow<Boolean> = allItems
         .map { items -> items.isNotEmpty() && items.all { it.isListenable && !it.isReadable } }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
+
+    val coversAreSquare: StateFlow<Boolean> get() = isAudiobooksOnlyLibrary
+
+    /** Playlists for this library, filtered by [PlaylistsRepository] to hide the reserved "To Read". */
+    val playlists: StateFlow<List<CatalogPlaylist>> = playlistsRepository.observePlaylists(libraryId)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     // Backed by SavedStateHandle so the query survives both book-detail round-trips and process
     // death (issue #60).
@@ -236,7 +246,18 @@ class LibraryItemsViewModel @Inject constructor(
         projection,
         annotatedBooksInLibrary,
         allItems,
-    ) { p, annotated, items ->
+        playlists,
+        isAudiobooksOnlyLibrary,
+    ) { values ->
+        @Suppress("UNCHECKED_CAST")
+        val p = values[0] as LibraryProjection
+        @Suppress("UNCHECKED_CAST")
+        val annotated = values[1] as List<com.riffle.core.data.AnnotatedBook>
+        @Suppress("UNCHECKED_CAST")
+        val items = values[2] as List<LibraryItem>
+        @Suppress("UNCHECKED_CAST")
+        val pls = values[3] as List<CatalogPlaylist>
+        val audiobookOnly = values[4] as Boolean
         if (items.isEmpty()) {
             null
         } else {
@@ -245,6 +266,10 @@ class LibraryItemsViewModel @Inject constructor(
                 series = p.series.isNotEmpty(),
                 collections = p.collections.isNotEmpty(),
                 annotations = annotated.isNotEmpty(),
+                // ABS audiobook root only. The gate is (audiobook library) AND (at least one
+                // non-reserved playlist) — the "To Read" filter lives inside PlaylistsRepository so
+                // a lib whose only playlist is "To Read" correctly reports playlists=false here.
+                playlists = audiobookOnly && pls.isNotEmpty(),
             )
         }
     }
@@ -262,6 +287,7 @@ class LibraryItemsViewModel @Inject constructor(
             }
             val refreshJob = launch { refresh() }
             launch { toReadRepository.refresh(libraryId) }
+            launch { playlistsRepository.refresh(libraryId) }
             // Unblock the UI as soon as we have something meaningful to show:
             // either Room returns cached data quickly, or we wait for the network
             // refresh to complete so an empty state is known to be genuine.
@@ -282,6 +308,7 @@ class LibraryItemsViewModel @Inject constructor(
             connectivityObserver.isOnline.collectReconnects {
                 refresh()
                 toReadRepository.refresh(libraryId)
+                playlistsRepository.refresh(libraryId)
             }
         }
         // While a refresh is failing AND the device is online (i.e. server unreachable on an
@@ -323,10 +350,12 @@ class LibraryItemsViewModel @Inject constructor(
         val itemsDeferred = async { refreshLibraryItemsUseCase(libraryId) }
         val seriesDeferred = async { refreshSeriesUseCase(libraryId) }
         val collectionsDeferred = async { refreshCollectionsUseCase(libraryId) }
-        // ToRead refresh runs alongside but its failure must NOT flip the offline banner.
+        // ToRead / Playlists refresh runs alongside but its failure must NOT flip the offline banner.
         val toReadDeferred = async { toReadRepository.refresh(libraryId) }
+        val playlistsDeferred = async { playlistsRepository.refresh(libraryId) }
         val results = listOf(itemsDeferred.await(), seriesDeferred.await(), collectionsDeferred.await())
         toReadDeferred.await()
+        playlistsDeferred.await()
         _refreshFailed.value = results.any { it is LibraryRefreshResult.NetworkError }
     }
 

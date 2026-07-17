@@ -130,17 +130,23 @@ fun AudiobookPlayerScreen(
     windowSizeClass: WindowSizeClass,
     onNavigateBack: () -> Unit,
     onSwitchToReadaloud: (ebookItemId: String, atSec: Double) -> Unit = { _, _ -> },
+    /** Called on end-of-book when the player was opened inside a playlist context (via
+     *  [PlaylistDetailScreen]) and there IS a next item. Callers navigate to the next item's
+     *  audiobook player, preserving the playlist context so auto-advance chains through. */
+    onPlaylistAdvance: (nextItemId: String) -> Unit = {},
     viewModel: AudiobookPlayerViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
-    // When the book ends naturally (last track played through to STATE_ENDED), close the player —
-    // pop back to the audiobook detail view. The VM's onCleared() then stops the MediaSession, which
-    // clears the foreground notification.
+    // When the book ends naturally (last track played through to STATE_ENDED), either advance to
+    // the next playlist item (if opened inside a playlist context with a successor) or close the
+    // player. The VM's onCleared() stops the MediaSession, which clears the foreground notification.
     val latestOnNavigateBack = rememberUpdatedState(onNavigateBack)
+    val latestOnPlaylistAdvance = rememberUpdatedState(onPlaylistAdvance)
     LaunchedEffect(Unit) {
         viewModel.events.collect { event ->
             when (event) {
                 AudiobookPlayerEvent.Finished -> latestOnNavigateBack.value()
+                is AudiobookPlayerEvent.PlaylistAdvance -> latestOnPlaylistAdvance.value(event.nextItemId)
             }
         }
     }

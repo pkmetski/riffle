@@ -118,6 +118,13 @@ internal fun buildAudiobookFacts(durationSec: Double, genres: List<String>): Str
 sealed interface AudiobookPlayerEvent {
     /** Playback finished naturally (last track ended); the screen should close the player. */
     data object Finished : AudiobookPlayerEvent
+
+    /**
+     * Playback finished AND the player was opened inside a playlist context that has a next
+     * item. The screen navigates to the next item's audiobook player (preserving the same
+     * playlist context) so playback auto-advances through the playlist.
+     */
+    data class PlaylistAdvance(val nextItemId: String) : AudiobookPlayerEvent
 }
 
 /** UI state for the full-screen [Audiobook Player] (ADR 0029). */
@@ -191,9 +198,16 @@ class AudiobookPlayerViewModel @Inject constructor(
     private val reconciliationCoordinator: AudiobookReconciliationCoordinator,
     private val clock: Clock,
     private val logger: Logger,
+    private val playlistsRepository: com.riffle.core.data.PlaylistsRepository,
 ) : ViewModel() {
 
     private val itemId: String = savedStateHandle.get<String>("itemId") ?: ""
+
+    /** Optional playlist context — set when the player was opened from [PlaylistDetailScreen]'s
+     *  Play button. Empty string / null means "no playlist"; on end-of-book the VM falls back to
+     *  emitting [AudiobookPlayerEvent.Finished] and the screen pops as before. */
+    private val playlistId: String? = savedStateHandle.get<String>("playlistId")?.takeIf { it.isNotEmpty() }
+    private val playlistLibraryId: String? = savedStateHandle.get<String>("libraryId")?.takeIf { it.isNotEmpty() }
 
     // readaloud→audiobook swipe handoff: the listen position to continue from.
     // -2 = PREWARM_SENTINEL: pre-warm mode (overlay always-mounted, actual position arrives via
@@ -569,10 +583,37 @@ class AudiobookPlayerViewModel @Inject constructor(
         // pass).
         viewModelScope.launch {
             controller.playbackEnded.collect {
+                // Guard against re-firing on the same VM. During auto-advance the destination
+                // VM briefly overlaps with the outgoing VM on the singleton controller — the
+                // listener's real-time tryEmit on STATE_ENDED can push another Unit to the
+                // SharedFlow buffer before the incoming VM's prepare() replaces media items,
+                // and every stray subscriber that consumes it would emit yet another
+                // PlaylistAdvance. Verified end-to-end: dropping this guard produced 3
+                // duplicate advances back-to-back within 1s in logcat.
+                if (handingOffToPlaylistAdvance) return@collect
                 flushPendingSpeed()
-                pushProgressAndStopPlayer()
-                clearAudiobookNowPlaying()
-                _events.tryEmit(AudiobookPlayerEvent.Finished)
+                // Resolve next-in-playlist BEFORE deciding whether to tear the singleton player
+                // down. When auto-advancing, keep the MediaController connection alive so the
+                // incoming VM's controller.prepare() replaces media items on the SAME session —
+                // if we called pushProgressAndStopPlayer() here (or in onCleared), a race with
+                // VM2's init would release the connector after VM2 had already prepared+played,
+                // leaving the next book silently paused. Non-advance case (no playlist, or last
+                // item) keeps the original teardown so the foreground notification drops.
+                val nextInPlaylist = resolveNextPlaylistItem()
+                if (nextInPlaylist != null) {
+                    handingOffToPlaylistAdvance = true
+                    // Wipe the replay-cached STATE_ENDED Unit BEFORE the next VM subscribes,
+                    // or its collector re-consumes it and loop-advances through every remaining
+                    // item in milliseconds (verified end-to-end: two auto-advance log lines for
+                    // the same next-item id ~600ms apart, then playback dead).
+                    controller.clearEndOfBookCache()
+                    logger.d(LogChannel.Handoff) { "AB.VM playlist auto-advance → $nextInPlaylist" }
+                    _events.tryEmit(AudiobookPlayerEvent.PlaylistAdvance(nextInPlaylist))
+                } else {
+                    pushProgressAndStopPlayer()
+                    clearAudiobookNowPlaying()
+                    _events.tryEmit(AudiobookPlayerEvent.Finished)
+                }
             }
         }
 
@@ -717,6 +758,12 @@ class AudiobookPlayerViewModel @Inject constructor(
     // here instead.
     private var handingOffToReadaloud = false
 
+    // Set when this VM has emitted PlaylistAdvance and is about to be replaced by the next
+    // playlist item's VM on the same singleton controller. Same rationale as [handingOffToReadaloud]:
+    // onCleared MUST NOT release the shared connector, or a race with the incoming VM's prepare()
+    // silently kills its playback.
+    private var handingOffToPlaylistAdvance = false
+
     /**
      * Called when the user starts dragging down (before the threshold). Pre-resolves the SMIL seek
      * target so [playFromSecond] in [ReadaloudController] can skip the computation at commit time
@@ -813,12 +860,29 @@ class AudiobookPlayerViewModel @Inject constructor(
                 ?.let { openReconcileTargets.markClosed(sourceId, it) }
         }
         flushPendingSpeed()
-        // On a readaloud handoff the progress was already pushed and the handle released without
-        // stopping the shared player (readaloud now owns it) — stopping here would pause readaloud.
-        if (!handingOffToReadaloud) pushProgressAndStopPlayer()
-        // Leaving the player stops playback (no mini-bar), so this session is no longer playing.
-        clearAudiobookNowPlaying()
+        // On a readaloud handoff OR playlist auto-advance the shared session is being taken over
+        // by another surface (readaloud, or the next playlist item's VM). Stopping here would
+        // release the singleton connector out from under it.
+        if (!handingOffToReadaloud && !handingOffToPlaylistAdvance) pushProgressAndStopPlayer()
+        // Leaving the player stops playback (no mini-bar), so this session is no longer playing —
+        // except on auto-advance where the next item IS now the playing session; don't clear.
+        if (!handingOffToPlaylistAdvance) clearAudiobookNowPlaying()
         super.onCleared()
+    }
+
+    /**
+     * When the player was opened inside a playlist ([playlistId] + [playlistLibraryId] set), find
+     * the item that comes AFTER the current [itemId] in that playlist. Returns null when: no
+     * playlist context, the playlist has vanished (auto-deleted or removed), current item isn't
+     * in the playlist (removed while playing), or current is the last item. Callers treat null as
+     * "no auto-advance — emit Finished as normal".
+     */
+    private suspend fun resolveNextPlaylistItem(): String? {
+        val pid = playlistId ?: return null
+        val lid = playlistLibraryId ?: return null
+        val playlist = runCatching { playlistsRepository.getPlaylist(lid, pid) }.getOrNull() ?: return null
+        val currentIndex = playlist.itemIds.indexOf(itemId).takeIf { it >= 0 } ?: return null
+        return playlist.itemIds.getOrNull(currentIndex + 1)
     }
 
     private companion object {

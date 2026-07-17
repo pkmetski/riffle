@@ -2,7 +2,9 @@ package com.riffle.app.feature.library
 
 import android.content.res.Configuration
 import androidx.compose.animation.animateContentSize
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.ClickableText
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -65,6 +67,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.repeatOnLifecycle
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
@@ -112,6 +115,7 @@ fun LibraryItemDetailScreen(
     val currentPositionHref by viewModel.currentPositionHref.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
+    var showAddToPlaylistSheet by remember { mutableStateOf(false) }
 
     LaunchedEffect(viewModel) {
         viewModel.snackbarEvents.collect { message ->
@@ -146,6 +150,20 @@ fun LibraryItemDetailScreen(
         },
         snackbarHost = { SnackbarHost(snackbarHostState) },
     ) { padding ->
+        // Add-to-playlist sheet — driven by [showAddToPlaylistSheet], populated from the
+        // ViewModel's PlaylistsRepository-backed flow. The "To Read" playlist is filtered out at
+        // the repository layer so it never appears in this picker.
+        if (showAddToPlaylistSheet && uiState is LibraryItemDetailUiState.Ready) {
+            val readyState = uiState as LibraryItemDetailUiState.Ready
+            LaunchedEffect(showAddToPlaylistSheet) { viewModel.refreshPlaylists() }
+            com.riffle.app.feature.library.playlists.AddToPlaylistSheet(
+                itemId = readyState.item.id,
+                playlistsFlow = viewModel.playlistsForCurrentItem,
+                onToggle = { pl -> viewModel.toggleItemInPlaylist(pl) },
+                onCreate = { name -> viewModel.createPlaylistWithCurrentItem(name) },
+                onDismiss = { showAddToPlaylistSheet = false },
+            )
+        }
         when (val state = uiState) {
             is LibraryItemDetailUiState.Loading -> {
                 Box(
@@ -217,6 +235,7 @@ fun LibraryItemDetailScreen(
                         onMarkAsRead = { viewModel.markAsRead() },
                         onMarkAsUnread = { viewModel.markAsUnread() },
                         onToggleToRead = { viewModel.toggleToRead() },
+                        onAddToPlaylist = { showAddToPlaylistSheet = true },
                         onDownload = { viewModel.startDownload() },
                         onRemove = onRemove,
                         onDownloadReadaloud = viewModel::onDownloadReadaloud,
@@ -249,6 +268,7 @@ fun LibraryItemDetailScreen(
                         onMarkAsRead = { viewModel.markAsRead() },
                         onMarkAsUnread = { viewModel.markAsUnread() },
                         onToggleToRead = { viewModel.toggleToRead() },
+                        onAddToPlaylist = { showAddToPlaylistSheet = true },
                         onDownload = { viewModel.startDownload() },
                         onRemove = onRemove,
                         onDownloadReadaloud = viewModel::onDownloadReadaloud,
@@ -281,6 +301,7 @@ fun LibraryItemDetailScreen(
                         onMarkAsRead = { viewModel.markAsRead() },
                         onMarkAsUnread = { viewModel.markAsUnread() },
                         onToggleToRead = { viewModel.toggleToRead() },
+                        onAddToPlaylist = { showAddToPlaylistSheet = true },
                         onDownload = { viewModel.startDownload() },
                         onRemove = onRemove,
                         onDownloadReadaloud = viewModel::onDownloadReadaloud,
@@ -344,6 +365,7 @@ private fun LibraryItemDetailContent(
     onMarkAsRead: () -> Unit,
     onMarkAsUnread: () -> Unit,
     onToggleToRead: () -> Unit,
+    onAddToPlaylist: () -> Unit = {},
     onDownload: () -> Unit,
     onRemove: () -> Unit,
     onDownloadReadaloud: () -> Unit = {},
@@ -416,6 +438,7 @@ private fun LibraryItemDetailContent(
             onMarkAsRead = onMarkAsRead,
             onMarkAsUnread = onMarkAsUnread,
             onToggleToRead = onToggleToRead,
+            onAddToPlaylist = onAddToPlaylist,
             onDownload = onDownload,
             onRemove = onRemove,
             onDownloadReadaloud = onDownloadReadaloud,
@@ -579,6 +602,7 @@ internal fun LibraryItemDetailContentTablet(
     onMarkAsRead: () -> Unit,
     onMarkAsUnread: () -> Unit,
     onToggleToRead: () -> Unit,
+    onAddToPlaylist: () -> Unit = {},
     onDownload: () -> Unit,
     onRemove: () -> Unit,
     onDownloadReadaloud: () -> Unit = {},
@@ -656,6 +680,7 @@ internal fun LibraryItemDetailContentTablet(
                 onMarkAsRead = onMarkAsRead,
                 onMarkAsUnread = onMarkAsUnread,
                 onToggleToRead = onToggleToRead,
+            onAddToPlaylist = onAddToPlaylist,
                 onDownload = onDownload,
                 onRemove = onRemove,
                 onDownloadReadaloud = onDownloadReadaloud,
@@ -788,6 +813,7 @@ internal fun LibraryItemDetailContentPhoneLandscape(
     onMarkAsRead: () -> Unit,
     onMarkAsUnread: () -> Unit,
     onToggleToRead: () -> Unit,
+    onAddToPlaylist: () -> Unit = {},
     onDownload: () -> Unit,
     onRemove: () -> Unit,
     onDownloadReadaloud: () -> Unit = {},
@@ -866,6 +892,7 @@ internal fun LibraryItemDetailContentPhoneLandscape(
                 onMarkAsRead = onMarkAsRead,
                 onMarkAsUnread = onMarkAsUnread,
                 onToggleToRead = onToggleToRead,
+            onAddToPlaylist = onAddToPlaylist,
                 onDownload = onDownload,
                 onRemove = onRemove,
                 onDownloadReadaloud = onDownloadReadaloud,
@@ -1075,6 +1102,7 @@ private fun ActionRow(
     onMarkAsRead: () -> Unit,
     onMarkAsUnread: () -> Unit,
     onToggleToRead: () -> Unit,
+    onAddToPlaylist: () -> Unit = {},
     onDownload: () -> Unit,
     onRemove: () -> Unit,
     onDownloadReadaloud: () -> Unit = {},
@@ -1164,6 +1192,9 @@ private fun ActionRow(
                 isInToRead = isInToRead,
                 onToggle = onToggleToRead,
             )
+        }
+        if (capabilities.hasAddToPlaylist) {
+            AddToPlaylistToggleButton(onClick = onAddToPlaylist)
         }
         // Download affordances are gated on DownloadsCapability — Sources without a local store
         // (LocalFiles today) hide every download button (ebook, audiobook, readaloud bundle).

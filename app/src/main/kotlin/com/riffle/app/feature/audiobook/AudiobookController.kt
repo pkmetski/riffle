@@ -272,7 +272,19 @@ open class AudiobookController @Inject constructor(
         return c.currentPosition / 1000.0
     }
 
-    fun stop() {
+    /**
+     * Discard any cached end-of-book event WITHOUT tearing the session down. Called when the
+     * outgoing playlist-item VM hands off to the next item's VM on the same singleton controller:
+     * the next VM's collector must NOT immediately re-consume the previous item's STATE_ENDED
+     * (whose Unit is stashed in the `replay = 1` SharedFlow), or it will loop-advance through
+     * every remaining playlist item in a few ms. This is the piece of [stop] that MUST run on
+     * auto-advance — the connector.release() etc. must NOT.
+     */
+    fun clearEndOfBookCache() {
+        _playbackEnded.resetReplayCache()
+    }
+
+    open fun stop() {
         cancelSleepTimer()
         pollJob?.cancel()
         pollJob = null

@@ -85,12 +85,13 @@ private const val SERIES_DETAIL = "series_detail/{libraryId}/{seriesId}/{seriesN
 private const val COLLECTION_DETAIL = "collection_detail/{libraryId}/{collectionId}/{collectionName}"
 private const val FILTERED_BOOKS = "filtered_books/{libraryId}/{facetType}/{facetValue}"
 private const val LIBRARY_ITEM_DETAIL = "library_item_detail/{itemId}"
+private const val PLAYLIST_DETAIL = "playlist_detail/{libraryId}/{playlistId}/{playlistName}"
 private const val EPUB_READER =
     "epub_reader/{itemId}?startReadaloudAtSec={startReadaloudAtSec}&openAtCfi={openAtCfi}&startTocHref={startTocHref}&source={source}&sourceId={sourceId}"
 private const val PDF_READER = "pdf_reader/{itemId}"
 private const val CBZ_READER = "cbz_reader/{itemId}"
 private const val ANNOTATION_SEARCH = "annotation_search/{libraryId}?query={query}"
-private const val AUDIOBOOK_PLAYER = "audiobook_player/{itemId}?startAtSec={startAtSec}"
+private const val AUDIOBOOK_PLAYER = "audiobook_player/{itemId}?startAtSec={startAtSec}&playlistId={playlistId}&libraryId={libraryId}"
 
 /**
  * URL-encodes each path segment in a series-detail route. seriesId is encoded because chitanka
@@ -559,6 +560,40 @@ fun MainScreen(
                     onAnnotatedBookClick = { sourceId, itemId ->
                         navController.navigate(annotationsBookClickRoute(sourceId, itemId))
                     },
+                    onPlaylistSelected = { playlist ->
+                        val encodedName = URLEncoder.encode(playlist.name, "UTF-8")
+                        val encodedId = URLEncoder.encode(playlist.id, "UTF-8")
+                        navController.navigate("playlist_detail/$libraryId/$encodedId/$encodedName")
+                    },
+                )
+            }
+            composable(
+                route = PLAYLIST_DETAIL,
+                arguments = listOf(
+                    navArgument("libraryId") { type = NavType.StringType },
+                    navArgument("playlistId") { type = NavType.StringType },
+                    navArgument("playlistName") { type = NavType.StringType },
+                ),
+            ) { backStackEntry ->
+                val playlistLibraryId = backStackEntry.arguments?.getString("libraryId").orEmpty()
+                val playlistIdArg = backStackEntry.arguments?.getString("playlistId").orEmpty()
+                com.riffle.app.feature.library.playlists.PlaylistDetailScreen(
+                    onNavigateBack = { navController.popBackStack() },
+                    onItemSelected = { item ->
+                        val encodedId = URLEncoder.encode(item.id, "UTF-8")
+                        navController.navigate("library_item_detail/$encodedId")
+                    },
+                    // Play launches the first item into the audiobook player carrying the playlist
+                    // context (`playlistId` + `libraryId`) — the player VM uses those to look up
+                    // the next item on end-of-book and hop straight into it (auto-advance).
+                    onPlayItem = { item ->
+                        val encodedId = URLEncoder.encode(item.id, "UTF-8")
+                        val plQ = URLEncoder.encode(playlistIdArg, "UTF-8")
+                        val libQ = URLEncoder.encode(playlistLibraryId, "UTF-8")
+                        navController.navigate(
+                            "audiobook_player/$encodedId?playlistId=$plQ&libraryId=$libQ"
+                        )
+                    },
                 )
             }
             composable(
@@ -784,11 +819,45 @@ fun MainScreen(
                         type = NavType.FloatType
                         defaultValue = -1f // -1 = opened normally; >=0 = readaloud→audiobook handoff
                     },
+                    // Optional playlist context — set when the player was opened from the Playlists
+                    // tab (via [PlaylistDetailScreen]'s Play button). On end-of-book the VM uses
+                    // these to look up the next item and emit PlaylistAdvance; without them Finished
+                    // pops the player as before.
+                    navArgument("playlistId") {
+                        type = NavType.StringType
+                        nullable = true
+                        defaultValue = null
+                    },
+                    navArgument("libraryId") {
+                        type = NavType.StringType
+                        nullable = true
+                        defaultValue = null
+                    },
                 )
-            ) {
+            ) { backStackEntry ->
+                val currentPlaylistId = backStackEntry.arguments?.getString("playlistId")
+                val currentLibraryId = backStackEntry.arguments?.getString("libraryId")
                 AudiobookPlayerScreen(
                     windowSizeClass = windowSizeClass,
                     onNavigateBack = { navController.popBackStack() },
+                    // End-of-book with a playlist context: hop straight to the next item's player,
+                    // popping the current player entry so Back returns to the playlist detail
+                    // (rather than an ever-growing stack of dead player entries).
+                    onPlaylistAdvance = { nextItemId ->
+                        val encoded = URLEncoder.encode(nextItemId, "UTF-8")
+                        val pl = URLEncoder.encode(currentPlaylistId.orEmpty(), "UTF-8")
+                        val lib = URLEncoder.encode(currentLibraryId.orEmpty(), "UTF-8")
+                        // No startAtSec override — default -1 = "resume from saved position", so a
+                        // partially-listened next item picks up where the user left off. (The
+                        // earlier chain-runs-away failure mode when the next item was already at
+                        // 100% is now handled by [AudiobookController.clearEndOfBookCache] wiping
+                        // the STATE_ENDED replay before the incoming VM subscribes.)
+                        navController.navigate(
+                            "audiobook_player/$encoded?playlistId=$pl&libraryId=$lib"
+                        ) {
+                            popUpTo(AUDIOBOOK_PLAYER) { inclusive = true }
+                        }
+                    },
                     // Swipe down → switch to the readaloud reader for the linked ebook, continuing from
                     // the audiobook position. Pop the player off the stack so leaving readaloud doesn't
                     // land back on a dead player, and its onCleared stops audio + flushes progress.

@@ -10,12 +10,13 @@ data class LibraryTabVisibility(
     val series: Boolean,
     val collections: Boolean,
     val annotations: Boolean,
+    val playlists: Boolean = false,
 ) {
     companion object {
         /** Default before the library has settled: hide every optional tab. */
-        val Empty = LibraryTabVisibility(toRead = false, series = false, collections = false, annotations = false)
+        val Empty = LibraryTabVisibility(toRead = false, series = false, collections = false, annotations = false, playlists = false)
 
         /** Every optional tab present — used as the "still loading" fallback in the UI. */
-        val All = LibraryTabVisibility(toRead = true, series = true, collections = true, annotations = true)
+        val All = LibraryTabVisibility(toRead = true, series = true, collections = true, annotations = true, playlists = true)
     }
 }

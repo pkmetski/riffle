@@ -186,6 +186,16 @@ class LibraryItemsViewModelTest {
         override val isOnline: StateFlow<Boolean> = state
     }
 
+    private class NoopPlaylistsRepository : com.riffle.core.data.PlaylistsRepository {
+        override fun observePlaylists(rootId: String) = kotlinx.coroutines.flow.flowOf(emptyList<com.riffle.core.catalog.CatalogPlaylist>())
+        override suspend fun refresh(rootId: String) = true
+        override suspend fun getPlaylist(rootId: String, playlistId: String) = null
+        override suspend fun createPlaylist(rootId: String, name: String, initialItemId: String?) =
+            throw UnsupportedOperationException()
+        override suspend fun addItemToPlaylist(rootId: String, playlistId: String, itemId: String) = false
+        override suspend fun removeItemFromPlaylist(rootId: String, playlistId: String, itemId: String) = false
+    }
+
     private class FakeToReadRepository(initial: Set<String> = emptySet()) : ToReadRepository {
         val ids = MutableStateFlow(initial)
         var refreshCount = 0
@@ -246,6 +256,7 @@ class LibraryItemsViewModelTest {
         ),
         connectivityObserver = connectivityObserver,
         toReadRepository = toReadRepository,
+        playlistsRepository = NoopPlaylistsRepository(),
         readaloudLinkRepository = readaloudLinkRepository,
         coverGridDensityStore = coverGridDensityStore,
         annotationStore = annotationStore,

@@ -88,6 +88,15 @@ class LibraryItemDetailViewModelTocTest {
         override suspend fun deleteToken(sourceId: String) {}
     }
 
+    private val noOpPlaylistsRepository = object : com.riffle.core.data.PlaylistsRepository {
+        override fun observePlaylists(rootId: String) = flowOf(emptyList<com.riffle.core.catalog.CatalogPlaylist>())
+        override suspend fun refresh(rootId: String) = true
+        override suspend fun getPlaylist(rootId: String, playlistId: String) = null
+        override suspend fun createPlaylist(rootId: String, name: String, initialItemId: String?) = throw UnsupportedOperationException()
+        override suspend fun addItemToPlaylist(rootId: String, playlistId: String, itemId: String) = false
+        override suspend fun removeItemFromPlaylist(rootId: String, playlistId: String, itemId: String) = false
+    }
+
     private val noOpToReadRepository = object : ToReadRepository {
         override fun observeToReadItemIds(libraryId: String): Flow<Set<String>> = flowOf(emptySet())
         override suspend fun refresh(libraryId: String): Boolean = true
@@ -145,6 +154,7 @@ class LibraryItemDetailViewModelTocTest {
         pdfRepository = FakePdfRepo(),
         cbzRepository = NoopCbzRepository(),
         toReadRepository = noOpToReadRepository,
+        playlistsRepository = noOpPlaylistsRepository,
         readaloudLinkRepository = NoopReadaloudLinkRepository,
         readaloudAudioRepository = NoopReadaloudAudioRepository,
         audiobookDownloadRepository = NoopAudiobookDownloadRepository,
