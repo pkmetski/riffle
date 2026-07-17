@@ -36,4 +36,4 @@ gradle/gradle-daemon-jvm.properties
 .claude/scheduled_tasks.lock
 
 # Copyrighted comic-page fixtures — see PanelDetectorRealImageTest; add locally only
-core/domain/src/test/resources/comic-panel-fixtures/batman_*.jpg
+core/domain/src/test/resources/comic-panel-fixtures/*.jpg
