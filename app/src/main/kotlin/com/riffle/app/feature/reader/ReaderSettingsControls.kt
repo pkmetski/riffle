@@ -22,7 +22,6 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.FilterChip
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
@@ -46,7 +45,6 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.riffle.core.domain.ReaderFontFamily
 import com.riffle.core.domain.ReaderOrientation
@@ -54,42 +52,6 @@ import com.riffle.core.domain.ReaderTheme
 import com.riffle.core.domain.ThemeSchedule
 import java.time.LocalTime
 import kotlin.math.roundToInt
-
-@Composable
-internal fun StepperRow(
-    label: String,
-    onDecrement: () -> Unit,
-    onIncrement: () -> Unit,
-    decrementDescription: String,
-    incrementDescription: String,
-) {
-    Surface(
-        shape = RoundedCornerShape(percent = 50),
-        color = MaterialTheme.colorScheme.surfaceVariant,
-        contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
-        modifier = Modifier.fillMaxWidth(),
-    ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.height(48.dp),
-        ) {
-            IconButton(
-                onClick = onDecrement,
-                modifier = Modifier.semantics { contentDescription = decrementDescription },
-            ) { Text("−", style = MaterialTheme.typography.titleLarge) }
-            Text(
-                label,
-                style = MaterialTheme.typography.bodyLarge,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.weight(1f),
-            )
-            IconButton(
-                onClick = onIncrement,
-                modifier = Modifier.semantics { contentDescription = incrementDescription },
-            ) { Text("+", style = MaterialTheme.typography.titleLarge) }
-        }
-    }
-}
 
 @Composable
 internal fun ThemeSwatch(theme: ReaderTheme, schedule: ThemeSchedule) {

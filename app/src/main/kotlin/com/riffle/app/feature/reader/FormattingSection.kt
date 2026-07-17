@@ -1,20 +1,26 @@
 package com.riffle.app.feature.reader
 
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.size
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.unit.dp
 import com.riffle.app.feature.reader.formatting.RenderCapabilities
 import com.riffle.core.domain.FormattingPreferences
 import com.riffle.core.domain.ReaderFontFamily
+import java.util.Locale
 
 /**
  * Text + page typography controls. Reused by the in-reader settings sheet (Formatting tab)
@@ -35,13 +41,18 @@ fun FormattingSection(
         }
 
         if (capabilities.supportsTextTypography) {
-            Text("Font size", style = MaterialTheme.typography.labelMedium)
-            StepperRow(
-                label = "%.0f%%".format(prefs.fontSize * 100),
-                onDecrement = { onPrefsChange(prefs.copy(fontSize = (prefs.fontSize - 0.1f).coerceAtLeast(0.5f).round1())) },
-                onIncrement = { onPrefsChange(prefs.copy(fontSize = (prefs.fontSize + 0.1f).coerceAtMost(2.5f).round1())) },
-                decrementDescription = "Decrease font size",
-                incrementDescription = "Increase font size",
+            UnifiedSliderRow(
+                title = "Font size",
+                caption = "%.0f%%".format(Locale.ROOT, prefs.fontSize * 100),
+                value = prefs.fontSize,
+                onValueChange = { onPrefsChange(prefs.copy(fontSize = it.round1())) },
+                valueRange = 0.5f..2.5f,
+                steps = 19,
+                majorEvery = 0.5f,
+                edgeLeft = { Text("A", style = MaterialTheme.typography.labelMedium) },
+                edgeRight = { Text("A", style = MaterialTheme.typography.titleLarge) },
+                bubbleLabel = ::fontSizeBubble,
+                contentDescription = "Font size",
             )
             Spacer(Modifier.height(16.dp))
         }
@@ -63,13 +74,18 @@ fun FormattingSection(
             }
             Spacer(Modifier.height(16.dp))
 
-            Text("Line spacing", style = MaterialTheme.typography.labelMedium)
-            StepperRow(
-                label = "${lineSpacingWord(prefs.lineSpacing)} · %.1f×".format(prefs.lineSpacing),
-                onDecrement = { onPrefsChange(prefs.copy(lineSpacing = (prefs.lineSpacing - 0.1f).coerceAtLeast(1.0f).round1())) },
-                onIncrement = { onPrefsChange(prefs.copy(lineSpacing = (prefs.lineSpacing + 0.1f).coerceAtMost(2.0f).round1())) },
-                decrementDescription = "Decrease line spacing",
-                incrementDescription = "Increase line spacing",
+            UnifiedSliderRow(
+                title = "Line spacing",
+                caption = "${lineSpacingWord(prefs.lineSpacing)} · %.1f×".format(Locale.ROOT, prefs.lineSpacing),
+                value = prefs.lineSpacing,
+                onValueChange = { onPrefsChange(prefs.copy(lineSpacing = it.round1())) },
+                valueRange = 1.0f..2.0f,
+                steps = 9,
+                majorEvery = 0.2f,
+                edgeLeft = { TightLinesIcon() },
+                edgeRight = { LooseLinesIcon() },
+                bubbleLabel = ::lineSpacingBubble,
+                contentDescription = "Line spacing",
             )
             Spacer(Modifier.height(20.dp))
         }
@@ -80,13 +96,78 @@ fun FormattingSection(
             Text("Page", style = MaterialTheme.typography.labelMedium)
             Spacer(Modifier.height(8.dp))
         }
-        Text("Margins", style = MaterialTheme.typography.labelMedium)
-        StepperRow(
-            label = "${marginsWord(prefs.margins)} · %.1f×".format(prefs.margins),
-            onDecrement = { onPrefsChange(prefs.copy(margins = (prefs.margins - 0.1f).coerceAtLeast(0.2f).round1())) },
-            onIncrement = { onPrefsChange(prefs.copy(margins = (prefs.margins + 0.1f).coerceAtMost(3.0f).round1())) },
-            decrementDescription = "Decrease margins",
-            incrementDescription = "Increase margins",
+        UnifiedSliderRow(
+            title = "Margins",
+            caption = "${marginsWord(prefs.margins)} · %.1f×".format(Locale.ROOT, prefs.margins),
+            value = prefs.margins,
+            onValueChange = { onPrefsChange(prefs.copy(margins = it.round1())) },
+            valueRange = 0.2f..3.0f,
+            steps = 27,
+            majorEvery = 0.5f,
+            edgeLeft = { NarrowMarginsIcon() },
+            edgeRight = { WideMarginsIcon() },
+            bubbleLabel = ::marginsBubble,
+            contentDescription = "Margins",
         )
+    }
+}
+
+@Composable
+private fun TightLinesIcon() {
+    val c = MaterialTheme.colorScheme.onSurfaceVariant
+    Canvas(Modifier.size(18.dp)) {
+        val stroke = size.width * 0.10f
+        val pad = size.width * 0.15f
+        val w = size.width - pad * 2
+        listOf(0.35f, 0.50f, 0.65f).forEach { y ->
+            drawRect(color = c, topLeft = Offset(pad, size.height * y - stroke / 2), size = Size(w, stroke))
+        }
+    }
+}
+
+@Composable
+private fun LooseLinesIcon() {
+    val c = MaterialTheme.colorScheme.onSurfaceVariant
+    Canvas(Modifier.size(18.dp)) {
+        val stroke = size.width * 0.10f
+        val pad = size.width * 0.15f
+        val w = size.width - pad * 2
+        listOf(0.20f, 0.50f, 0.80f).forEach { y ->
+            drawRect(color = c, topLeft = Offset(pad, size.height * y - stroke / 2), size = Size(w, stroke))
+        }
+    }
+}
+
+@Composable
+private fun NarrowMarginsIcon() {
+    val c = MaterialTheme.colorScheme.onSurfaceVariant
+    Canvas(Modifier.size(18.dp)) {
+        val stroke = size.width * 0.08f
+        drawRect(color = c, topLeft = Offset(0f, 0f), size = size, style = Stroke(width = stroke))
+        val innerPad = size.width * 0.15f
+        listOf(0.35f, 0.55f, 0.75f).forEach { y ->
+            drawRect(
+                color = c,
+                topLeft = Offset(innerPad, size.height * y - stroke),
+                size = Size(size.width - innerPad * 2, stroke * 1.5f),
+            )
+        }
+    }
+}
+
+@Composable
+private fun WideMarginsIcon() {
+    val c = MaterialTheme.colorScheme.onSurfaceVariant
+    Canvas(Modifier.size(18.dp)) {
+        val stroke = size.width * 0.08f
+        drawRect(color = c, topLeft = Offset(0f, 0f), size = size, style = Stroke(width = stroke))
+        val innerPad = size.width * 0.30f
+        listOf(0.40f, 0.60f).forEach { y ->
+            drawRect(
+                color = c,
+                topLeft = Offset(innerPad, size.height * y - stroke),
+                size = Size(size.width - innerPad * 2, stroke * 1.5f),
+            )
+        }
     }
 }
