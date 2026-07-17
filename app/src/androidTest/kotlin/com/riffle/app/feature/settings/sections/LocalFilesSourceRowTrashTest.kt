@@ -122,4 +122,30 @@ class LocalFilesSourceRowTrashTest {
         composeTestRule.onNodeWithText("Remove folder?").assertDoesNotExist()
         assert(removeCallCount == 0) { "onRemoveFolder must not fire when the trash is disabled" }
     }
+
+    /**
+     * Pins the removal of the dedicated "Remove Local Files source" button from the expanded row
+     * body. Whole-source removal now goes through the standard swipe gesture on the row header
+     * (same as every other Source row); re-introducing the in-body button would flip this red.
+     */
+    @Test
+    fun expandedBody_doesNotShowDedicatedRemoveSourceButton() {
+        composeTestRule.setContent {
+            LocalFilesSourceRow(
+                source = source,
+                folders = listOf(folder(1)),
+                folderHealth = emptyMap(),
+                libraryItems = listOf(libraryItem(1, itemCount = 1)),
+                isExpanded = true,
+                onToggleExpanded = {},
+                onAddFolder = {},
+                onRemoveFolder = {},
+                onRemoveSource = {},
+                onSetLibraryVisible = { _, _ -> },
+                onReorderLibraries = {},
+            )
+        }
+
+        composeTestRule.onNodeWithText("Remove Local Files source").assertDoesNotExist()
+    }
 }
