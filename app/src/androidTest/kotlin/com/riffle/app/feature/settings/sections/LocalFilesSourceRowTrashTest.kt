@@ -21,7 +21,7 @@ import org.junit.runner.RunWith
 /**
  * Pins the "at least one folder must remain" invariant on the per-folder trash icon in the
  * Local Files source row. If the trash on the last remaining folder becomes tappable, a user can
- * strand the source with zero libraries; the source-wide "Remove Local Files source" action is
+ * strand the source with zero libraries; the swipe-to-remove gesture on the source row header is
  * the correct escape hatch instead.
  */
 @RunWith(AndroidJUnit4::class)
@@ -121,5 +121,31 @@ class LocalFilesSourceRowTrashTest {
 
         composeTestRule.onNodeWithText("Remove folder?").assertDoesNotExist()
         assert(removeCallCount == 0) { "onRemoveFolder must not fire when the trash is disabled" }
+    }
+
+    /**
+     * Pins the removal of the dedicated "Remove Local Files source" button from the expanded row
+     * body. Whole-source removal now goes through the standard swipe gesture on the row header
+     * (same as every other Source row); re-introducing the in-body button would flip this red.
+     */
+    @Test
+    fun expandedBody_doesNotShowDedicatedRemoveSourceButton() {
+        composeTestRule.setContent {
+            LocalFilesSourceRow(
+                source = source,
+                folders = listOf(folder(1)),
+                folderHealth = emptyMap(),
+                libraryItems = listOf(libraryItem(1, itemCount = 1)),
+                isExpanded = true,
+                onToggleExpanded = {},
+                onAddFolder = {},
+                onRemoveFolder = {},
+                onRemoveSource = {},
+                onSetLibraryVisible = { _, _ -> },
+                onReorderLibraries = {},
+            )
+        }
+
+        composeTestRule.onNodeWithText("Remove Local Files source").assertDoesNotExist()
     }
 }

@@ -316,7 +316,6 @@ internal fun LocalFilesSourceRow(
     onReorderLibraries: (orderedLibraryIds: List<String>) -> Unit,
 ) {
     var pendingFolderRemoval by remember { mutableStateOf<LocalFilesFolderEntity?>(null) }
-    var pendingSourceRemoval by remember { mutableStateOf(false) }
     val unhealthyCount = folders.count { folderHealth[it.treeUri] == false }
 
     ExpandableSourceRow(
@@ -455,14 +454,6 @@ internal fun LocalFilesSourceRow(
                         )
                     }
                 }
-        TextButton(
-            onClick = { pendingSourceRemoval = true },
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 4.dp),
-        ) {
-            Text("Remove Local Files source", color = MaterialTheme.colorScheme.error)
-        }
     }
 
     pendingFolderRemoval?.let { folder ->
@@ -484,22 +475,6 @@ internal fun LocalFilesSourceRow(
             },
             dismissButton = {
                 TextButton(onClick = { pendingFolderRemoval = null }) { Text("Cancel") }
-            },
-        )
-    }
-    if (pendingSourceRemoval) {
-        AlertDialog(
-            onDismissRequest = { pendingSourceRemoval = false },
-            title = { Text("Remove Local Files source?") },
-            text = { Text("Every configured folder and every locally-stored book will be deleted from this device.") },
-            confirmButton = {
-                TextButton(onClick = {
-                    onRemoveSource()
-                    pendingSourceRemoval = false
-                }) { Text("Remove") }
-            },
-            dismissButton = {
-                TextButton(onClick = { pendingSourceRemoval = false }) { Text("Cancel") }
             },
         )
     }
