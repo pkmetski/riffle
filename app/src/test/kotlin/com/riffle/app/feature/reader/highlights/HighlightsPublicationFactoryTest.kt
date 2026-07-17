@@ -320,7 +320,7 @@ class HighlightsPublicationFactoryTest {
         val html = readChapterHtml(pub, index = 0)
         assertTrue(
             "excerpt <p> carries an inline font-family with the captured value; html was: $html",
-            html.contains("font-family: &quot;Fira Sans&quot;, sans-serif !important;")
+            html.contains("font-family: &quot;Fira Sans&quot;, sans-serif;")
         )
     }
 
@@ -343,15 +343,15 @@ class HighlightsPublicationFactoryTest {
         val html = readChapterHtml(pub, index = 0)
         assertTrue(
             "excerpt <p> falls back to book body font; html was: $html",
-            html.contains("font-family: Georgia, serif !important;")
+            html.contains("font-family: Georgia, serif;")
         )
     }
 
     // The `bookBodyFontFamily` is applied via a `<style>` block that targets `<body>` + every
     // heading tag so the chapter title, notes, and figcaptions inherit the origin's face —
     // matches "the elided view must inherit the origin's font" for the whole document, not just
-    // excerpts. `!important` is load-bearing because ReadiumCSS-default.css sets its own
-    // font-family on headings via `--RS__*Font*` CSS variables.
+    // excerpts. No `!important`: our rule acts as the Original-mode default; ReadiumCSS's
+    // font-pref rule (which uses `!important`) wins when the user picks a specific face.
     @Test
     fun bookBodyFontFamily_isAppliedToHeadingsAndAsideViaStyleBlock() {
         val pub = factory.build(
@@ -370,7 +370,7 @@ class HighlightsPublicationFactoryTest {
             "<style> block must set the book body font on body + headings + aside; html was: $html",
             html.contains(
                 "body, h1, h2, h3, h4, h5, h6, aside, figcaption, .riffle-fig " +
-                    "{ font-family: Georgia, serif !important; }"
+                    "{ font-family: Georgia, serif; }"
             )
         )
     }
@@ -388,6 +388,54 @@ class HighlightsPublicationFactoryTest {
         )
         val html = readChapterHtml(pub, index = 0)
         assertTrue("no inline font-family emitted", !html.contains("font-family:"))
+    }
+
+    // Regression (elided-view-serif-font-regression): a set of annotations dominated by rows
+    // stamped with the [FALLBACK_ORIGIN_FONT_FAMILY] sentinel must NOT force the elided view's
+    // chapter title (`<h1>`), body, and excerpt paragraphs into `font-family: serif`. The
+    // sentinel is a "no captured value" marker, not a rendering directive; falling through to
+    // ReadiumCSS + the user's formatting preferences is what preserves the origin's face.
+    @Test
+    fun sentinelBookBodyFontFamily_doesNotForceSerifOnBodyOrHeadings() {
+        val pub = factory.build(
+            sourceId = "S1", itemId = "B1", bookTitle = null,
+            chapters = listOf(
+                ChapterElision(
+                    "ch0.xhtml", "Chapter Title Here",
+                    listOf(hl("h1", "excerpt", originFontFamily = FALLBACK_ORIGIN_FONT_FAMILY)),
+                ),
+            ),
+            urlFactory = ::testUrlFactory,
+            bookBodyFontFamily = FALLBACK_ORIGIN_FONT_FAMILY,
+        )
+        val html = readChapterHtml(pub, index = 0)
+        assertTrue(
+            "sentinel must NOT emit any font-family declaration; html was: $html",
+            !html.contains("font-family:")
+        )
+    }
+
+    // Same regression, per-excerpt path: an annotation whose stored [originFontFamily] is the
+    // sentinel must render its `<p>` without a `font-family` override, deferring to whatever
+    // real fallback the caller passes (or ReadiumCSS default when both are absent).
+    @Test
+    fun sentinelOriginFontFamily_onExcerpt_defersToRealFallback() {
+        val pub = factory.build(
+            sourceId = "S1", itemId = "B1", bookTitle = null,
+            chapters = listOf(
+                ChapterElision(
+                    "ch0.xhtml", "One",
+                    listOf(hl("h1", "excerpt", originFontFamily = FALLBACK_ORIGIN_FONT_FAMILY)),
+                ),
+            ),
+            urlFactory = ::testUrlFactory,
+            bookBodyFontFamily = "Georgia, serif",
+        )
+        val html = readChapterHtml(pub, index = 0)
+        assertTrue(
+            "excerpt <p> must use the real book font, not the sentinel; html was: $html",
+            html.contains("font-family: Georgia, serif;")
+        )
     }
 
     // A font-family value whose bytes contain something outside the safe allowlist (e.g. an

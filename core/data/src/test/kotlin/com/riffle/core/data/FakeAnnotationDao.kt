@@ -85,4 +85,14 @@ internal class FakeAnnotationDao : AnnotationDao {
         updatedAt: Long,
         deviceId: String,
     ): Int = error("not used by this fake")
+
+    override suspend fun healSentinelOriginFontFamily(
+        sourceId: String,
+        itemId: String,
+        sentinel: String,
+        fontFamily: String,
+        updatedAt: Long,
+        deviceId: String,
+    ): Int = 0
+
 }

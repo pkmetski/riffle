@@ -476,6 +476,15 @@ private class InMemoryDao(val rows: MutableStateFlow<List<AnnotationEntity>>) : 
         deviceId: String,
     ) = 0
 
+    override suspend fun healSentinelOriginFontFamily(
+        sourceId: String,
+        itemId: String,
+        sentinel: String,
+        fontFamily: String,
+        updatedAt: Long,
+        deviceId: String,
+    ) = 0
+
     override fun observeBooksWithHighlights(sourceId: String) = flowOf(emptyList<BookHighlightSummary>())
 }
 

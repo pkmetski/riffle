@@ -89,6 +89,16 @@ class AnnotationStoreImplTest {
             return updated
         }
 
+        override suspend fun healSentinelOriginFontFamily(
+            sourceId: String,
+            itemId: String,
+            sentinel: String,
+            fontFamily: String,
+            updatedAt: Long,
+            deviceId: String,
+        ): Int = 0
+
+
         override suspend fun updateNote(id: String, note: String?, updatedAt: Long, deviceId: String) {
             rows.value = rows.value.map {
                 if (it.id == id) it.copy(note = note, updatedAt = updatedAt, lastModifiedByDeviceId = deviceId) else it

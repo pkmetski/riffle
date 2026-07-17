@@ -187,6 +187,14 @@ class ReaderSessionLifecycleTest {
             itemId: String,
             fontFamily: String,
         ): Int = 0
+
+        override suspend fun healSentinelOriginFontFamily(
+            sourceId: String,
+            itemId: String,
+            sentinel: String,
+            fontFamily: String,
+        ): Int = 0
+
     }
 
     // ── Helpers ──────────────────────────────────────────────────────────────────────────

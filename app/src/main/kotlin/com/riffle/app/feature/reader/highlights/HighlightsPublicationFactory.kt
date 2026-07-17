@@ -21,6 +21,18 @@ import org.readium.r2.shared.util.mediatype.MediaType
 import org.readium.r2.shared.util.resource.Resource
 
 /**
+ * Sentinel `originFontFamily` value written on annotation entities when the WebView had no live
+ * `getComputedStyle().fontFamily` to report at annotation-create time (rare selection-teardown
+ * race, bookmarks toggled without a prior selection, TYPE_IMAGE caption highlights). The store
+ * contract requires a non-blank string, so we can't just store null; instead, this exact literal
+ * is the shared "no captured font" marker that [pluralityOriginFont] (in EpubReaderViewModel)
+ * and [appendOriginFontFamilyStyle] both treat as "no value" and fall back through. Kept as
+ * plain `serif` for backwards compatibility with rows already written before the regression fix.
+ * Issue #484 + elided-view-serif-font-regression follow-up.
+ */
+internal const val FALLBACK_ORIGIN_FONT_FAMILY = "serif"
+
+/**
  * One chapter's worth of highlights to be rendered into the elided reader (ADR 0041).
  *
  * [highlights] must already be sorted by (spineIndex, progression, createdAt) — the factory
@@ -51,6 +63,13 @@ class HighlightsPublicationHandle internal constructor(
      *  the initial figure-bearing HTML with a byte-less version and the elided view would
      *  regress to "[figure image not captured]" after the first edit. */
     val figureBytesByHref: Map<String, String>,
+    /** Concatenated publisher `@font-face` rules (with base64-inlined font bytes) extracted from
+     *  the source EPUB's stylesheets — see [PublisherFontFaceExtractor]. Same reasoning as
+     *  [figureBytesByHref]: live-patch re-renders must carry this forward or a colour/note edit
+     *  would strip the embedded font and the elided view would revert to a generic-serif fallback
+     *  (elided-view-serif-font-regression). Empty when no fetcher was supplied, no CSS was
+     *  found, or every referenced font failed to resolve. */
+    val publisherFontFaceCss: String,
 ) {
     /** Overwrite the bytes for [chapterHref] with [freshHtml]'s UTF-8 encoding. No-op if the
      *  chapter isn't in the current spine (i.e. this handle predates a structural change). */
@@ -155,10 +174,32 @@ class HighlightsPublicationFactory @Inject constructor() {
             entries[url] = bytes
         }
 
+        // Publisher `@font-face` inlining (elided-view-serif-font-regression follow-up): pull the
+        // source EPUB's stylesheets + font files and rewrite each `@font-face` `src: url(...)` to
+        // a `data:` URI so the synthesised elided document can actually render the captured
+        // `originFontFamily` face in Original / Publisher mode. Without this, the WebView sees
+        // e.g. `font-family: Nimbusromno9l;`, can't resolve it (the synthesised container
+        // doesn't serve the source book's font files), and falls back to a generic serif that
+        // visibly diverges from what the source reader shows.
+        //
+        // Extraction is opt-in via [resourceFetcher] exposing [ZipEpubResourceFetcher.listEntries]
+        // — for JVM tests and the Noop fetcher this yields an empty list and no `@font-face`
+        // block is emitted (matches the pre-fix rendering exactly for tests that don't need it).
+        val publisherFontFaceCss = when (val fetcher = resourceFetcher) {
+            is ZipEpubResourceFetcher -> {
+                val cssFiles = fetcher.listEntries(listOf(".css"))
+                val fontResolver: (String) -> ByteArray? = { path -> fetcher.fetch(path) }
+                PublisherFontFaceExtractor.extract(cssFiles, fontResolver)
+            }
+            else -> ""
+        }
+
         nonEmptyChapters.forEachIndexed { index, chapter ->
             val href = "highlights/ch$index.xhtml"
             val url = requireNotNull(urlFactory(href)) { "Failed to build synthetic Url for $href" }
-            entries[url] = renderChapterHtml(chapter, bookBodyFontFamily, dataUriByHref).toByteArray(Charsets.UTF_8)
+            entries[url] = renderChapterHtml(
+                chapter, bookBodyFontFamily, dataUriByHref, publisherFontFaceCss,
+            ).toByteArray(Charsets.UTF_8)
             chapterUrls[chapter.href] = url
             readingOrder += Link(
                 href = url,
@@ -185,7 +226,9 @@ class HighlightsPublicationFactory @Inject constructor() {
             manifest = manifest,
             container = InMemoryContainer(entries),
         )
-        return HighlightsPublicationHandle(publication, chapterUrls, entries, dataUriByHref)
+        return HighlightsPublicationHandle(
+            publication, chapterUrls, entries, dataUriByHref, publisherFontFaceCss,
+        )
     }
 
     /**
@@ -198,6 +241,7 @@ class HighlightsPublicationFactory @Inject constructor() {
         chapter: ChapterElision,
         bookBodyFontFamily: String? = null,
         dataUriByHref: Map<String, String> = emptyMap(),
+        publisherFontFaceCss: String = "",
     ): String {
         val body = buildString {
             for (annotation in chapter.highlights) {
@@ -225,14 +269,33 @@ class HighlightsPublicationFactory @Inject constructor() {
         // inline `<body>` style loses on `<h1>`. Per-excerpt `<p>` inline styles from
         // [appendOriginFontFamilyStyle] still override this — inline `!important` beats
         // stylesheet `!important` at equal specificity. Issue #484.
-        val safeBodyFont = sanitizeCssFontFamily(bookBodyFontFamily)
+        // Skip the sentinel — see [FALLBACK_ORIGIN_FONT_FAMILY]. Emitting `font-family: serif`
+        // on `<body>, h1, ...` would force the elided view's chapter titles and excerpts into
+        // browser-default serif for books whose annotation set is dominated by sentinel-stamped
+        // rows.
+        //
+        // No `!important` (elided-view-serif-font-regression follow-up): with `!important` the
+        // captured origin face was pinned regardless of the reader's Font pref, so switching
+        // Original → Serif / Sans / Merriweather only affected `<h1>` (a competing ReadiumCSS
+        // heading rule tied on specificity + importance and won the cascade on some webviews).
+        // Without `!important` our rule serves as the "Original" default, and ReadiumCSS's
+        // font-pref rule (which uses `!important` in Serif/Sans/publisher-typography modes)
+        // now cleanly wins over ours for the whole document — body AND heading — so the toggle
+        // finally does what the user expects.
+        val realBodyFont = bookBodyFontFamily?.takeIf { it != FALLBACK_ORIGIN_FONT_FAMILY }
+        val safeBodyFont = sanitizeCssFontFamily(realBodyFont)
         val bodyFontStyleBlock = if (safeBodyFont != null) {
             val escaped = safeBodyFont.xmlEscape()
-            "body, h1, h2, h3, h4, h5, h6, aside, figcaption, .riffle-fig { font-family: $escaped !important; }"
+            "body, h1, h2, h3, h4, h5, h6, aside, figcaption, .riffle-fig { font-family: $escaped; }"
         } else ""
+        // Emit the publisher `@font-face` rules BEFORE our body-font declaration so the WebView
+        // sees the font source (with inlined base64 bytes) before the first `font-family: X;`
+        // that references its name. Empty when [publisherFontFaceCss] is blank — no `<style>`
+        // noise for tests or books without embedded fonts.
         return """
             |<?xml version="1.0" encoding="UTF-8"?>
-            |<html xmlns="http://www.w3.org/1999/xhtml"><head><title>$title</title>$READIUM_DEFAULT_CSS_LINK<style>$ACCENT_BAR_TAP_CSS
+            |<html xmlns="http://www.w3.org/1999/xhtml"><head><title>$title</title>$READIUM_DEFAULT_CSS_LINK<style>$publisherFontFaceCss
+            |$ACCENT_BAR_TAP_CSS
             |$FIGURE_CENTERING_CSS
             |$bodyFontStyleBlock</style></head>
             |<body>
@@ -466,14 +529,25 @@ private fun appendOriginFontFamilyStyle(
     originFontFamily: String?,
     bookBodyFontFamily: String?,
 ) {
-    val raw = originFontFamily?.takeIf { it.isNotBlank() } ?: bookBodyFontFamily?.takeIf { it.isNotBlank() }
+    // Filter the shared [FALLBACK_ORIGIN_FONT_FAMILY] sentinel so a sentinel-stamped annotation
+    // doesn't force a bare `font-family: serif !important` inline on its `<p>` — let the fallback
+    // chain (bookBodyFontFamily, then ReadiumCSS default) take over.
+    val ownFont = originFontFamily
+        ?.takeIf { it.isNotBlank() && it != FALLBACK_ORIGIN_FONT_FAMILY }
+    val fallback = bookBodyFontFamily
+        ?.takeIf { it.isNotBlank() && it != FALLBACK_ORIGIN_FONT_FAMILY }
+    val raw = ownFont ?: fallback
     val safe = sanitizeCssFontFamily(raw) ?: return
-    // `!important` needed to win against the equally-important body/heading override rule
-    // emitted by [renderChapterHtml] — inline `!important` beats stylesheet `!important`
-    // at equal specificity, so the per-excerpt annotation font wins.
+    // No `!important` (elided-view-serif-font-regression follow-up): with it, the captured
+    // origin font pinned per-excerpt regardless of the reader's Font pref — switching to
+    // Serif/Sans/Merriweather left the body stuck. Non-important lets ReadiumCSS's
+    // font-pref rule (which uses `!important`) win when the user picks a specific face,
+    // while our inline still wins over ReadiumCSS's Publisher-mode default (which uses no
+    // `!important`), so the elided excerpt still renders in the captured origin face by
+    // default. Same reasoning as the body/heading style block in [renderChapterHtml].
     sb.append(" font-family: ")
     sb.append(safe.xmlEscape())
-    sb.append(" !important;")
+    sb.append(";")
 }
 
 /**

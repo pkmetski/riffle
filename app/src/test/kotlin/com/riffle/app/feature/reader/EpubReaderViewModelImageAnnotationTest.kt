@@ -137,6 +137,16 @@ class EpubReaderViewModelImageAnnotationTest {
             return changed
         }
 
+        override suspend fun healSentinelOriginFontFamily(
+            sourceId: String,
+            itemId: String,
+            sentinel: String,
+            fontFamily: String,
+            updatedAt: Long,
+            deviceId: String,
+        ): Int = 0
+
+
         override fun observeBooksWithHighlights(sourceId: String): Flow<List<com.riffle.core.database.BookHighlightSummary>> =
             flowOf(emptyList())
     }
