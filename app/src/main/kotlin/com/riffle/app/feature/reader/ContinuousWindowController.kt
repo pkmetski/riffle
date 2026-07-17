@@ -954,11 +954,12 @@ internal class ContinuousWindowController(
 
     /**
      * Framework memory-pressure signal (forwarded from [ContinuousReaderView.onTrimMemory]).
-     * At any non-trivial level, dump the recycled-WebView pool — those are idle and their memory
-     * is the cheapest to release. At [android.content.ComponentCallbacks2.TRIM_MEMORY_RUNNING_LOW]
-     * or worse, additionally blank every off-screen chapter WebView (all but the one nearest the
-     * viewport) so their rasterized tiles are released; they'll reload from disk when the user
-     * scrolls back. The current chapter stays intact so the visible page doesn't flash.
+     * Dumps the recycled-WebView pool at [android.content.ComponentCallbacks2.TRIM_MEMORY_UI_HIDDEN]
+     * or worse — those are idle and their memory is the cheapest to release. Live chapter WebViews
+     * are NOT touched here: blanking them with loadUrl would race the wired onPageFinished ->
+     * injectStylesAndMeasure pipeline (measures about:blank to ~0 px, collapses the chapter's slot
+     * height in the container, breaks scroll math). Live-chapter shrink under pressure needs a
+     * proper "detach + reload-on-return" pathway, not a bare loadUrl.
      */
     fun onTrimMemory(level: Int) {
         logger.d(LogChannel.Oom) {
@@ -968,24 +969,6 @@ internal class ContinuousWindowController(
             recycledViews.forEach { it.destroy() }
             recycledViews.clear()
         }
-        if (level >= android.content.ComponentCallbacks2.TRIM_MEMORY_RUNNING_LOW) {
-            val currentIdx = currentChapterIndex()
-            webViews.forEachIndexed { i, wv ->
-                if (i != currentIdx) {
-                    wv.stopLoading()
-                    wv.loadUrl("about:blank")
-                }
-            }
-        }
-    }
-
-    /** Window-index of the WebView whose slot spans the current scroll midpoint, or -1. */
-    private fun currentChapterIndex(): Int {
-        val window = buildWindow()
-        if (window.isEmpty()) return -1
-        val midY = port.currentScrollY + port.viewportHeightPx / 2
-        return window.indexOfFirst { midY < it.top + it.height }
-            .let { if (it < 0) window.lastIndex else it }
     }
 
     /**
