@@ -142,7 +142,6 @@ class PlaylistsRepositoryImpl @Inject constructor(
         return catalog as? PlaylistsCapability
     }
 
-
     private fun CatalogPlaylist.isReservedName(): Boolean =
         RESERVED_PLAYLIST_NAMES.any { it.equals(name.trim(), ignoreCase = true) }
 }

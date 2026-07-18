@@ -186,13 +186,13 @@ class ReadaloudSidecarStore private constructor(
     /** A prepared sidecar on disk — surfaced in the Downloads screen so the user can see/clear it. */
     data class CachedSidecar(val storytellerSourceId: String, val storytellerBookId: String, val sizeBytes: Long)
 
-    /** All cached sidecars. The filename is `<storytellerSourceId>-<storytellerBookId>.epub`; the book id
-     *  is numeric (no hyphens), so the last hyphen splits it from the (UUID) server id. */
+    /** All cached sidecars. The filename is `<storytellerSourceId><KEY_SEPARATOR><storytellerBookId>.<SIDECAR_EXTENSION>`;
+     *  the book id is numeric (no [KEY_SEPARATOR]), so the last separator splits it from the (UUID) server id. */
     fun listCached(): List<CachedSidecar> =
         dir().listFiles().orEmpty().filter { it.isFile && it.extension == SIDECAR_EXTENSION && it.length() > 0 }.mapNotNull { f ->
             val name = f.nameWithoutExtension
-            val sourceId = name.substringBeforeLast('-', "")
-            val bookId = name.substringAfterLast('-', "")
+            val sourceId = name.substringBeforeLast(KEY_SEPARATOR, "")
+            val bookId = name.substringAfterLast(KEY_SEPARATOR, "")
             if (sourceId.isEmpty() || bookId.isEmpty()) null else CachedSidecar(sourceId, bookId, f.length())
         }
 
