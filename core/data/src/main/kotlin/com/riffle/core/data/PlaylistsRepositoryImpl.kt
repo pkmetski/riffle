@@ -91,6 +91,11 @@ class PlaylistsRepositoryImpl @Inject constructor(
     override suspend fun addItemToPlaylist(rootId: String, playlistId: String, itemId: String): Boolean {
         val cap = activePlaylistsCap() ?: return false
         val sourceId = sourceRepository.getActive()?.id ?: return false
+        // Parent row required: mutating without it would either write a blank-titled row on the
+        // next replacePlaylist (violating the name invariant) or dangle join rows against a
+        // missing FK. Missing parent means the caller raced with a source-removal / cache-purge;
+        // safest is to no-op and let the next refresh() rebuild the row cleanly.
+        val parent = dao.getById(sourceId, playlistId) ?: return false
         val current = dao.itemIds(sourceId, playlistId)
         if (itemId in current) return true
         return runCatching { cap.addItemToPlaylist(playlistId, itemId); true }
@@ -98,13 +103,7 @@ class PlaylistsRepositoryImpl @Inject constructor(
                 val updatedItems = (current + itemId)
                     .mapIndexed { index, id -> PlaylistItemEntity(playlistId, sourceId, id, index) }
                 dao.replacePlaylist(
-                    playlist = PlaylistEntity(
-                        id = playlistId,
-                        sourceId = sourceId,
-                        rootId = rootId,
-                        name = playlistNameOrEmpty(sourceId, playlistId),
-                        bookCount = updatedItems.size,
-                    ),
+                    playlist = parent.copy(bookCount = updatedItems.size),
                     items = updatedItems,
                 )
             }
@@ -115,6 +114,7 @@ class PlaylistsRepositoryImpl @Inject constructor(
     override suspend fun removeItemFromPlaylist(rootId: String, playlistId: String, itemId: String): Boolean {
         val cap = activePlaylistsCap() ?: return false
         val sourceId = sourceRepository.getActive()?.id ?: return false
+        val parent = dao.getById(sourceId, playlistId) ?: return false
         val current = dao.itemIds(sourceId, playlistId)
         if (itemId !in current) return true
         return runCatching { cap.removeItemFromPlaylist(playlistId, itemId); true }
@@ -128,13 +128,7 @@ class PlaylistsRepositoryImpl @Inject constructor(
                 } else {
                     val items = remaining.mapIndexed { i, id -> PlaylistItemEntity(playlistId, sourceId, id, i) }
                     dao.replacePlaylist(
-                        playlist = PlaylistEntity(
-                            id = playlistId,
-                            sourceId = sourceId,
-                            rootId = rootId,
-                            name = playlistNameOrEmpty(sourceId, playlistId),
-                            bookCount = items.size,
-                        ),
+                        playlist = parent.copy(bookCount = items.size),
                         items = items,
                     )
                 }
@@ -148,12 +142,6 @@ class PlaylistsRepositoryImpl @Inject constructor(
         return catalog as? PlaylistsCapability
     }
 
-    // The mutation methods need the playlist name to write a valid parent row; look it up from the
-    // currently-persisted row. If the row was somehow evicted between refresh and mutation we fall
-    // back to empty — the next refresh will fix the name, and the FK on `playlist_items` still
-    // holds because the parent gets written before the join rows.
-    private suspend fun playlistNameOrEmpty(sourceId: String, playlistId: String): String =
-        dao.getById(sourceId, playlistId)?.name.orEmpty()
 
     private fun CatalogPlaylist.isReservedName(): Boolean =
         RESERVED_PLAYLIST_NAMES.any { it.equals(name.trim(), ignoreCase = true) }

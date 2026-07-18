@@ -89,7 +89,7 @@ class ReadaloudSidecarStore private constructor(
         // Ready and prepare() a no-op, so streaming always fails. Deleting forces a fresh fetch.
         scope.launch {
             dir().listFiles().orEmpty()
-                .filter { it.isFile && it.extension == "epub" && it.length() > 0 }
+                .filter { it.isFile && it.extension == SIDECAR_EXTENSION && it.length() > 0 }
                 .forEach { file ->
                     val hasClips = runCatching {
                         MediaOverlayReader.readTrack(file).clips.isNotEmpty()
@@ -109,10 +109,10 @@ class ReadaloudSidecarStore private constructor(
     /** Per-book prepare states, keyed by [key]. A book is also implicitly [State.Ready] when [cachedFile] exists. */
     val states: StateFlow<Map<String, State>> = _states
 
-    fun key(storytellerSourceId: String, storytellerBookId: String) = "$storytellerSourceId-$storytellerBookId"
+    fun key(storytellerSourceId: String, storytellerBookId: String) = "$storytellerSourceId$KEY_SEPARATOR$storytellerBookId"
 
-    private fun dir(): File = File(cacheRootDir(), "readaloud-sidecars").apply { mkdirs() }
-    private fun fileFor(sourceId: String, bookId: String) = File(dir(), "${key(sourceId, bookId)}.epub")
+    private fun dir(): File = File(cacheRootDir(), SIDECAR_DIR_NAME).apply { mkdirs() }
+    private fun fileFor(sourceId: String, bookId: String) = File(dir(), "${key(sourceId, bookId)}.$SIDECAR_EXTENSION")
 
     /** The cached sidecar if it's already on disk — never triggers a fetch. */
     override fun cachedFile(storytellerSourceId: String, storytellerBookId: String): File? =
@@ -189,7 +189,7 @@ class ReadaloudSidecarStore private constructor(
     /** All cached sidecars. The filename is `<storytellerSourceId>-<storytellerBookId>.epub`; the book id
      *  is numeric (no hyphens), so the last hyphen splits it from the (UUID) server id. */
     fun listCached(): List<CachedSidecar> =
-        dir().listFiles().orEmpty().filter { it.isFile && it.extension == "epub" && it.length() > 0 }.mapNotNull { f ->
+        dir().listFiles().orEmpty().filter { it.isFile && it.extension == SIDECAR_EXTENSION && it.length() > 0 }.mapNotNull { f ->
             val name = f.nameWithoutExtension
             val sourceId = name.substringBeforeLast('-', "")
             val bookId = name.substringAfterLast('-', "")
@@ -214,9 +214,9 @@ class ReadaloudSidecarStore private constructor(
      * cache dir doesn't retain files whose owning source no longer exists.
      */
     override fun purgeSource(storytellerSourceId: String) {
-        val prefix = "$storytellerSourceId-"
+        val prefix = "$storytellerSourceId$KEY_SEPARATOR"
         dir().listFiles().orEmpty()
-            .filter { it.isFile && it.extension == "epub" && it.name.startsWith(prefix) }
+            .filter { it.isFile && it.extension == SIDECAR_EXTENSION && it.name.startsWith(prefix) }
             .forEach { it.delete() }
         _states.value = _states.value.filterKeys { !it.startsWith(prefix) }
     }
@@ -230,7 +230,7 @@ class ReadaloudSidecarStore private constructor(
      */
     internal fun enforceLruBudget(capBytes: Long = MAX_CACHE_BYTES): Set<String> {
         val files = dir().listFiles().orEmpty()
-            .filter { it.isFile && it.extension == "epub" && it.length() > 0 }
+            .filter { it.isFile && it.extension == SIDECAR_EXTENSION && it.length() > 0 }
         var total = files.sumOf { it.length() }
         if (total <= capBytes) return emptySet()
         val evicted = mutableSetOf<String>()
@@ -257,5 +257,12 @@ class ReadaloudSidecarStore private constructor(
         // before eviction kicks in — enough that no realistic session hits the ceiling, but bounded
         // enough that a rarely-cleaned-cache install doesn't grow indefinitely.
         const val MAX_CACHE_BYTES: Long = 200L * 1024L * 1024L
+        // Filename shape is `<sourceId><KEY_SEPARATOR><bookId>.<SIDECAR_EXTENSION>`. The extension
+        // is .epub because the sidecar is an EPUB container carrying only the SMIL + text prefix
+        // (no audio). Both are referenced from the cache-dir name and every listFiles filter, so
+        // they live here rather than as inline literals — a rename can then land in one place.
+        const val SIDECAR_EXTENSION: String = "epub"
+        const val SIDECAR_DIR_NAME: String = "readaloud-sidecars"
+        const val KEY_SEPARATOR: String = "-"
     }
 }

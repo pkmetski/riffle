@@ -50,6 +50,12 @@ class PlaylistsRepositoryTest {
 
     // ── the "To Read" invariant ───────────────────────────────────────────────
 
+    /**
+     * Regression test for the reserved-name filter. If someone removes the filter in
+     * [PlaylistsRepositoryImpl.observePlaylists] or renames [TO_READ_PLAYLIST_NAME], this assertion
+     * flips red — which is the point. "To Read" MUST NOT appear in the user-facing Playlists
+     * surface; it belongs to [ToReadRepository]'s dedicated tab and affordance.
+     */
     @Test
     fun `observePlaylists hides the reserved To Read playlist`() = runTest {
         val cap = FakeCatalog(
@@ -67,6 +73,11 @@ class PlaylistsRepositoryTest {
         assertEquals(listOf("Favourites", "Yearly reread"), names)
     }
 
+    /**
+     * "To Listen" is the audiobook wishlist equivalent surfaced by ABS — the general Playlists
+     * surface must hide it for the same reason it hides "To Read". Regression test: if the
+     * reserved set drops "To Listen" this flips red.
+     */
     @Test
     fun `observePlaylists hides the reserved To Listen playlist`() = runTest {
         val cap = FakeCatalog(
