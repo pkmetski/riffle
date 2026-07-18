@@ -57,11 +57,15 @@ class EndpointCacheHeadersInterceptorTest {
         assertEquals("public, max-age=60", cc)
     }
 
-    @Test fun `stamps GitHub releases with 6-hour TTL`() {
+    // Regression: the manual Settings "Check for updates" button is the only caller of the
+    // GitHub releases endpoint. Its contract is "check now," so this path must NOT be cached —
+    // any Cache-Control rule that matches `/repos/*/releases` would make the button silently
+    // no-op for up to the TTL window after the first check.
+    @Test fun `does not touch GitHub releases endpoint`() {
         server.enqueue(MockResponse().setResponseCode(200).setBody("[]"))
         val r = get("/repos/pkmetski/riffle/releases")
         val cc = r.header("Cache-Control"); r.close()
-        assertEquals("public, max-age=21600", cc)
+        assertEquals(null, cc)
     }
 
     @Test fun `does not touch ABS progress endpoint`() {
