@@ -134,6 +134,9 @@ fun EmphasisPreferencesStore(dataStore: DataStore<Preferences>): EmphasisPrefere
     }
 }
 
+internal fun highlightColorIsNonePrefKey(sourceId: String, itemId: String) =
+    androidx.datastore.preferences.core.booleanPreferencesKey("last_used_highlight_is_none:$sourceId:$itemId")
+
 fun HighlightColorPreferencesStore(dataStore: DataStore<Preferences>): HighlightColorPreferencesStore {
     // Per-book last-used colour. Unknown/absent → HighlightColor.DEFAULT (first entry in the
     // palette), so a book the user has never picked a colour on opens with the palette default.
@@ -148,6 +151,13 @@ fun HighlightColorPreferencesStore(dataStore: DataStore<Preferences>): Highlight
 
         override suspend fun setLastUsedColor(sourceId: String, itemId: String, value: HighlightColor) {
             dataStore.edit { it[highlightColorPrefKey(sourceId, itemId)] = value.name }
+        }
+
+        override fun lastUsedIsNone(sourceId: String, itemId: String): Flow<Boolean> =
+            dataStore.data.map { prefs -> prefs[highlightColorIsNonePrefKey(sourceId, itemId)] ?: false }
+
+        override suspend fun setLastUsedIsNone(sourceId: String, itemId: String, value: Boolean) {
+            dataStore.edit { it[highlightColorIsNonePrefKey(sourceId, itemId)] = value }
         }
     }
 }

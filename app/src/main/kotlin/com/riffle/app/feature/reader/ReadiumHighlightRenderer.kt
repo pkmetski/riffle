@@ -90,11 +90,12 @@ internal class ReadiumHighlightRenderer(
         // decorations for this group; if the list is empty we take the early-return above.
         val decorations = renders.mapNotNull { h ->
             if (h.useAccentBarStyle) return@mapNotNull null
-            // ADR 0046 §4: `∅` swatch stores color="". Emit an invisible-tint decoration so the
-            // range stays tappable (the popup can be reopened), but nothing paints on the text —
-            // any layered emphasis (bold/italic via DOM injection, underline/strike via companion
-            // decorations below) is the visible surface. Non-empty tokens paint as tinted.
-            val tint = if (h.color.isEmpty()) 0x00000000
+            // ADR 0046 §4: `∅` swatch stores color="". Emit a very faint neutral wash so the
+            // annotated range is discoverable — the user can tell "there's something here" and
+            // tap to reopen the sheet — without the wash competing with real yellow/green/blue/
+            // pink highlights or with layered emphasis rendering. Non-empty tokens paint as
+            // their normal saturated tint.
+            val tint = if (h.color.isEmpty()) EMPTY_COLOR_HINT_ARGB
                 else HighlightColor.fromToken(h.color).argb
             Decoration(
                 id = h.id,
@@ -269,6 +270,10 @@ internal class ReadiumHighlightRenderer(
         // v1 approximations — replaced by true text-style overlay when DOM mutation lands.
         private const val EMPHASIS_UNDERLINE_ARGB: Int = 0xFF1976D2.toInt() // solid line color
         private const val EMPHASIS_STRIKE_ARGB: Int = 0xFFE53935.toInt()    // solid red strike line
+        // ADR 0046: neutral wash for `∅`-color annotations — barely visible so it can't be
+        // mistaken for a real highlight color, but discoverable enough to signal "there's an
+        // annotation here" and keep the range tappable to reopen the sheet.
+        private const val EMPTY_COLOR_HINT_ARGB: Int = 0x14808080
         // Bold and italic don't paint overlays anymore — they reflow the underlying text via
         // the DOM injector. See [EmphasisDomInjector].
     }

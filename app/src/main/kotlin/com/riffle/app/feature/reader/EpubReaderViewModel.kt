@@ -1806,6 +1806,11 @@ class EpubReaderViewModel @Inject constructor(
             val originFont = SelectionFontStash.consume().takeIf { it.isNotBlank() }
                 ?: bookBodyFontFamilyReported.get().takeIf { it.isNotBlank() }
                 ?: FALLBACK_ORIGIN_FONT_FAMILY
+            // ADR 0046 §4: if the user's last pick on this book was `∅`, respect that for new
+            // annotations — they've opted into emphasis-only mode. Otherwise use the last-picked
+            // colour swatch as before.
+            val initialColor = if (annotationSession.lastUsedColorIsNone.value) ""
+                else annotationSession.lastUsedHighlightColor.value.token
             val created = annotationStore.createHighlight(
                 sourceId = sourceId,
                 itemId = itemId,
@@ -1814,7 +1819,7 @@ class EpubReaderViewModel @Inject constructor(
                 chapterHref = href,
                 textBefore = textBeforeCaptured,
                 textAfter = newAfter,
-                color = annotationSession.lastUsedHighlightColor.value.token,
+                color = initialColor,
                 spineIndex = spineIndex,
                 progression = progression,
                 embeddedFigures = embeddedFigures,

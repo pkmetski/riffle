@@ -173,6 +173,12 @@ class AnnotationSession @AssistedInject constructor(
     private val _lastUsedHighlightColor = MutableStateFlow(HighlightColor.DEFAULT)
     val lastUsedHighlightColor: StateFlow<HighlightColor> = _lastUsedHighlightColor
 
+    /** ADR 0046 §4: `true` when the last pick was `∅`. Read by
+     *  [EpubReaderViewModel.createHighlight] so the next new annotation on this book opens
+     *  with empty color rather than the previous swatch. */
+    private val _lastUsedColorIsNone = MutableStateFlow(false)
+    val lastUsedColorIsNone: StateFlow<Boolean> = _lastUsedColorIsNone
+
     /** ADR 0046: per-book last-used emphasis styles set. Empty until the user has toggled at
      *  least one chip in this book; the ViewModel applies it as the new-highlight default. */
     private val _lastUsedEmphasisStyles = MutableStateFlow<Set<EmphasisStyle>>(emptySet())
@@ -293,6 +299,15 @@ class AnnotationSession @AssistedInject constructor(
         lastUsedColorObserveJob = scope.launch {
             highlightColorPreferencesStore.lastUsedColor(sourceId, itemId).collect {
                 _lastUsedHighlightColor.value = it
+            }
+        }
+        // ADR 0046 §4: observe the sibling `is-none` flag so createHighlight can prefer `∅` on
+        // the next new annotation when that's what the user last picked. Reset to false on
+        // book change; the observer overwrites on first emission when a value exists.
+        _lastUsedColorIsNone.value = false
+        scope.launch {
+            highlightColorPreferencesStore.lastUsedIsNone(sourceId, itemId).collect {
+                _lastUsedColorIsNone.value = it
             }
         }
 
@@ -445,6 +460,8 @@ class AnnotationSession @AssistedInject constructor(
         val sid = boundServerId ?: return
         val iid = boundItemId ?: return
         highlightColorPreferencesStore.setLastUsedColor(sid, iid, color)
+        // ADR 0046 §4: any real-colour pick clears the "last was ∅" flag.
+        highlightColorPreferencesStore.setLastUsedIsNone(sid, iid, false)
         // Merge check is deferred to [dismissHighlightActions] — the popup close is the commit
         // point. Firing here would absorb a neighbour mid-iteration while the user is still
         // deciding on colour/note.
@@ -452,11 +469,16 @@ class AnnotationSession @AssistedInject constructor(
     }
 
     /** ADR 0046 §4: recolor to an arbitrary raw token — supports the `∅` swatch which passes ""
-     *  so the row survives with no highlight paint. Skips the `HighlightColor` translation +
-     *  last-used store update since "no color" isn't a member of the palette. */
+     *  so the row survives with no highlight paint. When the token is empty, persists the sibling
+     *  "last used is none" flag so a subsequent new annotation on this book opens with `∅`. */
     suspend fun recolorHighlightRaw(id: String, colorToken: String) {
         annotationStore.recolor(id, colorToken)
-        scheduleSync(boundServerId ?: return, boundNamespace ?: return, boundItemId ?: return)
+        val sid = boundServerId ?: return
+        val iid = boundItemId ?: return
+        if (colorToken.isEmpty()) {
+            highlightColorPreferencesStore.setLastUsedIsNone(sid, iid, true)
+        }
+        scheduleSync(sid, boundNamespace ?: return, iid)
     }
 
     /** Soft-delete a highlight; [annotationStore] re-emits without it → decoration removed. */
