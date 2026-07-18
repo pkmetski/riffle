@@ -12,10 +12,21 @@ import com.riffle.core.catalog.CatalogRoot
 import com.riffle.core.catalog.FacetSelection
 import com.riffle.core.catalog.PlaylistsCapability
 import com.riffle.core.catalog.SortKey
+import com.riffle.core.database.PlaylistDao
+import com.riffle.core.database.PlaylistEntity
+import com.riffle.core.database.PlaylistItemEntity
+import com.riffle.core.domain.CommitSourceResult
+import com.riffle.core.domain.PendingSource
+import com.riffle.core.domain.SourceRepository
 import com.riffle.core.models.Source
 import com.riffle.core.models.SourceType
+import com.riffle.core.models.SourceUrl
 import com.riffle.core.logging.RecordingLogger
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -27,17 +38,18 @@ import org.junit.Test
 
 class PlaylistsRepositoryTest {
 
-    private fun makeRepo(catalog: Catalog?) =
-        PlaylistsRepositoryImpl(FakeRegistry(catalog), RecordingLogger())
+    private fun makeRepo(catalog: Catalog?): PlaylistsRepositoryImpl {
+        val dao = FakePlaylistDao()
+        return PlaylistsRepositoryImpl(
+            catalogRegistry = FakeRegistry(catalog),
+            sourceRepository = FakeSourceRepository(),
+            dao = dao,
+            logger = RecordingLogger(),
+        )
+    }
 
     // ── the "To Read" invariant ───────────────────────────────────────────────
 
-    /**
-     * Regression test for the reserved-name filter. If someone removes the filter in
-     * [PlaylistsRepositoryImpl.observePlaylists] or renames [TO_READ_PLAYLIST_NAME], this assertion
-     * flips red — which is the point. "To Read" MUST NOT appear in the user-facing Playlists
-     * surface; it belongs to [ToReadRepository]'s dedicated tab and affordance.
-     */
     @Test
     fun `observePlaylists hides the reserved To Read playlist`() = runTest {
         val cap = FakeCatalog(
@@ -55,11 +67,6 @@ class PlaylistsRepositoryTest {
         assertEquals(listOf("Favourites", "Yearly reread"), names)
     }
 
-    /**
-     * "To Listen" is the audiobook wishlist equivalent surfaced by ABS — the general Playlists
-     * surface must hide it for the same reason it hides "To Read". Regression test: if the
-     * reserved set drops "To Listen" this flips red.
-     */
     @Test
     fun `observePlaylists hides the reserved To Listen playlist`() = runTest {
         val cap = FakeCatalog(
@@ -111,7 +118,6 @@ class PlaylistsRepositoryTest {
             repo.createPlaylist("lib-1", TO_READ_PLAYLIST_NAME)
             fail("expected ReservedPlaylistNameException")
         } catch (_: ReservedPlaylistNameException) {
-            // expected
         }
         assertTrue("must not hit the source", cap.createCalls.isEmpty())
     }
@@ -130,14 +136,14 @@ class PlaylistsRepositoryTest {
         assertTrue(cap.createCalls.isEmpty())
     }
 
-    // ── refresh + cache ───────────────────────────────────────────────────────
+    // ── refresh + cache (Room-backed) ─────────────────────────────────────────
 
     @Test
-    fun `refresh populates the per-root cache`() = runTest {
+    fun `refresh persists per-root cache`() = runTest {
         val cap = FakeCatalog(
             mapOf(
-                "lib-1" to listOf(playlist("pl-a", "A", listOf("i-1"))),
-                "lib-2" to listOf(playlist("pl-b", "B", listOf("i-2"))),
+                "lib-1" to listOf(playlist("pl-a", "A", listOf("i-1"), rootId = "lib-1")),
+                "lib-2" to listOf(playlist("pl-b", "B", listOf("i-2"), rootId = "lib-2")),
             ),
         )
         val repo = makeRepo(cap)
@@ -188,7 +194,7 @@ class PlaylistsRepositoryTest {
     // ── add / remove ──────────────────────────────────────────────────────────
 
     @Test
-    fun `addItemToPlaylist optimistically updates cache then hits source`() = runTest {
+    fun `addItemToPlaylist updates the DAO after the source call succeeds`() = runTest {
         val cap = FakeCatalog(mapOf("lib-1" to listOf(playlist("pl-a", "Favs", emptyList()))))
         val repo = makeRepo(cap)
         repo.refresh("lib-1")
@@ -198,7 +204,7 @@ class PlaylistsRepositoryTest {
     }
 
     @Test
-    fun `addItemToPlaylist reverts cache when source fails`() = runTest {
+    fun `addItemToPlaylist leaves DAO untouched when source fails`() = runTest {
         val cap = FakeCatalog(
             mapOf("lib-1" to listOf(playlist("pl-a", "Favs", listOf("i-0")))),
             addFails = true,
@@ -230,7 +236,7 @@ class PlaylistsRepositoryTest {
 
     /**
      * When the last item is removed, ABS auto-deletes the playlist server-side. The repository
-     * mirrors that by dropping the playlist from the cache so the tab hides immediately without
+     * mirrors that by dropping the playlist from the DAO so the tab hides immediately without
      * waiting for the next refresh — pinning that behaviour here.
      */
     @Test
@@ -243,7 +249,7 @@ class PlaylistsRepositoryTest {
     }
 
     @Test
-    fun `removeItemFromPlaylist reverts cache when source fails`() = runTest {
+    fun `removeItemFromPlaylist leaves DAO untouched when source fails`() = runTest {
         val cap = FakeCatalog(
             mapOf("lib-1" to listOf(playlist("pl-a", "Favs", listOf("i-1", "i-2")))),
             removeFails = true,
@@ -257,10 +263,7 @@ class PlaylistsRepositoryTest {
     // ── getPlaylist ───────────────────────────────────────────────────────────
 
     @Test
-    fun `getPlaylist returns the full playlist including To Read (repository is not the filter for detail lookups)`() = runTest {
-        // A caller with the id already in hand (e.g. from a nav argument) may be inside a screen
-        // that shouldn't exist for To Read, but the repository itself only filters the LIST — the
-        // per-id lookup is transparent so a debugging session can still resolve it if needed.
+    fun `getPlaylist returns the full playlist including To Read`() = runTest {
         val cap = FakeCatalog(mapOf("lib-1" to listOf(playlist("pl-a", "Favs", listOf("i-1")))))
         val repo = makeRepo(cap)
         val loaded = repo.getPlaylist("lib-1", "pl-a")
@@ -277,14 +280,85 @@ class PlaylistsRepositoryTest {
 
     // ── helpers ───────────────────────────────────────────────────────────────
 
-    private fun playlist(id: String, name: String, itemIds: List<String>) = CatalogPlaylist(
-        id = id, rootId = "lib-1", name = name, bookCount = itemIds.size, itemIds = itemIds,
+    private fun playlist(id: String, name: String, itemIds: List<String>, rootId: String = "lib-1") = CatalogPlaylist(
+        id = id, rootId = rootId, name = name, bookCount = itemIds.size, itemIds = itemIds,
     )
 
     private class FakeRegistry(private val catalog: Catalog?) : CatalogRegistry {
         override suspend fun forActive(): Catalog? = catalog
         override suspend fun forSource(source: Source): Catalog? = catalog
         override suspend fun forSourceId(sourceId: String): Catalog? = catalog
+    }
+
+    private class FakeSourceRepository : SourceRepository {
+        private val active = Source(
+            id = "srv-1",
+            url = SourceUrl.parse("http://abs")!!,
+            isActive = true,
+            insecureConnectionAllowed = false,
+            username = "test",
+        )
+        override fun observeAll(): Flow<List<Source>> = flowOf(listOf(active))
+        override suspend fun getActive(): Source? = active
+        override suspend fun getById(sourceId: String): Source? = if (sourceId == active.id) active else null
+        override suspend fun commit(pending: PendingSource, hiddenLibraryIds: Set<String>): CommitSourceResult =
+            throw UnsupportedOperationException()
+        override suspend fun setActive(sourceId: String) = Unit
+        override suspend fun remove(sourceId: String) = Unit
+        override suspend fun getSourceVersion(sourceId: String): String? = null
+    }
+
+    private class FakePlaylistDao : PlaylistDao {
+        private val playlistsRef = MutableStateFlow(emptyList<PlaylistEntity>())
+        private val itemsRef = MutableStateFlow(emptyList<PlaylistItemEntity>())
+
+        override fun observeByRootId(rootId: String): Flow<List<PlaylistEntity>> =
+            playlistsRef.map { list -> list.filter { it.rootId == rootId }.sortedBy { it.name } }
+
+        override fun observeItemIds(sourceId: String, playlistId: String): Flow<List<String>> =
+            itemsRef.map { list ->
+                list.filter { it.sourceId == sourceId && it.playlistId == playlistId }
+                    .sortedBy { it.orderIndex }
+                    .map { it.itemId }
+            }
+
+        override suspend fun itemIds(sourceId: String, playlistId: String): List<String> =
+            itemsRef.value
+                .filter { it.sourceId == sourceId && it.playlistId == playlistId }
+                .sortedBy { it.orderIndex }
+                .map { it.itemId }
+
+        override suspend fun getById(sourceId: String, playlistId: String): PlaylistEntity? =
+            playlistsRef.value.firstOrNull { it.sourceId == sourceId && it.id == playlistId }
+
+        override suspend fun upsertAll(playlists: List<PlaylistEntity>) {
+            playlistsRef.value = playlistsRef.value.filterNot { existing ->
+                playlists.any { it.sourceId == existing.sourceId && it.id == existing.id }
+            } + playlists
+        }
+
+        override suspend fun upsertAllItems(items: List<PlaylistItemEntity>) {
+            itemsRef.value = itemsRef.value.filterNot { existing ->
+                items.any { it.playlistId == existing.playlistId && it.sourceId == existing.sourceId && it.itemId == existing.itemId }
+            } + items
+        }
+
+        override suspend fun deleteByRootId(rootId: String) {
+            playlistsRef.value = playlistsRef.value.filterNot { it.rootId == rootId }
+        }
+
+        override suspend fun deleteItemsByRootId(rootId: String) {
+            val playlistIds = playlistsRef.value.filter { it.rootId == rootId }.map { it.id }.toSet()
+            itemsRef.value = itemsRef.value.filterNot { it.playlistId in playlistIds }
+        }
+
+        override suspend fun deletePlaylist(sourceId: String, playlistId: String) {
+            playlistsRef.value = playlistsRef.value.filterNot { it.sourceId == sourceId && it.id == playlistId }
+        }
+
+        override suspend fun deletePlaylistItems(sourceId: String, playlistId: String) {
+            itemsRef.value = itemsRef.value.filterNot { it.sourceId == sourceId && it.playlistId == playlistId }
+        }
     }
 
     private class FakeCatalog(

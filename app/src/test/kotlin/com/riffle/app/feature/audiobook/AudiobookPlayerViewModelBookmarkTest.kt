@@ -848,7 +848,10 @@ class AudiobookPlayerViewModelBookmarkTest {
         StubLocalStore,
         StubLocalStore,
         StubBuildTrigger,
-        sidecarCache = { _, _ -> null },
+        sidecarCache = object : com.riffle.core.domain.ReadaloudSidecarCache {
+            override fun cachedFile(storytellerSourceId: String, storytellerBookId: String): java.io.File? = null
+            override fun purgeSource(storytellerSourceId: String) = Unit
+        },
         clock = object : com.riffle.core.common.Clock { override fun nowMs() = 0L; override fun nowNs() = 0L },
         logger = RecordingLogger(),
     ) {

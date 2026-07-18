@@ -5,6 +5,8 @@ import com.riffle.core.domain.DispatcherProvider
 import com.riffle.core.network.AbsApi
 import com.riffle.core.network.AbsApiClient
 import com.riffle.core.data.di.qualifiers.WebSourceOkHttpClient
+import com.riffle.core.network.DEFAULT_HTTP_CACHE_RULES
+import com.riffle.core.network.EndpointCacheHeadersInterceptor
 import com.riffle.core.network.ForceCacheHeadersInterceptor
 import com.riffle.core.network.OfflineStaleFallbackInterceptor
 import com.riffle.core.network.AbsBookmarkApi
@@ -68,9 +70,26 @@ abstract class NetworkModule {
     abstract fun bindStorytellerLibraryApi(impl: StorytellerApiClient): StorytellerLibraryApi
 
     companion object {
+        /**
+         * Shared default client for ABS, Storyteller, and the GitHub releases updater. Carries a
+         * 20 MB disk cache and a network interceptor that stamps `Cache-Control: public, max-age=N`
+         * on a small allowlist of read-only endpoints ([DEFAULT_HTTP_CACHE_RULES]). Writes, progress,
+         * sessions, and binaries do not match any rule and pass through as before.
+         */
         @Provides
         @Singleton
-        fun provideOkHttpClient(): OkHttpClient = OkHttpClient.Builder().build()
+        fun provideOkHttpClient(
+            @ApplicationContext context: Context,
+        ): OkHttpClient {
+            val cacheDir = File(context.cacheDir, "default-http")
+            val cache = Cache(cacheDir, DEFAULT_HTTP_CACHE_BYTES)
+            return OkHttpClient.Builder()
+                .cache(cache)
+                .addNetworkInterceptor(EndpointCacheHeadersInterceptor(DEFAULT_HTTP_CACHE_RULES))
+                .build()
+        }
+
+        private const val DEFAULT_HTTP_CACHE_BYTES: Long = 20L * 1024L * 1024L
 
         /**
          * OkHttp client for web-source scrapers (ADR 0043). Carries a 10 MB disk cache,

@@ -19,6 +19,7 @@ import com.riffle.core.database.ReadaloudDismissalDao
 import com.riffle.core.database.ReadaloudLinkDao
 import com.riffle.core.database.ReadaloudResumePositionDao
 import com.riffle.core.database.ReadingPositionDao
+import com.riffle.core.database.PlaylistDao
 import com.riffle.core.database.RemoteItemFreshnessDao
 import com.riffle.core.database.RiffleDatabase
 import com.riffle.core.database.SeriesDao
@@ -96,6 +97,7 @@ object DatabaseModule {
                 RiffleDatabase.MIGRATION_54_55,
                 RiffleDatabase.MIGRATION_55_56,
                 RiffleDatabase.MIGRATION_56_57,
+                RiffleDatabase.MIGRATION_57_58,
             )
             .build()
 
@@ -190,4 +192,8 @@ object DatabaseModule {
     @Singleton
     fun provideRemoteItemFreshnessDao(db: RiffleDatabase): RemoteItemFreshnessDao =
         db.remoteItemFreshnessDao()
+
+    @Provides
+    @Singleton
+    fun providePlaylistDao(db: RiffleDatabase): PlaylistDao = db.playlistDao()
 }
