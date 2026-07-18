@@ -451,6 +451,14 @@ class AnnotationSession @AssistedInject constructor(
         scheduleSync(sid, boundNamespace ?: return, iid)
     }
 
+    /** ADR 0046 §4: recolor to an arbitrary raw token — supports the `∅` swatch which passes ""
+     *  so the row survives with no highlight paint. Skips the `HighlightColor` translation +
+     *  last-used store update since "no color" isn't a member of the palette. */
+    suspend fun recolorHighlightRaw(id: String, colorToken: String) {
+        annotationStore.recolor(id, colorToken)
+        scheduleSync(boundServerId ?: return, boundNamespace ?: return, boundItemId ?: return)
+    }
+
     /** Soft-delete a highlight; [annotationStore] re-emits without it → decoration removed. */
     suspend fun deleteHighlight(id: String) {
         annotationStore.delete(id)

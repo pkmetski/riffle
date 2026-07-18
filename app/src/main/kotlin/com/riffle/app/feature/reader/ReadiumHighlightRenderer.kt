@@ -77,6 +77,10 @@ internal class ReadiumHighlightRenderer(
         // decorations for this group; if the list is empty we take the early-return above.
         val decorations = renders.mapNotNull { h ->
             if (h.useAccentBarStyle) return@mapNotNull null
+            // ADR 0046 §4: `∅` swatch stores color=""; skip the highlight paint so only the
+            // emphasis companion decorations render. Still keeps the row alive (tap dispatch,
+            // popup reopen, sync). Non-empty tokens fall through to the tinted highlight.
+            if (h.color.isEmpty()) return@mapNotNull null
             Decoration(
                 id = h.id,
                 locator = h.locator,
@@ -88,6 +92,10 @@ internal class ReadiumHighlightRenderer(
                 applyDecorationsBlock(emptyList(), "annotations")
                 hasAnnotationDecorations = false
             }
+            // ADR 0046 §4: even with no highlight decorations (all rows are ∅-color), we still
+            // need to paint emphasis companions for the same renders — the emphasis pool is
+            // read off the render's `emphasisStyles`, not off a highlight-color match.
+            applyEmphasisCompanions(renders)
             return
         }
         // Initial apply uses clear+apply too — Readium's decoration diff treats an identical
@@ -206,11 +214,13 @@ internal class ReadiumHighlightRenderer(
                     )
                 }
                 if (EmphasisStyle.BOLD in h.emphasisStyles) {
+                    // HighlightTintStyle honors the tint's own alpha; Readium's built-in
+                    // Style.Highlight caps at 30% which was invisible.
                     add(
                         Decoration(
                             id = "${h.id}#b",
                             locator = h.locator,
-                            style = Decoration.Style.Highlight(tint = EMPHASIS_BOLD_ARGB),
+                            style = HighlightTintStyle(tint = EMPHASIS_BOLD_ARGB),
                         )
                     )
                 }
@@ -219,7 +229,7 @@ internal class ReadiumHighlightRenderer(
                         Decoration(
                             id = "${h.id}#i",
                             locator = h.locator,
-                            style = Decoration.Style.Highlight(tint = EMPHASIS_ITALIC_ARGB),
+                            style = HighlightTintStyle(tint = EMPHASIS_ITALIC_ARGB),
                         )
                     )
                 }
@@ -254,10 +264,11 @@ internal class ReadiumHighlightRenderer(
         private const val EMPHASIS_UNDERLINE_ARGB: Int = 0xFF1976D2.toInt() // solid line color
         private const val EMPHASIS_STRIKE_ARGB: Int = 0xFFE53935.toInt()    // solid red strike line
         // Bold and italic can't render properly via overlays — they need DOM wrapping to reflow
-        // the underlying text. These placeholder tints are visible enough to confirm the row
-        // exists, but are marked in the popup as "coming soon"; see the follow-up JS-injection
-        // task in ADR 0046 §7.
-        private const val EMPHASIS_BOLD_ARGB: Int = 0xAAFF9800.toInt()      // amber wash
-        private const val EMPHASIS_ITALIC_ARGB: Int = 0xAA8E24AA.toInt()    // purple wash
+        // the underlying text. These are strong tint overlays through Riffle's custom
+        // HighlightTintStyle (honors the tint's ARGB directly, bypassing Readium's 30% cap),
+        // so at least the presence and position of the emphasis is visible. Proper reflow is
+        // a follow-up (WebView JS injection to wrap ranges in styled spans).
+        private const val EMPHASIS_BOLD_ARGB: Int = 0x99FF6D00.toInt()      // vivid amber wash
+        private const val EMPHASIS_ITALIC_ARGB: Int = 0x99AB47BC.toInt()    // vivid purple wash
     }
 }

@@ -223,30 +223,34 @@ fun HighlightActionsPopup(
         ) {
             Column(modifier = Modifier.width(280.dp)) {
                 if (!noteOnly) {
+                    // Swatches on their own row (5 circles + no icon at the end) so the pink
+                    // swatch and the destructive trash don't crowd each other.
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(horizontal = 16.dp, vertical = 12.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         HighlightSwatchRow(selected = selected, onPick = onPick, onPickNone = onRemoveColor)
-                        IconButton(onClick = onDelete) {
-                            Icon(
-                                imageVector = Icons.Default.Delete,
-                                contentDescription = "Delete highlight",
-                                tint = MaterialTheme.colorScheme.error,
-                            )
-                        }
                     }
-                    // ADR 0046: Emphasis chip row lives beneath the colour row, sharing the sheet.
+                    // Emphasis chip row + destructive trash share a row: chips left-aligned, trash
+                    // pushed to the trailing edge with its own padding so it reads as an escape
+                    // hatch, not a fifth chip.
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(horizontal = 16.dp, vertical = 6.dp),
                         verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween,
                     ) {
                         EmphasisChipRow(selected = emphasisStyles, onToggle = onToggleEmphasis)
+                        IconButton(onClick = onDelete) {
+                            Icon(
+                                imageVector = Icons.Default.Delete,
+                                contentDescription = "Delete annotation",
+                                tint = MaterialTheme.colorScheme.error,
+                            )
+                        }
                     }
                     HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
                 }

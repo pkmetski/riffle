@@ -2649,14 +2649,15 @@ class EpubReaderViewModel @Inject constructor(
         }
     }
 
-    /** ADR 0046 §4: `∅` swatch — remove the highlight row only, leaving any layered emphasis
-     *  rows intact. When there's no emphasis on the range, the visible mark disappears entirely;
-     *  when there IS emphasis, the yellow tint vanishes but the bold/italic/underline/strike
-     *  remain. Distinct from [deleteHighlight] which cascades to emphasis (trash icon = "delete
-     *  everything you see"). */
+    /** ADR 0046 §4: `∅` swatch — set the highlight's color to empty so the yellow overlay stops
+     *  painting while the row (and every layered emphasis at the same CFI) survives. The renderer
+     *  in [ReadiumHighlightRenderer.applyAnnotations] skips highlight decorations for empty-color
+     *  rows but still emits emphasis companion decorations; the row remains tappable to reopen
+     *  the sheet. Distinct from [deleteHighlight] which tombstones the highlight AND cascades
+     *  emphasis (the trash icon's "remove everything you see" semantic). */
     fun removeHighlightColor(id: String) {
         viewModelScope.launch {
-            annotationSession.deleteHighlight(id)
+            annotationSession.recolorHighlightRaw(id, "")
         }
     }
 

@@ -1661,7 +1661,7 @@ private fun EpubNavigatorView(
                 handoff.reset()
                 menu.add(0, copyMenuId, 0, android.R.string.copy)
                 if (currentAnnotationsAvailable) {
-                    menu.add(0, highlightMenuId, 1, "Highlight")
+                    menu.add(0, highlightMenuId, 1, "Annotate")
                         .setShowAsAction(android.view.MenuItem.SHOW_AS_ACTION_ALWAYS)
                 }
                 if (currentReadaloudAvailable) {
