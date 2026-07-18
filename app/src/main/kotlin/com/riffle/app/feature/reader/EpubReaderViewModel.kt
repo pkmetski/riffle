@@ -831,6 +831,11 @@ class EpubReaderViewModel @Inject constructor(
      *  [annotations] to keep the review-surface panel piggyback-clean. */
     val emphasisPool: StateFlow<List<com.riffle.core.domain.Annotation>> = annotationSession.emphasisPool
 
+    /** ADR 0046 §4: per-book last-used emphasis set, delegated so the screen can preview it as
+     *  chip pre-selection when the sheet opens on a draft. */
+    val lastUsedEmphasisStyles: StateFlow<Set<com.riffle.core.domain.EmphasisStyle>> =
+        annotationSession.lastUsedEmphasisStyles
+
     data class HighlightEditTarget(val id: String, val anchorRect: IntRect, val noteOnly: Boolean = false)
 
     /** Highlight whose actions popup should be open (just-created or tapped), else null. */
@@ -1711,17 +1716,10 @@ class EpubReaderViewModel @Inject constructor(
                 selectionLocator.locations.progression ?: 0.0
             }
 
-            // Delete existing highlights in the same chapter that the new selection covers.
+            // ADR 0046 §4: overlapping-highlight dedup used to happen here at create time. It's
+            // now deferred to commitDraft — if the user cancels the sheet without picking a
+            // colour/emphasis, we don't want to have already deleted their existing highlights.
             val newAfter = selectionLocator.text.after ?: ""
-            annotationSession.highlightRenders.value
-                .filter { normalizeEpubHref(it.locator.href.toString()) == normalizeEpubHref(href) }
-                .forEach { render ->
-                    val existSnippet = render.locator.text.highlight ?: return@forEach
-                    val existAfter = render.locator.text.after ?: ""
-                    if (highlightOverlapsAtSamePosition(snippet, newAfter, existSnippet, existAfter)) {
-                        annotationStore.delete(render.id)
-                    }
-                }
 
             // NOTE: create-time auto-merge was removed after the 2026-07-05 initial rollout. It
             // surprised users who wanted to keep a fresh selection separate from a same-colour
@@ -1786,20 +1784,6 @@ class EpubReaderViewModel @Inject constructor(
                 fig.copy(imageBytes = "data:$mime;base64,$base64")
             }
             val embeddedFigures = mergeEnclosedFigures(stashFigures, htmlFiguresWithBytes)
-            // Absorb standalone TYPE_IMAGE annotations that live at the same figure(s) this
-            // highlight now encloses — the covering highlight subsumes them (same rule the
-            // overlapping-highlight dedup above enforces for text, applied to figures). Their
-            // imageBytes/note aren't ported forward: the highlight's own embeddedFigures carry the
-            // figure, and once the highlight border shows, the standalone IMAGE annotation is
-            // redundant UI.
-            val absorbedFilenames = embeddedFigures.mapNotNull { it.href }.map(::figureHrefFilename).toSet()
-            if (absorbedFilenames.isNotEmpty()) {
-                annotationSession.annotations.value
-                    .filter { it.type == com.riffle.core.database.AnnotationEntity.TYPE_IMAGE }
-                    .filter { normalizeEpubHref(it.chapterHref) == normalizeEpubHref(href) }
-                    .filter { it.imageHref?.let(::figureHrefFilename) in absorbedFilenames }
-                    .forEach { annotationStore.delete(it.id) }
-            }
             // Origin font-family at the selection start (issue #484). Non-blank contract on the
             // store — fall back through two layers when the WebView side happened to return empty
             // (rare selection-teardown race, or a paginated selectionchange that raced the Highlight
@@ -1810,48 +1794,102 @@ class EpubReaderViewModel @Inject constructor(
             val originFont = SelectionFontStash.consume().takeIf { it.isNotBlank() }
                 ?: bookBodyFontFamilyReported.get().takeIf { it.isNotBlank() }
                 ?: FALLBACK_ORIGIN_FONT_FAMILY
-            // ADR 0046 §4: if the user's last pick on this book was `∅`, respect that for new
-            // annotations — they've opted into emphasis-only mode. Otherwise use the last-picked
-            // colour swatch as before.
-            val initialColor = if (annotationSession.lastUsedColorIsNone.value) ""
-                else annotationSession.lastUsedHighlightColor.value.token
-            val created = annotationStore.createHighlight(
+
+            // ADR 0046 §4: build a draft — nothing persists until the user taps a swatch or
+            // emphasis chip. `commitDraft*` in this VM performs the delayed store writes
+            // (highlight, sibling emphasis, figure absorption dedup) once the sheet's first
+            // real action fires.
+            val draft = AnnotationSession.DraftAnnotation(
                 sourceId = sourceId,
                 itemId = itemId,
-                cfi = cfiRange,
+                cfiRange = cfiRange,
                 textSnippet = snippet,
-                chapterHref = href,
                 textBefore = textBeforeCaptured,
                 textAfter = newAfter,
-                color = initialColor,
+                chapterHref = href,
                 spineIndex = spineIndex,
                 progression = progression,
                 embeddedFigures = embeddedFigures,
                 originFontFamily = originFont,
+                anchorRect = anchorRect,
+                locator = selectionLocator,
             )
-            openHighlightActions(created.id, anchorRect)
-            // ADR 0046: apply the per-book last-used emphasis styles as the new-highlight
-            // default. Zero-effort UX for users who consistently want "italic + underline every
-            // important passage" — one gesture ("Annotate") gives them both.
-            val presetStyles = annotationSession.lastUsedEmphasisStyles.value
-            if (presetStyles.isNotEmpty()) {
-                annotationStore.createEmphasis(
-                    sourceId = sourceId,
-                    itemId = itemId,
-                    cfi = cfiRange,
-                    textSnippet = snippet,
-                    chapterHref = href,
-                    textBefore = textBeforeCaptured,
-                    textAfter = newAfter,
-                    styles = presetStyles,
-                    spineIndex = spineIndex,
-                    progression = progression,
-                    originFontFamily = originFont,
-                )
-            }
-            scheduleAnnotationSync()
-            // observeHighlights re-emits → highlightRenders updates → the screen re-applies decorations.
+            annotationSession.beginAnnotationDraft(draft)
         }
+    }
+
+    /**
+     * ADR 0046 §4: persist the pending draft with [initialColor] and (optionally) a sibling
+     * emphasis row carrying the per-book last-used styles. Runs the deferred overlapping-highlight
+     * dedup and standalone-TYPE_IMAGE absorption here — those side effects were previously done
+     * at create time in [createHighlight] but now wait for the user's first swatch/chip pick to
+     * ensure a cancelled draft leaves the pre-existing state untouched. After the writes, opens
+     * the sheet on the newly-created id so the popup switches from draft to persisted mode.
+     */
+    private suspend fun commitDraft(
+        initialColor: String,
+        addEmphasisStyle: com.riffle.core.domain.EmphasisStyle? = null,
+    ) {
+        val draft = annotationSession.draftAnnotation.value ?: return
+        // Deferred overlap dedup — a larger selection covering an existing highlight replaces it.
+        annotationSession.highlightRenders.value
+            .filter { normalizeEpubHref(it.locator.href.toString()) == normalizeEpubHref(draft.chapterHref) }
+            .forEach { render ->
+                val existSnippet = render.locator.text.highlight ?: return@forEach
+                val existAfter = render.locator.text.after ?: ""
+                if (highlightOverlapsAtSamePosition(
+                        draft.textSnippet, draft.textAfter, existSnippet, existAfter,
+                    )) {
+                    annotationStore.delete(render.id)
+                }
+            }
+        // Standalone TYPE_IMAGE absorption for figures the new highlight now encloses.
+        val absorbedFilenames = draft.embeddedFigures?.mapNotNull { it.href }?.map(::figureHrefFilename)?.toSet().orEmpty()
+        if (absorbedFilenames.isNotEmpty()) {
+            annotationSession.annotations.value
+                .filter { it.type == com.riffle.core.database.AnnotationEntity.TYPE_IMAGE }
+                .filter { normalizeEpubHref(it.chapterHref) == normalizeEpubHref(draft.chapterHref) }
+                .filter { it.imageHref?.let(::figureHrefFilename) in absorbedFilenames }
+                .forEach { annotationStore.delete(it.id) }
+        }
+        val created = annotationStore.createHighlight(
+            sourceId = draft.sourceId,
+            itemId = draft.itemId,
+            cfi = draft.cfiRange,
+            textSnippet = draft.textSnippet,
+            chapterHref = draft.chapterHref,
+            textBefore = draft.textBefore,
+            textAfter = draft.textAfter,
+            color = initialColor,
+            spineIndex = draft.spineIndex,
+            progression = draft.progression,
+            embeddedFigures = draft.embeddedFigures,
+            originFontFamily = draft.originFontFamily,
+        )
+        val presetStyles = annotationSession.lastUsedEmphasisStyles.value
+        val combinedStyles = presetStyles + listOfNotNull(addEmphasisStyle)
+        if (combinedStyles.isNotEmpty()) {
+            annotationStore.createEmphasis(
+                sourceId = draft.sourceId,
+                itemId = draft.itemId,
+                cfi = draft.cfiRange,
+                textSnippet = draft.textSnippet,
+                chapterHref = draft.chapterHref,
+                textBefore = draft.textBefore,
+                textAfter = draft.textAfter,
+                styles = combinedStyles,
+                spineIndex = draft.spineIndex,
+                progression = draft.progression,
+                originFontFamily = draft.originFontFamily,
+            )
+        }
+        // Swap the sheet from the draft sentinel to the real annotation id so the popup rebinds
+        // to the persisted row for subsequent edits.
+        openHighlightActions(created.id, draft.anchorRect)
+        // Clear the draft last — the [beginAnnotationDraft] path set both draft and edit target;
+        // openHighlightActions above already reset the edit target, so we just clean the draft.
+        annotationSession.consumeDraft()
+        scheduleAnnotationSync()
     }
 
     /**
@@ -2383,6 +2421,12 @@ class EpubReaderViewModel @Inject constructor(
      *  patch via [highlightDomPatches], so the accent bar refreshes in place — no rebuild. */
     fun recolorHighlight(id: String, color: HighlightColor) {
         viewModelScope.launch {
+            // ADR 0046 §4: sheet action on a pending draft → commit now with the tapped colour
+            // and (optionally) any last-used emphasis pre-selection.
+            if (id == com.riffle.app.feature.reader.session.AnnotationSession.DRAFT_ANNOTATION_ID) {
+                commitDraft(initialColor = color.token)
+                return@launch
+            }
             annotationSession.recolorHighlight(id, color)
         }
     }
@@ -2411,6 +2455,12 @@ class EpubReaderViewModel @Inject constructor(
     private val emphasisToggleMutex = kotlinx.coroutines.sync.Mutex()
 
     fun toggleEmphasisStyle(highlightId: String, style: com.riffle.core.domain.EmphasisStyle) {
+        // ADR 0046 §4: draft emphasis tap → commit with color="" + the tapped style. Preserves
+        // any last-used emphasis pre-selection as the base, then adds the tapped chip on top.
+        if (highlightId == com.riffle.app.feature.reader.session.AnnotationSession.DRAFT_ANNOTATION_ID) {
+            viewModelScope.launch { commitDraft(initialColor = "", addEmphasisStyle = style) }
+            return
+        }
         val sourceId = annotationServerId ?: return
         val itemId = this.itemId ?: return
         viewModelScope.launch {
@@ -2643,6 +2693,11 @@ class EpubReaderViewModel @Inject constructor(
      *  Highlights mode: the observer sees the id disappear and dispatches a Remove DOM patch
      *  (or, if the chapter empties, falls back to reloadOrCloseHighlightsAfterDelete). */
     fun deleteHighlight(id: String) {
+        // ADR 0046 §4: draft trash tap → discard the pending selection without persisting.
+        if (id == com.riffle.app.feature.reader.session.AnnotationSession.DRAFT_ANNOTATION_ID) {
+            annotationSession.discardDraft()
+            return
+        }
         viewModelScope.launch {
             // ADR 0046 §4: the sheet's Delete removes "every annotation the range carries" — both
             // the highlight and every sibling emphasis on the same CFI. Do the emphasis cascade
@@ -2659,13 +2714,14 @@ class EpubReaderViewModel @Inject constructor(
     }
 
     /** ADR 0046 §4: `∅` swatch — set the highlight's color to empty so the yellow overlay stops
-     *  painting while the row (and every layered emphasis at the same CFI) survives. The renderer
-     *  in [ReadiumHighlightRenderer.applyAnnotations] skips highlight decorations for empty-color
-     *  rows but still emits emphasis companion decorations; the row remains tappable to reopen
-     *  the sheet. Distinct from [deleteHighlight] which tombstones the highlight AND cascades
-     *  emphasis (the trash icon's "remove everything you see" semantic). */
+     *  painting while the row (and every layered emphasis at the same CFI) survives. */
     fun removeHighlightColor(id: String) {
         viewModelScope.launch {
+            if (id == com.riffle.app.feature.reader.session.AnnotationSession.DRAFT_ANNOTATION_ID) {
+                // Draft ∅ pick → commit with empty color.
+                commitDraft(initialColor = "")
+                return@launch
+            }
             annotationSession.recolorHighlightRaw(id, "")
         }
     }

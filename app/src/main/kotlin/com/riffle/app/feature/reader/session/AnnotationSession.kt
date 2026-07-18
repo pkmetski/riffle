@@ -179,6 +179,64 @@ class AnnotationSession @AssistedInject constructor(
     private val _lastUsedColorIsNone = MutableStateFlow(false)
     val lastUsedColorIsNone: StateFlow<Boolean> = _lastUsedColorIsNone
 
+    /** ADR 0046 §4: pending annotation draft. When non-null, the user has tapped "Annotate" on
+     *  a fresh selection but has NOT yet chosen a colour or emphasis — no row is persisted. The
+     *  sheet is open (see [highlightToEdit] carrying [DRAFT_ANNOTATION_ID]); the first swatch or
+     *  chip tap commits the draft with that state, and the draft clears. Dismissing without a
+     *  pick discards the draft entirely. */
+    private val _draftAnnotation = MutableStateFlow<DraftAnnotation?>(null)
+    val draftAnnotation: StateFlow<DraftAnnotation?> = _draftAnnotation
+
+    /** Snapshot of everything needed to persist a highlight (and optionally a sibling emphasis)
+     *  once the user picks a colour or emphasis in the sheet. Carries the anchor rect so the sheet
+     *  position is preserved when the popup swaps from draft to persisted mode after commit. */
+    data class DraftAnnotation(
+        val sourceId: String,
+        val itemId: String,
+        val cfiRange: String,
+        val textSnippet: String,
+        val textBefore: String,
+        val textAfter: String,
+        val chapterHref: String,
+        val spineIndex: Int,
+        val progression: Double,
+        val embeddedFigures: List<com.riffle.core.domain.EmbeddedFigure>?,
+        val originFontFamily: String,
+        val anchorRect: androidx.compose.ui.unit.IntRect,
+        val locator: org.readium.r2.shared.publication.Locator,
+    )
+
+    /** Enter draft mode: cache selection data + open the sheet under the [DRAFT_ANNOTATION_ID]
+     *  sentinel. The screen renders the popup based on the sentinel id (see
+     *  [EpubReaderScreen]); ViewModel handlers route through [commitDraft] on any real pick. */
+    fun beginAnnotationDraft(draft: DraftAnnotation) {
+        _draftAnnotation.value = draft
+        _highlightToEdit.value = EpubReaderViewModel.HighlightEditTarget(
+            id = DRAFT_ANNOTATION_ID,
+            anchorRect = draft.anchorRect,
+        )
+    }
+
+    /** Discard the pending draft without persisting anything and close the sheet. Called from
+     *  [dismissHighlightActions] when the sheet closes on a draft, and from the trash icon path. */
+    fun discardDraft() {
+        _draftAnnotation.value = null
+        _highlightToEdit.value = null
+    }
+
+    /** Clear the draft state after a successful commit; [_highlightToEdit] is already re-pointed
+     *  at the newly-created annotation by the commit path so we don't touch it here. */
+    fun consumeDraft() {
+        _draftAnnotation.value = null
+    }
+
+    companion object {
+        /** Sentinel id for [HighlightEditTarget.id] while the sheet is in draft mode. See
+         *  [_draftAnnotation]. Chosen to be visually unmistakable in logs / dumps and impossible
+         *  to collide with a real UUID. */
+        const val DRAFT_ANNOTATION_ID: String = "__draft__"
+    }
+
     /** ADR 0046: per-book last-used emphasis styles set. Empty until the user has toggled at
      *  least one chip in this book; the ViewModel applies it as the new-highlight default. */
     private val _lastUsedEmphasisStyles = MutableStateFlow<Set<EmphasisStyle>>(emptySet())
@@ -278,8 +336,9 @@ class AnnotationSession @AssistedInject constructor(
             kotlinx.coroutines.flow.combine(
                 annotationStore.observeAnnotations(sourceId, itemId),
                 _highlightToEdit,
-            ) { all, target -> all to target?.id }
-                .collect { (all, editingId) ->
+                _draftAnnotation,
+            ) { all, target, draft -> Triple(all, target?.id, draft) }
+                .collect { (all, editingId, draft) ->
                     _annotations.value = all.filter {
                         it.type != com.riffle.core.database.AnnotationEntity.TYPE_EMPHASIS
                     }
@@ -289,11 +348,27 @@ class AnnotationSession @AssistedInject constructor(
                     val highlights = all.filter {
                         it.type == com.riffle.core.database.AnnotationEntity.TYPE_HIGHLIGHT
                     }
-                    _highlightRenders.value = highlights.flatMap { h ->
+                    val real = highlights.flatMap { h ->
                         highlightRenderResolver(h).map { r ->
                             r.copy(isBeingEdited = r.id == editingId)
                         }
                     }
+                    // ADR 0046 §4: synthesize a render for the pending draft so the temporary
+                    // wash paints on the selection + the last-used emphasis pre-selection is
+                    // previewed. Empty color → the renderer picks the editing wash, not a
+                    // saturated tint. The DOM-wrap side reads emphasisStyles too, so bold/italic
+                    // are visible as preview until the user commits or discards.
+                    val draftRender = draft?.let { d ->
+                        EpubReaderViewModel.HighlightRender(
+                            id = DRAFT_ANNOTATION_ID,
+                            locator = d.locator,
+                            color = "",
+                            note = null,
+                            emphasisStyles = _lastUsedEmphasisStyles.value,
+                            isBeingEdited = true,
+                        )
+                    }
+                    _highlightRenders.value = real + listOfNotNull(draftRender)
                 }
         }
 
@@ -409,6 +484,11 @@ class AnnotationSession @AssistedInject constructor(
     fun dismissHighlightActions() {
         val target = _highlightToEdit.value
         _highlightToEdit.value = null
+        // ADR 0046 §4: draft dismissed without a swatch/chip tap → discard, no annotation persists.
+        if (target?.id == DRAFT_ANNOTATION_ID) {
+            _draftAnnotation.value = null
+            return
+        }
         if (_noteEditorTarget.value != null) return
         val id = target?.id ?: return
         scope.launch {
@@ -425,17 +505,6 @@ class AnnotationSession @AssistedInject constructor(
             if (row.type != AnnotationEntity.TYPE_HIGHLIGHT &&
                 row.type != AnnotationEntity.TYPE_IMAGE
             ) return@launch
-            // ADR 0046 §4: on sheet dismiss, garbage-collect an annotation with no color AND no
-            // sibling emphasis at the same CFI — it's a phantom row that would paint nothing and
-            // waste sync bandwidth. Emphasis-carrying rows survive (empty color is a legit state
-            // for emphasis-only annotations).
-            if (row.type == AnnotationEntity.TYPE_HIGHLIGHT && row.color.isEmpty()) {
-                val hasEmphasis = _emphasisPool.value.any { it.cfi == row.cfi }
-                if (!hasEmphasis) {
-                    annotationStore.delete(id)
-                    return@launch
-                }
-            }
             mergeAfterEdit(id, row.color, row.note)
         }
     }
