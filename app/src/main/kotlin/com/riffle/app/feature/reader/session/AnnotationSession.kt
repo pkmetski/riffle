@@ -8,6 +8,8 @@ import com.riffle.core.database.AnnotationEntity
 import com.riffle.core.domain.Annotation
 import com.riffle.core.domain.AnnotationStore
 import com.riffle.core.domain.HighlightColor
+import com.riffle.core.domain.EmphasisPreferencesStore
+import com.riffle.core.domain.EmphasisStyle
 import com.riffle.core.domain.HighlightColorPreferencesStore
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedFactory
@@ -61,6 +63,7 @@ class AnnotationSession @AssistedInject constructor(
     private val annotationStore: AnnotationStore,
     private val annotationStatusStore: AnnotationSyncStatusStore,
     private val highlightColorPreferencesStore: HighlightColorPreferencesStore,
+    private val emphasisPreferencesStore: EmphasisPreferencesStore,
     private val progressFlushScope: ProgressFlushScope,
     /** Called on [bind] after [syncOnOpen]; returns the [Job] backing the live-pull loop. */
     @Assisted private val startLiveSync: (sourceId: String, namespace: String, itemId: String) -> Job,
@@ -170,6 +173,11 @@ class AnnotationSession @AssistedInject constructor(
     private val _lastUsedHighlightColor = MutableStateFlow(HighlightColor.DEFAULT)
     val lastUsedHighlightColor: StateFlow<HighlightColor> = _lastUsedHighlightColor
 
+    /** ADR 0046: per-book last-used emphasis styles set. Empty until the user has toggled at
+     *  least one chip in this book; the ViewModel applies it as the new-highlight default. */
+    private val _lastUsedEmphasisStyles = MutableStateFlow<Set<EmphasisStyle>>(emptySet())
+    val lastUsedEmphasisStyles: StateFlow<Set<EmphasisStyle>> = _lastUsedEmphasisStyles
+
     /**
      * Reflects the last annotation sync outcome as a UI banner. Null = no cycle has run yet
      * (initial state; nothing to show). Derived from [AnnotationSyncStatusStore].
@@ -211,6 +219,9 @@ class AnnotationSession @AssistedInject constructor(
     /** Observes the per-book last-used highlight colour. Cancelled on [bind]. */
     private var lastUsedColorObserveJob: Job? = null
 
+    /** ADR 0046: observes the per-book last-used emphasis styles set. Cancelled on [bind]. */
+    private var lastUsedEmphasisObserveJob: Job? = null
+
     // ---- Public API --------------------------------------------------------------------------
 
     /**
@@ -234,6 +245,7 @@ class AnnotationSession @AssistedInject constructor(
         annotationLiveSyncJob = null
         highlightObserveJob?.cancel()
         lastUsedColorObserveJob?.cancel()
+        lastUsedEmphasisObserveJob?.cancel()
         // Reset to palette default so the previous book's colour doesn't leak into a new book that
         // has never had a colour picked. If the DataStore has a value for this book, the observer
         // below overwrites this on its first emission.
@@ -281,6 +293,15 @@ class AnnotationSession @AssistedInject constructor(
         lastUsedColorObserveJob = scope.launch {
             highlightColorPreferencesStore.lastUsedColor(sourceId, itemId).collect {
                 _lastUsedHighlightColor.value = it
+            }
+        }
+
+        // ADR 0046: same shape as the color observer — per-book last-used emphasis styles set,
+        // reset to empty for a fresh book (no observer emission yet).
+        _lastUsedEmphasisStyles.value = emptySet()
+        lastUsedEmphasisObserveJob = scope.launch {
+            emphasisPreferencesStore.lastUsedStyles(sourceId, itemId).collect {
+                _lastUsedEmphasisStyles.value = it
             }
         }
 

@@ -7,6 +7,8 @@ import androidx.datastore.preferences.core.stringPreferencesKey
 import com.riffle.core.domain.AppTheme
 import com.riffle.core.domain.AppThemeStore
 import com.riffle.core.domain.CoverGridDensityStore
+import com.riffle.core.domain.EmphasisPreferencesStore
+import com.riffle.core.domain.EmphasisStyle
 import com.riffle.core.domain.HighlightColor
 import com.riffle.core.domain.HighlightColorPreferencesStore
 import com.riffle.core.domain.HighlightsResumeStore
@@ -108,6 +110,26 @@ fun HighlightsResumeStore(dataStore: DataStore<Preferences>): HighlightsResumeSt
 
         override suspend fun setLastHighlightId(serverId: String, itemId: String, annotationId: String) {
             dataStore.edit { it[keyFor(serverId, itemId)] = annotationId }
+        }
+    }
+}
+
+internal fun emphasisStylesPrefKey(sourceId: String, itemId: String) =
+    stringPreferencesKey("last_used_emphasis_styles:$sourceId:$itemId")
+
+fun EmphasisPreferencesStore(dataStore: DataStore<Preferences>): EmphasisPreferencesStore {
+    // Per-book last-used emphasis styles set (ADR 0046). Absent → empty set (no emphasis
+    // pre-selected on the next annotate gesture). Persisted as the same comma-separated wire
+    // form used by `AnnotationEntity.emphasisStyles`, so unknown tokens from a
+    // forward-compat peer decode cleanly to the subset we know.
+    return object : EmphasisPreferencesStore {
+        override fun lastUsedStyles(sourceId: String, itemId: String): kotlinx.coroutines.flow.Flow<Set<EmphasisStyle>> =
+            dataStore.data.map { prefs ->
+                EmphasisStyle.decode(prefs[emphasisStylesPrefKey(sourceId, itemId)]) ?: emptySet()
+            }
+
+        override suspend fun setLastUsedStyles(sourceId: String, itemId: String, value: Set<EmphasisStyle>) {
+            dataStore.edit { it[emphasisStylesPrefKey(sourceId, itemId)] = EmphasisStyle.encode(value) ?: "" }
         }
     }
 }

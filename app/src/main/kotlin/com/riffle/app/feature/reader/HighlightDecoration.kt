@@ -79,6 +79,57 @@ fun highlightTintTemplate(): HtmlDecorationTemplate =
         """.trimIndent(),
     )
 
+/** ADR 0046: strike-through overlay style. BOXES layout means one div per line; a `::after`
+ *  pseudo-element at 50% height paints a horizontal line across the middle of the box, which
+ *  coincides with the text's x-height — visually a real strikethrough. Bold/italic can't
+ *  reflow via overlays (they need DOM wrapping); this is the only emphasis style beyond
+ *  underline that renders correctly with pure decorations. */
+class EmphasisStrikeStyle(
+    @ColorInt override val tint: Int,
+) : Decoration.Style, Decoration.Style.Tinted {
+    override fun describeContents(): Int = 0
+    override fun writeToParcel(dest: Parcel, flags: Int) {
+        dest.writeInt(tint)
+    }
+    override fun equals(other: Any?): Boolean =
+        this === other || (other is EmphasisStrikeStyle && other.tint == tint)
+    override fun hashCode(): Int = tint
+
+    companion object {
+        @JvmField
+        val CREATOR: Parcelable.Creator<EmphasisStrikeStyle> = object : Parcelable.Creator<EmphasisStrikeStyle> {
+            override fun createFromParcel(source: Parcel) = EmphasisStrikeStyle(source.readInt())
+            override fun newArray(size: Int): Array<EmphasisStrikeStyle?> = arrayOfNulls(size)
+        }
+    }
+}
+
+private const val EMPHASIS_STRIKE_CLASS = "riffle-emphasis-strike"
+
+fun emphasisStrikeTemplate(): HtmlDecorationTemplate =
+    HtmlDecorationTemplate(
+        layout = HtmlDecorationTemplate.Layout.BOXES,
+        element = { decoration ->
+            val tint = (decoration.style as? Decoration.Style.Tinted)?.tint ?: Color.RED
+            """<div class="$EMPHASIS_STRIKE_CLASS" style="--riffle-strike-color: ${tint.toCss()};"/>"""
+        },
+        stylesheet = """
+            .$EMPHASIS_STRIKE_CLASS {
+                position: absolute;
+                pointer-events: none;
+            }
+            .$EMPHASIS_STRIKE_CLASS::after {
+                content: "";
+                position: absolute;
+                left: 0;
+                right: 0;
+                top: 50%;
+                height: 0;
+                border-top: 2px solid var(--riffle-strike-color);
+            }
+        """.trimIndent(),
+    )
+
 /** Convert an ARGB color int to a CSS rgba() string for injection into WebView JS. */
 fun @receiver:ColorInt Int.toCssRgba(): String {
     val a = (this ushr 24 and 0xFF) / 255.0

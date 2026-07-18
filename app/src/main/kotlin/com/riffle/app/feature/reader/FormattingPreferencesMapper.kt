@@ -32,6 +32,7 @@ internal fun riffleDecorationTemplates(): HtmlDecorationTemplates =
     HtmlDecorationTemplates.defaultTemplates().apply {
         set(HighlightTintStyle::class, highlightTintTemplate())
         set(NoteGlyphStyle::class, noteGlyphTemplate())
+        set(EmphasisStrikeStyle::class, emphasisStrikeTemplate())
     }
 
 fun FormattingPreferences.toEpubPreferences(

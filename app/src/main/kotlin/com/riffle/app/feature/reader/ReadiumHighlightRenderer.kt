@@ -201,7 +201,7 @@ internal class ReadiumHighlightRenderer(
                         Decoration(
                             id = "${h.id}#s",
                             locator = h.locator,
-                            style = Decoration.Style.Highlight(tint = EMPHASIS_STRIKE_ARGB),
+                            style = EmphasisStrikeStyle(tint = EMPHASIS_STRIKE_ARGB),
                         )
                     )
                 }
@@ -251,9 +251,13 @@ internal class ReadiumHighlightRenderer(
         // Distinct low-alpha tints per emphasis so bold/italic/strike are visually differentiable
         // when layered over a highlight. Values kept within Readium's Highlight alpha budget (~0.3).
         // v1 approximations — replaced by true text-style overlay when DOM mutation lands.
-        private const val EMPHASIS_UNDERLINE_ARGB: Int = 0xFF1976D2.toInt() // solid line color, alpha handled by Readium
-        private const val EMPHASIS_STRIKE_ARGB: Int = 0x66E53935.toInt()    // faint red wash
-        private const val EMPHASIS_BOLD_ARGB: Int = 0x66FF9800.toInt()      // faint amber wash
-        private const val EMPHASIS_ITALIC_ARGB: Int = 0x668E24AA.toInt()    // faint purple wash
+        private const val EMPHASIS_UNDERLINE_ARGB: Int = 0xFF1976D2.toInt() // solid line color
+        private const val EMPHASIS_STRIKE_ARGB: Int = 0xFFE53935.toInt()    // solid red strike line
+        // Bold and italic can't render properly via overlays — they need DOM wrapping to reflow
+        // the underlying text. These placeholder tints are visible enough to confirm the row
+        // exists, but are marked in the popup as "coming soon"; see the follow-up JS-injection
+        // task in ADR 0046 §7.
+        private const val EMPHASIS_BOLD_ARGB: Int = 0xAAFF9800.toInt()      // amber wash
+        private const val EMPHASIS_ITALIC_ARGB: Int = 0xAA8E24AA.toInt()    // purple wash
     }
 }

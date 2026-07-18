@@ -65,6 +65,7 @@ import com.riffle.core.domain.VolumeKeyPreferencesStore
 import com.riffle.core.domain.WakeLockPreferencesStore
 import com.riffle.core.data.AppThemeStore as createAppThemeStore
 import com.riffle.core.data.CoverGridDensityStore as createCoverGridDensityStore
+import com.riffle.core.data.EmphasisPreferencesStore as createEmphasisPreferencesStore
 import com.riffle.core.data.HighlightColorPreferencesStore as createHighlightColorPreferencesStore
 import com.riffle.core.data.HighlightsResumeStore as createHighlightsResumeStore
 import com.riffle.core.data.ReadaloudPreferencesStore as createReadaloudPreferencesStore
@@ -216,6 +217,16 @@ abstract class PreferencesModule {
         fun provideHighlightColorPreferencesStore(
             @HighlightColorPreferencesDataStore dataStore: DataStore<Preferences>,
         ): HighlightColorPreferencesStore = createHighlightColorPreferencesStore(dataStore)
+
+        // ADR 0046: last-used emphasis styles per book. Piggybacks on the highlight-color
+        // DataStore file — the keys are namespaced (`last_used_emphasis_styles:…` vs
+        // `last_used_highlight_color:…`) so there's no collision, and colocating them keeps the
+        // set of "picker default" preferences in one file per user.
+        @Provides
+        @Singleton
+        fun provideEmphasisPreferencesStore(
+            @HighlightColorPreferencesDataStore dataStore: DataStore<Preferences>,
+        ): com.riffle.core.domain.EmphasisPreferencesStore = createEmphasisPreferencesStore(dataStore)
 
         @Provides
         @Singleton

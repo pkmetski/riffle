@@ -526,6 +526,7 @@ fun EpubReaderScreen(
                         onCommitNoteEdit = viewModel::commitNoteEdit,
                         onCancelNoteEdit = viewModel::cancelNoteEdit,
                         onRecolorHighlight = viewModel::recolorHighlight,
+                        onRemoveHighlightColor = viewModel::removeHighlightColor,
                         onDeleteHighlight = viewModel::deleteHighlight,
                         onUpdateHighlightNote = viewModel::updateHighlightNote,
                         onToggleEmphasis = viewModel::toggleEmphasisStyle,
@@ -1331,6 +1332,8 @@ private fun EpubNavigatorView(
     onCommitNoteEdit: (String, String?) -> Unit,
     onCancelNoteEdit: () -> Unit,
     onRecolorHighlight: (String, HighlightColor) -> Unit,
+    /** ADR 0046 §4: `∅` swatch — remove the highlight color while preserving layered emphasis. */
+    onRemoveHighlightColor: (String) -> Unit = {},
     onDeleteHighlight: (String) -> Unit,
     onUpdateHighlightNote: (String, String?) -> Unit,
     /** ADR 0046: toggle a single emphasis style (bold/italic/underline/strike) over a highlight's range. */
@@ -3024,6 +3027,7 @@ private fun EpubNavigatorView(
                 note = current?.note ?: currentAnnotation?.note,
                 emphasisStyles = currentEmphasisStyles,
                 onPick = { color -> onRecolorHighlight(editTarget.id, color) },
+                onRemoveColor = { onRemoveHighlightColor(editTarget.id) },
                 onToggleEmphasis = { style -> onToggleEmphasis(editTarget.id, style) },
                 onDelete = { onDeleteHighlight(editTarget.id) },
                 onOpenNoteEditor = { onOpenNoteEditor(editTarget.id, editTarget.anchorRect) },

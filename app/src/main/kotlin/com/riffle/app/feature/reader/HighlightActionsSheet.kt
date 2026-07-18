@@ -62,9 +62,37 @@ import com.riffle.core.domain.HighlightColor
 fun HighlightSwatchRow(
     selected: HighlightColor?,
     onPick: (HighlightColor) -> Unit,
+    onPickNone: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     Row(modifier = modifier, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        // ADR 0046 §4: the `∅` swatch removes the highlight color while keeping any emphasis
+        // rows intact — the coupled "Annotate" sheet's escape hatch when the user only wanted
+        // formatting (bold/italic/underline/strike) and not a highlight.
+        val noneSelected = selected == null
+        Box(
+            contentAlignment = Alignment.Center,
+            modifier = Modifier
+                .size(40.dp)
+                .clip(CircleShape)
+                .clickable { onPickNone() }
+                .then(
+                    if (noneSelected) Modifier.border(2.dp, MaterialTheme.colorScheme.onSurface, CircleShape)
+                    else Modifier
+                )
+                .padding(4.dp)
+                .clip(CircleShape)
+                .border(1.5.dp, MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f), CircleShape)
+                .semantics {
+                    contentDescription = "No highlight color" + if (noneSelected) ", selected" else ""
+                },
+        ) {
+            Text(
+                text = "∅",
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
+                style = MaterialTheme.typography.titleMedium,
+            )
+        }
         HighlightColor.entries.forEach { color ->
             val isSelected = color == selected
             val swatchColor = Color(color.argb.toLong() and 0xFFFFFFFFL)
@@ -162,6 +190,8 @@ fun HighlightActionsPopup(
     note: String?,
     emphasisStyles: Set<EmphasisStyle> = emptySet(),
     onPick: (HighlightColor) -> Unit,
+    /** ADR 0046 §4: remove the highlight color while keeping the emphasis rows intact. */
+    onRemoveColor: () -> Unit = {},
     onToggleEmphasis: (EmphasisStyle) -> Unit = {},
     onDelete: () -> Unit,
     onOpenNoteEditor: () -> Unit,
@@ -200,7 +230,7 @@ fun HighlightActionsPopup(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        HighlightSwatchRow(selected = selected, onPick = onPick)
+                        HighlightSwatchRow(selected = selected, onPick = onPick, onPickNone = onRemoveColor)
                         IconButton(onClick = onDelete) {
                             Icon(
                                 imageVector = Icons.Default.Delete,

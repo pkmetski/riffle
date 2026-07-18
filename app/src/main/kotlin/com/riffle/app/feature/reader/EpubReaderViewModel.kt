@@ -212,6 +212,7 @@ class EpubReaderViewModel @Inject constructor(
     private val openReconcileTargets: com.riffle.core.data.OpenReconcileTargets,
     private val readaloudResumeStore: ReadaloudResumeStore,
     private val annotationStore: AnnotationStore,
+    private val emphasisPreferencesStore: com.riffle.core.domain.EmphasisPreferencesStore,
     private val annotationSyncController: com.riffle.core.data.AnnotationSyncController,
     private val nowPlayingStore: com.riffle.app.playback.NowPlayingStore,
     private val progressFlushScope: ProgressFlushScope,
@@ -1820,6 +1821,25 @@ class EpubReaderViewModel @Inject constructor(
                 originFontFamily = originFont,
             )
             openHighlightActions(created.id, anchorRect)
+            // ADR 0046: apply the per-book last-used emphasis styles as the new-highlight
+            // default. Zero-effort UX for users who consistently want "italic + underline every
+            // important passage" — one gesture ("Annotate") gives them both.
+            val presetStyles = annotationSession.lastUsedEmphasisStyles.value
+            if (presetStyles.isNotEmpty()) {
+                annotationStore.createEmphasis(
+                    sourceId = sourceId,
+                    itemId = itemId,
+                    cfi = cfiRange,
+                    textSnippet = snippet,
+                    chapterHref = href,
+                    textBefore = textBeforeCaptured,
+                    textAfter = newAfter,
+                    styles = presetStyles,
+                    spineIndex = spineIndex,
+                    progression = progression,
+                    originFontFamily = originFont,
+                )
+            }
             scheduleAnnotationSync()
             // observeHighlights re-emits → highlightRenders updates → the screen re-applies decorations.
         }
@@ -2422,6 +2442,13 @@ class EpubReaderViewModel @Inject constructor(
                         originFontFamily = originFont,
                     )
                 }
+                // ADR 0046: persist the resulting styles set as the per-book default for the
+                // next annotate gesture. On empty (tombstone path), we reset to empty; that
+                // way "off, off, off, ..." on many highlights teaches the app "this book
+                // doesn't want emphasis by default."
+                val resultingStyles = annotationSession.emphasisPool.value
+                    .firstOrNull { it.cfi == highlight.cfi }?.emphasisStyles.orEmpty()
+                emphasisPreferencesStore.setLastUsedStyles(sourceId, itemId, resultingStyles)
                 scheduleAnnotationSync()
             } finally {
                 emphasisToggleMutex.unlock()
@@ -2618,6 +2645,17 @@ class EpubReaderViewModel @Inject constructor(
                     .filter { it.cfi == highlight.cfi }
                     .forEach { annotationStore.delete(it.id) }
             }
+            annotationSession.deleteHighlight(id)
+        }
+    }
+
+    /** ADR 0046 §4: `∅` swatch — remove the highlight row only, leaving any layered emphasis
+     *  rows intact. When there's no emphasis on the range, the visible mark disappears entirely;
+     *  when there IS emphasis, the yellow tint vanishes but the bold/italic/underline/strike
+     *  remain. Distinct from [deleteHighlight] which cascades to emphasis (trash icon = "delete
+     *  everything you see"). */
+    fun removeHighlightColor(id: String) {
+        viewModelScope.launch {
             annotationSession.deleteHighlight(id)
         }
     }
