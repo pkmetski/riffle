@@ -239,19 +239,22 @@ internal class ReadiumHighlightRenderer(
                 // [evaluateJavascript] below.
             }
         }
+        // Apply overlay decorations (underline / strike). Empty list = clear the group.
         if (decorations.isEmpty()) {
             if (hasEmphasisDecorations) {
                 applyDecorationsBlock(emptyList(), "emphasis")
                 hasEmphasisDecorations = false
             }
-            return
+        } else {
+            applyDecorationsWithClear(decorations, "emphasis")
+            hasEmphasisDecorations = true
         }
-        applyDecorationsWithClear(decorations, "emphasis")
-        hasEmphasisDecorations = true
-        // ADR 0046: DOM injection for bold/italic. Runs after decorations so the overlay
-        // strikes/underlines land, then the wrap script mutates the DOM. Ranges are pulled fresh
-        // from the annotation pool (not from `renders`) because the pool carries the raw
-        // textSnippet/textBefore we need to disambiguate mid-page matches.
+        // ADR 0046: DOM injection for bold/italic — MUST fire unconditionally, not gated on
+        // underline/strike overlays. A range with only bold and/or italic produces zero
+        // companion decorations above (they use DOM mutation, not overlays), so an early
+        // return here would leave bold/italic never applied. The script also self-cleans old
+        // wrappers each run, so calling it with an empty range list is the correct way to
+        // remove a previously-injected bold/italic when the user toggles it off.
         evaluateJavascript?.let { runJs ->
             val ranges = emphasisRangeProvider()
                 .filter { it.styles.any { s -> s == EmphasisStyle.BOLD || s == EmphasisStyle.ITALIC } }
