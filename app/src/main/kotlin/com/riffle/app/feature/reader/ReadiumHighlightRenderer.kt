@@ -90,14 +90,16 @@ internal class ReadiumHighlightRenderer(
         // decorations for this group; if the list is empty we take the early-return above.
         val decorations = renders.mapNotNull { h ->
             if (h.useAccentBarStyle) return@mapNotNull null
-            // ADR 0046 §4: `∅` swatch stores color=""; skip the highlight paint so only the
-            // emphasis companion decorations render. Still keeps the row alive (tap dispatch,
-            // popup reopen, sync). Non-empty tokens fall through to the tinted highlight.
-            if (h.color.isEmpty()) return@mapNotNull null
+            // ADR 0046 §4: `∅` swatch stores color="". Emit an invisible-tint decoration so the
+            // range stays tappable (the popup can be reopened), but nothing paints on the text —
+            // any layered emphasis (bold/italic via DOM injection, underline/strike via companion
+            // decorations below) is the visible surface. Non-empty tokens paint as tinted.
+            val tint = if (h.color.isEmpty()) 0x00000000
+                else HighlightColor.fromToken(h.color).argb
             Decoration(
                 id = h.id,
                 locator = h.locator,
-                style = HighlightTintStyle(tint = HighlightColor.fromToken(h.color).argb),
+                style = HighlightTintStyle(tint = tint),
             )
         }
         if (decorations.isEmpty()) {
@@ -105,10 +107,6 @@ internal class ReadiumHighlightRenderer(
                 applyDecorationsBlock(emptyList(), "annotations")
                 hasAnnotationDecorations = false
             }
-            // ADR 0046 §4: even with no highlight decorations (all rows are ∅-color), we still
-            // need to paint emphasis companions for the same renders — the emphasis pool is
-            // read off the render's `emphasisStyles`, not off a highlight-color match.
-            applyEmphasisCompanions(renders)
             return
         }
         // Initial apply uses clear+apply too — Readium's decoration diff treats an identical
@@ -226,26 +224,12 @@ internal class ReadiumHighlightRenderer(
                         )
                     )
                 }
-                if (EmphasisStyle.BOLD in h.emphasisStyles) {
-                    // HighlightTintStyle honors the tint's own alpha; Readium's built-in
-                    // Style.Highlight caps at 30% which was invisible.
-                    add(
-                        Decoration(
-                            id = "${h.id}#b",
-                            locator = h.locator,
-                            style = HighlightTintStyle(tint = EMPHASIS_BOLD_ARGB),
-                        )
-                    )
-                }
-                if (EmphasisStyle.ITALIC in h.emphasisStyles) {
-                    add(
-                        Decoration(
-                            id = "${h.id}#i",
-                            locator = h.locator,
-                            style = HighlightTintStyle(tint = EMPHASIS_ITALIC_ARGB),
-                        )
-                    )
-                }
+                // ADR 0046: bold and italic no longer paint tint overlays — the DOM injector
+                // (see [EmphasisDomInjector]) wraps the range in a styled `<span>` that actually
+                // reflows the text with `font-weight: bold` / `font-style: italic`. A tint
+                // overlay on top of real bold text would just add a distracting colored
+                // background. The DOM wrap runs from [applyEmphasisCompanions] via
+                // [evaluateJavascript] below.
             }
         }
         if (decorations.isEmpty()) {
@@ -285,12 +269,7 @@ internal class ReadiumHighlightRenderer(
         // v1 approximations — replaced by true text-style overlay when DOM mutation lands.
         private const val EMPHASIS_UNDERLINE_ARGB: Int = 0xFF1976D2.toInt() // solid line color
         private const val EMPHASIS_STRIKE_ARGB: Int = 0xFFE53935.toInt()    // solid red strike line
-        // Bold and italic can't render properly via overlays — they need DOM wrapping to reflow
-        // the underlying text. These are strong tint overlays through Riffle's custom
-        // HighlightTintStyle (honors the tint's ARGB directly, bypassing Readium's 30% cap),
-        // so at least the presence and position of the emphasis is visible. Proper reflow is
-        // a follow-up (WebView JS injection to wrap ranges in styled spans).
-        private const val EMPHASIS_BOLD_ARGB: Int = 0x99FF6D00.toInt()      // vivid amber wash
-        private const val EMPHASIS_ITALIC_ARGB: Int = 0x99AB47BC.toInt()    // vivid purple wash
+        // Bold and italic don't paint overlays anymore — they reflow the underlying text via
+        // the DOM injector. See [EmphasisDomInjector].
     }
 }
