@@ -1,5 +1,6 @@
 package com.riffle.app.feature.reader
 
+import com.riffle.core.domain.EmphasisStyle
 import com.riffle.core.domain.HighlightColor
 import com.riffle.core.domain.SentenceQuote
 import kotlinx.coroutines.delay
@@ -28,6 +29,7 @@ internal class ReadiumHighlightRenderer(
 
     private var hasSentenceDecoration = false
     private var hasAnnotationDecorations = false
+    private var hasEmphasisDecorations = false
     private var hasNoteGlyphDecorations = false
     private var hasSearchDecorations = false
 
@@ -90,6 +92,10 @@ internal class ReadiumHighlightRenderer(
         // rects until the 400ms settle tick fires. Matches [applySentenceHighlight]'s pre-clear semantics.
         applyDecorationsWithClear(decorations, "annotations")
         hasAnnotationDecorations = true
+        // ADR 0046: layered emphasis paints via companion decorations. Underline uses Readium's
+        // built-in Style.Underline; strike/bold/italic v1 render as tinted overlays (bold + italic
+        // are approximations pending true DOM mutation — captured as follow-up).
+        applyEmphasisCompanions(renders)
         // Readium fixes decoration rects at applyDecorations time. When the first apply runs before
         // reflow has fully settled (fresh navigator, chapter change, orientation flip), the rects
         // land against a still-shifting layout and the highlight is either invisible or in the wrong
@@ -161,5 +167,84 @@ internal class ReadiumHighlightRenderer(
     private suspend fun applyDecorationsWithClear(decorations: List<Decoration>, group: String) {
         applyDecorationsBlock(emptyList(), group)
         applyDecorationsBlock(decorations, group)
+    }
+
+    /**
+     * ADR 0046: paint emphasis marks as companion decorations layered over the highlight decoration.
+     * Only [EmphasisStyle.UNDERLINE] uses Readium's built-in [Decoration.Style.Underline]; the
+     * other three styles are painted as tinted [Decoration.Style.Highlight] overlays with
+     * distinctive colors so the user sees SOMETHING for every stored style — proper text-style
+     * reflow for bold/italic/strike requires WebView DOM mutation and is captured as a follow-up.
+     * Grouped separately from "annotations" so a highlight recolor doesn't rebuild the emphasis
+     * overlays and vice versa.
+     */
+    private suspend fun applyEmphasisCompanions(renders: List<EpubReaderViewModel.HighlightRender>) {
+        val decorations = renders.flatMap { h ->
+            if (h.emphasisStyles.isEmpty()) return@flatMap emptyList()
+            buildList {
+                if (EmphasisStyle.UNDERLINE in h.emphasisStyles) {
+                    add(
+                        Decoration(
+                            id = "${h.id}#u",
+                            locator = h.locator,
+                            style = Decoration.Style.Underline(tint = EMPHASIS_UNDERLINE_ARGB),
+                        )
+                    )
+                }
+                if (EmphasisStyle.STRIKE in h.emphasisStyles) {
+                    add(
+                        Decoration(
+                            id = "${h.id}#s",
+                            locator = h.locator,
+                            style = Decoration.Style.Highlight(tint = EMPHASIS_STRIKE_ARGB),
+                        )
+                    )
+                }
+                if (EmphasisStyle.BOLD in h.emphasisStyles) {
+                    add(
+                        Decoration(
+                            id = "${h.id}#b",
+                            locator = h.locator,
+                            style = Decoration.Style.Highlight(tint = EMPHASIS_BOLD_ARGB),
+                        )
+                    )
+                }
+                if (EmphasisStyle.ITALIC in h.emphasisStyles) {
+                    add(
+                        Decoration(
+                            id = "${h.id}#i",
+                            locator = h.locator,
+                            style = Decoration.Style.Highlight(tint = EMPHASIS_ITALIC_ARGB),
+                        )
+                    )
+                }
+            }
+        }
+        if (decorations.isEmpty()) {
+            if (hasEmphasisDecorations) {
+                applyDecorationsBlock(emptyList(), "emphasis")
+                hasEmphasisDecorations = false
+            }
+            return
+        }
+        applyDecorationsWithClear(decorations, "emphasis")
+        hasEmphasisDecorations = true
+        // Same settle window as highlights so decoration rects follow post-reflow layout.
+        val stamp = currentNavigatorStamp()
+        for (settleDelayMs in longArrayOf(400L, 600L, 700L, 900L)) {
+            delay(settleDelayMs)
+            if (currentNavigatorStamp() !== stamp) break
+            applyDecorationsWithClear(decorations, "emphasis")
+        }
+    }
+
+    companion object {
+        // Distinct low-alpha tints per emphasis so bold/italic/strike are visually differentiable
+        // when layered over a highlight. Values kept within Readium's Highlight alpha budget (~0.3).
+        // v1 approximations — replaced by true text-style overlay when DOM mutation lands.
+        private const val EMPHASIS_UNDERLINE_ARGB: Int = 0xFF1976D2.toInt() // solid line color, alpha handled by Readium
+        private const val EMPHASIS_STRIKE_ARGB: Int = 0x66E53935.toInt()    // faint red wash
+        private const val EMPHASIS_BOLD_ARGB: Int = 0x66FF9800.toInt()      // faint amber wash
+        private const val EMPHASIS_ITALIC_ARGB: Int = 0x668E24AA.toInt()    // faint purple wash
     }
 }

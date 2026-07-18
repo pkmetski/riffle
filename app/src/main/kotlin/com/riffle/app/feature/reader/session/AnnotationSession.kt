@@ -246,17 +246,18 @@ class AnnotationSession @AssistedInject constructor(
         // Mark annotations as available now that we have an ABS server id.
         _annotationsAvailable.value = true
 
-        // Observe highlights → reconstruct HighlightRenders reactively.
+        // ADR 0046: single subscription to the full annotations flow — set the pool BEFORE
+        // computing renders so `highlightRenderResolver` (which reads TYPE_EMPHASIS rows out of
+        // `_annotations.value` to attach `emphasisStyles`) sees an up-to-date pool. A change to
+        // any row type (add a highlight, add an emphasis, tombstone either) rebuilds renders.
+        // Cancel the sibling `annotationsObserveJob` — the split subscription is retired.
         highlightObserveJob = scope.launch {
-            annotationStore.observeHighlights(sourceId, itemId).collect { annotations ->
-                _highlightRenders.value = annotations.flatMap { highlightRenderResolver(it) }
-            }
-        }
-
-        // Observe all annotations (highlights + bookmarks) for the panel.
-        annotationsObserveJob = scope.launch {
-            annotationStore.observeAnnotations(sourceId, itemId).collect { list ->
-                _annotations.value = list
+            annotationStore.observeAnnotations(sourceId, itemId).collect { all ->
+                _annotations.value = all
+                val highlights = all.filter {
+                    it.type == com.riffle.core.database.AnnotationEntity.TYPE_HIGHLIGHT
+                }
+                _highlightRenders.value = highlights.flatMap { highlightRenderResolver(it) }
             }
         }
 

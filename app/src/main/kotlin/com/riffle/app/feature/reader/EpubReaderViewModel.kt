@@ -812,6 +812,11 @@ class EpubReaderViewModel @Inject constructor(
         val color: String,
         val note: String?,
         val useAccentBarStyle: Boolean = false,
+        /** ADR 0046: union of styles from every [com.riffle.core.database.AnnotationEntity.TYPE_EMPHASIS]
+         *  row that overlaps this highlight's CFI range. Empty when no emphasis is layered. Drives
+         *  a companion Readium underline decoration (v1) and — as the pipeline grows — inline CSS
+         *  injection for the other three styles. */
+        val emphasisStyles: Set<com.riffle.core.domain.EmphasisStyle> = emptySet(),
     )
 
     val highlightRenders: StateFlow<List<HighlightRender>> = annotationSession.highlightRenders
@@ -2704,7 +2709,14 @@ class EpubReaderViewModel @Inject constructor(
                     null
                 } ?: return@mapIndexedNotNull null
                 val decorationId = if (segments.size == 1) a.id else "${a.id}#seg$index"
-                HighlightRender(decorationId, locator, a.color, a.note)
+                // ADR 0046: union every TYPE_EMPHASIS row whose CFI matches this highlight's CFI.
+                // Multiple rows can layer via different styles sets (same-styles rows auto-merge),
+                // so union-at-render gives the correct visual result without touching storage.
+                val emphasisStyles = annotationSession.annotations.value
+                    .filter { it.type == AnnotationEntity.TYPE_EMPHASIS && it.cfi == a.cfi }
+                    .flatMap { it.emphasisStyles.orEmpty() }
+                    .toSet()
+                HighlightRender(decorationId, locator, a.color, a.note, emphasisStyles = emphasisStyles)
             }
     }
 
