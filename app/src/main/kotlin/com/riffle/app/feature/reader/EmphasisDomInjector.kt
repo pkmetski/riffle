@@ -62,15 +62,6 @@ internal object EmphasisDomInjector {
     // Language=JavaScript
     private val WRAP_SCRIPT_TEMPLATE = """
         (function() {
-          var STYLE_ID = 'riffle-em-styles';
-          if (!document.getElementById(STYLE_ID)) {
-            var style = document.createElement('style');
-            style.id = STYLE_ID;
-            style.textContent =
-              'span[data-riffle-em~="bold"] { font-weight: bold !important; }' +
-              'span[data-riffle-em~="italic"] { font-style: italic !important; }';
-            document.head.appendChild(style);
-          }
           // Clear previous wrappers so we can re-apply cleanly on toggle.
           var existing = document.querySelectorAll('span[data-riffle-em]');
           for (var i = 0; i < existing.length; i++) {
@@ -103,11 +94,19 @@ internal object EmphasisDomInjector {
                 range.setEnd(node, idx + match.snippet.length);
                 var span = document.createElement('span');
                 span.setAttribute('data-riffle-em', match.styles.join(' '));
+                // Inline `style.setProperty(..., 'important')` gives us the highest CSS specificity
+                // that beats every publisher stylesheet (including `!important` on descendants of
+                // :root). An attribute-selector stylesheet in <head> would be defeated by publisher
+                // inline `style=""` and Readium's own inline styles on containing elements.
+                var hasBold = match.styles.indexOf('bold') !== -1;
+                var hasItalic = match.styles.indexOf('italic') !== -1;
+                if (hasBold) span.style.setProperty('font-weight', 'bold', 'important');
+                if (hasItalic) span.style.setProperty('font-style', 'italic', 'important');
                 range.surroundContents(span);
               } catch (err) {
                 // surroundContents throws for ranges spanning element boundaries. The overlay
-                // decoration path (Readium underline / Riffle strike / bold/italic tint) still
-                // fires as a fallback so the annotation isn't invisible on complex markup.
+                // decoration path (Readium underline / Riffle strike) still fires as a fallback
+                // so the annotation isn't invisible on complex markup.
               }
               return; // one match per annotation
             }
