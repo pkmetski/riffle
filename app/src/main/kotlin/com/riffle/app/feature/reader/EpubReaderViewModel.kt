@@ -821,6 +821,11 @@ class EpubReaderViewModel @Inject constructor(
 
     val highlightRenders: StateFlow<List<HighlightRender>> = annotationSession.highlightRenders
 
+    /** ADR 0046: live emphasis rows for the current book. Screen reads this to derive which
+     *  B/I/U/S chips are active for the highlight the sheet is open on. Kept out of
+     *  [annotations] to keep the review-surface panel piggyback-clean. */
+    val emphasisPool: StateFlow<List<com.riffle.core.domain.Annotation>> = annotationSession.emphasisPool
+
     data class HighlightEditTarget(val id: String, val anchorRect: IntRect, val noteOnly: Boolean = false)
 
     /** Highlight whose actions popup should be open (just-created or tapped), else null. */
@@ -2371,41 +2376,56 @@ class EpubReaderViewModel @Inject constructor(
      * scoped to the "layered on this highlight" gesture; freeform emphasis-only creation from a
      * bare selection is a separate flow (see createHighlight for the model).
      */
+    /** Serializes rapid chip taps so `toggleEmphasisStyle` reads-then-writes atomically — two
+     *  taps landing in the same annotations-flow tick would otherwise both observe `existing=null`
+     *  and each create a fresh emphasis row at the identical CFI. See code-review F4. */
+    private val emphasisToggleMutex = kotlinx.coroutines.sync.Mutex()
+
     fun toggleEmphasisStyle(highlightId: String, style: com.riffle.core.domain.EmphasisStyle) {
         val sourceId = annotationServerId ?: return
         val itemId = this.itemId ?: return
         viewModelScope.launch {
-            val pool = annotationSession.annotations.value
-            val highlight = pool.firstOrNull { it.id == highlightId } ?: return@launch
-            val existing = pool.firstOrNull {
-                it.type == AnnotationEntity.TYPE_EMPHASIS && it.cfi == highlight.cfi
-            }
-            if (existing != null) {
-                val current = existing.emphasisStyles.orEmpty()
-                val next = if (style in current) current - style else current + style
-                if (next.isEmpty()) {
-                    annotationStore.delete(existing.id)
-                } else {
-                    annotationStore.updateEmphasisStyles(existing.id, next)
+            emphasisToggleMutex.lock()
+            try {
+                val highlight = annotationSession.annotations.value.firstOrNull { it.id == highlightId }
+                    ?: return@launch
+                if (highlight.type != AnnotationEntity.TYPE_HIGHLIGHT) return@launch
+                val existing = annotationSession.emphasisPool.value.firstOrNull {
+                    it.cfi == highlight.cfi
                 }
-            } else {
-                val originFont = highlight.originFontFamily?.takeIf { it.isNotBlank() }
-                    ?: FALLBACK_ORIGIN_FONT_FAMILY
-                annotationStore.createEmphasis(
-                    sourceId = sourceId,
-                    itemId = itemId,
-                    cfi = highlight.cfi,
-                    textSnippet = highlight.textSnippet,
-                    chapterHref = highlight.chapterHref,
-                    styles = setOf(style),
-                    textBefore = highlight.textBefore,
-                    textAfter = highlight.textAfter,
-                    spineIndex = highlight.spineIndex,
-                    progression = highlight.progression,
-                    originFontFamily = originFont,
-                )
+                if (existing != null) {
+                    val current = existing.emphasisStyles.orEmpty()
+                    val next = if (style in current) current - style else current + style
+                    if (next.isEmpty()) {
+                        // ADR 0046 §4 envisions "empty-set GC on sheet dismiss" to preserve
+                        // provenance across in-flight edits; that requires sheet-lifecycle
+                        // plumbing not yet wired. As an interim we tombstone; the trade-off is
+                        // provenance churn on toggle-off-then-on. Follow-up: sheet-dismiss GC.
+                        annotationStore.delete(existing.id)
+                    } else {
+                        annotationStore.updateEmphasisStyles(existing.id, next)
+                    }
+                } else {
+                    val originFont = highlight.originFontFamily?.takeIf { it.isNotBlank() }
+                        ?: FALLBACK_ORIGIN_FONT_FAMILY
+                    annotationStore.createEmphasis(
+                        sourceId = sourceId,
+                        itemId = itemId,
+                        cfi = highlight.cfi,
+                        textSnippet = highlight.textSnippet,
+                        chapterHref = highlight.chapterHref,
+                        styles = setOf(style),
+                        textBefore = highlight.textBefore,
+                        textAfter = highlight.textAfter,
+                        spineIndex = highlight.spineIndex,
+                        progression = highlight.progression,
+                        originFontFamily = originFont,
+                    )
+                }
+                scheduleAnnotationSync()
+            } finally {
+                emphasisToggleMutex.unlock()
             }
-            scheduleAnnotationSync()
         }
     }
 
@@ -2588,6 +2608,16 @@ class EpubReaderViewModel @Inject constructor(
      *  (or, if the chapter empties, falls back to reloadOrCloseHighlightsAfterDelete). */
     fun deleteHighlight(id: String) {
         viewModelScope.launch {
+            // ADR 0046 §4: the sheet's Delete removes "every annotation the range carries" — both
+            // the highlight and every sibling emphasis on the same CFI. Do the emphasis cascade
+            // first so that if the highlight delete races with UI teardown, the emphasis rows
+            // still land; the store's tombstone is idempotent.
+            val highlight = annotationSession.annotations.value.firstOrNull { it.id == id }
+            if (highlight != null) {
+                annotationSession.emphasisPool.value
+                    .filter { it.cfi == highlight.cfi }
+                    .forEach { annotationStore.delete(it.id) }
+            }
             annotationSession.deleteHighlight(id)
         }
     }
@@ -2712,8 +2742,10 @@ class EpubReaderViewModel @Inject constructor(
                 // ADR 0046: union every TYPE_EMPHASIS row whose CFI matches this highlight's CFI.
                 // Multiple rows can layer via different styles sets (same-styles rows auto-merge),
                 // so union-at-render gives the correct visual result without touching storage.
-                val emphasisStyles = annotationSession.annotations.value
-                    .filter { it.type == AnnotationEntity.TYPE_EMPHASIS && it.cfi == a.cfi }
+                // Read from `emphasisPool` (not `annotations`) — the panel-side flow excludes
+                // emphasis rows to protect the piggyback rule, so `annotations` would be empty here.
+                val emphasisStyles = annotationSession.emphasisPool.value
+                    .filter { it.cfi == a.cfi }
                     .flatMap { it.emphasisStyles.orEmpty() }
                     .toSet()
                 HighlightRender(decorationId, locator, a.color, a.note, emphasisStyles = emphasisStyles)

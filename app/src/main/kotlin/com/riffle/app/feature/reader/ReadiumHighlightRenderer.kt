@@ -32,6 +32,10 @@ internal class ReadiumHighlightRenderer(
     private var hasEmphasisDecorations = false
     private var hasNoteGlyphDecorations = false
     private var hasSearchDecorations = false
+    /** Monotonic counter for [applyEmphasisCompanions] calls. The settle-loop breaks when the
+     *  counter moves, so a rapid re-toggle within the 2.6s window doesn't repaint a
+     *  since-cleared decoration. See code-review F6. */
+    private var emphasisApplyGeneration: Long = 0L
 
     override suspend fun applySentenceHighlight(
         fragmentRef: String?,
@@ -179,6 +183,7 @@ internal class ReadiumHighlightRenderer(
      * overlays and vice versa.
      */
     private suspend fun applyEmphasisCompanions(renders: List<EpubReaderViewModel.HighlightRender>) {
+        val myGeneration = ++emphasisApplyGeneration
         val decorations = renders.flatMap { h ->
             if (h.emphasisStyles.isEmpty()) return@flatMap emptyList()
             buildList {
@@ -229,11 +234,15 @@ internal class ReadiumHighlightRenderer(
         }
         applyDecorationsWithClear(decorations, "emphasis")
         hasEmphasisDecorations = true
-        // Same settle window as highlights so decoration rects follow post-reflow layout.
+        // Same settle window as highlights so decoration rects follow post-reflow layout. Break
+        // as soon as either the navigator instance OR the emphasis generation moves — the latter
+        // means a fresh applyEmphasisCompanions call has landed with a different decoration list,
+        // and continuing to repaint THIS list would fight it.
         val stamp = currentNavigatorStamp()
         for (settleDelayMs in longArrayOf(400L, 600L, 700L, 900L)) {
             delay(settleDelayMs)
             if (currentNavigatorStamp() !== stamp) break
+            if (myGeneration != emphasisApplyGeneration) break
             applyDecorationsWithClear(decorations, "emphasis")
         }
     }

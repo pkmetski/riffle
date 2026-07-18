@@ -1102,14 +1102,15 @@ class AnnotationW3CCodecTest {
         val json = codec.annotationEntityToW3C(entity)
         assertTrue("body carries riffle:emphasis type", json.contains("\"type\":\"riffle:emphasis\""))
         assertTrue("body value carries the styles token", json.contains("\"styles\":\"bold,underline\""))
-        assertTrue("motivation stays highlighting for legacy-peer fallback", json.contains("\"motivation\":\"highlighting\""))
+        assertTrue("motivation is commenting so legacy peers don't render phantom highlights (F3)",
+            json.contains("\"motivation\":\"commenting\""))
     }
 
     @Test
     fun `parseEmphasis body flips type to EMPHASIS and populates emphasisStyles`() {
         val json = """
             {"@context":"http://www.w3.org/ns/anno.jsonld","id":"urn:uuid:uuid-emph-2",
-             "type":"Annotation","motivation":"highlighting",
+             "type":"Annotation","motivation":"commenting",
              "target":{"source":"epub://item-item1","selector":[
                {"type":"FragmentSelector","conformsTo":"http://idpf.org/epub/linking/cfi/epub-cfi.html","value":"epubcfi(/6/2!/4/2,/1:0,/1:5)"},
                {"type":"TextQuoteSelector","exact":"phrase","prefix":"","suffix":""}

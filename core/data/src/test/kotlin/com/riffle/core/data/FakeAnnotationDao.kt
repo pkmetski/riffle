@@ -100,5 +100,5 @@ internal class FakeAnnotationDao : AnnotationDao {
         emphasisStyles: String,
         updatedAt: Long,
         deviceId: String,
-    ) = error("not used by this fake")
+    ): Int = error("not used by this fake")
 }

@@ -310,7 +310,7 @@ class SettingsViewModelTest {
 
         override fun observeBooksWithHighlights(sourceId: String) =
             flowOf(emptyList<com.riffle.core.database.BookHighlightSummary>())
-        override suspend fun updateEmphasisStyles(id: String, emphasisStyles: String, updatedAt: Long, deviceId: String) = Unit
+        override suspend fun updateEmphasisStyles(id: String, emphasisStyles: String, updatedAt: Long, deviceId: String): Int = 0
     }
 
     private fun stubConfigStore(flow: MutableStateFlow<AnnotationSyncConfig?>) = object : AnnotationSyncConfigStore {

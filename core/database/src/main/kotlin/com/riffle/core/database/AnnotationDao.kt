@@ -94,12 +94,14 @@ interface AnnotationDao {
     suspend fun updateNote(id: String, note: String?, updatedAt: Long, deviceId: String)
 
     /** Replace the styles set on an emphasis row in place, bumping updatedAt + provenance (ADR 0046).
-     *  The type = 'EMPHASIS' predicate keeps a caller error from accidentally mutating a highlight. */
+     *  The type = 'EMPHASIS' predicate keeps a caller error from accidentally mutating a highlight.
+     *  Returns the row count updated so the store can distinguish a stale-id miss from a real edit
+     *  (see code-review F7); zero means the update landed on nothing and no sync push is needed. */
     @Query(
         "UPDATE annotations SET emphasisStyles = :emphasisStyles, updatedAt = :updatedAt, " +
-            "lastModifiedByDeviceId = :deviceId WHERE id = :id AND type = 'EMPHASIS'"
+            "lastModifiedByDeviceId = :deviceId WHERE id = :id AND type = 'EMPHASIS' AND deleted = 0"
     )
-    suspend fun updateEmphasisStyles(id: String, emphasisStyles: String, updatedAt: Long, deviceId: String)
+    suspend fun updateEmphasisStyles(id: String, emphasisStyles: String, updatedAt: Long, deviceId: String): Int
 
     /** Live, non-deleted annotations for an item sorted by reading position (spine order, then
      *  within-chapter). Ties on (spineIndex, progression) — common when a bookmark at chapter top

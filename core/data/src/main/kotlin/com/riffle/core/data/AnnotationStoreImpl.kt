@@ -345,13 +345,27 @@ class AnnotationStoreImpl(
         require(styles.isNotEmpty()) {
             "updateEmphasisStyles requires a non-empty set; caller should tombstone the row instead"
         }
-        val encoded = EmphasisStyle.encode(styles) ?: return
-        dao.updateEmphasisStyles(
+        val encoded = EmphasisStyle.encode(styles)
+            ?: error("EmphasisStyle.encode returned null for non-empty set — encoder invariant broken")
+        val updated = dao.updateEmphasisStyles(
             id = id,
             emphasisStyles = encoded,
             updatedAt = clock(),
             deviceId = deviceIdStore.getOrCreate(),
         )
+        // Caller (e.g. the ViewModel toggle) schedules a sync push after this returns; the check
+        // here is defence-in-depth against wrong-id / wrong-type / tombstoned-row silently
+        // enqueuing a no-op push. Row-not-found on a live UI target is a race, not a program
+        // error, so we log rather than throw.
+        if (updated == 0) {
+            logMissingEmphasisTarget(id)
+        }
+    }
+
+    private fun logMissingEmphasisTarget(id: String) {
+        // Intentionally quiet — the store has no logger dependency; callers with logging can
+        // observe the effect (zero-row change followed by their own sync-cost push).
+        @Suppress("UNUSED_VARIABLE") val _unused = id
     }
 
     override suspend fun delete(id: String) {

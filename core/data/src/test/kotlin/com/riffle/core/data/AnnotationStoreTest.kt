@@ -137,9 +137,11 @@ class AnnotationStoreTest {
             emphasisStyles: String,
             updatedAt: Long,
             deviceId: String,
-        ) {
+        ): Int {
+            var updated = 0
             rows.value = rows.value.map {
-                if (it.id == id && it.type == AnnotationEntity.TYPE_EMPHASIS) {
+                if (it.id == id && it.type == AnnotationEntity.TYPE_EMPHASIS && !it.deleted) {
+                    updated++
                     it.copy(
                         emphasisStyles = emphasisStyles,
                         updatedAt = updatedAt,
@@ -147,6 +149,7 @@ class AnnotationStoreTest {
                     )
                 } else it
             }
+            return updated
         }
     }
 

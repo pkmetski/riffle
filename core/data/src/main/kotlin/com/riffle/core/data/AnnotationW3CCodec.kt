@@ -119,11 +119,11 @@ object AnnotationW3CCodec {
             // figure annotation. The decoder derives type from body composition regardless
             // (see w3cObjectToAnnotation), so this value isn't load-bearing on round-trip.
             AnnotationEntity.TYPE_IMAGE -> "describing"
-            // ADR 0046: emphasis (bold/italic/underline/strike) is closest to highlighting in
-            // W3C vocabulary — the range is being visually emphasised. Peers unaware of Riffle's
-            // riffle:emphasis body will see a plain highlight-like annotation without a colour
-            // and either ignore it or render nothing, which is a safe fallback.
-            AnnotationEntity.TYPE_EMPHASIS -> "highlighting"
+            // ADR 0046: emphasis rides on "commenting" so a legacy peer that doesn't know
+            // `riffle:emphasis` decodes it as a commenting-motivation annotation with no
+            // TextualBody value — NOT as a phantom empty-color highlight in the peer's
+            // Annotations View. See code-review F3.
+            AnnotationEntity.TYPE_EMPHASIS -> "commenting"
             else -> "commenting"
         }
 
@@ -488,14 +488,19 @@ object AnnotationW3CCodec {
             var imageBytes: String? = null
             var emphasisStyles: String? = null
 
-            // ADR 0046: riffle:emphasis body → TYPE_EMPHASIS + emphasisStyles token. Wins over the
-            // motivation-derived type (which was "highlighting" for the sake of legacy peers).
+            // ADR 0046: riffle:emphasis body → TYPE_EMPHASIS + emphasisStyles token. Emphasis
+            // wins the type-of-body arbitration: a malformed W3C annotation carrying BOTH a
+            // riffle:emphasis and a riffle:image body would otherwise be silently rewritten to
+            // TYPE_IMAGE/TYPE_HIGHLIGHT by the next block, leaving orphan emphasisStyles on a
+            // row of the wrong type (see code-review F5).
             if (emphasisBody != null) {
                 type = AnnotationEntity.TYPE_EMPHASIS
                 val value = emphasisBody["value"]?.jsonObject
                 emphasisStyles = value?.get("styles")?.jsonPrimitive?.contentOrNull?.takeIf { it.isNotBlank() }
             }
-            if (imageBodies.isNotEmpty()) {
+            // Emphasis wins over image-body type inference when both are present — the earlier
+            // `emphasisBody` block set type=TYPE_EMPHASIS; don't clobber it here.
+            if (imageBodies.isNotEmpty() && emphasisBody == null) {
                 if (textBody != null) {
                     type = AnnotationEntity.TYPE_HIGHLIGHT
                     embeddedFigures = imageBodies

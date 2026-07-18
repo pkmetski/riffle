@@ -112,9 +112,17 @@ class AnnotationSession @AssistedInject constructor(
     private val _annotationsPanelVisible = MutableStateFlow(false)
     val annotationsPanelVisible: StateFlow<Boolean> = _annotationsPanelVisible
 
-    /** All live annotations (highlights + bookmarks) for the current book, sorted by position. */
+    /** All live "review-surface" annotations for the current book, sorted by position. Excludes
+     *  [com.riffle.core.database.AnnotationEntity.TYPE_EMPHASIS] per ADR 0046 §6 (piggyback rule);
+     *  callers that need the render-side union (see [emphasisPool]) read from that flow instead. */
     private val _annotations = MutableStateFlow<List<Annotation>>(emptyList())
     val annotations: StateFlow<List<Annotation>> = _annotations
+
+    /** ADR 0046: live emphasis rows for the current book. Read synchronously by the highlight
+     *  render resolver to attach `emphasisStyles` to each `HighlightRender`. Held here so a change
+     *  to an emphasis row re-fires the same `bind` collect that rebuilds renders. */
+    private val _emphasisPool = MutableStateFlow<List<Annotation>>(emptyList())
+    val emphasisPool: StateFlow<List<Annotation>> = _emphasisPool
 
     /**
      * Carries both the resolved locator and a flag for whether the annotation was a page-level
@@ -199,7 +207,6 @@ class AnnotationSession @AssistedInject constructor(
 
     /** Coroutine jobs for observing highlights and all-annotations. Cancelled on [bind]. */
     private var highlightObserveJob: Job? = null
-    private var annotationsObserveJob: Job? = null
 
     /** Observes the per-book last-used highlight colour. Cancelled on [bind]. */
     private var lastUsedColorObserveJob: Job? = null
@@ -226,7 +233,6 @@ class AnnotationSession @AssistedInject constructor(
         annotationLiveSyncJob?.cancel()
         annotationLiveSyncJob = null
         highlightObserveJob?.cancel()
-        annotationsObserveJob?.cancel()
         lastUsedColorObserveJob?.cancel()
         // Reset to palette default so the previous book's colour doesn't leak into a new book that
         // has never had a colour picked. If the DataStore has a value for this book, the observer
@@ -246,14 +252,22 @@ class AnnotationSession @AssistedInject constructor(
         // Mark annotations as available now that we have an ABS server id.
         _annotationsAvailable.value = true
 
-        // ADR 0046: single subscription to the full annotations flow — set the pool BEFORE
-        // computing renders so `highlightRenderResolver` (which reads TYPE_EMPHASIS rows out of
-        // `_annotations.value` to attach `emphasisStyles`) sees an up-to-date pool. A change to
-        // any row type (add a highlight, add an emphasis, tombstone either) rebuilds renders.
-        // Cancel the sibling `annotationsObserveJob` — the split subscription is retired.
+        // ADR 0046: single subscription to the full annotations flow. Split the emissions into
+        // two pools BEFORE computing renders:
+        //   * `_annotations` — review-surface rows (highlights + bookmarks + images) for the
+        //     Annotations panel; emphasis rows are excluded per ADR 0046 §6 to keep the panel
+        //     from listing them as duplicate empty-color highlight rows.
+        //   * `_emphasisPool` — emphasis rows only; read synchronously by the render resolver so
+        //     an emphasis toggle re-attaches the `HighlightRender.emphasisStyles` union.
+        // A change to any row type rebuilds renders in the same collect.
         highlightObserveJob = scope.launch {
             annotationStore.observeAnnotations(sourceId, itemId).collect { all ->
-                _annotations.value = all
+                _annotations.value = all.filter {
+                    it.type != com.riffle.core.database.AnnotationEntity.TYPE_EMPHASIS
+                }
+                _emphasisPool.value = all.filter {
+                    it.type == com.riffle.core.database.AnnotationEntity.TYPE_EMPHASIS
+                }
                 val highlights = all.filter {
                     it.type == com.riffle.core.database.AnnotationEntity.TYPE_HIGHLIGHT
                 }

@@ -284,6 +284,7 @@ fun EpubReaderScreen(
     // Combined with [highlightToEdit] / [noteEditorTarget] below to gate Auto-Scroll / Cadence.
     var readerSelectionActive by remember { mutableStateOf(false) }
     val annotations by viewModel.annotations.collectAsState()
+    val emphasisPool by viewModel.emphasisPool.collectAsState()
     val isCurrentPageBookmarked by viewModel.isCurrentPageBookmarked.collectAsState()
     val highlightRenders by viewModel.highlightRenders.collectAsState()
     val highlightToEdit by viewModel.highlightToEdit.collectAsState()
@@ -528,6 +529,7 @@ fun EpubReaderScreen(
                         onDeleteHighlight = viewModel::deleteHighlight,
                         onUpdateHighlightNote = viewModel::updateHighlightNote,
                         onToggleEmphasis = viewModel::toggleEmphasisStyle,
+                        emphasisPool = emphasisPool,
                         highlightDomPatches = viewModel.highlightDomPatches,
                         showOpenInBook = shouldShowOpenInBook(viewModel.readerSource),
                         onOpenInBook = viewModel::openHighlightInSourceBook,
@@ -1333,6 +1335,10 @@ private fun EpubNavigatorView(
     onUpdateHighlightNote: (String, String?) -> Unit,
     /** ADR 0046: toggle a single emphasis style (bold/italic/underline/strike) over a highlight's range. */
     onToggleEmphasis: (String, com.riffle.core.domain.EmphasisStyle) -> Unit = { _, _ -> },
+    /** ADR 0046: live pool of emphasis rows for the current book, used to derive the popup's
+     *  chip active-state. Kept separate from `annotations` so the review-surface panel stays
+     *  piggyback-clean (see AnnotationSession). */
+    emphasisPool: List<com.riffle.core.domain.Annotation> = emptyList(),
     highlightDomPatches: Flow<com.riffle.app.feature.reader.highlights.HighlightsDomPatch>,
     showOpenInBook: Boolean = false,
     onOpenInBook: (String) -> Unit = {},
@@ -3009,9 +3015,8 @@ private fun EpubNavigatorView(
             val currentEmphasisStyles: Set<com.riffle.core.domain.EmphasisStyle> = run {
                 val hlCfi = currentAnnotation?.cfi
                 if (hlCfi.isNullOrEmpty()) emptySet()
-                else annotations.firstOrNull {
-                    it.type == com.riffle.core.database.AnnotationEntity.TYPE_EMPHASIS && it.cfi == hlCfi
-                }?.emphasisStyles.orEmpty()
+                else emphasisPool.firstOrNull { it.cfi == hlCfi }
+                    ?.emphasisStyles.orEmpty()
             }
             HighlightActionsPopup(
                 anchorRect = editTarget.anchorRect,
