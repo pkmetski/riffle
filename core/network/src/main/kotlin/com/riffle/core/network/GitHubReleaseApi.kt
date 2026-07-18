@@ -5,6 +5,7 @@ import kotlinx.coroutines.withContext
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
+import okhttp3.CacheControl
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.io.File
@@ -29,9 +30,15 @@ class GitHubReleaseApi(
      * doesn't stall the updater.
      */
     suspend fun latestRelease(repo: String): GitHubReleaseResult = withContext(dispatchers.io) {
+        // FORCE_NETWORK on the request: the only caller is the manual Settings "Check for updates"
+        // button whose contract is "check now". GitHub's response advertises `Cache-Control:
+        // max-age=60`, which the shared default OkHttp Cache honors — without this override a
+        // re-tap within 60s would serve the previous response from disk and the button would
+        // silently no-op. This forces every tap through to the origin.
         val request = Request.Builder()
             .url("$apiBaseUrl/repos/$repo/releases?per_page=10")
             .header("Accept", "application/vnd.github+json")
+            .cacheControl(CacheControl.FORCE_NETWORK)
             .get()
             .build()
         try {

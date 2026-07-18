@@ -58,9 +58,9 @@ class EndpointCacheHeadersInterceptorTest {
     }
 
     // Regression: the manual Settings "Check for updates" button is the only caller of the
-    // GitHub releases endpoint. Its contract is "check now," so this path must NOT be cached —
-    // any Cache-Control rule that matches `/repos/*/releases` would make the button silently
-    // no-op for up to the TTL window after the first check.
+    // GitHub releases endpoint. Its contract is "check now," so no rule here may stamp Cache-
+    // Control on that path. (GitHubReleaseApi.latestRelease also sends CacheControl.FORCE_NETWORK
+    // on the request so a re-tap bypasses GitHub's own 60s max-age — verified separately.)
     @Test fun `does not touch GitHub releases endpoint`() {
         server.enqueue(MockResponse().setResponseCode(200).setBody("[]"))
         val r = get("/repos/pkmetski/riffle/releases")
