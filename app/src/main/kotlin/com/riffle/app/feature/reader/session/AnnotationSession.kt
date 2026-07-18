@@ -270,27 +270,31 @@ class AnnotationSession @AssistedInject constructor(
         // Mark annotations as available now that we have an ABS server id.
         _annotationsAvailable.value = true
 
-        // ADR 0046: single subscription to the full annotations flow. Split the emissions into
-        // two pools BEFORE computing renders:
-        //   * `_annotations` — review-surface rows (highlights + bookmarks + images) for the
-        //     Annotations panel; emphasis rows are excluded per ADR 0046 §6 to keep the panel
-        //     from listing them as duplicate empty-color highlight rows.
-        //   * `_emphasisPool` — emphasis rows only; read synchronously by the render resolver so
-        //     an emphasis toggle re-attaches the `HighlightRender.emphasisStyles` union.
-        // A change to any row type rebuilds renders in the same collect.
+        // ADR 0046: single subscription combining the full annotations flow with the current
+        // edit-target so renders' `isBeingEdited` flag reflects sheet-open state in real time.
+        // Also splits the emissions into `_annotations` (review surface, no emphasis) and
+        // `_emphasisPool` (emphasis only) per ADR 0046 §6 piggyback rule.
         highlightObserveJob = scope.launch {
-            annotationStore.observeAnnotations(sourceId, itemId).collect { all ->
-                _annotations.value = all.filter {
-                    it.type != com.riffle.core.database.AnnotationEntity.TYPE_EMPHASIS
+            kotlinx.coroutines.flow.combine(
+                annotationStore.observeAnnotations(sourceId, itemId),
+                _highlightToEdit,
+            ) { all, target -> all to target?.id }
+                .collect { (all, editingId) ->
+                    _annotations.value = all.filter {
+                        it.type != com.riffle.core.database.AnnotationEntity.TYPE_EMPHASIS
+                    }
+                    _emphasisPool.value = all.filter {
+                        it.type == com.riffle.core.database.AnnotationEntity.TYPE_EMPHASIS
+                    }
+                    val highlights = all.filter {
+                        it.type == com.riffle.core.database.AnnotationEntity.TYPE_HIGHLIGHT
+                    }
+                    _highlightRenders.value = highlights.flatMap { h ->
+                        highlightRenderResolver(h).map { r ->
+                            r.copy(isBeingEdited = r.id == editingId)
+                        }
+                    }
                 }
-                _emphasisPool.value = all.filter {
-                    it.type == com.riffle.core.database.AnnotationEntity.TYPE_EMPHASIS
-                }
-                val highlights = all.filter {
-                    it.type == com.riffle.core.database.AnnotationEntity.TYPE_HIGHLIGHT
-                }
-                _highlightRenders.value = highlights.flatMap { highlightRenderResolver(it) }
-            }
         }
 
         // Observe the per-book last-used highlight colour so new highlights in THIS book are
@@ -421,6 +425,17 @@ class AnnotationSession @AssistedInject constructor(
             if (row.type != AnnotationEntity.TYPE_HIGHLIGHT &&
                 row.type != AnnotationEntity.TYPE_IMAGE
             ) return@launch
+            // ADR 0046 §4: on sheet dismiss, garbage-collect an annotation with no color AND no
+            // sibling emphasis at the same CFI — it's a phantom row that would paint nothing and
+            // waste sync bandwidth. Emphasis-carrying rows survive (empty color is a legit state
+            // for emphasis-only annotations).
+            if (row.type == AnnotationEntity.TYPE_HIGHLIGHT && row.color.isEmpty()) {
+                val hasEmphasis = _emphasisPool.value.any { it.cfi == row.cfi }
+                if (!hasEmphasis) {
+                    annotationStore.delete(id)
+                    return@launch
+                }
+            }
             mergeAfterEdit(id, row.color, row.note)
         }
     }

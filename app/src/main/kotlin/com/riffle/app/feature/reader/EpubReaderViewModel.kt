@@ -818,6 +818,10 @@ class EpubReaderViewModel @Inject constructor(
          *  a companion Readium underline decoration (v1) and — as the pipeline grows — inline CSS
          *  injection for the other three styles. */
         val emphasisStyles: Set<com.riffle.core.domain.EmphasisStyle> = emptySet(),
+        /** ADR 0046 §4: true iff the actions sheet is currently open on this highlight. The
+         *  renderer paints a temporary neutral wash on `∅`-color rows only while this is true,
+         *  so the user can see the range they're editing without a permanent visual footprint. */
+        val isBeingEdited: Boolean = false,
     )
 
     val highlightRenders: StateFlow<List<HighlightRender>> = annotationSession.highlightRenders
