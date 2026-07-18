@@ -25,6 +25,19 @@ internal class ReadiumHighlightRenderer(
      * rotation). In tests, always returns the same value to let the loop run to completion.
      */
     private val currentNavigatorStamp: () -> Any? = { null },
+    /**
+     * ADR 0046: evaluates arbitrary JS on the current chapter's WebView. Used to wrap emphasis
+     * ranges in styled `<span>`s so bold/italic actually reflow the underlying text — overlay
+     * decorations can't do that. Null (test / no-navigator paths) → the injector is skipped and
+     * emphasis falls back to overlay-only rendering.
+     */
+    private val evaluateJavascript: (suspend (String) -> Unit)? = null,
+    /**
+     * Provides the [EpubReaderViewModel.HighlightRender]s' textSnippet / textBefore for the DOM
+     * wrap script. Not on the render itself because the injector needs the raw annotation strings
+     * (Locator's `text.highlight` may be reflow-truncated or missing on early emits).
+     */
+    private val emphasisRangeProvider: () -> List<EmphasisDomInjector.EmphasisRange> = { emptyList() },
 ) : HighlightRenderer {
 
     private var hasSentenceDecoration = false
@@ -244,6 +257,15 @@ internal class ReadiumHighlightRenderer(
         }
         applyDecorationsWithClear(decorations, "emphasis")
         hasEmphasisDecorations = true
+        // ADR 0046: DOM injection for bold/italic. Runs after decorations so the overlay
+        // strikes/underlines land, then the wrap script mutates the DOM. Ranges are pulled fresh
+        // from the annotation pool (not from `renders`) because the pool carries the raw
+        // textSnippet/textBefore we need to disambiguate mid-page matches.
+        evaluateJavascript?.let { runJs ->
+            val ranges = emphasisRangeProvider()
+                .filter { it.styles.any { s -> s == EmphasisStyle.BOLD || s == EmphasisStyle.ITALIC } }
+            runJs(EmphasisDomInjector.script(ranges))
+        }
         // Same settle window as highlights so decoration rects follow post-reflow layout. Break
         // as soon as either the navigator instance OR the emphasis generation moves — the latter
         // means a fresh applyEmphasisCompanions call has landed with a different decoration list,

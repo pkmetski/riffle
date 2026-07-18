@@ -1477,6 +1477,10 @@ private fun EpubNavigatorView(
     // injection per ChapterWebView; ReadiumHighlightRenderer drives DecorableNavigator on the
     // attached fragment. The two pipelines are inherently different — the seam HighlightRenderer
     // type already abstracts the call sites, this `remember` only picks which concrete instance.
+    // ADR 0046: keep a live reference to the emphasis pool so the DOM-wrap injector reads the
+    // latest set each apply. `remember` below captures at composition; without this indirection
+    // the injector would always see the empty initial pool.
+    val emphasisPoolState = androidx.compose.runtime.rememberUpdatedState(emphasisPool)
     val highlightRenderer: HighlightRenderer = remember(isContinuous, readiumPresenter) {
         if (isContinuous) {
             ContinuousHighlightRenderer(targetProvider = { continuousViewRef.value })
@@ -1488,6 +1492,24 @@ private fun EpubNavigatorView(
                 },
                 fragmentLocator = ::fragmentLocator,
                 currentNavigatorStamp = { presenter.attachmentStamp() },
+                evaluateJavascript = { script -> presenter.evaluateJavascript(script) },
+                emphasisRangeProvider = {
+                    // Filtered to only rows needing DOM mutation (bold/italic); underline/strike
+                    // ride the overlay decoration path above.
+                    emphasisPoolState.value.mapNotNull { a ->
+                        val styles = a.emphasisStyles ?: return@mapNotNull null
+                        if (styles.none {
+                                it == com.riffle.core.domain.EmphasisStyle.BOLD ||
+                                    it == com.riffle.core.domain.EmphasisStyle.ITALIC
+                            }) return@mapNotNull null
+                        EmphasisDomInjector.EmphasisRange(
+                            id = a.id,
+                            textSnippet = a.textSnippet,
+                            textBefore = a.textBefore,
+                            styles = styles,
+                        )
+                    }
+                },
             )
         }
     }
@@ -3010,8 +3032,13 @@ private fun EpubNavigatorView(
             // decoration), so `current` above is always null for image annotations. Fall back to
             // the full annotations list so the palette can still show the current colour selected.
             val currentAnnotation = annotations.firstOrNull { it.id == editTarget.id }
-            val selectedColor = current?.let { HighlightColor.fromToken(it.color) }
-                ?: currentAnnotation?.let { HighlightColor.fromToken(it.color) }
+            // ADR 0046 §4: after `∅` the annotation's `color` is empty. `HighlightColor.fromToken`
+            // falls back to DEFAULT for unknown/empty (sync forward-compat), so passing an empty
+            // color through it would show yellow as selected. Detect empty here and pass null so
+            // the swatch row highlights the `∅` circle instead.
+            val effectiveColor = current?.color ?: currentAnnotation?.color
+            val selectedColor = if (effectiveColor.isNullOrEmpty()) null
+                else HighlightColor.fromToken(effectiveColor)
             // ADR 0046: derive the current emphasis set on this highlight's range so the popup
             // knows which B/I/U/S chips are active. Same-CFI equality — the "layered emphasis"
             // gesture is always relative to the visible highlight target.
