@@ -1883,6 +1883,14 @@ class EpubReaderViewModel @Inject constructor(
                 originFontFamily = draft.originFontFamily,
             )
         }
+        // ADR 0046 §4: persist the final emphasis set as the per-book default so the NEXT
+        // annotation on this book opens with the same chips pre-selected. Applies whether the
+        // user tapped a chip on the draft (combinedStyles contains it) or picked a colour only
+        // (combinedStyles is empty — clears the preset so a plain-color book stops nagging with
+        // an unrelated emphasis preset). Runs from the draft path too, not just from
+        // toggleEmphasisStyle, so the very first emphasis a user creates on a book teaches the
+        // preset for the next.
+        emphasisPreferencesStore.setLastUsedStyles(draft.sourceId, draft.itemId, combinedStyles)
         // Swap the sheet from the draft sentinel to the real annotation id so the popup rebinds
         // to the persisted row for subsequent edits.
         openHighlightActions(created.id, draft.anchorRect)

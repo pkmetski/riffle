@@ -73,42 +73,113 @@ internal object EmphasisDomInjector {
           }
           var annotations = __ANNOTATIONS__;
           if (!annotations.length) return;
-          function walk(match) {
+          function styleSpan(styles) {
+            var span = document.createElement('span');
+            span.setAttribute('data-riffle-em', styles.join(' '));
+            // Inline `style.setProperty(..., 'important')` beats every publisher stylesheet
+            // (including `!important` on descendants of :root).
+            if (styles.indexOf('bold') !== -1) span.style.setProperty('font-weight', 'bold', 'important');
+            if (styles.indexOf('italic') !== -1) span.style.setProperty('font-style', 'italic', 'important');
+            return span;
+          }
+          function collectTextNodesInRange(range) {
+            var startNode = range.startContainer;
+            var endNode = range.endContainer;
             var walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, null, false);
-            var node;
-            while (node = walker.nextNode()) {
-              var text = node.textContent;
-              var idx = text.indexOf(match.snippet);
-              if (idx < 0) continue;
-              if (match.before && match.before.length > 0) {
-                // Disambiguate by requiring the textBefore's suffix to line up with the chars
-                // preceding idx in the same node. Cross-node disambiguation not covered here —
-                // multiline before-context matches are skipped and the first single-node match wins.
-                var start = Math.max(0, idx - match.before.length);
-                var contextBefore = text.substring(start, idx);
-                if (contextBefore && !match.before.endsWith(contextBefore)) continue;
-              }
+            var nodes = [];
+            var include = false;
+            var n;
+            while (n = walker.nextNode()) {
+              if (n === startNode) include = true;
+              if (include) nodes.push(n);
+              if (n === endNode) break;
+            }
+            return nodes;
+          }
+          function wrapRange(range, styles) {
+            var startNode = range.startContainer;
+            var endNode = range.endContainer;
+            var startOff = range.startOffset;
+            var endOff = range.endOffset;
+            // Fast path: single text node — surroundContents is safe and preserves structure.
+            if (startNode === endNode) {
               try {
-                var range = document.createRange();
-                range.setStart(node, idx);
-                range.setEnd(node, idx + match.snippet.length);
-                var span = document.createElement('span');
-                span.setAttribute('data-riffle-em', match.styles.join(' '));
-                // Inline `style.setProperty(..., 'important')` gives us the highest CSS specificity
-                // that beats every publisher stylesheet (including `!important` on descendants of
-                // :root). An attribute-selector stylesheet in <head> would be defeated by publisher
-                // inline `style=""` and Readium's own inline styles on containing elements.
-                var hasBold = match.styles.indexOf('bold') !== -1;
-                var hasItalic = match.styles.indexOf('italic') !== -1;
-                if (hasBold) span.style.setProperty('font-weight', 'bold', 'important');
-                if (hasItalic) span.style.setProperty('font-style', 'italic', 'important');
-                range.surroundContents(span);
-              } catch (err) {
-                // surroundContents throws for ranges spanning element boundaries. The overlay
-                // decoration path (Readium underline / Riffle strike) still fires as a fallback
-                // so the annotation isn't invisible on complex markup.
+                range.surroundContents(styleSpan(styles));
+                return true;
+              } catch (e) {}
+            }
+            // Multi-node path: walk each text node the range covers and wrap its own portion.
+            // Handles `<code>` and other inline elements interrupting the snippet — the
+            // wash's range crosses element boundaries so surroundContents throws.
+            var nodes = collectTextNodesInRange(range);
+            for (var i = 0; i < nodes.length; i++) {
+              var node = nodes[i];
+              var s = (node === startNode) ? startOff : 0;
+              var e = (node === endNode) ? endOff : node.textContent.length;
+              if (s >= e) continue;
+              // Split so `middle` is exactly [s, e].
+              var middle = (s > 0) ? node.splitText(s) : node;
+              if (e - s < middle.textContent.length) middle.splitText(e - s);
+              var span = styleSpan(styles);
+              middle.parentNode.insertBefore(span, middle);
+              span.appendChild(middle);
+            }
+            return true;
+          }
+          // Build the concatenated body text once so we can find snippets that cross element
+          // boundaries — cross-`<code>` ranges (a common publisher pattern) never match a
+          // single text-node search.
+          function collectPageText() {
+            var walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, null, false);
+            var pieces = [];
+            var full = '';
+            var n;
+            while (n = walker.nextNode()) {
+              pieces.push({ node: n, start: full.length, text: n.textContent });
+              full += n.textContent;
+            }
+            return { pieces: pieces, full: full };
+          }
+          function rangeFromPageOffsets(page, startAbs, endAbs) {
+            var range = document.createRange();
+            var startSet = false, endSet = false;
+            for (var i = 0; i < page.pieces.length; i++) {
+              var p = page.pieces[i];
+              var pEnd = p.start + p.text.length;
+              if (!startSet && startAbs >= p.start && startAbs <= pEnd) {
+                range.setStart(p.node, startAbs - p.start);
+                startSet = true;
               }
-              return; // one match per annotation
+              if (!endSet && endAbs >= p.start && endAbs <= pEnd) {
+                range.setEnd(p.node, endAbs - p.start);
+                endSet = true;
+              }
+              if (startSet && endSet) break;
+            }
+            return (startSet && endSet) ? range : null;
+          }
+          var page = null;
+          function walk(match) {
+            if (!page) page = collectPageText();
+            var searchFrom = 0;
+            while (true) {
+              var idx = page.full.indexOf(match.snippet, searchFrom);
+              if (idx < 0) return;
+              if (match.before && match.before.length > 0) {
+                var ctxStart = Math.max(0, idx - match.before.length);
+                var ctx = page.full.substring(ctxStart, idx);
+                if (ctx && !match.before.endsWith(ctx)) {
+                  searchFrom = idx + 1;
+                  continue;
+                }
+              }
+              var range = rangeFromPageOffsets(page, idx, idx + match.snippet.length);
+              if (range) {
+                wrapRange(range, match.styles);
+                // Invalidate the cached page — splitText mutated the DOM.
+                page = null;
+              }
+              return;
             }
           }
           for (var j = 0; j < annotations.length; j++) walk(annotations[j]);
