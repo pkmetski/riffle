@@ -7,7 +7,7 @@ import com.riffle.core.data.CrossEpubIndexBuildTrigger
 import com.riffle.core.data.di.EpubCacheStore
 import com.riffle.core.data.di.EpubDownloadsStore
 import com.riffle.core.domain.BookSyncState
-import com.riffle.core.domain.Clock
+import com.riffle.core.common.Clock
 import com.riffle.core.domain.CrossEpubIndexStore
 import com.riffle.core.domain.DefaultPositionTranslator
 import com.riffle.core.domain.EpubChecksum

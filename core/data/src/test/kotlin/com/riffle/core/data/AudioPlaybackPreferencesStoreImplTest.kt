@@ -2,7 +2,7 @@ package com.riffle.core.data
 
 import com.riffle.core.database.AudioPlaybackPreferencesDao
 import com.riffle.core.database.AudioPlaybackPreferencesEntity
-import com.riffle.core.domain.AudioIdentity
+import com.riffle.core.models.AudioIdentity
 import com.riffle.core.domain.AudioPlaybackPreferencesStore.Companion.DEFAULT_PLAYBACK_SPEED
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals

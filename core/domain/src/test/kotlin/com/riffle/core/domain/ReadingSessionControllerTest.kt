@@ -8,6 +8,9 @@ import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import com.riffle.core.models.ProgressSyncCycleResult
+import com.riffle.core.models.SessionPayload
+import com.riffle.core.models.SyncSessionResult
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class ReadingSessionControllerTest {

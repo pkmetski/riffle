@@ -68,7 +68,7 @@ class AutoScrollControllerTest {
         // Big lineHeight makes px/s sizable enough to emit a whole pixel each ~16ms tick.
         controller.setLayoutContext { LayoutContext(wordsPerLine = 1f, lineHeightPx = 100f) }
         // Inject a deterministic clock tied to virtual time so dt is predictable.
-        controller.setClock(object : com.riffle.core.domain.Clock {
+        controller.setClock(object : com.riffle.core.common.Clock {
             override fun nowMs(): Long = testScheduler.currentTime
             override fun nowNs(): Long = testScheduler.currentTime * 1_000_000L
         })
@@ -91,7 +91,7 @@ class AutoScrollControllerTest {
     fun `ticker stops emitting after Stop is dispatched`() = runTest {
         val controller = AutoScrollController.forTest(StandardTestDispatcher(testScheduler))
         controller.setLayoutContext { LayoutContext(wordsPerLine = 1f, lineHeightPx = 100f) }
-        controller.setClock(object : com.riffle.core.domain.Clock {
+        controller.setClock(object : com.riffle.core.common.Clock {
             override fun nowMs(): Long = testScheduler.currentTime
             override fun nowNs(): Long = testScheduler.currentTime * 1_000_000L
         })

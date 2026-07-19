@@ -3,7 +3,7 @@ package com.riffle.core.data
 import com.riffle.core.data.testing.TestApplicationScope
 import com.riffle.core.domain.MediaOverlayClip
 import com.riffle.core.domain.ReadaloudAudioRepository
-import com.riffle.core.domain.ReadaloudLink
+import com.riffle.core.models.ReadaloudLink
 import com.riffle.core.domain.ReadaloudLinkRepository
 import com.riffle.core.domain.ReadaloudTrack
 import kotlinx.coroutines.CoroutineScope

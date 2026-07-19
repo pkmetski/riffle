@@ -1,6 +1,6 @@
 package com.riffle.core.network
 
-import com.riffle.core.domain.AudiobookFingerprint
+import com.riffle.core.models.AudiobookFingerprint
 
 fun interface StorytellerApi {
     suspend fun login(

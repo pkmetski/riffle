@@ -4,25 +4,25 @@ import androidx.lifecycle.SavedStateHandle
 import com.riffle.core.domain.AudiobookDownloadRepository
 import com.riffle.core.domain.AudiobookDownloadResult
 import com.riffle.core.domain.AudiobookSession
-import com.riffle.core.domain.Collection
+import com.riffle.core.models.Collection
 import com.riffle.core.domain.ConnectivityObserver
-import com.riffle.core.domain.EbookFormat
+import com.riffle.core.models.EbookFormat
 import com.riffle.core.domain.EpubDownloadResult
 import com.riffle.core.domain.EpubOpenResult
 import com.riffle.core.domain.EpubRepository
-import com.riffle.core.domain.Library
+import com.riffle.core.models.Library
 import com.riffle.core.domain.BundleAudiobookSource
-import com.riffle.core.domain.LibraryItem
+import com.riffle.core.models.LibraryItem
 import com.riffle.core.domain.LibraryItemOfflineAvailability
 import com.riffle.core.domain.LibraryRefreshResult
 import com.riffle.core.domain.LibraryObserver
 import com.riffle.core.domain.PdfDownloadResult
 import com.riffle.core.domain.PdfOpenResult
 import com.riffle.core.domain.PdfRepository
-import com.riffle.core.domain.Series
-import com.riffle.core.domain.Source
+import com.riffle.core.models.Series
+import com.riffle.core.models.Source
 import com.riffle.core.domain.SourceRepository
-import com.riffle.core.domain.SourceUrl
+import com.riffle.core.models.SourceUrl
 import com.riffle.core.domain.TokenStorage
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -76,7 +76,7 @@ class CollectionDetailViewModelTest {
         override suspend fun getItem(itemId: String): LibraryItem? = null
         override fun observeItem(itemId: String): Flow<LibraryItem?> = MutableStateFlow<LibraryItem?>(null)
         override suspend fun getItem(sourceId: String, itemId: String): LibraryItem? = getItem(itemId)
-        override suspend fun getLibrary(libraryId: String): com.riffle.core.domain.Library? = null
+        override suspend fun getLibrary(libraryId: String): com.riffle.core.models.Library? = null
         override suspend fun getSeriesIdForItem(sourceId: String, itemId: String): String? = null
     }
 

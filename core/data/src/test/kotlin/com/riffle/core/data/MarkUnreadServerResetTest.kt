@@ -9,9 +9,9 @@ import com.riffle.core.domain.PendingSource
 import com.riffle.core.domain.ReadaloudResumePosition
 import com.riffle.core.domain.ReadaloudResumeStore
 import com.riffle.core.domain.ReadingPositionStore
-import com.riffle.core.domain.Source
+import com.riffle.core.models.Source
 import com.riffle.core.domain.SourceRepository
-import com.riffle.core.domain.SourceUrl
+import com.riffle.core.models.SourceUrl
 import com.riffle.core.domain.TokenStorage
 import com.riffle.core.network.AbsSessionApi
 import com.riffle.core.network.NetworkAudiobookProgressPayload

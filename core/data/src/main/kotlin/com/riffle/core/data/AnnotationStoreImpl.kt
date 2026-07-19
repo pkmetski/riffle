@@ -2,12 +2,12 @@ package com.riffle.core.data
 
 import com.riffle.core.database.AnnotationDao
 import com.riffle.core.database.AnnotationEntity
-import com.riffle.core.domain.Annotation
+import com.riffle.core.models.Annotation
 import com.riffle.core.domain.AnnotationStore
-import com.riffle.core.domain.Clock
+import com.riffle.core.common.Clock
 import com.riffle.core.domain.DeviceIdStore
-import com.riffle.core.domain.EmbeddedFigure
-import com.riffle.core.domain.EmphasisStyle
+import com.riffle.core.models.EmbeddedFigure
+import com.riffle.core.models.EmphasisStyle
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.serialization.builtins.ListSerializer

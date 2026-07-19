@@ -6,7 +6,7 @@ import com.riffle.core.domain.AnnotationSweepEnqueuer
 import com.riffle.core.domain.AnnotationSyncTarget
 import com.riffle.core.domain.DeviceIdStore
 import com.riffle.core.domain.DeviceLabelResolver
-import com.riffle.core.domain.AnnotationFileHeader
+import com.riffle.core.models.AnnotationFileHeader
 import java.time.Instant
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job

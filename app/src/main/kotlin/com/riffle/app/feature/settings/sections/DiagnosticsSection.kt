@@ -23,7 +23,7 @@ import androidx.core.content.FileProvider
 import com.riffle.app.feature.settings.DrillInChevron
 import com.riffle.app.feature.settings.SettingsSectionHeader
 import com.riffle.app.feature.settings.crashReportShareSubject
-import com.riffle.core.domain.CrashReport
+import com.riffle.core.models.CrashReport
 import java.io.File
 import java.text.DateFormat
 import java.util.Date

@@ -1,6 +1,8 @@
 package com.riffle.core.domain
 
 import kotlinx.coroutines.flow.Flow
+import com.riffle.core.models.InsecureConnectionType
+import com.riffle.core.models.Source
 
 /**
  * Outcome of a credentialed authenticate handshake, produced by

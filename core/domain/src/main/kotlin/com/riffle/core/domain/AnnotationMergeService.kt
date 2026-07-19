@@ -1,4 +1,5 @@
 package com.riffle.core.domain
+import com.riffle.core.models.W3CAnnotation
 
 /**
  * Pure merge logic for annotations using last-write-wins (LWW) by (uuid, updatedAt).

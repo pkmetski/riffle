@@ -28,6 +28,8 @@ dependencyResolutionManagement {
 rootProject.name = "riffle"
 
 include(":app")
+include(":core:common")
+include(":core:models")
 include(":core:domain")
 include(":core:network")
 include(":core:database")

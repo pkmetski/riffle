@@ -16,10 +16,10 @@ import com.riffle.app.feature.reader.readaloud.ReadaloudController
 import com.riffle.core.data.ReadaloudSidecarStore
 import com.riffle.core.data.StorytellerPositionSyncController
 import com.riffle.core.data.StorytellerSyncOutcome
-import com.riffle.core.domain.Annotation
+import com.riffle.core.models.Annotation
 import com.riffle.core.domain.AnnotationStore
-import com.riffle.core.domain.Clock
-import com.riffle.core.domain.AudioIdentity
+import com.riffle.core.common.Clock
+import com.riffle.core.models.AudioIdentity
 import com.riffle.core.domain.AudioIdentityResolver
 import com.riffle.core.domain.AudioPlaybackPreferencesStore
 import com.riffle.core.domain.ListeningPreferencesStore
@@ -45,19 +45,19 @@ import com.riffle.core.domain.ReaderOrientation
 import com.riffle.core.domain.ProgressSyncController
 import com.riffle.core.domain.ReadingSessionCoordinator
 import com.riffle.core.domain.ReadingSessionRepository
-import com.riffle.core.domain.ServerProgress
+import com.riffle.core.models.ServerProgress
 import com.riffle.core.domain.SourceRepository
-import com.riffle.core.domain.HighlightColor
+import com.riffle.core.models.HighlightColor
 import com.riffle.core.domain.ReadaloudPreferencesStore
 import com.riffle.core.domain.ReadaloudResumeStore
 import com.riffle.core.domain.HighlightsResumeStore
 import com.riffle.core.domain.ReadaloudTrack
 import com.riffle.core.domain.ReadingPositionStore
 import com.riffle.core.domain.ReadingSpeedStore
-import com.riffle.core.domain.SessionPayload
-import com.riffle.core.domain.TimeProvider
-import com.riffle.core.domain.TimeRemaining
-import com.riffle.core.domain.TocEntry
+import com.riffle.core.models.SessionPayload
+import com.riffle.core.common.TimeProvider
+import com.riffle.core.common.TimeRemaining
+import com.riffle.core.models.TocEntry
 import com.riffle.core.domain.TocRepository
 import com.riffle.core.domain.resolveEpubHref
 import com.riffle.core.database.AnnotationDao
@@ -146,9 +146,9 @@ private fun entityFontFamily(annotation: Annotation): String? =
  * decision is JVM-testable without standing up the ViewModel.
  */
 internal fun combineDraftEmphasisStyles(
-    preset: Set<com.riffle.core.domain.EmphasisStyle>,
-    tapped: com.riffle.core.domain.EmphasisStyle?,
-): Set<com.riffle.core.domain.EmphasisStyle> = when {
+    preset: Set<com.riffle.core.models.EmphasisStyle>,
+    tapped: com.riffle.core.models.EmphasisStyle?,
+): Set<com.riffle.core.models.EmphasisStyle> = when {
     tapped == null -> preset
     tapped in preset -> preset - tapped
     else -> preset + tapped
@@ -835,7 +835,7 @@ class EpubReaderViewModel @Inject constructor(
          *  row that overlaps this highlight's CFI range. Empty when no emphasis is layered. Drives
          *  a companion Readium underline decoration (v1) and — as the pipeline grows — inline CSS
          *  injection for the other three styles. */
-        val emphasisStyles: Set<com.riffle.core.domain.EmphasisStyle> = emptySet(),
+        val emphasisStyles: Set<com.riffle.core.models.EmphasisStyle> = emptySet(),
         /** ADR 0046 §4: true iff the actions sheet is currently open on this highlight. The
          *  renderer paints a temporary neutral wash on `∅`-color rows only while this is true,
          *  so the user can see the range they're editing without a permanent visual footprint. */
@@ -847,11 +847,11 @@ class EpubReaderViewModel @Inject constructor(
     /** ADR 0046: live emphasis rows for the current book. Screen reads this to derive which
      *  B/I/U/S chips are active for the highlight the sheet is open on. Kept out of
      *  [annotations] to keep the review-surface panel piggyback-clean. */
-    val emphasisPool: StateFlow<List<com.riffle.core.domain.Annotation>> = annotationSession.emphasisPool
+    val emphasisPool: StateFlow<List<com.riffle.core.models.Annotation>> = annotationSession.emphasisPool
 
     /** ADR 0046 §4: per-book last-used emphasis set, delegated so the screen can preview it as
      *  chip pre-selection when the sheet opens on a draft. */
-    val lastUsedEmphasisStyles: StateFlow<Set<com.riffle.core.domain.EmphasisStyle>> =
+    val lastUsedEmphasisStyles: StateFlow<Set<com.riffle.core.models.EmphasisStyle>> =
         annotationSession.lastUsedEmphasisStyles
 
     /** ADR 0046 §4: the in-flight [AnnotationSession.DraftAnnotation], if any. The screen reads
@@ -1916,7 +1916,7 @@ class EpubReaderViewModel @Inject constructor(
      */
     private suspend fun commitDraft(
         initialColor: String,
-        addEmphasisStyle: com.riffle.core.domain.EmphasisStyle? = null,
+        addEmphasisStyle: com.riffle.core.models.EmphasisStyle? = null,
     ) {
         val draft = annotationSession.draftAnnotation.value ?: return
         // Cleanup of a fully-empty annotation (no colour + no emphasis + no note) is deferred
@@ -2230,7 +2230,7 @@ class EpubReaderViewModel @Inject constructor(
         anchorId: String,
         pool: List<Annotation>,
         absorbedHighlights: List<Annotation> = emptyList(),
-    ): List<com.riffle.core.domain.EmbeddedFigure>? {
+    ): List<com.riffle.core.models.EmbeddedFigure>? {
         val walked = findEnclosedFiguresInHtml(html, mergedStartChar, mergedEndChar - 1L)
         if (walked.isEmpty()) return null
         // Index bytes/svg from every source row's embeddedFigures so a re-walk of the merged
@@ -2460,7 +2460,7 @@ class EpubReaderViewModel @Inject constructor(
                 // and an outer <p> for the same string (the "text doubled under each graph" bug
                 // observed on 2026-07-14). Leaving the field empty keeps the DB clean for new
                 // caption-highlights; existing rows are handled render-side.
-                val figure = com.riffle.core.domain.EmbeddedFigure(
+                val figure = com.riffle.core.models.EmbeddedFigure(
                     href = payload.href,
                     svg = payload.svg,
                     caption = "",
@@ -2587,7 +2587,7 @@ class EpubReaderViewModel @Inject constructor(
      *  and each create a fresh emphasis row at the identical CFI. See code-review F4. */
     private val emphasisToggleMutex = kotlinx.coroutines.sync.Mutex()
 
-    fun toggleEmphasisStyle(highlightId: String, style: com.riffle.core.domain.EmphasisStyle) {
+    fun toggleEmphasisStyle(highlightId: String, style: com.riffle.core.models.EmphasisStyle) {
         // ADR 0046 §4: draft emphasis tap → commit with color="" + the tapped style. Preserves
         // any last-used emphasis pre-selection as the base, then adds the tapped chip on top.
         if (highlightId == com.riffle.app.feature.reader.session.AnnotationSession.DRAFT_ANNOTATION_ID) {
@@ -2605,7 +2605,7 @@ class EpubReaderViewModel @Inject constructor(
                 val existing = annotationSession.emphasisPool.value.firstOrNull {
                     it.cfi == highlight.cfi
                 }
-                val resultingStyles: Set<com.riffle.core.domain.EmphasisStyle> = if (existing != null) {
+                val resultingStyles: Set<com.riffle.core.models.EmphasisStyle> = if (existing != null) {
                     val current = existing.emphasisStyles.orEmpty()
                     val next = if (style in current) current - style else current + style
                     if (next.isEmpty()) {
@@ -2826,7 +2826,7 @@ class EpubReaderViewModel @Inject constructor(
      *  what [HighlightsPublicationFactory.renderChapterHtml] bakes into the initial HTML so a
      *  live recolour lands on the SAME colour a fresh page load would produce. */
     private fun highlightAccentCssRgba(colorToken: String): String =
-        com.riffle.core.domain.HighlightColor.fromToken(colorToken).argb.toCssRgba()
+        com.riffle.core.models.HighlightColor.fromToken(colorToken).argb.toCssRgba()
 
     /** Soft-delete a highlight; annotationStore re-emits without it → decoration is removed.
      *  Highlights mode: the observer sees the id disappear and dispatches a Remove DOM patch
@@ -3056,7 +3056,7 @@ class EpubReaderViewModel @Inject constructor(
 
     val annotationsPanelVisible: StateFlow<Boolean> = annotationSession.annotationsPanelVisible
 
-    val annotations: StateFlow<List<com.riffle.core.domain.Annotation>> = annotationSession.annotations
+    val annotations: StateFlow<List<com.riffle.core.models.Annotation>> = annotationSession.annotations
 
     val annotationNavigationEvents: Flow<AnnotationSession.AnnotationNavigationEvent> = annotationSession.annotationNavigationEvents
 

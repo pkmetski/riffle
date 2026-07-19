@@ -12,7 +12,7 @@ import androidx.lifecycle.ProcessLifecycleOwner
 import com.riffle.core.database.LocalFilesFolderDao
 import com.riffle.core.domain.ApplicationScope
 import com.riffle.core.domain.SourceRepository
-import com.riffle.core.domain.SourceType
+import com.riffle.core.models.SourceType
 import com.riffle.core.logging.LogChannel
 import com.riffle.core.logging.Logger
 import dagger.hilt.android.qualifiers.ApplicationContext

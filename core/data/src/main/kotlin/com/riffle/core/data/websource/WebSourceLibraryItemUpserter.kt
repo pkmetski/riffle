@@ -5,7 +5,7 @@ import com.riffle.core.catalog.CatalogItem
 import com.riffle.core.database.LibraryItemDao
 import com.riffle.core.database.LibraryItemEntity
 import com.riffle.core.database.LibraryItemMetadata
-import com.riffle.core.domain.EbookFormat
+import com.riffle.core.models.EbookFormat
 import javax.inject.Inject
 
 /**

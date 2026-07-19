@@ -1,9 +1,9 @@
 package com.riffle.core.data.credentialed
 
 import com.riffle.core.domain.AuthenticateResult
-import com.riffle.core.domain.ServerType
-import com.riffle.core.domain.SourceType
-import com.riffle.core.domain.SourceUrl
+import com.riffle.core.models.ServerType
+import com.riffle.core.models.SourceType
+import com.riffle.core.models.SourceUrl
 
 /**
  * Per-[SourceType] plug-in that owns the "user has typed URL + username + password" step of

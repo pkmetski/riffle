@@ -15,9 +15,9 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import coil.compose.SubcomposeAsyncImage
 import coil.request.ImageRequest
-import com.riffle.core.domain.ServerType
-import com.riffle.core.domain.Source
-import com.riffle.core.domain.SourceType
+import com.riffle.core.models.ServerType
+import com.riffle.core.models.Source
+import com.riffle.core.models.SourceType
 
 /**
  * Renders the icon for a configured [Source]: fetches the server's favicon via Coil (using the

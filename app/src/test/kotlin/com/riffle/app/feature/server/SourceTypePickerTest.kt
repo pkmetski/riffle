@@ -1,6 +1,6 @@
 package com.riffle.app.feature.server
 
-import com.riffle.core.domain.SourceType
+import com.riffle.core.models.SourceType
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue

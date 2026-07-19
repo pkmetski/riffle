@@ -44,8 +44,8 @@ import com.riffle.app.feature.settings.SettingsSectionHeader
 import com.riffle.app.feature.settings.SettingsViewModel
 import com.riffle.app.feature.settings.StorytellerBadge
 import com.riffle.app.feature.settings.disabledListItemColors
-import com.riffle.core.domain.HighlightColor
-import com.riffle.core.domain.ServerType
+import com.riffle.core.models.HighlightColor
+import com.riffle.core.models.ServerType
 
 /**
  * Full-screen drill-in that hosts every Readaloud-related setting. Reached from the collapsed

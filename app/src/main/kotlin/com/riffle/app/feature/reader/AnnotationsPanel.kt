@@ -55,8 +55,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.riffle.app.ui.fadingScrollbar
 import com.riffle.core.database.AnnotationEntity
-import com.riffle.core.domain.Annotation
-import com.riffle.core.domain.HighlightColor
+import com.riffle.core.models.Annotation
+import com.riffle.core.models.HighlightColor
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

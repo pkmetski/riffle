@@ -1,8 +1,8 @@
 package com.riffle.app.feature.reader
 
 import com.riffle.core.database.AnnotationEntity
-import com.riffle.core.domain.Annotation
-import com.riffle.core.domain.EmphasisStyle
+import com.riffle.core.models.Annotation
+import com.riffle.core.models.EmphasisStyle
 import com.riffle.core.domain.normalizeEpubHref
 
 // Auto-merge adjacent highlights (2026-07-05 spec). Pure text-anchored logic so both the

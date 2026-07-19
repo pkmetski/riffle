@@ -35,8 +35,8 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import com.riffle.app.ui.TabletContentWidthContainer
 import com.riffle.app.ui.source.SourceTypeIcon
-import com.riffle.core.domain.ServerType
-import com.riffle.core.domain.SourceType
+import com.riffle.core.models.ServerType
+import com.riffle.core.models.SourceType
 import com.riffle.core.domain.WebSourceDescriptors
 
 data class SourceTypeCard(

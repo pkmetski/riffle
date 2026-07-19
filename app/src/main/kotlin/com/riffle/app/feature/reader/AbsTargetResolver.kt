@@ -1,6 +1,6 @@
 package com.riffle.app.feature.reader
 
-import com.riffle.core.domain.ReadaloudLink
+import com.riffle.core.models.ReadaloudLink
 
 /** A readaloud's ABS link paired with the media its Library Item carries. */
 data class AbsLinkMedia(

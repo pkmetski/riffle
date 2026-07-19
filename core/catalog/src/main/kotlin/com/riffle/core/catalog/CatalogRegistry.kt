@@ -1,6 +1,6 @@
 package com.riffle.core.catalog
 
-import com.riffle.core.domain.Source
+import com.riffle.core.models.Source
 
 /**
  * Resolves the [Catalog] to consult for a given [Source]. Backed by a `Map<SourceType, CatalogFactory>`

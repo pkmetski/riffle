@@ -6,7 +6,7 @@ import androidx.test.platform.app.InstrumentationRegistry
 import com.riffle.core.data.AudioPlaybackPreferencesStoreImpl
 import com.riffle.core.database.RiffleDatabase
 import com.riffle.core.database.SourceEntity
-import com.riffle.core.domain.AudioIdentity
+import com.riffle.core.models.AudioIdentity
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals

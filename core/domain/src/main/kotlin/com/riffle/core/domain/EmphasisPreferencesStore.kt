@@ -1,6 +1,7 @@
 package com.riffle.core.domain
 
 import kotlinx.coroutines.flow.Flow
+import com.riffle.core.models.EmphasisStyle
 
 /**
  * Per-book "last-used" emphasis styles set for user-created emphasis annotations (ADR 0046).

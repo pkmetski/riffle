@@ -8,10 +8,10 @@ import com.riffle.core.catalog.CatalogRegistry
 import com.riffle.core.catalog.gutenberg.GutenbergCatalog
 import com.riffle.core.data.websource.WebSourceItemGate
 import com.riffle.core.data.websource.WebSourceLibraryItemUpserter
-import com.riffle.core.domain.Source
+import com.riffle.core.models.Source
 import com.riffle.core.domain.SourceRepository
-import com.riffle.core.domain.SourceType
-import com.riffle.core.domain.SourceUrl
+import com.riffle.core.models.SourceType
+import com.riffle.core.models.SourceUrl
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.mockk

@@ -7,7 +7,7 @@ import com.riffle.core.data.AnnotationSyncStatusStore
 import com.riffle.core.domain.DeviceIdStore
 import com.riffle.core.domain.DeviceLabelResolver
 import com.riffle.core.domain.DeviceLabelStore
-import com.riffle.core.domain.Source
+import com.riffle.core.models.Source
 import com.riffle.core.domain.SourceRepository
 import com.riffle.core.domain.SyncNamespace
 import com.riffle.core.domain.WebSourceDescriptors

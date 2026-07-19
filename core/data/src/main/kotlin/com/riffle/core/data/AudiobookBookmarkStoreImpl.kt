@@ -2,7 +2,7 @@ package com.riffle.core.data
 
 import com.riffle.core.database.AudiobookBookmarkDao
 import com.riffle.core.database.AudiobookBookmarkEntity
-import com.riffle.core.domain.AudiobookBookmark
+import com.riffle.core.models.AudiobookBookmark
 import com.riffle.core.domain.AudiobookBookmarkStore
 import java.util.UUID
 import javax.inject.Inject

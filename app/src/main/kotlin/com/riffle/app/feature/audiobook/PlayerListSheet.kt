@@ -37,7 +37,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import com.riffle.core.domain.AudiobookBookmark
+import com.riffle.core.models.AudiobookBookmark
 import com.riffle.core.domain.AudiobookChapter
 
 /**

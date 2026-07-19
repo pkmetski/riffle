@@ -12,7 +12,7 @@ import com.riffle.core.domain.CrossEpubIndexStore
 import com.riffle.core.domain.EpubChecksum
 import com.riffle.core.domain.EpubContentExtractor
 import com.riffle.core.domain.LocalStore
-import com.riffle.core.domain.ReadaloudLink
+import com.riffle.core.models.ReadaloudLink
 import kotlinx.coroutines.launch
 import java.io.File
 import java.util.Collections

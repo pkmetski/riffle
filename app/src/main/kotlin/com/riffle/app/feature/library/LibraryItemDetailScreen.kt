@@ -85,8 +85,8 @@ import coil.request.ImageRequest
 import com.riffle.app.feature.reader.TocPanel
 import com.riffle.app.ui.isPhoneLandscape
 import com.riffle.app.ui.isTabletLayout
-import com.riffle.core.domain.EbookFormat
-import com.riffle.core.domain.LibraryItem
+import com.riffle.core.models.EbookFormat
+import com.riffle.core.models.LibraryItem
 import kotlinx.coroutines.launch
 import com.riffle.app.ui.source.asAuthHeader
 
@@ -416,7 +416,7 @@ private fun LibraryItemDetailContent(
             AudiobookDurationLine(item.audioDurationSec, item.readingProgress)
         }
 
-        if (item.ebookFormat == com.riffle.core.domain.EbookFormat.Cbz && (item.pageCount ?: 0) > 0) {
+        if (item.ebookFormat == com.riffle.core.models.EbookFormat.Cbz && (item.pageCount ?: 0) > 0) {
             ComicPageCountLine(pageCount = item.pageCount!!)
         }
 
@@ -660,7 +660,7 @@ internal fun LibraryItemDetailContentTablet(
             if (item.isListenable && item.audioDurationSec > 0) {
                 AudiobookDurationLine(item.audioDurationSec, item.readingProgress)
             }
-            if (item.ebookFormat == com.riffle.core.domain.EbookFormat.Cbz && (item.pageCount ?: 0) > 0) {
+            if (item.ebookFormat == com.riffle.core.models.EbookFormat.Cbz && (item.pageCount ?: 0) > 0) {
                 ComicPageCountLine(pageCount = item.pageCount!!)
             }
             if (item.readingProgress > 0f) {
@@ -872,7 +872,7 @@ internal fun LibraryItemDetailContentPhoneLandscape(
             if (item.isListenable && item.audioDurationSec > 0) {
                 AudiobookDurationLine(item.audioDurationSec, item.readingProgress)
             }
-            if (item.ebookFormat == com.riffle.core.domain.EbookFormat.Cbz && (item.pageCount ?: 0) > 0) {
+            if (item.ebookFormat == com.riffle.core.models.EbookFormat.Cbz && (item.pageCount ?: 0) > 0) {
                 ComicPageCountLine(pageCount = item.pageCount!!)
             }
             if (item.readingProgress > 0f) {

@@ -6,7 +6,7 @@ import com.riffle.app.feature.reader.HighlightRenderer
 import com.riffle.app.feature.reader.presenter.ReadaloudFollowResult
 import com.riffle.app.feature.reader.presenter.ReaderPresenter
 import com.riffle.app.feature.reader.presenter.ReadiumPresenter
-import com.riffle.core.domain.HighlightColor
+import com.riffle.core.models.HighlightColor
 import com.riffle.core.domain.SentenceQuote
 import org.readium.r2.shared.publication.Locator
 

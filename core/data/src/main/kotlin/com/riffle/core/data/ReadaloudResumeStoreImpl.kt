@@ -2,7 +2,7 @@ package com.riffle.core.data
 
 import com.riffle.core.database.ReadaloudResumePositionDao
 import com.riffle.core.database.ReadaloudResumePositionEntity
-import com.riffle.core.domain.Clock
+import com.riffle.core.common.Clock
 import com.riffle.core.domain.ReadaloudResumePosition
 import com.riffle.core.domain.ReadaloudResumeStore
 import javax.inject.Inject

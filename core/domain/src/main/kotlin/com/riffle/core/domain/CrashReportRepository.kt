@@ -1,6 +1,7 @@
 package com.riffle.core.domain
 
 import java.io.File
+import com.riffle.core.models.CrashReport
 
 interface CrashReportRepository {
     /** All recorded crashes, newest first. Empty when none have occurred since install. */

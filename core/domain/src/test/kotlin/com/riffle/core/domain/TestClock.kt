@@ -1,5 +1,7 @@
 package com.riffle.core.domain
 
+import com.riffle.core.common.Clock
+
 /**
  * Controllable [Clock] for tests — start at any epoch instant, advance by [advance] or set
  * absolutely via [setNowMs]. `nowNs()` advances in lock-step with millis (1ms = 1_000_000ns).

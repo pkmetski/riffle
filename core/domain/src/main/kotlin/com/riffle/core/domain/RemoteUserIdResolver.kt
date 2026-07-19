@@ -1,4 +1,5 @@
 package com.riffle.core.domain
+import com.riffle.core.models.Source
 
 /**
  * Per-[SourceType] hook that fetches this source kind's stable cross-device user identity from

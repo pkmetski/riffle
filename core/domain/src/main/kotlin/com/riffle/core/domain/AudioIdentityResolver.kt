@@ -1,4 +1,5 @@
 package com.riffle.core.domain
+import com.riffle.core.models.AudioIdentity
 
 /**
  * Resolves the canonical [AudioIdentity] for a readaloud (ADR 0028): the linked audiobook's ABS id

@@ -2,11 +2,11 @@ package com.riffle.app.feature.library
 
 import com.riffle.core.domain.AnnotationStore
 import com.riffle.core.domain.AudiobookBookmarkStore
-import com.riffle.core.domain.Collection
-import com.riffle.core.domain.LibraryItem
+import com.riffle.core.models.Collection
+import com.riffle.core.models.LibraryItem
 import com.riffle.core.domain.LibraryItemOfflineAvailability
 import com.riffle.core.domain.LibraryObserver
-import com.riffle.core.domain.Series
+import com.riffle.core.models.Series
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine

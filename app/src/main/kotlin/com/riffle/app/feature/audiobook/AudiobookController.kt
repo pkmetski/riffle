@@ -8,11 +8,11 @@ import com.riffle.app.feature.audio.MediaSessionConnector
 import com.riffle.app.feature.audio.formatRemainingReadable
 import com.riffle.app.feature.reader.readaloud.SharedBundle
 import com.riffle.core.domain.ApplicationScope
-import com.riffle.core.domain.AudiobookTrackSpan
-import com.riffle.core.domain.AudiobookTracks
-import com.riffle.core.domain.Clock
+import com.riffle.core.models.AudiobookTrackSpan
+import com.riffle.core.models.AudiobookTracks
+import com.riffle.core.common.Clock
 import com.riffle.core.domain.DispatcherProvider
-import com.riffle.core.domain.SystemClock
+import com.riffle.core.common.SystemClock
 import com.riffle.core.logging.LogChannel
 import com.riffle.core.logging.Logger
 import com.riffle.core.logging.RecordingLogger

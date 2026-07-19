@@ -49,9 +49,9 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.riffle.app.BuildConfig
 import com.riffle.app.ui.source.SourceIcon
-import com.riffle.core.domain.Library
-import com.riffle.core.domain.Source
-import com.riffle.core.domain.SourceType
+import com.riffle.core.models.Library
+import com.riffle.core.models.Source
+import com.riffle.core.models.SourceType
 import com.riffle.core.domain.WebSourceDescriptors
 
 @OptIn(ExperimentalMaterial3Api::class)

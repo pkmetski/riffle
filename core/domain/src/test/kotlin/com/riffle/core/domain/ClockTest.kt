@@ -1,7 +1,10 @@
 package com.riffle.core.domain
+import com.riffle.core.common.Clock
 
 import org.junit.Assert.assertEquals
 import org.junit.Test
+import com.riffle.core.common.SystemClock
+import com.riffle.core.domain.TestClock
 
 class ClockTest {
 

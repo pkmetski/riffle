@@ -12,7 +12,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.riffle.app.feature.settings.panels.AutoScrollSettingsPanel
 import com.riffle.app.feature.settings.panels.CadenceSettingsPanel
 import com.riffle.core.domain.FormattingPreferences
-import com.riffle.core.domain.HighlightColor
+import com.riffle.core.models.HighlightColor
 import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test

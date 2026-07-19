@@ -2,8 +2,8 @@ package com.riffle.app.feature.library
 
 import com.riffle.core.domain.AudiobookChapter
 import com.riffle.core.domain.AudiobookChapterCacheRepository
-import com.riffle.core.domain.EbookFormat
-import com.riffle.core.domain.LibraryItem
+import com.riffle.core.models.EbookFormat
+import com.riffle.core.models.LibraryItem
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.mockk

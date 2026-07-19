@@ -1,6 +1,6 @@
 package com.riffle.app.feature.reader
 
-import com.riffle.core.domain.EmbeddedFigure
+import com.riffle.core.models.EmbeddedFigure
 import java.util.concurrent.atomic.AtomicReference
 
 /**

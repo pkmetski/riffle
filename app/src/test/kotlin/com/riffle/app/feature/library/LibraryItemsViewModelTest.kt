@@ -4,14 +4,14 @@ import androidx.lifecycle.SavedStateHandle
 import com.riffle.core.domain.AudiobookDownloadRepository
 import com.riffle.core.domain.AudiobookDownloadResult
 import com.riffle.core.domain.AudiobookSession
-import com.riffle.core.domain.Collection
+import com.riffle.core.models.Collection
 import com.riffle.core.domain.ConnectivityObserver
-import com.riffle.core.domain.EbookFormat
+import com.riffle.core.models.EbookFormat
 import com.riffle.core.domain.EpubDownloadResult
 import com.riffle.core.domain.EpubOpenResult
 import com.riffle.core.domain.EpubRepository
-import com.riffle.core.domain.Library
-import com.riffle.core.domain.LibraryItem
+import com.riffle.core.models.Library
+import com.riffle.core.models.LibraryItem
 import com.riffle.core.domain.BundleAudiobookSource
 import com.riffle.core.domain.LibraryItemOfflineAvailability
 import com.riffle.core.domain.LibraryRefreshResult
@@ -19,10 +19,10 @@ import com.riffle.core.domain.LibraryObserver
 import com.riffle.core.domain.PdfDownloadResult
 import com.riffle.core.domain.PdfOpenResult
 import com.riffle.core.domain.PdfRepository
-import com.riffle.core.domain.Series
-import com.riffle.core.domain.Source
+import com.riffle.core.models.Series
+import com.riffle.core.models.Source
 import com.riffle.core.domain.SourceRepository
-import com.riffle.core.domain.SourceUrl
+import com.riffle.core.models.SourceUrl
 import com.riffle.core.data.ToReadRepository
 import com.riffle.core.domain.TokenStorage
 import kotlinx.coroutines.Dispatchers
@@ -67,7 +67,7 @@ class LibraryItemsViewModelTest {
     private val collectionItemsByCollectionId = mutableMapOf<String, MutableStateFlow<List<LibraryItem>>>()
     private val seriesItemsBySeriesId = mutableMapOf<String, MutableStateFlow<List<LibraryItem>>>()
     private val librariesFlow = MutableStateFlow<List<Library>>(emptyList())
-    private val annotationsFlow = MutableStateFlow<List<com.riffle.core.domain.Annotation>>(emptyList())
+    private val annotationsFlow = MutableStateFlow<List<com.riffle.core.models.Annotation>>(emptyList())
     private val annotatedBooksFlow = MutableStateFlow<List<com.riffle.core.data.AnnotatedBook>>(emptyList())
 
     private fun fakeAnnotationsLibraryRepository(): com.riffle.core.data.AnnotationsLibraryRepository =
@@ -79,37 +79,37 @@ class LibraryItemsViewModelTest {
 
     private fun fakeAnnotationStore(): com.riffle.core.domain.AnnotationStore =
         object : com.riffle.core.domain.AnnotationStore {
-            override fun observeHighlights(sourceId: String, itemId: String) = MutableStateFlow(emptyList<com.riffle.core.domain.Annotation>())
-            override fun observeBookmarks(sourceId: String, itemId: String) = MutableStateFlow(emptyList<com.riffle.core.domain.Annotation>())
-            override fun observeAnnotations(sourceId: String, itemId: String) = MutableStateFlow(emptyList<com.riffle.core.domain.Annotation>())
+            override fun observeHighlights(sourceId: String, itemId: String) = MutableStateFlow(emptyList<com.riffle.core.models.Annotation>())
+            override fun observeBookmarks(sourceId: String, itemId: String) = MutableStateFlow(emptyList<com.riffle.core.models.Annotation>())
+            override fun observeAnnotations(sourceId: String, itemId: String) = MutableStateFlow(emptyList<com.riffle.core.models.Annotation>())
             override fun observeAnnotationsForSource(sourceId: String) =
                 annotationsFlow.map { all -> all.filter { it.sourceId == sourceId } }
-            override suspend fun createHighlight(sourceId: String, itemId: String, cfi: String, textSnippet: String, chapterHref: String, textBefore: String, textAfter: String, color: String, spineIndex: Int, progression: Double, embeddedFigures: List<com.riffle.core.domain.EmbeddedFigure>?, originFontFamily: String) = error("unused")
+            override suspend fun createHighlight(sourceId: String, itemId: String, cfi: String, textSnippet: String, chapterHref: String, textBefore: String, textAfter: String, color: String, spineIndex: Int, progression: Double, embeddedFigures: List<com.riffle.core.models.EmbeddedFigure>?, originFontFamily: String) = error("unused")
             override suspend fun createBookmark(sourceId: String, itemId: String, cfi: String, textSnippet: String, chapterHref: String, spineIndex: Int, progression: Double, bookmarkTitle: String, originFontFamily: String) = error("unused")
             override suspend fun createImageAnnotation(sourceId: String, itemId: String, cfi: String, textSnippet: String, chapterHref: String, spineIndex: Int, progression: Double, imageHref: String?, imageSvg: String?, imageBytes: String?, color: String) = error("unused")
             override suspend fun upgradeImageToCaptionHighlight(
                 id: String, cfi: String, textSnippet: String, textBefore: String, textAfter: String,
-                figure: com.riffle.core.domain.EmbeddedFigure,
-            ): com.riffle.core.domain.Annotation? = null
+                figure: com.riffle.core.models.EmbeddedFigure,
+            ): com.riffle.core.models.Annotation? = null
             override suspend fun mergeFiguresIntoHighlight(
-                id: String, newFigures: List<com.riffle.core.domain.EmbeddedFigure>,
-            ): com.riffle.core.domain.Annotation? = null
+                id: String, newFigures: List<com.riffle.core.models.EmbeddedFigure>,
+            ): com.riffle.core.models.Annotation? = null
             override suspend fun delete(id: String) = error("unused")
             override suspend fun recolor(id: String, color: String) = error("unused")
             override suspend fun updateNote(id: String, note: String?) = error("unused")
             override suspend fun renameBookmark(id: String, title: String) = error("unused")
-            override suspend fun findByItemAndCfi(sourceId: String, itemId: String, cfi: String): com.riffle.core.domain.Annotation? = null
+            override suspend fun findByItemAndCfi(sourceId: String, itemId: String, cfi: String): com.riffle.core.models.Annotation? = null
             override suspend fun findImageAnnotationForFigure(
                 sourceId: String, itemId: String, chapterHref: String, imageHref: String?, imageSvg: String?,
-            ): com.riffle.core.domain.Annotation? = null
+            ): com.riffle.core.models.Annotation? = null
             override suspend fun backfillNullOriginFontFamily(sourceId: String, itemId: String, fontFamily: String) = error("unused")
             override suspend fun healSentinelOriginFontFamily(sourceId: String, itemId: String, sentinel: String, fontFamily: String) = error("unused")
         }
 
     private fun fakeAudiobookBookmarkStore(): com.riffle.core.domain.AudiobookBookmarkStore =
         object : com.riffle.core.domain.AudiobookBookmarkStore {
-            override fun observe(sourceId: String, itemId: String) = MutableStateFlow(emptyList<com.riffle.core.domain.AudiobookBookmark>())
-            override fun observeForSource(sourceId: String) = MutableStateFlow(emptyList<com.riffle.core.domain.AudiobookBookmark>())
+            override fun observe(sourceId: String, itemId: String) = MutableStateFlow(emptyList<com.riffle.core.models.AudiobookBookmark>())
+            override fun observeForSource(sourceId: String) = MutableStateFlow(emptyList<com.riffle.core.models.AudiobookBookmark>())
             override fun observeHasUnsynced(sourceId: String, itemId: String) = MutableStateFlow(false)
             override suspend fun add(sourceId: String, itemId: String, positionSec: Double, title: String, now: Long) = error("unused")
             override suspend fun rename(id: String, title: String, now: Long) = error("unused")
@@ -135,7 +135,7 @@ class LibraryItemsViewModelTest {
         override suspend fun getItem(itemId: String): LibraryItem? = null
         override fun observeItem(itemId: String): Flow<LibraryItem?> = MutableStateFlow<LibraryItem?>(null)
         override suspend fun getItem(sourceId: String, itemId: String): LibraryItem? = getItem(itemId)
-        override suspend fun getLibrary(libraryId: String): com.riffle.core.domain.Library? = null
+        override suspend fun getLibrary(libraryId: String): com.riffle.core.models.Library? = null
         override suspend fun getSeriesIdForItem(sourceId: String, itemId: String): String? = null
     }
 
@@ -1078,7 +1078,7 @@ class LibraryItemsViewModelTest {
         textSnippet: String = "",
         note: String? = null,
         bookmarkTitle: String = "",
-    ) = com.riffle.core.domain.Annotation(
+    ) = com.riffle.core.models.Annotation(
         id = id,
         sourceId = sourceId,
         itemId = itemId,
@@ -1300,8 +1300,8 @@ class LibraryItemsViewModelTest {
         isActive = active,
         insecureConnectionAllowed = false,
         username = "u",
-        type = if (id == "s-local") com.riffle.core.domain.SourceType.LOCAL_FILES else com.riffle.core.domain.SourceType.ABS,
-        serverType = com.riffle.core.domain.ServerType.AUDIOBOOKSHELF,
+        type = if (id == "s-local") com.riffle.core.models.SourceType.LOCAL_FILES else com.riffle.core.models.SourceType.ABS,
+        serverType = com.riffle.core.models.ServerType.AUDIOBOOKSHELF,
     )
 
     // Regression: on ON_RESUME we always refresh so `_refreshFailed` clears if the server is back.

@@ -1,7 +1,7 @@
 package com.riffle.core.data
 
 import com.riffle.core.data.di.CrashReportDir
-import com.riffle.core.domain.CrashReport
+import com.riffle.core.models.CrashReport
 import com.riffle.core.domain.CrashReportRepository
 import java.io.File
 import javax.inject.Inject

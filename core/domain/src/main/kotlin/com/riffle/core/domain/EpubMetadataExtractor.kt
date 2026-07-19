@@ -6,6 +6,7 @@ import java.io.File
 import java.util.zip.ZipFile
 import java.util.zip.ZipInputStream
 import javax.xml.parsers.DocumentBuilderFactory
+import com.riffle.core.models.EpubMetadata
 
 /**
  * Pulls the Dublin Core metadata + cover image out of an EPUB. Pure JVM. Sibling to

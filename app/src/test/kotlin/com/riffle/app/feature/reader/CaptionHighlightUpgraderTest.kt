@@ -234,7 +234,7 @@ class CaptionHighlightUpgraderTest {
         // annotation's embeddedFigures was populated (the "1.5s duplicate" the user reproduced on
         // AVD 5554). The cleanup phase must merge duplicate HIGHLIGHTs at the same caption text
         // into one canonical annotation carrying every figure and tombstone the extras.
-        val figureA = com.riffle.core.domain.EmbeddedFigure(
+        val figureA = com.riffle.core.models.EmbeddedFigure(
             href = "images/g.png", svg = null, caption = "Figure 20.2: The original",
             order = 0, imageBytes = "data:image/jpeg;base64,YYY", charOffset = 0L,
         )
@@ -330,13 +330,13 @@ class CaptionHighlightUpgraderTest {
         // The store-level dedup: adding the same figure (same filename suffix) twice keeps a
         // single entry. Preventing a re-long-press from bloating embeddedFigures with duplicates
         // — the "5 copies of the same image" post-fix regression that would otherwise appear.
-        val figA = com.riffle.core.domain.EmbeddedFigure(
+        val figA = com.riffle.core.models.EmbeddedFigure(
             href = "images/g.png", svg = null, caption = "cap", order = 0,
         )
-        val figAAgain = com.riffle.core.domain.EmbeddedFigure(
+        val figAAgain = com.riffle.core.models.EmbeddedFigure(
             href = "https://cdn/images/g.png?v=2", svg = null, caption = "cap", order = 0,
         )
-        val figB = com.riffle.core.domain.EmbeddedFigure(
+        val figB = com.riffle.core.models.EmbeddedFigure(
             href = "images/h.png", svg = null, caption = "cap", order = 0,
         )
         val storeInstance = store()
@@ -490,7 +490,7 @@ private class InMemoryDao(val rows: MutableStateFlow<List<AnnotationEntity>>) : 
 }
 
 /** Reuses the internal mapper the store uses so this test's fixtures speak entity, not domain. */
-private fun AnnotationEntity.toDomain() = com.riffle.core.domain.Annotation(
+private fun AnnotationEntity.toDomain() = com.riffle.core.models.Annotation(
     id = id,
     sourceId = sourceId,
     itemId = itemId,

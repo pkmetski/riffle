@@ -1,6 +1,6 @@
 package com.riffle.core.data.di
 
-import com.riffle.core.domain.SourceType
+import com.riffle.core.models.SourceType
 import com.riffle.core.domain.WebSourceDescriptors
 import com.riffle.core.domain.WebSourceRegistry
 import org.junit.Assert.assertEquals

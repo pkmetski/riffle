@@ -1,6 +1,6 @@
 package com.riffle.core.network.model
 
-import com.riffle.core.domain.AudiobookFingerprint
+import com.riffle.core.models.AudiobookFingerprint
 import kotlinx.serialization.Serializable
 
 /**

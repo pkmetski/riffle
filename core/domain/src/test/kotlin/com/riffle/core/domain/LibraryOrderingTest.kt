@@ -2,6 +2,7 @@ package com.riffle.core.domain
 
 import org.junit.Assert.assertEquals
 import org.junit.Test
+import com.riffle.core.models.Library
 
 class LibraryOrderingTest {
 

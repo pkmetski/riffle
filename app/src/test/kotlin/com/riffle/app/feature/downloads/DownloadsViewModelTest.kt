@@ -2,8 +2,8 @@ package com.riffle.app.feature.downloads
 
 import com.riffle.core.data.ReadaloudSidecarStore
 import com.riffle.core.domain.DownloadsRepository
-import com.riffle.core.domain.EbookFormat
-import com.riffle.core.domain.LibraryItem
+import com.riffle.core.models.EbookFormat
+import com.riffle.core.models.LibraryItem
 import com.riffle.core.domain.LibraryObserver
 import com.riffle.core.domain.StoredItemRef
 import io.mockk.coEvery

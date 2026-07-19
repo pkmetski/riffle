@@ -656,10 +656,10 @@ internal class ChapterWebView(context: Context) : WebView(context), ChapterWebVi
                 // can attach them to the highlight without needing a CFI→DOM resolver.
                 val figuresJson = obj.optJSONArray("figures")
                 if (figuresJson != null && figuresJson.length() > 0) {
-                    val figures = mutableListOf<com.riffle.core.domain.EmbeddedFigure>()
+                    val figures = mutableListOf<com.riffle.core.models.EmbeddedFigure>()
                     for (i in 0 until figuresJson.length()) {
                         val f = figuresJson.optJSONObject(i) ?: continue
-                        figures += com.riffle.core.domain.EmbeddedFigure(
+                        figures += com.riffle.core.models.EmbeddedFigure(
                             href = f.optString("href").takeIf { !f.isNull("href") && it.isNotEmpty() },
                             svg = f.optString("svg").takeIf { !f.isNull("svg") && it.isNotEmpty() },
                             caption = f.optString("caption", ""),

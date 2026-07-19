@@ -1,5 +1,7 @@
 package com.riffle.core.domain
 
+import com.riffle.core.common.Clock
+
 /**
  * Local mirror of `core:domain`'s `TestClock` — `core:domain`'s `src/test` source set is not on
  * `core:data`'s test classpath, so the same fake has to live here under the same FQN. Keep this

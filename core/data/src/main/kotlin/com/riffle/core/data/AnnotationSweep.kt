@@ -4,7 +4,7 @@ import com.riffle.core.database.AnnotationDao
 import com.riffle.core.domain.AnnotationSyncTarget
 import com.riffle.core.domain.DeviceIdStore
 import com.riffle.core.domain.DeviceLabelResolver
-import com.riffle.core.domain.AnnotationFileHeader
+import com.riffle.core.models.AnnotationFileHeader
 import com.riffle.core.domain.SourceRepository
 import com.riffle.core.domain.SyncNamespace
 import java.time.Instant

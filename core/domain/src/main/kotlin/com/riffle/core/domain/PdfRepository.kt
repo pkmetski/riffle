@@ -1,6 +1,7 @@
 package com.riffle.core.domain
 
 import java.io.File
+import com.riffle.core.models.LibraryItem
 
 sealed class PdfOpenResult {
     data class Success(val pdfFile: File, val lastPosition: String?) : PdfOpenResult()

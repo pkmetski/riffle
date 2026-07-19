@@ -12,7 +12,7 @@ import com.riffle.core.domain.ReadaloudTrack
 import com.riffle.app.playback.NowPlayingStore
 import com.riffle.core.data.ReadaloudSidecarStore
 import com.riffle.core.data.StorytellerPositionSyncController
-import com.riffle.core.domain.AudioIdentity
+import com.riffle.core.models.AudioIdentity
 import com.riffle.core.domain.AudioIdentityResolver
 import com.riffle.core.domain.AudioPlaybackPreferencesStore
 import com.riffle.core.domain.ConnectivityObserver
@@ -20,7 +20,7 @@ import com.riffle.core.domain.EpubRepository
 import com.riffle.core.domain.ListeningPreferencesStore
 import com.riffle.core.domain.PositionSnapshot
 import com.riffle.core.domain.ReadaloudAudioRepository
-import com.riffle.core.domain.HighlightColor
+import com.riffle.core.models.HighlightColor
 import com.riffle.core.domain.ReadaloudPreferencesStore
 import com.riffle.core.domain.ReadaloudResumePosition
 import com.riffle.core.domain.ReadaloudResumeStore
@@ -409,9 +409,9 @@ class ReadaloudSessionTest {
         override suspend fun saveReadingPosition(itemId: String, cfi: String) {
             savedPositions.add(itemId to cfi)
         }
-        override suspend fun openEpub(item: com.riffle.core.domain.LibraryItem) =
+        override suspend fun openEpub(item: com.riffle.core.models.LibraryItem) =
             error("not needed in test")
-        override suspend fun downloadEpub(item: com.riffle.core.domain.LibraryItem, onProgress: (Long, Long) -> Unit) =
+        override suspend fun downloadEpub(item: com.riffle.core.models.LibraryItem, onProgress: (Long, Long) -> Unit) =
             error("not needed in test")
         override suspend fun removeDownload(sourceId: String, itemId: String) {}
         override fun isDownloaded(sourceId: String, itemId: String) = false
@@ -1006,7 +1006,7 @@ class ReadaloudSessionTest {
 
             val formattingPrefsFlow = MutableStateFlow(com.riffle.core.domain.FormattingPreferences())
             val currentLocatorFlow = MutableStateFlow<Locator?>(null)
-            val expectedIdentity = com.riffle.core.domain.AudioIdentity("srv-audio", "ab-123")
+            val expectedIdentity = com.riffle.core.models.AudioIdentity("srv-audio", "ab-123")
 
             session.bind(
                 sourceId = "srv-reader",
@@ -1060,7 +1060,7 @@ class ReadaloudSessionTest {
                 isStorytellerService = true,
                 audioBookId = "book1",
                 audioServerId = "srv1",
-                audioSettingsIdentity = com.riffle.core.domain.AudioIdentity("srv1", "book1"),
+                audioSettingsIdentity = com.riffle.core.models.AudioIdentity("srv1", "book1"),
                 audiobookItemId = null,
                 effectiveFormattingPreferencesFlow = formattingPrefsFlow,
                 currentLocatorFlow = currentLocatorFlow,

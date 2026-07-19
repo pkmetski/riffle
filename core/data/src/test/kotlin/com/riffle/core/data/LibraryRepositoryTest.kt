@@ -16,13 +16,13 @@ import com.riffle.core.database.SeriesEntity
 import com.riffle.core.database.SeriesItemEntity
 import com.riffle.core.domain.AuthenticateResult
 import com.riffle.core.domain.CommitSourceResult
-import com.riffle.core.domain.EbookFormat
+import com.riffle.core.models.EbookFormat
 import com.riffle.core.domain.PendingSource
-import com.riffle.core.domain.Library
+import com.riffle.core.models.Library
 import com.riffle.core.domain.LibraryRefreshResult
-import com.riffle.core.domain.Source
+import com.riffle.core.models.Source
 import com.riffle.core.domain.SourceRepository
-import com.riffle.core.domain.SourceUrl
+import com.riffle.core.models.SourceUrl
 import com.riffle.core.domain.TokenStorage
 import com.riffle.core.network.AbsLibraryApi
 import com.riffle.core.network.NetworkCollection
@@ -1182,7 +1182,7 @@ class LibraryRepositoryTest {
         isActive = true,
         insecureConnectionAllowed = false,
         username = "plamen",
-        serverType = com.riffle.core.domain.ServerType.STORYTELLER_SERVICE,
+        serverType = com.riffle.core.models.ServerType.STORYTELLER_SERVICE,
     )
 
     // Storyteller is never the active/browsable source (ADR 0026), so refreshLibraryItems/

@@ -1,7 +1,7 @@
 package com.riffle.app.feature.reader
 
 import android.webkit.WebView
-import com.riffle.core.domain.EmbeddedFigure
+import com.riffle.core.models.EmbeddedFigure
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.Json

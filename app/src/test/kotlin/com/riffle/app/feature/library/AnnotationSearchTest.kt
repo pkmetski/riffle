@@ -1,8 +1,8 @@
 package com.riffle.app.feature.library
 
-import com.riffle.core.domain.Annotation
-import com.riffle.core.domain.AudiobookBookmark
-import com.riffle.core.domain.LibraryItem
+import com.riffle.core.models.Annotation
+import com.riffle.core.models.AudiobookBookmark
+import com.riffle.core.models.LibraryItem
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
@@ -18,7 +18,7 @@ class AnnotationSearchTest {
         readingProgress = 0f,
         isCached = false,
         isDownloaded = false,
-        ebookFormat = com.riffle.core.domain.EbookFormat.Epub,
+        ebookFormat = com.riffle.core.models.EbookFormat.Epub,
     )
 
     private fun annotation(

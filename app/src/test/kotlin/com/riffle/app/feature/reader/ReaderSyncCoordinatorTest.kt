@@ -7,7 +7,7 @@ import com.riffle.core.catalog.ProgressPeerCapability
 import com.riffle.core.domain.BookSyncState
 import com.riffle.core.domain.ChapterCharMap
 import com.riffle.core.domain.ChapterProgression
-import com.riffle.core.domain.Clock
+import com.riffle.core.common.Clock
 import com.riffle.core.domain.CrossEpubIndex
 import com.riffle.core.domain.DefaultPositionTranslator
 import com.riffle.core.domain.MediaOverlayClip

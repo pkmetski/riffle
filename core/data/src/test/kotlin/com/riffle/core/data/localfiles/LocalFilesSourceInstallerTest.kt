@@ -2,7 +2,7 @@ package com.riffle.core.data.localfiles
 
 import com.riffle.core.database.SourceDao
 import com.riffle.core.database.SourceEntity
-import com.riffle.core.domain.SourceType
+import com.riffle.core.models.SourceType
 import com.riffle.core.logging.NoopLogger
 import io.mockk.mockk
 import kotlinx.coroutines.flow.Flow

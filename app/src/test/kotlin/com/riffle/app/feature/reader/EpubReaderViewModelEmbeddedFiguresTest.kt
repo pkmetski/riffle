@@ -5,7 +5,7 @@ import com.riffle.core.database.AnnotationDao
 import com.riffle.core.database.AnnotationEntity
 import com.riffle.core.database.BookHighlightSummary
 import com.riffle.core.domain.DeviceIdStore
-import com.riffle.core.domain.EmbeddedFigure
+import com.riffle.core.models.EmbeddedFigure
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flowOf

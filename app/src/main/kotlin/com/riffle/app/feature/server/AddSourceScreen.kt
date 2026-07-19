@@ -52,7 +52,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import com.riffle.app.ui.TabletContentWidthContainer
 import com.riffle.app.ui.source.SourceTypeIcon
 import com.riffle.core.domain.AddSourceCopy
-import com.riffle.core.domain.InsecureConnectionType
+import com.riffle.core.models.InsecureConnectionType
 import com.riffle.core.domain.PendingSource
 import com.riffle.core.domain.WebSourceDescriptor
 import com.riffle.core.domain.WebSourceDescriptors

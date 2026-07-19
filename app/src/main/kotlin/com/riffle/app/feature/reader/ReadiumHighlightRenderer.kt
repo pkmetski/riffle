@@ -1,7 +1,7 @@
 package com.riffle.app.feature.reader
 
-import com.riffle.core.domain.EmphasisStyle
-import com.riffle.core.domain.HighlightColor
+import com.riffle.core.models.EmphasisStyle
+import com.riffle.core.models.HighlightColor
 import com.riffle.core.domain.SentenceQuote
 import kotlinx.coroutines.delay
 import org.readium.r2.navigator.Decoration

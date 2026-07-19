@@ -1,7 +1,7 @@
 package com.riffle.app.feature.server
 
-import com.riffle.core.domain.ServerType
-import com.riffle.core.domain.SourceType
+import com.riffle.core.models.ServerType
+import com.riffle.core.models.SourceType
 import com.riffle.core.domain.WebSourceDescriptors
 import org.junit.Assert.assertEquals
 import org.junit.Test

@@ -1,6 +1,7 @@
 package com.riffle.core.domain
 
 import kotlinx.coroutines.flow.Flow
+import com.riffle.core.models.HighlightColor
 
 /**
  * Per-book "last-used" highlight colour for user-created annotations.

@@ -16,10 +16,10 @@ import com.riffle.core.catalog.SortKey
 import com.riffle.core.catalog.StatsCapability
 import com.riffle.core.catalog.ToReadListCapability
 import com.riffle.core.catalog.has
-import com.riffle.core.domain.AudiobookFingerprint
-import com.riffle.core.domain.Clock
-import com.riffle.core.domain.EbookFormat
-import com.riffle.core.domain.SourceType
+import com.riffle.core.models.AudiobookFingerprint
+import com.riffle.core.common.Clock
+import com.riffle.core.models.EbookFormat
+import com.riffle.core.models.SourceType
 import com.riffle.core.network.AbsBookmarkApi
 import com.riffle.core.network.AbsLibraryApi
 import com.riffle.core.network.AbsPlaybackApi

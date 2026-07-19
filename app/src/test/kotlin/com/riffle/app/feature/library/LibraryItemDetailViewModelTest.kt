@@ -5,29 +5,29 @@ import com.riffle.app.feature.library.LibraryItemDetailUiState.Ready
 import com.riffle.core.data.ToReadRepository
 import com.riffle.core.domain.AuthenticateResult
 import com.riffle.core.domain.CommitSourceResult
-import com.riffle.core.domain.Collection
+import com.riffle.core.models.Collection
 import com.riffle.core.domain.ConnectivityObserver
 import com.riffle.core.domain.PendingSource
 import java.io.IOException
-import com.riffle.core.domain.EbookFormat
+import com.riffle.core.models.EbookFormat
 import com.riffle.core.domain.EpubDownloadResult
 import com.riffle.core.domain.EpubOpenResult
 import com.riffle.core.domain.EpubRepository
-import com.riffle.core.domain.Library
-import com.riffle.core.domain.LibraryItem
+import com.riffle.core.models.Library
+import com.riffle.core.models.LibraryItem
 import com.riffle.core.domain.LibraryRefreshResult
 import com.riffle.core.domain.LibraryObserver
 import com.riffle.core.domain.PdfDownloadResult
 import com.riffle.core.domain.PdfOpenResult
 import com.riffle.core.domain.PdfRepository
-import com.riffle.core.domain.Series
-import com.riffle.core.domain.Source
+import com.riffle.core.models.Series
+import com.riffle.core.models.Source
 import com.riffle.core.domain.SourceRepository
-import com.riffle.core.domain.SourceUrl
-import com.riffle.core.domain.ProgressSyncCycleResult
+import com.riffle.core.models.SourceUrl
+import com.riffle.core.models.ProgressSyncCycleResult
 import com.riffle.core.domain.ReadingSessionRepository
-import com.riffle.core.domain.SessionPayload
-import com.riffle.core.domain.SyncSessionResult
+import com.riffle.core.models.SessionPayload
+import com.riffle.core.models.SyncSessionResult
 import com.riffle.core.domain.TokenStorage
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
@@ -88,7 +88,7 @@ class LibraryItemDetailViewModelTest {
         override suspend fun getItem(itemId: String): LibraryItem? = item
         override fun observeItem(itemId: String): Flow<LibraryItem?> = itemFlow
         override suspend fun getItem(sourceId: String, itemId: String): LibraryItem? = getItem(itemId)
-        override suspend fun getLibrary(libraryId: String): com.riffle.core.domain.Library? = null
+        override suspend fun getLibrary(libraryId: String): com.riffle.core.models.Library? = null
         override suspend fun getSeriesIdForItem(sourceId: String, itemId: String): String? = null
     }
 
@@ -109,7 +109,7 @@ class LibraryItemDetailViewModelTest {
         override suspend fun getItem(itemId: String): LibraryItem? = throw RuntimeException("DB unavailable")
         override fun observeItem(itemId: String): Flow<LibraryItem?> = MutableStateFlow(null)
         override suspend fun getItem(sourceId: String, itemId: String): LibraryItem? = getItem(itemId)
-        override suspend fun getLibrary(libraryId: String): com.riffle.core.domain.Library? = null
+        override suspend fun getLibrary(libraryId: String): com.riffle.core.models.Library? = null
         override suspend fun getSeriesIdForItem(sourceId: String, itemId: String): String? = null
     }
 
@@ -251,10 +251,10 @@ class LibraryItemDetailViewModelTest {
         readaloudAudioRepository: com.riffle.core.domain.ReadaloudAudioRepository = NoopReadaloudAudioRepository,
         crossEpubIndexBuildTrigger: com.riffle.core.data.CrossEpubIndexBuildTrigger = RecordingBuildTrigger(),
         extractEpubTocUseCase: ExtractEpubTocUseCase = io.mockk.mockk<ExtractEpubTocUseCase>().also { uc ->
-            io.mockk.coEvery { uc(any<com.riffle.core.domain.LibraryItem>()) } returns emptyList<com.riffle.core.domain.TocEntry>()
+            io.mockk.coEvery { uc(any<com.riffle.core.models.LibraryItem>()) } returns emptyList<com.riffle.core.models.TocEntry>()
         },
         fetchAudiobookChaptersUseCase: FetchAudiobookChaptersUseCase = io.mockk.mockk<FetchAudiobookChaptersUseCase>().also { uc ->
-            io.mockk.coEvery { uc(any<com.riffle.core.domain.LibraryItem>()) } returns emptyList<com.riffle.core.domain.AudiobookChapter>()
+            io.mockk.coEvery { uc(any<com.riffle.core.models.LibraryItem>()) } returns emptyList<com.riffle.core.domain.AudiobookChapter>()
         },
         catalogRegistryOverride: com.riffle.core.catalog.CatalogRegistry = detailFakeCatalogRegistry(),
     ) = LibraryItemDetailViewModel(
@@ -296,17 +296,17 @@ class LibraryItemDetailViewModelTest {
     private fun detailFakeCatalogRegistry(): com.riffle.core.catalog.CatalogRegistry =
         object : com.riffle.core.catalog.CatalogRegistry {
             override suspend fun forActive(): com.riffle.core.catalog.Catalog? = null
-            override suspend fun forSource(source: com.riffle.core.domain.Source): com.riffle.core.catalog.Catalog? = null
+            override suspend fun forSource(source: com.riffle.core.models.Source): com.riffle.core.catalog.Catalog? = null
             override suspend fun forSourceId(sourceId: String): com.riffle.core.catalog.Catalog? = null
         }
 
     /** Records the links handed to the index-build trigger (the download-complete trigger, ADR 0031). */
     private class RecordingBuildTrigger : com.riffle.core.data.CrossEpubIndexBuildTrigger {
-        val enqueued = mutableListOf<com.riffle.core.domain.ReadaloudLink>()
-        override fun enqueueBuild(link: com.riffle.core.domain.ReadaloudLink) { enqueued += link }
+        val enqueued = mutableListOf<com.riffle.core.models.ReadaloudLink>()
+        override fun enqueueBuild(link: com.riffle.core.models.ReadaloudLink) { enqueued += link }
     }
 
-    private fun linkRepoReturning(link: com.riffle.core.domain.ReadaloudLink) =
+    private fun linkRepoReturning(link: com.riffle.core.models.ReadaloudLink) =
         object : com.riffle.core.domain.ReadaloudLinkRepository {
             override fun observeAll() = flowOf(listOf(link))
             override fun observeLinkedAbsItemIds() = flowOf(setOf(link.absLibraryItemId))
@@ -320,7 +320,7 @@ class LibraryItemDetailViewModelTest {
      * A link repo where the opened item and [allLinks] all share one Storyteller book — models a
      * readaloud's ebook + audiobook as two coupled ABS items.
      */
-    private fun linkRepoCoupling(allLinks: List<com.riffle.core.domain.ReadaloudLink>) =
+    private fun linkRepoCoupling(allLinks: List<com.riffle.core.models.ReadaloudLink>) =
         object : com.riffle.core.domain.ReadaloudLinkRepository {
             override fun observeAll() = flowOf(allLinks)
             override fun observeLinkedAbsItemIds() = flowOf(allLinks.map { it.absLibraryItemId }.toSet())
@@ -617,7 +617,7 @@ class LibraryItemDetailViewModelTest {
     // item) finished, so the two don't disagree.
     @Test
     fun `markAsRead marks every readaloud-coupled item finished`() = runTest {
-        val ebookLink = com.riffle.core.domain.ReadaloudLink(
+        val ebookLink = com.riffle.core.models.ReadaloudLink(
             storytellerSourceId = "st-1", storytellerBookId = "book-1",
             absSourceId = "abs-1", absLibraryItemId = "item-1", userConfirmed = true,
         )
@@ -645,7 +645,7 @@ class LibraryItemDetailViewModelTest {
     // can't reappear as ghost progress.
     @Test
     fun `markAsUnread marks every readaloud-coupled item not finished`() = runTest {
-        val ebookLink = com.riffle.core.domain.ReadaloudLink(
+        val ebookLink = com.riffle.core.models.ReadaloudLink(
             storytellerSourceId = "st-1", storytellerBookId = "book-1",
             absSourceId = "abs-1", absLibraryItemId = "item-1", userConfirmed = true,
         )
@@ -704,7 +704,7 @@ class LibraryItemDetailViewModelTest {
     // only un-fetchable prerequisite (the bundle) arrives — so a successful download enqueues the build.
     @Test
     fun `a successful readaloud download enqueues a cross-EPUB index build for the link`() = runTest {
-        val link = com.riffle.core.domain.ReadaloudLink(
+        val link = com.riffle.core.models.ReadaloudLink(
             storytellerSourceId = "st-1", storytellerBookId = "book-1",
             absSourceId = "abs-1", absLibraryItemId = "item-1", userConfirmed = true,
         )
@@ -727,7 +727,7 @@ class LibraryItemDetailViewModelTest {
     // A failed download must NOT enqueue a build (the bundle isn't present, so the build would defer).
     @Test
     fun `a failed readaloud download does not enqueue an index build`() = runTest {
-        val link = com.riffle.core.domain.ReadaloudLink(
+        val link = com.riffle.core.models.ReadaloudLink(
             storytellerSourceId = "st-1", storytellerBookId = "book-1",
             absSourceId = "abs-1", absLibraryItemId = "item-1", userConfirmed = true,
         )
@@ -754,11 +754,11 @@ class LibraryItemDetailViewModelTest {
 
     private fun activeServer() = Source(
         id = "abs-1",
-        url = com.riffle.core.domain.SourceUrl.parse("http://media-server:13378")!!,
+        url = com.riffle.core.models.SourceUrl.parse("http://media-server:13378")!!,
         isActive = true,
         insecureConnectionAllowed = false,
         username = "plamen",
-        serverType = com.riffle.core.domain.ServerType.AUDIOBOOKSHELF,
+        serverType = com.riffle.core.models.ServerType.AUDIOBOOKSHELF,
     )
 
     @Test
@@ -938,7 +938,7 @@ class LibraryItemDetailViewModelTest {
         com.riffle.core.catalog.ReadaloudCapability
 
     private object NoopCatalog : com.riffle.core.catalog.Catalog {
-        override val sourceType: com.riffle.core.domain.SourceType = com.riffle.core.domain.SourceType.ABS
+        override val sourceType: com.riffle.core.models.SourceType = com.riffle.core.models.SourceType.ABS
         override suspend fun listRoots(): List<com.riffle.core.catalog.CatalogRoot> = emptyList()
         override suspend fun browse(
             rootId: String,
@@ -959,7 +959,7 @@ class LibraryItemDetailViewModelTest {
     private fun fakeCatalogRegistry(catalog: com.riffle.core.catalog.Catalog): com.riffle.core.catalog.CatalogRegistry =
         object : com.riffle.core.catalog.CatalogRegistry {
             override suspend fun forActive(): com.riffle.core.catalog.Catalog = catalog
-            override suspend fun forSource(source: com.riffle.core.domain.Source): com.riffle.core.catalog.Catalog = catalog
+            override suspend fun forSource(source: com.riffle.core.models.Source): com.riffle.core.catalog.Catalog = catalog
             override suspend fun forSourceId(sourceId: String): com.riffle.core.catalog.Catalog = catalog
         }
 }

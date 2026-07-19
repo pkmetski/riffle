@@ -7,11 +7,11 @@ import com.riffle.core.database.SourceEntity
 import com.riffle.core.domain.CommitSourceResult
 import com.riffle.core.domain.LibraryVisibilityPreferencesStore
 import com.riffle.core.domain.PendingSource
-import com.riffle.core.domain.READALOUD_MEDIA_TYPE
-import com.riffle.core.domain.ServerType
-import com.riffle.core.domain.Source
-import com.riffle.core.domain.SourceType
-import com.riffle.core.domain.SourceUrl
+import com.riffle.core.models.READALOUD_MEDIA_TYPE
+import com.riffle.core.models.ServerType
+import com.riffle.core.models.Source
+import com.riffle.core.models.SourceType
+import com.riffle.core.models.SourceUrl
 import com.riffle.core.domain.TokenStorage
 import java.util.UUID
 import javax.inject.Inject

@@ -16,7 +16,7 @@ import com.riffle.core.data.ReadaloudSidecarStore
 import com.riffle.core.data.StorytellerPositionSyncController
 import com.riffle.core.data.StorytellerSyncOutcome
 import com.riffle.core.domain.AudioDownloadResult
-import com.riffle.core.domain.AudioIdentity
+import com.riffle.core.models.AudioIdentity
 import com.riffle.core.domain.AudioIdentityResolver
 import com.riffle.core.domain.AudioPlaybackPreferencesStore
 import com.riffle.core.domain.ConnectivityObserver
@@ -25,7 +25,7 @@ import com.riffle.core.domain.EpubRepository
 import com.riffle.core.domain.FormattingPreferences
 import com.riffle.core.domain.ListeningPreferencesStore
 import com.riffle.core.domain.ReadaloudAudioRepository
-import com.riffle.core.domain.HighlightColor
+import com.riffle.core.models.HighlightColor
 import com.riffle.core.domain.ReadaloudPreferencesStore
 import com.riffle.core.domain.ReadaloudResumePlanner
 import com.riffle.core.domain.ReadaloudResumePosition

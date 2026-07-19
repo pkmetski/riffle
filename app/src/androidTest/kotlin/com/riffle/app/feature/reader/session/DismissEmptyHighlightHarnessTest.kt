@@ -11,8 +11,8 @@ import com.riffle.core.database.RiffleDatabase
 import com.riffle.core.database.SourceEntity
 import com.riffle.core.domain.DeviceIdStore
 import com.riffle.core.domain.EmphasisPreferencesStore
-import com.riffle.core.domain.EmphasisStyle
-import com.riffle.core.domain.HighlightColor
+import com.riffle.core.models.EmphasisStyle
+import com.riffle.core.models.HighlightColor
 import com.riffle.core.domain.HighlightColorPreferencesStore
 import com.riffle.app.feature.reader.EpubReaderViewModel
 import com.riffle.app.feature.reader.ProgressFlushScope

@@ -1,8 +1,8 @@
 package com.riffle.app
 
 import android.content.Context
-import com.riffle.core.domain.Clock
-import com.riffle.core.domain.SystemClock
+import com.riffle.core.common.Clock
+import com.riffle.core.common.SystemClock
 import org.acra.ReportField
 import org.acra.config.CoreConfiguration
 import org.acra.data.CrashReportData

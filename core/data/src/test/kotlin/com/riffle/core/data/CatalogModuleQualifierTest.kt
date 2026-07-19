@@ -1,6 +1,6 @@
 package com.riffle.core.data
 
-import com.riffle.core.domain.SourceType
+import com.riffle.core.models.SourceType
 import org.junit.Test
 import java.io.File
 

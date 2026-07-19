@@ -1,8 +1,8 @@
 package com.riffle.core.data
 
 import com.riffle.core.database.AnnotationEntity
-import com.riffle.core.domain.EmbeddedFigure
-import com.riffle.core.domain.W3CAnnotation
+import com.riffle.core.models.EmbeddedFigure
+import com.riffle.core.models.W3CAnnotation
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement

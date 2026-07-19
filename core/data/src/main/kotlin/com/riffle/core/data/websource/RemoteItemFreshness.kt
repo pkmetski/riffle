@@ -2,7 +2,7 @@ package com.riffle.core.data.websource
 
 import com.riffle.core.database.RemoteItemFreshnessDao
 import com.riffle.core.database.RemoteItemFreshnessEntity
-import com.riffle.core.domain.Clock
+import com.riffle.core.common.Clock
 import javax.inject.Inject
 
 /**

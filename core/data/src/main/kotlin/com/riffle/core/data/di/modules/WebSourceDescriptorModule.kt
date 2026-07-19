@@ -25,7 +25,7 @@ import javax.inject.Singleton
  *   1. adding a `WebSourceDescriptor object` in `:core:domain/WebSourceDescriptor.kt`
  *   2. adding it to [WebSourceDescriptors.all]
  *   3. adding an `@IntoSet` binding here (mechanical)
- * The paired `WebSourceRegistryCompletenessTest` fails if any [com.riffle.core.domain.SourceType]
+ * The paired `WebSourceRegistryCompletenessTest` fails if any [com.riffle.core.models.SourceType]
  * entry is missing a descriptor.
  */
 @Module

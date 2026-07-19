@@ -12,7 +12,7 @@ import com.riffle.core.domain.MatchOutcome
 import com.riffle.core.domain.MatchableAbsItem
 import com.riffle.core.domain.MatchableStorytellerBook
 import com.riffle.core.domain.ReadaloudMatcher
-import com.riffle.core.domain.ServerType
+import com.riffle.core.models.ServerType
 import javax.inject.Inject
 import javax.inject.Singleton
 

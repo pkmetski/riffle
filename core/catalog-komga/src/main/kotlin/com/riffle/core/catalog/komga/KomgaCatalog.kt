@@ -21,7 +21,7 @@ import com.riffle.core.catalog.ReadCapability
 import com.riffle.core.catalog.SeriesCapability
 import com.riffle.core.catalog.SortKey
 import com.riffle.core.catalog.ToReadListCapability
-import com.riffle.core.domain.SourceType
+import com.riffle.core.models.SourceType
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.builtins.ListSerializer

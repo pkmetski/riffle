@@ -1,10 +1,10 @@
 package com.riffle.core.data.credentialed
 
 import com.riffle.core.domain.AuthenticateResult
-import com.riffle.core.domain.InsecureConnectionType
-import com.riffle.core.domain.ServerType
-import com.riffle.core.domain.SourceType
-import com.riffle.core.domain.SourceUrl
+import com.riffle.core.models.InsecureConnectionType
+import com.riffle.core.models.ServerType
+import com.riffle.core.models.SourceType
+import com.riffle.core.models.SourceUrl
 import kotlinx.coroutines.test.runTest
 import okhttp3.OkHttpClient
 import okhttp3.mockwebserver.MockResponse

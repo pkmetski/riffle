@@ -5,11 +5,11 @@ import com.riffle.app.feature.reader.ProgressFlushScope
 import com.riffle.core.data.AnnotationSyncStatusStore
 import com.riffle.core.data.CycleOutcome
 import com.riffle.core.database.AnnotationEntity
-import com.riffle.core.domain.Annotation
+import com.riffle.core.models.Annotation
 import com.riffle.core.domain.AnnotationStore
-import com.riffle.core.domain.HighlightColor
+import com.riffle.core.models.HighlightColor
 import com.riffle.core.domain.EmphasisPreferencesStore
-import com.riffle.core.domain.EmphasisStyle
+import com.riffle.core.models.EmphasisStyle
 import com.riffle.core.domain.HighlightColorPreferencesStore
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedFactory
@@ -200,7 +200,7 @@ class AnnotationSession @AssistedInject constructor(
         val chapterHref: String,
         val spineIndex: Int,
         val progression: Double,
-        val embeddedFigures: List<com.riffle.core.domain.EmbeddedFigure>?,
+        val embeddedFigures: List<com.riffle.core.models.EmbeddedFigure>?,
         val originFontFamily: String,
         val anchorRect: androidx.compose.ui.unit.IntRect,
         val locator: org.readium.r2.shared.publication.Locator,

@@ -1,8 +1,8 @@
 package com.riffle.core.data
 
 import com.riffle.core.database.AnnotationEntity
-import com.riffle.core.domain.Annotation
-import com.riffle.core.domain.EmbeddedFigure
+import com.riffle.core.models.Annotation
+import com.riffle.core.models.EmbeddedFigure
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test

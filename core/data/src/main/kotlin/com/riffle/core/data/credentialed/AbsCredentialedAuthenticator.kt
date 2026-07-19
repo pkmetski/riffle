@@ -1,11 +1,11 @@
 package com.riffle.core.data.credentialed
 
 import com.riffle.core.domain.AuthenticateResult
-import com.riffle.core.domain.Library
+import com.riffle.core.models.Library
 import com.riffle.core.domain.PendingSource
-import com.riffle.core.domain.ServerType
-import com.riffle.core.domain.SourceType
-import com.riffle.core.domain.SourceUrl
+import com.riffle.core.models.ServerType
+import com.riffle.core.models.SourceType
+import com.riffle.core.models.SourceUrl
 import com.riffle.core.network.AbsApi
 import com.riffle.core.network.AbsLibraryApi
 import com.riffle.core.network.NetworkResult

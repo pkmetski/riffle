@@ -2,7 +2,7 @@ package com.riffle.app.feature.audiobook
 
 import com.riffle.app.feature.reader.ProgressFlushScope
 import com.riffle.app.feature.reader.ReaderSyncCoordinator
-import com.riffle.core.domain.Clock
+import com.riffle.core.common.Clock
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay

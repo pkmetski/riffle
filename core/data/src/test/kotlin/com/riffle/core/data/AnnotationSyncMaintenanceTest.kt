@@ -1,6 +1,6 @@
 package com.riffle.core.data
 
-import com.riffle.core.domain.AnnotationDeviceMeta
+import com.riffle.core.models.AnnotationDeviceMeta
 import com.riffle.core.domain.AnnotationFileRef
 import com.riffle.core.domain.AnnotationSyncTarget
 import com.riffle.core.domain.DeviceFileSummary

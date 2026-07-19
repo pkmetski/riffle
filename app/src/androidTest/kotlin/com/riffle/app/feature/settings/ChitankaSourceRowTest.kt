@@ -12,11 +12,11 @@ import com.riffle.app.ui.source.SOURCE_ICON_TEST_TAG
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.riffle.app.feature.settings.sections.SingletonWebSourceRow
 import com.riffle.core.domain.ChitankaWebSourceDescriptor
-import com.riffle.core.domain.Library
-import com.riffle.core.domain.ServerType
-import com.riffle.core.domain.Source
-import com.riffle.core.domain.SourceType
-import com.riffle.core.domain.SourceUrl
+import com.riffle.core.models.Library
+import com.riffle.core.models.ServerType
+import com.riffle.core.models.Source
+import com.riffle.core.models.SourceType
+import com.riffle.core.models.SourceUrl
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test

@@ -5,15 +5,15 @@ import com.riffle.core.catalog.CatalogRegistry
 import com.riffle.core.catalog.ProgressPeerCapability
 import com.riffle.core.database.LibraryItemDao
 import com.riffle.core.domain.AudiobookPositionStore
-import com.riffle.core.domain.Clock
-import com.riffle.core.domain.ProgressSyncCycleResult
+import com.riffle.core.common.Clock
+import com.riffle.core.models.ProgressSyncCycleResult
 import com.riffle.core.domain.ReadaloudResumeStore
 import com.riffle.core.domain.ReadingPositionStore
 import com.riffle.core.domain.ReadingSessionRepository
-import com.riffle.core.domain.ServerProgress
-import com.riffle.core.domain.SessionPayload
+import com.riffle.core.models.ServerProgress
+import com.riffle.core.models.SessionPayload
 import com.riffle.core.domain.SourceRepository
-import com.riffle.core.domain.SyncSessionResult
+import com.riffle.core.models.SyncSessionResult
 import javax.inject.Inject
 
 class ReadingSessionRepositoryImpl @Inject constructor(

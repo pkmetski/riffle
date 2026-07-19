@@ -2,7 +2,7 @@ package com.riffle.core.data
 
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import com.riffle.core.domain.FormattingPreferences
-import com.riffle.core.domain.HighlightColor
+import com.riffle.core.models.HighlightColor
 import com.riffle.core.domain.ReaderFontFamily
 import com.riffle.core.domain.ReaderOrientation
 import com.riffle.core.domain.ReaderTheme

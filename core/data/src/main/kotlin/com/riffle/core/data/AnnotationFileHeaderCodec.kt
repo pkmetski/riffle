@@ -1,6 +1,6 @@
 package com.riffle.core.data
 
-import com.riffle.core.domain.AnnotationFileHeader
+import com.riffle.core.models.AnnotationFileHeader
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement

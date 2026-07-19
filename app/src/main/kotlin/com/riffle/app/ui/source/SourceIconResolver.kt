@@ -2,9 +2,9 @@ package com.riffle.app.ui.source
 
 import androidx.annotation.DrawableRes
 import com.riffle.app.R
-import com.riffle.core.domain.ServerType
-import com.riffle.core.domain.Source
-import com.riffle.core.domain.SourceType
+import com.riffle.core.models.ServerType
+import com.riffle.core.models.Source
+import com.riffle.core.models.SourceType
 import com.riffle.core.domain.WebSourceDescriptors
 
 /**

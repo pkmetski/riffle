@@ -1,4 +1,6 @@
 package com.riffle.core.domain
+import com.riffle.core.models.EbookFormat
+import com.riffle.core.models.LibraryItem
 
 /**
  * Decides whether a [LibraryItem] can be opened with no network — the single source of truth behind

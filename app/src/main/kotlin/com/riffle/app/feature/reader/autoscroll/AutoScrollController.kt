@@ -1,8 +1,8 @@
 package com.riffle.app.feature.reader.autoscroll
 
-import com.riffle.core.domain.Clock
+import com.riffle.core.common.Clock
 import com.riffle.core.domain.DispatcherProvider
-import com.riffle.core.domain.SystemClock
+import com.riffle.core.common.SystemClock
 import com.riffle.core.domain.autoscroll.AutoScrollEvent
 import com.riffle.core.domain.autoscroll.AutoScrollSpeed
 import com.riffle.core.domain.autoscroll.AutoScrollState

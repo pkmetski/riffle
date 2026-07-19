@@ -1,7 +1,7 @@
 package com.riffle.app.feature.source.gutenberg
 
 import com.riffle.core.data.websource.SingletonWebSourceInstaller
-import com.riffle.core.domain.SourceType
+import com.riffle.core.models.SourceType
 import io.mockk.coEvery
 import io.mockk.mockk
 import kotlinx.coroutines.Dispatchers

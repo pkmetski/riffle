@@ -1,4 +1,5 @@
 package com.riffle.core.domain
+import com.riffle.core.models.FormattingScope
 
 interface BookFormattingPreferencesStore {
     suspend fun load(itemId: String, scope: FormattingScope): BookFormattingOverrides

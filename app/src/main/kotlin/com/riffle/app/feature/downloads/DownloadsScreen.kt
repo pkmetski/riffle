@@ -39,7 +39,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.riffle.app.ui.TabletContentWidthContainer
-import com.riffle.core.domain.LibraryItem
+import com.riffle.core.models.LibraryItem
 import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)

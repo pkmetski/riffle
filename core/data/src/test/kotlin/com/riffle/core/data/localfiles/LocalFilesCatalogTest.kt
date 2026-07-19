@@ -25,7 +25,7 @@ import com.riffle.core.database.LocalFilesFileFolderDao
 import com.riffle.core.database.LocalFilesFileFolderEntity
 import com.riffle.core.database.LocalFilesFolderDao
 import com.riffle.core.database.LocalFilesFolderEntity
-import com.riffle.core.domain.SourceType
+import com.riffle.core.models.SourceType
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.runTest

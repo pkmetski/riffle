@@ -1,6 +1,7 @@
 package com.riffle.core.domain
 
 import java.time.LocalTime
+import com.riffle.core.models.HighlightColor
 
 data class FormattingPreferences(
     val fontSize: Float = DEFAULT_FONT_SIZE,

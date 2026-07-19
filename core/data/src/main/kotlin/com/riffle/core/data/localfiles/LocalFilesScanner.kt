@@ -7,9 +7,9 @@ import com.riffle.core.database.LocalFilesFileEntity
 import com.riffle.core.database.LocalFilesFileFolderDao
 import com.riffle.core.database.LocalFilesFileFolderEntity
 import com.riffle.core.database.LocalFilesFolderDao
-import com.riffle.core.domain.Clock
-import com.riffle.core.domain.EbookFormat
-import com.riffle.core.domain.EpubMetadata
+import com.riffle.core.common.Clock
+import com.riffle.core.models.EbookFormat
+import com.riffle.core.models.EpubMetadata
 import com.riffle.core.domain.EpubMetadataExtractor
 import com.riffle.core.domain.PdfMetadata
 import com.riffle.core.domain.PdfMetadataExtractor

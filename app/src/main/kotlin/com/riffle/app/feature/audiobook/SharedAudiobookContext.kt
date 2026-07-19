@@ -1,6 +1,6 @@
 package com.riffle.app.feature.audiobook
 
-import com.riffle.core.domain.AudiobookTrackSpan
+import com.riffle.core.models.AudiobookTrackSpan
 
 /**
  * Process-scoped pointer to the active audiobook's track spans and total duration, set by

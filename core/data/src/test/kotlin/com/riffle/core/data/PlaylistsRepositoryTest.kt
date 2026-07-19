@@ -12,8 +12,8 @@ import com.riffle.core.catalog.CatalogRoot
 import com.riffle.core.catalog.FacetSelection
 import com.riffle.core.catalog.PlaylistsCapability
 import com.riffle.core.catalog.SortKey
-import com.riffle.core.domain.Source
-import com.riffle.core.domain.SourceType
+import com.riffle.core.models.Source
+import com.riffle.core.models.SourceType
 import com.riffle.core.logging.RecordingLogger
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest

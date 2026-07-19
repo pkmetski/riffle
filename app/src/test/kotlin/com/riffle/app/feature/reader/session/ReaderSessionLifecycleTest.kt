@@ -1,24 +1,24 @@
 package com.riffle.app.feature.reader.session
 
 import com.riffle.core.data.OpenReconcileTargets
-import com.riffle.core.domain.Annotation
+import com.riffle.core.models.Annotation
 import com.riffle.core.domain.AnnotationStore
-import com.riffle.core.domain.AudioIdentity
+import com.riffle.core.models.AudioIdentity
 import com.riffle.core.domain.AudioIdentityResolver
 import com.riffle.core.domain.AudioPlaybackPreferencesStore
-import com.riffle.core.domain.AudiobookIdentityResult
-import com.riffle.core.domain.EbookFormat
+import com.riffle.core.models.AudiobookIdentityResult
+import com.riffle.core.models.EbookFormat
 import com.riffle.core.domain.EpubOpenResult
 import com.riffle.core.domain.EpubRepository
-import com.riffle.core.domain.LibraryItem
+import com.riffle.core.models.LibraryItem
 import com.riffle.core.domain.LibraryObserver
 import com.riffle.core.domain.ListeningPreferencesStore
-import com.riffle.core.domain.ReadaloudLink
+import com.riffle.core.models.ReadaloudLink
 import com.riffle.core.domain.ReadaloudLinkRepository
-import com.riffle.core.domain.Source
+import com.riffle.core.models.Source
 import com.riffle.core.domain.SourceRepository
-import com.riffle.core.domain.ServerType
-import com.riffle.core.domain.SourceUrl
+import com.riffle.core.models.ServerType
+import com.riffle.core.models.SourceUrl
 import com.riffle.core.logging.RecordingLogger
 import io.mockk.every
 import io.mockk.mockk
@@ -59,23 +59,23 @@ class ReaderSessionLifecycleTest {
         private val items: Map<Pair<String, String>, LibraryItem>,
         private val activeItems: Map<String, LibraryItem>,
     ) : LibraryObserver {
-        override fun observeLibraries(): Flow<List<com.riffle.core.domain.Library>> = flowOf(emptyList())
-        override fun observeLibraries(sourceId: String): Flow<List<com.riffle.core.domain.Library>> = flowOf(emptyList())
+        override fun observeLibraries(): Flow<List<com.riffle.core.models.Library>> = flowOf(emptyList())
+        override fun observeLibraries(sourceId: String): Flow<List<com.riffle.core.models.Library>> = flowOf(emptyList())
         override fun observeLibraryItems(libraryId: String): Flow<List<LibraryItem>> = flowOf(emptyList())
         override fun observeUngroupedLibraryItems(libraryId: String): Flow<List<LibraryItem>> = flowOf(emptyList())
         override fun observeInProgressItems(libraryId: String): Flow<List<LibraryItem>> = flowOf(emptyList())
         override fun observeFinishedItems(libraryId: String): Flow<List<LibraryItem>> = flowOf(emptyList())
         override fun observeRecentlyAddedItems(libraryId: String): Flow<List<LibraryItem>> = flowOf(emptyList())
         override fun observeAllBooks(libraryId: String): Flow<List<LibraryItem>> = flowOf(emptyList())
-        override fun observeSeries(libraryId: String): Flow<List<com.riffle.core.domain.Series>> = flowOf(emptyList())
-        override fun observeCollections(libraryId: String): Flow<List<com.riffle.core.domain.Collection>> = flowOf(emptyList())
+        override fun observeSeries(libraryId: String): Flow<List<com.riffle.core.models.Series>> = flowOf(emptyList())
+        override fun observeCollections(libraryId: String): Flow<List<com.riffle.core.models.Collection>> = flowOf(emptyList())
         override fun observeSeriesItems(seriesId: String): Flow<List<LibraryItem>> = flowOf(emptyList())
         override fun observeContinueSeriesItems(libraryId: String): Flow<List<LibraryItem>> = flowOf(emptyList())
         override fun observeCollectionItems(collectionId: String): Flow<List<LibraryItem>> = flowOf(emptyList())
         override suspend fun getItem(itemId: String): LibraryItem? = activeItems[itemId]
         override fun observeItem(itemId: String): Flow<LibraryItem?> = MutableStateFlow(activeItems[itemId])
         override suspend fun getItem(sourceId: String, itemId: String): LibraryItem? = items[sourceId to itemId]
-        override suspend fun getLibrary(libraryId: String): com.riffle.core.domain.Library? = null
+        override suspend fun getLibrary(libraryId: String): com.riffle.core.models.Library? = null
         override suspend fun getSeriesIdForItem(sourceId: String, itemId: String): String? = null
     }
 
@@ -154,7 +154,7 @@ class ReaderSessionLifecycleTest {
         override suspend fun createHighlight(
             sourceId: String, itemId: String, cfi: String, textSnippet: String, chapterHref: String,
             textBefore: String, textAfter: String, color: String, spineIndex: Int, progression: Double,
-            embeddedFigures: List<com.riffle.core.domain.EmbeddedFigure>?,
+            embeddedFigures: List<com.riffle.core.models.EmbeddedFigure>?,
             originFontFamily: String,
         ): Annotation = error("not needed")
         override suspend fun createBookmark(
@@ -168,10 +168,10 @@ class ReaderSessionLifecycleTest {
         ): Annotation = error("not needed")
         override suspend fun upgradeImageToCaptionHighlight(
             id: String, cfi: String, textSnippet: String, textBefore: String, textAfter: String,
-            figure: com.riffle.core.domain.EmbeddedFigure,
+            figure: com.riffle.core.models.EmbeddedFigure,
         ): Annotation? = null
         override suspend fun mergeFiguresIntoHighlight(
-            id: String, newFigures: List<com.riffle.core.domain.EmbeddedFigure>,
+            id: String, newFigures: List<com.riffle.core.models.EmbeddedFigure>,
         ): Annotation? = null
         override suspend fun delete(id: String) {}
         override suspend fun recolor(id: String, color: String) {}

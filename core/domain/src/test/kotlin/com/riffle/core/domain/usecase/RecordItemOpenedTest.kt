@@ -1,10 +1,10 @@
 package com.riffle.core.domain.usecase
 
 import com.riffle.core.domain.LibraryMutator
-import com.riffle.core.domain.ProgressSyncCycleResult
+import com.riffle.core.models.ProgressSyncCycleResult
 import com.riffle.core.domain.ReadingSessionRepository
-import com.riffle.core.domain.SessionPayload
-import com.riffle.core.domain.SyncSessionResult
+import com.riffle.core.models.SessionPayload
+import com.riffle.core.models.SyncSessionResult
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Test

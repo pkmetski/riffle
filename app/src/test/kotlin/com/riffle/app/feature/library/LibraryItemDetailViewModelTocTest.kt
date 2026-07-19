@@ -4,18 +4,18 @@ import androidx.lifecycle.SavedStateHandle
 import com.riffle.core.data.ToReadRepository
 import com.riffle.core.domain.AudiobookChapter
 import com.riffle.core.domain.ConnectivityObserver
-import com.riffle.core.domain.EbookFormat
+import com.riffle.core.models.EbookFormat
 import com.riffle.core.domain.EpubRepository
-import com.riffle.core.domain.Library
-import com.riffle.core.domain.LibraryItem
+import com.riffle.core.models.Library
+import com.riffle.core.models.LibraryItem
 import com.riffle.core.domain.LibraryRefreshResult
 import com.riffle.core.domain.LibraryObserver
-import com.riffle.core.domain.Collection
+import com.riffle.core.models.Collection
 import com.riffle.core.domain.PdfRepository
 import com.riffle.core.domain.ReadingSessionRepository
-import com.riffle.core.domain.Series
+import com.riffle.core.models.Series
 import com.riffle.core.domain.SourceRepository
-import com.riffle.core.domain.TocEntry
+import com.riffle.core.models.TocEntry
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.mockk
@@ -62,7 +62,7 @@ class LibraryItemDetailViewModelTocTest {
         override suspend fun getItem(itemId: String): LibraryItem? = item
         override fun observeItem(itemId: String): Flow<LibraryItem?> = MutableStateFlow(item)
         override suspend fun getItem(sourceId: String, itemId: String): LibraryItem? = getItem(itemId)
-        override suspend fun getLibrary(libraryId: String): com.riffle.core.domain.Library? = null
+        override suspend fun getLibrary(libraryId: String): com.riffle.core.models.Library? = null
         override suspend fun getSeriesIdForItem(sourceId: String, itemId: String): String? = null
     }
 
@@ -71,8 +71,8 @@ class LibraryItemDetailViewModelTocTest {
     }
 
     private val noOpServerRepo = object : SourceRepository {
-        override fun observeAll(): Flow<List<com.riffle.core.domain.Source>> = MutableStateFlow(emptyList())
-        override suspend fun getActive(): com.riffle.core.domain.Source? = null
+        override fun observeAll(): Flow<List<com.riffle.core.models.Source>> = MutableStateFlow(emptyList())
+        override suspend fun getActive(): com.riffle.core.models.Source? = null
         override suspend fun commit(
             pending: com.riffle.core.domain.PendingSource,
             hiddenLibraryIds: Set<String>,
@@ -124,8 +124,8 @@ class LibraryItemDetailViewModelTocTest {
     }
 
     private val noOpSessionRepo = object : ReadingSessionRepository {
-        override suspend fun syncProgress(itemId: String, payload: com.riffle.core.domain.SessionPayload): com.riffle.core.domain.SyncSessionResult = com.riffle.core.domain.SyncSessionResult.Success
-        override suspend fun runSyncCycle(itemId: String, payload: com.riffle.core.domain.SessionPayload): com.riffle.core.domain.ProgressSyncCycleResult = com.riffle.core.domain.ProgressSyncCycleResult.InSync
+        override suspend fun syncProgress(itemId: String, payload: com.riffle.core.models.SessionPayload): com.riffle.core.models.SyncSessionResult = com.riffle.core.models.SyncSessionResult.Success
+        override suspend fun runSyncCycle(itemId: String, payload: com.riffle.core.models.SessionPayload): com.riffle.core.models.ProgressSyncCycleResult = com.riffle.core.models.ProgressSyncCycleResult.InSync
         override suspend fun markFinished(itemId: String, finished: Boolean) {}
         override suspend fun touchOpenTimestamp(itemId: String) {}
     }
@@ -164,14 +164,14 @@ class LibraryItemDetailViewModelTocTest {
         connectivityObserver = FakeConnectivityObserver(),
         downloadManager = DownloadManager(kotlinx.coroutines.CoroutineScope(testDispatcher)),
         crossEpubIndexBuildTrigger = object : com.riffle.core.data.CrossEpubIndexBuildTrigger {
-            override fun enqueueBuild(link: com.riffle.core.domain.ReadaloudLink) {}
+            override fun enqueueBuild(link: com.riffle.core.models.ReadaloudLink) {}
         },
         sidecarPrefetcher = { _, _ -> },
         extractEpubTocUseCase = extractEpubTocUseCase,
         fetchAudiobookChaptersUseCase = fetchAudiobookChaptersUseCase,
         catalogRegistry = object : com.riffle.core.catalog.CatalogRegistry {
             override suspend fun forActive(): com.riffle.core.catalog.Catalog? = null
-            override suspend fun forSource(source: com.riffle.core.domain.Source): com.riffle.core.catalog.Catalog? = null
+            override suspend fun forSource(source: com.riffle.core.models.Source): com.riffle.core.catalog.Catalog? = null
             override suspend fun forSourceId(sourceId: String): com.riffle.core.catalog.Catalog? = null
         },
     )

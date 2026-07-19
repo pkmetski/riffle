@@ -1,6 +1,7 @@
 package com.riffle.core.domain
 
 import java.io.File
+import com.riffle.core.models.LibraryItem
 
 sealed class EpubOpenResult {
     data class Success(val epubFile: File, val lastPosition: String?) : EpubOpenResult()

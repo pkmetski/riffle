@@ -26,6 +26,7 @@ object AndroidImportLint {
      * this list gates them the moment they land.
      */
     val DEFAULT_MODULE_ROOTS: List<String> = listOf(
+        "core/common",
         "core/models",
         "core/net",
         "core/sources",

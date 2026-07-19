@@ -7,8 +7,8 @@ import com.riffle.core.domain.AudiobookChapter
 import com.riffle.core.domain.AudiobookRepository
 import com.riffle.core.domain.AudiobookSession
 import com.riffle.core.domain.AudiobookTimeline
-import com.riffle.core.domain.AudiobookTrackSpan
-import com.riffle.core.domain.Clock
+import com.riffle.core.models.AudiobookTrackSpan
+import com.riffle.core.common.Clock
 import javax.inject.Inject
 
 /**

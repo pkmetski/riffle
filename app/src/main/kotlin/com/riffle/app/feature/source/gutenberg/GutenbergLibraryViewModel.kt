@@ -4,7 +4,7 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.riffle.core.data.ToReadRepository
-import com.riffle.core.domain.LibraryItem
+import com.riffle.core.models.LibraryItem
 import com.riffle.core.domain.LibraryObserver
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.SharingStarted

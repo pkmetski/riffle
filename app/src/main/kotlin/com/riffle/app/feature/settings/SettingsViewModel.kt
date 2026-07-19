@@ -7,7 +7,7 @@ import com.riffle.core.domain.AppTheme
 import com.riffle.core.domain.AppThemeStore
 import com.riffle.core.domain.AppUpdateRepository
 import com.riffle.core.domain.ConnectivityObserver
-import com.riffle.core.domain.CrashReport
+import com.riffle.core.models.CrashReport
 import com.riffle.core.domain.CrashReportRepository
 import com.riffle.core.domain.UpdateCheckResult
 import com.riffle.core.domain.UpdateDownloadState
@@ -18,12 +18,12 @@ import com.riffle.core.domain.LibraryObserver
 import com.riffle.core.domain.LibraryVisibilityPreferencesStore
 import com.riffle.core.domain.ListeningPreferencesStore
 import com.riffle.core.domain.orderLibraries
-import com.riffle.core.domain.HighlightColor
+import com.riffle.core.models.HighlightColor
 import com.riffle.core.domain.ReadaloudPreferences
 import com.riffle.core.domain.ReadaloudPreferencesStore
 import com.riffle.core.domain.ReadaloudReviewRepository
-import com.riffle.core.domain.Source
-import com.riffle.core.domain.ServerType
+import com.riffle.core.models.Source
+import com.riffle.core.models.ServerType
 import com.riffle.app.feature.annotationsync.AnnotationSyncKind
 import com.riffle.app.feature.annotationsync.deriveAnnotationSyncKind
 import com.riffle.core.data.AnnotationSyncStatusStore
@@ -240,7 +240,7 @@ class SettingsViewModel @Inject constructor(
      * device — multi-folder lives inside it). Null before the first Add-Source LocalFiles pass.
      */
     val localFilesSource: StateFlow<Source?> = servers
-        .map { list -> list.firstOrNull { it.type == com.riffle.core.domain.SourceType.LOCAL_FILES } }
+        .map { list -> list.firstOrNull { it.type == com.riffle.core.models.SourceType.LOCAL_FILES } }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     /**
@@ -253,7 +253,7 @@ class SettingsViewModel @Inject constructor(
         .map { list ->
             list.filter { source ->
                 val descriptor = com.riffle.core.domain.WebSourceDescriptors.forType(source.type)
-                descriptor?.isSingleton == true && source.type != com.riffle.core.domain.SourceType.LOCAL_FILES
+                descriptor?.isSingleton == true && source.type != com.riffle.core.models.SourceType.LOCAL_FILES
             }
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())

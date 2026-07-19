@@ -5,6 +5,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import com.riffle.core.common.Clock
 
 /**
  * Lifts the ABS Reading Session lifecycle out of the reader ViewModels (issue #339) so EPUB, PDF,

@@ -1,6 +1,6 @@
 package com.riffle.core.data
 
-import com.riffle.core.domain.ReadaloudLink
+import com.riffle.core.models.ReadaloudLink
 
 /**
  * Narrow seam for scheduling a cross-EPUB index build for a matched book, so callers (the library

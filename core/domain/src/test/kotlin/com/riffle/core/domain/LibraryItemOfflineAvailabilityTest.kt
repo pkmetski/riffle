@@ -3,6 +3,8 @@ package com.riffle.core.domain
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import com.riffle.core.models.EbookFormat
+import com.riffle.core.models.LibraryItem
 
 class LibraryItemOfflineAvailabilityTest {
 

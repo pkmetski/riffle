@@ -6,8 +6,8 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import com.riffle.core.domain.EbookFormat
-import com.riffle.core.domain.LibraryItem
+import com.riffle.core.models.EbookFormat
+import com.riffle.core.models.LibraryItem
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith

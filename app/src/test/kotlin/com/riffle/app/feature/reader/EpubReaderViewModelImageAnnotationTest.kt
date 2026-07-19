@@ -251,7 +251,7 @@ class EpubReaderViewModelImageAnnotationTest {
         chapterHref: String,
         spineIndex: Int,
         progression: Double,
-    ): com.riffle.core.domain.Annotation? {
+    ): com.riffle.core.models.Annotation? {
         val captionRange = payload.captionRange ?: return null
         val startChar = locateSnippetInBody(html, captionRange.text, captionRange.textBefore) ?: return null
         val cfi = buildHighlightCfiRange(
@@ -260,7 +260,7 @@ class EpubReaderViewModelImageAnnotationTest {
             startChar = startChar,
             endChar = (startChar + captionRange.text.length - 1L).coerceAtLeast(startChar),
         ) ?: return null
-        val figure = com.riffle.core.domain.EmbeddedFigure(
+        val figure = com.riffle.core.models.EmbeddedFigure(
             href = payload.href,
             svg = payload.svg,
             caption = captionRange.text,

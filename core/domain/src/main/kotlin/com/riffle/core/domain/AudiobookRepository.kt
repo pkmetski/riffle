@@ -1,6 +1,7 @@
 package com.riffle.core.domain
 
 import java.io.File
+import com.riffle.core.models.AudiobookTrackSpan
 
 /**
  * A ready-to-play [Audiobook] session resolved from ABS (ADR 0029): the ordered, directly-streamable

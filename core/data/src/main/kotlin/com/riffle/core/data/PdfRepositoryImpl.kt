@@ -2,7 +2,7 @@ package com.riffle.core.data
 
 import com.riffle.core.catalog.BookFormat
 import com.riffle.core.catalog.CatalogRegistry
-import com.riffle.core.domain.LibraryItem
+import com.riffle.core.models.LibraryItem
 import com.riffle.core.domain.LocalStore
 import com.riffle.core.domain.PdfDownloadResult
 import com.riffle.core.domain.PdfOpenResult

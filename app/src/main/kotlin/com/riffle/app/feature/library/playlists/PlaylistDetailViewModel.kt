@@ -5,7 +5,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.riffle.core.catalog.CatalogPlaylist
 import com.riffle.core.data.PlaylistsRepository
-import com.riffle.core.domain.LibraryItem
+import com.riffle.core.models.LibraryItem
 import com.riffle.core.domain.LibraryObserver
 import com.riffle.core.domain.SourceRepository
 import com.riffle.core.domain.TokenStorage

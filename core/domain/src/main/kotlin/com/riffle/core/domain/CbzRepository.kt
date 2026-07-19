@@ -1,6 +1,7 @@
 package com.riffle.core.domain
 
 import java.io.File
+import com.riffle.core.models.LibraryItem
 
 sealed class CbzOpenResult {
     data class Success(val cbzFile: File, val lastPosition: String?) : CbzOpenResult()

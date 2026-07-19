@@ -8,21 +8,21 @@ import com.riffle.core.domain.AnnotationSyncConfig
 import com.riffle.core.domain.AnnotationSyncConfigStore
 import com.riffle.core.domain.AppTheme
 import com.riffle.core.domain.AppThemeStore
-import com.riffle.core.domain.HighlightColor
+import com.riffle.core.models.HighlightColor
 import com.riffle.core.domain.ReadaloudPreferences
 import com.riffle.core.domain.ReadaloudPreferencesStore
 import com.riffle.core.domain.AuthenticateResult
 import com.riffle.core.domain.CommitSourceResult
-import com.riffle.core.domain.Collection
+import com.riffle.core.models.Collection
 import com.riffle.core.domain.ConnectivityObserver
 import com.riffle.core.domain.PendingSource
 import java.io.IOException
-import com.riffle.core.domain.CrashReport
+import com.riffle.core.models.CrashReport
 import com.riffle.core.domain.CrashReportRepository
 import com.riffle.core.domain.FormattingPreferences
 import com.riffle.core.domain.FormattingPreferencesStore
-import com.riffle.core.domain.Library
-import com.riffle.core.domain.LibraryItem
+import com.riffle.core.models.Library
+import com.riffle.core.models.LibraryItem
 import com.riffle.core.domain.LibraryRefreshResult
 import com.riffle.core.domain.LibraryOrderPreferencesStore
 import com.riffle.core.domain.LibraryObserver
@@ -32,11 +32,11 @@ import com.riffle.core.domain.ConfirmedReadaloud
 import com.riffle.core.domain.PendingReadaloud
 import com.riffle.core.domain.ReadaloudReview
 import com.riffle.core.domain.ReadaloudReviewRepository
-import com.riffle.core.domain.Series
-import com.riffle.core.domain.Source
+import com.riffle.core.models.Series
+import com.riffle.core.models.Source
 import com.riffle.core.domain.SourceRepository
-import com.riffle.core.domain.ServerType
-import com.riffle.core.domain.SourceUrl
+import com.riffle.core.models.ServerType
+import com.riffle.core.models.SourceUrl
 import com.riffle.core.domain.UnmatchedReadaloud
 import com.riffle.core.domain.ListeningPreferencesStore
 import com.riffle.core.domain.VolumeKeyPreferencesStore
@@ -119,7 +119,7 @@ class SettingsViewModelTest {
         id: String,
         active: Boolean = false,
         serverType: ServerType = ServerType.AUDIOBOOKSHELF,
-        type: com.riffle.core.domain.SourceType = com.riffle.core.domain.SourceType.ABS,
+        type: com.riffle.core.models.SourceType = com.riffle.core.models.SourceType.ABS,
     ) = Source(
         id = id,
         url = SourceUrl.parse("https://$id.example.com")!!,
@@ -168,7 +168,7 @@ class SettingsViewModelTest {
         override suspend fun getItem(itemId: String): LibraryItem? = null
         override fun observeItem(itemId: String): Flow<LibraryItem?> = MutableStateFlow<LibraryItem?>(null)
         override suspend fun getItem(sourceId: String, itemId: String): LibraryItem? = getItem(itemId)
-        override suspend fun getLibrary(libraryId: String): com.riffle.core.domain.Library? = null
+        override suspend fun getLibrary(libraryId: String): com.riffle.core.models.Library? = null
         override suspend fun getSeriesIdForItem(sourceId: String, itemId: String): String? = null
     }
 
@@ -529,7 +529,7 @@ class SettingsViewModelTest {
     @Test
     fun `libraryUiItemsBySource populated for a Local Files source`() = runTest {
         serversFlow.value = listOf(
-            server("lf-1", type = com.riffle.core.domain.SourceType.LOCAL_FILES),
+            server("lf-1", type = com.riffle.core.models.SourceType.LOCAL_FILES),
         )
         librariesFlow.value = listOf(library("folder-a"), library("folder-b"))
         val vm = makeViewModel()
@@ -543,7 +543,7 @@ class SettingsViewModelTest {
     @Test
     fun `libraryUiItemsBySource populated for a Chitanka source`() = runTest {
         serversFlow.value = listOf(
-            server("ch-1", type = com.riffle.core.domain.SourceType.CHITANKA),
+            server("ch-1", type = com.riffle.core.models.SourceType.CHITANKA),
         )
         librariesFlow.value = listOf(library("books"), library("gramofonche"))
         val vm = makeViewModel()
@@ -557,7 +557,7 @@ class SettingsViewModelTest {
     @Test
     fun `libraryUiItemsBySource applies saved order for a Local Files source`() = runTest {
         serversFlow.value = listOf(
-            server("lf-1", type = com.riffle.core.domain.SourceType.LOCAL_FILES),
+            server("lf-1", type = com.riffle.core.models.SourceType.LOCAL_FILES),
         )
         librariesFlow.value = listOf(library("a"), library("b"), library("c"))
         orderFlow.value = mapOf("lf-1" to listOf("c", "a", "b"))

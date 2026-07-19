@@ -1,6 +1,8 @@
 package com.riffle.core.domain
 
 import kotlinx.coroutines.flow.Flow
+import com.riffle.core.models.AudiobookIdentityResult
+import com.riffle.core.models.ReadaloudLink
 
 interface ReadaloudLinkRepository {
     fun observeAll(): Flow<List<ReadaloudLink>>

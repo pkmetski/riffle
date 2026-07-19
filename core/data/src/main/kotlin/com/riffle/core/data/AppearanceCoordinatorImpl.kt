@@ -3,7 +3,7 @@ package com.riffle.core.data
 import com.riffle.core.domain.AppThemeStore
 import com.riffle.core.domain.FormattingPreferencesStore
 import com.riffle.core.domain.ReaderTheme
-import com.riffle.core.domain.TimeProvider
+import com.riffle.core.common.TimeProvider
 import com.riffle.core.domain.appearance.AppearanceCoordinator
 import com.riffle.core.domain.appearance.ChromeTheme
 import com.riffle.core.domain.appearance.ConcreteReaderTheme

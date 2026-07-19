@@ -1,4 +1,7 @@
 package com.riffle.core.domain
+import com.riffle.core.models.ProgressSyncCycleResult
+import com.riffle.core.models.SessionPayload
+import com.riffle.core.models.SyncSessionResult
 
 interface ReadingSessionRepository {
     suspend fun syncProgress(itemId: String, payload: SessionPayload): SyncSessionResult

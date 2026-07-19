@@ -2,7 +2,7 @@ package com.riffle.core.network
 
 import com.riffle.core.domain.DefaultDispatcherProvider
 
-import com.riffle.core.domain.InsecureConnectionType
+import com.riffle.core.models.InsecureConnectionType
 import kotlinx.coroutines.test.runTest
 import okhttp3.OkHttpClient
 import okhttp3.mockwebserver.MockResponse

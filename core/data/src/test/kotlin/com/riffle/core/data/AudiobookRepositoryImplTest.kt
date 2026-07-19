@@ -15,9 +15,9 @@ import com.riffle.core.catalog.CatalogRegistry
 import com.riffle.core.catalog.CatalogRoot
 import com.riffle.core.catalog.SortKey
 import com.riffle.core.catalog.FacetSelection
-import com.riffle.core.domain.Clock
-import com.riffle.core.domain.Source
-import com.riffle.core.domain.SourceType
+import com.riffle.core.common.Clock
+import com.riffle.core.models.Source
+import com.riffle.core.models.SourceType
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull

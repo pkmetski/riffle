@@ -1,6 +1,6 @@
 package com.riffle.core.data
 
-import com.riffle.core.domain.AnnotationDeviceMeta
+import com.riffle.core.models.AnnotationDeviceMeta
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonObject

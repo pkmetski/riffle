@@ -1,6 +1,6 @@
 package com.riffle.app.feature.reader
 
-import com.riffle.core.domain.EmphasisStyle
+import com.riffle.core.models.EmphasisStyle
 import org.junit.Assert.assertTrue
 import org.junit.Test
 

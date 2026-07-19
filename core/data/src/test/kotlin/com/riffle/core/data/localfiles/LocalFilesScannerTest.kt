@@ -7,7 +7,7 @@ import com.riffle.core.database.LocalFilesFileFolderDao
 import com.riffle.core.database.LocalFilesFileFolderEntity
 import com.riffle.core.database.LocalFilesFolderDao
 import com.riffle.core.database.LocalFilesFolderEntity
-import com.riffle.core.domain.Clock
+import com.riffle.core.common.Clock
 import com.riffle.core.domain.NoOpPdfMetadataExtractor
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow

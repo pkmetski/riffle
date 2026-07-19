@@ -2,7 +2,7 @@ package com.riffle.core.data
 
 import com.riffle.core.database.AnnotationDao
 import com.riffle.core.database.LibraryItemDao
-import com.riffle.core.domain.EbookFormat
+import com.riffle.core.models.EbookFormat
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map

@@ -8,8 +8,8 @@ import com.riffle.core.domain.AppTheme
 import com.riffle.core.domain.AppThemeStore
 import com.riffle.core.domain.CoverGridDensityStore
 import com.riffle.core.domain.EmphasisPreferencesStore
-import com.riffle.core.domain.EmphasisStyle
-import com.riffle.core.domain.HighlightColor
+import com.riffle.core.models.EmphasisStyle
+import com.riffle.core.models.HighlightColor
 import com.riffle.core.domain.HighlightColorPreferencesStore
 import com.riffle.core.domain.HighlightsResumeStore
 import com.riffle.core.domain.ReadaloudPreferences

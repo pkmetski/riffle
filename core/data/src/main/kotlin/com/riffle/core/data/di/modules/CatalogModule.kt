@@ -3,7 +3,7 @@ package com.riffle.core.data.di.modules
 import com.riffle.core.catalog.CatalogFactory
 import com.riffle.core.catalog.CatalogRegistry
 import com.riffle.core.catalog.DefaultCatalogRegistry
-import com.riffle.core.domain.SourceType
+import com.riffle.core.models.SourceType
 import com.riffle.core.catalog.abs.AbsCatalogFactory
 import com.riffle.core.catalog.chitanka.ChitankaCatalogFactory
 import com.riffle.core.catalog.gutenberg.GutenbergCatalogFactory
@@ -12,7 +12,7 @@ import com.riffle.core.data.localfiles.LocalFilesCatalogFactory
 import com.riffle.core.database.LibraryItemDao
 import com.riffle.core.database.LocalFilesFileDao
 import com.riffle.core.database.LocalFilesFolderDao
-import com.riffle.core.domain.Clock
+import com.riffle.core.common.Clock
 import com.riffle.core.domain.DeviceIdStore
 import com.riffle.core.domain.SourceRepository
 import com.riffle.core.domain.TokenStorage

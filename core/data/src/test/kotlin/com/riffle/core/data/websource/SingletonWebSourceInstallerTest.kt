@@ -8,7 +8,7 @@ import com.riffle.core.database.SourceDao
 import com.riffle.core.database.SourceEntity
 import com.riffle.core.domain.ChitankaWebSourceDescriptor
 import com.riffle.core.domain.GutenbergWebSourceDescriptor
-import com.riffle.core.domain.SourceType
+import com.riffle.core.models.SourceType
 import com.riffle.core.domain.WebSourceDescriptors
 import com.riffle.core.domain.WebSourceRegistry
 import com.riffle.core.logging.NoopLogger

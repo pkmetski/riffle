@@ -1,0 +1,11 @@
+package com.riffle.core.models
+
+/** A user bookmark in an audiobook: a titled book-absolute position. */
+data class AudiobookBookmark(
+    val id: String,
+    val sourceId: String,
+    val itemId: String,
+    val positionSec: Double,
+    val title: String,
+    val createdAt: Long,
+)

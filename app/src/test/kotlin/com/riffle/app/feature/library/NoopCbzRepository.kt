@@ -9,9 +9,9 @@ internal class NoopCbzRepository(
 ) : CbzRepository {
     override fun isDownloaded(sourceId: String, itemId: String) = downloaded
     override fun isCached(sourceId: String, itemId: String) = cached
-    override suspend fun openCbz(item: com.riffle.core.domain.LibraryItem) = error("unused in test")
+    override suspend fun openCbz(item: com.riffle.core.models.LibraryItem) = error("unused in test")
     override suspend fun downloadCbz(
-        item: com.riffle.core.domain.LibraryItem,
+        item: com.riffle.core.models.LibraryItem,
         onProgress: (downloaded: Long, total: Long) -> Unit,
     ) = error("unused in test")
     override suspend fun removeDownload(sourceId: String, itemId: String) = error("unused in test")

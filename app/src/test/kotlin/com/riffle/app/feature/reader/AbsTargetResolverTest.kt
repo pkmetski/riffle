@@ -1,6 +1,6 @@
 package com.riffle.app.feature.reader
 
-import com.riffle.core.domain.ReadaloudLink
+import com.riffle.core.models.ReadaloudLink
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test

@@ -3,7 +3,7 @@ package com.riffle.core.catalog.gutenberg
 import com.riffle.core.catalog.BookFormat
 import com.riffle.core.catalog.CatalogFileHandle
 import com.riffle.core.catalog.FacetSelection
-import com.riffle.core.domain.SourceType
+import com.riffle.core.models.SourceType
 import kotlinx.coroutines.test.runTest
 import okhttp3.OkHttpClient
 import okhttp3.mockwebserver.MockResponse

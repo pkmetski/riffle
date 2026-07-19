@@ -1,6 +1,9 @@
 package com.riffle.core.domain
 
 import kotlinx.coroutines.flow.Flow
+import com.riffle.core.models.Annotation
+import com.riffle.core.models.EmbeddedFigure
+import com.riffle.core.models.EmphasisStyle
 
 interface AnnotationStore {
 

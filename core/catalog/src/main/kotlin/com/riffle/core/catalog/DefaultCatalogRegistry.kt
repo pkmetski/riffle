@@ -1,8 +1,8 @@
 package com.riffle.core.catalog
 
-import com.riffle.core.domain.Source
+import com.riffle.core.models.Source
 import com.riffle.core.domain.SourceRepository
-import com.riffle.core.domain.SourceType
+import com.riffle.core.models.SourceType
 
 /**
  * Default [CatalogRegistry] implementation: looks the active/target [Source] up in

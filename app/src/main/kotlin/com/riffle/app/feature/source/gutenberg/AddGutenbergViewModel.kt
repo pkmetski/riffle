@@ -3,7 +3,7 @@ package com.riffle.app.feature.source.gutenberg
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.riffle.core.data.websource.SingletonWebSourceInstaller
-import com.riffle.core.domain.SourceType
+import com.riffle.core.models.SourceType
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow

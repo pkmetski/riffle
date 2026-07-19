@@ -1,4 +1,5 @@
 package com.riffle.core.domain
+import com.riffle.core.models.ReadaloudLink
 
 /**
  * The locally-cached materials needed to build a cross-EPUB index for one matched book. The EPUBs

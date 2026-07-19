@@ -3,17 +3,17 @@ package com.riffle.app.feature.audiobook
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.riffle.core.domain.AudioIdentity
+import com.riffle.core.models.AudioIdentity
 import com.riffle.core.domain.AudioIdentityResolver
 import com.riffle.core.domain.AudioPlaybackPreferencesStore
-import com.riffle.core.domain.AudiobookBookmark
+import com.riffle.core.models.AudiobookBookmark
 import com.riffle.core.domain.ListeningPreferencesStore
 import com.riffle.core.domain.AudiobookBookmarkStore
 import com.riffle.core.domain.AudiobookChapter
 import com.riffle.core.domain.AudiobookRepository
 import com.riffle.core.domain.AudiobookTimeline
 import com.riffle.core.domain.BookmarkTitleBuilder
-import com.riffle.core.domain.Clock
+import com.riffle.core.common.Clock
 import com.riffle.core.domain.LibraryObserver
 import com.riffle.core.domain.usecase.UpdateReadingProgress
 import com.riffle.core.domain.SourceRepository
@@ -426,7 +426,7 @@ class AudiobookPlayerViewModel @Inject constructor(
             // reader applies (readaloudControlState): a Storyteller book always qualifies, a matched ABS
             // book only once its bundle is downloaded, an unmatched ABS book never. The bundle is keyed by
             // the linked Storyteller book (or this item, on a Storyteller service), NOT the ABS item id.
-            val isStoryteller = server?.serverType == com.riffle.core.domain.ServerType.STORYTELLER_SERVICE
+            val isStoryteller = server?.serverType == com.riffle.core.models.ServerType.STORYTELLER_SERVICE
             val audioServerId = link?.storytellerSourceId ?: sourceId
             val audioBookId = link?.storytellerBookId ?: itemId
             val readaloudAvailable = com.riffle.app.feature.reader.readaloudControlState(

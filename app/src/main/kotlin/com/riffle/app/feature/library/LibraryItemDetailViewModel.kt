@@ -8,10 +8,10 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.riffle.core.domain.AudiobookChapter
 import com.riffle.core.domain.ConnectivityObserver
-import com.riffle.core.domain.EbookFormat
+import com.riffle.core.models.EbookFormat
 import com.riffle.core.domain.EpubDownloadResult
 import com.riffle.core.domain.EpubRepository
-import com.riffle.core.domain.LibraryItem
+import com.riffle.core.models.LibraryItem
 import com.riffle.core.domain.LibraryObserver
 import com.riffle.core.domain.PdfDownloadResult
 import com.riffle.core.domain.PdfRepository
@@ -30,7 +30,7 @@ import com.riffle.core.catalog.PlaylistsCapability
 import com.riffle.core.catalog.ReadaloudCapability
 import com.riffle.core.catalog.SeriesCapability
 import com.riffle.core.domain.SourceRepository
-import com.riffle.core.domain.TocEntry
+import com.riffle.core.models.TocEntry
 import com.riffle.core.domain.TokenStorage
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -186,7 +186,7 @@ class LibraryItemDetailViewModel @Inject constructor(
     // The loaded item, retained so the DownloadManager observer can compute this screen's download
     // keys without going through the (possibly still-Loading) uiState.
     private var loadedItem: LibraryItem? = null
-    private var readaloudLink: com.riffle.core.domain.ReadaloudLink? = null
+    private var readaloudLink: com.riffle.core.models.ReadaloudLink? = null
     private val _readaloudDownloadState = MutableStateFlow<DownloadState?>(null)
     val readaloudDownloadState: StateFlow<DownloadState?> = _readaloudDownloadState
 
@@ -589,7 +589,7 @@ class LibraryItemDetailViewModel @Inject constructor(
     // and a readaloud bundle downloading at once.
     private fun ebookKey(item: LibraryItem) = "ebook:${item.sourceId}:${item.id}"
     private fun audiobookKey(item: LibraryItem) = "audiobook:${item.sourceId}:${item.id}"
-    private fun readaloudKey(link: com.riffle.core.domain.ReadaloudLink) =
+    private fun readaloudKey(link: com.riffle.core.models.ReadaloudLink) =
         "readaloud:${link.storytellerSourceId}:${link.storytellerBookId}"
 
     private fun deriveDownloadState(item: LibraryItem): DownloadState {

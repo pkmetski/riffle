@@ -4,7 +4,7 @@ import androidx.annotation.OptIn
 import androidx.media3.common.ForwardingPlayer
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
-import com.riffle.core.domain.AudiobookTracks
+import com.riffle.core.models.AudiobookTracks
 
 /**
  * Wraps [ExoPlayer] and overrides the three position-related methods so that Android's OS media

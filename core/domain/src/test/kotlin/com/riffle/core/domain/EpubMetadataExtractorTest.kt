@@ -8,6 +8,9 @@ import org.junit.Test
 import java.io.ByteArrayOutputStream
 import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
+import com.riffle.core.models.Collection
+import com.riffle.core.models.EpubMetadata
+import com.riffle.core.models.Series
 
 class EpubMetadataExtractorTest {
 
