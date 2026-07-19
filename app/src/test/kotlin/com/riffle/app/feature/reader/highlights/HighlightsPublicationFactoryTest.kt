@@ -439,6 +439,33 @@ class HighlightsPublicationFactoryTest {
         )
     }
 
+    // Regression (elided-view-per-p-wrong-font, 2026-07-19): a highlight that started on a
+    // heading, code sample, or pull-quote captured the display face (e.g. `Reg` on the
+    // Nimbus/Reg/lucida-mixed *A Philosophy of Software Design*) — rendering the elided-view
+    // excerpt in that face makes it visibly diverge from every other highlight on the same book.
+    // The book-body font (derived from plurality across the book's rows) must win over the
+    // annotation's own captured value at render time.
+    @Test
+    fun bookBodyFontFamily_winsOverAnnotationOwnFont_onExcerpt() {
+        val pub = factory.build(
+            sourceId = "S1", itemId = "B1", bookTitle = null,
+            chapters = listOf(
+                ChapterElision(
+                    "ch0.xhtml", "One",
+                    listOf(hl("h1", "heading-styled excerpt", originFontFamily = "Reg")),
+                ),
+            ),
+            urlFactory = ::testUrlFactory,
+            bookBodyFontFamily = "Nimbusromno9l",
+        )
+        val html = readChapterHtml(pub, index = 0)
+        assertTrue(
+            "excerpt <p> must render in the book body font, not the annotation's captured " +
+                "heading face; html was: $html",
+            html.contains("font-family: Nimbusromno9l;") && !html.contains("font-family: Reg;")
+        )
+    }
+
     // A font-family value whose bytes contain something outside the safe allowlist (e.g. an
     // injected `};color:red;`) must be dropped, not written into the excerpt style attribute —
     // the DB is not a trust boundary and CSS injection must not be possible.

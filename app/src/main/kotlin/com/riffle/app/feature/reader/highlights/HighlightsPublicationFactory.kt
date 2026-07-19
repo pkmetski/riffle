@@ -549,11 +549,19 @@ private fun appendOriginFontFamilyStyle(
     // Filter the shared [FALLBACK_ORIGIN_FONT_FAMILY] sentinel so a sentinel-stamped annotation
     // doesn't force a bare `font-family: serif !important` inline on its `<p>` — let the fallback
     // chain (bookBodyFontFamily, then ReadiumCSS default) take over.
+    // Prefer the book's body font over the annotation's own captured `originFontFamily`
+    // (elided-view-per-p-wrong-font-regression, 2026-07-19). A highlight that started on a
+    // heading, code sample, or pull-quote captured the display face (e.g. `Reg` on the
+    // Nimbus/Reg/lucida-mixed A Philosophy of Software Design) — rendering the elided-view
+    // excerpt in that face makes it visibly diverge from every other highlight on the same
+    // book. Elided-view excerpts are always body paragraphs, so the book body font is right
+    // for every row. Falls back to the annotation's own captured value only when the caller
+    // has no body-font hint (fresh Highlights VM whose DB rows all lack a real captured value).
+    val body = bookBodyFontFamily
+        ?.takeIf { it.isNotBlank() && it != FALLBACK_ORIGIN_FONT_FAMILY }
     val ownFont = originFontFamily
         ?.takeIf { it.isNotBlank() && it != FALLBACK_ORIGIN_FONT_FAMILY }
-    val fallback = bookBodyFontFamily
-        ?.takeIf { it.isNotBlank() && it != FALLBACK_ORIGIN_FONT_FAMILY }
-    val raw = ownFont ?: fallback
+    val raw = body ?: ownFont
     val safe = sanitizeCssFontFamily(raw) ?: return
     // No `!important` (elided-view-serif-font-regression follow-up): with it, the captured
     // origin font pinned per-excerpt regardless of the reader's Font pref — switching to

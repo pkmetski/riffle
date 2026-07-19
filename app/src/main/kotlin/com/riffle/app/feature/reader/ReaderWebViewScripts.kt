@@ -487,18 +487,28 @@ internal val SELECTION_SPAN_TRACKER_JS = """
                 figures.push(entry);
               }
             } catch (e) { figures = []; }
-            // Origin font-family at the selection's start element (issue #484). Read from the
-            // start container walked up to its parent Element (text nodes have no computed
-            // style). Empty string on failure — Kotlin side falls back to the book's body font.
-            var ff = '';
-            try {
-              var startEl = rng.startContainer;
-              if (startEl && startEl.nodeType === 3) startEl = startEl.parentElement;
-              if (startEl && startEl.nodeType === 1) {
-                var cs = window.getComputedStyle(startEl);
-                if (cs) ff = cs.fontFamily || '';
-              }
-            } catch (e) { ff = ''; }
+            // Origin font-family for the elided view (issue #484). Prefer the book's computed
+            // BODY font (already probed and cached on window.__riffleBookBodyFont by the
+            // one-shot probe above) over the selection's start-element style — a highlight
+            // that starts on a heading, code sample, or pull-quote would otherwise stamp the
+            // display face (e.g. `Reg` on a Nimbus/Reg/lucida book) onto the row, and the
+            // elided view then renders that excerpt in the wrong face — visibly different
+            // from every other highlight on the same book. The elided view shows excerpts as
+            // body paragraphs, so the body font is the right choice for every annotation.
+            // Only when the body probe is unavailable (very early install, chapter shell with
+            // no content yet) do we fall through to the start-element style — better than
+            // recording nothing.
+            var ff = window.__riffleBookBodyFont || '';
+            if (!ff) {
+              try {
+                var startEl = rng.startContainer;
+                if (startEl && startEl.nodeType === 3) startEl = startEl.parentElement;
+                if (startEl && startEl.nodeType === 1) {
+                  var cs = window.getComputedStyle(startEl);
+                  if (cs) ff = cs.fontFamily || '';
+                }
+              } catch (e) { ff = ''; }
+            }
             window.__riffleSelData = {
               text: text,
               p: Math.max(0, Math.min(1, br2.top / docH)),
