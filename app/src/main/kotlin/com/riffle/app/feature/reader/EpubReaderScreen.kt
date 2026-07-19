@@ -2769,7 +2769,7 @@ private fun EpubNavigatorView(
                     isLandscape
                 val existingFrag = fragmentRef.value
                 if (existingFrag != null && fragmentDoublePageHolder[0] != isDoublePage) {
-                    fm.beginTransaction().remove(existingFrag).commitNow()
+                    fm.beginTransaction().remove(existingFrag).commitNowAllowingStateLoss()
                     readiumPresenter?.detach()
                     fragmentRef.value = null
                     fragmentDoublePageHolder[0] = null
@@ -2782,7 +2782,7 @@ private fun EpubNavigatorView(
                 // can recreate it properly with latestLocator() as the initial position.
                 if (fragmentRef.value == null) {
                     fm.findFragmentById(containerId)?.let { stale ->
-                        fm.beginTransaction().remove(stale).commitNow()
+                        fm.beginTransaction().remove(stale).commitNowAllowingStateLoss()
                     }
                 }
 
@@ -2817,7 +2817,7 @@ private fun EpubNavigatorView(
                     fm.fragmentFactory = fragmentFactory
                     fm.beginTransaction()
                         .add(containerId, EpubNavigatorFragment::class.java, null)
-                        .commitNow()
+                        .commitNowAllowingStateLoss()
                     val fragment = fm.findFragmentById(containerId) as? EpubNavigatorFragment
                         ?: return@AndroidView
                     fragmentRef.value = fragment

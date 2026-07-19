@@ -467,7 +467,7 @@ private fun PdfNavigatorViewContent(
             // properly with latestLocator() as the initial position.
             if (fragmentRef.value == null) {
                 fm.findFragmentById(containerId)?.let { stale ->
-                    fm.beginTransaction().remove(stale).commitNow()
+                    fm.beginTransaction().remove(stale).commitNowAllowingStateLoss()
                 }
             }
 
@@ -482,7 +482,7 @@ private fun PdfNavigatorViewContent(
                 fm.fragmentFactory = fragmentFactory
                 fm.beginTransaction()
                     .add(containerId, PdfiumNavigatorFragment::class.java, null)
-                    .commitNow()
+                    .commitNowAllowingStateLoss()
                 @Suppress("UNCHECKED_CAST")
                 val fragment = fm.findFragmentById(containerId) as? PdfiumNavigatorFragment
                     ?: return@AndroidView
