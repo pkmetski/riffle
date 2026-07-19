@@ -81,16 +81,33 @@ interface AnnotationDao {
     @Upsert
     suspend fun upsertAll(annotations: List<AnnotationEntity>)
 
+    // Every user-edit update below stamps `updatedAt = MAX(updatedAt + 1, :updatedAt)` rather than
+    // `:updatedAt` verbatim. AnnotationLiveSync's LWW merge (AnnotationMergeService) picks the row
+    // with the highest updatedAt; if a peer file's row (or a prior local upsert that adopted a
+    // peer's future stamp) sits at wall_clock+ε, a raw local `clock()` write can land at or below
+    // that peer stamp and be overwritten by the next merge tick — the "recolor reverts" bug. The
+    // atomic SQL max mirrors the guard in TimestampedPositionStore.save: the local edit is always
+    // strictly newer than any prior state on this row, regardless of cross-device clock skew.
+
     /** Tombstone an annotation so the delete can later propagate to other devices. */
-    @Query("UPDATE annotations SET deleted = 1, updatedAt = :updatedAt, lastModifiedByDeviceId = :deviceId WHERE id = :id")
+    @Query(
+        "UPDATE annotations SET deleted = 1, updatedAt = MAX(updatedAt + 1, :updatedAt), " +
+            "lastModifiedByDeviceId = :deviceId WHERE id = :id"
+    )
     suspend fun tombstone(id: String, updatedAt: Long, deviceId: String)
 
     /** Recolour an annotation in place, bumping updatedAt + provenance so the change can propagate. */
-    @Query("UPDATE annotations SET color = :color, updatedAt = :updatedAt, lastModifiedByDeviceId = :deviceId WHERE id = :id")
+    @Query(
+        "UPDATE annotations SET color = :color, updatedAt = MAX(updatedAt + 1, :updatedAt), " +
+            "lastModifiedByDeviceId = :deviceId WHERE id = :id"
+    )
     suspend fun recolor(id: String, color: String, updatedAt: Long, deviceId: String)
 
     /** Set (or clear) the note on a highlight in place, bumping updatedAt + provenance. */
-    @Query("UPDATE annotations SET note = :note, updatedAt = :updatedAt, lastModifiedByDeviceId = :deviceId WHERE id = :id")
+    @Query(
+        "UPDATE annotations SET note = :note, updatedAt = MAX(updatedAt + 1, :updatedAt), " +
+            "lastModifiedByDeviceId = :deviceId WHERE id = :id"
+    )
     suspend fun updateNote(id: String, note: String?, updatedAt: Long, deviceId: String)
 
     /** Replace the styles set on an emphasis row in place, bumping updatedAt + provenance (ADR 0046).
@@ -98,7 +115,8 @@ interface AnnotationDao {
      *  Returns the row count updated so the store can distinguish a stale-id miss from a real edit
      *  (see code-review F7); zero means the update landed on nothing and no sync push is needed. */
     @Query(
-        "UPDATE annotations SET emphasisStyles = :emphasisStyles, updatedAt = :updatedAt, " +
+        "UPDATE annotations SET emphasisStyles = :emphasisStyles, " +
+            "updatedAt = MAX(updatedAt + 1, :updatedAt), " +
             "lastModifiedByDeviceId = :deviceId WHERE id = :id AND type = 'EMPHASIS' AND deleted = 0"
     )
     suspend fun updateEmphasisStyles(id: String, emphasisStyles: String, updatedAt: Long, deviceId: String): Int
@@ -114,7 +132,10 @@ interface AnnotationDao {
     fun observeAnnotationsByPosition(sourceId: String, itemId: String): Flow<List<AnnotationEntity>>
 
     /** Update the user-editable title of a bookmark, bumping updatedAt + provenance. */
-    @Query("UPDATE annotations SET bookmarkTitle = :title, updatedAt = :updatedAt, lastModifiedByDeviceId = :deviceId WHERE id = :id AND type = 'BOOKMARK'")
+    @Query(
+        "UPDATE annotations SET bookmarkTitle = :title, updatedAt = MAX(updatedAt + 1, :updatedAt), " +
+            "lastModifiedByDeviceId = :deviceId WHERE id = :id AND type = 'BOOKMARK'"
+    )
     suspend fun renameBookmark(id: String, title: String, updatedAt: Long, deviceId: String)
 
     /**

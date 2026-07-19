@@ -14,6 +14,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import org.readium.r2.shared.publication.Locator
 
 /**
@@ -40,6 +42,17 @@ class PositionOrchestrator @AssistedInject constructor(
 
     val serverJump: ServerJumpCoordinator = ServerJumpCoordinator()
     val resumeRestorer: ResumeRestorer = ResumeRestorer(refire = { serverJump.requestJump(it) })
+
+    /**
+     * Serializes local position saves (dispatched from [onPositionChanged] via [scope.launch]) with
+     * any read of `localUpdatedAt` that drives a sync-cycle dirty check ([withSaveLock]). Without
+     * this, the periodic sync tick could read `localUpdatedAt` from the DB *before* an in-flight
+     * save from the just-received scroll had landed, decide `serverLastUpdate > lastSyncedAt`, and
+     * yank the reader back to the pre-scroll locator via [ServerJumpCoordinator] — the "scroll
+     * snaps back" symptom. Kotlinx Mutex is fair (FIFO), so a save queued from `onPositionChanged`
+     * always runs before the sync-tick coroutine that was launched afterwards.
+     */
+    private val saveMutex = Mutex()
 
     // ---- Per-book state (reset by bindBook) ----
 
@@ -157,12 +170,21 @@ class PositionOrchestrator @AssistedInject constructor(
         // navigation leaves no pending stamp and we let PositionSaveCoordinator stamp `now`.
         val serverJumpStamp = serverJump.consumePendingStamp()
         scope.launch {
-            positionSaveCoordinator?.onChanged(locator.toJSON().toString())
-            if (serverJumpStamp != null) {
-                readingPositionStore?.updateLocalTimestamp(sourceId, itemId, serverJumpStamp)
+            saveMutex.withLock {
+                positionSaveCoordinator?.onChanged(locator.toJSON().toString())
+                if (serverJumpStamp != null) {
+                    readingPositionStore?.updateLocalTimestamp(sourceId, itemId, serverJumpStamp)
+                }
             }
         }
     }
+
+    /**
+     * Runs [block] under the same mutex that serializes local saves. Sync-cycle callers must wrap
+     * their `loadLocalUpdatedAt` + follow-up work in this so any pending save from a fresh
+     * `onPositionChanged` completes before the dirty-check read (see [saveMutex] docstring).
+     */
+    suspend fun <T> withSaveLock(block: suspend () -> T): T = saveMutex.withLock { block() }
 
     // ---- Facade delegations preserved so the VM's call sites don't churn ---------------------
 

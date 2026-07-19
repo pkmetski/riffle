@@ -224,6 +224,53 @@ class PositionOrchestratorTest {
         assertTrue("Stamp should be recorded", fakeStore.savedTimestamps.any { it.first == 999L })
     }
 
+    /**
+     * Regression: the periodic sync tick reads `localUpdatedAt` from the store to decide dirty vs
+     * server-wins. Before the [PositionOrchestrator.withSaveLock] gate existed, that read could
+     * race the in-flight `scope.launch` save from a fresh `onPositionChanged`, see stale disk
+     * state, and yank the reader back to the pre-scroll locator. Assert that a save queued from
+     * `onPositionChanged` completes before a subsequently-called `withSaveLock` block runs.
+     */
+    @Test
+    fun `withSaveLock waits for a queued onPositionChanged save`() = runTest(testDispatcher) {
+        val order = mutableListOf<String>()
+        val gate = kotlinx.coroutines.CompletableDeferred<Unit>()
+        val saveCoordinator = PositionSaveCoordinator<String>(
+            savePosition = { pos ->
+                gate.await() // Hold the save open until we release it
+                order.add("save:$pos")
+            },
+            updateProgress = { },
+        )
+        val fakeStore = FakeReadingPositionStore()
+        val scope = kotlinx.coroutines.CoroutineScope(testDispatcher)
+        val orchestrator = PositionOrchestrator(scope)
+        orchestrator.bindBook(
+            itemId = "item1",
+            sourceId = "server1",
+            positionSaveCoordinator = saveCoordinator,
+            readingPositionStore = fakeStore,
+            spinePositionCounts = MutableStateFlow(emptyList<String>() to emptyList()),
+        )
+        // Consume initialLocatorSeen so the next onPositionChanged actually schedules a save.
+        orchestrator.onPositionChanged(buildLocator("ch1.html", 0.0))
+        // Queue a save that is currently stuck on `gate`.
+        orchestrator.onPositionChanged(buildLocator("ch1.html", 0.5))
+
+        // Launch a withSaveLock that mimics the sync tick. It must NOT run until the save unblocks.
+        val syncJob = launch {
+            orchestrator.withSaveLock { order.add("sync-read") }
+        }
+        // Sanity: sync hasn't taken the lock yet because save is holding it.
+        assertTrue("sync must not run while save is in flight; order=$order", order.isEmpty())
+
+        // Release the save; sync then proceeds.
+        gate.complete(Unit)
+        syncJob.join()
+
+        assertEquals(listOf("save:${buildLocator("ch1.html", 0.5).toJSON()}", "sync-read"), order)
+    }
+
     /** (10) armReturnRestore re-fires server locator on spurious chapter-top clobber */
     @Test
     fun `armReturnRestore re-fires server locator on spurious chapter-top clobber`() = runTest(testDispatcher) {

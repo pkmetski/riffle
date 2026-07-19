@@ -58,13 +58,21 @@ class AnnotationStoreImplTest {
 
         override suspend fun tombstone(id: String, updatedAt: Long, deviceId: String) {
             rows.value = rows.value.map {
-                if (it.id == id) it.copy(deleted = true, updatedAt = updatedAt, lastModifiedByDeviceId = deviceId) else it
+                if (it.id == id) it.copy(
+                    deleted = true,
+                    updatedAt = maxOf(it.updatedAt + 1, updatedAt),
+                    lastModifiedByDeviceId = deviceId,
+                ) else it
             }
         }
 
         override suspend fun recolor(id: String, color: String, updatedAt: Long, deviceId: String) {
             rows.value = rows.value.map {
-                if (it.id == id) it.copy(color = color, updatedAt = updatedAt, lastModifiedByDeviceId = deviceId) else it
+                if (it.id == id) it.copy(
+                    color = color,
+                    updatedAt = maxOf(it.updatedAt + 1, updatedAt),
+                    lastModifiedByDeviceId = deviceId,
+                ) else it
             }
         }
 
@@ -101,7 +109,11 @@ class AnnotationStoreImplTest {
 
         override suspend fun updateNote(id: String, note: String?, updatedAt: Long, deviceId: String) {
             rows.value = rows.value.map {
-                if (it.id == id) it.copy(note = note, updatedAt = updatedAt, lastModifiedByDeviceId = deviceId) else it
+                if (it.id == id) it.copy(
+                    note = note,
+                    updatedAt = maxOf(it.updatedAt + 1, updatedAt),
+                    lastModifiedByDeviceId = deviceId,
+                ) else it
             }
         }
 
@@ -113,7 +125,11 @@ class AnnotationStoreImplTest {
 
         override suspend fun renameBookmark(id: String, title: String, updatedAt: Long, deviceId: String) {
             rows.value = rows.value.map {
-                if (it.id == id) it.copy(bookmarkTitle = title, updatedAt = updatedAt, lastModifiedByDeviceId = deviceId) else it
+                if (it.id == id) it.copy(
+                    bookmarkTitle = title,
+                    updatedAt = maxOf(it.updatedAt + 1, updatedAt),
+                    lastModifiedByDeviceId = deviceId,
+                ) else it
             }
         }
 
@@ -150,7 +166,11 @@ class AnnotationStoreImplTest {
             rows.value = rows.value.map {
                 if (it.id == id && it.type == AnnotationEntity.TYPE_EMPHASIS && !it.deleted) {
                     updated++
-                    it.copy(emphasisStyles = emphasisStyles, updatedAt = updatedAt, lastModifiedByDeviceId = deviceId)
+                    it.copy(
+                        emphasisStyles = emphasisStyles,
+                        updatedAt = maxOf(it.updatedAt + 1, updatedAt),
+                        lastModifiedByDeviceId = deviceId,
+                    )
                 } else it
             }
             return updated
@@ -270,6 +290,93 @@ class AnnotationStoreImplTest {
         assertEquals("blue", row?.color)
         assertEquals(5000L, row?.updatedAt)
         assertEquals("device-X", row?.lastModifiedByDeviceId)
+    }
+
+    // Regression: annotation edits sync via LWW on updatedAt. A peer file (or a prior remote merge
+    // that adopted a peer's future stamp) can leave a row with updatedAt ahead of this device's
+    // wall clock. Without the atomic MAX(updatedAt+1, :updatedAt) guard in AnnotationDao.recolor,
+    // the local edit stamps updatedAt = clock() ≤ peer stamp, and the next AnnotationLiveSync tick
+    // upserts the peer's old color back over the recolor — the "color reverts" bug.
+    @Test
+    fun `recolor stamps strictly newer than an inherited future updatedAt (revert-race guard)`() = runTest {
+        val s = store()
+        val created = s.createHighlight(
+            "abs1", "item1", "epubcfi(/6/4!/4/2,/1:0,/1:10)", "t", "c.xhtml",
+            originFontFamily = TEST_FONT,
+        )
+        // Peer merge landed a future stamp on this row (wall clock skew or adopted-peer stamp).
+        rows.value = rows.value.map {
+            if (it.id == created.id) it.copy(updatedAt = 999_999L) else it
+        }
+        // Local clock is behind the peer stamp.
+        now = 5000L
+
+        s.recolor(created.id, "blue")
+
+        val row = dao.getById(created.id)
+        assertEquals("blue", row?.color)
+        assertTrue(
+            "updatedAt must be strictly greater than the pre-existing stamp; was ${row?.updatedAt}",
+            (row?.updatedAt ?: 0L) > 999_999L,
+        )
+    }
+
+    @Test
+    fun `updateNote stamps strictly newer than an inherited future updatedAt (revert-race guard)`() = runTest {
+        val s = store()
+        val created = s.createHighlight(
+            "abs1", "item1", "epubcfi(/6/4!/4/2,/1:0,/1:10)", "t", "c.xhtml",
+            originFontFamily = TEST_FONT,
+        )
+        rows.value = rows.value.map {
+            if (it.id == created.id) it.copy(updatedAt = 999_999L) else it
+        }
+        now = 5000L
+
+        s.updateNote(created.id, "Fresh note")
+
+        val row = dao.getById(created.id)
+        assertEquals("Fresh note", row?.note)
+        assertTrue((row?.updatedAt ?: 0L) > 999_999L)
+    }
+
+    @Test
+    fun `delete tombstone stamps strictly newer than an inherited future updatedAt (revert-race guard)`() = runTest {
+        val s = store()
+        val created = s.createHighlight(
+            "abs1", "item1", "epubcfi(/6/4!/4/2,/1:0,/1:10)", "t", "c.xhtml",
+            originFontFamily = TEST_FONT,
+        )
+        rows.value = rows.value.map {
+            if (it.id == created.id) it.copy(updatedAt = 999_999L) else it
+        }
+        now = 5000L
+
+        s.delete(created.id)
+
+        val row = dao.getById(created.id)
+        assertEquals(true, row?.deleted)
+        assertTrue((row?.updatedAt ?: 0L) > 999_999L)
+    }
+
+    @Test
+    fun `renameBookmark stamps strictly newer than an inherited future updatedAt (revert-race guard)`() = runTest {
+        val s = store()
+        val created = s.createBookmark(
+            "abs1", "item1", "epubcfi(/6/6!/4/1:0)", "", "ch2.xhtml",
+            spineIndex = 0, progression = 0.0, bookmarkTitle = "old",
+            originFontFamily = TEST_FONT,
+        )
+        rows.value = rows.value.map {
+            if (it.id == created.id) it.copy(updatedAt = 999_999L) else it
+        }
+        now = 5000L
+
+        s.renameBookmark(created.id, "renamed")
+
+        val row = dao.getById(created.id)
+        assertEquals("renamed", row?.bookmarkTitle)
+        assertTrue((row?.updatedAt ?: 0L) > 999_999L)
     }
 
     @Test
