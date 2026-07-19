@@ -1,6 +1,6 @@
 package com.riffle.core.domain
+
 import com.riffle.core.common.Clock
-import com.riffle.core.domain.TestClock
 
 /**
  * Controllable [Clock] for tests — start at any epoch instant, advance by [advance] or set

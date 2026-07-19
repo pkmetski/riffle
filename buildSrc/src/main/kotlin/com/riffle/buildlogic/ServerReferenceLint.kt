@@ -27,16 +27,16 @@ object ServerReferenceLint {
      */
     val ALLOWLIST: Set<String> = setOf(
         // The ServerType enum itself is the taxonomy hinge — the enum name stays.
-        "core/domain/src/main/kotlin/com/riffle/core/domain/ServerType.kt",
+        "core/models/src/main/kotlin/com/riffle/core/models/ServerType.kt",
         // Room database + migrations reference historical `serverId` columns and
         // `servers` table in SQL that must remain verbatim to preserve migration
         // history. Identifier holdouts (ServerRepository comment) live here too.
         "core/database/src/main/kotlin/com/riffle/core/database/RiffleDatabase.kt",
         // Domain models that still carry `serverType: ServerType` parameters.
-        "core/domain/src/main/kotlin/com/riffle/core/domain/Source.kt",
+        "core/models/src/main/kotlin/com/riffle/core/models/Source.kt",
         "core/domain/src/main/kotlin/com/riffle/core/domain/SourceRepository.kt",
         "core/domain/src/main/kotlin/com/riffle/core/domain/PendingSource.kt",
-        "core/domain/src/main/kotlin/com/riffle/core/domain/ReadingSession.kt",
+        "core/models/src/main/kotlin/com/riffle/core/models/ReadingSession.kt",
         "core/domain/src/main/kotlin/com/riffle/core/domain/ProgressReconciler.kt",
         "core/domain/src/main/kotlin/com/riffle/core/domain/ProgressSyncController.kt",
         "core/domain/src/main/kotlin/com/riffle/core/domain/HighlightsResumeStore.kt",
