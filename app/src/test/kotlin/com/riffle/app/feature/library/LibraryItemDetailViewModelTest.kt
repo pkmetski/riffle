@@ -561,6 +561,28 @@ class LibraryItemDetailViewModelTest {
     }
 
     @Test
+    fun `toggleToRead emits success snackbar on add and remove`() = runTest(testDispatcher) {
+        val toRead = FakeToReadRepository()
+        val vm = makeVm(repo = fakeRepo(knownItem), toReadRepo = toRead)
+        val snackbarMessages = mutableListOf<String>()
+        val collectorJob = launch(start = CoroutineStart.UNDISPATCHED) {
+            vm.snackbarEvents.collect { snackbarMessages += it }
+        }
+        backgroundScope.launch { vm.uiState.collect {} }
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        vm.toggleToRead()
+        testDispatcher.scheduler.advanceUntilIdle()
+        assertEquals(listOf("Added to To Read"), snackbarMessages)
+
+        vm.toggleToRead()
+        testDispatcher.scheduler.advanceUntilIdle()
+        assertEquals(listOf("Added to To Read", "Removed from To Read"), snackbarMessages)
+
+        collectorJob.cancel()
+    }
+
+    @Test
     fun `toggleToRead removes book when already in To Read`() = runTest {
         val toRead = FakeToReadRepository(initial = setOf(knownItem.id))
         val vm = makeVm(repo = fakeRepo(knownItem), toReadRepo = toRead)

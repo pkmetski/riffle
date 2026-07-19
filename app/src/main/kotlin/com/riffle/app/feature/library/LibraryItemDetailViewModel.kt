@@ -421,6 +421,10 @@ class LibraryItemDetailViewModel @Inject constructor(
                 _snackbarEvents.emit(
                     if (wasInToRead) "Couldn't remove from To Read" else "Couldn't add to To Read"
                 )
+            } else {
+                _snackbarEvents.emit(
+                    if (wasInToRead) "Removed from To Read" else "Added to To Read"
+                )
             }
         }
     }
