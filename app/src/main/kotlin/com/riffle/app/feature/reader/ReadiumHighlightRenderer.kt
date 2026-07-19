@@ -1,5 +1,6 @@
 package com.riffle.app.feature.reader
 
+import com.riffle.core.domain.EmphasisStyle
 import com.riffle.core.domain.HighlightColor
 import com.riffle.core.domain.SentenceQuote
 import kotlinx.coroutines.delay
@@ -24,12 +25,30 @@ internal class ReadiumHighlightRenderer(
      * rotation). In tests, always returns the same value to let the loop run to completion.
      */
     private val currentNavigatorStamp: () -> Any? = { null },
+    /**
+     * ADR 0046: evaluates arbitrary JS on the current chapter's WebView. Used to wrap emphasis
+     * ranges in styled `<span>`s so bold/italic actually reflow the underlying text — overlay
+     * decorations can't do that. Null (test / no-navigator paths) → the injector is skipped and
+     * emphasis falls back to overlay-only rendering.
+     */
+    private val evaluateJavascript: (suspend (String) -> Unit)? = null,
+    /**
+     * Provides the [EpubReaderViewModel.HighlightRender]s' textSnippet / textBefore for the DOM
+     * wrap script. Not on the render itself because the injector needs the raw annotation strings
+     * (Locator's `text.highlight` may be reflow-truncated or missing on early emits).
+     */
+    private val emphasisRangeProvider: () -> List<EmphasisDomInjector.EmphasisRange> = { emptyList() },
 ) : HighlightRenderer {
 
     private var hasSentenceDecoration = false
     private var hasAnnotationDecorations = false
+    private var hasEmphasisDecorations = false
     private var hasNoteGlyphDecorations = false
     private var hasSearchDecorations = false
+    /** Monotonic counter for [applyEmphasisCompanions] calls. The settle-loop breaks when the
+     *  counter moves, so a rapid re-toggle within the 2.6s window doesn't repaint a
+     *  since-cleared decoration. See code-review F6. */
+    private var emphasisApplyGeneration: Long = 0L
 
     override suspend fun applySentenceHighlight(
         fragmentRef: String?,
@@ -71,10 +90,23 @@ internal class ReadiumHighlightRenderer(
         // decorations for this group; if the list is empty we take the early-return above.
         val decorations = renders.mapNotNull { h ->
             if (h.useAccentBarStyle) return@mapNotNull null
+            // ADR 0046 §4:
+            //  - Real colour token: paint the saturated highlight.
+            //  - Empty colour + this render is currently being edited (sheet is open on it):
+            //    paint the temporary ∅-editing wash so the user can see the range they're
+            //    working on. Wash vanishes as soon as the sheet dismisses.
+            //  - Empty colour + NOT being edited: emit a fully-transparent decoration so the
+            //    range stays tappable but nothing paints; layered emphasis (bold/italic via DOM,
+            //    underline/strike via companion decorations) is the only visible surface.
+            val tint = when {
+                h.color.isNotEmpty() -> HighlightColor.fromToken(h.color).argb
+                h.isBeingEdited -> EMPTY_COLOR_EDITING_HINT_ARGB
+                else -> 0x00000000
+            }
             Decoration(
                 id = h.id,
                 locator = h.locator,
-                style = HighlightTintStyle(tint = HighlightColor.fromToken(h.color).argb),
+                style = HighlightTintStyle(tint = tint),
             )
         }
         if (decorations.isEmpty()) {
@@ -90,6 +122,10 @@ internal class ReadiumHighlightRenderer(
         // rects until the 400ms settle tick fires. Matches [applySentenceHighlight]'s pre-clear semantics.
         applyDecorationsWithClear(decorations, "annotations")
         hasAnnotationDecorations = true
+        // ADR 0046: layered emphasis paints via companion decorations. Underline uses Readium's
+        // built-in Style.Underline; strike/bold/italic v1 render as tinted overlays (bold + italic
+        // are approximations pending true DOM mutation — captured as follow-up).
+        applyEmphasisCompanions(renders)
         // Readium fixes decoration rects at applyDecorations time. When the first apply runs before
         // reflow has fully settled (fresh navigator, chapter change, orientation flip), the rects
         // land against a still-shifting layout and the highlight is either invisible or in the wrong
@@ -161,5 +197,93 @@ internal class ReadiumHighlightRenderer(
     private suspend fun applyDecorationsWithClear(decorations: List<Decoration>, group: String) {
         applyDecorationsBlock(emptyList(), group)
         applyDecorationsBlock(decorations, group)
+    }
+
+    /**
+     * ADR 0046: paint emphasis marks as companion decorations layered over the highlight decoration.
+     * Only [EmphasisStyle.UNDERLINE] uses Readium's built-in [Decoration.Style.Underline]; the
+     * other three styles are painted as tinted [Decoration.Style.Highlight] overlays with
+     * distinctive colors so the user sees SOMETHING for every stored style — proper text-style
+     * reflow for bold/italic/strike requires WebView DOM mutation and is captured as a follow-up.
+     * Grouped separately from "annotations" so a highlight recolor doesn't rebuild the emphasis
+     * overlays and vice versa.
+     */
+    private suspend fun applyEmphasisCompanions(renders: List<EpubReaderViewModel.HighlightRender>) {
+        val myGeneration = ++emphasisApplyGeneration
+        val decorations = renders.flatMap { h ->
+            if (h.emphasisStyles.isEmpty()) return@flatMap emptyList()
+            buildList {
+                if (EmphasisStyle.UNDERLINE in h.emphasisStyles) {
+                    add(
+                        Decoration(
+                            id = "${h.id}#u",
+                            locator = h.locator,
+                            style = Decoration.Style.Underline(tint = EMPHASIS_UNDERLINE_ARGB),
+                        )
+                    )
+                }
+                if (EmphasisStyle.STRIKE in h.emphasisStyles) {
+                    add(
+                        Decoration(
+                            id = "${h.id}#s",
+                            locator = h.locator,
+                            style = EmphasisStrikeStyle(tint = EMPHASIS_STRIKE_ARGB),
+                        )
+                    )
+                }
+                // ADR 0046: bold and italic no longer paint tint overlays — the DOM injector
+                // (see [EmphasisDomInjector]) wraps the range in a styled `<span>` that actually
+                // reflows the text with `font-weight: bold` / `font-style: italic`. A tint
+                // overlay on top of real bold text would just add a distracting colored
+                // background. The DOM wrap runs from [applyEmphasisCompanions] via
+                // [evaluateJavascript] below.
+            }
+        }
+        // Apply overlay decorations (underline / strike). Empty list = clear the group.
+        if (decorations.isEmpty()) {
+            if (hasEmphasisDecorations) {
+                applyDecorationsBlock(emptyList(), "emphasis")
+                hasEmphasisDecorations = false
+            }
+        } else {
+            applyDecorationsWithClear(decorations, "emphasis")
+            hasEmphasisDecorations = true
+        }
+        // ADR 0046: DOM injection for bold/italic — MUST fire unconditionally, not gated on
+        // underline/strike overlays. A range with only bold and/or italic produces zero
+        // companion decorations above (they use DOM mutation, not overlays), so an early
+        // return here would leave bold/italic never applied. The script also self-cleans old
+        // wrappers each run, so calling it with an empty range list is the correct way to
+        // remove a previously-injected bold/italic when the user toggles it off.
+        evaluateJavascript?.let { runJs ->
+            val ranges = emphasisRangeProvider()
+                .filter { it.styles.any { s -> s == EmphasisStyle.BOLD || s == EmphasisStyle.ITALIC } }
+            runJs(EmphasisDomInjector.script(ranges))
+        }
+        // Same settle window as highlights so decoration rects follow post-reflow layout. Break
+        // as soon as either the navigator instance OR the emphasis generation moves — the latter
+        // means a fresh applyEmphasisCompanions call has landed with a different decoration list,
+        // and continuing to repaint THIS list would fight it.
+        val stamp = currentNavigatorStamp()
+        for (settleDelayMs in longArrayOf(400L, 600L, 700L, 900L)) {
+            delay(settleDelayMs)
+            if (currentNavigatorStamp() !== stamp) break
+            if (myGeneration != emphasisApplyGeneration) break
+            applyDecorationsWithClear(decorations, "emphasis")
+        }
+    }
+
+    companion object {
+        // Distinct low-alpha tints per emphasis so bold/italic/strike are visually differentiable
+        // when layered over a highlight. Values kept within Readium's Highlight alpha budget (~0.3).
+        // v1 approximations — replaced by true text-style overlay when DOM mutation lands.
+        private const val EMPHASIS_UNDERLINE_ARGB: Int = 0xFF1976D2.toInt() // solid line color
+        private const val EMPHASIS_STRIKE_ARGB: Int = 0xFFE53935.toInt()    // solid red strike line
+        // ADR 0046: temporary neutral wash painted only while the sheet is open on a ∅-color
+        // annotation, so the user can see the range they're working on. Not persistent — a
+        // ∅ annotation with the sheet closed and no emphasis draws nothing at all.
+        private const val EMPTY_COLOR_EDITING_HINT_ARGB: Int = 0x30808080
+        // Bold and italic don't paint overlays anymore — they reflow the underlying text via
+        // the DOM injector. See [EmphasisDomInjector].
     }
 }

@@ -149,6 +149,7 @@ class EpubReaderViewModelEmbeddedFiguresTest {
 
         override fun observeBooksWithHighlights(sourceId: String): Flow<List<BookHighlightSummary>> =
             flowOf(emptyList())
+        override suspend fun updateEmphasisStyles(id: String, emphasisStyles: String, updatedAt: Long, deviceId: String): Int = 0
     }
 
     private val deviceIdStore = object : DeviceIdStore {

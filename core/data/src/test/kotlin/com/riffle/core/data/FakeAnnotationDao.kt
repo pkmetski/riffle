@@ -95,4 +95,10 @@ internal class FakeAnnotationDao : AnnotationDao {
         deviceId: String,
     ): Int = 0
 
+    override suspend fun updateEmphasisStyles(
+        id: String,
+        emphasisStyles: String,
+        updatedAt: Long,
+        deviceId: String,
+    ): Int = error("not used by this fake")
 }

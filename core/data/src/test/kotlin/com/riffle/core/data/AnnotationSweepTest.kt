@@ -222,6 +222,75 @@ class AnnotationSweepTest {
         assertTrue(status.lastCycleOutcome.value is CycleOutcome.Success)
     }
 
+    // ADR 0046: TYPE_EMPHASIS rows sync end-to-end through the sweep. Pushes the row, verifies
+    // the on-wire body is a `riffle:emphasis` body carrying the encoded styles token, then
+    // decodes the same JSON through the codec + merge orchestrator and confirms it lands as a
+    // TYPE_EMPHASIS entity with `emphasisStyles` populated. This is the regression pin for the
+    // whole ADR 0046 sync surface.
+    @Test
+    fun `emphasis rows push through the sweep and round-trip via the codec + merge`() = runTest {
+        val now = 5_000L
+        val status = AnnotationSyncStatusStore()
+        val target = FakeTarget()
+        val emphasisRow = AnnotationEntity(
+            id = "emph-1",
+            sourceId = "srv-A",
+            itemId = "item-1",
+            type = AnnotationEntity.TYPE_EMPHASIS,
+            cfi = "epubcfi(/6/4!/4/2,/1:0,/1:5)",
+            color = "",
+            note = null,
+            textSnippet = "phrase",
+            textBefore = "",
+            textAfter = "",
+            chapterHref = "OEBPS/ch1.xhtml",
+            spineIndex = 0,
+            progression = 0.0,
+            bookmarkTitle = "",
+            createdAt = 100L,
+            updatedAt = 200L,
+            originDeviceId = "dev-A",
+            lastModifiedByDeviceId = "dev-A",
+            deleted = false,
+            lastSyncedAt = 0L,
+            emphasisStyles = "bold,underline",
+        )
+        val dao = FakeAnnotationDao(
+            dirty = listOf(AnnotationDao.DirtySourceItem("srv-A", "item-1")),
+            rowsByItem = mapOf(("srv-A" to "item-1") to listOf(emphasisRow)),
+        )
+        val sweep = AnnotationSweep(
+            targetProvider = { target },
+            annotationDao = dao,
+            deviceIdStore = FakeDeviceIdStore("dev-A"),
+            deviceLabelResolver = FakeDeviceLabelResolver("test-label"),
+            sourceRepository = FakeSourceRepository(
+                absUserIds = mapOf("srv-A" to "abs-user-A"),
+                usernames = mapOf("srv-A" to "alice"),
+            ),
+            statusStore = status,
+            bookTitleProvider = { _, _ -> "Test Book" },
+            clock = { now },
+        )
+
+        val outcome = sweep.run()
+
+        // --- push assertions: emphasis row lands on WebDAV with the correct body ---
+        assertTrue("sweep must succeed", outcome is CycleOutcome.Success)
+        val write = target.writes.single()
+        assertTrue("body carries the riffle:emphasis type", write.content.contains("\"type\":\"riffle:emphasis\""))
+        assertTrue("body carries the styles token", write.content.contains("\"styles\":\"bold,underline\""))
+        assertTrue("motivation is commenting so legacy peers don't render phantom highlights",
+            write.content.contains("\"motivation\":\"commenting\""))
+        assertEquals(listOf("emph-1"), dao.lastMarkSyncedIds)
+
+        // --- round-trip: pretend a peer reads what we wrote and merges it back into the store ---
+        val parsed = AnnotationW3CCodec.w3cFileToAnnotations(write.content)
+        assertEquals(1, parsed.size)
+        assertEquals(AnnotationEntity.TYPE_EMPHASIS, parsed.single().type)
+        assertEquals("bold,underline", parsed.single().emphasisStyles)
+    }
+
     // --- fakes ---
 
     private fun annotation(id: String, sourceId: String, itemId: String, updatedAt: Long, lastSyncedAt: Long) =
@@ -273,6 +342,7 @@ class AnnotationSweepTest {
             lastMarkSyncedAt = syncedAt
         }
         override fun observeBooksWithHighlights(sourceId: String) = kotlinx.coroutines.flow.flowOf(emptyList<com.riffle.core.database.BookHighlightSummary>())
+        override suspend fun updateEmphasisStyles(id: String, emphasisStyles: String, updatedAt: Long, deviceId: String): Int = 0
     }
 
     private class FakeDeviceIdStore(private val id: String) : DeviceIdStore {
@@ -362,4 +432,5 @@ abstract class StubAnnotationDao : AnnotationDao {
     ): Int = 0
 
     override fun observeBooksWithHighlights(sourceId: String) = kotlinx.coroutines.flow.flowOf(emptyList<com.riffle.core.database.BookHighlightSummary>())
+    override suspend fun updateEmphasisStyles(id: String, emphasisStyles: String, updatedAt: Long, deviceId: String): Int = 0
 }

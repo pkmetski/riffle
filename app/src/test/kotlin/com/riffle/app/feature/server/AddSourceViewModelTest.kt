@@ -246,6 +246,7 @@ class AddSourceViewModelTest {
 
         override fun observeBooksWithHighlights(sourceId: String) =
             flowOf(emptyList<com.riffle.core.database.BookHighlightSummary>())
+        override suspend fun updateEmphasisStyles(id: String, emphasisStyles: String, updatedAt: Long, deviceId: String): Int = 0
     }
 
     @Test
@@ -605,6 +606,7 @@ class AddSourceViewModelTest {
             ): Int = 0
             override fun observeBooksWithHighlights(sourceId: String) =
                 flowOf(emptyList<com.riffle.core.database.BookHighlightSummary>())
+            override suspend fun updateEmphasisStyles(id: String, emphasisStyles: String, updatedAt: Long, deviceId: String): Int = 0
         }
         val vm = makeVm(
             fakeRepo(AuthenticateResult.WrongCredentials("x")),

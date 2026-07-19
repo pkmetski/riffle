@@ -561,7 +561,7 @@ internal class ChapterWebView(context: Context) : WebView(context), ChapterWebVi
                 menu.clear()
                 menu.add(0, MENU_COPY, 0, android.R.string.copy)
                 if (annotationsAvailable) {
-                    menu.add(0, MENU_HIGHLIGHT, 1, "Highlight")
+                    menu.add(0, MENU_HIGHLIGHT, 1, "Annotate")
                         .setShowAsAction(android.view.MenuItem.SHOW_AS_ACTION_ALWAYS)
                 }
                 if (readaloudAvailable) {

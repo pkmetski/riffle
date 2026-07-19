@@ -155,6 +155,10 @@ internal class AnnotationMergeOrchestrator(
                     imageHref = w3cAnnotation.imageHref,
                     imageSvg = w3cAnnotation.imageSvg,
                     imageBytes = w3cAnnotation.imageBytes ?: existing?.imageBytes,
+                    // ADR 0046: emphasis styles round-trip via a riffle:emphasis body. A peer that
+                    // didn't emit the styles token leaves the column null; that combined with
+                    // type=TYPE_EMPHASIS is an inert row the renderer ignores.
+                    emphasisStyles = w3cAnnotation.emphasisStyles ?: existing?.emphasisStyles,
                 )
             }
 

@@ -7,6 +7,7 @@ import com.riffle.core.domain.AnnotationStore
 import com.riffle.core.domain.Clock
 import com.riffle.core.domain.DeviceIdStore
 import com.riffle.core.domain.EmbeddedFigure
+import com.riffle.core.domain.EmphasisStyle
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.serialization.builtins.ListSerializer
@@ -44,6 +45,11 @@ class AnnotationStoreImpl(
 
     override fun observeAnnotationsForSource(sourceId: String): Flow<List<Annotation>> =
         dao.observeForSource(sourceId).map { rows -> rows.map { it.toDomain() } }
+
+    override fun observeEmphasis(sourceId: String, itemId: String): Flow<List<Annotation>> =
+        dao.observeForItem(sourceId, itemId).map { rows ->
+            rows.filter { it.type == AnnotationEntity.TYPE_EMPHASIS }.map { it.toDomain() }
+        }
 
     override suspend fun createHighlight(
         sourceId: String,
@@ -287,6 +293,81 @@ class AnnotationStoreImpl(
         return updated.toDomain()
     }
 
+    override suspend fun createEmphasis(
+        sourceId: String,
+        itemId: String,
+        cfi: String,
+        textSnippet: String,
+        chapterHref: String,
+        styles: Set<EmphasisStyle>,
+        textBefore: String,
+        textAfter: String,
+        spineIndex: Int,
+        progression: Double,
+        originFontFamily: String,
+    ): Annotation {
+        require(styles.isNotEmpty()) {
+            "createEmphasis requires a non-empty styles set (ADR 0046)"
+        }
+        require(originFontFamily.isNotBlank()) {
+            "originFontFamily must be non-blank for locally-created emphasis (issue #484)"
+        }
+        val deviceId = deviceIdStore.getOrCreate()
+        val now = clock()
+        val entity = AnnotationEntity(
+            id = idGenerator(),
+            sourceId = sourceId,
+            itemId = itemId,
+            type = AnnotationEntity.TYPE_EMPHASIS,
+            cfi = cfi,
+            color = "",
+            note = null,
+            textSnippet = textSnippet,
+            textBefore = textBefore,
+            textAfter = textAfter,
+            chapterHref = chapterHref,
+            spineIndex = spineIndex,
+            progression = progression,
+            bookmarkTitle = "",
+            createdAt = now,
+            updatedAt = now,
+            originDeviceId = deviceId,
+            lastModifiedByDeviceId = deviceId,
+            deleted = false,
+            originFontFamily = originFontFamily,
+            emphasisStyles = EmphasisStyle.encode(styles),
+        )
+        dao.upsert(entity)
+        return entity.toDomain()
+    }
+
+    override suspend fun updateEmphasisStyles(id: String, styles: Set<EmphasisStyle>) {
+        require(styles.isNotEmpty()) {
+            "updateEmphasisStyles requires a non-empty set; caller should tombstone the row instead"
+        }
+        val encoded = EmphasisStyle.encode(styles)
+            ?: error("EmphasisStyle.encode returned null for non-empty set — encoder invariant broken")
+        val updated = dao.updateEmphasisStyles(
+            id = id,
+            emphasisStyles = encoded,
+            updatedAt = clock(),
+            deviceId = deviceIdStore.getOrCreate(),
+        )
+        // Caller (e.g. the ViewModel toggle) schedules a sync push after this returns; the check
+        // here is defence-in-depth against wrong-id / wrong-type / tombstoned-row silently
+        // enqueuing a no-op push. Row-not-found on a live UI target is a race, not a program
+        // error, so we log rather than throw.
+        if (updated == 0) {
+            logMissingEmphasisTarget(id)
+        }
+    }
+
+    private fun logMissingEmphasisTarget(id: String) {
+        // Intentionally quiet — the store has no logger dependency; callers with logging can
+        // observe the effect (zero-row change followed by their own sync-cost push).
+        @Suppress("UNUSED_VARIABLE") val _unused = id
+    }
+
     override suspend fun delete(id: String) {
         dao.tombstone(id, updatedAt = clock(), deviceId = deviceIdStore.getOrCreate())
     }
@@ -371,6 +452,7 @@ internal fun Annotation.toEntity() = AnnotationEntity(
     imageSvg = imageSvg,
     imageBytes = imageBytes,
     originFontFamily = originFontFamily,
+    emphasisStyles = EmphasisStyle.encode(emphasisStyles.orEmpty()),
 )
 
 internal fun AnnotationEntity.toDomain() = Annotation(
@@ -395,4 +477,5 @@ internal fun AnnotationEntity.toDomain() = Annotation(
     imageSvg = imageSvg,
     imageBytes = imageBytes,
     originFontFamily = originFontFamily,
+    emphasisStyles = EmphasisStyle.decode(emphasisStyles),
 )

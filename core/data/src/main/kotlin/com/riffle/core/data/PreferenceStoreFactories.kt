@@ -7,6 +7,8 @@ import androidx.datastore.preferences.core.stringPreferencesKey
 import com.riffle.core.domain.AppTheme
 import com.riffle.core.domain.AppThemeStore
 import com.riffle.core.domain.CoverGridDensityStore
+import com.riffle.core.domain.EmphasisPreferencesStore
+import com.riffle.core.domain.EmphasisStyle
 import com.riffle.core.domain.HighlightColor
 import com.riffle.core.domain.HighlightColorPreferencesStore
 import com.riffle.core.domain.HighlightsResumeStore
@@ -112,6 +114,29 @@ fun HighlightsResumeStore(dataStore: DataStore<Preferences>): HighlightsResumeSt
     }
 }
 
+internal fun emphasisStylesPrefKey(sourceId: String, itemId: String) =
+    stringPreferencesKey("last_used_emphasis_styles:$sourceId:$itemId")
+
+fun EmphasisPreferencesStore(dataStore: DataStore<Preferences>): EmphasisPreferencesStore {
+    // Per-book last-used emphasis styles set (ADR 0046). Absent → empty set (no emphasis
+    // pre-selected on the next annotate gesture). Persisted as the same comma-separated wire
+    // form used by `AnnotationEntity.emphasisStyles`, so unknown tokens from a
+    // forward-compat peer decode cleanly to the subset we know.
+    return object : EmphasisPreferencesStore {
+        override fun lastUsedStyles(sourceId: String, itemId: String): kotlinx.coroutines.flow.Flow<Set<EmphasisStyle>> =
+            dataStore.data.map { prefs ->
+                EmphasisStyle.decode(prefs[emphasisStylesPrefKey(sourceId, itemId)]) ?: emptySet()
+            }
+
+        override suspend fun setLastUsedStyles(sourceId: String, itemId: String, value: Set<EmphasisStyle>) {
+            dataStore.edit { it[emphasisStylesPrefKey(sourceId, itemId)] = EmphasisStyle.encode(value) ?: "" }
+        }
+    }
+}
+
+internal fun highlightColorIsNonePrefKey(sourceId: String, itemId: String) =
+    androidx.datastore.preferences.core.booleanPreferencesKey("last_used_highlight_is_none:$sourceId:$itemId")
+
 fun HighlightColorPreferencesStore(dataStore: DataStore<Preferences>): HighlightColorPreferencesStore {
     // Per-book last-used colour. Unknown/absent → HighlightColor.DEFAULT (first entry in the
     // palette), so a book the user has never picked a colour on opens with the palette default.
@@ -126,6 +151,13 @@ fun HighlightColorPreferencesStore(dataStore: DataStore<Preferences>): Highlight
 
         override suspend fun setLastUsedColor(sourceId: String, itemId: String, value: HighlightColor) {
             dataStore.edit { it[highlightColorPrefKey(sourceId, itemId)] = value.name }
+        }
+
+        override fun lastUsedIsNone(sourceId: String, itemId: String): Flow<Boolean> =
+            dataStore.data.map { prefs -> prefs[highlightColorIsNonePrefKey(sourceId, itemId)] ?: false }
+
+        override suspend fun setLastUsedIsNone(sourceId: String, itemId: String, value: Boolean) {
+            dataStore.edit { it[highlightColorIsNonePrefKey(sourceId, itemId)] = value }
         }
     }
 }

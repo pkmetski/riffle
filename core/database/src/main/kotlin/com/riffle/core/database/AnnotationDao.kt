@@ -93,6 +93,16 @@ interface AnnotationDao {
     @Query("UPDATE annotations SET note = :note, updatedAt = :updatedAt, lastModifiedByDeviceId = :deviceId WHERE id = :id")
     suspend fun updateNote(id: String, note: String?, updatedAt: Long, deviceId: String)
 
+    /** Replace the styles set on an emphasis row in place, bumping updatedAt + provenance (ADR 0046).
+     *  The type = 'EMPHASIS' predicate keeps a caller error from accidentally mutating a highlight.
+     *  Returns the row count updated so the store can distinguish a stale-id miss from a real edit
+     *  (see code-review F7); zero means the update landed on nothing and no sync push is needed. */
+    @Query(
+        "UPDATE annotations SET emphasisStyles = :emphasisStyles, updatedAt = :updatedAt, " +
+            "lastModifiedByDeviceId = :deviceId WHERE id = :id AND type = 'EMPHASIS' AND deleted = 0"
+    )
+    suspend fun updateEmphasisStyles(id: String, emphasisStyles: String, updatedAt: Long, deviceId: String): Int
+
     /** Live, non-deleted annotations for an item sorted by reading position (spine order, then
      *  within-chapter). Ties on (spineIndex, progression) — common when a bookmark at chapter top
      *  and a highlight on the first word both resolve to progression=0.0 — fall back to createdAt
@@ -192,7 +202,10 @@ interface AnnotationDao {
     /** One row per book (ABS Library Item) with at least one live highlight or image annotation on
      *  this source, most recently updated first. Powers the Annotations View library list.
      *  Bookmarks are excluded — they have their own tab. Image annotations are first-class here
-     *  since a user may annotate figures without ever making a text highlight. */
+     *  since a user may annotate figures without ever making a text highlight. Format-only
+     *  highlight anchors (color="" + emphasis) count too — they represent a real user-created
+     *  annotation ("just bold this text"); rendering swaps the yellow dot for a neutral marker,
+     *  handled by the UI layer (see [com.riffle.app.feature.reader.AnnotationsPanel]). */
     @Query(
         """
         SELECT itemId,

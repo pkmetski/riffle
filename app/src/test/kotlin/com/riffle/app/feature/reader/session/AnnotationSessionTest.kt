@@ -218,12 +218,25 @@ class AnnotationSessionTest {
             flowFor(sourceId, itemId).value
     }
 
+    private class FakeEmphasisPreferencesStore : com.riffle.core.domain.EmphasisPreferencesStore {
+        private val perBook = mutableMapOf<String, MutableStateFlow<Set<com.riffle.core.domain.EmphasisStyle>>>()
+        private fun k(s: String, i: String) = "$s:$i"
+        private fun flowFor(s: String, i: String) =
+            perBook.getOrPut(k(s, i)) { MutableStateFlow(emptySet()) }
+        override fun lastUsedStyles(sourceId: String, itemId: String): Flow<Set<com.riffle.core.domain.EmphasisStyle>> =
+            flowFor(sourceId, itemId)
+        override suspend fun setLastUsedStyles(sourceId: String, itemId: String, value: Set<com.riffle.core.domain.EmphasisStyle>) {
+            flowFor(sourceId, itemId).value = value
+        }
+    }
+
     private fun makeSession(
         store: FakeAnnotationStore = FakeAnnotationStore(),
         syncOps: FakeSyncOps,
         scope: CoroutineScope,
         statusStore: AnnotationSyncStatusStore = AnnotationSyncStatusStore(),
         colorPrefsStore: HighlightColorPreferencesStore = FakeHighlightColorPreferencesStore(),
+        emphasisPrefsStore: com.riffle.core.domain.EmphasisPreferencesStore = FakeEmphasisPreferencesStore(),
         flushScope: ProgressFlushScope = ProgressFlushScope(
             TestApplicationScope(CoroutineScope(UnconfinedTestDispatcher() + SupervisorJob()))
         ),
@@ -233,6 +246,7 @@ class AnnotationSessionTest {
         annotationStore = store,
         annotationStatusStore = statusStore,
         highlightColorPreferencesStore = colorPrefsStore,
+        emphasisPreferencesStore = emphasisPrefsStore,
         progressFlushScope = flushScope,
         startLiveSync = syncOps.makeStartLiveSync(scope),
         scheduleSync = syncOps.makeScheduleDebounce(),
@@ -281,7 +295,9 @@ class AnnotationSessionTest {
 
         assertEquals(emptyList<EpubReaderViewModel.HighlightRender>(), session.highlightRenders.value)
 
-        store.highlights.value = listOf(anno)
+        // ADR 0046 refactor: bind() observes `observeAnnotations` (union) and filters by type,
+        // not `observeHighlights`. Publish through the union flow the production code reads.
+        store.allAnnotations.value = listOf(anno)
         // With UnconfinedTestDispatcher the collect lambda runs eagerly
         assertEquals(1, session.highlightRenders.value.size)
         assertEquals(anno.id, session.highlightRenders.value[0].id)
@@ -360,6 +376,147 @@ class AnnotationSessionTest {
         // A later update on the SAME book flows through.
         colorPrefs.setLastUsedColor("srv1", "item1", HighlightColor.GREEN)
         assertEquals(HighlightColor.GREEN, session.lastUsedHighlightColor.value)
+
+        sessionScope.coroutineContext[Job]?.cancel()
+    }
+
+    /**
+     * ADR 0046 §4: deleting a format-only annotation from the annotations panel must cascade
+     * to its sibling emphasis rows at the same CFI. Without the cascade, the DOM injector
+     * keeps reading the orphan emphasis from `emphasisPool` and the underlying text stays
+     * bold/italic — "delete doesn't refresh the book". Reverting the cascade in
+     * [AnnotationSession.deleteAnnotation] flips this red.
+     */
+    @Test
+    fun `deleteAnnotation cascades sibling emphasis rows at the same CFI`() = runTest {
+        val dispatcher = UnconfinedTestDispatcher(testScheduler)
+        val sessionScope = CoroutineScope(dispatcher)
+        val store = FakeAnnotationStore()
+        val session = makeSession(store = store, syncOps = FakeSyncOps(), scope = sessionScope)
+        defaultBind(session)
+
+        val cfi = "epubcfi(/6/4!/4/2/1:0,/1:10)"
+        val highlight = fakeAnnotation(id = "hFmt", cfi = cfi).copy(color = "", note = null)
+        val emphasis = fakeAnnotation(id = "eBold", cfi = cfi)
+            .copy(type = com.riffle.core.database.AnnotationEntity.TYPE_EMPHASIS, color = "")
+        val unrelated = fakeAnnotation(id = "eOther", cfi = "epubcfi(/6/8!/4/2/1:5)")
+            .copy(type = com.riffle.core.database.AnnotationEntity.TYPE_EMPHASIS, color = "")
+        store.allAnnotations.value = listOf(highlight, emphasis, unrelated)
+
+        session.deleteAnnotation("hFmt")
+
+        assertTrue("sibling emphasis at the same CFI must be deleted", "eBold" in store.deletedIds)
+        assertTrue("the highlight itself must be deleted", "hFmt" in store.deletedIds)
+        assertTrue("unrelated emphasis at a different CFI must survive", "eOther" !in store.deletedIds)
+        sessionScope.coroutineContext[Job]?.cancel()
+    }
+
+    /**
+     * ADR 0046 §4: dismissing the sheet on a highlight the user JUST CREATED from a draft and
+     * then left completely empty (no colour, no note, no emphasis) tombstones the phantom row.
+     * `justCreatedFromDraft=true` gates the check.
+     */
+    @Test
+    fun `dismissHighlightActions tombstones empty just-created-from-draft highlight`() = runTest {
+        val dispatcher = UnconfinedTestDispatcher(testScheduler)
+        val sessionScope = CoroutineScope(dispatcher)
+        val store = FakeAnnotationStore()
+        val session = makeSession(store = store, syncOps = FakeSyncOps(), scope = sessionScope)
+        defaultBind(session)
+
+        val empty = fakeAnnotation(id = "hEmpty").copy(color = "", note = null)
+        store.allAnnotations.value = listOf(empty)
+        session.openHighlightActions(
+            "hEmpty",
+            androidx.compose.ui.unit.IntRect(0, 0, 0, 0),
+            justCreatedFromDraft = true,
+        )
+
+        session.dismissHighlightActions()
+
+        assertEquals(listOf("hEmpty"), store.deletedIds)
+        sessionScope.coroutineContext[Job]?.cancel()
+    }
+
+    /**
+     * ADR 0046 §4: an EXISTING annotation the user opened (not created from a draft) must
+     * survive dismissal even when the user edited it down to empty (e.g. tapped Bold to
+     * remove the last formatting). Reverting the `justCreatedFromDraft` gate would delete
+     * the anchor and produce the reported "annotation is not permanently saved" — the user
+     * un-bolded intending to keep the anchor for a later colour or note.
+     */
+    @Test
+    fun `dismissHighlightActions preserves existing empty highlight opened by tap`() = runTest {
+        val dispatcher = UnconfinedTestDispatcher(testScheduler)
+        val sessionScope = CoroutineScope(dispatcher)
+        val store = FakeAnnotationStore()
+        val session = makeSession(store = store, syncOps = FakeSyncOps(), scope = sessionScope)
+        defaultBind(session)
+
+        val empty = fakeAnnotation(id = "hExisting").copy(color = "", note = null)
+        store.allAnnotations.value = listOf(empty)
+        session.openHighlightActions(
+            "hExisting",
+            androidx.compose.ui.unit.IntRect(0, 0, 0, 0),
+        )
+
+        session.dismissHighlightActions()
+
+        assertTrue(
+            "existing annotation opened by user tap must survive dismiss even when empty",
+            store.deletedIds.isEmpty(),
+        )
+        sessionScope.coroutineContext[Job]?.cancel()
+    }
+
+    @Test
+    fun `dismissHighlightActions keeps just-created highlight when a sibling emphasis exists`() = runTest {
+        val dispatcher = UnconfinedTestDispatcher(testScheduler)
+        val sessionScope = CoroutineScope(dispatcher)
+        val store = FakeAnnotationStore()
+        val session = makeSession(store = store, syncOps = FakeSyncOps(), scope = sessionScope)
+        defaultBind(session)
+
+        val emptyHighlight = fakeAnnotation(id = "hFmt", cfi = "epubcfi(/6/4!/4/2/1:0)").copy(color = "", note = null)
+        val emphasis = fakeAnnotation(id = "eBold", cfi = "epubcfi(/6/4!/4/2/1:0)")
+            .copy(type = com.riffle.core.database.AnnotationEntity.TYPE_EMPHASIS, color = "")
+        store.allAnnotations.value = listOf(emptyHighlight, emphasis)
+        session.openHighlightActions(
+            "hFmt",
+            androidx.compose.ui.unit.IntRect(0, 0, 0, 0),
+            justCreatedFromDraft = true,
+        )
+
+        session.dismissHighlightActions()
+
+        assertTrue("format-only highlight must survive dismiss when emphasis carries the payload", store.deletedIds.isEmpty())
+        sessionScope.coroutineContext[Job]?.cancel()
+    }
+
+    /**
+     * ADR 0046 §4: [AnnotationSession.annotations] is the internal source of truth used by
+     * VM logic (toggleEmphasisStyle, note-clear merge, figure absorption) — it MUST include
+     * format-only highlight anchors (color="" + blank note) so those code paths can look up
+     * the anchor row by id. The phantom-yellow-dot filter for the panel lives at the render
+     * seam (see [com.riffle.app.feature.reader.isPanelVisible]), NOT here. This test pins the
+     * "don't drop format-only from the session flow" invariant — reintroducing a session-level
+     * filter would silently break the chip-toggle flow ("deselecting italic also deselects
+     * bold" — the toggle bailed because the anchor row wasn't in `annotations`).
+     */
+    @Test
+    fun `annotations flow includes format-only highlight anchors for VM lookups`() = runTest {
+        val dispatcher = UnconfinedTestDispatcher(testScheduler)
+        val sessionScope = CoroutineScope(dispatcher)
+        val store = FakeAnnotationStore()
+        val session = makeSession(store = store, syncOps = FakeSyncOps(), scope = sessionScope)
+        defaultBind(session)
+
+        val formatOnly = fakeAnnotation(id = "hFmt").copy(color = "", note = null)
+        val realHighlight = fakeAnnotation(id = "hReal").copy(color = "yellow", note = null)
+        store.allAnnotations.value = listOf(formatOnly, realHighlight)
+
+        val ids = session.annotations.value.map { it.id }.toSet()
+        assertEquals(setOf("hFmt", "hReal"), ids)
 
         sessionScope.coroutineContext[Job]?.cancel()
     }

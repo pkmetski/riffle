@@ -29,6 +29,11 @@ data class Annotation(
      * rows created before this field existed (and W3C sync ingest) have no value.
      */
     val originFontFamily: String? = null,
+    /**
+     * Non-empty set of typographic styles for a `TYPE_EMPHASIS` annotation (ADR 0046).
+     * `null` on every other type. Persisted as a comma-separated token string on the entity.
+     */
+    val emphasisStyles: Set<EmphasisStyle>? = null,
 )
 
 /**

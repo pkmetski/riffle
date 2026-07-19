@@ -50,6 +50,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.IntRect
 import androidx.compose.ui.window.Popup
 import androidx.compose.ui.window.PopupProperties
+import com.riffle.core.domain.EmphasisStyle
 import com.riffle.core.domain.HighlightColor
 
 /**
@@ -61,9 +62,37 @@ import com.riffle.core.domain.HighlightColor
 fun HighlightSwatchRow(
     selected: HighlightColor?,
     onPick: (HighlightColor) -> Unit,
+    onPickNone: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     Row(modifier = modifier, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        // ADR 0046 §4: the `∅` swatch removes the highlight color while keeping any emphasis
+        // rows intact — the coupled "Annotate" sheet's escape hatch when the user only wanted
+        // formatting (bold/italic/underline/strike) and not a highlight.
+        val noneSelected = selected == null
+        Box(
+            contentAlignment = Alignment.Center,
+            modifier = Modifier
+                .size(40.dp)
+                .clip(CircleShape)
+                .clickable { onPickNone() }
+                .then(
+                    if (noneSelected) Modifier.border(2.dp, MaterialTheme.colorScheme.onSurface, CircleShape)
+                    else Modifier
+                )
+                .padding(4.dp)
+                .clip(CircleShape)
+                .border(1.5.dp, MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f), CircleShape)
+                .semantics {
+                    contentDescription = "No highlight color" + if (noneSelected) ", selected" else ""
+                },
+        ) {
+            Text(
+                text = "∅",
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
+                style = MaterialTheme.typography.titleMedium,
+            )
+        }
         HighlightColor.entries.forEach { color ->
             val isSelected = color == selected
             val swatchColor = Color(color.argb.toLong() and 0xFFFFFFFFL)
@@ -98,12 +127,72 @@ fun HighlightSwatchRow(
     }
 }
 
+/**
+ * ADR 0046 §4: Emphasis chip row. Four chips (B/I/U/S) rendered in their own style so the
+ * affordance mirrors the visual result. Active chips fill with the reader accent; the row is
+ * independent of the highlight-colour row above.
+ */
+@Composable
+fun EmphasisChipRow(
+    selected: Set<EmphasisStyle>,
+    onToggle: (EmphasisStyle) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Row(modifier = modifier, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        EmphasisStyle.entries.forEach { style ->
+            val isActive = style in selected
+            val bg = if (isActive) MaterialTheme.colorScheme.primary
+                else MaterialTheme.colorScheme.surfaceVariant
+            val fg = if (isActive) MaterialTheme.colorScheme.onPrimary
+                else MaterialTheme.colorScheme.onSurface
+            val label = when (style) {
+                EmphasisStyle.BOLD -> "B"
+                EmphasisStyle.ITALIC -> "I"
+                EmphasisStyle.UNDERLINE -> "U"
+                EmphasisStyle.STRIKE -> "S"
+            }
+            val chipStyle = when (style) {
+                EmphasisStyle.BOLD -> MaterialTheme.typography.titleMedium.copy(
+                    fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                )
+                EmphasisStyle.ITALIC -> MaterialTheme.typography.titleMedium.copy(
+                    fontStyle = androidx.compose.ui.text.font.FontStyle.Italic,
+                )
+                EmphasisStyle.UNDERLINE -> MaterialTheme.typography.titleMedium.copy(
+                    textDecoration = androidx.compose.ui.text.style.TextDecoration.Underline,
+                )
+                EmphasisStyle.STRIKE -> MaterialTheme.typography.titleMedium.copy(
+                    textDecoration = androidx.compose.ui.text.style.TextDecoration.LineThrough,
+                )
+            }
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier
+                    .size(width = 40.dp, height = 34.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(bg)
+                    .clickable { onToggle(style) }
+                    .semantics {
+                        contentDescription = "Emphasis " + style.token +
+                            if (isActive) ", active" else ""
+                    },
+            ) {
+                Text(text = label, color = fg, style = chipStyle)
+            }
+        }
+    }
+}
+
 @Composable
 fun HighlightActionsPopup(
     anchorRect: IntRect,
     selected: HighlightColor?,
     note: String?,
+    emphasisStyles: Set<EmphasisStyle> = emptySet(),
     onPick: (HighlightColor) -> Unit,
+    /** ADR 0046 §4: remove the highlight color while keeping the emphasis rows intact. */
+    onRemoveColor: () -> Unit = {},
+    onToggleEmphasis: (EmphasisStyle) -> Unit = {},
     onDelete: () -> Unit,
     onOpenNoteEditor: () -> Unit,
     onDismiss: () -> Unit,
@@ -134,18 +223,31 @@ fun HighlightActionsPopup(
         ) {
             Column(modifier = Modifier.width(280.dp)) {
                 if (!noteOnly) {
+                    // Swatches on their own row (5 circles + no icon at the end) so the pink
+                    // swatch and the destructive trash don't crowd each other.
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(horizontal = 16.dp, vertical = 12.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        HighlightSwatchRow(selected = selected, onPick = onPick)
+                        HighlightSwatchRow(selected = selected, onPick = onPick, onPickNone = onRemoveColor)
+                    }
+                    // Emphasis chip row + destructive trash share a row: chips left-aligned, trash
+                    // pushed to the trailing edge with its own padding so it reads as an escape
+                    // hatch, not a fifth chip.
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                    ) {
+                        EmphasisChipRow(selected = emphasisStyles, onToggle = onToggleEmphasis)
                         IconButton(onClick = onDelete) {
                             Icon(
                                 imageVector = Icons.Default.Delete,
-                                contentDescription = "Delete highlight",
+                                contentDescription = "Delete annotation",
                                 tint = MaterialTheme.colorScheme.error,
                             )
                         }

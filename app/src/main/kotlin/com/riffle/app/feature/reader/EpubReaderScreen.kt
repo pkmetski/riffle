@@ -284,6 +284,13 @@ fun EpubReaderScreen(
     // Combined with [highlightToEdit] / [noteEditorTarget] below to gate Auto-Scroll / Cadence.
     var readerSelectionActive by remember { mutableStateOf(false) }
     val annotations by viewModel.annotations.collectAsState()
+    val emphasisPool by viewModel.emphasisPool.collectAsState()
+    val lastUsedEmphasisStyles by viewModel.lastUsedEmphasisStyles.collectAsState()
+    // ADR 0046 §4: draft-time preview needs the pending selection's text + last-used styles so
+    // the DOM emphasis injector can wrap the range BEFORE commit — otherwise a chip that's
+    // pre-selected (from the per-book preset) shows checked in the sheet but the text isn't
+    // bold on screen ("selection restored in modal, not applied to text").
+    val draftAnnotation by viewModel.draftAnnotation.collectAsState()
     val isCurrentPageBookmarked by viewModel.isCurrentPageBookmarked.collectAsState()
     val highlightRenders by viewModel.highlightRenders.collectAsState()
     val highlightToEdit by viewModel.highlightToEdit.collectAsState()
@@ -525,8 +532,13 @@ fun EpubReaderScreen(
                         onCommitNoteEdit = viewModel::commitNoteEdit,
                         onCancelNoteEdit = viewModel::cancelNoteEdit,
                         onRecolorHighlight = viewModel::recolorHighlight,
+                        onRemoveHighlightColor = viewModel::removeHighlightColor,
                         onDeleteHighlight = viewModel::deleteHighlight,
                         onUpdateHighlightNote = viewModel::updateHighlightNote,
+                        onToggleEmphasis = viewModel::toggleEmphasisStyle,
+                        emphasisPool = emphasisPool,
+                        lastUsedEmphasisStyles = lastUsedEmphasisStyles,
+                        draftAnnotation = draftAnnotation,
                         highlightDomPatches = viewModel.highlightDomPatches,
                         showOpenInBook = shouldShowOpenInBook(viewModel.readerSource),
                         onOpenInBook = viewModel::openHighlightInSourceBook,
@@ -1328,8 +1340,23 @@ private fun EpubNavigatorView(
     onCommitNoteEdit: (String, String?) -> Unit,
     onCancelNoteEdit: () -> Unit,
     onRecolorHighlight: (String, HighlightColor) -> Unit,
+    /** ADR 0046 §4: `∅` swatch — remove the highlight color while preserving layered emphasis. */
+    onRemoveHighlightColor: (String) -> Unit = {},
     onDeleteHighlight: (String) -> Unit,
     onUpdateHighlightNote: (String, String?) -> Unit,
+    /** ADR 0046: toggle a single emphasis style (bold/italic/underline/strike) over a highlight's range. */
+    onToggleEmphasis: (String, com.riffle.core.domain.EmphasisStyle) -> Unit = { _, _ -> },
+    /** ADR 0046: live pool of emphasis rows for the current book, used to derive the popup's
+     *  chip active-state. Kept separate from `annotations` so the review-surface panel stays
+     *  piggyback-clean (see AnnotationSession). */
+    emphasisPool: List<com.riffle.core.domain.Annotation> = emptyList(),
+    /** ADR 0046 §4: per-book last-used emphasis set, used to preview chip pre-selection while
+     *  the sheet is open on a pending draft. */
+    lastUsedEmphasisStyles: Set<com.riffle.core.domain.EmphasisStyle> = emptySet(),
+    /** ADR 0046 §4: the in-flight draft, if any. Threaded down so the DOM emphasis injector
+     *  can preview bold/italic on the pending selection BEFORE commit (chip pre-selected
+     *  from the per-book preset must visually match the text). */
+    draftAnnotation: com.riffle.app.feature.reader.session.AnnotationSession.DraftAnnotation? = null,
     highlightDomPatches: Flow<com.riffle.app.feature.reader.highlights.HighlightsDomPatch>,
     showOpenInBook: Boolean = false,
     onOpenInBook: (String) -> Unit = {},
@@ -1465,6 +1492,14 @@ private fun EpubNavigatorView(
     // injection per ChapterWebView; ReadiumHighlightRenderer drives DecorableNavigator on the
     // attached fragment. The two pipelines are inherently different — the seam HighlightRenderer
     // type already abstracts the call sites, this `remember` only picks which concrete instance.
+    // ADR 0046: keep a live reference to the emphasis pool so the DOM-wrap injector reads the
+    // latest set each apply. `remember` below captures at composition; without this indirection
+    // the injector would always see the empty initial pool.
+    val emphasisPoolState = androidx.compose.runtime.rememberUpdatedState(emphasisPool)
+    // ADR 0046 §4: draft + last-used state feeding the DOM emphasis injector so a pending
+    // (not-yet-committed) selection previews its bold/italic BEFORE the user picks a colour.
+    val draftAnnotationState = androidx.compose.runtime.rememberUpdatedState(draftAnnotation)
+    val lastUsedEmphasisStylesState = androidx.compose.runtime.rememberUpdatedState(lastUsedEmphasisStyles)
     val highlightRenderer: HighlightRenderer = remember(isContinuous, readiumPresenter) {
         if (isContinuous) {
             ContinuousHighlightRenderer(targetProvider = { continuousViewRef.value })
@@ -1476,6 +1511,42 @@ private fun EpubNavigatorView(
                 },
                 fragmentLocator = ::fragmentLocator,
                 currentNavigatorStamp = { presenter.attachmentStamp() },
+                evaluateJavascript = { script -> presenter.evaluateJavascript(script) },
+                emphasisRangeProvider = {
+                    // Filtered to only rows needing DOM mutation (bold/italic); underline/strike
+                    // ride the overlay decoration path above.
+                    val persisted = emphasisPoolState.value.mapNotNull { a ->
+                        val styles = a.emphasisStyles ?: return@mapNotNull null
+                        if (styles.none {
+                                it == com.riffle.core.domain.EmphasisStyle.BOLD ||
+                                    it == com.riffle.core.domain.EmphasisStyle.ITALIC
+                            }) return@mapNotNull null
+                        EmphasisDomInjector.EmphasisRange(
+                            id = a.id,
+                            textSnippet = a.textSnippet,
+                            textBefore = a.textBefore,
+                            styles = styles,
+                        )
+                    }
+                    // ADR 0046 §4: preview the draft's chip pre-selection on the pending selection
+                    // BEFORE commit. Without this, the sheet shows a bold chip pre-selected (from
+                    // the per-book last-used preset) but the text on screen isn't bold — commit
+                    // hasn't fired, so no emphasis row exists in the pool yet.
+                    val draft = draftAnnotationState.value
+                    val draftStyles = lastUsedEmphasisStylesState.value
+                    val draftRange = if (draft != null && draftStyles.any {
+                            it == com.riffle.core.domain.EmphasisStyle.BOLD ||
+                                it == com.riffle.core.domain.EmphasisStyle.ITALIC
+                        }) {
+                        EmphasisDomInjector.EmphasisRange(
+                            id = com.riffle.app.feature.reader.session.AnnotationSession.DRAFT_ANNOTATION_ID,
+                            textSnippet = draft.textSnippet,
+                            textBefore = draft.textBefore,
+                            styles = draftStyles,
+                        )
+                    } else null
+                    persisted + listOfNotNull(draftRange)
+                },
             )
         }
     }
@@ -1649,7 +1720,7 @@ private fun EpubNavigatorView(
                 handoff.reset()
                 menu.add(0, copyMenuId, 0, android.R.string.copy)
                 if (currentAnnotationsAvailable) {
-                    menu.add(0, highlightMenuId, 1, "Highlight")
+                    menu.add(0, highlightMenuId, 1, "Annotate")
                         .setShowAsAction(android.view.MenuItem.SHOW_AS_ACTION_ALWAYS)
                 }
                 if (currentReadaloudAvailable) {
@@ -2998,13 +3069,40 @@ private fun EpubNavigatorView(
             // decoration), so `current` above is always null for image annotations. Fall back to
             // the full annotations list so the palette can still show the current colour selected.
             val currentAnnotation = annotations.firstOrNull { it.id == editTarget.id }
-            val selectedColor = current?.let { HighlightColor.fromToken(it.color) }
-                ?: currentAnnotation?.let { HighlightColor.fromToken(it.color) }
+            // ADR 0046 §4: after `∅` the annotation's `color` is empty. `HighlightColor.fromToken`
+            // falls back to DEFAULT for unknown/empty (sync forward-compat), so passing an empty
+            // color through it would show yellow as selected. Detect empty here and pass null so
+            // the swatch row highlights the `∅` circle instead.
+            //
+            // For the DRAFT sentinel target (no persisted annotation yet), no lookup can succeed;
+            // show ∅ as pre-selected — the user hasn't picked a colour yet, and any real tap
+            // commits the draft with that pick.
+            val isDraft = editTarget.id == com.riffle.app.feature.reader.session.AnnotationSession.DRAFT_ANNOTATION_ID
+            val effectiveColor = current?.color ?: currentAnnotation?.color
+            val selectedColor = if (isDraft || effectiveColor.isNullOrEmpty()) null
+                else HighlightColor.fromToken(effectiveColor)
+            // ADR 0046: derive the current emphasis set on this highlight's range so the popup
+            // knows which B/I/U/S chips are active. Same-CFI equality — the "layered emphasis"
+            // gesture is always relative to the visible highlight target.
+            val currentEmphasisStyles: Set<com.riffle.core.domain.EmphasisStyle> = run {
+                if (isDraft) {
+                    // ADR 0046 §4: preview the last-used emphasis set as chip pre-selection.
+                    // Any chip tap commits the draft with that style layered on top of the preset.
+                    return@run lastUsedEmphasisStyles
+                }
+                val hlCfi = currentAnnotation?.cfi
+                if (hlCfi.isNullOrEmpty()) emptySet()
+                else emphasisPool.firstOrNull { it.cfi == hlCfi }
+                    ?.emphasisStyles.orEmpty()
+            }
             HighlightActionsPopup(
                 anchorRect = editTarget.anchorRect,
                 selected = selectedColor,
                 note = current?.note ?: currentAnnotation?.note,
+                emphasisStyles = currentEmphasisStyles,
                 onPick = { color -> onRecolorHighlight(editTarget.id, color) },
+                onRemoveColor = { onRemoveHighlightColor(editTarget.id) },
+                onToggleEmphasis = { style -> onToggleEmphasis(editTarget.id, style) },
                 onDelete = { onDeleteHighlight(editTarget.id) },
                 onOpenNoteEditor = { onOpenNoteEditor(editTarget.id, editTarget.anchorRect) },
                 onDismiss = {

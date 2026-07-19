@@ -16,6 +16,13 @@ interface AnnotationStore {
     /** Live, non-deleted highlights + bookmarks across every item for a server, oldest first. */
     fun observeAnnotationsForSource(sourceId: String): Flow<List<Annotation>>
 
+    /** Live, non-deleted emphasis annotations for an ABS Library Item, oldest first (ADR 0046).
+     *  Default = empty flow so pre-existing test fakes that don't exercise emphasis aren't forced
+     *  to implement it; the production impl [com.riffle.core.data.AnnotationStoreImpl] overrides
+     *  with the real query. */
+    fun observeEmphasis(sourceId: String, itemId: String): Flow<List<Annotation>> =
+        kotlinx.coroutines.flow.emptyFlow()
+
     suspend fun createHighlight(
         sourceId: String,
         itemId: String,
@@ -127,6 +134,35 @@ interface AnnotationStore {
         id: String,
         newFigures: List<EmbeddedFigure>,
     ): Annotation?
+
+    /**
+     * Create a `TYPE_EMPHASIS` annotation (ADR 0046). The [styles] set MUST be non-empty — an
+     * empty emphasis row is not a legal state; the ViewModel garbage-collects on sheet dismiss
+     * before calling into the store. Range shape mirrors [createHighlight] (CFI range + snippet +
+     * before/after context) so the auto-merge and same-range-write guards can be applied
+     * identically to emphasis rows.
+     */
+    suspend fun createEmphasis(
+        sourceId: String,
+        itemId: String,
+        cfi: String,
+        textSnippet: String,
+        chapterHref: String,
+        styles: Set<EmphasisStyle>,
+        textBefore: String = "",
+        textAfter: String = "",
+        spineIndex: Int = 0,
+        progression: Double = 0.0,
+        originFontFamily: String,
+    ): Annotation = throw NotImplementedError("createEmphasis not implemented in this AnnotationStore")
+
+    /**
+     * Replace the styles set of a live `TYPE_EMPHASIS` row, bumping updatedAt + provenance so the
+     * change propagates. Passing an empty set is a caller error — the ViewModel decides whether to
+     * tombstone the row via [delete] or keep it alive during editing.
+     */
+    suspend fun updateEmphasisStyles(id: String, styles: Set<EmphasisStyle>): Unit =
+        throw NotImplementedError("updateEmphasisStyles not implemented in this AnnotationStore")
 
     suspend fun delete(id: String)
     suspend fun recolor(id: String, color: String)

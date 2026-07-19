@@ -1919,7 +1919,7 @@ class MigrationTest {
         }
 
         val db = helper.runMigrationsAndValidate(
-            TEST_DB, 56, true,
+            TEST_DB, 57, true,
             RiffleDatabase.MIGRATION_1_2,
             RiffleDatabase.MIGRATION_2_3,
             RiffleDatabase.MIGRATION_3_4,
@@ -1975,6 +1975,7 @@ class MigrationTest {
             RiffleDatabase.MIGRATION_53_54,
             RiffleDatabase.MIGRATION_54_55,
             RiffleDatabase.MIGRATION_55_56,
+            RiffleDatabase.MIGRATION_56_57,
         )
 
         db.query("SELECT url, username, serverType, absUserId, type FROM sources WHERE id = 's1'").use { cursor ->
@@ -2582,6 +2583,68 @@ class MigrationTest {
             assertEquals(1_760_000_000_000L, c.getLong(0))
         }
 
+        db.close()
+    }
+
+    // ADR 0046: emphasis annotations (bold/italic/underline/strike) as a sibling of TYPE_HIGHLIGHT.
+    // Adds a nullable `emphasisStyles` text column carrying the styles set for TYPE_EMPHASIS rows.
+    // Every pre-existing row (highlights, bookmarks, images) must survive with emphasisStyles = NULL.
+    @Test
+    fun migration56To57_addsEmphasisStylesToAnnotations() {
+        helper.createDatabase(TEST_DB, 56).apply {
+            execSQL(
+                "INSERT INTO sources (id, url, isActive, insecureConnectionAllowed, username, serverType, absUserId, type) " +
+                    "VALUES ('s1', 'http://abs', 1, 0, 'test', 'AUDIOBOOKSHELF', 'u1', 'ABS')"
+            )
+            execSQL(
+                """
+                INSERT INTO annotations
+                  (id, sourceId, itemId, type, cfi, color, note, textSnippet, textBefore, textAfter,
+                   chapterHref, spineIndex, progression, bookmarkTitle, createdAt, updatedAt,
+                   originDeviceId, lastModifiedByDeviceId, deleted, lastSyncedAt,
+                   embeddedFigures, imageHref, imageSvg, imageBytes, originFontFamily)
+                VALUES
+                  ('a-legacy-hl','s1','i1','HIGHLIGHT','epubcfi(/6/2!/4/2,/1:0,/1:5)','yellow',NULL,
+                   'meaning','','','ch1.xhtml',0,0.5,'',1000,1000,'d1','d1',0,0,
+                   NULL,NULL,NULL,NULL,NULL)
+                """.trimIndent()
+            )
+            close()
+        }
+
+        val db = helper.runMigrationsAndValidate(TEST_DB, 57, true, RiffleDatabase.MIGRATION_56_57)
+
+        // Pre-existing highlight preserved; new column defaults to NULL.
+        db.query(
+            "SELECT id, type, textSnippet, emphasisStyles FROM annotations WHERE id = 'a-legacy-hl'"
+        ).use { c ->
+            assertEquals(1, c.count)
+            assertTrue(c.moveToFirst())
+            assertEquals("a-legacy-hl", c.getString(0))
+            assertEquals("HIGHLIGHT", c.getString(1))
+            assertEquals("meaning", c.getString(2))
+            assertTrue("legacy highlight has emphasisStyles = NULL", c.isNull(3))
+        }
+
+        // New TYPE_EMPHASIS row round-trips a styles set.
+        db.execSQL(
+            """
+            INSERT INTO annotations
+              (id, sourceId, itemId, type, cfi, color, note, textSnippet, textBefore, textAfter,
+               chapterHref, spineIndex, progression, bookmarkTitle, createdAt, updatedAt,
+               originDeviceId, lastModifiedByDeviceId, deleted, lastSyncedAt,
+               embeddedFigures, imageHref, imageSvg, imageBytes, originFontFamily, emphasisStyles)
+            VALUES
+              ('a-emphasis','s1','i1','EMPHASIS','epubcfi(/6/2!/4/2,/1:6,/1:12)','yellow',NULL,
+               'example','','','ch1.xhtml',0,0.6,'',2000,2000,'d1','d1',0,0,
+               NULL,NULL,NULL,NULL,NULL,'bold,underline')
+            """.trimIndent()
+        )
+        db.query("SELECT type, emphasisStyles FROM annotations WHERE id = 'a-emphasis'").use { c ->
+            assertTrue(c.moveToFirst())
+            assertEquals("EMPHASIS", c.getString(0))
+            assertEquals("bold,underline", c.getString(1))
+        }
         db.close()
     }
 }

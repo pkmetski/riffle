@@ -47,12 +47,16 @@ class AnnotationDaoTest {
         createdAt: Long = 1000L,
         updatedAt: Long = createdAt,
         deleted: Boolean = false,
+        color: String = AnnotationEntity.COLOR_YELLOW,
+        note: String? = null,
     ) = AnnotationEntity(
         id = id,
         sourceId = sourceId,
         itemId = itemId,
         type = AnnotationEntity.TYPE_HIGHLIGHT,
         cfi = cfi,
+        color = color,
+        note = note,
         textSnippet = "the selected text",
         chapterHref = "chapter1.xhtml",
         createdAt = createdAt,
@@ -393,5 +397,27 @@ class AnnotationDaoTest {
         assertEquals(2, result[0].highlightCount)
         assertEquals(400L, result[0].latestUpdatedAt)
         assertEquals("A", result[1].itemId)
+    }
+
+    // ADR 0046 §4: a highlight with color="" IS a real user-created annotation ("just bold this
+    // text") and must count in the Annotations tab. The visual differentiation from yellow
+    // highlights happens at the render seam (neutral dot instead of yellow) — the DAO does NOT
+    // hide these rows. Reverting to a filter that dropped color="" here would make the whole
+    // book vanish from the Annotations tab whenever the user "removed the colour" via ∅.
+    @Test
+    fun observeBooksWithHighlights_countsFormatOnlyHighlightAnchors() = runTest {
+        // Book A: one format-only anchor (color="" AND note=null) — still counts.
+        dao.upsert(highlight("aFmt", sourceId = "abs1", itemId = "A", createdAt = 100, color = "", note = null))
+        // Book B: one format-only + one real yellow → count=2.
+        dao.upsert(highlight("bFmt", sourceId = "abs1", itemId = "B", createdAt = 200, color = "", note = null))
+        dao.upsert(highlight("bReal", sourceId = "abs1", itemId = "B", createdAt = 300, color = AnnotationEntity.COLOR_YELLOW))
+
+        val result = dao.observeBooksWithHighlights("abs1").first()
+
+        assertEquals(2, result.size)
+        assertEquals("B", result[0].itemId)
+        assertEquals(2, result[0].highlightCount)
+        assertEquals("A", result[1].itemId)
+        assertEquals(1, result[1].highlightCount)
     }
 }
