@@ -12,6 +12,7 @@ import org.readium.r2.shared.publication.LocalizedString
 import org.readium.r2.shared.publication.Manifest
 import org.readium.r2.shared.publication.Metadata
 import org.readium.r2.shared.publication.Publication
+import org.readium.r2.shared.publication.services.PerResourcePositionsService
 import org.readium.r2.shared.util.AbsoluteUrl
 import org.readium.r2.shared.util.Try
 import org.readium.r2.shared.util.Url
@@ -222,9 +223,25 @@ class HighlightsPublicationFactory @Inject constructor() {
             tableOfContents = readingOrder,
         )
 
+        // Register PerResourcePositionsService so [Publication.positionsByReadingOrder] returns
+        // one Locator per elided chapter (elided-view chapter-map follow-up). Without this,
+        // Readium's default services builder leaves no PositionsService bound — the extension
+        // returns emptyList(), [EpubReaderViewModel.spinePositionCounts] emits (spineHrefs, [])
+        // and [EpubReaderViewModel.railSegments] short-circuits to emptyList so the chapter map
+        // is silently blank in the elided reader. One position per resource is exactly the rail
+        // needs: the elided TOC is flat, so [buildRailSegments] produces one segment per elided
+        // chapter with equal weight.
         val publication = Publication(
             manifest = manifest,
             container = InMemoryContainer(entries),
+            servicesBuilder = Publication.ServicesBuilder(
+                positions = { ctx ->
+                    PerResourcePositionsService(
+                        readingOrder = ctx.manifest.readingOrder,
+                        fallbackMediaType = MediaType.XHTML,
+                    )
+                },
+            ),
         )
         return HighlightsPublicationHandle(
             publication, chapterUrls, entries, dataUriByHref, publisherFontFaceCss,

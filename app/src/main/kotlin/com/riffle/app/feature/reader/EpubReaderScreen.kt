@@ -48,7 +48,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import com.riffle.app.feature.reader.decorations.FigureBorderDecoration
 import com.riffle.app.feature.reader.formatting.RenderCapabilities
-import com.riffle.app.feature.reader.highlights.shouldShowChapterRail
 import com.riffle.app.feature.reader.highlights.shouldShowOpenInBook
 import com.riffle.app.feature.reader.highlights.shouldShowReadaloudUi
 import com.riffle.app.feature.reader.presenter.ContinuousPresenter
@@ -1002,7 +1001,7 @@ private fun EpubChapterRailOverlay(
                     bookTimeRemaining = bookTimeRemaining,
                 )
             }
-            if (showRail && shouldShowChapterRail(viewModel.readerSource)) {
+            if (showRail) {
                 ChapterNavigationRail(
                     segments = railSegments,
                     activeIndex = activeRailSegmentIndex,

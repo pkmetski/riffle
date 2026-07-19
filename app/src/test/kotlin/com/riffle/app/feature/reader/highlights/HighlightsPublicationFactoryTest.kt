@@ -9,6 +9,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.readium.r2.shared.publication.Publication
+import org.readium.r2.shared.publication.services.positionsByReadingOrder
 import org.readium.r2.shared.util.RelativeUrl
 import org.readium.r2.shared.util.Url
 
@@ -457,6 +458,36 @@ class HighlightsPublicationFactoryTest {
         assertTrue(
             "malicious font-family value must be dropped; html was: $html",
             !html.contains("body{color:red") && !html.contains("font-family:")
+        )
+    }
+
+    // Chapter-map / rail regression (elided view "Chapter map toggle didn't do anything"):
+    // enabling the chapter rail in ReaderSource.Highlights only helps if the synthesised
+    // publication actually reports positions per spine item — [EpubReaderViewModel.spinePositionCounts]
+    // reads [Publication.positionsByReadingOrder] and the rail flow guards on non-empty counts.
+    // This pins that the elided [Publication] returns one non-empty position list per elided
+    // chapter, so [EpubReaderViewModel.railSegments] gets a non-empty (spineHrefs, counts) pair
+    // and the rail renders. If Readium's default position service ever stopped returning positions
+    // for our InMemoryContainer-backed publication, this would flip red and the elided chapter
+    // map would silently go blank instead.
+    @Test
+    fun elidedPublicationReportsOnePositionListPerChapterForRailBuilder() {
+        val pub = factory.build(
+            sourceId = "S1",
+            itemId = "B1",
+            bookTitle = "Dune",
+            chapters = listOf(
+                ChapterElision("ch1.xhtml", "Chapter One", listOf(hl("h1", "the spice must flow"))),
+                ChapterElision("ch2.xhtml", "Chapter Two", listOf(hl("h2", "Fear is the mind-killer."))),
+                ChapterElision("ch3.xhtml", "Chapter Three", listOf(hl("h3", "He who controls the spice."))),
+            ),
+            urlFactory = ::testUrlFactory,
+        )
+        val positions = runBlocking { pub.positionsByReadingOrder() }
+        assertEquals("one position list per elided chapter", 3, positions.size)
+        assertTrue(
+            "every elided chapter must contribute at least one position so railSegments has non-empty counts, got: ${positions.map { it.size }}",
+            positions.all { it.isNotEmpty() },
         )
     }
 
