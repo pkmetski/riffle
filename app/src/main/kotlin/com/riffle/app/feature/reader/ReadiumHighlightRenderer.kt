@@ -3,7 +3,6 @@ package com.riffle.app.feature.reader
 import com.riffle.core.models.EmphasisStyle
 import com.riffle.core.models.HighlightColor
 import com.riffle.core.domain.SentenceQuote
-import kotlinx.coroutines.delay
 import org.readium.r2.navigator.Decoration
 import org.readium.r2.shared.publication.Locator
 
@@ -19,12 +18,6 @@ internal class ReadiumHighlightRenderer(
      * Mirrors the Screen-level [fragmentLocator] function.
      */
     private val fragmentLocator: (ref: String, quote: SentenceQuote?) -> Locator?,
-    /**
-     * Returns a stable identity token for the current navigator instance. Used by the
-     * search settle loop to abort when the fragment has been replaced (page navigation,
-     * rotation). In tests, always returns the same value to let the loop run to completion.
-     */
-    private val currentNavigatorStamp: () -> Any? = { null },
     /**
      * ADR 0046: evaluates arbitrary JS on the current chapter's WebView. Used to wrap emphasis
      * ranges in styled `<span>`s so bold/italic actually reflow the underlying text — overlay
@@ -45,10 +38,6 @@ internal class ReadiumHighlightRenderer(
     private var hasEmphasisDecorations = false
     private var hasNoteGlyphDecorations = false
     private var hasSearchDecorations = false
-    /** Monotonic counter for [applyEmphasisCompanions] calls. The settle-loop breaks when the
-     *  counter moves, so a rapid re-toggle within the 2.6s window doesn't repaint a
-     *  since-cleared decoration. See code-review F6. */
-    private var emphasisApplyGeneration: Long = 0L
 
     override suspend fun applySentenceHighlight(
         fragmentRef: String?,
@@ -126,17 +115,11 @@ internal class ReadiumHighlightRenderer(
         // built-in Style.Underline; strike/bold/italic v1 render as tinted overlays (bold + italic
         // are approximations pending true DOM mutation — captured as follow-up).
         applyEmphasisCompanions(renders)
-        // Readium fixes decoration rects at applyDecorations time. When the first apply runs before
-        // reflow has fully settled (fresh navigator, chapter change, orientation flip), the rects
-        // land against a still-shifting layout and the highlight is either invisible or in the wrong
-        // place. Same settle window as [applySearch] — clear+re-apply on each tick so the diff
-        // forces Readium to re-measure and re-position the boxes.
-        val stamp = currentNavigatorStamp()
-        for (settleDelayMs in longArrayOf(400L, 600L, 700L, 900L)) {
-            delay(settleDelayMs)
-            if (currentNavigatorStamp() !== stamp) break
-            applyDecorationsWithClear(decorations, "annotations")
-        }
+        // Post-apply layout shifts (page-load completion, reflow, orientation) are covered by the
+        // outer LaunchedEffect in EpubReaderScreen re-keying on pageLoadGeneration / reflowGeneration
+        // and re-invoking applyAnnotations. A fixed local settle loop here forced 2.6s of
+        // clear+re-apply JS on cold open and pinned the WebView main thread — the source of the
+        // 2-3s input sluggishness when opening a book with highlights.
     }
 
     override suspend fun applyNoteGlyphs(
@@ -178,15 +161,9 @@ internal class ReadiumHighlightRenderer(
         }
         applyDecorationsBlock(decorations, "search")
         hasSearchDecorations = true
-        // Re-apply across a post-navigation settle window so decoration boxes track the final
-        // layout (Readium fixes rects at applyDecorations time). See the comment at the original
-        // search LaunchedEffect in EpubReaderScreen for full rationale.
-        val stamp = currentNavigatorStamp()
-        for (settleDelayMs in longArrayOf(400L, 600L, 700L, 900L)) {
-            delay(settleDelayMs)
-            if (currentNavigatorStamp() !== stamp) break
-            applyDecorationsWithClear(decorations, "search")
-        }
+        // Post-navigation layout shifts are covered by the outer LaunchedEffect in
+        // EpubReaderScreen re-keying on pageLoadGeneration / reflowGeneration and re-invoking
+        // applySearch. Local settle loop removed for parity with applyAnnotations.
     }
 
     override fun highlightSearchMatch(href: String, text: String) {
@@ -209,7 +186,6 @@ internal class ReadiumHighlightRenderer(
      * overlays and vice versa.
      */
     private suspend fun applyEmphasisCompanions(renders: List<EpubReaderViewModel.HighlightRender>) {
-        val myGeneration = ++emphasisApplyGeneration
         val decorations = renders.flatMap { h ->
             if (h.emphasisStyles.isEmpty()) return@flatMap emptyList()
             buildList {
@@ -260,17 +236,9 @@ internal class ReadiumHighlightRenderer(
                 .filter { it.styles.any { s -> s == EmphasisStyle.BOLD || s == EmphasisStyle.ITALIC } }
             runJs(EmphasisDomInjector.script(ranges))
         }
-        // Same settle window as highlights so decoration rects follow post-reflow layout. Break
-        // as soon as either the navigator instance OR the emphasis generation moves — the latter
-        // means a fresh applyEmphasisCompanions call has landed with a different decoration list,
-        // and continuing to repaint THIS list would fight it.
-        val stamp = currentNavigatorStamp()
-        for (settleDelayMs in longArrayOf(400L, 600L, 700L, 900L)) {
-            delay(settleDelayMs)
-            if (currentNavigatorStamp() !== stamp) break
-            if (myGeneration != emphasisApplyGeneration) break
-            applyDecorationsWithClear(decorations, "emphasis")
-        }
+        // Post-apply layout shifts are covered by the outer LaunchedEffect re-keying on
+        // pageLoadGeneration / reflowGeneration. Local settle loop removed for parity with
+        // applyAnnotations — see the comment there for rationale.
     }
 
     companion object {

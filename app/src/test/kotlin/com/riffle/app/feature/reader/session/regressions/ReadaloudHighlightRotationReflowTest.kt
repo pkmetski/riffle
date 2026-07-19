@@ -49,15 +49,11 @@ class ReadaloudHighlightRotationReflowTest {
 
     private val applied = mutableListOf<Pair<List<Decoration>, String>>()
 
-    /** Stable navigator stamp — tests don't care about search-settle abort logic. */
-    private val navigatorStamp = Any()
-
     private val renderer = ReadiumHighlightRenderer(
         applyDecorationsBlock = { decorations, group -> applied.add(decorations to group) },
         fragmentLocator = { ref, _ ->
             if (ref.isNotBlank()) stubLocator() else null
         },
-        currentNavigatorStamp = { navigatorStamp },
     )
 
     /**
