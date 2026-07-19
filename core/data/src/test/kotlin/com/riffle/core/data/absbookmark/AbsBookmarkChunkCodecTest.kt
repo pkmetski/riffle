@@ -84,7 +84,7 @@ class AbsBookmarkChunkCodecTest {
     @Test
     fun `encode then decodeShard round-trips a small payload`() {
         val payload = """[{"id":"urn:x:1","type":"Annotation","target":"epubcfi(/6/4)"}]"""
-        val wire = AbsBookmarkChunkCodec.encode(deviceA, payload, nowEpochMs = 1_700_000_000_000L)
+        val wire = AbsBookmarkChunkCodec.encode(deviceA, payload)
         // At least manifest + one payload chunk.
         assertTrue(wire.size >= 2)
         val reads = wire.map { ReadBookmark(it.time, it.title) }
@@ -107,7 +107,7 @@ class AbsBookmarkChunkCodecTest {
             }
         }
         val payload = """[{"id":"urn:x:1","body":"$entropy"}]"""
-        val wire = AbsBookmarkChunkCodec.encode(deviceA, payload, nowEpochMs = 1_700_000_000_000L)
+        val wire = AbsBookmarkChunkCodec.encode(deviceA, payload)
         assertTrue("expected multiple chunks, got ${wire.size}", wire.size > 3)
         val reads = wire.map { ReadBookmark(it.time, it.title) }
         val decoded = AbsBookmarkChunkCodec.decodeShard(AbsBookmarkChunkCodec.deviceShort(deviceA), reads)!!
@@ -118,9 +118,11 @@ class AbsBookmarkChunkCodecTest {
     fun `decodeShard returns null when a payload chunk is missing`() {
         // High-entropy payload that gzip can't collapse — forces multi-chunk output.
         val payload = highEntropyPayload(400_000)
-        val wire = AbsBookmarkChunkCodec.encode(deviceA, payload, nowEpochMs = 1L)
+        val wire = AbsBookmarkChunkCodec.encode(deviceA, payload)
         assertTrue("expected multi-chunk, got ${wire.size}", wire.size >= 3)
-        val truncated = wire.dropLast(1).map { ReadBookmark(it.time, it.title) }
+        // Manifest is LAST; drop the first entry (a payload chunk) but keep the manifest — the
+        // manifest advertises N payload chunks but only N-1 are present, so decode should fail.
+        val truncated = wire.drop(1).map { ReadBookmark(it.time, it.title) }
         assertNull(AbsBookmarkChunkCodec.decodeShard(AbsBookmarkChunkCodec.deviceShort(deviceA), truncated))
     }
 
@@ -138,22 +140,28 @@ class AbsBookmarkChunkCodecTest {
     @Test
     fun `decodeShard returns null when manifest is missing`() {
         val payload = """[{"id":"urn:x:1"}]"""
-        val wire = AbsBookmarkChunkCodec.encode(deviceA, payload, nowEpochMs = 1L)
-        val withoutManifest = wire.drop(1).map { ReadBookmark(it.time, it.title) }
+        val wire = AbsBookmarkChunkCodec.encode(deviceA, payload)
+        // Manifest is LAST — drop the last entry to simulate a torn write where the manifest
+        // never landed. The still-present payload chunks are orphans until the next writer
+        // completes.
+        val withoutManifest = wire.dropLast(1).map { ReadBookmark(it.time, it.title) }
         assertNull(AbsBookmarkChunkCodec.decodeShard(AbsBookmarkChunkCodec.deviceShort(deviceA), withoutManifest))
     }
 
     @Test
-    fun `decodeShard returns null when hash does not match tampered chunk`() {
+    fun `decodeShard returns null when hash does not match tampered payload chunk`() {
         val payload = """[{"id":"urn:x:1","body":"content"}]"""
-        val wire = AbsBookmarkChunkCodec.encode(deviceA, payload, nowEpochMs = 1L).toMutableList()
-        // Tamper with the payload chunk: rewrite payload-b64 to something else valid-shaped.
-        val bad = wire[1]
+        val wire = AbsBookmarkChunkCodec.encode(deviceA, payload).toMutableList()
+        // Manifest is last (crash-safe ordering); the first entry is a payload chunk. Rewrite
+        // its base64 to something else valid-shaped — the manifest's fullHash then mismatches
+        // the reassembled bytes.
+        val payloadIdx = wire.indexOfFirst { AbsBookmarkChunkCodec.parseTitle(it.title)!!.chunkIdx >= 1 }
+        val bad = wire[payloadIdx]
         val parsed = AbsBookmarkChunkCodec.parseTitle(bad.title)!!
         val tamperedTitle = AbsBookmarkChunkCodec.formatTitle(
             parsed.copy(payloadB64 = "AAAAAAAA"),
         )
-        wire[1] = AbsBookmarkChunkCodec.WireChunk(bad.time, tamperedTitle)
+        wire[payloadIdx] = AbsBookmarkChunkCodec.WireChunk(bad.time, tamperedTitle)
         val reads = wire.map { ReadBookmark(it.time, it.title) }
         assertNull(AbsBookmarkChunkCodec.decodeShard(AbsBookmarkChunkCodec.deviceShort(deviceA), reads))
     }
@@ -162,8 +170,8 @@ class AbsBookmarkChunkCodecTest {
     fun `decodeShard filters out other devices' chunks and yaabsa titles`() {
         val payloadA = """[{"id":"urn:x:A"}]"""
         val payloadB = """[{"id":"urn:x:B"}]"""
-        val wireA = AbsBookmarkChunkCodec.encode(deviceA, payloadA, 1L)
-        val wireB = AbsBookmarkChunkCodec.encode(deviceB, payloadB, 1L)
+        val wireA = AbsBookmarkChunkCodec.encode(deviceA, payloadA)
+        val wireB = AbsBookmarkChunkCodec.encode(deviceB, payloadB)
         val mixed = (wireA + wireB).map { ReadBookmark(it.time, it.title) } +
             // yaabsa noise: time=-1 with a plain-JSON title.
             ReadBookmark(-1, """[{"cfi":"epubcfi(/6/4)","color":"#FFEB3B","type":"highlight"}]""") +
@@ -178,7 +186,7 @@ class AbsBookmarkChunkCodecTest {
     @Test
     fun `every emitted title stays under the 48KB cap`() {
         val payload = buildString { repeat(5_000_000) { append(('!'.code + (it % 90)).toChar()) } }
-        val wire = AbsBookmarkChunkCodec.encode(deviceA, payload, 1L)
+        val wire = AbsBookmarkChunkCodec.encode(deviceA, payload)
         for (c in wire) {
             assertTrue(
                 "title bytes=${c.title.length} exceeds ${AbsBookmarkChunkCodec.MAX_TITLE_BYTES}",
@@ -188,17 +196,38 @@ class AbsBookmarkChunkCodecTest {
     }
 
     @Test
-    fun `manifest is always the first emitted chunk`() {
-        val payload = """[{"id":"urn:x:1"}]"""
-        val wire = AbsBookmarkChunkCodec.encode(deviceA, payload, 1L)
-        val parsed = AbsBookmarkChunkCodec.parseTitle(wire.first().title)!!
-        assertEquals(AbsBookmarkChunkCodec.MANIFEST_CHUNK_IDX, parsed.chunkIdx)
+    fun `manifest is always the LAST emitted chunk — crash-safe torn-write recovery`() {
+        // If the writer crashes mid-flush, only chunks that landed before the crash have new
+        // content; the old manifest still points at the old (still-consistent) payload chunks.
+        // Guard the ordering invariant so a future refactor to "manifest first" doesn't silently
+        // break torn-write safety.
+        val payload = highEntropyPayload(200_000)
+        val wire = AbsBookmarkChunkCodec.encode(deviceA, payload)
+        assertTrue("expected multi-chunk output", wire.size >= 3)
+        val last = AbsBookmarkChunkCodec.parseTitle(wire.last().title)!!
+        assertEquals(AbsBookmarkChunkCodec.MANIFEST_CHUNK_IDX, last.chunkIdx)
+        // And every non-last chunk must be a payload chunk (chunkIdx >= 1).
+        for (c in wire.dropLast(1)) {
+            val p = AbsBookmarkChunkCodec.parseTitle(c.title)!!
+            assertTrue("non-last chunks must be payload chunks", p.chunkIdx >= 1)
+        }
+    }
+
+    @Test
+    fun `encode is byte-deterministic for identical input — idempotent writes stay idempotent`() {
+        // Regression guard: manifest must NOT carry a wall-clock timestamp; a re-encode of the
+        // same (deviceId, payload) must produce byte-identical WireChunks so the target's
+        // diff-and-skip write policy actually skips.
+        val payload = """[{"id":"urn:x:1","note":"stable"}]"""
+        val a = AbsBookmarkChunkCodec.encode(deviceA, payload)
+        val b = AbsBookmarkChunkCodec.encode(deviceA, payload)
+        assertEquals(a, b)
     }
 
     @Test
     fun `emitted times are dense and in the reserved range for one device`() {
         val payload = "x".repeat(300_000)
-        val wire = AbsBookmarkChunkCodec.encode(deviceA, payload, 1L)
+        val wire = AbsBookmarkChunkCodec.encode(deviceA, payload)
         val slots = wire.map { AbsBookmarkChunkCodec.parseTimeSlot(it.time)!! }
         val idxs = slots.map { it.deviceIdx }.toSet()
         assertEquals("all chunks share one deviceIdx", 1, idxs.size)

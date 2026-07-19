@@ -38,8 +38,21 @@ class AbsBookmarkAnnotationSyncTarget(
     private val insecureAllowed: Boolean,
     private val accountNamespace: String,
     private val api: AbsBookmarkApi,
+    /**
+     * TTL for the in-memory `listBookmarks` cache. `GET /api/me` returns every bookmark on the
+     * user's account; a sweep across N books that hits `list()`/`read()`/`enumerateDevices()` on
+     * each would otherwise fire N+ full profile pulls. Coalescing within the TTL turns that into
+     * a single fetch. Kept short so a concurrent write from another device isn't invisible for
+     * long.
+     */
+    private val listingCacheTtlMs: Long = 3_000L,
     private val clock: () -> Long = { System.currentTimeMillis() },
 ) : AnnotationSyncTarget {
+
+    @Volatile
+    private var cachedListing: CachedListing? = null
+
+    private data class CachedListing(val fetchedAtMs: Long, val bookmarks: List<NetworkAbsBookmark>)
 
     override suspend fun list(namespace: String, itemId: String): List<String> {
         requireOwnNamespace(namespace)
@@ -79,26 +92,31 @@ class AbsBookmarkAnnotationSyncTarget(
         val existing = listOwnBookmarks(itemId).mapNotNull { bm ->
             val parsed = AbsBookmarkChunkCodec.parseTitle(bm.title) ?: return@mapNotNull null
             if (parsed.deviceShort != ownDeviceShort) return@mapNotNull null
-            bm.timeSec to parsed
+            bm.timeSec to bm.title
         }
-        val existingByTime: Map<Int, AbsBookmarkChunkCodec.ParsedTitle> = existing.toMap()
+        val existingByTime: Map<Int, String> = existing.toMap()
 
-        val wire = AbsBookmarkChunkCodec.encode(deviceId, content, clock())
+        val wire = AbsBookmarkChunkCodec.encode(deviceId, content)
 
-        // For each chunk: PATCH if slot occupied by us with different content, POST if empty, skip if identical.
+        // Wire is ordered payload-chunks-first, manifest-last (crash-safe torn-write recovery —
+        // see AbsBookmarkChunkCodec.encode kdoc). Iterate in that order so the last write flip
+        // to the fresh manifest is what makes the new payload visible to readers.
+        var mutated = false
         for (chunk in wire) {
             val prior = existingByTime[chunk.time]
             when {
                 prior == null -> {
                     api.createBookmark(baseUrl, itemId, chunk.time, chunk.title, token, insecureAllowed)
                         .requireOkOrThrow("createBookmark(item=$itemId, time=${chunk.time})")
+                    mutated = true
                 }
-                titlesEqual(prior, chunk.title) -> {
-                    // Unchanged — skip.
+                prior == chunk.title -> {
+                    // Byte-identical title, unchanged — skip.
                 }
                 else -> {
                     api.updateBookmark(baseUrl, itemId, chunk.time, chunk.title, token, insecureAllowed)
                         .requireOkOrThrow("updateBookmark(item=$itemId, time=${chunk.time})")
+                    mutated = true
                 }
             }
         }
@@ -107,10 +125,12 @@ class AbsBookmarkAnnotationSyncTarget(
         val newTimes = wire.map { it.time }.toSet()
         for ((oldTime, _) in existing) {
             if (oldTime !in newTimes) {
-                api.deleteBookmark(baseUrl, itemId, oldTime, token, insecureAllowed)
-                    .requireOkOrThrow("deleteBookmark(item=$itemId, time=$oldTime)")
+                deleteBookmarkIdempotent(itemId, oldTime, op = "gcTrailingChunk")
+                mutated = true
             }
         }
+
+        if (mutated) invalidateListingCache()
     }
 
     override suspend fun delete(namespace: String, itemId: String, filename: String) {
@@ -118,12 +138,14 @@ class AbsBookmarkAnnotationSyncTarget(
         val rawFromFilename = AnnotationFilenames.deviceIdOf(filename) ?: return
         val ownerDeviceShort = deviceShortFor(rawFromFilename)
         val bookmarks = listOwnBookmarks(itemId)
+        var mutated = false
         for (bm in bookmarks) {
             val parsed = AbsBookmarkChunkCodec.parseTitle(bm.title) ?: continue
             if (parsed.deviceShort != ownerDeviceShort) continue
-            api.deleteBookmark(baseUrl, itemId, bm.timeSec, token, insecureAllowed)
-                .requireOkOrThrow("deleteBookmark(item=$itemId, time=${bm.timeSec})")
+            deleteBookmarkIdempotent(itemId, bm.timeSec, op = "delete")
+            mutated = true
         }
+        if (mutated) invalidateListingCache()
     }
 
     override suspend fun readDeviceMeta(namespace: String, deviceId: String): String? {
@@ -172,10 +194,18 @@ class AbsBookmarkAnnotationSyncTarget(
 
     override suspend fun enumerateNamespaces(): List<NamespaceSummary> {
         // ABS bookmarks are scoped to a single ABS user (this target's token). There's only ever
-        // one namespace visible from an ABS-bookmark target — this one.
-        val count = listAllBookmarksInReservedRange().count { AbsBookmarkChunkCodec.parseTitle(it.title) != null }
-        if (count == 0) return emptyList()
-        return listOf(NamespaceSummary(namespace = accountNamespace, annotationFileCount = count))
+        // one namespace visible from an ABS-bookmark target — this one. Count logical files
+        // (one per {device, item} — matches the WebDAV target's per-device.jsonld semantics),
+        // NOT raw bookmark rows (which would inflate the number by chunks-per-shard).
+        val logicalFiles = listAllBookmarksInReservedRange()
+            .mapNotNull { bm ->
+                val parsed = AbsBookmarkChunkCodec.parseTitle(bm.title) ?: return@mapNotNull null
+                parsed.deviceShort to bm.libraryItemId
+            }
+            .toSet()
+            .size
+        if (logicalFiles == 0) return emptyList()
+        return listOf(NamespaceSummary(namespace = accountNamespace, annotationFileCount = logicalFiles))
     }
 
     override suspend fun forgetNamespace(namespace: String): Int {
@@ -186,13 +216,13 @@ class AbsBookmarkAnnotationSyncTarget(
             AbsBookmarkChunkCodec.parseTitle(bm.title) ?: continue
             // Sanity: only touch our reserved range.
             AbsBookmarkChunkCodec.parseTimeSlot(bm.timeSec) ?: continue
-            val result = api.deleteBookmark(baseUrl, bm.libraryItemId, bm.timeSec, token, insecureAllowed)
-            if (result is NetworkResult.Success) {
+            // Success OR 404-equivalent both count as "gone" per the port contract; other errors
+            // are transient (network) and the sweep worker retries on the next flush.
+            if (deleteBookmarkIdempotent(bm.libraryItemId, bm.timeSec, op = "forgetNamespace", throwOnError = false)) {
                 deleted++
             }
-            // A per-file delete failure here is transient (network); we don't roll back partial
-            // successes — the sweep worker retries on next flush.
         }
+        if (deleted > 0) invalidateListingCache()
         return deleted
     }
 
@@ -216,13 +246,25 @@ class AbsBookmarkAnnotationSyncTarget(
         }
     }
 
-    /** Every bookmark this ABS account currently holds; caller filters. */
+    /**
+     * Every bookmark this ABS account currently holds. Coalesces concurrent callers within a
+     * short TTL so a sweep across N books doesn't fire N × `GET /api/me`. Any local mutation
+     * (write / delete / forgetNamespace) invalidates via [invalidateListingCache].
+     */
     private suspend fun listAllBookmarks(): List<NetworkAbsBookmark> {
-        val result = api.listBookmarks(baseUrl, token, insecureAllowed)
-        return when (result) {
+        val now = clock()
+        val cached = cachedListing
+        if (cached != null && now - cached.fetchedAtMs < listingCacheTtlMs) return cached.bookmarks
+        val fresh = when (val result = api.listBookmarks(baseUrl, token, insecureAllowed)) {
             is NetworkResult.Success -> result.value
             else -> throw AbsBookmarkTargetException("listBookmarks failed: $result")
         }
+        cachedListing = CachedListing(fetchedAtMs = now, bookmarks = fresh)
+        return fresh
+    }
+
+    private fun invalidateListingCache() {
+        cachedListing = null
     }
 
     /** Bookmarks for [itemId] in Riffle's reserved negative-time range. */
@@ -235,13 +277,32 @@ class AbsBookmarkAnnotationSyncTarget(
     private suspend fun listAllBookmarksInReservedRange(): List<NetworkAbsBookmark> =
         listAllBookmarks().filter { AbsBookmarkChunkCodec.parseTimeSlot(it.timeSec) != null }
 
-    private fun titlesEqual(existing: AbsBookmarkChunkCodec.ParsedTitle, newTitle: String): Boolean {
-        val parsedNew = AbsBookmarkChunkCodec.parseTitle(newTitle) ?: return false
-        // Match by the content-hash prefix — the hash is over the raw stored bytes and changes
-        // whenever the payload changes.
-        return existing.contentHashPrefix == parsedNew.contentHashPrefix &&
-            existing.payloadB64 == parsedNew.payloadB64
-    }
+    /**
+     * Delete a bookmark, treating "already gone" (HTTP 404 / equivalent) as success — the
+     * `AnnotationSyncTarget` port contract mandates that delete implementations MUST NOT throw
+     * on a 404-equivalent. Returns true iff the server confirms deletion (Success or 404).
+     */
+    private suspend fun deleteBookmarkIdempotent(
+        itemId: String,
+        timeSec: Int,
+        op: String,
+        throwOnError: Boolean = true,
+    ): Boolean =
+        when (val result = api.deleteBookmark(baseUrl, itemId, timeSec, token, insecureAllowed)) {
+            is NetworkResult.Success -> true
+            is NetworkResult.ServerError -> if (result.code == 404) {
+                true
+            } else if (throwOnError) {
+                throw AbsBookmarkTargetException("$op(item=$itemId, time=$timeSec) → $result")
+            } else {
+                false
+            }
+            else -> if (throwOnError) {
+                throw AbsBookmarkTargetException("$op(item=$itemId, time=$timeSec) → $result")
+            } else {
+                false
+            }
+        }
 }
 
 class AbsBookmarkTargetException(message: String) : RuntimeException(message)

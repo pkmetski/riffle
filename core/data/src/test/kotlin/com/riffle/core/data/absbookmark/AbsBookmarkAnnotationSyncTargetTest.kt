@@ -192,6 +192,75 @@ class AbsBookmarkAnnotationSyncTargetTest {
     }
 
     @Test
+    fun `enumerateNamespaces counts logical files — not raw bookmark chunks`() = runTest {
+        // Regression pin: was counting every chunk row, which inflated the number by
+        // chunks-per-device × devices × items (WebDAV target returns one per (device, item)).
+        val api = FakeAbsBookmarkApi()
+        val t = target(api)
+        // Force multi-chunk shards so total-bookmark-count > logical-file-count.
+        val bigPayload = highEntropyPayload(300_000)
+        t.write(NS, ITEM, AnnotationFilenames.forDevice(deviceA), bigPayload)
+        t.write(NS, ITEM, AnnotationFilenames.forDevice(deviceB), bigPayload)
+        t.write(NS, "book-2", AnnotationFilenames.forDevice(deviceA), bigPayload)
+
+        val actualBookmarkRows = api.state.count { AbsBookmarkChunkCodec.parseTitle(it.title) != null }
+        assertTrue("precondition — expected chunked shards", actualBookmarkRows > 3)
+
+        val listing = t.enumerateNamespaces()
+        assertEquals(1, listing.size)
+        // Three logical files: (deviceA, ITEM), (deviceB, ITEM), (deviceA, book-2).
+        assertEquals(3, listing.first().annotationFileCount)
+    }
+
+    @Test
+    fun `delete tolerates 404 on trailing-chunk GC — port contract compliance`() = runTest {
+        // AnnotationSyncTarget.delete kdoc: "Implementations MUST NOT throw on a 404-equivalent."
+        // Two devices racing forget-device: the second delete sees a slot the first already cleared.
+        val api = FakeAbsBookmarkApi().apply { returnNotFoundOnDelete = true }
+        val t = target(api)
+        t.write(NS, ITEM, AnnotationFilenames.forDevice(deviceA), """[{"id":"a"}]""")
+        // Bypass the fake's happy delete path by pre-clearing state, then call delete() — it
+        // should NOT throw when the underlying deleteBookmark returns ServerError(404).
+        api.state.clear()
+        t.delete(NS, ITEM, AnnotationFilenames.forDevice(deviceA))
+    }
+
+    @Test
+    fun `write GC tolerates 404 when a trailing chunk was already cleaned up`() = runTest {
+        // Shrinking a payload while a peer or previous crash left one of our own chunks orphaned:
+        // GC attempts to delete a chunk that no longer exists → the fake returns 404, port
+        // contract says we swallow.
+        val api = FakeAbsBookmarkApi().apply { returnNotFoundOnDelete = true }
+        val t = target(api)
+        val big = highEntropyPayload(400_000)
+        t.write(NS, ITEM, AnnotationFilenames.forDevice(deviceA), big)
+        // Nuke one chunk without going through the target.
+        val someChunk = api.state.firstOrNull {
+            val p = AbsBookmarkChunkCodec.parseTitle(it.title)
+            p != null && p.chunkIdx > 0
+        } ?: error("no payload chunk to nuke")
+        api.state.remove(someChunk)
+        val small = """[{"id":"x"}]"""
+        t.write(NS, ITEM, AnnotationFilenames.forDevice(deviceA), small)
+        assertEquals(small, t.read(NS, ITEM, AnnotationFilenames.forDevice(deviceA)))
+    }
+
+    @Test
+    fun `listAllBookmarks fetches are coalesced within TTL — efficiency guard`() = runTest {
+        // Regression pin: every port method used to fire a fresh GET /api/me. A sweep across N
+        // books shouldn't pull the whole account profile N times.
+        val api = FakeAbsBookmarkApi()
+        val t = target(api)
+        t.write(NS, ITEM, AnnotationFilenames.forDevice(deviceA), """[{"id":"a"}]""")
+        val listsBefore = api.callLog.count { it is FakeAbsBookmarkApi.Call.List }
+        // Back-to-back reads within TTL — the second must reuse the cached listing.
+        t.read(NS, ITEM, AnnotationFilenames.forDevice(deviceA))
+        t.read(NS, ITEM, AnnotationFilenames.forDevice(deviceA))
+        val listsAfter = api.callLog.count { it is FakeAbsBookmarkApi.Call.List }
+        assertEquals("two back-to-back reads should share one listing fetch", 1, listsAfter - listsBefore)
+    }
+
+    @Test
     fun `readDeviceMeta returns null and writeDeviceMeta is a no-op — v1 gap`() = runTest {
         val api = FakeAbsBookmarkApi()
         val t = target(api)
@@ -220,6 +289,11 @@ class AbsBookmarkAnnotationSyncTargetTest {
 private class FakeAbsBookmarkApi : AbsBookmarkApi {
     val state: MutableList<NetworkAbsBookmark> = mutableListOf()
     val callLog: MutableList<Call> = mutableListOf()
+
+    /** When true, `deleteBookmark` returns `ServerError(404)` if the target slot is empty (instead
+     *  of the ABS-native "return HTTP 200 no matter what" behaviour), exercising the target's
+     *  port-contract 404 tolerance. */
+    var returnNotFoundOnDelete: Boolean = false
 
     sealed class Call {
         data object List : Call()
@@ -271,8 +345,14 @@ private class FakeAbsBookmarkApi : AbsBookmarkApi {
         callLog.add(Call.Delete(itemId, timeSec))
         val idx = state.indexOfFirst { it.libraryItemId == itemId && it.timeSec == timeSec }
         if (idx < 0) {
-            // ABS returns HTTP 200 "OK" even when deleting a non-existent bookmark (idempotent).
-            return NetworkResult.Success(NetworkAbsBookmark(itemId, "", timeSec, 0L))
+            // Real ABS returns HTTP 200 "OK" even when deleting a non-existent bookmark
+            // (idempotent). Some deployments/WAFs return 404 instead — flag-controlled here so
+            // the port-contract's "MUST NOT throw on 404" is exercised.
+            return if (returnNotFoundOnDelete) {
+                NetworkResult.ServerError(404, "not found")
+            } else {
+                NetworkResult.Success(NetworkAbsBookmark(itemId, "", timeSec, 0L))
+            }
         }
         val removed = state.removeAt(idx)
         return NetworkResult.Success(removed)

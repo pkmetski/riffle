@@ -11,8 +11,10 @@ import com.riffle.core.domain.SourceType
 import com.riffle.core.domain.AbsWebSourceDescriptor
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 
 /**
  * Holds the currently-active [AnnotationSyncTarget], rebuilt whenever WebDAV config OR the list of
@@ -37,7 +39,25 @@ class AnnotationSyncTargetHolder(
     private val sourceRepository: SourceRepository,
     scope: CoroutineScope,
 ) {
-    private val state: MutableStateFlow<AnnotationSyncTarget?> = MutableStateFlow(null)
+    /**
+     * Seeded synchronously from the config store's current value so early consumers like
+     * `EpubReaderViewModel.syncOnOpen` don't race the initial coroutine emission and see null
+     * for the first few frames — the pre-composite holder was written this way and dropping the
+     * seed was the exact regression the old kdoc warned about.
+     *
+     * The seed uses `runBlocking` — safe because the constructor already runs on a background
+     * scope for DI and both `WebDavAnnotationSyncTargetFactory.create` and
+     * `AbsBookmarkAnnotationSyncTargetFactory.create` are non-suspending / suspend-but-cheap
+     * (SharedPreferences read for the token; no network).
+     */
+    private val state: MutableStateFlow<AnnotationSyncTarget?> = MutableStateFlow(
+        runBlocking {
+            buildTarget(
+                webDavConfig = configStore.observe().value,
+                sources = emptyList(),
+            )
+        },
+    )
 
     init {
         scope.launch {
@@ -45,7 +65,9 @@ class AnnotationSyncTargetHolder(
                 configStore.observe(),
                 sourceRepository.observeAll(),
             ) { webDavConfig, sources -> webDavConfig to sources }
-                .collect { (webDavConfig, sources) ->
+                .collectLatest { (webDavConfig, sources) ->
+                    // `collectLatest` cancels an in-flight buildTarget when a newer config arrives,
+                    // so a slow token read can never write a stale target on top of a fresh one.
                     state.value = buildTarget(webDavConfig, sources)
                 }
         }

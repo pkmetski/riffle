@@ -11,7 +11,6 @@ import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
-import kotlinx.serialization.json.longOrNull
 import kotlinx.serialization.json.put
 
 /**
@@ -116,15 +115,18 @@ object AbsBookmarkChunkCodec {
         "riffle:v$VERSION:${parsed.deviceShort}:${parsed.chunkIdx}:${parsed.contentHashPrefix}:${parsed.payloadB64}"
 
     /**
-     * Split `payload` into wire-ready [WireChunk]s for `deviceId`. Produces at least a manifest;
-     * the caller uploads each chunk to `(itemId, chunk.time)` via `AbsBookmarkApi`.
+     * Split `payload` into wire-ready [WireChunk]s for `deviceId`.
      *
-     * The first entry is always the manifest (chunkIdx=0); payload chunks follow (1..N).
+     * **Ordering matters for crash-safety.** Payload chunks come FIRST in the returned list;
+     * the manifest is LAST. A caller that uploads chunks in order and crashes mid-flush leaves
+     * the OLD manifest referring to the OLD (still-consistent) payload chunks — readers reject
+     * partial writes cleanly instead of seeing a manifest that points at newly-changed slots.
      *
-     * @param nowEpochMs stamped into the manifest (createdAt/updatedAt seeding); caller supplies
-     *     to keep the codec pure — no `System.currentTimeMillis()` here.
+     * **Deterministic output.** Same `(deviceId, payload)` produces byte-identical `WireChunk`s
+     * — the manifest carries no wall-clock time, so idempotent writes stay idempotent and the
+     * write-side diff can skip identical chunks.
      */
-    fun encode(deviceId: String, payload: String, nowEpochMs: Long): List<WireChunk> {
+    fun encode(deviceId: String, payload: String): List<WireChunk> {
         val deviceIdxV = deviceIdx(deviceId)
         val deviceShortV = deviceShort(deviceId)
         val gzipped = gzip(payload.encodeToByteArray())
@@ -141,21 +143,9 @@ object AbsBookmarkChunkCodec {
             chunks = sliceCount,
             encoding = "gzip+b64",
             fullHash = fullHash,
-            createdAt = nowEpochMs,
-            updatedAt = nowEpochMs,
             deviceId = deviceId,
         )
         val out = ArrayList<WireChunk>(sliceCount + 1)
-        val manifestJson = manifest.toJson()
-        out.add(
-            wireChunkOf(
-                deviceIdxV = deviceIdxV,
-                deviceShort = deviceShortV,
-                chunkIdx = MANIFEST_CHUNK_IDX,
-                rawContent = manifestJson.encodeToByteArray(),
-                gzipContent = true,
-            ),
-        )
         var offset = 0
         for (i in 0 until sliceCount) {
             val end = minOf(offset + sliceCap, gzipped.size)
@@ -172,6 +162,17 @@ object AbsBookmarkChunkCodec {
             )
             offset = end
         }
+        // Manifest LAST — crash-safety invariant, see kdoc.
+        val manifestJson = manifest.toJson()
+        out.add(
+            wireChunkOf(
+                deviceIdxV = deviceIdxV,
+                deviceShort = deviceShortV,
+                chunkIdx = MANIFEST_CHUNK_IDX,
+                rawContent = manifestJson.encodeToByteArray(),
+                gzipContent = true,
+            ),
+        )
         return out
     }
 
@@ -316,17 +317,18 @@ object AbsBookmarkChunkCodec {
     }
 
     /**
-     * Manifest content stored in chunk 0. Version + chunk count + full-payload hash + timestamps.
-     * Timestamps are wall-clock milliseconds (informational; conflict resolution still uses the
-     * annotation-level `createdAt`/`updatedAt` inside the payload).
+     * Manifest content stored in chunk 0. Version + chunk count + full-payload hash + deviceId.
+     *
+     * Intentionally carries **no wall-clock timestamps** — the manifest must be
+     * byte-deterministic for a given `(deviceId, payload)` so that idempotent writes stay
+     * idempotent. Per-annotation `createdAt`/`updatedAt` inside the payload remain the source of
+     * truth for conflict resolution.
      */
     data class ManifestPayload(
         val version: Int,
         val chunks: Int,
         val encoding: String,
         val fullHash: String,
-        val createdAt: Long,
-        val updatedAt: Long,
         val deviceId: String,
     ) {
         fun toJson(): String = json.encodeToString(
@@ -336,8 +338,6 @@ object AbsBookmarkChunkCodec {
                 put("chunks", chunks)
                 put("encoding", encoding)
                 put("fullHash", fullHash)
-                put("createdAt", createdAt)
-                put("updatedAt", updatedAt)
                 put("deviceId", deviceId)
             },
         )
@@ -353,10 +353,8 @@ object AbsBookmarkChunkCodec {
                 val chunks = obj["chunks"]?.jsonPrimitive?.intOrNull ?: return null
                 val encoding = obj["encoding"]?.jsonPrimitive?.contentOrNullSafe() ?: return null
                 val fullHash = obj["fullHash"]?.jsonPrimitive?.contentOrNullSafe() ?: return null
-                val createdAt = obj["createdAt"]?.jsonPrimitive?.longOrNull ?: return null
-                val updatedAt = obj["updatedAt"]?.jsonPrimitive?.longOrNull ?: return null
                 val deviceId = obj["deviceId"]?.jsonPrimitive?.contentOrNullSafe() ?: return null
-                return ManifestPayload(v, chunks, encoding, fullHash, createdAt, updatedAt, deviceId)
+                return ManifestPayload(v, chunks, encoding, fullHash, deviceId)
             }
 
             private fun kotlinx.serialization.json.JsonPrimitive.contentOrNullSafe(): String? =
