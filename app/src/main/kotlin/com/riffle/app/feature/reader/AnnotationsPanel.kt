@@ -174,12 +174,30 @@ private fun AnnotationRow(
                 // now sits inline between the text runs in the content column (see below), matching
                 // how the book itself lays out prose around a figure.
                 RowKind.Image, RowKind.Highlight -> {
-                    val highlightColor = HighlightColor.fromToken(annotation.color)
-                    Surface(
-                        shape = CircleShape,
-                        color = Color(highlightColor.argb.toLong() and 0xFFFFFFFFL),
-                        modifier = Modifier.size(16.dp),
-                    ) {}
+                    // ADR 0046 §4: format-only highlight anchors (color="") represent a
+                    // "just-format this text" annotation. HighlightColor.fromToken("") falls
+                    // back to YELLOW, which used to make these rows look like plain yellow
+                    // highlights in the panel — a real user complaint. Render a hollow /
+                    // outlined dot for the color-less case instead, so the row is still visible
+                    // but visually distinct from an actual coloured highlight.
+                    if (annotation.color.isBlank()) {
+                        Surface(
+                            shape = CircleShape,
+                            color = Color.Transparent,
+                            border = androidx.compose.foundation.BorderStroke(
+                                width = 1.5.dp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            ),
+                            modifier = Modifier.size(16.dp),
+                        ) {}
+                    } else {
+                        val highlightColor = HighlightColor.fromToken(annotation.color)
+                        Surface(
+                            shape = CircleShape,
+                            color = Color(highlightColor.argb.toLong() and 0xFFFFFFFFL),
+                            modifier = Modifier.size(16.dp),
+                        ) {}
+                    }
                 }
             }
         }

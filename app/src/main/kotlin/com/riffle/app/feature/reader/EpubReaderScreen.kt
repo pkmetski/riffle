@@ -286,6 +286,11 @@ fun EpubReaderScreen(
     val annotations by viewModel.annotations.collectAsState()
     val emphasisPool by viewModel.emphasisPool.collectAsState()
     val lastUsedEmphasisStyles by viewModel.lastUsedEmphasisStyles.collectAsState()
+    // ADR 0046 §4: draft-time preview needs the pending selection's text + last-used styles so
+    // the DOM emphasis injector can wrap the range BEFORE commit — otherwise a chip that's
+    // pre-selected (from the per-book preset) shows checked in the sheet but the text isn't
+    // bold on screen ("selection restored in modal, not applied to text").
+    val draftAnnotation by viewModel.draftAnnotation.collectAsState()
     val isCurrentPageBookmarked by viewModel.isCurrentPageBookmarked.collectAsState()
     val highlightRenders by viewModel.highlightRenders.collectAsState()
     val highlightToEdit by viewModel.highlightToEdit.collectAsState()
@@ -533,6 +538,7 @@ fun EpubReaderScreen(
                         onToggleEmphasis = viewModel::toggleEmphasisStyle,
                         emphasisPool = emphasisPool,
                         lastUsedEmphasisStyles = lastUsedEmphasisStyles,
+                        draftAnnotation = draftAnnotation,
                         highlightDomPatches = viewModel.highlightDomPatches,
                         showOpenInBook = shouldShowOpenInBook(viewModel.readerSource),
                         onOpenInBook = viewModel::openHighlightInSourceBook,
@@ -1347,6 +1353,10 @@ private fun EpubNavigatorView(
     /** ADR 0046 §4: per-book last-used emphasis set, used to preview chip pre-selection while
      *  the sheet is open on a pending draft. */
     lastUsedEmphasisStyles: Set<com.riffle.core.domain.EmphasisStyle> = emptySet(),
+    /** ADR 0046 §4: the in-flight draft, if any. Threaded down so the DOM emphasis injector
+     *  can preview bold/italic on the pending selection BEFORE commit (chip pre-selected
+     *  from the per-book preset must visually match the text). */
+    draftAnnotation: com.riffle.app.feature.reader.session.AnnotationSession.DraftAnnotation? = null,
     highlightDomPatches: Flow<com.riffle.app.feature.reader.highlights.HighlightsDomPatch>,
     showOpenInBook: Boolean = false,
     onOpenInBook: (String) -> Unit = {},
@@ -1486,6 +1496,10 @@ private fun EpubNavigatorView(
     // latest set each apply. `remember` below captures at composition; without this indirection
     // the injector would always see the empty initial pool.
     val emphasisPoolState = androidx.compose.runtime.rememberUpdatedState(emphasisPool)
+    // ADR 0046 §4: draft + last-used state feeding the DOM emphasis injector so a pending
+    // (not-yet-committed) selection previews its bold/italic BEFORE the user picks a colour.
+    val draftAnnotationState = androidx.compose.runtime.rememberUpdatedState(draftAnnotation)
+    val lastUsedEmphasisStylesState = androidx.compose.runtime.rememberUpdatedState(lastUsedEmphasisStyles)
     val highlightRenderer: HighlightRenderer = remember(isContinuous, readiumPresenter) {
         if (isContinuous) {
             ContinuousHighlightRenderer(targetProvider = { continuousViewRef.value })
@@ -1501,7 +1515,7 @@ private fun EpubNavigatorView(
                 emphasisRangeProvider = {
                     // Filtered to only rows needing DOM mutation (bold/italic); underline/strike
                     // ride the overlay decoration path above.
-                    emphasisPoolState.value.mapNotNull { a ->
+                    val persisted = emphasisPoolState.value.mapNotNull { a ->
                         val styles = a.emphasisStyles ?: return@mapNotNull null
                         if (styles.none {
                                 it == com.riffle.core.domain.EmphasisStyle.BOLD ||
@@ -1514,6 +1528,24 @@ private fun EpubNavigatorView(
                             styles = styles,
                         )
                     }
+                    // ADR 0046 §4: preview the draft's chip pre-selection on the pending selection
+                    // BEFORE commit. Without this, the sheet shows a bold chip pre-selected (from
+                    // the per-book last-used preset) but the text on screen isn't bold — commit
+                    // hasn't fired, so no emphasis row exists in the pool yet.
+                    val draft = draftAnnotationState.value
+                    val draftStyles = lastUsedEmphasisStylesState.value
+                    val draftRange = if (draft != null && draftStyles.any {
+                            it == com.riffle.core.domain.EmphasisStyle.BOLD ||
+                                it == com.riffle.core.domain.EmphasisStyle.ITALIC
+                        }) {
+                        EmphasisDomInjector.EmphasisRange(
+                            id = com.riffle.app.feature.reader.session.AnnotationSession.DRAFT_ANNOTATION_ID,
+                            textSnippet = draft.textSnippet,
+                            textBefore = draft.textBefore,
+                            styles = draftStyles,
+                        )
+                    } else null
+                    persisted + listOfNotNull(draftRange)
                 },
             )
         }

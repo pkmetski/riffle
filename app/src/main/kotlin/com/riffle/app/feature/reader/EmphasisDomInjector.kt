@@ -128,15 +128,55 @@ internal object EmphasisDomInjector {
           }
           // Build the concatenated body text once so we can find snippets that cross element
           // boundaries — cross-`<code>` ranges (a common publisher pattern) never match a
-          // single text-node search.
+          // single text-node search. At block-level or `<br>` boundaries between consecutive
+          // text nodes we splice in a SYNTHETIC space so `page.full` carries the whitespace
+          // Readium's selection captured (a selection spanning `<p>foo</p><p>bar</p>` arrives as
+          // "foo\nbar" — without the synthetic space, `page.full` is "foobar" and the match
+          // fails). Synthetic pieces carry `synthetic: true` so `rangeFromPageOffsets` knows
+          // to snap start/end to the adjacent real text node instead of into a phantom offset.
+          function blockAncestor(node) {
+            var el = node.parentNode;
+            while (el && el !== document.body && el.nodeType === 1) {
+              var d = '';
+              try { d = window.getComputedStyle(el).display; } catch (e) {}
+              if (d === 'block' || d === 'list-item' || d === 'table-cell' ||
+                  d === 'table-row' || d === 'flex' || d === 'grid') return el;
+              el = el.parentNode;
+            }
+            return document.body;
+          }
+          function hasBrBetween(a, b) {
+            try {
+              var range = document.createRange();
+              range.setStartAfter(a);
+              range.setEndBefore(b);
+              var frag = range.cloneContents();
+              return !!(frag.querySelector && frag.querySelector('br'));
+            } catch (e) { return false; }
+          }
+          function isBoundaryBetween(a, b) {
+            if (!a) return false;
+            if (blockAncestor(a) !== blockAncestor(b)) return true;
+            return hasBrBetween(a, b);
+          }
           function collectPageText() {
             var walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, null, false);
             var pieces = [];
             var full = '';
+            var lastNode = null;
             var n;
             while (n = walker.nextNode()) {
-              pieces.push({ node: n, start: full.length, text: n.textContent });
+              if (lastNode && isBoundaryBetween(lastNode, n)) {
+                // One synthetic space per boundary, only if the running text doesn't already
+                // end in whitespace (the previous real piece may have carried a trailing space).
+                if (full.length > 0 && !/\s/.test(full.charAt(full.length - 1))) {
+                  pieces.push({ node: lastNode, start: full.length, text: ' ', synthetic: true });
+                  full += ' ';
+                }
+              }
+              pieces.push({ node: n, start: full.length, text: n.textContent, synthetic: false });
               full += n.textContent;
+              lastNode = n;
             }
             return { pieces: pieces, full: full };
           }
@@ -147,33 +187,68 @@ internal object EmphasisDomInjector {
               var p = page.pieces[i];
               var pEnd = p.start + p.text.length;
               if (!startSet && startAbs >= p.start && startAbs <= pEnd) {
-                range.setStart(p.node, startAbs - p.start);
-                startSet = true;
+                if (p.synthetic) {
+                  // Match starts inside a synthetic block-gap space — snap forward to the
+                  // beginning of the next real text piece.
+                  for (var j = i + 1; j < page.pieces.length; j++) {
+                    if (!page.pieces[j].synthetic) {
+                      range.setStart(page.pieces[j].node, 0);
+                      startSet = true;
+                      break;
+                    }
+                  }
+                } else {
+                  range.setStart(p.node, startAbs - p.start);
+                  startSet = true;
+                }
               }
               if (!endSet && endAbs >= p.start && endAbs <= pEnd) {
-                range.setEnd(p.node, endAbs - p.start);
-                endSet = true;
+                if (p.synthetic) {
+                  // Match ends inside a synthetic gap — snap back to the end of the previous
+                  // real text piece.
+                  for (var k = i - 1; k >= 0; k--) {
+                    if (!page.pieces[k].synthetic) {
+                      range.setEnd(page.pieces[k].node, page.pieces[k].node.textContent.length);
+                      endSet = true;
+                      break;
+                    }
+                  }
+                } else {
+                  range.setEnd(p.node, endAbs - p.start);
+                  endSet = true;
+                }
               }
               if (startSet && endSet) break;
             }
             return (startSet && endSet) ? range : null;
           }
+          // Escape regex metacharacters, then collapse any whitespace run into `\s+` so a
+          // snippet whose "\n" comes from a paragraph boundary matches page.full's synthetic
+          // space (and vice versa) without needing exact whitespace-character equivalence.
+          function toWsTolerantRegex(str) {
+            var escaped = str.replace(/[.*+?^${'$'}{}()|[\]\\]/g, '\\${'$'}&');
+            return escaped.replace(/\s+/g, '\\s+');
+          }
           var page = null;
           function walk(match) {
             if (!page) page = collectPageText();
-            var searchFrom = 0;
+            var re = new RegExp(toWsTolerantRegex(match.snippet), 'g');
+            var beforeRe = (match.before && match.before.length > 0)
+              ? new RegExp(toWsTolerantRegex(match.before) + '${'$'}') : null;
+            re.lastIndex = 0;
             while (true) {
-              var idx = page.full.indexOf(match.snippet, searchFrom);
-              if (idx < 0) return;
-              if (match.before && match.before.length > 0) {
-                var ctxStart = Math.max(0, idx - match.before.length);
-                var ctx = page.full.substring(ctxStart, idx);
-                if (ctx && !match.before.endsWith(ctx)) {
-                  searchFrom = idx + 1;
+              var m = re.exec(page.full);
+              if (!m) return;
+              var idx = m.index;
+              var matchLen = m[0].length;
+              if (beforeRe) {
+                var ctx = page.full.substring(0, idx);
+                if (!beforeRe.test(ctx)) {
+                  re.lastIndex = idx + 1;
                   continue;
                 }
               }
-              var range = rangeFromPageOffsets(page, idx, idx + match.snippet.length);
+              var range = rangeFromPageOffsets(page, idx, idx + matchLen);
               if (range) {
                 wrapRange(range, match.styles);
                 // Invalidate the cached page — splitText mutated the DOM.

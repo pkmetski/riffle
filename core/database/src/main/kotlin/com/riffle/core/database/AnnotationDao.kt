@@ -202,7 +202,10 @@ interface AnnotationDao {
     /** One row per book (ABS Library Item) with at least one live highlight or image annotation on
      *  this source, most recently updated first. Powers the Annotations View library list.
      *  Bookmarks are excluded — they have their own tab. Image annotations are first-class here
-     *  since a user may annotate figures without ever making a text highlight. */
+     *  since a user may annotate figures without ever making a text highlight. Format-only
+     *  highlight anchors (color="" + emphasis) count too — they represent a real user-created
+     *  annotation ("just bold this text"); rendering swaps the yellow dot for a neutral marker,
+     *  handled by the UI layer (see [com.riffle.app.feature.reader.AnnotationsPanel]). */
     @Query(
         """
         SELECT itemId,

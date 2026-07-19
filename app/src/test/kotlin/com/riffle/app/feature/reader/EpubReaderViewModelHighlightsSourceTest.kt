@@ -53,6 +53,8 @@ class EpubReaderViewModelHighlightsSourceTest {
         createdAt: Long = 0L,
         deleted: Boolean = false,
         type: String = AnnotationEntity.TYPE_HIGHLIGHT,
+        color: String = AnnotationEntity.COLOR_YELLOW,
+        note: String? = null,
     ): AnnotationEntity = AnnotationEntity(
         id = id,
         sourceId = "S1",
@@ -68,6 +70,8 @@ class EpubReaderViewModelHighlightsSourceTest {
         originDeviceId = "test",
         lastModifiedByDeviceId = "test",
         deleted = deleted,
+        color = color,
+        note = note,
     )
 
     // The regression this pins: three highlights across two chapters must produce a Publication
@@ -255,6 +259,29 @@ class EpubReaderViewModelHighlightsSourceTest {
             highlight("h2", "chB.xhtml", spineIndex = 1, deleted = true),
         )
         assertFalse(highlightsShouldCloseAfterDelete(rows))
+    }
+
+    // ---- Format-only highlights (ADR 0046) ------------------------------------------------
+
+    // ADR 0046 §4: a highlight with color="" IS a valid user-created annotation ("just bold
+    // this text"). It MUST render in the elided view — dropping it here made the whole book
+    // disappear from the annotations tab whenever the user picked ∅ instead of a colour.
+    // The visual differentiation from yellow highlights happens at the render seam (neutral
+    // dot in the panel, muted accent-bar in the elided view), NOT by hiding the row.
+    @Test
+    fun `buildChapterElisions includes format-only highlights (empty color)`() {
+        val rows = listOf(
+            highlight("hFmt", "chA.xhtml", spineIndex = 0, color = "", note = null),
+        )
+        assertEquals(1, buildChapterElisions(rows).sumOf { it.highlights.size })
+    }
+
+    @Test
+    fun `buildChapterElisions keeps ordinary coloured highlights`() {
+        val rows = listOf(
+            highlight("hYellow", "chA.xhtml", spineIndex = 0, color = AnnotationEntity.COLOR_YELLOW),
+        )
+        assertEquals(1, buildChapterElisions(rows).sumOf { it.highlights.size })
     }
 
     // ---- Important #2: case-insensitive ReaderSource decoding -----------------------------

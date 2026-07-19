@@ -339,11 +339,23 @@ class AnnotationSession @AssistedInject constructor(
                 _draftAnnotation,
             ) { all, target, draft -> Triple(all, target?.id, draft) }
                 .collect { (all, editingId, draft) ->
-                    _annotations.value = all.filter {
-                        it.type != com.riffle.core.database.AnnotationEntity.TYPE_EMPHASIS
-                    }
+                    // Note: format-only highlight anchors (empty color + blank note) stay in
+                    // this list on purpose — internal VM logic (toggleEmphasisStyle, note-clear
+                    // merge, figure absorption) reads from `annotations` to find the anchor row
+                    // by id and MUST see it. Panel rendering distinguishes format-only visually
+                    // with a hollow dot instead of hiding the row.
+                    //
+                    // ORDER MATTERS: publish _emphasisPool BEFORE _annotations. Consumers that
+                    // suspend on `_annotations.first { it.id == x }` (see [awaitAnnotation] used
+                    // by [dismissHighlightActions]' tombstone check) need `_emphasisPool.value`
+                    // to already reflect the current emit — otherwise the check reads a stale
+                    // pool, misses the sibling emphasis, and tombstones a highlight that has a
+                    // live emphasis row.
                     _emphasisPool.value = all.filter {
                         it.type == com.riffle.core.database.AnnotationEntity.TYPE_EMPHASIS
+                    }
+                    _annotations.value = all.filter {
+                        it.type != com.riffle.core.database.AnnotationEntity.TYPE_EMPHASIS
                     }
                     val highlights = all.filter {
                         it.type == com.riffle.core.database.AnnotationEntity.TYPE_HIGHLIGHT
@@ -408,9 +420,20 @@ class AnnotationSession @AssistedInject constructor(
 
     // ---- Highlight actions -------------------------------------------------------------------
 
-    /** Open the highlight actions popup for [id] at [anchorRect]. */
-    fun openHighlightActions(id: String, anchorRect: androidx.compose.ui.unit.IntRect) {
-        _highlightToEdit.value = EpubReaderViewModel.HighlightEditTarget(id, anchorRect)
+    /** Open the highlight actions popup for [id] at [anchorRect]. [justCreatedFromDraft] is
+     *  set only by the commitDraft → openHighlightActions post-create swap; a user tap on an
+     *  existing annotation opens with the flag false. See [HighlightEditTarget.justCreatedFromDraft]
+     *  for why the flag matters (controls tombstone-on-empty on dismiss). */
+    fun openHighlightActions(
+        id: String,
+        anchorRect: androidx.compose.ui.unit.IntRect,
+        justCreatedFromDraft: Boolean = false,
+    ) {
+        _highlightToEdit.value = EpubReaderViewModel.HighlightEditTarget(
+            id = id,
+            anchorRect = anchorRect,
+            justCreatedFromDraft = justCreatedFromDraft,
+        )
     }
 
     /** Open the note-read popup (no colour pickers / delete) for [id]. */
@@ -490,7 +513,8 @@ class AnnotationSession @AssistedInject constructor(
             return
         }
         if (_noteEditorTarget.value != null) return
-        val id = target?.id ?: return
+        val nonNullTarget = target ?: return
+        val id = nonNullTarget.id
         scope.launch {
             // If the popup was opened right after a create, the observed-annotations Room Flow
             // may not have re-emitted with the new row yet — a synchronous firstOrNull would
@@ -499,6 +523,24 @@ class AnnotationSession @AssistedInject constructor(
             // fresh highlights don't merge on dismiss" race — spec:
             // 2026-07-05-highlight-auto-merge-design.md.
             val row = awaitAnnotation(id) ?: return@launch
+            // ADR 0046 §4: garbage-collect a highlight anchor that the user JUST CREATED from a
+            // draft and then left completely empty (no colour, no note, no sibling emphasis).
+            // Gated on [HighlightEditTarget.justCreatedFromDraft] — an EXISTING annotation the
+            // user edited down to empty (e.g. tapped Bold to un-bold) stays put; the user is
+            // typically about to layer a colour or note on it. Auto-deleting it caused the
+            // reported "annotation is not permanently saved" — un-bolding wiped the annotation
+            // entirely instead of just removing the format. Draft-first commits still get GC'd
+            // for the "picked ∅ with no preset" phantom-row case.
+            if (nonNullTarget.justCreatedFromDraft &&
+                row.type == AnnotationEntity.TYPE_HIGHLIGHT &&
+                row.color.isBlank() &&
+                row.note.isNullOrBlank() &&
+                _emphasisPool.value.none { it.cfi == row.cfi }
+            ) {
+                annotationStore.delete(id)
+                scheduleSync(boundServerId ?: return@launch, boundNamespace ?: return@launch, boundItemId ?: return@launch)
+                return@launch
+            }
             // BOTH TYPE_HIGHLIGHT and TYPE_IMAGE anchors fire the merge check — annotations do
             // not distinguish text from graph (memory `annotations-text-graph-symmetric`).
             // TYPE_BOOKMARK is excluded because it's a point, not a range.
@@ -618,8 +660,22 @@ class AnnotationSession @AssistedInject constructor(
         }
     }
 
-    /** Soft-delete any annotation (highlight or bookmark); clears highlight-edit state if needed. */
+    /** Soft-delete any annotation (highlight, bookmark, or image); clears highlight-edit state
+     *  if needed.
+     *
+     *  ADR 0046 §4: MUST cascade sibling emphasis rows so a delete of a format-only annotation
+     *  from the annotations panel doesn't leave an orphan TYPE_EMPHASIS at the same CFI —
+     *  otherwise the DOM injector keeps reading it from the pool and the underlying text stays
+     *  bold/italic even though the panel row is gone ("delete doesn't refresh formatting").
+     *  Bookmarks have no emphasis siblings at their CFI by construction, so the scan is a safe
+     *  no-op for them. */
     suspend fun deleteAnnotation(id: String) {
+        val target = _annotations.value.firstOrNull { it.id == id }
+        if (target != null) {
+            _emphasisPool.value
+                .filter { it.cfi == target.cfi }
+                .forEach { annotationStore.delete(it.id) }
+        }
         annotationStore.delete(id)
         scheduleSync(boundServerId ?: return, boundNamespace ?: return, boundItemId ?: return)
         if (_highlightToEdit.value?.id == id) _highlightToEdit.value = null
