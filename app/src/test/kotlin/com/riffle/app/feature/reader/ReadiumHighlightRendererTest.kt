@@ -8,7 +8,6 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.readium.r2.navigator.Decoration
@@ -18,7 +17,6 @@ import org.readium.r2.shared.publication.Locator
 class ReadiumHighlightRendererTest {
 
     private val applied = mutableListOf<Pair<List<Decoration>, String>>()
-    private var navigatorStamp: Any? = Any()
 
     private val renderer = ReadiumHighlightRenderer(
         applyDecorationsBlock = { decorations, group -> applied.add(decorations to group) },
@@ -26,13 +24,11 @@ class ReadiumHighlightRendererTest {
             // Return a minimal locator for any non-blank ref
             if (ref.isNotBlank()) minimalLocator(ref.substringBefore('#')) else null
         },
-        currentNavigatorStamp = { navigatorStamp },
     )
 
     @Before
     fun setUp() {
         applied.clear()
-        navigatorStamp = Any()
     }
 
     private fun minimalLocator(@Suppress("UNUSED_PARAMETER") href: String): Locator {
@@ -101,33 +97,24 @@ class ReadiumHighlightRendererTest {
         )
         renderer.applyAnnotations(renders)
         val annotationCalls = applied.filter { it.second == "annotations" }
-        // Initial apply is clear+apply (2 dispatches); settle window is 4 ticks × (clear + apply) = 8.
-        // We assert on the shape: at least one dispatch carries both decorations, and the very
-        // first dispatch is the pre-apply clear (empty list).
-        assertTrue("expected initial clear+apply plus settle re-applies", annotationCalls.size >= 3)
-        assertEquals(emptyList<Decoration>(), annotationCalls.first().first)
-        val firstNonEmpty = annotationCalls.first { it.first.isNotEmpty() }
-        assertEquals(2, firstNonEmpty.first.size)
-        assertEquals("h1", firstNonEmpty.first[0].id)
-        assertEquals("h2", firstNonEmpty.first[1].id)
+        // A single clear followed by a single apply. No settle loop — that lived until we
+        // discovered it was pinning the WebView main thread for 2.6s on cold open and causing
+        // 2-3s of input sluggishness. Post-apply layout shifts are covered by the outer
+        // LaunchedEffect re-keying on pageLoadGeneration / reflowGeneration.
+        assertEquals("expected exactly clear + apply, no settle re-applies", 2, annotationCalls.size)
+        assertEquals(emptyList<Decoration>(), annotationCalls[0].first)
+        assertEquals(2, annotationCalls[1].first.size)
+        assertEquals("h1", annotationCalls[1].first[0].id)
+        assertEquals("h2", annotationCalls[1].first[1].id)
     }
 
+    // Regression: the settle loop MUST stay out. Its return would re-introduce the cold-open
+    // sluggishness. If someone re-adds a loop here, this test will flip red.
     @Test
-    fun `applyAnnotations settle loop aborts when navigator stamp changes`() = runTest {
-        // Same guard as applySearch: on a fresh navigator stamp between settle ticks, don't keep
-        // shoving decorations into a WebView that isn't ours anymore. Regression pin — without this
-        // abort, an orientation flip mid-settle would spam the old fragment for another second.
-        val recorder = mutableListOf<Pair<List<Decoration>, String>>()
-        val abortingRenderer = ReadiumHighlightRenderer(
-            applyDecorationsBlock = { decorations, group -> recorder.add(decorations to group) },
-            fragmentLocator = { ref, _ -> if (ref.isNotBlank()) minimalLocator(ref.substringBefore('#')) else null },
-            currentNavigatorStamp = { Any() }, // new object every call → stamp always changes
-        )
-        abortingRenderer.applyAnnotations(listOf(makeRender("h1", "c1.xhtml")))
-        val annotationCalls = recorder.filter { it.second == "annotations" }
-        // Initial apply is clear + apply (2 dispatches); the settle loop aborts on the first tick
-        // because the stamp changes, so no settle re-applies fire.
-        assertEquals("only the initial clear+apply fires when the stamp changes", 2, annotationCalls.size)
+    fun `applyAnnotations does not spin a settle loop after the initial apply`() = runTest {
+        renderer.applyAnnotations(listOf(makeRender("h1", "c1.xhtml")))
+        val annotationCalls = applied.filter { it.second == "annotations" }
+        assertEquals(2, annotationCalls.size)
     }
 
     @Test
@@ -181,11 +168,10 @@ class ReadiumHighlightRendererTest {
     fun `applySearch with results applies search group`() = runTest {
         val results = listOf(minimalLocator("c.xhtml"), minimalLocator("c.xhtml"))
         renderer.applySearch(results, activeIndex = 0)
-        // First call is the immediate apply; settle loop adds more (but UnconfinedTestDispatcher
-        // will advance through delays).
         val searchCalls = applied.filter { it.second == "search" }
-        assertTrue(searchCalls.isNotEmpty())
-        assertEquals(2, searchCalls.first().first.size)
+        // A single apply. No settle loop — see `applyAnnotations does not spin a settle loop`.
+        assertEquals(1, searchCalls.size)
+        assertEquals(2, searchCalls[0].first.size)
     }
 
     @Test
@@ -197,21 +183,6 @@ class ReadiumHighlightRendererTest {
         renderer.applySearch(emptyList(), 0)
         val clearCall = applied.firstOrNull { it.second == "search" }
         assertEquals(emptyList<Decoration>(), clearCall?.first)
-    }
-
-    @Test
-    fun `applySearch settle loop aborts when navigator stamp changes`() = runTest {
-        val recorder = mutableListOf<Pair<List<Decoration>, String>>()
-        val abortingRenderer = ReadiumHighlightRenderer(
-            applyDecorationsBlock = { decorations, group -> recorder.add(decorations to group) },
-            fragmentLocator = { ref, _ -> if (ref.isNotBlank()) minimalLocator(ref.substringBefore('#')) else null },
-            currentNavigatorStamp = { Any() }, // new object every call → stamp always changes
-        )
-        abortingRenderer.applySearch(listOf(minimalLocator("c.xhtml")), activeIndex = 0)
-        val searchCalls = recorder.filter { it.second == "search" }
-        // Only the initial apply fires; settle loop aborts on first resume because stamp changed
-        assertEquals(1, searchCalls.size)
-        assertEquals(1, searchCalls[0].first.size)
     }
 
     // ---- highlightSearchMatch ------------------------------------------------

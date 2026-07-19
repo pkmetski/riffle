@@ -1509,7 +1509,6 @@ private fun EpubNavigatorView(
                     presenter.applyDecorations(decorations, group)
                 },
                 fragmentLocator = ::fragmentLocator,
-                currentNavigatorStamp = { presenter.attachmentStamp() },
                 evaluateJavascript = { script -> presenter.evaluateJavascript(script) },
                 emphasisRangeProvider = {
                     // Filtered to only rows needing DOM mutation (bold/italic); underline/strike
