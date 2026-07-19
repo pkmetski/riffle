@@ -1417,8 +1417,14 @@ class EpubReaderViewModel @Inject constructor(
         if (!shouldRunReadingSideEffects(source)) return
         val locator = position.snapshotLastLocator() ?: return
         viewModelScope.launch {
-            if (lifecycle.matchedSync.value?.readerSync != null) runReaderSyncCycle(locator)
-            else syncSession.sync(locator.toPayload())
+            // Gate the dirty-check `loadLocalUpdatedAt` on any pending onPositionChanged save.
+            // Without this the tick can read a stale localUpdatedAt while the fresh save is still
+            // queued, decide ServerWins on the just-superseded server locator, and yank the
+            // reader back to the pre-scroll position (the "scroll snaps back" symptom).
+            position.withSaveLock {
+                if (lifecycle.matchedSync.value?.readerSync != null) runReaderSyncCycle(locator)
+                else syncSession.sync(locator.toPayload())
+            }
         }
     }
 
