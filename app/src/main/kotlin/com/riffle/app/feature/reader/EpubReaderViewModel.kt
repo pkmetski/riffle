@@ -137,6 +137,23 @@ private fun entityFontFamily(annotation: Annotation): String? =
  *  Returns null when nothing has a real captured value yet — callers layer the in-memory
  *  body-font probe on top, then emit no `font-family` at all if that too is unknown. Ties
  *  broken by first-seen order. */
+/**
+ * ADR 0046 §4: derive the styles the draft commit should carry, given the per-book preset and
+ * the chip the user just tapped. Set union is wrong when the tapped chip is already pre-selected
+ * — tapping a highlighted-preset chip must TOGGLE it off, not re-add it (a chip user taps to
+ * deselect otherwise commits with the style still applied). A null tap (a colour swatch pick,
+ * not a chip) just carries the preset through unchanged. Extracted so the toggle vs. union
+ * decision is JVM-testable without standing up the ViewModel.
+ */
+internal fun combineDraftEmphasisStyles(
+    preset: Set<com.riffle.core.domain.EmphasisStyle>,
+    tapped: com.riffle.core.domain.EmphasisStyle?,
+): Set<com.riffle.core.domain.EmphasisStyle> = when {
+    tapped == null -> preset
+    tapped in preset -> preset - tapped
+    else -> preset + tapped
+}
+
 internal fun pluralityOriginFont(chapters: List<ChapterElision>): String? =
     chapters.asSequence()
         .flatMap { it.highlights.asSequence() }
@@ -1957,7 +1974,7 @@ class EpubReaderViewModel @Inject constructor(
             originFontFamily = draft.originFontFamily,
         )
         val presetStyles = annotationSession.lastUsedEmphasisStyles.value
-        val combinedStyles = presetStyles + listOfNotNull(addEmphasisStyle)
+        val combinedStyles = combineDraftEmphasisStyles(presetStyles, addEmphasisStyle)
         if (combinedStyles.isNotEmpty()) {
             annotationStore.createEmphasis(
                 sourceId = draft.sourceId,
@@ -2155,6 +2172,17 @@ class EpubReaderViewModel @Inject constructor(
             absorbedHighlights = toAbsorb,
         )
         // All computations succeeded — commit: delete neighbours, then replace the anchor row.
+        // ADR 0046 §4: cascade sibling emphasis rows for every anchor/neighbour we tombstone so
+        // the merge doesn't leak an orphan TYPE_EMPHASIS row into `emphasisPool` (the DOM
+        // injector reads directly from the pool and would keep painting bold/italic on a
+        // no-longer-existent range). Same cascade the panel-delete + overlap-dedup paths do.
+        val anchorCfi = pool.firstOrNull { it.id == id }?.cfi
+        val cascadeCfis = toAbsorb.map { it.cfi }.toSet() + (anchorCfi?.let { setOf(it) } ?: emptySet())
+        if (cascadeCfis.isNotEmpty()) {
+            annotationSession.emphasisPool.value
+                .filter { it.cfi in cascadeCfis }
+                .forEach { annotationStore.delete(it.id) }
+        }
         toAbsorb.forEach { annotationStore.delete(it.id) }
         annotationStore.delete(id)
         // The merged row inherits the anchor's origin font-family (issue #484); if the anchor was
@@ -2490,7 +2518,10 @@ class EpubReaderViewModel @Inject constructor(
                     originFontFamily = bookBodyFontFamilyReported.get().takeIf { it.isNotBlank() }
                         ?: FALLBACK_ORIGIN_FONT_FAMILY,
                 )
-                openHighlightActions(created.id, anchorRect)
+                // ADR 0046 §4: this is a fresh anchor created without a swatch/chip pick, so
+                // dismissing without further interaction must GC the phantom row — same shape as
+                // the text draft path (see commitDraft's [openHighlightActionsJustCreated]).
+                openHighlightActionsJustCreated(created.id, anchorRect)
                 scheduleAnnotationSync()
                 return
             }
@@ -2512,7 +2543,9 @@ class EpubReaderViewModel @Inject constructor(
             imageBytes = payload.imageBytes,
             color = annotationSession.lastUsedHighlightColor.value.token,
         )
-        openHighlightActions(created.id, anchorRect)
+        // ADR 0046 §4: fresh anchor with no user pick yet — flag for tombstone-on-empty like
+        // the text draft path so a dismiss-without-interaction doesn't leak a phantom row.
+        openHighlightActionsJustCreated(created.id, anchorRect)
         scheduleAnnotationSync()
     }
 
