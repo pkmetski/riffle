@@ -110,12 +110,9 @@ The last-written manifest per (namespace, itemId) is cached locally so writes ca
 
 ### Migration
 
-**One-shot at first launch after upgrade**, guarded by `DataStore` flag `abs_bookmark_migration_completed`.
+**No dedicated migration worker — piggybacks on the existing sweep.** `AnnotationSyncScheduler.sweepNow(this)` already fires on every cold start (see `RiffleApplication.onCreate`), and `AnnotationSweep` (ADR 0036) reconciles across every configured target. With the composite target in place after upgrade, the very first sweep enumerates every book with WebDAV annotations, unions with the ABS-bookmark side (initially empty), and writes back to both — that is the migration. Idempotent: subsequent sweeps see identical state on both sides and no-op.
 
-- Background worker (variant of the existing `AnnotationSyncWorker`).
-- For each ABS-scoped namespace: enumerate every book that has a WebDAV annotation file; read via WebDAV; write to ABS bookmarks via the new target.
-- Idempotent — the flag flips only on full success. Any book that fails mid-migration is retried on the next launch.
-- Namespace rename (`abs_<userId>` → `abs_<host>_<userId>`) happens in the same pass; the legacy WebDAV files are renamed. Merge orchestrator reads both names during the transition period so non-upgraded devices still see updates.
+Host-scoped namespace (`abs_<host>_<userId>`) is deferred to a follow-up per the flagged issue below; v1 keeps the existing `abs_<absUserId>` scheme so no WebDAV filename rename is needed.
 
 ### Transition and retirement
 
