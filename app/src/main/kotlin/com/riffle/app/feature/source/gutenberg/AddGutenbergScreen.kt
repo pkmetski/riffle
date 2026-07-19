@@ -32,7 +32,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.riffle.app.ui.TabletContentWidthContainer
 import com.riffle.app.ui.source.SourceTypeIcon
-import com.riffle.core.domain.SourceType
+import com.riffle.core.models.SourceType
 
 /**
  * Zero-config Gutenberg install screen. Presents a brief description of what Riffle is about to

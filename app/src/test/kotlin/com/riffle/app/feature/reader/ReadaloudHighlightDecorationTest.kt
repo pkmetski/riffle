@@ -3,7 +3,7 @@
 package com.riffle.app.feature.reader
 
 import com.riffle.core.domain.FormattingPreferences
-import com.riffle.core.domain.HighlightColor
+import com.riffle.core.models.HighlightColor
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue

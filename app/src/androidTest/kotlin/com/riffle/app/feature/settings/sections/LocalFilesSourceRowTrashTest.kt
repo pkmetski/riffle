@@ -10,10 +10,10 @@ import androidx.compose.ui.test.performClick
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.riffle.app.feature.settings.LibraryUiItem
 import com.riffle.core.database.LocalFilesFolderEntity
-import com.riffle.core.domain.Library
-import com.riffle.core.domain.Source
-import com.riffle.core.domain.SourceType
-import com.riffle.core.domain.SourceUrl
+import com.riffle.core.models.Library
+import com.riffle.core.models.Source
+import com.riffle.core.models.SourceType
+import com.riffle.core.models.SourceUrl
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith

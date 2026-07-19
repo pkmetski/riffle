@@ -8,7 +8,7 @@ import com.riffle.core.catalog.chitanka.ChitankaCatalog
 import com.riffle.core.catalog.gutenberg.GutenbergCatalog
 import com.riffle.core.catalog.komga.KomgaCatalog
 import com.riffle.core.data.localfiles.LocalFilesCatalog
-import com.riffle.core.domain.SourceType
+import com.riffle.core.models.SourceType
 import com.riffle.core.domain.ToReadSupport
 import com.riffle.core.domain.WebSourceDescriptors
 import org.junit.Assert.assertEquals

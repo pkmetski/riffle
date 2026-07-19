@@ -1,4 +1,5 @@
 package com.riffle.core.domain
+import com.riffle.core.models.Library
 
 /**
  * Applies a saved per-server [orderedIds] preference to [libraries]: libraries named in

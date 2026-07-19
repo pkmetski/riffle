@@ -1,6 +1,6 @@
 package com.riffle.core.catalog
 
-import com.riffle.core.domain.SourceType
+import com.riffle.core.models.SourceType
 
 /**
  * A per-Source browsable origin. Every Source owns exactly one [Catalog] instance; Source identity

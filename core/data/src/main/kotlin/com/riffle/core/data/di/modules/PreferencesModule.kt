@@ -52,7 +52,7 @@ import com.riffle.core.domain.BookFormattingPreferencesStore
 import com.riffle.core.domain.CoverGridDensityStore
 import com.riffle.core.domain.FormattingPreferencesStore
 import com.riffle.core.domain.FormattingPreferencesStoreProvider
-import com.riffle.core.domain.FormattingScope
+import com.riffle.core.models.FormattingScope
 import com.riffle.core.domain.HighlightColorPreferencesStore
 import com.riffle.core.domain.HighlightsResumeStore
 import com.riffle.core.domain.LastOpenedLibraryStore

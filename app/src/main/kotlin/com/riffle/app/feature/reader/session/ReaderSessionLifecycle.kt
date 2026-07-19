@@ -7,7 +7,7 @@ import com.riffle.app.feature.reader.ReaderSyncCoordinator
 import com.riffle.app.feature.reader.ReaderSyncFactory
 import com.riffle.core.data.OpenReconcileTargets
 import com.riffle.core.domain.AnnotationStore
-import com.riffle.core.domain.AudioIdentity
+import com.riffle.core.models.AudioIdentity
 import com.riffle.core.domain.AudioIdentityResolver
 import com.riffle.core.domain.AudioPlaybackPreferencesStore
 import com.riffle.core.domain.EpubOpenResult
@@ -15,9 +15,9 @@ import com.riffle.core.domain.EpubRepository
 import com.riffle.core.domain.LibraryObserver
 import com.riffle.core.domain.ListeningPreferencesStore
 import com.riffle.core.domain.ReadaloudLinkRepository
-import com.riffle.core.domain.Source
+import com.riffle.core.models.Source
 import com.riffle.core.domain.SourceRepository
-import com.riffle.core.domain.ServerType
+import com.riffle.core.models.ServerType
 import com.riffle.core.logging.LogChannel
 import com.riffle.core.logging.Logger
 import dagger.assisted.Assisted

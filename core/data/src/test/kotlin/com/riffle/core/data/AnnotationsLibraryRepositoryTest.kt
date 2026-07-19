@@ -2,7 +2,7 @@ package com.riffle.core.data
 
 import com.riffle.core.database.BookHighlightSummary
 import com.riffle.core.database.LibraryItemEntity
-import com.riffle.core.domain.EbookFormat
+import com.riffle.core.models.EbookFormat
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals

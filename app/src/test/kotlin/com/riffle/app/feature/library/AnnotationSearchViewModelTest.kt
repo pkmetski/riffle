@@ -1,20 +1,20 @@
 package com.riffle.app.feature.library
 
 import androidx.lifecycle.SavedStateHandle
-import com.riffle.core.domain.Annotation
+import com.riffle.core.models.Annotation
 import com.riffle.core.domain.AnnotationStore
-import com.riffle.core.domain.Collection
-import com.riffle.core.domain.EbookFormat
-import com.riffle.core.domain.Library
-import com.riffle.core.domain.LibraryItem
+import com.riffle.core.models.Collection
+import com.riffle.core.models.EbookFormat
+import com.riffle.core.models.Library
+import com.riffle.core.models.LibraryItem
 import com.riffle.core.domain.LibraryObserver
 import com.riffle.core.domain.LibraryRefreshResult
 import com.riffle.core.domain.PendingSource
-import com.riffle.core.domain.Series
-import com.riffle.core.domain.Source
+import com.riffle.core.models.Series
+import com.riffle.core.models.Source
 import com.riffle.core.domain.SourceRepository
-import com.riffle.core.domain.ServerType
-import com.riffle.core.domain.SourceUrl
+import com.riffle.core.models.ServerType
+import com.riffle.core.models.SourceUrl
 import com.riffle.core.domain.TokenStorage
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -72,15 +72,15 @@ class AnnotationSearchViewModelTest {
         override fun observeAnnotations(sourceId: String, itemId: String) = MutableStateFlow(emptyList<Annotation>())
         override fun observeAnnotationsForSource(sourceId: String) =
             annotationsFlow.map { all -> all.filter { it.sourceId == sourceId } }
-        override suspend fun createHighlight(sourceId: String, itemId: String, cfi: String, textSnippet: String, chapterHref: String, textBefore: String, textAfter: String, color: String, spineIndex: Int, progression: Double, embeddedFigures: List<com.riffle.core.domain.EmbeddedFigure>?, originFontFamily: String) = error("unused")
+        override suspend fun createHighlight(sourceId: String, itemId: String, cfi: String, textSnippet: String, chapterHref: String, textBefore: String, textAfter: String, color: String, spineIndex: Int, progression: Double, embeddedFigures: List<com.riffle.core.models.EmbeddedFigure>?, originFontFamily: String) = error("unused")
         override suspend fun createBookmark(sourceId: String, itemId: String, cfi: String, textSnippet: String, chapterHref: String, spineIndex: Int, progression: Double, bookmarkTitle: String, originFontFamily: String) = error("unused")
         override suspend fun createImageAnnotation(sourceId: String, itemId: String, cfi: String, textSnippet: String, chapterHref: String, spineIndex: Int, progression: Double, imageHref: String?, imageSvg: String?, imageBytes: String?, color: String) = error("unused")
         override suspend fun upgradeImageToCaptionHighlight(
             id: String, cfi: String, textSnippet: String, textBefore: String, textAfter: String,
-            figure: com.riffle.core.domain.EmbeddedFigure,
+            figure: com.riffle.core.models.EmbeddedFigure,
         ): Annotation? = null
         override suspend fun mergeFiguresIntoHighlight(
-            id: String, newFigures: List<com.riffle.core.domain.EmbeddedFigure>,
+            id: String, newFigures: List<com.riffle.core.models.EmbeddedFigure>,
         ): Annotation? = null
         override suspend fun delete(id: String) = error("unused")
         override suspend fun recolor(id: String, color: String) = error("unused")
@@ -96,8 +96,8 @@ class AnnotationSearchViewModelTest {
 
     private fun fakeAudiobookBookmarkStore(): com.riffle.core.domain.AudiobookBookmarkStore =
         object : com.riffle.core.domain.AudiobookBookmarkStore {
-            override fun observe(sourceId: String, itemId: String) = MutableStateFlow(emptyList<com.riffle.core.domain.AudiobookBookmark>())
-            override fun observeForSource(sourceId: String) = MutableStateFlow(emptyList<com.riffle.core.domain.AudiobookBookmark>())
+            override fun observe(sourceId: String, itemId: String) = MutableStateFlow(emptyList<com.riffle.core.models.AudiobookBookmark>())
+            override fun observeForSource(sourceId: String) = MutableStateFlow(emptyList<com.riffle.core.models.AudiobookBookmark>())
             override fun observeHasUnsynced(sourceId: String, itemId: String) = MutableStateFlow(false)
             override suspend fun add(sourceId: String, itemId: String, positionSec: Double, title: String, now: Long) = error("unused")
             override suspend fun rename(id: String, title: String, now: Long) = error("unused")

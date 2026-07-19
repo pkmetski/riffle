@@ -1,4 +1,5 @@
 package com.riffle.core.domain
+import com.riffle.core.models.FormattingScope
 
 // Selects the global formatting-preferences store for a given reading context. Full-book and
 // highlights each get their own DataStore instance so their global defaults are independent.

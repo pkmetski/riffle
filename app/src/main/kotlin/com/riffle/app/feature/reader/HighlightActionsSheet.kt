@@ -50,8 +50,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.IntRect
 import androidx.compose.ui.window.Popup
 import androidx.compose.ui.window.PopupProperties
-import com.riffle.core.domain.EmphasisStyle
-import com.riffle.core.domain.HighlightColor
+import com.riffle.core.models.EmphasisStyle
+import com.riffle.core.models.HighlightColor
 
 /**
  * A row of the four highlight swatches. The selected swatch gets an onSurface ring + a centred

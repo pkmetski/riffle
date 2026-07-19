@@ -10,7 +10,7 @@ import com.riffle.core.catalog.FacetSelection
 import com.riffle.core.data.websource.WebSourceItemGate
 import com.riffle.core.data.websource.WebSourceLibraryItemUpserter
 import com.riffle.core.domain.SourceRepository
-import com.riffle.core.domain.SourceType
+import com.riffle.core.models.SourceType
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.BufferOverflow

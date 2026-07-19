@@ -2,8 +2,8 @@ package com.riffle.app.feature.reader.decorations
 
 import com.riffle.app.feature.reader.toCssRgba
 import com.riffle.core.database.AnnotationEntity
-import com.riffle.core.domain.Annotation
-import com.riffle.core.domain.HighlightColor
+import com.riffle.core.models.Annotation
+import com.riffle.core.models.HighlightColor
 
 /**
  * Builds the CSS + JS that draws a coloured border around figures covered by an annotation, so an
@@ -124,7 +124,7 @@ internal object FigureBorderDecoration {
      * shape via the same canonical caption prefix used by
      * `HighlightsPublicationFactory.appendInterleavedHighlight` and treat it as covered.
      */
-    private fun highlightCoversCaption(annotation: Annotation, figure: com.riffle.core.domain.EmbeddedFigure): Boolean {
+    private fun highlightCoversCaption(annotation: Annotation, figure: com.riffle.core.models.EmbeddedFigure): Boolean {
         val normalizedSnippet = annotation.textSnippet.replace(Regex("\\s+"), " ").trim()
         if (figure.caption.isBlank()) {
             return CAPTION_HIGHLIGHT_PREFIX_REGEX.containsMatchIn(normalizedSnippet)

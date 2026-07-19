@@ -1,6 +1,6 @@
 package com.riffle.core.network
 
-import com.riffle.core.domain.InsecureConnectionType
+import com.riffle.core.models.InsecureConnectionType
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.SerializationException

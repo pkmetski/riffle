@@ -2,8 +2,8 @@ package com.riffle.core.data
 
 import com.riffle.core.database.ReadaloudLinkDao
 import com.riffle.core.database.ReadaloudLinkEntity
-import com.riffle.core.domain.AudiobookIdentityResult
-import com.riffle.core.domain.ReadaloudLink
+import com.riffle.core.models.AudiobookIdentityResult
+import com.riffle.core.models.ReadaloudLink
 import com.riffle.core.domain.ReadaloudLinkRepository
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map

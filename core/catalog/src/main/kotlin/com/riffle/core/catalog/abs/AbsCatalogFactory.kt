@@ -2,10 +2,10 @@ package com.riffle.core.catalog.abs
 
 import com.riffle.core.catalog.Catalog
 import com.riffle.core.catalog.CatalogFactory
-import com.riffle.core.domain.SourceType
-import com.riffle.core.domain.Clock
+import com.riffle.core.models.SourceType
+import com.riffle.core.common.Clock
 import com.riffle.core.domain.DeviceIdStore
-import com.riffle.core.domain.Source
+import com.riffle.core.models.Source
 import com.riffle.core.domain.TokenStorage
 import com.riffle.core.network.AbsBookmarkApi
 import com.riffle.core.network.AbsLibraryApi

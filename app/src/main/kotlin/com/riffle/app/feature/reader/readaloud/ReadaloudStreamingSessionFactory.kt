@@ -8,8 +8,8 @@ import com.riffle.core.data.MediaOverlayReader
 import com.riffle.core.data.ReadaloudSidecarStore
 import com.riffle.core.data.StreamingSetupBuilder
 import com.riffle.core.domain.AudioIdentityResolver
-import com.riffle.core.domain.AudiobookFingerprint
-import com.riffle.core.domain.AudiobookIdentityResult
+import com.riffle.core.models.AudiobookFingerprint
+import com.riffle.core.models.AudiobookIdentityResult
 import com.riffle.core.domain.DispatcherProvider
 import com.riffle.core.domain.ReadaloudLinkRepository
 import com.riffle.core.domain.ReadaloudTrack

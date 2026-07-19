@@ -1,6 +1,6 @@
 package com.riffle.core.network
 
-import com.riffle.core.domain.EbookFormat
+import com.riffle.core.models.EbookFormat
 
 data class NetworkSeriesItem(
     val id: String,

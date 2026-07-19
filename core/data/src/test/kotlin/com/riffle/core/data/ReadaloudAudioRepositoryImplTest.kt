@@ -8,10 +8,10 @@ import com.riffle.core.domain.LocalStore
 import com.riffle.core.domain.MediaOverlayClip
 import com.riffle.core.domain.PendingSource
 import com.riffle.core.domain.ReadaloudTrack
-import com.riffle.core.domain.Source
+import com.riffle.core.models.Source
 import com.riffle.core.domain.SourceRepository
-import com.riffle.core.domain.ServerType
-import com.riffle.core.domain.SourceUrl
+import com.riffle.core.models.ServerType
+import com.riffle.core.models.SourceUrl
 import com.riffle.core.domain.StoredItemRef
 import com.riffle.core.domain.TokenStorage
 import com.riffle.core.network.StorytellerBundleProbeApi

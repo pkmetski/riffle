@@ -7,9 +7,9 @@ import com.riffle.app.testing.TestApplicationScope
 import com.riffle.core.data.AnnotationSyncStatusStore
 import com.riffle.core.data.CycleOutcome
 import com.riffle.core.database.AnnotationEntity
-import com.riffle.core.domain.Annotation
+import com.riffle.core.models.Annotation
 import com.riffle.core.domain.AnnotationStore
-import com.riffle.core.domain.HighlightColor
+import com.riffle.core.models.HighlightColor
 import com.riffle.core.domain.HighlightColorPreferencesStore
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -69,7 +69,7 @@ class AnnotationSessionTest {
             sourceId: String, itemId: String, cfi: String, textSnippet: String,
             chapterHref: String, textBefore: String, textAfter: String, color: String,
             spineIndex: Int, progression: Double,
-            embeddedFigures: List<com.riffle.core.domain.EmbeddedFigure>?,
+            embeddedFigures: List<com.riffle.core.models.EmbeddedFigure>?,
             originFontFamily: String,
         ): Annotation {
             createHighlightCalls.add(
@@ -88,10 +88,10 @@ class AnnotationSessionTest {
         ): Annotation = makeAnnotation(id = "img1", type = "image", cfi = cfi, color = color)
         override suspend fun upgradeImageToCaptionHighlight(
             id: String, cfi: String, textSnippet: String, textBefore: String, textAfter: String,
-            figure: com.riffle.core.domain.EmbeddedFigure,
+            figure: com.riffle.core.models.EmbeddedFigure,
         ): Annotation? = null
         override suspend fun mergeFiguresIntoHighlight(
-            id: String, newFigures: List<com.riffle.core.domain.EmbeddedFigure>,
+            id: String, newFigures: List<com.riffle.core.models.EmbeddedFigure>,
         ): Annotation? = null
         override suspend fun delete(id: String) { deletedIds.add(id) }
         override suspend fun recolor(id: String, color: String) { recoloredIds.add(id to color) }
@@ -219,13 +219,13 @@ class AnnotationSessionTest {
     }
 
     private class FakeEmphasisPreferencesStore : com.riffle.core.domain.EmphasisPreferencesStore {
-        private val perBook = mutableMapOf<String, MutableStateFlow<Set<com.riffle.core.domain.EmphasisStyle>>>()
+        private val perBook = mutableMapOf<String, MutableStateFlow<Set<com.riffle.core.models.EmphasisStyle>>>()
         private fun k(s: String, i: String) = "$s:$i"
         private fun flowFor(s: String, i: String) =
             perBook.getOrPut(k(s, i)) { MutableStateFlow(emptySet()) }
-        override fun lastUsedStyles(sourceId: String, itemId: String): Flow<Set<com.riffle.core.domain.EmphasisStyle>> =
+        override fun lastUsedStyles(sourceId: String, itemId: String): Flow<Set<com.riffle.core.models.EmphasisStyle>> =
             flowFor(sourceId, itemId)
-        override suspend fun setLastUsedStyles(sourceId: String, itemId: String, value: Set<com.riffle.core.domain.EmphasisStyle>) {
+        override suspend fun setLastUsedStyles(sourceId: String, itemId: String, value: Set<com.riffle.core.models.EmphasisStyle>) {
             flowFor(sourceId, itemId).value = value
         }
     }

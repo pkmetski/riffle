@@ -1,6 +1,6 @@
 package com.riffle.app.feature.settings
 
-import com.riffle.core.domain.Library
+import com.riffle.core.models.Library
 
 data class LibraryUiItem(
     val library: Library,

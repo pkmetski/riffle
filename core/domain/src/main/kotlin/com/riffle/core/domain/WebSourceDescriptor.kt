@@ -1,4 +1,7 @@
 package com.riffle.core.domain
+import com.riffle.core.models.ServerType
+import com.riffle.core.models.Source
+import com.riffle.core.models.SourceType
 
 /**
  * Static per-source metadata that lets UI, install and drawer surfaces render a source without

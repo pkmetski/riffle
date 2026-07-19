@@ -1,6 +1,6 @@
 package com.riffle.app.feature.reader.highlights
 
-import com.riffle.core.domain.FormattingScope
+import com.riffle.core.models.FormattingScope
 
 /**
  * Which content the reader is currently displaying.

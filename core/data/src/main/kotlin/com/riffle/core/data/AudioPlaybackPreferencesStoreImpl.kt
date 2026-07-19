@@ -2,7 +2,7 @@ package com.riffle.core.data
 
 import com.riffle.core.database.AudioPlaybackPreferencesDao
 import com.riffle.core.database.AudioPlaybackPreferencesEntity
-import com.riffle.core.domain.AudioIdentity
+import com.riffle.core.models.AudioIdentity
 import com.riffle.core.domain.AudioPlaybackPreferencesStore
 import javax.inject.Inject
 

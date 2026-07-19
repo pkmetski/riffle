@@ -1,7 +1,7 @@
 package com.riffle.app.feature.reader
 
 import com.riffle.core.database.AnnotationEntity
-import com.riffle.core.domain.Annotation
+import com.riffle.core.models.Annotation
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
@@ -49,7 +49,7 @@ class AnnotationsPanelRowKindTest {
     fun `highlight with embedded figure bytes routes to Image row`() {
         val ann = annotationOfType(AnnotationEntity.TYPE_HIGHLIGHT).copy(
             embeddedFigures = listOf(
-                com.riffle.core.domain.EmbeddedFigure(
+                com.riffle.core.models.EmbeddedFigure(
                     href = "images/eq.png",
                     svg = null,
                     caption = "",
@@ -68,7 +68,7 @@ class AnnotationsPanelRowKindTest {
     fun `highlight with embedded figure but no bytes stays as Highlight row`() {
         val ann = annotationOfType(AnnotationEntity.TYPE_HIGHLIGHT).copy(
             embeddedFigures = listOf(
-                com.riffle.core.domain.EmbeddedFigure(
+                com.riffle.core.models.EmbeddedFigure(
                     href = "images/eq.png",
                     svg = null,
                     caption = "",

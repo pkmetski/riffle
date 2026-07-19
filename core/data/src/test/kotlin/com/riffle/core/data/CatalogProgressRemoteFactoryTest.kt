@@ -4,7 +4,7 @@ import com.riffle.core.catalog.AudiobookProgressPeerCapability
 import com.riffle.core.catalog.CatalogProgress
 import com.riffle.core.catalog.CfiDialect
 import com.riffle.core.catalog.ProgressPeerCapability
-import com.riffle.core.domain.Clock
+import com.riffle.core.common.Clock
 import com.riffle.core.domain.EbookCfiTranslator
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals

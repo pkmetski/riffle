@@ -3,7 +3,7 @@ package com.riffle.core.data
 import com.riffle.core.domain.AudiobookSession
 import com.riffle.core.domain.BundleAudiobookSource
 import com.riffle.core.domain.ReadaloudAudioRepository
-import com.riffle.core.domain.ReadaloudLink
+import com.riffle.core.models.ReadaloudLink
 import com.riffle.core.domain.ReadaloudLinkRepository
 
 /**

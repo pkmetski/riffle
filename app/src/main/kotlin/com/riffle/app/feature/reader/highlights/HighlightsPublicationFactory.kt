@@ -2,8 +2,8 @@ package com.riffle.app.feature.reader.highlights
 
 import com.riffle.app.feature.reader.toCssRgba
 import com.riffle.core.database.AnnotationEntity
-import com.riffle.core.domain.EmbeddedFigure
-import com.riffle.core.domain.HighlightColor
+import com.riffle.core.models.EmbeddedFigure
+import com.riffle.core.models.HighlightColor
 import javax.inject.Inject
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.Json

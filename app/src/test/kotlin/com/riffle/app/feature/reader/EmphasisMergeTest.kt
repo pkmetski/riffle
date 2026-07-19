@@ -1,8 +1,8 @@
 package com.riffle.app.feature.reader
 
 import com.riffle.core.database.AnnotationEntity
-import com.riffle.core.domain.Annotation
-import com.riffle.core.domain.EmphasisStyle
+import com.riffle.core.models.Annotation
+import com.riffle.core.models.EmphasisStyle
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull

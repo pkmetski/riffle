@@ -9,7 +9,7 @@ import com.riffle.core.database.LibraryEntity
 import com.riffle.core.database.LocalFilesFileFolderDao
 import com.riffle.core.database.LocalFilesFolderDao
 import com.riffle.core.database.LocalFilesFolderEntity
-import com.riffle.core.domain.Clock
+import com.riffle.core.common.Clock
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.util.UUID
 import javax.inject.Inject

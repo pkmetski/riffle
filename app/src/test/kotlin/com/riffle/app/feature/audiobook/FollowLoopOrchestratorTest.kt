@@ -4,7 +4,7 @@ import com.riffle.app.feature.reader.AudioLedCycleResult
 import com.riffle.app.feature.reader.ProgressFlushScope
 import com.riffle.app.feature.reader.ReaderSyncCoordinator
 import com.riffle.app.testing.TestApplicationScope
-import com.riffle.core.domain.Clock
+import com.riffle.core.common.Clock
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.mockk

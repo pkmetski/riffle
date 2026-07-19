@@ -6,9 +6,9 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.viewModelScope
 import com.riffle.app.feature.reader.controllers.VolumeKeyDispatcher
 import com.riffle.app.feature.reader.session.FormattingSession
-import com.riffle.core.domain.Annotation
+import com.riffle.core.models.Annotation
 import com.riffle.core.domain.AnnotationStore
-import com.riffle.core.domain.Clock
+import com.riffle.core.common.Clock
 import com.riffle.core.domain.FormattingPreferences
 import com.riffle.core.domain.LibraryObserver
 import com.riffle.core.domain.usecase.UpdateReadingProgress
@@ -19,8 +19,8 @@ import com.riffle.core.domain.ReadingSessionCoordinator
 import com.riffle.core.domain.ReadingSessionRepository
 import com.riffle.core.domain.ReadingSpeedStore
 import com.riffle.core.domain.SourceRepository
-import com.riffle.core.domain.SessionPayload
-import com.riffle.core.domain.TocEntry
+import com.riffle.core.models.SessionPayload
+import com.riffle.core.models.TocEntry
 import com.riffle.core.domain.WakeLockPreferencesStore
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.channels.Channel

@@ -1,7 +1,7 @@
 package com.riffle.core.catalog
 
-import com.riffle.core.domain.Source
-import com.riffle.core.domain.SourceType
+import com.riffle.core.models.Source
+import com.riffle.core.models.SourceType
 
 /**
  * Builds a [Catalog] for a specific [Source] row. Because per-Source configuration (base URL, auth

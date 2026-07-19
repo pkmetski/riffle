@@ -2,10 +2,10 @@ package com.riffle.core.data
 
 import com.riffle.core.database.LibraryItemDao
 import com.riffle.core.database.LibraryItemEntity
-import com.riffle.core.domain.EbookFormat
-import com.riffle.core.domain.Source
+import com.riffle.core.models.EbookFormat
+import com.riffle.core.models.Source
 import com.riffle.core.domain.SourceRepository
-import com.riffle.core.domain.ServerType
+import com.riffle.core.models.ServerType
 import com.riffle.core.domain.TokenStorage
 import com.riffle.core.network.NetworkResult
 import com.riffle.core.network.NetworkStorytellerBook

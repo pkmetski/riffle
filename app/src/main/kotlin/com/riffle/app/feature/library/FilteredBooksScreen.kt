@@ -27,7 +27,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun FilteredBooksScreen(
-    onItemSelected: (com.riffle.core.domain.LibraryItem) -> Unit,
+    onItemSelected: (com.riffle.core.models.LibraryItem) -> Unit,
     onNavigateBack: () -> Unit,
     viewModel: FilteredBooksViewModel = hiltViewModel(),
 ) {

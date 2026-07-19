@@ -3,7 +3,7 @@ package com.riffle.core.data.di.modules
 import com.riffle.core.data.sync.AbsRemoteUserIdResolver
 import com.riffle.core.data.sync.KomgaRemoteUserIdResolver
 import com.riffle.core.domain.RemoteUserIdResolver
-import com.riffle.core.domain.SourceType
+import com.riffle.core.models.SourceType
 import dagger.Binds
 import dagger.Module
 import dagger.hilt.InstallIn

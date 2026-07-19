@@ -4,8 +4,8 @@ import android.net.FakeUri
 import com.riffle.app.feature.reader.highlights.HighlightsPublicationFactory
 import com.riffle.app.feature.reader.highlights.ReaderSource
 import com.riffle.core.database.AnnotationEntity
-import com.riffle.core.domain.Annotation
-import com.riffle.core.domain.TocEntry
+import com.riffle.core.models.Annotation
+import com.riffle.core.models.TocEntry
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking

@@ -2,8 +2,8 @@ package com.riffle.core.catalog.chitanka
 
 import com.riffle.core.catalog.Catalog
 import com.riffle.core.catalog.CatalogFactory
-import com.riffle.core.domain.Source
-import com.riffle.core.domain.SourceType
+import com.riffle.core.models.Source
+import com.riffle.core.models.SourceType
 import okhttp3.OkHttpClient
 
 /**

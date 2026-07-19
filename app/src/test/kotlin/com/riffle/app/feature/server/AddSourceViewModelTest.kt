@@ -12,12 +12,12 @@ import com.riffle.core.domain.AnnotationSyncConfig
 import com.riffle.core.domain.AnnotationSyncConfigStore
 import com.riffle.core.domain.AuthenticateResult
 import com.riffle.core.domain.CommitSourceResult
-import com.riffle.core.domain.InsecureConnectionType
-import com.riffle.core.domain.Library
+import com.riffle.core.models.InsecureConnectionType
+import com.riffle.core.models.Library
 import com.riffle.core.domain.PendingSource
-import com.riffle.core.domain.Source
+import com.riffle.core.models.Source
 import com.riffle.core.domain.SourceRepository
-import com.riffle.core.domain.SourceUrl
+import com.riffle.core.models.SourceUrl
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -104,7 +104,7 @@ class AddSourceViewModelTest {
     ) : SourceRepository, CredentialedAuthenticator {
         var commitCallCount = 0
         var lastInsecureAllowed: Boolean? = null
-        var lastServerType: com.riffle.core.domain.ServerType? = null
+        var lastServerType: com.riffle.core.models.ServerType? = null
         val removedIds = mutableListOf<String>()
         override fun observeAll(): Flow<List<Source>> = emptyFlow()
         override suspend fun getActive(): Source? = null
@@ -120,14 +120,14 @@ class AddSourceViewModelTest {
         // CredentialedAuthenticator role — the ViewModel dispatches auth via a per-SourceType map,
         // so advertise SourceType.ABS (every AddSourceViewModel test uses the default AUDIOBOOKSHELF
         // backend) and capture args for assertions.
-        override val sourceType: com.riffle.core.domain.SourceType =
-            com.riffle.core.domain.SourceType.ABS
+        override val sourceType: com.riffle.core.models.SourceType =
+            com.riffle.core.models.SourceType.ABS
         override suspend fun authenticate(
             url: SourceUrl,
             username: String,
             password: String,
             insecureAllowed: Boolean,
-            serverType: com.riffle.core.domain.ServerType,
+            serverType: com.riffle.core.models.ServerType,
         ): AuthenticateResult {
             lastInsecureAllowed = insecureAllowed
             lastServerType = serverType
@@ -166,7 +166,7 @@ class AddSourceViewModelTest {
         override suspend fun clear() {}
     }
 
-    private class MutableClock(var nowMs: Long = 0L) : com.riffle.core.domain.Clock {
+    private class MutableClock(var nowMs: Long = 0L) : com.riffle.core.common.Clock {
         override fun nowMs(): Long = nowMs
         override fun nowNs(): Long = nowMs * 1_000_000L
     }
@@ -177,7 +177,7 @@ class AddSourceViewModelTest {
         configStore: AnnotationSyncConfigStore = NullConfigStore,
         tokenStorage: com.riffle.core.domain.TokenStorage = io.mockk.mockk(relaxed = true),
         statusStore: AnnotationSyncStatusStore = AnnotationSyncStatusStore(),
-        clock: com.riffle.core.domain.Clock = MutableClock(),
+        clock: com.riffle.core.common.Clock = MutableClock(),
         annotationDao: AnnotationDao = stubAnnotationDao(pendingBookCount = 0),
         bannerTicker: Flow<Unit> = flowOf(Unit),
     ): AddSourceViewModel = AddSourceViewModel(
@@ -387,7 +387,7 @@ class AddSourceViewModelTest {
             isActive = false,
             insecureConnectionAllowed = true,
             username = "plamen",
-            serverType = com.riffle.core.domain.ServerType.STORYTELLER_SERVICE,
+            serverType = com.riffle.core.models.ServerType.STORYTELLER_SERVICE,
         )
         val repo = RecordingRepository(
             authResult = AuthenticateResult.WrongCredentials("x"),
@@ -425,7 +425,7 @@ class AddSourceViewModelTest {
         val backend = vm.backend
         assertTrue(backend is AddSourceBackend.Credentialed)
         assertEquals(
-            com.riffle.core.domain.SourceType.ABS,
+            com.riffle.core.models.SourceType.ABS,
             (backend as AddSourceBackend.Credentialed).sourceType,
         )
     }
@@ -696,7 +696,7 @@ class AddSourceViewModelTest {
             isActive = false,
             insecureConnectionAllowed = false,
             username = "plamen",
-            serverType = com.riffle.core.domain.ServerType.STORYTELLER_SERVICE,
+            serverType = com.riffle.core.models.ServerType.STORYTELLER_SERVICE,
         )
         val repo = RecordingRepository(
             authResult = AuthenticateResult.WrongCredentials("Bad creds"),
@@ -722,7 +722,7 @@ class AddSourceViewModelTest {
             isActive = false,
             insecureConnectionAllowed = true,
             username = "plamen",
-            serverType = com.riffle.core.domain.ServerType.STORYTELLER_SERVICE,
+            serverType = com.riffle.core.models.ServerType.STORYTELLER_SERVICE,
         )
         val repo = RecordingRepository(
             authResult = AuthenticateResult.WrongCredentials("x"),

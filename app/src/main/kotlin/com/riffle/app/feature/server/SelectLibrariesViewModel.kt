@@ -6,7 +6,7 @@ import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.riffle.core.domain.CommitSourceResult
-import com.riffle.core.domain.Library
+import com.riffle.core.models.Library
 import com.riffle.core.domain.PendingSource
 import com.riffle.core.domain.SourceRepository
 import dagger.hilt.android.lifecycle.HiltViewModel

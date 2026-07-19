@@ -3,14 +3,14 @@ package com.riffle.core.data.sync
 import com.riffle.core.catalog.komga.KomgaHttpClient
 import com.riffle.core.catalog.komga.probeKomgaUserId
 import com.riffle.core.domain.RemoteUserIdResolver
-import com.riffle.core.domain.Source
+import com.riffle.core.models.Source
 import okhttp3.OkHttpClient
 import java.io.IOException
 import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
- * [RemoteUserIdResolver] for [com.riffle.core.domain.SourceType.KOMGA]. `token` is the pre-built
+ * [RemoteUserIdResolver] for [com.riffle.core.models.SourceType.KOMGA]. `token` is the pre-built
  * `Authorization: Basic <base64>` header value stashed by [com.riffle.core.data.credentialed
  * .KomgaCredentialedAuthenticator] — pass it straight through the shared [KomgaHttpClient].
  *

@@ -12,7 +12,7 @@ import com.riffle.core.domain.ReadaloudReview
 import com.riffle.core.domain.ReadaloudReviewRepository
 import com.riffle.core.domain.usecase.ReadaloudReviewActions
 import com.riffle.core.domain.SourceRepository
-import com.riffle.core.domain.ServerType
+import com.riffle.core.models.ServerType
 import com.riffle.core.domain.TokenStorage
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -60,7 +60,7 @@ class ReadaloudMatchesViewModel @Inject constructor(
             // `serverType = AUDIOBOOKSHELF` as a placeholder and would otherwise be picked as
             // "active ABS", pointing readaloud matching at a source with no ABS API.
             val abs = servers.filter {
-                it.type == com.riffle.core.domain.SourceType.ABS &&
+                it.type == com.riffle.core.models.SourceType.ABS &&
                     it.serverType == ServerType.AUDIOBOOKSHELF
             }
             (abs.firstOrNull { it.isActive } ?: abs.firstOrNull())?.id ?: ""

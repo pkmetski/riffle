@@ -13,7 +13,7 @@ import com.riffle.core.domain.CbzRepository
 import com.riffle.core.domain.LibraryObserver
 import com.riffle.core.domain.ProgressSyncController
 import com.riffle.core.domain.ReadingSessionRepository
-import com.riffle.core.domain.SessionPayload
+import com.riffle.core.models.SessionPayload
 import com.riffle.core.domain.WakeLockPreferencesStore
 import com.riffle.core.domain.comic.CbzArchive
 import com.riffle.core.domain.comic.ComicArchive

@@ -1,7 +1,7 @@
 package com.riffle.app.feature.reader.controllers
 
 import android.net.FakeUri
-import com.riffle.core.domain.Annotation
+import com.riffle.core.models.Annotation
 import com.riffle.core.domain.AnnotationStore
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -40,7 +40,7 @@ class BookmarksControllerTest {
             sourceId: String, itemId: String, cfi: String, textSnippet: String,
             chapterHref: String, textBefore: String, textAfter: String, color: String,
             spineIndex: Int, progression: Double,
-            embeddedFigures: List<com.riffle.core.domain.EmbeddedFigure>?,
+            embeddedFigures: List<com.riffle.core.models.EmbeddedFigure>?,
             originFontFamily: String,
         ): Annotation {
             val a = Annotation(
@@ -101,12 +101,12 @@ class BookmarksControllerTest {
             textSnippet: String,
             textBefore: String,
             textAfter: String,
-            figure: com.riffle.core.domain.EmbeddedFigure,
+            figure: com.riffle.core.models.EmbeddedFigure,
         ): Annotation? = null
 
         override suspend fun mergeFiguresIntoHighlight(
             id: String,
-            newFigures: List<com.riffle.core.domain.EmbeddedFigure>,
+            newFigures: List<com.riffle.core.models.EmbeddedFigure>,
         ): Annotation? = null
 
         override suspend fun delete(id: String) {

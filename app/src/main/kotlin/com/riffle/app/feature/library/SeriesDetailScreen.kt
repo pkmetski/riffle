@@ -28,7 +28,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 @Composable
 fun SeriesDetailScreen(
     seriesName: String,
-    onItemSelected: (com.riffle.core.domain.LibraryItem) -> Unit,
+    onItemSelected: (com.riffle.core.models.LibraryItem) -> Unit,
     onNavigateBack: () -> Unit,
     viewModel: SeriesDetailViewModel = hiltViewModel(),
 ) {

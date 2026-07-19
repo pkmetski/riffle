@@ -9,7 +9,7 @@ import com.riffle.core.database.LibraryItemEntity
 import com.riffle.core.database.LibraryItemMetadata
 import com.riffle.core.database.MatchableItemRow
 import com.riffle.core.database.ReadingProgressRow
-import com.riffle.core.domain.EbookFormat
+import com.riffle.core.models.EbookFormat
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest

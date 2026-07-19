@@ -3,7 +3,7 @@ package com.riffle.app.feature.audiobook
 import com.riffle.core.domain.AudiobookPositionReconciler
 import com.riffle.core.domain.AudiobookPositionStore
 import com.riffle.core.domain.AudiobookSession
-import com.riffle.core.domain.Clock
+import com.riffle.core.common.Clock
 import javax.inject.Inject
 
 /**

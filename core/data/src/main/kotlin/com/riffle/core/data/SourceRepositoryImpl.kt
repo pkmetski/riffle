@@ -8,11 +8,11 @@ import com.riffle.core.database.SourceDao
 import com.riffle.core.domain.CommitSourceResult
 import com.riffle.core.domain.PendingSource
 import com.riffle.core.domain.RemoteUserIdResolver
-import com.riffle.core.domain.Source
+import com.riffle.core.models.Source
 import com.riffle.core.domain.SourceFilesCleaner
 import com.riffle.core.domain.SourceRepository
-import com.riffle.core.domain.SourceType
-import com.riffle.core.domain.ServerType
+import com.riffle.core.models.SourceType
+import com.riffle.core.models.ServerType
 import com.riffle.core.domain.SyncNamespace
 import com.riffle.core.domain.TokenStorage
 import com.riffle.core.domain.WebSourceDescriptors

@@ -8,7 +8,7 @@ import org.junit.Assert.assertNull
 import org.junit.Test
 
 /**
- * Both sides of the identity check (ADR 0028) parse to the same [com.riffle.core.domain.AudiobookFingerprint]
+ * Both sides of the identity check (ADR 0028) parse to the same [com.riffle.core.models.AudiobookFingerprint]
  * shape: Storyteller's ingested-source record and ABS's audio files.
  */
 class AudiobookFingerprintParseTest {

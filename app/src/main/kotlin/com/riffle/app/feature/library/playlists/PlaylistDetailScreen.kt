@@ -34,7 +34,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.riffle.app.feature.library.LibraryItemCard
-import com.riffle.core.domain.LibraryItem
+import com.riffle.core.models.LibraryItem
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.width
 

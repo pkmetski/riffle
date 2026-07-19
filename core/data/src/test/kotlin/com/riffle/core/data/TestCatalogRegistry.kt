@@ -4,9 +4,9 @@ import com.riffle.core.catalog.Catalog
 import com.riffle.core.catalog.CatalogRegistry
 import com.riffle.core.catalog.abs.AbsCatalog
 import com.riffle.core.catalog.abs.AbsCatalogConfig
-import com.riffle.core.domain.Clock
+import com.riffle.core.common.Clock
 import com.riffle.core.domain.DefaultDispatcherProvider
-import com.riffle.core.domain.Source
+import com.riffle.core.models.Source
 import com.riffle.core.domain.SourceRepository
 import com.riffle.core.network.AbsApiClient
 import com.riffle.core.network.AbsBookmarkApi

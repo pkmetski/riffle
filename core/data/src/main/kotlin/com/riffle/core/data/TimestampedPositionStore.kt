@@ -1,6 +1,6 @@
 package com.riffle.core.data
 
-import com.riffle.core.domain.Clock
+import com.riffle.core.common.Clock
 import com.riffle.core.domain.PositionStore
 
 /**

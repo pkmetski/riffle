@@ -9,6 +9,7 @@ import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Test
+import com.riffle.core.domain.TestClock
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class ReadingSessionCoordinatorTest {

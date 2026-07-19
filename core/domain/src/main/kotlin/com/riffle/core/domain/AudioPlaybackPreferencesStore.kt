@@ -1,4 +1,5 @@
 package com.riffle.core.domain
+import com.riffle.core.models.AudioIdentity
 
 /**
  * Device-local, per-book audio playback settings (ADR 0028). Keyed by a resolved [AudioIdentity] so

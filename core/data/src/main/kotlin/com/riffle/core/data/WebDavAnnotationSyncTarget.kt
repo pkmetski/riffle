@@ -29,7 +29,7 @@ import javax.xml.parsers.SAXParserFactory
  * - Annotation file: `<basePath>/<namespace>__<itemId>__annotations-<deviceId>.jsonld`
  *
  * `namespace` is the cross-device-stable ABS user id (`/api/me` → `user.id`, persisted on
- * [com.riffle.core.domain.Source.absUserId]). Using the local `servers.id` here would break
+ * [com.riffle.core.models.Source.absUserId]). Using the local `servers.id` here would break
  * cross-device sync — see [com.riffle.core.domain.AnnotationSyncTarget] kdoc for the full
  * rationale.
  *

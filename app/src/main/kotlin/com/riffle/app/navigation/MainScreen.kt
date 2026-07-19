@@ -1,7 +1,7 @@
 package com.riffle.app.navigation
 
 import androidx.activity.compose.BackHandler
-import com.riffle.core.domain.SourceType
+import com.riffle.core.models.SourceType
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.rememberDrawerState
 import androidx.compose.material3.windowsizeclass.WindowSizeClass
@@ -69,7 +69,7 @@ private const val ADD_SOURCE_ROUTE = "add_source?type={type}&editId={editId}"
  * Where the "Add source" picker routes each [SourceType] to — delegated to the descriptor
  * (ADR 0044). Adding a new source needs no edit here.
  */
-private fun addSourceRouteFor(type: com.riffle.core.domain.SourceType): String =
+private fun addSourceRouteFor(type: com.riffle.core.models.SourceType): String =
     com.riffle.core.domain.WebSourceDescriptors.forTypeOrError(type).addRoute
 private const val SELECT_LIBRARIES = "select_libraries"
 private const val SETTINGS = "settings"

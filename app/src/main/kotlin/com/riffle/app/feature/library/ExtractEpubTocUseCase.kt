@@ -3,8 +3,8 @@ package com.riffle.app.feature.library
 import com.riffle.app.feature.reader.toTocEntries
 import com.riffle.core.domain.EpubOpenResult
 import com.riffle.core.domain.EpubRepository
-import com.riffle.core.domain.LibraryItem
-import com.riffle.core.domain.TocEntry
+import com.riffle.core.models.LibraryItem
+import com.riffle.core.models.TocEntry
 import com.riffle.core.domain.TocRepository
 import org.readium.r2.shared.util.AbsoluteUrl
 import org.readium.r2.shared.util.Try

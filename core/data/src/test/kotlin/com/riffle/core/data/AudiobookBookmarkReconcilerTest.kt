@@ -14,8 +14,8 @@ import com.riffle.core.catalog.SortKey
 import com.riffle.core.catalog.FacetSelection
 import com.riffle.core.database.AudiobookBookmarkDao
 import com.riffle.core.database.AudiobookBookmarkEntity
-import com.riffle.core.domain.Source
-import com.riffle.core.domain.SourceType
+import com.riffle.core.models.Source
+import com.riffle.core.models.SourceType
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.map

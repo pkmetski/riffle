@@ -4,7 +4,7 @@ import com.riffle.core.catalog.AudiobookProgressPeerCapability
 import com.riffle.core.catalog.ProgressPeerCapability
 import com.riffle.core.domain.BookSyncState
 import com.riffle.core.domain.CanonicalReaderPosition
-import com.riffle.core.domain.Clock
+import com.riffle.core.common.Clock
 import com.riffle.core.domain.LocalCanonical
 import com.riffle.core.domain.PositionTranslator
 import com.riffle.core.domain.ProgressPeer

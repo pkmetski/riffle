@@ -1,4 +1,8 @@
 package com.riffle.core.domain
+import com.riffle.core.models.Library
+import com.riffle.core.models.ServerType
+import com.riffle.core.models.SourceType
+import com.riffle.core.models.SourceUrl
 
 /**
  * In-memory holder for a source that has been authenticated but not yet

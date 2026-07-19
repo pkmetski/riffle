@@ -1,7 +1,7 @@
 package com.riffle.core.data
 
 import com.riffle.core.database.AnnotationEntity
-import com.riffle.core.domain.EmbeddedFigure
+import com.riffle.core.models.EmbeddedFigure
 import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject

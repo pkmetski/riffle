@@ -1,7 +1,7 @@
 package com.riffle.app.feature.reader
 
 import android.net.FakeUri
-import com.riffle.core.domain.HighlightColor
+import com.riffle.core.models.HighlightColor
 import com.riffle.core.domain.SentenceQuote
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.runTest

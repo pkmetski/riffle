@@ -18,9 +18,9 @@ import com.riffle.core.domain.AuthenticateResult
 import com.riffle.core.domain.CommitSourceResult
 import com.riffle.core.domain.LibraryRefreshResult
 import com.riffle.core.domain.PendingSource
-import com.riffle.core.domain.Source
+import com.riffle.core.models.Source
 import com.riffle.core.domain.SourceRepository
-import com.riffle.core.domain.SourceUrl
+import com.riffle.core.models.SourceUrl
 import com.riffle.core.domain.TokenStorage
 import com.riffle.core.network.AbsApiClient
 import kotlinx.coroutines.flow.Flow

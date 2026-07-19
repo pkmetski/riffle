@@ -2,6 +2,7 @@ package com.riffle.core.domain
 
 import org.junit.Assert.assertEquals
 import org.junit.Test
+import com.riffle.core.models.AudiobookIdentityResult
 
 /** The matches-screen streaming status derivation (ADR 0028). */
 class ConfirmedReadaloudStatusTest {

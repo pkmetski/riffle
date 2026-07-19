@@ -8,13 +8,13 @@ import com.riffle.core.database.SourceDao
 import com.riffle.core.database.SourceEntity
 import com.riffle.core.domain.AuthenticateResult
 import com.riffle.core.domain.CommitSourceResult
-import com.riffle.core.domain.InsecureConnectionType
-import com.riffle.core.domain.Library
+import com.riffle.core.models.InsecureConnectionType
+import com.riffle.core.models.Library
 import com.riffle.core.domain.LibraryVisibilityPreferencesStore
 import com.riffle.core.domain.PendingSource
 import com.riffle.core.domain.SourceFilesCleaner
-import com.riffle.core.domain.ServerType
-import com.riffle.core.domain.SourceUrl
+import com.riffle.core.models.ServerType
+import com.riffle.core.models.SourceUrl
 import com.riffle.core.domain.TokenStorage
 import com.riffle.core.network.AbsApi
 import com.riffle.core.network.AbsLibraryApi
@@ -217,8 +217,8 @@ class ServerRepositoryTest {
         // Wire a live ABS resolver so ensureSyncNamespace's backfill path is exercised, and use
         // the resolver map as the extension point for adding future source-kind probes.
         val absResolver = com.riffle.core.data.sync.AbsRemoteUserIdResolver(serverInfoApi)
-        val resolvers = mapOf<com.riffle.core.domain.SourceType, com.riffle.core.domain.RemoteUserIdResolver>(
-            com.riffle.core.domain.SourceType.ABS to absResolver,
+        val resolvers = mapOf<com.riffle.core.models.SourceType, com.riffle.core.domain.RemoteUserIdResolver>(
+            com.riffle.core.models.SourceType.ABS to absResolver,
         )
         return SourceRepositoryImpl(
             dao = dao,
@@ -543,14 +543,14 @@ class ServerRepositoryTest {
             username = "plamen", userId = "uid-1", token = "tok-st", password = "",
             insecureConnectionAllowed = false,
             libraries = emptyList(),
-            serverType = com.riffle.core.domain.ServerType.STORYTELLER_SERVICE,
+            serverType = com.riffle.core.models.ServerType.STORYTELLER_SERVICE,
         )
 
         val result = repo.commit(pending, hiddenLibraryIds = emptySet())
 
         assertTrue(result is CommitSourceResult.Success)
         val source = (result as CommitSourceResult.Success).source
-        assertEquals(com.riffle.core.domain.ServerType.STORYTELLER_SERVICE, source.serverType)
+        assertEquals(com.riffle.core.models.ServerType.STORYTELLER_SERVICE, source.serverType)
     }
 
     // Pre-refactor SourceRepositoryImpl.commit hard-coded `SourceEntity.type = "ABS"` for every
@@ -573,14 +573,14 @@ class ServerRepositoryTest {
             username = "u", userId = "uid", token = "t", password = "",
             insecureConnectionAllowed = false,
             libraries = emptyList(),
-            sourceType = com.riffle.core.domain.SourceType.CHITANKA,
+            sourceType = com.riffle.core.models.SourceType.CHITANKA,
         )
 
         val result = repo.commit(pending, hiddenLibraryIds = emptySet())
 
         assertTrue(result is CommitSourceResult.Success)
         val source = (result as CommitSourceResult.Success).source
-        assertEquals(com.riffle.core.domain.SourceType.CHITANKA, source.type)
+        assertEquals(com.riffle.core.models.SourceType.CHITANKA, source.type)
         // And it round-trips through the DAO so subsequent reads pick up the correct type.
         assertEquals("CHITANKA", dao.getById(source.id)?.type)
     }

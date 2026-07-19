@@ -4,6 +4,9 @@ plugins {
 }
 
 dependencies {
+    api(project(":core:common"))
+    api(project(":core:models"))
+
     implementation(libs.kotlinx.coroutines.core)
     implementation(libs.jsoup)
     implementation(libs.kotlinx.serialization.json)

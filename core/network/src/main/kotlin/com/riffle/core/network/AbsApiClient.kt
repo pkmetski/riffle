@@ -1,8 +1,8 @@
 package com.riffle.core.network
 
-import com.riffle.core.domain.AudiobookFingerprint
+import com.riffle.core.models.AudiobookFingerprint
 import com.riffle.core.domain.DispatcherProvider
-import com.riffle.core.domain.EbookFormat
+import com.riffle.core.models.EbookFormat
 import com.riffle.core.network.model.AbsCollectionBookRequest
 import com.riffle.core.network.model.AbsCollectionsResponse
 import com.riffle.core.network.model.AbsItemDetailResponse

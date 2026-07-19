@@ -6,8 +6,8 @@ import com.riffle.core.database.LibraryItemDao
 import com.riffle.core.database.LocalFilesFileDao
 import com.riffle.core.database.LocalFilesFileFolderDao
 import com.riffle.core.database.LocalFilesFolderDao
-import com.riffle.core.domain.Source
-import com.riffle.core.domain.SourceType
+import com.riffle.core.models.Source
+import com.riffle.core.models.SourceType
 import javax.inject.Inject
 
 /**

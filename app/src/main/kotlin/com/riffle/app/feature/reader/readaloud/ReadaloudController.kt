@@ -6,10 +6,10 @@ import androidx.media3.common.Player
 import androidx.media3.session.MediaController
 import com.riffle.app.feature.audio.MediaSessionConnector
 import com.riffle.core.domain.ApplicationScope
-import com.riffle.core.domain.Clock
+import com.riffle.core.common.Clock
 import com.riffle.core.domain.DispatcherProvider
 import com.riffle.core.domain.ReadaloudTrack
-import com.riffle.core.domain.SystemClock
+import com.riffle.core.common.SystemClock
 import com.riffle.core.logging.LogChannel
 import com.riffle.core.logging.Logger
 import com.riffle.core.logging.RecordingLogger

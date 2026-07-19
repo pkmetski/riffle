@@ -4,7 +4,7 @@ import javax.inject.Inject
 
 /**
  * Resolves a figure's source `href` (as stored on [com.riffle.core.database.AnnotationEntity.imageHref]
- * / [com.riffle.core.domain.EmbeddedFigure.href]) to the raw image bytes backing it, so
+ * / [com.riffle.core.models.EmbeddedFigure.href]) to the raw image bytes backing it, so
  * [HighlightsPublicationFactory] can serve raster figures inside the synthesised elided-reader
  * Publication (ADR 0041, Task 9).
  *

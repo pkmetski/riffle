@@ -1,6 +1,6 @@
 package com.riffle.app.feature.reader
 
-import com.riffle.core.domain.EmbeddedFigure
+import com.riffle.core.models.EmbeddedFigure
 import com.riffle.core.domain.countBodyChars
 import org.jsoup.Jsoup
 import org.junit.Assert.assertEquals

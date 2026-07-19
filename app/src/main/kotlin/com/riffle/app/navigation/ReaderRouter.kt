@@ -1,7 +1,7 @@
 package com.riffle.app.navigation
 
-import com.riffle.core.domain.EbookFormat
-import com.riffle.core.domain.LibraryItem
+import com.riffle.core.models.EbookFormat
+import com.riffle.core.models.LibraryItem
 import java.net.URLEncoder
 
 fun readerRouteFor(item: LibraryItem): String? {

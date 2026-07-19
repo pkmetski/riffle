@@ -40,9 +40,9 @@ import com.riffle.app.feature.settings.SettingsSectionHeader
 import com.riffle.app.feature.settings.idsWithSwap
 import com.riffle.app.ui.source.SourceIcon
 import com.riffle.core.database.LocalFilesFolderEntity
-import com.riffle.core.domain.ServerType
-import com.riffle.core.domain.Source
-import com.riffle.core.domain.SourceType
+import com.riffle.core.models.ServerType
+import com.riffle.core.models.Source
+import com.riffle.core.models.SourceType
 import com.riffle.core.domain.WebSourceDescriptor
 import com.riffle.core.domain.WebSourceDescriptors
 

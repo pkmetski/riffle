@@ -1,6 +1,10 @@
 package com.riffle.core.domain
 
 import kotlinx.coroutines.flow.Flow
+import com.riffle.core.models.Collection
+import com.riffle.core.models.Library
+import com.riffle.core.models.LibraryItem
+import com.riffle.core.models.Series
 
 sealed class LibraryRefreshResult {
     data object Success : LibraryRefreshResult()

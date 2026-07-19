@@ -3,6 +3,10 @@ package com.riffle.core.domain
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import com.riffle.core.models.ServerType
+import com.riffle.core.models.Source
+import com.riffle.core.models.SourceType
+import com.riffle.core.models.SourceUrl
 
 /**
  * Regression tests for #529. Every [WebSourceDescriptor] answers [WebSourceDescriptor

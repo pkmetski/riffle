@@ -18,8 +18,8 @@ import com.riffle.core.catalog.FacetSelection
 import com.riffle.core.database.AudiobookChapterCacheDao
 import com.riffle.core.database.AudiobookChapterCacheEntity
 import com.riffle.core.domain.AudiobookChapter
-import com.riffle.core.domain.Source
-import com.riffle.core.domain.SourceType
+import com.riffle.core.models.Source
+import com.riffle.core.models.SourceType
 import com.riffle.core.domain.TestClock
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
@@ -126,13 +126,13 @@ class AudiobookChapterCacheRepositoryImplTest {
      * Regression: chapter cache used to live forever, so a buggy `getAudiobookChapters`
      * result (e.g. Gramofonche chapters at half real length before the 128 kbps fallback
      * fix) stuck on-device with no self-heal. TTL rejects rows older than
-     * [com.riffle.core.domain.DERIVED_CACHE_TTL_MS] so the next open re-fetches.
+     * [com.riffle.core.common.DERIVED_CACHE_TTL_MS] so the next open re-fetches.
      */
     @Test
     fun `getCachedChapters returns null when entry is older than TTL`() = runTest {
         val dao = FakeAudiobookChapterCacheDao()
         val json = """[{"index":0,"startSec":0.0,"endSec":300.0,"title":"Stale"}]"""
-        val cachedAt = NOW_MS - com.riffle.core.domain.DERIVED_CACHE_TTL_MS - 1
+        val cachedAt = NOW_MS - com.riffle.core.common.DERIVED_CACHE_TTL_MS - 1
         dao.store["srv" to "item"] = AudiobookChapterCacheEntity("srv", "item", json, cachedAt)
         val repo = AudiobookChapterCacheRepositoryImpl(dao, FakeRegistry(null), TestClock(NOW_MS))
 
@@ -143,7 +143,7 @@ class AudiobookChapterCacheRepositoryImplTest {
     fun `getCachedChapters returns cached entry right at the TTL boundary`() = runTest {
         val dao = FakeAudiobookChapterCacheDao()
         val json = """[{"index":0,"startSec":0.0,"endSec":300.0,"title":"Fresh"}]"""
-        val cachedAt = NOW_MS - com.riffle.core.domain.DERIVED_CACHE_TTL_MS + 1
+        val cachedAt = NOW_MS - com.riffle.core.common.DERIVED_CACHE_TTL_MS + 1
         dao.store["srv" to "item"] = AudiobookChapterCacheEntity("srv", "item", json, cachedAt)
         val repo = AudiobookChapterCacheRepositoryImpl(dao, FakeRegistry(null), TestClock(NOW_MS))
 
@@ -192,7 +192,7 @@ class AudiobookChapterCacheRepositoryImplTest {
     fun `getStaleCachedChapters returns row regardless of TTL`() = runTest {
         val dao = FakeAudiobookChapterCacheDao()
         val json = """[{"index":0,"startSec":0.0,"endSec":300.0,"title":"Stale"}]"""
-        val cachedAt = NOW_MS - com.riffle.core.domain.DERIVED_CACHE_TTL_MS - 1
+        val cachedAt = NOW_MS - com.riffle.core.common.DERIVED_CACHE_TTL_MS - 1
         dao.store["srv" to "item"] = AudiobookChapterCacheEntity("srv", "item", json, cachedAt)
         val repo = AudiobookChapterCacheRepositoryImpl(dao, FakeRegistry(null), TestClock(NOW_MS))
 

@@ -5,7 +5,7 @@ import com.riffle.core.catalog.CatalogRegistry
 import com.riffle.core.domain.CbzDownloadResult
 import com.riffle.core.domain.CbzOpenResult
 import com.riffle.core.domain.CbzRepository
-import com.riffle.core.domain.LibraryItem
+import com.riffle.core.models.LibraryItem
 import com.riffle.core.domain.LocalStore
 import com.riffle.core.domain.ReadingPositionStore
 import com.riffle.core.domain.SourceRepository

@@ -1,6 +1,6 @@
 package com.riffle.app.feature.reader
 
-import com.riffle.core.domain.HighlightColor
+import com.riffle.core.models.HighlightColor
 import org.junit.Assert.assertEquals
 import org.junit.Test
 

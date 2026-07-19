@@ -2,7 +2,7 @@ package com.riffle.core.data
 
 import com.riffle.core.database.LibraryItemDao
 import com.riffle.core.database.ReadaloudLinkDao
-import com.riffle.core.domain.AudioIdentity
+import com.riffle.core.models.AudioIdentity
 import com.riffle.core.domain.AudioIdentityResolver
 import javax.inject.Inject
 

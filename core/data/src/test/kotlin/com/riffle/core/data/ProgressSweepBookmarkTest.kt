@@ -14,8 +14,8 @@ import com.riffle.core.domain.PositionSnapshot
 import com.riffle.core.domain.ProgressReconciler
 import com.riffle.core.domain.ProgressRemote
 import com.riffle.core.domain.RemoteProgress
-import com.riffle.core.domain.Source
-import com.riffle.core.domain.SourceType
+import com.riffle.core.models.Source
+import com.riffle.core.models.SourceType
 import com.riffle.core.domain.SyncPositionStore
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals

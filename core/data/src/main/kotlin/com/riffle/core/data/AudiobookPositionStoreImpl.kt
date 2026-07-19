@@ -3,7 +3,7 @@ package com.riffle.core.data
 import com.riffle.core.database.AudiobookPositionDao
 import com.riffle.core.database.AudiobookPositionEntity
 import com.riffle.core.domain.AudiobookPositionStore
-import com.riffle.core.domain.Clock
+import com.riffle.core.common.Clock
 import com.riffle.core.domain.PositionSnapshot
 import com.riffle.core.domain.SyncPositionStore
 import javax.inject.Inject

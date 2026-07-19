@@ -2,6 +2,8 @@ package com.riffle.core.domain
 
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
+import com.riffle.core.models.SessionPayload
+import com.riffle.core.models.SyncSessionResult
 
 class ReadingSessionController(
     private val repository: ReadingSessionRepository,

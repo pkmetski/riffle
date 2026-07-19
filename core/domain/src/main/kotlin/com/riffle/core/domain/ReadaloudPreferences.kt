@@ -1,6 +1,7 @@
 package com.riffle.core.domain
 
 import kotlinx.coroutines.flow.Flow
+import com.riffle.core.models.HighlightColor
 
 // Readaloud reuses the shared [HighlightColor] palette so the two reader features (readaloud + user
 // annotations) render at exactly the same hue and saturation — one source of truth for base RGB,

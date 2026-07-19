@@ -23,8 +23,8 @@ import com.riffle.core.database.LocalFilesFileDao
 import com.riffle.core.database.LocalFilesFileEntity
 import com.riffle.core.database.LocalFilesFileFolderDao
 import com.riffle.core.database.LocalFilesFolderDao
-import com.riffle.core.domain.EbookFormat
-import com.riffle.core.domain.SourceType
+import com.riffle.core.models.EbookFormat
+import com.riffle.core.models.SourceType
 import java.io.File
 import java.io.FileInputStream
 

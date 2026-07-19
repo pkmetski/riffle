@@ -1,6 +1,6 @@
 package com.riffle.core.network.model
 
-import com.riffle.core.domain.EbookFormat
+import com.riffle.core.models.EbookFormat
 import com.riffle.core.network.NetworkCollection
 import com.riffle.core.network.NetworkLibraryItem
 import kotlinx.serialization.Serializable

@@ -5,11 +5,11 @@ import com.riffle.core.database.LibraryEntity
 import com.riffle.core.database.SourceDao
 import com.riffle.core.database.SourceEntity
 import com.riffle.core.domain.CommitSourceResult
-import com.riffle.core.domain.Library
+import com.riffle.core.models.Library
 import com.riffle.core.domain.LibraryVisibilityPreferencesStore
 import com.riffle.core.domain.PendingSource
-import com.riffle.core.domain.SourceType
-import com.riffle.core.domain.SourceUrl
+import com.riffle.core.models.SourceType
+import com.riffle.core.models.SourceUrl
 import com.riffle.core.domain.TokenStorage
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
@@ -69,7 +69,7 @@ class CredentialedSourceInstallerOrderingTest {
         )
 
         val pending = fakePending().copy(
-            serverType = com.riffle.core.domain.ServerType.STORYTELLER_SERVICE,
+            serverType = com.riffle.core.models.ServerType.STORYTELLER_SERVICE,
         )
         val result = installer.install(pending, hiddenLibraryIds = emptySet())
 

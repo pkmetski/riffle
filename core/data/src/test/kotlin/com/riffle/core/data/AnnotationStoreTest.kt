@@ -334,7 +334,7 @@ class AnnotationStoreTest {
             cfi = "epubcfi(/6/4!/4/2,/1:0,/1:10)",
             textSnippet = "the key phrase",
             chapterHref = "chap01.xhtml",
-            styles = setOf(com.riffle.core.domain.EmphasisStyle.BOLD, com.riffle.core.domain.EmphasisStyle.UNDERLINE),
+            styles = setOf(com.riffle.core.models.EmphasisStyle.BOLD, com.riffle.core.models.EmphasisStyle.UNDERLINE),
             originFontFamily = TEST_FONT,
         )
 
@@ -379,14 +379,14 @@ class AnnotationStoreTest {
             cfi = "epubcfi(/6/4!/4/2,/1:0,/1:10)",
             textSnippet = "the key phrase",
             chapterHref = "chap01.xhtml",
-            styles = setOf(com.riffle.core.domain.EmphasisStyle.BOLD),
+            styles = setOf(com.riffle.core.models.EmphasisStyle.BOLD),
             originFontFamily = TEST_FONT,
         )
 
         val laterStore = buildStore(dao = dao, deviceId = "device-B", clock = { 9500L }, idGenerator = { "unused" })
         laterStore.updateEmphasisStyles(
             id = "uuid-em",
-            styles = setOf(com.riffle.core.domain.EmphasisStyle.BOLD, com.riffle.core.domain.EmphasisStyle.STRIKE),
+            styles = setOf(com.riffle.core.models.EmphasisStyle.BOLD, com.riffle.core.models.EmphasisStyle.STRIKE),
         )
 
         val saved = dao.getById("uuid-em")!!
@@ -410,13 +410,13 @@ class AnnotationStoreTest {
             cfi = "epubcfi(c)",
             textSnippet = "emph",
             chapterHref = "c",
-            styles = setOf(com.riffle.core.domain.EmphasisStyle.ITALIC),
+            styles = setOf(com.riffle.core.models.EmphasisStyle.ITALIC),
             originFontFamily = TEST_FONT,
         )
 
         val emphasis = store.observeEmphasis("abs1", "item1").first()
         assertEquals(1, emphasis.size)
         assertEquals(AnnotationEntity.TYPE_EMPHASIS, emphasis[0].type)
-        assertEquals(setOf(com.riffle.core.domain.EmphasisStyle.ITALIC), emphasis[0].emphasisStyles)
+        assertEquals(setOf(com.riffle.core.models.EmphasisStyle.ITALIC), emphasis[0].emphasisStyles)
     }
 }

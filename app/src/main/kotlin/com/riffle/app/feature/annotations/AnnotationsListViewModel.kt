@@ -9,7 +9,7 @@ import androidx.lifecycle.viewModelScope
 import com.riffle.core.data.AnnotatedBook
 import com.riffle.core.data.AnnotationsLibraryRepository
 import com.riffle.core.domain.SourceRepository
-import com.riffle.core.domain.ServerType
+import com.riffle.core.models.ServerType
 import com.riffle.core.domain.TokenStorage
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi

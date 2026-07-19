@@ -3,8 +3,8 @@ package com.riffle.app.feature.audiobook
 import com.riffle.core.domain.AudiobookPositionStore
 import com.riffle.core.domain.AudiobookSession
 import com.riffle.core.domain.AudiobookTimeline
-import com.riffle.core.domain.AudiobookTrackSpan
-import com.riffle.core.domain.Clock
+import com.riffle.core.models.AudiobookTrackSpan
+import com.riffle.core.common.Clock
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue

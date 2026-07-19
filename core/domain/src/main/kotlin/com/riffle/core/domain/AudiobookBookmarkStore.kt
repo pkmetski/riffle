@@ -1,6 +1,7 @@
 package com.riffle.core.domain
 
 import kotlinx.coroutines.flow.Flow
+import com.riffle.core.models.AudiobookBookmark
 
 /** Local-first CRUD for audiobook bookmarks, scoped per (sourceId, itemId). */
 interface AudiobookBookmarkStore {

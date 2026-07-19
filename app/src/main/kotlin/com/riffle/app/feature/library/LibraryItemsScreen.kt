@@ -113,10 +113,10 @@ import com.riffle.app.feature.annotations.AnnotationsListViewModel
 import com.riffle.app.ui.theme.RiffleIcons
 import com.riffle.core.logging.LogChannel
 import com.riffle.core.database.AnnotationEntity
-import com.riffle.core.domain.Collection
-import com.riffle.core.domain.HighlightColor
-import com.riffle.core.domain.LibraryItem
-import com.riffle.core.domain.Series
+import com.riffle.core.models.Collection
+import com.riffle.core.models.HighlightColor
+import com.riffle.core.models.LibraryItem
+import com.riffle.core.models.Series
 import kotlinx.coroutines.flow.filterIsInstance
 import kotlin.math.floor
 import kotlin.math.max

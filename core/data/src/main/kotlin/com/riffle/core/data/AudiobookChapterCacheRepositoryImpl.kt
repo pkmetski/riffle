@@ -6,8 +6,8 @@ import com.riffle.core.database.AudiobookChapterCacheDao
 import com.riffle.core.database.AudiobookChapterCacheEntity
 import com.riffle.core.domain.AudiobookChapter
 import com.riffle.core.domain.AudiobookChapterCacheRepository
-import com.riffle.core.domain.Clock
-import com.riffle.core.domain.isDerivedCacheStale
+import com.riffle.core.common.Clock
+import com.riffle.core.common.isDerivedCacheStale
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import javax.inject.Inject

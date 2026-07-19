@@ -9,10 +9,10 @@ import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import com.riffle.app.feature.settings.sections.ServerSettingsExpansion
-import com.riffle.core.domain.Library
-import com.riffle.core.domain.Source
-import com.riffle.core.domain.ServerType
-import com.riffle.core.domain.SourceUrl
+import com.riffle.core.models.Library
+import com.riffle.core.models.Source
+import com.riffle.core.models.ServerType
+import com.riffle.core.models.SourceUrl
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue

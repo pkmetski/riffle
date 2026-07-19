@@ -14,7 +14,7 @@ import com.riffle.core.catalog.OfflineBrowseCapability
 import com.riffle.core.catalog.ReadCapability
 import com.riffle.core.catalog.SortKey
 import com.riffle.core.catalog.ToReadListCapability
-import com.riffle.core.domain.SourceType
+import com.riffle.core.models.SourceType
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient

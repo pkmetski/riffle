@@ -3,7 +3,7 @@ package com.riffle.core.data
 import com.riffle.core.database.TocCacheDao
 import com.riffle.core.database.TocCacheEntity
 import com.riffle.core.domain.TestClock
-import com.riffle.core.domain.TocEntry
+import com.riffle.core.models.TocEntry
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
@@ -89,14 +89,14 @@ class TocRepositoryImplTest {
     /**
      * Regression: TOC cache used to live forever (only invalidated by ebookFileIno change),
      * so a derivation-logic bug in [ExtractEpubTocUseCase] would stick on-device even after
-     * a fix shipped. TTL rejects rows older than [com.riffle.core.domain.DERIVED_CACHE_TTL_MS] so the
+     * a fix shipped. TTL rejects rows older than [com.riffle.core.common.DERIVED_CACHE_TTL_MS] so the
      * next open re-extracts.
      */
     @Test
     fun `getCachedToc returns null when entry is older than TTL`() = runTest {
         val dao = FakeTocCacheDao()
         val json = """[{"title":"Stale","href":"s.html","children":[]}]"""
-        val cachedAt = NOW_MS - com.riffle.core.domain.DERIVED_CACHE_TTL_MS - 1
+        val cachedAt = NOW_MS - com.riffle.core.common.DERIVED_CACHE_TTL_MS - 1
         dao.store["srv" to "item"] = TocCacheEntity("srv", "item", "ino", json, cachedAt)
         val repo = TocRepositoryImpl(dao, TestClock(NOW_MS))
 

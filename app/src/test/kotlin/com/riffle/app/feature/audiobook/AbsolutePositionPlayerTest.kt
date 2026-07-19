@@ -1,7 +1,7 @@
 package com.riffle.app.feature.audiobook
 
 import androidx.media3.exoplayer.ExoPlayer
-import com.riffle.core.domain.AudiobookTrackSpan
+import com.riffle.core.models.AudiobookTrackSpan
 import io.mockk.every
 import io.mockk.mockk
 import org.junit.After

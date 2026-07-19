@@ -5,12 +5,12 @@ import com.riffle.core.catalog.komga.KomgaHttpClient
 import com.riffle.core.catalog.komga.buildBasicAuthHeader
 import com.riffle.core.catalog.komga.probeKomgaUserId
 import com.riffle.core.domain.AuthenticateResult
-import com.riffle.core.domain.InsecureConnectionType
-import com.riffle.core.domain.Library
+import com.riffle.core.models.InsecureConnectionType
+import com.riffle.core.models.Library
 import com.riffle.core.domain.PendingSource
-import com.riffle.core.domain.ServerType
-import com.riffle.core.domain.SourceType
-import com.riffle.core.domain.SourceUrl
+import com.riffle.core.models.ServerType
+import com.riffle.core.models.SourceType
+import com.riffle.core.models.SourceUrl
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.builtins.ListSerializer

@@ -1,10 +1,10 @@
 package com.riffle.app.feature.library
 
-import com.riffle.core.domain.EbookFormat
+import com.riffle.core.models.EbookFormat
 import com.riffle.core.domain.EpubOpenResult
 import com.riffle.core.domain.EpubRepository
-import com.riffle.core.domain.LibraryItem
-import com.riffle.core.domain.TocEntry
+import com.riffle.core.models.LibraryItem
+import com.riffle.core.models.TocEntry
 import com.riffle.core.domain.TocRepository
 import io.mockk.coEvery
 import io.mockk.coVerify

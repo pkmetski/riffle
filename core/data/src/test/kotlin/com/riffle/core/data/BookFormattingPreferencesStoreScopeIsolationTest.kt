@@ -5,13 +5,13 @@ import com.riffle.core.database.BookFormattingPreferencesEntity
 import com.riffle.core.domain.AuthenticateResult
 import com.riffle.core.domain.BookFormattingOverrides
 import com.riffle.core.domain.CommitSourceResult
-import com.riffle.core.domain.FormattingScope
+import com.riffle.core.models.FormattingScope
 import com.riffle.core.domain.PendingSource
 import com.riffle.core.domain.ReaderTheme
-import com.riffle.core.domain.ServerType
-import com.riffle.core.domain.Source
+import com.riffle.core.models.ServerType
+import com.riffle.core.models.Source
 import com.riffle.core.domain.SourceRepository
-import com.riffle.core.domain.SourceUrl
+import com.riffle.core.models.SourceUrl
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.runTest

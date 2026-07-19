@@ -1,8 +1,8 @@
 package com.riffle.core.data
 
-import com.riffle.core.domain.AudiobookFingerprint
-import com.riffle.core.domain.AudiobookIdentity
-import com.riffle.core.domain.AudiobookIdentityResult
+import com.riffle.core.models.AudiobookFingerprint
+import com.riffle.core.models.AudiobookIdentity
+import com.riffle.core.models.AudiobookIdentityResult
 
 /**
  * Resolves the two fetched fingerprints into an [AudiobookIdentityResult] (ADR 0028). A fetch

@@ -2,22 +2,22 @@ package com.riffle.app.feature.navigation
 
 import com.riffle.core.domain.AuthenticateResult
 import com.riffle.core.domain.CommitSourceResult
-import com.riffle.core.domain.Collection
+import com.riffle.core.models.Collection
 import com.riffle.core.domain.ConnectivityObserver
 import com.riffle.core.domain.PendingSource
 import java.io.IOException
 import com.riffle.core.domain.LastOpenedLibraryStore
-import com.riffle.core.domain.Library
-import com.riffle.core.domain.LibraryItem
+import com.riffle.core.models.Library
+import com.riffle.core.models.LibraryItem
 import com.riffle.core.domain.LibraryRefreshResult
 import com.riffle.core.domain.LibraryOrderPreferencesStore
 import com.riffle.core.domain.LibraryObserver
 import com.riffle.core.domain.LibraryVisibilityPreferencesStore
-import com.riffle.core.domain.Series
-import com.riffle.core.domain.Source
+import com.riffle.core.models.Series
+import com.riffle.core.models.Source
 import com.riffle.core.domain.SourceRepository
-import com.riffle.core.domain.ServerType
-import com.riffle.core.domain.SourceUrl
+import com.riffle.core.models.ServerType
+import com.riffle.core.models.SourceUrl
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.async
@@ -97,7 +97,7 @@ class NavigationDrawerViewModelTest {
         override suspend fun getItem(itemId: String): LibraryItem? = null
         override fun observeItem(itemId: String): Flow<LibraryItem?> = MutableStateFlow<LibraryItem?>(null)
         override suspend fun getItem(sourceId: String, itemId: String): LibraryItem? = getItem(itemId)
-        override suspend fun getLibrary(libraryId: String): com.riffle.core.domain.Library? = null
+        override suspend fun getLibrary(libraryId: String): com.riffle.core.models.Library? = null
         override suspend fun getSeriesIdForItem(sourceId: String, itemId: String): String? = null
     }
 
@@ -156,7 +156,7 @@ class NavigationDrawerViewModelTest {
     private fun fakeCatalogRegistry(catalog: com.riffle.core.catalog.Catalog? = null): com.riffle.core.catalog.CatalogRegistry =
         object : com.riffle.core.catalog.CatalogRegistry {
             override suspend fun forActive(): com.riffle.core.catalog.Catalog? = catalog
-            override suspend fun forSource(source: com.riffle.core.domain.Source): com.riffle.core.catalog.Catalog? = catalog
+            override suspend fun forSource(source: com.riffle.core.models.Source): com.riffle.core.catalog.Catalog? = catalog
             override suspend fun forSourceId(sourceId: String): com.riffle.core.catalog.Catalog? = catalog
         }
 
@@ -167,7 +167,7 @@ class NavigationDrawerViewModelTest {
         com.riffle.core.catalog.DownloadsCapability
 
     private object CatalogStub : com.riffle.core.catalog.Catalog {
-        override val sourceType: com.riffle.core.domain.SourceType = com.riffle.core.domain.SourceType.LOCAL_FILES
+        override val sourceType: com.riffle.core.models.SourceType = com.riffle.core.models.SourceType.LOCAL_FILES
         override suspend fun listRoots(): List<com.riffle.core.catalog.CatalogRoot> = emptyList()
         override suspend fun browse(
             rootId: String,
@@ -449,7 +449,7 @@ class NavigationDrawerViewModelTest {
         val vm = makeVm(
             catalogRegistry = object : com.riffle.core.catalog.CatalogRegistry {
                 override suspend fun forActive(): com.riffle.core.catalog.Catalog = NonDownloadsCatalog
-                override suspend fun forSource(source: com.riffle.core.domain.Source): com.riffle.core.catalog.Catalog =
+                override suspend fun forSource(source: com.riffle.core.models.Source): com.riffle.core.catalog.Catalog =
                     if (source.id == "srv-abs") DownloadsCatalog else NonDownloadsCatalog
                 override suspend fun forSourceId(sourceId: String): com.riffle.core.catalog.Catalog =
                     if (sourceId == "srv-abs") DownloadsCatalog else NonDownloadsCatalog
@@ -464,7 +464,7 @@ class NavigationDrawerViewModelTest {
     private fun registryAllReturning(catalog: com.riffle.core.catalog.Catalog): com.riffle.core.catalog.CatalogRegistry =
         object : com.riffle.core.catalog.CatalogRegistry {
             override suspend fun forActive(): com.riffle.core.catalog.Catalog = catalog
-            override suspend fun forSource(source: com.riffle.core.domain.Source): com.riffle.core.catalog.Catalog = catalog
+            override suspend fun forSource(source: com.riffle.core.models.Source): com.riffle.core.catalog.Catalog = catalog
             override suspend fun forSourceId(sourceId: String): com.riffle.core.catalog.Catalog = catalog
         }
 }

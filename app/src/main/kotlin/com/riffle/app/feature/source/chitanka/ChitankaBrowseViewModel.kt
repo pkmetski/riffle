@@ -7,7 +7,7 @@ import com.riffle.core.catalog.chitanka.ChitankaCatalog
 import com.riffle.core.data.websource.WebSourceItemGate
 import com.riffle.core.data.websource.WebSourceLibraryItemUpserter
 import com.riffle.core.domain.SourceRepository
-import com.riffle.core.domain.SourceType
+import com.riffle.core.models.SourceType
 import dagger.hilt.android.lifecycle.HiltViewModel
 import java.io.IOException
 import java.net.UnknownHostException

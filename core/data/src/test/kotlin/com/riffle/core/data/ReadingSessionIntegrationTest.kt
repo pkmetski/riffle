@@ -3,11 +3,11 @@ package com.riffle.core.data
 import com.riffle.core.domain.DefaultDispatcherProvider
 
 import com.riffle.core.domain.ReadingPositionStore
-import com.riffle.core.domain.Source
+import com.riffle.core.models.Source
 import com.riffle.core.domain.SourceRepository
-import com.riffle.core.domain.SourceUrl
-import com.riffle.core.domain.SessionPayload
-import com.riffle.core.domain.SyncSessionResult
+import com.riffle.core.models.SourceUrl
+import com.riffle.core.models.SessionPayload
+import com.riffle.core.models.SyncSessionResult
 import com.riffle.core.domain.TokenStorage
 import com.riffle.core.network.AbsApiClient
 import kotlinx.coroutines.flow.Flow

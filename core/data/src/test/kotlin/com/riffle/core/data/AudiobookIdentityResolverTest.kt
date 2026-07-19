@@ -1,7 +1,7 @@
 package com.riffle.core.data
 
-import com.riffle.core.domain.AudiobookFingerprint
-import com.riffle.core.domain.AudiobookIdentityResult
+import com.riffle.core.models.AudiobookFingerprint
+import com.riffle.core.models.AudiobookIdentityResult
 import org.junit.Assert.assertEquals
 import org.junit.Test
 

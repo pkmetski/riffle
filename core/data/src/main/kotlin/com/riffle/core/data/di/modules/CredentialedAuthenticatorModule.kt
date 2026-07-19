@@ -3,7 +3,7 @@ package com.riffle.core.data.di.modules
 import com.riffle.core.data.credentialed.AbsCredentialedAuthenticator
 import com.riffle.core.data.credentialed.CredentialedAuthenticator
 import com.riffle.core.data.credentialed.KomgaCredentialedAuthenticator
-import com.riffle.core.domain.SourceType
+import com.riffle.core.models.SourceType
 import dagger.Binds
 import dagger.Module
 import dagger.hilt.InstallIn

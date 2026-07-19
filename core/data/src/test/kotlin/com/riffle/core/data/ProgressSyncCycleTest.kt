@@ -5,12 +5,12 @@ import com.riffle.core.network.NetworkResult
 import com.riffle.core.domain.AuthenticateResult
 import com.riffle.core.domain.CommitSourceResult
 import com.riffle.core.domain.PendingSource
-import com.riffle.core.domain.ProgressSyncCycleResult
+import com.riffle.core.models.ProgressSyncCycleResult
 import com.riffle.core.domain.ReadingPositionStore
-import com.riffle.core.domain.Source
+import com.riffle.core.models.Source
 import com.riffle.core.domain.SourceRepository
-import com.riffle.core.domain.SourceUrl
-import com.riffle.core.domain.SessionPayload
+import com.riffle.core.models.SourceUrl
+import com.riffle.core.models.SessionPayload
 import com.riffle.core.domain.TokenStorage
 import com.riffle.core.network.AbsSessionApi
 import com.riffle.core.network.NetworkAudiobookProgressPayload

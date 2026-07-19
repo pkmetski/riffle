@@ -10,9 +10,9 @@ import com.riffle.core.database.ReadaloudDismissalEntity
 import com.riffle.core.database.ReadaloudLinkDao
 import com.riffle.core.database.ReadaloudLinkEntity
 import com.riffle.core.domain.AbsFormatFilter
-import com.riffle.core.domain.AudioIdentity
+import com.riffle.core.models.AudioIdentity
 import com.riffle.core.domain.AudioPlaybackPreferencesStore
-import com.riffle.core.domain.ServerType
+import com.riffle.core.models.ServerType
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf

@@ -102,11 +102,11 @@ import com.riffle.app.feature.reader.readaloud.ReadaloudPeek
 import com.riffle.app.ui.theme.RiffleIcons
 import com.riffle.app.ui.theme.RiffleTheme
 import com.riffle.core.domain.FormattingPreferences
-import com.riffle.core.domain.HighlightColor
+import com.riffle.core.models.HighlightColor
 import com.riffle.core.domain.ReaderOrientation
 import com.riffle.core.domain.SentenceQuote
 import com.riffle.core.domain.ReaderTheme
-import com.riffle.core.domain.TimeRemaining
+import com.riffle.core.common.TimeRemaining
 import kotlin.math.roundToInt
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.delay
@@ -1328,7 +1328,7 @@ private fun EpubNavigatorView(
     readaloudReservePx: Int = 0,
     readaloudHighlightColor: HighlightColor,
     annotationsAvailable: Boolean,
-    annotations: List<com.riffle.core.domain.Annotation>,
+    annotations: List<com.riffle.core.models.Annotation>,
     highlightRenders: List<EpubReaderViewModel.HighlightRender>,
     onHighlight: (Locator, androidx.compose.ui.unit.IntRect) -> Unit,
     highlightToEdit: EpubReaderViewModel.HighlightEditTarget?,
@@ -1345,14 +1345,14 @@ private fun EpubNavigatorView(
     onDeleteHighlight: (String) -> Unit,
     onUpdateHighlightNote: (String, String?) -> Unit,
     /** ADR 0046: toggle a single emphasis style (bold/italic/underline/strike) over a highlight's range. */
-    onToggleEmphasis: (String, com.riffle.core.domain.EmphasisStyle) -> Unit = { _, _ -> },
+    onToggleEmphasis: (String, com.riffle.core.models.EmphasisStyle) -> Unit = { _, _ -> },
     /** ADR 0046: live pool of emphasis rows for the current book, used to derive the popup's
      *  chip active-state. Kept separate from `annotations` so the review-surface panel stays
      *  piggyback-clean (see AnnotationSession). */
-    emphasisPool: List<com.riffle.core.domain.Annotation> = emptyList(),
+    emphasisPool: List<com.riffle.core.models.Annotation> = emptyList(),
     /** ADR 0046 §4: per-book last-used emphasis set, used to preview chip pre-selection while
      *  the sheet is open on a pending draft. */
-    lastUsedEmphasisStyles: Set<com.riffle.core.domain.EmphasisStyle> = emptySet(),
+    lastUsedEmphasisStyles: Set<com.riffle.core.models.EmphasisStyle> = emptySet(),
     /** ADR 0046 §4: the in-flight draft, if any. Threaded down so the DOM emphasis injector
      *  can preview bold/italic on the pending selection BEFORE commit (chip pre-selected
      *  from the per-book preset must visually match the text). */
@@ -1518,8 +1518,8 @@ private fun EpubNavigatorView(
                     val persisted = emphasisPoolState.value.mapNotNull { a ->
                         val styles = a.emphasisStyles ?: return@mapNotNull null
                         if (styles.none {
-                                it == com.riffle.core.domain.EmphasisStyle.BOLD ||
-                                    it == com.riffle.core.domain.EmphasisStyle.ITALIC
+                                it == com.riffle.core.models.EmphasisStyle.BOLD ||
+                                    it == com.riffle.core.models.EmphasisStyle.ITALIC
                             }) return@mapNotNull null
                         EmphasisDomInjector.EmphasisRange(
                             id = a.id,
@@ -1535,8 +1535,8 @@ private fun EpubNavigatorView(
                     val draft = draftAnnotationState.value
                     val draftStyles = lastUsedEmphasisStylesState.value
                     val draftRange = if (draft != null && draftStyles.any {
-                            it == com.riffle.core.domain.EmphasisStyle.BOLD ||
-                                it == com.riffle.core.domain.EmphasisStyle.ITALIC
+                            it == com.riffle.core.models.EmphasisStyle.BOLD ||
+                                it == com.riffle.core.models.EmphasisStyle.ITALIC
                         }) {
                         EmphasisDomInjector.EmphasisRange(
                             id = com.riffle.app.feature.reader.session.AnnotationSession.DRAFT_ANNOTATION_ID,
@@ -3084,7 +3084,7 @@ private fun EpubNavigatorView(
             // ADR 0046: derive the current emphasis set on this highlight's range so the popup
             // knows which B/I/U/S chips are active. Same-CFI equality — the "layered emphasis"
             // gesture is always relative to the visible highlight target.
-            val currentEmphasisStyles: Set<com.riffle.core.domain.EmphasisStyle> = run {
+            val currentEmphasisStyles: Set<com.riffle.core.models.EmphasisStyle> = run {
                 if (isDraft) {
                     // ADR 0046 §4: preview the last-used emphasis set as chip pre-selection.
                     // Any chip tap commits the draft with that style layered on top of the preset.
@@ -3349,12 +3349,12 @@ internal class RiffleSelectionRectBridge(
      */
     @android.webkit.JavascriptInterface
     fun onFigures(json: String) {
-        val figures = mutableListOf<com.riffle.core.domain.EmbeddedFigure>()
+        val figures = mutableListOf<com.riffle.core.models.EmbeddedFigure>()
         try {
             val arr = org.json.JSONArray(json)
             for (i in 0 until arr.length()) {
                 val f = arr.optJSONObject(i) ?: continue
-                figures += com.riffle.core.domain.EmbeddedFigure(
+                figures += com.riffle.core.models.EmbeddedFigure(
                     href = f.optString("href").takeIf { !f.isNull("href") && it.isNotEmpty() },
                     svg = f.optString("svg").takeIf { !f.isNull("svg") && it.isNotEmpty() },
                     caption = f.optString("caption", ""),

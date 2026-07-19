@@ -22,7 +22,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
-import com.riffle.core.domain.LibraryItem
+import com.riffle.core.models.LibraryItem
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

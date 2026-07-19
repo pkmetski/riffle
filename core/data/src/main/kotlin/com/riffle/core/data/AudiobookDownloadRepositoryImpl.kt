@@ -6,7 +6,7 @@ import com.riffle.core.domain.AudiobookDownloadResult
 import com.riffle.core.domain.AudiobookRepository
 import com.riffle.core.domain.AudiobookSession
 import com.riffle.core.domain.AudiobookTimeline
-import com.riffle.core.domain.AudiobookTrackSpan
+import com.riffle.core.models.AudiobookTrackSpan
 import com.riffle.core.domain.DispatcherProvider
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable

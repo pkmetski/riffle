@@ -1,8 +1,8 @@
 package com.riffle.app.feature.library
 
-import com.riffle.core.domain.Annotation
-import com.riffle.core.domain.AudiobookBookmark
-import com.riffle.core.domain.LibraryItem
+import com.riffle.core.models.Annotation
+import com.riffle.core.models.AudiobookBookmark
+import com.riffle.core.models.LibraryItem
 
 /** One annotation match in a [LibraryItemsViewModel] search, carrying its owning book's display fields. */
 data class AnnotationSearchResult(

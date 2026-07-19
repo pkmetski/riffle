@@ -12,13 +12,13 @@ import com.riffle.core.database.ReadaloudLinkEntity
 import com.riffle.core.domain.AbsCandidate
 import com.riffle.core.domain.AbsFormatFilter
 import com.riffle.core.domain.AbsPickerItem
-import com.riffle.core.domain.EbookFormat
+import com.riffle.core.models.EbookFormat
 import com.riffle.core.domain.ConfirmedReadaloud
 import com.riffle.core.domain.PendingReadaloud
 import com.riffle.core.domain.ReadaloudReview
 import com.riffle.core.domain.ReadaloudReviewMutator
 import com.riffle.core.domain.ReadaloudReviewRepository
-import com.riffle.core.domain.ServerType
+import com.riffle.core.models.ServerType
 import com.riffle.core.domain.UnmatchedReadaloud
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
@@ -101,8 +101,8 @@ class ReadaloudReviewRepositoryImpl(
                         absLibraryName = libraryName(abs.sourceId, abs.libraryId),
                         hasEbook = abs.hasEbook(),
                         hasAudio = abs.hasAudio,
-                        identityResult = runCatching { com.riffle.core.domain.AudiobookIdentityResult.valueOf(link.identityResult) }
-                            .getOrDefault(com.riffle.core.domain.AudiobookIdentityResult.UNKNOWN),
+                        identityResult = runCatching { com.riffle.core.models.AudiobookIdentityResult.valueOf(link.identityResult) }
+                            .getOrDefault(com.riffle.core.models.AudiobookIdentityResult.UNKNOWN),
                     )
                 }
                 if (targets.isEmpty()) return@mapNotNull null

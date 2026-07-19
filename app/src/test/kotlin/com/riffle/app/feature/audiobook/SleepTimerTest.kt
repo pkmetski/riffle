@@ -12,10 +12,10 @@ import com.riffle.app.feature.reader.ReaderSyncFactory
 import com.riffle.app.playback.NowPlayingStore
 import com.riffle.core.data.CrossEpubIndexBuildTrigger
 import com.riffle.core.data.OpenReconcileTargets
-import com.riffle.core.domain.AudioIdentity
+import com.riffle.core.models.AudioIdentity
 import com.riffle.core.domain.AudioIdentityResolver
 import com.riffle.core.domain.AudioPlaybackPreferencesStore
-import com.riffle.core.domain.AudiobookBookmark
+import com.riffle.core.models.AudiobookBookmark
 import com.riffle.core.domain.ListeningPreferencesStore
 import com.riffle.core.domain.AudiobookBookmarkStore
 import com.riffle.core.domain.AudiobookChapter
@@ -23,27 +23,27 @@ import com.riffle.core.domain.AudiobookDownloadRepository
 import com.riffle.core.domain.AudiobookRepository
 import com.riffle.core.domain.AudiobookSession
 import com.riffle.core.domain.AudiobookTimeline
-import com.riffle.core.domain.AudiobookTrackSpan
+import com.riffle.core.models.AudiobookTrackSpan
 import com.riffle.core.domain.BookmarkTitleBuilder
 import com.riffle.core.domain.BundleAudiobookSource
 import com.riffle.core.domain.CrossEpubIndex
 import com.riffle.core.domain.CrossEpubIndexStore
-import com.riffle.core.domain.EbookFormat
-import com.riffle.core.domain.LibraryItem
+import com.riffle.core.models.EbookFormat
+import com.riffle.core.models.LibraryItem
 import com.riffle.core.domain.LibraryObserver
 import com.riffle.core.domain.LocalStore
 import com.riffle.core.domain.PositionSnapshot
 import com.riffle.core.domain.ReadaloudAudioRepository
-import com.riffle.core.domain.ReadaloudLink
+import com.riffle.core.models.ReadaloudLink
 import com.riffle.core.domain.ReadaloudLinkRepository
 import com.riffle.core.domain.ReadaloudResumePosition
 import com.riffle.core.domain.ReadaloudResumeStore
 import com.riffle.core.domain.ReadaloudTrack
-import com.riffle.core.domain.Source
+import com.riffle.core.models.Source
 import com.riffle.core.domain.SourceRepository
-import com.riffle.core.domain.SourceUrl
+import com.riffle.core.models.SourceUrl
 import com.riffle.core.domain.StoredItemRef
-import com.riffle.core.domain.Clock
+import com.riffle.core.common.Clock
 import com.riffle.core.domain.SyncPositionStore
 import com.riffle.core.domain.TokenStorage
 import com.riffle.core.logging.RecordingLogger
@@ -560,7 +560,7 @@ class SleepTimerTest {
         StubLocalStore,
         StubBuildTrigger,
         sidecarCache = { _, _ -> null },
-        clock = object : com.riffle.core.domain.Clock { override fun nowMs() = 0L; override fun nowNs() = 0L },
+        clock = object : com.riffle.core.common.Clock { override fun nowMs() = 0L; override fun nowNs() = 0L },
         logger = RecordingLogger(),
     ) {
         override suspend fun createIfApplicable(itemId: String): ReaderSyncCoordinator? = null

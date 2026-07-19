@@ -1,6 +1,6 @@
 package com.riffle.app.feature.reader
 
-import com.riffle.core.domain.TocEntry
+import com.riffle.core.models.TocEntry
 
 fun buildRailSegments(
     tocEntries: List<TocEntry>,

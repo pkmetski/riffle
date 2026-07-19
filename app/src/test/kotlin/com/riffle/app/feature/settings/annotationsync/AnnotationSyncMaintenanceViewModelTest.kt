@@ -4,7 +4,7 @@ import com.riffle.core.data.AnnotationDeviceMetaCodec
 import com.riffle.core.data.AnnotationSyncMaintenance
 import com.riffle.core.data.AnnotationSyncStatusStore
 import com.riffle.core.data.CycleOutcome
-import com.riffle.core.domain.AnnotationDeviceMeta
+import com.riffle.core.models.AnnotationDeviceMeta
 import com.riffle.core.domain.AnnotationFileRef
 import com.riffle.core.domain.AnnotationSyncConfig
 import com.riffle.core.domain.AnnotationSyncConfigStore
@@ -18,10 +18,10 @@ import com.riffle.core.domain.DeviceLabelStore
 import com.riffle.core.domain.NamespaceDeviceListing
 import com.riffle.core.domain.NamespaceSummary
 import com.riffle.core.domain.PendingSource
-import com.riffle.core.domain.Source
+import com.riffle.core.models.Source
 import com.riffle.core.domain.SourceRepository
-import com.riffle.core.domain.ServerType
-import com.riffle.core.domain.SourceUrl
+import com.riffle.core.models.ServerType
+import com.riffle.core.models.SourceUrl
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow

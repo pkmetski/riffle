@@ -1,6 +1,6 @@
 package com.riffle.app.feature.reader
 
-import com.riffle.core.domain.TocEntry
+import com.riffle.core.models.TocEntry
 import org.readium.r2.shared.publication.Link
 
 fun List<Link>.toTocEntries(): List<TocEntry> = map { link ->

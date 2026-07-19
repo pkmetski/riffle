@@ -1,6 +1,6 @@
 package com.riffle.app.feature.library
 
-import com.riffle.core.domain.LibraryItem
+import com.riffle.core.models.LibraryItem
 
 /**
  * A single metadata dimension the [FilteredBooksScreen] can filter the current Library by. Each

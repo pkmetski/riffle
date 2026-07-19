@@ -1,6 +1,6 @@
 package com.riffle.core.data
 
-import com.riffle.core.domain.AnnotationFileHeader
+import com.riffle.core.models.AnnotationFileHeader
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue

@@ -6,7 +6,7 @@ import com.riffle.core.domain.FormattingPreferences
 import com.riffle.core.domain.FormattingPreferencesStore
 import com.riffle.core.domain.ReaderTheme
 import com.riffle.core.domain.ThemeSchedule
-import com.riffle.core.domain.TimeProvider
+import com.riffle.core.common.TimeProvider
 import com.riffle.core.domain.appearance.ChromeTheme
 import com.riffle.core.domain.appearance.ConcreteReaderTheme
 import kotlinx.coroutines.CoroutineScope

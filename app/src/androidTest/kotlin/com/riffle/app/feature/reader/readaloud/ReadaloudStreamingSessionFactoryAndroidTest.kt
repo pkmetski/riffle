@@ -16,10 +16,10 @@ import com.riffle.core.database.SourceEntity
 import com.riffle.core.domain.AuthenticateResult
 import com.riffle.core.domain.CommitSourceResult
 import com.riffle.core.domain.PendingSource
-import com.riffle.core.domain.Source
+import com.riffle.core.models.Source
 import com.riffle.core.domain.SourceRepository
-import com.riffle.core.domain.ServerType
-import com.riffle.core.domain.SourceUrl
+import com.riffle.core.models.ServerType
+import com.riffle.core.models.SourceUrl
 import com.riffle.core.domain.TokenStorage
 import com.riffle.core.network.AbsApiClient
 import com.riffle.core.network.StorytellerApiClient
@@ -176,14 +176,14 @@ class ReadaloudStreamingSessionFactoryAndroidTest {
             },
         )
         val absApiClient = AbsApiClient(OkHttpClient(), DefaultDispatcherProvider)
-        val testClock = object : com.riffle.core.domain.Clock {
+        val testClock = object : com.riffle.core.common.Clock {
             override fun nowMs() = System.currentTimeMillis()
             override fun nowNs() = System.nanoTime()
         }
         val catalogRegistry = object : com.riffle.core.catalog.CatalogRegistry {
             override suspend fun forActive() = repo.getActive()?.let { forSource(it) }
             override suspend fun forSourceId(sourceId: String) = repo.getById(sourceId)?.let { forSource(it) }
-            override suspend fun forSource(source: com.riffle.core.domain.Source) = com.riffle.core.catalog.abs.AbsCatalog(
+            override suspend fun forSource(source: com.riffle.core.models.Source) = com.riffle.core.catalog.abs.AbsCatalog(
                 config = com.riffle.core.catalog.abs.AbsCatalogConfig(
                     baseUrl = source.url.value,
                     token = "tok",

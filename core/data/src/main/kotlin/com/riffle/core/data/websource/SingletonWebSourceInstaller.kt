@@ -38,7 +38,7 @@ class SingletonWebSourceInstaller @Inject constructor(
      * same on every call once installed. Throws if the descriptor is missing install data
      * (`urlPlaceholder` / `defaultLibraries`) — signals a wiring bug, not a runtime error.
      */
-    suspend fun install(type: com.riffle.core.domain.SourceType): String {
+    suspend fun install(type: com.riffle.core.models.SourceType): String {
         val descriptor = registry.forTypeOrError(type)
         require(descriptor.isSingleton) {
             "SingletonWebSourceInstaller only installs isSingleton descriptors; got $type"
