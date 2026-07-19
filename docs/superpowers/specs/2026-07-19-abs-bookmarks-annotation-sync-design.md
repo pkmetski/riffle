@@ -125,11 +125,9 @@ The last-written manifest per (namespace, itemId) is cached locally so writes ca
 
 ## Empirical probes
 
-Ship these as small executables under `tools/` or as instrumented tests; they must pass before implementation of the target lands.
-
-1. **Negative `time` round-trip.** POST bookmark with `time = -1_500_000_000`, PATCH it, DELETE via path segment, verify list reflects each step. Server: user's test ABS at http://media-server:13378.
-2. **Practical title-size cap.** Push growing base64 titles at 8 KB, 16 KB, 32 KB, 48 KB, 96 KB, 128 KB, 256 KB. Record the smallest size that fails (413 / 400 / silent truncation on readback). Result determines whether v1's 48 KB chunk cap has safe headroom or needs adjusting.
-3. **Viewer-role fallback.** POST a bookmark with a viewer-only ABS user. Confirm 403 vs silent-drop. Design: 403 → fall back to WebDAV-only for that namespace and surface a warning in the Annotations Sync section of Settings.
+1. **Negative `time` round-trip.** **PASSED (2026-07-19)** against http://media-server:13378. POST/PATCH/DELETE with `time = -1_500_000_000` round-trip cleanly; `time` is honored as-is; DELETE via `/bookmark/-1500000000` returns `HTTP 200 "OK"`. Side finding: the test account already carries two yaabsa-style `time = -1` bookmarks with JSON annotation payloads — confirms real-world existence of yaabsa's scheme and validates the disjoint-range requirement.
+2. **Practical title-size cap.** **PASSED (2026-07-19)** against the same server. Growing titles round-tripped losslessly at 8 KB, 16 KB, 32 KB, 48 KB, 96 KB, 128 KB, 256 KB, 512 KB, 768 KB, 1 MB, 1.5 MB, **2 MB — all HTTP 200 with byte-exact read-back**. No practical server-side cap on this deployment. v1 still uses a conservative 48 KB chunk cap because third-party users may have a reverse proxy with tighter defaults (`client_max_body_size 1m` on nginx being the most common).
+3. **Viewer-role fallback.** Deferred — requires provisioning a viewer-only ABS user. Implementation defaults to graceful fallback: on any 4xx from the ABS-bookmark POST/PATCH (specifically 401/403), the composite target logs, marks the namespace read-only for this target, and surfaces "read-only ABS account — falling back to WebDAV" in Settings. To verify before v1 GA.
 
 ## Testing
 
