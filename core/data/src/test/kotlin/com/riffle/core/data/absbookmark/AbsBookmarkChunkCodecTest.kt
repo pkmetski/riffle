@@ -55,7 +55,8 @@ class AbsBookmarkChunkCodecTest {
     fun `parseTimeSlot rejects real audio positions`() {
         assertNull(AbsBookmarkChunkCodec.parseTimeSlot(0))
         assertNull(AbsBookmarkChunkCodec.parseTimeSlot(300))
-        assertNull(AbsBookmarkChunkCodec.parseTimeSlot(-1)) // yaabsa slot — not ours
+        assertNull(AbsBookmarkChunkCodec.parseTimeSlot(-1)) // yaabsa
+        assertNull(AbsBookmarkChunkCodec.parseTimeSlot(AbsBookmarkChunkCodec.TIME_BASE + 1))
     }
 
     @Test
@@ -165,9 +166,9 @@ class AbsBookmarkChunkCodecTest {
         val wireB = AbsBookmarkChunkCodec.encode(deviceB, payloadB, 1L)
         val mixed = (wireA + wireB).map { ReadBookmark(it.time, it.title) } +
             // yaabsa noise: time=-1 with a plain-JSON title.
-            ReadBookmark(-1L, """[{"cfi":"epubcfi(/6/4)","color":"#FFEB3B","type":"highlight"}]""") +
+            ReadBookmark(-1, """[{"cfi":"epubcfi(/6/4)","color":"#FFEB3B","type":"highlight"}]""") +
             // real audio bookmark noise: positive time.
-            ReadBookmark(300L, "Nice quote")
+            ReadBookmark(300, "Nice quote")
         val decodedA = AbsBookmarkChunkCodec.decodeShard(AbsBookmarkChunkCodec.deviceShort(deviceA), mixed)!!
         val decodedB = AbsBookmarkChunkCodec.decodeShard(AbsBookmarkChunkCodec.deviceShort(deviceB), mixed)!!
         assertEquals(payloadA, decodedA.payload)

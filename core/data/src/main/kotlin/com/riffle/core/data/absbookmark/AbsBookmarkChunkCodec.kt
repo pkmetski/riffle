@@ -31,7 +31,18 @@ object AbsBookmarkChunkCodec {
 
     const val VERSION = 1
     const val TITLE_PREFIX = "riffle:v"
-    const val TIME_BASE: Long = -1_000_000_000L
+
+    /**
+     * Riffle's reserved negative-time range starts at [TIME_BASE] and extends toward `Int.MIN_VALUE`.
+     * Real audio bookmarks live at `time ≥ 0`; yaabsa uses `time = -1`. Chosen so real audio
+     * bookmarks and yaabsa never collide with us regardless of chunk count.
+     */
+    const val TIME_BASE: Int = -1_000_000_000
+
+    /**
+     * `MAX_DEVICES * CHUNKS_PER_DEVICE ≤ Int.MAX_VALUE - |TIME_BASE|` — 10^6 devices × 1024 chunks
+     * fits inside the signed-Int range below [TIME_BASE].
+     */
     const val MAX_DEVICES: Int = 1_000_000
     const val CHUNKS_PER_DEVICE: Int = 1024
     const val MANIFEST_CHUNK_IDX: Int = 0
@@ -61,18 +72,19 @@ object AbsBookmarkChunkCodec {
         sha256(deviceId.encodeToByteArray()).toHex().take(DEVICE_SHORT_LEN)
 
     /** Reserved `time` for `(deviceIdx, chunkIdx)`. Always ≤ [TIME_BASE]. */
-    fun timeSlot(deviceIdx: Int, chunkIdx: Int): Long {
+    fun timeSlot(deviceIdx: Int, chunkIdx: Int): Int {
         require(deviceIdx in 0 until MAX_DEVICES) { "deviceIdx out of range: $deviceIdx" }
         require(chunkIdx in 0 until CHUNKS_PER_DEVICE) { "chunkIdx out of range: $chunkIdx" }
-        return TIME_BASE - deviceIdx.toLong() * CHUNKS_PER_DEVICE - chunkIdx.toLong()
+        // (MAX_DEVICES-1) * CHUNKS_PER_DEVICE fits in Int; TIME_BASE - offset stays above Int.MIN_VALUE.
+        return TIME_BASE - deviceIdx * CHUNKS_PER_DEVICE - chunkIdx
     }
 
     /** Inverse of [timeSlot]. Returns null when `time` is not in Riffle's reserved range. */
-    fun parseTimeSlot(time: Long): TimeSlot? {
+    fun parseTimeSlot(time: Int): TimeSlot? {
         if (time > TIME_BASE) return null
         val offset = TIME_BASE - time
-        val deviceIdx = (offset / CHUNKS_PER_DEVICE).toInt()
-        val chunkIdx = (offset % CHUNKS_PER_DEVICE).toInt()
+        val deviceIdx = offset / CHUNKS_PER_DEVICE
+        val chunkIdx = offset % CHUNKS_PER_DEVICE
         if (deviceIdx !in 0 until MAX_DEVICES) return null
         return TimeSlot(deviceIdx, chunkIdx)
     }
@@ -131,6 +143,7 @@ object AbsBookmarkChunkCodec {
             fullHash = fullHash,
             createdAt = nowEpochMs,
             updatedAt = nowEpochMs,
+            deviceId = deviceId,
         )
         val out = ArrayList<WireChunk>(sliceCount + 1)
         val manifestJson = manifest.toJson()
@@ -287,17 +300,20 @@ object AbsBookmarkChunkCodec {
     )
 
     /** A ready-to-upload chunk. Caller POSTs/PATCHes at (itemId, [time]) with [title]. */
-    data class WireChunk(val time: Long, val title: String)
+    data class WireChunk(val time: Int, val title: String)
 
-    /** Minimal read-side shape from [AbsBookmarkApi.listBookmarks]. */
-    data class ReadBookmark(val time: Long, val title: String)
+    /** Minimal read-side shape from `AbsBookmarkApi.listBookmarks`. */
+    data class ReadBookmark(val time: Int, val title: String)
 
     /** Successfully reassembled shard for one device. */
     data class DecodedShard(
         val deviceShort: String,
         val payload: String,
         val manifest: ManifestPayload,
-    )
+    ) {
+        /** Full deviceId, recovered from the manifest. */
+        val deviceId: String get() = manifest.deviceId
+    }
 
     /**
      * Manifest content stored in chunk 0. Version + chunk count + full-payload hash + timestamps.
@@ -311,6 +327,7 @@ object AbsBookmarkChunkCodec {
         val fullHash: String,
         val createdAt: Long,
         val updatedAt: Long,
+        val deviceId: String,
     ) {
         fun toJson(): String = json.encodeToString(
             kotlinx.serialization.json.JsonObject.serializer(),
@@ -321,6 +338,7 @@ object AbsBookmarkChunkCodec {
                 put("fullHash", fullHash)
                 put("createdAt", createdAt)
                 put("updatedAt", updatedAt)
+                put("deviceId", deviceId)
             },
         )
 
@@ -337,7 +355,8 @@ object AbsBookmarkChunkCodec {
                 val fullHash = obj["fullHash"]?.jsonPrimitive?.contentOrNullSafe() ?: return null
                 val createdAt = obj["createdAt"]?.jsonPrimitive?.longOrNull ?: return null
                 val updatedAt = obj["updatedAt"]?.jsonPrimitive?.longOrNull ?: return null
-                return ManifestPayload(v, chunks, encoding, fullHash, createdAt, updatedAt)
+                val deviceId = obj["deviceId"]?.jsonPrimitive?.contentOrNullSafe() ?: return null
+                return ManifestPayload(v, chunks, encoding, fullHash, createdAt, updatedAt, deviceId)
             }
 
             private fun kotlinx.serialization.json.JsonPrimitive.contentOrNullSafe(): String? =
