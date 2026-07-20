@@ -192,7 +192,17 @@ internal object ContinuousPositionTracker {
         return moreChaptersExist && pastBehindBudget
     }
 
-    data class InitialWindow(val topIndex: Int, val totalChapters: Int, val targetWindowIndex: Int)
+    data class InitialWindow(val topIndex: Int, val totalChapters: Int, val targetWindowIndex: Int) {
+        /**
+         * Window indices whose real height must be measured before the initial scroll is allowed
+         * to fire. Must cover EVERY chapter in the initial window, not just the target and the
+         * chapters above it: chapters below the target start at a full-screen placeholder height
+         * and collapse when they measure, which — if it happens after container reveal — shifts
+         * on-screen siblings under the user's eye (LinearLayout reflow inside a visible viewport
+         * with no scroll compensation for indices past 0). See ContinuousWindowController.openWindowAt.
+         */
+        fun pendingMeasureIndices(): Set<Int> = (0 until totalChapters).toSet()
+    }
 
     /**
      * Compute the initial sliding-window layout for opening at [targetIndex] in a book of size

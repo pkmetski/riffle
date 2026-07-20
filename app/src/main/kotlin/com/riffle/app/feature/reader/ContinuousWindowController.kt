@@ -398,14 +398,7 @@ internal class ContinuousWindowController(
         pendingFocusAnnotationId = focusAnnotationId
         val totalChapters = initial.totalChapters
         pendingInitialMeasureIndices.clear()
-        // Wait for EVERY chapter in the initial window to report its real height, not just the
-        // target and the chapters above it. Chapters below the target start at a full-screen
-        // placeholder height and collapse when they measure; if the container is revealed before
-        // that happens, the LinearLayout re-lays out inside a visible viewport and on-screen
-        // siblings shift under the user's eye (there's no scroll compensation for i > 0 in
-        // `appendChapter.onHeightMeasured`). Gating the reveal on every window chapter's
-        // measurement pays that cost behind the still-INVISIBLE container instead.
-        pendingInitialMeasureIndices.addAll(0 until totalChapters)
+        pendingInitialMeasureIndices.addAll(initial.pendingMeasureIndices())
         val targetHref = initialHref
         // Only the FIRST invocation of the pending-initial-scroll closure runs the smooth-tail
         // dance. Subsequent invocations from [reapplyLandingAfterFallback] on target-chapter

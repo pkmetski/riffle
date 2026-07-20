@@ -724,4 +724,43 @@ class ContinuousPositionTrackerTest {
     fun `preLandY — clamps at zero when target is within half a viewport of the top`() {
         assertEquals(0, ContinuousPositionTracker.preLandY(targetY = 200, viewportHeight = 1200))
     }
+
+    // ── pendingMeasureIndices ─────────────────────────────────────────────────
+    //
+    // Regression gate for the continuous-open reshuffle: the initial scroll must wait for every
+    // chapter in the window to measure, not just the target and above. If someone flips this back
+    // to `0..targetWindowIndex`, chapters below the target reveal at their full-screen placeholder
+    // height and then collapse inside a visible viewport, shifting on-screen siblings.
+
+    @Test
+    fun `pendingMeasureIndices — covers every window chapter, not just target and above`() {
+        // Mid-book open at index 10 with a 3-chapter window (1 behind + target + 1 ahead).
+        val initial = ContinuousPositionTracker.initialWindow(
+            targetIndex = 10, allChaptersSize = 100, chaptersBehind = 1, windowSize = 3,
+        )
+        // Sanity: 1 behind + target + 1 ahead — target sits at window index 1, below-target at 2.
+        assertEquals(1, initial.targetWindowIndex)
+        assertEquals(3, initial.totalChapters)
+        // Below-target index (2) MUST be in the pending set — that's the whole point of the fix.
+        assertEquals(setOf(0, 1, 2), initial.pendingMeasureIndices())
+    }
+
+    @Test
+    fun `pendingMeasureIndices — includes below-target chapters on cold open near start`() {
+        // Open at index 0: no behind buffer, all ahead. Below-target reflow still applies.
+        val initial = ContinuousPositionTracker.initialWindow(
+            targetIndex = 0, allChaptersSize = 100, chaptersBehind = 1, windowSize = 3,
+        )
+        assertEquals(setOf(0, 1, 2), initial.pendingMeasureIndices())
+    }
+
+    @Test
+    fun `pendingMeasureIndices — clamps to available chapters near end of book`() {
+        // Only 2 chapters left from topIndex — window truncates to totalChapters=2.
+        val initial = ContinuousPositionTracker.initialWindow(
+            targetIndex = 8, allChaptersSize = 9, chaptersBehind = 1, windowSize = 3,
+        )
+        assertEquals(2, initial.totalChapters)
+        assertEquals(setOf(0, 1), initial.pendingMeasureIndices())
+    }
 }
