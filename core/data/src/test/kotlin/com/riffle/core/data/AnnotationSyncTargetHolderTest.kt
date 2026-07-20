@@ -5,8 +5,8 @@ import com.riffle.core.domain.AnnotationSyncConfig
 import com.riffle.core.domain.AnnotationSyncConfigStore
 import com.riffle.core.domain.CommitSourceResult
 import com.riffle.core.domain.PendingSource
-import com.riffle.core.domain.Source
 import com.riffle.core.domain.SourceRepository
+import com.riffle.core.models.Source
 import com.riffle.core.domain.TokenStorage
 import com.riffle.core.network.AbsBookmarkApi
 import com.riffle.core.network.NetworkAbsBookmark

@@ -1,10 +1,10 @@
 package com.riffle.core.data.absbookmark
 
-import com.riffle.core.domain.ServerType
-import com.riffle.core.domain.Source
-import com.riffle.core.domain.SourceType
-import com.riffle.core.domain.SourceUrl
 import com.riffle.core.domain.TokenStorage
+import com.riffle.core.models.ServerType
+import com.riffle.core.models.Source
+import com.riffle.core.models.SourceType
+import com.riffle.core.models.SourceUrl
 import com.riffle.core.network.AbsBookmarkApi
 import com.riffle.core.network.NetworkAbsBookmark
 import com.riffle.core.network.NetworkResult

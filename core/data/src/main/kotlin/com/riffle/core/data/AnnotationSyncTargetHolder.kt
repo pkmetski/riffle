@@ -4,10 +4,10 @@ import com.riffle.core.data.absbookmark.AbsBookmarkAnnotationSyncTargetFactory
 import com.riffle.core.data.absbookmark.CompositeAnnotationSyncTarget
 import com.riffle.core.domain.AnnotationSyncConfigStore
 import com.riffle.core.domain.AnnotationSyncTarget
-import com.riffle.core.domain.ServerType
-import com.riffle.core.domain.Source
 import com.riffle.core.domain.SourceRepository
-import com.riffle.core.domain.SourceType
+import com.riffle.core.models.ServerType
+import com.riffle.core.models.Source
+import com.riffle.core.models.SourceType
 import com.riffle.core.domain.AbsWebSourceDescriptor
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
