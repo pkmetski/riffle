@@ -161,6 +161,7 @@ internal class ContinuousReaderView @JvmOverloads constructor(
 
     init {
         controller.onFirstLoadComplete = { isFirstLoadComplete.value = true }
+        controller.onFirstLoadRestart = { isFirstLoadComplete.value = false }
     }
 
     /**

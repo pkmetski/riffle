@@ -2933,7 +2933,8 @@ private fun EpubNavigatorView(
             // mode holds `container.visibility = INVISIBLE` from openWindowAt until every chapter
             // in the initial window has measured (or the safety-net fallback fires), so without
             // this overlay a cold open shows a blank reader for up to a few seconds on low-memory
-            // Android 7.1 devices where five cold WebViews are spinning up in parallel.
+            // Android 7.1 devices where the initial-window WebViews spin up in parallel. Also
+            // re-shows during renderer-gone recovery (see recoverFromRendererGone).
             val continuousReaderForSpinner = continuousViewRef.value
             if (continuousReaderForSpinner != null && !continuousReaderForSpinner.isFirstLoadComplete.value) {
                 CircularProgressIndicator(

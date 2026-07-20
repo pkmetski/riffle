@@ -145,13 +145,17 @@ internal class ContinuousWindowController(
     private val webViews = mutableListOf<ChapterWebView>()
 
     /**
-     * Invoked exactly once, on the first reveal of the container after [initialize]. Wired from
-     * [ContinuousReaderView] to flip a Compose state used by [EpubReaderScreen] to overlay a
-     * loading spinner over the still-INVISIBLE container during the initial land. Not re-armed
-     * on subsequent [openWindowAt] rebuilds (cross-chapter jumps): those already run under
-     * `smoothTail = true` with a visible tween and would look worse under a full-screen spinner.
+     * Invoked when the container is first revealed after [initialize] and again after each
+     * [recoverFromRendererGone] cycle. Wired from [ContinuousReaderView] to flip a Compose state
+     * used by [EpubReaderScreen] to overlay a loading spinner over the still-INVISIBLE container
+     * during the measurement gate. Not re-armed on cross-chapter jumps (`smoothTail = true`):
+     * those already animate visibly and would look worse under a full-screen spinner.
      */
     internal var onFirstLoadComplete: () -> Unit = {}
+
+    /** Paired with [onFirstLoadComplete]; fired when [recoverFromRendererGone] resets the flag so
+     *  the spinner reappears during the rebuild. */
+    internal var onFirstLoadRestart: () -> Unit = {}
     private var firstLoadComplete: Boolean = false
 
     private fun notifyFirstLoadCompleteOnce() {
@@ -512,6 +516,13 @@ internal class ContinuousWindowController(
         container.removeAllViews()
         recycledViews.forEach { it.destroy() }
         recycledViews.clear()
+        // Re-arm the first-load spinner: recovery re-hides the container via openWindowAt and
+        // won't reveal until every chapter has measured (up to INITIAL_SCROLL_FALLBACK_MS ms).
+        // Without this reset the user sees a blank reader for that gap on a mid-session renderer
+        // kill (common on low-memory Android 7.1 tablets — exactly the device the fallback was
+        // widened for).
+        firstLoadComplete = false
+        onFirstLoadRestart()
         if (href.isNotEmpty()) openWindowAt(href, progression)
         port.post { rendererRecovering = false }
     }
