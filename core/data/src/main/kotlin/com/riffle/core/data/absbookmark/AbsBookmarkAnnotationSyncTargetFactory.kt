@@ -21,6 +21,11 @@ class AbsBookmarkAnnotationSyncTargetFactory @Inject constructor(
     suspend fun create(source: Source): AbsBookmarkAnnotationSyncTarget? {
         if (source.type != SourceType.ABS) return null
         if (source.serverType != ServerType.AUDIOBOOKSHELF) return null
+        // Temporary rollout gate: only these ABS usernames get the new bookmark-piggyback
+        // transport. Others fall through to WebDAV (or no sync) via the holder's normal path.
+        // TODO(#TBD): remove the allow-list once the feature has soaked and Settings exposes
+        // an explicit opt-in / kill-switch.
+        if (source.username.trim().lowercase() !in ALLOWED_USERNAMES) return null
         val absUserId = source.absUserId?.takeIf { it.isNotBlank() } ?: return null
         val token = tokenStorage.getToken(source.id) ?: return null
         val namespace = "${AbsWebSourceDescriptor.ABS_NAMESPACE_PREFIX}$absUserId"
@@ -31,5 +36,9 @@ class AbsBookmarkAnnotationSyncTargetFactory @Inject constructor(
             accountNamespace = namespace,
             api = absBookmarkApi,
         )
+    }
+
+    private companion object {
+        val ALLOWED_USERNAMES: Set<String> = setOf("plamen", "test")
     }
 }
