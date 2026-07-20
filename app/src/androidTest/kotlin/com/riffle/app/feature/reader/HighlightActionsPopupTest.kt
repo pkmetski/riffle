@@ -4,6 +4,7 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.unit.IntRect
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -31,6 +32,7 @@ class HighlightActionsPopupTest {
                 anchorRect = stubRect,
                 selected = HighlightColor.YELLOW,
                 note = note,
+                readerBackground = Color.White,
                 onPick = {},
                 onDelete = {},
                 onOpenNoteEditor = onOpenNoteEditor,

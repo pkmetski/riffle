@@ -13,6 +13,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.riffle.app.feature.reader.cadence.CadenceHeroIcon
+import com.riffle.app.feature.reader.swatchBackdropColor
 import com.riffle.core.domain.FormattingPreferences
 
 /**
@@ -78,6 +79,7 @@ fun CadenceSettingsPanel(
     )
     HighlightColorRow(
         selected = prefs.cadenceHighlightColor,
+        readerBackground = prefs.swatchBackdropColor,
         onSelectedChange = { onPrefsChange(prefs.copy(cadenceHighlightColor = it)) },
     )
 }
