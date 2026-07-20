@@ -113,12 +113,16 @@ abstract class SyncModule {
         @Singleton
         fun provideAnnotationSyncTargetHolder(
             configStore: AnnotationSyncConfigStore,
-            factory: com.riffle.core.data.WebDavAnnotationSyncTargetFactory,
+            webDavFactory: com.riffle.core.data.WebDavAnnotationSyncTargetFactory,
+            absBookmarkFactory: com.riffle.core.data.absbookmark.AbsBookmarkAnnotationSyncTargetFactory,
+            sourceRepository: SourceRepository,
             dispatchers: DispatcherProvider,
         ): com.riffle.core.data.AnnotationSyncTargetHolder =
             com.riffle.core.data.AnnotationSyncTargetHolder(
                 configStore = configStore,
-                factory = factory,
+                webDavFactory = webDavFactory,
+                absBookmarkFactory = absBookmarkFactory,
+                sourceRepository = sourceRepository,
                 scope = kotlinx.coroutines.CoroutineScope(
                     kotlinx.coroutines.SupervisorJob() + dispatchers.io,
                 ),
