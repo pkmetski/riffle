@@ -57,10 +57,15 @@ import com.riffle.core.models.HighlightColor
  * A row of the four highlight swatches. The selected swatch gets an onSurface ring + a centred
  * checkmark (reads clearly in both themes); the 4dp padding is always reserved so the row doesn't
  * shift on selection. Modelled on the readaloud settings picker for visual consistency.
+ *
+ * [readerBackground] is painted as an opaque backdrop behind each swatch so the semi-transparent
+ * (alpha 0x80) highlight colour composites against the same paper the reader is drawing — otherwise
+ * the swatches look muddy in a dark app while the reader is on light theme (or vice-versa).
  */
 @Composable
 fun HighlightSwatchRow(
     selected: HighlightColor?,
+    readerBackground: Color,
     onPick: (HighlightColor) -> Unit,
     onPickNone: () -> Unit = {},
     modifier: Modifier = Modifier,
@@ -108,6 +113,7 @@ fun HighlightSwatchRow(
                     )
                     .padding(4.dp)
                     .clip(CircleShape)
+                    .background(readerBackground)
                     .background(swatchColor)
                     .semantics {
                         contentDescription = color.token.replaceFirstChar { it.uppercase() } +
@@ -188,6 +194,7 @@ fun HighlightActionsPopup(
     anchorRect: IntRect,
     selected: HighlightColor?,
     note: String?,
+    readerBackground: Color,
     emphasisStyles: Set<EmphasisStyle> = emptySet(),
     onPick: (HighlightColor) -> Unit,
     /** ADR 0046 §4: remove the highlight color while keeping the emphasis rows intact. */
@@ -231,7 +238,12 @@ fun HighlightActionsPopup(
                             .padding(horizontal = 16.dp, vertical = 12.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        HighlightSwatchRow(selected = selected, onPick = onPick, onPickNone = onRemoveColor)
+                        HighlightSwatchRow(
+                            selected = selected,
+                            readerBackground = readerBackground,
+                            onPick = onPick,
+                            onPickNone = onRemoveColor,
+                        )
                     }
                     // Emphasis chip row + destructive trash share a row: chips left-aligned, trash
                     // pushed to the trailing edge with its own padding so it reads as an escape

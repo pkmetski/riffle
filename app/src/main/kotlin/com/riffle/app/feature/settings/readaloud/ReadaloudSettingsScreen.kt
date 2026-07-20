@@ -38,7 +38,10 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.riffle.app.feature.reader.swatchBackdropColor
 import com.riffle.app.feature.server.AddSourceBackend
+import com.riffle.core.domain.withResolvedTheme
+import java.time.LocalTime
 import com.riffle.app.feature.settings.DrillInChevron
 import com.riffle.app.feature.settings.SettingsSectionHeader
 import com.riffle.app.feature.settings.SettingsViewModel
@@ -69,6 +72,13 @@ fun ReadaloudSettingsScreen(
     val serverVersions by viewModel.serverVersions.collectAsState()
     val readaloudSummaries by viewModel.readaloudSummaries.collectAsState()
     val readaloudPreferences by viewModel.readaloudPreferences.collectAsState()
+    val formattingPreferences by viewModel.globalFormattingPreferences.collectAsState()
+    // Swatches must preview against the paper the reader draws, not the app's Material surface.
+    // A dark-app / light-reader combo (or vice-versa) otherwise makes the swatches look nothing
+    // like the highlight that lands on the page. The store persists Auto verbatim, so resolve to
+    // the currently-scheduled concrete theme here — otherwise a night-schedule user opening
+    // Settings during the dark arc would still see swatches on the Light fallback.
+    val readerBackground = formattingPreferences.withResolvedTheme(LocalTime.now()).swatchBackdropColor
 
     val storyteller = servers.firstOrNull { it.serverType == ServerType.STORYTELLER_SERVICE }
 
@@ -188,6 +198,7 @@ fun ReadaloudSettingsScreen(
                                     )
                                     .padding(4.dp)
                                     .clip(CircleShape)
+                                    .background(readerBackground)
                                     .background(swatchColor)
                                     .semantics {
                                         contentDescription = color.name.lowercase()

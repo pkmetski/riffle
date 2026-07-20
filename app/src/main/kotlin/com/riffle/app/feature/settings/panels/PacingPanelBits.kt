@@ -104,10 +104,15 @@ private fun FastIcon() {
  * Colour-swatch picker for Cadence's highlight — mirrors the Readaloud picker to keep the visual
  * pattern identical (issue #403: "Independent from Readaloud. Same palette."). Selected swatch
  * carries a contrast ring + a check glyph so the pick is unambiguous in screenshots.
+ *
+ * [readerBackground] is painted behind each swatch so the alpha-0x80 highlight colour composites
+ * against the paper the reader will actually draw — otherwise a dark app theme makes the swatches
+ * look nothing like the highlight that lands on a light-theme reader page.
  */
 @Composable
 internal fun HighlightColorRow(
     selected: HighlightColor,
+    readerBackground: Color,
     onSelectedChange: (HighlightColor) -> Unit,
 ) {
     ListItem(
@@ -131,6 +136,7 @@ internal fun HighlightColorRow(
                             )
                             .padding(4.dp)
                             .clip(CircleShape)
+                            .background(readerBackground)
                             .background(swatchColor)
                             .semantics {
                                 contentDescription = color.name.lowercase()

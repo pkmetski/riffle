@@ -1,6 +1,7 @@
 package com.riffle.app.feature.reader
 
 import androidx.compose.ui.graphics.Color
+import com.riffle.core.domain.FormattingPreferences
 import com.riffle.core.domain.ReaderTheme
 
 // Single source of truth for what each reader theme paints. Readium owns the actual page
@@ -48,3 +49,13 @@ val ReaderTheme.palette: ReaderThemePalette
         // two in lock-step if Light's colours ever move.
         ReaderTheme.Auto -> ReaderTheme.Light.palette
     }
+
+/**
+ * The opaque backdrop colour every highlight-colour swatch must composite over so the alpha-0x80
+ * highlight preview matches what actually lands on a book page. Callers (reader popup, Readaloud
+ * settings, Cadence settings) must paint this behind the swatch — otherwise the app-theme
+ * `Surface` colour underlies the swatch and the preview looks nothing like the highlight (e.g. a
+ * dark-app / light-reader combo makes yellow look muddy in the picker, bright yellow in the book).
+ */
+val FormattingPreferences.swatchBackdropColor: Color
+    get() = theme.palette.background

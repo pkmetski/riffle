@@ -13,7 +13,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.riffle.app.feature.reader.cadence.CadenceHeroIcon
+import com.riffle.app.feature.reader.swatchBackdropColor
 import com.riffle.core.domain.FormattingPreferences
+import com.riffle.core.domain.withResolvedTheme
+import java.time.LocalTime
 
 /**
  * Cadence drill-in — the sentence-highlight hands-free reading feature. See issue #403 / ADR 0040.
@@ -78,6 +81,9 @@ fun CadenceSettingsPanel(
     )
     HighlightColorRow(
         selected = prefs.cadenceHighlightColor,
+        // Resolve Auto → concrete so the picker previews against the paper Readium is currently
+        // painting, not the Light fallback the palette accessor uses when Auto slips through.
+        readerBackground = prefs.withResolvedTheme(LocalTime.now()).swatchBackdropColor,
         onSelectedChange = { onPrefsChange(prefs.copy(cadenceHighlightColor = it)) },
     )
 }

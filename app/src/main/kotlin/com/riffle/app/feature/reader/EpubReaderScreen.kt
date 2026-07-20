@@ -3111,6 +3111,7 @@ private fun EpubNavigatorView(
                 anchorRect = editTarget.anchorRect,
                 selected = selectedColor,
                 note = current?.note ?: currentAnnotation?.note,
+                readerBackground = formattingPrefs.swatchBackdropColor,
                 emphasisStyles = currentEmphasisStyles,
                 onPick = { color -> onRecolorHighlight(editTarget.id, color) },
                 onRemoveColor = { onRemoveHighlightColor(editTarget.id) },
