@@ -223,6 +223,35 @@ class ReaderSessionLifecycleTest {
         sourceId = "srv-abs",
     )
 
+    /** Records call order so tests can pin that reconcile-then-open sequencing invariant. */
+    private class RecordingItemProgressPuller(
+        private val onPull: suspend () -> Unit = {},
+    ) : com.riffle.core.data.ItemProgressPuller {
+        val calls = mutableListOf<Pair<String, String>>()
+        override suspend fun pullItem(sourceId: String, itemId: String) {
+            calls += sourceId to itemId
+            onPull()
+        }
+    }
+
+    private class RecordingEpubRepository(
+        private val outcome: EpubOpenResult,
+        private val onOpen: (() -> Unit)? = null,
+    ) : EpubRepository {
+        var openCalls = 0
+        override suspend fun openEpub(item: LibraryItem): EpubOpenResult {
+            openCalls++
+            onOpen?.invoke()
+            return outcome
+        }
+        override suspend fun downloadEpub(item: LibraryItem, onProgress: (Long, Long) -> Unit) =
+            error("not needed")
+        override suspend fun removeDownload(sourceId: String, itemId: String) {}
+        override fun isDownloaded(sourceId: String, itemId: String) = false
+        override fun isCached(sourceId: String, itemId: String) = false
+        override suspend fun saveReadingPosition(itemId: String, cfi: String) {}
+    }
+
     private fun makeLifecycle(
         openReconcileTargets: OpenReconcileTargets = OpenReconcileTargets(),
         libraryObserver: LibraryObserver = FakeLibraryObserver(
@@ -238,6 +267,7 @@ class ReaderSessionLifecycleTest {
         annotationStore: AnnotationStore = FakeAnnotationStore(),
         pub: Publication? = mockk(relaxed = true),
         cfiResolver: suspend (String) -> Locator? = { null },
+        itemProgressPuller: com.riffle.core.data.ItemProgressPuller = com.riffle.core.data.NoopItemProgressPuller,
     ): Pair<ReaderSessionLifecycle, OpenReconcileTargets> {
         val readerSyncFactory = mockk<com.riffle.app.feature.reader.ReaderSyncFactory>(relaxed = true).also {
             io.mockk.coEvery { it.createIfApplicable(any()) } returns null
@@ -257,7 +287,7 @@ class ReaderSessionLifecycleTest {
             readerSyncFactory = readerSyncFactory,
             annotationStore = annotationStore,
             logger = RecordingLogger(),
-            itemProgressPuller = com.riffle.core.data.NoopItemProgressPuller,
+            itemProgressPuller = itemProgressPuller,
         )
         return lifecycle to openReconcileTargets
     }
@@ -269,6 +299,50 @@ class ReaderSessionLifecycleTest {
     ) = ReaderSessionLifecycle.OpenParams(itemId, openAtCfi, startTocHref)
 
     // ── Tests ────────────────────────────────────────────────────────────────────────────
+
+    /**
+     * Load-bearing invariant for the "reader opens at old cfi then visibly jumps" fix: the puller
+     * MUST run BEFORE [EpubRepository.openEpub] loads the initial locator. Reversing the two
+     * would render the stale local cfi first and let the reconcile land after the first frame —
+     * exactly the flash we're eliminating.
+     */
+    @Test
+    fun `open invokes itemProgressPuller BEFORE epubRepository openEpub`() = runTest {
+        val order = mutableListOf<String>()
+        val puller = RecordingItemProgressPuller { order += "puller" }
+        val repo = RecordingEpubRepository(
+            EpubOpenResult.Success(epubFile = File("/tmp/dummy.epub"), lastPosition = null),
+            onOpen = { order += "openEpub" },
+        )
+        val (lifecycle, _) = makeLifecycle(epubRepository = repo, itemProgressPuller = puller)
+
+        lifecycle.open(params())
+
+        assertEquals(listOf("srv-abs" to "item-1"), puller.calls)
+        assertEquals(1, repo.openCalls)
+        assertEquals(listOf("puller", "openEpub"), order)
+    }
+
+    /**
+     * A slow/hung puller must not wedge the reader indefinitely — the lifecycle bounds the
+     * pre-open reconcile so the reader still opens (at the local locator) if the server never
+     * responds. Regression pin for the 1.5s timeout in `open()`.
+     */
+    @Test
+    fun `open proceeds after puller timeout instead of hanging the reader`() = runTest {
+        val slowPuller = RecordingItemProgressPuller {
+            kotlinx.coroutines.delay(60_000L)
+        }
+        val repo = RecordingEpubRepository(
+            EpubOpenResult.Success(epubFile = File("/tmp/dummy.epub"), lastPosition = null),
+        )
+        val (lifecycle, _) = makeLifecycle(epubRepository = repo, itemProgressPuller = slowPuller)
+
+        val outcome = lifecycle.open(params())
+
+        assertTrue(outcome is ReaderSessionLifecycle.OpenOutcome.Ready)
+        assertEquals(1, repo.openCalls)
+    }
 
     @Test
     fun `open returns Error when item is missing`() = runTest {
