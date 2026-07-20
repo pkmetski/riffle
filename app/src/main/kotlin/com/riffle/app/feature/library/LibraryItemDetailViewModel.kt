@@ -13,6 +13,7 @@ import com.riffle.core.domain.EpubDownloadResult
 import com.riffle.core.domain.EpubRepository
 import com.riffle.core.models.LibraryItem
 import com.riffle.core.domain.LibraryObserver
+import com.riffle.core.domain.LibraryRefresher
 import com.riffle.core.domain.PdfDownloadResult
 import com.riffle.core.domain.PdfRepository
 import com.riffle.core.domain.usecase.MarkReadAcrossDimensions
@@ -170,6 +171,7 @@ class LibraryItemDetailViewModel @Inject constructor(
     private val extractEpubTocUseCase: ExtractEpubTocUseCase,
     private val fetchAudiobookChaptersUseCase: FetchAudiobookChaptersUseCase,
     private val catalogRegistry: CatalogRegistry,
+    private val libraryRefresher: LibraryRefresher,
 ) : ViewModel() {
 
     private val itemId: String = savedStateHandle.get<String>("itemId") ?: ""
@@ -210,6 +212,18 @@ class LibraryItemDetailViewModel @Inject constructor(
         viewModelScope.launch {
             _currentPositionHref.value = epubRepository.loadLastPositionHref(item.sourceId, item.id)
         }
+    }
+
+    /**
+     * Called from the details screen's ON_RESUME. Pulls the item's server progress and mirrors
+     * it into `library_items.readingProgress` / `finishedAt` so the blue bar and % / remaining
+     * refresh when the user visits the details page — including the case of returning to details
+     * without going through the library grid (deep link, back from reader, app foreground).
+     */
+    fun refreshItemProgress() {
+        val ready = _uiState.value as? LibraryItemDetailUiState.Ready ?: return
+        val item = ready.item
+        viewModelScope.launch { libraryRefresher.refreshItemProgress(item.sourceId, item.id) }
     }
 
     var authToken: String by mutableStateOf("")

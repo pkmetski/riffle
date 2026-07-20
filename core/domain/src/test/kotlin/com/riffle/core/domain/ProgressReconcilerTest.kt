@@ -139,6 +139,48 @@ class ProgressReconcilerTest {
         assertEquals("local-cfi", store.position) // not overwritten by the server
     }
 
+    /**
+     * #528 device-clock-skew data-loss regression: a CLEAN row (localUpdatedAt == lastSyncedAt)
+     * whose local stamp happens to be numerically ABOVE the server's current lastUpdate must
+     * NEVER push local to server. Without this guard, the per-item puller invoked from reader-
+     * open would treat a stale local locator as authoritative and PATCH it over the server's
+     * fresh position saved by another device, silently downgrading the user's real progress.
+     * Matches [com.riffle.core.data.ReadingSessionRepositoryImpl.runSyncCycle]'s guard.
+     */
+    @Test
+    fun `clean row with local stamp ABOVE server stamp does NOT push (clock-skew guard)`() = runTest {
+        val store = FakeSyncStore(position = "stale-local-cfi", localUpdatedAt = 500L, lastSyncedAt = 500L)
+        val remote = FakeRemote(RemoteProgress("server-cfi", lastUpdate = 300L))
+
+        val outcome = ProgressReconciler(store).reconcile(SERVER, ITEM, remote)
+
+        assertEquals(ReconcileOutcome.InSync, outcome)
+        assertEquals("stale-local-cfi", store.position) // local NOT overwritten by server
+        assertEquals(0, remote.patchCalls) // AND server NOT overwritten by local (the data-loss bug)
+        assertFalse(store.dirty)
+    }
+
+    /**
+     * Complementary case to the clock-skew guard: a CLEAN row whose stamp equals the server's
+     * lastSyncedAt but where the server has since ADVANCED (a real cross-device push) must
+     * pull the server value. This is the fix for the reader-open flash — the puller relies on
+     * it to refresh the position store before the reader loads the initial locator.
+     */
+    @Test
+    fun `clean row pulls when server has advanced since last sync (cross-device push)`() = runTest {
+        val store = FakeSyncStore(position = "old-server-cfi", localUpdatedAt = 300L, lastSyncedAt = 300L)
+        val remote = FakeRemote(RemoteProgress("new-server-cfi", lastUpdate = 500L))
+
+        val outcome = ProgressReconciler(store).reconcile(SERVER, ITEM, remote)
+
+        assertEquals(ReconcileOutcome.ServerWon("new-server-cfi", 500L), outcome)
+        assertEquals("new-server-cfi", store.position)
+        assertEquals(500L, store.localUpdatedAt)
+        assertEquals(500L, store.lastSyncedAt)
+        assertFalse(store.dirty)
+        assertEquals(0, remote.patchCalls) // pull only, no push
+    }
+
     @Test
     fun `GET failure is offline - nothing is written and the row stays dirty`() = runTest {
         val store = FakeSyncStore(position = "local-cfi", localUpdatedAt = 300L, lastSyncedAt = 100L)
@@ -226,4 +268,89 @@ class ProgressReconcilerTest {
         assertEquals(42.0, remote.patchedWith)
         assertFalse(store.dirty)
     }
+
+    /**
+     * The library grid and detail view read `library_items.readingProgress` / `finishedAt`, not
+     * the position stores. Regression pin: after a ServerWon reconcile the UI sink MUST fire with
+     * the propagated fraction / finished stamp so the blue bar and % refresh without waiting for
+     * the reader to reopen and derive the fraction from the locator on close.
+     */
+    @Test
+    fun `ServerWon invokes the UI sink with the propagated fraction and finishedAt`() = runTest {
+        val store = FakeSyncStore(position = "local-cfi", localUpdatedAt = 100L, lastSyncedAt = 100L)
+        val remote = FakeRemote(
+            RemoteProgress(
+                position = "server-cfi",
+                lastUpdate = 200L,
+                readingProgress = 0.42f,
+                finishedAt = 200L,
+            ),
+        )
+        val sinkCalls = mutableListOf<Quad<String, String, Float, Long?>>()
+        val sink = UiProgressSink { s, i, p, f -> sinkCalls += Quad(s, i, p, f) }
+
+        val outcome = ProgressReconciler(store, sink).reconcile(SERVER, ITEM, remote)
+
+        assertEquals(ReconcileOutcome.ServerWon("server-cfi", 200L), outcome)
+        assertEquals(listOf(Quad(SERVER, ITEM, 0.42f, 200L)), sinkCalls)
+    }
+
+    /**
+     * The UI sink is the "server-wins mirror". A superseded ServerWon (local edit raced in mid-
+     * flight) means the local edit is authoritative — the sink must NOT overwrite the row's
+     * fraction/finishedAt with the older server view.
+     */
+    @Test
+    fun `Superseded ServerWon does NOT invoke the UI sink`() = runTest {
+        val store = FakeSyncStore(position = "local-cfi", localUpdatedAt = 100L, lastSyncedAt = 100L)
+        val remote = FakeRemote(
+            RemoteProgress(position = "server-cfi", lastUpdate = 200L, readingProgress = 0.42f),
+            onGet = { store.localUpdatedAt = 150L },
+        )
+        var sinkCalls = 0
+        val sink = UiProgressSink { _, _, _, _ -> sinkCalls++ }
+
+        val outcome = ProgressReconciler(store, sink).reconcile(SERVER, ITEM, remote)
+
+        assertEquals(ReconcileOutcome.Superseded, outcome)
+        assertEquals(0, sinkCalls)
+    }
+
+    /**
+     * The other non-ServerWon outcomes (LocalPushed, InSync, Offline, PushFailed) must also skip
+     * the UI sink — the sink is strictly "server has newer state, mirror it into UI columns".
+     */
+    @Test
+    fun `LocalPushed InSync Offline PushFailed all skip the UI sink`() = runTest {
+        var sinkCalls = 0
+        val sink = UiProgressSink { _, _, _, _ -> sinkCalls++ }
+
+        // LocalPushed
+        ProgressReconciler(
+            FakeSyncStore(position = "local", localUpdatedAt = 300L, lastSyncedAt = 100L),
+            sink,
+        ).reconcile(SERVER, ITEM, FakeRemote(RemoteProgress("srv", 200L), patchStamp = 305L))
+
+        // InSync (equal stamps)
+        ProgressReconciler(
+            FakeSyncStore(position = "cfi", localUpdatedAt = 200L, lastSyncedAt = 100L),
+            sink,
+        ).reconcile(SERVER, ITEM, FakeRemote(RemoteProgress("cfi", 200L)))
+
+        // Offline (GET returned null)
+        ProgressReconciler(
+            FakeSyncStore(position = "local", localUpdatedAt = 300L, lastSyncedAt = 100L),
+            sink,
+        ).reconcile(SERVER, ITEM, FakeRemote<String>(getResult = null))
+
+        // PushFailed (patch returned null)
+        ProgressReconciler(
+            FakeSyncStore(position = "local", localUpdatedAt = 300L, lastSyncedAt = 100L),
+            sink,
+        ).reconcile(SERVER, ITEM, FakeRemote(RemoteProgress("srv", 200L), patchStamp = null))
+
+        assertEquals(0, sinkCalls)
+    }
+
+    private data class Quad<A, B, C, D>(val a: A, val b: B, val c: C, val d: D)
 }

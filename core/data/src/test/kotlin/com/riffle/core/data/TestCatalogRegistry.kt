@@ -114,7 +114,7 @@ private object NoopAbsPlaybackApi : AbsPlaybackApi {
     ) = com.riffle.core.network.NetworkResult.Offline(RuntimeException("noop"))
 }
 
-private object NoopAbsSessionApi : AbsSessionApi {
+internal object NoopAbsSessionApi : AbsSessionApi {
     override suspend fun syncEbookProgress(
         baseUrl: String, libraryItemId: String,
         payload: com.riffle.core.network.NetworkEbookProgressPayload, token: String, insecureAllowed: Boolean,

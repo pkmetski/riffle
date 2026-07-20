@@ -49,6 +49,7 @@ class LibraryRepositoryImpl @Inject constructor(
     private val sourceRepository: SourceRepository,
     private val clock: Clock,
     private val logger: Logger,
+    private val dirtyProgressLedger: DirtyProgressLedger,
 ) : LibraryObserver, LibraryMutator, LibraryRefresher {
 
     @OptIn(ExperimentalCoroutinesApi::class)
@@ -266,24 +267,64 @@ class LibraryRepositoryImpl @Inject constructor(
             libraryItemDao.replaceAllForLibrary(source.id, libraryId, entities)
             // `replaceAllForLibrary.updateMetadata` intentionally preserves `readingProgress` on
             // existing rows so an offline reader-close save can't be clobbered by a stale library
-            // refresh. But an item can end up stuck at 0 forever when the initial `pullAllProgress`
-            // returned nothing for it (network flake, race with source install, or the source only
-            // recorded progress later) — the row is inserted with `readingProgress = 0`, and no
-            // subsequent refresh will fix it because `updateMetadata` skips the field. Adopt the
-            // server value here, gated on the PRE-refresh `lastOpenedAtMap` snapshot (updateMetadata
-            // has by now stamped lastOpenedAt from mergeLastOpenedAt, so we can't consult the DB).
-            // A row that was already opened locally on this device keeps its progress; a never-
-            // touched row adopts the server side (#528).
+            // refresh. But the library grid / detail view (`observeById`, `observeInProgress`,
+            // `observeFinished`, …) all read `library_items.readingProgress`, so a book whose
+            // server progress advanced on another device would never update visually until it was
+            // reopened locally. Adopt server `readingProgress` here for every row that is NOT
+            // locally dirty per [DirtyProgressLedger]: a dirty ebook or audio position row is the
+            // definitive signal that a local edit is pending push and MUST NOT be overwritten
+            // (the ADR 0030 sweep will resolve that row and mirror the result via UiProgressSink).
+            // A clean row's `library_items.readingProgress` equals the last synced server value,
+            // so overwriting it with the just-pulled server value is either identical (in sync)
+            // or an authoritative advancement from another device — never a regression. This
+            // supersedes the older `lastOpenedAt == null` gate (#528): "opened locally" is not
+            // proof of a pending local edit; only a dirty position row is.
+            val dirtyIds =
+                (dirtyProgressLedger.dirtyEbookItems(source.id) +
+                    dirtyProgressLedger.dirtyAudioItems(source.id)).toSet()
             for (item in items) {
+                if (item.id in dirtyIds) continue
                 val sp = serverProgressMap[item.id] ?: continue
-                if (sp.ebookProgress <= 0f) continue
-                if (lastOpenedAtMap[item.id] != null) continue
-                libraryItemDao.updateInitialReadingProgress(source.id, item.id, sp.ebookProgress)
+                libraryItemDao.updateReadingProgress(source.id, item.id, sp.ebookProgress)
             }
             val isUnsupported = entities.isNotEmpty() && entities.none { it.ebookFormat != EbookFormat.Unsupported.toStorageString() }
             libraryDao.setUnsupported(source.id, libraryId, isUnsupported)
             LibraryRefreshResult.Success
         }
+    }
+
+    override suspend fun refreshItemProgress(sourceId: String, itemId: String): LibraryRefreshResult {
+        val source = sourceRepository.getActive() ?: return LibraryRefreshResult.NoActiveServer
+        if (source.id != sourceId) return LibraryRefreshResult.NoActiveServer
+        val catalog = catalogRegistry.forSource(source) ?: return LibraryRefreshResult.NoActiveServer
+        if (source.type.isUnboundedCatalog) return LibraryRefreshResult.Success
+        val progressPeer = catalog as? ProgressPeerCapability ?: return LibraryRefreshResult.Success
+        val dirty = (dirtyProgressLedger.dirtyEbookItems(source.id) +
+            dirtyProgressLedger.dirtyAudioItems(source.id)).toSet()
+        if (itemId in dirty) return LibraryRefreshResult.Success
+        val sp = try {
+            progressPeer.pullProgress(itemId)
+        } catch (t: Throwable) {
+            logger.w(LogChannel.ProgressSync) {
+                "refreshItemProgress: pullProgress failed for source=${source.id} item=$itemId — " +
+                    "${t::class.simpleName}: ${t.message}"
+            }
+            return LibraryRefreshResult.NetworkError(t)
+        } ?: return LibraryRefreshResult.Success
+        // Single-item pullProgress doesn't apply the "audio → ebookProgress" fallback that
+        // pullAllProgress does (ABS ships `progress` on audio-only items, `ebookProgress = 0`),
+        // so derive the unified library fraction here (ADR 0029). isFinished pins to 1f to cover
+        // "server marks finished but audioCurrentTime slightly under duration" boundary.
+        val fraction = when {
+            sp.isFinished -> 1f
+            sp.ebookProgress > 0f -> sp.ebookProgress
+            sp.audioDuration > 0.0 -> (sp.audioCurrentTime / sp.audioDuration).toFloat().coerceIn(0f, 1f)
+            else -> 0f
+        }
+        val finishedAt = sp.finishedAt ?: sp.lastUpdate.takeIf { sp.isFinished }
+        libraryItemDao.updateReadingProgress(source.id, itemId, fraction)
+        libraryItemDao.updateFinishedAt(source.id, itemId, finishedAt)
+        return LibraryRefreshResult.Success
     }
 
     override suspend fun refreshSeries(libraryId: String): LibraryRefreshResult {

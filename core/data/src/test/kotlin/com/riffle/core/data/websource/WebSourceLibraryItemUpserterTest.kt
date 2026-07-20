@@ -284,12 +284,6 @@ class WebSourceLibraryItemUpserterTest {
             val row = rows[sourceId to itemId] ?: return
             rows[sourceId to itemId] = row.copy(readingProgress = progress)
         }
-        override suspend fun updateInitialReadingProgress(sourceId: String, itemId: String, progress: Float) {
-            val row = rows[sourceId to itemId] ?: return
-            if (row.readingProgress == 0f && row.lastOpenedAt == null) {
-                rows[sourceId to itemId] = row.copy(readingProgress = progress)
-            }
-        }
         override suspend fun updateLibraryId(sourceId: String, itemId: String, libraryId: String) { }
         override suspend fun updateFinishedAt(sourceId: String, itemId: String, finishedAt: Long?) { }
         override suspend fun getLastOpenedAtMap(sourceId: String, libraryId: String): List<LastOpenedAtRow> = emptyList()

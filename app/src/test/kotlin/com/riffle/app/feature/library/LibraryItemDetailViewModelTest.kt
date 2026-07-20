@@ -289,6 +289,7 @@ class LibraryItemDetailViewModelTest {
         extractEpubTocUseCase = extractEpubTocUseCase,
         fetchAudiobookChaptersUseCase = fetchAudiobookChaptersUseCase,
         catalogRegistry = catalogRegistryOverride,
+        libraryRefresher = com.riffle.app.testing.NoopLibraryRefresher,
     )
 
     // These tests exercise ViewModel state and side-effects; none read Ready.capabilities.

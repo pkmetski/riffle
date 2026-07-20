@@ -59,6 +59,7 @@ class ReaderSessionLifecycle @AssistedInject constructor(
     private val readerSyncFactory: ReaderSyncFactory,
     private val annotationStore: AnnotationStore,
     private val logger: Logger,
+    private val itemProgressPuller: com.riffle.core.data.ItemProgressPuller,
 ) {
 
     @AssistedFactory
@@ -93,6 +94,17 @@ class ReaderSessionLifecycle @AssistedInject constructor(
     suspend fun open(params: OpenParams): OpenOutcome {
         val item = libraryObserver.getItem(params.itemId)
             ?: return OpenOutcome.Error("Book not found")
+
+        // Refresh this book's server position BEFORE loading the initial locator so the reader
+        // opens at the fresh spot instead of rendering the old local cfi first and then visibly
+        // jumping when the in-reader sync cycle catches up. Bounded so a slow/unreachable server
+        // never blocks reader-open indefinitely — on timeout we proceed with the local locator,
+        // which the live sync cycle will then reconcile (the pre-fix behaviour).
+        // Runs BEFORE openReconcileTargets.markOpen (inside resolveReady) — otherwise the
+        // puller's `isOpen` guard would skip it.
+        kotlinx.coroutines.withTimeoutOrNull(1_500L) {
+            runCatching { itemProgressPuller.pullItem(item.sourceId, item.id) }
+        }
 
         return when (val result = epubRepository.openEpub(item)) {
             is EpubOpenResult.Success -> resolveReady(result, item.title, params)

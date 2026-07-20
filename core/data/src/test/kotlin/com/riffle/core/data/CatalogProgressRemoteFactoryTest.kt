@@ -226,4 +226,86 @@ class CatalogProgressRemoteFactoryTest {
         assertNull(audioRemote(peer).get())
         assertNull(audioRemote(peer).patch(10.0))
     }
+
+    // --- UI-progress propagation: the library grid and detail view read
+    // `library_items.readingProgress` / `finishedAt`. Regression pin for the sync-doesn't-refresh-
+    // library-UI bug: `get()` MUST populate `readingProgress` and `finishedAt` from the pulled
+    // CatalogProgress so the reconciler's UiProgressSink can mirror them into `library_items`.
+
+    @Test
+    fun `ebook get - propagates ebookProgress and finishedAt into RemoteProgress`() = runTest {
+        val peer = FakePeer(
+            progress = CatalogProgress(
+                itemId = "item-1",
+                ebookLocation = "epubcfi(/6/4!/4)",
+                ebookProgress = 0.73f,
+                isFinished = false,
+                finishedAt = null,
+                lastUpdate = 1700L,
+            ),
+        )
+        val translator = FakeTranslator(cfiResult = { locatorJson }, locatorResult = { it })
+        val read = ebookRemote(peer, translator).get()
+        assertEquals(0.73f, read?.readingProgress)
+        assertNull(read?.finishedAt)
+    }
+
+    @Test
+    fun `ebook get - isFinished with null finishedAt falls back to lastUpdate as the finished stamp`() = runTest {
+        val peer = FakePeer(
+            progress = CatalogProgress(
+                itemId = "item-1", ebookLocation = "epubcfi(/6/4!/4)",
+                ebookProgress = 1f, isFinished = true, finishedAt = null, lastUpdate = 1700L,
+            ),
+        )
+        val translator = FakeTranslator(cfiResult = { locatorJson }, locatorResult = { it })
+        val read = ebookRemote(peer, translator).get()
+        assertEquals(1f, read?.readingProgress)
+        assertEquals(1700L, read?.finishedAt)
+    }
+
+    @Test
+    fun `audio get - computes readingProgress fraction from currentTime and duration`() = runTest {
+        val peer = FakePeer(
+            progress = CatalogProgress(
+                itemId = "item-1",
+                audioCurrentTime = 900.0,
+                audioDuration = 3600.0,
+                isFinished = false,
+                lastUpdate = 1700L,
+            ),
+        )
+        val read = audioRemote(peer).get()
+        assertEquals(0.25f, read?.readingProgress)
+        assertNull(read?.finishedAt)
+    }
+
+    @Test
+    fun `audio get - isFinished forces readingProgress to 1f and stamps finishedAt`() = runTest {
+        val peer = FakePeer(
+            progress = CatalogProgress(
+                itemId = "item-1",
+                audioCurrentTime = 3599.0,
+                audioDuration = 3600.0,
+                isFinished = true,
+                finishedAt = 1750L,
+                lastUpdate = 1700L,
+            ),
+        )
+        val read = audioRemote(peer).get()
+        assertEquals(1f, read?.readingProgress)
+        assertEquals(1750L, read?.finishedAt)
+    }
+
+    @Test
+    fun `audio get - zero duration yields 0f fraction (no NaN)`() = runTest {
+        val peer = FakePeer(
+            progress = CatalogProgress(
+                itemId = "item-1", audioCurrentTime = 42.0, audioDuration = 0.0,
+                isFinished = false, lastUpdate = 1700L,
+            ),
+        )
+        val read = audioRemote(peer).get()
+        assertEquals(0f, read?.readingProgress)
+    }
 }

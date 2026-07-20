@@ -48,7 +48,12 @@ class CatalogEbookProgressRemote(
                 if (raw.isBlank()) "" else t.cfiToLocatorJson(raw) ?: return null
             }
         }
-        return RemoteProgress(locatorJson, r.lastUpdate)
+        return RemoteProgress(
+            position = locatorJson,
+            lastUpdate = r.lastUpdate,
+            readingProgress = r.ebookProgress,
+            finishedAt = r.finishedAt ?: r.lastUpdate.takeIf { r.isFinished },
+        )
     }
 
     override suspend fun patch(position: String): Long? {
@@ -89,7 +94,21 @@ class CatalogAudioProgressRemote(
 
     override suspend fun get(): RemoteProgress<Double>? {
         val r = runCatching { peer.pullProgress(itemId) }.getOrNull() ?: return null
-        return RemoteProgress(r.audioCurrentTime, r.lastUpdate)
+        // Single-item ABS pullProgress leaves `ebookProgress` at 0 for audio-only items (unlike
+        // pullAllProgress which folds `progress` into it — ADR 0029); derive from currentTime/
+        // duration here so an audio-only book's library-grid % reflects the just-pulled listen
+        // fraction. `isFinished` overrides to 1f in case duration is 0/absent on server payload.
+        val fraction = when {
+            r.isFinished -> 1f
+            r.audioDuration > 0.0 -> (r.audioCurrentTime / r.audioDuration).toFloat().coerceIn(0f, 1f)
+            else -> 0f
+        }
+        return RemoteProgress(
+            position = r.audioCurrentTime,
+            lastUpdate = r.lastUpdate,
+            readingProgress = fraction,
+            finishedAt = r.finishedAt ?: r.lastUpdate.takeIf { r.isFinished },
+        )
     }
 
     override suspend fun patch(position: Double): Long? =

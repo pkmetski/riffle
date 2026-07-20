@@ -40,6 +40,7 @@ object NoopLibraryRefresher : LibraryRefresher {
     override suspend fun refreshLibraryItems(libraryId: String) = LibraryRefreshResult.Success
     override suspend fun refreshSeries(libraryId: String) = LibraryRefreshResult.Success
     override suspend fun refreshCollections(libraryId: String) = LibraryRefreshResult.Success
+    override suspend fun refreshItemProgress(sourceId: String, itemId: String) = LibraryRefreshResult.Success
 }
 
 class NoopUpdateReadingProgress(

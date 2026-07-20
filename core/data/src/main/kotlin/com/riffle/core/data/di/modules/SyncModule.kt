@@ -53,6 +53,10 @@ abstract class SyncModule {
 
     @Binds
     @Singleton
+    abstract fun bindItemProgressPuller(impl: com.riffle.core.data.ReconcilingItemProgressPuller): com.riffle.core.data.ItemProgressPuller
+
+    @Binds
+    @Singleton
     abstract fun bindReadaloudLinkReconciler(impl: ReadaloudMatchingService): com.riffle.core.domain.ReadaloudLinkReconciler
 
     @Binds
@@ -75,12 +79,13 @@ abstract class SyncModule {
             audioStore: AudiobookPositionStoreImpl,
             bookmarkDao: com.riffle.core.database.AudiobookBookmarkDao,
             bookmarkReconciler: com.riffle.core.data.AudiobookBookmarkReconciler,
+            uiProgressSink: com.riffle.core.data.LibraryItemUiProgressSink,
         ): com.riffle.core.data.ProgressSweep =
             com.riffle.core.data.ProgressSweep(
                 ledger,
                 catalogRegistry,
-                com.riffle.core.domain.ProgressReconciler(ebookStore),
-                com.riffle.core.domain.ProgressReconciler(audioStore),
+                com.riffle.core.domain.ProgressReconciler(ebookStore, uiProgressSink),
+                com.riffle.core.domain.ProgressReconciler(audioStore, uiProgressSink),
                 remoteFactory, locks, openTargets,
                 // Bookmarks ride the sweep at the same cadence as positions: enumerate dirty
                 // (source, item) pairs straight off the bookmark DAO (ADR 0030, Task 12).

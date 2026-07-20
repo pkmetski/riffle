@@ -127,6 +127,11 @@ fun LibraryItemDetailScreen(
     LaunchedEffect(lifecycleOwner, viewModel) {
         lifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
             viewModel.reloadCurrentPositionHref()
+            // Pull server progress for THIS item so the blue bar / % refresh on every visit,
+            // even when the user reaches the details page without going through the library grid
+            // (deep link, back from reader). The library-grid ON_RESUME is a separate trigger and
+            // does not fire when only the details page is on screen.
+            viewModel.refreshItemProgress()
         }
     }
 

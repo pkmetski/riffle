@@ -257,6 +257,7 @@ class ReaderSessionLifecycleTest {
             readerSyncFactory = readerSyncFactory,
             annotationStore = annotationStore,
             logger = RecordingLogger(),
+            itemProgressPuller = com.riffle.core.data.NoopItemProgressPuller,
         )
         return lifecycle to openReconcileTargets
     }

@@ -151,17 +151,6 @@ interface LibraryItemDao {
     suspend fun updateReadingProgress(sourceId: String, itemId: String, progress: Float)
 
     /**
-     * Conditional variant used by [LibraryRepositoryImpl.refreshLibraryItems] to adopt the
-     * server's `readingProgress` on a later refresh when the row was initially inserted at 0
-     * (e.g. the first pullAllProgress missed it). The Kotlin-side caller gates on the pre-refresh
-     * `lastOpenedAt` snapshot; this SQL clause only guards against a concurrent reader-close race
-     * — a fresh non-zero local progress must not be clobbered even if it arrives between the
-     * pre-refresh map fetch and this UPDATE (#528).
-     */
-    @Query("UPDATE library_items SET readingProgress = :progress WHERE sourceId = :sourceId AND id = :itemId AND readingProgress = 0")
-    suspend fun updateInitialReadingProgress(sourceId: String, itemId: String, progress: Float)
-
-    /**
      * Retag a library item's [libraryId]. Used by the LocalFiles scanner so a book's compatibility
      * hint stays pointed at some *currently-configured* folder library — otherwise removing that
      * folder leaves the row naming a deleted [LibraryEntity]. Catalog queries for LocalFiles go
