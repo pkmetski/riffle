@@ -45,14 +45,16 @@ internal class ContinuousWindowController(
         // Window buffers were 3+3 (WINDOW_SIZE=7) with a recycled pool cap of WINDOW_SIZE, so
         // Continuous mode could hold up to 14 stacked ChapterWebViews with fully rasterized tiles
         // (setOffscreenPreRaster=true). On a 1 GB Android 7.1 tablet that is enough to trip the
-        // renderer heap and get the app killed with no crash trace. Cutting the live buffer to 2+2
-        // and the pool to 2 caps the ceiling at 7 WebViews — half the previous worst case — while
-        // still preserving a one-chapter buffer on each side for scroll smoothness.
+        // renderer heap and get the app killed with no crash trace. Cut first to 2+2, then to 1+1
+        // — the initial-land gate now waits for EVERY window chapter to measure, so each extra
+        // buffer chapter directly extends the cold-open spinner time (5 chapters at 1+1 → 3);
+        // one behind / one ahead is enough to hide the next chapter boundary from a scroll fling
+        // without paying for chapters two removed from the viewport.
         /** See [ContinuousReaderView.CHAPTERS_BEHIND]. */
-        private const val CHAPTERS_BEHIND = 2
+        private const val CHAPTERS_BEHIND = 1
 
         /** See [ContinuousReaderView.CHAPTERS_AHEAD]. */
-        private const val CHAPTERS_AHEAD = 2
+        private const val CHAPTERS_AHEAD = 1
 
         /** Total sliding-window size: the reader's chapter plus the behind/ahead buffers. */
         private const val WINDOW_SIZE = CHAPTERS_BEHIND + 1 + CHAPTERS_AHEAD
@@ -65,9 +67,14 @@ internal class ContinuousWindowController(
         /**
          * Grace period after a window (re)build before the initial scroll is forced to fire even if
          * not every required chapter has measured — so a slow/failed measurement can't strand the
-         * reader on a blank position.
+         * reader on a blank position. Sized to cover cold-open of the whole 3-chapter window on a
+         * low-memory Android 7.1 tablet, where 700 ms routinely elapsed before even the target
+         * chapter reported its real height. When the fallback wins, the initial land happens on
+         * placeholder-sum coordinates and later target-remeasures hard-scroll again — visible as
+         * content "reshuffling" during the load — so keeping it long enough that measurements win
+         * in the common case is worth the extra spinner time on very slow devices.
          */
-        private const val INITIAL_SCROLL_FALLBACK_MS = 700L
+        private const val INITIAL_SCROLL_FALLBACK_MS = 2500L
 
         /** How long after the initial land to override framework smooth-scroll restoration of a
          *  stale scrollY. */
@@ -136,6 +143,22 @@ internal class ContinuousWindowController(
 
     /** Parallel list to the loaded WebViews; index i matches container.getChildAt(i). */
     private val webViews = mutableListOf<ChapterWebView>()
+
+    /**
+     * Invoked exactly once, on the first reveal of the container after [initialize]. Wired from
+     * [ContinuousReaderView] to flip a Compose state used by [EpubReaderScreen] to overlay a
+     * loading spinner over the still-INVISIBLE container during the initial land. Not re-armed
+     * on subsequent [openWindowAt] rebuilds (cross-chapter jumps): those already run under
+     * `smoothTail = true` with a visible tween and would look worse under a full-screen spinner.
+     */
+    internal var onFirstLoadComplete: () -> Unit = {}
+    private var firstLoadComplete: Boolean = false
+
+    private fun notifyFirstLoadCompleteOnce() {
+        if (firstLoadComplete) return
+        firstLoadComplete = true
+        onFirstLoadComplete()
+    }
 
     /** Wired by [ContinuousReaderView.logger] from the reader ViewModel so decoration-path
      *  diagnostics land in the in-app debug screen (channel [LogChannel.ReaderDecoration]).
@@ -375,7 +398,14 @@ internal class ContinuousWindowController(
         pendingFocusAnnotationId = focusAnnotationId
         val totalChapters = initial.totalChapters
         pendingInitialMeasureIndices.clear()
-        pendingInitialMeasureIndices.addAll(0..targetWindowIndex)
+        // Wait for EVERY chapter in the initial window to report its real height, not just the
+        // target and the chapters above it. Chapters below the target start at a full-screen
+        // placeholder height and collapse when they measure; if the container is revealed before
+        // that happens, the LinearLayout re-lays out inside a visible viewport and on-screen
+        // siblings shift under the user's eye (there's no scroll compensation for i > 0 in
+        // `appendChapter.onHeightMeasured`). Gating the reveal on every window chapter's
+        // measurement pays that cost behind the still-INVISIBLE container instead.
+        pendingInitialMeasureIndices.addAll(0 until totalChapters)
         val targetHref = initialHref
         // Only the FIRST invocation of the pending-initial-scroll closure runs the smooth-tail
         // dance. Subsequent invocations from [reapplyLandingAfterFallback] on target-chapter
@@ -389,6 +419,7 @@ internal class ContinuousWindowController(
                     val slot = i?.let { buildWindow().getOrNull(it) }
                     if (i == null || slot == null) {
                         container.visibility = android.view.View.VISIBLE
+                        notifyFirstLoadCompleteOnce()
                         return@post
                     }
                     val y = when {
@@ -416,13 +447,17 @@ internal class ContinuousWindowController(
                         // partial animation from wherever the scroll had already advanced.
                         port.postOnAnimation {
                             container.visibility = android.view.View.VISIBLE
+                            notifyFirstLoadCompleteOnce()
                             port.smoothScrollTo(y)
                         }
                     } else {
                         port.scrollTo(y)
                         landingHoldTargetY = y
                         landingHoldUntilUptimeMs = android.os.SystemClock.uptimeMillis() + LANDING_HOLD_MS
-                        port.postOnAnimation { container.visibility = android.view.View.VISIBLE }
+                        port.postOnAnimation {
+                            container.visibility = android.view.View.VISIBLE
+                            notifyFirstLoadCompleteOnce()
+                        }
                     }
                 }
             }

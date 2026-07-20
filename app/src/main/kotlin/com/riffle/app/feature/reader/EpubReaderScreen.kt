@@ -2929,6 +2929,19 @@ private fun EpubNavigatorView(
                 },
                 modifier = readerModifier,
             )
+            // Cover the still-INVISIBLE container with a spinner during initial land. Continuous
+            // mode holds `container.visibility = INVISIBLE` from openWindowAt until every chapter
+            // in the initial window has measured (or the safety-net fallback fires), so without
+            // this overlay a cold open shows a blank reader for up to a few seconds on low-memory
+            // Android 7.1 devices where five cold WebViews are spinning up in parallel.
+            val continuousReaderForSpinner = continuousViewRef.value
+            if (continuousReaderForSpinner != null && !continuousReaderForSpinner.isFirstLoadComplete.value) {
+                CircularProgressIndicator(
+                    modifier = Modifier
+                        .align(Alignment.Center)
+                        .testTag("reader_loading"),
+                )
+            }
             // Key on the view ref: AndroidView.factory (which sets continuousViewRef) runs as a
             // layout-phase effect, while LaunchedEffect runs as a composition-phase effect — there
             // is no guaranteed order between the two on first composition. Keying on the ref means

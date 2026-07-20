@@ -151,6 +151,19 @@ internal class ContinuousReaderView @JvmOverloads constructor(
     val isInitialized = mutableStateOf(false)
 
     /**
+     * False from [initialize] until the container is first revealed with content landed at the
+     * initial position — i.e. every chapter in the initial window has measured (or the safety-net
+     * fallback fired). Observed by [EpubReaderScreen] to overlay a loading spinner during the
+     * still-INVISIBLE gap so the user doesn't see a blank reader while WebViews spin up on cold
+     * open. Not re-armed on cross-chapter jumps.
+     */
+    val isFirstLoadComplete = mutableStateOf(false)
+
+    init {
+        controller.onFirstLoadComplete = { isFirstLoadComplete.value = true }
+    }
+
+    /**
      * Wire this view to the coordinator's sinks. Must be called once, from
      * [ContinuousReaderCoordinator.attach], before any chapter is appended/prepended.
      */
