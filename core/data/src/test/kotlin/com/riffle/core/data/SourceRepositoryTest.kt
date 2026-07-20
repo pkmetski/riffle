@@ -133,6 +133,14 @@ class ServerRepositoryTest {
 
     private fun fakeFilesCleaner() = RecordingFilesCleaner()
 
+    private class RecordingSidecarCache : com.riffle.core.domain.ReadaloudSidecarCache {
+        val purgedSourceIds = mutableListOf<String>()
+        override fun cachedFile(storytellerSourceId: String, storytellerBookId: String): java.io.File? = null
+        override fun purgeSource(storytellerSourceId: String) { purgedSourceIds += storytellerSourceId }
+    }
+
+    private fun fakeSidecarCache() = RecordingSidecarCache()
+
     private fun fakeLibraryItemDao() = object : com.riffle.core.database.LibraryItemDao {
         val deletedLibraryIds = mutableListOf<String>()
         private val rows = mutableMapOf<String, MutableList<com.riffle.core.database.LibraryItemEntity>>()
@@ -200,7 +208,9 @@ class ServerRepositoryTest {
         libraryItemDao: com.riffle.core.database.LibraryItemDao,
         visibilityStore: LibraryVisibilityPreferencesStore,
         filesCleaner: SourceFilesCleaner,
+        sidecarCache: com.riffle.core.domain.ReadaloudSidecarCache = fakeSidecarCache(),
     ): SourceRepositoryImpl {
+        val sidecarCacheProvider = javax.inject.Provider { sidecarCache }
         // absApi/storytellerApi/libraryApi are still accepted so callers that don't hit the auth
         // path can leave them as `error`-throwing stubs unchanged. They're wired into the auth
         // helper below on demand.
@@ -227,6 +237,7 @@ class ServerRepositoryTest {
             libraryDao = libraryDao,
             libraryItemDao = libraryItemDao,
             filesCleaner = filesCleaner,
+            sidecarCache = sidecarCacheProvider,
             installer = installer,
             remoteUserIdResolvers = resolvers,
         )

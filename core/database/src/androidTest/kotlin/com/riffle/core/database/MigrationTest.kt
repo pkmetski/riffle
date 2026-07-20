@@ -1919,7 +1919,7 @@ class MigrationTest {
         }
 
         val db = helper.runMigrationsAndValidate(
-            TEST_DB, 57, true,
+            TEST_DB, 58, true,
             RiffleDatabase.MIGRATION_1_2,
             RiffleDatabase.MIGRATION_2_3,
             RiffleDatabase.MIGRATION_3_4,
@@ -1976,6 +1976,7 @@ class MigrationTest {
             RiffleDatabase.MIGRATION_54_55,
             RiffleDatabase.MIGRATION_55_56,
             RiffleDatabase.MIGRATION_56_57,
+            RiffleDatabase.MIGRATION_57_58,
         )
 
         db.query("SELECT url, username, serverType, absUserId, type FROM sources WHERE id = 's1'").use { cursor ->
@@ -2645,6 +2646,62 @@ class MigrationTest {
             assertEquals("EMPHASIS", c.getString(0))
             assertEquals("bold,underline", c.getString(1))
         }
+
+        db.close()
+    }
+
+    // Mirrors ABS playlists to Room so the Playlists tab is populated on cold start. Two new
+    // tables: `playlists` (parent, FK-cascade to sources) and `playlist_items` (join, FK-cascade
+    // to the composite (sourceId, id) on `playlists`; `orderIndex` preserves stable itemIds
+    // reconstruction). Pre-existing rows must survive; FK-cascade must wipe both tables on
+    // source removal — no dangling join rows.
+    @Test
+    fun migration57To58_addsPlaylistsTables() {
+        helper.createDatabase(TEST_DB, 57).apply {
+            execSQL(
+                "INSERT INTO sources (id, url, isActive, insecureConnectionAllowed, username, serverType, absUserId, type) " +
+                    "VALUES ('abs1', 'http://abs', 1, 0, '', 'AUDIOBOOKSHELF', NULL, 'ABS')"
+            )
+            close()
+        }
+        val db = helper.runMigrationsAndValidate(TEST_DB, 58, true, RiffleDatabase.MIGRATION_57_58)
+
+        // New tables start empty.
+        db.query("SELECT COUNT(*) FROM playlists").use { c ->
+            assertTrue(c.moveToFirst()); assertEquals(0, c.getInt(0))
+        }
+        db.query("SELECT COUNT(*) FROM playlist_items").use { c ->
+            assertTrue(c.moveToFirst()); assertEquals(0, c.getInt(0))
+        }
+
+        // Playlist + items insert exercises every column and the composite PK / ordering.
+        db.execSQL(
+            "INSERT INTO playlists (id, sourceId, rootId, name, bookCount) " +
+                "VALUES ('pl1', 'abs1', 'lib1', 'Weekend reading', 2)"
+        )
+        db.execSQL(
+            "INSERT INTO playlist_items (playlistId, sourceId, itemId, orderIndex) " +
+                "VALUES ('pl1', 'abs1', 'itemA', 0), ('pl1', 'abs1', 'itemB', 1)"
+        )
+        db.query(
+            "SELECT itemId FROM playlist_items WHERE playlistId = 'pl1' ORDER BY orderIndex ASC"
+        ).use { c ->
+            val ids = mutableListOf<String>()
+            while (c.moveToNext()) ids += c.getString(0)
+            assertEquals(listOf("itemA", "itemB"), ids)
+        }
+
+        // FK ON DELETE CASCADE: removing the source drops both playlists and playlist_items
+        // (the latter via the composite FK from playlist_items → playlists).
+        db.execSQL("PRAGMA foreign_keys=ON")
+        db.execSQL("DELETE FROM sources WHERE id = 'abs1'")
+        db.query("SELECT COUNT(*) FROM playlists").use { c ->
+            assertTrue(c.moveToFirst()); assertEquals(0, c.getInt(0))
+        }
+        db.query("SELECT COUNT(*) FROM playlist_items").use { c ->
+            assertTrue(c.moveToFirst()); assertEquals(0, c.getInt(0))
+        }
+
         db.close()
     }
 }

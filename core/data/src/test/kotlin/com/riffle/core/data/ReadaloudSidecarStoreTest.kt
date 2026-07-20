@@ -172,6 +172,60 @@ class ReadaloudSidecarStoreTest {
         assertEquals(ReadaloudSidecarStore.State.Failed, store.stateOf("srv", "42"))
     }
 
+    // --- purge on source removal ---
+
+    @Test
+    fun `purgeSource deletes only files owned by that source`() = testScope.runTest {
+        val store = store(fetcher { validSidecar })
+        val dir = java.io.File(tmp.root, "readaloud-sidecars").apply { mkdirs() }
+        // Two sources, three books total.
+        java.io.File(dir, "srv-1.epub").writeBytes(byteArrayOf(1, 2, 3))
+        java.io.File(dir, "srv-2.epub").writeBytes(byteArrayOf(1, 2, 3))
+        java.io.File(dir, "other-9.epub").writeBytes(byteArrayOf(1, 2, 3))
+
+        store.purgeSource("srv")
+
+        assertNull(store.cachedFile("srv", "1"))
+        assertNull(store.cachedFile("srv", "2"))
+        assertNotNull(store.cachedFile("other", "9"))
+    }
+
+    // --- LRU eviction ---
+
+    @Test
+    fun `enforceLruBudget evicts oldest files first once cap is exceeded`() = testScope.runTest {
+        val store = store(fetcher { validSidecar })
+        val dir = java.io.File(tmp.root, "readaloud-sidecars").apply { mkdirs() }
+        // Three 100-byte files with strictly-increasing mtimes. Cap of 250 must evict exactly one
+        // (the oldest) to bring total from 300 → 200.
+        val oldest = java.io.File(dir, "srv-1.epub").apply { writeBytes(ByteArray(100)) }
+        val middle = java.io.File(dir, "srv-2.epub").apply { writeBytes(ByteArray(100)) }
+        val newest = java.io.File(dir, "srv-3.epub").apply { writeBytes(ByteArray(100)) }
+        oldest.setLastModified(1_000)
+        middle.setLastModified(2_000)
+        newest.setLastModified(3_000)
+
+        val evicted = store.enforceLruBudget(capBytes = 250)
+
+        // Oldest goes first. Once we're back under cap, no more evictions.
+        assertEquals(setOf("srv-1"), evicted)
+        assertEquals(false, oldest.exists())
+        assertEquals(true, middle.exists())
+        assertEquals(true, newest.exists())
+    }
+
+    @Test
+    fun `enforceLruBudget is a no-op when total is under cap`() = testScope.runTest {
+        val store = store(fetcher { validSidecar })
+        val dir = java.io.File(tmp.root, "readaloud-sidecars").apply { mkdirs() }
+        java.io.File(dir, "srv-1.epub").writeBytes(ByteArray(50))
+        java.io.File(dir, "srv-2.epub").writeBytes(ByteArray(50))
+
+        val evicted = store.enforceLruBudget(capBytes = 1_000)
+
+        assertEquals(emptySet<String>(), evicted)
+    }
+
     // --- helpers ---
 
     private fun zipOf(vararg entries: Pair<String, ByteArray>): ByteArray {

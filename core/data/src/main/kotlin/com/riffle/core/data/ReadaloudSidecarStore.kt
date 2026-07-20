@@ -89,7 +89,7 @@ class ReadaloudSidecarStore private constructor(
         // Ready and prepare() a no-op, so streaming always fails. Deleting forces a fresh fetch.
         scope.launch {
             dir().listFiles().orEmpty()
-                .filter { it.isFile && it.extension == "epub" && it.length() > 0 }
+                .filter { it.isFile && it.extension == SIDECAR_EXTENSION && it.length() > 0 }
                 .forEach { file ->
                     val hasClips = runCatching {
                         MediaOverlayReader.readTrack(file).clips.isNotEmpty()
@@ -98,6 +98,7 @@ class ReadaloudSidecarStore private constructor(
                         file.delete()
                     }
                 }
+            enforceLruBudget()
         }
     }
 
@@ -108,10 +109,10 @@ class ReadaloudSidecarStore private constructor(
     /** Per-book prepare states, keyed by [key]. A book is also implicitly [State.Ready] when [cachedFile] exists. */
     val states: StateFlow<Map<String, State>> = _states
 
-    fun key(storytellerSourceId: String, storytellerBookId: String) = "$storytellerSourceId-$storytellerBookId"
+    fun key(storytellerSourceId: String, storytellerBookId: String) = "$storytellerSourceId$KEY_SEPARATOR$storytellerBookId"
 
-    private fun dir(): File = File(cacheRootDir(), "readaloud-sidecars").apply { mkdirs() }
-    private fun fileFor(sourceId: String, bookId: String) = File(dir(), "${key(sourceId, bookId)}.epub")
+    private fun dir(): File = File(cacheRootDir(), SIDECAR_DIR_NAME).apply { mkdirs() }
+    private fun fileFor(sourceId: String, bookId: String) = File(dir(), "${key(sourceId, bookId)}.$SIDECAR_EXTENSION")
 
     /** The cached sidecar if it's already on disk — never triggers a fetch. */
     override fun cachedFile(storytellerSourceId: String, storytellerBookId: String): File? =
@@ -163,6 +164,7 @@ class ReadaloudSidecarStore private constructor(
                 when (val result = fetcher.fetch(source.url.value, storytellerBookId, token, source.insecureConnectionAllowed)) {
                     is StorytellerSidecarFetcher.FetchResult.Success -> {
                         file = fileFor(storytellerSourceId, storytellerBookId).apply { writeBytes(result.bytes) }
+                        enforceLruBudget()
                         break
                     }
                     // Book definitively has no SMIL — no point retrying until Storyteller aligns it.
@@ -184,13 +186,13 @@ class ReadaloudSidecarStore private constructor(
     /** A prepared sidecar on disk — surfaced in the Downloads screen so the user can see/clear it. */
     data class CachedSidecar(val storytellerSourceId: String, val storytellerBookId: String, val sizeBytes: Long)
 
-    /** All cached sidecars. The filename is `<storytellerSourceId>-<storytellerBookId>.epub`; the book id
-     *  is numeric (no hyphens), so the last hyphen splits it from the (UUID) server id. */
+    /** All cached sidecars. The filename is `<storytellerSourceId><KEY_SEPARATOR><storytellerBookId>.<SIDECAR_EXTENSION>`;
+     *  the book id is numeric (no [KEY_SEPARATOR]), so the last separator splits it from the (UUID) server id. */
     fun listCached(): List<CachedSidecar> =
-        dir().listFiles().orEmpty().filter { it.isFile && it.extension == "epub" && it.length() > 0 }.mapNotNull { f ->
+        dir().listFiles().orEmpty().filter { it.isFile && it.extension == SIDECAR_EXTENSION && it.length() > 0 }.mapNotNull { f ->
             val name = f.nameWithoutExtension
-            val sourceId = name.substringBeforeLast('-', "")
-            val bookId = name.substringAfterLast('-', "")
+            val sourceId = name.substringBeforeLast(KEY_SEPARATOR, "")
+            val bookId = name.substringAfterLast(KEY_SEPARATOR, "")
             if (sourceId.isEmpty() || bookId.isEmpty()) null else CachedSidecar(sourceId, bookId, f.length())
         }
 
@@ -206,10 +208,61 @@ class ReadaloudSidecarStore private constructor(
         _states.value = emptyMap()
     }
 
+    /**
+     * Deletes every cached sidecar belonging to [storytellerSourceId]. Called from the source-removal
+     * path so a re-added source doesn't inherit stale sidecars keyed to its previous id, and so the
+     * cache dir doesn't retain files whose owning source no longer exists.
+     */
+    override fun purgeSource(storytellerSourceId: String) {
+        val prefix = "$storytellerSourceId$KEY_SEPARATOR"
+        dir().listFiles().orEmpty()
+            .filter { it.isFile && it.extension == SIDECAR_EXTENSION && it.name.startsWith(prefix) }
+            .forEach { it.delete() }
+        _states.value = _states.value.filterKeys { !it.startsWith(prefix) }
+    }
+
+    /**
+     * Evicts oldest sidecars until the on-disk footprint is within [capBytes]. Oldest is ordered by
+     * [File.lastModified]; on a successful write the just-written file has the newest mtime, so it
+     * is only evicted if a single sidecar exceeds the cap (which shouldn't happen since the
+     * streaming fetcher keeps only the ~1 MB non-audio prefix). Returns the set of evicted keys
+     * (the base filename without extension) for test assertions and internal state cleanup.
+     */
+    internal fun enforceLruBudget(capBytes: Long = MAX_CACHE_BYTES): Set<String> {
+        val files = dir().listFiles().orEmpty()
+            .filter { it.isFile && it.extension == SIDECAR_EXTENSION && it.length() > 0 }
+        var total = files.sumOf { it.length() }
+        if (total <= capBytes) return emptySet()
+        val evicted = mutableSetOf<String>()
+        files.sortedBy { it.lastModified() }.forEach { file ->
+            if (total <= capBytes) return@forEach
+            val size = file.length()
+            if (file.delete()) {
+                total -= size
+                evicted += file.nameWithoutExtension
+            }
+        }
+        if (evicted.isNotEmpty()) {
+            _states.value = _states.value.filterKeys { it !in evicted }
+        }
+        return evicted
+    }
+
     private companion object {
         // 3 retries (4 total attempts). Each attempt is bounded by sidecarStreamClient's callTimeout(240s).
         // Backoff covers transient server load; the dominant cost per attempt is the 240s network timeout.
         const val MAX_RETRIES = 3
         val RETRY_BACKOFF_MS = longArrayOf(30_000L, 60_000L, 120_000L)
+        // 200 MB cap. A sidecar is the ~1 MB non-audio prefix, so this comfortably holds 100+ books
+        // before eviction kicks in — enough that no realistic session hits the ceiling, but bounded
+        // enough that a rarely-cleaned-cache install doesn't grow indefinitely.
+        const val MAX_CACHE_BYTES: Long = 200L * 1024L * 1024L
+        // Filename shape is `<sourceId><KEY_SEPARATOR><bookId>.<SIDECAR_EXTENSION>`. The extension
+        // is .epub because the sidecar is an EPUB container carrying only the SMIL + text prefix
+        // (no audio). Both are referenced from the cache-dir name and every listFiles filter, so
+        // they live here rather than as inline literals — a rename can then land in one place.
+        const val SIDECAR_EXTENSION: String = "epub"
+        const val SIDECAR_DIR_NAME: String = "readaloud-sidecars"
+        const val KEY_SEPARATOR: String = "-"
     }
 }

@@ -188,4 +188,23 @@ class GitHubReleaseApiTest {
         assertFalse(ok)
         assertFalse(dest.exists())
     }
+
+    // Regression: verified on AVD that GitHub sends `Cache-Control: max-age=60` on its releases
+    // response, so without FORCE_NETWORK on the request the shared default OkHttp cache serves the
+    // previous response for up to 60s — silently no-op'ing a re-tap of the Settings "Check for
+    // updates" button. The manual button's contract is "check now", so every call must bypass any
+    // cached copy. If someone drops the .cacheControl(FORCE_NETWORK) line, this test flips red.
+    @Test
+    fun `latestRelease request opts out of the cache with no-cache no-store`() = runTest {
+        server.enqueue(MockResponse().setBody("[]"))
+
+        api.latestRelease("pkmetski/riffle")
+
+        val recorded = server.takeRequest()
+        val cc = recorded.getHeader("Cache-Control").orEmpty()
+        assertTrue(
+            "expected FORCE_NETWORK (no-cache) on the request, got '$cc'",
+            cc.contains("no-cache")
+        )
+    }
 }

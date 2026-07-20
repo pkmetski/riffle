@@ -7,6 +7,7 @@ import com.riffle.core.database.LibraryItemDao
 import com.riffle.core.database.SourceDao
 import com.riffle.core.domain.CommitSourceResult
 import com.riffle.core.domain.PendingSource
+import com.riffle.core.domain.ReadaloudSidecarCache
 import com.riffle.core.domain.RemoteUserIdResolver
 import com.riffle.core.models.Source
 import com.riffle.core.domain.SourceFilesCleaner
@@ -20,6 +21,7 @@ import com.riffle.core.network.AbsServerInfoApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import javax.inject.Inject
+import javax.inject.Provider
 
 class SourceRepositoryImpl @Inject constructor(
     private val dao: SourceDao,
@@ -28,6 +30,11 @@ class SourceRepositoryImpl @Inject constructor(
     private val libraryDao: LibraryDao,
     private val libraryItemDao: LibraryItemDao,
     private val filesCleaner: SourceFilesCleaner,
+    // Provider (not direct injection) breaks the SourceRepository ↔ ReadaloudSidecarStore Hilt
+    // cycle: the sidecar store needs SourceRepository to look up per-source credentials, and the
+    // repository needs the cache to purge on source removal. Lazy resolution here means the store
+    // is only constructed on the removal path — long after graph resolution has settled.
+    private val sidecarCache: Provider<ReadaloudSidecarCache>,
     private val installer: CredentialedSourceInstaller,
     private val remoteUserIdResolvers: Map<SourceType, @JvmSuppressWildcards RemoteUserIdResolver>,
 ) : SourceRepository {
@@ -71,6 +78,9 @@ class SourceRepositoryImpl @Inject constructor(
         // The file stores live outside Room, so the FK cascade above doesn't touch them — purge the
         // Source's downloaded/cached files here so they don't leak on disk after removal.
         filesCleaner.deleteAllForSource(sourceId)
+        // Readaloud sidecars live in the app cacheDir and are keyed to the storyteller source id;
+        // a re-added source shouldn't inherit sidecars from its predecessor.
+        sidecarCache.get().purgeSource(sourceId)
     }
 
     override suspend fun getSourceVersion(sourceId: String): String? {

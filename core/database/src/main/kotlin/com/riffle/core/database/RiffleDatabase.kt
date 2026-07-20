@@ -31,8 +31,10 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         LocalFilesFileEntity::class,
         LocalFilesFileFolderEntity::class,
         RemoteItemFreshnessEntity::class,
+        PlaylistEntity::class,
+        PlaylistItemEntity::class,
     ],
-    version = 57,
+    version = 58,
     exportSchema = true,
 )
 abstract class RiffleDatabase : RoomDatabase() {
@@ -58,6 +60,7 @@ abstract class RiffleDatabase : RoomDatabase() {
     abstract fun localFilesFileDao(): LocalFilesFileDao
     abstract fun localFilesFileFolderDao(): LocalFilesFileFolderDao
     abstract fun remoteItemFreshnessDao(): RemoteItemFreshnessDao
+    abstract fun playlistDao(): PlaylistDao
 
     companion object {
         val MIGRATION_1_2 = object : Migration(1, 2) {
@@ -1581,6 +1584,41 @@ abstract class RiffleDatabase : RoomDatabase() {
         val MIGRATION_56_57 = object : Migration(56, 57) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("ALTER TABLE `annotations` ADD COLUMN `emphasisStyles` TEXT DEFAULT NULL")
+            }
+        }
+
+        // Mirrors ABS playlists to Room (previously a MutableStateFlow) so the Playlists tab is
+        // populated on cold start without waiting for the first refresh. Shape mirrors collections:
+        // `playlists` FK-cascades from `sources`, `playlist_items` FK-cascades from the composite
+        // (sourceId, id) on `playlists` and stores `orderIndex` for stable itemIds reconstruction.
+        val MIGRATION_57_58 = object : Migration(57, 58) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `playlists` (" +
+                        "`id` TEXT NOT NULL, " +
+                        "`sourceId` TEXT NOT NULL, " +
+                        "`rootId` TEXT NOT NULL, " +
+                        "`name` TEXT NOT NULL, " +
+                        "`bookCount` INTEGER NOT NULL, " +
+                        "PRIMARY KEY(`sourceId`, `id`), " +
+                        "FOREIGN KEY(`sourceId`) REFERENCES `sources`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE)"
+                )
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_playlists_sourceId` ON `playlists` (`sourceId`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_playlists_rootId` ON `playlists` (`rootId`)")
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `playlist_items` (" +
+                        "`playlistId` TEXT NOT NULL, " +
+                        "`sourceId` TEXT NOT NULL, " +
+                        "`itemId` TEXT NOT NULL, " +
+                        "`orderIndex` INTEGER NOT NULL, " +
+                        "PRIMARY KEY(`playlistId`, `sourceId`, `itemId`), " +
+                        "FOREIGN KEY(`sourceId`, `playlistId`) REFERENCES `playlists`(`sourceId`, `id`) " +
+                        "ON UPDATE NO ACTION ON DELETE CASCADE)"
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS `index_playlist_items_sourceId_playlistId` " +
+                        "ON `playlist_items` (`sourceId`, `playlistId`)"
+                )
             }
         }
     }

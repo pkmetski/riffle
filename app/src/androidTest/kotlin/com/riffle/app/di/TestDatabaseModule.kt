@@ -21,6 +21,7 @@ import com.riffle.core.database.ReadaloudDismissalDao
 import com.riffle.core.database.ReadaloudLinkDao
 import com.riffle.core.database.ReadaloudResumePositionDao
 import com.riffle.core.database.ReadingPositionDao
+import com.riffle.core.database.PlaylistDao
 import com.riffle.core.database.RemoteItemFreshnessDao
 import com.riffle.core.database.RiffleDatabase
 import com.riffle.core.database.SeriesDao
@@ -145,4 +146,8 @@ object TestDatabaseModule {
     @Singleton
     fun provideRemoteItemFreshnessDao(db: RiffleDatabase): RemoteItemFreshnessDao =
         db.remoteItemFreshnessDao()
+
+    @Provides
+    @Singleton
+    fun providePlaylistDao(db: RiffleDatabase): PlaylistDao = db.playlistDao()
 }
