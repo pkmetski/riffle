@@ -1,6 +1,7 @@
 package com.riffle.app.feature.reader
 
 import android.net.FakeUri
+import com.riffle.core.models.EmphasisStyle
 import com.riffle.core.models.HighlightColor
 import com.riffle.core.domain.SentenceQuote
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -86,6 +87,7 @@ class ContinuousHighlightRendererTest {
         before: String? = null,
         after: String? = null,
         useAccentBarStyle: Boolean = false,
+        emphasisStyles: Set<EmphasisStyle> = emptySet(),
     ) = EpubReaderViewModel.HighlightRender(
         id = id,
         locator = Locator(
@@ -96,6 +98,7 @@ class ContinuousHighlightRendererTest {
         color = color,
         note = note,
         useAccentBarStyle = useAccentBarStyle,
+        emphasisStyles = emphasisStyles,
     )
 
     /** Creates a [Locator] with href and text highlight, suitable for search result tests. */
@@ -266,6 +269,39 @@ class ContinuousHighlightRendererTest {
         renderer.applyAnnotations(renders)
         val ann = fakeTarget.appliedAnnotations.single().values.single().single()
         assertEquals(HighlightColor.fromToken("yellow").argb.toCssRgba(), ann.cssColor)
+    }
+
+    // Regression (ADR 0046 §4): the `∅` (remove-colour) picker persists `color = ""` on the
+    // annotation. `HighlightColor.fromToken("")` falls back to YELLOW, so passing the empty
+    // token through the palette map would repaint the mark yellow — the "removing color keeps
+    // it yellow" bug in continuous mode. Empty colour MUST resolve to transparent so the mark
+    // stays tappable but paints nothing (matching paginated mode's transparent decoration).
+    @Test
+    fun `applyAnnotations emits transparent cssColor when color is empty (remove-color)`() = runTest {
+        val renders = listOf(
+            makeRender("h1", "ch1.xhtml", "text one", color = ""),
+        )
+        renderer.applyAnnotations(renders)
+        val ann = fakeTarget.appliedAnnotations.single().values.single().single()
+        assertEquals(ContinuousHighlightRenderer.ACCENT_BAR_TRANSPARENT_CSS, ann.cssColor)
+    }
+
+    // Regression (ADR 0046): continuous mode had no emphasis path at all before this fix — the
+    // `emphasisStyles` field on HighlightRender was silently dropped and applying B/I/U/S did
+    // nothing on-page. Pin the pass-through so a regression that stops threading the set will
+    // flip red (any single style suffices as the smoke assertion).
+    @Test
+    fun `applyAnnotations threads emphasisStyles through to AnnotationHighlight`() = runTest {
+        val renders = listOf(
+            makeRender(
+                "h1", "ch1.xhtml", "text one",
+                color = "yellow",
+                emphasisStyles = setOf(EmphasisStyle.BOLD, EmphasisStyle.UNDERLINE),
+            ),
+        )
+        renderer.applyAnnotations(renders)
+        val ann = fakeTarget.appliedAnnotations.single().values.single().single()
+        assertEquals(setOf(EmphasisStyle.BOLD, EmphasisStyle.UNDERLINE), ann.emphasisStyles)
     }
 
     // ---- applyNoteGlyphs (no-op) --------------------------------------------

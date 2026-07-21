@@ -9,6 +9,7 @@ import android.widget.OverScroller
 import androidx.compose.runtime.mutableStateOf
 import androidx.core.widget.NestedScrollView
 import com.riffle.core.domain.FormattingPreferences
+import com.riffle.core.models.EmphasisStyle
 import org.readium.r2.shared.publication.Link
 import org.readium.r2.shared.publication.Publication
 import kotlin.math.abs
@@ -38,6 +39,14 @@ internal data class AnnotationHighlight(
      * explicitly disallows.
      */
     val suppressMarkClick: Boolean = false,
+    /**
+     * ADR 0046: union of typographic styles (bold / italic / underline / strike) that layer onto
+     * this annotation's range. Rendered as inline CSS on the injected `<mark>` — continuous mode
+     * owns the DOM directly, so unlike paginated (which stacks a companion Readium decoration for
+     * underline/strike and a DOM-wrap script for bold/italic) all four styles live on the mark.
+     * Empty when no emphasis is layered.
+     */
+    val emphasisStyles: Set<EmphasisStyle> = emptySet(),
 )
 
 internal class ContinuousReaderView @JvmOverloads constructor(

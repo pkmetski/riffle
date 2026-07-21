@@ -3,6 +3,7 @@ package com.riffle.app.feature.reader
 import com.riffle.core.domain.FormattingPreferences
 import com.riffle.core.domain.ReaderFontFamily
 import com.riffle.core.domain.ReaderTheme
+import com.riffle.core.models.EmphasisStyle
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -533,6 +534,112 @@ class ContinuousStyleInjectorTest {
     fun `carriage returns in text are escaped as backslash-r`() {
         val js = applyJs(AnnotationHighlight("ann1", "cr\rtext", "#000"))
         assertTrue(js.contains("\\r"))
+    }
+
+    // ── applyAnnotationHighlightsJs — ADR 0046 emphasis ─────────────────────
+    // Continuous mode had NO emphasis rendering before this fix: applying B/I/U/S in the
+    // highlight sheet did nothing on-page. The renderer now emits an `e:` field carrying the
+    // comma-separated tokens, and the injected JS composes an `emphasisStyle()` suffix that
+    // is appended to every mark's cssText. Each of the four styles below pins one specific
+    // declaration so a regression that drops the suffix (or omits a token) flips exactly one
+    // assertion red.
+
+    @Test
+    fun `annotation without emphasis emits empty e field`() {
+        val js = applyJs(AnnotationHighlight("id", "text", "#000"))
+        assertTrue("empty emphasis field", js.contains("e:''"))
+    }
+
+    @Test
+    fun `annotation with bold emphasis emits bold token in e field`() {
+        val js = applyJs(
+            AnnotationHighlight("id", "text", "#000", emphasisStyles = setOf(EmphasisStyle.BOLD))
+        )
+        assertTrue("bold token", js.contains("e:'bold'"))
+    }
+
+    @Test
+    fun `annotation with multiple styles emits enum-order comma-separated tokens`() {
+        // EmphasisStyle.encode joins in enum-declaration order (BOLD,ITALIC,UNDERLINE,STRIKE)
+        // so identical sets round-trip to identical strings — pin the ordering here so a
+        // regression that sorts alphabetically or by insertion order flips red.
+        val js = applyJs(
+            AnnotationHighlight(
+                "id", "text", "#000",
+                emphasisStyles = setOf(EmphasisStyle.UNDERLINE, EmphasisStyle.BOLD),
+            )
+        )
+        assertTrue("enum-ordered tokens", js.contains("e:'bold,underline'"))
+    }
+
+    @Test
+    fun `emphasisStyle JS helper is injected once per script`() {
+        // The helper closure is what actually paints emphasis on each mark — its presence is
+        // the load-bearing part of the fix. Without it, `emphasisStyle(ann.e)` is undefined
+        // and the mark.style.cssText assignment throws (silently killing the whole per-chapter
+        // annotation apply).
+        val js = applyJs(AnnotationHighlight("id", "text", "#000"))
+        assertTrue("helper declared", js.contains("var emphasisStyle = function(e)"))
+    }
+
+    @Test
+    fun `emphasisStyle helper maps bold token to font-weight bold important`() {
+        val js = applyJs(AnnotationHighlight("id", "text", "#000"))
+        assertTrue(
+            "bold branch present with !important",
+            js.contains("s += 'font-weight:bold !important;'"),
+        )
+    }
+
+    @Test
+    fun `emphasisStyle helper maps italic token to font-style italic important`() {
+        val js = applyJs(AnnotationHighlight("id", "text", "#000"))
+        assertTrue(
+            "italic branch present with !important",
+            js.contains("s += 'font-style:italic !important;'"),
+        )
+    }
+
+    @Test
+    fun `emphasisStyle helper combines underline and strike into single text-decoration`() {
+        // CSS's `text-decoration: underline line-through` renders both lines on the same
+        // element; two separate declarations would overwrite each other so a mark with both
+        // styles must combine them.
+        val js = applyJs(AnnotationHighlight("id", "text", "#000"))
+        assertTrue("underline branch appends underline", js.contains("deco += ' underline'"))
+        assertTrue("strike branch appends line-through", js.contains("deco += ' line-through'"))
+        assertTrue(
+            "combined declaration emitted with !important",
+            js.contains("s += 'text-decoration:' + deco.substring(1) + ' !important;'"),
+        )
+    }
+
+    @Test
+    fun `new-mark cssText appends emphasisStyle suffix`() {
+        // Regression: without this suffix, applying B/I/U/S on a new highlight in continuous
+        // mode has zero visible effect. Pinning the exact assignment shape so a partial
+        // revert (e.g. keeping the payload field but dropping the suffix) still fails.
+        val js = applyJs(AnnotationHighlight("id", "text", "#000"))
+        assertTrue(
+            "new-mark cssText concatenates emphasisStyle(ann.e)",
+            js.contains(
+                "mark.style.cssText = 'background:' + ann.c + ' !important;color:inherit;' + emphasisStyle(ann.e);"
+            ),
+        )
+    }
+
+    @Test
+    fun `existing-mark cssText also appends emphasisStyle suffix`() {
+        // The in-place update path handles emphasis TOGGLES on already-wrapped highlights
+        // (bold → bold+italic without re-locating the range). If it drops the suffix, toggling
+        // emphasis on an existing highlight silently no-ops until a full re-decorate.
+        val js = applyJs(AnnotationHighlight("id", "text", "#000"))
+        assertTrue(
+            "existing-mark recolor concatenates emphasisStyle(ann.e)",
+            js.contains(
+                "m.style.cssText = 'background:' + ann.c + ' !important;color:inherit;' + emphasisStyle(ann.e);"
+            ),
+        )
     }
 
     // ── applyAnnotationHighlightsJs — DOM logic ──────────────────────────────

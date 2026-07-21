@@ -79,7 +79,14 @@ internal class ContinuousHighlightRenderer(
                         // don't paint. Emit a transparent background instead — the mark stays only
                         // to satisfy annotation locator resolution; tap dispatch is owned by the
                         // accent-bar span baked into the synthesised HTML.
-                        cssColor = if (h.useAccentBarStyle) {
+                        //
+                        // ADR 0046 §4: the `∅` (no colour) pick also emits a transparent
+                        // background. Without this branch, `HighlightColor.fromToken("")` falls
+                        // back to YELLOW and the mark keeps painting yellow after the user removed
+                        // the colour — the exact bug that "removing color keeps it yellow"
+                        // triggers in continuous mode. The mark is retained (never dropped) so
+                        // layered emphasis and tap-to-edit still work on a colourless annotation.
+                        cssColor = if (h.useAccentBarStyle || h.color.isEmpty()) {
                             ACCENT_BAR_TRANSPARENT_CSS
                         } else {
                             HighlightColor.fromToken(h.color).argb.toCssRgba()
@@ -91,6 +98,7 @@ internal class ContinuousHighlightRenderer(
                         // span baked into the synthesised HTML owns tap dispatch. See
                         // AnnotationHighlight.suppressMarkClick.
                         suppressMarkClick = h.useAccentBarStyle,
+                        emphasisStyles = h.emphasisStyles,
                     )
                 }
             }
