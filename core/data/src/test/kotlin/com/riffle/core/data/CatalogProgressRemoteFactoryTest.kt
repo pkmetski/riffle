@@ -308,4 +308,47 @@ class CatalogProgressRemoteFactoryTest {
         val read = audioRemote(peer).get()
         assertEquals(0f, read?.readingProgress)
     }
+
+    /**
+     * Regression pin for the "ebook % gets clobbered to 0 on reader open" data-loss bug:
+     * AbsCatalog implements BOTH ProgressPeerCapability and AudiobookProgressPeerCapability, so
+     * for an ebook-only book the audio remote is also invoked. Its pullProgress returns
+     * audioCurrentTime=0, audioDuration=0, isFinished=false — nothing meaningful for an audio
+     * dimension that doesn't exist. Returning a non-null RemoteProgress here would trip the
+     * reconciler's ServerWon branch on the empty audiobook_positions row and fire UiSink with
+     * fraction=0, overwriting the ebook remote's just-written readingProgress. The get() gate
+     * MUST return null so the reconciler treats it as Offline and skips the UI mirror.
+     */
+    @Test
+    fun `audio get - returns null when payload has no audio dimension (ebook-only book)`() = runTest {
+        val peer = FakePeer(
+            progress = CatalogProgress(
+                itemId = "item-1",
+                ebookLocation = "epubcfi(/6/4)", ebookProgress = 0.42f, // real ebook progress
+                audioCurrentTime = 0.0, audioDuration = 0.0,
+                isFinished = false, lastUpdate = 1700L,
+            ),
+        )
+        val read = audioRemote(peer).get()
+        assertNull(read)
+    }
+
+    /**
+     * Boundary of the null-gate: a finished audiobook whose duration wasn't populated in the
+     * payload (rare metadata race) still carries a real "done" signal — we should surface it as
+     * fraction=1f rather than swallowing to null.
+     */
+    @Test
+    fun `audio get - isFinished with zero duration still surfaces fraction=1f (not null)`() = runTest {
+        val peer = FakePeer(
+            progress = CatalogProgress(
+                itemId = "item-1",
+                audioCurrentTime = 0.0, audioDuration = 0.0,
+                isFinished = true, finishedAt = 1750L, lastUpdate = 1700L,
+            ),
+        )
+        val read = audioRemote(peer).get()
+        assertEquals(1f, read?.readingProgress)
+        assertEquals(1750L, read?.finishedAt)
+    }
 }

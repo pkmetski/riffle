@@ -315,6 +315,12 @@ class LibraryRepositoryImpl @Inject constructor(
         // pullAllProgress does (ABS ships `progress` on audio-only items, `ebookProgress = 0`),
         // so derive the unified library fraction here (ADR 0029). isFinished pins to 1f to cover
         // "server marks finished but audioCurrentTime slightly under duration" boundary.
+        // Skip when the payload carries no meaningful progress at all (fresh item / audio-only
+        // book whose duration hasn't been populated server-side yet) — writing 0 in that case
+        // would clobber a previously-adopted non-zero value in library_items.readingProgress.
+        if (!sp.isFinished && sp.ebookProgress <= 0f && sp.audioDuration <= 0.0 && sp.audioCurrentTime <= 0.0) {
+            return LibraryRefreshResult.Success
+        }
         val fraction = when {
             sp.isFinished -> 1f
             sp.ebookProgress > 0f -> sp.ebookProgress

@@ -1334,6 +1334,32 @@ class LibraryRepositoryTest {
         assertEquals(0.75f, dao.itemsFor("lib-1").first { it.id == "item-1" }.readingProgress, 0.001f)
     }
 
+    /**
+     * Regression pin for the "details % gets clobbered to 0" data-loss variant of the audio-remote
+     * bug: when pullProgress returns an empty payload (no ebook progress, no audio dimension —
+     * e.g. audio metadata still being scanned server-side, or transient partial payload), the
+     * writer MUST skip rather than overwrite a previously-adopted non-zero readingProgress with 0.
+     */
+    @Test
+    fun `refreshItemProgress does NOT overwrite readingProgress when server payload has no meaningful progress`() = runTest {
+        fakeServerRepository.activeServer = activeServer()
+        fakeTokenStorage.tokens["s1"] = "tok"
+        val dao = FakeLibraryItemDao()
+        dao.upsertAll(listOf(
+            LibraryItemEntity("s1", "item-1", "lib-1", "Book", "A", null, 0.42f, addedAt = 0L),
+        ))
+        val session = FakeGetProgressApi(
+            com.riffle.core.network.NetworkServerProgress(
+                ebookLocation = "", ebookProgress = 0f,
+                currentTime = 0.0, duration = 0.0, lastUpdate = 5_000L,
+            )
+        )
+        val result = makeRepo(libraryItemDao = dao, sessionApi = session)
+            .refreshItemProgress("s1", "item-1")
+        assertEquals(LibraryRefreshResult.Success, result)
+        assertEquals(0.42f, dao.itemsFor("lib-1").first { it.id == "item-1" }.readingProgress, 0.001f)
+    }
+
     @Test
     fun `refreshItemProgress derives audio fraction from currentTime and duration when ebookProgress is 0`() = runTest {
         // Single-item pullProgress (unlike pullAllProgress) does NOT apply the audio->ebookProgress

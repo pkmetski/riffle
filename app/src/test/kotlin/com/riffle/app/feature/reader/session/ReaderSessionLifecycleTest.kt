@@ -344,6 +344,31 @@ class ReaderSessionLifecycleTest {
         assertEquals(1, repo.openCalls)
     }
 
+    /**
+     * A non-cancellation exception from the puller (network failure, DB glitch) must NOT abort
+     * reader-open — the whole point of the puller is a best-effort pre-sync. Regression pin: prior
+     * `withTimeoutOrNull { runCatching { ... } }` swallowed exceptions but also swallowed
+     * CancellationException; the current try/catch inside the timeout block catches ordinary
+     * failures and lets the reader still open at the local locator.
+     */
+    @Test
+    fun `open still opens the reader when puller throws a non-cancellation exception`() = runTest {
+        val throwingPuller = object : com.riffle.core.data.ItemProgressPuller {
+            override suspend fun pullItem(sourceId: String, itemId: String) {
+                throw RuntimeException("simulated network failure")
+            }
+        }
+        val repo = RecordingEpubRepository(
+            EpubOpenResult.Success(epubFile = File("/tmp/dummy.epub"), lastPosition = null),
+        )
+        val (lifecycle, _) = makeLifecycle(epubRepository = repo, itemProgressPuller = throwingPuller)
+
+        val outcome = lifecycle.open(params())
+
+        assertTrue(outcome is ReaderSessionLifecycle.OpenOutcome.Ready)
+        assertEquals(1, repo.openCalls)
+    }
+
     @Test
     fun `open returns Error when item is missing`() = runTest {
         val (lifecycle, _) = makeLifecycle(

@@ -102,8 +102,20 @@ class ReaderSessionLifecycle @AssistedInject constructor(
         // which the live sync cycle will then reconcile (the pre-fix behaviour).
         // Runs BEFORE openReconcileTargets.markOpen (inside resolveReady) — otherwise the
         // puller's `isOpen` guard would skip it.
+        // Cancellation must propagate — a plain `runCatching { ... }` around a suspending call
+        // swallows CancellationException (Kotlin footgun) and would defeat both the timeout AND
+        // structured concurrency if the caller cancels this open() mid-flight. Catch only
+        // non-cancellation Throwables and re-throw CancellationException explicitly.
         kotlinx.coroutines.withTimeoutOrNull(1_500L) {
-            runCatching { itemProgressPuller.pullItem(item.sourceId, item.id) }
+            try {
+                itemProgressPuller.pullItem(item.sourceId, item.id)
+            } catch (t: Throwable) {
+                if (t is kotlinx.coroutines.CancellationException) throw t
+                logger.w(LogChannel.ProgressSync) {
+                    "ReaderSessionLifecycle: puller failed for source=${item.sourceId} item=${item.id} — " +
+                        "${t::class.simpleName}: ${t.message}"
+                }
+            }
         }
 
         return when (val result = epubRepository.openEpub(item)) {

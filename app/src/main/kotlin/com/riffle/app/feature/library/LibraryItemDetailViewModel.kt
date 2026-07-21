@@ -221,9 +221,15 @@ class LibraryItemDetailViewModel @Inject constructor(
      * without going through the library grid (deep link, back from reader, app foreground).
      */
     fun refreshItemProgress() {
-        val ready = _uiState.value as? LibraryItemDetailUiState.Ready ?: return
-        val item = ready.item
-        viewModelScope.launch { libraryRefresher.refreshItemProgress(item.sourceId, item.id) }
+        // Resolve source/item from the sources of truth (savedStateHandle + active source), NOT
+        // from _uiState.value. ON_RESUME can fire before init's async item load completes
+        // (cold-open / deep-link into details) — a Ready-only gate would silently drop the very
+        // case the refresh was added for. The refresher's own precondition checks handle a null
+        // active source or a mismatched sourceId.
+        viewModelScope.launch {
+            val sourceId = sourceRepository.getActive()?.id ?: return@launch
+            libraryRefresher.refreshItemProgress(sourceId, itemId)
+        }
     }
 
     var authToken: String by mutableStateOf("")
