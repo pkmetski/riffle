@@ -61,10 +61,13 @@ internal class ContinuousWindowController(
         /** See [ContinuousReaderView.CHAPTERS_AHEAD]. */
         private const val CHAPTERS_AHEAD = 1
 
-        /** Max detached WebViews retained for reuse across window shifts. Small: pooled views keep
-         *  the previous page's DOM + rasterized tiles resident until reuse (recycle() blanks the
-         *  URL but preRaster still holds an empty document's tiles). */
-        internal const val RECYCLE_POOL_MAX = 2
+        /** Baseline max detached WebViews retained for reuse across window shifts (full-book
+         *  continuous mode: `windowSize == 3`). Pooled views keep the previous page's DOM +
+         *  rasterized tiles resident until reuse (recycle() blanks the URL but preRaster still
+         *  holds an empty document's tiles), so the cap has to stay tight on the Android 7.1
+         *  memory budget. Elided-view mode gets a pool matching its larger `windowSize` via
+         *  [recyclePoolMax] — synthetic chapters are small enough to lift the cap safely. */
+        internal const val DEFAULT_RECYCLE_POOL_MAX = 2
 
         /**
          * Grace period after a window (re)build before the initial scroll is forced to fire even if
@@ -235,6 +238,14 @@ internal class ContinuousWindowController(
 
     private val windowSize: Int get() = chaptersBehind + 1 + CHAPTERS_AHEAD
 
+    /**
+     * Recycled-WebView pool cap, sized to the current window. The class-comment invariant is that
+     * the pool cap should equal `windowSize`; when the elided reader raises `chaptersBehind` to 3
+     * (windowSize 5), a hard-coded cap of 2 would destroy 2 WebViews on every shift instead of
+     * recycling them.
+     */
+    private val recyclePoolMax: Int get() = maxOf(DEFAULT_RECYCLE_POOL_MAX, windowSize)
+
     /** True while rebuilding the window after a WebView renderer-process death. */
     private var rendererRecovering = false
 
@@ -334,7 +345,7 @@ internal class ContinuousWindowController(
         // on a long book. loadChapter() will replace about:blank on the next reuse.
         wv.stopLoading()
         wv.loadUrl("about:blank")
-        if (recycledViews.size < RECYCLE_POOL_MAX) recycledViews.addLast(wv) else wv.destroy()
+        if (recycledViews.size < recyclePoolMax) recycledViews.addLast(wv) else wv.destroy()
     }
 
     /**

@@ -418,6 +418,25 @@ class EpubReaderViewModelHighlightsSourceTest {
         assertEquals(emptyList<String>(), result)
     }
 
+    // ── isElidedContinuousReader — mapping ReaderSource → elided-mode branch ──
+    //
+    // The single call site in EpubReaderScreen threads this predicate into EpubNavigatorView's
+    // `isElidedContinuous` param, which raises `ContinuousReaderView.chaptersBehind` to 3.
+    // Without that raise, the short-middle-chapter backward↔forward oscillation returns
+    // (documented in ChapterWindowManagerTest, and originally observed 2026-07-21 on the
+    // Riffle elided view). A trivially-shaped predicate — but flipping it silently disables the
+    // oscillation fix on every elided open, so pin the mapping explicitly here.
+
+    @Test
+    fun `isElidedContinuousReader is true for Highlights source`() {
+        assertTrue(isElidedContinuousReader(ReaderSource.Highlights))
+    }
+
+    @Test
+    fun `isElidedContinuousReader is false for FullBook source`() {
+        assertFalse(isElidedContinuousReader(ReaderSource.FullBook))
+    }
+
     // ── debouncedHighlightsFlow — regression for the reload storm ─────────────
     //
     // Field repro (2026-07-21 AVD, 11-chapter elided view, 74 highlights, sync-in-progress on

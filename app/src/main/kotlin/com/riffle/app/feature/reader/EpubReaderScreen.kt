@@ -513,7 +513,7 @@ fun EpubReaderScreen(
                         onPageTopResolved = viewModel::onPageTopResolved,
                         onPlayFromHere = viewModel::playFromHere,
                         onEnsureSentenceQuotesReady = viewModel::ensureSentenceQuotesReady,
-                        isElidedContinuous = viewModel.readerSource == ReaderSource.Highlights,
+                        isElidedContinuous = isElidedContinuousReader(viewModel.readerSource),
                         readaloudAvailable = readaloudAvailable,
                         readaloudReservePx = totalReserveCssPx,
                         readaloudHighlightColor = effectiveHighlightColor,

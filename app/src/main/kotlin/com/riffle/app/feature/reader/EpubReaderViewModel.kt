@@ -180,6 +180,17 @@ private const val OVERLAP_CONTEXT_LEN = 60
 internal fun shouldRunReadingSideEffects(source: ReaderSource): Boolean =
     source != ReaderSource.Highlights
 
+/**
+ * Whether the continuous reader for [source] renders the elided (Highlights-mode) publication.
+ * Wired into [EpubReaderScreen]'s `EpubNavigatorView` call so [ContinuousReaderView.chaptersBehind]
+ * is raised for the elided path only (fix: prevent the short-middle-chapter backward↔forward
+ * oscillation). `internal` + top-level so this exact mapping is unit-testable without a Composable
+ * host — a regression that silently flipped this predicate would re-open the oscillation bug on
+ * every elided open with no other visible symptom.
+ */
+internal fun isElidedContinuousReader(source: ReaderSource): Boolean =
+    source == ReaderSource.Highlights
+
 sealed class ReaderState {
     data object Loading : ReaderState()
     data class Ready(
@@ -3538,10 +3549,16 @@ internal fun highlightsResumeHrefUpdates(hrefs: Flow<String>): Flow<String> =
  * diff-check contains new adds vs the previously-rendered snapshot → structural change →
  * [EpubReaderViewModel.reloadHighlightsView]. Without a debounce, the reader open-close-reopens
  * once per emission (observed: ~8 cycles in ~2.5 s on the elided view of a book with 11 chapters
- * / 74 highlights when the sync ran during initial open). The wait window is a compromise: long
- * enough to coalesce the burst into a single rebuild, short enough that a direct user edit
- * (colour change, note) still feels instant — sub-frame at 60 Hz. `internal` so the flow-op
- * wiring is unit-testable with `runTest` virtual time.
+ * / 74 highlights when the sync ran during initial open).
+ *
+ * Tradeoff: `Flow.debounce` also delays the FIRST emission by the window (~15 frames at 60 Hz),
+ * so a direct user edit (colour change, note add) applies its DOM patch ~250 ms after the DB
+ * write, not immediately. That's above the ~100 ms "feels instant" threshold but below the
+ * ~500 ms threshold where users start second-guessing their tap; acceptable in exchange for
+ * killing the storm. If the delay ever becomes user-visible enough to matter, the fix is to
+ * bypass the debounce for direct-edit-shaped emissions (single-row diff) while keeping it for
+ * multi-row bursts. `internal` so the flow-op wiring is unit-testable with `runTest` virtual
+ * time.
  */
 internal const val HIGHLIGHTS_OBSERVER_DEBOUNCE_MS = 250L
 
