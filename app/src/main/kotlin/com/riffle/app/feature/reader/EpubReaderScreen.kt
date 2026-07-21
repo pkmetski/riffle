@@ -513,6 +513,7 @@ fun EpubReaderScreen(
                         onPageTopResolved = viewModel::onPageTopResolved,
                         onPlayFromHere = viewModel::playFromHere,
                         onEnsureSentenceQuotesReady = viewModel::ensureSentenceQuotesReady,
+                        isElidedContinuous = isElidedContinuousReader(viewModel.readerSource),
                         readaloudAvailable = readaloudAvailable,
                         readaloudReservePx = totalReserveCssPx,
                         readaloudHighlightColor = effectiveHighlightColor,
@@ -1398,6 +1399,11 @@ private fun EpubNavigatorView(
     // pair (issue #403 spec: "start from the sentence currently visible — same as Readaloud").
     cadencePageTopProbeRequests: Flow<String> = kotlinx.coroutines.flow.emptyFlow(),
     onCadencePageTopResolved: (href: String, fragmentId: String?) -> Unit = { _, _ -> },
+    /** True when the reader is showing the elided (Highlights-mode) synthesised publication. Used
+     *  to raise the continuous-mode sliding-window `chaptersBehind` so tiny synthetic chapters
+     *  don't trigger backward↔forward oscillation. Defaults to false so the full-book path keeps
+     *  its memory-capped configuration. */
+    isElidedContinuous: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -2913,6 +2919,17 @@ private fun EpubNavigatorView(
                         // Route continuous decoration + WebView console diagnostics to
                         // LogChannel.ReaderDecoration (RIFFLE_DECO) for the in-app debug screen.
                         view.logger = logger
+                        // Elided-view chapters are synthesised excerpts (often < viewport/2). With
+                        // chaptersBehind=1 (the memory-capped default full-book continuous mode
+                        // needs on Android 7.1 tablets), a backward shift into a tall chapter
+                        // sitting behind a short one makes the viewport midpoint overshoot the
+                        // short chapter → gap=2 > chaptersBehind → forward shift immediately
+                        // undoes the backward one. Raising to 3 absorbs one or two consecutive
+                        // short chapters between the target and the new top slot without triggering
+                        // this oscillation. Safe because elided chapter WebViews are small — no
+                        // renderer-OOM risk that motivates the full-book cap. MUST be set before
+                        // `initialize()` — the initial window size derives from it.
+                        if (isElidedContinuous) view.chaptersBehind = 3
                         // Wire the presenter BEFORE attach so the coordinator's onRawPosition
                         // handler routes raw-position events through it on the very first scroll.
                         coordinator.presenter = continuousPresenter

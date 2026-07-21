@@ -80,6 +80,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.filterNotNull
@@ -178,6 +179,17 @@ private const val OVERLAP_CONTEXT_LEN = 60
  */
 internal fun shouldRunReadingSideEffects(source: ReaderSource): Boolean =
     source != ReaderSource.Highlights
+
+/**
+ * Whether the continuous reader for [source] renders the elided (Highlights-mode) publication.
+ * Wired into [EpubReaderScreen]'s `EpubNavigatorView` call so [ContinuousReaderView.chaptersBehind]
+ * is raised for the elided path only (fix: prevent the short-middle-chapter backward↔forward
+ * oscillation). `internal` + top-level so this exact mapping is unit-testable without a Composable
+ * host — a regression that silently flipped this predicate would re-open the oscillation bug on
+ * every elided open with no other visible symptom.
+ */
+internal fun isElidedContinuousReader(source: ReaderSource): Boolean =
+    source == ReaderSource.Highlights
 
 sealed class ReaderState {
     data object Loading : ReaderState()
@@ -2783,7 +2795,14 @@ class EpubReaderViewModel @Inject constructor(
     private fun ensureHighlightsObserver(sourceId: String, itemId: String) {
         if (highlightsObserverJob?.isActive == true) return
         highlightsObserverJob = viewModelScope.launch {
-            annotationDao.observeAnnotationsByPosition(sourceId, itemId).collect { annotations ->
+            // Debounce to coalesce sync-driven emission bursts. Without this, the Room-backed
+            // flow re-emits per row-insert during a sync burst (observed: 8 openBook cycles in
+            // ~2.5 s on the elided view of a book with 11 chapters and 74 highlights, each cycle
+            // firing a `reloadHighlightsView` because the diff saw new adds every time). The
+            // window is short enough (<300 ms) that direct user edits still feel instant.
+            debouncedHighlightsFlow(
+                annotationDao.observeAnnotationsByPosition(sourceId, itemId),
+            ).collect { annotations ->
                 // Filter to highlights only — the elided reader's spine, chapter HTML, and every
                 // downstream patch/rewrite is highlights-only. If we left bookmarks in this stream:
                 //  (1) a chapter's byte rewrite would render bookmarks as fake highlight paragraphs
@@ -3522,6 +3541,32 @@ internal fun decodeReaderSource(raw: String?): ReaderSource =
  */
 internal fun highlightsResumeHrefUpdates(hrefs: Flow<String>): Flow<String> =
     hrefs.distinctUntilChanged().drop(1)
+
+/**
+ * Elided-view observer flow with a debounce window applied. Room's `observeAnnotationsByPosition`
+ * flow re-emits on every row-write in the observed set: during an annotation sync burst (up to a
+ * few dozen inserts landing in one HTTP round), every emission that reaches the observer's
+ * diff-check contains new adds vs the previously-rendered snapshot → structural change →
+ * [EpubReaderViewModel.reloadHighlightsView]. Without a debounce, the reader open-close-reopens
+ * once per emission (observed: ~8 cycles in ~2.5 s on the elided view of a book with 11 chapters
+ * / 74 highlights when the sync ran during initial open).
+ *
+ * Tradeoff: `Flow.debounce` also delays the FIRST emission by the window (~15 frames at 60 Hz),
+ * so a direct user edit (colour change, note add) applies its DOM patch ~250 ms after the DB
+ * write, not immediately. That's above the ~100 ms "feels instant" threshold but below the
+ * ~500 ms threshold where users start second-guessing their tap; acceptable in exchange for
+ * killing the storm. If the delay ever becomes user-visible enough to matter, the fix is to
+ * bypass the debounce for direct-edit-shaped emissions (single-row diff) while keeping it for
+ * multi-row bursts. `internal` so the flow-op wiring is unit-testable with `runTest` virtual
+ * time.
+ */
+internal const val HIGHLIGHTS_OBSERVER_DEBOUNCE_MS = 250L
+
+@OptIn(kotlinx.coroutines.FlowPreview::class)
+internal fun <T> debouncedHighlightsFlow(
+    source: Flow<T>,
+    windowMs: Long = HIGHLIGHTS_OBSERVER_DEBOUNCE_MS,
+): Flow<T> = source.debounce(windowMs)
 
 /**
  * Highlights-mode counterpart to [EpubReaderViewModel.annotationToRender] (Critical #1 fix, ADR
