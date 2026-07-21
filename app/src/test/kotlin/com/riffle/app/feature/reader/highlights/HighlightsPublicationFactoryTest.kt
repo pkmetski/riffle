@@ -8,8 +8,10 @@ import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import org.readium.r2.shared.ExperimentalReadiumApi
 import org.readium.r2.shared.publication.Publication
 import org.readium.r2.shared.publication.services.positionsByReadingOrder
+import org.readium.r2.shared.publication.services.search.SearchService
 import org.readium.r2.shared.util.RelativeUrl
 import org.readium.r2.shared.util.Url
 
@@ -515,6 +517,30 @@ class HighlightsPublicationFactoryTest {
         assertTrue(
             "every elided chapter must contribute at least one position so railSegments has non-empty counts, got: ${positions.map { it.size }}",
             positions.all { it.isNotEmpty() },
+        )
+    }
+
+    // Regression: the elided reader's search top-bar was a no-op because
+    // [HighlightsPublicationFactory] never registered a [SearchService] on the synthesised
+    // [Publication]. [Publication.findService(SearchService::class)] returned null and
+    // [SearchController.performSearch] short-circuited to empty results on every keystroke.
+    // Reverting the fix flips this red — the assertion pins that a search factory IS bound.
+    @OptIn(ExperimentalReadiumApi::class)
+    @Test
+    fun elidedPublicationRegistersSearchServiceSoReaderSearchTopBarWorks() {
+        val pub = factory.build(
+            sourceId = "S1",
+            itemId = "B1",
+            bookTitle = "Dune",
+            chapters = listOf(
+                ChapterElision("ch1.xhtml", "Chapter One", listOf(hl("h1", "the spice must flow"))),
+            ),
+            urlFactory = ::testUrlFactory,
+        )
+        val service = pub.findService(SearchService::class)
+        assertTrue(
+            "elided Publication must expose a SearchService for the reader's search top-bar to return results",
+            service != null,
         )
     }
 

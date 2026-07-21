@@ -1217,6 +1217,12 @@ class EpubReaderViewModel @Inject constructor(
                 title = pub.metadata.title ?: "Annotations",
                 initialLocator = initialLocator,
             )
+            // Bind the search controller to the elided Publication so queries typed into the
+            // reader's search top-bar actually execute. The FullBook path binds inside
+            // [onOpenReady]; the Highlights branch returns before that, and without this call
+            // [SearchController]'s debounce collector never starts and every keystroke is a
+            // no-op ("search does nothing in the elided view").
+            search.bind(pub)
             // Bind the annotation session so the highlight-actions popup works in Highlights mode
             // (a prior gap: this branch used to return before binding at all, leaving
             // highlightRenders permanently empty and recolor/delete/note edits silent no-ops).
