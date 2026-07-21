@@ -1315,6 +1315,120 @@ class EpubReaderViewModel @Inject constructor(
         // server-locator that follows; subsequent syncs (peer / live progress) still apply normally.
         if (o.openAtLocator != null) position.markSuppressNextServerLocator()
 
+        // ── Annotation binding — ABS-side only (ADR 0024) ────────────────────────────
+        // Bind BEFORE _state = Ready so the annotation Flow observer starts subscribing to Room
+        // before Compose mounts the reader. Without this ordering, chapters mount and dispatch
+        // several wasted `applyAnnotationHighlights` cycles with empty renders while the observer
+        // is still starting up (measured ~500ms gap on cold-open with 99 annotations). The
+        // sync-namespace (used ONLY by cross-device sync scheduling) resolves in parallel via a
+        // separate viewModelScope.launch and lands on the session via updateNamespace().
+        val activeServer = o.activeServer
+        if (!o.isStorytellerService && activeServer != null) {
+            annotationServerId = activeServer.id
+            // Bind the bookmarks controller so it can observe bookmarks and track the current
+            // locator for page-bookmark detection.
+            bookmarks.bind(
+                sourceId = activeServer.id,
+                itemId = itemId,
+                currentLocator = position.currentLocator,
+                spinePositionCounts = spinePositionCounts,
+                viewportFractionByHref = viewportFractionByHref,
+            )
+            // Push orientation changes into the controller via a setter so the page-bookmark
+            // indicator's match window re-sizes on a mid-session flip.
+            bookmarks.onOrientationChanged(formatting.formattingPreferences.value.orientation)
+            viewModelScope.launch {
+                formatting.formattingPreferences
+                    .map { it.orientation }
+                    .distinctUntilChanged()
+                    .collect { bookmarks.onOrientationChanged(it) }
+            }
+            // Bind annotation session eagerly with an EMPTY namespace — the observer subscription
+            // is what we want early; sync scheduling stays no-op until updateNamespace() below.
+            annotationSession.bind(
+                sourceId = activeServer.id,
+                namespace = "",
+                itemId = itemId,
+                highlightRenderResolver = { a -> annotationToRender(a) },
+                cfiLocatorResolver = { cfi -> cfiStringToLocator(cfi) },
+            )
+            // Resolve the source's cross-device annotation-sync namespace (#529) OFF the reader
+            // open critical path. Null when the source is LocalOnly (Storyteller peer, anonymous
+            // catalog, local files) or its remote id hasn't been fetched yet — sync is skipped
+            // this session; DB stays canonical.
+            viewModelScope.launch {
+                val namespace = (sourceRepository.ensureSyncNamespace(activeServer.id)
+                    as? com.riffle.core.domain.SyncNamespace.Configured)?.value
+                annotationNamespace = namespace
+                annotationSession.updateNamespace(namespace)
+            }
+            // ADR 0046 §4: orphan-emphasis cleanup (2026-07-18). Pre-2026-07-18 the commit-time
+            // overlap-dedup and pre-cascade dismiss paths deleted a TYPE_HIGHLIGHT anchor
+            // without removing its sibling TYPE_EMPHASIS rows at the same CFI. Those orphan
+            // rows silently accumulate in the pool — the DOM injector keeps painting
+            // bold/italic on the text while the annotations panel shows nothing to delete
+            // (the panel filters TYPE_EMPHASIS out). This one-shot sweep tombstones any
+            // emphasis whose CFI has no live highlight anchor. Fires once per (VM, book) via
+            // [orphanEmphasisCleanupAttempted]'s CAS; safe no-op on healthy books.
+            if (orphanEmphasisCleanupAttempted.compareAndSet(false, true)) {
+                viewModelScope.launch(dispatchers.io) {
+                    val serverId = activeServer.id
+                    val allRows = runCatching {
+                        annotationStore.observeAnnotations(serverId, itemId).first()
+                    }.getOrDefault(emptyList())
+                    val liveHighlightCfis = allRows.asSequence()
+                        .filter { it.type == AnnotationEntity.TYPE_HIGHLIGHT }
+                        .map { it.cfi }
+                        .toSet()
+                    val orphans = allRows.filter {
+                        it.type == AnnotationEntity.TYPE_EMPHASIS && it.cfi !in liveHighlightCfis
+                    }
+                    if (orphans.isEmpty()) return@launch
+                    orphans.forEach { annotationStore.delete(it.id) }
+                    logger.d(LogChannel.HighlightMerge) {
+                        "orphan-emphasis cleanup sourceId=$serverId itemId=$itemId deleted=${orphans.size}"
+                    }
+                    scheduleAnnotationSync()
+                }
+            }
+            // Opportunistic caption-annotation upgrade (2026-07-14). For each legacy
+            // TYPE_IMAGE annotation on this book whose figure and caption can both be resolved
+            // against the current publication, rewrite it to a TYPE_HIGHLIGHT covering the
+            // caption text. Fires once per (VM, book); the store update propagates through
+            // the annotation Flow → session → decorations naturally.
+            if (legacyImageUpgradeAttempted.compareAndSet(false, true)) {
+                viewModelScope.launch(dispatchers.io) {
+                    val serverId = activeServer.id
+                    val legacy = runCatching {
+                        annotationStore.observeAnnotations(serverId, itemId)
+                            .first()
+                            .filter { it.type == AnnotationEntity.TYPE_IMAGE }
+                    }.getOrDefault(emptyList())
+                    if (legacy.isEmpty()) return@launch
+                    val allAnnotations = runCatching {
+                        annotationStore.observeAnnotations(serverId, itemId).first()
+                    }.getOrDefault(emptyList())
+                    val result = runCatching {
+                        captionHighlightUpgrader.sweep(
+                            annotations = allAnnotations,
+                            readChapterHtml = { spineIndex -> readChapterHtml(spineIndex) },
+                        )
+                    }.getOrNull()
+                    if (result != null && result.total > 0) {
+                        logger.d(LogChannel.HighlightMerge) {
+                            "caption-highlight sweep sourceId=$serverId itemId=$itemId " +
+                                "merged=${result.merged} upgraded=${result.upgraded} legacy=${legacy.size}"
+                        }
+                        scheduleAnnotationSync()
+                    }
+                }
+            }
+        }
+
+        // NOW signal the reader UI to mount. The annotation Flow observer has already started
+        // subscribing above; its first emission arrives close to when chapters mount, so the
+        // reader gets decorations in the same layout pass instead of after several wasted
+        // apply-clear cycles.
         _state.value = ReaderState.Ready(
             publication = pub,
             title = o.title,
@@ -1343,111 +1457,17 @@ class EpubReaderViewModel @Inject constructor(
             startReadaloudAtSecond(startReadaloudAtSec)
         }
 
-        // ── Annotation binding — ABS-side only (ADR 0024) ────────────────────────────
-        val activeServer = o.activeServer
-        if (!o.isStorytellerService && activeServer != null) {
-            annotationServerId = activeServer.id
-            // Bind the bookmarks controller so it can observe bookmarks and track the current
-            // locator for page-bookmark detection.
-            bookmarks.bind(
-                sourceId = activeServer.id,
-                itemId = itemId,
-                currentLocator = position.currentLocator,
-                spinePositionCounts = spinePositionCounts,
-                viewportFractionByHref = viewportFractionByHref,
-            )
-            // Push orientation changes into the controller via a setter so the page-bookmark
-            // indicator's match window re-sizes on a mid-session flip.
-            bookmarks.onOrientationChanged(formatting.formattingPreferences.value.orientation)
-            viewModelScope.launch {
-                formatting.formattingPreferences
-                    .map { it.orientation }
-                    .distinctUntilChanged()
-                    .collect { bookmarks.onOrientationChanged(it) }
-            }
-            // Resolve the source's cross-device annotation-sync namespace (#529). Null when
-            // the source is LocalOnly (Storyteller peer, anonymous catalog, local files) or its
-            // remote id hasn't been fetched yet — sync is skipped this session; DB stays canonical.
-            val namespace = (sourceRepository.ensureSyncNamespace(activeServer.id)
-                as? com.riffle.core.domain.SyncNamespace.Configured)?.value
-            annotationNamespace = namespace
-            annotationSession.bind(
-                sourceId = activeServer.id,
-                namespace = namespace ?: "",
-                itemId = itemId,
-                highlightRenderResolver = { a -> annotationToRender(a) },
-                cfiLocatorResolver = { cfi -> cfiStringToLocator(cfi) },
-            )
-            // ADR 0046 §4: orphan-emphasis cleanup (2026-07-18). Pre-2026-07-18 the commit-time
-            // overlap-dedup and pre-cascade dismiss paths deleted a TYPE_HIGHLIGHT anchor
-            // without removing its sibling TYPE_EMPHASIS rows at the same CFI. Those orphan
-            // rows silently accumulate in the pool — the DOM injector keeps painting
-            // bold/italic on the text while the annotations panel shows nothing to delete
-            // (the panel filters TYPE_EMPHASIS out). This one-shot sweep tombstones any
-            // emphasis whose CFI has no live highlight anchor. Fires once per (VM, book) via
-            // [orphanEmphasisCleanupAttempted]'s CAS; safe no-op on healthy books.
-            if (orphanEmphasisCleanupAttempted.compareAndSet(false, true)) {
-                viewModelScope.launch {
-                    val serverId = activeServer.id
-                    val allRows = runCatching {
-                        annotationStore.observeAnnotations(serverId, itemId).first()
-                    }.getOrDefault(emptyList())
-                    val liveHighlightCfis = allRows.asSequence()
-                        .filter { it.type == AnnotationEntity.TYPE_HIGHLIGHT }
-                        .map { it.cfi }
-                        .toSet()
-                    val orphans = allRows.filter {
-                        it.type == AnnotationEntity.TYPE_EMPHASIS && it.cfi !in liveHighlightCfis
-                    }
-                    if (orphans.isEmpty()) return@launch
-                    orphans.forEach { annotationStore.delete(it.id) }
-                    logger.d(LogChannel.HighlightMerge) {
-                        "orphan-emphasis cleanup sourceId=$serverId itemId=$itemId deleted=${orphans.size}"
-                    }
-                    scheduleAnnotationSync()
-                }
-            }
-            // Opportunistic caption-annotation upgrade (2026-07-14). For each legacy
-            // TYPE_IMAGE annotation on this book whose figure and caption can both be resolved
-            // against the current publication, rewrite it to a TYPE_HIGHLIGHT covering the
-            // caption text. Fires once per (VM, book); the store update propagates through
-            // the annotation Flow → session → decorations naturally.
-            if (legacyImageUpgradeAttempted.compareAndSet(false, true)) {
-                viewModelScope.launch {
-                    val serverId = activeServer.id
-                    val legacy = runCatching {
-                        annotationStore.observeAnnotations(serverId, itemId)
-                            .first()
-                            .filter { it.type == AnnotationEntity.TYPE_IMAGE }
-                    }.getOrDefault(emptyList())
-                    if (legacy.isEmpty()) return@launch
-                    val allAnnotations = runCatching {
-                        annotationStore.observeAnnotations(serverId, itemId).first()
-                    }.getOrDefault(emptyList())
-                    val result = runCatching {
-                        captionHighlightUpgrader.sweep(
-                            annotations = allAnnotations,
-                            readChapterHtml = { spineIndex -> readChapterHtml(spineIndex) },
-                        )
-                    }.getOrNull()
-                    if (result != null && result.total > 0) {
-                        logger.d(LogChannel.HighlightMerge) {
-                            "caption-highlight sweep sourceId=$serverId itemId=$itemId " +
-                                "merged=${result.merged} upgraded=${result.upgraded} legacy=${legacy.size}"
-                        }
-                        scheduleAnnotationSync()
-                    }
-                }
-            }
-        }
-
         // Sync immediately while localUpdatedAt is still the genuine stored value — before the
-        // navigator restore emits and would stamp localUpdatedAt = now.
+        // navigator restore emits and would stamp localUpdatedAt = now. Hopped to IO because
+        // both branches do network + Room I/O that were adding ~140ms of main-thread stall on
+        // the post-Ready cold-open path.
         val syncLocator = o.effectiveInitialLocator
-        if (lifecycle.matchedSync.value?.readerSync != null) {
-            runReaderSyncCycle(syncLocator)
-        } else {
-            syncSession.sync(syncLocator?.toPayload() ?: SessionPayload("", 0f))
+        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            if (lifecycle.matchedSync.value?.readerSync != null) {
+                runReaderSyncCycle(syncLocator)
+            } else {
+                syncSession.sync(syncLocator?.toPayload() ?: SessionPayload("", 0f))
+            }
         }
 
         // Heartbeat only — no speed-tracker baseline yet (openBook can fire well before the first

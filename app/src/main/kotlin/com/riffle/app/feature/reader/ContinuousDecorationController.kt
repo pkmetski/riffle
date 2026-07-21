@@ -41,6 +41,20 @@ internal class ContinuousDecorationController(
     internal var logger: Logger = NoopLogger
 
     private var currentAnnotationsByHref: Map<String, List<AnnotationHighlight>> = emptyMap()
+    // Per-href "has ever had marks applied" set. Used to skip the CLEAR_ANNOTATION_HIGHLIGHTS_JS
+    // eval when we know the DOM never had marks to begin with — a hot cold-open path where
+    // chapters load, applyAnnotationHighlights fires with an empty map (annotations still loading
+    // from Room), and we'd otherwise dispatch one wasted JS eval per loaded chapter. Once a href
+    // receives marks, any subsequent transition to "no marks" MUST still push the clear so the
+    // DOM is scrubbed.
+    private val hrefsWithAppliedMarks = mutableSetOf<String>()
+    // Per-href last-applied mark set. The reader triggers applyAnnotationHighlights on every
+    // pageLoadGeneration / reflowGeneration bump (via a LaunchedEffect keyed on the union of
+    // these), so on cold-open with 3 chapters in the initial window we'd otherwise re-apply the
+    // same identical mark list 3+ times — each one a full JS eval on the WebView UI thread that
+    // rebuilds every mark's <mark> wrapper. Skip when the list is content-equal to the last apply
+    // for that href.
+    private val lastAppliedByHref = mutableMapOf<String, List<AnnotationHighlight>>()
     private var currentSearchHighlights: SearchHighlightsState? = null
     private var currentFigureCssRules: List<String> = emptyList()
     private var currentSvgMatches: List<com.riffle.app.feature.reader.decorations.FigureBorderDecoration.SvgMatch> = emptyList()
@@ -80,6 +94,11 @@ internal class ContinuousDecorationController(
                 }
                 onAnnotationsApplied()
             }
+            hrefsWithAppliedMarks += href
+            // Record so a follow-up applyAnnotationHighlights with the identical mark list from a
+            // pageLoadGeneration bump can short-circuit (see the dedup guard in
+            // applyAnnotationHighlights).
+            lastAppliedByHref[href] = annotations
         }
         val search = currentSearchHighlights
         if (search != null && search.resultsByHref.containsKey(href)) {
@@ -160,14 +179,34 @@ internal class ContinuousDecorationController(
             }
             val annotations = annotationsByHref[href]
             if (annotations.isNullOrEmpty()) {
+                // Skip the clear-JS eval on the hot cold-open path where the href never got any
+                // marks applied yet — nothing in the DOM to scrub. `hrefsWithAppliedMarks` is
+                // populated the first time this href receives non-empty marks, so any later
+                // "all removed" transition still runs the clear.
+                if (href !in hrefsWithAppliedMarks) {
+                    logger.d(LogChannel.ReaderDecoration) { "apply→clear-skipped href='$href' (never applied)" }
+                    return@forEachLoadedWebView
+                }
                 logger.d(LogChannel.ReaderDecoration) { "apply→clear href='$href'" }
                 wv.evaluateJavascript(ContinuousStyleInjector.CLEAR_ANNOTATION_HIGHLIGHTS_JS, null)
+                hrefsWithAppliedMarks.remove(href)
+                lastAppliedByHref.remove(href)
             } else {
+                // Dedup: LaunchedEffect fires this on every pageLoadGeneration / reflowGeneration
+                // bump (3 chapters loading = 3 calls, each with identical marks). Content-equality
+                // check on the mark list skips the redundant full-DOM rebuild JS eval — the
+                // dominant remaining Main-thread stall on cold-open with a heavily-annotated book.
+                if (lastAppliedByHref[href] == annotations) {
+                    logger.d(LogChannel.ReaderDecoration) { "apply→highlights-skipped href='$href' (identical to last apply, count=${annotations.size})" }
+                    return@forEachLoadedWebView
+                }
                 logger.d(LogChannel.ReaderDecoration) { "apply→highlights href='$href' count=${annotations.size}" }
                 wv.evaluateJavascript(ContinuousStyleInjector.applyAnnotationHighlightsJs(annotations)) { _ ->
                     logger.d(LogChannel.ReaderDecoration) { "apply-complete href='$href' count=${annotations.size}" }
                     onEachApplied(wv)
                 }
+                hrefsWithAppliedMarks += href
+                lastAppliedByHref[href] = annotations
             }
         }
     }

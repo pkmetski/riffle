@@ -276,6 +276,13 @@ class AnnotationSession @AssistedInject constructor(
 
     /** Active book identity, set by [bind]. Null between books. */
     private var boundServerId: String? = null
+    /**
+     * Cross-device sync namespace for the bound book. May be left blank at [bind] time when the
+     * caller resolves the namespace off the critical path (see [updateNamespace]) — sync scheduling
+     * treats a null/blank value as "not yet ready" and no-ops until [updateNamespace] fills it in.
+     * The observer path never reads this, so binding early with a blank still starts the annotation
+     * Flow subscription correctly.
+     */
     private var boundNamespace: String? = null
     private var boundItemId: String? = null
 
@@ -329,7 +336,11 @@ class AnnotationSession @AssistedInject constructor(
         _annotationsAvailable.value = false
 
         boundServerId = sourceId
-        boundNamespace = namespace
+        // Empty namespace = "not resolved yet" — sync-schedule sites read boundNamespace with a
+        // null-check, so nulling it here keeps them no-op until [updateNamespace] lands the real
+        // value. Lets the caller start the observer eagerly and resolve the namespace off the
+        // reader's critical path.
+        boundNamespace = namespace.takeIf { it.isNotEmpty() }
         boundItemId = itemId
         cfiLocatorResolverFn = cfiLocatorResolver
 
@@ -423,10 +434,40 @@ class AnnotationSession @AssistedInject constructor(
             }
         }
 
-        // Sync on open: pull peer annotations, then start the live-pull loop.
-        scope.launch {
-            syncOnOpen(sourceId, namespace, itemId)
-            annotationLiveSyncJob = startLiveSync(sourceId, namespace, itemId)
+        // Sync on open: pull peer annotations, then start the live-pull loop. Skipped when the
+        // caller invoked [bind] with an empty namespace and hasn't yet supplied a real one via
+        // [updateNamespace] — the reader-open path uses that pattern to start the annotation
+        // observer eagerly while the namespace resolves in parallel. Once updateNamespace lands
+        // a real namespace, THIS block is re-run from there.
+        if (namespace.isNotEmpty()) {
+            scope.launch {
+                syncOnOpen(sourceId, namespace, itemId)
+                annotationLiveSyncJob = startLiveSync(sourceId, namespace, itemId)
+            }
+        }
+    }
+
+    /**
+     * Late-arriving sync-namespace supply for callers that ran [bind] with an empty namespace
+     * (typically because the namespace resolves off the reader-open critical path — see
+     * `EpubReaderViewModel.onOpenReady`). No-op if the value hasn't changed or the caller passes
+     * blank. Kicks off the same syncOnOpen + startLiveSync bootstrap the eager-bind path runs.
+     */
+    fun updateNamespace(namespace: String?) {
+        val fresh = namespace?.takeIf { it.isNotEmpty() }
+        val sourceId = boundServerId ?: return
+        val itemId = boundItemId ?: return
+        val previous = boundNamespace
+        if (fresh == previous) return
+        boundNamespace = fresh
+        // Only bootstrap sync if this is the transition from "no namespace" → "have namespace".
+        // A namespace CHANGE mid-session (unlikely — same book, same server) intentionally does
+        // not restart the live-sync loop; only a full [bind] does.
+        if (fresh != null && previous == null && annotationLiveSyncJob == null) {
+            scope.launch {
+                syncOnOpen(sourceId, fresh, itemId)
+                annotationLiveSyncJob = startLiveSync(sourceId, fresh, itemId)
+            }
         }
     }
 

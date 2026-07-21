@@ -92,8 +92,13 @@ class ReaderSessionLifecycle @AssistedInject constructor(
      * stays free of the CFI-parsing helpers the VM already owns. A follow-up may lift these here.
      */
     suspend fun open(params: OpenParams): OpenOutcome {
-        val item = libraryObserver.getItem(params.itemId)
-            ?: return OpenOutcome.Error("Book not found")
+        // Hop to IO for the network + Room + zip work below. Callers invoke open() from
+        // viewModelScope (Main.immediate); leaving getItem / pullItem / openEpub on main was
+        // ~300ms of pre-visible stall on cold open. resolveReady returns to caller context
+        // implicitly on return.
+        val item = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            libraryObserver.getItem(params.itemId)
+        } ?: return OpenOutcome.Error("Book not found")
 
         // Refresh this book's server position BEFORE loading the initial locator so the reader
         // opens at the fresh spot instead of rendering the old local cfi first and then visibly
@@ -106,19 +111,25 @@ class ReaderSessionLifecycle @AssistedInject constructor(
         // swallows CancellationException (Kotlin footgun) and would defeat both the timeout AND
         // structured concurrency if the caller cancels this open() mid-flight. Catch only
         // non-cancellation Throwables and re-throw CancellationException explicitly.
-        kotlinx.coroutines.withTimeoutOrNull(1_500L) {
-            try {
-                itemProgressPuller.pullItem(item.sourceId, item.id)
-            } catch (t: Throwable) {
-                if (t is kotlinx.coroutines.CancellationException) throw t
-                logger.w(LogChannel.ProgressSync) {
-                    "ReaderSessionLifecycle: puller failed for source=${item.sourceId} item=${item.id} — " +
-                        "${t::class.simpleName}: ${t.message}"
+        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            kotlinx.coroutines.withTimeoutOrNull(1_500L) {
+                try {
+                    itemProgressPuller.pullItem(item.sourceId, item.id)
+                } catch (t: Throwable) {
+                    if (t is kotlinx.coroutines.CancellationException) throw t
+                    logger.w(LogChannel.ProgressSync) {
+                        "ReaderSessionLifecycle: puller failed for source=${item.sourceId} item=${item.id} — " +
+                            "${t::class.simpleName}: ${t.message}"
+                    }
                 }
             }
         }
 
-        return when (val result = epubRepository.openEpub(item)) {
+        val result = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            epubRepository.openEpub(item)
+        }
+
+        return when (result) {
             is EpubOpenResult.Success -> resolveReady(result, item.title, params)
             is EpubOpenResult.NetworkError -> OpenOutcome.Error(
                 // Use `toString()` as the fallback: `Throwable.message` is null for exceptions like
