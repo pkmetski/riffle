@@ -91,6 +91,19 @@ internal class ContinuousReaderView @JvmOverloads constructor(
         onViewportFractionMeasured = { href, fraction -> onViewportFractionMeasured?.invoke(href, fraction) },
     )
 
+    /**
+     * Chapters kept behind the viewport before the sliding window shifts forward. Full-book
+     * continuous mode uses the controller's memory-capped default (1); the elided (Highlights-
+     * mode) reader raises it to 3 so tiny synthetic chapters — often just one highlight tall —
+     * don't oscillate between backward and forward shifts (short middle chapter overshoots the
+     * midpoint into a chapter 2+ slots away, which under `chaptersBehind=1` immediately re-fires
+     * forward after any backward shift). MUST be set before `initialize()` — later changes
+     * don't reshape the already-built window.
+     */
+    var chaptersBehind: Int
+        get() = controller.chaptersBehind
+        set(value) { controller.chaptersBehind = value }
+
     /** Whether the text-selection menu should offer "Highlight" (books with annotations UI). */
     var annotationsAvailable: Boolean
         get() = controller.annotationsAvailable

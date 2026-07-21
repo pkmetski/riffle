@@ -6,9 +6,19 @@ import com.riffle.app.feature.reader.highlights.ReaderSource
 import com.riffle.core.database.AnnotationEntity
 import com.riffle.core.models.Annotation
 import com.riffle.core.models.TocEntry
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.toList
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.test.advanceTimeBy
+import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
@@ -406,5 +416,80 @@ class EpubReaderViewModelHighlightsSourceTest {
         val hrefs = flowOf("highlights/ch0.xhtml")
         val result = highlightsResumeHrefUpdates(hrefs).toList()
         assertEquals(emptyList<String>(), result)
+    }
+
+    // ── debouncedHighlightsFlow — regression for the reload storm ─────────────
+    //
+    // Field repro (2026-07-21 AVD, 11-chapter elided view, 74 highlights, sync-in-progress on
+    // open): `annotationDao.observeAnnotationsByPosition` re-emitted per row-insert during the
+    // sync burst — 8 openBook cycles fired in ~2.5 s, each triggering a `reloadHighlightsView`
+    // because the diff saw new adds every time. Debouncing the observer flow before the collect
+    // block coalesces the burst into a single settled emission.
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun `debouncedHighlightsFlow coalesces a rapid burst into the last emission`() = runTest {
+        val received = mutableListOf<List<String>>()
+        val source = flow {
+            emit(listOf("a"))
+            delay(50)
+            emit(listOf("a", "b"))
+            delay(50)
+            emit(listOf("a", "b", "c"))
+            // no more emissions — the debounce window closes and the flow settles
+        }
+        val job = launch {
+            debouncedHighlightsFlow(source, windowMs = 250L).collect { received += it }
+        }
+        advanceUntilIdle()
+        job.cancel()
+        assertEquals(
+            "burst of 3 rapid emissions must coalesce to one settled emission",
+            listOf(listOf("a", "b", "c")),
+            received,
+        )
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun `debouncedHighlightsFlow lets an emission through after the window elapses`() = runTest {
+        val received = mutableListOf<List<String>>()
+        val source = flow {
+            emit(listOf("a"))
+            delay(500L)              // past the 250 ms debounce window → first emission goes through
+            emit(listOf("a", "b"))
+            delay(500L)              // past the debounce window → second emission goes through
+        }
+        val job = launch {
+            debouncedHighlightsFlow(source, windowMs = 250L).collect { received += it }
+        }
+        advanceUntilIdle()
+        job.cancel()
+        assertEquals(
+            "well-separated emissions must NOT be dropped by the debounce",
+            listOf(listOf("a"), listOf("a", "b")),
+            received,
+        )
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun `debouncedHighlightsFlow default window matches the exported constant`() = runTest {
+        // Regression: keep the default window value from silently drifting out of sync with the
+        // documented constant; a shrinking default would let the sync-burst storm regress; a
+        // ballooning one would make direct user edits feel laggy.
+        val received = mutableListOf<Int>()
+        val source = flow {
+            emit(1)
+            delay(HIGHLIGHTS_OBSERVER_DEBOUNCE_MS - 50L)
+            emit(2)
+            // no more emissions → debounce fires with the last value once window elapses
+        }
+        val job = launch {
+            debouncedHighlightsFlow(source).onEach { received += it }.launchIn(this)
+        }
+        advanceUntilIdle()
+        job.cancel()
+        assertEquals(listOf(2), received)
     }
 }

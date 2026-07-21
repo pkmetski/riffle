@@ -12,7 +12,18 @@ package com.riffle.app.feature.reader
  * Stateful: tracks the [justShiftedForward] guard internally so callers do not have to thread it.
  * Create one instance per [ContinuousReaderView]; call [reset] when the window is rebuilt.
  */
-internal class ChapterWindowManager(private val chaptersBehind: Int) {
+internal class ChapterWindowManager(chaptersBehind: Int) {
+
+    /**
+     * Number of chapters kept behind the viewport midpoint before a forward shift fires. Also the
+     * threshold `viewportChapterIndex − topIndex > chaptersBehind` uses. Mutable so the elided
+     * (Highlights-mode) reader can raise it (short synthetic chapters make the "gap≥2 → oscillate"
+     * pattern common — see [ContinuousPositionTrackerTest] "backward→forward oscillation"), while
+     * full-book continuous mode keeps the lower value that fits its per-chapter memory budget.
+     * Callers must set this BEFORE `openWindowAt` — changing it mid-window doesn't resize the
+     * loaded slots.
+     */
+    var chaptersBehind: Int = chaptersBehind
 
     sealed class Decision {
         data object Hold : Decision()
@@ -54,6 +65,7 @@ internal class ChapterWindowManager(private val chaptersBehind: Int) {
         window: List<ContinuousPositionTracker.ChapterSlot>,
         topIndex: Int,
         totalChapters: Int,
+        viewportHeight: Int = 0,
     ): Decision {
         if (window.isEmpty()) return Decision.Hold
 
@@ -67,12 +79,29 @@ internal class ChapterWindowManager(private val chaptersBehind: Int) {
             && scrollY < firstChapterHeight / 2
             && topIndex > 0
 
+        // Bottom-of-window signal: scroll is clamped at the end of the loaded content. Callers
+        // that don't pass `viewportHeight` (default 0) get `false` here — the midpoint trigger
+        // then governs alone, preserving prior behavior for tests and any legacy call sites.
+        //
+        // Guard: the loaded window must EXCEED the viewport for "bottom" to mean the user
+        // scrolled to reach it. When all loaded chapters fit in one viewport (`loadedContentBottom
+        // <= viewportHeight`), scrollY is pinned at 0 and the bottom is visible without any scroll
+        // — firing here would auto-cascade forward shifts on the very first `decide` after open,
+        // dragging the user past the chapter they opened at and blocking backward nav. This
+        // regressed the initial fix (2026-07-21 log: window jumped [ch5,ch6,ch7]→[ch8,ch9,ch10]
+        // in ~1 s with no user scroll input).
+        val loadedContentBottom = window.last().let { it.top + it.height }
+        val atBottomOfLoadedWindow = viewportHeight > 0 &&
+            loadedContentBottom > viewportHeight &&
+            scrollY + viewportHeight >= loadedContentBottom
+
         val shouldShiftForward = ContinuousPositionTracker.forwardShiftNeeded(
             viewportChapterIndex = viewportChapterIndex,
             topIndex = topIndex,
             loadedChapterCount = window.size,
             readingOrderSize = totalChapters,
             chaptersBehind = chaptersBehind,
+            atBottomOfLoadedWindow = atBottomOfLoadedWindow,
         )
 
         return when {

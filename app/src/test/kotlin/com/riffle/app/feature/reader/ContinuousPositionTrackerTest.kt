@@ -153,6 +153,59 @@ class ContinuousPositionTrackerTest {
         ))
     }
 
+    // ── bottom-of-window trigger: unwedge the short-trailing-chapter wall-off ──
+    //
+    // Regression: elided-view continuous mode walled off at ch7 in an 11-chapter book. Window
+    // [ch5,ch6,ch7] measured heights=[3250,1263,499]; viewport 2400. Max scroll = 5012-2400 =
+    // 2612. At maxScroll, viewport midpoint (3812) falls in ch6 — ch7 is too short (< viewport/2)
+    // for midY to ever enter its slot. So the midpoint-only trigger held forever, even though
+    // ch8..ch10 were unloaded. The user couldn't scroll past ch7.
+    //
+    // Fix: also fire forward shift when the loaded window's bottom is reached (scroll clamped)
+    // AND more chapters exist. This complements the midpoint trigger without regressing the
+    // divider-page blank-flash guard the midpoint trigger was introduced for.
+
+    @Test
+    fun `forwardShiftNeeded — short trailing chapter at bottom of window still fires shift`() {
+        // Exact fixture from the observed AVD wall-off: topIndex=5, window of 3, 11 chapters.
+        // Midpoint sits at ch6 (topIndex+1) so pastBehindBudget is false. Without the bottom-of-
+        // window trigger this returns false forever — reader walls off at ch7.
+        assertTrue(
+            "short trailing chapter must not wall off scroll — bottom-of-window trigger fires",
+            ContinuousPositionTracker.forwardShiftNeeded(
+                viewportChapterIndex = 6, topIndex = 5, loadedChapterCount = 3,
+                readingOrderSize = 11, chaptersBehind = 1,
+                atBottomOfLoadedWindow = true,
+            ),
+        )
+    }
+
+    @Test
+    fun `forwardShiftNeeded — bottom of window with no more chapters still holds`() {
+        // At the last window: reaching the bottom must NOT trigger a shift because there are
+        // no chapters left to append.
+        assertFalse(
+            ContinuousPositionTracker.forwardShiftNeeded(
+                viewportChapterIndex = 10, topIndex = 8, loadedChapterCount = 3,
+                readingOrderSize = 11, chaptersBehind = 1,
+                atBottomOfLoadedWindow = true,
+            ),
+        )
+    }
+
+    @Test
+    fun `forwardShiftNeeded — bottom-of-window default false preserves midpoint-only trigger`() {
+        // Default arg (no bottom-of-window signal) MUST preserve existing behavior — midpoint
+        // trigger is authoritative when the flag isn't passed.
+        assertFalse(
+            "no bottom-of-window info → midpoint trigger is the only path",
+            ContinuousPositionTracker.forwardShiftNeeded(
+                viewportChapterIndex = 6, topIndex = 5, loadedChapterCount = 3,
+                readingOrderSize = 11, chaptersBehind = 1,
+            ),
+        )
+    }
+
     // ── forward→backward oscillation — the "Children of Dune / Introduction" bug ──────────
     //
     // A short chapter (height < viewport) as the new first slot after a forward shift causes the

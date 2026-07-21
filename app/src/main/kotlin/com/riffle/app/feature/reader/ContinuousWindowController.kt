@@ -50,14 +50,16 @@ internal class ContinuousWindowController(
         // buffer chapter directly extends the cold-open spinner time (5 chapters at 1+1 → 3);
         // one behind / one ahead is enough to hide the next chapter boundary from a scroll fling
         // without paying for chapters two removed from the viewport.
-        /** See [ContinuousReaderView.CHAPTERS_BEHIND]. */
-        private const val CHAPTERS_BEHIND = 1
+        /** Default number of chapters kept behind the viewport midpoint. Full-book continuous
+         *  mode uses this; the elided (Highlights-mode) reader raises it — see
+         *  [chaptersBehind]. Capped at 1 by memory constraints on Android 7.1 tablets: bigger
+         *  buffers OOM the WebView renderer with real EPUB chapters loaded with offscreen
+         *  pre-raster. Elided-view chapters are synthesised excerpts, small enough to lift the
+         *  cap safely. */
+        private const val DEFAULT_CHAPTERS_BEHIND = 1
 
         /** See [ContinuousReaderView.CHAPTERS_AHEAD]. */
         private const val CHAPTERS_AHEAD = 1
-
-        /** Total sliding-window size: the reader's chapter plus the behind/ahead buffers. */
-        private const val WINDOW_SIZE = CHAPTERS_BEHIND + 1 + CHAPTERS_AHEAD
 
         /** Max detached WebViews retained for reuse across window shifts. Small: pooled views keep
          *  the previous page's DOM + rasterized tiles resident until reuse (recycle() blanks the
@@ -219,7 +221,19 @@ internal class ContinuousWindowController(
     private var shiftPending = false
 
     /** Owns the shift-direction algorithm and the justShiftedForward oscillation guard. */
-    private val windowManager = ChapterWindowManager(CHAPTERS_BEHIND)
+    private val windowManager = ChapterWindowManager(DEFAULT_CHAPTERS_BEHIND)
+
+    /**
+     * Chapters kept behind the viewport before a forward shift fires. Elided-view opens set this
+     * to 2+ (see [DEFAULT_CHAPTERS_BEHIND]) so tiny synthetic chapters don't oscillate. MUST be
+     * set before [openWindowAt] — the initial window size derives from it and can't be resized
+     * mid-window.
+     */
+    internal var chaptersBehind: Int
+        get() = windowManager.chaptersBehind
+        set(value) { windowManager.chaptersBehind = value }
+
+    private val windowSize: Int get() = chaptersBehind + 1 + CHAPTERS_AHEAD
 
     /** True while rebuilding the window after a WebView renderer-process death. */
     private var rendererRecovering = false
@@ -391,8 +405,8 @@ internal class ContinuousWindowController(
         val initial = ContinuousPositionTracker.initialWindow(
             targetIndex = targetIndex,
             allChaptersSize = allChapters.size,
-            chaptersBehind = CHAPTERS_BEHIND,
-            windowSize = WINDOW_SIZE,
+            chaptersBehind = chaptersBehind,
+            windowSize = windowSize,
         )
         topIndex = initial.topIndex
         val targetWindowIndex = initial.targetWindowIndex
@@ -929,7 +943,9 @@ internal class ContinuousWindowController(
         val (href, _) = ContinuousPositionTracker.locatorAt(sY, port.viewportHeightPx, window)
         val viewportMidIndex = allChapters.indexOfFirst { it.link.href.toString() == href }
 
-        val decision = windowManager.decide(sY, viewportMidIndex, window, topIndex, allChapters.size)
+        val decision = windowManager.decide(
+            sY, viewportMidIndex, window, topIndex, allChapters.size, port.viewportHeightPx,
+        )
         when (decision) {
             ChapterWindowManager.Decision.ShiftBackward -> {
                 shiftInProgress = true

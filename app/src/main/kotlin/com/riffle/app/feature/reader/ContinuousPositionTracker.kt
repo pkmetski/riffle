@@ -186,10 +186,19 @@ internal object ContinuousPositionTracker {
         loadedChapterCount: Int,
         readingOrderSize: Int,
         chaptersBehind: Int,
+        atBottomOfLoadedWindow: Boolean = false,
     ): Boolean {
         val moreChaptersExist = topIndex + loadedChapterCount < readingOrderSize
         val pastBehindBudget = viewportChapterIndex - topIndex > chaptersBehind
-        return moreChaptersExist && pastBehindBudget
+        // Bottom-of-window trigger: when the trailing chapter(s) in the window are shorter than
+        // half a viewport, the midpoint can never enter their slot no matter how far the user
+        // scrolls — `pastBehindBudget` stays false forever and the reader walls off. This shows up
+        // in elided (Highlights-mode) continuous reading where single-annotation chapters
+        // synthesise to ~500 px pages. Fire when the scroll is clamped at the end of the loaded
+        // content and chapters remain to append. Complements the midpoint trigger — does not
+        // replace it — so the divider-page blank-flash guard the midpoint trigger was introduced
+        // for is preserved.
+        return moreChaptersExist && (pastBehindBudget || atBottomOfLoadedWindow)
     }
 
     data class InitialWindow(val topIndex: Int, val totalChapters: Int, val targetWindowIndex: Int) {
