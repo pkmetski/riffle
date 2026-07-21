@@ -88,23 +88,19 @@ class AnnotationSyncTargetHolder(
         webDavConfig: com.riffle.core.domain.AnnotationSyncConfig?,
         sources: List<Source>,
     ): AnnotationSyncTarget? {
-        // Build ABS children together with the namespace each one serves; we need the namespace
-        // set both here (Child.serves predicate) and below (to exclude WebDAV from those
-        // namespaces), so keep the pair to avoid a lossy downcast.
-        val absChildrenWithNamespaces: List<Pair<CompositeAnnotationSyncTarget.Child, String>> =
-            sources
-                .filter { it.type == SourceType.ABS && it.serverType == ServerType.AUDIOBOOKSHELF }
-                .mapNotNull { source ->
-                    val target = absBookmarkFactory.create(source) ?: return@mapNotNull null
-                    val namespace = "${AbsWebSourceDescriptor.ABS_NAMESPACE_PREFIX}${source.absUserId!!}"
-                    CompositeAnnotationSyncTarget.Child(
-                        target = target,
-                        serves = { ns -> ns == namespace },
-                        label = "abs:${source.id.take(8)}",
-                    ) to namespace
-                }
-        val absChildren = absChildrenWithNamespaces.map { it.first }
-        val absServedNamespaces: Set<String> = absChildrenWithNamespaces.mapTo(mutableSetOf()) { it.second }
+        val absChildren = sources
+            .filter { it.type == SourceType.ABS && it.serverType == ServerType.AUDIOBOOKSHELF }
+            .mapNotNull { source ->
+                val target = absBookmarkFactory.create(source) ?: return@mapNotNull null
+                val namespace = "${AbsWebSourceDescriptor.ABS_NAMESPACE_PREFIX}${source.absUserId!!}"
+                CompositeAnnotationSyncTarget.Child(
+                    target = target,
+                    serves = { ns -> ns == namespace },
+                    label = "abs:${source.id.take(8)}",
+                    servedNamespace = namespace,
+                )
+            }
+        val absServedNamespaces: Set<String> = absChildren.mapNotNullTo(mutableSetOf()) { it.servedNamespace }
 
         // WebDAV steps aside for any namespace an ABS-bookmark child already serves — that account
         // gets ABS bookmarks only, no WebDAV dual-write. Every other namespace (Komga, non-allow-
