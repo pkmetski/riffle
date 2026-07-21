@@ -476,14 +476,19 @@ internal object ContinuousStyleInjector {
                 // with no emphasis produces the empty string. All declarations use `!important`
                 // so publisher `<em>`/`<strong>` styles inside the range don't undo the toggle
                 // (mirrors the paginated DOM-injector rule).
+                //
+                // Token literals ('bold' / 'italic' / 'underline' / 'strike') are interpolated
+                // from `EmphasisStyle.<X>.token` so the JS matchers can't drift from the wire
+                // form `EmphasisStyle.encode` produces — a rename on the enum flows through both
+                // sides at compile time (AGENTS.md: "Always reference constants, never the literal").
                 var emphasisStyle = function(e) {
                     if (!e) return '';
                     var s = '';
-                    if (e.indexOf('bold') !== -1) s += 'font-weight:bold !important;';
-                    if (e.indexOf('italic') !== -1) s += 'font-style:italic !important;';
+                    if (e.indexOf('${com.riffle.core.models.EmphasisStyle.BOLD.token}') !== -1) s += 'font-weight:bold !important;';
+                    if (e.indexOf('${com.riffle.core.models.EmphasisStyle.ITALIC.token}') !== -1) s += 'font-style:italic !important;';
                     var deco = '';
-                    if (e.indexOf('underline') !== -1) deco += ' underline';
-                    if (e.indexOf('strike') !== -1) deco += ' line-through';
+                    if (e.indexOf('${com.riffle.core.models.EmphasisStyle.UNDERLINE.token}') !== -1) deco += ' underline';
+                    if (e.indexOf('${com.riffle.core.models.EmphasisStyle.STRIKE.token}') !== -1) deco += ' line-through';
                     if (deco.length > 0) {
                         s += 'text-decoration:' + deco.substring(1) + ' !important;';
                     }
