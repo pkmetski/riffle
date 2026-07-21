@@ -21,7 +21,11 @@ import kotlinx.coroutines.runBlocking
  * ABS Sources changes.
  *
  * **Composition rules (ADR 0047):**
- * - WebDAV configured → one WebDAV child servicing every namespace.
+ * - WebDAV configured → one WebDAV child, servicing every namespace **except** those already
+ *   covered by an ABS-bookmark child. Once ABS-bookmark sync is live for an account, WebDAV would
+ *   only add cross-transport reconciliation cost without any read that the ABS-bookmark child
+ *   doesn't already serve; skip it. Komga (and any non-allow-listed ABS source) still routes to
+ *   WebDAV as before.
  * - Each ABS Source with an accessible token and `absUserId` → one ABS-bookmark child, namespace-
  *   scoped to `abs_<absUserId>`. Komga-namespaced books are not routed to any ABS-bookmark child.
  * - Zero children → `current() == null` (annotation sync is off).
@@ -84,25 +88,34 @@ class AnnotationSyncTargetHolder(
         webDavConfig: com.riffle.core.domain.AnnotationSyncConfig?,
         sources: List<Source>,
     ): AnnotationSyncTarget? {
+        // Build ABS children together with the namespace each one serves; we need the namespace
+        // set both here (Child.serves predicate) and below (to exclude WebDAV from those
+        // namespaces), so keep the pair to avoid a lossy downcast.
+        val absChildrenWithNamespaces: List<Pair<CompositeAnnotationSyncTarget.Child, String>> =
+            sources
+                .filter { it.type == SourceType.ABS && it.serverType == ServerType.AUDIOBOOKSHELF }
+                .mapNotNull { source ->
+                    val target = absBookmarkFactory.create(source) ?: return@mapNotNull null
+                    val namespace = "${AbsWebSourceDescriptor.ABS_NAMESPACE_PREFIX}${source.absUserId!!}"
+                    CompositeAnnotationSyncTarget.Child(
+                        target = target,
+                        serves = { ns -> ns == namespace },
+                        label = "abs:${source.id.take(8)}",
+                    ) to namespace
+                }
+        val absChildren = absChildrenWithNamespaces.map { it.first }
+        val absServedNamespaces: Set<String> = absChildrenWithNamespaces.mapTo(mutableSetOf()) { it.second }
+
+        // WebDAV steps aside for any namespace an ABS-bookmark child already serves — that account
+        // gets ABS bookmarks only, no WebDAV dual-write. Every other namespace (Komga, non-allow-
+        // listed ABS accounts) continues to route to WebDAV as before.
         val webDavChild = webDavConfig
             ?.let { webDavFactory.create(it) }
             ?.let {
                 CompositeAnnotationSyncTarget.Child(
                     target = it,
-                    serves = { _ -> true },
+                    serves = { ns -> ns !in absServedNamespaces },
                     label = "webdav",
-                )
-            }
-
-        val absChildren = sources
-            .filter { it.type == SourceType.ABS && it.serverType == ServerType.AUDIOBOOKSHELF }
-            .mapNotNull { source ->
-                val target = absBookmarkFactory.create(source) ?: return@mapNotNull null
-                val namespace = "${AbsWebSourceDescriptor.ABS_NAMESPACE_PREFIX}${source.absUserId!!}"
-                CompositeAnnotationSyncTarget.Child(
-                    target = target,
-                    serves = { ns -> ns == namespace },
-                    label = "abs:${source.id.take(8)}",
                 )
             }
 

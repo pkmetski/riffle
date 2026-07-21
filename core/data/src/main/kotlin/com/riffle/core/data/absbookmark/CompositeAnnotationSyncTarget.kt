@@ -38,6 +38,14 @@ class CompositeAnnotationSyncTarget(
 
     private fun eligible(namespace: String): List<Child> = children.filter { it.serves(namespace) }
 
+    /**
+     * Diagnostic accessor: which child labels are routed for [namespace]. Used by
+     * `AnnotationSyncTargetHolderTest` to pin the "WebDAV steps aside for ABS-bookmark-served
+     * namespaces" rule without going through a live network round-trip; also handy in ad-hoc
+     * logging. Order matches [children].
+     */
+    fun eligibleLabels(namespace: String): List<String> = eligible(namespace).map { it.label }
+
     override suspend fun list(namespace: String, itemId: String): List<String> {
         val els = eligible(namespace)
         val union = LinkedHashSet<String>()

@@ -1,12 +1,17 @@
 package com.riffle.core.data
 
 import com.riffle.core.data.absbookmark.AbsBookmarkAnnotationSyncTargetFactory
+import com.riffle.core.data.absbookmark.CompositeAnnotationSyncTarget
+import com.riffle.core.domain.AbsWebSourceDescriptor
 import com.riffle.core.domain.AnnotationSyncConfig
 import com.riffle.core.domain.AnnotationSyncConfigStore
 import com.riffle.core.domain.CommitSourceResult
 import com.riffle.core.domain.PendingSource
 import com.riffle.core.domain.SourceRepository
+import com.riffle.core.models.ServerType
 import com.riffle.core.models.Source
+import com.riffle.core.models.SourceType
+import com.riffle.core.models.SourceUrl
 import com.riffle.core.domain.TokenStorage
 import com.riffle.core.network.AbsBookmarkApi
 import com.riffle.core.network.NetworkAbsBookmark
@@ -21,8 +26,10 @@ import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
 import okhttp3.OkHttpClient
 import org.junit.After
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 
@@ -98,6 +105,53 @@ class AnnotationSyncTargetHolderTest {
         assertNull(holder.current())
     }
 
+    // Regression: for accounts served by an ABS-bookmark child (currently the allow-listed
+    // `plamen` / `test` usernames), WebDAV steps aside so that account's annotations flow
+    // over ABS bookmarks only — no dual-write to WebDAV. Every other namespace (Komga, non-
+    // allow-listed ABS accounts) continues to route to WebDAV as before. See
+    // AnnotationSyncTargetHolder composition rules.
+    @Test
+    fun `webdav does not serve namespaces already covered by an abs-bookmark child`() = runTest {
+        val absSource = Source(
+            id = "src-plamen",
+            url = SourceUrl.parse("http://abs.local")!!,
+            isActive = true,
+            insecureConnectionAllowed = false,
+            username = "plamen",
+            type = SourceType.ABS,
+            serverType = ServerType.AUDIOBOOKSHELF,
+            absUserId = "abs-user-1",
+        )
+        val sources = SingleSourceRepository(absSource)
+        val tokenStorage = InMemoryTokenStorage().apply { savedTokens[absSource.id] = "tok" }
+        val absFactory = AbsBookmarkAnnotationSyncTargetFactory(
+            absBookmarkApi = HolderTestNoopAbsBookmarkApi(),
+            tokenStorage = tokenStorage,
+        )
+        val holder = AnnotationSyncTargetHolder(
+            configStore = configStore,
+            webDavFactory = factory,
+            absBookmarkFactory = absFactory,
+            sourceRepository = sources,
+            scope = scope,
+        )
+        configStore.emit(AnnotationSyncConfig("https://dav.example.org/anno", "u", "p"))
+
+        val composite = holder.current() as? CompositeAnnotationSyncTarget
+            ?: error("expected a Composite target when both WebDAV and an ABS child are configured")
+
+        val absNamespace = "${AbsWebSourceDescriptor.ABS_NAMESPACE_PREFIX}${absSource.absUserId}"
+        assertEquals(
+            "ABS-served namespace must route to the ABS child only",
+            listOf("abs:${absSource.id.take(8)}"),
+            composite.eligibleLabels(absNamespace),
+        )
+        assertTrue(
+            "an unrelated namespace (e.g. Komga) must still route to WebDAV",
+            composite.eligibleLabels("komga_other").contains("webdav"),
+        )
+    }
+
     @Test
     fun `a subsequent config change replaces the previous target`() = runTest {
         val holder = holder()
@@ -137,6 +191,24 @@ private class NoopTokenStorage : TokenStorage {
     override suspend fun saveToken(sourceId: String, token: String) {}
     override suspend fun getToken(sourceId: String): String? = null
     override suspend fun deleteToken(sourceId: String) {}
+}
+
+private class InMemoryTokenStorage : TokenStorage {
+    val savedTokens: MutableMap<String, String> = mutableMapOf()
+    override suspend fun saveToken(sourceId: String, token: String) { savedTokens[sourceId] = token }
+    override suspend fun getToken(sourceId: String): String? = savedTokens[sourceId]
+    override suspend fun deleteToken(sourceId: String) { savedTokens.remove(sourceId) }
+}
+
+private class SingleSourceRepository(private val source: Source) : SourceRepository {
+    private val state = MutableStateFlow(listOf(source))
+    override fun observeAll(): Flow<List<Source>> = state
+    override suspend fun getActive(): Source? = source
+    override suspend fun commit(pending: PendingSource, hiddenLibraryIds: Set<String>): CommitSourceResult =
+        CommitSourceResult.Failure(UnsupportedOperationException())
+    override suspend fun setActive(sourceId: String) {}
+    override suspend fun remove(sourceId: String) {}
+    override suspend fun getSourceVersion(sourceId: String): String? = null
 }
 
 private class HolderTestNoopAbsBookmarkApi : AbsBookmarkApi {
