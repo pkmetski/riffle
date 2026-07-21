@@ -12,7 +12,9 @@ import org.readium.r2.shared.publication.LocalizedString
 import org.readium.r2.shared.publication.Manifest
 import org.readium.r2.shared.publication.Metadata
 import org.readium.r2.shared.publication.Publication
+import org.readium.r2.shared.ExperimentalReadiumApi
 import org.readium.r2.shared.publication.services.PerResourcePositionsService
+import org.readium.r2.shared.publication.services.search.StringSearchService
 import org.readium.r2.shared.util.AbsoluteUrl
 import org.readium.r2.shared.util.Try
 import org.readium.r2.shared.util.Url
@@ -231,6 +233,13 @@ class HighlightsPublicationFactory @Inject constructor() {
         // is silently blank in the elided reader. One position per resource is exactly the rail
         // needs: the elided TOC is flat, so [buildRailSegments] produces one segment per elided
         // chapter with equal weight.
+        // Register [StringSearchService] so the reader's search top-bar returns results when opened
+        // against the elided view. Without a search factory here, [Publication.findService(SearchService)]
+        // returns null and every query silently produces zero results — the elided reader "has a
+        // search icon that does nothing" bug. The default extractor factory handles the XHTML
+        // resources we synthesise (see [DefaultResourceContentExtractorFactory]).
+        @OptIn(ExperimentalReadiumApi::class)
+        val searchFactory = StringSearchService.createDefaultFactory()
         val publication = Publication(
             manifest = manifest,
             container = InMemoryContainer(entries),
@@ -241,6 +250,7 @@ class HighlightsPublicationFactory @Inject constructor() {
                         fallbackMediaType = MediaType.XHTML,
                     )
                 },
+                search = searchFactory,
             ),
         )
         return HighlightsPublicationHandle(
