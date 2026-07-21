@@ -1100,4 +1100,129 @@ class AnnotationSessionTest {
         // Verify the returned annotation carries the expected identity.
         assertEquals("yellow", created.color)
     }
+
+    // ------ Cold-open eager-bind path (updateNamespace) ------------------------------------
+    // These four tests pin the "bind with empty namespace, resolve later" contract that the
+    // reader-open path relies on to start the annotation Flow observer BEFORE _state = Ready.
+    // Flipping any of them means the reordered cold-open pipeline in EpubReaderViewModel.
+    // onOpenReady would either regress sync (no syncOnOpen when namespace is late-supplied) or
+    // regress the eager subscription (bind gated behind ensureSyncNamespace's IO wait again).
+
+    @Test
+    fun `bind with empty namespace does NOT trigger syncOnOpen or startLiveSync`() = runTest {
+        val dispatcher = UnconfinedTestDispatcher(testScheduler)
+        val sessionScope = CoroutineScope(dispatcher)
+        val syncOps = FakeSyncOps()
+        val session = makeSession(syncOps = syncOps, scope = sessionScope)
+
+        session.bind(
+            sourceId = "srv1",
+            namespace = "",
+            itemId = "item1",
+            highlightRenderResolver = { emptyList() },
+            cfiLocatorResolver = { null },
+        )
+
+        assertFalse("empty-namespace bind must not run syncOnOpen", syncOps.syncOnOpenCalled)
+        assertFalse("empty-namespace bind must not start live-sync loop", syncOps.startLiveSyncCalled)
+    }
+
+    @Test
+    fun `bind with empty namespace still starts the annotation Flow observer`() = runTest {
+        val dispatcher = UnconfinedTestDispatcher(testScheduler)
+        val sessionScope = CoroutineScope(dispatcher)
+        val store = FakeAnnotationStore()
+        val syncOps = FakeSyncOps()
+        val session = makeSession(store = store, syncOps = syncOps, scope = sessionScope)
+
+        val anno = fakeAnnotation()
+        val render = EpubReaderViewModel.HighlightRender(anno.id, buildLocator(), anno.color, anno.note)
+
+        session.bind(
+            sourceId = "srv1",
+            namespace = "",
+            itemId = "item1",
+            highlightRenderResolver = { listOf(render) },
+            cfiLocatorResolver = { null },
+        )
+        store.allAnnotations.value = listOf(anno)
+
+        // The observer runs regardless of namespace — that's the whole point of the eager bind.
+        assertEquals(listOf(render), session.highlightRenders.value)
+    }
+
+    @Test
+    fun `updateNamespace after empty-namespace bind kicks off syncOnOpen and startLiveSync`() = runTest {
+        val dispatcher = UnconfinedTestDispatcher(testScheduler)
+        val sessionScope = CoroutineScope(dispatcher)
+        val syncOps = FakeSyncOps()
+        val session = makeSession(syncOps = syncOps, scope = sessionScope)
+
+        session.bind(
+            sourceId = "srv1",
+            namespace = "",
+            itemId = "item1",
+            highlightRenderResolver = { emptyList() },
+            cfiLocatorResolver = { null },
+        )
+        assertFalse(syncOps.syncOnOpenCalled)
+        assertFalse(syncOps.startLiveSyncCalled)
+
+        session.updateNamespace("ns-real")
+
+        assertTrue("updateNamespace(non-empty) must run syncOnOpen", syncOps.syncOnOpenCalled)
+        assertTrue("updateNamespace(non-empty) must start live-sync", syncOps.startLiveSyncCalled)
+    }
+
+    // Race-window regression: any user mutation between bind(namespace="") and updateNamespace
+    // (createHighlight, delete, recolour, note-edit) hits `boundNamespace ?: return` in
+    // scheduleSync and silently doesn't queue a push. The Room write persists but the remote
+    // push is missed. updateNamespace must fire a scheduleSync on the null→non-null transition
+    // to flush any pending queued writes. Flips red if that flush is removed.
+    @Test
+    fun `updateNamespace bootstrap fires scheduleSync to flush pre-namespace-window writes`() = runTest {
+        val dispatcher = UnconfinedTestDispatcher(testScheduler)
+        val sessionScope = CoroutineScope(dispatcher)
+        val syncOps = FakeSyncOps()
+        val session = makeSession(syncOps = syncOps, scope = sessionScope)
+
+        session.bind(
+            sourceId = "srv1",
+            namespace = "",
+            itemId = "item1",
+            highlightRenderResolver = { emptyList() },
+            cfiLocatorResolver = { null },
+        )
+        // Nothing scheduled yet.
+        assertEquals(0, syncOps.scheduleDebounceCount)
+
+        session.updateNamespace("ns-real")
+
+        assertEquals(
+            "null→non-null transition must nudge scheduleSync to flush the race window",
+            1,
+            syncOps.scheduleDebounceCount,
+        )
+    }
+
+    @Test
+    fun `updateNamespace(null) after empty-namespace bind stays no-op`() = runTest {
+        val dispatcher = UnconfinedTestDispatcher(testScheduler)
+        val sessionScope = CoroutineScope(dispatcher)
+        val syncOps = FakeSyncOps()
+        val session = makeSession(syncOps = syncOps, scope = sessionScope)
+
+        session.bind(
+            sourceId = "srv1",
+            namespace = "",
+            itemId = "item1",
+            highlightRenderResolver = { emptyList() },
+            cfiLocatorResolver = { null },
+        )
+        session.updateNamespace(null)
+
+        // Local-only source: ensureSyncNamespace returns null → session stays in no-sync mode.
+        assertFalse("updateNamespace(null) must not run syncOnOpen", syncOps.syncOnOpenCalled)
+        assertFalse("updateNamespace(null) must not start live-sync", syncOps.startLiveSyncCalled)
+    }
 }
