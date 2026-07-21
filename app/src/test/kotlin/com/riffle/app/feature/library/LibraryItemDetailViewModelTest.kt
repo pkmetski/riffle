@@ -257,6 +257,7 @@ class LibraryItemDetailViewModelTest {
             io.mockk.coEvery { uc(any<com.riffle.core.models.LibraryItem>()) } returns emptyList<com.riffle.core.domain.AudiobookChapter>()
         },
         catalogRegistryOverride: com.riffle.core.catalog.CatalogRegistry = detailFakeCatalogRegistry(),
+        libraryRefresher: com.riffle.core.domain.LibraryRefresher = com.riffle.app.testing.NoopLibraryRefresher,
     ) = LibraryItemDetailViewModel(
         savedStateHandle = SavedStateHandle(mapOf("itemId" to itemId)),
         libraryObserver = repo,
@@ -289,6 +290,7 @@ class LibraryItemDetailViewModelTest {
         extractEpubTocUseCase = extractEpubTocUseCase,
         fetchAudiobookChaptersUseCase = fetchAudiobookChaptersUseCase,
         catalogRegistry = catalogRegistryOverride,
+        libraryRefresher = libraryRefresher,
     )
 
     // These tests exercise ViewModel state and side-effects; none read Ready.capabilities.
@@ -402,6 +404,76 @@ class LibraryItemDetailViewModelTest {
         testDispatcher.scheduler.advanceUntilIdle()
 
         assertEquals(0.8f, (vm.uiState.value as Ready).item.readingProgress)
+    }
+
+    /**
+     * Records refreshItemProgress calls so the test can pin that VM.refreshItemProgress() actually
+     * dispatches. Without this pin, a refactor that no-ops the VM method body would keep tests
+     * green while silently breaking the details-ON_RESUME sync feature.
+     */
+    private class RecordingLibraryRefresher : com.riffle.core.domain.LibraryRefresher {
+        val refreshItemProgressCalls = mutableListOf<Pair<String, String>>()
+        override suspend fun refreshLibraries() = LibraryRefreshResult.Success
+        override suspend fun refreshLibraryItems(libraryId: String) = LibraryRefreshResult.Success
+        override suspend fun refreshSeries(libraryId: String) = LibraryRefreshResult.Success
+        override suspend fun refreshCollections(libraryId: String) = LibraryRefreshResult.Success
+        override suspend fun refreshItemProgress(sourceId: String, itemId: String): LibraryRefreshResult {
+            refreshItemProgressCalls += sourceId to itemId
+            return LibraryRefreshResult.Success
+        }
+    }
+
+    @Test
+    fun `refreshItemProgress dispatches to the LibraryRefresher with the active source id and vm item id`() = runTest {
+        val recorder = RecordingLibraryRefresher()
+        val serverSource = Source(
+            id = "srv-1",
+            url = SourceUrl.parse("https://abs.example.com")!!,
+            isActive = true,
+            insecureConnectionAllowed = false,
+            username = "u",
+        )
+        val vm = makeVm(
+            fakeRepo(knownItem),
+            sourceRepository = serverRepoReturning(serverSource),
+            libraryRefresher = recorder,
+        )
+        backgroundScope.launch { vm.uiState.collect {} }
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        vm.refreshItemProgress()
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(listOf("srv-1" to "item-1"), recorder.refreshItemProgressCalls)
+    }
+
+    /**
+     * Regression pin for the cold-open / deep-link case: ON_RESUME can fire while uiState is still
+     * Loading (init's async item fetch hasn't completed). The refresh MUST still dispatch, or the
+     * whole details-ON_RESUME sync silently drops for the case it was added to cover.
+     */
+    @Test
+    fun `refreshItemProgress dispatches even when uiState is still Loading (cold-open race)`() = runTest {
+        val recorder = RecordingLibraryRefresher()
+        val serverSource = Source(
+            id = "srv-1",
+            url = SourceUrl.parse("https://abs.example.com")!!,
+            isActive = true,
+            insecureConnectionAllowed = false,
+            username = "u",
+        )
+        val vm = makeVm(
+            fakeRepo(knownItem),
+            sourceRepository = serverRepoReturning(serverSource),
+            libraryRefresher = recorder,
+        )
+        // Deliberately do NOT advanceUntilIdle before calling — mirrors ON_RESUME firing before the
+        // async init has settled Ready.
+        assertEquals(LibraryItemDetailUiState.Loading, vm.uiState.value)
+        vm.refreshItemProgress()
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(listOf("srv-1" to "item-1"), recorder.refreshItemProgressCalls)
     }
 
     // --- downloadState tests ---

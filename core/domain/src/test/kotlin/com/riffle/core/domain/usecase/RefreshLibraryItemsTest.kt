@@ -30,6 +30,7 @@ class RefreshLibraryItemsTest {
         override suspend fun refreshLibraryItems(libraryId: String) = result
         override suspend fun refreshSeries(libraryId: String) = result
         override suspend fun refreshCollections(libraryId: String) = result
+        override suspend fun refreshItemProgress(sourceId: String, itemId: String) = result
     }
 
     private class RecordingSyncer : StorytellerReadaloudCacheSyncer {

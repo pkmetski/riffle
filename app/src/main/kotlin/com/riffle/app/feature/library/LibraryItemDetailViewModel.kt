@@ -13,6 +13,7 @@ import com.riffle.core.domain.EpubDownloadResult
 import com.riffle.core.domain.EpubRepository
 import com.riffle.core.models.LibraryItem
 import com.riffle.core.domain.LibraryObserver
+import com.riffle.core.domain.LibraryRefresher
 import com.riffle.core.domain.PdfDownloadResult
 import com.riffle.core.domain.PdfRepository
 import com.riffle.core.domain.usecase.MarkReadAcrossDimensions
@@ -170,6 +171,7 @@ class LibraryItemDetailViewModel @Inject constructor(
     private val extractEpubTocUseCase: ExtractEpubTocUseCase,
     private val fetchAudiobookChaptersUseCase: FetchAudiobookChaptersUseCase,
     private val catalogRegistry: CatalogRegistry,
+    private val libraryRefresher: LibraryRefresher,
 ) : ViewModel() {
 
     private val itemId: String = savedStateHandle.get<String>("itemId") ?: ""
@@ -209,6 +211,24 @@ class LibraryItemDetailViewModel @Inject constructor(
         if (item.ebookFormat != EbookFormat.Epub) return
         viewModelScope.launch {
             _currentPositionHref.value = epubRepository.loadLastPositionHref(item.sourceId, item.id)
+        }
+    }
+
+    /**
+     * Called from the details screen's ON_RESUME. Pulls the item's server progress and mirrors
+     * it into `library_items.readingProgress` / `finishedAt` so the blue bar and % / remaining
+     * refresh when the user visits the details page — including the case of returning to details
+     * without going through the library grid (deep link, back from reader, app foreground).
+     */
+    fun refreshItemProgress() {
+        // Resolve source/item from the sources of truth (savedStateHandle + active source), NOT
+        // from _uiState.value. ON_RESUME can fire before init's async item load completes
+        // (cold-open / deep-link into details) — a Ready-only gate would silently drop the very
+        // case the refresh was added for. The refresher's own precondition checks handle a null
+        // active source or a mismatched sourceId.
+        viewModelScope.launch {
+            val sourceId = sourceRepository.getActive()?.id ?: return@launch
+            libraryRefresher.refreshItemProgress(sourceId, itemId)
         }
     }
 

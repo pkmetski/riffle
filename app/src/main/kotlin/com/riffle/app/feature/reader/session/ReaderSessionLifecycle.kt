@@ -59,6 +59,7 @@ class ReaderSessionLifecycle @AssistedInject constructor(
     private val readerSyncFactory: ReaderSyncFactory,
     private val annotationStore: AnnotationStore,
     private val logger: Logger,
+    private val itemProgressPuller: com.riffle.core.data.ItemProgressPuller,
 ) {
 
     @AssistedFactory
@@ -93,6 +94,29 @@ class ReaderSessionLifecycle @AssistedInject constructor(
     suspend fun open(params: OpenParams): OpenOutcome {
         val item = libraryObserver.getItem(params.itemId)
             ?: return OpenOutcome.Error("Book not found")
+
+        // Refresh this book's server position BEFORE loading the initial locator so the reader
+        // opens at the fresh spot instead of rendering the old local cfi first and then visibly
+        // jumping when the in-reader sync cycle catches up. Bounded so a slow/unreachable server
+        // never blocks reader-open indefinitely — on timeout we proceed with the local locator,
+        // which the live sync cycle will then reconcile (the pre-fix behaviour).
+        // Runs BEFORE openReconcileTargets.markOpen (inside resolveReady) — otherwise the
+        // puller's `isOpen` guard would skip it.
+        // Cancellation must propagate — a plain `runCatching { ... }` around a suspending call
+        // swallows CancellationException (Kotlin footgun) and would defeat both the timeout AND
+        // structured concurrency if the caller cancels this open() mid-flight. Catch only
+        // non-cancellation Throwables and re-throw CancellationException explicitly.
+        kotlinx.coroutines.withTimeoutOrNull(1_500L) {
+            try {
+                itemProgressPuller.pullItem(item.sourceId, item.id)
+            } catch (t: Throwable) {
+                if (t is kotlinx.coroutines.CancellationException) throw t
+                logger.w(LogChannel.ProgressSync) {
+                    "ReaderSessionLifecycle: puller failed for source=${item.sourceId} item=${item.id} — " +
+                        "${t::class.simpleName}: ${t.message}"
+                }
+            }
+        }
 
         return when (val result = epubRepository.openEpub(item)) {
             is EpubOpenResult.Success -> resolveReady(result, item.title, params)

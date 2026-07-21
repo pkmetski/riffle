@@ -184,11 +184,26 @@ class LibraryRepositoryTest {
         }
     }
 
+    /** In-memory [DirtyProgressLedger] whose "dirty ebook" set can be seeded per test to model
+     *  a pending offline reader-close save without wiring the real position DAOs. */
+    internal class FakeDirtyProgressLedger(
+        val ebookDirty: MutableMap<String, MutableList<String>> = mutableMapOf(),
+        val audioDirty: MutableMap<String, MutableList<String>> = mutableMapOf(),
+    ) : DirtyProgressLedger {
+        override suspend fun serversWithDirty(): List<String> =
+            (ebookDirty.keys + audioDirty.keys).toList().distinct()
+        override suspend fun dirtyEbookItems(sourceId: String): List<String> =
+            ebookDirty[sourceId].orEmpty()
+        override suspend fun dirtyAudioItems(sourceId: String): List<String> =
+            audioDirty[sourceId].orEmpty()
+    }
+
     private fun makeRepo(
         libraryDao: FakeLibraryDao = FakeLibraryDao(),
         libraryItemDao: FakeLibraryItemDao = FakeLibraryItemDao(),
         seriesDao: FakeSeriesDao = FakeSeriesDao(),
         collectionDao: FakeCollectionDao = FakeCollectionDao(),
+        dirtyProgressLedger: DirtyProgressLedger = FakeDirtyProgressLedger(),
         api: AbsLibraryApi = object : AbsLibraryApi {
             override suspend fun getLibraries(baseUrl: String, token: String, insecureAllowed: Boolean): NetworkResult<List<com.riffle.core.network.NetworkLibrary>> =
                 NetworkResult.Success(emptyList())
@@ -199,14 +214,17 @@ class LibraryRepositoryTest {
             override suspend fun getCollections(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean): NetworkResult<List<com.riffle.core.network.NetworkCollection>> =
                 NetworkResult.Success(emptyList())
         },
+        sessionApi: com.riffle.core.network.AbsSessionApi = NoopAbsSessionApi,
     ) = LibraryRepositoryImpl(
         InlineCatalogRegistry(testAbsCatalog(
             libraryApi = api,
+            sessionApi = sessionApi,
             baseUrl = fakeServerRepository.activeServer?.url?.value ?: "http://abs",
         )),
         libraryDao, libraryItemDao, seriesDao, collectionDao,
         fakeServerRepository, com.riffle.core.domain.TestClock(),
         com.riffle.core.logging.RecordingLogger(),
+        dirtyProgressLedger,
     )
 
     private fun activeServer(id: String = "s1") = Source(
@@ -412,15 +430,20 @@ class LibraryRepositoryTest {
     }
 
     @Test
-    fun `refreshLibraryItems keeps local readingProgress over stale source value`() = runTest {
-        // Reproduces the offline-read regression: source has old 0.42, local has 0.75 from an
-        // offline session. Refresh must not revert the library card back to the source value.
+    fun `refreshLibraryItems keeps local readingProgress when the position row is locally dirty`() = runTest {
+        // Reproduces the offline-read regression: local has 0.75 from an offline reader-close that
+        // hasn't yet been pushed to the server (so `reading_positions` for this item is dirty per
+        // ADR 0030). The library refresh MUST NOT overwrite the pending local edit — the ADR-0030
+        // sweep will resolve it and mirror the final fraction via UiProgressSink. This supersedes
+        // the older `lastOpenedAt == null` gate; the definitive "pending local edit" signal is a
+        // dirty position row, not "was ever opened".
         fakeServerRepository.activeServer = activeServer()
         fakeTokenStorage.tokens["s1"] = "tok"
         val dao = FakeLibraryItemDao()
         dao.upsertAll(listOf(
             LibraryItemEntity("s1", "item-1", "lib-1", "My Book", "Author A", null, 0.75f, addedAt = 0L),
         ))
+        val ledger = FakeDirtyProgressLedger(ebookDirty = mutableMapOf("s1" to mutableListOf("item-1")))
         val api = object : AbsLibraryApi {
             override suspend fun getUserProgress(baseUrl: String, token: String, insecureAllowed: Boolean): NetworkResult<Map<String, NetworkUserMediaProgress>> =
                 com.riffle.core.network.NetworkResult.Success(
@@ -437,7 +460,7 @@ class LibraryRepositoryTest {
             override suspend fun getCollections(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean): NetworkResult<List<NetworkCollection>> =
                 NetworkResult.Success(emptyList())
         }
-        makeRepo(libraryItemDao = dao, api = api).refreshLibraryItems("lib-1")
+        makeRepo(libraryItemDao = dao, api = api, dirtyProgressLedger = ledger).refreshLibraryItems("lib-1")
         assertEquals(0.75f, dao.itemsFor("lib-1").first { it.id == "item-1" }.readingProgress, 0.001f)
     }
 
@@ -476,10 +499,14 @@ class LibraryRepositoryTest {
     }
 
     @Test
-    fun `refreshLibraryItems does NOT adopt server readingProgress when the row has been opened locally (#528)`() = runTest {
-        // The offline-read invariant still holds: a row with lastOpenedAt set has been touched by
-        // the reader, so a stale server value must not overwrite it. Guards the boundary of the
-        // #528 fix — updateInitialReadingProgress is a no-op here.
+    fun `refreshLibraryItems adopts server readingProgress on a previously-opened locally-clean row`() = runTest {
+        // Direct regression for the "progress sync doesn't refresh the library UI" bug: a book
+        // was previously opened locally (lastOpenedAt set) but the local edit was long since
+        // pushed and cleaned — position row is NOT dirty. Server progress advanced on another
+        // device to 0.42. The library grid / detail view read `library_items.readingProgress`;
+        // without this adoption, the blue bar and % stay stale (at the old value or 0) until
+        // the user reopens the book on this device. The older `lastOpenedAt == null` gate was
+        // the wrong proxy for "protect a pending local edit" — "was opened" ≠ "has pending edit".
         fakeServerRepository.activeServer = activeServer()
         fakeTokenStorage.tokens["s1"] = "tok"
         val dao = FakeLibraryItemDao()
@@ -506,10 +533,74 @@ class LibraryRepositoryTest {
                 NetworkResult.Success(emptyList())
         }
         makeRepo(libraryItemDao = dao, api = api).refreshLibraryItems("lib-1")
-        // Row has lastOpenedAt=10_000 → the conditional UPDATE won't fire → local 0f is preserved.
-        // (The mergeLastOpenedAt path may still lift lastOpenedAt from the server stamp — that's
-        // orthogonal and covered by a separate test.)
-        assertEquals(0f, dao.itemsFor("lib-1").first { it.id == "item-1" }.readingProgress, 0.001f)
+        assertEquals(0.42f, dao.itemsFor("lib-1").first { it.id == "item-1" }.readingProgress, 0.001f)
+    }
+
+    @Test
+    fun `refreshLibraryItems keeps local readingProgress when position row is dirty even on previously-opened row`() = runTest {
+        // Combined boundary: previously-opened + non-zero local + pending offline edit. The dirty
+        // ledger flag is the gate — the library refresh must not clobber 0.75f, and the sweep
+        // will later push it and mirror the final value.
+        fakeServerRepository.activeServer = activeServer()
+        fakeTokenStorage.tokens["s1"] = "tok"
+        val dao = FakeLibraryItemDao()
+        dao.upsertAll(listOf(
+            LibraryItemEntity(
+                "s1", "item-1", "lib-1", "Book", "A", null, 0.75f,
+                lastOpenedAt = 10_000L, addedAt = 0L,
+            ),
+        ))
+        val ledger = FakeDirtyProgressLedger(ebookDirty = mutableMapOf("s1" to mutableListOf("item-1")))
+        val api = object : AbsLibraryApi {
+            override suspend fun getUserProgress(baseUrl: String, token: String, insecureAllowed: Boolean): NetworkResult<Map<String, NetworkUserMediaProgress>> =
+                com.riffle.core.network.NetworkResult.Success(
+                    mapOf("item-1" to com.riffle.core.network.NetworkUserMediaProgress(ebookProgress = 0.42f, lastUpdate = 5_000L))
+                )
+            override suspend fun getLibraries(baseUrl: String, token: String, insecureAllowed: Boolean): NetworkResult<List<NetworkLibrary>> =
+                NetworkResult.Success(emptyList())
+            override suspend fun getLibraryItems(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean): NetworkResult<List<NetworkLibraryItem>> =
+                NetworkResult.Success(listOf(
+                    NetworkLibraryItem("item-1", "lib-1", "Book", "A", 0.42f, ebookFormat = EbookFormat.Epub)
+                ))
+            override suspend fun getSeries(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean): NetworkResult<List<NetworkSeries>> =
+                NetworkResult.Success(emptyList())
+            override suspend fun getCollections(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean): NetworkResult<List<NetworkCollection>> =
+                NetworkResult.Success(emptyList())
+        }
+        makeRepo(libraryItemDao = dao, api = api, dirtyProgressLedger = ledger).refreshLibraryItems("lib-1")
+        assertEquals(0.75f, dao.itemsFor("lib-1").first { it.id == "item-1" }.readingProgress, 0.001f)
+    }
+
+    @Test
+    fun `refreshLibraryItems keeps local readingProgress when position row is dirty via AUDIO`() = runTest {
+        // Same invariant, audio side: a dirty audiobook_positions row for this item must also
+        // gate off the ebookProgress adoption, because they're the same "activity" per ADR 0029
+        // and either dimension being pending push means the library refresh must defer.
+        fakeServerRepository.activeServer = activeServer()
+        fakeTokenStorage.tokens["s1"] = "tok"
+        val dao = FakeLibraryItemDao()
+        dao.upsertAll(listOf(
+            LibraryItemEntity("s1", "item-1", "lib-1", "Book", "A", null, 0.75f, addedAt = 0L),
+        ))
+        val ledger = FakeDirtyProgressLedger(audioDirty = mutableMapOf("s1" to mutableListOf("item-1")))
+        val api = object : AbsLibraryApi {
+            override suspend fun getUserProgress(baseUrl: String, token: String, insecureAllowed: Boolean): NetworkResult<Map<String, NetworkUserMediaProgress>> =
+                com.riffle.core.network.NetworkResult.Success(
+                    mapOf("item-1" to com.riffle.core.network.NetworkUserMediaProgress(ebookProgress = 0.42f, lastUpdate = 5_000L))
+                )
+            override suspend fun getLibraries(baseUrl: String, token: String, insecureAllowed: Boolean): NetworkResult<List<NetworkLibrary>> =
+                NetworkResult.Success(emptyList())
+            override suspend fun getLibraryItems(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean): NetworkResult<List<NetworkLibraryItem>> =
+                NetworkResult.Success(listOf(
+                    NetworkLibraryItem("item-1", "lib-1", "Book", "A", 0.42f, ebookFormat = EbookFormat.Epub)
+                ))
+            override suspend fun getSeries(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean): NetworkResult<List<NetworkSeries>> =
+                NetworkResult.Success(emptyList())
+            override suspend fun getCollections(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean): NetworkResult<List<NetworkCollection>> =
+                NetworkResult.Success(emptyList())
+        }
+        makeRepo(libraryItemDao = dao, api = api, dirtyProgressLedger = ledger).refreshLibraryItems("lib-1")
+        assertEquals(0.75f, dao.itemsFor("lib-1").first { it.id == "item-1" }.readingProgress, 0.001f)
     }
 
     @Test
@@ -1172,6 +1263,123 @@ class LibraryRepositoryTest {
         val result = makeRepo(collectionDao = dao).observeCollectionItems("col-1").first()
         assertEquals(1, result.size)
         assertEquals("item-1", result[0].id)
+    }
+
+    // ── refreshItemProgress ───────────────────────────────────────────────────
+
+    /** Fake session API that returns a canned [com.riffle.core.network.NetworkServerProgress] from
+     *  `getProgress` (the endpoint `AbsCatalog.pullProgress(itemId)` calls). */
+    private class FakeGetProgressApi(
+        private val response: com.riffle.core.network.NetworkServerProgress,
+    ) : com.riffle.core.network.AbsSessionApi {
+        override suspend fun getProgress(
+            baseUrl: String, libraryItemId: String, token: String, insecureAllowed: Boolean,
+        ): NetworkResult<com.riffle.core.network.NetworkServerProgress> = NetworkResult.Success(response)
+
+        override suspend fun syncEbookProgress(
+            baseUrl: String, libraryItemId: String,
+            payload: com.riffle.core.network.NetworkEbookProgressPayload,
+            token: String, insecureAllowed: Boolean,
+        ): NetworkResult<Long> = NetworkResult.Success(0L)
+
+        override suspend fun syncAudiobookProgress(
+            baseUrl: String, libraryItemId: String,
+            payload: com.riffle.core.network.NetworkAudiobookProgressPayload,
+            token: String, insecureAllowed: Boolean,
+        ): NetworkResult<Long> = NetworkResult.Success(0L)
+    }
+
+    @Test
+    fun `refreshItemProgress adopts server ebookProgress into library_items on a clean row`() = runTest {
+        // Direct fix for the "details page shows stale %" bug — details ON_RESUME triggers this
+        // path, and it must land the just-pulled server fraction in the UI column the details
+        // screen observes.
+        fakeServerRepository.activeServer = activeServer()
+        fakeTokenStorage.tokens["s1"] = "tok"
+        val dao = FakeLibraryItemDao()
+        dao.upsertAll(listOf(
+            LibraryItemEntity("s1", "item-1", "lib-1", "Book", "A", null, 0.10f, addedAt = 0L),
+        ))
+        val session = FakeGetProgressApi(
+            com.riffle.core.network.NetworkServerProgress(
+                ebookLocation = "epubcfi(/6/4)", ebookProgress = 0.63f, lastUpdate = 5_000L,
+            )
+        )
+        val result = makeRepo(libraryItemDao = dao, sessionApi = session)
+            .refreshItemProgress("s1", "item-1")
+        assertEquals(LibraryRefreshResult.Success, result)
+        assertEquals(0.63f, dao.itemsFor("lib-1").first { it.id == "item-1" }.readingProgress, 0.001f)
+    }
+
+    @Test
+    fun `refreshItemProgress does NOT overwrite readingProgress when the position row is dirty`() = runTest {
+        // Same "protect a pending offline edit" invariant as refreshLibraryItems: a dirty ebook
+        // (or audio) row means the ADR-0030 sweep owns this item. The details page pull must not
+        // land a server value here — the sweep + UiProgressSink will resolve it.
+        fakeServerRepository.activeServer = activeServer()
+        fakeTokenStorage.tokens["s1"] = "tok"
+        val dao = FakeLibraryItemDao()
+        dao.upsertAll(listOf(
+            LibraryItemEntity("s1", "item-1", "lib-1", "Book", "A", null, 0.75f, addedAt = 0L),
+        ))
+        val ledger = FakeDirtyProgressLedger(ebookDirty = mutableMapOf("s1" to mutableListOf("item-1")))
+        val session = FakeGetProgressApi(
+            com.riffle.core.network.NetworkServerProgress(
+                ebookLocation = "epubcfi(/6/4)", ebookProgress = 0.42f, lastUpdate = 5_000L,
+            )
+        )
+        val result = makeRepo(libraryItemDao = dao, dirtyProgressLedger = ledger, sessionApi = session)
+            .refreshItemProgress("s1", "item-1")
+        assertEquals(LibraryRefreshResult.Success, result)
+        assertEquals(0.75f, dao.itemsFor("lib-1").first { it.id == "item-1" }.readingProgress, 0.001f)
+    }
+
+    /**
+     * Regression pin for the "details % gets clobbered to 0" data-loss variant of the audio-remote
+     * bug: when pullProgress returns an empty payload (no ebook progress, no audio dimension —
+     * e.g. audio metadata still being scanned server-side, or transient partial payload), the
+     * writer MUST skip rather than overwrite a previously-adopted non-zero readingProgress with 0.
+     */
+    @Test
+    fun `refreshItemProgress does NOT overwrite readingProgress when server payload has no meaningful progress`() = runTest {
+        fakeServerRepository.activeServer = activeServer()
+        fakeTokenStorage.tokens["s1"] = "tok"
+        val dao = FakeLibraryItemDao()
+        dao.upsertAll(listOf(
+            LibraryItemEntity("s1", "item-1", "lib-1", "Book", "A", null, 0.42f, addedAt = 0L),
+        ))
+        val session = FakeGetProgressApi(
+            com.riffle.core.network.NetworkServerProgress(
+                ebookLocation = "", ebookProgress = 0f,
+                currentTime = 0.0, duration = 0.0, lastUpdate = 5_000L,
+            )
+        )
+        val result = makeRepo(libraryItemDao = dao, sessionApi = session)
+            .refreshItemProgress("s1", "item-1")
+        assertEquals(LibraryRefreshResult.Success, result)
+        assertEquals(0.42f, dao.itemsFor("lib-1").first { it.id == "item-1" }.readingProgress, 0.001f)
+    }
+
+    @Test
+    fun `refreshItemProgress derives audio fraction from currentTime and duration when ebookProgress is 0`() = runTest {
+        // Single-item pullProgress (unlike pullAllProgress) does NOT apply the audio->ebookProgress
+        // fallback that AbsApiClient does for the /me/progress bulk endpoint (ADR 0029). Ensure
+        // `refreshItemProgress` still computes the unified library fraction for an audio-only
+        // book: 900s / 3600s = 0.25.
+        fakeServerRepository.activeServer = activeServer()
+        fakeTokenStorage.tokens["s1"] = "tok"
+        val dao = FakeLibraryItemDao()
+        dao.upsertAll(listOf(
+            LibraryItemEntity("s1", "item-1", "lib-1", "Audio", "A", null, 0f, addedAt = 0L),
+        ))
+        val session = FakeGetProgressApi(
+            com.riffle.core.network.NetworkServerProgress(
+                ebookLocation = "", ebookProgress = 0f,
+                currentTime = 900.0, duration = 3600.0, lastUpdate = 5_000L,
+            )
+        )
+        makeRepo(libraryItemDao = dao, sessionApi = session).refreshItemProgress("s1", "item-1")
+        assertEquals(0.25f, dao.itemsFor("lib-1").first { it.id == "item-1" }.readingProgress, 0.001f)
     }
 
     // ── Storyteller refresh ───────────────────────────────────────────────────

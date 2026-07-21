@@ -77,4 +77,13 @@ interface LibraryRefresher {
     suspend fun refreshLibraryItems(libraryId: String): LibraryRefreshResult
     suspend fun refreshSeries(libraryId: String): LibraryRefreshResult
     suspend fun refreshCollections(libraryId: String): LibraryRefreshResult
+
+    /**
+     * Pull one item's server progress and mirror it into `library_items.readingProgress` /
+     * `finishedAt`, if the local position row is NOT dirty (a pending offline edit is protected
+     * by the same invariant as [refreshLibraryItems]). The details screen calls this on ON_RESUME
+     * so a book whose progress advanced on another device shows the fresh % / blue bar without
+     * requiring the user to navigate through the library grid first.
+     */
+    suspend fun refreshItemProgress(sourceId: String, itemId: String): LibraryRefreshResult
 }

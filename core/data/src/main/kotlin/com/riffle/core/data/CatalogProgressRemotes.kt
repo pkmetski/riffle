@@ -48,7 +48,12 @@ class CatalogEbookProgressRemote(
                 if (raw.isBlank()) "" else t.cfiToLocatorJson(raw) ?: return null
             }
         }
-        return RemoteProgress(locatorJson, r.lastUpdate)
+        return RemoteProgress(
+            position = locatorJson,
+            lastUpdate = r.lastUpdate,
+            readingProgress = r.ebookProgress,
+            finishedAt = r.finishedAt ?: r.lastUpdate.takeIf { r.isFinished },
+        )
     }
 
     override suspend fun patch(position: String): Long? {
@@ -89,7 +94,29 @@ class CatalogAudioProgressRemote(
 
     override suspend fun get(): RemoteProgress<Double>? {
         val r = runCatching { peer.pullProgress(itemId) }.getOrNull() ?: return null
-        return RemoteProgress(r.audioCurrentTime, r.lastUpdate)
+        // Skip the audio dimension when the payload carries no meaningful audio state — every
+        // ABS book responds to this endpoint whether or not it has an audiobook, so a pure
+        // ebook returns audioDuration=0 / currentTime=0 and a hybrid mid-scan can transiently
+        // do the same. Without this guard the audio reconciler treats a fresh audiobook_positions
+        // row (localUpdatedAt=0) vs. a non-zero server stamp as ServerWon and fires UiSink with
+        // fraction=0, clobbering the ebook reconciler's just-written readingProgress. isFinished
+        // is a separate signal — treat it as a real audio "done" event even without duration.
+        if (!r.isFinished && r.audioDuration <= 0.0 && r.audioCurrentTime <= 0.0) return null
+        // Single-item ABS pullProgress leaves `ebookProgress` at 0 for audio-only items (unlike
+        // pullAllProgress which folds `progress` into it — ADR 0029); derive from currentTime/
+        // duration here so an audio-only book's library-grid % reflects the just-pulled listen
+        // fraction. `isFinished` overrides to 1f in case duration is 0/absent on server payload.
+        val fraction = when {
+            r.isFinished -> 1f
+            r.audioDuration > 0.0 -> (r.audioCurrentTime / r.audioDuration).toFloat().coerceIn(0f, 1f)
+            else -> 0f
+        }
+        return RemoteProgress(
+            position = r.audioCurrentTime,
+            lastUpdate = r.lastUpdate,
+            readingProgress = fraction,
+            finishedAt = r.finishedAt ?: r.lastUpdate.takeIf { r.isFinished },
+        )
     }
 
     override suspend fun patch(position: Double): Long? =
