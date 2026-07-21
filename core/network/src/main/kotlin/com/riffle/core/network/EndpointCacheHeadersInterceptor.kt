@@ -15,6 +15,13 @@ import okhttp3.Response
  * Used for API endpoints whose origin sends `Cache-Control: private` or no cache header at all
  * (Audiobookshelf, GitHub Releases). Non-cacheable endpoints on the same client — writes, session
  * calls, binary streams — simply don't match any rule and behave as before.
+ *
+ * Also stamps `Vary: Authorization` so OkHttp keys cache entries by bearer token. Every rule here
+ * is per-user (`/api/me`, `/api/me/listening-stats`, `/api/libraries*` — ABS users can be
+ * library-scoped, and `mediaProgress` on `/api/me` is per-user). Without Vary, OkHttp keys the
+ * cache entry on URL alone; two Sources pointing at the same ABS host (two accounts on one server)
+ * would share cache entries and one user's response would be served to the other — user A's
+ * `mediaProgress` then flows through the sweep into user B's `library_items.readingProgress`.
  */
 class EndpointCacheHeadersInterceptor(
     private val rules: List<Rule>,
@@ -33,6 +40,7 @@ class EndpointCacheHeadersInterceptor(
             .removeHeader("Pragma")
             .removeHeader("Cache-Control")
             .header("Cache-Control", "public, max-age=${rule.maxAgeSeconds}")
+            .header("Vary", "Authorization")
             .build()
     }
 }
