@@ -1174,6 +1174,37 @@ class AnnotationSessionTest {
         assertTrue("updateNamespace(non-empty) must start live-sync", syncOps.startLiveSyncCalled)
     }
 
+    // Race-window regression: any user mutation between bind(namespace="") and updateNamespace
+    // (createHighlight, delete, recolour, note-edit) hits `boundNamespace ?: return` in
+    // scheduleSync and silently doesn't queue a push. The Room write persists but the remote
+    // push is missed. updateNamespace must fire a scheduleSync on the null→non-null transition
+    // to flush any pending queued writes. Flips red if that flush is removed.
+    @Test
+    fun `updateNamespace bootstrap fires scheduleSync to flush pre-namespace-window writes`() = runTest {
+        val dispatcher = UnconfinedTestDispatcher(testScheduler)
+        val sessionScope = CoroutineScope(dispatcher)
+        val syncOps = FakeSyncOps()
+        val session = makeSession(syncOps = syncOps, scope = sessionScope)
+
+        session.bind(
+            sourceId = "srv1",
+            namespace = "",
+            itemId = "item1",
+            highlightRenderResolver = { emptyList() },
+            cfiLocatorResolver = { null },
+        )
+        // Nothing scheduled yet.
+        assertEquals(0, syncOps.scheduleDebounceCount)
+
+        session.updateNamespace("ns-real")
+
+        assertEquals(
+            "null→non-null transition must nudge scheduleSync to flush the race window",
+            1,
+            syncOps.scheduleDebounceCount,
+        )
+    }
+
     @Test
     fun `updateNamespace(null) after empty-namespace bind stays no-op`() = runTest {
         val dispatcher = UnconfinedTestDispatcher(testScheduler)

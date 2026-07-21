@@ -466,6 +466,13 @@ class AnnotationSession @AssistedInject constructor(
         if (fresh != null && previous == null && annotationLiveSyncJob == null) {
             scope.launch {
                 syncOnOpen(sourceId, fresh, itemId)
+                // Nudge a debounced push after arrival: any user mutation (createHighlight,
+                // deleteAnnotation, recolour, note edit) that happened in the race window between
+                // bind(namespace="") and this updateNamespace call short-circuited its
+                // scheduleSync at `boundNamespace ?: return`. Its Room write persists, but the
+                // remote push was never queued. Firing scheduleSync here restarts the debounce
+                // so the pending local writes get pushed on the next natural tick.
+                scheduleSync(sourceId, fresh, itemId)
                 annotationLiveSyncJob = startLiveSync(sourceId, fresh, itemId)
             }
         }

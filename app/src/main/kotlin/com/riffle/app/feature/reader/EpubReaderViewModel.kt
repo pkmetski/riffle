@@ -1356,9 +1356,24 @@ class EpubReaderViewModel @Inject constructor(
             // open critical path. Null when the source is LocalOnly (Storyteller peer, anonymous
             // catalog, local files) or its remote id hasn't been fetched yet — sync is skipped
             // this session; DB stays canonical.
+            //
+            // MUST catch non-cancellation exceptions: an uncaught throw here would take the child
+            // coroutine down, `updateNamespace` would never fire, and every subsequent
+            // scheduleSync/scheduleDebounce for this session would silently no-op (they read
+            // `boundNamespace ?: return`). CancellationException is re-thrown so viewModelScope
+            // teardown propagates normally.
             viewModelScope.launch {
-                val namespace = (sourceRepository.ensureSyncNamespace(activeServer.id)
-                    as? com.riffle.core.domain.SyncNamespace.Configured)?.value
+                val namespace = try {
+                    (sourceRepository.ensureSyncNamespace(activeServer.id)
+                        as? com.riffle.core.domain.SyncNamespace.Configured)?.value
+                } catch (t: Throwable) {
+                    if (t is kotlinx.coroutines.CancellationException) throw t
+                    logger.w(LogChannel.HighlightMerge) {
+                        "ensureSyncNamespace failed on reader-open for sourceId=${activeServer.id} — " +
+                            "${t::class.simpleName}: ${t.message}. Sync stays disabled for this session."
+                    }
+                    null
+                }
                 annotationNamespace = namespace
                 annotationSession.updateNamespace(namespace)
             }
@@ -1458,16 +1473,16 @@ class EpubReaderViewModel @Inject constructor(
         }
 
         // Sync immediately while localUpdatedAt is still the genuine stored value — before the
-        // navigator restore emits and would stamp localUpdatedAt = now. Hopped to IO because
-        // both branches do network + Room I/O that were adding ~140ms of main-thread stall on
-        // the post-Ready cold-open path.
+        // navigator restore emits and would stamp localUpdatedAt = now. STAYS ON MAIN:
+        // [runReaderSyncCycle] mutates reader state (lastLocator, pendingServerJumpStamp, …) and
+        // posts the inbound-jump channel, which per the invariant documented at the close-path
+        // caller site is not safe to relocate off Main. Kept both branches on Main for symmetry —
+        // the modest saving on the else path isn't worth splitting the dispatcher story here.
         val syncLocator = o.effectiveInitialLocator
-        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-            if (lifecycle.matchedSync.value?.readerSync != null) {
-                runReaderSyncCycle(syncLocator)
-            } else {
-                syncSession.sync(syncLocator?.toPayload() ?: SessionPayload("", 0f))
-            }
+        if (lifecycle.matchedSync.value?.readerSync != null) {
+            runReaderSyncCycle(syncLocator)
+        } else {
+            syncSession.sync(syncLocator?.toPayload() ?: SessionPayload("", 0f))
         }
 
         // Heartbeat only — no speed-tracker baseline yet (openBook can fire well before the first
