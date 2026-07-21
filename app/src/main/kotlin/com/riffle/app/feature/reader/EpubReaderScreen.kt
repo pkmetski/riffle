@@ -285,6 +285,8 @@ fun EpubReaderScreen(
     val annotations by viewModel.annotations.collectAsState()
     val emphasisPool by viewModel.emphasisPool.collectAsState()
     val lastUsedEmphasisStyles by viewModel.lastUsedEmphasisStyles.collectAsState()
+    val lastUsedHighlightColor by viewModel.lastUsedHighlightColor.collectAsState()
+    val lastUsedColorIsNone by viewModel.lastUsedColorIsNone.collectAsState()
     // ADR 0046 §4: draft-time preview needs the pending selection's text + last-used styles so
     // the DOM emphasis injector can wrap the range BEFORE commit — otherwise a chip that's
     // pre-selected (from the per-book preset) shows checked in the sheet but the text isn't
@@ -537,6 +539,8 @@ fun EpubReaderScreen(
                         onToggleEmphasis = viewModel::toggleEmphasisStyle,
                         emphasisPool = emphasisPool,
                         lastUsedEmphasisStyles = lastUsedEmphasisStyles,
+                        lastUsedHighlightColor = lastUsedHighlightColor,
+                        lastUsedColorIsNone = lastUsedColorIsNone,
                         draftAnnotation = draftAnnotation,
                         highlightDomPatches = viewModel.highlightDomPatches,
                         showOpenInBook = shouldShowOpenInBook(viewModel.readerSource),
@@ -1352,6 +1356,10 @@ private fun EpubNavigatorView(
     /** ADR 0046 §4: per-book last-used emphasis set, used to preview chip pre-selection while
      *  the sheet is open on a pending draft. */
     lastUsedEmphasisStyles: Set<com.riffle.core.models.EmphasisStyle> = emptySet(),
+    /** ADR 0046 §4: per-book last-used highlight colour + ∅ flag; used to pre-select the swatch
+     *  in the popup when the sheet is open on a pending draft. */
+    lastUsedHighlightColor: HighlightColor = HighlightColor.DEFAULT,
+    lastUsedColorIsNone: Boolean = false,
     /** ADR 0046 §4: the in-flight draft, if any. Threaded down so the DOM emphasis injector
      *  can preview bold/italic on the pending selection BEFORE commit (chip pre-selected
      *  from the per-book preset must visually match the text). */
@@ -3081,32 +3089,27 @@ private fun EpubNavigatorView(
             // decoration), so `current` above is always null for image annotations. Fall back to
             // the full annotations list so the palette can still show the current colour selected.
             val currentAnnotation = annotations.firstOrNull { it.id == editTarget.id }
-            // ADR 0046 §4: after `∅` the annotation's `color` is empty. `HighlightColor.fromToken`
-            // falls back to DEFAULT for unknown/empty (sync forward-compat), so passing an empty
-            // color through it would show yellow as selected. Detect empty here and pass null so
-            // the swatch row highlights the `∅` circle instead.
-            //
-            // For the DRAFT sentinel target (no persisted annotation yet), no lookup can succeed;
-            // show ∅ as pre-selected — the user hasn't picked a colour yet, and any real tap
-            // commits the draft with that pick.
+            // ADR 0046 §4: swatch + chip pre-selection is derived by [resolveDraftPopupSelection]
+            // (pure helper — see its KDoc for the persisted-vs-draft rules; the draft case pre-
+            // selects the per-book last-used state so a dismiss-without-explicit-pick auto-commits
+            // in the user's remembered colour/emphasis).
             val isDraft = editTarget.id == com.riffle.app.feature.reader.session.AnnotationSession.DRAFT_ANNOTATION_ID
-            val effectiveColor = current?.color ?: currentAnnotation?.color
-            val selectedColor = if (isDraft || effectiveColor.isNullOrEmpty()) null
-                else HighlightColor.fromToken(effectiveColor)
-            // ADR 0046: derive the current emphasis set on this highlight's range so the popup
-            // knows which B/I/U/S chips are active. Same-CFI equality — the "layered emphasis"
-            // gesture is always relative to the visible highlight target.
-            val currentEmphasisStyles: Set<com.riffle.core.models.EmphasisStyle> = run {
-                if (isDraft) {
-                    // ADR 0046 §4: preview the last-used emphasis set as chip pre-selection.
-                    // Any chip tap commits the draft with that style layered on top of the preset.
-                    return@run lastUsedEmphasisStyles
-                }
+            val persistedEmphasisStyles: Set<com.riffle.core.models.EmphasisStyle> = run {
                 val hlCfi = currentAnnotation?.cfi
                 if (hlCfi.isNullOrEmpty()) emptySet()
                 else emphasisPool.firstOrNull { it.cfi == hlCfi }
                     ?.emphasisStyles.orEmpty()
             }
+            val popupSelection = resolveDraftPopupSelection(
+                isDraft = isDraft,
+                persistedColor = current?.color ?: currentAnnotation?.color,
+                persistedEmphasisStyles = persistedEmphasisStyles,
+                lastUsedHighlightColor = lastUsedHighlightColor,
+                lastUsedColorIsNone = lastUsedColorIsNone,
+                lastUsedEmphasisStyles = lastUsedEmphasisStyles,
+            )
+            val selectedColor = popupSelection.selectedColor
+            val currentEmphasisStyles = popupSelection.emphasisStyles
             HighlightActionsPopup(
                 anchorRect = editTarget.anchorRect,
                 selected = selectedColor,

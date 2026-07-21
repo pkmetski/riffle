@@ -139,9 +139,61 @@ internal fun locateSnippetInBody(
     }
     // Anchor-less fallback: only trustworthy if the snippet appears exactly once in the chapter.
     val first = body.indexOf(snippet)
-    if (first < 0) return null
-    if (body.indexOf(snippet, first + 1) >= 0) return null
-    return first.toLong()
+    if (first >= 0 && body.indexOf(snippet, first + 1) < 0) return first.toLong()
+    // Whitespace-tolerant fallback (2026-07-19): a multi-paragraph selection has "\n" or spaces
+    // between paragraphs in the Readium-captured snippet, but [readableBodyText] concatenates
+    // adjacent block-element text nodes with NO separator (a blank-only text node between
+    // `<p>` elements is skipped). Verbatim indexOf then fails on cross-paragraph snippets, so
+    // the overlap-merge detector treats overlapping multi-paragraph selections as disjoint and
+    // both rows persist as a doubly-annotated span. Rebuild a regex from the snippet where every
+    // whitespace run becomes `\s*` — matches whether or not the body carries the separator, and
+    // stays unambiguous because the surrounding non-whitespace tokens are still order-sensitive.
+    val tokens = snippet.split(Regex("\\s+")).filter { it.isNotEmpty() }
+    if (tokens.isEmpty()) return null
+    val pattern = tokens.joinToString(separator = "\\s*") { Regex.escape(it) }
+    val regex = try { Regex(pattern) } catch (_: Throwable) { return null }
+    val anchoredMatch = if (anchorTail.isNotEmpty()) {
+        val anchorTokens = anchorTail.split(Regex("\\s+")).filter { it.isNotEmpty() }
+        if (anchorTokens.isEmpty()) null
+        else {
+            val anchorPattern = anchorTokens.joinToString(separator = "\\s*") { Regex.escape(it) }
+            val combined = try { Regex("$anchorPattern\\s*$pattern") } catch (_: Throwable) { null }
+            combined?.find(body)?.let { m ->
+                val snippetStart = Regex(pattern).find(body, m.range.first)?.range?.first
+                snippetStart?.toLong()
+            }
+        }
+    } else null
+    if (anchoredMatch != null) return anchoredMatch
+    val loose = regex.find(body) ?: return null
+    val next = regex.find(body, loose.range.first + 1)
+    if (next != null) return null
+    return loose.range.first.toLong()
+}
+
+/**
+ * Compute the half-open end char of a snippet located at [startChar] in [html]'s readable body,
+ * by walking the body forward and consuming as many non-whitespace chars as the snippet has.
+ * Handles the multi-paragraph case where `snippet.length` overshoots the actual body span: a
+ * cross-paragraph snippet like "para1.\nThe" is 10 chars, but the readable body concatenates
+ * text nodes with no separator ("para1.The"), so the actual span is 9 chars.
+ *
+ * Callers use this instead of `startChar + snippet.length` when the snippet may cross a block
+ * boundary — otherwise the returned range would extend past the user's selection, and highlight
+ * decorations would paint over adjacent text they shouldn't (reported 2026-07-20: "wash extends
+ * to whole paragraph after Annotate").
+ */
+internal fun snippetEndCharInBody(html: String, startChar: Long, snippet: String): Long {
+    val body = readableBodyText(html)
+    val nonWs = snippet.count { !it.isWhitespace() }
+    if (nonWs <= 0) return startChar
+    var idx = startChar.toInt().coerceAtLeast(0).coerceAtMost(body.length)
+    var consumed = 0
+    while (idx < body.length && consumed < nonWs) {
+        if (!body[idx].isWhitespace()) consumed++
+        idx++
+    }
+    return idx.toLong()
 }
 
 /**

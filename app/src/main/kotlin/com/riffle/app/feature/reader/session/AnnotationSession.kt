@@ -230,6 +230,14 @@ class AnnotationSession @AssistedInject constructor(
         _draftAnnotation.value = null
     }
 
+    /** Close the highlight-actions sheet without any tombstone / merge side effects. Used by
+     *  the dismiss-auto-commit path in the VM so committing the pre-selected preset closes the
+     *  popup instead of rebinding it to the just-created row (2026-07-19: "first tap doesn't
+     *  close the modal"). */
+    fun forceCloseHighlightEditTarget() {
+        _highlightToEdit.value = null
+    }
+
     companion object {
         /** Sentinel id for [HighlightEditTarget.id] while the sheet is in draft mode. See
          *  [_draftAnnotation]. Chosen to be visually unmistakable in logs / dumps and impossible
@@ -365,16 +373,20 @@ class AnnotationSession @AssistedInject constructor(
                             r.copy(isBeingEdited = r.id == editingId)
                         }
                     }
-                    // ADR 0046 §4: synthesize a render for the pending draft so the temporary
-                    // wash paints on the selection + the last-used emphasis pre-selection is
-                    // previewed. Empty color → the renderer picks the editing wash, not a
-                    // saturated tint. The DOM-wrap side reads emphasisStyles too, so bold/italic
-                    // are visible as preview until the user commits or discards.
+                    // ADR 0046 §4: synthesize a render for the pending draft so the pre-selected
+                    // colour + emphasis (from the per-book last-used preset) paint on the selection
+                    // BEFORE commit. Empty preview color (i.e. last pick was ∅) falls through to
+                    // the neutral editing wash. Without this, the swatch shows a colour as
+                    // pre-selected but the text underneath stays uncoloured until dismiss/commit
+                    // fires — reported 2026-07-19 as "annotation not applied until after panel is
+                    // closed". The DOM-wrap side reads emphasisStyles too, so bold/italic are
+                    // visible as preview until the user commits or discards.
+                    val draftPreviewColor = if (_lastUsedColorIsNone.value) "" else _lastUsedHighlightColor.value.token
                     val draftRender = draft?.let { d ->
                         EpubReaderViewModel.HighlightRender(
                             id = DRAFT_ANNOTATION_ID,
                             locator = d.locator,
-                            color = "",
+                            color = draftPreviewColor,
                             note = null,
                             emphasisStyles = _lastUsedEmphasisStyles.value,
                             isBeingEdited = true,
@@ -581,6 +593,26 @@ class AnnotationSession @AssistedInject constructor(
      * new highlights in the same book are born in it. No-op on the last-used store if the session
      * isn't bound (should not happen from the reader UI).
      */
+    /**
+     * Persist a raw color token as the per-book last-used colour (2026-07-20 fix). Used by the
+     * draft-commit path in [EpubReaderViewModel.commitDraft] so the colour a user picked on a
+     * draft popup is remembered for the NEXT annotation on this book — the pre-fix path only
+     * updated last-used-emphasis, so the first draft picked yellow, the second draft's popup
+     * still opened on yellow (the initial default), but a subsequent switch to blue on that first
+     * draft was silently forgotten. Empty token means the ∅ swatch was picked; sets the sibling
+     * "last was none" flag so the next popup opens with ∅.
+     */
+    suspend fun persistLastUsedColorToken(colorToken: String) {
+        val sid = boundServerId ?: return
+        val iid = boundItemId ?: return
+        if (colorToken.isEmpty()) {
+            highlightColorPreferencesStore.setLastUsedIsNone(sid, iid, true)
+        } else {
+            highlightColorPreferencesStore.setLastUsedColor(sid, iid, HighlightColor.fromToken(colorToken))
+            highlightColorPreferencesStore.setLastUsedIsNone(sid, iid, false)
+        }
+    }
+
     suspend fun recolorHighlight(id: String, color: HighlightColor) {
         annotationStore.recolor(id, color.token)
         val sid = boundServerId ?: return
