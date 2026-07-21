@@ -3,6 +3,7 @@
 package com.riffle.app.feature.reader
 
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -41,6 +42,20 @@ import java.util.Locale
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
+/**
+ * Advance [current] by [step] (positive or negative), clamp to [range], and round to 1 decimal.
+ * Used by the edge-icon tap handlers on the typography sliders so keyboard-analogue nudging
+ * lands on the same 0.1× lattice the slider itself snaps to.
+ */
+internal fun steppedTypographyValue(
+    current: Float,
+    step: Float,
+    range: ClosedFloatingPointRange<Float>,
+): Float {
+    val next = (current + step).coerceIn(range)
+    return (next * 10f).roundToInt() / 10f
+}
+
 internal fun fontSizeBubble(v: Float): String = "${(v * 100).roundToInt()}%"
 internal fun lineSpacingBubble(v: Float): String = "%.1f×".format(Locale.ROOT, v)
 internal fun marginsBubble(v: Float): String = "%.1f×".format(Locale.ROOT, v)
@@ -73,6 +88,8 @@ internal fun UnifiedSliderRow(
     bubbleLabel: (Float) -> String,
     modifier: Modifier = Modifier,
     contentDescription: String = title,
+    onDecrement: (() -> Unit)? = null,
+    onIncrement: (() -> Unit)? = null,
 ) {
     Column(modifier = modifier.fillMaxWidth()) {
         Row(
@@ -97,7 +114,18 @@ internal fun UnifiedSliderRow(
                 .fillMaxWidth()
                 .height(56.dp),
         ) {
-            Box(Modifier.size(28.dp), contentAlignment = Alignment.Center) { edgeLeft() }
+            Box(
+                modifier = Modifier
+                    .size(28.dp)
+                    .then(
+                        if (onDecrement != null) {
+                            Modifier
+                                .clickable(onClickLabel = "Decrease $contentDescription") { onDecrement() }
+                                .semantics { this.contentDescription = "Decrease $contentDescription" }
+                        } else Modifier,
+                    ),
+                contentAlignment = Alignment.Center,
+            ) { edgeLeft() }
             Spacer(Modifier.width(8.dp))
             SliderTrack(
                 value = value,
@@ -110,7 +138,18 @@ internal fun UnifiedSliderRow(
                 modifier = Modifier.weight(1f),
             )
             Spacer(Modifier.width(8.dp))
-            Box(Modifier.size(28.dp), contentAlignment = Alignment.Center) { edgeRight() }
+            Box(
+                modifier = Modifier
+                    .size(28.dp)
+                    .then(
+                        if (onIncrement != null) {
+                            Modifier
+                                .clickable(onClickLabel = "Increase $contentDescription") { onIncrement() }
+                                .semantics { this.contentDescription = "Increase $contentDescription" }
+                        } else Modifier,
+                    ),
+                contentAlignment = Alignment.Center,
+            ) { edgeRight() }
         }
     }
 }
