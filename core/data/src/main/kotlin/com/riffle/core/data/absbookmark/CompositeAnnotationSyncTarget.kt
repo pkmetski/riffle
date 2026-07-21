@@ -29,14 +29,26 @@ class CompositeAnnotationSyncTarget(
      *     children typically return true for every namespace; ABS-bookmark children return true
      *     only for their own account's namespace.
      * @param label short human-readable name for diagnostics.
+     * @param servedNamespace the single namespace this child owns exclusively, if any (used by the
+     *     holder to make WebDAV step aside for namespaces an ABS-bookmark child already covers).
+     *     Null for WebDAV / wildcard children whose [serves] is namespace-agnostic.
      */
     data class Child(
         val target: AnnotationSyncTarget,
         val serves: (namespace: String) -> Boolean,
         val label: String,
+        val servedNamespace: String? = null,
     )
 
     private fun eligible(namespace: String): List<Child> = children.filter { it.serves(namespace) }
+
+    /**
+     * Diagnostic accessor: which child labels are routed for [namespace]. Used by
+     * `AnnotationSyncTargetHolderTest` to pin the "WebDAV steps aside for ABS-bookmark-served
+     * namespaces" rule without going through a live network round-trip. Internal — not a
+     * production API surface, only exposed to same-module tests.
+     */
+    internal fun eligibleLabels(namespace: String): List<String> = eligible(namespace).map { it.label }
 
     override suspend fun list(namespace: String, itemId: String): List<String> {
         val els = eligible(namespace)

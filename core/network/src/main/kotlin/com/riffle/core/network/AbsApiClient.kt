@@ -32,6 +32,7 @@ import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+import okhttp3.CacheControl
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -694,7 +695,10 @@ class AbsApiClient(
         token: String,
         insecureAllowed: Boolean,
     ): NetworkResult<List<NetworkAbsBookmark>> = OkHttpClassifier.classify(dispatchers.io) {
-        val response = get(baseUrl, "/api/me", token, insecureAllowed).requireSuccessful()
+        // Bypass the shared OkHttp cache for `/api/me` (15-min TTL from EndpointCacheHeadersInterceptor).
+        // Annotation sync piggybacks on user bookmarks; a stale cached body would hide a peer device's
+        // freshly-written bookmark until reopen. Mirrors WebDAV, whose PROPFIND was never cached.
+        val response = get(baseUrl, "/api/me", token, insecureAllowed, bypassCache = true).requireSuccessful()
         val raw = response.requireBody()
         // `/api/me` carries many fields; `json` is configured with ignoreUnknownKeys so the
         // wrapper need only declare `bookmarks` (absent → empty via the default).
@@ -704,13 +708,19 @@ class AbsApiClient(
     private fun client(insecureAllowed: Boolean): OkHttpClient =
         if (insecureAllowed) httpClient.withInsecureTls() else httpClient
 
-    private fun get(baseUrl: String, path: String, token: String, insecureAllowed: Boolean): Response {
-        val request = Request.Builder()
+    private fun get(
+        baseUrl: String,
+        path: String,
+        token: String,
+        insecureAllowed: Boolean,
+        bypassCache: Boolean = false,
+    ): Response {
+        val builder = Request.Builder()
             .url("$baseUrl$path")
             .addHeader("Authorization", "Bearer $token")
             .get()
-            .build()
-        return client(insecureAllowed).newCall(request).execute()
+        if (bypassCache) builder.cacheControl(CacheControl.FORCE_NETWORK)
+        return client(insecureAllowed).newCall(builder.build()).execute()
     }
 }
 

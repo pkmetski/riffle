@@ -193,8 +193,13 @@ object AnnotationW3CCodec {
             bodies += buildJsonObject {
                 put("type", "TextualBody")
                 put("purpose", motivation)
-                // For highlights, include the color; for bookmarks, use the title
-                if (entity.type == AnnotationEntity.TYPE_HIGHLIGHT && entity.color.isNotEmpty()) {
+                // For highlights, include the color; for bookmarks, use the title. ADR 0046 §4:
+                // emit `value` even when empty (`""` == user picked ∅ — the format-only anchor)
+                // so peers can distinguish "explicitly no color" from "legacy row where value
+                // was never written." Without this, the receiver's merge falls back to yellow
+                // (COLOR_YELLOW) and a format-only-with-emphasis highlight paints yellow on
+                // device B.
+                if (entity.type == AnnotationEntity.TYPE_HIGHLIGHT) {
                     put("value", entity.color)
                 }
                 if (entity.type == AnnotationEntity.TYPE_BOOKMARK && entity.bookmarkTitle.isNotEmpty()) {
