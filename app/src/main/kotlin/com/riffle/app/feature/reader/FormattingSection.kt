@@ -41,18 +41,26 @@ fun FormattingSection(
         }
 
         if (capabilities.supportsTextTypography) {
+            val fontSizeRange = 0.5f..2.5f
+            val fontSizeStep = 0.1f
             UnifiedSliderRow(
                 title = "Font size",
                 caption = "%.0f%%".format(Locale.ROOT, prefs.fontSize * 100),
                 value = prefs.fontSize,
                 onValueChange = { onPrefsChange(prefs.copy(fontSize = it.round1())) },
-                valueRange = 0.5f..2.5f,
+                valueRange = fontSizeRange,
                 steps = 19,
                 majorEvery = 0.5f,
                 edgeLeft = { Text("A", style = MaterialTheme.typography.labelMedium) },
                 edgeRight = { Text("A", style = MaterialTheme.typography.titleLarge) },
                 bubbleLabel = ::fontSizeBubble,
                 contentDescription = "Font size",
+                onDecrement = {
+                    onPrefsChange(prefs.copy(fontSize = steppedTypographyValue(prefs.fontSize, -fontSizeStep, fontSizeRange)))
+                },
+                onIncrement = {
+                    onPrefsChange(prefs.copy(fontSize = steppedTypographyValue(prefs.fontSize, fontSizeStep, fontSizeRange)))
+                },
             )
             Spacer(Modifier.height(16.dp))
         }
@@ -74,18 +82,26 @@ fun FormattingSection(
             }
             Spacer(Modifier.height(16.dp))
 
+            val lineSpacingRange = 1.0f..2.0f
+            val lineSpacingStep = 0.1f
             UnifiedSliderRow(
                 title = "Line spacing",
                 caption = "${lineSpacingWord(prefs.lineSpacing)} · %.1f×".format(Locale.ROOT, prefs.lineSpacing),
                 value = prefs.lineSpacing,
                 onValueChange = { onPrefsChange(prefs.copy(lineSpacing = it.round1())) },
-                valueRange = 1.0f..2.0f,
+                valueRange = lineSpacingRange,
                 steps = 9,
                 majorEvery = 0.2f,
                 edgeLeft = { TightLinesIcon() },
                 edgeRight = { LooseLinesIcon() },
                 bubbleLabel = ::lineSpacingBubble,
                 contentDescription = "Line spacing",
+                onDecrement = {
+                    onPrefsChange(prefs.copy(lineSpacing = steppedTypographyValue(prefs.lineSpacing, -lineSpacingStep, lineSpacingRange)))
+                },
+                onIncrement = {
+                    onPrefsChange(prefs.copy(lineSpacing = steppedTypographyValue(prefs.lineSpacing, lineSpacingStep, lineSpacingRange)))
+                },
             )
             Spacer(Modifier.height(20.dp))
         }
@@ -96,18 +112,26 @@ fun FormattingSection(
             Text("Page", style = MaterialTheme.typography.labelMedium)
             Spacer(Modifier.height(8.dp))
         }
+        val marginsRange = 0.2f..3.0f
+        val marginsStep = 0.2f
         UnifiedSliderRow(
             title = "Margins",
             caption = "${marginsWord(prefs.margins)} · %.1f×".format(Locale.ROOT, prefs.margins),
             value = prefs.margins,
             onValueChange = { onPrefsChange(prefs.copy(margins = it.round1())) },
-            valueRange = 0.2f..3.0f,
+            valueRange = marginsRange,
             steps = 27,
             majorEvery = 0.5f,
             edgeLeft = { NarrowMarginsIcon() },
             edgeRight = { WideMarginsIcon() },
             bubbleLabel = ::marginsBubble,
             contentDescription = "Margins",
+            onDecrement = {
+                onPrefsChange(prefs.copy(margins = steppedTypographyValue(prefs.margins, -marginsStep, marginsRange)))
+            },
+            onIncrement = {
+                onPrefsChange(prefs.copy(margins = steppedTypographyValue(prefs.margins, marginsStep, marginsRange)))
+            },
         )
     }
 }

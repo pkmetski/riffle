@@ -47,6 +47,9 @@ internal fun WpmSliderRow(
     onWpmChange: (Int) -> Unit,
 ) {
     Column(modifier = Modifier.padding(top = 8.dp, bottom = 8.dp)) {
+        // Icon-tap step is coarser than the slider's own 10-wpm snap: single-snap deltas
+        // are imperceptible for reading pace, and 20 wpm lands on the 100-wpm major ticks.
+        val wpmButtonStep = 20
         UnifiedSliderRow(
             title = label,
             caption = "$wpm wpm",
@@ -59,6 +62,8 @@ internal fun WpmSliderRow(
             edgeRight = { FastIcon() },
             bubbleLabel = ::wpmBubble,
             contentDescription = "$label speed",
+            onDecrement = { onWpmChange(AutoScrollSpeed.of(wpm - wpmButtonStep).wpm) },
+            onIncrement = { onWpmChange(AutoScrollSpeed.of(wpm + wpmButtonStep).wpm) },
         )
         Text(
             text = helper,
