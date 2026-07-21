@@ -1154,6 +1154,43 @@ class AnnotationW3CCodecTest {
         assertEquals("bold,italic,underline,strike", roundTripped.emphasisStyles)
     }
 
+    // Regression: format-only highlights (color = "" — the `∅` swatch pick, sibling of a
+    // TYPE_EMPHASIS row) round-trip through sync with color still empty. Old encoder omitted the
+    // `value` field on empty color; the decoder then produced W3CAnnotation.color = null, and
+    // AnnotationMergeOrchestrator's `color = w3cAnnotation.color ?: COLOR_YELLOW` fallback painted
+    // the peer's format-only anchor as YELLOW on device B. Reproduced as "device A sets formatting
+    // without color, device B syncs the formatting, but sets the color to yellow" (2026-07-21).
+    @Test
+    fun `format-only highlight round-trips with empty color, not yellow`() {
+        val entity = AnnotationEntity(
+            id = "uuid-format-only",
+            sourceId = "abs1",
+            itemId = "item1",
+            type = AnnotationEntity.TYPE_HIGHLIGHT,
+            cfi = "epubcfi(/6/4!/4/2,/1:0,/1:10)",
+            color = "",
+            note = null,
+            textSnippet = "just bold this",
+            textBefore = "",
+            textAfter = "",
+            chapterHref = "chap01.xhtml",
+            createdAt = 1_000_000L,
+            updatedAt = 1_000_000L,
+            originDeviceId = "device-A",
+            lastModifiedByDeviceId = "device-A",
+        )
+
+        val json = codec.annotationEntityToW3C(entity)
+        assertTrue(
+            "empty color must be emitted as `\"value\":\"\"` so peers know it's ∅ not unspecified",
+            json.contains("\"value\":\"\""),
+        )
+
+        val parsed = codec.w3cToAnnotationEntity(json)
+        assertEquals(AnnotationEntity.TYPE_HIGHLIGHT, parsed.type)
+        assertEquals("", parsed.color)
+    }
+
     @Test
     fun `riffle_image body with neither href nor svg is skipped`() {
         val json = """
