@@ -252,4 +252,111 @@ class ContinuousDecorationControllerTest {
             },
         )
     }
+
+    // Cold-open regression: chapters that never received annotation marks (because the annotation
+    // Flow hasn't emitted yet) must NOT get a redundant `CLEAR_ANNOTATION_HIGHLIGHTS_JS` eval —
+    // there's nothing in the DOM to scrub, and per-chapter JS evals show up as ~60-100ms Main-thread
+    // stalls on emulator cold-open. Flips red if the "never-applied" guard is removed.
+    @Test
+    fun `applyAnnotationHighlights skips clear JS on hrefs that never received marks`() {
+        val port = FakePort()
+        val c = ContinuousDecorationController(port)
+        val wv = FakeChapterWebView(chapterHref = "ch-a.xhtml").also { port.loaded += it }
+
+        // Annotation Flow hasn't emitted yet, but chapter is already loaded and reader's
+        // LaunchedEffect fires applyAnnotationHighlights with an empty map.
+        c.applyAnnotationHighlights(emptyMap())
+
+        assertEquals(
+            "empty apply on a never-applied href must not dispatch any JS",
+            0,
+            wv.evaluatedJsCount,
+        )
+    }
+
+    // Cold-open regression: the reader's LaunchedEffect re-fires applyAnnotationHighlights on every
+    // pageLoadGeneration / reflowGeneration bump. On cold-open with 3 initial-window chapters, that's
+    // 3+ back-to-back calls with the identical mark list. The dedup guard skips the JS eval when the
+    // per-href mark list is content-equal to the last one applied. Flips red if the guard is removed.
+    @Test
+    fun `applyAnnotationHighlights skips redundant apply when marks are content-equal to last`() {
+        val port = FakePort()
+        val c = ContinuousDecorationController(port)
+        val href = "ch-a.xhtml"
+        val wv = FakeChapterWebView(chapterHref = href).also { port.loaded += it }
+        val marks = listOf(
+            AnnotationHighlight("id1", "text-1", "rgba(255,0,0,0.4)"),
+            AnnotationHighlight("id2", "text-2", "rgba(0,255,0,0.4)"),
+        )
+
+        c.applyAnnotationHighlights(mapOf(href to marks))
+        val afterFirst = wv.evaluatedJsCount
+        assertEquals("first apply dispatches once", 1, afterFirst)
+
+        // Content-equal re-apply (same list, same order) — the dedup guard must short-circuit.
+        c.applyAnnotationHighlights(mapOf(href to marks.toList()))
+        assertEquals(
+            "content-equal re-apply must skip the JS eval",
+            afterFirst,
+            wv.evaluatedJsCount,
+        )
+        c.applyAnnotationHighlights(mapOf(href to marks.toList()))
+        assertEquals(
+            "further content-equal re-applies must also skip",
+            afterFirst,
+            wv.evaluatedJsCount,
+        )
+    }
+
+    // Behaviour-preservation: the dedup guard MUST NOT skip when the mark list actually changes
+    // (add / remove / edit). Flips red if someone tightens the guard to (href-only) and loses
+    // real re-application when the user edits an annotation on the current chapter.
+    @Test
+    fun `applyAnnotationHighlights re-applies when marks change`() {
+        val port = FakePort()
+        val c = ContinuousDecorationController(port)
+        val href = "ch-a.xhtml"
+        val wv = FakeChapterWebView(chapterHref = href).also { port.loaded += it }
+        val initial = listOf(AnnotationHighlight("id1", "text-1", "rgba(255,0,0,0.4)"))
+        val added = initial + AnnotationHighlight("id2", "text-2", "rgba(0,255,0,0.4)")
+
+        c.applyAnnotationHighlights(mapOf(href to initial))
+        c.applyAnnotationHighlights(mapOf(href to added))
+
+        assertEquals(
+            "adding a mark must trigger a fresh apply JS eval",
+            2,
+            wv.evaluatedJsCount,
+        )
+    }
+
+    // Cross-path regression: `onChapterLoaded` and the LaunchedEffect-driven
+    // `applyAnnotationHighlights` are both entry points for pushing marks into a chapter WebView.
+    // If onChapterLoaded doesn't seed the dedup memo, the subsequent LaunchedEffect call with the
+    // same marks would re-run the full JS eval — the exact pattern seen in the pre-fix
+    // cold-open trace. Pins the memo-seeding behaviour.
+    @Test
+    fun `onChapterLoaded seeds dedup so subsequent identical apply short-circuits`() {
+        val port = FakePort()
+        val c = ContinuousDecorationController(port)
+        val href = "ch-a.xhtml"
+        val marks = listOf(AnnotationHighlight("id1", "text-1", "rgba(255,0,0,0.4)"))
+
+        // Pre-load marks into the controller state, then simulate the WebView's onPageFinished
+        // triggering onChapterLoaded — the controller must apply the marks AND remember it did.
+        c.applyAnnotationHighlights(mapOf(href to marks))
+        val wv = FakeChapterWebView(chapterHref = href).also { port.loaded += it }
+        c.onChapterLoaded(wv)
+        val afterLoad = wv.evaluatedJsCount
+        assertTrue("onChapterLoaded should dispatch the apply JS", afterLoad >= 1)
+
+        // Now the LaunchedEffect fires applyAnnotationHighlights with the same map — the dedup
+        // guard must skip the JS eval on this chapter.
+        c.applyAnnotationHighlights(mapOf(href to marks))
+        assertEquals(
+            "identical LaunchedEffect-driven apply after onChapterLoaded must be a no-op",
+            afterLoad,
+            wv.evaluatedJsCount,
+        )
+    }
 }
