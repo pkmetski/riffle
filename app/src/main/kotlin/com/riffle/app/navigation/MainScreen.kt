@@ -161,9 +161,19 @@ fun MainScreen(
     val hidePermanentDrawerPanel = isReaderRoute(currentRoute)
 
     // Material3's ModalNavigationDrawer doesn't install its own BackHandler — so when the
-    // drawer is open we add one here. Registered above the NavHost so screen-level handlers
-    // (e.g. LibraryItemsScreen) don't override it.
-    BackHandler(enabled = !usePermanentDrawer && drawerState.isOpen) {
+    // drawer is open or animating we add one here. Registered above the NavHost so screen-level
+    // handlers (e.g. LibraryItemsScreen) don't override it.
+    //
+    // Check both currentValue and targetValue: targetValue flips to Open the instant
+    // drawerState.open() is called (catches Back during the open animation), and currentValue
+    // stays Open until the close animation finishes (catches Back during the close animation).
+    // Using only targetValue misses the close-animation window; using only isOpen (currentValue)
+    // misses the open-animation window that caused the burger-tap white-screen freeze.
+    BackHandler(enabled = shouldInterceptBackForDrawer(
+        usePermanentDrawer,
+        drawerCurrentOpen = drawerState.currentValue == DrawerValue.Open,
+        drawerTargetOpen = drawerState.targetValue == DrawerValue.Open,
+    )) {
         scope.launch { drawerState.close() }
     }
 
@@ -529,7 +539,11 @@ fun MainScreen(
                 LibraryItemsScreen(
                     libraryName = libraryName,
                     onOpenDrawer = { scope.launch { drawerState.open() } },
-                    backEnabled = !drawerState.isOpen,
+                    backEnabled = !shouldInterceptBackForDrawer(
+                        usePermanentDrawer,
+                        drawerCurrentOpen = drawerState.currentValue == DrawerValue.Open,
+                        drawerTargetOpen = drawerState.targetValue == DrawerValue.Open,
+                    ),
                     onSeriesSelected = { series ->
                         navController.navigate(seriesDetailRoute(libraryId, series.id, series.name))
                     },
@@ -896,6 +910,22 @@ internal fun NavController.navigateAsRoot(route: String) {
         launchSingleTop = true
     }
 }
+
+/**
+ * Whether the top-level BackHandler (and the library screen's backEnabled) should intercept
+ * Back and close the drawer instead of letting the NavHost pop the current destination.
+ *
+ * Both [drawerCurrentOpen] and [drawerTargetOpen] must be checked:
+ * - [drawerTargetOpen] flips true the instant `drawerState.open()` is called → covers Back
+ *   pressed during the open animation.
+ * - [drawerCurrentOpen] stays true until the close animation finishes → covers Back pressed
+ *   during the close animation (targetValue is already Closed at that point).
+ */
+internal fun shouldInterceptBackForDrawer(
+    usePermanentDrawer: Boolean,
+    drawerCurrentOpen: Boolean,
+    drawerTargetOpen: Boolean,
+): Boolean = !usePermanentDrawer && (drawerCurrentOpen || drawerTargetOpen)
 
 internal fun isReaderRoute(route: String?): Boolean =
     route?.startsWith(EPUB_READER.substringBefore("{")) == true ||
