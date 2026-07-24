@@ -92,6 +92,16 @@ internal class ContinuousWindowController(
          * [PageScrollCoalescer], so a new press coalesces iff its predecessor is still animating.
          */
         internal const val PAGE_SCROLL_DURATION_MS = 300
+
+        /**
+         * Upper bound on the loaded window when [ChapterWindowManager.Decision.AppendOnly] is
+         * growing it to escape a fits-in-viewport wall-off. Real front-matter sequences (praise,
+         * "selected works from…", title, copyright, dedication, contents, author's note) top out
+         * well under this; the cap only exists to prevent a pathological all-tiny-chapters book
+         * from loading the entire spine at open. Once one chapter measures larger than the
+         * remaining viewport space, AppendOnly stops firing naturally regardless of the cap.
+         */
+        private const val APPEND_ONLY_MAX_WINDOW = 8
     }
 
     /** The [LinearLayout] the [ContinuousReaderView] wraps; controller owns and mutates its children. */
@@ -846,6 +856,19 @@ internal class ContinuousWindowController(
                     val scroll = pendingInitialScroll
                     pendingInitialScroll = null
                     scroll?.invoke()
+                    // Post a shift check: if the whole initial window measured shorter than one
+                    // viewport (short front-matter — e.g. praise / "selected works from…" / title),
+                    // scrollY stays pinned at 0 and no onScrollChangeListener will fire to trigger
+                    // handleScrollChange, so decide() would never see the wall-off. Post-drain is
+                    // the earliest safe moment: all initial heights are known and the initial-
+                    // scroll gate has cleared.
+                    if (!shiftPending) {
+                        shiftPending = true
+                        port.post {
+                            shiftPending = false
+                            maybeShift()
+                        }
+                    }
                     // In smoothTail mode the closure launched a NestedScrollView smoothScrollTo;
                     // arming the reapply here would let a late target-chapter remeasure fire the
                     // closure again during the 250 ms tween, taking its ELSE branch (hard
@@ -860,6 +883,24 @@ internal class ContinuousWindowController(
                 ) {
                     reapplyTargetLastHeight = measuredPx
                     reapplyLandingAfterFallback?.invoke()
+                }
+
+                // AppendOnly-chain: an AppendOnly-appended chapter enters at placeholder height
+                // (viewport-sized), which temporarily makes fitsInViewport=false and halts further
+                // AppendOnly decisions. When it measures back to its actual (short) height the
+                // window may fit in the viewport again and need another append — but no
+                // onScrollChangeListener fires (scrollY stays at 0), so without this post the
+                // chain stalls. Only trigger when wasPlaceholder (first real measurement from
+                // placeholder) and the initial-scroll gate has already cleared (so we don't race
+                // with the initial-land post above).
+                if (wasPlaceholder && pendingInitialScroll == null && pendingInitialMeasureIndices.isEmpty()) {
+                    if (!shiftPending) {
+                        shiftPending = true
+                        port.post {
+                            shiftPending = false
+                            maybeShift()
+                        }
+                    }
                 }
             }
         }
@@ -956,6 +997,7 @@ internal class ContinuousWindowController(
 
         val decision = windowManager.decide(
             sY, viewportMidIndex, window, topIndex, allChapters.size, port.viewportHeightPx,
+            appendOnlyMaxWindow = APPEND_ONLY_MAX_WINDOW,
         )
         when (decision) {
             ChapterWindowManager.Decision.ShiftBackward -> {
@@ -971,6 +1013,28 @@ internal class ContinuousWindowController(
                 val nextIndex = topIndex + webViews.size
                 if (nextIndex < allChapters.size) appendChapter(nextIndex)
                 shiftInProgress = false
+            }
+            ChapterWindowManager.Decision.AppendOnly -> {
+                // Grow the window without dropping the top: the fits-in-viewport wall-off case
+                // (short front-matter chapters totalling less than one viewport) needs more content
+                // loaded so the user can scroll off the initial page, but must NOT lose the
+                // chapters they opened at. See ChapterWindowManager.Decision.AppendOnly.
+                shiftInProgress = true
+                val nextIndex = topIndex + webViews.size
+                if (nextIndex < allChapters.size) appendChapter(nextIndex)
+                shiftInProgress = false
+                // Re-post: the newly-appended chapter enters at placeholder height (~viewport),
+                // which lifts loadedContentBottom above the viewport and stops further AppendOnly
+                // firings. But when it measures back down to its true (short) height, the window
+                // may fit in the viewport again and need another append. This re-post catches that
+                // via handleScrollChange-style coalescing.
+                if (!shiftPending) {
+                    shiftPending = true
+                    port.post {
+                        shiftPending = false
+                        maybeShift()
+                    }
+                }
             }
             ChapterWindowManager.Decision.Hold -> {}
         }
