@@ -124,9 +124,16 @@ class ResumeRestorer(
      * [ScrollBoundaryNavigationContainer.dispatchTouchEvent]). Disarms the retry watcher for the
      * rest of this resume cycle so a user's backward scroll — indistinguishable at the
      * position-stream level from a Readium chapter-top clobber — is never re-fired forward.
+     *
+     * Also clears [pendingReturnLocator]: once the user has taken over, the restore is fully done
+     * and the anchor must be freed so the next [ReaderSessionLifecycle]-driven
+     * [setReturnAnchor] (which honours a no-overwrite contract) can capture this session's
+     * fresh position instead of the now-stale arm target.
      */
     fun onUserInteracted() {
         userInteractedSinceArm = true
+        pendingReturnLocator = null
+        returnRestoreAttempts = 0
     }
 
     /** Reset all per-book state. Called from [PositionOrchestrator.bindBook]. */

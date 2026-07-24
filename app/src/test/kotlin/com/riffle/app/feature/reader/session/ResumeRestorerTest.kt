@@ -143,6 +143,23 @@ class ResumeRestorerTest {
     }
 
     @Test
+    fun `onUserInteracted clears pending anchor so setReturnAnchor can capture fresh position`() {
+        val f = Fixture()
+        f.restorer.armReturnRestore(buildLocator("a.html", 0.5))
+        f.restorer.onUserInteracted()
+        // Anchor must be cleared: setReturnAnchor is a no-overwrite operation, so a lingering
+        // stale anchor would prevent the next onReaderClosed from recording the current position
+        // and the following resume would snap the user back to where they were two sessions ago.
+        assertNull("anchor cleared after user takes over", f.restorer.peekReturnAnchor())
+        f.restorer.setReturnAnchor(buildLocator("b.html", 0.3))
+        assertEquals(
+            "setReturnAnchor now writes fresh position",
+            "b.html",
+            f.restorer.peekReturnAnchor()?.href?.toString(),
+        )
+    }
+
+    @Test
     fun `armReturnRestore re-arms after prior onUserInteracted`() {
         val f = Fixture()
         f.restorer.armReturnRestore(buildLocator("a.html", 0.5))
