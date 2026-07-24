@@ -82,6 +82,15 @@ data class AnnotationEntity(
      * Null (or empty) on every other type. See ADR 0046.
      */
     val emphasisStyles: String? = null,
+    /**
+     * The highlight's excerpt as sanitised inline HTML, preserving publisher inline formatting
+     * (`<em>`, `<i>`, `<strong>`, `<b>`, `<sup>`, `<sub>`, `<u>`, `<s>`) captured from the source
+     * EPUB DOM at annotation-create time. Rendered by the Annotations View in place of the plain
+     * [textSnippet] so italicised / bolded spans survive round-trip into the elided reader.
+     * Nullable — legacy rows and rows received via W3C sync (wire format doesn't carry this) fall
+     * back to the plain-text render path in [HighlightsPublicationFactory].
+     */
+    val textSnippetHtml: String? = null,
 ) {
     companion object {
         const val TYPE_HIGHLIGHT = "HIGHLIGHT"

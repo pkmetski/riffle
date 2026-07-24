@@ -526,7 +526,16 @@ private fun appendTextHighlight(sb: StringBuilder, highlight: AnnotationEntity, 
     sb.append("?l='+x+'&amp;t='+y+'&amp;r='+(x+1)+'&amp;b='+(y+1);return false;\"></span><span class=\"riffle-hl\" data-ann-id=\"")
     sb.append(idEscaped)
     sb.append("\">")
-    sb.append(highlight.textSnippet.xmlEscape())
+    // Prefer the captured inline-formatted HTML (issue: elided-view drops italics) so publisher
+    // <em>/<i>/<strong>/<b>/<sup>/<sub>/<u>/<s> spans render in the excerpt. Sanitised defensively
+    // at render time — the DB is not a trust boundary and the extractor may evolve. Legacy rows
+    // (null column, W3C sync ingest) fall back to the plain textSnippet render.
+    val inlineHtml = highlight.textSnippetHtml
+    if (inlineHtml != null) {
+        sb.append(sanitizeInlineSnippetHtml(inlineHtml))
+    } else {
+        sb.append(highlight.textSnippet.xmlEscape())
+    }
     sb.append("</span></p>\n")
     val note = highlight.note
     if (note != null) {
@@ -859,6 +868,51 @@ private const val READIUM_DEFAULT_CSS_LINK =
  * looks) while guaranteeing a tappable, non-decorated strip between every highlight.
  */
 private const val PARAGRAPH_GAP_STYLE = "margin: 1em 0;"
+
+/** Inline elements the elided view preserves inside a highlight excerpt (issue: elided-view drops
+ *  italics). The JS extractor emits only these tags with no attributes; the render-side sanitiser
+ *  below re-enforces the allowlist as defence-in-depth (the DB is not a trust boundary and a
+ *  legacy row / future extractor could put anything in the column). Text nodes are expected
+ *  pre-XML-escaped by the extractor — we don't touch them here.  */
+private val ALLOWED_INLINE_SNIPPET_TAGS = setOf("em", "i", "strong", "b", "sup", "sub", "u", "s")
+
+/**
+ * Reduce [html] to a safe subset for the excerpt render path:
+ *  - only tags in [ALLOWED_INLINE_SNIPPET_TAGS] survive; their opening/closing markers are
+ *    re-emitted attribute-less (any `src="…"` / `onclick="…"` payload is dropped);
+ *  - every other tag (including `<script>`, `<style>`, `<a>`, and any unknown element) is
+ *    stripped, but its text content is preserved verbatim;
+ *  - text characters are passed through unchanged — the extractor produces XML-escaped text,
+ *    and re-escaping here would double-encode `&amp;` into `&amp;amp;`.
+ * Not designed for arbitrary web HTML; scoped to the shape our own extractor writes.
+ */
+internal fun sanitizeInlineSnippetHtml(html: String): String {
+    val sb = StringBuilder(html.length)
+    var i = 0
+    while (i < html.length) {
+        val c = html[i]
+        if (c != '<') {
+            sb.append(c)
+            i++
+            continue
+        }
+        val end = html.indexOf('>', i)
+        if (end < 0) break // Malformed trailing '<' — drop it and everything after.
+        val body = html.substring(i + 1, end)
+        val isClose = body.startsWith("/")
+        val name = body.removePrefix("/")
+            .substringBefore(' ')
+            .substringBefore('/')
+            .lowercase()
+            .trim()
+        if (name in ALLOWED_INLINE_SNIPPET_TAGS) {
+            sb.append(if (isClose) "</" else "<").append(name).append('>')
+        }
+        i = end + 1
+    }
+    return sb.toString()
+}
+
 
 private fun String.xmlEscape(): String =
     replace("&", "&amp;")

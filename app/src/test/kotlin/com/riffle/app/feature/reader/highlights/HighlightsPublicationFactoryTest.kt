@@ -552,6 +552,7 @@ class HighlightsPublicationFactoryTest {
         progression: Double = 0.0,
         color: String = AnnotationEntity.COLOR_YELLOW,
         originFontFamily: String? = null,
+        textSnippetHtml: String? = null,
     ): AnnotationEntity =
         AnnotationEntity(
             id = id,
@@ -570,7 +571,87 @@ class HighlightsPublicationFactoryTest {
             originDeviceId = "test",
             lastModifiedByDeviceId = "test",
             originFontFamily = originFontFamily,
+            textSnippetHtml = textSnippetHtml,
         )
+
+    // ===== textSnippetHtml render + sanitizer =====
+
+    @Test
+    fun rendersInlineFormattedSnippetHtmlWhenPresent() {
+        val pub = factory.build(
+            sourceId = "S1", itemId = "B1", bookTitle = null,
+            chapters = listOf(
+                ChapterElision(
+                    "ch0.xhtml", "Chapter One",
+                    listOf(
+                        hl(
+                            id = "h1",
+                            snippet = "italic bit here",
+                            textSnippetHtml = "<em>italic bit</em> here",
+                        ),
+                    ),
+                ),
+            ),
+            urlFactory = ::testUrlFactory,
+        )
+        val html = readChapterHtml(pub, 0)
+        assertTrue("render uses formatted HTML span", html.contains("<em>italic bit</em> here"))
+        assertTrue("plaintext snippet is NOT emitted separately", !html.contains(">italic bit here<"))
+    }
+
+    @Test
+    fun fallsBackToPlainTextSnippetWhenHtmlIsNull() {
+        val pub = factory.build(
+            sourceId = "S1", itemId = "B1", bookTitle = null,
+            chapters = listOf(
+                ChapterElision(
+                    "ch0.xhtml", "Chapter One",
+                    listOf(hl(id = "h1", snippet = "plain excerpt", textSnippetHtml = null)),
+                ),
+            ),
+            urlFactory = ::testUrlFactory,
+        )
+        val html = readChapterHtml(pub, 0)
+        assertTrue("plain snippet still rendered", html.contains(">plain excerpt<"))
+        assertTrue("no stray <em>", !html.contains("<em>"))
+    }
+
+    @Test
+    fun stripsDisallowedTagsAndAttributesFromSnippetHtml() {
+        val pub = factory.build(
+            sourceId = "S1", itemId = "B1", bookTitle = null,
+            chapters = listOf(
+                ChapterElision(
+                    "ch0.xhtml", "Chapter One",
+                    listOf(
+                        hl(
+                            id = "h1",
+                            snippet = "hello world",
+                            // Simulates a malicious/legacy value in the DB: an <a onclick> tag,
+                            // an <em class="…"> with attributes, and a <script> block that must
+                            // be dropped entirely by the render-side allowlist.
+                            textSnippetHtml =
+                                "<a href=\"http://evil\" onclick=\"x()\">hi</a> " +
+                                    "<em class=\"x\">world</em>" +
+                                    "<script>alert(1)</script>",
+                        ),
+                    ),
+                ),
+            ),
+            urlFactory = ::testUrlFactory,
+        )
+        val html = readChapterHtml(pub, 0)
+        assertTrue("attribute-less <em> survives", html.contains("<em>world</em>"))
+        assertTrue("<a> stripped", !html.contains("<a "))
+        assertTrue("<a> stripped (closing)", !html.contains("</a>"))
+        assertTrue("<script> stripped", !html.contains("<script"))
+        // Note: the accent-bar tap span emits its own onclick — assert on the injected payload,
+        // not the presence of the substring "onclick" in the chapter HTML overall.
+        assertTrue("injected onclick payload stripped", !html.contains("x()"))
+        assertTrue("href attribute stripped", !html.contains("http://evil"))
+        // Text content of stripped tags is preserved.
+        assertTrue("text of stripped <a> preserved", html.contains("hi"))
+    }
 
     private fun readChapterHtml(pub: Publication, index: Int): String {
         val link = pub.readingOrder[index]

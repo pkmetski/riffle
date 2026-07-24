@@ -34,7 +34,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         PlaylistEntity::class,
         PlaylistItemEntity::class,
     ],
-    version = 58,
+    version = 59,
     exportSchema = true,
 )
 abstract class RiffleDatabase : RoomDatabase() {
@@ -1619,6 +1619,18 @@ abstract class RiffleDatabase : RoomDatabase() {
                     "CREATE INDEX IF NOT EXISTS `index_playlist_items_sourceId_playlistId` " +
                         "ON `playlist_items` (`sourceId`, `playlistId`)"
                 )
+            }
+        }
+
+        // textSnippetHtml preserves the highlight's inline publisher formatting (<em>, <i>,
+        // <strong>, <b>, <sup>, <sub>, <u>, <s>) captured from the source EPUB DOM at
+        // annotation-create time so the elided view can render italicised / bold spans in each
+        // excerpt instead of flattening the selection to plain text. Nullable so legacy rows
+        // and sync-received rows (W3C wire format doesn't carry it) fall back to the plain
+        // textSnippet render path.
+        val MIGRATION_58_59 = object : Migration(58, 59) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `annotations` ADD COLUMN `textSnippetHtml` TEXT DEFAULT NULL")
             }
         }
     }

@@ -650,6 +650,12 @@ internal class ChapterWebView(context: Context) : WebView(context), ChapterWebVi
                 // Origin font-family at the selection's start element (issue #484). Stashed for
                 // EpubReaderViewModel.createHighlight/toggleBookmark to persist onto the entity.
                 SelectionFontStash.set(obj.optString("ff", ""))
+                // Inline-formatted excerpt HTML (issue: elided view drops italics) — allowlist
+                // sanitisation happens on both the extractor and render side. Empty when the
+                // selection has no publisher formatting on top of the plaintext (extractor
+                // suppresses the field in that case), which routes the elided view to its plain
+                // textSnippet render path.
+                SelectionSnippetHtmlStash.set(obj.optString("html", ""))
                 // Figures enclosed by the selection range — captured by SELECTION_SPAN_TRACKER_JS
                 // while the range was still live (raster figures rasterised via canvas to a data
                 // URI; SVG serialised verbatim). Stashed here so EpubReaderViewModel.createHighlight

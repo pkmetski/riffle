@@ -1989,6 +1989,10 @@ class EpubReaderViewModel @Inject constructor(
             val originFont = SelectionFontStash.consume().takeIf { it.isNotBlank() }
                 ?: bookBodyFontFamilyReported.get().takeIf { it.isNotBlank() }
                 ?: FALLBACK_ORIGIN_FONT_FAMILY
+            // Inline-formatted excerpt HTML (issue: elided view drops italics). Empty string means
+            // the extractor found no publisher formatting on top of the plaintext — persist null
+            // so the render side takes its plain textSnippet path unambiguously.
+            val snippetHtml = SelectionSnippetHtmlStash.consume().takeIf { it.isNotBlank() }
 
             // ADR 0046 §4: build a draft — nothing persists until the user taps a swatch or
             // emphasis chip. `commitDraft*` in this VM performs the delayed store writes
@@ -2006,6 +2010,7 @@ class EpubReaderViewModel @Inject constructor(
                 progression = progression,
                 embeddedFigures = embeddedFigures,
                 originFontFamily = originFont,
+                textSnippetHtml = snippetHtml,
                 anchorRect = anchorRect,
                 locator = selectionLocator,
             )
@@ -2096,6 +2101,12 @@ class EpubReaderViewModel @Inject constructor(
             progression = mergedFields.progression,
             embeddedFigures = mergedFields.embeddedFigures,
             originFontFamily = draft.originFontFamily,
+            // Only carry inline-formatted HTML when this is a plain (non-overlap-merge) create.
+            // On an overlap-merge, textSnippet is a concatenation across the union of ranges and
+            // the draft's HTML only covers the current selection — grafting it in would misalign
+            // formatting against the wider text. Fall back to plaintext render for merges; the
+            // dominant case (no overlap) still gets italics preserved.
+            textSnippetHtml = if (overlapMerge == null) draft.textSnippetHtml else null,
         )
         val presetStyles = annotationSession.lastUsedEmphasisStyles.value
         val combinedStyles = combineDraftEmphasisStyles(presetStyles, addEmphasisStyle)

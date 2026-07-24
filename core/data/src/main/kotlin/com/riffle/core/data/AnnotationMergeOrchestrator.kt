@@ -159,6 +159,16 @@ internal class AnnotationMergeOrchestrator(
                     // didn't emit the styles token leaves the column null; that combined with
                     // type=TYPE_EMPHASIS is an inert row the renderer ignores.
                     emphasisStyles = w3cAnnotation.emphasisStyles ?: existing?.emphasisStyles,
+                    // originFontFamily is not on the W3C wire format — preserve the local value
+                    // across sync round-trips. Without this, every merge rewrites healed/probed
+                    // rows to null, plurality in the elided view returns null, and excerpts fall
+                    // back to browser-default serif (the "reload reverts to serif" bug that
+                    // survived two prior render-side fixes: #571 and #578).
+                    originFontFamily = existing?.originFontFamily,
+                    // textSnippetHtml is not on the W3C wire format either — preserve local so
+                    // sync round-trips don't flatten the excerpt back to plaintext and drop the
+                    // publisher's inline formatting (<em>, <b>, <sup>, …) from the elided view.
+                    textSnippetHtml = existing?.textSnippetHtml,
                 )
             }
 

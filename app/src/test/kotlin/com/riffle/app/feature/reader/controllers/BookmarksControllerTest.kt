@@ -42,6 +42,7 @@ class BookmarksControllerTest {
             spineIndex: Int, progression: Double,
             embeddedFigures: List<com.riffle.core.models.EmbeddedFigure>?,
             originFontFamily: String,
+            textSnippetHtml: String?,
         ): Annotation {
             val a = Annotation(
                 id = "highlight-${created.size}",

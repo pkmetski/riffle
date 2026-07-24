@@ -71,6 +71,7 @@ class AnnotationSessionTest {
             spineIndex: Int, progression: Double,
             embeddedFigures: List<com.riffle.core.models.EmbeddedFigure>?,
             originFontFamily: String,
+            textSnippetHtml: String?,
         ): Annotation {
             createHighlightCalls.add(
                 CreateHighlightArgs(sourceId, itemId, cfi, textSnippet, chapterHref, textBefore, textAfter, color, spineIndex, progression, originFontFamily)
