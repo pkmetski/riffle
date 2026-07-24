@@ -56,6 +56,32 @@ class FigureTapScriptTest {
         assertTrue(script.contains("clearTimeout(longPressTimer)"))
     }
 
+    /**
+     * Scrolling must take precedence over long-press: when the parent scroll container
+     * (continuous mode's NestedScrollView, or Readium's pager in paginated/vertical) claims the
+     * touch stream, the WebView receives ACTION_CANCEL, which surfaces in JS as touchcancel —
+     * NOT touchmove or touchend. Without a touchcancel handler the 500ms long-press timer keeps
+     * running and the annotations menu pops even though the user is scrolling. This assertion
+     * flips red if that handler is removed.
+     */
+    @Test
+    fun `touchcancel clears the pending long-press timer so scrolling suppresses the annotations menu`() {
+        assertTrue(
+            "touchcancel handler must exist so parent-intercepted scrolls cancel the long-press",
+            script.contains("addEventListener('touchcancel'"),
+        )
+        // Locate the touchcancel handler block and assert it clears longPressTimer inside it —
+        // an outer clearTimeout elsewhere would satisfy `script.contains(...)` without actually
+        // wiring cancellation into the touchcancel path.
+        val cancelIdx = script.indexOf("addEventListener('touchcancel'")
+        assertTrue("touchcancel listener not found", cancelIdx >= 0)
+        val cancelBlock = script.substring(cancelIdx, minOf(cancelIdx + 400, script.length))
+        assertTrue(
+            "touchcancel handler must clearTimeout(longPressTimer)",
+            cancelBlock.contains("clearTimeout(longPressTimer)"),
+        )
+    }
+
     @Test
     fun `script exposes window riffleFiguresInsideRange as a callable entry point`() {
         assertTrue(script.contains("window.riffleFiguresInsideRange"))
