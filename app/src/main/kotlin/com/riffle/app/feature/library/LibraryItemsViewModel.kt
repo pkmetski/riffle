@@ -190,6 +190,13 @@ class LibraryItemsViewModel @Inject constructor(
         _notStartedFilterActive.value = !_notStartedFilterActive.value
     }
 
+    private val _librarySortMode = MutableStateFlow(LibrarySortMode.ADDED_DESC)
+    val librarySortMode: StateFlow<LibrarySortMode> = _librarySortMode.asStateFlow()
+
+    fun setLibrarySortMode(mode: LibrarySortMode) {
+        _librarySortMode.value = mode
+    }
+
     // Share the VM's already-stateIn'd source flows with the engine so we don't open a second
     // set of Room cursors for the same observe* calls. libraryObserver is still passed through
     // for the per-group offline filter, which needs to observe each series'/collection's items.
@@ -211,6 +218,7 @@ class LibraryItemsViewModel @Inject constructor(
         isOffline = isOffline,
         searchQuery = searchQuery,
         notStartedFilterActive = _notStartedFilterActive,
+        librarySortMode = _librarySortMode,
     )
 
     val projection: StateFlow<LibraryProjection> = filterEngine.projection

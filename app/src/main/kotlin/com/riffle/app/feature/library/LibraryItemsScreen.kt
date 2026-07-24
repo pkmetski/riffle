@@ -44,6 +44,7 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.QueueMusic
 import androidx.compose.material.icons.filled.Bookmark
+import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.FormatListNumbered
@@ -52,6 +53,8 @@ import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Badge
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
@@ -168,6 +171,7 @@ fun LibraryItemsScreen(
     val isLoading by viewModel.isLoading.collectAsState()
     val linkedItemIds by viewModel.linkedItemIds.collectAsState()
     val notStartedFilterActive by viewModel.notStartedFilterActive.collectAsState()
+    val librarySortMode by viewModel.librarySortMode.collectAsState()
     val tabVisibility by viewModel.tabVisibility.collectAsState()
     val playlists by viewModel.playlists.collectAsState()
 
@@ -347,6 +351,8 @@ fun LibraryItemsScreen(
                         onCoverScaleChange = onCoverScaleChange,
                         notStartedFilterActive = notStartedFilterActive,
                         onToggleNotStartedFilter = viewModel::toggleNotStartedFilter,
+                        sortMode = librarySortMode,
+                        onSortModeSelected = viewModel::setLibrarySortMode,
                     )
                     else -> {}
                 }
@@ -1607,6 +1613,8 @@ private fun AllBooksTabContent(
     onCoverScaleChange: (Float) -> Unit = {},
     notStartedFilterActive: Boolean = false,
     onToggleNotStartedFilter: () -> Unit = {},
+    sortMode: LibrarySortMode = LibrarySortMode.ADDED_DESC,
+    onSortModeSelected: (LibrarySortMode) -> Unit = {},
 ) {
     if (isLoading) return
     Column(modifier = Modifier.fillMaxSize()) {
@@ -1630,6 +1638,9 @@ private fun AllBooksTabContent(
                         }
                     } else null,
                 )
+            }
+            item {
+                SortModeChip(current = sortMode, onSelect = onSortModeSelected)
             }
         }
         if (items.isEmpty()) {
@@ -1664,6 +1675,43 @@ private fun AllBooksTabContent(
                         )
                     }
                 }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun SortModeChip(
+    current: LibrarySortMode,
+    onSelect: (LibrarySortMode) -> Unit,
+) {
+    var expanded by remember { mutableStateOf(false) }
+    Box {
+        FilterChip(
+            selected = current != LibrarySortMode.ADDED_DESC,
+            onClick = { expanded = true },
+            label = { Text("Sort: ${current.displayName}") },
+            trailingIcon = {
+                Icon(
+                    Icons.Filled.ArrowDropDown,
+                    contentDescription = null,
+                    modifier = Modifier.size(FilterChipDefaults.IconSize),
+                )
+            },
+        )
+        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            LibrarySortMode.values().forEach { mode ->
+                DropdownMenuItem(
+                    text = { Text(mode.displayName) },
+                    onClick = {
+                        onSelect(mode)
+                        expanded = false
+                    },
+                    leadingIcon = if (mode == current) {
+                        { Icon(Icons.Filled.Check, contentDescription = null) }
+                    } else null,
+                )
             }
         }
     }
