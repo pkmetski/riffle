@@ -431,10 +431,14 @@ class LibraryItemsViewModelTest {
     fun `filteredAllBooks emits all items from repository when online`() = runTest {
         val vm = makeViewModel()
         backgroundScope.launch { vm.projection.collect {} }
-        val expected = listOf(item("Dune", "Frank Herbert"), item("1984", "George Orwell"), item("Foundation", "Isaac Asimov"))
-        allBooksFlow.value = expected
+        val dune = item("Dune", "Frank Herbert")
+        val nineteen = item("1984", "George Orwell")
+        val foundation = item("Foundation", "Isaac Asimov")
+        allBooksFlow.value = listOf(dune, nineteen, foundation)
         testDispatcher.scheduler.advanceUntilIdle()
-        assertEquals(expected, vm.projection.value.allBooks)
+        // Default sort is ADDED_DESC; when addedAt is null (as in this fixture) rows tie-break by
+        // title ascending, so the emitted order is alphabetical rather than the input order.
+        assertEquals(listOf(nineteen, dune, foundation), vm.projection.value.allBooks)
     }
 
     // --- C4: series and collections unchanged ---

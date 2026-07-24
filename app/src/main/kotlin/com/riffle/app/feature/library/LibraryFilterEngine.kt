@@ -14,6 +14,49 @@ import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 
+/**
+ * Sort mode for the All Books tab. Default is [ADDED_DESC] — newest additions first — so the tab
+ * behaves as a "what's new" surface rather than a static alphabetical dump. For every mode, rows
+ * whose keying field is null or the sentinel 0 (browse-cached rows, per `LibraryItemEntity`) sort
+ * to the tail with a title tie-break so sources that can't supply a value never pollute the top.
+ */
+enum class LibrarySortMode(val displayName: String) {
+    ADDED_DESC("Recently added"),
+    ADDED_ASC("Oldest first"),
+    TITLE_ASC("Title (A–Z)"),
+    TITLE_DESC("Title (Z–A)"),
+    AUTHOR_ASC("Author (A–Z)"),
+    RECENTLY_OPENED("Recently opened"),
+}
+
+private fun sortAllBooks(items: List<LibraryItem>, mode: LibrarySortMode): List<LibraryItem> {
+    val byTitle: Comparator<LibraryItem> = compareBy { it.title.lowercase() }
+    return when (mode) {
+        LibrarySortMode.TITLE_ASC -> items.sortedWith(byTitle)
+        LibrarySortMode.TITLE_DESC -> items.sortedWith(byTitle.reversed())
+        LibrarySortMode.AUTHOR_ASC -> items.sortedWith(
+            compareBy<LibraryItem> { it.author.lowercase() }.then(byTitle),
+        )
+        LibrarySortMode.ADDED_DESC -> items.sortedWith(
+            // Real timestamps first, then largest addedAt first, tie-break by title.
+            compareByDescending<LibraryItem> { (it.addedAt ?: 0L) > 0L }
+                .thenByDescending { it.addedAt ?: 0L }
+                .then(byTitle),
+        )
+        LibrarySortMode.ADDED_ASC -> items.sortedWith(
+            compareByDescending<LibraryItem> { (it.addedAt ?: 0L) > 0L }
+                .thenBy { it.addedAt ?: Long.MAX_VALUE }
+                .then(byTitle),
+        )
+        LibrarySortMode.RECENTLY_OPENED -> items.sortedWith(
+            // Items with any lastOpenedAt first (most recent open first); never-opened tail sorted by title.
+            compareByDescending<LibraryItem> { it.lastOpenedAt != null }
+                .thenByDescending { it.lastOpenedAt ?: 0L }
+                .then(byTitle),
+        )
+    }
+}
+
 data class LibraryProjection(
     val series: List<Series>,
     val collections: List<Collection>,
@@ -71,6 +114,7 @@ class LibraryFilterEngine(
     isOffline: Flow<Boolean>,
     searchQuery: Flow<String>,
     notStartedFilterActive: Flow<Boolean>,
+    librarySortMode: Flow<LibrarySortMode>,
 ) {
 
     private val seriesProjection: Flow<List<Series>> =
@@ -122,9 +166,10 @@ class LibraryFilterEngine(
         }
 
     private val allBooksProjection: Flow<List<LibraryItem>> =
-        combine(allBooksSource, isOffline, notStartedFilterActive) { items, offline, notStartedOnly ->
+        combine(allBooksSource, isOffline, notStartedFilterActive, librarySortMode) { items, offline, notStartedOnly, sort ->
             val afterOffline = if (offline) items.filter { offlineAvailability.isAvailableOffline(it) } else items
-            if (notStartedOnly) afterOffline.filter { it.readingProgress == 0f } else afterOffline
+            val afterNotStarted = if (notStartedOnly) afterOffline.filter { it.readingProgress == 0f } else afterOffline
+            sortAllBooks(afterNotStarted, sort)
         }
 
     private val toReadProjection: Flow<List<LibraryItem>> =

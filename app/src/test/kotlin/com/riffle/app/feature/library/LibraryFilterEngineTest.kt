@@ -49,6 +49,7 @@ class LibraryFilterEngineTest {
     private val isOfflineFlow = MutableStateFlow(false)
     private val searchQueryFlow = MutableStateFlow("")
     private val notStartedFilterFlow = MutableStateFlow(false)
+    private val librarySortModeFlow = MutableStateFlow(LibrarySortMode.ADDED_DESC)
     private val toReadIdsFlow = MutableStateFlow<Set<String>>(emptySet())
 
     private fun fakeRepo(): LibraryObserver = object : LibraryObserver {
@@ -170,6 +171,7 @@ class LibraryFilterEngineTest {
             isOffline = isOfflineFlow,
             searchQuery = searchQueryFlow,
             notStartedFilterActive = notStartedFilterFlow,
+            librarySortMode = librarySortModeFlow,
         )
     }
 
@@ -339,6 +341,89 @@ class LibraryFilterEngineTest {
             listOf(LibraryItem("id-Dune", "lib-1", "Dune", "H", null, 0f, false, false, EbookFormat.Epub)),
             p.allBooks,
         )
+    }
+
+    @Test
+    fun `allBooks default sort is addedAt descending, newest first`() = runTest {
+        val engine = makeEngine()
+        val older = LibraryItem("id-A", "lib-1", "Alpha", "X", null, 0f, false, false, EbookFormat.Epub, addedAt = 100L)
+        val middle = LibraryItem("id-B", "lib-1", "Beta", "X", null, 0f, false, false, EbookFormat.Epub, addedAt = 200L)
+        val newest = LibraryItem("id-C", "lib-1", "Gamma", "X", null, 0f, false, false, EbookFormat.Epub, addedAt = 300L)
+        allBooksFlow.value = listOf(older, middle, newest)
+        val p = engine.projection.first { it.allBooks.isNotEmpty() }
+        assertEquals(listOf(newest, middle, older), p.allBooks)
+    }
+
+    @Test
+    fun `allBooks sort demotes null and sentinel-0 addedAt to the end`() = runTest {
+        val engine = makeEngine()
+        val unknownNull = LibraryItem("id-N", "lib-1", "Ada", "X", null, 0f, false, false, EbookFormat.Epub, addedAt = null)
+        val unknownZero = LibraryItem("id-Z", "lib-1", "Bea", "X", null, 0f, false, false, EbookFormat.Epub, addedAt = 0L)
+        val real = LibraryItem("id-R", "lib-1", "Zed", "X", null, 0f, false, false, EbookFormat.Epub, addedAt = 1L)
+        allBooksFlow.value = listOf(unknownNull, real, unknownZero)
+        val p = engine.projection.first { it.allBooks.isNotEmpty() }
+        assertEquals("real timestamp comes first", "id-R", p.allBooks.first().id)
+        assertEquals(setOf("id-N", "id-Z"), p.allBooks.drop(1).map { it.id }.toSet())
+    }
+
+    @Test
+    fun `allBooks TITLE_ASC sort mode orders alphabetically`() = runTest {
+        val engine = makeEngine()
+        val gamma = LibraryItem("id-C", "lib-1", "gamma", "X", null, 0f, false, false, EbookFormat.Epub, addedAt = 300L)
+        val alpha = LibraryItem("id-A", "lib-1", "Alpha", "X", null, 0f, false, false, EbookFormat.Epub, addedAt = 100L)
+        val beta = LibraryItem("id-B", "lib-1", "beta", "X", null, 0f, false, false, EbookFormat.Epub, addedAt = 200L)
+        allBooksFlow.value = listOf(gamma, alpha, beta)
+        librarySortModeFlow.value = LibrarySortMode.TITLE_ASC
+        val p = engine.projection.first { it.allBooks.isNotEmpty() && it.allBooks.first().id == "id-A" }
+        assertEquals(listOf(alpha, beta, gamma), p.allBooks)
+    }
+
+    @Test
+    fun `allBooks TITLE_DESC sort mode reverses alphabetical order`() = runTest {
+        val engine = makeEngine()
+        val a = LibraryItem("id-A", "lib-1", "Alpha", "X", null, 0f, false, false, EbookFormat.Epub)
+        val b = LibraryItem("id-B", "lib-1", "Beta", "X", null, 0f, false, false, EbookFormat.Epub)
+        val c = LibraryItem("id-C", "lib-1", "Gamma", "X", null, 0f, false, false, EbookFormat.Epub)
+        allBooksFlow.value = listOf(a, b, c)
+        librarySortModeFlow.value = LibrarySortMode.TITLE_DESC
+        val p = engine.projection.first { it.allBooks.isNotEmpty() && it.allBooks.first().id == "id-C" }
+        assertEquals(listOf(c, b, a), p.allBooks)
+    }
+
+    @Test
+    fun `allBooks AUTHOR_ASC sort mode orders by author with title tiebreak`() = runTest {
+        val engine = makeEngine()
+        val abbyA = LibraryItem("id-1", "lib-1", "Aardvark", "Abbot", null, 0f, false, false, EbookFormat.Epub)
+        val abbyB = LibraryItem("id-2", "lib-1", "Zebras", "Abbot", null, 0f, false, false, EbookFormat.Epub)
+        val zed = LibraryItem("id-3", "lib-1", "Middle", "Zed", null, 0f, false, false, EbookFormat.Epub)
+        allBooksFlow.value = listOf(zed, abbyB, abbyA)
+        librarySortModeFlow.value = LibrarySortMode.AUTHOR_ASC
+        val p = engine.projection.first { it.allBooks.isNotEmpty() && it.allBooks.first().id == "id-1" }
+        assertEquals(listOf(abbyA, abbyB, zed), p.allBooks)
+    }
+
+    @Test
+    fun `allBooks RECENTLY_OPENED sort demotes never-opened items to the tail`() = runTest {
+        val engine = makeEngine()
+        val old = LibraryItem("id-A", "lib-1", "Alpha", "X", null, 0f, false, false, EbookFormat.Epub, lastOpenedAt = 100L)
+        val fresh = LibraryItem("id-B", "lib-1", "Beta", "X", null, 0f, false, false, EbookFormat.Epub, lastOpenedAt = 500L)
+        val never = LibraryItem("id-C", "lib-1", "Gamma", "X", null, 0f, false, false, EbookFormat.Epub, lastOpenedAt = null)
+        allBooksFlow.value = listOf(never, old, fresh)
+        librarySortModeFlow.value = LibrarySortMode.RECENTLY_OPENED
+        val p = engine.projection.first { it.allBooks.isNotEmpty() && it.allBooks.first().id == "id-B" }
+        assertEquals(listOf(fresh, old, never), p.allBooks)
+    }
+
+    @Test
+    fun `allBooks ADDED_ASC sort orders oldest first, unknown timestamps last`() = runTest {
+        val engine = makeEngine()
+        val oldest = LibraryItem("id-A", "lib-1", "Alpha", "X", null, 0f, false, false, EbookFormat.Epub, addedAt = 100L)
+        val newer = LibraryItem("id-B", "lib-1", "Beta", "X", null, 0f, false, false, EbookFormat.Epub, addedAt = 500L)
+        val unknown = LibraryItem("id-C", "lib-1", "Gamma", "X", null, 0f, false, false, EbookFormat.Epub, addedAt = 0L)
+        allBooksFlow.value = listOf(unknown, newer, oldest)
+        librarySortModeFlow.value = LibrarySortMode.ADDED_ASC
+        val p = engine.projection.first { it.allBooks.isNotEmpty() && it.allBooks.first().id == "id-A" }
+        assertEquals(listOf(oldest, newer, unknown), p.allBooks)
     }
 
     // --- toRead ---
