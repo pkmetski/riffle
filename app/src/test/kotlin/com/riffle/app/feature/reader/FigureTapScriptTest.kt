@@ -70,12 +70,14 @@ class FigureTapScriptTest {
             "touchcancel handler must exist so parent-intercepted scrolls cancel the long-press",
             script.contains("addEventListener('touchcancel'"),
         )
-        // Locate the touchcancel handler block and assert it clears longPressTimer inside it —
-        // an outer clearTimeout elsewhere would satisfy `script.contains(...)` without actually
-        // wiring cancellation into the touchcancel path.
+        // Locate only the touchcancel handler block — from the listener registration up to its
+        // closing `}, true);` — to avoid the assertion passing because a clearTimeout appears in
+        // a later handler (e.g. the contextmenu block that follows immediately in the script).
         val cancelIdx = script.indexOf("addEventListener('touchcancel'")
-        assertTrue("touchcancel listener not found", cancelIdx >= 0)
-        val cancelBlock = script.substring(cancelIdx, minOf(cancelIdx + 400, script.length))
+        check(cancelIdx >= 0) // already asserted by assertTrue above; keeps the compiler happy
+        val handlerEnd = script.indexOf("}, true);", cancelIdx).takeIf { it >= 0 }
+            ?: error("touchcancel handler closing delimiter not found")
+        val cancelBlock = script.substring(cancelIdx, handlerEnd + "}, true);".length)
         assertTrue(
             "touchcancel handler must clearTimeout(longPressTimer)",
             cancelBlock.contains("clearTimeout(longPressTimer)"),
