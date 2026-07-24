@@ -129,17 +129,18 @@ fun DebugLogScreen(
                 }
             } else {
                 val listState = rememberLazyListState()
-                // Reverse so newest is at the top and remains visible without manual scrolling
-                // when new entries land.
-                LaunchedEffect(filtered.size) {
+                // Buffer is oldest→newest; display newest-first so the most recent entry sits at
+                // the top of the viewport and remains visible without manual scrolling when new
+                // entries land.
+                val newestFirst = remember(filtered) { debugLogDisplayOrder(filtered) }
+                LaunchedEffect(newestFirst.size) {
                     if (listState.firstVisibleItemIndex <= 1) listState.animateScrollToItem(0)
                 }
                 LazyColumn(
                     state = listState,
                     modifier = Modifier.fillMaxSize(),
-                    reverseLayout = true,
                 ) {
-                    items(filtered, key = { it.seq }) { entry ->
+                    items(newestFirst, key = { it.seq }) { entry ->
                         LogRow(entry)
                         HorizontalDivider(color = Color(0x11000000))
                     }
@@ -189,3 +190,12 @@ private fun LogRow(entry: InMemoryLogBuffer.Entry) {
 }
 
 private val TIME_FMT = SimpleDateFormat("HH:mm:ss.SSS", Locale.US)
+
+/**
+ * The buffer stores entries oldest→newest; the debug screen must show newest first so the most
+ * recent entry sits at the top of the viewport. Extracted so the ordering can be pinned by a
+ * pure-JVM test — reverting the flip would otherwise silently regress to an oldest-at-top view.
+ */
+internal fun debugLogDisplayOrder(
+    entries: List<InMemoryLogBuffer.Entry>,
+): List<InMemoryLogBuffer.Entry> = entries.asReversed()
