@@ -485,6 +485,7 @@ fun EpubReaderScreen(
                             }
                         },
                         onTap = immersiveState::toggle,
+                        onUserInteracted = viewModel::onUserInteracted,
                         onSelectionEnded = {
                             // Belt-and-braces: sticky IMMERSIVE (see immersiveSystemBarsBehavior)
                             // handles the ActionMode-dismiss reveal on its own — the OS auto-hides
@@ -1313,6 +1314,7 @@ private fun EpubNavigatorView(
     currentSearchIndex: Int,
     volumeNavEvents: Flow<VolumeNavEvent>,
     onTap: () -> Unit,
+    onUserInteracted: () -> Unit,
     onSelectionEnded: () -> Unit,
     onSelectionActiveChanged: (Boolean) -> Unit,
     latestLocator: () -> Locator?,
@@ -2753,6 +2755,7 @@ private fun EpubNavigatorView(
                 }
                 container.onPullEnded = { pullActive = false }
                 container.onPullProgress = { p -> pullProgress = p }
+                container.onUserTouch = { onUserInteracted() }
 
                 val fragmentContainer = (container.getChildAt(0) as? android.view.ViewGroup)
                     ?.getChildAt(0) as? FragmentContainerView

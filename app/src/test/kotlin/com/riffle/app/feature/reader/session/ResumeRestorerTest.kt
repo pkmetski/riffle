@@ -121,6 +121,41 @@ class ResumeRestorerTest {
     }
 
     @Test
+    fun `onUserInteracted disarms retry — subsequent chapter-top does not refire`() {
+        val f = Fixture()
+        f.restorer.armReturnRestore(buildLocator("a.html", 0.5))
+        f.refired.clear()
+        // The user touched the screen — any subsequent emission is user input, not Readium reflow.
+        f.restorer.onUserInteracted()
+        f.restorer.onPositionEmitted(buildLocator("a.html", 0.0))
+        assertEquals("no refire after user touch", 0, f.refired.size)
+    }
+
+    @Test
+    fun `onUserInteracted disarms retry — backward user scroll not fought`() {
+        val f = Fixture()
+        f.restorer.armReturnRestore(buildLocator("a.html", 0.5))
+        f.refired.clear()
+        f.restorer.onUserInteracted()
+        // Genuine backward scroll within the same chapter — must reach the user, not be re-fired.
+        f.restorer.onPositionEmitted(buildLocator("a.html", 0.2))
+        assertEquals("no refire on backward scroll after touch", 0, f.refired.size)
+    }
+
+    @Test
+    fun `armReturnRestore re-arms after prior onUserInteracted`() {
+        val f = Fixture()
+        f.restorer.armReturnRestore(buildLocator("a.html", 0.5))
+        f.restorer.onUserInteracted()
+        f.refired.clear()
+        // Next resume cycle: a fresh arm must re-enable the retry watcher.
+        f.restorer.armReturnRestore(buildLocator("a.html", 0.5))
+        f.refired.clear()
+        f.restorer.onPositionEmitted(buildLocator("a.html", 0.0))
+        assertEquals("re-armed after fresh armReturnRestore", 1, f.refired.size)
+    }
+
+    @Test
     fun `reset clears anchor and budget`() {
         val f = Fixture()
         f.restorer.armReturnRestore(buildLocator("a.html", 0.5))

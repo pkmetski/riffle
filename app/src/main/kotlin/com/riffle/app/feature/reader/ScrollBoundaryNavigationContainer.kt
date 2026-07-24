@@ -34,6 +34,13 @@ class ScrollBoundaryNavigationContainer(context: Context) : FrameLayout(context)
     var onPullEnded: (() -> Unit)? = null
     var onPullProgress: ((progress: Float) -> Unit)? = null
 
+    /**
+     * Fires on ACTION_DOWN for every touch on the reader surface, regardless of reader mode. Used
+     * by the ViewModel to disarm the post-resume position-restore watcher — see
+     * [com.riffle.app.feature.reader.session.ResumeRestorer.onUserInteracted].
+     */
+    var onUserTouch: (() -> Unit)? = null
+
     private var lastNavigationMs = 0L
     private var lastVolumeNavMs = 0L
     private var lastTouchY = 0f
@@ -124,6 +131,9 @@ class ScrollBoundaryNavigationContainer(context: Context) : FrameLayout(context)
     }
 
     override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
+        // Unconditional user-touch signal — fires in all reader modes so the resume-restore
+        // watcher can disarm on any user gesture (see [onUserTouch] docstring).
+        if (ev.actionMasked == MotionEvent.ACTION_DOWN) onUserTouch?.invoke()
         if (isScrollMode) {
             when (ev.actionMasked) {
                 MotionEvent.ACTION_DOWN -> {
