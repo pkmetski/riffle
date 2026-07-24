@@ -234,6 +234,15 @@ internal object FigureTapScript {
                 if (longPressTimer) { clearTimeout(longPressTimer); longPressTimer = null; }
                 longPressTarget = null;
             }, true);
+            // Scrolling must take precedence over long-press. When the parent NestedScrollView
+            // (continuous mode) or Readium's pager (paginated/vertical) intercepts the touch
+            // stream past its slop threshold, the WebView receives ACTION_CANCEL — which surfaces
+            // in JS as touchcancel, not touchmove or touchend. Without this handler the 500ms
+            // timer keeps running and the annotations menu pops even though the user is scrolling.
+            document.addEventListener('touchcancel', function() {
+                if (longPressTimer) { clearTimeout(longPressTimer); longPressTimer = null; }
+                longPressTarget = null;
+            }, true);
             // Cancel the native long-press callout on figures — belt to the CSS's braces above,
             // for WebView builds where the CSS property alone is respected too late.
             document.addEventListener('contextmenu', function(e) {
