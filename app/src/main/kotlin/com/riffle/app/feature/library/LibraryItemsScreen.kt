@@ -1701,7 +1701,7 @@ private fun SortModeChip(
             },
         )
         DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-            LibrarySortMode.values().forEach { mode ->
+            LibrarySortMode.entries.forEach { mode ->
                 DropdownMenuItem(
                     text = { Text(mode.displayName) },
                     onClick = {
