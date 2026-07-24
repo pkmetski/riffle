@@ -1679,6 +1679,15 @@ class EpubReaderViewModel @Inject constructor(
         }
     }
 
+    /**
+     * Called from the reader surface on the first touch of a gesture (ACTION_DOWN). Disarms the
+     * post-resume position-restore watcher so a genuine user scroll — including a backward scroll
+     * within the same chapter — is never re-fired forward. See [ResumeRestorer.onUserInteracted].
+     */
+    fun onUserInteracted() {
+        position.onUserInteracted()
+    }
+
     fun onReaderClosed() {
         if (shouldRunReadingSideEffects(source)) {
             readingSessionCoordinator.onClosed(

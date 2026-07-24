@@ -239,6 +239,9 @@ class PositionOrchestrator @AssistedInject constructor(
     /** @see ResumeRestorer.armReturnRestore */
     fun armReturnRestore(origin: Locator) = resumeRestorer.armReturnRestore(origin)
 
+    /** @see ResumeRestorer.onUserInteracted */
+    fun onUserInteracted() = resumeRestorer.onUserInteracted()
+
     /** Resets [initialLocatorSeen] — called when the reader is resumed so the first Readium
      *  emission (the WebView restoration) is not treated as user progress. */
     fun resetInitialLocatorSeen() {

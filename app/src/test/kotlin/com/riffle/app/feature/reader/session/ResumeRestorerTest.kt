@@ -121,6 +121,58 @@ class ResumeRestorerTest {
     }
 
     @Test
+    fun `onUserInteracted disarms retry — subsequent chapter-top does not refire`() {
+        val f = Fixture()
+        f.restorer.armReturnRestore(buildLocator("a.html", 0.5))
+        f.refired.clear()
+        // The user touched the screen — any subsequent emission is user input, not Readium reflow.
+        f.restorer.onUserInteracted()
+        f.restorer.onPositionEmitted(buildLocator("a.html", 0.0))
+        assertEquals("no refire after user touch", 0, f.refired.size)
+    }
+
+    @Test
+    fun `onUserInteracted disarms retry — backward user scroll not fought`() {
+        val f = Fixture()
+        f.restorer.armReturnRestore(buildLocator("a.html", 0.5))
+        f.refired.clear()
+        f.restorer.onUserInteracted()
+        // Genuine backward scroll within the same chapter — must reach the user, not be re-fired.
+        f.restorer.onPositionEmitted(buildLocator("a.html", 0.2))
+        assertEquals("no refire on backward scroll after touch", 0, f.refired.size)
+    }
+
+    @Test
+    fun `onUserInteracted clears pending anchor so setReturnAnchor can capture fresh position`() {
+        val f = Fixture()
+        f.restorer.armReturnRestore(buildLocator("a.html", 0.5))
+        f.restorer.onUserInteracted()
+        // Anchor must be cleared: setReturnAnchor is a no-overwrite operation, so a lingering
+        // stale anchor would prevent the next onReaderClosed from recording the current position
+        // and the following resume would snap the user back to where they were two sessions ago.
+        assertNull("anchor cleared after user takes over", f.restorer.peekReturnAnchor())
+        f.restorer.setReturnAnchor(buildLocator("b.html", 0.3))
+        assertEquals(
+            "setReturnAnchor now writes fresh position",
+            "b.html",
+            f.restorer.peekReturnAnchor()?.href?.toString(),
+        )
+    }
+
+    @Test
+    fun `armReturnRestore re-arms after prior onUserInteracted`() {
+        val f = Fixture()
+        f.restorer.armReturnRestore(buildLocator("a.html", 0.5))
+        f.restorer.onUserInteracted()
+        f.refired.clear()
+        // Next resume cycle: a fresh arm must re-enable the retry watcher.
+        f.restorer.armReturnRestore(buildLocator("a.html", 0.5))
+        f.refired.clear()
+        f.restorer.onPositionEmitted(buildLocator("a.html", 0.0))
+        assertEquals("re-armed after fresh armReturnRestore", 1, f.refired.size)
+    }
+
+    @Test
     fun `reset clears anchor and budget`() {
         val f = Fixture()
         f.restorer.armReturnRestore(buildLocator("a.html", 0.5))
