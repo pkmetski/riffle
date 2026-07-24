@@ -95,6 +95,12 @@ internal fun highlightStartProgression(rangeCfi: String, html: String): Double? 
     return cfiDocPathToProgression(startDocPath, html)
 }
 
+/** Pre-parsed-document overload — avoids re-parsing [doc] when multiple highlights share a chapter. */
+internal fun highlightStartProgression(rangeCfi: String, doc: org.jsoup.nodes.Document): Double? {
+    val startDocPath = rangeStartDocPath(rangeCfi) ?: return null
+    return cfiDocPathToProgression(startDocPath, doc)
+}
+
 /**
  * Concatenation of the body's readable-text (blank-only text nodes skipped) — the "flat" view of
  * the chapter that [countBodyChars] measures. All char offsets used by highlight merging are

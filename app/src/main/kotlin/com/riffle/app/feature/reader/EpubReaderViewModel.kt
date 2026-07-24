@@ -505,6 +505,7 @@ class EpubReaderViewModel @Inject constructor(
     // now live on [lifecycle] (issue #376). Reads route through lifecycle.publication.value and
     // lifecycle.matchedSync.value; teardown via lifecycle.onCleared().
     private val chapterHtmlCache = mutableMapOf<Int, String>()
+    private val chapterDocCache = mutableMapOf<Int, org.jsoup.nodes.Document>()
 
     // Highlights mode only (Task 10, ADR 0041): the chapter grouping + resolved server id from the
     // last [openBook] build, kept so the resume-position collector below can map a synthesised-href
@@ -3205,7 +3206,8 @@ class EpubReaderViewModel @Inject constructor(
         val spineIndex = epubCfiToSpineIndex(a.cfi) ?: return emptyList()
         val link = pub.readingOrder.getOrNull(spineIndex) ?: return emptyList()
         val html = readChapterHtml(spineIndex) ?: return emptyList()
-        val progression = highlightStartProgression(a.cfi, html) ?: return emptyList()
+        val doc = readChapterDoc(spineIndex, html)
+        val progression = highlightStartProgression(a.cfi, doc) ?: return emptyList()
         val href = link.href.toString()
         // Split points inside the snippet where a figure sits. Legacy rows without offsets → one
         // segment covering the whole snippet (v1 behaviour).
@@ -3263,6 +3265,9 @@ class EpubReaderViewModel @Inject constructor(
             } catch (_: Exception) { null }
         }
     }
+
+    private fun readChapterDoc(spineIndex: Int, html: String): org.jsoup.nodes.Document =
+        chapterDocCache.getOrPut(spineIndex) { org.jsoup.Jsoup.parse(html) }
 
     override fun onCleared() {
         super.onCleared()

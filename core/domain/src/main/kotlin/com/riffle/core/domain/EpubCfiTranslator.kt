@@ -18,8 +18,10 @@ fun extractCfiDocPath(fullCfi: String): String? {
     return inner.substring(bang + 1).takeIf { it.isNotEmpty() }
 }
 
-fun cfiDocPathToProgression(docPath: String, html: String): Double? {
-    val doc = Jsoup.parse(html)
+fun cfiDocPathToProgression(docPath: String, html: String): Double? =
+    cfiDocPathToProgression(docPath, Jsoup.parse(html))
+
+fun cfiDocPathToProgression(docPath: String, doc: org.jsoup.nodes.Document): Double? {
     val htmlEl = doc.child(0)
     val body = doc.body()
 
