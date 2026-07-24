@@ -60,6 +60,36 @@ class ChapterWindowManagerTest {
     }
 
     @Test
+    fun `does not shift backward when entire window fits in viewport`() {
+        // Regression: book opens at fm02 (topIndex=1). All three chapters (fm01+fm02+title) are
+        // tiny and fit in one viewport. scrollY=0 < firstChapterHeight/2 AND topIndex>0 would
+        // normally trigger ShiftBackward, removing title and prepending cover. After that there
+        // is no subsequent trigger (maxScrollY stays 0), so AppendOnly never fires and the reader
+        // walls off. Suppressing ShiftBackward when fitsInViewport lets ShiftForward or AppendOnly
+        // fire instead.
+        val mgr = ChapterWindowManager(chaptersBehind = 1)
+        val window = listOf(
+            slot("fm01",  top = 0,   height = 220),
+            slot("fm02",  top = 220, height = 140),
+            slot("title", top = 360, height =  90),   // total = 450 << viewport (2400)
+        )
+        val d = mgr.decide(
+            scrollY = 0,
+            viewportChapterIndex = 3,    // title is at spine idx 3
+            window = window,
+            topIndex = 1,
+            totalChapters = 37,
+            viewportHeight = 2_400,
+            appendOnlyMaxWindow = 8,
+        )
+        // ShiftBackward must be suppressed; ShiftForward fires (gap = 3-1=2 > chaptersBehind=1)
+        assertEquals(
+            "ShiftBackward must not fire when window fits in viewport",
+            ChapterWindowManager.Decision.ShiftForward, d,
+        )
+    }
+
+    @Test
     fun `does not shift backward when at the very first chapter (topIndex=0)`() {
         val mgr = ChapterWindowManager(chaptersBehind = 3)
         val decision = mgr.decide(
@@ -324,16 +354,16 @@ class ChapterWindowManagerTest {
         // Regression pin (2026-07-21 field repro after the initial wall-off fix): elided view
         // opened with 3 short chapters loaded whose total height (1500 px) is less than the
         // viewport (2400 px). Without the loadedContentBottom > viewportHeight guard,
-        // atBottomOfLoadedWindow is true even at scrollY=0 → ShiftForward fires immediately →
-        // topIndex advances → next decide() also fires → the window jumps [ch0..ch2] to
-        // [ch3..ch5] with no user input. And once the pattern is established, any backward shift
-        // is immediately re-undone by a fresh forward shift on the next decide, so the user
-        // can't scroll back. Field-observed as "cannot scroll to the chapters BEFORE ch12".
+        // atBottomOfLoadedWindow was true even at scrollY=0 → ShiftForward fired immediately →
+        // topIndex advanced → the window jumped [ch0..ch2] to [ch3..ch5] with no user input,
+        // and any backward shift was re-undone by a fresh forward shift on the next decide, so
+        // the user couldn't scroll back. Field-observed as "cannot scroll to the chapters BEFORE
+        // ch12".
         //
-        // topIndex=0 pins out the backward-shift path (topIndex>0 is a required condition), so
-        // the ONLY trigger this test exercises is the bottom-of-window one. Midpoint trigger is
-        // false too (midY at 1200 in ch0 → viewportChapterIndex=0 → 0-0=0 not > 1). Decision
-        // must be Hold; without the guard it was ShiftForward.
+        // This test locks in the guard against ShiftForward for that case. When
+        // appendOnlyMaxWindow is not passed (default 0), the fits-in-viewport branch also does
+        // not fire — decision is Hold. See separate AppendOnly tests below for the opt-in path
+        // that grows the window without dropping the top.
         val mgr = ChapterWindowManager(chaptersBehind = 1)
         val window = listOf(
             slot("ch0", top = 0,    height = 500),
@@ -352,6 +382,165 @@ class ChapterWindowManagerTest {
             "loaded window fits in viewport — must not auto-cascade forward",
             ChapterWindowManager.Decision.Hold, d,
         )
+    }
+
+    // ── AppendOnly (fits-in-viewport wall-off unstick) ───────────────────────
+    //
+    // Regression: book e866cd1d ("12 Principles for Raising a Child with ADHD"). Spine opens
+    // with cover → fm01 ("Praise for…" 2.3 KB) → fm02 ("Selected Works From…" 1.3 KB) →
+    // title (0.6 KB) → copyright. The natural 3-chapter initial window (fm01, fm02, title) is
+    // ~a few hundred pixels tall — fits inside a single viewport. ShiftForward can never fire
+    // (loadedContentBottom <= viewportHeight is deliberately excluded upstream to avoid
+    // cascading past the user's opened position). Result: scroll dead-ends between "Selected
+    // Works From…" and the title page — "as if there is no more book". AppendOnly grows the
+    // window without dropping the top so more chapters load AND the reader can still scroll
+    // back to the front-matter.
+
+    @Test
+    fun `fires AppendOnly when loaded window fits in viewport and more chapters exist`() {
+        // Fresh cold-open at spine[0] (topIndex=0 → backward-shift path pinned out because
+        // topIndex>0 is a required condition).
+        val mgr = ChapterWindowManager(chaptersBehind = 1)
+        val window = listOf(
+            slot("cover", top = 0,   height = 180),
+            slot("fm01",  top = 180, height = 220),
+            slot("fm02",  top = 400, height = 140),  // total = 540 << viewport (2400)
+        )
+        val d = mgr.decide(
+            scrollY = 0,
+            viewportChapterIndex = 0,     // opened at the cover
+            window = window,
+            topIndex = 0,
+            totalChapters = 37,
+            viewportHeight = 2_400,
+            appendOnlyMaxWindow = 8,
+        )
+        assertEquals(
+            "fits-in-viewport wall-off must fire AppendOnly to load the next chapter",
+            ChapterWindowManager.Decision.AppendOnly, d,
+        )
+    }
+
+    @Test
+    fun `AppendOnly is capped by appendOnlyMaxWindow`() {
+        // Pathological "all short chapters" book: 8 tiny chapters loaded, still fit in viewport.
+        // Cap prevents runaway loads that would eventually blow the WebView renderer memory.
+        val mgr = ChapterWindowManager(chaptersBehind = 1)
+        val window = (0 until 8).map { i ->
+            slot("ch$i", top = i * 100, height = 100)  // total = 800 < viewport (2400)
+        }
+        val d = mgr.decide(
+            scrollY = 0,
+            viewportChapterIndex = 1,
+            window = window,
+            topIndex = 0,
+            totalChapters = 50,
+            viewportHeight = 2_400,
+            appendOnlyMaxWindow = 8,
+        )
+        assertEquals(
+            "AppendOnly must stop firing at the cap, even if window still fits in viewport",
+            ChapterWindowManager.Decision.Hold, d,
+        )
+    }
+
+    @Test
+    fun `AppendOnly does not fire when no more chapters exist ahead`() {
+        val mgr = ChapterWindowManager(chaptersBehind = 1)
+        val window = listOf(
+            slot("ch0", top = 0,    height = 500),
+            slot("ch1", top = 500,  height = 500),
+            slot("ch2", top = 1_000, height = 500),
+        )
+        val d = mgr.decide(
+            scrollY = 0,
+            viewportChapterIndex = 1,
+            window = window,
+            topIndex = 0,
+            totalChapters = 3,           // window covers the whole spine
+            viewportHeight = 2_400,
+            appendOnlyMaxWindow = 8,
+        )
+        assertEquals(ChapterWindowManager.Decision.Hold, d)
+    }
+
+    @Test
+    fun `AppendOnly does not fire once loaded window exceeds viewport`() {
+        // Once one appended chapter measures back to placeholder height (or the natural
+        // combined height exceeds viewport), AppendOnly stops firing so the normal
+        // ShiftForward/Backward algorithm takes over.
+        val mgr = ChapterWindowManager(chaptersBehind = 1)
+        val window = listOf(
+            slot("ch0", top = 0,     height = 500),
+            slot("ch1", top = 500,   height = 500),
+            slot("ch2", top = 1_000, height = 500),
+            slot("ch3", top = 1_500, height = 2_000),  // total = 3500 > viewport (2400)
+        )
+        val d = mgr.decide(
+            scrollY = 0,
+            viewportChapterIndex = 1,
+            window = window,
+            topIndex = 0,
+            totalChapters = 11,
+            viewportHeight = 2_400,
+            appendOnlyMaxWindow = 8,
+        )
+        assertEquals(ChapterWindowManager.Decision.Hold, d)
+    }
+
+    @Test
+    fun `fires AppendOnly again after appended chapter measures short`() {
+        // Regression: AppendOnly appends chapter at placeholder height (~viewport), which
+        // temporarily makes fitsInViewport=false and halts the chain. When it then measures back
+        // to its actual short height, decide() must fire AppendOnly again so the window keeps
+        // growing. This simulates the second decide() call after copyright.html (3 KB) measures
+        // back down from placeholder to its real ~200 px height.
+        val mgr = ChapterWindowManager(chaptersBehind = 1)
+        // cover + fm01 + fm02 + title + copyright — all small, total 630 px << viewport 2400
+        val window = listOf(
+            slot("cover",      top = 0,   height = 120),
+            slot("fm01",       top = 120, height = 180),
+            slot("fm02",       top = 300, height = 130),
+            slot("title",      top = 430, height =  80),
+            slot("copyright",  top = 510, height = 120),  // just measured back from placeholder
+        )
+        val d = mgr.decide(
+            scrollY = 0,
+            viewportChapterIndex = 0,
+            window = window,
+            topIndex = 0,
+            totalChapters = 37,
+            viewportHeight = 2_400,
+            appendOnlyMaxWindow = 8,
+        )
+        assertEquals(
+            "AppendOnly must continue chaining when appended chapter also measures short",
+            ChapterWindowManager.Decision.AppendOnly, d,
+        )
+    }
+
+    @Test
+    fun `ShiftForward wins over AppendOnly when both would apply`() {
+        // Guard against a future refactor accidentally reordering the when-branches: ShiftForward
+        // must take precedence so the memory-managed sliding window keeps working normally when
+        // the midpoint has advanced past the behind budget, even if the fits-in-viewport
+        // condition also happens to be true.
+        val mgr = ChapterWindowManager(chaptersBehind = 1)
+        val window = listOf(
+            slot("ch0", top = 0,   height = 300),
+            slot("ch1", top = 300, height = 300),
+            slot("ch2", top = 600, height = 300),   // total = 900 < viewport (2400) → fitsInViewport
+        )
+        val d = mgr.decide(
+            scrollY = 0,
+            viewportChapterIndex = 2,     // gap = 2 - 0 = 2 > chaptersBehind(1) → ShiftForward
+            window = window,
+            topIndex = 0,
+            totalChapters = 11,
+            viewportHeight = 2_400,
+            appendOnlyMaxWindow = 8,
+        )
+        assertEquals(ChapterWindowManager.Decision.ShiftForward, d)
     }
 
     @Test
