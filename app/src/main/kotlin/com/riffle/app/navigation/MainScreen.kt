@@ -163,7 +163,14 @@ fun MainScreen(
     // Material3's ModalNavigationDrawer doesn't install its own BackHandler — so when the
     // drawer is open we add one here. Registered above the NavHost so screen-level handlers
     // (e.g. LibraryItemsScreen) don't override it.
-    BackHandler(enabled = !usePermanentDrawer && drawerState.isOpen) {
+    //
+    // Gate on targetValue, not isOpen: `isOpen` (== currentValue == Open) only flips true after
+    // the open animation completes, leaving a mid-animation window during which Back falls
+    // through to the NavHost callback and pops the library entry. That surfaces HOME, whose
+    // LaunchedEffect re-runs getStartDestination() — and any transient hang there leaves the
+    // user on a permanent white-with-spinner screen (see PR #156 for the prior form of this
+    // race, which used to blank the NavHost outright before HOME became a permanent base).
+    BackHandler(enabled = shouldInterceptBackForDrawer(usePermanentDrawer, drawerState.targetValue == DrawerValue.Open)) {
         scope.launch { drawerState.close() }
     }
 
@@ -896,6 +903,16 @@ internal fun NavController.navigateAsRoot(route: String) {
         launchSingleTop = true
     }
 }
+
+/**
+ * Whether the top-level BackHandler should intercept Back and close the drawer instead of
+ * letting the NavHost pop the current destination.
+ *
+ * Extracted so the rule is unit-testable at the JVM level (the call site's use of
+ * `drawerState.targetValue == DrawerValue.Open` is what pins Back-during-open-animation).
+ */
+internal fun shouldInterceptBackForDrawer(usePermanentDrawer: Boolean, drawerTargetOpen: Boolean): Boolean =
+    !usePermanentDrawer && drawerTargetOpen
 
 internal fun isReaderRoute(route: String?): Boolean =
     route?.startsWith(EPUB_READER.substringBefore("{")) == true ||
