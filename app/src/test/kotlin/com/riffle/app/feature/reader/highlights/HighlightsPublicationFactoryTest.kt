@@ -737,9 +737,7 @@ class HighlightsPublicationFactoryTest {
             urlFactory = ::testUrlFactory,
         )
         val html = readChapterHtml(pub, 0)
-        assertTrue("underline in text-decoration", html.contains("underline"))
-        assertTrue("line-through in text-decoration", html.contains("line-through"))
-        assertTrue("text-decoration property present", html.contains("text-decoration"))
+        assertTrue("combined text-decoration value", html.contains("text-decoration:underline line-through"))
     }
 
     @Test
