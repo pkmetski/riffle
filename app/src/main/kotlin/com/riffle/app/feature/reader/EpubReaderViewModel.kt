@@ -1134,7 +1134,11 @@ class EpubReaderViewModel @Inject constructor(
             }
             val rows = annotationDao.getForItem(sourceId, itemId)
             val toc = tocRepository.getCachedToc(sourceId, itemId)?.second.orEmpty()
-            val chapters = buildChapterElisions(rows).mapIndexed { index, chapter ->
+            // Join TYPE_EMPHASIS styles onto their paired TYPE_HIGHLIGHT rows so the elided view
+            // renders user-applied formatting (bold/italic/underline/strike) and omits the accent
+            // bar for ∅-color emphasis-only annotations (see appendTextHighlight).
+            val rowsForElided = joinEmphasisStylesToHighlights(rows)
+            val chapters = buildChapterElisions(rowsForElided).mapIndexed { index, chapter ->
                 chapter.copy(title = elidedChapterTitle(chapter.href, chapter.title, toc, index))
             }
             // Belt-and-braces guard against Readium's EpubNavigatorFragment hard-crashing on an
@@ -2945,9 +2949,23 @@ class EpubReaderViewModel @Inject constructor(
                     // Chapter titles were derived at open-time from the TOC — reuse them.
                     val titleByHref =
                         highlightsResumeChapters?.associate { it.href to it.title } ?: emptyMap()
+                    // Emphasis-join for partial rewrite path: the incomingById snapshot only carries
+                    // TYPE_HIGHLIGHT entities; read the live emphasis pool to re-join styles so a
+                    // recolour or note edit doesn't strip user-applied emphasis from the chapter bytes.
+                    val emphasisByCfi = annotationSession.emphasisPool.value
+                        .groupBy { it.cfi }
+                        .mapValues { (_, pool) ->
+                            com.riffle.core.models.EmphasisStyle.encode(
+                                pool.firstOrNull()?.emphasisStyles.orEmpty(),
+                            )
+                        }
                     for (chapterHref in touchedChapters) {
                         val livePeers = incomingByChapter[chapterHref].orEmpty()
                             .sortedWith(compareBy({ it.spineIndex }, { it.progression }, { it.createdAt }, { it.id }))
+                            .map { row ->
+                                val styles = emphasisByCfi[row.cfi] ?: return@map row
+                                row.copy(emphasisStyles = styles)
+                            }
                         if (livePeers.isEmpty()) continue // Empty chapter would be structural — handled above.
                         val chapter = ChapterElision(
                             href = chapterHref,
@@ -2993,7 +3011,8 @@ class EpubReaderViewModel @Inject constructor(
      *  what [HighlightsPublicationFactory.renderChapterHtml] bakes into the initial HTML so a
      *  live recolour lands on the SAME colour a fresh page load would produce. */
     private fun highlightAccentCssRgba(colorToken: String): String =
-        com.riffle.core.models.HighlightColor.fromToken(colorToken).argb.toCssRgba()
+        if (colorToken.isBlank()) com.riffle.app.feature.reader.highlights.EMPHASIS_ONLY_BAR_COLOR
+        else com.riffle.core.models.HighlightColor.fromToken(colorToken).argb.toCssRgba()
 
     /** Soft-delete a highlight; annotationStore re-emits without it → decoration is removed.
      *  Highlights mode: the observer sees the id disappear and dispatches a Remove DOM patch
@@ -3748,6 +3767,28 @@ internal fun resolveChapterTitle(href: String, toc: List<TocEntry>): String? {
  */
 internal fun highlightsShouldCloseAfterDelete(rows: List<AnnotationEntity>): Boolean =
     buildChapterElisions(rows).isEmpty()
+
+/**
+ * Copies [AnnotationEntity.emphasisStyles] from each TYPE_EMPHASIS row onto its paired
+ * TYPE_HIGHLIGHT (matched by [AnnotationEntity.cfi]). The elided view's rendering path
+ * ([appendTextHighlight]) reads `emphasisStyles` on the highlight entity to apply user-applied
+ * CSS (bold/italic/underline/strike) and to decide whether the accent bar should be omitted
+ * (∅-color emphasis-only annotations have `color = ""`). Called on the full row list from the
+ * DAO so both types are available for joining before [buildChapterElisions] filters to highlights.
+ */
+internal fun joinEmphasisStylesToHighlights(rows: List<AnnotationEntity>): List<AnnotationEntity> {
+    val emphasisByCfi = rows
+        .filter { it.type == AnnotationEntity.TYPE_EMPHASIS && !it.deleted }
+        .groupBy { it.cfi }
+        .mapValues { (_, group) -> group.firstOrNull()?.emphasisStyles }
+    if (emphasisByCfi.isEmpty()) return rows
+    return rows.map { row ->
+        if (row.type == AnnotationEntity.TYPE_HIGHLIGHT) {
+            val styles = emphasisByCfi[row.cfi] ?: return@map row
+            row.copy(emphasisStyles = styles)
+        } else row
+    }
+}
 
 internal fun buildChapterElisions(rows: List<AnnotationEntity>): List<ChapterElision> {
     val live = rows

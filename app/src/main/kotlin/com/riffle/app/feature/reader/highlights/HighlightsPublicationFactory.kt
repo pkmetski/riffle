@@ -3,6 +3,7 @@ package com.riffle.app.feature.reader.highlights
 import com.riffle.app.feature.reader.toCssRgba
 import com.riffle.core.database.AnnotationEntity
 import com.riffle.core.models.EmbeddedFigure
+import com.riffle.core.models.EmphasisStyle
 import com.riffle.core.models.HighlightColor
 import javax.inject.Inject
 import kotlinx.serialization.builtins.ListSerializer
@@ -333,6 +334,12 @@ class HighlightsPublicationFactory @Inject constructor() {
     }
 }
 
+// Accent bar colour for ∅-color (emphasis-only) annotations — light gray that stays visible
+// without implying a user-chosen highlight colour. Alpha 0.20 is intentionally much lighter than
+// the 0x80 (~50%) used for palette colours so the bar reads as a secondary / formatting-only
+// marker rather than a full highlight.
+internal const val EMPHASIS_ONLY_BAR_COLOR = "rgba(128,128,128,0.20)"
+
 // Class name on the transparent absolute-positioned span that owns tap dispatch for a highlight.
 // Injected inside each synthesised `<p>` next to the visible text; its CSS (see
 // [ACCENT_BAR_TAP_CSS]) sizes it to overlap the paragraph's border-left + padding-left gutter so a
@@ -446,7 +453,8 @@ private fun appendInterleavedHighlight(
     }
     val note = highlight.note
     if (note != null) {
-        val accent = highlightBackgroundCss(highlight.color)
+        val accent = if (highlight.color.isNotBlank()) highlightBackgroundCss(highlight.color)
+                     else EMPHASIS_ONLY_BAR_COLOR
         val idEscaped = highlight.id.xmlEscape()
         sb.append("  <aside class=\"riffle-note\" data-ann-id=\"")
         sb.append(idEscaped)
@@ -470,7 +478,8 @@ private fun appendHighlightTextChunk(
     chunk: String,
     bookBodyFontFamily: String?,
 ) {
-    val accent = highlightBackgroundCss(highlight.color)
+    val accent = if (highlight.color.isNotBlank()) highlightBackgroundCss(highlight.color)
+                 else EMPHASIS_ONLY_BAR_COLOR
     val idEscaped = highlight.id.xmlEscape()
     val tapUrl = buildAnnotationTapUrl(highlight.id).xmlEscape()
     sb.append("  <p style=\"")
@@ -487,7 +496,9 @@ private fun appendHighlightTextChunk(
     sb.append(tapUrl)
     sb.append("?l='+x+'&amp;t='+y+'&amp;r='+(x+1)+'&amp;b='+(y+1);return false;\"></span><span class=\"riffle-hl\" data-ann-id=\"")
     sb.append(idEscaped)
-    sb.append("\">")
+    sb.append("\"")
+    appendEmphasisStyleAttr(sb, highlight.emphasisStyles)
+    sb.append(">")
     sb.append(chunk.xmlEscape())
     sb.append("</span></p>\n")
 }
@@ -508,7 +519,10 @@ private fun appendTextHighlight(sb: StringBuilder, highlight: AnnotationEntity, 
     // (ChapterWebView) and paginated/vertical (EpubReaderScreen) intercept that URL and
     // open the highlight-actions popup. Tapping the text itself does nothing — the
     // reason this HTML is authored here and not decorated on top of it via Readium.
-    val accent = highlightBackgroundCss(highlight.color)
+    // ∅-color (emphasis-only) annotations use a neutral gray bar instead of omitting the
+    // accent bar entirely — the bar still provides visual rhythm and a tap target.
+    val accent = if (highlight.color.isNotBlank()) highlightBackgroundCss(highlight.color)
+                 else EMPHASIS_ONLY_BAR_COLOR
     val idEscaped = highlight.id.xmlEscape()
     val tapUrl = buildAnnotationTapUrl(highlight.id).xmlEscape()
     sb.append("  <p style=\"")
@@ -525,7 +539,9 @@ private fun appendTextHighlight(sb: StringBuilder, highlight: AnnotationEntity, 
     sb.append(tapUrl)
     sb.append("?l='+x+'&amp;t='+y+'&amp;r='+(x+1)+'&amp;b='+(y+1);return false;\"></span><span class=\"riffle-hl\" data-ann-id=\"")
     sb.append(idEscaped)
-    sb.append("\">")
+    sb.append("\"")
+    appendEmphasisStyleAttr(sb, highlight.emphasisStyles)
+    sb.append(">")
     // Prefer the captured inline-formatted HTML (issue: elided-view drops italics) so publisher
     // <em>/<i>/<strong>/<b>/<sup>/<sub>/<u>/<s> spans render in the excerpt. Sanitised defensively
     // at render time — the DB is not a trust boundary and the extractor may evolve. Legacy rows
@@ -592,6 +608,29 @@ private fun appendOriginFontFamilyStyle(
     sb.append(" font-family: ")
     sb.append(safe.xmlEscape())
     sb.append(";")
+}
+
+/**
+ * Appends a ` style="..."` attribute to a `<span>` tag in progress when [emphasisStyles] carries
+ * user-applied formatting from a paired TYPE_EMPHASIS row (bold, italic, underline, strike).
+ * No-op when [emphasisStyles] is null or blank. Called just before the closing `>` of the span.
+ */
+private fun appendEmphasisStyleAttr(sb: StringBuilder, emphasisStyles: String?) {
+    val styles = EmphasisStyle.decode(emphasisStyles) ?: return
+    if (styles.isEmpty()) return
+    val cssParts = buildList {
+        if (EmphasisStyle.BOLD in styles) add("font-weight:bold")
+        if (EmphasisStyle.ITALIC in styles) add("font-style:italic")
+        val decorations = buildList {
+            if (EmphasisStyle.UNDERLINE in styles) add("underline")
+            if (EmphasisStyle.STRIKE in styles) add("line-through")
+        }
+        if (decorations.isNotEmpty()) add("text-decoration:${decorations.joinToString(" ")}")
+    }
+    if (cssParts.isEmpty()) return
+    sb.append(" style=\"")
+    sb.append(cssParts.joinToString(";"))
+    sb.append("\"")
 }
 
 /**
@@ -691,7 +730,8 @@ private fun appendFigureFigure(
     bytes: String?,
     caption: String,
 ) {
-    val accent = highlightBackgroundCss(colorToken)
+    val accent = if (colorToken.isNotBlank()) highlightBackgroundCss(colorToken)
+                 else EMPHASIS_ONLY_BAR_COLOR
     val idEscaped = annotationId.xmlEscape()
     val tapUrl = buildAnnotationTapUrl(annotationId).xmlEscape()
     // `data-ann-id` on the <figure> itself so the live DOM-patch pipeline (buildRecolorJs /
