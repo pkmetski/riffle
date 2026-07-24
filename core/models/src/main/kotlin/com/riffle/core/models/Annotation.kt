@@ -34,6 +34,13 @@ data class Annotation(
      * `null` on every other type. Persisted as a comma-separated token string on the entity.
      */
     val emphasisStyles: Set<EmphasisStyle>? = null,
+    /**
+     * Sanitised inline HTML of the excerpt preserving publisher formatting (`<em>`, `<i>`, `<strong>`,
+     * `<b>`, `<sup>`, `<sub>`, `<u>`, `<s>`). The Annotations View renders this in place of the
+     * plain [textSnippet] when present so italicised / bolded spans survive into the elided
+     * reader. Nullable — legacy rows and rows received via W3C sync fall back to plaintext.
+     */
+    val textSnippetHtml: String? = null,
 )
 
 /**

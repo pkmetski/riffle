@@ -64,6 +64,7 @@ class AnnotationStoreImpl(
         progression: Double,
         embeddedFigures: List<EmbeddedFigure>?,
         originFontFamily: String,
+        textSnippetHtml: String?,
     ): Annotation {
         require(originFontFamily.isNotBlank()) {
             "originFontFamily must be non-blank for locally-created highlights (issue #484)"
@@ -92,6 +93,7 @@ class AnnotationStoreImpl(
             deleted = false,
             embeddedFigures = embeddedFigures.toEntityJson(),
             originFontFamily = originFontFamily,
+            textSnippetHtml = textSnippetHtml,
         )
         dao.upsert(entity)
         return entity.toDomain()
@@ -453,6 +455,7 @@ internal fun Annotation.toEntity() = AnnotationEntity(
     imageBytes = imageBytes,
     originFontFamily = originFontFamily,
     emphasisStyles = EmphasisStyle.encode(emphasisStyles.orEmpty()),
+    textSnippetHtml = textSnippetHtml,
 )
 
 internal fun AnnotationEntity.toDomain() = Annotation(
@@ -478,4 +481,5 @@ internal fun AnnotationEntity.toDomain() = Annotation(
     imageBytes = imageBytes,
     originFontFamily = originFontFamily,
     emphasisStyles = EmphasisStyle.decode(emphasisStyles),
+    textSnippetHtml = textSnippetHtml,
 )

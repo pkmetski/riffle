@@ -1,11 +1,13 @@
 package com.riffle.app.feature.reader.highlights
 
 import android.net.FakeUri
+import com.riffle.app.feature.reader.joinEmphasisStylesToHighlights
 import com.riffle.app.feature.reader.toCssRgba
 import com.riffle.core.database.AnnotationEntity
 import com.riffle.core.models.HighlightColor
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.readium.r2.shared.ExperimentalReadiumApi
@@ -552,6 +554,8 @@ class HighlightsPublicationFactoryTest {
         progression: Double = 0.0,
         color: String = AnnotationEntity.COLOR_YELLOW,
         originFontFamily: String? = null,
+        textSnippetHtml: String? = null,
+        emphasisStyles: String? = null,
     ): AnnotationEntity =
         AnnotationEntity(
             id = id,
@@ -570,7 +574,230 @@ class HighlightsPublicationFactoryTest {
             originDeviceId = "test",
             lastModifiedByDeviceId = "test",
             originFontFamily = originFontFamily,
+            textSnippetHtml = textSnippetHtml,
+            emphasisStyles = emphasisStyles,
         )
+
+    // ===== textSnippetHtml render + sanitizer =====
+
+    @Test
+    fun rendersInlineFormattedSnippetHtmlWhenPresent() {
+        val pub = factory.build(
+            sourceId = "S1", itemId = "B1", bookTitle = null,
+            chapters = listOf(
+                ChapterElision(
+                    "ch0.xhtml", "Chapter One",
+                    listOf(
+                        hl(
+                            id = "h1",
+                            snippet = "italic bit here",
+                            textSnippetHtml = "<em>italic bit</em> here",
+                        ),
+                    ),
+                ),
+            ),
+            urlFactory = ::testUrlFactory,
+        )
+        val html = readChapterHtml(pub, 0)
+        assertTrue("render uses formatted HTML span", html.contains("<em>italic bit</em> here"))
+        assertTrue("plaintext snippet is NOT emitted separately", !html.contains(">italic bit here<"))
+    }
+
+    @Test
+    fun fallsBackToPlainTextSnippetWhenHtmlIsNull() {
+        val pub = factory.build(
+            sourceId = "S1", itemId = "B1", bookTitle = null,
+            chapters = listOf(
+                ChapterElision(
+                    "ch0.xhtml", "Chapter One",
+                    listOf(hl(id = "h1", snippet = "plain excerpt", textSnippetHtml = null)),
+                ),
+            ),
+            urlFactory = ::testUrlFactory,
+        )
+        val html = readChapterHtml(pub, 0)
+        assertTrue("plain snippet still rendered", html.contains(">plain excerpt<"))
+        assertTrue("no stray <em>", !html.contains("<em>"))
+    }
+
+    @Test
+    fun stripsDisallowedTagsAndAttributesFromSnippetHtml() {
+        val pub = factory.build(
+            sourceId = "S1", itemId = "B1", bookTitle = null,
+            chapters = listOf(
+                ChapterElision(
+                    "ch0.xhtml", "Chapter One",
+                    listOf(
+                        hl(
+                            id = "h1",
+                            snippet = "hello world",
+                            // Simulates a malicious/legacy value in the DB: an <a onclick> tag,
+                            // an <em class="…"> with attributes, and a <script> block that must
+                            // be dropped entirely by the render-side allowlist.
+                            textSnippetHtml =
+                                "<a href=\"http://evil\" onclick=\"x()\">hi</a> " +
+                                    "<em class=\"x\">world</em>" +
+                                    "<script>alert(1)</script>",
+                        ),
+                    ),
+                ),
+            ),
+            urlFactory = ::testUrlFactory,
+        )
+        val html = readChapterHtml(pub, 0)
+        assertTrue("attribute-less <em> survives", html.contains("<em>world</em>"))
+        assertTrue("<a> stripped", !html.contains("<a "))
+        assertTrue("<a> stripped (closing)", !html.contains("</a>"))
+        assertTrue("<script> stripped", !html.contains("<script"))
+        // Note: the accent-bar tap span emits its own onclick — assert on the injected payload,
+        // not the presence of the substring "onclick" in the chapter HTML overall.
+        assertTrue("injected onclick payload stripped", !html.contains("x()"))
+        assertTrue("href attribute stripped", !html.contains("http://evil"))
+        // Text content of stripped tags is preserved.
+        assertTrue("text of stripped <a> preserved", html.contains("hi"))
+    }
+
+    // ===== emphasis styles (Case 2 — user-applied B/I/U/S) =====
+
+    @Test
+    fun noColorHighlightUsesNeutralGrayBar() {
+        val pub = factory.build(
+            sourceId = "S1", itemId = "B1", bookTitle = null,
+            chapters = listOf(
+                ChapterElision(
+                    "ch0.xhtml", "Ch",
+                    listOf(hl(id = "h1", snippet = "plain text", color = "")),
+                ),
+            ),
+            urlFactory = ::testUrlFactory,
+        )
+        val html = readChapterHtml(pub, 0)
+        assertTrue("border-left still present for empty color", html.contains("border-left"))
+        assertTrue("neutral gray bar color", html.contains(EMPHASIS_ONLY_BAR_COLOR))
+    }
+
+    @Test
+    fun colorHighlightUsesAccentColorNotGray() {
+        val pub = factory.build(
+            sourceId = "S1", itemId = "B1", bookTitle = null,
+            chapters = listOf(
+                ChapterElision(
+                    "ch0.xhtml", "Ch",
+                    listOf(hl(id = "h1", snippet = "text", color = AnnotationEntity.COLOR_YELLOW)),
+                ),
+            ),
+            urlFactory = ::testUrlFactory,
+        )
+        val html = readChapterHtml(pub, 0)
+        assertTrue("border-left present", html.contains("border-left"))
+        assertTrue("palette color used, not gray", !html.contains(EMPHASIS_ONLY_BAR_COLOR))
+    }
+
+    @Test
+    fun emphasisStylesBoldAndItalicAppliedToSpan() {
+        val pub = factory.build(
+            sourceId = "S1", itemId = "B1", bookTitle = null,
+            chapters = listOf(
+                ChapterElision(
+                    "ch0.xhtml", "Ch",
+                    listOf(
+                        hl(
+                            id = "h1",
+                            snippet = "formatted text",
+                            color = "",
+                            emphasisStyles = "bold,italic",
+                        ),
+                    ),
+                ),
+            ),
+            urlFactory = ::testUrlFactory,
+        )
+        val html = readChapterHtml(pub, 0)
+        assertTrue("font-weight:bold in span style", html.contains("font-weight:bold"))
+        assertTrue("font-style:italic in span style", html.contains("font-style:italic"))
+    }
+
+    @Test
+    fun emphasisStylesUnderlineAndStrikeAppliedToSpan() {
+        val pub = factory.build(
+            sourceId = "S1", itemId = "B1", bookTitle = null,
+            chapters = listOf(
+                ChapterElision(
+                    "ch0.xhtml", "Ch",
+                    listOf(
+                        hl(
+                            id = "h1",
+                            snippet = "formatted text",
+                            color = "green",
+                            emphasisStyles = "underline,strike",
+                        ),
+                    ),
+                ),
+            ),
+            urlFactory = ::testUrlFactory,
+        )
+        val html = readChapterHtml(pub, 0)
+        assertTrue("combined text-decoration value", html.contains("text-decoration:underline line-through"))
+    }
+
+    @Test
+    fun noEmphasisStylesEmitsNoStyleAttr() {
+        val pub = factory.build(
+            sourceId = "S1", itemId = "B1", bookTitle = null,
+            chapters = listOf(
+                ChapterElision(
+                    "ch0.xhtml", "Ch",
+                    listOf(hl(id = "h1", snippet = "plain", emphasisStyles = null)),
+                ),
+            ),
+            urlFactory = ::testUrlFactory,
+        )
+        val html = readChapterHtml(pub, 0)
+        // riffle-hl span should have no style attribute when there are no emphasis styles
+        val spanIdx = html.indexOf("class=\"riffle-hl\"")
+        assertTrue("riffle-hl span found", spanIdx >= 0)
+        val afterSpan = html.indexOf('>', spanIdx)
+        val spanTag = html.substring(spanIdx, afterSpan)
+        assertTrue("no style attr on riffle-hl span", !spanTag.contains("style="))
+    }
+
+    // ===== joinEmphasisStylesToHighlights =====
+
+    @Test
+    fun joinEmphasisStylesToHighlightsJoinsEmphasisOntoHighlight() {
+        val highlight = AnnotationEntity(
+            id = "h1", sourceId = "S", itemId = "B",
+            type = AnnotationEntity.TYPE_HIGHLIGHT,
+            cfi = "epubcfi(/6/2!/1)", textSnippet = "text", chapterHref = "ch.xhtml",
+            createdAt = 0L, updatedAt = 0L,
+            originDeviceId = "d", lastModifiedByDeviceId = "d",
+        )
+        val emphasis = AnnotationEntity(
+            id = "e1", sourceId = "S", itemId = "B",
+            type = AnnotationEntity.TYPE_EMPHASIS,
+            cfi = "epubcfi(/6/2!/1)", textSnippet = "text", chapterHref = "ch.xhtml",
+            createdAt = 0L, updatedAt = 0L,
+            originDeviceId = "d", lastModifiedByDeviceId = "d",
+            emphasisStyles = "bold,italic",
+        )
+        val result = joinEmphasisStylesToHighlights(listOf(highlight, emphasis))
+        val joinedHighlight = result.first { it.id == "h1" }
+        assertEquals("emphasis styles joined onto highlight", "bold,italic", joinedHighlight.emphasisStyles)
+    }
+
+    @Test
+    fun joinEmphasisStylesToHighlightsNoOpWhenNoEmphasisRows() {
+        val highlight = AnnotationEntity(
+            id = "h1", sourceId = "S", itemId = "B",
+            type = AnnotationEntity.TYPE_HIGHLIGHT,
+            cfi = "epubcfi(/6/2!/1)", textSnippet = "text", chapterHref = "ch.xhtml",
+            createdAt = 0L, updatedAt = 0L,
+            originDeviceId = "d", lastModifiedByDeviceId = "d",
+        )
+        val result = joinEmphasisStylesToHighlights(listOf(highlight))
+        val joinedHighlight = result.first { it.id == "h1" }
+        assertNull("emphasisStyles stays null when no emphasis rows", joinedHighlight.emphasisStyles)
+    }
 
     private fun readChapterHtml(pub: Publication, index: Int): String {
         val link = pub.readingOrder[index]

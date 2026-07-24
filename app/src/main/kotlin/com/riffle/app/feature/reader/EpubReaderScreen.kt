@@ -3419,6 +3419,19 @@ internal class RiffleSelectionRectBridge(
     }
 
     /**
+     * Called from [ReaderWebViewScripts.SELECTION_SPAN_TRACKER_JS] on every selectionchange with
+     * the inline-formatted excerpt HTML for the current live range (issue: elided view drops
+     * italics). The extractor emits only the allowlisted inline tags; the render side re-enforces
+     * the same allowlist as defence-in-depth. Stashed for the paginated action-mode's Highlight
+     * handler ([EpubReaderViewModel.createHighlight]) so the row lands with the formatting
+     * preserved — same reason we bridge figures and font-family here for paginated mode.
+     */
+    @android.webkit.JavascriptInterface
+    fun onSnippetHtml(html: String) {
+        SelectionSnippetHtmlStash.set(html)
+    }
+
+    /**
      * Called from the SELECTION_SPAN_TRACKER_JS installer once per chapter load with the source
      * book's computed body `font-family` (issue #484). Routes into
      * [EpubReaderViewModel.noteBookBodyFontFamily] via [onBodyFont] — the VM caches it as the

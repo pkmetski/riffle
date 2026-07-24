@@ -156,6 +156,7 @@ class ReaderSessionLifecycleTest {
             textBefore: String, textAfter: String, color: String, spineIndex: Int, progression: Double,
             embeddedFigures: List<com.riffle.core.models.EmbeddedFigure>?,
             originFontFamily: String,
+            textSnippetHtml: String?,
         ): Annotation = error("not needed")
         override suspend fun createBookmark(
             sourceId: String, itemId: String, cfi: String, textSnippet: String, chapterHref: String,

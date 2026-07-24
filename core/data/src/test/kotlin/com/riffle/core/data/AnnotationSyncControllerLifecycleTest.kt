@@ -859,6 +859,67 @@ class AnnotationSyncControllerLifecycleTest {
         assertEquals("cross-device: adopt peer chapterHref via extension", "c1", upserted.chapterHref)
     }
 
+    // ===== Fix 4: syncOnOpen preserves originFontFamily on existing rows =====
+
+    @Test
+    fun `syncOnOpen preserves originFontFamily on existing rows`() = runTest {
+        // Seed Room with a highlight whose originFontFamily has been captured/healed to the real
+        // publisher face (issue #484 pipeline). The W3C wire format does NOT carry this column,
+        // so a naive rebuild of the entity from the parsed W3CAnnotation drops the value — every
+        // sync round-trip then rewrites the row with originFontFamily = null, plurality in the
+        // elided view returns null, and excerpts fall back to browser-default serif. That's the
+        // "reload elided view → serif" regression that survived two prior render-side fixes
+        // (#571 and #578). Regression: originFontFamily must survive the sync round-trip.
+        val publisherFont = "Nimbusromno9l"
+        val local = highlightEntity("uuid-font-preserve", updatedAt = 1000L)
+            .copy(originFontFamily = publisherFont)
+        dao.localAnnotations += local
+
+        // Own device's file on WebDAV (right after a push): same id, same updatedAt, same
+        // deviceId — same setup as the chapterHref / spineIndex preservation tests above.
+        target.files["annotations-own.jsonld"] = jsonArrayOf(
+            w3c("uuid-font-preserve", updatedAt = 1000L, deviceId = DEVICE_ID),
+        )
+
+        newController().syncOnOpen(SRV, NS, ITEM)
+
+        val upserted = dao.upserts.single { it.id == "uuid-font-preserve" }
+        assertEquals(
+            "originFontFamily must survive the sync round-trip",
+            publisherFont,
+            upserted.originFontFamily,
+        )
+    }
+
+    // ===== Fix 5: syncOnOpen preserves textSnippetHtml on existing rows =====
+
+    @Test
+    fun `syncOnOpen preserves textSnippetHtml on existing rows`() = runTest {
+        // Seed Room with a highlight whose textSnippetHtml carries publisher inline formatting
+        // (issue: elided view drops italics). The W3C wire format does NOT carry this column,
+        // so a naive rebuild of the entity from the parsed W3CAnnotation drops the value and
+        // every sync round-trip rewrites the row with textSnippetHtml = null — the elided view
+        // then flattens the excerpt back to plaintext and italic spans disappear on reload.
+        // Regression: textSnippetHtml must survive the sync round-trip.
+        val formatted = "<em>italic bit</em> here"
+        val local = highlightEntity("uuid-html-preserve", updatedAt = 1000L)
+            .copy(textSnippetHtml = formatted)
+        dao.localAnnotations += local
+
+        target.files["annotations-own.jsonld"] = jsonArrayOf(
+            w3c("uuid-html-preserve", updatedAt = 1000L, deviceId = DEVICE_ID),
+        )
+
+        newController().syncOnOpen(SRV, NS, ITEM)
+
+        val upserted = dao.upserts.single { it.id == "uuid-html-preserve" }
+        assertEquals(
+            "textSnippetHtml must survive the sync round-trip",
+            formatted,
+            upserted.textSnippetHtml,
+        )
+    }
+
     // ===== stamp + report + enqueue-on-failure =====
 
     @Test

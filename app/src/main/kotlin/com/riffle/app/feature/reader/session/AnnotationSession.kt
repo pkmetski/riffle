@@ -202,6 +202,10 @@ class AnnotationSession @AssistedInject constructor(
         val progression: Double,
         val embeddedFigures: List<com.riffle.core.models.EmbeddedFigure>?,
         val originFontFamily: String,
+        /** Sanitised inline HTML of the excerpt preserving publisher formatting. Non-blank iff the
+         *  selection extractor found `<em>`/`<i>`/`<strong>`/etc. on top of the plaintext. Null
+         *  routes the Annotations View to its plain-text render path. */
+        val textSnippetHtml: String?,
         val anchorRect: androidx.compose.ui.unit.IntRect,
         val locator: org.readium.r2.shared.publication.Locator,
     )

@@ -45,6 +45,13 @@ interface AnnotationStore {
          *  write path must resolve this from the WebView's `getComputedStyle` at selection
          *  time and fall back to the book's body font — never null in production. */
         originFontFamily: String,
+        /** Sanitised inline HTML of the selection preserving publisher formatting (`<em>`, `<i>`,
+         *  `<strong>`, `<b>`, `<sup>`, `<sub>`, `<u>`, `<s>`). Rendered by the Annotations View
+         *  in place of the plain [textSnippet] so italicised / bolded spans survive into the
+         *  elided reader. Nullable — the reader's selection tracker may not always resolve HTML
+         *  (e.g. programmatic caption highlights, sync round-trips), in which case the plaintext
+         *  fallback renders. */
+        textSnippetHtml: String? = null,
     ): Annotation
 
     suspend fun createBookmark(

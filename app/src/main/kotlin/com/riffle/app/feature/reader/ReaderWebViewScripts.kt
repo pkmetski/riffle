@@ -509,13 +509,51 @@ internal val SELECTION_SPAN_TRACKER_JS = """
                 }
               } catch (e) { ff = ''; }
             }
+            // Inline-formatted snippet HTML (issue: elided view drops italics). Walk the
+            // Range's cloneContents and serialise ONLY a fixed allowlist of inline elements
+            // (<em>/<i>/<strong>/<b>/<sup>/<sub>/<u>/<s>) with no attributes; text nodes are
+            // XML-escaped inline. Mirrors ALLOWED_INLINE_SNIPPET_TAGS on the Kotlin render side,
+            // and the render-side `sanitizeInlineSnippetHtml` enforces the same allowlist again
+            // as defence-in-depth (the DB is not a trust boundary).
+            var snippetHtml = '';
+            try {
+              var INLINE_ALLOW = { em: 1, i: 1, strong: 1, b: 1, sup: 1, sub: 1, u: 1, s: 1 };
+              var frag = rng.cloneContents();
+              var escInline = function (t) {
+                return String(t)
+                  .replace(/&/g, '&amp;')
+                  .replace(/</g, '&lt;')
+                  .replace(/>/g, '&gt;');
+              };
+              var walkInline = function (node) {
+                if (node.nodeType === 3) return escInline(node.data || '');
+                if (node.nodeType !== 1) {
+                  var out = '';
+                  var kids = node.childNodes;
+                  for (var wi = 0; wi < kids.length; wi++) out += walkInline(kids[wi]);
+                  return out;
+                }
+                var tag = String(node.tagName || '').toLowerCase();
+                var inner = '';
+                var k2 = node.childNodes;
+                for (var wj = 0; wj < k2.length; wj++) inner += walkInline(k2[wj]);
+                if (INLINE_ALLOW[tag]) return '<' + tag + '>' + inner + '</' + tag + '>';
+                return inner;
+              };
+              snippetHtml = walkInline(frag);
+              // Only report HTML that actually adds formatting on top of the plaintext — an
+              // empty string tells the store to leave textSnippetHtml null and use the plain
+              // render path (saves a DB write and keeps rows without formatting undecorated).
+              if (snippetHtml === escInline(text)) snippetHtml = '';
+            } catch (e) { snippetHtml = ''; }
             window.__riffleSelData = {
               text: text,
               p: Math.max(0, Math.min(1, br2.top / docH)),
               l: br2.left, t: br2.top, r: br2.right, b: br2.bottom,
               bef: bef, aft: aft,
               figures: figures,
-              ff: ff
+              ff: ff,
+              html: snippetHtml
             };
             // Also bridge figures to Kotlin directly. Continuous mode reads them out of
             // window.__riffleSelData in ChapterWebView.withSelectionTextAndProgression, but
@@ -532,6 +570,14 @@ internal val SELECTION_SPAN_TRACKER_JS = """
             try {
               if (window.RiffleSelBridge && window.RiffleSelBridge.onFontFamily) {
                 window.RiffleSelBridge.onFontFamily(ff);
+              }
+            } catch (e) {}
+            // Bridge the inline-formatted snippet HTML for the paginated path (issue: elided view
+            // drops italics). Same reasoning as figures/font-family — paginated Readium never
+            // reads window.__riffleSelData so the bridge is the only route.
+            try {
+              if (window.RiffleSelBridge && window.RiffleSelBridge.onSnippetHtml) {
+                window.RiffleSelBridge.onSnippetHtml(snippetHtml);
               }
             } catch (e) {}
           }
