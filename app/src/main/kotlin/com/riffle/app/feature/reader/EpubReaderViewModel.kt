@@ -946,6 +946,10 @@ class EpubReaderViewModel @Inject constructor(
             val presetEmphasis = annotationSession.lastUsedEmphasisStyles.value
             if (shouldAutoCommitDraftOnDismiss(presetColorIsNone, presetEmphasis)) {
                 val colorToken = if (presetColorIsNone) "" else annotationSession.lastUsedHighlightColor.value.token
+                // Clear the edit target synchronously so the popup disappears on the next frame
+                // without waiting for the commitDraft suspend chain (readChapterHtml + Room writes +
+                // DataStore writes). The draft itself is cleared by consumeDraft() inside commitDraft.
+                annotationSession.forceCloseHighlightEditTarget()
                 viewModelScope.launch { commitDraft(initialColor = colorToken, keepSheetOpen = false) }
                 return
             }
