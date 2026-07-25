@@ -1,7 +1,9 @@
 package com.riffle.core.data
 
+import io.ktor.client.HttpClient
+import io.ktor.client.engine.okhttp.OkHttp
+import io.ktor.http.Url
 import kotlinx.coroutines.test.runTest
-import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.OkHttpClient
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
@@ -17,6 +19,7 @@ import org.junit.Before
 import org.junit.Test
 import java.util.Base64
 import java.util.concurrent.TimeUnit
+
 
 class WebDavAnnotationSyncTargetTest {
 
@@ -38,14 +41,14 @@ class WebDavAnnotationSyncTargetTest {
         password: String = PASS,
         basePath: String = "annotations",
     ): WebDavAnnotationSyncTarget {
-        val client = OkHttpClient.Builder()
+        val okClient = OkHttpClient.Builder()
             .callTimeout(2, TimeUnit.SECONDS)
             .build()
         return WebDavAnnotationSyncTarget(
-            baseUrl = source.url("/$basePath"),
+            baseUrl = Url(source.url("/$basePath").toString()),
             username = username,
             password = password,
-            client = client,
+            client = HttpClient(OkHttp) { engine { preconfigured = okClient } },
             dispatchers = com.riffle.core.domain.DefaultDispatcherProvider,
         )
     }
@@ -337,12 +340,12 @@ class WebDavAnnotationSyncTargetTest {
 
     private fun makeTargetWithFailingClient(throwable: Throwable): WebDavAnnotationSyncTarget {
         val failingInterceptor = okhttp3.Interceptor { throw throwable }
-        val client = OkHttpClient.Builder().addInterceptor(failingInterceptor).build()
+        val okClient = OkHttpClient.Builder().addInterceptor(failingInterceptor).build()
         return WebDavAnnotationSyncTarget(
-            baseUrl = "https://example.test/dav/".toHttpUrl(),
+            baseUrl = Url("https://example.test/dav/"),
             username = "u",
             password = "p",
-            client = client,
+            client = HttpClient(OkHttp) { engine { preconfigured = okClient } },
             dispatchers = com.riffle.core.domain.DefaultDispatcherProvider,
         )
     }

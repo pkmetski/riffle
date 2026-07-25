@@ -1,7 +1,5 @@
 package com.riffle.core.network
 
-import com.riffle.core.domain.DefaultDispatcherProvider
-
 import com.riffle.core.models.EbookFormat
 import kotlinx.coroutines.test.runTest
 import okhttp3.OkHttpClient
@@ -29,7 +27,7 @@ class PdfRoutingIntegrationTest {
     fun setUp() {
         server = MockWebServer()
         server.start()
-        client = AbsApiClient(OkHttpClient(), DefaultDispatcherProvider)
+        client = AbsApiClient(createDefaultHttpClient(OkHttpClient()))
     }
 
     @After

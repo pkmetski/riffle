@@ -44,8 +44,8 @@ open class StorytellerSidecarFetcher(
         // Fast path: stream the prefix, stop at the first audio entry (~1 MB transferred).
         val fastPath = bundleApi.downloadBundle(baseUrl, bookId, token, insecureAllowed)
         if (fastPath !is NetworkResult.Success) return@withContext FetchResult.NetworkError
-        val streaming = fastPath.value.body.use { body ->
-            runCatching { ReadaloudSidecarReader.readStreaming(body.byteStream()) }.getOrNull()
+        val streaming = fastPath.value.body.use { source ->
+            runCatching { ReadaloudSidecarReader.readStreaming(source) }.getOrNull()
         }
         if (streaming != null) return@withContext FetchResult.Success(streaming)
 
@@ -56,8 +56,8 @@ open class StorytellerSidecarFetcher(
             val full = fullBundleApi.downloadBundle(baseUrl, bookId, token, insecureAllowed)
             if (full !is NetworkResult.Success) FetchResult.NetworkError
             else {
-                full.value.body.use { body ->
-                    tempFile.outputStream().use { out -> body.byteStream().copyTo(out) }
+                full.value.body.use { source ->
+                    tempFile.outputStream().use { out -> source.copyTo(out) }
                 }
                 val bytes = ReadaloudSidecarReader.readFromFile(tempFile)
                 if (bytes != null) FetchResult.Success(bytes) else FetchResult.NotAligned

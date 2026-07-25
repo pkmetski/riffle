@@ -1,8 +1,7 @@
 package com.riffle.core.network
 
 import com.riffle.core.models.InsecureConnectionType
-import kotlinx.coroutines.CoroutineDispatcher
-import kotlinx.coroutines.withContext
+import io.ktor.client.plugins.ResponseException
 import kotlinx.serialization.SerializationException
 import java.io.IOException
 import javax.net.ssl.SSLHandshakeException
@@ -27,40 +26,29 @@ sealed class NetworkResult<out T> {
 /** Thrown by endpoint blocks to signal a non-success HTTP code; the classifier maps 401 → Auth. */
 internal class HttpException(val code: Int, msg: String? = null) : IOException(msg)
 
-/** Throw [HttpException] for non-success codes; closes the body so the connection returns to the pool. */
-internal fun okhttp3.Response.requireSuccessful(): okhttp3.Response {
-    if (!isSuccessful) {
-        body?.close()
-        throw HttpException(code, message)
-    }
-    return this
-}
-
-/** Read the body as a string or fail with `IOException("Empty response body")` for the classifier. */
-internal fun okhttp3.Response.requireBody(): String =
-    body?.string() ?: throw IOException("Empty response body")
-
-object OkHttpClassifier {
+object KtorClassifier {
     /**
      * Run [block], producing a `Success`. Any thrown exception is mapped to the matching
-     * `NetworkResult` variant. Block authors throw `HttpException` for non-success codes and
-     * `IOException("Empty response body")` for missing bodies.
+     * `NetworkResult` variant. Block authors throw [HttpException] for non-success codes that
+     * need specific handling (e.g. 400/405 → 401 for Storyteller login).
      */
-    suspend fun <T> classify(io: CoroutineDispatcher, block: suspend () -> T): NetworkResult<T> = withContext(io) {
-        try {
-            NetworkResult.Success(block())
-        } catch (e: HttpException) {
-            if (e.code == 401) NetworkResult.Auth
-            else NetworkResult.ServerError(e.code, e.message)
-        } catch (e: SSLHandshakeException) {
-            NetworkResult.InsecureConnection(InsecureConnectionType.SELF_SIGNED)
-        } catch (e: SerializationException) {
-            NetworkResult.Parse(e)
-        } catch (e: IOException) {
-            NetworkResult.Offline(e)
-        } catch (e: Throwable) {
-            NetworkResult.Unknown(e)
-        }
+    suspend fun <T> classify(block: suspend () -> T): NetworkResult<T> = try {
+        NetworkResult.Success(block())
+    } catch (e: HttpException) {
+        if (e.code == 401) NetworkResult.Auth
+        else NetworkResult.ServerError(e.code, e.message)
+    } catch (e: ResponseException) {
+        val code = e.response.status.value
+        if (code == 401) NetworkResult.Auth
+        else NetworkResult.ServerError(code, e.message)
+    } catch (e: SSLHandshakeException) {
+        NetworkResult.InsecureConnection(InsecureConnectionType.SELF_SIGNED)
+    } catch (e: SerializationException) {
+        NetworkResult.Parse(e)
+    } catch (e: IOException) {
+        NetworkResult.Offline(e)
+    } catch (e: Throwable) {
+        NetworkResult.Unknown(e)
     }
 }
 
@@ -97,7 +85,7 @@ fun NetworkResult<*>.errorAsThrowable(): Throwable = when (this) {
     is NetworkResult.Offline -> cause
     is NetworkResult.Parse -> cause
     is NetworkResult.Unknown -> cause
-    is NetworkResult.ServerError -> java.io.IOException("HTTP $code${errorMessage?.let { ": $it" } ?: ""}")
-    NetworkResult.Auth -> java.io.IOException("HTTP 401")
-    is NetworkResult.InsecureConnection -> javax.net.ssl.SSLHandshakeException("Insecure connection ($type)")
+    is NetworkResult.ServerError -> IOException("HTTP $code${errorMessage?.let { ": $it" } ?: ""}")
+    NetworkResult.Auth -> IOException("HTTP 401")
+    is NetworkResult.InsecureConnection -> SSLHandshakeException("Insecure connection ($type)")
 }

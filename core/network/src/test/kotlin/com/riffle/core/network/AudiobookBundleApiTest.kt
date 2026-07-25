@@ -1,6 +1,6 @@
 package com.riffle.core.network
 
-import com.riffle.core.domain.DefaultDispatcherProvider
+import com.riffle.core.network.createStreamingHttpClient
 
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -32,7 +32,7 @@ class AudiobookBundleApiTest {
     @Before
     fun setUp() {
         server = MockWebServer().also { it.start() }
-        api = AudiobookBundleApiImpl(OkHttpClient(), DefaultDispatcherProvider)
+        api = AudiobookBundleApiImpl(createStreamingHttpClient(OkHttpClient()))
     }
 
     @After
@@ -57,7 +57,7 @@ class AudiobookBundleApiTest {
         result as NetworkResult.Success
         assertEquals(64L, result.value.totalBytes)
         assertFalse(result.value.isPartial)
-        assertEquals(bytes.toList(), result.value.body.use { it.bytes() }.toList())
+        assertEquals(bytes.toList(), result.value.body.use { it.readBytes() }.toList())
     }
 
     @Test fun resume_sendsRangeHeader_parsesTotalFromContentRange() = runTest {
@@ -88,7 +88,7 @@ class AudiobookBundleApiTest {
                 override fun connectionReleased(call: Call, connection: Connection) { released.incrementAndGet() }
             })
             .build()
-        val leakApi: AudiobookBundleApi = AudiobookBundleApiImpl(countingClient, DefaultDispatcherProvider)
+        val leakApi: AudiobookBundleApi = AudiobookBundleApiImpl(createStreamingHttpClient(countingClient))
 
         server.enqueue(
             MockResponse()

@@ -6,18 +6,24 @@ import com.riffle.core.domain.DeviceFileSummary
 import com.riffle.core.domain.DispatcherProvider
 import com.riffle.core.domain.NamespaceDeviceListing
 import com.riffle.core.domain.NamespaceSummary
+import io.ktor.client.HttpClient
+import io.ktor.client.request.delete
+import io.ktor.client.request.get
+import io.ktor.client.request.header
+import io.ktor.client.request.put
+import io.ktor.client.request.request
+import io.ktor.client.request.setBody
+import io.ktor.client.statement.bodyAsText
+import io.ktor.http.ContentType
+import io.ktor.http.HttpHeaders
+import io.ktor.http.HttpMethod
+import io.ktor.http.URLBuilder
+import io.ktor.http.Url
+import io.ktor.http.content.TextContent
 import kotlinx.coroutines.withContext
-import okhttp3.Credentials
-import okhttp3.HttpUrl
-import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
-import okhttp3.MediaType.Companion.toMediaType
-import okhttp3.OkHttpClient
-import okhttp3.Request
-import okhttp3.RequestBody
-import okhttp3.RequestBody.Companion.toRequestBody
-import okhttp3.Response
 import org.xml.sax.Attributes
 import org.xml.sax.helpers.DefaultHandler
+import java.util.Base64
 import javax.xml.parsers.SAXParserFactory
 
 /**
@@ -46,15 +52,16 @@ import javax.xml.parsers.SAXParserFactory
  * the OkHttp default with 424.
  */
 class WebDavAnnotationSyncTarget(
-    baseUrl: HttpUrl,
+    baseUrl: Url,
     username: String,
     password: String,
-    private val client: OkHttpClient,
+    private val client: HttpClient,
     private val dispatchers: DispatcherProvider,
 ) : AnnotationSyncTarget {
 
-    private val basePath: HttpUrl = ensureTrailingSlash(baseUrl)
-    private val authHeader: String = Credentials.basic(username, password)
+    private val basePath: String = ensureTrailingSlash(baseUrl.toString())
+    private val authHeader: String =
+        "Basic " + Base64.getEncoder().encodeToString("$username:$password".toByteArray())
 
     override suspend fun list(namespace: String, itemId: String): List<String> =
         withContext(dispatchers.io) {
@@ -80,7 +87,7 @@ class WebDavAnnotationSyncTarget(
             // Flat path under basePath. No per-book subdirectories means MKCOL never has to fire on
             // a real push — the only collection that must exist is basePath itself, which the user
             // has already vouched for via Test Connection (and which we MKCOL-create on demand).
-            putFile(annotationFileUrl(namespace, itemId, filename), content, JSON_LD_MEDIA, "write $filename")
+            putFile(annotationFileUrl(namespace, itemId, filename), content, JSON_LD_CONTENT_TYPE, "write $filename")
         }
     }
 
@@ -93,7 +100,7 @@ class WebDavAnnotationSyncTarget(
 
     override suspend fun writeDeviceMeta(namespace: String, deviceId: String, content: String) {
         withContext(dispatchers.io) {
-            putFile(deviceMetaUrl(namespace, deviceId), content, JSON_MEDIA, "write device-meta $deviceId")
+            putFile(deviceMetaUrl(namespace, deviceId), content, JSON_CONTENT_TYPE, "write device-meta $deviceId")
         }
     }
 
@@ -167,7 +174,7 @@ class WebDavAnnotationSyncTarget(
             if (!physical.startsWith(prefix)) continue
             // Use the physical filename as the URL segment directly. annotationFileUrl
             // would re-prefix and double-encode the namespace; just hit the literal name we saw.
-            val url = basePath.newBuilder().addPathSegment(physical).build()
+            val url = "$basePath$physical"
             try {
                 deleteFile(url, "delete $physical")
                 deleted++
@@ -179,20 +186,23 @@ class WebDavAnnotationSyncTarget(
     }
 
     suspend fun testConnection(): TestConnectionResult = withContext(dispatchers.io) {
-        val request = baseRequest(basePath)
-            .header("Depth", "0")
-            .header("Content-Type", "application/xml; charset=utf-8")
-            .method("PROPFIND", PROPFIND_BODY.toRequestBody(XML_MEDIA))
-            .build()
         try {
-            client.newCall(request).execute().use { response ->
-                when {
-                    response.isSuccessful || response.code == 207 -> TestConnectionResult.Success
-                    response.code == 401 || response.code == 403 -> TestConnectionResult.AuthFailed
-                    response.code == 404 -> tryCreateBase()
-                    response.code in 500..599 -> TestConnectionResult.ServerError(response.code)
-                    else -> TestConnectionResult.ServerError(response.code)
-                }
+            val response = client.request(basePath) {
+                method = HttpMethod("PROPFIND")
+                header(HttpHeaders.Authorization, authHeader)
+                header(HttpHeaders.UserAgent, FINDER_USER_AGENT)
+                header("Depth", "0")
+                setBody(TextContent(PROPFIND_BODY, ContentType.parse(XML_CONTENT_TYPE)))
+            }
+            when {
+                response.status.value in 200..299 || response.status.value == 207 ->
+                    TestConnectionResult.Success
+                response.status.value == 401 || response.status.value == 403 ->
+                    TestConnectionResult.AuthFailed
+                response.status.value == 404 -> tryCreateBase()
+                response.status.value in 500..599 ->
+                    TestConnectionResult.ServerError(response.status.value)
+                else -> TestConnectionResult.ServerError(response.status.value)
             }
         } catch (e: javax.net.ssl.SSLException) {
             TestConnectionResult.TlsError(e.message ?: "TLS error")
@@ -201,16 +211,18 @@ class WebDavAnnotationSyncTarget(
         }
     }
 
-    private fun tryCreateBase(): TestConnectionResult = try {
-        val mkcol = baseRequest(basePath)
-            .method("MKCOL", null)
-            .build()
-        client.newCall(mkcol).execute().use { resp ->
-            when {
-                resp.isSuccessful || resp.code == 405 -> TestConnectionResult.Success
-                resp.code == 401 || resp.code == 403 -> TestConnectionResult.AuthFailed
-                else -> TestConnectionResult.ServerError(resp.code)
-            }
+    private suspend fun tryCreateBase(): TestConnectionResult = try {
+        val response = client.request(basePath) {
+            method = HttpMethod("MKCOL")
+            header(HttpHeaders.Authorization, authHeader)
+            header(HttpHeaders.UserAgent, FINDER_USER_AGENT)
+        }
+        when {
+            response.status.value in 200..299 || response.status.value == 405 ->
+                TestConnectionResult.Success
+            response.status.value == 401 || response.status.value == 403 ->
+                TestConnectionResult.AuthFailed
+            else -> TestConnectionResult.ServerError(response.status.value)
         }
     } catch (e: javax.net.ssl.SSLException) {
         TestConnectionResult.TlsError(e.message ?: "TLS error")
@@ -218,70 +230,67 @@ class WebDavAnnotationSyncTarget(
         TestConnectionResult.NetworkError(e.message ?: "Network error")
     }
 
-    private suspend fun readFile(url: HttpUrl): String? = withContext(dispatchers.io) {
+    private suspend fun readFile(url: String): String? = withContext(dispatchers.io) {
         classifyWebDavTransportErrors {
-            val request = baseRequest(url).get().build()
-            client.newCall(request).execute().use { response ->
-                when {
-                    response.code == 404 -> null
-                    response.code == 401 || response.code == 403 ->
-                        throw AnnotationSyncException.AuthFailed(response.code)
-                    !response.isSuccessful ->
-                        throw AnnotationSyncException.HttpFailure(response.code, "read ${url.encodedPath}")
-                    else -> response.body.string()
-                }
+            val response = client.get(url) {
+                header(HttpHeaders.Authorization, authHeader)
+                header(HttpHeaders.UserAgent, FINDER_USER_AGENT)
+            }
+            when (response.status.value) {
+                404 -> null
+                401, 403 -> throw AnnotationSyncException.AuthFailed(response.status.value)
+                in 200..299 -> response.bodyAsText()
+                else -> throw AnnotationSyncException.HttpFailure(response.status.value, "read $url")
             }
         }
     }
 
-    private fun putFile(url: HttpUrl, content: String, media: okhttp3.MediaType, op: String) {
+    private suspend fun putFile(url: String, content: String, contentType: String, op: String) {
         classifyWebDavTransportErrors {
-            val body = content.toRequestBody(media)
-            val response = put(url, body)
-            val code = response.code
-            val ok = response.isSuccessful
-            response.close()
-            if (!ok) {
-                when (code) {
-                    401, 403 -> throw AnnotationSyncException.AuthFailed(code)
-                    else -> throw AnnotationSyncException.HttpFailure(code, op)
-                }
+            val response = client.put(url) {
+                header(HttpHeaders.Authorization, authHeader)
+                header(HttpHeaders.UserAgent, FINDER_USER_AGENT)
+                setBody(TextContent(content, ContentType.parse(contentType)))
+            }
+            when (response.status.value) {
+                401, 403 -> throw AnnotationSyncException.AuthFailed(response.status.value)
+                in 200..299 -> Unit
+                else -> throw AnnotationSyncException.HttpFailure(response.status.value, op)
             }
         }
     }
 
-    private suspend fun deleteFile(url: HttpUrl, op: String) = withContext(dispatchers.io) {
+    private suspend fun deleteFile(url: String, op: String) = withContext(dispatchers.io) {
         classifyWebDavTransportErrors {
-            val request = baseRequest(url).delete().build()
-            client.newCall(request).execute().use { response ->
-                // 404 / 410 / 405 are treated as a no-op success — the file is already gone or the
-                // server rejects DELETE on a missing resource, which is what we want either way.
-                when {
-                    response.isSuccessful || response.code in setOf(204, 404, 405, 410) -> Unit
-                    response.code == 401 || response.code == 403 ->
-                        throw AnnotationSyncException.AuthFailed(response.code)
-                    else -> throw AnnotationSyncException.HttpFailure(response.code, op)
-                }
+            val response = client.delete(url) {
+                header(HttpHeaders.Authorization, authHeader)
+                header(HttpHeaders.UserAgent, FINDER_USER_AGENT)
+            }
+            // 404 / 410 / 405 are treated as a no-op success — the file is already gone or the
+            // server rejects DELETE on a missing resource, which is what we want either way.
+            when (response.status.value) {
+                in 200..299, 404, 405, 410 -> Unit
+                401, 403 -> throw AnnotationSyncException.AuthFailed(response.status.value)
+                else -> throw AnnotationSyncException.HttpFailure(response.status.value, op)
             }
         }
     }
 
     private suspend fun propfindBaseFilenames(): List<String> = withContext(dispatchers.io) {
         val raw = classifyWebDavTransportErrors {
-            val request = baseRequest(basePath)
-                .header("Depth", "1")
-                .header("Content-Type", "application/xml; charset=utf-8")
-                .method("PROPFIND", PROPFIND_BODY.toRequestBody(XML_MEDIA))
-                .build()
-            client.newCall(request).execute().use { response ->
-                when {
-                    response.code in setOf(400, 404, 405) -> emptyList()
-                    response.code == 401 || response.code == 403 ->
-                        throw AnnotationSyncException.AuthFailed(response.code)
-                    !response.isSuccessful && response.code != 207 ->
-                        throw AnnotationSyncException.HttpFailure(response.code, "enumerate")
-                    else -> parsePropfindFilenames(response.body.string())
-                }
+            val response = client.request(basePath) {
+                method = HttpMethod("PROPFIND")
+                header(HttpHeaders.Authorization, authHeader)
+                header(HttpHeaders.UserAgent, FINDER_USER_AGENT)
+                header("Depth", "1")
+                setBody(TextContent(PROPFIND_BODY, ContentType.parse(XML_CONTENT_TYPE)))
+            }
+            when (response.status.value) {
+                400, 404, 405 -> emptyList()
+                401, 403 -> throw AnnotationSyncException.AuthFailed(response.status.value)
+                207 -> parsePropfindFilenames(response.bodyAsText())
+                in 200..299 -> parsePropfindFilenames(response.bodyAsText())
+                else -> throw AnnotationSyncException.HttpFailure(response.status.value, "enumerate")
             }
         }
         migrateLegacyAbsNames(raw)
@@ -301,13 +310,18 @@ class WebDavAnnotationSyncTarget(
      * `<uuid>__…` and `abs_<uuid>__…` were present in the same PROPFIND.
      * Idempotent: a share with no legacy files does zero extra work.
      */
-    private fun migrateLegacyAbsNames(names: List<String>): List<String> {
+    private suspend fun migrateLegacyAbsNames(names: List<String>): List<String> {
         if (names.none { LegacyAbsNamespaceMigration.isLegacyAbsFilename(it) }) return names
-        return names.map { name ->
-            if (!LegacyAbsNamespaceMigration.isLegacyAbsFilename(name)) return@map name
-            val target = LegacyAbsNamespaceMigration.migratedName(name)
-            if (migrateOne(name, target)) target else name
-        }.distinct()
+        val result = ArrayList<String>(names.size)
+        for (name in names) {
+            if (!LegacyAbsNamespaceMigration.isLegacyAbsFilename(name)) {
+                result.add(name)
+            } else {
+                val target = LegacyAbsNamespaceMigration.migratedName(name)
+                result.add(if (migrateOne(name, target)) target else name)
+            }
+        }
+        return result.distinct()
     }
 
     /**
@@ -316,70 +330,49 @@ class WebDavAnnotationSyncTarget(
      * first), destination already exists (412 — peer wrote it, so DELETE our orphan
      * legacy source), or anything else (leave the file, caller will retry next sync).
      */
-    private fun migrateOne(from: String, to: String): Boolean = try {
-        val src = basePath.newBuilder().addPathSegment(from).build()
-        val dst = basePath.newBuilder().addPathSegment(to).build()
-        val request = baseRequest(src)
-            .header("Destination", dst.toString())
-            .header("Overwrite", "F")
-            .method("MOVE", null)
-            .build()
-        client.newCall(request).execute().use { response ->
-            when {
-                response.isSuccessful || response.code == 201 || response.code == 204 -> true
-                // Peer already MOVEd it. Our source is gone; destination has the content.
-                response.code == 404 -> true
-                // Peer already wrote the destination independently. Delete our orphan source
-                // so a follow-up PROPFIND doesn't keep trying the same MOVE forever.
-                response.code == 412 -> {
-                    runCatching {
-                        val delReq = baseRequest(src).delete().build()
-                        client.newCall(delReq).execute().close()
+    private suspend fun migrateOne(from: String, to: String): Boolean = try {
+        val src = "$basePath$from"
+        val dst = "$basePath$to"
+        val response = client.request(src) {
+            method = HttpMethod("MOVE")
+            header(HttpHeaders.Authorization, authHeader)
+            header(HttpHeaders.UserAgent, FINDER_USER_AGENT)
+            header("Destination", dst)
+            header("Overwrite", "F")
+        }
+        when (response.status.value) {
+            in 200..299, 201, 204 -> true
+            // Peer already MOVEd it. Our source is gone; destination has the content.
+            404 -> true
+            // Peer already wrote the destination independently. Delete our orphan source
+            // so a follow-up PROPFIND doesn't keep trying the same MOVE forever.
+            412 -> {
+                runCatching {
+                    client.delete(src) {
+                        header(HttpHeaders.Authorization, authHeader)
+                        header(HttpHeaders.UserAgent, FINDER_USER_AGENT)
                     }
-                    true
                 }
-                else -> false
+                true
             }
+            else -> false
         }
     } catch (_: Exception) {
         false
     }
 
-    private fun put(url: HttpUrl, body: RequestBody): Response {
-        val request = baseRequest(url).put(body).build()
-        return client.newCall(request).execute()
-    }
+    private fun annotationFileUrl(namespace: String, itemId: String, filename: String): String =
+        "$basePath${annotationPrefix(namespace, itemId)}$filename"
 
-    /**
-     * Every WebDAV request built here is auth'd and tagged with a Finder User-Agent. Some servers —
-     * Synology DSM's WebDAV Server in particular — return 424 for MKCOL when the UA looks
-     * unfamiliar, even when the user holds Read/Write on the share. Spoofing macOS Finder's
-     * WebDAVFS UA takes us out of that lane (verified against pkmetski.synology.me).
-     */
-    private fun baseRequest(url: HttpUrl): Request.Builder = Request.Builder()
-        .url(url)
-        .header("Authorization", authHeader)
-        .header("User-Agent", FINDER_USER_AGENT)
-
-    private fun annotationFileUrl(namespace: String, itemId: String, filename: String): HttpUrl =
-        basePath.newBuilder()
-            .addPathSegment(annotationPrefix(namespace, itemId) + filename)
-            .build()
-
-    private fun deviceMetaUrl(namespace: String, deviceId: String): HttpUrl =
-        basePath.newBuilder()
-            .addPathSegment("$namespace$NAMESPACE_SEPARATOR$DEVICE_META_NAME_PREFIX$deviceId$JSON_SUFFIX")
-            .build()
+    private fun deviceMetaUrl(namespace: String, deviceId: String): String =
+        "$basePath$namespace$NAMESPACE_SEPARATOR$DEVICE_META_NAME_PREFIX$deviceId$JSON_SUFFIX"
 
     /** Composite filename prefix that emulates the per-book directory: `<namespace>__<itemId>__`. */
     private fun annotationPrefix(namespace: String, itemId: String): String =
         "$namespace$NAMESPACE_SEPARATOR$itemId$NAMESPACE_SEPARATOR"
 
-    private fun ensureTrailingSlash(url: HttpUrl): HttpUrl {
-        val segs = url.pathSegments
-        return if (segs.isNotEmpty() && segs.last().isEmpty()) url
-        else url.newBuilder().addPathSegment("").build()
-    }
+    private fun ensureTrailingSlash(url: String): String =
+        if (url.endsWith("/")) url else "$url/"
 
     private fun parsePropfindFilenames(xml: String): List<String> {
         if (xml.isBlank()) return emptyList()
@@ -434,9 +427,9 @@ class WebDavAnnotationSyncTarget(
         // Matches macOS Finder's WebDAVFS — well-known by Synology and other DSM-style WebDAV
         // servers, so MKCOL/PUT requests aren't put through unfamiliar-UA gating.
         private const val FINDER_USER_AGENT = "WebDAVFS/3.0.0 (03008000) Darwin/22.0.0 (x86_64)"
-        private val XML_MEDIA = "application/xml; charset=utf-8".toMediaType()
-        private val JSON_LD_MEDIA = "application/ld+json; charset=utf-8".toMediaType()
-        private val JSON_MEDIA = "application/json; charset=utf-8".toMediaType()
+        private const val XML_CONTENT_TYPE = "application/xml; charset=utf-8"
+        private const val JSON_LD_CONTENT_TYPE = "application/ld+json; charset=utf-8"
+        private const val JSON_CONTENT_TYPE = "application/json; charset=utf-8"
 
         // Minimal PROPFIND asking for resourcetype on each child resource.
         private const val PROPFIND_BODY =
@@ -469,7 +462,7 @@ sealed class AnnotationSyncException(message: String, cause: Throwable? = null) 
  * can classify network vs. TLS vs. server-side errors without inspecting exception types.
  * SSLException is a subtype of IOException — catch it first.
  */
-internal inline fun <T> classifyWebDavTransportErrors(block: () -> T): T {
+internal suspend inline fun <T> classifyWebDavTransportErrors(crossinline block: suspend () -> T): T {
     return try {
         block()
     } catch (e: javax.net.ssl.SSLException) {
@@ -480,5 +473,7 @@ internal inline fun <T> classifyWebDavTransportErrors(block: () -> T): T {
 }
 
 /** Parse a user-supplied URL; returns null on malformed input. */
-internal fun parseWebDavBaseUrl(raw: String): HttpUrl? =
-    raw.trim().takeIf { it.isNotEmpty() }?.toHttpUrlOrNull()
+internal fun parseWebDavBaseUrl(raw: String): Url? =
+    raw.trim().takeIf { it.isNotEmpty() }?.let {
+        try { URLBuilder(it).build() } catch (_: Exception) { null }
+    }

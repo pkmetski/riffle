@@ -2,8 +2,9 @@ package com.riffle.core.data
 
 import com.riffle.core.domain.AnnotationSyncConfig
 import com.riffle.core.domain.DispatcherProvider
+import com.riffle.core.network.createDefaultHttpClient
+import io.ktor.client.plugins.HttpTimeout
 import okhttp3.OkHttpClient
-import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 
 /**
@@ -12,21 +13,22 @@ import javax.inject.Inject
  * rebuilds when settings change) and the Settings "Test connection" action (which needs a
  * transient target before save).
  *
- * The factory derives a WebDAV-specific [OkHttpClient] from the app's shared one with explicit
- * call/read/write timeouts. The shared client uses the OkHttp defaults (no read/write/call
- * timeout), which would let a wedged Synology hang a PROPFIND/PUT indefinitely; per-call timeouts
- * keep `syncOnOpen` / `pushPending` reliably bounded.
+ * Derives a WebDAV-specific Ktor [io.ktor.client.HttpClient] from the app's shared OkHttp client
+ * with explicit call/read/write timeouts. The shared client has no timeout defaults, which would
+ * let a wedged Synology hang a PROPFIND/PUT indefinitely; per-call timeouts keep
+ * `syncOnOpen` / `pushPending` reliably bounded.
  */
 class WebDavAnnotationSyncTargetFactory @Inject constructor(
-    sharedClient: OkHttpClient,
+    sharedOkHttpClient: OkHttpClient,
     private val dispatchers: DispatcherProvider,
 ) {
-    private val httpClient: OkHttpClient = sharedClient.newBuilder()
-        .callTimeout(WEBDAV_CALL_TIMEOUT_SECONDS, TimeUnit.SECONDS)
-        .connectTimeout(WEBDAV_CONNECT_TIMEOUT_SECONDS, TimeUnit.SECONDS)
-        .readTimeout(WEBDAV_READ_TIMEOUT_SECONDS, TimeUnit.SECONDS)
-        .writeTimeout(WEBDAV_WRITE_TIMEOUT_SECONDS, TimeUnit.SECONDS)
-        .build()
+    private val httpClient = createDefaultHttpClient(sharedOkHttpClient).config {
+        install(HttpTimeout) {
+            requestTimeoutMillis = WEBDAV_CALL_TIMEOUT_MS
+            connectTimeoutMillis = WEBDAV_CONNECT_TIMEOUT_MS
+            socketTimeoutMillis = WEBDAV_READ_TIMEOUT_MS
+        }
+    }
 
     fun create(config: AnnotationSyncConfig): WebDavAnnotationSyncTarget? {
         val url = parseWebDavBaseUrl(config.baseUrl) ?: return null
@@ -41,9 +43,8 @@ class WebDavAnnotationSyncTargetFactory @Inject constructor(
 
     companion object {
         // 30 s for the whole call (PROPFIND of a fully-listed share + parse can dwarf the others).
-        private const val WEBDAV_CALL_TIMEOUT_SECONDS = 30L
-        private const val WEBDAV_CONNECT_TIMEOUT_SECONDS = 10L
-        private const val WEBDAV_READ_TIMEOUT_SECONDS = 20L
-        private const val WEBDAV_WRITE_TIMEOUT_SECONDS = 20L
+        private const val WEBDAV_CALL_TIMEOUT_MS = 30_000L
+        private const val WEBDAV_CONNECT_TIMEOUT_MS = 10_000L
+        private const val WEBDAV_READ_TIMEOUT_MS = 20_000L
     }
 }

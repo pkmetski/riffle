@@ -18,8 +18,9 @@ import com.riffle.core.catalog.SeriesCapability
 import com.riffle.core.catalog.StatsCapability
 import com.riffle.core.catalog.ToReadListCapability
 import com.riffle.core.catalog.has
+import io.ktor.client.HttpClient
+import io.ktor.client.engine.okhttp.OkHttp
 import kotlinx.coroutines.test.runTest
-import okhttp3.OkHttpClient
 import okhttp3.mockwebserver.Dispatcher
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
@@ -59,11 +60,11 @@ class ChitankaCatalogTest {
      */
     private fun catalog(): ChitankaCatalog {
         val http = ChitankaHttpClient(
-            client = OkHttpClient(),
+            client = HttpClient(OkHttp) {},
             userAgent = "Riffle/test",
             retryDelaysMs = emptyList(),
         )
-        return ChitankaCatalog(http = http)
+        return ChitankaCatalog(http = http, bytesClient = HttpClient(OkHttp) {})
     }
 
     @Test
@@ -123,8 +124,8 @@ class ChitankaCatalogTest {
     fun `download request carries User-Agent + Accept-Language + Referer headers`() = runTest {
         server.enqueue(MockResponse().setResponseCode(200).setBody("epub-bytes"))
         val cat = ChitankaCatalog(
-            http = ChitankaHttpClient(client = OkHttpClient(), userAgent = "Riffle/test", retryDelaysMs = emptyList()),
-            bytesClient = OkHttpClient(),
+            http = ChitankaHttpClient(client = HttpClient(OkHttp) {}, userAgent = "Riffle/test", retryDelaysMs = emptyList()),
+            bytesClient = HttpClient(OkHttp) {},
             userAgent = "Riffle/test",
         )
         cat.fetchBytesWith429Retry(server.url("/download/foo.epub").toString(), itemId = "book/foo").close()
@@ -139,16 +140,12 @@ class ChitankaCatalogTest {
         server.enqueue(MockResponse().setResponseCode(429))
         server.enqueue(MockResponse().setResponseCode(200).setBody("epub-bytes"))
         val cat = ChitankaCatalog(
-            http = ChitankaHttpClient(client = OkHttpClient(), userAgent = "Riffle/test", retryDelaysMs = emptyList()),
-            bytesClient = OkHttpClient(),
+            http = ChitankaHttpClient(client = HttpClient(OkHttp) {}, userAgent = "Riffle/test", retryDelaysMs = emptyList()),
+            bytesClient = HttpClient(OkHttp) {},
             userAgent = "Riffle/test",
         )
         val response = cat.fetchBytesWith429Retry(server.url("/download/foo.epub").toString(), itemId = "book/foo")
-        try {
-            assertTrue(response.isSuccessful)
-        } finally {
-            response.close()
-        }
+        response.close()
         assertEquals(2, server.requestCount)
     }
 

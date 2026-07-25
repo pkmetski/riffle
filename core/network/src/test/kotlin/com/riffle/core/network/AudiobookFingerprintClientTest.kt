@@ -1,7 +1,6 @@
 package com.riffle.core.network
 
-import com.riffle.core.domain.DefaultDispatcherProvider
-
+import com.riffle.core.network.createDefaultHttpClient
 import kotlinx.coroutines.test.runTest
 import okhttp3.OkHttpClient
 import okhttp3.mockwebserver.MockResponse
@@ -26,9 +25,9 @@ class AudiobookFingerprintClientTest {
             MockResponse().setResponseCode(200).setBody(
                 """{"audiobook":{"fileSize":313869927,"duration":39214.464,
                    "manifest":{"readingOrder":[{"duration":39214.464}]}}}""",
-            ),
+            ).addHeader("Content-Type", "application/json"),
         )
-        val client = StorytellerApiClient(OkHttpClient(), DefaultDispatcherProvider)
+        val client = StorytellerApiClient(createDefaultHttpClient(OkHttpClient()))
         val result = client.getAudiobookFingerprint(baseUrl(), 42L, "tok", false)
 
         assertTrue(result is NetworkResult.Success)
@@ -38,8 +37,8 @@ class AudiobookFingerprintClientTest {
 
     @Test
     fun `storyteller with no audiobook returns NoAudiobook`() = runTest {
-        server.enqueue(MockResponse().setResponseCode(200).setBody("""{"title":"x"}"""))
-        val result = StorytellerApiClient(OkHttpClient(), DefaultDispatcherProvider).getAudiobookFingerprint(baseUrl(), 1L, "tok", false)
+        server.enqueue(MockResponse().setResponseCode(200).setBody("""{"title":"x"}""").addHeader("Content-Type", "application/json"))
+        val result = StorytellerApiClient(createDefaultHttpClient(OkHttpClient())).getAudiobookFingerprint(baseUrl(), 1L, "tok", false)
         assertTrue(result is NetworkResult.Success && result.value == null)
     }
 
@@ -50,9 +49,9 @@ class AudiobookFingerprintClientTest {
                 """{"id":"abc","media":{"duration":8356.0,"audioFiles":[
                    {"index":1,"duration":2204.0,"metadata":{"size":300}},
                    {"index":2,"duration":1721.0,"metadata":{"size":200}}]}}""",
-            ),
+            ).addHeader("Content-Type", "application/json"),
         )
-        val result = AbsApiClient(OkHttpClient(), DefaultDispatcherProvider).getAudiobookFingerprint(baseUrl(), "abc", "tok", false)
+        val result = AbsApiClient(createDefaultHttpClient(OkHttpClient())).getAudiobookFingerprint(baseUrl(), "abc", "tok", false)
 
         assertTrue(result is NetworkResult.Success)
         assertEquals(listOf(2204.0, 1721.0), (result as NetworkResult.Success).value!!.trackDurationsSec)
@@ -65,9 +64,9 @@ class AudiobookFingerprintClientTest {
             MockResponse().setResponseCode(200).setBody(
                 """{"id":"abc","media":{"audioFiles":[
                    {"ino":"7963985","index":1,"duration":39214.464}]}}""",
-            ),
+            ).addHeader("Content-Type", "application/json"),
         )
-        val result = AbsApiClient(OkHttpClient(), DefaultDispatcherProvider).getAudiobookTracks(baseUrl(), "abc", "tok", false)
+        val result = AbsApiClient(createDefaultHttpClient(OkHttpClient())).getAudiobookTracks(baseUrl(), "abc", "tok", false)
         assertTrue(result is NetworkResult.Success)
         assertEquals("7963985", (result as NetworkResult.Success).value.single().ino)
     }

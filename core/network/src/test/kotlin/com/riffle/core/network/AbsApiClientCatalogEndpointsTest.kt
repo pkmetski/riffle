@@ -1,6 +1,5 @@
 package com.riffle.core.network
 
-import com.riffle.core.domain.DefaultDispatcherProvider
 import com.riffle.core.models.EbookFormat
 import kotlinx.coroutines.test.runTest
 import okhttp3.OkHttpClient
@@ -26,7 +25,7 @@ class AbsApiClientCatalogEndpointsTest {
     @Before fun setUp() {
         server = MockWebServer()
         server.start()
-        client = AbsApiClient(OkHttpClient(), DefaultDispatcherProvider)
+        client = AbsApiClient(createDefaultHttpClient(OkHttpClient()))
     }
 
     @After fun tearDown() {
@@ -47,7 +46,7 @@ class AbsApiClientCatalogEndpointsTest {
                   ],
                   "podcast": [], "authors": [], "tags": [], "series": []
                 }
-            """.trimIndent())
+            """.trimIndent()).addHeader("Content-Type", "application/json")
         )
 
         val result = client.searchLibrary(baseUrl(), "lib-a", "tolkien", limit = 10, token = "T", insecureAllowed = false)
@@ -61,7 +60,7 @@ class AbsApiClientCatalogEndpointsTest {
     }
 
     @Test fun `searchLibrary URL encodes the query and includes limit`() = runTest {
-        server.enqueue(MockResponse().setResponseCode(200).setBody("""{"book":[]}"""))
+        server.enqueue(MockResponse().setResponseCode(200).setBody("""{"book":[]}""").addHeader("Content-Type", "application/json"))
 
         client.searchLibrary(baseUrl(), "lib-a", "hobbit & rings", limit = 25, token = "T", insecureAllowed = false)
 
@@ -71,7 +70,7 @@ class AbsApiClientCatalogEndpointsTest {
     }
 
     @Test fun `searchLibrary returns empty list when book group is absent`() = runTest {
-        server.enqueue(MockResponse().setResponseCode(200).setBody("""{}"""))
+        server.enqueue(MockResponse().setResponseCode(200).setBody("""{}""").addHeader("Content-Type", "application/json"))
 
         val result = client.searchLibrary(baseUrl(), "lib-a", "q", 10, "T", false)
 
@@ -95,7 +94,7 @@ class AbsApiClientCatalogEndpointsTest {
         server.enqueue(
             MockResponse().setResponseCode(200).setBody("""
                 {"id":"it-1","libraryId":"lib-a","media":{"metadata":{"title":"A","authorName":"B"},"ebookFormat":"epub","ebookFile":{"ino":"ino-42"},"numAudioFiles":0}}
-            """.trimIndent())
+            """.trimIndent()).addHeader("Content-Type", "application/json")
         )
 
         val result = client.getItem(baseUrl(), "it-1", "T", false)
@@ -119,7 +118,7 @@ class AbsApiClientCatalogEndpointsTest {
     // region syncPlaybackSession + closePlaybackSession
 
     @Test fun `syncPlaybackSession posts currentTime and timeListened`() = runTest {
-        server.enqueue(MockResponse().setResponseCode(200).setBody("{}"))
+        server.enqueue(MockResponse().setResponseCode(200).setBody("{}").addHeader("Content-Type", "application/json"))
 
         val result = client.syncPlaybackSession(baseUrl(), "sess-1", 120.5, 60.0, "T", false)
 
@@ -134,7 +133,7 @@ class AbsApiClientCatalogEndpointsTest {
     }
 
     @Test fun `closePlaybackSession hits close endpoint`() = runTest {
-        server.enqueue(MockResponse().setResponseCode(200).setBody("{}"))
+        server.enqueue(MockResponse().setResponseCode(200).setBody("{}").addHeader("Content-Type", "application/json"))
 
         client.closePlaybackSession(baseUrl(), "sess-1", 200.0, 90.0, "T", false)
 
@@ -148,7 +147,7 @@ class AbsApiClientCatalogEndpointsTest {
     // region getListeningStats
 
     @Test fun `getListeningStats parses totalTime`() = runTest {
-        server.enqueue(MockResponse().setResponseCode(200).setBody("""{"totalTime":3600.5,"today":600}"""))
+        server.enqueue(MockResponse().setResponseCode(200).setBody("""{"totalTime":3600.5,"today":600}""").addHeader("Content-Type", "application/json"))
 
         val result = client.getListeningStats(baseUrl(), "T", false)
 
@@ -157,7 +156,7 @@ class AbsApiClientCatalogEndpointsTest {
     }
 
     @Test fun `getListeningStats hits me listening-stats endpoint`() = runTest {
-        server.enqueue(MockResponse().setResponseCode(200).setBody("""{"totalTime":0}"""))
+        server.enqueue(MockResponse().setResponseCode(200).setBody("""{"totalTime":0}""").addHeader("Content-Type", "application/json"))
 
         client.getListeningStats(baseUrl(), "T", false)
 

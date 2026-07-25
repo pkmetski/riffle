@@ -1,7 +1,5 @@
 package com.riffle.core.network
 
-import com.riffle.core.domain.DefaultDispatcherProvider
-
 import kotlinx.coroutines.test.runTest
 import okhttp3.Cache
 import okhttp3.OkHttpClient
@@ -26,7 +24,7 @@ class AbsBookmarkApiTest {
     fun setUp() {
         server = MockWebServer()
         server.start()
-        client = AbsApiClient(OkHttpClient(), DefaultDispatcherProvider)
+        client = AbsApiClient(createDefaultHttpClient(OkHttpClient()))
     }
 
     @After
@@ -163,7 +161,7 @@ class AbsBookmarkApiTest {
             .cache(Cache(tempFolder.newFolder(), 1L shl 20))
             .addNetworkInterceptor(EndpointCacheHeadersInterceptor(DEFAULT_HTTP_CACHE_RULES))
             .build()
-        val cachedClient = AbsApiClient(cachedHttp, DefaultDispatcherProvider)
+        val cachedClient = AbsApiClient(createDefaultHttpClient(cachedHttp))
 
         server.enqueue(
             MockResponse().setResponseCode(200)

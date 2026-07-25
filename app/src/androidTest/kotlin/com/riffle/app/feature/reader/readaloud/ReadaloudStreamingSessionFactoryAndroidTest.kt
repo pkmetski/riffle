@@ -1,7 +1,5 @@
 package com.riffle.app.feature.reader.readaloud
 
-import com.riffle.core.domain.DefaultDispatcherProvider
-
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -21,9 +19,12 @@ import com.riffle.core.domain.SourceRepository
 import com.riffle.core.models.ServerType
 import com.riffle.core.models.SourceUrl
 import com.riffle.core.domain.TokenStorage
+import com.riffle.core.domain.DefaultDispatcherProvider
 import com.riffle.core.network.AbsApiClient
 import com.riffle.core.network.StorytellerApiClient
 import com.riffle.core.network.StorytellerBundleApiImpl
+import com.riffle.core.network.createDefaultHttpClient
+import com.riffle.core.network.createStreamingHttpClient
 import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emptyFlow
@@ -108,8 +109,8 @@ class ReadaloudStreamingSessionFactoryAndroidTest {
                         // at the first audio entry — so serve the full zip here.
                         else -> MockResponse().setBody(Buffer().write(bundleZip))
                     }
-                    path.startsWith("/api/v2/books/$ST_BOOK") -> MockResponse().setBody(storytellerV2(1000))
-                    path.startsWith("/api/items/$AUDIOBOOK_ITEM") -> MockResponse().setBody(absItem(absFileSize))
+                    path.startsWith("/api/v2/books/$ST_BOOK") -> MockResponse().setBody(storytellerV2(1000)).addHeader("Content-Type", "application/json")
+                    path.startsWith("/api/items/$AUDIOBOOK_ITEM") -> MockResponse().setBody(absItem(absFileSize)).addHeader("Content-Type", "application/json")
                     else -> MockResponse().setResponseCode(404)
                 }
             }
@@ -159,7 +160,7 @@ class ReadaloudStreamingSessionFactoryAndroidTest {
     private fun factory(): ReadaloudStreamingSessionFactory {
         val repo = StubServerRepository(mapOf(ABS_SERVER to baseUrl, ST_SERVER to baseUrl))
         val fetcher = StorytellerSidecarFetcher(
-            bundleApi = StorytellerBundleApiImpl(OkHttpClient(), DefaultDispatcherProvider),
+            bundleApi = StorytellerBundleApiImpl(createStreamingHttpClient(OkHttpClient())),
             dispatchers = DefaultDispatcherProvider,
         )
         val sidecarScope = kotlinx.coroutines.CoroutineScope(
@@ -175,7 +176,7 @@ class ReadaloudStreamingSessionFactoryAndroidTest {
                     sidecarScope.async(block = block).await()
             },
         )
-        val absApiClient = AbsApiClient(OkHttpClient(), DefaultDispatcherProvider)
+        val absApiClient = AbsApiClient(createDefaultHttpClient(OkHttpClient()))
         val testClock = object : com.riffle.core.common.Clock {
             override fun nowMs() = System.currentTimeMillis()
             override fun nowNs() = System.nanoTime()
@@ -202,7 +203,7 @@ class ReadaloudStreamingSessionFactoryAndroidTest {
             context = ctx,
             audioIdentityResolver = AudioIdentityResolverImpl(db.readaloudLinkDao(), db.libraryItemDao()),
             catalogRegistry = catalogRegistry,
-            storytellerApi = StorytellerApiClient(OkHttpClient(), DefaultDispatcherProvider),
+            storytellerApi = StorytellerApiClient(createDefaultHttpClient(OkHttpClient())),
             sidecarStore = sidecarStore,
             sourceRepository = repo,
             tokenStorage = StubTokenStorage,

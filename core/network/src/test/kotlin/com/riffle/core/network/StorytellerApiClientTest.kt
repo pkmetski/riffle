@@ -1,6 +1,6 @@
 package com.riffle.core.network
 
-import com.riffle.core.domain.DefaultDispatcherProvider
+import com.riffle.core.network.createDefaultHttpClient
 
 import kotlinx.coroutines.test.runTest
 import okhttp3.OkHttpClient
@@ -21,7 +21,7 @@ class StorytellerApiClientTest {
     fun setUp() {
         server = MockWebServer()
         server.start()
-        client = StorytellerApiClient(OkHttpClient(), DefaultDispatcherProvider)
+        client = StorytellerApiClient(createDefaultHttpClient(OkHttpClient()))
     }
 
     @After
@@ -48,7 +48,7 @@ class StorytellerApiClientTest {
         assertEquals("POST", request.method)
         assertEquals("/api/token", request.path)
         val body = request.body.readUtf8()
-        assertTrue("body should carry multipart username field, was: $body", body.contains("name=\"username\""))
+        assertTrue("body should carry multipart username field, was: $body", body.contains("name=username") || body.contains("name=\"username\""))
         assertTrue("body should carry the username value, was: $body", body.contains("plamen"))
         assertTrue("body should carry the password value, was: $body", body.contains("secret"))
         assertTrue("body should be multipart, was: $body", body.contains("multipart") || request.getHeader("Content-Type")!!.startsWith("multipart/form-data"))

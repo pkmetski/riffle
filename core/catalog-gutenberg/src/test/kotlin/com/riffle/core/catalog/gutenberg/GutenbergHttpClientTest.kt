@@ -1,7 +1,8 @@
 package com.riffle.core.catalog.gutenberg
 
+import io.ktor.client.HttpClient
+import io.ktor.client.engine.okhttp.OkHttp
 import kotlinx.coroutines.test.runTest
-import okhttp3.OkHttpClient
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
 import org.junit.After
@@ -19,7 +20,7 @@ class GutenbergHttpClientTest {
     @After fun tearDown() { server.shutdown() }
 
     private fun newClient() = GutenbergHttpClient(
-        client = OkHttpClient(),
+        client = HttpClient(OkHttp) {},
         userAgent = "Riffle/test",
         retryDelaysMs = listOf(0L, 0L),
     )

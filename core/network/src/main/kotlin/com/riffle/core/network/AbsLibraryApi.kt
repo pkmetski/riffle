@@ -2,7 +2,10 @@ package com.riffle.core.network
 
 import com.riffle.core.models.AudiobookFingerprint
 import com.riffle.core.network.model.AbsItemDetailResponse
-import okhttp3.ResponseBody
+import java.io.InputStream
+
+/** Streaming response for EPUB downloads — caller MUST close [inputStream] when done. */
+data class EpubDownloadStream(val inputStream: InputStream, val contentLength: Long)
 
 data class NetworkUserMediaProgress(
     val ebookProgress: Float?,
@@ -133,7 +136,7 @@ interface AbsLibraryApi {
         fileIno: String,
         token: String,
         insecureAllowed: Boolean,
-    ): NetworkResult<ResponseBody> = throw UnsupportedOperationException("downloadEpub not implemented")
+    ): NetworkResult<EpubDownloadStream> = throw UnsupportedOperationException("downloadEpub not implemented")
 
     suspend fun getItemDetail(
         baseUrl: String,

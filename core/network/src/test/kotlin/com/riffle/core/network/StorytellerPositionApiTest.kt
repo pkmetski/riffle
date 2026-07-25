@@ -1,6 +1,6 @@
 package com.riffle.core.network
 
-import com.riffle.core.domain.DefaultDispatcherProvider
+import com.riffle.core.network.createDefaultHttpClient
 
 import kotlinx.coroutines.test.runTest
 import okhttp3.OkHttpClient
@@ -19,7 +19,7 @@ class StorytellerPositionApiTest {
 
     @Before fun setUp() {
         server = MockWebServer().also { it.start() }
-        api = StorytellerPositionApiImpl(OkHttpClient(), DefaultDispatcherProvider)
+        api = StorytellerPositionApiImpl(createDefaultHttpClient(OkHttpClient()))
     }
 
     @After fun tearDown() = server.shutdown()

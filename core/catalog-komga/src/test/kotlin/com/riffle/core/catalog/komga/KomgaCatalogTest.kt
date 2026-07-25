@@ -4,8 +4,9 @@ import com.riffle.core.catalog.BookFormat
 import com.riffle.core.catalog.CatalogFileHandle
 import com.riffle.core.catalog.CfiDialect
 import com.riffle.core.catalog.SortKey
+import io.ktor.client.HttpClient
+import io.ktor.client.engine.okhttp.OkHttp
 import kotlinx.coroutines.test.runTest
-import okhttp3.OkHttpClient
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
 import org.junit.After
@@ -29,14 +30,14 @@ class KomgaCatalogTest {
     @Before fun setUp() {
         server = MockWebServer()
         server.start()
-        val ok = OkHttpClient()
+        val httpClient = HttpClient(OkHttp) {}
         val header = buildBasicAuthHeader("user", "pass")
         val config = KomgaCatalogConfig(
             baseUrl = server.url("/").toString().trimEnd('/'),
             basicAuthHeader = header,
             insecureAllowed = true,
         )
-        catalog = KomgaCatalog(config, KomgaHttpClient(ok, header), ok)
+        catalog = KomgaCatalog(config, KomgaHttpClient(httpClient, header), httpClient)
     }
 
     @After fun tearDown() { server.shutdown() }

@@ -1,7 +1,6 @@
 package com.riffle.core.data.di.modules
 
 import android.content.Context
-import com.riffle.core.domain.DispatcherProvider
 import com.riffle.core.network.AbsApi
 import com.riffle.core.network.AbsApiClient
 import com.riffle.core.data.di.qualifiers.WebSourceOkHttpClient
@@ -14,6 +13,8 @@ import com.riffle.core.network.AbsLibraryApi
 import com.riffle.core.network.AbsPlaybackApi
 import com.riffle.core.network.AbsServerInfoApi
 import com.riffle.core.network.AbsSessionApi
+import com.riffle.core.network.createDefaultHttpClient
+import com.riffle.core.network.createStreamingHttpClient
 import com.riffle.core.network.AudiobookBundleApiImpl
 import com.riffle.core.network.GitHubReleaseApi
 import com.riffle.core.network.StorytellerApi
@@ -119,32 +120,32 @@ abstract class NetworkModule {
 
         @Provides
         @Singleton
-        fun provideGitHubReleaseApi(okHttpClient: OkHttpClient, dispatchers: DispatcherProvider): GitHubReleaseApi =
-            GitHubReleaseApi(okHttpClient, dispatchers)
+        fun provideGitHubReleaseApi(okHttpClient: OkHttpClient): GitHubReleaseApi =
+            GitHubReleaseApi(createDefaultHttpClient(okHttpClient))
 
         @Provides
         @Singleton
-        fun provideAbsApiClient(okHttpClient: OkHttpClient, dispatchers: DispatcherProvider): AbsApiClient =
-            AbsApiClient(okHttpClient, dispatchers)
+        fun provideAbsApiClient(okHttpClient: OkHttpClient): AbsApiClient =
+            AbsApiClient(createDefaultHttpClient(okHttpClient))
 
         @Provides
         @Singleton
-        fun provideStorytellerApiClient(okHttpClient: OkHttpClient, dispatchers: DispatcherProvider): StorytellerApiClient =
-            StorytellerApiClient(okHttpClient, dispatchers)
+        fun provideStorytellerApiClient(okHttpClient: OkHttpClient): StorytellerApiClient =
+            StorytellerApiClient(createDefaultHttpClient(okHttpClient))
 
         @Provides
         @Singleton
-        fun provideStorytellerBundleApiImpl(okHttpClient: OkHttpClient, dispatchers: DispatcherProvider): StorytellerBundleApiImpl =
-            StorytellerBundleApiImpl(okHttpClient, dispatchers)
+        fun provideStorytellerBundleApiImpl(okHttpClient: OkHttpClient): StorytellerBundleApiImpl =
+            StorytellerBundleApiImpl(createDefaultHttpClient(okHttpClient))
 
         @Provides
         @Singleton
-        fun provideAudiobookBundleApi(okHttpClient: OkHttpClient, dispatchers: DispatcherProvider): AudiobookBundleApiImpl =
-            AudiobookBundleApiImpl(okHttpClient, dispatchers)
+        fun provideAudiobookBundleApi(okHttpClient: OkHttpClient): AudiobookBundleApiImpl =
+            AudiobookBundleApiImpl(createStreamingHttpClient(okHttpClient))
 
         @Provides
         @Singleton
-        fun provideStorytellerPositionApi(okHttpClient: OkHttpClient, dispatchers: DispatcherProvider): StorytellerPositionApi =
-            StorytellerPositionApiImpl(okHttpClient, dispatchers)
+        fun provideStorytellerPositionApi(okHttpClient: OkHttpClient): StorytellerPositionApi =
+            StorytellerPositionApiImpl(createDefaultHttpClient(okHttpClient))
     }
 }

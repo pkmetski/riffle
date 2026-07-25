@@ -4,7 +4,7 @@ import com.riffle.core.catalog.Catalog
 import com.riffle.core.catalog.CatalogFactory
 import com.riffle.core.models.Source
 import com.riffle.core.models.SourceType
-import okhttp3.OkHttpClient
+import io.ktor.client.HttpClient
 
 /**
  * Builds a [ChitankaCatalog] per Source. Because the Chitanka Source is zero-config
@@ -13,14 +13,14 @@ import okhttp3.OkHttpClient
  * `core:data`'s `CatalogModule`.
  */
 class ChitankaCatalogFactory(
-    private val okHttpClient: OkHttpClient,
+    private val httpClient: HttpClient,
     private val userAgent: String,
 ) : CatalogFactory {
 
     override val sourceType: SourceType = SourceType.CHITANKA
 
     override suspend fun create(source: Source): Catalog {
-        val http = ChitankaHttpClient(client = okHttpClient, userAgent = userAgent)
-        return ChitankaCatalog(http = http, bytesClient = okHttpClient, userAgent = userAgent)
+        val http = ChitankaHttpClient(client = httpClient, userAgent = userAgent)
+        return ChitankaCatalog(http = http, bytesClient = httpClient, userAgent = userAgent)
     }
 }

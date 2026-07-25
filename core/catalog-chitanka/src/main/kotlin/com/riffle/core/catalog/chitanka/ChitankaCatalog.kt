@@ -23,13 +23,19 @@ import com.riffle.core.catalog.SeriesCapability
 import com.riffle.core.catalog.SortKey
 import com.riffle.core.catalog.ToReadListCapability
 import com.riffle.core.models.SourceType
+import io.ktor.client.HttpClient
+import io.ktor.client.request.get
+import io.ktor.client.request.header
+import io.ktor.client.statement.bodyAsChannel
+import io.ktor.http.HttpHeaders
+import io.ktor.http.contentLength
+import io.ktor.http.isSuccess
+import io.ktor.utils.io.jvm.javaio.toInputStream
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withContext
-import okhttp3.OkHttpClient
-import okhttp3.Request
 import java.net.URLEncoder
 
 /**
@@ -52,7 +58,7 @@ import java.net.URLEncoder
  */
 class ChitankaCatalog(
     private val http: ChitankaHttpClient,
-    private val bytesClient: OkHttpClient = OkHttpClient(),
+    private val bytesClient: HttpClient,
     // Must match the UA [ChitankaHttpClient] sends for HTML fetches — chitanka.info
     // throttles/blocks requests carrying the raw `okhttp/x.x.x` default. Without this the
     // EPUB download URL 429s on the first request even though browse succeeds.
@@ -316,34 +322,32 @@ class ChitankaCatalog(
         }
         // Same UA/headers as [ChitankaHttpClient.getString] — required or chitanka.info 429s
         // the download URL. Also mirror its 429 backoff schedule (1.5s, 3s) for parity.
-        val response = fetchBytesWith429Retry(handle.url, itemId)
-        val body = response.body
-        object : CatalogFileStream {
-            override val contentLength: Long = body.contentLength()
-            override fun byteStream() = body.byteStream()
-            override fun close() { response.close() }
-        }
+        fetchBytesWith429Retry(handle.url, itemId)
     }
 
-    internal suspend fun fetchBytesWith429Retry(url: String, itemId: String): okhttp3.Response {
+    internal suspend fun fetchBytesWith429Retry(downloadUrl: String, itemId: String): CatalogFileStream {
         var attempt = 0
         while (true) {
-            val request = Request.Builder()
-                .url(url)
-                .header("User-Agent", userAgent)
-                .header("Accept-Language", "bg,en;q=0.5")
-                .header("Referer", ChitankaScraper.BASE)
-                .build()
-            val response = bytesClient.newCall(request).execute()
-            if (response.isSuccessful) return response
-            val code = response.code
-            response.close()
+            val response = bytesClient.get(downloadUrl) {
+                header(HttpHeaders.UserAgent, userAgent)
+                header(HttpHeaders.AcceptLanguage, "bg,en;q=0.5")
+                header(HttpHeaders.Referrer, "${ChitankaScraper.BASE}/$itemId")
+            }
+            if (response.status.isSuccess()) {
+                val channel = response.bodyAsChannel()
+                return object : CatalogFileStream {
+                    override val contentLength: Long = response.contentLength() ?: -1L
+                    override fun byteStream(): java.io.InputStream = channel.toInputStream()
+                    override fun close() { channel.cancel(null) }
+                }
+            }
+            val code = response.status.value
             if (code == 429 && attempt < ChitankaHttpClient.DEFAULT_RETRY_DELAYS_MS.size) {
                 kotlinx.coroutines.delay(ChitankaHttpClient.DEFAULT_RETRY_DELAYS_MS[attempt])
                 attempt++
                 continue
             }
-            throw ChitankaException("Failed to fetch bytes for $itemId: $code")
+            throw ChitankaHttpException(code, downloadUrl, response.status.description)
         }
         @Suppress("UNREACHABLE_CODE")
         error("unreachable")
