@@ -19,10 +19,12 @@ import com.riffle.core.domain.SourceRepository
 import com.riffle.core.models.ServerType
 import com.riffle.core.models.SourceUrl
 import com.riffle.core.domain.TokenStorage
+import com.riffle.core.domain.DefaultDispatcherProvider
 import com.riffle.core.network.AbsApiClient
 import com.riffle.core.network.StorytellerApiClient
 import com.riffle.core.network.StorytellerBundleApiImpl
 import com.riffle.core.network.createDefaultHttpClient
+import com.riffle.core.network.createStreamingHttpClient
 import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emptyFlow
@@ -158,7 +160,7 @@ class ReadaloudStreamingSessionFactoryAndroidTest {
     private fun factory(): ReadaloudStreamingSessionFactory {
         val repo = StubServerRepository(mapOf(ABS_SERVER to baseUrl, ST_SERVER to baseUrl))
         val fetcher = StorytellerSidecarFetcher(
-            bundleApi = StorytellerBundleApiImpl(OkHttpClient(), DefaultDispatcherProvider),
+            bundleApi = StorytellerBundleApiImpl(createStreamingHttpClient(OkHttpClient())),
             dispatchers = DefaultDispatcherProvider,
         )
         val sidecarScope = kotlinx.coroutines.CoroutineScope(
@@ -201,7 +203,7 @@ class ReadaloudStreamingSessionFactoryAndroidTest {
             context = ctx,
             audioIdentityResolver = AudioIdentityResolverImpl(db.readaloudLinkDao(), db.libraryItemDao()),
             catalogRegistry = catalogRegistry,
-            storytellerApi = StorytellerApiClient(OkHttpClient(), DefaultDispatcherProvider),
+            storytellerApi = StorytellerApiClient(createDefaultHttpClient(OkHttpClient())),
             sidecarStore = sidecarStore,
             sourceRepository = repo,
             tokenStorage = StubTokenStorage,
