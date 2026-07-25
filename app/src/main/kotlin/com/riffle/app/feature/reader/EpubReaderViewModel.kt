@@ -2409,8 +2409,10 @@ class EpubReaderViewModel @Inject constructor(
         // the merge doesn't leak an orphan TYPE_EMPHASIS row into `emphasisPool` (the DOM
         // injector reads directly from the pool and would keep painting bold/italic on a
         // no-longer-existent range). Same cascade the panel-delete + overlap-dedup paths do.
+        // Collect emphasis styles BEFORE deleting so the merged highlight can inherit them.
         val anchorCfi = pool.firstOrNull { it.id == id }?.cfi
         val cascadeCfis = toAbsorb.map { it.cfi }.toSet() + (anchorCfi?.let { setOf(it) } ?: emptySet())
+        val mergedEmphasisStyles = collectMergeEmphasisStyles(cascadeCfis, annotationSession.emphasisPool.value)
         if (cascadeCfis.isNotEmpty()) {
             annotationSession.emphasisPool.value
                 .filter { it.cfi in cascadeCfis }
@@ -2439,9 +2441,24 @@ class EpubReaderViewModel @Inject constructor(
             embeddedFigures = mergedEmbeddedFigures,
             originFontFamily = mergedOriginFont,
         )
+        if (mergedEmphasisStyles.isNotEmpty()) {
+            annotationStore.createEmphasis(
+                sourceId = sourceId,
+                itemId = itemId,
+                cfi = cfiRange,
+                textSnippet = domSnippet,
+                chapterHref = trialAnchor.chapterHref,
+                textBefore = trialAnchor.textBefore,
+                textAfter = trialAnchor.textAfter,
+                styles = mergedEmphasisStyles,
+                spineIndex = trialAnchor.spineIndex,
+                progression = storedProgression,
+                originFontFamily = mergedOriginFont,
+            )
+        }
         logger.d(LogChannel.HighlightMerge) {
             "edit-merge done anchorReplaced=$id newId=${created.id} absorbedText=${toAbsorb.size} " +
-                "figures=${mergedEmbeddedFigures?.size ?: 0} " +
+                "figures=${mergedEmbeddedFigures?.size ?: 0} emphasisStyles=${mergedEmphasisStyles.size} " +
                 "domLen=${domSnippet.length} startChar=$startChar"
         }
     }

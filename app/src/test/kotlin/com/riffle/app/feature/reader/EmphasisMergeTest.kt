@@ -204,4 +204,44 @@ class EmphasisMergeTest {
         assertEquals("first second third", current.textSnippet)
         assertEquals(BOLD, current.emphasisStyles)
     }
+
+    // -------- collectMergeEmphasisStyles (pins fix: highlight merge preserves text formatting) --
+
+    @Test
+    fun `collectMergeEmphasisStyles returns union of styles from absorbed emphasis rows`() {
+        val e = emphasis(id = "e1", styles = BOLD, textSnippet = "bar")
+            .copy(cfi = "cfi-b")
+        val result = collectMergeEmphasisStyles(setOf("cfi-b"), listOf(e))
+        assertEquals(BOLD, result)
+    }
+
+    @Test
+    fun `collectMergeEmphasisStyles returns empty when no emphasis rows match cascade cfis`() {
+        val e = emphasis(id = "e1", styles = BOLD, textSnippet = "bar")
+            .copy(cfi = "cfi-b")
+        val result = collectMergeEmphasisStyles(setOf("cfi-a"), listOf(e))
+        assertEquals(emptySet<EmphasisStyle>(), result)
+    }
+
+    @Test
+    fun `collectMergeEmphasisStyles returns empty when emphasis pool is empty`() {
+        val result = collectMergeEmphasisStyles(setOf("cfi-a", "cfi-b"), emptyList())
+        assertEquals(emptySet<EmphasisStyle>(), result)
+    }
+
+    @Test
+    fun `collectMergeEmphasisStyles unions styles from multiple absorbed emphasis rows`() {
+        val e1 = emphasis(id = "e1", styles = BOLD).copy(cfi = "cfi-a")
+        val e2 = emphasis(id = "e2", styles = ITALIC).copy(cfi = "cfi-b")
+        val result = collectMergeEmphasisStyles(setOf("cfi-a", "cfi-b"), listOf(e1, e2))
+        assertEquals(setOf(EmphasisStyle.BOLD, EmphasisStyle.ITALIC), result)
+    }
+
+    @Test
+    fun `collectMergeEmphasisStyles ignores emphasis rows outside cascade cfis`() {
+        val absorbed = emphasis(id = "e1", styles = BOLD).copy(cfi = "cfi-b")
+        val unrelated = emphasis(id = "e2", styles = ITALIC).copy(cfi = "cfi-other")
+        val result = collectMergeEmphasisStyles(setOf("cfi-a", "cfi-b"), listOf(absorbed, unrelated))
+        assertEquals(BOLD, result)
+    }
 }

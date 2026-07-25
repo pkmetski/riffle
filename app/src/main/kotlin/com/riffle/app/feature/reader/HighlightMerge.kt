@@ -307,3 +307,19 @@ internal fun hasFigureInGap(
     return findEnclosedFiguresInHtml(html, gapStart, gapEnd).isNotEmpty()
 }
 
+/**
+ * Union of all [EmphasisStyle]s carried by emphasis rows whose CFI is in [cascadeCfis].
+ *
+ * Called before the cascade-delete in [EpubReaderViewModel.mergeAdjacentIntoHighlight] so the
+ * merged annotation can inherit the formatting of every absorbed highlight. Without this the delete
+ * path silently discards any bold/italic/underline that a neighbour carried.
+ */
+internal fun collectMergeEmphasisStyles(
+    cascadeCfis: Set<String>,
+    emphasisPool: List<Annotation>,
+): Set<EmphasisStyle> =
+    emphasisPool
+        .filter { it.cfi in cascadeCfis }
+        .flatMap { it.emphasisStyles.orEmpty() }
+        .toSet()
+
