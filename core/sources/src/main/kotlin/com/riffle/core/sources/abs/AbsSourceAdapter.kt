@@ -1,8 +1,8 @@
-package com.riffle.core.data.credentialed
+package com.riffle.core.sources.abs
 
 import com.riffle.core.domain.AuthenticateResult
-import com.riffle.core.models.Library
 import com.riffle.core.domain.PendingSource
+import com.riffle.core.models.Library
 import com.riffle.core.models.ServerType
 import com.riffle.core.models.SourceType
 import com.riffle.core.models.SourceUrl
@@ -11,25 +11,18 @@ import com.riffle.core.network.AbsLibraryApi
 import com.riffle.core.network.NetworkResult
 import com.riffle.core.network.StorytellerApi
 import com.riffle.core.network.errorAsThrowable
-import javax.inject.Inject
-import javax.inject.Singleton
+import com.riffle.core.sources.SourceAdapter
 
 /**
- * [CredentialedAuthenticator] for [SourceType.ABS]. Handles both Audiobookshelf servers (full
- * login + library fetch) and Storyteller Services (token-only login, no browsable libraries per
- * ADR 0026), dispatched on the [ServerType] arg.
- *
- * The Audiobookshelf/Storyteller subtype split lives inside this one authenticator because both
- * currently share `SourceType.ABS`; once #441 splits Storyteller into its own SourceType, the two
- * branches can be extracted into peer authenticators keyed by their own SourceType. Until then
- * this class isolates that mess from the generic `SourceRepositoryImpl`.
+ * [SourceAdapter] for [SourceType.ABS]. Handles both Audiobookshelf servers (full login +
+ * library fetch) and Storyteller Services (token-only login, no browsable libraries per ADR 0026),
+ * dispatched on the [ServerType] arg.
  */
-@Singleton
-class AbsCredentialedAuthenticator @Inject constructor(
+class AbsSourceAdapter(
     private val absApi: AbsApi,
     private val libraryApi: AbsLibraryApi,
     private val storytellerApi: StorytellerApi,
-) : CredentialedAuthenticator {
+) : SourceAdapter {
     override val sourceType: SourceType = SourceType.ABS
 
     override suspend fun authenticate(
@@ -96,14 +89,10 @@ class AbsCredentialedAuthenticator @Inject constructor(
             PendingSource(
                 url = url,
                 username = username,
-                // Storyteller's auth response doesn't expose a user id; identity is the username + token.
                 userId = "",
                 token = result.value,
                 password = password,
                 insecureConnectionAllowed = insecureAllowed,
-                // Storyteller contributes no browsable Library (ADR 0026) — it is a Settings-only
-                // readaloud backend. The local namespace row that hosts its books as matcher input
-                // is created in [CredentialedSourceInstaller.install], not surfaced to the user.
                 libraries = emptyList(),
                 serverType = ServerType.STORYTELLER_SERVICE,
                 sourceType = SourceType.ABS,
@@ -113,8 +102,6 @@ class AbsCredentialedAuthenticator @Inject constructor(
     }
 
     companion object {
-        // Surfaced when the network layer maps 401 to [NetworkResult.Auth] — the unified result type
-        // drops the server-provided string, so the user-facing message is owned here.
         private const val WRONG_CREDENTIALS_MESSAGE = "Invalid username or password"
     }
 }

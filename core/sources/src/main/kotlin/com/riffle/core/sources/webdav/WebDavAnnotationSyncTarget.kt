@@ -1,4 +1,4 @@
-package com.riffle.core.data
+package com.riffle.core.sources.webdav
 
 import com.riffle.core.domain.AnnotationFileRef
 import com.riffle.core.domain.AnnotationSyncTarget
@@ -29,27 +29,8 @@ import javax.xml.parsers.SAXParserFactory
 /**
  * WebDAV-backed [AnnotationSyncTarget].
  *
- * **Layout — flat per-device files keyed by composite filename.** Every file lives directly
- * under `basePath` and carries the per-account+book scope in its name:
- *
- * - Annotation file: `<basePath>/<namespace>__<itemId>__annotations-<deviceId>.jsonld`
- *
- * `namespace` is the cross-device-stable ABS user id (`/api/me` → `user.id`, persisted on
- * [com.riffle.core.models.Source.absUserId]). Using the local `servers.id` here would break
- * cross-device sync — see [com.riffle.core.domain.AnnotationSyncTarget] kdoc for the full
- * rationale.
- *
- * We *don't* nest the `<sourceId>` / `<itemId>` segments as subdirectories: Synology DSM's
- * WebDAV server refuses MKCOL on shared-folder subpaths in ways we couldn't get around even
- * with the Finder UA (PROPFIND and MKCOL both return 400 for bare-UUID directory names that
- * the server has already seen and discarded). Keeping the layout flat means the only
- * collection that has to exist is `basePath` itself, which the user vouches for via Test
- * Connection. Every other standard WebDAV server (Nextcloud, ownCloud, Apache `mod_dav`,
- * etc.) accepts flat names too, so this layout doesn't regress anything.
- *
- * Auth: HTTP basic. Every request is also tagged with the macOS Finder WebDAVFS
- * User-Agent — Synology in particular gates write methods on a UA allow-list and rejects
- * the OkHttp default with 424.
+ * See `core:data`'s original for the full layout documentation. Moved here so it can be tested
+ * with Ktor's [io.ktor.client.engine.mock.MockEngine] without an Android build toolchain.
  */
 class WebDavAnnotationSyncTarget(
     baseUrl: Url,
@@ -65,9 +46,6 @@ class WebDavAnnotationSyncTarget(
 
     override suspend fun list(namespace: String, itemId: String): List<String> =
         withContext(dispatchers.io) {
-            // PROPFIND basePath, then filter to entries whose physical name carries the matching
-            // `<namespace>__<itemId>__` prefix; return the logical (post-prefix) filename so the
-            // controller sees the unprefixed name unchanged.
             val prefix = annotationPrefix(namespace, itemId)
             propfindBaseFilenames()
                 .filter { it.startsWith(prefix) && it.endsWith(JSONLD_SUFFIX) }
@@ -84,9 +62,6 @@ class WebDavAnnotationSyncTarget(
         content: String,
     ) {
         withContext(dispatchers.io) {
-            // Flat path under basePath. No per-book subdirectories means MKCOL never has to fire on
-            // a real push — the only collection that must exist is basePath itself, which the user
-            // has already vouched for via Test Connection (and which we MKCOL-create on demand).
             putFile(annotationFileUrl(namespace, itemId, filename), content, JSON_LD_CONTENT_TYPE, "write $filename")
         }
     }
@@ -118,7 +93,6 @@ class WebDavAnnotationSyncTarget(
             for (physicalName in all) {
                 if (!physicalName.startsWith(annotationPrefix)) continue
                 if (!physicalName.endsWith(JSONLD_SUFFIX)) continue
-                // <namespace>__<itemId>__annotations-<deviceId>.jsonld
                 val afterNamespace = physicalName.removePrefix(annotationPrefix)
                 val sepIndex = afterNamespace.indexOf(NAMESPACE_SEPARATOR)
                 if (sepIndex <= 0) continue
@@ -155,7 +129,6 @@ class WebDavAnnotationSyncTarget(
                 when {
                     tail.endsWith(JSONLD_SUFFIX) ->
                         annotationByNs[ns] = (annotationByNs[ns] ?: 0) + 1
-                    // else: unknown file under base — skip silently.
                 }
             }
             annotationByNs.keys.toSortedSet().map { ns ->
@@ -172,8 +145,6 @@ class WebDavAnnotationSyncTarget(
         var deleted = 0
         for (physical in all) {
             if (!physical.startsWith(prefix)) continue
-            // Use the physical filename as the URL segment directly. annotationFileUrl
-            // would re-prefix and double-encode the namespace; just hit the literal name we saw.
             val url = "$basePath$physical"
             try {
                 deleteFile(url, "delete $physical")
@@ -266,8 +237,6 @@ class WebDavAnnotationSyncTarget(
                 header(HttpHeaders.Authorization, authHeader)
                 header(HttpHeaders.UserAgent, FINDER_USER_AGENT)
             }
-            // 404 / 410 / 405 are treated as a no-op success — the file is already gone or the
-            // server rejects DELETE on a missing resource, which is what we want either way.
             when (response.status.value) {
                 in 200..299, 404, 405, 410 -> Unit
                 401, 403 -> throw AnnotationSyncException.AuthFailed(response.status.value)
@@ -296,20 +265,6 @@ class WebDavAnnotationSyncTarget(
         migrateLegacyAbsNames(raw)
     }
 
-    /**
-     * Rename any pre-`abs_` legacy ABS files in-place, so every downstream method
-     * (`list`, `enumerateDevices`, `enumerateNamespaces`, `forgetNamespace`) sees the
-     * post-migration filenames. MOVE is issued per legacy hit; the returned list swaps in
-     * the destination name on success. On any hard failure (network, 5xx), the legacy
-     * name is left in the returned list so callers still see the file — worst case a
-     * second sync retries the MOVE. Concurrent-device edge cases:
-     *  - 404 on the source means a peer already MOVE'd it → treat as success.
-     *  - 412 (destination exists) means a peer already wrote the migrated file → DELETE
-     *    the orphan legacy source so a subsequent PROPFIND doesn't loop on it forever.
-     * Post-mapping the list is `distinct()`-ed to collapse the pair that arises when both
-     * `<uuid>__…` and `abs_<uuid>__…` were present in the same PROPFIND.
-     * Idempotent: a share with no legacy files does zero extra work.
-     */
     private suspend fun migrateLegacyAbsNames(names: List<String>): List<String> {
         if (names.none { LegacyAbsNamespaceMigration.isLegacyAbsFilename(it) }) return names
         val result = ArrayList<String>(names.size)
@@ -324,12 +279,6 @@ class WebDavAnnotationSyncTarget(
         return result.distinct()
     }
 
-    /**
-     * Returns true iff [from] is at or has reached [to] on the server after this call.
-     * Handles the four outcomes: MOVE ok (2xx), source already gone (404 — peer got there
-     * first), destination already exists (412 — peer wrote it, so DELETE our orphan
-     * legacy source), or anything else (leave the file, caller will retry next sync).
-     */
     private suspend fun migrateOne(from: String, to: String): Boolean = try {
         val src = "$basePath$from"
         val dst = "$basePath$to"
@@ -342,10 +291,7 @@ class WebDavAnnotationSyncTarget(
         }
         when (response.status.value) {
             in 200..299, 201, 204 -> true
-            // Peer already MOVEd it. Our source is gone; destination has the content.
             404 -> true
-            // Peer already wrote the destination independently. Delete our orphan source
-            // so a follow-up PROPFIND doesn't keep trying the same MOVE forever.
             412 -> {
                 runCatching {
                     client.delete(src) {
@@ -367,7 +313,6 @@ class WebDavAnnotationSyncTarget(
     private fun deviceMetaUrl(namespace: String, deviceId: String): String =
         "$basePath$namespace$NAMESPACE_SEPARATOR$DEVICE_META_NAME_PREFIX$deviceId$JSON_SUFFIX"
 
-    /** Composite filename prefix that emulates the per-book directory: `<namespace>__<itemId>__`. */
     private fun annotationPrefix(namespace: String, itemId: String): String =
         "$namespace$NAMESPACE_SEPARATOR$itemId$NAMESPACE_SEPARATOR"
 
@@ -388,9 +333,6 @@ class WebDavAnnotationSyncTarget(
         return handler.hrefs
             .map { it.substringAfterLast('/') }
             .filter { it.isNotEmpty() }
-            // Synology DSM (and other AFP-aware shares) emits a `._<filename>` AppleDouble
-            // shadow alongside every real file. They aren't ours and showing them as
-            // separate namespaces in Maintenance is just noise.
             .filter { !it.startsWith("._") }
     }
 
@@ -424,14 +366,11 @@ class WebDavAnnotationSyncTarget(
         private const val DEVICE_META_NAME_PREFIX = "device-meta-"
         private const val JSONLD_SUFFIX = ".jsonld"
         private const val JSON_SUFFIX = ".json"
-        // Matches macOS Finder's WebDAVFS — well-known by Synology and other DSM-style WebDAV
-        // servers, so MKCOL/PUT requests aren't put through unfamiliar-UA gating.
         private const val FINDER_USER_AGENT = "WebDAVFS/3.0.0 (03008000) Darwin/22.0.0 (x86_64)"
         private const val XML_CONTENT_TYPE = "application/xml; charset=utf-8"
         private const val JSON_LD_CONTENT_TYPE = "application/ld+json; charset=utf-8"
         private const val JSON_CONTENT_TYPE = "application/json; charset=utf-8"
 
-        // Minimal PROPFIND asking for resourcetype on each child resource.
         private const val PROPFIND_BODY =
             "<?xml version=\"1.0\" encoding=\"utf-8\"?>" +
                 "<d:propfind xmlns:d=\"DAV:\"><d:prop><d:resourcetype/></d:prop></d:propfind>"
@@ -457,11 +396,6 @@ sealed class AnnotationSyncException(message: String, cause: Throwable? = null) 
     class TlsError(message: String, cause: Throwable? = null) : AnnotationSyncException(message, cause)
 }
 
-/**
- * Re-throw transport-layer failures as typed [AnnotationSyncException]s so the status surface
- * can classify network vs. TLS vs. server-side errors without inspecting exception types.
- * SSLException is a subtype of IOException — catch it first.
- */
 internal suspend inline fun <T> classifyWebDavTransportErrors(crossinline block: suspend () -> T): T {
     return try {
         block()

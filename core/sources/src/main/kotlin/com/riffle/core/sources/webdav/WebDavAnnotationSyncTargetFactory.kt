@@ -1,28 +1,22 @@
-package com.riffle.core.data
+package com.riffle.core.sources.webdav
 
 import com.riffle.core.domain.AnnotationSyncConfig
 import com.riffle.core.domain.DispatcherProvider
-import com.riffle.core.network.createDefaultHttpClient
+import io.ktor.client.HttpClient
 import io.ktor.client.plugins.HttpTimeout
-import okhttp3.OkHttpClient
-import javax.inject.Inject
 
 /**
  * Builds a [WebDavAnnotationSyncTarget] from a saved [AnnotationSyncConfig], or returns null when
- * the config's base URL is malformed. Shared by the DI graph (which observes the config store and
- * rebuilds when settings change) and the Settings "Test connection" action (which needs a
- * transient target before save).
+ * the config's base URL is malformed.
  *
- * Derives a WebDAV-specific Ktor [io.ktor.client.HttpClient] from the app's shared OkHttp client
- * with explicit call/read/write timeouts. The shared client has no timeout defaults, which would
- * let a wedged Synology hang a PROPFIND/PUT indefinitely; per-call timeouts keep
- * `syncOnOpen` / `pushPending` reliably bounded.
+ * Takes a Ktor [HttpClient] so tests can inject a [io.ktor.client.engine.mock.MockEngine]-backed
+ * client. The factory applies WebDAV-specific timeouts on top of the shared base client.
  */
-class WebDavAnnotationSyncTargetFactory @Inject constructor(
-    sharedOkHttpClient: OkHttpClient,
+class WebDavAnnotationSyncTargetFactory(
+    httpClient: HttpClient,
     private val dispatchers: DispatcherProvider,
 ) {
-    private val httpClient = createDefaultHttpClient(sharedOkHttpClient).config {
+    private val httpClient = httpClient.config {
         install(HttpTimeout) {
             requestTimeoutMillis = WEBDAV_CALL_TIMEOUT_MS
             connectTimeoutMillis = WEBDAV_CONNECT_TIMEOUT_MS
@@ -36,13 +30,12 @@ class WebDavAnnotationSyncTargetFactory @Inject constructor(
             baseUrl = url,
             username = config.username,
             password = config.password,
-            client = httpClient,
+            client = this.httpClient,
             dispatchers = dispatchers,
         )
     }
 
     companion object {
-        // 30 s for the whole call (PROPFIND of a fully-listed share + parse can dwarf the others).
         private const val WEBDAV_CALL_TIMEOUT_MS = 30_000L
         private const val WEBDAV_CONNECT_TIMEOUT_MS = 10_000L
         private const val WEBDAV_READ_TIMEOUT_MS = 20_000L

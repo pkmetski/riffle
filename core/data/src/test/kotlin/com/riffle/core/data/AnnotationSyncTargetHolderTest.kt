@@ -1,5 +1,6 @@
 package com.riffle.core.data
 
+import com.riffle.core.sources.webdav.WebDavAnnotationSyncTargetFactory
 import com.riffle.core.data.absbookmark.AbsBookmarkAnnotationSyncTargetFactory
 import com.riffle.core.data.absbookmark.CompositeAnnotationSyncTarget
 import com.riffle.core.domain.AbsWebSourceDescriptor
@@ -24,7 +25,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
-import okhttp3.OkHttpClient
+import io.ktor.client.HttpClient
+import io.ktor.client.engine.okhttp.OkHttp
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
@@ -42,7 +44,7 @@ import org.junit.Test
 class AnnotationSyncTargetHolderTest {
 
     private val configStore = FakeConfigStore()
-    private val factory = WebDavAnnotationSyncTargetFactory(OkHttpClient(), com.riffle.core.domain.DefaultDispatcherProvider)
+    private val factory = WebDavAnnotationSyncTargetFactory(HttpClient(OkHttp), com.riffle.core.domain.DefaultDispatcherProvider)
     private val emptySources = EmptySourceRepository()
     private val absBookmarkFactory = AbsBookmarkAnnotationSyncTargetFactory(
         absBookmarkApi = HolderTestNoopAbsBookmarkApi(),

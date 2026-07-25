@@ -3,7 +3,7 @@ package com.riffle.app.feature.server
 import androidx.lifecycle.SavedStateHandle
 import com.riffle.core.data.AnnotationSyncStatusStore
 import com.riffle.core.data.CycleOutcome
-import com.riffle.core.data.WebDavAnnotationSyncTargetFactory
+import com.riffle.core.sources.webdav.WebDavAnnotationSyncTargetFactory
 import com.riffle.core.data.credentialed.CredentialedAuthenticator
 import com.riffle.core.database.AnnotationDao
 import com.riffle.core.database.AnnotationEntity
@@ -26,7 +26,6 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.flowOf
-import okhttp3.OkHttpClient
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.resetMain
@@ -189,7 +188,7 @@ class AddSourceViewModelTest {
             ?.let { mapOf(it.sourceType to it) }
             ?: emptyMap(),
         webdavConfigStore = configStore,
-        webdavTargetFactory = WebDavAnnotationSyncTargetFactory(OkHttpClient(), com.riffle.core.domain.DefaultDispatcherProvider),
+        webdavTargetFactory = io.mockk.mockk(relaxed = true),
         webdavStatusStore = statusStore,
         sweepEnqueuer = AnnotationSweepEnqueuer { },
         storytellerSyncer = io.mockk.mockk(relaxed = true),

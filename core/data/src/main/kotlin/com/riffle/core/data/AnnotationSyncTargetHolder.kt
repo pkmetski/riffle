@@ -38,7 +38,7 @@ import kotlinx.coroutines.runBlocking
  */
 class AnnotationSyncTargetHolder(
     private val configStore: AnnotationSyncConfigStore,
-    private val webDavFactory: WebDavAnnotationSyncTargetFactory,
+    private val webDavFactory: com.riffle.core.sources.webdav.WebDavAnnotationSyncTargetFactory,
     private val absBookmarkFactory: AbsBookmarkAnnotationSyncTargetFactory,
     private val sourceRepository: SourceRepository,
     scope: CoroutineScope,

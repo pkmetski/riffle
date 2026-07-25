@@ -1,5 +1,6 @@
 package com.riffle.core.data
 
+import com.riffle.core.sources.webdav.AnnotationSyncException
 import com.riffle.core.database.AnnotationDao
 import com.riffle.core.database.AnnotationEntity
 import com.riffle.core.domain.AnnotationSyncTarget
