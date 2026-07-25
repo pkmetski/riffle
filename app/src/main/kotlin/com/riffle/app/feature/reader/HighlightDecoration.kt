@@ -71,7 +71,7 @@ fun highlightTintTemplate(): HtmlDecorationTemplate =
         },
         stylesheet = """
             .$HIGHLIGHT_TINT_CLASS {
-                margin: 0px -1px 0 0;
+                margin: -1px -1px 0 0;
                 padding: 0 2px 0 0;
                 border-radius: 3px;
                 box-sizing: border-box;
