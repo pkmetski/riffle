@@ -23,12 +23,15 @@ import com.riffle.core.network.StorytellerBundleApiImpl
 import com.riffle.core.network.StorytellerLibraryApi
 import com.riffle.core.network.StorytellerPositionApi
 import com.riffle.core.network.StorytellerPositionApiImpl
+import com.riffle.core.sources.abs.AbsSourceAdapter
+import com.riffle.core.sources.komga.KomgaSourceAdapter
 import dagger.Binds
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
+import io.ktor.client.HttpClient
 import okhttp3.Cache
 import okhttp3.OkHttpClient
 import java.io.File
@@ -147,5 +150,23 @@ abstract class NetworkModule {
         @Singleton
         fun provideStorytellerPositionApi(okHttpClient: OkHttpClient): StorytellerPositionApi =
             StorytellerPositionApiImpl(createDefaultHttpClient(okHttpClient))
+
+        @Provides
+        @Singleton
+        fun provideKtorHttpClient(okHttpClient: OkHttpClient): HttpClient =
+            createDefaultHttpClient(okHttpClient)
+
+        @Provides
+        @Singleton
+        fun provideAbsSourceAdapter(
+            absApi: AbsApi,
+            libraryApi: AbsLibraryApi,
+            storytellerApi: StorytellerApi,
+        ): AbsSourceAdapter = AbsSourceAdapter(absApi, libraryApi, storytellerApi)
+
+        @Provides
+        @Singleton
+        fun provideKomgaSourceAdapter(httpClient: HttpClient): KomgaSourceAdapter =
+            KomgaSourceAdapter(httpClient)
     }
 }

@@ -126,6 +126,7 @@ dependencies {
     coreLibraryDesugaring(libs.desugar.jdk.libs)
 
     implementation(project(":core:domain"))
+    implementation(project(":core:sources"))
     implementation(project(":core:data"))
     implementation(project(":core:database"))
     implementation(libs.kotlinx.serialization.json)

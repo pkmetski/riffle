@@ -1,5 +1,6 @@
 package com.riffle.core.data
 
+import com.riffle.core.sources.webdav.AnnotationSyncException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow

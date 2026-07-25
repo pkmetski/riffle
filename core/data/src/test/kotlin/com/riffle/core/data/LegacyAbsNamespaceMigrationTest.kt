@@ -2,6 +2,7 @@ package com.riffle.core.data
 
 import com.riffle.core.domain.AbsWebSourceDescriptor
 import com.riffle.core.domain.KomgaWebSourceDescriptor
+import com.riffle.core.sources.webdav.LegacyAbsNamespaceMigration
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue

@@ -1,5 +1,6 @@
 package com.riffle.core.data
 
+import com.riffle.core.sources.webdav.AnnotationSyncException
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test

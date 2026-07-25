@@ -247,8 +247,8 @@ class ServerRepositoryTest {
         absApi: AbsApi,
         libraryApi: AbsLibraryApi,
         storytellerApi: StorytellerApi,
-    ): com.riffle.core.data.credentialed.AbsCredentialedAuthenticator =
-        com.riffle.core.data.credentialed.AbsCredentialedAuthenticator(
+    ): com.riffle.core.sources.abs.AbsSourceAdapter =
+        com.riffle.core.sources.abs.AbsSourceAdapter(
             absApi = absApi,
             libraryApi = libraryApi,
             storytellerApi = storytellerApi,

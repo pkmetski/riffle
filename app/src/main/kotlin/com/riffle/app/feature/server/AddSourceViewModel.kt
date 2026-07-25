@@ -15,8 +15,8 @@ import com.riffle.core.data.ReadaloudMatchingService
 import com.riffle.core.data.credentialed.CredentialedAuthenticator
 import com.riffle.core.database.AnnotationDao
 import com.riffle.core.data.StorytellerReadaloudSyncer
-import com.riffle.core.data.TestConnectionResult
-import com.riffle.core.data.WebDavAnnotationSyncTargetFactory
+import com.riffle.core.sources.webdav.TestConnectionResult
+import com.riffle.core.sources.webdav.WebDavAnnotationSyncTargetFactory
 import com.riffle.core.domain.AnnotationSweepEnqueuer
 import com.riffle.core.domain.AnnotationSyncConfig
 import com.riffle.core.domain.AnnotationSyncConfigStore

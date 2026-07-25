@@ -3,6 +3,7 @@ package com.riffle.core.data
 import android.content.Context
 import android.util.Log
 import com.riffle.core.domain.AnnotationFileRef
+import com.riffle.core.sources.webdav.LegacyAbsNamespaceMigration
 import com.riffle.core.domain.AnnotationSyncTarget
 import com.riffle.core.domain.DeviceFileSummary
 import com.riffle.core.domain.NamespaceDeviceListing

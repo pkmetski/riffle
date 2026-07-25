@@ -37,6 +37,7 @@ dependencies {
     coreLibraryDesugaring(libs.desugar.jdk.libs)
 
     implementation(project(":core:domain"))
+    implementation(project(":core:sources"))
     implementation(project(":core:network"))
     implementation(project(":core:database"))
     implementation(project(":core:catalog"))

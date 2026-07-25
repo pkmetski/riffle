@@ -116,9 +116,17 @@ abstract class SyncModule {
 
         @Provides
         @Singleton
+        fun provideWebDavAnnotationSyncTargetFactory(
+            httpClient: io.ktor.client.HttpClient,
+            dispatchers: DispatcherProvider,
+        ): com.riffle.core.sources.webdav.WebDavAnnotationSyncTargetFactory =
+            com.riffle.core.sources.webdav.WebDavAnnotationSyncTargetFactory(httpClient, dispatchers)
+
+        @Provides
+        @Singleton
         fun provideAnnotationSyncTargetHolder(
             configStore: AnnotationSyncConfigStore,
-            webDavFactory: com.riffle.core.data.WebDavAnnotationSyncTargetFactory,
+            webDavFactory: com.riffle.core.sources.webdav.WebDavAnnotationSyncTargetFactory,
             absBookmarkFactory: com.riffle.core.data.absbookmark.AbsBookmarkAnnotationSyncTargetFactory,
             sourceRepository: SourceRepository,
             dispatchers: DispatcherProvider,
