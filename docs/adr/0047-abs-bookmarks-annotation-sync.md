@@ -1,6 +1,6 @@
 # ADR 0047 — Annotation Sync via ABS Bookmarks
 
-**Status:** Accepted 2026-07-19
+**Status:** Accepted 2026-07-19 · Gate removed 2026-07-25
 
 ## Context
 
@@ -149,3 +149,13 @@ Run against the developer's test ABS at `http://media-server:13378`:
 - Composite: `core/data/src/main/kotlin/com/riffle/core/data/absbookmark/CompositeAnnotationSyncTarget.kt`
 - yaabsa piggyback scheme: `Vito0912/yaabsa` → `lib/screens/reader/reader_annotation_sync.dart`
 - ABS server bookmark handler: `advplyr/audiobookshelf` → `server/controllers/MeController.js`
+
+## Future work
+
+### WebDAV becomes exclusively for Komga (future release)
+
+ABS users do not need WebDAV for annotation sync. In a future release:
+
+- The annotation sync Settings screen will only show the WebDAV configuration option when the user has at least one Komga source. ABS-only users will see no WebDAV field.
+- The `CompositeAnnotationSyncTarget` dual-write path and the namespace-filtering predicate in `AnnotationSyncTargetHolder.buildTarget()` can be simplified: if no WebDAV child is ever created for ABS sources, the composite is never needed for ABS-only accounts.
+- A new ADR will record the Settings UI change and the simplified holder logic.
