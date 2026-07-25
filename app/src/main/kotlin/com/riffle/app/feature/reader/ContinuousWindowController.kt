@@ -1001,11 +1001,13 @@ internal class ContinuousWindowController(
         val window = buildWindow()
         if (window.isEmpty()) return
         val sY = port.currentScrollY
-        val (href, _) = ContinuousPositionTracker.locatorAt(sY, port.viewportHeightPx, window)
+        val vh = port.viewportHeightPx
+        val (href, _) = ContinuousPositionTracker.locatorAt(sY, vh, window)
         val viewportMidIndex = allChapters.indexOfFirst { it.link.href.toString() == href }
+        val loadedContentBottom = window.last().let { it.top + it.height }
 
         val decision = windowManager.decide(
-            sY, viewportMidIndex, window, topIndex, allChapters.size, port.viewportHeightPx,
+            sY, viewportMidIndex, window, topIndex, allChapters.size, vh,
             appendOnlyMaxWindow = APPEND_ONLY_MAX_WINDOW,
         )
         when (decision) {

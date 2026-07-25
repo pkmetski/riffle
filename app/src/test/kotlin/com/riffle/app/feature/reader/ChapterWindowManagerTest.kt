@@ -65,8 +65,8 @@ class ChapterWindowManagerTest {
         // tiny and fit in one viewport. scrollY=0 < firstChapterHeight/2 AND topIndex>0 would
         // normally trigger ShiftBackward, removing title and prepending cover. After that there
         // is no subsequent trigger (maxScrollY stays 0), so AppendOnly never fires and the reader
-        // walls off. Suppressing ShiftBackward when fitsInViewport lets ShiftForward or AppendOnly
-        // fire instead.
+        // walls off. Suppressing ShiftBackward when fitsInViewport lets AppendOnly fire instead,
+        // growing the window without dropping the top.
         val mgr = ChapterWindowManager(chaptersBehind = 1)
         val window = listOf(
             slot("fm01",  top = 0,   height = 220),
@@ -82,10 +82,12 @@ class ChapterWindowManagerTest {
             viewportHeight = 2_400,
             appendOnlyMaxWindow = 8,
         )
-        // ShiftBackward must be suppressed; ShiftForward fires (gap = 3-1=2 > chaptersBehind=1)
+        // ShiftBackward must be suppressed; ShiftForward must also be suppressed (fitsInViewport
+        // pins scrollY=0 so pastBehindBudget is a false positive — no actual reading progress was
+        // made); AppendOnly fires to grow the window without dropping the top.
         assertEquals(
-            "ShiftBackward must not fire when window fits in viewport",
-            ChapterWindowManager.Decision.ShiftForward, d,
+            "ShiftBackward and ShiftForward must not fire when window fits in viewport — AppendOnly grows it",
+            ChapterWindowManager.Decision.AppendOnly, d,
         )
     }
 
@@ -520,11 +522,12 @@ class ChapterWindowManagerTest {
     }
 
     @Test
-    fun `ShiftForward wins over AppendOnly when both would apply`() {
-        // Guard against a future refactor accidentally reordering the when-branches: ShiftForward
-        // must take precedence so the memory-managed sliding window keeps working normally when
-        // the midpoint has advanced past the behind budget, even if the fits-in-viewport
-        // condition also happens to be true.
+    fun `AppendOnly wins over ShiftForward when window fits in viewport`() {
+        // When fitsInViewport=true, scrollY is pinned at 0 regardless of reading progress, so
+        // pastBehindBudget is a false positive — the midpoint landing deep in the window does
+        // NOT mean the user read past the behind budget. Firing ShiftForward here would cascade
+        // the window forward past the user's opened position (the ADHD-book bug). AppendOnly
+        // must win instead: it grows the window without dropping the top.
         val mgr = ChapterWindowManager(chaptersBehind = 1)
         val window = listOf(
             slot("ch0", top = 0,   height = 300),
@@ -533,14 +536,60 @@ class ChapterWindowManagerTest {
         )
         val d = mgr.decide(
             scrollY = 0,
-            viewportChapterIndex = 2,     // gap = 2 - 0 = 2 > chaptersBehind(1) → ShiftForward
+            viewportChapterIndex = 2,     // gap = 2 - 0 = 2 > chaptersBehind(1), but fitsInViewport
             window = window,
             topIndex = 0,
             totalChapters = 11,
             viewportHeight = 2_400,
             appendOnlyMaxWindow = 8,
         )
-        assertEquals(ChapterWindowManager.Decision.ShiftForward, d)
+        assertEquals(
+            "AppendOnly must fire instead of ShiftForward when window fits in viewport",
+            ChapterWindowManager.Decision.AppendOnly, d,
+        )
+    }
+
+    @Test
+    fun `does not shift forward past opened position when initial window fits in viewport`() {
+        // Regression for book e866cd1d ("12 Principles for Raising a Child with ADHD").
+        // ABS saved position = title.html (spine[3]). initialWindow() gives topIndex=2 (fm02),
+        // window=[fm02, title, copyright]. All three chapters are tiny front-matter pages whose
+        // total device-pixel height (~450 px) is well under the 2400-px viewport.
+        //
+        // BUG (pre-fix): after pendingInitialScroll lands at title (scrollY=fm02.height≈200),
+        // maybeShift() fires. The viewport midpoint at y≈1200 lands in copyright, which is 2
+        // slots past topIndex=2 — pastBehindBudget=true (2>chaptersBehind=1) — and ShiftForward
+        // fires. removeTop() drops fm02, scrollBy(-fm02.height) → scrollY=0. Another
+        // handleScrollChange posts maybeShift(); the cascade repeats until the window has raced
+        // past title (and often all the way to preface/ch01). The user opens the book expecting
+        // to see the title page but instead lands on intro or ch01 and cannot scroll back to
+        // fm02 / title without multiple manual backward shifts.
+        //
+        // FIX: gate ShiftForward on !fitsInViewport. When all loaded content fits in one screen,
+        // scrollY is pinned at 0 so pastBehindBudget is a false positive — no reading progress
+        // was actually made. AppendOnly must fire instead to grow the window without dropping
+        // the top, giving the user more content to scroll into.
+        val mgr = ChapterWindowManager(chaptersBehind = 1)
+        // Mirror real ADHD-book front-matter: fm02="Selected Works From…" + title + copyright.
+        // Heights are approximate device px measured on a 2.625-dpr API-25 emulator.
+        val window = listOf(
+            slot("fm02",      top = 0,   height = 210),
+            slot("title",     top = 210, height =  90),
+            slot("copyright", top = 300, height = 160),   // total = 460 << viewport (2400)
+        )
+        val d = mgr.decide(
+            scrollY = 210,               // landed at top of title (= fm02.height) after initial scroll
+            viewportChapterIndex = 4,    // copyright is at global spine index 4; gap = 4-2 = 2 > 1
+            window = window,
+            topIndex = 2,
+            totalChapters = 24,
+            viewportHeight = 2_400,
+            appendOnlyMaxWindow = 8,
+        )
+        assertEquals(
+            "ShiftForward must not fire when window fits in viewport — would cascade past title page",
+            ChapterWindowManager.Decision.AppendOnly, d,
+        )
     }
 
     @Test

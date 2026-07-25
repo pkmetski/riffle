@@ -120,7 +120,16 @@ internal class ChapterWindowManager(chaptersBehind: Int) {
             loadedContentBottom > viewportHeight &&
             scrollY + viewportHeight >= loadedContentBottom
 
-        val shouldShiftForward = ContinuousPositionTracker.forwardShiftNeeded(
+        // Suppress forward shift when all loaded content fits in one viewport. When fitsInViewport
+        // is true, scrollY is pinned at 0 and the viewport midpoint lands arbitrarily deep in the
+        // loaded window — pastBehindBudget fires even though no actual reading progress has been
+        // made. ShiftForward would then remove the top chapter and cascade repeatedly, racing the
+        // window far past the opened position (e.g. from title page to intro/ch01) before the user
+        // touches anything. AppendOnly (lower priority) correctly handles the fits-in-viewport case
+        // by growing the window without dropping the top. Both conditions are mutually exclusive with
+        // loadedContentBottom > viewportHeight, so gating out ShiftForward here does not affect the
+        // atBottomOfLoadedWindow trigger path.
+        val shouldShiftForward = !fitsInViewport && ContinuousPositionTracker.forwardShiftNeeded(
             viewportChapterIndex = viewportChapterIndex,
             topIndex = topIndex,
             loadedChapterCount = window.size,
