@@ -218,6 +218,7 @@ class SettingsViewModelTest {
         override fun downloadAndInstall(update: com.riffle.core.domain.AvailableUpdate):
             Flow<com.riffle.core.domain.UpdateDownloadState> = kotlinx.coroutines.flow.emptyFlow()
         override fun sweepStaleApks() = Unit
+        override suspend fun listReleasesSince(sinceVersionCode: Int): List<com.riffle.core.domain.ReleaseInfo> = emptyList()
     }
 
     private val reviewsFlow = MutableStateFlow<Map<String, ReadaloudReview>>(emptyMap())
