@@ -156,12 +156,12 @@ class ImmersiveModeState internal constructor(
         }
     }
 
-    // Called on position change: only auto-hides the AppBar when bars are already hidden,
-    // so position changes in normal (bars-visible) mode don't dismiss the overlay.
-    // Suppressed for TOGGLE_COOLDOWN_MS after the user taps to reveal the bar.
+    // Called on position change: hides the AppBar (and enters full immersive if bars are
+    // visible) on scroll. Suppressed for TOGGLE_COOLDOWN_MS after the user taps to reveal.
     fun dismissOverlay() {
         val now = clock()
-        if (systemBarsHidden && now - lastToggleMs > TOGGLE_COOLDOWN_MS) isImmersive = true
+        if (now - lastToggleMs <= TOGGLE_COOLDOWN_MS) return
+        if (systemBarsHidden) isImmersive = true else hide()
     }
 
     // Guard: only call controller.hide() if bars are not already hidden.

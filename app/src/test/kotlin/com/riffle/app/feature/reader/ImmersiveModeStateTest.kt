@@ -121,10 +121,23 @@ class ImmersiveModeStateTest {
     }
 
     @Test
-    fun `dismissOverlay does nothing when bars are visible`() {
+    fun `dismissOverlay does nothing within TOGGLE_COOLDOWN_MS of construction`() {
+        // lastToggleMs starts at 0; at nowMs=0 the cooldown guard fires before any bars check.
         state.dismissOverlay()
 
         assertFalse(state.isImmersive)
+        assertEquals(0, controller.hideCount)
+    }
+
+    @Test
+    fun `dismissOverlay enters full immersive on scroll when bars are visible and cooldown elapsed`() {
+        // Simulate user having tapped out of immersive: bars visible, cooldown has since passed.
+        nowMs = ImmersiveModeState.TOGGLE_COOLDOWN_MS + 1
+        state.dismissOverlay()
+
+        assertTrue(state.isImmersive)
+        assertTrue(state.systemBarsHiddenForTest)
+        assertEquals(1, controller.hideCount)
     }
 
     @Test

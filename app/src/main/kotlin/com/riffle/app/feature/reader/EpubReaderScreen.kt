@@ -485,6 +485,7 @@ fun EpubReaderScreen(
                             }
                         },
                         onTap = immersiveState::toggle,
+                        onScrollStart = immersiveState::dismissOverlay,
                         onUserInteracted = viewModel::onUserInteracted,
                         onSelectionEnded = {
                             // Belt-and-braces: sticky IMMERSIVE (see immersiveSystemBarsBehavior)
@@ -1406,6 +1407,7 @@ private fun EpubNavigatorView(
      *  don't trigger backward↔forward oscillation. Defaults to false so the full-book path keeps
      *  its memory-capped configuration. */
     isElidedContinuous: Boolean = false,
+    onScrollStart: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -2756,6 +2758,7 @@ private fun EpubNavigatorView(
                 container.onPullEnded = { pullActive = false }
                 container.onPullProgress = { p -> pullProgress = p }
                 container.onUserTouch = { onUserInteracted() }
+                container.onScrollStart = { onScrollStart() }
 
                 val fragmentContainer = (container.getChildAt(0) as? android.view.ViewGroup)
                     ?.getChildAt(0) as? FragmentContainerView
