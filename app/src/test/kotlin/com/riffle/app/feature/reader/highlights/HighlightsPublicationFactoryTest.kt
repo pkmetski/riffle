@@ -7,6 +7,7 @@ import com.riffle.core.database.AnnotationEntity
 import com.riffle.core.models.HighlightColor
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -724,6 +725,27 @@ class HighlightsPublicationFactoryTest {
         val html = readChapterHtml(pub, 0)
         assertTrue("border-left still present for empty color", html.contains("border-left"))
         assertTrue("neutral gray bar color", html.contains(EMPHASIS_ONLY_BAR_COLOR))
+        assertTrue("no-color bar uses 1.5px (matching annotation-list hollow circle stroke)", html.contains("border-left: 1.5px solid"))
+    }
+
+    @Test
+    fun noColorHighlightUsesThemeColorWhenSupplied() {
+        val themeColor = "rgba(73,69,79,1.00)"
+        val pub = factory.build(
+            sourceId = "S1", itemId = "B1", bookTitle = null,
+            chapters = listOf(
+                ChapterElision(
+                    "ch0.xhtml", "Ch",
+                    listOf(hl(id = "h1", snippet = "plain text", color = "")),
+                ),
+            ),
+            urlFactory = ::testUrlFactory,
+            emphasisBarCss = themeColor,
+        )
+        val html = readChapterHtml(pub, 0)
+        assertTrue("theme color used for emphasis bar", html.contains(themeColor))
+        assertFalse("fallback gray not present when theme color supplied", html.contains(EMPHASIS_ONLY_BAR_COLOR))
+        assertTrue("bar still 1.5px", html.contains("border-left: 1.5px solid"))
     }
 
     @Test

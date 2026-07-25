@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -58,6 +59,7 @@ import com.riffle.app.feature.reader.presenter.ReaderPresenter
 import com.riffle.app.feature.reader.presenter.ReadiumPresenter
 import com.riffle.app.feature.reader.sentence.SentencePlaybackController
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -218,6 +220,11 @@ fun EpubReaderScreen(
     LaunchedEffect(configuration.screenWidthDp, displayDensity) {
         viewModel.setReaderViewportWidthPx((configuration.screenWidthDp * displayDensity).toInt())
     }
+
+    // Push the resolved onSurfaceVariant colour to the VM so the elided-view emphasis bar and
+    // the annotation-list hollow circle use the exact same colour token.
+    val onSurfaceVariant = MaterialTheme.colorScheme.onSurfaceVariant
+    SideEffect { viewModel.setEmphasisBarCss(onSurfaceVariant.toArgb().toCssRgba()) }
 
     // Close reading session when screen is disposed (navigation away)
     DisposableEffect(viewModel) {

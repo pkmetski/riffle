@@ -110,6 +110,7 @@ class HighlightsPublicationHandle internal constructor(
  */
 class HighlightsPublicationFactory @Inject constructor() {
 
+
     fun build(
         sourceId: String,
         itemId: String,
@@ -118,8 +119,9 @@ class HighlightsPublicationFactory @Inject constructor() {
         urlFactory: (String) -> Url? = { Url(it) },
         resourceFetcher: ResourceFetcher = ResourceFetcher { null },
         bookBodyFontFamily: String? = null,
+        emphasisBarCss: String = EMPHASIS_ONLY_BAR_COLOR,
     ): Publication =
-        buildHandle(sourceId, itemId, bookTitle, chapters, urlFactory, resourceFetcher, bookBodyFontFamily)
+        buildHandle(sourceId, itemId, bookTitle, chapters, urlFactory, resourceFetcher, bookBodyFontFamily, emphasisBarCss)
             .publication
 
     /**
@@ -141,6 +143,7 @@ class HighlightsPublicationFactory @Inject constructor() {
         urlFactory: (String) -> Url? = { Url(it) },
         resourceFetcher: ResourceFetcher = ResourceFetcher { null },
         bookBodyFontFamily: String? = null,
+        emphasisBarCss: String = EMPHASIS_ONLY_BAR_COLOR,
     ): HighlightsPublicationHandle {
         val nonEmptyChapters = chapters.filter { it.highlights.isNotEmpty() }
 
@@ -202,7 +205,7 @@ class HighlightsPublicationFactory @Inject constructor() {
             val href = "highlights/ch$index.xhtml"
             val url = requireNotNull(urlFactory(href)) { "Failed to build synthetic Url for $href" }
             entries[url] = renderChapterHtml(
-                chapter, bookBodyFontFamily, dataUriByHref, publisherFontFaceCss,
+                chapter, bookBodyFontFamily, dataUriByHref, publisherFontFaceCss, emphasisBarCss,
             ).toByteArray(Charsets.UTF_8)
             chapterUrls[chapter.href] = url
             readingOrder += Link(
@@ -270,11 +273,12 @@ class HighlightsPublicationFactory @Inject constructor() {
         bookBodyFontFamily: String? = null,
         dataUriByHref: Map<String, String> = emptyMap(),
         publisherFontFaceCss: String = "",
+        emphasisBarCss: String = EMPHASIS_ONLY_BAR_COLOR,
     ): String {
         val body = buildString {
             for (annotation in chapter.highlights) {
                 when (annotation.type) {
-                    AnnotationEntity.TYPE_IMAGE -> appendImageAnnotation(this, annotation, dataUriByHref)
+                    AnnotationEntity.TYPE_IMAGE -> appendImageAnnotation(this, annotation, dataUriByHref, emphasisBarCss)
                     else -> {
                         // Interleave text and figures at their captured [EmbeddedFigure.charOffset]
                         // (fix 2026-07-09) so a graph sitting between two paragraphs of the
@@ -285,7 +289,7 @@ class HighlightsPublicationFactory @Inject constructor() {
                         // behaviour matches what shipped before offsets existed. See
                         // appendInterleavedHighlight's KDoc.
                         appendInterleavedHighlight(
-                            this, annotation, bookBodyFontFamily, dataUriByHref,
+                            this, annotation, bookBodyFontFamily, dataUriByHref, emphasisBarCss,
                         )
                     }
                 }
@@ -336,11 +340,11 @@ class HighlightsPublicationFactory @Inject constructor() {
     }
 }
 
-// Accent bar colour for ∅-color (emphasis-only) annotations — light gray that stays visible
-// without implying a user-chosen highlight colour. Alpha 0.20 is intentionally much lighter than
-// the 0x80 (~50%) used for palette colours so the bar reads as a secondary / formatting-only
-// marker rather than a full highlight.
-internal const val EMPHASIS_ONLY_BAR_COLOR = "rgba(128,128,128,0.20)"
+// Fallback accent bar colour for ∅-color (emphasis-only) annotations — used when the caller has
+// not supplied a theme-derived colour via buildHandle(emphasisBarCss). Overridden at build time
+// with the resolved onSurfaceVariant CSS from the Compose layer so bar and annotation-list dot
+// use the exact same colour.
+internal const val EMPHASIS_ONLY_BAR_COLOR = "rgba(128,128,128,1.0)"
 
 // Class name on the transparent absolute-positioned span that owns tap dispatch for a highlight.
 // Injected inside each synthesised `<p>` next to the visible text; its CSS (see
@@ -386,6 +390,7 @@ private fun appendInterleavedHighlight(
     highlight: com.riffle.core.database.AnnotationEntity,
     bookBodyFontFamily: String?,
     dataUriByHref: Map<String, String> = emptyMap(),
+    emphasisBarCss: String = EMPHASIS_ONLY_BAR_COLOR,
 ) {
     val figures = highlight.decodedEmbeddedFigures()?.sortedBy { it.order }.orEmpty()
     val normalizedSnippetOuter = com.riffle.app.feature.reader.normalizeCaptionText(highlight.textSnippet)
@@ -415,17 +420,17 @@ private fun appendInterleavedHighlight(
                 (singleFigure.caption.isBlank() && CAPTION_HIGHLIGHT_PREFIX_REGEX.containsMatchIn(normalizedSnippetOuter))
             )
         if (isCaptionHighlight) {
-            appendFigureBlock(sb, singleFigure!!.copy(caption = ""), highlight.id, highlight.color, dataUriByHref)
-            appendTextHighlight(sb, highlight, bookBodyFontFamily)
+            appendFigureBlock(sb, singleFigure!!.copy(caption = ""), highlight.id, highlight.color, dataUriByHref, emphasisBarCss)
+            appendTextHighlight(sb, highlight, bookBodyFontFamily, emphasisBarCss)
             return
         }
-        appendTextHighlight(sb, highlight, bookBodyFontFamily)
+        appendTextHighlight(sb, highlight, bookBodyFontFamily, emphasisBarCss)
         figures.forEach { fig ->
             val effective = if (
                 fig.caption.isNotBlank() &&
                 com.riffle.app.feature.reader.normalizeCaptionText(fig.caption) == normalizedSnippetOuter
             ) fig.copy(caption = "") else fig
-            appendFigureBlock(sb, effective, highlight.id, highlight.color, dataUriByHref)
+            appendFigureBlock(sb, effective, highlight.id, highlight.color, dataUriByHref, emphasisBarCss)
         }
         return
     }
@@ -437,7 +442,7 @@ private fun appendInterleavedHighlight(
     // Emit alternating: chunk[0], figure[0], chunk[1], figure[1], ..., chunk[last].
     chunks.forEachIndexed { index, chunk ->
         if (chunk.isNotEmpty()) {
-            appendHighlightTextChunk(sb, highlight, chunk, bookBodyFontFamily)
+            appendHighlightTextChunk(sb, highlight, chunk, bookBodyFontFamily, emphasisBarCss)
         }
         figures.getOrNull(index)?.let { fig ->
             // Caption-highlight dedup: when the figure's own caption is identical to the highlight's
@@ -450,13 +455,13 @@ private fun appendInterleavedHighlight(
                 fig.caption.isNotBlank() &&
                 com.riffle.app.feature.reader.normalizeCaptionText(fig.caption) == normalizedSnippet
             ) fig.copy(caption = "") else fig
-            appendFigureBlock(sb, effectiveFigure, highlight.id, highlight.color, dataUriByHref)
+            appendFigureBlock(sb, effectiveFigure, highlight.id, highlight.color, dataUriByHref, emphasisBarCss)
         }
     }
     val note = highlight.note
     if (note != null) {
         val accent = if (highlight.color.isNotBlank()) highlightBackgroundCss(highlight.color)
-                     else EMPHASIS_ONLY_BAR_COLOR
+                     else emphasisBarCss
         val idEscaped = highlight.id.xmlEscape()
         sb.append("  <aside class=\"riffle-note\" data-ann-id=\"")
         sb.append(idEscaped)
@@ -479,14 +484,16 @@ private fun appendHighlightTextChunk(
     highlight: com.riffle.core.database.AnnotationEntity,
     chunk: String,
     bookBodyFontFamily: String?,
+    emphasisBarCss: String = EMPHASIS_ONLY_BAR_COLOR,
 ) {
-    val accent = if (highlight.color.isNotBlank()) highlightBackgroundCss(highlight.color)
-                 else EMPHASIS_ONLY_BAR_COLOR
+    val hasColor = highlight.color.isNotBlank()
+    val accent = if (hasColor) highlightBackgroundCss(highlight.color) else emphasisBarCss
+    val barPx = if (hasColor) "4px" else "1.5px"
     val idEscaped = highlight.id.xmlEscape()
     val tapUrl = buildAnnotationTapUrl(highlight.id).xmlEscape()
     sb.append("  <p style=\"")
     sb.append(PARAGRAPH_GAP_STYLE)
-    sb.append("; position: relative; border-left: 4px solid ")
+    sb.append("; position: relative; border-left: $barPx solid ")
     sb.append(accent)
     sb.append(" !important; padding-left: 12px;")
     appendOriginFontFamilyStyle(sb, highlight.originFontFamily, bookBodyFontFamily)
@@ -515,6 +522,7 @@ private fun appendTextHighlight(
     sb: StringBuilder,
     highlight: AnnotationEntity,
     bookBodyFontFamily: String?,
+    emphasisBarCss: String = EMPHASIS_ONLY_BAR_COLOR,
 ) {
     // The highlight is presented as a left accent bar in the palette colour, matching
     // Riffle's [Book Search] results card style — the text itself renders in the
@@ -525,15 +533,16 @@ private fun appendTextHighlight(
     // (ChapterWebView) and paginated/vertical (EpubReaderScreen) intercept that URL and
     // open the highlight-actions popup. Tapping the text itself does nothing — the
     // reason this HTML is authored here and not decorated on top of it via Readium.
-    // ∅-color (emphasis-only) annotations use a neutral gray bar instead of omitting the
-    // accent bar entirely — the bar still provides visual rhythm and a tap target.
-    val accent = if (highlight.color.isNotBlank()) highlightBackgroundCss(highlight.color)
-                 else EMPHASIS_ONLY_BAR_COLOR
+    // ∅-color (emphasis-only) annotations use a thinner 2px bar in onSurfaceVariant (matching
+    // the annotation-list hollow-circle border) rather than a filled palette-colour bar.
+    val hasColor = highlight.color.isNotBlank()
+    val accent = if (hasColor) highlightBackgroundCss(highlight.color) else emphasisBarCss
+    val barPx = if (hasColor) "4px" else "1.5px"
     val idEscaped = highlight.id.xmlEscape()
     val tapUrl = buildAnnotationTapUrl(highlight.id).xmlEscape()
     sb.append("  <p style=\"")
     sb.append(PARAGRAPH_GAP_STYLE)
-    sb.append("; position: relative; border-left: 4px solid ")
+    sb.append("; position: relative; border-left: $barPx solid ")
     sb.append(accent)
     sb.append(" !important; padding-left: 12px;")
     appendOriginFontFamilyStyle(sb, highlight.originFontFamily, bookBodyFontFamily)
@@ -670,6 +679,7 @@ private fun appendImageAnnotation(
     sb: StringBuilder,
     annotation: AnnotationEntity,
     dataUriByHref: Map<String, String> = emptyMap(),
+    emphasisBarCss: String = EMPHASIS_ONLY_BAR_COLOR,
 ) {
     // Fallback (2026-07-14): when the annotation itself has no captured `imageBytes` (JS canvas
     // rasterization failed at long-press — often a cross-origin taint on `readium_package://`
@@ -685,6 +695,7 @@ private fun appendImageAnnotation(
         svg = annotation.imageSvg,
         bytes = effectiveBytes,
         caption = annotation.textSnippet,
+        emphasisBarCss = emphasisBarCss,
     )
 }
 
@@ -700,6 +711,7 @@ private fun appendFigureBlock(
     ownerAnnotationId: String,
     ownerColorToken: String,
     dataUriByHref: Map<String, String> = emptyMap(),
+    emphasisBarCss: String = EMPHASIS_ONLY_BAR_COLOR,
 ) {
     // See [appendImageAnnotation]'s KDoc for the fallback rationale — same pattern applied to
     // each embedded figure inside a TYPE_HIGHLIGHT.
@@ -711,6 +723,7 @@ private fun appendFigureBlock(
         svg = figure.svg,
         bytes = effectiveBytes,
         caption = figure.caption,
+        emphasisBarCss = emphasisBarCss,
     )
 }
 
@@ -735,9 +748,11 @@ private fun appendFigureFigure(
     svg: String?,
     bytes: String?,
     caption: String,
+    emphasisBarCss: String = EMPHASIS_ONLY_BAR_COLOR,
 ) {
-    val accent = if (colorToken.isNotBlank()) highlightBackgroundCss(colorToken)
-                 else EMPHASIS_ONLY_BAR_COLOR
+    val hasColor = colorToken.isNotBlank()
+    val accent = if (hasColor) highlightBackgroundCss(colorToken) else emphasisBarCss
+    val barPx = if (hasColor) "4px" else "1.5px"
     val idEscaped = annotationId.xmlEscape()
     val tapUrl = buildAnnotationTapUrl(annotationId).xmlEscape()
     // `data-ann-id` on the <figure> itself so the live DOM-patch pipeline (buildRecolorJs /
@@ -745,7 +760,7 @@ private fun appendFigureFigure(
     // when the owning highlight is edited — without it, `document.querySelectorAll('[data-ann-id]')`
     // only matches the inner tap span, and `.closest('p')` returns null so recolour no-ops.
     sb.append("  <figure class=\"riffle-fig\" data-ann-id=\"").append(idEscaped)
-    sb.append("\" style=\"border-left: 4px solid ")
+    sb.append("\" style=\"border-left: $barPx solid ")
     sb.append(accent)
     sb.append(" !important; padding-left: 12px;\">\n")
     // Tap-dispatch strip over the accent bar, matching the text-paragraph tap seam. `pointer-events`
