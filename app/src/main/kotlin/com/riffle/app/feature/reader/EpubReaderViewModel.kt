@@ -1225,7 +1225,6 @@ class EpubReaderViewModel @Inject constructor(
                     bookBodyFontFamily = elidedBodyFontFamily,
                     resourceFetcher = figureFetcher
                         ?: com.riffle.app.feature.reader.highlights.ResourceFetcher { null },
-                    emphasisByCfi = emphasisByCfi,
                 )
             } finally {
                 figureFetcher?.close()
@@ -3000,7 +2999,7 @@ class EpubReaderViewModel @Inject constructor(
                     // Emphasis-join for partial rewrite path: the incomingById snapshot only carries
                     // TYPE_HIGHLIGHT entities; read the live emphasis pool to re-join styles so a
                     // recolour or note edit doesn't strip user-applied emphasis from the chapter bytes.
-                    val emphasisByCfi = annotationSession.emphasisPool.value
+                    val encodedEmphasisByCfi = annotationSession.emphasisPool.value
                         .groupBy { it.cfi }
                         .mapValues { (_, pool) ->
                             com.riffle.core.models.EmphasisStyle.encode(
@@ -3011,7 +3010,7 @@ class EpubReaderViewModel @Inject constructor(
                         val livePeers = incomingByChapter[chapterHref].orEmpty()
                             .sortedWith(compareBy({ it.spineIndex }, { it.progression }, { it.createdAt }, { it.id }))
                             .map { row ->
-                                val styles = emphasisByCfi[row.cfi] ?: return@map row
+                                val styles = encodedEmphasisByCfi[row.cfi] ?: return@map row
                                 row.copy(emphasisStyles = styles)
                             }
                         if (livePeers.isEmpty()) continue // Empty chapter would be structural — handled above.
@@ -3026,7 +3025,6 @@ class EpubReaderViewModel @Inject constructor(
                             dataUriByHref = highlightsPublicationHandle?.figureBytesByHref.orEmpty(),
                             publisherFontFaceCss = highlightsPublicationHandle
                                 ?.publisherFontFaceCss.orEmpty(),
-                            emphasisByCfi = emphasisByCfi,
                         )
                         handle.setChapterBytes(chapterHref, freshHtml)
                     }

@@ -4,7 +4,6 @@ import android.net.FakeUri
 import com.riffle.app.feature.reader.joinEmphasisStylesToHighlights
 import com.riffle.app.feature.reader.toCssRgba
 import com.riffle.core.database.AnnotationEntity
-import com.riffle.core.models.EmphasisStyle
 import com.riffle.core.models.HighlightColor
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
@@ -550,14 +549,13 @@ class HighlightsPublicationFactoryTest {
     // ─── Emphasis rendering ───────────────────────────────────────────────────────────────────────
 
     @Test
-    fun `renderChapterHtml applies bold CSS to riffle-hl span when emphasisByCfi matches`() {
-        val annotation = hl("h1", "Some bold text", spineIndex = 0)
+    fun `renderChapterHtml applies bold CSS to riffle-hl span when entity emphasisStyles is set`() {
+        val annotation = hl("h1", "Some bold text", spineIndex = 0, emphasisStyles = "bold")
         val chapter = ChapterElision("ch0.xhtml", "Ch", listOf(annotation))
-        val emphasisByCfi = mapOf(annotation.cfi to setOf(EmphasisStyle.BOLD))
-        val html = factory.renderChapterHtml(chapter, emphasisByCfi = emphasisByCfi)
+        val html = factory.renderChapterHtml(chapter)
         assertTrue(
-            "riffle-hl span must carry bold CSS when emphasis is set, got: $html",
-            html.contains("class=\"riffle-hl\" data-ann-id=\"h1\" style=\"font-weight:bold !important;\""),
+            "riffle-hl span must carry bold CSS when emphasisStyles on entity is 'bold', got: $html",
+            html.contains("class=\"riffle-hl\" data-ann-id=\"h1\" style=\"font-weight:bold\""),
         )
     }
 
@@ -565,7 +563,7 @@ class HighlightsPublicationFactoryTest {
     fun `renderChapterHtml does not add style attribute to riffle-hl span when no emphasis`() {
         val annotation = hl("h2", "Plain text", spineIndex = 0)
         val chapter = ChapterElision("ch0.xhtml", "Ch", listOf(annotation))
-        val html = factory.renderChapterHtml(chapter, emphasisByCfi = emptyMap())
+        val html = factory.renderChapterHtml(chapter)
         assertTrue(
             "riffle-hl span must NOT carry a style attribute when no emphasis, got: $html",
             html.contains("class=\"riffle-hl\" data-ann-id=\"h2\">"),
@@ -573,32 +571,27 @@ class HighlightsPublicationFactoryTest {
     }
 
     @Test
-    fun `renderChapterHtml applies italic and underline together`() {
-        val annotation = hl("h3", "Italic underlined", spineIndex = 0)
+    fun `renderChapterHtml applies italic and underline together from entity emphasisStyles`() {
+        val annotation = hl("h3", "Italic underlined", spineIndex = 0, emphasisStyles = "italic,underline")
         val chapter = ChapterElision("ch0.xhtml", "Ch", listOf(annotation))
-        val emphasisByCfi = mapOf(
-            annotation.cfi to setOf(EmphasisStyle.ITALIC, EmphasisStyle.UNDERLINE),
-        )
-        val html = factory.renderChapterHtml(chapter, emphasisByCfi = emphasisByCfi)
-        assertTrue("must include italic", html.contains("font-style:italic !important;"))
+        val html = factory.renderChapterHtml(chapter)
+        assertTrue("must include italic", html.contains("font-style:italic"))
         assertTrue("must include underline in text-decoration", html.contains("underline"))
     }
 
     @Test
-    fun `buildHandle renders emphasis on initial HTML when emphasisByCfi supplied`() {
-        val annotation = hl("h4", "Strike text", spineIndex = 0)
-        val emphasisByCfi = mapOf(annotation.cfi to setOf(EmphasisStyle.STRIKE))
+    fun `build renders emphasis on initial HTML when entity emphasisStyles is set`() {
+        val annotation = hl("h4", "Strike text", spineIndex = 0, emphasisStyles = "strike")
         val pub = factory.build(
             sourceId = "S1",
             itemId = "B1",
             bookTitle = null,
             chapters = listOf(ChapterElision("ch0.xhtml", "Ch", listOf(annotation))),
             urlFactory = ::testUrlFactory,
-            emphasisByCfi = emphasisByCfi,
         )
         val html = readChapterHtml(pub, index = 0)
         assertTrue(
-            "initial HTML from buildHandle must apply emphasis from emphasisByCfi, got: $html",
+            "initial HTML from build must apply emphasis from entity emphasisStyles, got: $html",
             html.contains("line-through"),
         )
     }

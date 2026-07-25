@@ -118,9 +118,8 @@ class HighlightsPublicationFactory @Inject constructor() {
         urlFactory: (String) -> Url? = { Url(it) },
         resourceFetcher: ResourceFetcher = ResourceFetcher { null },
         bookBodyFontFamily: String? = null,
-        emphasisByCfi: Map<String, Set<EmphasisStyle>> = emptyMap(),
     ): Publication =
-        buildHandle(sourceId, itemId, bookTitle, chapters, urlFactory, resourceFetcher, bookBodyFontFamily, emphasisByCfi)
+        buildHandle(sourceId, itemId, bookTitle, chapters, urlFactory, resourceFetcher, bookBodyFontFamily)
             .publication
 
     /**
@@ -142,7 +141,6 @@ class HighlightsPublicationFactory @Inject constructor() {
         urlFactory: (String) -> Url? = { Url(it) },
         resourceFetcher: ResourceFetcher = ResourceFetcher { null },
         bookBodyFontFamily: String? = null,
-        emphasisByCfi: Map<String, Set<EmphasisStyle>> = emptyMap(),
     ): HighlightsPublicationHandle {
         val nonEmptyChapters = chapters.filter { it.highlights.isNotEmpty() }
 
@@ -204,7 +202,7 @@ class HighlightsPublicationFactory @Inject constructor() {
             val href = "highlights/ch$index.xhtml"
             val url = requireNotNull(urlFactory(href)) { "Failed to build synthetic Url for $href" }
             entries[url] = renderChapterHtml(
-                chapter, bookBodyFontFamily, dataUriByHref, publisherFontFaceCss, emphasisByCfi,
+                chapter, bookBodyFontFamily, dataUriByHref, publisherFontFaceCss,
             ).toByteArray(Charsets.UTF_8)
             chapterUrls[chapter.href] = url
             readingOrder += Link(
@@ -272,7 +270,6 @@ class HighlightsPublicationFactory @Inject constructor() {
         bookBodyFontFamily: String? = null,
         dataUriByHref: Map<String, String> = emptyMap(),
         publisherFontFaceCss: String = "",
-        emphasisByCfi: Map<String, Set<EmphasisStyle>> = emptyMap(),
     ): String {
         val body = buildString {
             for (annotation in chapter.highlights) {
@@ -287,9 +284,8 @@ class HighlightsPublicationFactory @Inject constructor() {
                         // whole highlight falls back to "text first, then figures" — the v1
                         // behaviour matches what shipped before offsets existed. See
                         // appendInterleavedHighlight's KDoc.
-                        val emphasisStyles = emphasisByCfi[annotation.cfi] ?: emptySet()
                         appendInterleavedHighlight(
-                            this, annotation, bookBodyFontFamily, dataUriByHref, emphasisStyles,
+                            this, annotation, bookBodyFontFamily, dataUriByHref,
                         )
                     }
                 }
@@ -390,7 +386,6 @@ private fun appendInterleavedHighlight(
     highlight: com.riffle.core.database.AnnotationEntity,
     bookBodyFontFamily: String?,
     dataUriByHref: Map<String, String> = emptyMap(),
-    emphasisStyles: Set<EmphasisStyle> = emptySet(),
 ) {
     val figures = highlight.decodedEmbeddedFigures()?.sortedBy { it.order }.orEmpty()
     val normalizedSnippetOuter = com.riffle.app.feature.reader.normalizeCaptionText(highlight.textSnippet)
@@ -421,10 +416,10 @@ private fun appendInterleavedHighlight(
             )
         if (isCaptionHighlight) {
             appendFigureBlock(sb, singleFigure!!.copy(caption = ""), highlight.id, highlight.color, dataUriByHref)
-            appendTextHighlight(sb, highlight, bookBodyFontFamily, emphasisStyles)
+            appendTextHighlight(sb, highlight, bookBodyFontFamily)
             return
         }
-        appendTextHighlight(sb, highlight, bookBodyFontFamily, emphasisStyles)
+        appendTextHighlight(sb, highlight, bookBodyFontFamily)
         figures.forEach { fig ->
             val effective = if (
                 fig.caption.isNotBlank() &&
@@ -442,7 +437,7 @@ private fun appendInterleavedHighlight(
     // Emit alternating: chunk[0], figure[0], chunk[1], figure[1], ..., chunk[last].
     chunks.forEachIndexed { index, chunk ->
         if (chunk.isNotEmpty()) {
-            appendHighlightTextChunk(sb, highlight, chunk, bookBodyFontFamily, emphasisStyles)
+            appendHighlightTextChunk(sb, highlight, chunk, bookBodyFontFamily)
         }
         figures.getOrNull(index)?.let { fig ->
             // Caption-highlight dedup: when the figure's own caption is identical to the highlight's
@@ -484,7 +479,6 @@ private fun appendHighlightTextChunk(
     highlight: com.riffle.core.database.AnnotationEntity,
     chunk: String,
     bookBodyFontFamily: String?,
-    emphasisStyles: Set<EmphasisStyle> = emptySet(),
 ) {
     val accent = if (highlight.color.isNotBlank()) highlightBackgroundCss(highlight.color)
                  else EMPHASIS_ONLY_BAR_COLOR
@@ -505,12 +499,7 @@ private fun appendHighlightTextChunk(
     sb.append("?l='+x+'&amp;t='+y+'&amp;r='+(x+1)+'&amp;b='+(y+1);return false;\"></span><span class=\"riffle-hl\" data-ann-id=\"")
     sb.append(idEscaped)
     sb.append("\"")
-    val emphasisCss = buildEmphasisInlineCss(emphasisStyles)
-    if (emphasisCss.isNotEmpty()) {
-        sb.append(" style=\"")
-        sb.append(emphasisCss.xmlEscape())
-        sb.append("\"")
-    }
+    appendEmphasisStyleAttr(sb, highlight.emphasisStyles)
     sb.append(">")
     sb.append(chunk.xmlEscape())
     sb.append("</span></p>\n")
@@ -526,7 +515,6 @@ private fun appendTextHighlight(
     sb: StringBuilder,
     highlight: AnnotationEntity,
     bookBodyFontFamily: String?,
-    emphasisStyles: Set<EmphasisStyle> = emptySet(),
 ) {
     // The highlight is presented as a left accent bar in the palette colour, matching
     // Riffle's [Book Search] results card style — the text itself renders in the
@@ -558,15 +546,11 @@ private fun appendTextHighlight(
     sb.append("?l='+x+'&amp;t='+y+'&amp;r='+(x+1)+'&amp;b='+(y+1);return false;\"></span><span class=\"riffle-hl\" data-ann-id=\"")
     sb.append(idEscaped)
     sb.append("\"")
-    val emphasisCss = buildEmphasisInlineCss(emphasisStyles)
-    if (emphasisCss.isNotEmpty()) {
-        sb.append(" style=\"")
-        sb.append(emphasisCss.xmlEscape())
-        sb.append("\"")
-    }
+    appendEmphasisStyleAttr(sb, highlight.emphasisStyles)
     sb.append(">")
-    // Prefer the captured inline-formatted HTML so publisher <em>/<i>/<strong>/<b>/<sup>/<sub>/
-    // <u>/<s> spans render in the excerpt. Sanitised defensively at render time. Legacy rows
+    // Prefer the captured inline-formatted HTML (issue: elided-view drops italics) so publisher
+    // <em>/<i>/<strong>/<b>/<sup>/<sub>/<u>/<s> spans render in the excerpt. Sanitised defensively
+    // at render time — the DB is not a trust boundary and the extractor may evolve. Legacy rows
     // (null column, W3C sync ingest) fall back to the plain textSnippet render.
     val inlineHtml = highlight.textSnippetHtml
     if (inlineHtml != null) {
