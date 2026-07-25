@@ -205,7 +205,7 @@ class GitHubReleaseApiTest {
                     "assets": [] }
                 ]
                 """.trimIndent()
-            )
+            ).addHeader("Content-Type", "application/json")
         )
 
         val releases = api.listReleases("pkmetski/riffle")
@@ -221,7 +221,7 @@ class GitHubReleaseApiTest {
 
     @Test
     fun `listReleases returns empty list when response is empty`() = runTest {
-        server.enqueue(MockResponse().setBody("[]"))
+        server.enqueue(MockResponse().setBody("[]").addHeader("Content-Type", "application/json"))
         assertEquals(emptyList<GitHubRelease>(), api.listReleases("pkmetski/riffle"))
     }
 
@@ -241,7 +241,7 @@ class GitHubReleaseApiTest {
                     "assets": [] }
                 ]
                 """.trimIndent()
-            )
+            ).addHeader("Content-Type", "application/json")
         )
 
         val releases = api.listReleases("pkmetski/riffle")
