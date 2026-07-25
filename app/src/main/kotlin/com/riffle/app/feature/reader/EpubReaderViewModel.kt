@@ -2135,12 +2135,11 @@ class EpubReaderViewModel @Inject constructor(
             progression = mergedFields.progression,
             embeddedFigures = mergedFields.embeddedFigures,
             originFontFamily = draft.originFontFamily,
-            // Only carry inline-formatted HTML when this is a plain (non-overlap-merge) create.
-            // On an overlap-merge, textSnippet is a concatenation across the union of ranges and
-            // the draft's HTML only covers the current selection — grafting it in would misalign
-            // formatting against the wider text. Fall back to plaintext render for merges; the
-            // dominant case (no overlap) still gets italics preserved.
-            textSnippetHtml = if (overlapMerge == null) draft.textSnippetHtml else null,
+            // Only carry inline-formatted HTML when this is a plain (no-merge) create. On any
+            // merge (overlap or adjacency), textSnippet spans more than the draft's original
+            // selection and the draft's HTML only covers the narrow selection — grafting it in
+            // would misalign formatting against the wider text.
+            textSnippetHtml = if (overlapMerge == null && adjacentMerge == null) draft.textSnippetHtml else null,
         )
         val presetStyles = annotationSession.lastUsedEmphasisStyles.value
         val combinedStyles = combineDraftEmphasisStyles(presetStyles, addEmphasisStyle)
