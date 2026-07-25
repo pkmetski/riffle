@@ -75,6 +75,7 @@ private const val SELECT_LIBRARIES = "select_libraries"
 private const val SETTINGS = "settings"
 private const val READALOUD_SETTINGS = "settings/readaloud"
 private const val ANNOTATIONS_SYNC_SETTINGS = "settings/annotation_sync"
+private const val CHANGELOG = "settings/changelog"
 private const val ANNOTATION_SYNC_MAINTENANCE = "settings/annotation_sync/maintenance"
 private const val DEBUG_LOGS = "settings/debug_logs"
 private const val READALOUD_MATCHES = "readaloud_matches/{sourceId}?pairBookId={pairBookId}"
@@ -385,7 +386,7 @@ fun MainScreen(
                     // Sync → Configure WebDAV). All three should pop back to the caller when
                     // done; only cold entry (e.g. deep link) falls through to Home.
                     val cameFromSettings = navController.previousBackStackEntry
-                        ?.destination?.route in setOf(SETTINGS, READALOUD_SETTINGS, ANNOTATIONS_SYNC_SETTINGS)
+                        ?.destination?.route in setOf(SETTINGS, READALOUD_SETTINGS, ANNOTATIONS_SYNC_SETTINGS, CHANGELOG)
                     AddSourceScreen(
                         windowSizeClass = windowSizeClass,
                         onNavigateBack = {
@@ -445,6 +446,7 @@ fun MainScreen(
                     onNavigateToReadaloudSettings = { navController.navigate(READALOUD_SETTINGS) },
                     onNavigateToAnnotationsSyncSettings = { navController.navigate(ANNOTATIONS_SYNC_SETTINGS) },
                     onNavigateToDebugLogs = { navController.navigate(DEBUG_LOGS) },
+                    onNavigateToChangelog = { navController.navigate(CHANGELOG) },
                 )
             }
             composable(READALOUD_SETTINGS) { backStackEntry ->
@@ -471,6 +473,11 @@ fun MainScreen(
                         navController.navigate("readaloud_matches/$encoded")
                     },
                     viewModel = settingsVm,
+                )
+            }
+            composable(CHANGELOG) {
+                com.riffle.app.feature.update.ChangelogScreen(
+                    onNavigateBack = { navController.popBackStack() },
                 )
             }
             composable(ANNOTATIONS_SYNC_SETTINGS) { backStackEntry ->

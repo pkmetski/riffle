@@ -7,7 +7,6 @@ import com.riffle.core.domain.AppTheme
 import com.riffle.core.domain.AppThemeStore
 import com.riffle.core.domain.AppUpdatePreferencesStore
 import com.riffle.core.domain.AppUpdateRepository
-import com.riffle.core.domain.ReleaseInfo
 import com.riffle.core.domain.ConnectivityObserver
 import com.riffle.core.models.CrashReport
 import com.riffle.core.domain.CrashReportRepository
@@ -174,8 +173,6 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch { appUpdatePreferencesStore.setAutoUpdateEnabled(value) }
     }
 
-    private val _releaseHistory = MutableStateFlow<List<ReleaseInfo>>(emptyList())
-    val releaseHistory: StateFlow<List<ReleaseInfo>> = _releaseHistory.asStateFlow()
 
     private val _appUpdateState = MutableStateFlow<AppUpdateUiState>(AppUpdateUiState.Idle)
     val appUpdateState: StateFlow<AppUpdateUiState> = _appUpdateState.asStateFlow()
@@ -347,9 +344,6 @@ class SettingsViewModel @Inject constructor(
                         _serverVersions.value = versionsCache.toMap()
                     }
                 }
-        }
-        viewModelScope.launch {
-            _releaseHistory.value = appUpdateRepository.listReleasesSince(0)
         }
     }
 

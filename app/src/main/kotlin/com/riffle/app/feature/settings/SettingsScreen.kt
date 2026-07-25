@@ -38,7 +38,6 @@ import com.riffle.app.feature.settings.panels.FormattingSettingsPanel
 import com.riffle.app.feature.settings.panels.ListeningPreferencesPanel
 import com.riffle.app.feature.settings.sections.AnnotationsSyncSection
 import com.riffle.app.feature.settings.sections.AppVersionSection
-import com.riffle.app.feature.settings.sections.ChangelogSection
 import com.riffle.app.feature.settings.sections.AppearanceSection
 import com.riffle.app.feature.settings.sections.DiagnosticsSection
 import com.riffle.app.feature.settings.sections.ListeningSection
@@ -70,6 +69,7 @@ fun SettingsScreen(
     onNavigateToReadaloudSettings: () -> Unit = {},
     onNavigateToAnnotationsSyncSettings: () -> Unit = {},
     onNavigateToDebugLogs: () -> Unit = {},
+    onNavigateToChangelog: () -> Unit = {},
     viewModel: SettingsViewModel = hiltViewModel(),
 ) {
     val crashReports by viewModel.crashReports.collectAsState()
@@ -88,7 +88,6 @@ fun SettingsScreen(
     val readaloudSummaries by viewModel.readaloudSummaries.collectAsState()
     val appUpdateState by viewModel.appUpdateState.collectAsState()
     val autoUpdateEnabled by viewModel.autoUpdateEnabled.collectAsState()
-    val releaseHistory by viewModel.releaseHistory.collectAsState()
     val defaultPlaybackSpeed by viewModel.defaultPlaybackSpeed.collectAsState()
     val skipIntervalSeconds by viewModel.skipIntervalSeconds.collectAsState()
     val rewindIntervalSeconds by viewModel.rewindIntervalSeconds.collectAsState()
@@ -214,9 +213,8 @@ fun SettingsScreen(
                     onCheckForUpdate = viewModel::checkForUpdate,
                     onInstallUpdate = viewModel::downloadAndInstallUpdate,
                     onSetAutoUpdateEnabled = viewModel::setAutoUpdateEnabled,
+                    onNavigateToChangelog = onNavigateToChangelog,
                 )
-                HorizontalDivider()
-                ChangelogSection(releases = releaseHistory)
                 HorizontalDivider()
             }
         }
