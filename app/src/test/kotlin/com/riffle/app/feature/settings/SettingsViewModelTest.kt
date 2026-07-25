@@ -218,6 +218,15 @@ class SettingsViewModelTest {
         override fun downloadAndInstall(update: com.riffle.core.domain.AvailableUpdate):
             Flow<com.riffle.core.domain.UpdateDownloadState> = kotlinx.coroutines.flow.emptyFlow()
         override fun sweepStaleApks() = Unit
+        override suspend fun listReleasesSince(sinceVersionCode: Int): List<com.riffle.core.domain.ReleaseInfo> = emptyList()
+    }
+
+    private val autoUpdateEnabledFlow = MutableStateFlow(true)
+    private val fakeAppUpdatePreferencesStore = object : com.riffle.core.domain.AppUpdatePreferencesStore {
+        override val autoUpdateEnabled: Flow<Boolean> = autoUpdateEnabledFlow
+        override val ignoredVersionCode: Flow<Int> = MutableStateFlow(0)
+        override suspend fun setAutoUpdateEnabled(value: Boolean) { autoUpdateEnabledFlow.value = value }
+        override suspend fun setIgnoredVersionCode(value: Int) {}
     }
 
     private val reviewsFlow = MutableStateFlow<Map<String, ReadaloudReview>>(emptyMap())
@@ -250,6 +259,7 @@ class SettingsViewModelTest {
         readaloudReviewRepository = fakeReviewRepo,
         connectivityObserver = fakeConnectivity,
         appUpdateRepository = fakeAppUpdateRepo,
+        appUpdatePreferencesStore = fakeAppUpdatePreferencesStore,
         readaloudPreferencesStore = fakeReadaloudStore,
         annotationSyncConfigStore = object : AnnotationSyncConfigStore {
             override fun observe() = MutableStateFlow<AnnotationSyncConfig?>(null)
@@ -341,6 +351,7 @@ class SettingsViewModelTest {
         readaloudReviewRepository = fakeReviewRepo,
         connectivityObserver = fakeConnectivity,
         appUpdateRepository = fakeAppUpdateRepo,
+        appUpdatePreferencesStore = fakeAppUpdatePreferencesStore,
         readaloudPreferencesStore = fakeReadaloudStore,
         annotationSyncConfigStore = configStore,
         annotationSyncStatusStore = statusStore,
@@ -938,4 +949,21 @@ class SettingsViewModelTest {
         assertTrue("sub should mention Offline", row.sub.contains("Offline"))
         assertEquals(AnnotationSyncRowState.Tone.Pending, row.subTone)
     }
+
+    // --- auto-update prefs ---
+
+    @Test
+    fun `setAutoUpdateEnabled persists to store`() = runTest {
+        val vm = makeViewModel()
+        // Subscribe so the WhileSubscribed StateFlow starts collecting.
+        backgroundScope.launch { vm.autoUpdateEnabled.collect {} }
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        vm.setAutoUpdateEnabled(false)
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertFalse(vm.autoUpdateEnabled.value)
+        assertFalse(autoUpdateEnabledFlow.value)
+    }
+
 }

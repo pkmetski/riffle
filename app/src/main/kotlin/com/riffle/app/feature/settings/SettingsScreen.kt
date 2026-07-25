@@ -69,6 +69,7 @@ fun SettingsScreen(
     onNavigateToReadaloudSettings: () -> Unit = {},
     onNavigateToAnnotationsSyncSettings: () -> Unit = {},
     onNavigateToDebugLogs: () -> Unit = {},
+    onNavigateToChangelog: () -> Unit = {},
     viewModel: SettingsViewModel = hiltViewModel(),
 ) {
     val crashReports by viewModel.crashReports.collectAsState()
@@ -86,6 +87,7 @@ fun SettingsScreen(
     val libraryItemsBySource by viewModel.libraryUiItemsBySource.collectAsState()
     val readaloudSummaries by viewModel.readaloudSummaries.collectAsState()
     val appUpdateState by viewModel.appUpdateState.collectAsState()
+    val autoUpdateEnabled by viewModel.autoUpdateEnabled.collectAsState()
     val defaultPlaybackSpeed by viewModel.defaultPlaybackSpeed.collectAsState()
     val skipIntervalSeconds by viewModel.skipIntervalSeconds.collectAsState()
     val rewindIntervalSeconds by viewModel.rewindIntervalSeconds.collectAsState()
@@ -207,8 +209,11 @@ fun SettingsScreen(
                 AppVersionSection(
                     installedVersionName = viewModel.installedVersionName,
                     state = appUpdateState,
+                    autoUpdateEnabled = autoUpdateEnabled,
                     onCheckForUpdate = viewModel::checkForUpdate,
                     onInstallUpdate = viewModel::downloadAndInstallUpdate,
+                    onSetAutoUpdateEnabled = viewModel::setAutoUpdateEnabled,
+                    onNavigateToChangelog = onNavigateToChangelog,
                 )
                 HorizontalDivider()
             }

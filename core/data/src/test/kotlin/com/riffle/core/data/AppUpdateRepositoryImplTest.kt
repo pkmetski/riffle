@@ -1,6 +1,7 @@
 package com.riffle.core.data
 
 import com.riffle.core.data.AppUpdateRepositoryImpl.Companion.evaluate
+import com.riffle.core.data.AppUpdateRepositoryImpl.Companion.listReleasesSince
 import com.riffle.core.data.AppUpdateRepositoryImpl.Companion.versionCodeOf
 import com.riffle.core.domain.UpdateCheckResult
 import com.riffle.core.network.GitHubRelease
@@ -58,5 +59,62 @@ class AppUpdateRepositoryImplTest {
         val result = evaluate(10400, release)
 
         assertTrue(result is UpdateCheckResult.Failed)
+    }
+
+    // --- listReleasesSince ---
+
+    private fun release(tag: String, body: String = "", apkUrl: String = "https://x/$tag.apk", size: Long = 1000L) =
+        GitHubRelease(tagName = tag, apkUrl = apkUrl, apkSizeBytes = size, body = body)
+
+    @Test
+    fun `listReleasesSince returns only releases newer than sinceVersionCode`() {
+        val releases = listOf(
+            release("v1.6.0", "Notes 1.6"),
+            release("v1.5.0", "Notes 1.5"),
+            release("v1.4.0", "Notes 1.4"),
+        )
+
+        val result = listReleasesSince(releases, sinceVersionCode = 10500)
+
+        assertEquals(1, result.size)
+        assertEquals("1.6.0", result[0].versionName)
+        assertEquals(10600, result[0].versionCode)
+        assertEquals("Notes 1.6", result[0].changelog)
+        assertEquals("https://x/v1.6.0.apk", result[0].downloadUrl)
+        assertEquals(1000L, result[0].sizeBytes)
+    }
+
+    @Test
+    fun `listReleasesSince with sinceVersionCode 0 returns all parseable releases`() {
+        val releases = listOf(
+            release("v1.5.0", "Notes 1.5"),
+            release("v1.4.0", "Notes 1.4"),
+        )
+
+        val result = listReleasesSince(releases, sinceVersionCode = 0)
+
+        assertEquals(2, result.size)
+    }
+
+    @Test
+    fun `listReleasesSince skips releases with unparseable tags`() {
+        val releases = listOf(
+            release("nightly"),
+            release("v1.5.0", "Notes"),
+        )
+
+        val result = listReleasesSince(releases, sinceVersionCode = 0)
+
+        assertEquals(1, result.size)
+        assertEquals("1.5.0", result[0].versionName)
+    }
+
+    @Test
+    fun `listReleasesSince returns empty when nothing is newer`() {
+        val releases = listOf(release("v1.4.0"))
+
+        val result = listReleasesSince(releases, sinceVersionCode = 10500)
+
+        assertTrue(result.isEmpty())
     }
 }

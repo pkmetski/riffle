@@ -63,6 +63,34 @@ class GitHubReleaseApi(
     }
 
     /**
+     * Fetches up to 20 non-draft, non-prerelease releases for [repo], newest first. Releases without
+     * an APK asset are included (apkUrl = "", apkSizeBytes = 0) so changelogs remain visible even
+     * before the build workflow finishes. Returns an empty list on any network or HTTP error.
+     */
+    suspend fun listReleases(repo: String): List<GitHubRelease> =
+        try {
+            val response = httpClient.get("$apiBaseUrl/repos/$repo/releases?per_page=20") {
+                header(HttpHeaders.Accept, "application/vnd.github+json")
+                header(HttpHeaders.CacheControl, "no-cache, no-store")
+            }
+            if (!response.status.isSuccess()) return emptyList()
+            val parsed = response.body<List<ReleaseResponse>>()
+            parsed
+                .filter { !it.draft && !it.prerelease }
+                .map { release ->
+                    val apk = release.assets.firstOrNull { it.name.endsWith(".apk", ignoreCase = true) }
+                    GitHubRelease(
+                        tagName = release.tagName,
+                        apkUrl = apk?.downloadUrl ?: "",
+                        apkSizeBytes = apk?.size ?: 0L,
+                        body = release.body,
+                    )
+                }
+        } catch (e: IOException) {
+            emptyList()
+        }
+
+    /**
      * Streams [url] into [dest], reporting whole-percent progress. Returns true on success. On any
      * failure [dest] is deleted, so a truncated APK is never handed to the installer.
      */
@@ -109,6 +137,7 @@ data class GitHubRelease(
     val tagName: String,
     val apkUrl: String,
     val apkSizeBytes: Long,
+    val body: String = "",
 )
 
 @Serializable
@@ -117,6 +146,7 @@ private data class ReleaseResponse(
     val draft: Boolean = false,
     val prerelease: Boolean = false,
     val assets: List<AssetResponse> = emptyList(),
+    val body: String = "",
 )
 
 @Serializable

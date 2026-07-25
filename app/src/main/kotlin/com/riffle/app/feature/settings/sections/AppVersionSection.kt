@@ -1,15 +1,18 @@
 package com.riffle.app.feature.settings.sections
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ListItem
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.riffle.app.feature.settings.AppUpdateUiState
+import com.riffle.app.feature.settings.DrillInChevron
 import com.riffle.app.feature.settings.SettingsSectionHeader
 
 /**
@@ -20,8 +23,11 @@ import com.riffle.app.feature.settings.SettingsSectionHeader
 internal fun AppVersionSection(
     installedVersionName: String,
     state: AppUpdateUiState,
+    autoUpdateEnabled: Boolean,
     onCheckForUpdate: () -> Unit,
     onInstallUpdate: () -> Unit,
+    onSetAutoUpdateEnabled: (Boolean) -> Unit,
+    onNavigateToChangelog: () -> Unit,
 ) {
     SettingsSectionHeader("App version")
     val supporting = when (state) {
@@ -55,5 +61,19 @@ internal fun AppVersionSection(
                     TextButton(onClick = onCheckForUpdate) { Text("Check for updates") }
             }
         },
+    )
+    ListItem(
+        headlineContent = { Text("Check for updates on startup") },
+        trailingContent = {
+            Switch(
+                checked = autoUpdateEnabled,
+                onCheckedChange = onSetAutoUpdateEnabled,
+            )
+        },
+    )
+    ListItem(
+        headlineContent = { Text("Release history") },
+        trailingContent = { DrillInChevron() },
+        modifier = Modifier.clickable(onClick = onNavigateToChangelog),
     )
 }

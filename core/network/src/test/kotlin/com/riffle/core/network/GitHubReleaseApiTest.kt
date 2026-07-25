@@ -189,6 +189,69 @@ class GitHubReleaseApiTest {
         assertFalse(dest.exists())
     }
 
+    @Test
+    fun `listReleases returns all non-draft non-prerelease entries with bodies`() = runTest {
+        server.enqueue(
+            MockResponse().setBody(
+                """
+                [
+                  { "tag_name": "v1.6.0", "draft": false, "prerelease": false, "body": "### What's new\n- Feature A",
+                    "assets": [{ "name": "riffle-1.6.0.apk", "browser_download_url": "https://x/1.6.0.apk", "size": 5000 }] },
+                  { "tag_name": "v1.5.0-rc1", "draft": false, "prerelease": true, "body": "RC notes",
+                    "assets": [{ "name": "riffle-1.5.0-rc1.apk", "browser_download_url": "https://x/rc.apk", "size": 1 }] },
+                  { "tag_name": "v1.5.0", "draft": false, "prerelease": false, "body": "### Fixes\n- Bug fix",
+                    "assets": [{ "name": "riffle-1.5.0.apk", "browser_download_url": "https://x/1.5.0.apk", "size": 4200 }] },
+                  { "tag_name": "v1.4.0-draft", "draft": true, "prerelease": false, "body": "Draft",
+                    "assets": [] }
+                ]
+                """.trimIndent()
+            ).addHeader("Content-Type", "application/json")
+        )
+
+        val releases = api.listReleases("pkmetski/riffle")
+
+        assertEquals(2, releases.size)
+        assertEquals("v1.6.0", releases[0].tagName)
+        assertEquals("### What's new\n- Feature A", releases[0].body)
+        assertEquals("https://x/1.6.0.apk", releases[0].apkUrl)
+        assertEquals(5000L, releases[0].apkSizeBytes)
+        assertEquals("v1.5.0", releases[1].tagName)
+        assertEquals("### Fixes\n- Bug fix", releases[1].body)
+    }
+
+    @Test
+    fun `listReleases returns empty list when response is empty`() = runTest {
+        server.enqueue(MockResponse().setBody("[]").addHeader("Content-Type", "application/json"))
+        assertEquals(emptyList<GitHubRelease>(), api.listReleases("pkmetski/riffle"))
+    }
+
+    @Test
+    fun `listReleases returns empty list on HTTP error`() = runTest {
+        server.enqueue(MockResponse().setResponseCode(500).setBody("error"))
+        assertEquals(emptyList<GitHubRelease>(), api.listReleases("pkmetski/riffle"))
+    }
+
+    @Test
+    fun `listReleases includes releases without an apk asset with empty url`() = runTest {
+        server.enqueue(
+            MockResponse().setBody(
+                """
+                [
+                  { "tag_name": "v1.6.0", "draft": false, "prerelease": false, "body": "Notes",
+                    "assets": [] }
+                ]
+                """.trimIndent()
+            ).addHeader("Content-Type", "application/json")
+        )
+
+        val releases = api.listReleases("pkmetski/riffle")
+
+        assertEquals(1, releases.size)
+        assertEquals("", releases[0].apkUrl)
+        assertEquals(0L, releases[0].apkSizeBytes)
+        assertEquals("Notes", releases[0].body)
+    }
+
     // Regression: verified on AVD that GitHub sends `Cache-Control: max-age=60` on its releases
     // response, so without FORCE_NETWORK on the request the shared default OkHttp cache serves the
     // previous response for up to 60s — silently no-op'ing a re-tap of the Settings "Check for

@@ -6,6 +6,7 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import com.riffle.core.domain.AppTheme
 import com.riffle.core.domain.AppThemeStore
+import com.riffle.core.domain.AppUpdatePreferencesStore
 import com.riffle.core.domain.CoverGridDensityStore
 import com.riffle.core.domain.EmphasisPreferencesStore
 import com.riffle.core.models.EmphasisStyle
@@ -131,6 +132,17 @@ fun EmphasisPreferencesStore(dataStore: DataStore<Preferences>): EmphasisPrefere
         override suspend fun setLastUsedStyles(sourceId: String, itemId: String, value: Set<EmphasisStyle>) {
             dataStore.edit { it[emphasisStylesPrefKey(sourceId, itemId)] = EmphasisStyle.encode(value) ?: "" }
         }
+    }
+}
+
+fun AppUpdatePreferencesStore(dataStore: DataStore<Preferences>): AppUpdatePreferencesStore {
+    val autoUpdateStore = preferenceStore(dataStore, PrefCodecs.boolean("auto_update_enabled", default = true))
+    val ignoredVersionStore = preferenceStore(dataStore, PrefCodecs.int("ignored_version_code", default = 0))
+    return object : AppUpdatePreferencesStore {
+        override val autoUpdateEnabled = autoUpdateStore.flow
+        override val ignoredVersionCode = ignoredVersionStore.flow
+        override suspend fun setAutoUpdateEnabled(value: Boolean) = autoUpdateStore.update(value)
+        override suspend fun setIgnoredVersionCode(value: Int) = ignoredVersionStore.update(value)
     }
 }
 

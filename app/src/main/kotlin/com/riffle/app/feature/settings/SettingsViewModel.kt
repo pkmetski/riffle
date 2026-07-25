@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.riffle.app.BuildConfig
 import com.riffle.core.domain.AppTheme
 import com.riffle.core.domain.AppThemeStore
+import com.riffle.core.domain.AppUpdatePreferencesStore
 import com.riffle.core.domain.AppUpdateRepository
 import com.riffle.core.domain.ConnectivityObserver
 import com.riffle.core.models.CrashReport
@@ -80,6 +81,7 @@ class SettingsViewModel @Inject constructor(
     private val readaloudReviewRepository: ReadaloudReviewRepository,
     private val connectivityObserver: ConnectivityObserver,
     private val appUpdateRepository: AppUpdateRepository,
+    private val appUpdatePreferencesStore: AppUpdatePreferencesStore,
     private val readaloudPreferencesStore: ReadaloudPreferencesStore,
     private val localFilesFolderDao: LocalFilesFolderDao,
     private val localFilesFolderRepository: LocalFilesFolderRepository,
@@ -163,6 +165,14 @@ class SettingsViewModel @Inject constructor(
 
     /** The currently installed app version, shown as the update row's subtitle. */
     val installedVersionName: String = BuildConfig.VERSION_NAME
+
+    val autoUpdateEnabled: StateFlow<Boolean> = appUpdatePreferencesStore.autoUpdateEnabled
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), true)
+
+    fun setAutoUpdateEnabled(value: Boolean) {
+        viewModelScope.launch { appUpdatePreferencesStore.setAutoUpdateEnabled(value) }
+    }
+
 
     private val _appUpdateState = MutableStateFlow<AppUpdateUiState>(AppUpdateUiState.Idle)
     val appUpdateState: StateFlow<AppUpdateUiState> = _appUpdateState.asStateFlow()
