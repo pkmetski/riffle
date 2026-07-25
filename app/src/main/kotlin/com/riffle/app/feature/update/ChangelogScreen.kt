@@ -36,7 +36,7 @@ fun ChangelogScreen(
     onNavigateBack: () -> Unit,
     viewModel: ChangelogViewModel = hiltViewModel(),
 ) {
-    val releases by viewModel.releases.collectAsState()
+    val uiState by viewModel.state.collectAsState()
 
     Scaffold(
         topBar = {
@@ -50,23 +50,31 @@ fun ChangelogScreen(
             )
         },
     ) { padding ->
-        if (releases.isEmpty()) {
-            Box(
+        when (val state = uiState) {
+            is ChangelogUiState.Loading -> Box(
                 modifier = Modifier.fillMaxSize().padding(padding),
                 contentAlignment = Alignment.Center,
             ) {
                 CircularProgressIndicator(modifier = Modifier.size(32.dp))
             }
-        } else {
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(padding)
-                    .verticalScroll(rememberScrollState()),
-            ) {
-                releases.forEach { release ->
-                    ReleaseEntry(release)
-                    HorizontalDivider()
+            is ChangelogUiState.Loaded -> if (state.releases.isEmpty()) {
+                Box(
+                    modifier = Modifier.fillMaxSize().padding(padding),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text("No releases found.", style = MaterialTheme.typography.bodyMedium)
+                }
+            } else {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(padding)
+                        .verticalScroll(rememberScrollState()),
+                ) {
+                    state.releases.forEach { release ->
+                        ReleaseEntry(release)
+                        HorizontalDivider()
+                    }
                 }
             }
         }

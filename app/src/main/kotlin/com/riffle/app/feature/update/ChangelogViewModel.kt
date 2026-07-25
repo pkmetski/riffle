@@ -11,16 +11,21 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
+sealed interface ChangelogUiState {
+    data object Loading : ChangelogUiState
+    data class Loaded(val releases: List<ReleaseInfo>) : ChangelogUiState
+}
+
 @HiltViewModel
 class ChangelogViewModel @Inject constructor(
     private val appUpdateRepository: AppUpdateRepository,
 ) : ViewModel() {
-    private val _releases = MutableStateFlow<List<ReleaseInfo>>(emptyList())
-    val releases: StateFlow<List<ReleaseInfo>> = _releases.asStateFlow()
+    private val _state = MutableStateFlow<ChangelogUiState>(ChangelogUiState.Loading)
+    val state: StateFlow<ChangelogUiState> = _state.asStateFlow()
 
     init {
         viewModelScope.launch {
-            _releases.value = appUpdateRepository.listReleasesSince(0)
+            _state.value = ChangelogUiState.Loaded(appUpdateRepository.listReleasesSince(0))
         }
     }
 }

@@ -30,13 +30,13 @@ class ChangelogViewModelTest {
     private fun makeViewModel() = ChangelogViewModel(fakeRepo)
 
     @Test
-    fun `releases is empty before fetch completes`() = testScope.runTest {
+    fun `state is Loading before fetch completes`() = testScope.runTest {
         val vm = makeViewModel()
-        assertTrue(vm.releases.value.isEmpty())
+        assertTrue(vm.state.value is ChangelogUiState.Loading)
     }
 
     @Test
-    fun `releases populated from listReleasesSince(0)`() = testScope.runTest {
+    fun `state is Loaded with releases after fetch`() = testScope.runTest {
         releasesResult = listOf(
             ReleaseInfo("2.0.0", 20000, "Big release", "https://x", 1000L),
             ReleaseInfo("1.9.0", 19000, "Patch", "https://x", 1000L),
@@ -44,16 +44,18 @@ class ChangelogViewModelTest {
         val vm = makeViewModel()
         testDispatcher.scheduler.advanceUntilIdle()
 
-        assertEquals(2, vm.releases.value.size)
-        assertEquals("2.0.0", vm.releases.value[0].versionName)
+        val loaded = vm.state.value as ChangelogUiState.Loaded
+        assertEquals(2, loaded.releases.size)
+        assertEquals("2.0.0", loaded.releases[0].versionName)
     }
 
     @Test
-    fun `releases is empty when repo returns empty list`() = testScope.runTest {
+    fun `state is Loaded with empty list when repo returns nothing`() = testScope.runTest {
         releasesResult = emptyList()
         val vm = makeViewModel()
         testDispatcher.scheduler.advanceUntilIdle()
 
-        assertTrue(vm.releases.value.isEmpty())
+        val loaded = vm.state.value as ChangelogUiState.Loaded
+        assertTrue(loaded.releases.isEmpty())
     }
 }
