@@ -135,9 +135,10 @@ class AnnotationSyncControllerIntegrationTest {
         // Call syncOnOpen
         controller.syncOnOpen(serverId, namespace = serverId, itemId = itemId)
 
-        // Verify that AnnotationDao.upsert was called (at least once for each annotation)
-        // We expect 2 calls: one for ann-001, one for ann-002
-        coVerify(atLeast = 2) { annotationDao.upsert(any()) }
+        // Verify that AnnotationDao.upsertAll was called with both annotations in one batch
+        val upsertSlot1 = slot<List<AnnotationEntity>>()
+        coVerify { annotationDao.upsertAll(capture(upsertSlot1)) }
+        assertEquals(2, upsertSlot1.captured.size)
     }
 
     /**
@@ -340,7 +341,7 @@ class AnnotationSyncControllerIntegrationTest {
         nullTargetController.syncOnClose(serverId, namespace = serverId, itemId = itemId)
 
         // Verify AnnotationDao was never called
-        coVerify(exactly = 0) { annotationDao.upsert(any()) }
+        coVerify(exactly = 0) { annotationDao.upsertAll(any()) }
 
         // Verify file was not created
         val annotationSyncDir = File(filesDir, "annotation-sync")
@@ -389,13 +390,11 @@ class AnnotationSyncControllerIntegrationTest {
         // Call syncOnOpen
         controller.syncOnOpen(serverId, namespace = serverId, itemId = itemId)
 
-        // Verify only one annotation was upserted (from device-a, skipping device-b)
-        coVerify(exactly = 1) { annotationDao.upsert(any()) }
-
-        // Verify that the upserted annotation has the correct ID
-        val upsertSlot = slot<AnnotationEntity>()
-        coVerify { annotationDao.upsert(capture(upsertSlot)) }
-        assertEquals("ann-valid-001", upsertSlot.captured.id)
+        // Verify only one annotation was upserted in a single batch (from device-a, skipping device-b)
+        val upsertSlot = slot<List<AnnotationEntity>>()
+        coVerify { annotationDao.upsertAll(capture(upsertSlot)) }
+        assertEquals(1, upsertSlot.captured.size)
+        assertEquals("ann-valid-001", upsertSlot.captured.first().id)
     }
 
     /**
