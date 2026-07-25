@@ -172,9 +172,7 @@ internal class AnnotationMergeOrchestrator(
                 )
             }
 
-            for (entity in entities) {
-                annotationDao.upsert(entity)
-            }
+            annotationDao.upsertAll(entities)
             statusStore.report(CycleOutcome.Success(clock()))
             sentinelWriter.writeQuietly(target, namespace, sourceId)
         } catch (e: Exception) {

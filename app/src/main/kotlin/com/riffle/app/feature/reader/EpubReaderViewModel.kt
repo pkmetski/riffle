@@ -505,6 +505,23 @@ class EpubReaderViewModel @Inject constructor(
     // now live on [lifecycle] (issue #376). Reads route through lifecycle.publication.value and
     // lifecycle.matchedSync.value; teardown via lifecycle.onCleared().
     private val chapterHtmlCache = mutableMapOf<Int, String>()
+    private val chapterDocCache = mutableMapOf<Int, org.jsoup.nodes.Document>()
+    private val chapterTotalCharsCache = mutableMapOf<Int, Long>()
+
+    // Key for the annotation render result cache — covers every field that affects the output of
+    // annotationToRender so cache hits are only returned when the render would be byte-identical.
+    private data class AnnotationRenderKey(
+        val cfi: String,
+        val textSnippet: String,
+        val textBefore: String,
+        val textAfter: String,
+        val embeddedFigures: List<com.riffle.core.models.EmbeddedFigure>?,
+        val color: String,
+        val note: String?,
+        val emphasisStyles: Set<com.riffle.core.models.EmphasisStyle>,
+    )
+    private val annotationRenderCache =
+        mutableMapOf<String, Pair<AnnotationRenderKey, List<HighlightRender>>>()
 
     // Highlights mode only (Task 10, ADR 0041): the chapter grouping + resolved server id from the
     // last [openBook] build, kept so the resume-position collector below can map a synthesised-href
@@ -1109,6 +1126,12 @@ class EpubReaderViewModel @Inject constructor(
     }
 
     private suspend fun openBook() {
+        // Clear per-chapter and render caches so reloadHighlightsView() picks up the rebuilt
+        // spine rather than returning Documents/renders from the previous publication layout.
+        chapterHtmlCache.clear()
+        chapterDocCache.clear()
+        chapterTotalCharsCache.clear()
+        annotationRenderCache.clear()
         // Highlights mode (ADR 0041): the reader displays a synthesised, elided Publication built
         // from this book's stored highlights rather than the real ABS EPUB container. Diverted
         // before lifecycle.open() so the ABS fetch, matched-sync resolution, readaloud binding, and
@@ -3128,6 +3151,7 @@ class EpubReaderViewModel @Inject constructor(
      *  if needed. Highlights mode: observer takes over as with [deleteHighlight]. Sibling
      *  emphasis cascade is handled in [AnnotationSession.deleteAnnotation]. */
     fun deleteAnnotation(id: String) {
+        annotationRenderCache.remove(id)
         viewModelScope.launch {
             annotationSession.deleteAnnotation(id)
         }
@@ -3201,11 +3225,41 @@ class EpubReaderViewModel @Inject constructor(
      * with a `#segN` suffix so `annotationIdOf` can strip it back at tap-dispatch time.
      */
     private suspend fun annotationToRender(a: Annotation): List<HighlightRender> {
+        // ADR 0046: union every TYPE_EMPHASIS row whose CFI matches this highlight's CFI.
+        // Computed first so it feeds the cache key — a style toggle invalidates the cache entry.
+        val emphasisStyles = annotationSession.emphasisPool.value
+            .filter { it.cfi == a.cfi }
+            .flatMap { it.emphasisStyles.orEmpty() }
+            .toSet()
+
+        // Return the cached result when nothing affecting the render has changed. This makes
+        // repeated emissions (live-sync re-upserts unchanged rows, store-combine re-fires when
+        // the editing target or draft changes) free for annotations that haven't moved.
+        val cacheKey = AnnotationRenderKey(
+            cfi = a.cfi,
+            textSnippet = a.textSnippet,
+            textBefore = a.textBefore,
+            textAfter = a.textAfter,
+            embeddedFigures = a.embeddedFigures,
+            color = a.color,
+            note = a.note,
+            emphasisStyles = emphasisStyles,
+        )
+        annotationRenderCache[a.id]?.let { (key, renders) ->
+            if (key == cacheKey) return renders
+        }
+
         val pub = lifecycle.publication.value ?: return emptyList()
         val spineIndex = epubCfiToSpineIndex(a.cfi) ?: return emptyList()
         val link = pub.readingOrder.getOrNull(spineIndex) ?: return emptyList()
         val html = readChapterHtml(spineIndex) ?: return emptyList()
-        val progression = highlightStartProgression(a.cfi, html) ?: return emptyList()
+        val doc = readChapterDoc(spineIndex, html)
+        // countBodyChars is O(DOM) but constant per chapter — cache it so N annotations in the
+        // same chapter only traverse the body once instead of N times.
+        val totalChars = chapterTotalCharsCache.getOrPut(spineIndex) {
+            com.riffle.core.domain.countBodyChars(doc.body())
+        }
+        val progression = highlightStartProgression(a.cfi, doc, totalChars) ?: return emptyList()
         val href = link.href.toString()
         // Split points inside the snippet where a figure sits. Legacy rows without offsets → one
         // segment covering the whole snippet (v1 behaviour).
@@ -3218,7 +3272,7 @@ class EpubReaderViewModel @Inject constructor(
         } else {
             splitSnippetForFiguresAt(a.textSnippet, offsets)
         }
-        return segments
+        val renders = segments
             .mapIndexedNotNull { index, segmentText ->
                 if (segmentText.isBlank()) return@mapIndexedNotNull null
                 val locator = try {
@@ -3236,17 +3290,10 @@ class EpubReaderViewModel @Inject constructor(
                     null
                 } ?: return@mapIndexedNotNull null
                 val decorationId = if (segments.size == 1) a.id else "${a.id}#seg$index"
-                // ADR 0046: union every TYPE_EMPHASIS row whose CFI matches this highlight's CFI.
-                // Multiple rows can layer via different styles sets (same-styles rows auto-merge),
-                // so union-at-render gives the correct visual result without touching storage.
-                // Read from `emphasisPool` (not `annotations`) — the panel-side flow excludes
-                // emphasis rows to protect the piggyback rule, so `annotations` would be empty here.
-                val emphasisStyles = annotationSession.emphasisPool.value
-                    .filter { it.cfi == a.cfi }
-                    .flatMap { it.emphasisStyles.orEmpty() }
-                    .toSet()
                 HighlightRender(decorationId, locator, a.color, a.note, emphasisStyles = emphasisStyles)
             }
+        annotationRenderCache[a.id] = cacheKey to renders
+        return renders
     }
 
     private suspend fun readChapterHtml(spineIndex: Int): String? {
@@ -3263,6 +3310,9 @@ class EpubReaderViewModel @Inject constructor(
             } catch (_: Exception) { null }
         }
     }
+
+    private fun readChapterDoc(spineIndex: Int, html: String): org.jsoup.nodes.Document =
+        chapterDocCache.getOrPut(spineIndex) { org.jsoup.Jsoup.parse(html) }
 
     override fun onCleared() {
         super.onCleared()

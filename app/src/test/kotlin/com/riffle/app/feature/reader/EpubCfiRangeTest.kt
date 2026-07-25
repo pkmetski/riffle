@@ -83,6 +83,18 @@ class EpubCfiRangeTest {
     }
 
     @Test
+    fun `highlightStartProgression with pre-computed totalChars matches the auto-count overload`() {
+        val cfi = buildHighlightCfiRangeForSelection(
+            spineStep = 4, html = simpleHtml, startProgression = 0.0, selectedText = "Hello",
+        )!!
+        val doc = org.jsoup.Jsoup.parse(simpleHtml)
+        val totalChars = com.riffle.core.domain.countBodyChars(doc.body())
+        val expected = highlightStartProgression(cfi, doc)
+        val actual   = highlightStartProgression(cfi, doc, totalChars)
+        assertEquals(expected, actual)
+    }
+
+    @Test
     fun `readableTextBetween returns the exact readable substring across nodes`() {
         // body readable chars: "Hello world"(0..10) + "Second paragraph"(11..26)
         assertEquals("Hello", readableTextBetween(simpleHtml, 0, 5))
