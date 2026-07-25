@@ -4,6 +4,7 @@ import android.net.FakeUri
 import com.riffle.app.feature.reader.joinEmphasisStylesToHighlights
 import com.riffle.app.feature.reader.toCssRgba
 import com.riffle.core.database.AnnotationEntity
+import com.riffle.core.models.EmphasisStyle
 import com.riffle.core.models.HighlightColor
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
@@ -543,6 +544,62 @@ class HighlightsPublicationFactoryTest {
         assertTrue(
             "elided Publication must expose a SearchService for the reader's search top-bar to return results",
             service != null,
+        )
+    }
+
+    // ─── Emphasis rendering ───────────────────────────────────────────────────────────────────────
+
+    @Test
+    fun `renderChapterHtml applies bold CSS to riffle-hl span when emphasisByCfi matches`() {
+        val annotation = hl("h1", "Some bold text", spineIndex = 0)
+        val chapter = ChapterElision("ch0.xhtml", "Ch", listOf(annotation))
+        val emphasisByCfi = mapOf(annotation.cfi to setOf(EmphasisStyle.BOLD))
+        val html = factory.renderChapterHtml(chapter, emphasisByCfi = emphasisByCfi)
+        assertTrue(
+            "riffle-hl span must carry bold CSS when emphasis is set, got: $html",
+            html.contains("class=\"riffle-hl\" data-ann-id=\"h1\" style=\"font-weight:bold !important;\""),
+        )
+    }
+
+    @Test
+    fun `renderChapterHtml does not add style attribute to riffle-hl span when no emphasis`() {
+        val annotation = hl("h2", "Plain text", spineIndex = 0)
+        val chapter = ChapterElision("ch0.xhtml", "Ch", listOf(annotation))
+        val html = factory.renderChapterHtml(chapter, emphasisByCfi = emptyMap())
+        assertTrue(
+            "riffle-hl span must NOT carry a style attribute when no emphasis, got: $html",
+            html.contains("class=\"riffle-hl\" data-ann-id=\"h2\">"),
+        )
+    }
+
+    @Test
+    fun `renderChapterHtml applies italic and underline together`() {
+        val annotation = hl("h3", "Italic underlined", spineIndex = 0)
+        val chapter = ChapterElision("ch0.xhtml", "Ch", listOf(annotation))
+        val emphasisByCfi = mapOf(
+            annotation.cfi to setOf(EmphasisStyle.ITALIC, EmphasisStyle.UNDERLINE),
+        )
+        val html = factory.renderChapterHtml(chapter, emphasisByCfi = emphasisByCfi)
+        assertTrue("must include italic", html.contains("font-style:italic !important;"))
+        assertTrue("must include underline in text-decoration", html.contains("underline"))
+    }
+
+    @Test
+    fun `buildHandle renders emphasis on initial HTML when emphasisByCfi supplied`() {
+        val annotation = hl("h4", "Strike text", spineIndex = 0)
+        val emphasisByCfi = mapOf(annotation.cfi to setOf(EmphasisStyle.STRIKE))
+        val pub = factory.build(
+            sourceId = "S1",
+            itemId = "B1",
+            bookTitle = null,
+            chapters = listOf(ChapterElision("ch0.xhtml", "Ch", listOf(annotation))),
+            urlFactory = ::testUrlFactory,
+            emphasisByCfi = emphasisByCfi,
+        )
+        val html = readChapterHtml(pub, index = 0)
+        assertTrue(
+            "initial HTML from buildHandle must apply emphasis from emphasisByCfi, got: $html",
+            html.contains("line-through"),
         )
     }
 

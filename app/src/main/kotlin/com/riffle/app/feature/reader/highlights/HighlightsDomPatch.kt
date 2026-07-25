@@ -43,6 +43,16 @@ sealed class HighlightsDomPatch {
     data class Remove(val annotationId: String) : HighlightsDomPatch() {
         override fun applyJs(): String = buildRemoveJs(annotationId)
     }
+
+    /**
+     * Apply (or clear) emphasis formatting on a highlight's `<span class="riffle-hl">` in the
+     * elided view. [emphasisCss] is a pre-computed inline CSS string (e.g.
+     * `"font-weight:bold !important;font-style:italic !important;"`) produced by
+     * [buildEmphasisInlineCss]; an empty string clears any previously-set emphasis.
+     */
+    data class SetEmphasis(val annotationId: String, val emphasisCss: String) : HighlightsDomPatch() {
+        override fun applyJs(): String = buildSetEmphasisJs(annotationId, emphasisCss)
+    }
 }
 
 // ─── Rendering helpers — small enough to inline; kept package-private so tests can pin. ─────────
@@ -145,6 +155,42 @@ internal fun buildRemoveJs(annotationId: String): String {
         |  for (var j = 0; j < figs.length; j++) figs[j].remove();
         |})();
     """.trimMargin()
+}
+
+internal fun buildSetEmphasisJs(annotationId: String, emphasisCss: String): String {
+    val idJs = jsQuoteString(annotationId)
+    val cssJs = jsQuoteString(emphasisCss)
+    // Target every `<span class="riffle-hl">` for this annotation (multi-chunk highlights produce
+    // multiple spans across `<p>` blocks). Set `style.cssText` to the pre-computed CSS string so a
+    // single assignment covers all four emphasis axes (bold / italic / underline / strike). An empty
+    // string clears any previously set emphasis without touching the paragraph's own `border-left`
+    // (which lives on the `<p>`, not the span).
+    return """
+        |(function(){
+        |  var id = $idJs;
+        |  var css = $cssJs;
+        |  var spans = document.querySelectorAll('span.riffle-hl[data-ann-id="' + id + '"]');
+        |  for (var i = 0; i < spans.length; i++) { spans[i].style.cssText = css; }
+        |})();
+    """.trimMargin()
+}
+
+/**
+ * Build the `style.cssText` string for a `<span class="riffle-hl">` carrying [styles]. Returns an
+ * empty string when [styles] is empty (clears any prior inline style). The produced CSS uses
+ * `!important` so ReadiumCSS theme rules cannot override the user's explicit formatting choice.
+ */
+internal fun buildEmphasisInlineCss(styles: Set<com.riffle.core.models.EmphasisStyle>): String {
+    if (styles.isEmpty()) return ""
+    val sb = StringBuilder()
+    if (com.riffle.core.models.EmphasisStyle.BOLD in styles) sb.append("font-weight:bold !important;")
+    if (com.riffle.core.models.EmphasisStyle.ITALIC in styles) sb.append("font-style:italic !important;")
+    val decos = buildList {
+        if (com.riffle.core.models.EmphasisStyle.UNDERLINE in styles) add("underline")
+        if (com.riffle.core.models.EmphasisStyle.STRIKE in styles) add("line-through")
+    }
+    if (decos.isNotEmpty()) sb.append("text-decoration:${decos.joinToString(" ")} !important;")
+    return sb.toString()
 }
 
 /** Minimal safe JS string literal — escapes the four characters that can break out of `"..."`. */
