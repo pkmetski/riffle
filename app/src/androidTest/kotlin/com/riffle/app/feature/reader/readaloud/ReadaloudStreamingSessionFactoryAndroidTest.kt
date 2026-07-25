@@ -109,8 +109,8 @@ class ReadaloudStreamingSessionFactoryAndroidTest {
                         // at the first audio entry — so serve the full zip here.
                         else -> MockResponse().setBody(Buffer().write(bundleZip))
                     }
-                    path.startsWith("/api/v2/books/$ST_BOOK") -> MockResponse().setBody(storytellerV2(1000))
-                    path.startsWith("/api/items/$AUDIOBOOK_ITEM") -> MockResponse().setBody(absItem(absFileSize))
+                    path.startsWith("/api/v2/books/$ST_BOOK") -> MockResponse().setBody(storytellerV2(1000)).addHeader("Content-Type", "application/json")
+                    path.startsWith("/api/items/$AUDIOBOOK_ITEM") -> MockResponse().setBody(absItem(absFileSize)).addHeader("Content-Type", "application/json")
                     else -> MockResponse().setResponseCode(404)
                 }
             }
