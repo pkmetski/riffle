@@ -137,8 +137,6 @@ Riffle lets you browse your library, read EPUB, PDF, and CBZ files, listen to au
 
 | Channel | Status |
 |---------|--------|
-| Google Play Store | Planned |
-| F-Droid | Planned |
 | GitHub Releases | CI-built signed APK |
 
 ## Architecture
