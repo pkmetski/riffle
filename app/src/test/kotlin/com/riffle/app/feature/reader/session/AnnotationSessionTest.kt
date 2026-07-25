@@ -309,6 +309,47 @@ class AnnotationSessionTest {
     }
 
     /**
+     * Regression: repeated store emissions with unchanged annotations must produce stable renders.
+     * The annotationToRender resolver in the VM caches results keyed on annotation content, so a
+     * live-sync re-upsert of identical rows (upsertAll with no deltas) must not corrupt the render
+     * list or produce different ids/colors from the first emission.
+     */
+    @Test
+    fun `highlightRenders are stable when the same annotations are re-emitted`() = runTest {
+        val dispatcher = UnconfinedTestDispatcher(testScheduler)
+        val sessionScope = CoroutineScope(dispatcher)
+        val store = FakeAnnotationStore()
+        val session = makeSession(store = store, syncOps = FakeSyncOps(), scope = sessionScope)
+        val annotations = listOf(
+            fakeAnnotation(id = "a1", color = "yellow"),
+            fakeAnnotation(id = "a2", color = "green"),
+            fakeAnnotation(id = "a3", color = "blue"),
+        )
+        val locator = buildLocator()
+        val resolver: suspend (Annotation) -> List<EpubReaderViewModel.HighlightRender> = { a ->
+            listOf(EpubReaderViewModel.HighlightRender(a.id, locator, a.color, a.note))
+        }
+        session.bind(
+            sourceId = "srv1", namespace = "ns1", itemId = "item1",
+            highlightRenderResolver = resolver, cfiLocatorResolver = { null },
+        )
+
+        store.allAnnotations.value = annotations
+        val firstIds    = session.highlightRenders.value.map { it.id }
+        val firstColors = session.highlightRenders.value.map { it.color }
+        assertEquals(3, firstIds.size)
+
+        // Re-emit identical list (simulates live-sync that found no peer changes → upsertAll
+        // same rows → single Room emission → flatMap re-runs; VM cache must return same renders).
+        store.allAnnotations.value = annotations.toList()
+        assertEquals("re-emission must not change render count",  firstIds.size, session.highlightRenders.value.size)
+        assertEquals("render ids must be stable across re-emission", firstIds, session.highlightRenders.value.map { it.id })
+        assertEquals("render colors must be stable across re-emission", firstColors, session.highlightRenders.value.map { it.color })
+
+        sessionScope.coroutineContext[Job]?.cancel()
+    }
+
+    /**
      * Test 2: recolorHighlight updates store and schedules debounce sync
      */
     @Test

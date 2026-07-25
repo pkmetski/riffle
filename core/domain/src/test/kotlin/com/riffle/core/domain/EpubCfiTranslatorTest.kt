@@ -811,4 +811,25 @@ class EpubCfiTranslatorTest {
         val prog = cfiDocPathToProgression(outboundPath, html)!!
         assertEquals(0.5, prog, 1.0 / 22.0)
     }
+
+    // ── cfiDocPathToProgression with pre-computed totalChars ──────────────────
+
+    @Test
+    fun `cfiDocPathToProgression with pre-computed totalChars matches the auto-count overload`() {
+        val html = "<html><body><p>Hello world</p><p>Second paragraph</p></body></html>"
+        val doc = Jsoup.parse(html)
+        val totalChars = countBodyChars(doc.body())
+        // The two overloads must agree on every path in this document.
+        listOf("/4/2/1:0", "/4/2/1:5", "/4/4/1:0", "/4/4/1:15").forEach { path ->
+            val expected = cfiDocPathToProgression(path, doc)
+            val actual   = cfiDocPathToProgression(path, doc, totalChars)
+            assertEquals("mismatch for path $path", expected, actual)
+        }
+    }
+
+    @Test
+    fun `cfiDocPathToProgression with pre-computed totalChars returns null when totalChars is zero`() {
+        val doc = Jsoup.parse("<html><body></body></html>")
+        assertNull(cfiDocPathToProgression("/4/2/1:0", doc, 0L))
+    }
 }

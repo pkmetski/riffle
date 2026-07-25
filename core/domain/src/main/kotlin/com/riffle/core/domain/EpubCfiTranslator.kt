@@ -21,11 +21,14 @@ fun extractCfiDocPath(fullCfi: String): String? {
 fun cfiDocPathToProgression(docPath: String, html: String): Double? =
     cfiDocPathToProgression(docPath, Jsoup.parse(html))
 
-fun cfiDocPathToProgression(docPath: String, doc: org.jsoup.nodes.Document): Double? {
+fun cfiDocPathToProgression(docPath: String, doc: org.jsoup.nodes.Document): Double? =
+    cfiDocPathToProgression(docPath, doc, countBodyChars(doc.body()))
+
+/** Pre-computed [totalChars] overload — avoids re-counting body chars when many CFIs share a chapter. */
+fun cfiDocPathToProgression(docPath: String, doc: org.jsoup.nodes.Document, totalChars: Long): Double? {
     val htmlEl = doc.child(0)
     val body = doc.body()
 
-    val totalChars = countBodyChars(body)
     if (totalChars == 0L) return null
 
     // ID-anchored first (image-resistant); falls back to pure numeric step walk
