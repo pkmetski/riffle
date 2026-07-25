@@ -229,6 +229,7 @@ internal object FigureTapScript {
                     try {
                         window.$bridgeName.onFigureLongPress(JSON.stringify(payload));
                     } catch (err) {}
+                    longPressTimer = null;
                     longPressTarget = null;
                     document.removeEventListener('touchcancel', cancelFigureLongPress, true);
                 }, 500);

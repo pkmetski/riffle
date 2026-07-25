@@ -76,7 +76,12 @@ class FigureTapScriptTest {
     fun `cancelFigureLongPress function clears timer and target so scroll cancels the annotations menu`() {
         val fnIdx = script.indexOf("function cancelFigureLongPress()")
         assertTrue("cancelFigureLongPress helper function must be declared", fnIdx >= 0)
-        // Locate the function body — ends at the first `}` at the same nesting level.
+        // Locate the function body. trimIndent() on installScript's raw string strips 0 spaces
+        // (the interpolated JS constants have 0-indent lines which floor the minimum). The raw
+        // 12-space indent of the function's closing `}` is therefore preserved verbatim in the
+        // output, so "\n            }" (12 spaces) correctly identifies it. The function body has
+        // no nested standalone-`}` on its own line (the one `if` is a single-line statement),
+        // so the first 12-space `}` after the declaration IS the closing brace.
         val bodyStart = script.indexOf("{", fnIdx)
         val bodyEnd = script.indexOf("\n            }", bodyStart)
         val fnBody = script.substring(bodyStart, bodyEnd + 1)
@@ -111,10 +116,11 @@ class FigureTapScriptTest {
             dynamicRegIdx > earlyReturnIdx,
         )
         // There must be NO anonymous-function touchcancel listener — that was the PR #599 shape
-        // that caused the regression and must never come back.
+        // that caused the regression and must never come back. Check both no-arg and e-arg forms.
         assertFalse(
             "permanent anonymous touchcancel listener must not exist (PR #601 regression guard)",
-            script.contains("addEventListener('touchcancel', function()"),
+            script.contains("addEventListener('touchcancel', function()") ||
+                script.contains("addEventListener('touchcancel', function("),
         )
     }
 
