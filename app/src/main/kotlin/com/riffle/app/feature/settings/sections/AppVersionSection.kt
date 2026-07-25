@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ListItem
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -20,8 +21,10 @@ import com.riffle.app.feature.settings.SettingsSectionHeader
 internal fun AppVersionSection(
     installedVersionName: String,
     state: AppUpdateUiState,
+    autoUpdateEnabled: Boolean,
     onCheckForUpdate: () -> Unit,
     onInstallUpdate: () -> Unit,
+    onSetAutoUpdateEnabled: (Boolean) -> Unit,
 ) {
     SettingsSectionHeader("App version")
     val supporting = when (state) {
@@ -54,6 +57,15 @@ internal fun AppVersionSection(
                 else ->
                     TextButton(onClick = onCheckForUpdate) { Text("Check for updates") }
             }
+        },
+    )
+    ListItem(
+        headlineContent = { Text("Check for updates on startup") },
+        trailingContent = {
+            Switch(
+                checked = autoUpdateEnabled,
+                onCheckedChange = onSetAutoUpdateEnabled,
+            )
         },
     )
 }

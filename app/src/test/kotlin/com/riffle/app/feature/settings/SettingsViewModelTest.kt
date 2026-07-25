@@ -212,13 +212,22 @@ class SettingsViewModelTest {
             io.mockk.every { it.healthFor(any()) } returns emptyMap()
         }
 
+    private val releaseHistoryResult = mutableListOf<com.riffle.core.domain.ReleaseInfo>()
     private val fakeAppUpdateRepo = object : com.riffle.core.domain.AppUpdateRepository {
         override suspend fun checkForUpdate(currentVersionCode: Int) =
             com.riffle.core.domain.UpdateCheckResult.UpToDate
         override fun downloadAndInstall(update: com.riffle.core.domain.AvailableUpdate):
             Flow<com.riffle.core.domain.UpdateDownloadState> = kotlinx.coroutines.flow.emptyFlow()
         override fun sweepStaleApks() = Unit
-        override suspend fun listReleasesSince(sinceVersionCode: Int): List<com.riffle.core.domain.ReleaseInfo> = emptyList()
+        override suspend fun listReleasesSince(sinceVersionCode: Int): List<com.riffle.core.domain.ReleaseInfo> = releaseHistoryResult.toList()
+    }
+
+    private val autoUpdateEnabledFlow = MutableStateFlow(true)
+    private val fakeAppUpdatePreferencesStore = object : com.riffle.core.domain.AppUpdatePreferencesStore {
+        override val autoUpdateEnabled: Flow<Boolean> = autoUpdateEnabledFlow
+        override val ignoredVersionCode: Flow<Int> = MutableStateFlow(0)
+        override suspend fun setAutoUpdateEnabled(value: Boolean) { autoUpdateEnabledFlow.value = value }
+        override suspend fun setIgnoredVersionCode(value: Int) {}
     }
 
     private val reviewsFlow = MutableStateFlow<Map<String, ReadaloudReview>>(emptyMap())
@@ -251,6 +260,7 @@ class SettingsViewModelTest {
         readaloudReviewRepository = fakeReviewRepo,
         connectivityObserver = fakeConnectivity,
         appUpdateRepository = fakeAppUpdateRepo,
+        appUpdatePreferencesStore = fakeAppUpdatePreferencesStore,
         readaloudPreferencesStore = fakeReadaloudStore,
         annotationSyncConfigStore = object : AnnotationSyncConfigStore {
             override fun observe() = MutableStateFlow<AnnotationSyncConfig?>(null)
@@ -342,6 +352,7 @@ class SettingsViewModelTest {
         readaloudReviewRepository = fakeReviewRepo,
         connectivityObserver = fakeConnectivity,
         appUpdateRepository = fakeAppUpdateRepo,
+        appUpdatePreferencesStore = fakeAppUpdatePreferencesStore,
         readaloudPreferencesStore = fakeReadaloudStore,
         annotationSyncConfigStore = configStore,
         annotationSyncStatusStore = statusStore,
@@ -938,5 +949,33 @@ class SettingsViewModelTest {
         assertEquals(AnnotationSyncRowState.Badge.Pending, row.badge)
         assertTrue("sub should mention Offline", row.sub.contains("Offline"))
         assertEquals(AnnotationSyncRowState.Tone.Pending, row.subTone)
+    }
+
+    // --- auto-update prefs ---
+
+    @Test
+    fun `setAutoUpdateEnabled persists to store`() = runTest {
+        val vm = makeViewModel()
+        // Subscribe so the WhileSubscribed StateFlow starts collecting.
+        backgroundScope.launch { vm.autoUpdateEnabled.collect {} }
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        vm.setAutoUpdateEnabled(false)
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertFalse(vm.autoUpdateEnabled.value)
+        assertFalse(autoUpdateEnabledFlow.value)
+    }
+
+    @Test
+    fun `releaseHistory is populated from listReleasesSince(0)`() = runTest {
+        releaseHistoryResult += com.riffle.core.domain.ReleaseInfo("1.6.0", 10600, "Notes", "https://x", 1000L)
+        releaseHistoryResult += com.riffle.core.domain.ReleaseInfo("1.5.0", 10500, "Notes", "https://x", 1000L)
+
+        val vm = makeViewModel()
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(2, vm.releaseHistory.value.size)
+        assertEquals("1.6.0", vm.releaseHistory.value[0].versionName)
     }
 }
