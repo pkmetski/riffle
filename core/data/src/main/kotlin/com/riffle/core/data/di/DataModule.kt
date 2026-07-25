@@ -111,6 +111,10 @@ annotation class CbzCacheStore
 @Retention(AnnotationRetention.BINARY)
 annotation class CbzDownloadsStore
 
+@Qualifier
+@Retention(AnnotationRetention.BINARY)
+annotation class AppUpdatePreferencesDataStore
+
 @Module(
     includes = [
         NetworkModule::class,

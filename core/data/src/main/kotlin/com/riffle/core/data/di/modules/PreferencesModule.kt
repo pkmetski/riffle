@@ -13,6 +13,7 @@ import com.riffle.core.data.LibraryVisibilityPreferencesStoreImpl
 import com.riffle.core.data.ListeningPreferencesStoreImpl
 import com.riffle.core.data.VolumeKeyPreferencesStoreImpl
 import com.riffle.core.data.di.AppThemePreferencesDataStore
+import com.riffle.core.data.di.AppUpdatePreferencesDataStore
 import com.riffle.core.data.di.CoverGridDensityDataStore
 import com.riffle.core.data.di.DeviceIdDataStore
 import com.riffle.core.data.di.DeviceLabelDataStore
@@ -30,6 +31,7 @@ import com.riffle.core.data.di.ReadingSpeedDataStore
 import com.riffle.core.data.di.VolumeKeyPreferencesDataStore
 import com.riffle.core.data.di.WakeLockPreferencesDataStore
 import com.riffle.core.data.di.appThemePreferencesDataStore
+import com.riffle.core.data.di.appUpdatePreferencesDataStore
 import com.riffle.core.data.di.coverGridDensityDataStore
 import com.riffle.core.data.di.deviceIdDataStore
 import com.riffle.core.data.di.deviceLabelDataStore
@@ -47,6 +49,7 @@ import com.riffle.core.data.di.readingSpeedDataStore
 import com.riffle.core.data.di.volumeKeyPreferencesDataStore
 import com.riffle.core.data.di.wakeLockPreferencesDataStore
 import com.riffle.core.domain.AppThemeStore
+import com.riffle.core.domain.AppUpdatePreferencesStore
 import com.riffle.core.domain.AudioPlaybackPreferencesStore
 import com.riffle.core.domain.BookFormattingPreferencesStore
 import com.riffle.core.domain.CoverGridDensityStore
@@ -64,6 +67,7 @@ import com.riffle.core.domain.ReadingSpeedStore
 import com.riffle.core.domain.VolumeKeyPreferencesStore
 import com.riffle.core.domain.WakeLockPreferencesStore
 import com.riffle.core.data.AppThemeStore as createAppThemeStore
+import com.riffle.core.data.AppUpdatePreferencesStore as createAppUpdatePreferencesStore
 import com.riffle.core.data.CoverGridDensityStore as createCoverGridDensityStore
 import com.riffle.core.data.EmphasisPreferencesStore as createEmphasisPreferencesStore
 import com.riffle.core.data.HighlightColorPreferencesStore as createHighlightColorPreferencesStore
@@ -233,5 +237,15 @@ abstract class PreferencesModule {
         fun provideHighlightsResumeStore(
             @HighlightsResumePreferencesDataStore dataStore: DataStore<Preferences>,
         ): HighlightsResumeStore = createHighlightsResumeStore(dataStore)
+
+        @Provides @Singleton @AppUpdatePreferencesDataStore
+        fun provideAppUpdatePreferencesDataStore(@ApplicationContext c: Context): DataStore<Preferences> =
+            c.appUpdatePreferencesDataStore
+
+        @Provides
+        @Singleton
+        fun provideAppUpdatePreferencesStore(
+            @AppUpdatePreferencesDataStore dataStore: DataStore<Preferences>,
+        ): AppUpdatePreferencesStore = createAppUpdatePreferencesStore(dataStore)
     }
 }
