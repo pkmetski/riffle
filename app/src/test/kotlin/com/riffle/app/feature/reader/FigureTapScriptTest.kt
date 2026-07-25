@@ -1,5 +1,6 @@
 package com.riffle.app.feature.reader
 
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -49,38 +50,71 @@ class FigureTapScriptTest {
     }
 
     @Test
-    fun `touchmove and touchend clear the pending long-press timer`() {
+    fun `touchmove and touchend cancel the pending long-press via the shared cancelFigureLongPress helper`() {
         assertTrue(script.contains("addEventListener('touchmove'"))
         assertTrue(script.contains("addEventListener('touchend'"))
-        // Both handlers must clear the same timer variable to cancel a pending long-press.
-        assertTrue(script.contains("clearTimeout(longPressTimer)"))
+        // Both handlers delegate to cancelFigureLongPress() so the timer clear, target clear, and
+        // dynamic touchcancel removal all happen through a single code path.
+        val moveIdx = script.indexOf("addEventListener('touchmove'")
+        val moveEnd = script.indexOf("}, true);", moveIdx).let { it + "}, true);".length }
+        val moveBlock = script.substring(moveIdx, moveEnd)
+        assertTrue("touchmove must call cancelFigureLongPress()", moveBlock.contains("cancelFigureLongPress()"))
+
+        val endIdx = script.indexOf("addEventListener('touchend'")
+        val endEnd = script.indexOf("}, true);", endIdx).let { it + "}, true);".length }
+        val endBlock = script.substring(endIdx, endEnd)
+        assertTrue("touchend must call cancelFigureLongPress()", endBlock.contains("cancelFigureLongPress()"))
     }
 
     /**
-     * Scrolling must take precedence over long-press: when the parent scroll container
-     * (continuous mode's NestedScrollView, or Readium's pager in paginated/vertical) claims the
-     * touch stream, the WebView receives ACTION_CANCEL, which surfaces in JS as touchcancel —
-     * NOT touchmove or touchend. Without a touchcancel handler the 500ms long-press timer keeps
-     * running and the annotations menu pops even though the user is scrolling. This assertion
-     * flips red if that handler is removed.
+     * Scrolling must take precedence over long-press: when the parent scroll container claims the
+     * touch stream the WebView receives ACTION_CANCEL (JS: touchcancel). The [cancelFigureLongPress]
+     * helper is the single point that clears the timer, the target, and removes the listener.
+     * This assertion flips red if the helper is removed or the clearTimeout is dropped.
      */
     @Test
-    fun `touchcancel clears the pending long-press timer so scrolling suppresses the annotations menu`() {
+    fun `cancelFigureLongPress function clears timer and target so scroll cancels the annotations menu`() {
+        val fnIdx = script.indexOf("function cancelFigureLongPress()")
+        assertTrue("cancelFigureLongPress helper function must be declared", fnIdx >= 0)
+        // Locate the function body — ends at the first `}` at the same nesting level.
+        val bodyStart = script.indexOf("{", fnIdx)
+        val bodyEnd = script.indexOf("\n            }", bodyStart)
+        val fnBody = script.substring(bodyStart, bodyEnd + 1)
+        assertTrue("cancelFigureLongPress must clearTimeout(longPressTimer)", fnBody.contains("clearTimeout(longPressTimer)"))
+        assertTrue("cancelFigureLongPress must null out longPressTarget", fnBody.contains("longPressTarget = null"))
+        assertTrue("cancelFigureLongPress must remove the touchcancel listener", fnBody.contains("removeEventListener('touchcancel', cancelFigureLongPress, true)"))
+    }
+
+    /**
+     * Regression test for the selection toolbar disappearing in paginated mode on newer WebView
+     * builds (Chrome 120+): a permanent capture-phase touchcancel listener on document fires
+     * during Chrome's gesture handoff from long-press recognition to text-selection mode and
+     * suppresses the subsequent startActionMode call that shows the toolbar.
+     *
+     * The fix is to register the touchcancel guard ONLY inside the touchstart handler and only
+     * when a figure was detected — text-selection long-presses return early before that point,
+     * so no touchcancel listener exists during their gesture lifecycle.
+     *
+     * This assertion flips red if someone restores the permanent global listener.
+     */
+    @Test
+    fun `touchcancel listener is registered dynamically inside touchstart not as a permanent global listener`() {
+        // The registration must appear INSIDE the touchstart handler, not outside it.
+        // Check: touchcancel registration comes AFTER the figure-detection early-return guard.
+        val earlyReturnIdx = script.indexOf("if (!el) return;")
+        assertTrue("early-return guard (if !el return) must exist in touchstart", earlyReturnIdx >= 0)
+        val dynamicRegIdx = script.indexOf("document.addEventListener('touchcancel', cancelFigureLongPress, true)")
+        assertTrue("touchcancel must be registered via the named cancelFigureLongPress reference", dynamicRegIdx >= 0)
         assertTrue(
-            "touchcancel handler must exist so parent-intercepted scrolls cancel the long-press",
-            script.contains("addEventListener('touchcancel'"),
+            "touchcancel registration must come AFTER the figure-detection early-return, " +
+                "so it is never registered during a text-selection long-press",
+            dynamicRegIdx > earlyReturnIdx,
         )
-        // Locate only the touchcancel handler block — from the listener registration up to its
-        // closing `}, true);` — to avoid the assertion passing because a clearTimeout appears in
-        // a later handler (e.g. the contextmenu block that follows immediately in the script).
-        val cancelIdx = script.indexOf("addEventListener('touchcancel'")
-        check(cancelIdx >= 0) // already asserted by assertTrue above; keeps the compiler happy
-        val handlerEnd = script.indexOf("}, true);", cancelIdx).takeIf { it >= 0 }
-            ?: error("touchcancel handler closing delimiter not found")
-        val cancelBlock = script.substring(cancelIdx, handlerEnd + "}, true);".length)
-        assertTrue(
-            "touchcancel handler must clearTimeout(longPressTimer)",
-            cancelBlock.contains("clearTimeout(longPressTimer)"),
+        // There must be NO anonymous-function touchcancel listener — that was the PR #599 shape
+        // that caused the regression and must never come back.
+        assertFalse(
+            "permanent anonymous touchcancel listener must not exist (PR #601 regression guard)",
+            script.contains("addEventListener('touchcancel', function()"),
         )
     }
 

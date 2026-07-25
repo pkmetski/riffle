@@ -151,6 +151,16 @@ internal object FigureTapScript {
             var longPressStartX = 0;
             var longPressStartY = 0;
             var LONG_PRESS_MOVE_THRESHOLD = 12; // CSS px — matches Android's default touchSlop
+            // Named so it can be added/removed by reference. Registered only while a figure
+            // long-press is in flight — a permanent capture listener on document interferes with
+            // Chrome's text-selection gesture handoff on newer WebView builds: the browser sees
+            // the listener run during touchcancel and suppresses the subsequent startActionMode
+            // call that would show the selection toolbar (#601).
+            function cancelFigureLongPress() {
+                if (longPressTimer) { clearTimeout(longPressTimer); longPressTimer = null; }
+                longPressTarget = null;
+                document.removeEventListener('touchcancel', cancelFigureLongPress, true);
+            }
             document.addEventListener('touchstart', function(e) {
                 var t = e.touches && e.touches[0];
                 if (!t) return;
@@ -159,6 +169,10 @@ internal object FigureTapScript {
                 longPressTarget = el;
                 longPressStartX = t.clientX;
                 longPressStartY = t.clientY;
+                // Arm the touchcancel guard only now that we know a figure is being pressed.
+                // Text long-presses never reach this point, so the listener never exists during
+                // the browser's text-selection gesture — preventing the toolbar suppression above.
+                document.addEventListener('touchcancel', cancelFigureLongPress, true);
                 longPressTimer = setTimeout(function() {
                     if (!longPressTarget) return;
                     // Immediate visual signal that the long-press was detected — before any Kotlin
@@ -216,6 +230,7 @@ internal object FigureTapScript {
                         window.$bridgeName.onFigureLongPress(JSON.stringify(payload));
                     } catch (err) {}
                     longPressTarget = null;
+                    document.removeEventListener('touchcancel', cancelFigureLongPress, true);
                 }, 500);
             }, true);
             document.addEventListener('touchmove', function(e) {
@@ -225,23 +240,11 @@ internal object FigureTapScript {
                 var dx = t.clientX - longPressStartX;
                 var dy = t.clientY - longPressStartY;
                 if (dx * dx + dy * dy > LONG_PRESS_MOVE_THRESHOLD * LONG_PRESS_MOVE_THRESHOLD) {
-                    clearTimeout(longPressTimer);
-                    longPressTimer = null;
-                    longPressTarget = null;
+                    cancelFigureLongPress();
                 }
             }, true);
             document.addEventListener('touchend', function() {
-                if (longPressTimer) { clearTimeout(longPressTimer); longPressTimer = null; }
-                longPressTarget = null;
-            }, true);
-            // Scrolling must take precedence over long-press. When the parent NestedScrollView
-            // (continuous mode) or Readium's pager (paginated/vertical) intercepts the touch
-            // stream past its slop threshold, the WebView receives ACTION_CANCEL — which surfaces
-            // in JS as touchcancel, not touchmove or touchend. Without this handler the 500ms
-            // timer keeps running and the annotations menu pops even though the user is scrolling.
-            document.addEventListener('touchcancel', function() {
-                if (longPressTimer) { clearTimeout(longPressTimer); longPressTimer = null; }
-                longPressTarget = null;
+                cancelFigureLongPress();
             }, true);
             // Cancel the native long-press callout on figures — belt to the CSS's braces above,
             // for WebView builds where the CSS property alone is respected too late.
