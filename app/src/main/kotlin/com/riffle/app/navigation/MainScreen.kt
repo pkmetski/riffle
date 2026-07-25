@@ -134,6 +134,10 @@ fun MainScreen(
     windowSizeClass: WindowSizeClass,
     viewModel: NavigationDrawerViewModel = hiltViewModel(),
 ) {
+    val startupUpdateVm: com.riffle.app.feature.update.StartupUpdateViewModel = hiltViewModel()
+    val updateDialogState by startupUpdateVm.dialogState.collectAsState()
+    val updateDownloadState by startupUpdateVm.downloadState.collectAsState()
+
     val navController = rememberNavController()
     val drawerState = rememberDrawerState(DrawerValue.Closed)
     val scope = rememberCoroutineScope()
@@ -886,6 +890,16 @@ fun MainScreen(
                 )
             }
         }
+    }
+
+    updateDialogState?.let { dialogState ->
+        com.riffle.app.feature.update.UpdateAvailableDialog(
+            state = dialogState,
+            downloadState = updateDownloadState,
+            onIgnore = startupUpdateVm::ignoreVersion,
+            onUpdate = startupUpdateVm::startUpdate,
+            onDismiss = startupUpdateVm::dismissDialog,
+        )
     }
 }
 
