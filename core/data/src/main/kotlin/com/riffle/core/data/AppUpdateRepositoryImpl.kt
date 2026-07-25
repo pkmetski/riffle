@@ -5,6 +5,7 @@ import com.riffle.core.domain.ApkInstaller
 import com.riffle.core.domain.AppUpdateRepository
 import com.riffle.core.domain.AvailableUpdate
 import com.riffle.core.domain.DispatcherProvider
+import com.riffle.core.domain.ReleaseInfo
 import com.riffle.core.domain.UpdateCheckResult
 import com.riffle.core.domain.UpdateDownloadState
 import com.riffle.core.network.GitHubRelease
@@ -54,6 +55,9 @@ class AppUpdateRepositoryImpl @Inject constructor(
         updateDir.listFiles()?.forEach { it.delete() }
     }
 
+    override suspend fun listReleasesSince(sinceVersionCode: Int): List<ReleaseInfo> =
+        listReleasesSince(releaseApi.listReleases(REPO), sinceVersionCode)
+
     companion object {
         const val REPO = "pkmetski/riffle"
         const val UPDATE_DIR_NAME = "updates"
@@ -80,6 +84,20 @@ class AppUpdateRepositoryImpl @Inject constructor(
                 )
             }
         }
+
+        fun listReleasesSince(releases: List<GitHubRelease>, sinceVersionCode: Int): List<ReleaseInfo> =
+            releases.mapNotNull { release ->
+                val versionName = release.tagName.removePrefix("v")
+                val versionCode = versionCodeOf(versionName) ?: return@mapNotNull null
+                if (versionCode <= sinceVersionCode) return@mapNotNull null
+                ReleaseInfo(
+                    versionName = versionName,
+                    versionCode = versionCode,
+                    changelog = release.body,
+                    downloadUrl = release.apkUrl,
+                    sizeBytes = release.apkSizeBytes,
+                )
+            }
 
         /**
          * Mirrors the release workflow's tag→code formula:

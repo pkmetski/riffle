@@ -22,6 +22,13 @@ interface AppUpdateRepository {
 
     /** Deletes any APKs left in the update cache by a previous download. Safe to call on startup. */
     fun sweepStaleApks()
+
+    /**
+     * Returns all non-draft, non-prerelease releases whose version code is strictly greater than
+     * [sinceVersionCode], newest first. Pass 0 to retrieve the full recent history.
+     * Releases with unrecognisable tags are silently skipped. Returns an empty list on network error.
+     */
+    suspend fun listReleasesSince(sinceVersionCode: Int): List<ReleaseInfo>
 }
 
 /** Outcome of an [AppUpdateRepository.checkForUpdate] call. */
