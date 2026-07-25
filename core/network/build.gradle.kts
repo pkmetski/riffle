@@ -5,7 +5,11 @@ plugins {
 
 dependencies {
     implementation(project(":core:domain"))
-    api(libs.okhttp)
+    api(libs.ktor.client.core)
+    implementation(libs.ktor.client.okhttp)
+    implementation(libs.ktor.client.content.negotiation)
+    implementation(libs.ktor.serialization.kotlinx.json)
+    implementation(libs.okhttp)
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.kotlinx.coroutines.core)
 

@@ -7,9 +7,10 @@ dependencies {
     implementation(project(":core:domain"))
     implementation(libs.kotlinx.coroutines.core)
     implementation(libs.kotlinx.serialization.json)
-    implementation(libs.okhttp)
+    implementation(libs.ktor.client.core)
 
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)
     testImplementation(libs.okhttp.mockwebserver)
+    testImplementation(libs.ktor.client.okhttp)
 }

@@ -1,7 +1,5 @@
 package com.riffle.app.feature.reader.readaloud
 
-import com.riffle.core.domain.DefaultDispatcherProvider
-
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -24,6 +22,7 @@ import com.riffle.core.domain.TokenStorage
 import com.riffle.core.network.AbsApiClient
 import com.riffle.core.network.StorytellerApiClient
 import com.riffle.core.network.StorytellerBundleApiImpl
+import com.riffle.core.network.createDefaultHttpClient
 import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emptyFlow
@@ -175,7 +174,7 @@ class ReadaloudStreamingSessionFactoryAndroidTest {
                     sidecarScope.async(block = block).await()
             },
         )
-        val absApiClient = AbsApiClient(OkHttpClient(), DefaultDispatcherProvider)
+        val absApiClient = AbsApiClient(createDefaultHttpClient(OkHttpClient()))
         val testClock = object : com.riffle.core.common.Clock {
             override fun nowMs() = System.currentTimeMillis()
             override fun nowNs() = System.nanoTime()

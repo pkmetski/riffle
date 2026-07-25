@@ -1,46 +1,42 @@
 package com.riffle.core.network
 
 import com.riffle.core.models.AudiobookFingerprint
-import com.riffle.core.domain.DispatcherProvider
 import com.riffle.core.network.model.StorytellerBookResponse
 import com.riffle.core.network.model.StorytellerLoginResponse
 import com.riffle.core.network.model.StorytellerV2BookResponse
-import kotlinx.serialization.json.Json
-import okhttp3.MultipartBody
-import okhttp3.OkHttpClient
-import okhttp3.Request
-import java.io.IOException
+import io.ktor.client.HttpClient
+import io.ktor.client.call.body
+import io.ktor.client.request.forms.MultiPartFormDataContent
+import io.ktor.client.request.forms.formData
+import io.ktor.client.request.get
+import io.ktor.client.request.header
+import io.ktor.client.request.post
+import io.ktor.client.request.setBody
+import io.ktor.http.HttpHeaders
+import io.ktor.http.HttpStatusCode
+import io.ktor.http.isSuccess
 
 class StorytellerApiClient(
-    private val httpClient: OkHttpClient,
-    private val dispatchers: DispatcherProvider,
+    private val httpClient: HttpClient,
 ) : StorytellerApi, StorytellerLibraryApi {
-
-    private val json = Json { ignoreUnknownKeys = true; coerceInputValues = true }
 
     override suspend fun login(
         baseUrl: String,
         username: String,
         password: String,
         insecureAllowed: Boolean,
-    ): NetworkResult<String> = OkHttpClassifier.classify(dispatchers.io) {
-        val client = client(insecureAllowed)
-        val body = MultipartBody.Builder()
-            .setType(MultipartBody.FORM)
-            .addFormDataPart("username", username)
-            .addFormDataPart("password", password)
-            .build()
-        val request = Request.Builder().url("$baseUrl/api/token").post(body).build()
-        client.newCall(request).execute().use { response ->
-            when (response.code) {
-                200 -> {
-                    val raw = response.body?.string() ?: throw IOException("Empty response body")
-                    json.decodeFromString<StorytellerLoginResponse>(raw).accessToken
-                }
-                // 401 ⇒ Auth, but 400/405 also count as wrong creds for Storyteller.
-                400, 401, 405 -> throw HttpException(401, "Invalid username or password")
-                else -> throw HttpException(response.code, response.message)
-            }
+    ): NetworkResult<String> = KtorClassifier.classify {
+        val response = client(insecureAllowed).post("$baseUrl/api/token") {
+            setBody(MultiPartFormDataContent(formData {
+                append("username", username)
+                append("password", password)
+            }))
+        }
+        when (response.status.value) {
+            200 -> response.body<StorytellerLoginResponse>().accessToken
+            // 401 ⇒ Auth, but 400/405 also count as wrong creds for Storyteller.
+            400, 401, 405 -> throw HttpException(401, "Invalid username or password")
+            else -> throw HttpException(response.status.value, response.status.description)
         }
     }
 
@@ -48,18 +44,14 @@ class StorytellerApiClient(
         baseUrl: String,
         token: String,
         insecureAllowed: Boolean,
-    ): NetworkResult<Boolean> = OkHttpClassifier.classify(dispatchers.io) {
-        val request = Request.Builder()
-            .url("$baseUrl/api/validate")
-            .addHeader("Authorization", "Bearer $token")
-            .get()
-            .build()
-        client(insecureAllowed).newCall(request).execute().use { response ->
-            when (response.code) {
-                in 200..299 -> true
-                401, 403 -> false
-                else -> throw HttpException(response.code, response.message)
-            }
+    ): NetworkResult<Boolean> = KtorClassifier.classify {
+        val response = client(insecureAllowed).get("$baseUrl/api/validate") {
+            header(HttpHeaders.Authorization, "Bearer $token")
+        }
+        when (response.status.value) {
+            in 200..299 -> true
+            401, 403 -> false
+            else -> throw HttpException(response.status.value, response.status.description)
         }
     }
 
@@ -67,18 +59,13 @@ class StorytellerApiClient(
         baseUrl: String,
         token: String,
         insecureAllowed: Boolean,
-    ): NetworkResult<List<NetworkStorytellerBook>> = OkHttpClassifier.classify(dispatchers.io) {
+    ): NetworkResult<List<NetworkStorytellerBook>> = KtorClassifier.classify {
         // ?synced=true: server-side filter to completed readalouds only (ADR 0020).
-        val request = Request.Builder()
-            .url("$baseUrl/api/books?synced=true")
-            .addHeader("Authorization", "Bearer $token")
-            .get()
-            .build()
-        client(insecureAllowed).newCall(request).execute().use { response ->
-            if (!response.isSuccessful) throw HttpException(response.code, response.message)
-            val raw = response.body?.string() ?: throw IOException("Empty response body")
-            json.decodeFromString<List<StorytellerBookResponse>>(raw).map { it.toNetwork() }
+        val response = client(insecureAllowed).get("$baseUrl/api/books?synced=true") {
+            header(HttpHeaders.Authorization, "Bearer $token")
         }
+        if (!response.status.isSuccess()) throw HttpException(response.status.value, response.status.description)
+        response.body<List<StorytellerBookResponse>>().map { it.toNetwork() }
     }
 
     override suspend fun getBook(
@@ -86,21 +73,14 @@ class StorytellerApiClient(
         bookId: Long,
         token: String,
         insecureAllowed: Boolean,
-    ): NetworkResult<NetworkStorytellerBook> = OkHttpClassifier.classify(dispatchers.io) {
-        val request = Request.Builder()
-            .url("$baseUrl/api/books/$bookId")
-            .addHeader("Authorization", "Bearer $token")
-            .get()
-            .build()
-        client(insecureAllowed).newCall(request).execute().use { response ->
-            when (response.code) {
-                in 200..299 -> {
-                    val raw = response.body?.string() ?: throw IOException("Empty response body")
-                    json.decodeFromString<StorytellerBookResponse>(raw).toNetwork()
-                }
-                // 404 surfaces as ServerError(404) — replaces the old NotFound variant.
-                else -> throw HttpException(response.code, response.message)
-            }
+    ): NetworkResult<NetworkStorytellerBook> = KtorClassifier.classify {
+        val response = client(insecureAllowed).get("$baseUrl/api/books/$bookId") {
+            header(HttpHeaders.Authorization, "Bearer $token")
+        }
+        when (response.status.value) {
+            in 200..299 -> response.body<StorytellerBookResponse>().toNetwork()
+            // 404 surfaces as ServerError(404) — replaces the old NotFound variant.
+            else -> throw HttpException(response.status.value, response.status.description)
         }
     }
 
@@ -112,21 +92,16 @@ class StorytellerApiClient(
         bookId: Long,
         token: String,
         insecureAllowed: Boolean,
-    ): NetworkResult<AudiobookFingerprint?> = OkHttpClassifier.classify(dispatchers.io) {
-        val request = Request.Builder()
-            .url("$baseUrl/api/v2/books/$bookId")
-            .addHeader("Authorization", "Bearer $token")
-            .get()
-            .build()
-        client(insecureAllowed).newCall(request).execute().use { response ->
-            if (!response.isSuccessful) throw HttpException(response.code, response.message)
-            val raw = response.body?.string() ?: throw IOException("Empty response body")
-            // Success(null) replaces the old NoAudiobook variant.
-            json.decodeFromString<StorytellerV2BookResponse>(raw).toFingerprint()
+    ): NetworkResult<AudiobookFingerprint?> = KtorClassifier.classify {
+        val response = client(insecureAllowed).get("$baseUrl/api/v2/books/$bookId") {
+            header(HttpHeaders.Authorization, "Bearer $token")
         }
+        if (!response.status.isSuccess()) throw HttpException(response.status.value, response.status.description)
+        // Success(null) replaces the old NoAudiobook variant.
+        response.body<StorytellerV2BookResponse>().toFingerprint()
     }
 
-    private fun client(insecureAllowed: Boolean): OkHttpClient =
+    private fun client(insecureAllowed: Boolean): HttpClient =
         if (insecureAllowed) httpClient.withInsecureTls() else httpClient
 
     private fun StorytellerBookResponse.toNetwork(): NetworkStorytellerBook =

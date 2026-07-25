@@ -172,9 +172,9 @@ class AbsCatalog(
                     else -> throw CatalogException.Unknown(r.errorAsThrowable())
                 }
                 object : CatalogFileStream {
-                    override val contentLength: Long = body.contentLength()
-                    override fun byteStream(): java.io.InputStream = body.byteStream()
-                    override fun close() { body.close() }
+                    override val contentLength: Long = body.contentLength
+                    override fun byteStream(): java.io.InputStream = body.inputStream
+                    override fun close() { body.inputStream.close() }
                 }
             }
             BookFormat.Audiobook -> throw CatalogException.UnsupportedFormat(

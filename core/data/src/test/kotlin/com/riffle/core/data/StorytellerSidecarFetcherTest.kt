@@ -5,9 +5,6 @@ import com.riffle.core.network.NetworkResult
 import com.riffle.core.network.StorytellerBundleApi
 import com.riffle.core.network.StorytellerBundleStream
 import kotlinx.coroutines.test.runTest
-import okhttp3.ResponseBody.Companion.asResponseBody
-import okio.buffer
-import okio.source
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -66,7 +63,7 @@ class StorytellerSidecarFetcherTest {
         val counting = CountingInputStream(ByteArrayInputStream(standardBundle))
         val result = fetcher(
             bundleApi = StorytellerBundleApi { _, _, _, _ ->
-                NetworkResult.Success(StorytellerBundleStream(counting.source().buffer().asResponseBody(null, -1L)))
+                NetworkResult.Success(StorytellerBundleStream(counting))
             },
             // Full download must NOT be called — standard ordering should succeed on the fast path.
             fullBundleApi = StorytellerBundleApi { _, _, _, _ ->
@@ -89,12 +86,12 @@ class StorytellerSidecarFetcherTest {
         val result = fetcher(
             bundleApi = StorytellerBundleApi { _, _, _, _ ->
                 NetworkResult.Success(StorytellerBundleStream(
-                    ByteArrayInputStream(nonStandardBundle).source().buffer().asResponseBody(null, -1L),
+                    ByteArrayInputStream(nonStandardBundle),
                 ))
             },
             fullBundleApi = StorytellerBundleApi { _, _, _, _ ->
                 NetworkResult.Success(StorytellerBundleStream(
-                    ByteArrayInputStream(nonStandardBundle).source().buffer().asResponseBody(null, -1L),
+                    ByteArrayInputStream(nonStandardBundle),
                 ))
             },
         ).fetch("http://st", "42", "tok", false)
@@ -114,12 +111,12 @@ class StorytellerSidecarFetcherTest {
         val result = fetcher(
             bundleApi = StorytellerBundleApi { _, _, _, _ ->
                 NetworkResult.Success(StorytellerBundleStream(
-                    ByteArrayInputStream(smilLessBundle).source().buffer().asResponseBody(null, -1L),
+                    ByteArrayInputStream(smilLessBundle),
                 ))
             },
             fullBundleApi = StorytellerBundleApi { _, _, _, _ ->
                 NetworkResult.Success(StorytellerBundleStream(
-                    ByteArrayInputStream(smilLessBundle).source().buffer().asResponseBody(null, -1L),
+                    ByteArrayInputStream(smilLessBundle),
                 ))
             },
         ).fetch("http://st", "42", "tok", false)

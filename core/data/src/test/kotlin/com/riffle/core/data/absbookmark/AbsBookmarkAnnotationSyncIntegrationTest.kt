@@ -1,8 +1,8 @@
 package com.riffle.core.data.absbookmark
 
 import com.riffle.core.data.AnnotationFilenames
-import com.riffle.core.domain.DefaultDispatcherProvider
 import com.riffle.core.network.AbsApiClient
+import com.riffle.core.network.createDefaultHttpClient
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
@@ -60,7 +60,7 @@ class AbsBookmarkAnnotationSyncIntegrationTest {
         absHandler = FakeAbsHandler()
         server.dispatcher = absHandler
         server.start()
-        abs = AbsApiClient(OkHttpClient(), DefaultDispatcherProvider)
+        abs = AbsApiClient(createDefaultHttpClient(OkHttpClient()))
     }
 
     @After

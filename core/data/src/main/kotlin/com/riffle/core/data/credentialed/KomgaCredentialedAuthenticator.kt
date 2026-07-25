@@ -16,6 +16,7 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.serializer
+import com.riffle.core.network.createDefaultHttpClient
 import okhttp3.OkHttpClient
 import java.io.IOException
 import javax.inject.Inject
@@ -41,7 +42,7 @@ class KomgaCredentialedAuthenticator @Inject constructor(
         serverType: ServerType,
     ): AuthenticateResult {
         val header = buildBasicAuthHeader(username, password)
-        val http = KomgaHttpClient(okHttpClient, header)
+        val http = KomgaHttpClient(createDefaultHttpClient(okHttpClient), header)
         if (!insecureAllowed && url.value.startsWith("http://", ignoreCase = true)) {
             return AuthenticateResult.InsecureConnection(InsecureConnectionType.HTTP)
         }

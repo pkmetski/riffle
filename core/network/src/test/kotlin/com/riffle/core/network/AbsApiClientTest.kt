@@ -1,7 +1,5 @@
 package com.riffle.core.network
 
-import com.riffle.core.domain.DefaultDispatcherProvider
-
 import com.riffle.core.models.InsecureConnectionType
 import kotlinx.coroutines.test.runTest
 import okhttp3.OkHttpClient
@@ -22,7 +20,7 @@ class AbsApiClientTest {
     fun setUp() {
         server = MockWebServer()
         server.start()
-        client = AbsApiClient(OkHttpClient(), DefaultDispatcherProvider)
+        client = AbsApiClient(createDefaultHttpClient(OkHttpClient()))
     }
 
     @After

@@ -1,16 +1,23 @@
 package com.riffle.core.network
 
-import com.riffle.core.domain.DispatcherProvider
+import io.ktor.client.HttpClient
+import io.ktor.client.plugins.HttpTimeout
+import io.ktor.client.plugins.timeout
+import io.ktor.client.request.get
+import io.ktor.client.request.head
+import io.ktor.client.request.header
+import io.ktor.client.statement.bodyAsChannel
+import io.ktor.http.HttpHeaders
+import io.ktor.http.contentLength
+import io.ktor.http.isSuccess
+import io.ktor.utils.io.jvm.javaio.toInputStream
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
-import kotlinx.coroutines.withContext
-import okhttp3.OkHttpClient
-import okhttp3.Request
-import okhttp3.ResponseBody
 import java.io.IOException
-import java.util.concurrent.TimeUnit
+import java.io.InputStream
 
 /** A streaming Storyteller bundle response — caller must close [body]. */
-data class StorytellerBundleStream(val body: ResponseBody)
+data class StorytellerBundleStream(val body: InputStream)
 
 fun interface StorytellerBundleApi {
     suspend fun downloadBundle(
@@ -31,78 +38,62 @@ fun interface StorytellerBundleProbeApi {
 }
 
 class StorytellerBundleApiImpl(
-    private val client: OkHttpClient,
-    private val dispatchers: DispatcherProvider,
+    private val client: HttpClient,
     // Overridable so tests can assert the bounded-timeout fallback without waiting the full window.
     private val sidecarCallTimeoutSeconds: Long = SIDECAR_CALL_TIMEOUT_SECONDS,
     private val sidecarStreamTimeoutSeconds: Long = SIDECAR_STREAM_TIMEOUT_SECONDS,
 ) : StorytellerBundleApi, StorytellerBundleProbeApi {
 
-    private val bundleClient: OkHttpClient = client.newBuilder()
-        .connectTimeout(30, TimeUnit.SECONDS)
-        .readTimeout(0, TimeUnit.MILLISECONDS)
-        .callTimeout(0, TimeUnit.MILLISECONDS)
-        .build()
-
-    private val sidecarClient: OkHttpClient = client.newBuilder()
-        .connectTimeout(30, TimeUnit.SECONDS)
-        .callTimeout(sidecarCallTimeoutSeconds, TimeUnit.SECONDS)
-        .build()
-
-    private val sidecarStreamClient: OkHttpClient = client.newBuilder()
-        .connectTimeout(30, TimeUnit.SECONDS)
-        .readTimeout(0, TimeUnit.MILLISECONDS)
-        .callTimeout(sidecarStreamTimeoutSeconds, TimeUnit.SECONDS)
-        .build()
-
     /**
      * Streaming GET of `/synced` for sidecar extraction (ADR 0028) — same as [downloadBundle] but on a
-     * BOUNDED client so a wedged generation fails instead of hanging the background prepare forever.
+     * BOUNDED timeout so a wedged generation fails instead of hanging the background prepare forever.
      */
     suspend fun streamSidecar(
         baseUrl: String,
         bookId: String,
         token: String,
         insecureAllowed: Boolean,
-    ): NetworkResult<StorytellerBundleStream> = openStream(sidecarStreamClient, baseUrl, bookId, token, insecureAllowed)
+    ): NetworkResult<StorytellerBundleStream> =
+        openStream(sidecarStreamTimeoutSeconds * 1_000L, baseUrl, bookId, token, insecureAllowed)
 
     override suspend fun downloadBundle(
         baseUrl: String,
         bookId: String,
         token: String,
         insecureAllowed: Boolean,
-    ): NetworkResult<StorytellerBundleStream> = openStream(bundleClient, baseUrl, bookId, token, insecureAllowed)
+    ): NetworkResult<StorytellerBundleStream> =
+        openStream(Long.MAX_VALUE, baseUrl, bookId, token, insecureAllowed)
 
     private suspend fun openStream(
-        chosenClient: OkHttpClient,
+        timeoutMs: Long,
         baseUrl: String,
         bookId: String,
         token: String,
         insecureAllowed: Boolean,
-    ): NetworkResult<StorytellerBundleStream> = withContext(dispatchers.io) {
-        val effectiveClient = if (insecureAllowed) chosenClient.withInsecureTls() else chosenClient
-        val request = Request.Builder()
-            .url("$baseUrl/api/books/$bookId/synced")
-            .addHeader("Authorization", "Bearer $token")
-            .build()
-        try {
-            val response = effectiveClient.newCall(request).execute()
-            val body = response.body ?: return@withContext NetworkResult.Offline(IOException("Empty response body"))
-            if (response.isSuccessful) {
-                // execute() blocks through Storyteller's slow /synced header wait; if the coroutine was
-                // cancelled, close the body ourselves before withContext discards the (otherwise leaked)
-                // Success.
-                try {
-                    ensureActive()
-                } catch (e: Throwable) {
-                    body.close()
-                    throw e
+    ): NetworkResult<StorytellerBundleStream> {
+        val effectiveClient = if (insecureAllowed) client.withInsecureTls() else client
+        return try {
+            val response = effectiveClient.get("$baseUrl/api/books/$bookId/synced") {
+                header(HttpHeaders.Authorization, "Bearer $token")
+                timeout {
+                    connectTimeoutMillis = 30_000L
+                    requestTimeoutMillis = timeoutMs
+                    socketTimeoutMillis = if (timeoutMs == Long.MAX_VALUE) {
+                        Long.MAX_VALUE
+                    } else {
+                        timeoutMs
+                    }
                 }
-                NetworkResult.Success(StorytellerBundleStream(body))
-            } else {
-                body.close()
-                NetworkResult.Offline(IOException("HTTP ${response.code}"))
             }
+            val channel = response.bodyAsChannel()
+            if (!response.status.isSuccess()) {
+                channel.cancel(IOException("HTTP ${response.status.value}"))
+                return NetworkResult.Offline(IOException("HTTP ${response.status.value}"))
+            }
+            // get() suspends through Storyteller's slow /synced header wait; if the coroutine was
+            // cancelled, cancel the channel before the scope discards the (otherwise leaked) Success.
+            currentCoroutineContext().ensureActive()
+            NetworkResult.Success(StorytellerBundleStream(body = channel.toInputStream()))
         } catch (e: IOException) {
             NetworkResult.Offline(e)
         }
@@ -113,22 +104,22 @@ class StorytellerBundleApiImpl(
         bookId: String,
         token: String,
         insecureAllowed: Boolean,
-    ): NetworkResult<Long> = withContext(dispatchers.io) {
-        val effectiveClient = if (insecureAllowed) sidecarClient.withInsecureTls() else sidecarClient
-        val request = Request.Builder()
-            .url("$baseUrl/api/books/$bookId/synced")
-            .head()
-            .addHeader("Authorization", "Bearer $token")
-            .build()
-        try {
-            effectiveClient.newCall(request).execute().use { response ->
-                if (!response.isSuccessful) {
-                    return@withContext NetworkResult.Offline(IOException("HTTP ${response.code}"))
+    ): NetworkResult<Long> {
+        val effectiveClient = if (insecureAllowed) client.withInsecureTls() else client
+        return try {
+            val response = effectiveClient.head("$baseUrl/api/books/$bookId/synced") {
+                header(HttpHeaders.Authorization, "Bearer $token")
+                timeout {
+                    requestTimeoutMillis = sidecarCallTimeoutSeconds * 1_000L
+                    socketTimeoutMillis = sidecarCallTimeoutSeconds * 1_000L
                 }
-                val length = response.header("Content-Length")?.toLongOrNull()
-                    ?: return@withContext NetworkResult.Offline(IOException("Missing Content-Length"))
-                NetworkResult.Success(length)
             }
+            if (!response.status.isSuccess()) {
+                return NetworkResult.Offline(IOException("HTTP ${response.status.value}"))
+            }
+            val length = response.contentLength()
+                ?: return NetworkResult.Offline(IOException("Missing Content-Length"))
+            NetworkResult.Success(length)
         } catch (e: IOException) {
             NetworkResult.Offline(e)
         }

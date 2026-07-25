@@ -22,12 +22,18 @@ import com.riffle.core.catalog.SeriesCapability
 import com.riffle.core.catalog.SortKey
 import com.riffle.core.catalog.ToReadListCapability
 import com.riffle.core.models.SourceType
+import io.ktor.client.HttpClient
+import io.ktor.client.request.get
+import io.ktor.client.request.header
+import io.ktor.client.statement.bodyAsChannel
+import io.ktor.http.HttpHeaders
+import io.ktor.http.contentLength
+import io.ktor.http.isSuccess
+import io.ktor.utils.io.jvm.javaio.toInputStream
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.serializer
-import okhttp3.OkHttpClient
-import okhttp3.Request
 import java.net.URLEncoder
 
 /**
@@ -56,7 +62,7 @@ import java.net.URLEncoder
 class KomgaCatalog(
     private val config: KomgaCatalogConfig,
     private val http: KomgaHttpClient,
-    private val bytesClient: OkHttpClient = OkHttpClient(),
+    private val bytesClient: HttpClient,
 ) : Catalog,
     ReadCapability,
     DownloadsCapability,
@@ -153,40 +159,28 @@ class KomgaCatalog(
         format: BookFormat,
         handleHint: String?,
     ): CatalogFileStream = withContext(Dispatchers.IO) {
-        // OkHttp's `Call.execute()` is BLOCKING and throws `NetworkOnMainThreadException` when it
-        // runs on Main — which is where readers previously routed via `catalog.openFile(...)`. This
-        // was the actual root cause behind the "Network error: null" reader error surfaced to the
-        // user (the Throwable's own message is null; the class name only shows via `toString()`).
-        // Hop to IO here so every network path in this catalog stays off the Main thread.
         if (format == BookFormat.Audiobook || format == BookFormat.Unsupported) {
             throw KomgaHttpException(code = 415, url = itemId, message = "Unsupported format $format")
         }
         val url = apiUrl("books/$itemId/file")
-        val request = Request.Builder()
-            .url(url)
-            .header("Authorization", config.basicAuthHeader)
-            .header("Accept", "application/octet-stream, application/epub+zip, application/pdf, application/x-cbz")
-            .build()
         val response = try {
-            bytesClient.newCall(request).execute()
+            bytesClient.get(url) {
+                header(HttpHeaders.Authorization, config.basicAuthHeader)
+                header(HttpHeaders.Accept, "application/octet-stream, application/epub+zip, application/pdf, application/x-cbz")
+            }
         } catch (e: java.io.IOException) {
-            throw KomgaHttpException(
-                code = -1,
-                url = url,
-                message = e.message ?: e::class.simpleName ?: "network error",
-            )
+            throw KomgaHttpException(code = -1, url = url, message = e.message ?: "network error")
         }
-        if (!response.isSuccessful) {
-            val code = response.code
-            val msg = response.message.ifEmpty { "HTTP $code" }
-            response.close()
-            throw KomgaHttpException(code = code, url = url, message = msg)
+        if (!response.status.isSuccess()) {
+            response.bodyAsChannel().cancel(null)
+            throw KomgaHttpException(code = response.status.value, url = url, message = response.status.description)
         }
-        val body = response.body
+        val contentLength = response.contentLength() ?: -1L
+        val channel = response.bodyAsChannel()
         object : CatalogFileStream {
-            override val contentLength: Long = body.contentLength()
-            override fun byteStream(): java.io.InputStream = body.byteStream()
-            override fun close() { response.close() }
+            override val contentLength: Long = contentLength
+            override fun byteStream(): java.io.InputStream = channel.toInputStream()
+            override fun close() { channel.cancel(null) }
         }
     }
 

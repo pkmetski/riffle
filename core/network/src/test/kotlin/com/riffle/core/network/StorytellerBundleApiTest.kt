@@ -1,6 +1,6 @@
 package com.riffle.core.network
 
-import com.riffle.core.domain.DefaultDispatcherProvider
+import com.riffle.core.network.createDefaultHttpClient
 
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -32,7 +32,7 @@ class StorytellerBundleApiTest {
     @Before
     fun setUp() {
         server = MockWebServer().also { it.start() }
-        impl = StorytellerBundleApiImpl(OkHttpClient(), DefaultDispatcherProvider)
+        impl = StorytellerBundleApiImpl(createDefaultHttpClient(OkHttpClient()))
         api = impl
         probe = impl
     }
@@ -57,7 +57,7 @@ class StorytellerBundleApiTest {
         assertEquals("/api/books/42/synced", recorded.path)
         assertEquals("Bearer tkn", recorded.getHeader("Authorization"))
         assertTrue(result is NetworkResult.Success)
-        val readBytes = (result as NetworkResult.Success).value.body.use { it.bytes() }
+        val readBytes = (result as NetworkResult.Success).value.body.use { it.readBytes() }
         assertEquals(bytes.toList(), readBytes.toList())
     }
 
@@ -77,7 +77,7 @@ class StorytellerBundleApiTest {
     @Test fun downloadBundle_cancelledDuringSlowHeaderWait_doesNotLeakConnection() = runBlocking {
         // Storyteller takes 1.5–5s to answer /synced; if the reader navigates away in that window
         // the coroutine is cancelled and withContext discards the returned Success(body) — the open
-        // ResponseBody (and its connection) leaks unless the API closes it on cancellation.
+        // InputStream (and its connection) leaks unless the API closes it on cancellation.
         val acquired = AtomicInteger()
         val released = AtomicInteger()
         val countingClient = OkHttpClient.Builder()
@@ -86,7 +86,7 @@ class StorytellerBundleApiTest {
                 override fun connectionReleased(call: Call, connection: Connection) { released.incrementAndGet() }
             })
             .build()
-        val leakApi: StorytellerBundleApi = StorytellerBundleApiImpl(countingClient, DefaultDispatcherProvider)
+        val leakApi: StorytellerBundleApi = StorytellerBundleApiImpl(createDefaultHttpClient(countingClient))
 
         // Headers arrive only after 500ms, so execute() is still blocked when we cancel at ~100ms.
         server.enqueue(
@@ -155,7 +155,7 @@ class StorytellerBundleApiTest {
         // cold book that can be minutes. The size probe must NOT inherit the download's unbounded timeout
         // (else the streaming-play path that awaits the sidecar wedges forever, ADR 0028). A bounded
         // sidecar client makes a slow /synced fail fast so the caller falls back.
-        val bounded = StorytellerBundleApiImpl(OkHttpClient(), DefaultDispatcherProvider, sidecarCallTimeoutSeconds = 1)
+        val bounded = StorytellerBundleApiImpl(createDefaultHttpClient(OkHttpClient()), sidecarCallTimeoutSeconds = 1)
         server.enqueue(
             MockResponse()
                 .setHeader("Content-Length", "315074677")
@@ -179,7 +179,7 @@ class StorytellerBundleApiTest {
         // A coroutine timeout can't cancel the blocking execute(), so the streaming sidecar fetch relies
         // on a real callTimeout to fail a wedged /synced — otherwise the "Preparing…" indicator sticks
         // forever (ADR 0028). With a 1s bound, a 10s-delayed response must come back as NetworkError fast.
-        val bounded = StorytellerBundleApiImpl(OkHttpClient(), DefaultDispatcherProvider, sidecarStreamTimeoutSeconds = 1)
+        val bounded = StorytellerBundleApiImpl(createDefaultHttpClient(OkHttpClient()), sidecarStreamTimeoutSeconds = 1)
         server.enqueue(
             MockResponse().setBody(Buffer().write(ByteArray(64))).setHeadersDelay(10, TimeUnit.SECONDS),
         )

@@ -5,7 +5,6 @@ import com.riffle.core.catalog.CatalogRegistry
 import com.riffle.core.catalog.abs.AbsCatalog
 import com.riffle.core.catalog.abs.AbsCatalogConfig
 import com.riffle.core.common.Clock
-import com.riffle.core.domain.DefaultDispatcherProvider
 import com.riffle.core.models.Source
 import com.riffle.core.domain.SourceRepository
 import com.riffle.core.network.AbsApiClient
@@ -14,6 +13,7 @@ import com.riffle.core.network.AbsLibraryApi
 import com.riffle.core.network.AbsPlaybackApi
 import com.riffle.core.network.AbsServerInfoApi
 import com.riffle.core.network.AbsSessionApi
+import com.riffle.core.network.createDefaultHttpClient
 import okhttp3.OkHttpClient
 
 private val defaultTestClock = object : Clock {
@@ -30,7 +30,7 @@ private val defaultTestClock = object : Clock {
 class TestCatalogRegistry(
     private val sourceRepository: SourceRepository,
     private val tokens: Map<String, String>,
-    private val apiClient: AbsApiClient = AbsApiClient(OkHttpClient(), DefaultDispatcherProvider),
+    private val apiClient: AbsApiClient = AbsApiClient(createDefaultHttpClient(OkHttpClient())),
     private val clock: Clock = defaultTestClock,
     private val deviceId: String = "test-device",
 ) : CatalogRegistry {

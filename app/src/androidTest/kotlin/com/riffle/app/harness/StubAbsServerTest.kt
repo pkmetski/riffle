@@ -1,11 +1,10 @@
 package com.riffle.app.harness
 
-import com.riffle.core.domain.DefaultDispatcherProvider
-
 import com.riffle.core.network.NetworkResult
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.riffle.core.network.AbsApiClient
+import com.riffle.core.network.createDefaultHttpClient
 import kotlinx.coroutines.test.runTest
 import okhttp3.OkHttpClient
 import org.junit.After
@@ -25,7 +24,7 @@ class StubAbsServerTest {
     fun setUp() {
         stub = StubAbsServer()
         stub.start()
-        client = AbsApiClient(OkHttpClient(), DefaultDispatcherProvider)
+        client = AbsApiClient(createDefaultHttpClient(OkHttpClient()))
     }
 
     @After

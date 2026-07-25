@@ -1,6 +1,6 @@
 package com.riffle.core.network
 
-import com.riffle.core.domain.DefaultDispatcherProvider
+import com.riffle.core.network.createDefaultHttpClient
 
 import kotlinx.coroutines.test.runTest
 import okhttp3.OkHttpClient
@@ -24,7 +24,7 @@ class GitHubReleaseApiTest {
     fun setUp() {
         server = MockWebServer().also { it.start() }
         val baseUrl = server.url("/").toString().trimEnd('/')
-        api = GitHubReleaseApi(OkHttpClient(), DefaultDispatcherProvider, apiBaseUrl = baseUrl)
+        api = GitHubReleaseApi(createDefaultHttpClient(OkHttpClient()), apiBaseUrl = baseUrl)
     }
 
     @After
@@ -49,7 +49,7 @@ class GitHubReleaseApiTest {
                   }
                 ]
                 """.trimIndent()
-            )
+                    ).addHeader("Content-Type", "application/json")
         )
 
         val result = api.latestRelease("pkmetski/riffle")
@@ -83,7 +83,7 @@ class GitHubReleaseApiTest {
                   }
                 ]
                 """.trimIndent()
-            )
+                    ).addHeader("Content-Type", "application/json")
         )
 
         val result = api.latestRelease("pkmetski/riffle")
@@ -124,7 +124,7 @@ class GitHubReleaseApiTest {
                   }
                 ]
                 """.trimIndent()
-            )
+                    ).addHeader("Content-Type", "application/json")
         )
 
         val result = api.latestRelease("pkmetski/riffle")
@@ -149,7 +149,7 @@ class GitHubReleaseApiTest {
                   }
                 ]
                 """.trimIndent()
-            )
+                    ).addHeader("Content-Type", "application/json")
         )
 
         assertTrue(api.latestRelease("pkmetski/riffle") is GitHubReleaseResult.Failed)
@@ -196,7 +196,7 @@ class GitHubReleaseApiTest {
     // cached copy. If someone drops the .cacheControl(FORCE_NETWORK) line, this test flips red.
     @Test
     fun `latestRelease request opts out of the cache with no-cache no-store`() = runTest {
-        server.enqueue(MockResponse().setBody("[]"))
+        server.enqueue(MockResponse().setBody("[]").addHeader("Content-Type", "application/json"))
 
         api.latestRelease("pkmetski/riffle")
 

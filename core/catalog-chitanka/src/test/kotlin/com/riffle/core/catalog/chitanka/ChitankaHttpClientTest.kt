@@ -1,7 +1,8 @@
 package com.riffle.core.catalog.chitanka
 
+import io.ktor.client.HttpClient
+import io.ktor.client.engine.okhttp.OkHttp
 import kotlinx.coroutines.test.runTest
-import okhttp3.OkHttpClient
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
 import okio.Buffer
@@ -28,7 +29,7 @@ class ChitankaHttpClientTest {
     }
 
     private fun newClient() = ChitankaHttpClient(
-        client = OkHttpClient(),
+        client = HttpClient(OkHttp) {},
         userAgent = "Riffle/test",
         retryDelaysMs = listOf(0L, 0L),  // no wait in tests
     )

@@ -1,7 +1,6 @@
 package com.riffle.core.network
 
 import com.riffle.core.models.AudiobookFingerprint
-import com.riffle.core.domain.DispatcherProvider
 import com.riffle.core.models.EbookFormat
 import com.riffle.core.network.model.AbsCollectionBookRequest
 import com.riffle.core.network.model.AbsCollectionsResponse
@@ -28,48 +27,49 @@ import com.riffle.core.network.model.AbsSeriesResponse
 import com.riffle.core.network.model.AbsServerInfoResponse
 import com.riffle.core.network.model.toNetworkCollection
 import com.riffle.core.network.model.toNetworkPlaylist
+import io.ktor.client.HttpClient
+import io.ktor.client.call.body
+import io.ktor.client.request.delete
+import io.ktor.client.request.get
+import io.ktor.client.request.header
+import io.ktor.client.request.patch
+import io.ktor.client.request.post
+import io.ktor.client.request.setBody
+import io.ktor.client.statement.HttpResponse
+import io.ktor.client.statement.bodyAsChannel
+import io.ktor.client.plugins.ResponseException
+import io.ktor.http.ContentType
+import io.ktor.http.HttpHeaders
+import io.ktor.http.HttpStatusCode
+import io.ktor.http.contentType
+import io.ktor.http.contentLength
+import io.ktor.http.isSuccess
+import io.ktor.utils.io.jvm.javaio.toInputStream
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
-import kotlinx.serialization.encodeToString
-import kotlinx.serialization.json.Json
-import okhttp3.CacheControl
-import okhttp3.MediaType.Companion.toMediaType
-import okhttp3.OkHttpClient
-import okhttp3.Request
-import okhttp3.Response
-import okhttp3.ResponseBody
-import okhttp3.RequestBody.Companion.toRequestBody
 import java.io.IOException
 
 class AbsApiClient(
-    private val httpClient: OkHttpClient,
-    private val dispatchers: DispatcherProvider,
+    private val httpClient: HttpClient,
 ) : AbsApi, AbsLibraryApi, AbsSessionApi, AbsServerInfoApi, AbsPlaybackApi, AbsBookmarkApi {
-
-    private val json = Json { ignoreUnknownKeys = true; coerceInputValues = true }
-    private val jsonMediaType = "application/json; charset=utf-8".toMediaType()
 
     override suspend fun login(
         baseUrl: String,
         username: String,
         password: String,
         insecureAllowed: Boolean,
-    ): NetworkResult<NetworkLoginUser> = OkHttpClassifier.classify(dispatchers.io) {
-        val client = client(insecureAllowed)
-        val body = json.encodeToString(AbsLoginRequest(username, password)).toRequestBody(jsonMediaType)
-        val request = Request.Builder().url("$baseUrl/login").post(body).build()
-        val response = client.newCall(request).execute()
-        when (response.code) {
+    ): NetworkResult<NetworkLoginUser> = KtorClassifier.classify {
+        val response = client(insecureAllowed).post("$baseUrl/login") {
+            contentType(ContentType.Application.Json)
+            setBody(AbsLoginRequest(username, password))
+        }
+        when (response.status.value) {
             200 -> {
-                val raw = response.requireBody()
-                val parsed = json.decodeFromString<AbsLoginResponse>(raw)
+                val parsed = response.body<AbsLoginResponse>()
                 NetworkLoginUser(userId = parsed.user.id, token = parsed.user.token, username = parsed.user.username)
             }
             // 401 historically surfaced as WrongCredentials; the classifier maps Auth ⇒ wrong creds.
-            else -> {
-                response.body?.close()
-                throw HttpException(response.code, response.message)
-            }
+            else -> throw HttpException(response.status.value, response.status.description)
         }
     }
 
@@ -77,10 +77,10 @@ class AbsApiClient(
         baseUrl: String,
         token: String,
         insecureAllowed: Boolean,
-    ): NetworkResult<List<NetworkLibrary>> = OkHttpClassifier.classify(dispatchers.io) {
-        val response = get(baseUrl, "/api/libraries", token, insecureAllowed)
-        val raw = response.requireSuccessful().requireBody()
-        json.decodeFromString<AbsLibrariesResponse>(raw).libraries.map { dto ->
+    ): NetworkResult<List<NetworkLibrary>> = KtorClassifier.classify {
+        client(insecureAllowed).get("$baseUrl/api/libraries") {
+            header(HttpHeaders.Authorization, "Bearer $token")
+        }.body<AbsLibrariesResponse>().libraries.map { dto ->
             NetworkLibrary(
                 id = dto.id,
                 name = dto.name,
@@ -94,10 +94,10 @@ class AbsApiClient(
         baseUrl: String,
         token: String,
         insecureAllowed: Boolean,
-    ): NetworkResult<Map<String, NetworkUserMediaProgress>> = OkHttpClassifier.classify(dispatchers.io) {
-        val response = get(baseUrl, "/api/me", token, insecureAllowed)
-        val raw = response.requireSuccessful().requireBody()
-        val parsed = json.decodeFromString<AbsMeResponse>(raw)
+    ): NetworkResult<Map<String, NetworkUserMediaProgress>> = KtorClassifier.classify {
+        val parsed = client(insecureAllowed).get("$baseUrl/api/me") {
+            header(HttpHeaders.Authorization, "Bearer $token")
+        }.body<AbsMeResponse>()
         parsed.mediaProgress
             .filter { it.libraryItemId.isNotEmpty() }
             .associate {
@@ -119,11 +119,10 @@ class AbsApiClient(
         libraryId: String,
         token: String,
         insecureAllowed: Boolean,
-    ): NetworkResult<List<NetworkLibraryItem>> = OkHttpClassifier.classify(dispatchers.io) {
-        val response = get(baseUrl, "/api/libraries/$libraryId/items", token, insecureAllowed)
-        val raw = response.requireSuccessful().requireBody()
-        val parsed = json.decodeFromString<AbsLibraryItemsResponse>(raw)
-        parsed.results.map { it.toNetworkLibraryItem() }
+    ): NetworkResult<List<NetworkLibraryItem>> = KtorClassifier.classify {
+        client(insecureAllowed).get("$baseUrl/api/libraries/$libraryId/items") {
+            header(HttpHeaders.Authorization, "Bearer $token")
+        }.body<AbsLibraryItemsResponse>().results.map { it.toNetworkLibraryItem() }
     }
 
     private fun AbsLibraryItemsResponse.AbsLibraryItemDto.toNetworkLibraryItem(
@@ -162,12 +161,11 @@ class AbsApiClient(
         limit: Int,
         token: String,
         insecureAllowed: Boolean,
-    ): NetworkResult<List<NetworkLibraryItem>> = OkHttpClassifier.classify(dispatchers.io) {
+    ): NetworkResult<List<NetworkLibraryItem>> = KtorClassifier.classify {
         val encoded = java.net.URLEncoder.encode(query, "UTF-8")
-        val response = get(baseUrl, "/api/libraries/$libraryId/search?q=$encoded&limit=$limit", token, insecureAllowed)
-        val raw = response.requireSuccessful().requireBody()
-        val parsed = json.decodeFromString<AbsLibrarySearchResponse>(raw)
-        parsed.book.map { it.libraryItem.toNetworkLibraryItem(libraryId) }
+        client(insecureAllowed).get("$baseUrl/api/libraries/$libraryId/search?q=$encoded&limit=$limit") {
+            header(HttpHeaders.Authorization, "Bearer $token")
+        }.body<AbsLibrarySearchResponse>().book.map { it.libraryItem.toNetworkLibraryItem(libraryId) }
     }
 
     override suspend fun getSeries(
@@ -175,11 +173,10 @@ class AbsApiClient(
         libraryId: String,
         token: String,
         insecureAllowed: Boolean,
-    ): NetworkResult<List<NetworkSeries>> = OkHttpClassifier.classify(dispatchers.io) {
-        val response = get(baseUrl, "/api/libraries/$libraryId/series?limit=500", token, insecureAllowed)
-        val raw = response.requireSuccessful().requireBody()
-        val parsed = json.decodeFromString<AbsSeriesResponse>(raw)
-        parsed.results.map { dto ->
+    ): NetworkResult<List<NetworkSeries>> = KtorClassifier.classify {
+        client(insecureAllowed).get("$baseUrl/api/libraries/$libraryId/series?limit=500") {
+            header(HttpHeaders.Authorization, "Bearer $token")
+        }.body<AbsSeriesResponse>().results.map { dto ->
             NetworkSeries(
                 id = dto.id,
                 libraryId = dto.libraryId.ifEmpty { libraryId },
@@ -215,10 +212,10 @@ class AbsApiClient(
         libraryId: String,
         token: String,
         insecureAllowed: Boolean,
-    ): NetworkResult<List<NetworkCollection>> = OkHttpClassifier.classify(dispatchers.io) {
-        val response = get(baseUrl, "/api/libraries/$libraryId/collections?limit=500", token, insecureAllowed)
-        val raw = response.requireSuccessful().requireBody()
-        json.decodeFromString<AbsCollectionsResponse>(raw).results.map { it.toNetworkCollection() }
+    ): NetworkResult<List<NetworkCollection>> = KtorClassifier.classify {
+        client(insecureAllowed).get("$baseUrl/api/libraries/$libraryId/collections?limit=500") {
+            header(HttpHeaders.Authorization, "Bearer $token")
+        }.body<AbsCollectionsResponse>().results.map { it.toNetworkCollection() }
     }
 
     override suspend fun createCollection(
@@ -234,9 +231,13 @@ class AbsApiClient(
             name = name,
             books = listOfNotNull(initialBookId),
         )
-        val body = json.encodeToString(AbsCreateCollectionRequest.serializer(), payload)
-            .toRequestBody(jsonMediaType)
-        return executeCollectionWrite("$baseUrl/api/collections", token, insecureAllowed) { post(body) }
+        return executeCollectionWrite(insecureAllowed) {
+            post("$baseUrl/api/collections") {
+                header(HttpHeaders.Authorization, "Bearer $token")
+                contentType(ContentType.Application.Json)
+                setBody(payload)
+            }
+        }
     }
 
     override suspend fun addBookToCollection(
@@ -245,11 +246,14 @@ class AbsApiClient(
         libraryItemId: String,
         token: String,
         insecureAllowed: Boolean,
-    ): NetworkResult<NetworkCollection?> {
-        val body = json.encodeToString(AbsCollectionBookRequest.serializer(), AbsCollectionBookRequest(libraryItemId))
-            .toRequestBody(jsonMediaType)
-        return executeCollectionWrite("$baseUrl/api/collections/$collectionId/book", token, insecureAllowed) { post(body) }
-    }
+    ): NetworkResult<NetworkCollection?> =
+        executeCollectionWrite(insecureAllowed) {
+            post("$baseUrl/api/collections/$collectionId/book") {
+                header(HttpHeaders.Authorization, "Bearer $token")
+                contentType(ContentType.Application.Json)
+                setBody(AbsCollectionBookRequest(libraryItemId))
+            }
+        }
 
     override suspend fun removeBookFromCollection(
         baseUrl: String,
@@ -257,25 +261,22 @@ class AbsApiClient(
         libraryItemId: String,
         token: String,
         insecureAllowed: Boolean,
-    ): NetworkResult<NetworkCollection?> = executeCollectionWrite(
-        "$baseUrl/api/collections/$collectionId/book/$libraryItemId", token, insecureAllowed,
-    ) { delete() }
+    ): NetworkResult<NetworkCollection?> =
+        executeCollectionWrite(insecureAllowed) {
+            delete("$baseUrl/api/collections/$collectionId/book/$libraryItemId") {
+                header(HttpHeaders.Authorization, "Bearer $token")
+            }
+        }
 
     private suspend fun executeCollectionWrite(
-        url: String,
-        token: String,
         insecureAllowed: Boolean,
-        buildRequest: Request.Builder.() -> Unit,
-    ): NetworkResult<NetworkCollection?> = OkHttpClassifier.classify(dispatchers.io) {
-        val request = Request.Builder()
-            .url(url)
-            .addHeader("Authorization", "Bearer $token")
-            .apply { buildRequest() }
-            .build()
-        val response = client(insecureAllowed).newCall(request).execute().requireSuccessful()
-        val raw = response.body?.string().orEmpty()
+        makeRequest: suspend HttpClient.() -> HttpResponse,
+    ): NetworkResult<NetworkCollection?> = KtorClassifier.classify {
+        val response = client(insecureAllowed).makeRequest()
+        if (!response.status.isSuccess()) throw HttpException(response.status.value, response.status.description)
+        val raw = response.body<String>()
         if (raw.isBlank()) null
-        else json.decodeFromString(AbsCollectionsResponse.AbsCollectionDto.serializer(), raw).toNetworkCollection()
+        else RIFFLE_JSON.decodeFromString(AbsCollectionsResponse.AbsCollectionDto.serializer(), raw).toNetworkCollection()
     }
 
     override suspend fun getPlaylists(
@@ -283,10 +284,10 @@ class AbsApiClient(
         libraryId: String,
         token: String,
         insecureAllowed: Boolean,
-    ): NetworkResult<List<NetworkPlaylist>> = OkHttpClassifier.classify(dispatchers.io) {
-        val response = get(baseUrl, "/api/libraries/$libraryId/playlists?limit=500", token, insecureAllowed)
-        val raw = response.requireSuccessful().requireBody()
-        json.decodeFromString<AbsPlaylistsResponse>(raw).results.map { it.toNetworkPlaylist() }
+    ): NetworkResult<List<NetworkPlaylist>> = KtorClassifier.classify {
+        client(insecureAllowed).get("$baseUrl/api/libraries/$libraryId/playlists?limit=500") {
+            header(HttpHeaders.Authorization, "Bearer $token")
+        }.body<AbsPlaylistsResponse>().results.map { it.toNetworkPlaylist() }
     }
 
     override suspend fun createPlaylist(
@@ -302,9 +303,13 @@ class AbsApiClient(
             name = name,
             items = listOfNotNull(initialBookId?.let { AbsPlaylistItemRequest(it) }),
         )
-        val body = json.encodeToString(AbsCreatePlaylistRequest.serializer(), payload)
-            .toRequestBody(jsonMediaType)
-        return executePlaylistWrite("$baseUrl/api/playlists", token, insecureAllowed) { post(body) }
+        return executePlaylistWrite(insecureAllowed) {
+            post("$baseUrl/api/playlists") {
+                header(HttpHeaders.Authorization, "Bearer $token")
+                contentType(ContentType.Application.Json)
+                setBody(payload)
+            }
+        }
     }
 
     override suspend fun addBookToPlaylist(
@@ -313,13 +318,14 @@ class AbsApiClient(
         libraryItemId: String,
         token: String,
         insecureAllowed: Boolean,
-    ): NetworkResult<NetworkPlaylist?> {
-        val body = json.encodeToString(
-            AbsPlaylistItemRequest.serializer(),
-            AbsPlaylistItemRequest(libraryItemId),
-        ).toRequestBody(jsonMediaType)
-        return executePlaylistWrite("$baseUrl/api/playlists/$playlistId/item", token, insecureAllowed) { post(body) }
-    }
+    ): NetworkResult<NetworkPlaylist?> =
+        executePlaylistWrite(insecureAllowed) {
+            post("$baseUrl/api/playlists/$playlistId/item") {
+                header(HttpHeaders.Authorization, "Bearer $token")
+                contentType(ContentType.Application.Json)
+                setBody(AbsPlaylistItemRequest(libraryItemId))
+            }
+        }
 
     override suspend fun removeBookFromPlaylist(
         baseUrl: String,
@@ -327,25 +333,22 @@ class AbsApiClient(
         libraryItemId: String,
         token: String,
         insecureAllowed: Boolean,
-    ): NetworkResult<NetworkPlaylist?> = executePlaylistWrite(
-        "$baseUrl/api/playlists/$playlistId/item/$libraryItemId", token, insecureAllowed,
-    ) { delete() }
+    ): NetworkResult<NetworkPlaylist?> =
+        executePlaylistWrite(insecureAllowed) {
+            delete("$baseUrl/api/playlists/$playlistId/item/$libraryItemId") {
+                header(HttpHeaders.Authorization, "Bearer $token")
+            }
+        }
 
     private suspend fun executePlaylistWrite(
-        url: String,
-        token: String,
         insecureAllowed: Boolean,
-        buildRequest: Request.Builder.() -> Unit,
-    ): NetworkResult<NetworkPlaylist?> = OkHttpClassifier.classify(dispatchers.io) {
-        val request = Request.Builder()
-            .url(url)
-            .addHeader("Authorization", "Bearer $token")
-            .apply { buildRequest() }
-            .build()
-        val response = client(insecureAllowed).newCall(request).execute().requireSuccessful()
-        val raw = response.body?.string().orEmpty()
+        makeRequest: suspend HttpClient.() -> HttpResponse,
+    ): NetworkResult<NetworkPlaylist?> = KtorClassifier.classify {
+        val response = client(insecureAllowed).makeRequest()
+        if (!response.status.isSuccess()) throw HttpException(response.status.value, response.status.description)
+        val raw = response.body<String>()
         if (raw.isBlank()) null
-        else json.decodeFromString(AbsPlaylistsResponse.AbsPlaylistDto.serializer(), raw).toNetworkPlaylist()
+        else RIFFLE_JSON.decodeFromString(AbsPlaylistsResponse.AbsPlaylistDto.serializer(), raw).toNetworkPlaylist()
     }
 
     override suspend fun getItemEbookFileIno(
@@ -353,10 +356,10 @@ class AbsApiClient(
         itemId: String,
         token: String,
         insecureAllowed: Boolean,
-    ): NetworkResult<String> = OkHttpClassifier.classify(dispatchers.io) {
-        val response = get(baseUrl, "/api/items/$itemId", token, insecureAllowed).requireSuccessful()
-        val raw = response.requireBody()
-        json.decodeFromString<AbsItemResponse>(raw).media.ebookFile?.ino?.takeIf { it.isNotEmpty() }
+    ): NetworkResult<String> = KtorClassifier.classify {
+        client(insecureAllowed).get("$baseUrl/api/items/$itemId") {
+            header(HttpHeaders.Authorization, "Bearer $token")
+        }.body<AbsItemResponse>().media.ebookFile?.ino?.takeIf { it.isNotEmpty() }
             ?: throw IOException("No ebookFile.ino in item $itemId")
     }
 
@@ -365,13 +368,11 @@ class AbsApiClient(
         itemId: String,
         token: String,
         insecureAllowed: Boolean,
-    ): NetworkResult<AudiobookFingerprint?> = OkHttpClassifier.classify(dispatchers.io) {
-        get(baseUrl, "/api/items/$itemId?expanded=1", token, insecureAllowed).use { response ->
-            response.requireSuccessful()
-            val raw = response.requireBody()
-            // Success(null) replaces the old NoAudiobook variant.
-            json.decodeFromString<AbsItemResponse>(raw).audiobookFingerprint()
-        }
+    ): NetworkResult<AudiobookFingerprint?> = KtorClassifier.classify {
+        // Success(null) replaces the old NoAudiobook variant.
+        client(insecureAllowed).get("$baseUrl/api/items/$itemId?expanded=1") {
+            header(HttpHeaders.Authorization, "Bearer $token")
+        }.body<AbsItemResponse>().audiobookFingerprint()
     }
 
     override suspend fun getAudiobookTracks(
@@ -379,13 +380,11 @@ class AbsApiClient(
         itemId: String,
         token: String,
         insecureAllowed: Boolean,
-    ): NetworkResult<List<NetworkAbsAudioTrack>> = OkHttpClassifier.classify(dispatchers.io) {
-        get(baseUrl, "/api/items/$itemId?expanded=1", token, insecureAllowed).use { response ->
-            response.requireSuccessful()
-            val raw = response.requireBody()
-            // Empty list replaces the old NoAudiobook variant.
-            json.decodeFromString<AbsItemResponse>(raw).audiobookTracks()
-        }
+    ): NetworkResult<List<NetworkAbsAudioTrack>> = KtorClassifier.classify {
+        // Empty list replaces the old NoAudiobook variant.
+        client(insecureAllowed).get("$baseUrl/api/items/$itemId?expanded=1") {
+            header(HttpHeaders.Authorization, "Bearer $token")
+        }.body<AbsItemResponse>().audiobookTracks()
     }
 
     override suspend fun downloadEpub(
@@ -394,14 +393,15 @@ class AbsApiClient(
         fileIno: String,
         token: String,
         insecureAllowed: Boolean,
-    ): NetworkResult<ResponseBody> = OkHttpClassifier.classify(dispatchers.io) {
-        val response = get(baseUrl, "/api/items/$itemId/ebook/$fileIno", token, insecureAllowed)
-        val body = response.body ?: throw IOException("Empty response body")
-        if (!response.isSuccessful) {
-            body.close()
-            throw HttpException(response.code, response.message)
+    ): NetworkResult<EpubDownloadStream> = KtorClassifier.classify {
+        val response = client(insecureAllowed).get("$baseUrl/api/items/$itemId/ebook/$fileIno") {
+            header(HttpHeaders.Authorization, "Bearer $token")
         }
-        body
+        if (!response.status.isSuccess()) throw HttpException(response.status.value, response.status.description)
+        EpubDownloadStream(
+            inputStream = response.bodyAsChannel().toInputStream(),
+            contentLength = response.contentLength() ?: -1L,
+        )
     }
 
     override suspend fun getItemDetail(
@@ -409,9 +409,10 @@ class AbsApiClient(
         itemId: String,
         token: String,
         insecureAllowed: Boolean,
-    ): NetworkResult<AbsItemDetailResponse> = OkHttpClassifier.classify(dispatchers.io) {
-        val response = get(baseUrl, "/api/items/$itemId", token, insecureAllowed).requireSuccessful()
-        json.decodeFromString<AbsItemDetailResponse>(response.requireBody())
+    ): NetworkResult<AbsItemDetailResponse> = KtorClassifier.classify {
+        client(insecureAllowed).get("$baseUrl/api/items/$itemId") {
+            header(HttpHeaders.Authorization, "Bearer $token")
+        }.body()
     }
 
     override suspend fun syncEbookProgress(
@@ -420,18 +421,14 @@ class AbsApiClient(
         payload: NetworkEbookProgressPayload,
         token: String,
         insecureAllowed: Boolean,
-    ): NetworkResult<Long> = OkHttpClassifier.classify(dispatchers.io) {
-        val body = json.encodeToString(AbsEbookProgressRequest(payload.ebookLocation, payload.ebookProgress, payload.isFinished))
-            .toRequestBody(jsonMediaType)
-        val request = Request.Builder()
-            .url("$baseUrl/api/me/progress/$libraryItemId")
-            .addHeader("Authorization", "Bearer $token")
-            .patch(body)
-            .build()
-        val response = client(insecureAllowed).newCall(request).execute().requireSuccessful()
-        response.body?.string()
-            ?.let { runCatching { json.decodeFromString<AbsProgressResponse>(it) }.getOrNull() }
-            ?.lastUpdate ?: 0L
+    ): NetworkResult<Long> = KtorClassifier.classify {
+        val response = client(insecureAllowed).patch("$baseUrl/api/me/progress/$libraryItemId") {
+            header(HttpHeaders.Authorization, "Bearer $token")
+            contentType(ContentType.Application.Json)
+            setBody(AbsEbookProgressRequest(payload.ebookLocation, payload.ebookProgress, payload.isFinished))
+        }
+        if (!response.status.isSuccess()) throw HttpException(response.status.value, response.status.description)
+        runCatching { response.body<AbsProgressResponse>() }.getOrNull()?.lastUpdate ?: 0L
     }
 
     override suspend fun syncAudiobookProgress(
@@ -440,19 +437,15 @@ class AbsApiClient(
         payload: NetworkAudiobookProgressPayload,
         token: String,
         insecureAllowed: Boolean,
-    ): NetworkResult<Long> = OkHttpClassifier.classify(dispatchers.io) {
+    ): NetworkResult<Long> = KtorClassifier.classify {
         val progress = if (payload.duration > 0.0) (payload.currentTime / payload.duration).coerceIn(0.0, 1.0) else 0.0
-        val body = json.encodeToString(AbsAudiobookProgressRequest(payload.currentTime, payload.duration, progress))
-            .toRequestBody(jsonMediaType)
-        val request = Request.Builder()
-            .url("$baseUrl/api/me/progress/$libraryItemId")
-            .addHeader("Authorization", "Bearer $token")
-            .patch(body)
-            .build()
-        val response = client(insecureAllowed).newCall(request).execute().requireSuccessful()
-        response.body?.string()
-            ?.let { runCatching { json.decodeFromString<AbsProgressResponse>(it) }.getOrNull() }
-            ?.lastUpdate ?: 0L
+        val response = client(insecureAllowed).patch("$baseUrl/api/me/progress/$libraryItemId") {
+            header(HttpHeaders.Authorization, "Bearer $token")
+            contentType(ContentType.Application.Json)
+            setBody(AbsAudiobookProgressRequest(payload.currentTime, payload.duration, progress))
+        }
+        if (!response.status.isSuccess()) throw HttpException(response.status.value, response.status.description)
+        runCatching { response.body<AbsProgressResponse>() }.getOrNull()?.lastUpdate ?: 0L
     }
 
     override suspend fun getProgress(
@@ -460,16 +453,17 @@ class AbsApiClient(
         libraryItemId: String,
         token: String,
         insecureAllowed: Boolean,
-    ): NetworkResult<NetworkServerProgress> = OkHttpClassifier.classify(dispatchers.io) {
-        val response = get(baseUrl, "/api/me/progress/$libraryItemId", token, insecureAllowed)
+    ): NetworkResult<NetworkServerProgress> = KtorClassifier.classify {
+        val response = client(insecureAllowed).get("$baseUrl/api/me/progress/$libraryItemId") {
+            header(HttpHeaders.Authorization, "Bearer $token")
+        }
         // A 404 means "no progress record yet" — synthesize an empty record so callers don't
         // have to special-case `ServerError(404)`.
-        if (response.code == 404) {
-            response.body?.close()
+        if (response.status == HttpStatusCode.NotFound) {
             NetworkServerProgress(ebookLocation = "", lastUpdate = 0L)
         } else {
-            val raw = response.requireSuccessful().requireBody()
-            val parsed = json.decodeFromString<AbsProgressResponse>(raw)
+            if (!response.status.isSuccess()) throw HttpException(response.status.value, response.status.description)
+            val parsed = response.body<AbsProgressResponse>()
             NetworkServerProgress(
                 ebookLocation = parsed.ebookLocation,
                 ebookProgress = parsed.ebookProgress,
@@ -486,7 +480,7 @@ class AbsApiClient(
         deviceId: String,
         token: String,
         insecureAllowed: Boolean,
-    ): NetworkResult<NetworkPlaybackSession> = OkHttpClassifier.classify(dispatchers.io) {
+    ): NetworkResult<NetworkPlaybackSession> = KtorClassifier.classify {
         val payload = AbsPlayRequest(
             deviceInfo = AbsPlayDeviceInfo(deviceId = deviceId),
             // The MIME types Media3/ExoPlayer plays directly; ABS transcodes only if none match.
@@ -494,16 +488,13 @@ class AbsApiClient(
                 "audio/mpeg", "audio/mp4", "audio/aac", "audio/flac", "audio/ogg", "audio/x-m4a", "audio/x-m4b",
             ),
         )
-        val body = json.encodeToString(payload).toRequestBody(jsonMediaType)
-        val request = Request.Builder()
-            .url("$baseUrl/api/items/$libraryItemId/play")
-            .addHeader("Authorization", "Bearer $token")
-            .post(body)
-            .build()
-        val response = client(insecureAllowed).newCall(request).execute().requireSuccessful()
-        val raw = response.body?.string()
-        if (raw.isNullOrEmpty()) throw IOException("Empty play session response")
-        val parsed = json.decodeFromString<AbsPlaySessionResponse>(raw)
+        val response = client(insecureAllowed).post("$baseUrl/api/items/$libraryItemId/play") {
+            header(HttpHeaders.Authorization, "Bearer $token")
+            contentType(ContentType.Application.Json)
+            setBody(payload)
+        }
+        if (!response.status.isSuccess()) throw HttpException(response.status.value, response.status.description)
+        val parsed = response.body<AbsPlaySessionResponse>()
         val tracks = parsed.audioTracks.map { t ->
             NetworkAudioTrack(
                 index = t.index,
@@ -533,15 +524,13 @@ class AbsApiClient(
         timeListenedSec: Double,
         token: String,
         insecureAllowed: Boolean,
-    ): NetworkResult<Unit> = OkHttpClassifier.classify(dispatchers.io) {
-        val body = json.encodeToString(AbsSessionSyncRequest(currentTimeSec, timeListenedSec))
-            .toRequestBody(jsonMediaType)
-        val request = Request.Builder()
-            .url("$baseUrl/api/session/$sessionId/sync")
-            .addHeader("Authorization", "Bearer $token")
-            .post(body)
-            .build()
-        client(insecureAllowed).newCall(request).execute().use { it.requireSuccessful() }
+    ): NetworkResult<Unit> = KtorClassifier.classify {
+        val response = client(insecureAllowed).post("$baseUrl/api/session/$sessionId/sync") {
+            header(HttpHeaders.Authorization, "Bearer $token")
+            contentType(ContentType.Application.Json)
+            setBody(AbsSessionSyncRequest(currentTimeSec, timeListenedSec))
+        }
+        if (!response.status.isSuccess()) throw HttpException(response.status.value, response.status.description)
         Unit
     }
 
@@ -552,15 +541,13 @@ class AbsApiClient(
         timeListenedSec: Double,
         token: String,
         insecureAllowed: Boolean,
-    ): NetworkResult<Unit> = OkHttpClassifier.classify(dispatchers.io) {
-        val body = json.encodeToString(AbsSessionSyncRequest(currentTimeSec, timeListenedSec))
-            .toRequestBody(jsonMediaType)
-        val request = Request.Builder()
-            .url("$baseUrl/api/session/$sessionId/close")
-            .addHeader("Authorization", "Bearer $token")
-            .post(body)
-            .build()
-        client(insecureAllowed).newCall(request).execute().use { it.requireSuccessful() }
+    ): NetworkResult<Unit> = KtorClassifier.classify {
+        val response = client(insecureAllowed).post("$baseUrl/api/session/$sessionId/close") {
+            header(HttpHeaders.Authorization, "Bearer $token")
+            contentType(ContentType.Application.Json)
+            setBody(AbsSessionSyncRequest(currentTimeSec, timeListenedSec))
+        }
+        if (!response.status.isSuccess()) throw HttpException(response.status.value, response.status.description)
         Unit
     }
 
@@ -569,22 +556,13 @@ class AbsApiClient(
         itemId: String,
         token: String,
         insecureAllowed: Boolean,
-    ): NetworkResult<NetworkLibraryItem?> = OkHttpClassifier.classify(dispatchers.io) {
-        val response = get(baseUrl, "/api/items/$itemId?expanded=1", token, insecureAllowed)
-        if (response.code == 404) {
-            response.body?.close()
-            null
-        } else {
-            val raw = response.requireSuccessful().requireBody()
-            json.decodeFromString<AbsLibraryItemsResponse.AbsLibraryItemDto>(raw).toNetworkLibraryItem()
+    ): NetworkResult<NetworkLibraryItem?> = KtorClassifier.classify {
+        val response = client(insecureAllowed).get("$baseUrl/api/items/$itemId?expanded=1") {
+            header(HttpHeaders.Authorization, "Bearer $token")
         }
+        if (response.status == HttpStatusCode.NotFound) null
+        else response.body<AbsLibraryItemsResponse.AbsLibraryItemDto>().toNetworkLibraryItem()
     }
-
-    @Serializable
-    private data class AbsSessionSyncRequest(
-        val currentTime: Double,
-        val timeListened: Double,
-    )
 
     override suspend fun getServerInfo(
         baseUrl: String,
@@ -593,11 +571,9 @@ class AbsApiClient(
     ): String? {
         // `/status` is unauthenticated and returns `{ serverVersion, app, isInit, ... }`.
         // The previously-targeted `/api/server-info` does not exist on ABS (404 even with auth).
-        val result = OkHttpClassifier.classify(dispatchers.io) {
-            val response = client(insecureAllowed).newCall(
-                Request.Builder().url("$baseUrl/status").get().build()
-            ).execute().requireSuccessful()
-            json.decodeFromString<AbsServerInfoResponse>(response.requireBody()).serverVersion
+        val result = KtorClassifier.classify {
+            client(insecureAllowed).get("$baseUrl/status")
+                .body<AbsServerInfoResponse>().serverVersion
         }
         return result.getOrNull()
     }
@@ -607,9 +583,10 @@ class AbsApiClient(
         token: String,
         insecureAllowed: Boolean,
     ): String? {
-        val result = OkHttpClassifier.classify(dispatchers.io) {
-            val response = get(baseUrl, "/api/me", token, insecureAllowed).requireSuccessful()
-            json.decodeFromString<AbsMeResponse>(response.requireBody()).id.takeIf { it.isNotBlank() }
+        val result = KtorClassifier.classify {
+            client(insecureAllowed).get("$baseUrl/api/me") {
+                header(HttpHeaders.Authorization, "Bearer $token")
+            }.body<AbsMeResponse>().id.takeIf { it.isNotBlank() }
         }
         return result.getOrNull()
     }
@@ -618,11 +595,14 @@ class AbsApiClient(
         baseUrl: String,
         token: String,
         insecureAllowed: Boolean,
-    ): NetworkResult<NetworkListeningStats> = OkHttpClassifier.classify(dispatchers.io) {
-        val response = get(baseUrl, "/api/me/listening-stats", token, insecureAllowed)
-        val raw = response.requireSuccessful().requireBody()
-        val parsed = json.decodeFromString<AbsListeningStatsResponse>(raw)
-        NetworkListeningStats(totalTimeSec = parsed.totalTime)
+    ): NetworkResult<NetworkListeningStats> = KtorClassifier.classify {
+        val response = client(insecureAllowed).get("$baseUrl/api/me/listening-stats") {
+            header(HttpHeaders.Authorization, "Bearer $token")
+        }
+        if (!response.status.isSuccess()) throw ResponseException(response, response.status.description)
+        response.body<AbsListeningStatsResponse>().let { parsed ->
+            NetworkListeningStats(totalTimeSec = parsed.totalTime)
+        }
     }
 
     override suspend fun createBookmark(
@@ -632,14 +612,12 @@ class AbsApiClient(
         title: String,
         token: String,
         insecureAllowed: Boolean,
-    ): NetworkResult<NetworkAbsBookmark> = OkHttpClassifier.classify(dispatchers.io) {
-        val body = json.encodeToString(AbsBookmarkRequest(timeSec, title)).toRequestBody(jsonMediaType)
-        val request = Request.Builder()
-            .url("$baseUrl/api/me/item/$itemId/bookmark")
-            .addHeader("Authorization", "Bearer $token")
-            .post(body)
-            .build()
-        executeBookmarkWrite(request, insecureAllowed)
+    ): NetworkResult<NetworkAbsBookmark> = KtorClassifier.classify {
+        client(insecureAllowed).post("$baseUrl/api/me/item/$itemId/bookmark") {
+            header(HttpHeaders.Authorization, "Bearer $token")
+            contentType(ContentType.Application.Json)
+            setBody(AbsBookmarkRequest(timeSec, title))
+        }.body<AbsBookmarkJson>().toNetworkAbsBookmark()
     }
 
     override suspend fun updateBookmark(
@@ -649,20 +627,12 @@ class AbsApiClient(
         title: String,
         token: String,
         insecureAllowed: Boolean,
-    ): NetworkResult<NetworkAbsBookmark> = OkHttpClassifier.classify(dispatchers.io) {
-        val body = json.encodeToString(AbsBookmarkRequest(timeSec, title)).toRequestBody(jsonMediaType)
-        val request = Request.Builder()
-            .url("$baseUrl/api/me/item/$itemId/bookmark")
-            .addHeader("Authorization", "Bearer $token")
-            .patch(body)
-            .build()
-        executeBookmarkWrite(request, insecureAllowed)
-    }
-
-    private fun executeBookmarkWrite(request: Request, insecureAllowed: Boolean): NetworkAbsBookmark {
-        val response = client(insecureAllowed).newCall(request).execute().requireSuccessful()
-        val raw = response.requireBody()
-        return json.decodeFromString<AbsBookmarkJson>(raw).toNetworkAbsBookmark()
+    ): NetworkResult<NetworkAbsBookmark> = KtorClassifier.classify {
+        client(insecureAllowed).patch("$baseUrl/api/me/item/$itemId/bookmark") {
+            header(HttpHeaders.Authorization, "Bearer $token")
+            contentType(ContentType.Application.Json)
+            setBody(AbsBookmarkRequest(timeSec, title))
+        }.body<AbsBookmarkJson>().toNetworkAbsBookmark()
     }
 
     override suspend fun deleteBookmark(
@@ -671,22 +641,18 @@ class AbsApiClient(
         timeSec: Int,
         token: String,
         insecureAllowed: Boolean,
-    ): NetworkResult<NetworkAbsBookmark> = OkHttpClassifier.classify(dispatchers.io) {
-        val request = Request.Builder()
-            .url("$baseUrl/api/me/item/$itemId/bookmark/$timeSec")
-            .addHeader("Authorization", "Bearer $token")
-            .delete()
-            .build()
-        val response = client(insecureAllowed).newCall(request).execute()
-        response.body?.close()
+    ): NetworkResult<NetworkAbsBookmark> = KtorClassifier.classify {
+        val response = client(insecureAllowed).delete("$baseUrl/api/me/item/$itemId/bookmark/$timeSec") {
+            header(HttpHeaders.Authorization, "Bearer $token")
+        }
         // Deleting an already-absent bookmark is success (idempotent) — otherwise a
         // delete-tombstone for a bookmark already gone on the server stays dirty forever.
-        if (response.code == 404 || response.isSuccessful) {
+        if (response.status == HttpStatusCode.NotFound || response.status.isSuccess()) {
             // DELETE returns plain-text "OK" with no JSON body, so synthesize the bookmark
             // from the request inputs (identity is libraryItemId + time).
             NetworkAbsBookmark(libraryItemId = itemId, title = "", timeSec = timeSec, createdAt = 0L)
         } else {
-            throw HttpException(response.code, response.message)
+            throw HttpException(response.status.value, response.status.description)
         }
     }
 
@@ -694,34 +660,24 @@ class AbsApiClient(
         baseUrl: String,
         token: String,
         insecureAllowed: Boolean,
-    ): NetworkResult<List<NetworkAbsBookmark>> = OkHttpClassifier.classify(dispatchers.io) {
-        // Bypass the shared OkHttp cache for `/api/me` (15-min TTL from EndpointCacheHeadersInterceptor).
+    ): NetworkResult<List<NetworkAbsBookmark>> = KtorClassifier.classify {
+        // Bypass the shared cache for `/api/me` (15-min TTL from EndpointCacheHeadersInterceptor).
         // Annotation sync piggybacks on user bookmarks; a stale cached body would hide a peer device's
         // freshly-written bookmark until reopen. Mirrors WebDAV, whose PROPFIND was never cached.
-        val response = get(baseUrl, "/api/me", token, insecureAllowed, bypassCache = true).requireSuccessful()
-        val raw = response.requireBody()
-        // `/api/me` carries many fields; `json` is configured with ignoreUnknownKeys so the
-        // wrapper need only declare `bookmarks` (absent → empty via the default).
-        json.decodeFromString<AbsMeBookmarksResponse>(raw).bookmarks.map { it.toNetworkAbsBookmark() }
+        client(insecureAllowed).get("$baseUrl/api/me") {
+            header(HttpHeaders.Authorization, "Bearer $token")
+            header(HttpHeaders.CacheControl, "no-cache, no-store")
+        }.body<AbsMeBookmarksResponse>().bookmarks.map { it.toNetworkAbsBookmark() }
     }
 
-    private fun client(insecureAllowed: Boolean): OkHttpClient =
+    private fun client(insecureAllowed: Boolean): HttpClient =
         if (insecureAllowed) httpClient.withInsecureTls() else httpClient
 
-    private fun get(
-        baseUrl: String,
-        path: String,
-        token: String,
-        insecureAllowed: Boolean,
-        bypassCache: Boolean = false,
-    ): Response {
-        val builder = Request.Builder()
-            .url("$baseUrl$path")
-            .addHeader("Authorization", "Bearer $token")
-            .get()
-        if (bypassCache) builder.cacheControl(CacheControl.FORCE_NETWORK)
-        return client(insecureAllowed).newCall(builder.build()).execute()
-    }
+    @Serializable
+    private data class AbsSessionSyncRequest(
+        val currentTime: Double,
+        val timeListened: Double,
+    )
 }
 
 @Serializable

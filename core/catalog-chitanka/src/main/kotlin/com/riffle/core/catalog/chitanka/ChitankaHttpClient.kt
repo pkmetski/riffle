@@ -1,14 +1,21 @@
 package com.riffle.core.catalog.chitanka
 
-import kotlinx.coroutines.Dispatchers
+import io.ktor.client.HttpClient
+import io.ktor.client.request.accept
+import io.ktor.client.request.get
+import io.ktor.client.request.head
+import io.ktor.client.request.header
+import io.ktor.client.statement.bodyAsText
+import io.ktor.client.statement.readBytes
+import io.ktor.http.ContentType
+import io.ktor.http.HttpHeaders
+import io.ktor.http.contentLength
+import io.ktor.http.isSuccess
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.withContext
-import okhttp3.OkHttpClient
-import okhttp3.Request
 import java.io.IOException
 
 /**
- * Thin OkHttp wrapper for Chitanka/Gramofonche HTML fetches.
+ * Thin Ktor wrapper for Chitanka/Gramofonche HTML fetches.
  *
  * Honors upstream 429 rate-limiting with the same schedule as the reference
  * TypeScript scraper: 3 attempts, backing off 1.5s then 3s. Identifies itself
@@ -21,7 +28,7 @@ import java.io.IOException
  * ASCII-safe.
  */
 class ChitankaHttpClient(
-    private val client: OkHttpClient,
+    private val client: HttpClient,
     private val userAgent: String,
     private val retryDelaysMs: List<Long> = DEFAULT_RETRY_DELAYS_MS,
 ) {
@@ -30,63 +37,38 @@ class ChitankaHttpClient(
      * GET [url] and return the response body as a String. Retries on HTTP 429 up to
      * [retryDelaysMs].size + 1 total attempts.
      */
-    suspend fun getString(url: String): String = withContext(Dispatchers.IO) {
+    suspend fun getString(url: String): String {
         var attempt = 0
         while (true) {
-            val request = Request.Builder()
-                .url(url)
-                .header("User-Agent", userAgent)
-                .header("Accept-Language", "bg,en;q=0.5")
-                .build()
-            val (status, body, msg) = client.newCall(request).execute().use { r ->
-                Triple(r.code, if (r.isSuccessful) r.body.string() else null, r.message)
+            val response = client.get(url) {
+                header(HttpHeaders.UserAgent, userAgent)
+                header(HttpHeaders.AcceptLanguage, "bg,en;q=0.5")
             }
-            if (status == 429 && attempt < retryDelaysMs.size) {
-                delay(retryDelaysMs[attempt])
-                attempt++
+            if (response.status.value == 429 && attempt < retryDelaysMs.size) {
+                delay(retryDelaysMs[attempt++])
                 continue
             }
-            if (body == null) throw ChitankaHttpException(code = status, url = url, message = msg)
-            return@withContext body
+            if (!response.status.isSuccess()) throw ChitankaHttpException(response.status.value, url, response.status.description)
+            return response.bodyAsText()
         }
         @Suppress("UNREACHABLE_CODE")
         error("unreachable")
     }
 
     /** True when [url] responds 2xx to a HEAD request. Used by [connectivityCheck]. */
-    suspend fun ping(url: String): Boolean = withContext(Dispatchers.IO) {
-        try {
-            val request = Request.Builder()
-                .url(url)
-                .header("User-Agent", userAgent)
-                .head()
-                .build()
-            client.newCall(request).execute().use { it.isSuccessful }
-        } catch (_: IOException) {
-            false
-        }
-    }
+    suspend fun ping(url: String): Boolean = try {
+        client.head(url) { header(HttpHeaders.UserAgent, userAgent) }.status.isSuccess()
+    } catch (_: IOException) { false }
 
     /**
      * Content-Length reported by the origin on a HEAD, or `null` on non-2xx / network error.
      * Used as a fallback in the audiobook capability when [probeMp3DurationSec] can't derive
      * an exact duration from the MP3 headers.
      */
-    suspend fun headContentLength(url: String): Long? = withContext(Dispatchers.IO) {
-        try {
-            val request = Request.Builder()
-                .url(url)
-                .header("User-Agent", userAgent)
-                .head()
-                .build()
-            client.newCall(request).execute().use { r ->
-                if (!r.isSuccessful) return@withContext null
-                r.header("Content-Length")?.toLongOrNull()
-            }
-        } catch (_: IOException) {
-            null
-        }
-    }
+    suspend fun headContentLength(url: String): Long? = try {
+        val r = client.head(url) { header(HttpHeaders.UserAgent, userAgent) }
+        if (!r.status.isSuccess()) null else r.contentLength()
+    } catch (_: IOException) { null }
 
     /**
      * Derives the exact duration of an MP3 at [url] in seconds by:
@@ -108,13 +90,13 @@ class ChitankaHttpClient(
      * the initial fetch, or when no Layer III frame is found in the sniff window. The caller
      * should fall back to a coarser estimate in that case.
      */
-    suspend fun probeMp3DurationSec(url: String): Double? = withContext(Dispatchers.IO) {
-        try {
-            val head = rangeGet(url, 0L, 9L) ?: return@withContext null
+    suspend fun probeMp3DurationSec(url: String): Double? {
+        return try {
+            val head = rangeGet(url, 0L, 9L) ?: return null
             val audioOffset = id3v2AudioOffset(head.bytes) ?: 0
             val end = (audioOffset + MP3_PROBE_BYTES - 1).toLong()
-            val audio = rangeGet(url, audioOffset.toLong(), end) ?: return@withContext null
-            val frame = findFirstMp3Frame(audio.bytes) ?: return@withContext null
+            val audio = rangeGet(url, audioOffset.toLong(), end) ?: return null
+            val frame = findFirstMp3Frame(audio.bytes) ?: return null
             val xingFrames = parseXingFrameCount(audio.bytes, frame.frameStart, frame.meta)
             if (xingFrames != null && xingFrames > 0) {
                 xingFrames.toDouble() * frame.meta.samplesPerFrame / frame.meta.sampleRateHz
@@ -130,20 +112,18 @@ class ChitankaHttpClient(
     /** A byte payload alongside the total resource size read from `Content-Range`. */
     private data class RangeReply(val bytes: ByteArray, val totalBytes: Long)
 
-    private fun rangeGet(url: String, start: Long, endInclusive: Long): RangeReply? {
-        val request = Request.Builder()
-            .url(url)
-            .header("User-Agent", userAgent)
-            .header("Range", "bytes=$start-$endInclusive")
-            .build()
-        return client.newCall(request).execute().use { r ->
-            if (!r.isSuccessful) return@use null
-            // Content-Range: bytes 0-9/12161710
-            val total = r.header("Content-Range")?.substringAfter("/", "")?.toLongOrNull()
-                ?: r.header("Content-Length")?.toLongOrNull()
-                ?: return@use null
-            RangeReply(r.body.bytes(), total)
-        }
+    private suspend fun rangeGet(url: String, start: Long, endInclusive: Long): RangeReply? {
+        return try {
+            val response = client.get(url) {
+                header(HttpHeaders.UserAgent, userAgent)
+                header(HttpHeaders.Range, "bytes=$start-$endInclusive")
+            }
+            if (!response.status.isSuccess()) return null
+            val total = response.headers[HttpHeaders.ContentRange]?.substringAfter("/", "")?.toLongOrNull()
+                ?: response.contentLength()
+                ?: return null
+            RangeReply(response.readBytes(), total)
+        } catch (_: IOException) { null }
     }
 
     companion object {

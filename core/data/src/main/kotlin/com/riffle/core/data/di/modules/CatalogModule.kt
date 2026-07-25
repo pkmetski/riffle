@@ -22,6 +22,7 @@ import com.riffle.core.network.AbsPlaybackApi
 import com.riffle.core.network.AbsServerInfoApi
 import com.riffle.core.data.di.qualifiers.WebSourceOkHttpClient
 import com.riffle.core.network.AbsSessionApi
+import com.riffle.core.network.createDefaultHttpClient
 import okhttp3.OkHttpClient
 import dagger.Module
 import dagger.Provides
@@ -89,7 +90,7 @@ object CatalogModule {
     fun provideChitankaCatalogFactory(
         @WebSourceOkHttpClient okHttpClient: OkHttpClient,
     ): CatalogFactory = ChitankaCatalogFactory(
-        okHttpClient = okHttpClient,
+        httpClient = createDefaultHttpClient(okHttpClient),
         userAgent = "Riffle/dev (Android) chitanka-source",
     )
 
@@ -100,7 +101,7 @@ object CatalogModule {
     fun provideGutenbergCatalogFactory(
         @WebSourceOkHttpClient okHttpClient: OkHttpClient,
     ): CatalogFactory = GutenbergCatalogFactory(
-        okHttpClient = okHttpClient,
+        sharedHttpClient = createDefaultHttpClient(okHttpClient),
         userAgent = "Riffle/dev (Android) gutenberg-source",
     )
 
@@ -112,7 +113,7 @@ object CatalogModule {
         okHttpClient: OkHttpClient,
         tokenStorage: TokenStorage,
     ): CatalogFactory = KomgaCatalogFactory(
-        okHttpClient = okHttpClient,
+        httpClient = createDefaultHttpClient(okHttpClient),
         tokenStorage = tokenStorage,
         userAgent = "Riffle/dev (Android) komga-source",
     )

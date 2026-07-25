@@ -56,19 +56,17 @@ class AudiobookBundleDownloader(
         var written = if (appending) resumeFrom else 0L
         val total = if (stream.totalBytes > 0) stream.totalBytes else -1L
         try {
-            stream.body.use { body ->
+            stream.body.use { source ->
                 java.io.FileOutputStream(partFile, appending).use { sink ->
                     val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
-                    body.byteStream().use { source ->
-                        while (true) {
-                            val n = source.read(buffer)
-                            if (n == -1) break
-                            sink.write(buffer, 0, n)
-                            written += n
-                            // Pass total verbatim — -1 when the server sent no length, so the
-                            // UI shows an indeterminate spinner rather than a misleading 100%.
-                            onProgress(written, total)
-                        }
+                    while (true) {
+                        val n = source.read(buffer)
+                        if (n == -1) break
+                        sink.write(buffer, 0, n)
+                        written += n
+                        // Pass total verbatim — -1 when the server sent no length, so the
+                        // UI shows an indeterminate spinner rather than a misleading 100%.
+                        onProgress(written, total)
                     }
                 }
             }

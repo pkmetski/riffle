@@ -4,8 +4,6 @@ import com.riffle.core.network.AudiobookBundleApi
 import com.riffle.core.network.AudiobookBundleStream
 import com.riffle.core.network.NetworkResult
 import kotlinx.coroutines.test.runTest
-import okhttp3.MediaType.Companion.toMediaType
-import okhttp3.ResponseBody.Companion.toResponseBody
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -13,6 +11,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
+import java.io.ByteArrayInputStream
 import java.io.File
 import java.io.IOException
 
@@ -44,14 +43,14 @@ class AudiobookBundleDownloaderTest {
             return if (fromByte > 0 && honorRange) {
                 val tail = full.copyOfRange(fromByte.toInt(), full.size)
                 NetworkResult.Success(AudiobookBundleStream(
-                    body = tail.toResponseBody("application/epub+zip".toMediaType()),
+                    body = ByteArrayInputStream(tail),
                     totalBytes = full.size.toLong(),
                     isPartial = true,
                 ))
             } else {
                 // Advertise the FULL length but serve only [serveBytes] — a silent truncation.
                 NetworkResult.Success(AudiobookBundleStream(
-                    body = full.copyOfRange(0, serveBytes).toResponseBody("application/epub+zip".toMediaType()),
+                    body = ByteArrayInputStream(full.copyOfRange(0, serveBytes)),
                     totalBytes = full.size.toLong(),
                     isPartial = false,
                 ))

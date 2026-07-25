@@ -5,7 +5,7 @@ import com.riffle.core.catalog.CatalogFactory
 import com.riffle.core.models.Source
 import com.riffle.core.models.SourceType
 import com.riffle.core.domain.TokenStorage
-import okhttp3.OkHttpClient
+import io.ktor.client.HttpClient
 
 /**
  * Builds a [KomgaCatalog] per Komga Source row. Reconstructs the HTTP Basic auth header from
@@ -13,7 +13,7 @@ import okhttp3.OkHttpClient
  * Returns null when the source has no stored password (fresh row that hasn't finished login).
  */
 class KomgaCatalogFactory(
-    private val okHttpClient: OkHttpClient,
+    private val httpClient: HttpClient,
     private val tokenStorage: TokenStorage,
     private val userAgent: String = "Riffle/dev (Android) komga-source",
 ) : CatalogFactory {
@@ -37,10 +37,10 @@ class KomgaCatalogFactory(
             insecureAllowed = source.insecureConnectionAllowed,
         )
         val http = KomgaHttpClient(
-            client = okHttpClient,
+            client = httpClient,
             basicAuthHeader = basicAuthHeader,
             userAgent = userAgent,
         )
-        return KomgaCatalog(config = config, http = http, bytesClient = okHttpClient)
+        return KomgaCatalog(config = config, http = http, bytesClient = httpClient)
     }
 }

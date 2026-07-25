@@ -4,8 +4,9 @@ import com.riffle.core.catalog.BookFormat
 import com.riffle.core.catalog.CatalogFileHandle
 import com.riffle.core.catalog.FacetSelection
 import com.riffle.core.models.SourceType
+import io.ktor.client.HttpClient
+import io.ktor.client.engine.okhttp.OkHttp
 import kotlinx.coroutines.test.runTest
-import okhttp3.OkHttpClient
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
 import org.junit.After
@@ -29,11 +30,11 @@ class GutenbergCatalogTest {
     @Before
     fun setUp() {
         server = MockWebServer().also { it.start() }
-        val okHttp = OkHttpClient()
-        val http = GutenbergHttpClient(client = okHttp, userAgent = "Riffle/test", retryDelaysMs = emptyList())
+        val httpClient = HttpClient(OkHttp) {}
+        val http = GutenbergHttpClient(client = httpClient, userAgent = "Riffle/test", retryDelaysMs = emptyList())
         catalog = GutenbergCatalog(
             http = http,
-            bytesClient = okHttp,
+            bytesClient = httpClient,
             userAgent = "Riffle/test",
             apiBase = server.url("").toString().trimEnd('/'),
         )

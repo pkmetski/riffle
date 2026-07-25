@@ -15,10 +15,15 @@ import com.riffle.core.catalog.ReadCapability
 import com.riffle.core.catalog.SortKey
 import com.riffle.core.catalog.ToReadListCapability
 import com.riffle.core.models.SourceType
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
-import okhttp3.OkHttpClient
-import okhttp3.Request
+import io.ktor.client.HttpClient
+import io.ktor.client.request.get
+import io.ktor.client.request.header
+import io.ktor.client.statement.bodyAsChannel
+import io.ktor.http.HttpHeaders
+import io.ktor.http.contentLength
+import io.ktor.http.isSuccess
+import io.ktor.utils.io.jvm.javaio.toInputStream
+import kotlinx.coroutines.delay
 import java.net.URLEncoder
 
 /**
@@ -41,7 +46,7 @@ import java.net.URLEncoder
  */
 class GutenbergCatalog(
     private val http: GutenbergHttpClient,
-    private val bytesClient: OkHttpClient = OkHttpClient(),
+    private val bytesClient: HttpClient = HttpClient(),
     private val userAgent: String = "Riffle",
     // Overridable so tests can point the API + download hosts at a MockWebServer.
     private val apiBase: String = GutenbergParser.BASE,
@@ -153,44 +158,38 @@ class GutenbergCatalog(
         itemId: String,
         format: BookFormat,
         handleHint: String?,
-    ): CatalogFileStream = withContext(Dispatchers.IO) {
+    ): CatalogFileStream {
         val handle = fetchFile(itemId, format)
         if (handle !is CatalogFileHandle.Stream) {
             throw GutenbergException("Local file handles are not produced by Gutenberg Source")
         }
-        val response = fetchBytesWithRetry(handle.url, itemId)
-        val body = response.body
-        object : CatalogFileStream {
-            override val contentLength: Long = body.contentLength()
-            override fun byteStream() = body.byteStream()
-            override fun close() { response.close() }
-        }
+        return fetchBytesWithRetry(handle.url, itemId)
     }
 
-    internal suspend fun fetchBytesWithRetry(url: String, itemId: String): okhttp3.Response {
+    internal suspend fun fetchBytesWithRetry(downloadUrl: String, itemId: String): CatalogFileStream {
         var attempt = 0
         while (true) {
-            val request = Request.Builder()
-                .url(url)
-                .header("User-Agent", userAgent)
-                .header("Accept", "application/epub+zip, application/octet-stream")
-                .header("Referer", GutenbergParser.GUTENBERG_BASE)
-                .build()
-            val response = bytesClient.newCall(request).execute()
-            if (response.isSuccessful) return response
-            val code = response.code
-            response.close()
+            val response = bytesClient.get(downloadUrl) {
+                header(HttpHeaders.UserAgent, userAgent)
+            }
+            if (response.status.isSuccess()) {
+                val channel = response.bodyAsChannel()
+                return object : CatalogFileStream {
+                    override val contentLength: Long = response.contentLength() ?: -1L
+                    override fun byteStream(): java.io.InputStream = channel.toInputStream()
+                    override fun close() { channel.cancel(null) }
+                }
+            }
+            val code = response.status.value
             if ((code == 429 || code == 503) &&
                 attempt < GutenbergHttpClient.DEFAULT_RETRY_DELAYS_MS.size
             ) {
-                kotlinx.coroutines.delay(GutenbergHttpClient.DEFAULT_RETRY_DELAYS_MS[attempt])
+                delay(GutenbergHttpClient.DEFAULT_RETRY_DELAYS_MS[attempt])
                 attempt++
                 continue
             }
             throw GutenbergException("Failed to fetch bytes for $itemId: $code")
         }
-        @Suppress("UNREACHABLE_CODE")
-        error("unreachable")
     }
 
     // ---- Connectivity -------------------------------------------------------
