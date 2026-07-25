@@ -149,6 +149,46 @@ class EpubReaderViewModelHighlightsSourceTest {
         assertEquals("Chapter", deriveChapterTitle(""))
     }
 
+    // ---- looksUnhelpfulTitle / elidedChapterTitle -----------------------------------------
+
+    @Test
+    fun `looksUnhelpfulTitle rejects blank, bare Chapter, UUID, and spine filenames`() {
+        // Should be flagged as unhelpful → fall through to "Chapter N"
+        assertTrue(looksUnhelpfulTitle(""))
+        assertTrue(looksUnhelpfulTitle("   "))
+        assertTrue(looksUnhelpfulTitle("Chapter"))
+        assertTrue(looksUnhelpfulTitle("chapter"))
+        assertTrue(looksUnhelpfulTitle("6ba7b810-9dad-11d1-80b4-00c04fd430c8")) // UUID
+        assertTrue(looksUnhelpfulTitle("part0010"))   // EPUB spine filename — the bug
+        assertTrue(looksUnhelpfulTitle("item003"))
+        assertTrue(looksUnhelpfulTitle("text00001"))
+        assertTrue(looksUnhelpfulTitle("SECTION_012"))
+    }
+
+    @Test
+    fun `looksUnhelpfulTitle accepts real chapter titles`() {
+        assertFalse(looksUnhelpfulTitle("The Nature of Complexity"))
+        assertFalse(looksUnhelpfulTitle("Introduction"))
+        assertFalse(looksUnhelpfulTitle("Epilogue"))
+        assertFalse(looksUnhelpfulTitle("ch03"))       // short but no 3-digit run
+        assertFalse(looksUnhelpfulTitle("Act2"))       // only one trailing digit
+        assertFalse(looksUnhelpfulTitle("Part3"))
+    }
+
+    @Test
+    fun `elidedChapterTitle falls back to Chapter N when TOC is empty and derived is a spine filename`() {
+        // Regression: before SPINE_FILENAME_REGEX, "part0010" slipped past looksUnhelpfulTitle
+        // and was displayed verbatim as the chapter heading.
+        assertEquals("Chapter 1", elidedChapterTitle("OEBPS/part0010.xhtml", "part0010", emptyList(), 0))
+        assertEquals("Chapter 3", elidedChapterTitle("OEBPS/item003.xhtml", "item003", emptyList(), 2))
+    }
+
+    @Test
+    fun `elidedChapterTitle uses TOC title when available regardless of spine filename`() {
+        val toc = listOf(TocEntry(title = "Complexity", href = "OEBPS/part0010.xhtml"))
+        assertEquals("Complexity", elidedChapterTitle("OEBPS/part0010.xhtml", "part0010", toc, 0))
+    }
+
     // ---- Fix B (ADR 0041 follow-up): chapter titles resolved from the cached TOC -----------
 
     // The regression this pins: without TOC resolution, Highlights-mode chapter headings show the
@@ -168,6 +208,17 @@ class EpubReaderViewModelHighlightsSourceTest {
     @Test
     fun `resolveChapterTitle returns null when no TOC entry matches`() {
         assertNull(resolveChapterTitle("OEBPS/part0009.xhtml", emptyList()))
+    }
+
+    @Test
+    fun `resolveChapterTitle returns null for blank TOC title so Chapter N fallback applies`() {
+        // Regression: EPUBs with missing navLabel text produce TocEntry(title=""). Without the
+        // ifBlank guard, resolveChapterTitle returned "" (non-null) and elidedChapterTitle
+        // short-circuited to a blank heading, bypassing the "Chapter N" fallback.
+        val toc = listOf(TocEntry(title = "", href = "OEBPS/part0010.xhtml"))
+        assertNull(resolveChapterTitle("OEBPS/part0010.xhtml", toc))
+        // Confirm elidedChapterTitle falls through to "Chapter N" for blank-titled TOC entries.
+        assertEquals("Chapter 1", elidedChapterTitle("OEBPS/part0010.xhtml", "part0010", toc, 0))
     }
 
     @Test

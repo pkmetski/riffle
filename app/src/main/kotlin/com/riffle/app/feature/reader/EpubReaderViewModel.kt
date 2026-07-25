@@ -1501,6 +1501,18 @@ class EpubReaderViewModel @Inject constructor(
             initialFocusAnnotationId = o.initialFocusAnnotationId,
         )
 
+        // Cache the publication's TOC from the already-open publication so the elided view
+        // shows real chapter names even when the detail screen was never visited on this device
+        // (root cause of "part0010"-style headings in the Highlights reader).
+        val tocFromPub = pub.tableOfContents.toTocEntries()
+        val readerServerId = o.resolvedReaderServerId
+        if (tocFromPub.isNotEmpty() && readerServerId != null) {
+            viewModelScope.launch {
+                val inode = libraryItemDao.getById(readerServerId, itemId)?.ebookFileIno ?: "unknown"
+                tocRepository.saveToc(readerServerId, itemId, inode, tocFromPub)
+            }
+        }
+
         // Navigate to the requested TOC entry using the same path as an in-reader TOC tap.
         // formattingPrefsProvider in the nav event handler ensures the correct continuous vs paged
         // path is taken even when Compose state hasn't caught up yet.
@@ -3834,8 +3846,14 @@ internal fun elidedChapterTitle(href: String, derived: String, toc: List<TocEntr
 private val UUID_TITLE_REGEX =
     Regex("^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$")
 
+// Matches auto-generated EPUB spine filenames: letters/underscores/hyphens followed by 3+
+// digits (e.g. "part0010", "item003", "text00001"). Human-readable titles never end in
+// zero-padded digit runs of this length, so these are safe to treat as unhelpful.
+private val SPINE_FILENAME_REGEX = Regex("^[a-zA-Z][a-zA-Z0-9_-]*\\d{3,}$")
+
 internal fun looksUnhelpfulTitle(title: String): Boolean =
-    title.isBlank() || title.equals("Chapter", ignoreCase = true) || UUID_TITLE_REGEX.matches(title)
+    title.isBlank() || title.equals("Chapter", ignoreCase = true) ||
+    UUID_TITLE_REGEX.matches(title) || SPINE_FILENAME_REGEX.matches(title)
 
 /**
  * Resolves a highlight's chapter title from the cached TOC (Fix B, ADR 0041 follow-up) — without
@@ -3852,7 +3870,7 @@ internal fun resolveChapterTitle(href: String, toc: List<TocEntry>): String? {
         for (entry in entries) {
             val entryHref = entry.href.substringBefore('#')
             if (entryHref == normalized || entryHref.endsWith("/$normalized") || normalized.endsWith("/$entryHref")) {
-                return entry.title
+                return entry.title.ifBlank { null }
             }
             search(entry.children)?.let { return it }
         }
