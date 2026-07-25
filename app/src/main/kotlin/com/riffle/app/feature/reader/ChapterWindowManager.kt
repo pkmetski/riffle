@@ -31,15 +31,22 @@ internal class ChapterWindowManager(chaptersBehind: Int) {
         data object ShiftBackward : Decision()
 
         /**
-         * Grow the loaded window by appending the next chapter WITHOUT dropping the top. Fires when
-         * every currently-loaded chapter fits inside a single viewport and more chapters remain in
-         * the spine — the field-observed case is opening a book whose front-matter is several tiny
-         * files (e.g. "Praise for…" 2 KB + "Selected Works From…" 1 KB + "Title" 0.6 KB). All three
-         * fit on-screen at once, so [ShiftForward] never triggers (midpoint can't advance past the
-         * top budget, and `scrollY + viewportHeight >= loadedContentBottom` is true only because
-         * everything is visible — the ShiftForward path deliberately excludes this case to avoid
-         * cascading past the user's opened position). The result: scroll dead-ends with no more
-         * book, even though the next chapter exists.
+         * Grow the loaded window by appending the next chapter WITHOUT dropping the top. Fires in
+         * two situations:
+         *
+         * 1. **Fits-in-viewport**: every currently-loaded chapter fits inside a single viewport.
+         *    Field case: front-matter with several tiny files ("Praise for…" 2 KB + "Selected
+         *    Works From…" 1 KB + "Title" 0.6 KB). All fit on-screen at once; ShiftForward never
+         *    triggers because scrollY is pinned at 0 so pastBehindBudget is a false positive.
+         *
+         * 2. **At-bottom, window not full**: the viewport bottom already touches or exceeds the
+         *    bottom of loaded content, but the window is under [appendOnlyMaxWindow]. Field case:
+         *    the book opens at a mid-spine chapter (e.g. title page) whose chapter + its neighbours
+         *    fit in or nearly fill the viewport, so after the initial scroll the user is immediately
+         *    at the bottom of loaded content. Without this path, ShiftForward fires, drops the top
+         *    chapter (fm02), and scroll compensation resets scrollY to 0 — which triggers
+         *    ShiftBackward, which prepends fm02 again and the cycle oscillates indefinitely.
+         *    AppendOnly extends forward without losing the opening chapter, breaking the loop.
          *
          * Unlike ShiftForward, this decision doesn't advance [topIndex] so the user can still scroll
          * back to the chapters they opened at. Bounded by [appendOnlyMaxWindow] in [decide] to
@@ -143,18 +150,29 @@ internal class ChapterWindowManager(chaptersBehind: Int) {
         // tests) preserve their prior Hold behavior. The cap prevents a pathological all-short-
         // chapters book from loading the entire spine at open — the controller passes a small
         // constant (~8) that comfortably covers real front-matter sequences but stops runaway.
-        val shouldAppendOnly = fitsInViewport &&
+        //
+        // Fires in two cases (see Decision.AppendOnly docstring):
+        // 1. fitsInViewport: all loaded content fits in one viewport (scrollY pinned at 0).
+        // 2. atBottomOfLoadedWindow: the viewport bottom already touches the end of loaded content
+        //    but the window is under its max size. ShiftForward here would drop the top chapter,
+        //    reset scrollY to 0, trigger ShiftBackward (which prepends the dropped chapter at
+        //    placeholder height), then overshoot the forward trigger again — an infinite oscillation.
+        //    AppendOnly breaks the loop by extending forward without losing the opening chapter.
+        val shouldAppendOnly = (fitsInViewport || atBottomOfLoadedWindow) &&
             moreChaptersExist &&
             appendOnlyMaxWindow > 0 &&
             window.size < appendOnlyMaxWindow
 
+        // AppendOnly takes priority over ShiftForward: when the window can still grow, extend it
+        // before evicting the top chapter. ShiftForward only fires once the window is full or
+        // neither fit-in-viewport nor at-bottom conditions apply.
         return when {
             shouldShiftBackward -> Decision.ShiftBackward
+            shouldAppendOnly -> Decision.AppendOnly
             shouldShiftForward -> {
                 justShiftedForward = true
                 Decision.ShiftForward
             }
-            shouldAppendOnly -> Decision.AppendOnly
             else -> Decision.Hold
         }
     }

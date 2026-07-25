@@ -725,4 +725,69 @@ class ChapterWindowManagerTest {
         // -1 - 0 = -1, not > 3 → no forward; scrollY=0 < 1500 but topIndex=0 → no backward → Hold
         assertEquals(ChapterWindowManager.Decision.Hold, d)
     }
+
+    @Test
+    fun `AppendOnly fires instead of ShiftForward when at bottom of initial window and window can still grow`() {
+        // Regression for book e866cd1d ("12 Principles for Raising a Child with ADHD") on
+        // physical devices with larger font sizes / higher DPI than the API-25 emulator.
+        //
+        // On those devices fm02 (~500 px) + title (~1840 px) + copyright (~300 px) totals ~2640 px,
+        // which exceeds the viewport (2340 px) — fitsInViewport=false, so the classic AppendOnly
+        // path does not fire. After the initial scroll lands at scrollY=500 (start of title),
+        // scrollY+viewport=2840 >= loadedContentBottom=2640 → atBottomOfLoadedWindow=true.
+        //
+        // BUG (pre-fix): ShiftForward fires (atBottomOfLoadedWindow path). removeTop() drops fm02;
+        // scroll compensation resets scrollY to 0. With scrollY=0 < title/2=920 the NEXT decide()
+        // fires ShiftBackward, prepending fm02 at placeholder height and bumping scrollY to 2340.
+        // fm02 then measures short, scroll drops back to ~0 and atBottomOfLoadedWindow fires
+        // ShiftForward again — an infinite oscillation. The scroll appears frozen.
+        //
+        // FIX: AppendOnly takes priority over ShiftForward when the window can still grow.
+        // Appending the next chapter extends content below the viewport, atBottomOfLoadedWindow
+        // becomes false, and the oscillation never starts.
+        val mgr = ChapterWindowManager(chaptersBehind = 1)
+        val window = listOf(
+            slot("fm02",      top = 0,    height =   500),
+            slot("title",     top = 500,  height = 1_840),
+            slot("copyright", top = 2_340, height =  300),   // total = 2640 > viewport (2340)
+        )
+        val d = mgr.decide(
+            scrollY = 500,               // initial scroll to start of title (= fm02.height)
+            viewportChapterIndex = 3,    // title is at spine index 3; gap = 3-2 = 1 = chaptersBehind → no pastBehindBudget
+            window = window,
+            topIndex = 2,
+            totalChapters = 24,
+            viewportHeight = 2_340,      // scrollY+vH=2840 >= loadedContentBottom=2640 → atBottomOfLoadedWindow
+            appendOnlyMaxWindow = 8,
+        )
+        assertEquals(
+            "AppendOnly must fire instead of ShiftForward at bottom of initial window — ShiftForward oscillates",
+            ChapterWindowManager.Decision.AppendOnly, d,
+        )
+    }
+
+    @Test
+    fun `ShiftForward still fires at bottom of window when window is at max size`() {
+        // When the window has reached appendOnlyMaxWindow, AppendOnly is exhausted.
+        // ShiftForward must fire so the window shifts forward as normal.
+        val mgr = ChapterWindowManager(chaptersBehind = 1)
+        val window = listOf(
+            slot("ch0", top = 0,    height = 500),
+            slot("ch1", top = 500,  height = 1_840),
+            slot("ch2", top = 2_340, height = 300),
+        )
+        val d = mgr.decide(
+            scrollY = 500,
+            viewportChapterIndex = 1,    // gap = 1-0 = 1 = chaptersBehind → no pastBehindBudget alone
+            window = window,
+            topIndex = 0,
+            totalChapters = 24,
+            viewportHeight = 2_340,      // atBottomOfLoadedWindow = true
+            appendOnlyMaxWindow = 3,     // window already AT the cap → AppendOnly blocked
+        )
+        assertEquals(
+            "AppendOnly blocked at max window — ShiftForward must fire",
+            ChapterWindowManager.Decision.ShiftForward, d,
+        )
+    }
 }
