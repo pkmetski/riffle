@@ -2077,12 +2077,42 @@ class EpubReaderViewModel @Inject constructor(
         // If we merged, rebuild the persisted range fields from the union so the stored highlight
         // covers the full `[mergedStart, mergedEnd)` span. Fall back to draft fields when no
         // overlap was detected (the common path) or the DOM rebuild fails (safety net).
-        val mergedFields: MergedDraftFields = if (overlapMerge != null && html != null) {
+        val overlapFields: MergedDraftFields = if (overlapMerge != null && html != null) {
             buildMergedDraftFields(html, draft.spineIndex, draft.embeddedFigures, overlapMerge, candidates)
                 ?: draft.toDraftFields()
         } else {
             draft.toDraftFields()
         }
+        // Adjacency merge: after handling true overlaps, check whether the new draft sits
+        // immediately before or after an existing same-colour highlight (with only whitespace or a
+        // paragraph break between them). This is the create-time half of the auto-merge spec —
+        // the edit-time half runs in [mergeAdjacentIntoHighlight] on recolour/note-clear.
+        val overlapVictimIds = overlapMerge?.victimIds?.toSet() ?: emptySet()
+        val adjacentCandidates = candidates.filter { it.id !in overlapVictimIds }
+        val adjacentMerge = html?.let {
+            computeAdjacentCreateMerge(
+                html = it,
+                draftSnippet = overlapFields.textSnippet,
+                draftTextBefore = overlapFields.textBefore,
+                draftTextAfter = overlapFields.textAfter,
+                draftProgression = overlapFields.progression,
+                draftSpineIndex = draft.spineIndex,
+                draftChapterHref = draft.chapterHref,
+                draftColor = initialColor,
+                draftEmbeddedFigures = overlapFields.embeddedFigures,
+                candidates = adjacentCandidates,
+            )
+        }
+        adjacentMerge?.victimIds?.forEach { victimId ->
+            val victim = adjacentCandidates.firstOrNull { it.id == victimId }
+            if (victim != null) {
+                annotationSession.emphasisPool.value
+                    .filter { it.cfi == victim.cfi }
+                    .forEach { annotationStore.delete(it.id) }
+            }
+            annotationStore.delete(victimId)
+        }
+        val mergedFields = adjacentMerge?.fields ?: overlapFields
         // Standalone TYPE_IMAGE absorption for figures the merged highlight now encloses.
         val absorbedFilenames = mergedFields.embeddedFigures?.mapNotNull { it.href }?.map(::figureHrefFilename)?.toSet().orEmpty()
         if (absorbedFilenames.isNotEmpty()) {
@@ -2414,20 +2444,6 @@ class EpubReaderViewModel @Inject constructor(
                 svg = fig.svg ?: key?.let(svgByFilename::get),
             )
         }
-    }
-
-    /**
-     * Content equality ignoring all whitespace. The composed snippet carries Readium's captured
-     * whitespace between source snippets (single space, NBSP, `\n` at paragraph boundaries) but
-     * the DOM extract's whitespace comes from the readable char model, which does not count
-     * paragraph breaks as chars. Stripping whitespace on both sides compares just the letters —
-     * enough to catch false-positive adjacency matches (extra CONTENT between the endpoints)
-     * without tripping on the paragraph-break case.
-     */
-    private fun snippetsAgreeIgnoringWhitespace(a: String, b: String): Boolean {
-        val na = a.filterNot { it.isWhitespace() }
-        val nb = b.filterNot { it.isWhitespace() }
-        return na.equals(nb, ignoreCase = true)
     }
 
     /** Per-neighbour reason line, so a "why no merge?" can be answered from a single logcat grep. */

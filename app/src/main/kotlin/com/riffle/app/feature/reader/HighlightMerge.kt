@@ -181,6 +181,17 @@ private fun matchAtEnd(context: String, target: String): String? {
     return context.substring(i)
 }
 
+/**
+ * True when [a] and [b] contain the same non-whitespace characters (case-insensitive). Used as a
+ * safety guard after adjacency-chain assembly: if the DOM-derived snippet and the composed snippet
+ * diverge beyond whitespace, the adjacency match was a coincidence and the merge should be aborted.
+ */
+internal fun snippetsAgreeIgnoringWhitespace(a: String, b: String): Boolean {
+    val na = a.filterNot { it.isWhitespace() }
+    val nb = b.filterNot { it.isWhitespace() }
+    return na.equals(nb, ignoreCase = true)
+}
+
 /** Collapse every run of whitespace (any Unicode WS) to a single ASCII space. */
 private fun normaliseWs(s: String): String {
     val out = StringBuilder(s.length)
