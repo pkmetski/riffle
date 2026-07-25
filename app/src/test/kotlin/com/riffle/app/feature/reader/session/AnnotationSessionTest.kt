@@ -23,9 +23,11 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -784,6 +786,42 @@ class AnnotationSessionTest {
         session.dismissHighlightActions()
 
         assertEquals(0, mergeCalls.size)
+        sessionScope.coroutineContext[Job]?.cancel()
+    }
+
+    /**
+     * Regression: popup close lag when scrolling with a draft open (2026-07-24).
+     *
+     * [EpubReaderViewModel.dismissHighlightActions] must call [AnnotationSession.forceCloseHighlightEditTarget]
+     * synchronously BEFORE launching `commitDraft`, so the popup's `if (editTarget != null)` gate
+     * in [EpubReaderScreen] flips to false on the next recomposition frame rather than waiting for
+     * the whole suspend chain (readChapterHtml + Room writes + DataStore writes) to complete.
+     *
+     * This test pins that [forceCloseHighlightEditTarget] is synchronous — if it were made async,
+     * or if the call were removed from the VM's dismiss-auto-commit path, the popup would linger
+     * for ~1 second while commitDraft ran.
+     */
+    @Test
+    fun `forceCloseHighlightEditTarget clears highlightToEdit synchronously before coroutines run`() = runTest {
+        val dispatcher = StandardTestDispatcher(testScheduler)
+        val sessionScope = CoroutineScope(dispatcher)
+        val session = makeSession(syncOps = FakeSyncOps(), scope = sessionScope)
+        defaultBind(session)
+        runCurrent()
+
+        session.openHighlightActions(AnnotationSession.DRAFT_ANNOTATION_ID, androidx.compose.ui.unit.IntRect(0, 0, 100, 50))
+        runCurrent()
+        assertNotNull(session.highlightToEdit.value)
+
+        // The VM's dismiss-auto-commit path calls this before launching commitDraft. Verify it
+        // clears state synchronously — no coroutine yield required.
+        session.forceCloseHighlightEditTarget()
+
+        // Must be null without running any coroutine — StandardTestDispatcher only advances on
+        // explicit runCurrent() / advanceTimeBy(), so if forceCloseHighlightEditTarget() were
+        // async this assertion would see the stale non-null value.
+        assertNull(session.highlightToEdit.value)
+
         sessionScope.coroutineContext[Job]?.cancel()
     }
 
