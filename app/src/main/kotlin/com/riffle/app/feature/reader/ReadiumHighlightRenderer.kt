@@ -105,6 +105,14 @@ internal class ReadiumHighlightRenderer(
             }
             return
         }
+        // Queue bold/italic DOM injection BEFORE Readium measures decoration positions.
+        // EmphasisDomInjector wraps bold/italic text in <span> elements, causing text reflow.
+        // evaluateJavascript calls are serialized through the same WebView JS thread queue, so
+        // injecting first guarantees bold/italic spans exist when Readium's applyDecorations JS
+        // runs — the measured tap-target rects reflect the already-reflowed layout.
+        // Without this ordering, rects are baked from the pre-bold DOM, then the DOM reflows after,
+        // leaving tap targets at stale coordinates (the annotation-not-tappable bug).
+        injectEmphasisDom()
         // Initial apply uses clear+apply too — Readium's decoration diff treats an identical
         // (id, locator, style) list as a no-op, so a re-fire of the same list (theme change bumps
         // pageLoadGeneration, LaunchedEffect keys the same renders) would keep the stale pre-reflow
@@ -177,14 +185,17 @@ internal class ReadiumHighlightRenderer(
     }
 
     /**
-     * ADR 0046: paint emphasis marks as companion decorations layered over the highlight decoration.
-     * Only [EmphasisStyle.UNDERLINE] uses Readium's built-in [Decoration.Style.Underline]; the
-     * other three styles are painted as tinted [Decoration.Style.Highlight] overlays with
-     * distinctive colors so the user sees SOMETHING for every stored style — proper text-style
-     * reflow for bold/italic/strike requires WebView DOM mutation and is captured as a follow-up.
-     * Grouped separately from "annotations" so a highlight recolor doesn't rebuild the emphasis
-     * overlays and vice versa.
+     * Called before [applyDecorationsWithClear] so Readium measures tap-target rects from the
+     * already-reflowed (post-bold/italic) DOM rather than from a pre-reflow snapshot.
      */
+    private suspend fun injectEmphasisDom() {
+        evaluateJavascript?.let { runJs ->
+            val ranges = emphasisRangeProvider()
+                .filter { it.styles.any { s -> s == EmphasisStyle.BOLD || s == EmphasisStyle.ITALIC } }
+            runJs(EmphasisDomInjector.script(ranges))
+        }
+    }
+
     private suspend fun applyEmphasisCompanions(renders: List<EpubReaderViewModel.HighlightRender>) {
         val decorations = renders.flatMap { h ->
             if (h.emphasisStyles.isEmpty()) return@flatMap emptyList()
@@ -207,12 +218,9 @@ internal class ReadiumHighlightRenderer(
                         )
                     )
                 }
-                // ADR 0046: bold and italic no longer paint tint overlays — the DOM injector
-                // (see [EmphasisDomInjector]) wraps the range in a styled `<span>` that actually
-                // reflows the text with `font-weight: bold` / `font-style: italic`. A tint
-                // overlay on top of real bold text would just add a distracting colored
-                // background. The DOM wrap runs from [applyEmphasisCompanions] via
-                // [evaluateJavascript] below.
+                // ADR 0046: bold and italic reflow text via DOM span injection ([injectEmphasisDom])
+                // rather than painting tint overlays — a tint overlay on top of real bold text
+                // would add a distracting colored background.
             }
         }
         // Apply overlay decorations (underline / strike). Empty list = clear the group.
@@ -225,17 +233,9 @@ internal class ReadiumHighlightRenderer(
             applyDecorationsWithClear(decorations, "emphasis")
             hasEmphasisDecorations = true
         }
-        // ADR 0046: DOM injection for bold/italic — MUST fire unconditionally, not gated on
-        // underline/strike overlays. A range with only bold and/or italic produces zero
-        // companion decorations above (they use DOM mutation, not overlays), so an early
-        // return here would leave bold/italic never applied. The script also self-cleans old
-        // wrappers each run, so calling it with an empty range list is the correct way to
-        // remove a previously-injected bold/italic when the user toggles it off.
-        evaluateJavascript?.let { runJs ->
-            val ranges = emphasisRangeProvider()
-                .filter { it.styles.any { s -> s == EmphasisStyle.BOLD || s == EmphasisStyle.ITALIC } }
-            runJs(EmphasisDomInjector.script(ranges))
-        }
+        // Bold/italic DOM injection is handled by [injectEmphasisDom] in [applyAnnotations],
+        // called before [applyDecorationsWithClear] so Readium measures tap-target rects from the
+        // already-reflowed DOM. Nothing to do here — this function only applies overlay decorations.
         // Post-apply layout shifts are covered by the outer LaunchedEffect re-keying on
         // pageLoadGeneration / reflowGeneration. Local settle loop removed for parity with
         // applyAnnotations — see the comment there for rationale.
