@@ -813,6 +813,14 @@ internal class ChapterWebView(context: Context) : WebView(context), ChapterWebVi
  * already inside the visible band), the original top/bottom pass through unchanged. See the
  * call-site in [ChapterWebView.wrapSelectionCallback] for why this clamping is necessary on
  * edge-to-edge displays.
+ *
+ * Top clamping is skipped when [viewLocationInWindowY] >= 0. On API < 30,
+ * [android.view.View.getWindowVisibleDisplayFrame] returns a non-zero top equal to the status-bar
+ * height even when the app draws edge-to-edge, which would produce a spurious positive topLocal.
+ * A selection in the opening lines of a chapter (rectBottom < statusBarHeight) then collapses to
+ * a zero-height rect that Chrome 55's FloatingToolbar cannot anchor to, making the menu invisible.
+ * Top clamping is only needed when the WebView is genuinely scrolled above the window origin
+ * (viewLocationInWindowY < 0) and the selection is off-screen above.
  */
 internal fun clampSelectionYBandToWindow(
     rectTop: Int,
@@ -822,7 +830,7 @@ internal fun clampSelectionYBandToWindow(
     viewLocationInWindowY: Int,
     viewHeight: Int,
 ): Pair<Int, Int> {
-    val topLocal = (viewportTop - viewLocationInWindowY).coerceAtLeast(0)
+    val topLocal = if (viewLocationInWindowY < 0) (viewportTop - viewLocationInWindowY).coerceAtLeast(0) else 0
     val bottomLocal = (viewportBottom - viewLocationInWindowY).coerceAtMost(viewHeight)
     if (bottomLocal <= topLocal) return rectTop to rectBottom
     return rectTop.coerceIn(topLocal, bottomLocal) to rectBottom.coerceIn(topLocal, bottomLocal)

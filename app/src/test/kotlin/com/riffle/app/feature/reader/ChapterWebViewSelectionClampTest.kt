@@ -74,6 +74,26 @@ class ChapterWebViewSelectionClampTest {
     }
 
     @Test
+    fun `selection at top of page on API-25 emulator is not squashed to zero-height rect`() {
+        // API-25 with edge-to-edge layout: the WebView sits at window y=0 (viewLocationInWindowY=0)
+        // but getWindowVisibleDisplayFrame().top returns the status-bar height (e.g. 66px) because
+        // API < 30 does not zero that field even with edge-to-edge flags set. Previously this
+        // produced topLocal=66, and a selection in the opening lines of a chapter (rectBottom < 66)
+        // was clamped to a zero-height rect at y=66 — making Chrome 55's floating toolbar invisible.
+        // The fix: skip top-clamping when viewLocationInWindowY >= 0.
+        val (top, bottom) = clampSelectionYBandToWindow(
+            rectTop = 0,
+            rectBottom = 30,
+            viewportTop = 66,   // API-25 status-bar height in getWindowVisibleDisplayFrame
+            viewportBottom = 1794,
+            viewLocationInWindowY = 0,  // WebView at window top in edge-to-edge layout
+            viewHeight = 20000,
+        )
+        assertEquals(0, top)
+        assertEquals(30, bottom)
+    }
+
+    @Test
     fun `selection partially below window viewport has its bottom pulled up to the band`() {
         // Visible band in view-local: 0 .. 1819 (same as case 1). Rect straddles the bottom edge.
         val (top, bottom) = clampSelectionYBandToWindow(

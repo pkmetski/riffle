@@ -300,13 +300,17 @@ internal class ContinuousReaderView @JvmOverloads constructor(
     override fun onStartNestedScroll(child: android.view.View, target: android.view.View, axes: Int, type: Int): Boolean = false
 
     /**
-     * Suppress NestedScrollView's "scroll the focused child into view" inside super.requestChildFocus.
-     * Modern Chromium WebView calls requestFocus on itself when a long-press completes a selection;
-     * NestedScrollView.scrollToChild then synchronously scrollBy()s to reposition the word toward
-     * the middle — the "page jump on long-press near an edge" bug.
+     * Suppress NestedScrollView's "scroll the focused child into view" triggered by a long-press
+     * selection. Two paths lead to the scroll:
      *
-     * We can't override scrollToChild (package-private). Instead we set a flag for the duration of
-     * super.requestChildFocus and short-circuit [scrollBy] while it's set.
+     * (a) Synchronous: when [NestedScrollView]'s mIsLayoutDirty is false, requestChildFocus calls
+     *     scrollToChild → scrollBy immediately. We block this by short-circuiting [scrollBy] while
+     *     [inRequestChildFocus] is set.
+     *
+     * (b) Deferred: when mIsLayoutDirty is true (old Chromium / Chrome 55 on the API-25 emulator
+     *     calls requestFocus during a layout invalidation), NestedScrollView queues the scroll in
+     *     mChildToScrollTo and fires it from its onLayout. We cover that path in [onLayout] by
+     *     holding [inRequestChildFocus] true across the entire super.onLayout call.
      */
     private var inRequestChildFocus = false
 
@@ -314,6 +318,15 @@ internal class ContinuousReaderView @JvmOverloads constructor(
         inRequestChildFocus = true
         try {
             super.requestChildFocus(child, focused)
+        } finally {
+            inRequestChildFocus = false
+        }
+    }
+
+    override fun onLayout(changed: Boolean, l: Int, t: Int, r: Int, b: Int) {
+        inRequestChildFocus = true
+        try {
+            super.onLayout(changed, l, t, r, b)
         } finally {
             inRequestChildFocus = false
         }
