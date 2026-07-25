@@ -202,9 +202,9 @@ class HighlightRangeOverlapTest {
 
     @Test
     fun touchingExisting_notMerged() {
-        // Adjacent (touching) highlights are handled by the edit-time merge path, not the create-
-        // time overlap merger. Ensure we don't merge them here — that would surprise users who
-        // deliberately created two separate same-color neighbours (2026-07-05 design intent).
+        // Adjacent (touching) highlights are not handled by the range-overlap detector — that
+        // path is for true positional overlaps only. Adjacency is handled by
+        // [computeAdjacentCreateMerge] (create-time) and [mergeAdjacentIntoHighlight] (edit-time).
         val existing = annotation(
             id = "neighbor",
             textSnippet = "eight sons.",
@@ -300,6 +300,141 @@ class HighlightRangeOverlapTest {
         )
         assertNotNull(result)
         assertEquals(listOf("cross-para"), result!!.victimIds)
+    }
+
+    // ---- computeAdjacentCreateMerge — create-time adjacency merge ----
+
+    private fun adjacentAnnotation(
+        id: String,
+        textSnippet: String,
+        textBefore: String,
+        textAfter: String = "",
+        color: String = "yellow",
+    ) = Annotation(
+        id = id,
+        sourceId = "srv",
+        itemId = "item",
+        type = AnnotationEntity.TYPE_HIGHLIGHT,
+        cfi = "epubcfi(/6/2!/4/2,/1:0,/1:5)",
+        color = color,
+        note = null,
+        textSnippet = textSnippet,
+        textBefore = textBefore,
+        textAfter = textAfter,
+        chapterHref = "ch1.xhtml",
+        spineIndex = 0,
+        progression = 0.1,
+        bookmarkTitle = "",
+        createdAt = 0L,
+        updatedAt = 0L,
+    )
+
+    @Test
+    fun adjacentTouching_singleParagraph_mergedAtCreateTime() {
+        // Existing "eight sons." immediately before the new draft "Apart from".
+        // computeOverlapMerge returns null (touching, not overlapping), but adjacency merge fires.
+        val existing = adjacentAnnotation(
+            id = "neighbor",
+            textSnippet = "eight sons.",
+            textBefore = "he had ",
+            textAfter = " Apart from that",
+        )
+        val result = computeAdjacentCreateMerge(
+            html = html,
+            draftSnippet = "Apart from that",
+            draftTextBefore = "eight sons. ",
+            draftTextAfter = ", he was nothing",
+            draftProgression = 0.3,
+            draftSpineIndex = 0,
+            draftChapterHref = "ch1.xhtml",
+            draftColor = "yellow",
+            draftEmbeddedFigures = null,
+            candidates = listOf(existing),
+        )
+        assertNotNull(result)
+        assertEquals(listOf("neighbor"), result!!.victimIds)
+        assertTrue(
+            "merged snippet must span both halves",
+            result.fields.textSnippet.contains("eight sons.") && result.fields.textSnippet.contains("Apart from that"),
+        )
+    }
+
+    @Test
+    fun adjacentDifferentColor_notMerged() {
+        // Different colour: eligibility gate must block the merge.
+        val existing = adjacentAnnotation(
+            id = "other",
+            textSnippet = "eight sons.",
+            textBefore = "he had ",
+            textAfter = " Apart from that",
+            color = "blue",
+        )
+        val result = computeAdjacentCreateMerge(
+            html = html,
+            draftSnippet = "Apart from that",
+            draftTextBefore = "eight sons. ",
+            draftTextAfter = ", he was nothing",
+            draftProgression = 0.3,
+            draftSpineIndex = 0,
+            draftChapterHref = "ch1.xhtml",
+            draftColor = "yellow",
+            draftEmbeddedFigures = null,
+            candidates = listOf(existing),
+        )
+        assertNull(result)
+    }
+
+    @Test
+    fun adjacentAcrossLineBreak_multiParagraph_mergedAtCreateTime() {
+        // Existing on para-1 tail, draft on para-2 head — a paragraph break sits between them.
+        // The textAfter of the existing carries the para-2 text (with leading \n from Readium);
+        // findAdjacency normalises whitespace and still matches.
+        val existing = adjacentAnnotation(
+            id = "para1",
+            textSnippet = "first sentence in paragraph one.",
+            textBefore = "The ",
+            textAfter = "\nThe second sentence in paragraph two.",
+        )
+        val result = computeAdjacentCreateMerge(
+            html = multiParaHtml,
+            draftSnippet = "The second sentence in paragraph two.",
+            draftTextBefore = "paragraph one.\n",
+            draftTextAfter = "",
+            draftProgression = 0.5,
+            draftSpineIndex = 0,
+            draftChapterHref = "ch1.xhtml",
+            draftColor = "yellow",
+            draftEmbeddedFigures = null,
+            candidates = listOf(existing),
+        )
+        assertNotNull("adjacent across a line break must merge at create time", result)
+        assertEquals(listOf("para1"), result!!.victimIds)
+        val snippet = result.fields.textSnippet
+        assertTrue(
+            "merged snippet must contain para-1 text",
+            snippet.contains("paragraph one"),
+        )
+        assertTrue(
+            "merged snippet must contain para-2 text",
+            snippet.contains("paragraph two"),
+        )
+    }
+
+    @Test
+    fun adjacentNoCandidate_returnsNull() {
+        val result = computeAdjacentCreateMerge(
+            html = html,
+            draftSnippet = "Apart from that",
+            draftTextBefore = "eight sons. ",
+            draftTextAfter = ", he was nothing",
+            draftProgression = 0.3,
+            draftSpineIndex = 0,
+            draftChapterHref = "ch1.xhtml",
+            draftColor = "yellow",
+            draftEmbeddedFigures = null,
+            candidates = emptyList(),
+        )
+        assertNull(result)
     }
 
     @Test

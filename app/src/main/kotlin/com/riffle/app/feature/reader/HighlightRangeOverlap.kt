@@ -5,6 +5,12 @@ import com.riffle.core.models.EmbeddedFigure
 import com.riffle.core.domain.countBodyChars
 import org.jsoup.Jsoup
 
+/** Result of a create-time adjacency merge: updated draft fields + IDs of annotations absorbed. */
+internal data class AdjacentCreateMerge(
+    val fields: MergedDraftFields,
+    val victimIds: List<String>,
+)
+
 /** Overlap-merge context length: how much text to snapshot either side of the merged range as
  *  the persisted textBefore/textAfter. Matches [OVERLAP_CONTEXT_LEN] used by the legacy detector. */
 private const val MERGED_CONTEXT_LEN = 60
@@ -154,6 +160,105 @@ internal fun buildMergedDraftFields(
         textAfter = textAfter,
         progression = progression,
         embeddedFigures = figures,
+    )
+}
+
+/**
+ * Create-time adjacency merge: detect candidates that are text-adjacent to the new draft and
+ * absorb them into a single highlight before persisting. Mirror of the edit-time
+ * `mergeAdjacentIntoHighlight` path in EpubReaderViewModel, but runs purely on draft fields
+ * (no annotation ID yet) so there is no race on `annotationSession.annotations`.
+ *
+ * Returns null when no adjacent neighbour is found (the common path). On success, returns the
+ * updated [MergedDraftFields] spanning the full merged range and the [AdjacentCreateMerge.victimIds]
+ * the caller must delete (with their sibling emphasis rows) before persisting the merged highlight.
+ *
+ * [candidates] should already be filtered to same-chapter TYPE_HIGHLIGHT rows with overlap victims
+ * excluded so they aren't double-processed.
+ */
+internal fun computeAdjacentCreateMerge(
+    html: String,
+    draftSnippet: String,
+    draftTextBefore: String,
+    draftTextAfter: String,
+    draftProgression: Double,
+    draftSpineIndex: Int,
+    draftChapterHref: String,
+    draftColor: String,
+    draftEmbeddedFigures: List<EmbeddedFigure>?,
+    candidates: List<Annotation>,
+): AdjacentCreateMerge? {
+    var trialAnchor = MergeAnchor(
+        spineIndex = draftSpineIndex,
+        color = draftColor,
+        note = null,
+        textSnippet = draftSnippet,
+        textBefore = draftTextBefore,
+        textAfter = draftTextAfter,
+        progression = draftProgression,
+        chapterHref = draftChapterHref,
+    )
+    var leftmost = trialAnchor
+    var rightmost = trialAnchor
+    val toAbsorb = mutableListOf<Annotation>()
+    val absorbedIds = mutableSetOf<String>()
+    while (true) {
+        val match = findAnyMergeableNeighbor(trialAnchor, candidates, absorbedIds, html) ?: break
+        when (match.side) {
+            MergeSide.CANDIDATE_BEFORE_ANCHOR -> leftmost = match.neighbor.toMergeAnchor()
+            MergeSide.CANDIDATE_AFTER_ANCHOR -> rightmost = match.neighbor.toMergeAnchor()
+        }
+        toAbsorb += match.neighbor
+        absorbedIds += match.neighbor.id
+        trialAnchor = applyMerge(trialAnchor, match)
+    }
+    if (toAbsorb.isEmpty()) return null
+    // Rebuild the merged range from DOM positions — same as mergeAdjacentIntoHighlight.
+    val totalChars = countBodyChars(Jsoup.parse(html).body())
+    if (totalChars <= 0L) return null
+    val startChar = locateSnippetInBody(html, leftmost.textSnippet, leftmost.textBefore) ?: return null
+    val rightmostStart = locateSnippetInBody(html, rightmost.textSnippet, rightmost.textBefore) ?: return null
+    val endChar = snippetEndCharInBody(html, rightmostStart, rightmost.textSnippet).coerceAtMost(totalChars)
+    if (endChar <= startChar) return null
+    val domSnippet = readableTextBetween(html, startChar, endChar) ?: return null
+    if (!snippetsAgreeIgnoringWhitespace(domSnippet, trialAnchor.textSnippet)) return null
+    val spineStep = (draftSpineIndex + 1) * 2
+    val cfiRange = buildHighlightCfiRange(spineStep, html, startChar, endChar - 1L) ?: return null
+    val body = readableBodyText(html)
+    val startInt = startChar.toInt().coerceIn(0, body.length)
+    val endInt = endChar.toInt().coerceIn(0, body.length)
+    val textBefore = body.substring(0, startInt).takeLast(MERGED_CONTEXT_LEN)
+    val textAfter = body.substring(endInt).take(MERGED_CONTEXT_LEN)
+    val progression = startChar.toDouble() / totalChars.toDouble()
+    val victimFigures = toAbsorb.flatMap { it.embeddedFigures.orEmpty() }
+    val walkedFigures = findEnclosedFiguresInHtml(html, startChar, endChar - 1L)
+    val figures = if (walkedFigures.isEmpty()) null else {
+        val bytesByFile = mutableMapOf<String, String>()
+        val svgByFile = mutableMapOf<String, String>()
+        (draftEmbeddedFigures.orEmpty() + victimFigures).forEach { fig ->
+            val key = fig.href?.let(::figureHrefFilename) ?: return@forEach
+            fig.imageBytes?.takeIf { it.isNotBlank() }?.let { bytesByFile.putIfAbsent(key, it) }
+            fig.svg?.takeIf { it.isNotBlank() }?.let { svgByFile.putIfAbsent(key, it) }
+        }
+        walkedFigures.mapIndexed { i, fig ->
+            val key = fig.href?.let(::figureHrefFilename)
+            fig.copy(
+                order = i,
+                imageBytes = fig.imageBytes ?: key?.let(bytesByFile::get),
+                svg = fig.svg ?: key?.let(svgByFile::get),
+            )
+        }
+    }
+    return AdjacentCreateMerge(
+        fields = MergedDraftFields(
+            cfiRange = cfiRange,
+            textSnippet = domSnippet,
+            textBefore = textBefore,
+            textAfter = textAfter,
+            progression = progression,
+            embeddedFigures = figures,
+        ),
+        victimIds = toAbsorb.map { it.id },
     )
 }
 
