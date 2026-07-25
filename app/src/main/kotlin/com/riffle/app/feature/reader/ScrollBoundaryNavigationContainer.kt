@@ -41,11 +41,18 @@ class ScrollBoundaryNavigationContainer(context: Context) : FrameLayout(context)
      */
     var onUserTouch: (() -> Unit)? = null
 
+    /**
+     * Fires once per gesture the first time vertical movement exceeds touch-slop in scroll mode.
+     * Used to enter immersive mode at scroll start rather than waiting for a Readium locator event.
+     */
+    var onScrollStart: (() -> Unit)? = null
+
     private var lastNavigationMs = 0L
     private var lastVolumeNavMs = 0L
     private var lastTouchY = 0f
     private var downX = 0f
     private var downY = 0f
+    private var scrollStartFired = false
     private var lastMoveTimeMs = 0L
     private var pullDirection = 0 // 1 = forward pull, -1 = backward pull, 0 = inactive
     private var pullDistancePx = 0f
@@ -140,10 +147,20 @@ class ScrollBoundaryNavigationContainer(context: Context) : FrameLayout(context)
                     lastTouchY = ev.y
                     downX = ev.x
                     downY = ev.y
+                    scrollStartFired = false
                     resetPull()
                 }
-                MotionEvent.ACTION_MOVE -> handlePullMove(ev.x, ev.y)
-                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> resetPull()
+                MotionEvent.ACTION_MOVE -> {
+                    if (!scrollStartFired && abs(ev.y - downY) > touchSlopPx) {
+                        scrollStartFired = true
+                        onScrollStart?.invoke()
+                    }
+                    handlePullMove(ev.x, ev.y)
+                }
+                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                    scrollStartFired = false
+                    resetPull()
+                }
             }
         }
         return super.dispatchTouchEvent(ev)
