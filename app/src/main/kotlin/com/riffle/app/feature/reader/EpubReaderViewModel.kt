@@ -3870,7 +3870,7 @@ internal fun resolveChapterTitle(href: String, toc: List<TocEntry>): String? {
         for (entry in entries) {
             val entryHref = entry.href.substringBefore('#')
             if (entryHref == normalized || entryHref.endsWith("/$normalized") || normalized.endsWith("/$entryHref")) {
-                return entry.title
+                return entry.title.ifBlank { null }
             }
             search(entry.children)?.let { return it }
         }

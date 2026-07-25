@@ -211,6 +211,17 @@ class EpubReaderViewModelHighlightsSourceTest {
     }
 
     @Test
+    fun `resolveChapterTitle returns null for blank TOC title so Chapter N fallback applies`() {
+        // Regression: EPUBs with missing navLabel text produce TocEntry(title=""). Without the
+        // ifBlank guard, resolveChapterTitle returned "" (non-null) and elidedChapterTitle
+        // short-circuited to a blank heading, bypassing the "Chapter N" fallback.
+        val toc = listOf(TocEntry(title = "", href = "OEBPS/part0010.xhtml"))
+        assertNull(resolveChapterTitle("OEBPS/part0010.xhtml", toc))
+        // Confirm elidedChapterTitle falls through to "Chapter N" for blank-titled TOC entries.
+        assertEquals("Chapter 1", elidedChapterTitle("OEBPS/part0010.xhtml", "part0010", toc, 0))
+    }
+
+    @Test
     fun `resolveChapterTitle matches nested TOC entries`() {
         val toc = listOf(
             TocEntry(
