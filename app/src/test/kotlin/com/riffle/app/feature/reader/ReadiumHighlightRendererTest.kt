@@ -2,12 +2,14 @@
 
 package com.riffle.app.feature.reader
 
+import com.riffle.core.models.EmphasisStyle
 import com.riffle.core.models.HighlightColor
 import com.riffle.core.domain.SentenceQuote
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.readium.r2.navigator.Decoration
@@ -106,6 +108,52 @@ class ReadiumHighlightRendererTest {
         assertEquals(2, annotationCalls[1].first.size)
         assertEquals("h1", annotationCalls[1].first[0].id)
         assertEquals("h2", annotationCalls[1].first[1].id)
+    }
+
+    // Regression: bold/italic DOM injection must be queued BEFORE Readium measures decoration
+    // positions. EmphasisDomInjector wraps bold/italic text in <span> elements causing text
+    // reflow; if injected after applyDecorationsWithClear, Readium's baked tap-target rects
+    // become stale and the annotation is not tappable until close/reopen.
+    // This test fails if someone reverts the injectEmphasisDom() call to run after the
+    // applyDecorationsWithClear call (the annotation-not-tappable bug).
+    @Test
+    fun `applyAnnotations with bold emphasis queues DOM injection before decoration apply`() = runTest {
+        val callOrder = mutableListOf<String>()
+        val rendererWithDomInjector = ReadiumHighlightRenderer(
+            applyDecorationsBlock = { _, group -> callOrder.add("decorate:$group") },
+            fragmentLocator = { ref, _ ->
+                if (ref.isNotBlank()) minimalLocator(ref.substringBefore('#')) else null
+            },
+            evaluateJavascript = { callOrder.add("domInject") },
+            emphasisRangeProvider = {
+                listOf(
+                    EmphasisDomInjector.EmphasisRange(
+                        id = "h1",
+                        textSnippet = "bold text",
+                        textBefore = "",
+                        styles = setOf(EmphasisStyle.BOLD),
+                    )
+                )
+            },
+        )
+        val render = EpubReaderViewModel.HighlightRender(
+            id = "h1",
+            locator = minimalLocator("c.xhtml"),
+            color = "yellow",
+            note = null,
+            emphasisStyles = setOf(EmphasisStyle.BOLD),
+        )
+
+        rendererWithDomInjector.applyAnnotations(listOf(render))
+
+        val domInjectIndex = callOrder.indexOf("domInject")
+        val firstDecorateAnnotationsIndex = callOrder.indexOfFirst { it == "decorate:annotations" }
+        assertTrue("domInject index should exist", domInjectIndex >= 0)
+        assertTrue("decorate:annotations index should exist", firstDecorateAnnotationsIndex >= 0)
+        assertTrue(
+            "DOM injection must be queued before decoration apply (got order: $callOrder)",
+            domInjectIndex < firstDecorateAnnotationsIndex,
+        )
     }
 
     // Regression: the settle loop MUST stay out. Its return would re-introduce the cold-open
