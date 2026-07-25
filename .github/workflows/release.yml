@@ -122,6 +122,7 @@ jobs:
         uses: softprops/action-gh-release@v3
         with:
           files: app/build/outputs/apk/release/*.apk
+          body_path: CHANGELOG.md
           generate_release_notes: true
           prerelease: ${{ steps.ver.outputs.prerelease == 'true' }}
 
