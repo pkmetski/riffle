@@ -546,6 +546,56 @@ class HighlightsPublicationFactoryTest {
         )
     }
 
+    // ─── Emphasis rendering ───────────────────────────────────────────────────────────────────────
+
+    @Test
+    fun `renderChapterHtml applies bold CSS to riffle-hl span when entity emphasisStyles is set`() {
+        val annotation = hl("h1", "Some bold text", spineIndex = 0, emphasisStyles = "bold")
+        val chapter = ChapterElision("ch0.xhtml", "Ch", listOf(annotation))
+        val html = factory.renderChapterHtml(chapter)
+        assertTrue(
+            "riffle-hl span must carry bold CSS when emphasisStyles on entity is 'bold', got: $html",
+            html.contains("class=\"riffle-hl\" data-ann-id=\"h1\" style=\"font-weight:bold\""),
+        )
+    }
+
+    @Test
+    fun `renderChapterHtml does not add style attribute to riffle-hl span when no emphasis`() {
+        val annotation = hl("h2", "Plain text", spineIndex = 0)
+        val chapter = ChapterElision("ch0.xhtml", "Ch", listOf(annotation))
+        val html = factory.renderChapterHtml(chapter)
+        assertTrue(
+            "riffle-hl span must NOT carry a style attribute when no emphasis, got: $html",
+            html.contains("class=\"riffle-hl\" data-ann-id=\"h2\">"),
+        )
+    }
+
+    @Test
+    fun `renderChapterHtml applies italic and underline together from entity emphasisStyles`() {
+        val annotation = hl("h3", "Italic underlined", spineIndex = 0, emphasisStyles = "italic,underline")
+        val chapter = ChapterElision("ch0.xhtml", "Ch", listOf(annotation))
+        val html = factory.renderChapterHtml(chapter)
+        assertTrue("must include italic", html.contains("font-style:italic"))
+        assertTrue("must include underline in text-decoration", html.contains("underline"))
+    }
+
+    @Test
+    fun `build renders emphasis on initial HTML when entity emphasisStyles is set`() {
+        val annotation = hl("h4", "Strike text", spineIndex = 0, emphasisStyles = "strike")
+        val pub = factory.build(
+            sourceId = "S1",
+            itemId = "B1",
+            bookTitle = null,
+            chapters = listOf(ChapterElision("ch0.xhtml", "Ch", listOf(annotation))),
+            urlFactory = ::testUrlFactory,
+        )
+        val html = readChapterHtml(pub, index = 0)
+        assertTrue(
+            "initial HTML from build must apply emphasis from entity emphasisStyles, got: $html",
+            html.contains("line-through"),
+        )
+    }
+
     private fun hl(
         id: String,
         snippet: String,

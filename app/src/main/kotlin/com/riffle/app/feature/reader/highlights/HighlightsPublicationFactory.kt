@@ -284,7 +284,9 @@ class HighlightsPublicationFactory @Inject constructor() {
                         // whole highlight falls back to "text first, then figures" — the v1
                         // behaviour matches what shipped before offsets existed. See
                         // appendInterleavedHighlight's KDoc.
-                        appendInterleavedHighlight(this, annotation, bookBodyFontFamily, dataUriByHref)
+                        appendInterleavedHighlight(
+                            this, annotation, bookBodyFontFamily, dataUriByHref,
+                        )
                     }
                 }
             }
@@ -509,7 +511,11 @@ private fun appendHighlightTextChunk(
  * emission (TYPE_IMAGE, embedded figures) can be dispatched independently. Now also serves as the
  * `charOffset == null` fallback path from [appendInterleavedHighlight].
  */
-private fun appendTextHighlight(sb: StringBuilder, highlight: AnnotationEntity, bookBodyFontFamily: String?) {
+private fun appendTextHighlight(
+    sb: StringBuilder,
+    highlight: AnnotationEntity,
+    bookBodyFontFamily: String?,
+) {
     // The highlight is presented as a left accent bar in the palette colour, matching
     // Riffle's [Book Search] results card style — the text itself renders in the
     // theme's normal body colour so dense highlights don't fatigue the eye. `!important`

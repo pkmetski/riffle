@@ -1,5 +1,6 @@
 package com.riffle.app.feature.reader.highlights
 
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -92,6 +93,78 @@ class HighlightsDomPatchTest {
             "Remove JS must iterate span.riffle-hl matches (querySelectorAll) to catch every chunk",
             js.contains("querySelectorAll('span.riffle-hl["),
         )
+    }
+
+    @Test
+    fun `SetEmphasis with non-empty styles sets cssText on riffle-hl spans`() {
+        val js = HighlightsDomPatch.SetEmphasis(
+            annotationId = "id-bold",
+            emphasisCss = "font-weight:bold !important;",
+        ).applyJs()
+        assertTrue(js, js.contains("\"id-bold\""))
+        assertTrue("must target span.riffle-hl by data-ann-id", js.contains("span.riffle-hl[data-ann-id="))
+        assertTrue("must set style.cssText", js.contains("style.cssText"))
+        assertTrue("must contain the provided css value", js.contains("font-weight:bold"))
+    }
+
+    @Test
+    fun `SetEmphasis with empty css clears inline style on riffle-hl spans`() {
+        val js = HighlightsDomPatch.SetEmphasis(
+            annotationId = "id-clear",
+            emphasisCss = "",
+        ).applyJs()
+        assertTrue(js, js.contains("\"id-clear\""))
+        // An empty css string still sets cssText (to ""), clearing any prior emphasis.
+        assertTrue("must set style.cssText even for empty css", js.contains("style.cssText"))
+    }
+
+    @Test
+    fun `buildEmphasisInlineCss returns empty string for empty styles`() {
+        assertEquals("", buildEmphasisInlineCss(emptySet()))
+    }
+
+    @Test
+    fun `buildEmphasisInlineCss encodes bold`() {
+        val css = buildEmphasisInlineCss(setOf(com.riffle.core.models.EmphasisStyle.BOLD))
+        assertTrue(css.contains("font-weight:bold"))
+        assertTrue(css.contains("!important"))
+    }
+
+    @Test
+    fun `buildEmphasisInlineCss encodes italic`() {
+        val css = buildEmphasisInlineCss(setOf(com.riffle.core.models.EmphasisStyle.ITALIC))
+        assertTrue(css.contains("font-style:italic"))
+        assertTrue(css.contains("!important"))
+    }
+
+    @Test
+    fun `buildEmphasisInlineCss encodes underline and strike as text-decoration`() {
+        val css = buildEmphasisInlineCss(
+            setOf(
+                com.riffle.core.models.EmphasisStyle.UNDERLINE,
+                com.riffle.core.models.EmphasisStyle.STRIKE,
+            ),
+        )
+        assertTrue(css.contains("text-decoration:"))
+        assertTrue(css.contains("underline"))
+        assertTrue(css.contains("line-through"))
+        assertTrue(css.contains("!important"))
+    }
+
+    @Test
+    fun `buildEmphasisInlineCss combines all four styles`() {
+        val css = buildEmphasisInlineCss(
+            setOf(
+                com.riffle.core.models.EmphasisStyle.BOLD,
+                com.riffle.core.models.EmphasisStyle.ITALIC,
+                com.riffle.core.models.EmphasisStyle.UNDERLINE,
+                com.riffle.core.models.EmphasisStyle.STRIKE,
+            ),
+        )
+        assertTrue(css.contains("font-weight:bold"))
+        assertTrue(css.contains("font-style:italic"))
+        assertTrue(css.contains("underline"))
+        assertTrue(css.contains("line-through"))
     }
 
     @Test

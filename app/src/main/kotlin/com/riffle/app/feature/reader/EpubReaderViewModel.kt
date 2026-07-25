@@ -529,6 +529,11 @@ class EpubReaderViewModel @Inject constructor(
     // to a full [reloadHighlightsView] rebuild (new-chapter add, chapter emptied, spine shape
     // change). Updated at the end of every openBook() and after each successful patch dispatch.
     private var highlightsRenderedById: Map<String, AnnotationEntity> = emptyMap()
+    // Emphasis snapshot parallel to [highlightsRenderedById]: the union of EmphasisStyle values from
+    // all live TYPE_EMPHASIS rows at each highlight's CFI, keyed by highlight id. Used to detect
+    // emphasis changes between observer emissions so a SetEmphasis DOM patch is emitted and the
+    // chapter bytes are rewritten without a full reload.
+    private var highlightsRenderedEmphasisById: Map<String, Set<com.riffle.core.models.EmphasisStyle>> = emptyMap()
     // Handle to the currently-loaded Highlights Publication, kept so per-annotation patches can
     // rewrite ONE chapter's synthesised HTML in place (see [HighlightsPublicationHandle.setChapterBytes])
     // — so a subsequent chapter-back navigation still renders the fresh state without a rebuild.
@@ -1158,14 +1163,28 @@ class EpubReaderViewModel @Inject constructor(
             // Snapshot what we just rendered so the observer can diff each incoming emission
             // per-annotation and pick the right response: targeted DOM patch for a colour/note/
             // delete/in-chapter-add, or a full rebuild for a structural change. Filter to
-            // TYPE_HIGHLIGHT so this baseline matches the observer's own filter — otherwise every
-            // bookmark on the book appears as a "removed" id on the first emission, triggers the
-            // structural-change path, and reloadHighlightsView loops (open → observer → reload →
-            // open → …) with a WebDAV syncOnOpen fired on every cycle (issue: elided-view infinite
-            // load + repeated WebDAV pushes when the book has bookmarks).
+            // TYPE_HIGHLIGHT and TYPE_IMAGE (both are rendered in the elided view); exclude
+            // TYPE_BOOKMARK / TYPE_EMPHASIS so a bookmark add/remove or emphasis row doesn't appear
+            // as a "removed" id on the first emission and trigger the structural-change path that
+            // would loop reloadHighlightsView (issue: elided-view infinite load + repeated WebDAV
+            // pushes when the book has bookmarks).
+            val emphasisByCfi = rows
+                .filter { it.type == AnnotationEntity.TYPE_EMPHASIS && !it.deleted }
+                .groupBy { it.cfi }
+                .mapValues { (_, emphRows) ->
+                    emphRows.flatMap {
+                        com.riffle.core.models.EmphasisStyle.decode(it.emphasisStyles).orEmpty()
+                    }.toSet()
+                }
             highlightsRenderedById = rows
-                .filter { it.type == AnnotationEntity.TYPE_HIGHLIGHT && !it.deleted }
+                .filter {
+                    (it.type == AnnotationEntity.TYPE_HIGHLIGHT || it.type == AnnotationEntity.TYPE_IMAGE) &&
+                        !it.deleted
+                }
                 .associateBy { it.id }
+            highlightsRenderedEmphasisById = highlightsRenderedById.mapValues { (_, ann) ->
+                emphasisByCfi[ann.cfi] ?: emptySet()
+            }
             // Start observing (once per (sourceId, itemId)). Kept alive across the openBook()
             // reruns triggered by reloadHighlightsView, since cancelling and re-launching each
             // rebuild would drop emissions during the Loading→Ready gap.
@@ -2881,19 +2900,35 @@ class EpubReaderViewModel @Inject constructor(
             debouncedHighlightsFlow(
                 annotationDao.observeAnnotationsByPosition(sourceId, itemId),
             ).collect { annotations ->
-                // Filter to highlights only — the elided reader's spine, chapter HTML, and every
-                // downstream patch/rewrite is highlights-only. If we left bookmarks in this stream:
-                //  (1) a chapter's byte rewrite would render bookmarks as fake highlight paragraphs
-                //      (renderChapterHtml paints every row as an accent-bar <p>);
-                //  (2) the empty-set close check would fire late when a chapter had highlights
-                //      deleted but a bookmark remained, blocking [reloadOrCloseHighlightsAfterDelete];
-                //  (3) a bookmark ADD would count as a structural change and re-introduce the
-                //      full-rebuild flash the DOM-patch pipeline was written to eliminate.
+                // Filter to displayed annotation types only (TYPE_HIGHLIGHT + TYPE_IMAGE). Exclude
+                // TYPE_BOOKMARK so a bookmark add/remove doesn't appear as "removed" on the first
+                // emission and trigger the structural-change loop (issue: elided-view infinite load
+                // + repeated WebDAV pushes). TYPE_EMPHASIS rows drive a separate emphasis snapshot
+                // below and are intentionally excluded from incomingById.
                 val incomingById = annotations
                     .asSequence()
-                    .filter { it.type == AnnotationEntity.TYPE_HIGHLIGHT && !it.deleted }
+                    .filter {
+                        (it.type == AnnotationEntity.TYPE_HIGHLIGHT || it.type == AnnotationEntity.TYPE_IMAGE) &&
+                            !it.deleted
+                    }
                     .associateBy { it.id }
-                if (sameById(incomingById, highlightsRenderedById)) return@collect
+                // Build a per-highlight emphasis snapshot: union of EmphasisStyle values from all
+                // live TYPE_EMPHASIS rows whose CFI matches the highlight's CFI.
+                val emphasisByCfi = annotations
+                    .asSequence()
+                    .filter { it.type == AnnotationEntity.TYPE_EMPHASIS && !it.deleted }
+                    .groupBy { it.cfi }
+                    .mapValues { (_, emphRows) ->
+                        emphRows.flatMap {
+                            com.riffle.core.models.EmphasisStyle.decode(it.emphasisStyles).orEmpty()
+                        }.toSet()
+                    }
+                val incomingEmphasisById = incomingById.mapValues { (_, ann) ->
+                    emphasisByCfi[ann.cfi] ?: emptySet()
+                }
+                if (sameById(incomingById, highlightsRenderedById) &&
+                    incomingEmphasisById == highlightsRenderedEmphasisById
+                ) return@collect
 
                 val handle = highlightsPublicationHandle
                 val previous = highlightsRenderedById
@@ -2912,7 +2947,9 @@ class EpubReaderViewModel @Inject constructor(
                     val next = incomingById.getValue(id)
                     prev.color != next.color ||
                         prev.note != next.note ||
-                        prev.chapterHref != next.chapterHref
+                        prev.chapterHref != next.chapterHref ||
+                        (incomingEmphasisById[id] ?: emptySet<com.riffle.core.models.EmphasisStyle>()) !=
+                            (highlightsRenderedEmphasisById[id] ?: emptySet<com.riffle.core.models.EmphasisStyle>())
                 }
 
                 // Structural changes → full rebuild.
@@ -2958,6 +2995,16 @@ class EpubReaderViewModel @Inject constructor(
                                 .SetNote(id, accent, next.note),
                         )
                     }
+                    val prevEmphasis = highlightsRenderedEmphasisById[id] ?: emptySet()
+                    val nextEmphasis = incomingEmphasisById[id] ?: emptySet()
+                    if (prevEmphasis != nextEmphasis) {
+                        _highlightDomPatches.tryEmit(
+                            com.riffle.app.feature.reader.highlights.HighlightsDomPatch.SetEmphasis(
+                                id,
+                                com.riffle.app.feature.reader.highlights.buildEmphasisInlineCss(nextEmphasis),
+                            ),
+                        )
+                    }
                     touchedChapters += next.chapterHref
                 }
 
@@ -2971,7 +3018,7 @@ class EpubReaderViewModel @Inject constructor(
                     // Emphasis-join for partial rewrite path: the incomingById snapshot only carries
                     // TYPE_HIGHLIGHT entities; read the live emphasis pool to re-join styles so a
                     // recolour or note edit doesn't strip user-applied emphasis from the chapter bytes.
-                    val emphasisByCfi = annotationSession.emphasisPool.value
+                    val encodedEmphasisByCfi = annotationSession.emphasisPool.value
                         .groupBy { it.cfi }
                         .mapValues { (_, pool) ->
                             com.riffle.core.models.EmphasisStyle.encode(
@@ -2982,7 +3029,7 @@ class EpubReaderViewModel @Inject constructor(
                         val livePeers = incomingByChapter[chapterHref].orEmpty()
                             .sortedWith(compareBy({ it.spineIndex }, { it.progression }, { it.createdAt }, { it.id }))
                             .map { row ->
-                                val styles = emphasisByCfi[row.cfi] ?: return@map row
+                                val styles = encodedEmphasisByCfi[row.cfi] ?: return@map row
                                 row.copy(emphasisStyles = styles)
                             }
                         if (livePeers.isEmpty()) continue // Empty chapter would be structural — handled above.
@@ -3002,10 +3049,11 @@ class EpubReaderViewModel @Inject constructor(
                     }
                 }
 
-                // Refresh the by-id snapshot to what's now on screen. Without this the NEXT
-                // emission would re-observe the same "changed" annotation and re-emit the same
-                // patch on every Room re-emit.
+                // Refresh both snapshots to what's now on screen. Without this the NEXT emission
+                // would re-observe the same "changed" annotation and re-emit the same patch on
+                // every Room re-emit.
                 highlightsRenderedById = incomingById
+                highlightsRenderedEmphasisById = incomingEmphasisById
             }
         }
     }
