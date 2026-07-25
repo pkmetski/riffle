@@ -141,7 +141,7 @@ class ContinuousReaderViewSelectionInterceptTest {
     @Test
     fun requestChildFocus_doesNotCrashAndCancelsScroller() {
         // Smoke test: NestedScrollView.requestChildFocus fires scrollToChild→scrollBy, which our
-        // override short-circuits via the inRequestChildFocus flag. The deferred path (when
+        // override short-circuits via the suppressScrollByDepth counter. The deferred path (when
         // mIsLayoutDirty=true at call time) is guarded by the onLayout override. We can't easily
         // assert the absence of scroll on an unattached view, but we can verify no crash.
         val v = view()

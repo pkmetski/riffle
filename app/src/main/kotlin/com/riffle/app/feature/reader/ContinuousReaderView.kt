@@ -305,35 +305,39 @@ internal class ContinuousReaderView @JvmOverloads constructor(
      *
      * (a) Synchronous: when [NestedScrollView]'s mIsLayoutDirty is false, requestChildFocus calls
      *     scrollToChild → scrollBy immediately. We block this by short-circuiting [scrollBy] while
-     *     [inRequestChildFocus] is set.
+     *     [suppressScrollByDepth] > 0.
      *
      * (b) Deferred: when mIsLayoutDirty is true (old Chromium / Chrome 55 on the API-25 emulator
      *     calls requestFocus during a layout invalidation), NestedScrollView queues the scroll in
      *     mChildToScrollTo and fires it from its onLayout. We cover that path in [onLayout] by
-     *     holding [inRequestChildFocus] true across the entire super.onLayout call.
+     *     holding [suppressScrollByDepth] > 0 across the entire super.onLayout call.
+     *
+     * A depth counter (not a boolean) is required for correctness: if Chrome 55 calls
+     * requestFocus from inside a WebView.onLayout that fires during our super.onLayout, the nested
+     * requestChildFocus call must not decrement the counter below the onLayout guard's level.
      */
-    private var inRequestChildFocus = false
+    private var suppressScrollByDepth = 0
 
     override fun requestChildFocus(child: android.view.View?, focused: android.view.View?) {
-        inRequestChildFocus = true
+        suppressScrollByDepth++
         try {
             super.requestChildFocus(child, focused)
         } finally {
-            inRequestChildFocus = false
+            suppressScrollByDepth--
         }
     }
 
     override fun onLayout(changed: Boolean, l: Int, t: Int, r: Int, b: Int) {
-        inRequestChildFocus = true
+        suppressScrollByDepth++
         try {
             super.onLayout(changed, l, t, r, b)
         } finally {
-            inRequestChildFocus = false
+            suppressScrollByDepth--
         }
     }
 
     override fun scrollBy(x: Int, y: Int) {
-        if (inRequestChildFocus) return
+        if (suppressScrollByDepth > 0) return
         super.scrollBy(x, y)
     }
 
