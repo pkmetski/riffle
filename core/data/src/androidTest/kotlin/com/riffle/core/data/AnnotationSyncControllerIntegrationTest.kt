@@ -340,8 +340,9 @@ class AnnotationSyncControllerIntegrationTest {
         nullTargetController.scheduleDebounce(serverId, namespace = serverId, itemId = itemId)
         nullTargetController.syncOnClose(serverId, namespace = serverId, itemId = itemId)
 
-        // Verify AnnotationDao was never called
+        // Verify AnnotationDao was never called (either the batch or singular path)
         coVerify(exactly = 0) { annotationDao.upsertAll(any()) }
+        coVerify(exactly = 0) { annotationDao.upsert(any()) }
 
         // Verify file was not created
         val annotationSyncDir = File(filesDir, "annotation-sync")

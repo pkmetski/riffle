@@ -1126,6 +1126,12 @@ class EpubReaderViewModel @Inject constructor(
     }
 
     private suspend fun openBook() {
+        // Clear per-chapter and render caches so reloadHighlightsView() picks up the rebuilt
+        // spine rather than returning Documents/renders from the previous publication layout.
+        chapterHtmlCache.clear()
+        chapterDocCache.clear()
+        chapterTotalCharsCache.clear()
+        annotationRenderCache.clear()
         // Highlights mode (ADR 0041): the reader displays a synthesised, elided Publication built
         // from this book's stored highlights rather than the real ABS EPUB container. Diverted
         // before lifecycle.open() so the ABS fetch, matched-sync resolution, readaloud binding, and
@@ -3145,6 +3151,7 @@ class EpubReaderViewModel @Inject constructor(
      *  if needed. Highlights mode: observer takes over as with [deleteHighlight]. Sibling
      *  emphasis cascade is handled in [AnnotationSession.deleteAnnotation]. */
     fun deleteAnnotation(id: String) {
+        annotationRenderCache.remove(id)
         viewModelScope.launch {
             annotationSession.deleteAnnotation(id)
         }
