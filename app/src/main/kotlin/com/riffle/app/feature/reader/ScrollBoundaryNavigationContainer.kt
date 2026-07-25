@@ -151,7 +151,8 @@ class ScrollBoundaryNavigationContainer(context: Context) : FrameLayout(context)
                     resetPull()
                 }
                 MotionEvent.ACTION_MOVE -> {
-                    if (!scrollStartFired && abs(ev.y - downY) > touchSlopPx) {
+                    val dy = abs(ev.y - downY)
+                    if (!scrollStartFired && dy > touchSlopPx && dy >= abs(ev.x - downX)) {
                         scrollStartFired = true
                         onScrollStart?.invoke()
                     }
