@@ -132,6 +132,51 @@ class StartupUpdateViewModelTest {
     }
 
     @Test
+    fun `checkNow re-shows dialog after dismiss`() = runTest {
+        val vm = StartupUpdateViewModel(
+            appUpdateRepository = fakeRepo(listOf(releaseInfo("1.6.0", 10600))),
+            appUpdatePreferencesStore = fakePrefs(),
+        )
+        testDispatcher.scheduler.advanceUntilIdle()
+        assertNotNull(vm.dialogState.value)
+
+        vm.dismissDialog()
+        assertNull(vm.dialogState.value)
+
+        vm.checkNow()
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertNotNull(vm.dialogState.value)
+    }
+
+    @Test
+    fun `checkNow does not launch a duplicate check while dialog is showing`() = runTest {
+        var checkCount = 0
+        val repo = object : AppUpdateRepository {
+            override suspend fun checkForUpdate(currentVersionCode: Int): UpdateCheckResult =
+                UpdateCheckResult.UpToDate
+            override fun downloadAndInstall(update: AvailableUpdate): Flow<UpdateDownloadState> =
+                flowOf(UpdateDownloadState.Installing)
+            override fun sweepStaleApks() {}
+            override suspend fun listReleasesSince(sinceVersionCode: Int): List<ReleaseInfo> {
+                checkCount++
+                return listOf(releaseInfo("1.6.0", 10600))
+            }
+        }
+        val vm = StartupUpdateViewModel(
+            appUpdateRepository = repo,
+            appUpdatePreferencesStore = fakePrefs(),
+        )
+        testDispatcher.scheduler.advanceUntilIdle()
+        val checksAfterInit = checkCount
+
+        vm.checkNow()
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals("checkNow() is a no-op while dialog is already showing", checksAfterInit, checkCount)
+    }
+
+    @Test
     fun `dismissDialog clears dialog without writing ignoredVersionCode`() = runTest {
         val prefs = fakePrefs()
         val vm = StartupUpdateViewModel(

@@ -1,6 +1,10 @@
 package com.riffle.app.navigation
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.runtime.DisposableEffect
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.riffle.core.models.SourceType
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.rememberDrawerState
@@ -180,6 +184,15 @@ fun MainScreen(
         drawerTargetOpen = drawerState.targetValue == DrawerValue.Open,
     )) {
         scope.launch { drawerState.close() }
+    }
+
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_START) startupUpdateVm.checkNow()
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
     // A media-notification tap jumps to whatever is playing. launchSingleTop makes this a no-op when
