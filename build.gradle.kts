@@ -12,6 +12,15 @@ plugins {
     alias(libs.plugins.kotlin.serialization) apply false
 }
 
+// okhttp-sse:4.x is a stale transitive dep pulled in by ktor-client-okhttp:3.1.3.
+// It references okhttp3.internal.Util which was removed in OkHttp 5.x, breaking R8.
+// OkHttp 5 ships SSE in its main artifact, so this jar is redundant everywhere.
+subprojects {
+    configurations.all {
+        exclude(group = "com.squareup.okhttp3", module = "okhttp-sse")
+    }
+}
+
 // Enforces that `Log.[dweiv]("RIFFLE_…"` literals only live in core/logging.
 // Anything else: route the call through `Logger` + `LogChannel`. See #337.
 // Excludes RIFFLE_TEST (androidTest tag). Detection logic lives in
