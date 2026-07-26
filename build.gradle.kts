@@ -12,12 +12,15 @@ plugins {
     alias(libs.plugins.kotlin.serialization) apply false
 }
 
-// okhttp-sse:4.x is a stale transitive dep pulled in by ktor-client-okhttp:3.1.3.
-// It references okhttp3.internal.Util which was removed in OkHttp 5.x, breaking R8.
-// OkHttp 5 ships SSE in its main artifact, so this jar is redundant everywhere.
+// ktor-client-okhttp:3.1.3 pulls in okhttp-sse:4.12.0 as a transitive dep.
+// That jar references okhttp3.internal.Util, removed in OkHttp 5.x, breaking R8.
+// Force okhttp-sse to the same 5.x version used for the main OkHttp artifact so
+// the SSE classes exist but the internal reference is gone.
 subprojects {
     configurations.all {
-        exclude(group = "com.squareup.okhttp3", module = "okhttp-sse")
+        resolutionStrategy {
+            force("com.squareup.okhttp3:okhttp-sse:${libs.versions.okhttp.get()}")
+        }
     }
 }
 
