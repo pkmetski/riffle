@@ -88,7 +88,7 @@ Riffle lets you browse your library, read EPUB, PDF, and CBZ files, listen to au
 - Attach notes to highlights for personal commentary
 - Bookmark pages for quick return
 - Search across all highlights, notes, and bookmarks in your library
-- Optional WebDAV keeps highlights, notes, and bookmarks in sync across devices — works out of the box for every server-backed source (Audiobookshelf, Komga, …); each account gets its own namespace on the same share.
+- Highlights, notes, and bookmarks sync across devices automatically — no setup required for Audiobookshelf users; Komga users can optionally configure a WebDAV server for the same.
 
 ### Listening
 - Full audiobook player for any Audiobookshelf audiobook, streamed directly from your server — including audiobook-only items with no paired ebook
@@ -103,7 +103,7 @@ Riffle lets you browse your library, read EPUB, PDF, and CBZ files, listen to au
 
 ### Sources
 - **Audiobookshelf** and **Storyteller** self-hosted servers — full read, listen, and sync
-- **Komga** self-hosted server — browse, read, and sync comics, manga, and ebooks (EPUB, PDF, CBZ) from any [Komga](https://komga.org/) instance with Basic-auth credentials; page-based reading progress syncs bidirectionally across devices
+- **Komga** self-hosted server — browse, read, and sync comics, manga, and ebooks (EPUB, PDF, CBZ) from any [Komga](https://komga.org/) instance with Basic-auth credentials; page-based reading progress syncs bidirectionally across devices; annotation sync available via optional WebDAV
 - **Chitanka** (chitanka.info + gramofonche.chitanka.info) — anonymous, zero-config access to the Bulgarian public catalogue of EPUB ebooks and MP3 audiobooks; browsable by category, genre, and series
 - **Project Gutenberg** (via Gutendex) — anonymous, zero-config access to ~70,000 public-domain EPUBs; browsable by language, subject, and author
 - **Local files** — import EPUB, PDF, and CBZ files from device storage and read them alongside your server libraries, with the same reader, highlights, and progress tracking
