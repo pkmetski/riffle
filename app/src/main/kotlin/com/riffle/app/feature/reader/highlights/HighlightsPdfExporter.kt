@@ -6,6 +6,11 @@ import androidx.core.content.FileProvider
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.io.File
 import javax.inject.Inject
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.withContext
+import kotlin.coroutines.resume
+import kotlin.coroutines.resumeWithException
 
 /**
  * Exports the elided reader's full highlight set as a self-contained PDF via a headless
@@ -42,7 +47,74 @@ class HighlightsPdfExporter @Inject constructor(
     }
 
     // WebView + PrintDocumentAdapter rendering — implemented in Task 3.
-    private suspend fun renderToPdf(html: String, title: String?, outFile: File): Unit = TODO("Task 3")
+    @Suppress("INVISIBLE_MEMBER", "INVISIBLE_REFERENCE")
+    private suspend fun renderToPdf(html: String, title: String?, outFile: File) {
+        withContext(Dispatchers.Main) {
+            suspendCancellableCoroutine<Unit> { cont ->
+                val webView = android.webkit.WebView(context)
+                webView.webViewClient = object : android.webkit.WebViewClient() {
+                    override fun onPageFinished(view: android.webkit.WebView, url: String) {
+                        val adapter = webView.createPrintDocumentAdapter(title ?: "Annotations")
+                        val attributes = android.print.PrintAttributes.Builder()
+                            .setMediaSize(android.print.PrintAttributes.MediaSize.ISO_A4)
+                            .setResolution(
+                                android.print.PrintAttributes.Resolution("pdf", "pdf", 300, 300),
+                            )
+                            .setMinMargins(android.print.PrintAttributes.Margins.NO_MARGINS)
+                            .build()
+                        adapter.onLayout(
+                            null, attributes, null,
+                            object : android.print.PrintDocumentAdapter.LayoutResultCallback() {
+                                override fun onLayoutFinished(
+                                    info: android.print.PrintDocumentInfo,
+                                    changed: Boolean,
+                                ) {
+                                    val pfd = android.os.ParcelFileDescriptor.open(
+                                        outFile,
+                                        android.os.ParcelFileDescriptor.MODE_READ_WRITE or
+                                            android.os.ParcelFileDescriptor.MODE_CREATE or
+                                            android.os.ParcelFileDescriptor.MODE_TRUNCATE,
+                                    )
+                                    adapter.onWrite(
+                                        arrayOf(android.print.PageRange.ALL_PAGES),
+                                        pfd,
+                                        null,
+                                        object : android.print.PrintDocumentAdapter.WriteResultCallback() {
+                                            override fun onWriteFinished(
+                                                pages: Array<out android.print.PageRange>,
+                                            ) {
+                                                pfd.close()
+                                                webView.destroy()
+                                                cont.resume(Unit)
+                                            }
+
+                                            override fun onWriteFailed(error: CharSequence?) {
+                                                pfd.close()
+                                                webView.destroy()
+                                                cont.resumeWithException(
+                                                    java.io.IOException("PDF write failed: $error"),
+                                                )
+                                            }
+                                        },
+                                    )
+                                }
+
+                                override fun onLayoutFailed(error: CharSequence?) {
+                                    webView.destroy()
+                                    cont.resumeWithException(
+                                        java.io.IOException("PDF layout failed: $error"),
+                                    )
+                                }
+                            },
+                            null,
+                        )
+                    }
+                }
+                webView.loadDataWithBaseURL(null, html, "text/html", "UTF-8", null)
+                cont.invokeOnCancellation { webView.destroy() }
+            }
+        }
+    }
 }
 
 // ─── PDF base styles ─────────────────────────────────────────────────────────
