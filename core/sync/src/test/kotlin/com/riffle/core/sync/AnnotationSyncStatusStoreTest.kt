@@ -1,4 +1,4 @@
-package com.riffle.core.data
+package com.riffle.core.sync
 
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals

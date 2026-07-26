@@ -3,7 +3,7 @@ package com.riffle.app.feature.settings.annotationsync
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.riffle.core.data.AnnotationSyncMaintenance
-import com.riffle.core.data.AnnotationSyncStatusStore
+import com.riffle.core.sync.AnnotationSyncStatusStore
 import com.riffle.core.domain.DeviceIdStore
 import com.riffle.core.domain.DeviceLabelResolver
 import com.riffle.core.domain.DeviceLabelStore

@@ -7,6 +7,7 @@ import com.riffle.core.database.LibraryItemDao
 import com.riffle.core.common.Clock
 import com.riffle.core.domain.EbookCfiTranslatorFactory
 import com.riffle.core.domain.ProgressRemote
+import com.riffle.core.sync.ProgressRemoteFactory
 import javax.inject.Inject
 
 /**

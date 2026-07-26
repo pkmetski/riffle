@@ -5,6 +5,9 @@ import com.riffle.core.catalog.CatalogRegistry
 import com.riffle.core.catalog.ProgressPeerCapability
 import com.riffle.core.domain.ProgressReconciler
 import com.riffle.core.domain.RemoteKind
+import com.riffle.core.sync.OpenReconcileTargets
+import com.riffle.core.sync.ProgressRemoteFactory
+import com.riffle.core.sync.ReconcileLocks
 import javax.inject.Inject
 
 /**

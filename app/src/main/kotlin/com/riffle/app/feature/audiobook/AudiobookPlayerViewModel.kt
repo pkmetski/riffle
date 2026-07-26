@@ -188,7 +188,7 @@ class AudiobookPlayerViewModel @Inject constructor(
     private val audiobookPositionStore: com.riffle.core.domain.AudiobookPositionStore,
     // While the player is open it drives the book's reconciliation; the durable sweep skips it so it
     // can't absorb a cross-device server-win the player hasn't seeked to (ADR 0030).
-    private val openReconcileTargets: com.riffle.core.data.OpenReconcileTargets,
+    private val openReconcileTargets: com.riffle.core.sync.OpenReconcileTargets,
     private val progressFlushScope: com.riffle.app.feature.reader.ProgressFlushScope,
     private val bookmarkStore: AudiobookBookmarkStore,
     private val connectivityObserver: com.riffle.core.domain.ConnectivityObserver,

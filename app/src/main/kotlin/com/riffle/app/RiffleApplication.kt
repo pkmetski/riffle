@@ -8,7 +8,7 @@ import coil.disk.DiskCache
 import com.riffle.app.sync.kickSweepsOnReconnect
 import com.riffle.core.data.AnnotationSweep
 import com.riffle.core.data.LocalStoreMigrator
-import com.riffle.core.data.ProgressSweep
+import com.riffle.core.sync.ProgressSweep
 import com.riffle.core.data.localfiles.LocalFilesFolderWatcher
 import com.riffle.core.domain.ApplicationScope
 import dagger.hilt.EntryPoint

@@ -1,6 +1,6 @@
 package com.riffle.app.feature.reader.session
 
-import com.riffle.core.data.OpenReconcileTargets
+import com.riffle.core.sync.OpenReconcileTargets
 import com.riffle.core.models.Annotation
 import com.riffle.core.domain.AnnotationStore
 import com.riffle.core.models.AudioIdentity

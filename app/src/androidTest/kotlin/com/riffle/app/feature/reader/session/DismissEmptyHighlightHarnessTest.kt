@@ -5,7 +5,7 @@ import androidx.room.Room
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.riffle.core.data.AnnotationStoreImpl
-import com.riffle.core.data.AnnotationSyncStatusStore
+import com.riffle.core.sync.AnnotationSyncStatusStore
 import com.riffle.core.database.AnnotationEntity
 import com.riffle.core.database.RiffleDatabase
 import com.riffle.core.database.SourceEntity

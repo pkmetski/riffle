@@ -1,6 +1,7 @@
 package com.riffle.core.data
 
 import com.riffle.core.domain.DefaultDispatcherProvider
+import com.riffle.core.sync.DirtyProgressLedger
 
 import com.riffle.core.database.CollectionDao
 import com.riffle.core.database.CollectionEntity

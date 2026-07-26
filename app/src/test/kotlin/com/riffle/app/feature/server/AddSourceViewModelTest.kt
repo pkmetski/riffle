@@ -1,8 +1,8 @@
 package com.riffle.app.feature.server
 
 import androidx.lifecycle.SavedStateHandle
-import com.riffle.core.data.AnnotationSyncStatusStore
-import com.riffle.core.data.CycleOutcome
+import com.riffle.core.sync.AnnotationSyncStatusStore
+import com.riffle.core.sync.CycleOutcome
 import com.riffle.core.sources.webdav.WebDavAnnotationSyncTargetFactory
 import com.riffle.core.data.credentialed.CredentialedAuthenticator
 import com.riffle.core.database.AnnotationDao

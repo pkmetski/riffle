@@ -11,7 +11,7 @@ import com.riffle.app.feature.reader.ReaderSyncCoordinator
 import com.riffle.app.feature.reader.ReaderSyncFactory
 import com.riffle.app.playback.NowPlayingStore
 import com.riffle.core.data.CrossEpubIndexBuildTrigger
-import com.riffle.core.data.OpenReconcileTargets
+import com.riffle.core.sync.OpenReconcileTargets
 import com.riffle.core.models.AudioIdentity
 import com.riffle.core.domain.AudioIdentityResolver
 import com.riffle.core.domain.AudioPlaybackPreferencesStore

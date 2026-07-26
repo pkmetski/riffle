@@ -2,6 +2,11 @@ package com.riffle.core.data
 
 import com.riffle.core.database.AnnotationDao
 import com.riffle.core.domain.AnnotationSyncTarget
+import com.riffle.core.sync.AnnotationSyncStatusStore
+import com.riffle.core.sync.CycleOutcome
+import com.riffle.core.sync.DirtyAnnotationLedger
+import com.riffle.core.sync.ReconcileLocks
+import com.riffle.core.sync.toFailedCycleOutcome
 import com.riffle.core.domain.DeviceIdStore
 import com.riffle.core.domain.DeviceLabelResolver
 import com.riffle.core.models.AnnotationFileHeader
@@ -42,7 +47,10 @@ class AnnotationSweep(
      * binding explicitly.
      */
     private val dirtyLedger: DirtyAnnotationLedger =
-        DirtyAnnotationLedger { annotationDao.dirtySourceItems() },
+        DirtyAnnotationLedger {
+            annotationDao.dirtySourceItems()
+                .map { DirtyAnnotationLedger.DirtySourceItem(it.sourceId, it.itemId) }
+        },
     /**
      * Per-book mutex shared with [AnnotationSyncController] (#321). Held across the per-book
      * read-then-write so the sweep and a live push cannot interleave on the same device file.

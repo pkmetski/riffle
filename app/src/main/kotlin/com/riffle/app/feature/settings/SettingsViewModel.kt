@@ -27,8 +27,8 @@ import com.riffle.core.models.Source
 import com.riffle.core.models.ServerType
 import com.riffle.app.feature.annotationsync.AnnotationSyncKind
 import com.riffle.app.feature.annotationsync.deriveAnnotationSyncKind
-import com.riffle.core.data.AnnotationSyncStatusStore
-import com.riffle.core.data.CycleOutcome
+import com.riffle.core.sync.AnnotationSyncStatusStore
+import com.riffle.core.sync.CycleOutcome
 import com.riffle.core.data.localfiles.LocalFilesFolderHealthChecker
 import com.riffle.core.data.localfiles.LocalFilesFolderRepository
 import com.riffle.core.data.localfiles.LocalFilesScanner

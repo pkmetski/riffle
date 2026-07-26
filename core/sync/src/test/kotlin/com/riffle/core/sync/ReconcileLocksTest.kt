@@ -1,4 +1,4 @@
-package com.riffle.core.data
+package com.riffle.core.sync
 
 import com.riffle.core.domain.RemoteKind
 import kotlinx.coroutines.CompletableDeferred

@@ -3,7 +3,7 @@ package com.riffle.app.sync
 import android.content.Context
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
-import com.riffle.core.data.ProgressSweep
+import com.riffle.core.sync.ProgressSweep
 import dagger.hilt.EntryPoint
 import dagger.hilt.InstallIn
 import dagger.hilt.android.EntryPointAccessors
