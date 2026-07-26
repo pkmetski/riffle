@@ -4,7 +4,7 @@ Major announcements and highlights for each release. Full commit-level detail is
 
 ---
 
-## Unreleased
+## What's New
 
 ### Annotation sync now works for all Audiobookshelf users — no WebDAV required
 
