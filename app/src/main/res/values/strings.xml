@@ -1,4 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Riffle</string>
+    <string name="export_pdf_error">Couldn\'t generate PDF</string>
 </resources>

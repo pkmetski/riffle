@@ -63,6 +63,7 @@ import com.riffle.core.domain.resolveEpubHref
 import com.riffle.core.database.AnnotationDao
 import com.riffle.core.database.AnnotationEntity
 import com.riffle.app.feature.reader.highlights.ChapterElision
+import com.riffle.app.feature.reader.highlights.HighlightsPdfExporter
 import com.riffle.app.feature.reader.highlights.HighlightsPublicationFactory
 import com.riffle.app.feature.reader.highlights.ReaderSource
 import com.riffle.app.feature.reader.highlights.toFormattingScope
@@ -273,6 +274,7 @@ class EpubReaderViewModel @Inject constructor(
     private val epubDownloadsStore: com.riffle.core.domain.LocalStore,
     @com.riffle.core.data.di.EpubCacheStore
     private val epubCacheStore: com.riffle.core.domain.LocalStore,
+    private val pdfExporter: HighlightsPdfExporter,
 ) : AndroidViewModel(application) {
 
     // ReadingSessionCoordinator's per-call enabled gate reads this atomic; init below flips it once
@@ -535,6 +537,7 @@ class EpubReaderViewModel @Inject constructor(
     // when no annotation on the book has a captured font yet — factory then emits no
     // font-family and the elided reader falls back to ReadiumCSS default (pre-fix behaviour).
     private var elidedBodyFontFamily: String? = null
+    private var elidedBookTitle: String? = null
     // Highlights mode only: subscription to annotationStore.observeAnnotations so the elided
     // reader updates live when annotations change (colour/note/delete edits from anywhere, and
     // additions arriving via AnnotationSyncController's remote pull). Kept alive across the
@@ -1216,6 +1219,7 @@ class EpubReaderViewModel @Inject constructor(
             // label makes clear which book's highlights are shown. Falls back to plain "Annotations"
             // when the local library_items row is gone (orphaned book).
             val realBookTitle = libraryItemDao.getById(sourceId, itemId)?.title
+            elidedBookTitle = realBookTitle
             // Fallback body-font for excerpts whose annotation has null `originFontFamily`
             // (legacy rows, W3C sync ingest). Pick the plurality font across the captured set —
             // it converges to the book's dominant face as the user creates new annotations.
@@ -3373,11 +3377,38 @@ class EpubReaderViewModel @Inject constructor(
     private val _tocVisible = MutableStateFlow(false)
     val tocVisible: StateFlow<Boolean> = _tocVisible
 
+    private val _isExporting = MutableStateFlow(false)
+    val isExporting: StateFlow<Boolean> = _isExporting.asStateFlow()
+
     fun openToc() {
         annotationSession.closeAnnotationsPanel()
         _tocVisible.value = true
     }
     fun closeToc() { _tocVisible.value = false }
+
+    fun onShareElidedView() {
+        if (_isExporting.value) return
+        val chapters = highlightsResumeChapters ?: return
+        val handle = highlightsPublicationHandle ?: return
+        viewModelScope.launch {
+            _isExporting.value = true
+            try {
+                val uri = pdfExporter.export(
+                    chapters = chapters,
+                    bookTitle = elidedBookTitle,
+                    itemId = itemId,
+                    figureBytesByHref = handle.figureBytesByHref,
+                    publisherFontFaceCss = handle.publisherFontFaceCss,
+                    bookBodyFontFamily = elidedBodyFontFamily,
+                )
+                _readerNavEvents.send(ReaderNavEvent.ShareHighlights(uri))
+            } catch (e: Exception) {
+                _readerNavEvents.send(ReaderNavEvent.ExportError)
+            } finally {
+                _isExporting.value = false
+            }
+        }
+    }
 
     val annotationsPanelVisible: StateFlow<Boolean> = annotationSession.annotationsPanelVisible
 
