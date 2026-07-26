@@ -396,6 +396,80 @@ class ChapterWindowManagerTest {
         assertEquals(ChapterWindowManager.Decision.Hold, d)
     }
 
+    // ── smooth-tail far-jump blank-screen regression ─────────────────────────
+    //
+    // Root cause: during a smooth-tail annotation navigation the OverScroller targets y (annotation
+    // absolute scroll position). At scrollY=y the viewport midpoint is y + viewport/2. When the
+    // annotation is in the last ~(viewport/2) px of a chapter, y + viewport/2 is inside the next
+    // chapter, so ShiftForward fires at the animation's end. ShiftForward's removeTop scrollBy(-h)
+    // was overwritten by the OverScroller on the next computeScroll frame, making the scroll land
+    // viewport/2 + h past the annotation → placeholder blank territory.
+    //
+    // Fix: ContinuousWindowController.maybeShift calls port.abortFling() after removeTop/prependChapter
+    // so the OverScroller stops chasing the stale target. This test pins the trigger: ShiftForward
+    // MUST fire when the smooth-tail endpoint places the viewport midpoint in the following chapter.
+
+    @Test
+    fun `shift forward fires when smooth-tail endpoint puts viewport midpoint past the chapter boundary`() {
+        // Window [ch20, ch21(target), ch22], chaptersBehind=1. Annotation at 90 % of ch21.
+        // y = slot.top(ch21) + 0.9 * ch21.height = 5000 + 7200 = 12200.
+        // At scrollY=y the midpoint = y + viewport/2 = 12200 + 1200 = 13400 → inside ch22
+        // (which spans 13000..18000). Gap = ch22.globalIndex - topIndex = 21-19 = 2 > 1 → ShiftForward.
+        // Without port.abortFling() in ContinuousWindowController.maybeShift the OverScroller
+        // rewrites the removeTop scrollBy(-5000) correction on the next frame, landing 5000px past
+        // the annotation in placeholder territory → blank screen.
+        val mgr = ChapterWindowManager(chaptersBehind = 1)
+        val viewport = 2400
+        val ch20Height = 5000; val ch21Height = 8000; val ch22Height = 5000
+        val window = listOf(
+            slot("ch20",  0,                          ch20Height),
+            slot("ch21",  ch20Height,                 ch21Height),
+            slot("ch22",  ch20Height + ch21Height,    ch22Height),
+        )
+        val annotationOffsetInCh21 = (ch21Height * 0.9).toInt()  // 7200 px within ch21
+        val scrollY = ch20Height + annotationOffsetInCh21         // 12200 — the smooth-tail target y
+        val midpoint = scrollY + viewport / 2                     // 13400 — in ch22
+        // ch22 starts at 13000; midpoint=13400 is inside ch22 (global index 21, topIndex=19 → gap 2)
+        val viewportMidIndex = 21  // ch22's global index in the reading order
+        val decision = mgr.decide(
+            scrollY = scrollY,
+            viewportChapterIndex = viewportMidIndex,
+            window = window,
+            topIndex = 19,
+            totalChapters = 25,
+            viewportHeight = viewport,
+        )
+        assertEquals(ChapterWindowManager.Decision.ShiftForward, decision)
+    }
+
+    @Test
+    fun `holds when annotation at 80 pct of chapter keeps midpoint inside same chapter`() {
+        // Symmetric check: with the annotation at 80 % the midpoint stays inside ch21 → Hold.
+        // This distinguishes "the trigger fires only for annotations near the chapter end" from
+        // "any mid-chapter annotation triggers a spurious shift".
+        val mgr = ChapterWindowManager(chaptersBehind = 1)
+        val viewport = 2400
+        val ch20Height = 5000; val ch21Height = 8000; val ch22Height = 5000
+        val window = listOf(
+            slot("ch20",  0,                          ch20Height),
+            slot("ch21",  ch20Height,                 ch21Height),
+            slot("ch22",  ch20Height + ch21Height,    ch22Height),
+        )
+        val annotationOffsetInCh21 = (ch21Height * 0.8).toInt()  // 6400 px within ch21
+        val scrollY = ch20Height + annotationOffsetInCh21         // 11400
+        val midpoint = scrollY + viewport / 2                     // 12600 — still inside ch21 (5000..13000)
+        val viewportMidIndex = 20  // ch21's global index — gap = 20-19 = 1 = chaptersBehind → not > budget
+        val decision = mgr.decide(
+            scrollY = scrollY,
+            viewportChapterIndex = viewportMidIndex,
+            window = window,
+            topIndex = 19,
+            totalChapters = 25,
+            viewportHeight = viewport,
+        )
+        assertEquals(ChapterWindowManager.Decision.Hold, decision)
+    }
+
     // ── unknown viewport chapter (-1 from indexOfFirst) ──────────────────────
 
     @Test

@@ -963,11 +963,23 @@ internal class ContinuousWindowController(
                 removeBottom()
                 topIndex--
                 prependChapter(topIndex)
+                // prependChapter calls scrollBy(+placeholder) to keep visible content in place.
+                // If an OverScroller animation (smoothScrollTo / fling) is running, its next
+                // computeScroll frame will overwrite that scrollBy, making the chapter appear to
+                // jump. Aborting here lets the scrollBy stick. Safe when idle (abortAnimation on
+                // an already-finished scroller is a no-op).
+                port.abortFling()
                 shiftInProgress = false
             }
             ChapterWindowManager.Decision.ShiftForward -> {
                 shiftInProgress = true
                 removeTop()
+                // removeTop calls scrollBy(-h) to keep visible content in place, but an active
+                // OverScroller (from smoothScrollTo or a fling) overwrites that on its next
+                // computeScroll frame — it keeps chasing the original target in the now-shifted
+                // layout. For smooth-tail annotation nav this lands well past the annotation into
+                // placeholder chapters → blank screen. Aborting here lets the scrollBy stick.
+                port.abortFling()
                 val nextIndex = topIndex + webViews.size
                 if (nextIndex < allChapters.size) appendChapter(nextIndex)
                 shiftInProgress = false
