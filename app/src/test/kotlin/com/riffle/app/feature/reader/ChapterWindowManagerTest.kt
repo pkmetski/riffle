@@ -405,9 +405,11 @@ class ChapterWindowManagerTest {
     // was overwritten by the OverScroller on the next computeScroll frame, making the scroll land
     // viewport/2 + h past the annotation → placeholder blank territory.
     //
-    // Fix: ContinuousWindowController.maybeShift calls port.abortFling() after removeTop/prependChapter
-    // so the OverScroller stops chasing the stale target. This test pins the trigger: ShiftForward
-    // MUST fire when the smooth-tail endpoint places the viewport midpoint in the following chapter.
+    // Fix: ContinuousWindowController.maybeShift calls port.abortFling() when smoothTailInProgress
+    // after removeTop/prependChapter, so the OverScroller stops chasing the stale target. The abort
+    // is guarded by smoothTailInProgress to avoid killing normal user flings at chapter boundaries.
+    // This test pins the trigger: ShiftForward MUST fire when the smooth-tail endpoint places the
+    // viewport midpoint in the following chapter.
 
     @Test
     fun `shift forward fires when smooth-tail endpoint puts viewport midpoint past the chapter boundary`() {
