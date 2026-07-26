@@ -2,7 +2,6 @@ package com.riffle.core.data.di.modules
 
 import com.riffle.core.data.AnnotationsLibraryRepository
 import com.riffle.core.data.AnnotationsLibraryRepositoryImpl
-import com.riffle.core.data.AppUpdateRepositoryImpl
 import com.riffle.core.data.ConnectivityObserverImpl
 import com.riffle.core.data.CrashReportRepositoryImpl
 import com.riffle.core.data.LocalToReadStore
@@ -23,7 +22,6 @@ import com.riffle.core.data.di.EpubCacheStore
 import com.riffle.core.data.di.EpubDownloadsStore
 import com.riffle.core.data.di.PdfCacheStore
 import com.riffle.core.data.di.PdfDownloadsStore
-import com.riffle.core.domain.AppUpdateRepository
 import com.riffle.core.domain.AudiobookDownloadRepository
 import com.riffle.core.domain.BundleAudiobookSource
 import com.riffle.core.domain.ConnectivityObserver
@@ -82,10 +80,6 @@ abstract class RepositoriesModule {
     @Binds
     @Singleton
     abstract fun bindCrashReportRepository(impl: CrashReportRepositoryImpl): CrashReportRepository
-
-    @Binds
-    @Singleton
-    abstract fun bindAppUpdateRepository(impl: AppUpdateRepositoryImpl): AppUpdateRepository
 
     @Binds
     @Singleton
