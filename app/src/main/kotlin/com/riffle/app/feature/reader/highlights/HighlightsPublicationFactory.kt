@@ -110,7 +110,6 @@ class HighlightsPublicationHandle internal constructor(
  */
 class HighlightsPublicationFactory @Inject constructor() {
 
-
     fun build(
         sourceId: String,
         itemId: String,
