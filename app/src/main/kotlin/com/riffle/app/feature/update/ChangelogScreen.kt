@@ -26,6 +26,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.LinkAnnotation
 import androidx.compose.ui.text.SpanStyle
@@ -98,8 +99,8 @@ private fun ReleaseEntry(release: ReleaseInfo) {
     ) {
         if (release.releaseUrl.isNotBlank()) {
             val linkColor = MaterialTheme.colorScheme.primary
-            Text(
-                text = buildAnnotatedString {
+            val annotated = remember(release.releaseUrl, release.versionName, linkColor) {
+                buildAnnotatedString {
                     withLink(
                         LinkAnnotation.Clickable(
                             tag = "release",
@@ -114,7 +115,10 @@ private fun ReleaseEntry(release: ReleaseInfo) {
                     ) {
                         append("v${release.versionName}")
                     }
-                },
+                }
+            }
+            Text(
+                text = annotated,
                 style = MaterialTheme.typography.titleSmall,
             )
         } else {

@@ -53,6 +53,7 @@ class GitHubReleaseApi(
                         tagName = release.tagName,
                         apkUrl = apk.downloadUrl,
                         apkSizeBytes = apk.size,
+                        htmlUrl = release.htmlUrl,
                     )
                 )
             }
