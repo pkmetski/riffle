@@ -35,6 +35,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.ui.res.painterResource
 import com.riffle.app.R
 import androidx.compose.material3.CircularProgressIndicator
@@ -51,6 +52,7 @@ import com.riffle.app.feature.reader.decorations.FigureBorderDecoration
 import com.riffle.app.feature.reader.formatting.RenderCapabilities
 import com.riffle.app.feature.reader.highlights.shouldShowOpenInBook
 import com.riffle.app.feature.reader.highlights.shouldShowReadaloudUi
+import com.riffle.app.feature.reader.highlights.shouldShowShareHighlights
 import com.riffle.app.feature.reader.presenter.ContinuousPresenter
 import com.riffle.app.feature.reader.presenter.NavigationOptions
 import com.riffle.app.feature.reader.presenter.NavigationTarget
@@ -302,6 +304,7 @@ fun EpubReaderScreen(
     val isCurrentPageBookmarked by viewModel.isCurrentPageBookmarked.collectAsState()
     val highlightRenders by viewModel.highlightRenders.collectAsState()
     val highlightToEdit by viewModel.highlightToEdit.collectAsState()
+    val isExporting by viewModel.isExporting.collectAsState()
     val noteEditorTarget by viewModel.noteEditorTarget.collectAsState()
     val railSegments by viewModel.railSegments.collectAsState()
     val readaloudAvailable by viewModel.readaloudAvailable.collectAsState()
@@ -859,6 +862,26 @@ fun EpubReaderScreen(
                                         painter = painterResource(R.drawable.ic_readaloud),
                                         contentDescription = "Readaloud",
                                     )
+                                }
+                            }
+                            if (shouldShowShareHighlights(viewModel.readerSource)) {
+                                if (isExporting) {
+                                    Box(
+                                        modifier = Modifier.size(48.dp),
+                                        contentAlignment = Alignment.Center,
+                                    ) {
+                                        CircularProgressIndicator(
+                                            modifier = Modifier.size(24.dp),
+                                            strokeWidth = 2.dp,
+                                        )
+                                    }
+                                } else {
+                                    IconButton(onClick = viewModel::onShareElidedView) {
+                                        Icon(
+                                            imageVector = Icons.Default.Share,
+                                            contentDescription = "Share annotations as PDF",
+                                        )
+                                    }
                                 }
                             }
                         }
