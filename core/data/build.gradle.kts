@@ -55,13 +55,19 @@ dependencies {
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.okhttp)
-    implementation(libs.ktor.client.okhttp)
+    implementation(libs.ktor.client.okhttp) {
+        // okhttp-sse:4.x is a stale transitive dep — OkHttp 5 bundles SSE in its main artifact.
+        // The 4.x jar references okhttp3.internal.Util which was removed in 5.x, breaking R8.
+        exclude(group = "com.squareup.okhttp3", module = "okhttp-sse")
+    }
 
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)
     testImplementation(libs.okhttp.mockwebserver)
     testImplementation(libs.mockk)
-    testImplementation(libs.ktor.client.okhttp)
+    testImplementation(libs.ktor.client.okhttp) {
+        exclude(group = "com.squareup.okhttp3", module = "okhttp-sse")
+    }
 
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.test.runner)
