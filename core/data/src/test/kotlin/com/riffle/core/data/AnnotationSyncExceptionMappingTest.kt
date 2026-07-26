@@ -2,7 +2,7 @@ package com.riffle.core.data
 
 import com.riffle.core.sources.webdav.AnnotationSyncException
 import com.riffle.core.sync.CycleOutcome
-import com.riffle.core.sync.toFailedCycleOutcome
+import com.riffle.core.data.toFailedCycleOutcome
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test

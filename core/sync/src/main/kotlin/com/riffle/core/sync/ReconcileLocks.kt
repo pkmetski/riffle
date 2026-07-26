@@ -24,13 +24,13 @@ class ReconcileLocks @Inject constructor() : AnnotationLockPort {
 
     /** Progress reconcile lock — per `(sourceId, itemId, kind)`. */
     suspend fun <T> withLock(sourceId: String, itemId: String, kind: RemoteKind, block: suspend () -> T): T {
-        val mutex = progressMutexes.getOrPut("$sourceId $itemId $kind") { Mutex() }
+        val mutex = progressMutexes.computeIfAbsent("$sourceId $itemId $kind") { Mutex() }
         return mutex.withLock { block() }
     }
 
     /** Annotation reconcile lock — per `(sourceId, itemId)`. */
     override suspend fun <T> withAnnotationLock(sourceId: String, itemId: String, block: suspend () -> T): T {
-        val mutex = annotationMutexes.getOrPut("$sourceId $itemId") { Mutex() }
+        val mutex = annotationMutexes.computeIfAbsent("$sourceId $itemId") { Mutex() }
         return mutex.withLock { block() }
     }
 }

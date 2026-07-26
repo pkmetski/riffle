@@ -7,7 +7,7 @@ import com.riffle.core.domain.AnnotationSyncTarget
 import com.riffle.core.domain.DeviceIdStore
 import com.riffle.core.sync.AnnotationSyncStatusStore
 import com.riffle.core.sync.CycleOutcome
-import com.riffle.core.sync.toFailedCycleOutcome
+import com.riffle.core.data.toFailedCycleOutcome
 import com.riffle.core.models.EmbeddedFigure
 import com.riffle.core.models.W3CAnnotation
 
