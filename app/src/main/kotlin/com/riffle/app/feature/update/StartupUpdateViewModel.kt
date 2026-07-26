@@ -14,7 +14,6 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
-import java.util.concurrent.atomic.AtomicBoolean
 import javax.inject.Inject
 
 data class StartupUpdateDialogState(
@@ -37,36 +36,29 @@ class StartupUpdateViewModel @Inject constructor(
     private val _downloadState = MutableStateFlow<UpdateDownloadState?>(null)
     val downloadState: StateFlow<UpdateDownloadState?> = _downloadState.asStateFlow()
 
-    private val checking = AtomicBoolean(false)
-
     init {
         checkNow()
     }
 
     fun checkNow() {
         if (_dialogState.value != null) return
-        if (!checking.compareAndSet(false, true)) return
         viewModelScope.launch {
-            try {
-                val autoEnabled = appUpdatePreferencesStore.autoUpdateEnabled.first()
-                if (!autoEnabled) return@launch
-                val ignoredCode = appUpdatePreferencesStore.ignoredVersionCode.first()
-                val releases = appUpdateRepository.listReleasesSince(currentVersionCode)
-                if (releases.isEmpty()) return@launch
-                val latest = releases.first()
-                if (latest.versionCode == ignoredCode) return@launch
-                _dialogState.value = StartupUpdateDialogState(
-                    releases = releases,
-                    update = AvailableUpdate(
-                        versionName = latest.versionName,
-                        versionCode = latest.versionCode,
-                        downloadUrl = latest.downloadUrl,
-                        sizeBytes = latest.sizeBytes,
-                    ),
-                )
-            } finally {
-                checking.set(false)
-            }
+            val autoEnabled = appUpdatePreferencesStore.autoUpdateEnabled.first()
+            if (!autoEnabled) return@launch
+            val ignoredCode = appUpdatePreferencesStore.ignoredVersionCode.first()
+            val releases = appUpdateRepository.listReleasesSince(currentVersionCode)
+            if (releases.isEmpty()) return@launch
+            val latest = releases.first()
+            if (latest.versionCode == ignoredCode) return@launch
+            _dialogState.value = StartupUpdateDialogState(
+                releases = releases,
+                update = AvailableUpdate(
+                    versionName = latest.versionName,
+                    versionCode = latest.versionCode,
+                    downloadUrl = latest.downloadUrl,
+                    sizeBytes = latest.sizeBytes,
+                ),
+            )
         }
     }
 
