@@ -2,6 +2,7 @@ package com.riffle.core.data
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import com.riffle.core.logging.RecordingLogger
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -26,7 +27,7 @@ class LocalDirectoryTargetTest {
     @Before
     fun setup() {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
-        target = LocalDirectoryTarget(context)
+        target = LocalDirectoryTarget(context, RecordingLogger())
         filesDir = context.filesDir
 
         // Clean up any previous test data
@@ -289,6 +290,7 @@ class LocalDirectoryTargetTest {
 
         val fresh = LocalDirectoryTarget(
             InstrumentationRegistry.getInstrumentation().targetContext,
+            RecordingLogger(),
         )
         val listed = fresh.list("abs_$absUuid", itemId).toSet()
 
@@ -333,6 +335,7 @@ class LocalDirectoryTargetTest {
         // Fresh target instance so `legacyAbsMigrated` starts false; then hit list().
         val fresh = LocalDirectoryTarget(
             InstrumentationRegistry.getInstrumentation().targetContext,
+            RecordingLogger(),
         )
         val listed = fresh.list("abs_$absUuid", itemId)
 

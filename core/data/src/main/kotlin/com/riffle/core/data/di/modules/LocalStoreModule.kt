@@ -2,12 +2,14 @@ package com.riffle.core.data.di.modules
 
 import android.content.Context
 import com.riffle.core.data.AnnotationStoreImpl
+import com.riffle.core.data.FilesdirFileStore
 import com.riffle.core.data.AudiobookBookmarkStoreImpl
 import com.riffle.core.data.AudiobookPositionStoreImpl
 import com.riffle.core.data.CrossEpubIndexStoreImpl
 import com.riffle.core.data.DeviceIdStoreImpl
 import com.riffle.core.data.DownloadsRepositoryImpl
-import com.riffle.core.data.EncryptedKeyValueStore
+import com.riffle.core.common.EncryptedKeyValueStore
+import com.riffle.core.common.FileStore
 import com.riffle.core.data.KeystoreEncryptedKeyValueStore
 import com.riffle.core.data.KeystoreTokenStorage
 import com.riffle.core.data.LocalStoreImpl
@@ -47,6 +49,10 @@ import javax.inject.Singleton
 @Module
 @InstallIn(SingletonComponent::class)
 abstract class LocalStoreModule {
+
+    @Binds
+    @Singleton
+    abstract fun bindFileStore(impl: FilesdirFileStore): FileStore
 
     @Binds
     @Singleton

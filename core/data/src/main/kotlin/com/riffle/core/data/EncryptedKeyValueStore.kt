@@ -1,13 +1,6 @@
 package com.riffle.core.data
 
-/**
- * Tiny synchronous key/value contract used by config stores that need their values
- * encrypted at rest. Exists so the config-store logic can be JVM-unit-tested with an
- * in-memory fake while the production wiring binds an Android-Keystore-backed
- * implementation.
- */
-interface EncryptedKeyValueStore {
-    fun get(key: String): String?
-    fun put(key: String, value: String)
-    fun remove(key: String)
-}
+// Moved to core:common in Phase 6. Typealias kept so any remaining same-package references
+// still resolve; all explicit imports have been updated to com.riffle.core.common.EncryptedKeyValueStore.
+@Deprecated("Use com.riffle.core.common.EncryptedKeyValueStore", ReplaceWith("com.riffle.core.common.EncryptedKeyValueStore"))
+typealias EncryptedKeyValueStore = com.riffle.core.common.EncryptedKeyValueStore

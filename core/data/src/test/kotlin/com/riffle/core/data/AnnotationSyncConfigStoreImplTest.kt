@@ -1,5 +1,6 @@
 package com.riffle.core.data
 
+import com.riffle.core.common.EncryptedKeyValueStore
 import com.riffle.core.domain.AnnotationSyncConfig
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
