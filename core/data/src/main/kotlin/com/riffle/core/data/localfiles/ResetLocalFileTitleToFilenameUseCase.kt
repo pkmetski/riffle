@@ -10,10 +10,11 @@ class ResetLocalFileTitleToFilenameUseCase @Inject constructor(
     private val fileDao: LocalFilesFileDao,
     private val overrideDao: LocalFileMetadataOverrideDao,
 ) {
-    suspend operator fun invoke(sourceId: String, sourceItemId: String) {
-        val file = fileDao.findById(sourceId, sourceItemId) ?: return
+    /** Returns the new title on success, null if the file was not found or the name could not be determined. */
+    suspend operator fun invoke(sourceId: String, sourceItemId: String): String? {
+        val file = fileDao.findById(sourceId, sourceItemId) ?: return null
         val rawName = file.displayName.ifBlank { filenameFromUri(file.originalUri) }
-        val title = stripExtension(rawName).ifBlank { return }
+        val title = stripExtension(rawName).ifBlank { return null }
         val existing = overrideDao.getForItem(sourceId, sourceItemId)
         overrideDao.upsert(
             existing?.copy(title = title) ?: LocalFileMetadataOverrideEntity(
@@ -25,6 +26,7 @@ class ResetLocalFileTitleToFilenameUseCase @Inject constructor(
                 seriesIndex = null,
             ),
         )
+        return title
     }
 
     private fun filenameFromUri(uri: String): String = try {

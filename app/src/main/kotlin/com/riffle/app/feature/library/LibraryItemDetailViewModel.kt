@@ -251,13 +251,28 @@ class LibraryItemDetailViewModel @Inject constructor(
         val item = loadedItem ?: return
         viewModelScope.launch {
             saveLocalFileMetadataOverride(item.sourceId, item.id, title, author, seriesName, seriesIndex)
+            val current = _uiState.value as? LibraryItemDetailUiState.Ready ?: return@launch
+            val patched = current.item.copy(
+                title = title.ifBlank { current.item.title },
+                author = author.ifBlank { current.item.author },
+                seriesName = seriesName.ifBlank { null },
+            )
+            _uiState.value = current.copy(item = patched)
+            loadedItem = patched
         }
     }
 
     fun resetTitleToFilename() {
         val item = loadedItem ?: return
         viewModelScope.launch {
-            resetLocalFileTitleToFilename(item.sourceId, item.id)
+            val newTitle = resetLocalFileTitleToFilename(item.sourceId, item.id) ?: run {
+                _snackbarEvents.emit("Could not determine filename")
+                return@launch
+            }
+            val current = _uiState.value as? LibraryItemDetailUiState.Ready ?: return@launch
+            val patched = current.item.copy(title = newTitle)
+            _uiState.value = current.copy(item = patched)
+            loadedItem = patched
             _snackbarEvents.emit("Title reset to filename")
         }
     }
