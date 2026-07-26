@@ -1,4 +1,4 @@
-package com.riffle.core.data
+package com.riffle.core.sync
 
 import com.riffle.core.catalog.BookFormat
 import com.riffle.core.catalog.Catalog

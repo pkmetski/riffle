@@ -3,7 +3,7 @@ package com.riffle.app.feature.audiobook
 import com.riffle.app.feature.reader.AudiobookFollow
 import com.riffle.app.feature.reader.ReaderSyncCoordinator
 import com.riffle.app.feature.reader.ReaderSyncFactory
-import com.riffle.core.data.OpenReconcileTargets
+import com.riffle.core.sync.OpenReconcileTargets
 import com.riffle.core.domain.ReadaloudResumeStore
 import com.riffle.core.domain.SyncPositionStore
 import javax.inject.Inject

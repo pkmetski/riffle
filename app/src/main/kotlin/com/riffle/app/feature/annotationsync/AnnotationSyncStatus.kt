@@ -1,6 +1,6 @@
 package com.riffle.app.feature.annotationsync
 
-import com.riffle.core.data.CycleOutcome
+import com.riffle.core.sync.CycleOutcome
 import com.riffle.core.domain.AnnotationSyncConfig
 
 /**
@@ -9,7 +9,7 @@ import com.riffle.core.domain.AnnotationSyncConfig
  * the AddServer WebDAV banner
  * ([com.riffle.app.feature.server.AddSourceViewModel.webdavBanner]).
  *
- * Both surfaces observe the same singleton [com.riffle.core.data.AnnotationSyncStatusStore] and the
+ * Both surfaces observe the same singleton [com.riffle.core.sync.AnnotationSyncStatusStore] and the
  * same pending-book count, and both call this function to decide their badge/kind — so the two
  * views cannot contradict each other. Adding a new rule (e.g. degrading Success → Pending while
  * books are unsynced) is done here so both places pick it up.

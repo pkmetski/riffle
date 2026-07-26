@@ -1,7 +1,7 @@
 package com.riffle.app.sync
 
 import androidx.work.ListenableWorker
-import com.riffle.core.data.CycleOutcome
+import com.riffle.core.sync.CycleOutcome
 import org.junit.Assert.assertEquals
 import org.junit.Test
 

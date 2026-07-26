@@ -2,8 +2,8 @@ package com.riffle.app.feature.settings.annotationsync
 
 import com.riffle.core.data.AnnotationDeviceMetaCodec
 import com.riffle.core.data.AnnotationSyncMaintenance
-import com.riffle.core.data.AnnotationSyncStatusStore
-import com.riffle.core.data.CycleOutcome
+import com.riffle.core.sync.AnnotationSyncStatusStore
+import com.riffle.core.sync.CycleOutcome
 import com.riffle.core.models.AnnotationDeviceMeta
 import com.riffle.core.domain.AnnotationFileRef
 import com.riffle.core.domain.AnnotationSyncConfig

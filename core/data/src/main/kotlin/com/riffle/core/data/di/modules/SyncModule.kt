@@ -2,6 +2,7 @@ package com.riffle.core.data.di.modules
 
 import com.riffle.core.catalog.CatalogRegistry
 import com.riffle.core.data.AnnotationSyncConfigStoreImpl
+import com.riffle.core.data.AudiobookBookmarkSyncStoreImpl
 import com.riffle.core.data.AudiobookPositionStoreImpl
 import com.riffle.core.data.ReadaloudMatchingService
 import com.riffle.core.data.ReadingPositionStoreImpl
@@ -9,12 +10,21 @@ import com.riffle.core.data.StorytellerPositionSyncController
 import com.riffle.core.data.StorytellerReadaloudSyncer
 import com.riffle.core.database.LibraryItemDao
 import com.riffle.core.domain.AnnotationSyncConfigStore
+import com.riffle.core.domain.AudiobookBookmarkSyncStore
 import com.riffle.core.domain.DispatcherProvider
 import com.riffle.core.domain.ReadingPositionStore
 import com.riffle.core.domain.SourceRepository
 import com.riffle.core.domain.TokenStorage
 import com.riffle.core.network.StorytellerLibraryApi
 import com.riffle.core.network.StorytellerPositionApi
+import com.riffle.core.sync.BookmarkReconcile
+import com.riffle.core.sync.DirtyAnnotationLedger
+import com.riffle.core.sync.DirtyBookmarkLedger
+import com.riffle.core.sync.DirtyProgressLedger
+import com.riffle.core.sync.OpenReconcileTargets
+import com.riffle.core.sync.ProgressRemoteFactory
+import com.riffle.core.sync.ProgressSweep
+import com.riffle.core.sync.ReconcileLocks
 import dagger.Binds
 import dagger.Module
 import dagger.Provides
@@ -41,15 +51,15 @@ abstract class SyncModule {
 
     @Binds
     @Singleton
-    abstract fun bindDirtyProgressLedger(impl: com.riffle.core.data.RoomDirtyProgressLedger): com.riffle.core.data.DirtyProgressLedger
+    abstract fun bindDirtyProgressLedger(impl: com.riffle.core.data.RoomDirtyProgressLedger): DirtyProgressLedger
 
     @Binds
     @Singleton
-    abstract fun bindDirtyAnnotationLedger(impl: com.riffle.core.data.RoomDirtyAnnotationLedger): com.riffle.core.data.DirtyAnnotationLedger
+    abstract fun bindDirtyAnnotationLedger(impl: com.riffle.core.data.RoomDirtyAnnotationLedger): DirtyAnnotationLedger
 
     @Binds
     @Singleton
-    abstract fun bindProgressRemoteFactory(impl: com.riffle.core.data.CatalogProgressRemoteFactory): com.riffle.core.data.ProgressRemoteFactory
+    abstract fun bindProgressRemoteFactory(impl: com.riffle.core.data.CatalogProgressRemoteFactory): ProgressRemoteFactory
 
     @Binds
     @Singleton
@@ -63,6 +73,10 @@ abstract class SyncModule {
     @Singleton
     abstract fun bindStorytellerReadaloudCacheSyncer(impl: StorytellerReadaloudSyncer): com.riffle.core.domain.StorytellerReadaloudCacheSyncer
 
+    @Binds
+    @Singleton
+    abstract fun bindAudiobookBookmarkSyncStore(impl: AudiobookBookmarkSyncStoreImpl): AudiobookBookmarkSyncStore
+
     companion object {
         // Durable offline progress reconcile (ADR 0030): assemble the multi-source dirty sweep
         // over the single-target primitive. Skipping unresolvable sources (no row / no token /
@@ -70,18 +84,18 @@ abstract class SyncModule {
         @Provides
         @Singleton
         fun provideProgressSweep(
-            ledger: com.riffle.core.data.DirtyProgressLedger,
+            ledger: DirtyProgressLedger,
             catalogRegistry: CatalogRegistry,
-            remoteFactory: com.riffle.core.data.ProgressRemoteFactory,
-            locks: com.riffle.core.data.ReconcileLocks,
-            openTargets: com.riffle.core.data.OpenReconcileTargets,
+            remoteFactory: ProgressRemoteFactory,
+            locks: ReconcileLocks,
+            openTargets: OpenReconcileTargets,
             ebookStore: ReadingPositionStoreImpl,
             audioStore: AudiobookPositionStoreImpl,
             bookmarkDao: com.riffle.core.database.AudiobookBookmarkDao,
-            bookmarkReconciler: com.riffle.core.data.AudiobookBookmarkReconciler,
+            bookmarkReconciler: com.riffle.core.sync.AudiobookBookmarkReconciler,
             uiProgressSink: com.riffle.core.data.LibraryItemUiProgressSink,
-        ): com.riffle.core.data.ProgressSweep =
-            com.riffle.core.data.ProgressSweep(
+        ): ProgressSweep =
+            ProgressSweep(
                 ledger,
                 catalogRegistry,
                 com.riffle.core.domain.ProgressReconciler(ebookStore, uiProgressSink),
@@ -89,12 +103,12 @@ abstract class SyncModule {
                 remoteFactory, locks, openTargets,
                 // Bookmarks ride the sweep at the same cadence as positions: enumerate dirty
                 // (source, item) pairs straight off the bookmark DAO (ADR 0030, Task 12).
-                object : com.riffle.core.data.DirtyBookmarkLedger {
+                object : DirtyBookmarkLedger {
                     override suspend fun serversWithDirty() = bookmarkDao.sourcesWithDirtyRows()
                     override suspend fun dirtyItems(sourceId: String) =
                         bookmarkDao.dirtyForSource(sourceId).map { it.itemId }.distinct()
                 },
-                com.riffle.core.data.BookmarkReconcile { sourceId, itemId ->
+                BookmarkReconcile { sourceId, itemId ->
                     bookmarkReconciler.reconcile(sourceId, itemId)
                 },
             )
@@ -149,11 +163,11 @@ abstract class SyncModule {
             annotationDao: com.riffle.core.database.AnnotationDao,
             deviceIdStore: com.riffle.core.domain.DeviceIdStore,
             deviceLabelResolver: com.riffle.core.domain.DeviceLabelResolver,
-            statusStore: com.riffle.core.data.AnnotationSyncStatusStore,
+            statusStore: com.riffle.core.sync.AnnotationSyncStatusStore,
             sweepEnqueuer: com.riffle.core.domain.AnnotationSweepEnqueuer,
             sourceRepository: SourceRepository,
             libraryItemDao: LibraryItemDao,
-            locks: com.riffle.core.data.ReconcileLocks,
+            locks: ReconcileLocks,
             sentinelWriter: com.riffle.core.data.DeviceMetaSentinelWriter,
             dispatchers: DispatcherProvider,
         ): com.riffle.core.data.AnnotationSyncController =
@@ -184,10 +198,10 @@ abstract class SyncModule {
             deviceIdStore: com.riffle.core.domain.DeviceIdStore,
             deviceLabelResolver: com.riffle.core.domain.DeviceLabelResolver,
             sourceRepository: SourceRepository,
-            statusStore: com.riffle.core.data.AnnotationSyncStatusStore,
+            statusStore: com.riffle.core.sync.AnnotationSyncStatusStore,
             libraryItemDao: LibraryItemDao,
-            dirtyLedger: com.riffle.core.data.DirtyAnnotationLedger,
-            locks: com.riffle.core.data.ReconcileLocks,
+            dirtyLedger: DirtyAnnotationLedger,
+            locks: ReconcileLocks,
             sentinelWriter: com.riffle.core.data.DeviceMetaSentinelWriter,
         ): com.riffle.core.data.AnnotationSweep =
             com.riffle.core.data.AnnotationSweep(

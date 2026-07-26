@@ -238,7 +238,7 @@ class EpubReaderViewModel @Inject constructor(
     private val audioSyncStore: com.riffle.core.domain.SyncPositionStore<Double>,
     // While this reader is open it drives the book's reconciliation; the durable sweep must skip it
     // so it can't absorb a cross-device server-win the visible reader hasn't jumped to (ADR 0030).
-    private val openReconcileTargets: com.riffle.core.data.OpenReconcileTargets,
+    private val openReconcileTargets: com.riffle.core.sync.OpenReconcileTargets,
     private val readaloudResumeStore: ReadaloudResumeStore,
     private val annotationStore: AnnotationStore,
     private val emphasisPreferencesStore: com.riffle.core.domain.EmphasisPreferencesStore,

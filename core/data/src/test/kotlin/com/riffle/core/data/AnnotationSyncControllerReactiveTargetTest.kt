@@ -1,6 +1,7 @@
 package com.riffle.core.data
 
 import com.riffle.core.database.AnnotationDao
+import com.riffle.core.sync.AnnotationSyncStatusStore
 import com.riffle.core.database.AnnotationEntity
 import com.riffle.core.domain.AnnotationMergeService
 import com.riffle.core.domain.AnnotationSyncTarget

@@ -25,6 +25,7 @@ import com.riffle.core.domain.LibraryRefresher
 import com.riffle.core.models.Series
 import com.riffle.core.domain.SourceRepository
 import com.riffle.core.logging.LogChannel
+import com.riffle.core.sync.DirtyProgressLedger
 import com.riffle.core.logging.Logger
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope

@@ -9,8 +9,8 @@ import androidx.lifecycle.viewModelScope
 import com.riffle.app.BuildConfig
 import com.riffle.app.feature.annotationsync.AnnotationSyncKind
 import com.riffle.app.feature.annotationsync.deriveAnnotationSyncKind
-import com.riffle.core.data.AnnotationSyncStatusStore
-import com.riffle.core.data.CycleOutcome
+import com.riffle.core.sync.AnnotationSyncStatusStore
+import com.riffle.core.sync.CycleOutcome
 import com.riffle.core.data.ReadaloudMatchingService
 import com.riffle.core.data.credentialed.CredentialedAuthenticator
 import com.riffle.core.database.AnnotationDao

@@ -5,7 +5,7 @@ import androidx.work.CoroutineWorker
 import androidx.work.ListenableWorker
 import androidx.work.WorkerParameters
 import com.riffle.core.data.AnnotationSweep
-import com.riffle.core.data.CycleOutcome
+import com.riffle.core.sync.CycleOutcome
 import dagger.hilt.EntryPoint
 import dagger.hilt.InstallIn
 import dagger.hilt.android.EntryPointAccessors
