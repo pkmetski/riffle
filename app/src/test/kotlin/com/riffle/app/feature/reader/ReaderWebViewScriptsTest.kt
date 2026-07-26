@@ -417,4 +417,43 @@ class ReaderWebViewScriptsTest {
         assertTrue("walker present", walkerIdx >= 0)
         assertTrue("guard sits BEFORE the walker call", guardIdx < walkerIdx)
     }
+
+    /**
+     * Regression test for the erratic text-selection handle drag in paginated mode: the scroll
+     * listener in SETTLE_SNAP_INSTALL_JS used a fixed 120ms debounce, which produced a visible
+     * page snap while the user was still dragging a selection handle across a column boundary.
+     *
+     * Fix: when window.getSelection() is non-collapsed (active text selection), use 32ms (~2
+     * frames) so the snap fires fast enough to be imperceptible. The 120ms delay is kept for all
+     * other scroll events (page turns, column nav) where a visible settle is expected behaviour.
+     *
+     * This assertion flips red if someone removes the selection check or raises the delay back to
+     * 120ms unconditionally.
+     */
+    @Test
+    fun `SETTLE_SNAP_INSTALL_JS uses short debounce during active text selection to prevent visible handle-drag jump`() {
+        val js = ColumnSnap.SETTLE_SNAP_INSTALL_JS
+        // The selection-aware branch must be present.
+        assertTrue(
+            "SETTLE_SNAP_INSTALL_JS must check window.getSelection().isCollapsed",
+            js.contains("getSelection") && js.contains("isCollapsed"),
+        )
+        // 32ms short-path must appear in the JS.
+        assertTrue(
+            "SETTLE_SNAP_INSTALL_JS must set delay=32 during non-collapsed selection",
+            js.contains("delay=32"),
+        )
+        // The default 120ms path must still exist for non-selection scrolls.
+        assertTrue(
+            "SETTLE_SNAP_INSTALL_JS must keep delay=120 for normal scroll events",
+            js.contains("delay = 120") || js.contains("delay=120"),
+        )
+        // The short delay must appear AFTER the default so it only overrides during selection.
+        val defaultDelayIdx = js.indexOf("delay = 120").let { if (it < 0) js.indexOf("delay=120") else it }
+        val shortDelayIdx = js.indexOf("delay=32")
+        assertTrue(
+            "delay=32 override must appear AFTER the default delay=120 assignment",
+            shortDelayIdx > defaultDelayIdx,
+        )
+    }
 }
