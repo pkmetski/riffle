@@ -3,4 +3,6 @@
     <files-path name="crash_reports" path="." />
     <!-- Downloaded update APKs handed to the system installer (see AppUpdateRepository). -->
     <cache-path name="updates" path="updates/" />
+    <!-- Exported highlights PDF files shared via ACTION_SEND. -->
+    <cache-path name="exports" path="exports/" />
 </paths>

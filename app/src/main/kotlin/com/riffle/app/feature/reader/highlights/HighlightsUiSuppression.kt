@@ -14,3 +14,6 @@ internal fun shouldShowReadaloudUi(source: ReaderSource): Boolean = source == Re
 /** "Open in book" is the escape hatch out of the elided reader back to the full book; it has no
  *  meaning when already reading the full book. */
 internal fun shouldShowOpenInBook(source: ReaderSource): Boolean = source == ReaderSource.Highlights
+
+/** Share action exports the elided view as PDF — only meaningful inside the elided reader. */
+internal fun shouldShowShareHighlights(source: ReaderSource): Boolean = source == ReaderSource.Highlights
