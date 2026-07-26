@@ -456,4 +456,86 @@ class ReaderWebViewScriptsTest {
             shortDelayIdx > defaultDelayIdx,
         )
     }
+
+    // Regression for the "elided view drops publisher formatting when selection is entirely inside a
+    // formatting ancestor" bug. walkInline walks Range.cloneContents() descendants, but when the
+    // user selects text that sits entirely inside <em>italic text</em>, cloneContents() returns a
+    // bare text node — the <em> is an ANCESTOR of the range, not a descendant. The fix walks up
+    // from commonAncestorContainer to <body> collecting any INLINE_ALLOW tag ancestors and wraps
+    // the plain text in them. The following pins ensure this path is present and correct.
+    @Test
+    fun `SELECTION_SPAN_TRACKER_JS adds ancestor-checking block after walkInline for formatting ancestors`() {
+        val js = SELECTION_SPAN_TRACKER_JS
+        val walkInlineIdx = js.indexOf("snippetHtml = walkInline(frag)")
+        assertTrue("walkInline call present", walkInlineIdx >= 0)
+        // Ancestor check is gated on snippetHtml equalling the raw escaped text — meaning
+        // walkInline found no formatting descendants.
+        val condIdx = js.indexOf("if (snippetHtml === escInline(text))", walkInlineIdx)
+        assertTrue("ancestor check gate is present after walkInline", condIdx > walkInlineIdx)
+        // The walk goes up via commonAncestorContainer (the canonical range ancestor API).
+        assertTrue(
+            "ancestor walk starts from commonAncestorContainer",
+            js.indexOf("rng.commonAncestorContainer", condIdx) > condIdx,
+        )
+        // Ascends to (but not including) the body element.
+        assertTrue(
+            "ancestor walk stops at body",
+            js.indexOf("el.tagName.toLowerCase() !== 'body'", condIdx) > condIdx,
+        )
+        // Uses the same INLINE_ALLOW allowlist as walkInline so descendants and ancestors are
+        // treated symmetrically — no separate ANCESTOR_ALLOW filter.
+        val inlineAllowInAncestorBlock = js.indexOf("if (INLINE_ALLOW[wt])", condIdx)
+        assertTrue(
+            "ancestor walk filters by INLINE_ALLOW (same allowlist as descendant walk)",
+            inlineAllowInAncestorBlock > condIdx,
+        )
+    }
+
+    @Test
+    fun `SELECTION_SPAN_TRACKER_JS wraps plain text in ancestors innermost-first`() {
+        val js = SELECTION_SPAN_TRACKER_JS
+        val condIdx = js.indexOf("if (snippetHtml === escInline(text))")
+        assertTrue("ancestor check gate present", condIdx >= 0)
+        // wrapTags[0] is the innermost ancestor; the loop wraps from innermost to outermost so the
+        // output nesting matches the original DOM order.
+        assertTrue(
+            "wrapping starts with escInline(text) as the innermost content",
+            js.indexOf("var wrapped = escInline(text)", condIdx) > condIdx,
+        )
+        assertTrue(
+            "loop builds up from wrapTags by index (innermost first)",
+            js.indexOf("'<' + wrapTags[wi] + '>' + wrapped + '</' + wrapTags[wi] + '>'", condIdx) > condIdx,
+        )
+    }
+
+    @Test
+    fun `SELECTION_SPAN_TRACKER_JS suppresses plain-text-only snippetHtml before bridging`() {
+        val js = SELECTION_SPAN_TRACKER_JS
+        // After the ancestor walk, if no formatting ancestor was found the snippet would still
+        // equal escInline(text). The script must clear it to '' so the bridge sends nothing and
+        // textSnippetHtml stays null (triggering the plain render path, not a no-op formatted one).
+        val condIdx = js.indexOf("if (snippetHtml === escInline(text))")
+        val clearIdx = js.indexOf("if (snippetHtml === escInline(text)) snippetHtml = '';")
+        assertTrue("ancestor check gate is present", condIdx >= 0)
+        assertTrue("clearing sentinel is present", clearIdx >= 0)
+        assertTrue("clearing comes AFTER the ancestor check", clearIdx > condIdx)
+    }
+
+    @Test
+    fun `SELECTION_SPAN_TRACKER_JS stashes snippetHtml in __riffleSelData and bridges it via onSnippetHtml`() {
+        val js = SELECTION_SPAN_TRACKER_JS
+        // The html field in __riffleSelData feeds the continuous-mode read path.
+        assertTrue("html field written to __riffleSelData stash", js.contains("html: snippetHtml"))
+        // onSnippetHtml bridges the value to paginated mode (Readium never reads __riffleSelData).
+        assertTrue(
+            "onSnippetHtml bridge call is present",
+            js.contains("RiffleSelBridge.onSnippetHtml(snippetHtml)"),
+        )
+        // Bridge is guarded by a presence check (bridge not registered in continuous ChapterWebView).
+        val bridgeIdx = js.indexOf("RiffleSelBridge.onSnippetHtml(snippetHtml)")
+        assertTrue(
+            "bridge call is guarded by RiffleSelBridge.onSnippetHtml existence check",
+            js.substring(maxOf(0, bridgeIdx - 200), bridgeIdx).contains("RiffleSelBridge.onSnippetHtml"),
+        )
+    }
 }
