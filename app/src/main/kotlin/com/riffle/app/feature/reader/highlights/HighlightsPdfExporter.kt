@@ -54,6 +54,7 @@ class HighlightsPdfExporter @Inject constructor(
                 val webView = android.webkit.WebView(context)
                 webView.webViewClient = object : android.webkit.WebViewClient() {
                     override fun onPageFinished(view: android.webkit.WebView, url: String) {
+                        try {
                         val adapter = webView.createPrintDocumentAdapter(title ?: "Annotations")
                         val attributes = android.print.PrintAttributes.Builder()
                             .setMediaSize(android.print.PrintAttributes.MediaSize.ISO_A4)
@@ -84,15 +85,26 @@ class HighlightsPdfExporter @Inject constructor(
                                                 pages: Array<out android.print.PageRange>,
                                             ) {
                                                 pfd.close()
+                                                adapter.onFinish()
                                                 webView.destroy()
                                                 cont.resume(Unit)
                                             }
 
                                             override fun onWriteFailed(error: CharSequence?) {
                                                 pfd.close()
+                                                adapter.onFinish()
                                                 webView.destroy()
                                                 cont.resumeWithException(
                                                     java.io.IOException("PDF write failed: $error"),
+                                                )
+                                            }
+
+                                            override fun onWriteCancelled() {
+                                                pfd.close()
+                                                adapter.onFinish()
+                                                webView.destroy()
+                                                cont.resumeWithException(
+                                                    java.io.IOException("PDF write cancelled"),
                                                 )
                                             }
                                         },
@@ -100,14 +112,27 @@ class HighlightsPdfExporter @Inject constructor(
                                 }
 
                                 override fun onLayoutFailed(error: CharSequence?) {
+                                    adapter.onFinish()
                                     webView.destroy()
                                     cont.resumeWithException(
                                         java.io.IOException("PDF layout failed: $error"),
                                     )
                                 }
+
+                                override fun onLayoutCancelled() {
+                                    adapter.onFinish()
+                                    webView.destroy()
+                                    cont.resumeWithException(
+                                        java.io.IOException("PDF layout cancelled"),
+                                    )
+                                }
                             },
                             null,
                         )
+                        } catch (e: Exception) {
+                            webView.destroy()
+                            cont.resumeWithException(e)
+                        }
                     }
                 }
                 webView.loadDataWithBaseURL(null, html, "text/html", "UTF-8", null)
