@@ -69,7 +69,7 @@ class FigureTapScriptTest {
     /**
      * Scrolling must take precedence over long-press: when the parent scroll container claims the
      * touch stream the WebView receives ACTION_CANCEL (JS: touchcancel). The [cancelFigureLongPress]
-     * helper is the single point that clears the timer, the target, and removes the listener.
+     * helper is the single point that clears the timer, the target, and removes both dynamic listeners.
      * This assertion flips red if the helper is removed or the clearTimeout is dropped.
      */
     @Test
@@ -88,19 +88,20 @@ class FigureTapScriptTest {
         assertTrue("cancelFigureLongPress must clearTimeout(longPressTimer)", fnBody.contains("clearTimeout(longPressTimer)"))
         assertTrue("cancelFigureLongPress must null out longPressTarget", fnBody.contains("longPressTarget = null"))
         assertTrue("cancelFigureLongPress must remove the touchcancel listener", fnBody.contains("removeEventListener('touchcancel', cancelFigureLongPress, true)"))
+        assertTrue("cancelFigureLongPress must remove the contextmenu listener", fnBody.contains("removeEventListener('contextmenu', preventFigureContextMenu, true)"))
     }
 
     /**
      * Regression test for the selection toolbar disappearing in paginated mode on newer WebView
-     * builds (Chrome 120+): a permanent capture-phase touchcancel listener on document fires
-     * during Chrome's gesture handoff from long-press recognition to text-selection mode and
-     * suppresses the subsequent startActionMode call that shows the toolbar.
+     * builds (Chrome 120+): permanent capture-phase `touchcancel` and `contextmenu` listeners on
+     * document fire during Chrome's gesture handoff from long-press recognition to text-selection
+     * mode and suppress the subsequent startActionMode call that shows the toolbar.
      *
-     * The fix is to register the touchcancel guard ONLY inside the touchstart handler and only
-     * when a figure was detected — text-selection long-presses return early before that point,
-     * so no touchcancel listener exists during their gesture lifecycle.
+     * The fix is to register both guards ONLY inside the touchstart handler and only when a figure
+     * was detected — text-selection long-presses return early before that point, so neither listener
+     * exists during their gesture lifecycle.
      *
-     * This assertion flips red if someone restores the permanent global listener.
+     * These assertions flip red if someone restores either permanent global listener.
      */
     @Test
     fun `touchcancel listener is registered dynamically inside touchstart not as a permanent global listener`() {
@@ -121,6 +122,48 @@ class FigureTapScriptTest {
             "permanent anonymous touchcancel listener must not exist (PR #601 regression guard)",
             script.contains("addEventListener('touchcancel', function()") ||
                 script.contains("addEventListener('touchcancel', function("),
+        )
+    }
+
+    /**
+     * Regression test for the companion contextmenu suppression: Chrome 120+ also suppresses
+     * the floating selection toolbar when a capture-phase `contextmenu` listener is present on
+     * document at the moment of the long-press→text-selection gesture handoff. The fix is the
+     * same as for `touchcancel` — arm [preventFigureContextMenu] only inside touchstart, disarm
+     * it as soon as the gesture resolves (timer fires, move slop exceeded, touchend, touchcancel).
+     *
+     * This assertion flips red if someone restores the permanent anonymous listener.
+     */
+    @Test
+    fun `contextmenu listener is registered dynamically inside touchstart not as a permanent global listener`() {
+        val earlyReturnIdx = script.indexOf("if (!el) return;")
+        assertTrue("early-return guard (if !el return) must exist in touchstart", earlyReturnIdx >= 0)
+        // preventFigureContextMenu must be declared before cancelFigureLongPress so the latter
+        // can reference it by name.
+        val preventFnIdx = script.indexOf("function preventFigureContextMenu(")
+        assertTrue("preventFigureContextMenu helper function must be declared", preventFnIdx >= 0)
+        val cancelFnIdx = script.indexOf("function cancelFigureLongPress()")
+        assertTrue("cancelFigureLongPress must come after preventFigureContextMenu in the script", preventFnIdx < cancelFnIdx)
+        val dynamicRegIdx = script.indexOf("document.addEventListener('contextmenu', preventFigureContextMenu, true)")
+        assertTrue("contextmenu must be registered via the named preventFigureContextMenu reference", dynamicRegIdx >= 0)
+        assertTrue(
+            "contextmenu registration must come AFTER the figure-detection early-return, " +
+                "so it is never registered during a text-selection long-press",
+            dynamicRegIdx > earlyReturnIdx,
+        )
+        // The body of preventFigureContextMenu must: remove itself, then conditionally prevent
+        // the default (only while the figure LP is still the active target).
+        val fnBodyStart = script.indexOf("{", preventFnIdx)
+        val fnBodyEnd = script.indexOf("\n            }", fnBodyStart)
+        val fnBody = script.substring(fnBodyStart, fnBodyEnd + 1)
+        assertTrue("preventFigureContextMenu must remove itself", fnBody.contains("removeEventListener('contextmenu', preventFigureContextMenu, true)"))
+        assertTrue("preventFigureContextMenu must call e.preventDefault()", fnBody.contains("e.preventDefault()"))
+        // There must be NO anonymous contextmenu listener — that was the permanent-listener shape
+        // that caused the regression and must never come back.
+        assertFalse(
+            "permanent anonymous contextmenu listener must not exist",
+            script.contains("addEventListener('contextmenu', function()") ||
+                script.contains("addEventListener('contextmenu', function("),
         )
     }
 

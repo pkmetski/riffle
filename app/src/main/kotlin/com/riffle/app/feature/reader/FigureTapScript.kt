@@ -151,15 +151,21 @@ internal object FigureTapScript {
             var longPressStartX = 0;
             var longPressStartY = 0;
             var LONG_PRESS_MOVE_THRESHOLD = 12; // CSS px — matches Android's default touchSlop
-            // Named so it can be added/removed by reference. Registered only while a figure
-            // long-press is in flight — a permanent capture listener on document interferes with
-            // Chrome's text-selection gesture handoff on newer WebView builds: the browser sees
-            // the listener run during touchcancel and suppresses the subsequent startActionMode
-            // call that would show the selection toolbar (#601).
+            // Named so they can be added/removed by reference. Both are registered only while a
+            // figure long-press is in flight — permanent capture-phase listeners on document
+            // interfere with Chrome's text-selection gesture handoff on newer WebView builds: the
+            // browser sees a listener run during the touchcancel (or contextmenu) that signals the
+            // handoff from long-press recognition to text-selection mode, and suppresses the
+            // subsequent startActionMode call that would show the selection toolbar.
+            function preventFigureContextMenu(e) {
+                document.removeEventListener('contextmenu', preventFigureContextMenu, true);
+                if (longPressTarget) e.preventDefault();
+            }
             function cancelFigureLongPress() {
                 if (longPressTimer) { clearTimeout(longPressTimer); longPressTimer = null; }
                 longPressTarget = null;
                 document.removeEventListener('touchcancel', cancelFigureLongPress, true);
+                document.removeEventListener('contextmenu', preventFigureContextMenu, true);
             }
             document.addEventListener('touchstart', function(e) {
                 var t = e.touches && e.touches[0];
@@ -169,10 +175,12 @@ internal object FigureTapScript {
                 longPressTarget = el;
                 longPressStartX = t.clientX;
                 longPressStartY = t.clientY;
-                // Arm the touchcancel guard only now that we know a figure is being pressed.
-                // Text long-presses never reach this point, so the listener never exists during
-                // the browser's text-selection gesture — preventing the toolbar suppression above.
+                // Arm the touchcancel and contextmenu guards only now that we know a figure is
+                // being pressed. Text long-presses never reach this point, so neither listener
+                // exists during the browser's text-selection gesture — preventing the toolbar
+                // suppression described above.
                 document.addEventListener('touchcancel', cancelFigureLongPress, true);
+                document.addEventListener('contextmenu', preventFigureContextMenu, true);
                 longPressTimer = setTimeout(function() {
                     if (!longPressTarget) return;
                     // Immediate visual signal that the long-press was detected — before any Kotlin
@@ -232,6 +240,7 @@ internal object FigureTapScript {
                     longPressTimer = null;
                     longPressTarget = null;
                     document.removeEventListener('touchcancel', cancelFigureLongPress, true);
+                    document.removeEventListener('contextmenu', preventFigureContextMenu, true);
                 }, 500);
             }, true);
             document.addEventListener('touchmove', function(e) {
@@ -246,11 +255,6 @@ internal object FigureTapScript {
             }, true);
             document.addEventListener('touchend', function() {
                 cancelFigureLongPress();
-            }, true);
-            // Cancel the native long-press callout on figures — belt to the CSS's braces above,
-            // for WebView builds where the CSS property alone is respected too late.
-            document.addEventListener('contextmenu', function(e) {
-                if (findFigure(e.target)) e.preventDefault();
             }, true);
         })();
         window.riffleFiguresInsideRange = window.riffleFiguresInsideRange || function(cfiRange) {

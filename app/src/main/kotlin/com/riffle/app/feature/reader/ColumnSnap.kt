@@ -461,7 +461,14 @@ internal object ColumnSnap {
           }
           window.addEventListener('scroll', function(){
             if(t) clearTimeout(t);
-            t=setTimeout(settle, 120);
+            // During an active text selection the user may be dragging a handle across a column
+            // boundary, which scrolls the WebView to a fractional column position. Use a very
+            // short debounce (~2 frames) so the snap fires quickly and the off-grid layout is
+            // imperceptible, rather than the normal 120ms which produces a visible jump after
+            // the user releases the handle.
+            var delay = 120;
+            try { var s=window.getSelection(); if(s&&!s.isCollapsed) delay=32; } catch(e3) {}
+            t=setTimeout(settle, delay);
           }, true);
           // Install-time fallback for programmatic landings that fire no scroll event (Readium's resume
           // go() on book open). Skip if a navigation snap has run/started since install — its rAF tracker
