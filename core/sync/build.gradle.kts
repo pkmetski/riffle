@@ -7,8 +7,8 @@ dependencies {
     implementation(project(":core:models"))
     implementation(project(":core:catalog"))
     implementation(project(":core:sources"))
-    implementation(project(":core:logging"))
     implementation(libs.kotlinx.coroutines.core)
+    implementation("javax.inject:javax.inject:1")
 
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)
