@@ -19,6 +19,8 @@ import com.riffle.core.catalog.ToReadListCapability
 import com.riffle.core.catalog.abs.CatalogException
 import com.riffle.core.data.FakeLibraryItemDao
 import com.riffle.core.database.LibraryItemEntity
+import com.riffle.core.database.LocalFileMetadataOverrideDao
+import com.riffle.core.database.LocalFileMetadataOverrideEntity
 import com.riffle.core.database.LocalFilesFileDao
 import com.riffle.core.database.LocalFilesFileEntity
 import com.riffle.core.database.LocalFilesFileFolderDao
@@ -308,6 +310,108 @@ class LocalFilesCatalogTest {
         assertEquals(setOf("B-only", "Shared Book"), b)
     }
 
+    // region override merge tests
+
+    @Test
+    fun `browse applies title override when present`() = runTest {
+        val items = FakeLibraryItemDao()
+        val entry = epubItem("book-1", "Bad Extracted Title", author = "Old Author")
+        items.emit(sourceId, listOf(entry))
+        val overrideDao = InMemoryOverrideDao()
+        overrideDao.upsert(
+            LocalFileMetadataOverrideEntity(
+                sourceId = sourceId,
+                sourceItemId = "book-1",
+                title = "Correct Title",
+                author = "New Author",
+                seriesName = null,
+                seriesIndex = null,
+            )
+        )
+        val catalog = catalog(
+            folderDao = folderWith(libraryId),
+            fileFolderDao = fileFolderWith(listOf("book-1")),
+            items = items,
+            overrideDao = overrideDao,
+        )
+        val results = catalog.browse(libraryId, SortKey.TITLE)
+        assertEquals(1, results.size)
+        assertEquals("Correct Title", results[0].title)
+        assertEquals("New Author", results[0].author)
+    }
+
+    @Test
+    fun `browse uses extracted values when no override exists`() = runTest {
+        val items = FakeLibraryItemDao()
+        val entry = epubItem("book-2", "Extracted Title", author = "Extracted Author")
+        items.emit(sourceId, listOf(entry))
+        val catalog = catalog(
+            folderDao = folderWith(libraryId),
+            fileFolderDao = fileFolderWith(listOf("book-2")),
+            items = items,
+        )
+        val results = catalog.browse(libraryId, SortKey.TITLE)
+        assertEquals("Extracted Title", results[0].title)
+        assertEquals("Extracted Author", results[0].author)
+    }
+
+    @Test
+    fun `getItem applies override`() = runTest {
+        val items = FakeLibraryItemDao()
+        val entry = epubItem("book-3", "Raw Title")
+        items.emit(sourceId, listOf(entry))
+        val overrideDao = InMemoryOverrideDao()
+        overrideDao.upsert(
+            LocalFileMetadataOverrideEntity(
+                sourceId = sourceId,
+                sourceItemId = "book-3",
+                title = "Overridden Title",
+                author = null,
+                seriesName = "My Series",
+                seriesIndex = 2.0,
+            )
+        )
+        val catalog = catalog(
+            folderDao = folderWith(libraryId),
+            fileFolderDao = fileFolderWith(listOf("book-3")),
+            items = items,
+            overrideDao = overrideDao,
+        )
+        val item = catalog.getItem("book-3")
+        assertEquals("Overridden Title", item?.title)
+        assertEquals("My Series", item?.seriesName)
+    }
+
+    @Test
+    fun `override null fields leave extracted values intact`() = runTest {
+        val items = FakeLibraryItemDao()
+        val entry = epubItem("book-4", "Extracted", author = "Author", seriesName = "S")
+        items.emit(sourceId, listOf(entry))
+        val overrideDao = InMemoryOverrideDao()
+        overrideDao.upsert(
+            LocalFileMetadataOverrideEntity(
+                sourceId = sourceId,
+                sourceItemId = "book-4",
+                title = "New Title",
+                author = null,
+                seriesName = null,
+                seriesIndex = null,
+            )
+        )
+        val catalog = catalog(
+            folderDao = folderWith(libraryId),
+            fileFolderDao = fileFolderWith(listOf("book-4")),
+            items = items,
+            overrideDao = overrideDao,
+        )
+        val results = catalog.browse(libraryId, SortKey.TITLE)
+        assertEquals("New Title", results[0].title)
+        assertEquals("Author", results[0].author)
+        assertEquals("S", results[0].seriesName)
+    }
+
+    // endregion
+
     // region helpers
 
     private fun folderRow(treeUri: String, displayName: String, libraryId: String) =
@@ -354,12 +458,14 @@ class LocalFilesCatalogTest {
         fileDao: LocalFilesFileDao = InMemoryFileDao(),
         fileFolderDao: LocalFilesFileFolderDao = InMemoryFileFolderDao(),
         items: FakeLibraryItemDao = FakeLibraryItemDao(),
+        overrideDao: LocalFileMetadataOverrideDao = InMemoryOverrideDao(),
     ) = LocalFilesCatalog(
         sourceId = sourceId,
         folderDao = folderDao,
         fileDao = fileDao,
         fileFolderDao = fileFolderDao,
         itemDao = items,
+        overrideDao = overrideDao,
     )
 
     private fun epubItem(
@@ -413,6 +519,25 @@ class LocalFilesCatalogTest {
         override suspend fun forSource(sourceId: String): List<LocalFilesFileEntity> =
             rows.values.filter { it.sourceId == sourceId }
         override suspend fun touchLastSeen(sourceId: String, sourceItemId: String, seenAt: Long) {}
+        override suspend fun updateDisplayName(sourceId: String, sourceItemId: String, displayName: String) {
+            rows[sourceId to sourceItemId]?.let { rows[sourceId to sourceItemId] = it.copy(displayName = displayName) }
+        }
+        override suspend fun delete(sourceId: String, sourceItemId: String) {
+            rows.remove(sourceId to sourceItemId)
+        }
+    }
+
+    private class InMemoryOverrideDao : LocalFileMetadataOverrideDao {
+        val rows = mutableMapOf<Pair<String, String>, LocalFileMetadataOverrideEntity>()
+        override suspend fun upsert(entity: LocalFileMetadataOverrideEntity) {
+            rows[entity.sourceId to entity.sourceItemId] = entity
+        }
+        override fun observe(sourceId: String, sourceItemId: String): Flow<LocalFileMetadataOverrideEntity?> =
+            MutableStateFlow(rows[sourceId to sourceItemId])
+        override suspend fun getForItems(sourceId: String, sourceItemIds: List<String>): List<LocalFileMetadataOverrideEntity> =
+            rows.values.filter { it.sourceId == sourceId && it.sourceItemId in sourceItemIds }
+        override suspend fun getForItem(sourceId: String, sourceItemId: String): LocalFileMetadataOverrideEntity? =
+            rows[sourceId to sourceItemId]
         override suspend fun delete(sourceId: String, sourceItemId: String) {
             rows.remove(sourceId to sourceItemId)
         }

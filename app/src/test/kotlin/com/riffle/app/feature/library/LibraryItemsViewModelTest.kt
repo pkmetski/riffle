@@ -263,6 +263,8 @@ class LibraryItemsViewModelTest {
         annotationStore = annotationStore,
         audiobookBookmarkStore = audiobookBookmarkStore,
         annotationsLibraryRepository = annotationsLibraryRepository,
+        saveLocalFileMetadataOverride = com.riffle.app.testing.noopSaveLocalFileMetadataOverride(),
+        resetLocalFileTitleToFilename = com.riffle.app.testing.noopResetLocalFileTitleToFilename(),
     )
 
     private fun series(name: String) = Series("id-$name", "lib-1", name, null, 1)

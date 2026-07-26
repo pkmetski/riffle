@@ -69,9 +69,14 @@ class LibraryItemsViewModel @Inject constructor(
     private val annotationStore: AnnotationStore,
     private val audiobookBookmarkStore: AudiobookBookmarkStore,
     private val annotationsLibraryRepository: AnnotationsLibraryRepository,
+    private val saveLocalFileMetadataOverride: com.riffle.core.data.localfiles.SaveLocalFileMetadataOverrideUseCase,
+    private val resetLocalFileTitleToFilename: com.riffle.core.data.localfiles.ResetLocalFileTitleToFilenameUseCase,
 ) : ViewModel() {
 
     val libraryId: String = savedStateHandle.get<String>("libraryId") ?: ""
+
+    /** True when this library is hosted by a LocalFiles Source (libraryId uses the local:folder: prefix). */
+    val isLocalFilesSource: Boolean = libraryId.startsWith("local:folder:")
 
     /** User's persisted pinch-to-zoom multiplier for the cover grids (1.0 = defaults). */
     val coverGridScale: StateFlow<Float> = coverGridDensityStore.scale
@@ -89,6 +94,22 @@ class LibraryItemsViewModel @Inject constructor(
             delay(200)
             coverGridDensityStore.setScale(value)
         }
+    }
+
+    fun saveMetadataOverride(
+        item: com.riffle.core.models.LibraryItem,
+        title: String,
+        author: String,
+        seriesName: String,
+        seriesIndex: Double?,
+    ) {
+        viewModelScope.launch {
+            saveLocalFileMetadataOverride(item.sourceId, item.id, title, author, seriesName, seriesIndex)
+        }
+    }
+
+    fun resetTitleToFilename(item: com.riffle.core.models.LibraryItem) {
+        viewModelScope.launch { resetLocalFileTitleToFilename(item.sourceId, item.id) }
     }
 
     val series: StateFlow<List<Series>> = libraryObserver.observeSeries(libraryId)

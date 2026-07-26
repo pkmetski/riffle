@@ -26,6 +26,9 @@ import com.riffle.core.data.ReservedPlaylistNameException
 import com.riffle.core.data.ToReadRepository
 import com.riffle.core.catalog.AudiobookMediaCapability
 import com.riffle.core.catalog.CatalogRegistry
+import com.riffle.core.data.localfiles.ResetLocalFileTitleToFilenameUseCase
+import com.riffle.core.data.localfiles.SaveLocalFileMetadataOverrideUseCase
+import com.riffle.core.models.SourceType
 import com.riffle.core.catalog.DownloadsCapability
 import com.riffle.core.catalog.PlaylistsCapability
 import com.riffle.core.catalog.ReadaloudCapability
@@ -92,6 +95,9 @@ data class DetailCapabilities(
      * so the picker follows the same gate to stay consistent).
      */
     val hasAddToPlaylist: Boolean = false,
+    /** True when the item is from a LocalFiles Source — gates the "Edit metadata" and
+     *  "Reset title to filename" overflow actions. */
+    val canEditMetadata: Boolean = false,
 ) {
     companion object {
         /** Every capability present — matches the ABS shape used by the majority of items. */
@@ -102,6 +108,7 @@ data class DetailCapabilities(
             hasDownloads = true,
             hasReadaloud = true,
             hasAddToPlaylist = true,
+            canEditMetadata = false,
         )
 
         /** No capability present — safe default when the active Source's Catalog can't be resolved.
@@ -114,6 +121,7 @@ data class DetailCapabilities(
             hasDownloads = false,
             hasReadaloud = false,
             hasAddToPlaylist = false,
+            canEditMetadata = false,
         )
     }
 }
@@ -172,6 +180,8 @@ class LibraryItemDetailViewModel @Inject constructor(
     private val fetchAudiobookChaptersUseCase: FetchAudiobookChaptersUseCase,
     private val catalogRegistry: CatalogRegistry,
     private val libraryRefresher: LibraryRefresher,
+    private val saveLocalFileMetadataOverride: SaveLocalFileMetadataOverrideUseCase,
+    private val resetLocalFileTitleToFilename: ResetLocalFileTitleToFilenameUseCase,
 ) : ViewModel() {
 
     private val itemId: String = savedStateHandle.get<String>("itemId") ?: ""
@@ -229,6 +239,26 @@ class LibraryItemDetailViewModel @Inject constructor(
         viewModelScope.launch {
             val sourceId = sourceRepository.getActive()?.id ?: return@launch
             libraryRefresher.refreshItemProgress(sourceId, itemId)
+        }
+    }
+
+    fun saveMetadataOverride(
+        title: String,
+        author: String,
+        seriesName: String,
+        seriesIndex: Double?,
+    ) {
+        val item = loadedItem ?: return
+        viewModelScope.launch {
+            saveLocalFileMetadataOverride(item.sourceId, item.id, title, author, seriesName, seriesIndex)
+        }
+    }
+
+    fun resetTitleToFilename() {
+        val item = loadedItem ?: return
+        viewModelScope.launch {
+            resetLocalFileTitleToFilename(item.sourceId, item.id)
+            _snackbarEvents.emit("Title reset to filename")
         }
     }
 
@@ -293,6 +323,7 @@ class LibraryItemDetailViewModel @Inject constructor(
                         // "Add to playlist…" affordance. Mirrors the tab gate — ebook items on the
                         // same Source stay out of the Playlists surface.
                         hasAddToPlaylist = catalog is PlaylistsCapability && item.isListenable && !item.isReadable,
+                        canEditMetadata = catalog?.sourceType == SourceType.LOCAL_FILES,
                     )
                     LibraryItemDetailUiState.Ready(
                         item = item,

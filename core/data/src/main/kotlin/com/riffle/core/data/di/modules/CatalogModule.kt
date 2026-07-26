@@ -10,6 +10,7 @@ import com.riffle.core.catalog.gutenberg.GutenbergCatalogFactory
 import com.riffle.core.catalog.komga.KomgaCatalogFactory
 import com.riffle.core.data.localfiles.LocalFilesCatalogFactory
 import com.riffle.core.database.LibraryItemDao
+import com.riffle.core.database.LocalFileMetadataOverrideDao
 import com.riffle.core.database.LocalFilesFileDao
 import com.riffle.core.database.LocalFilesFolderDao
 import com.riffle.core.common.Clock
@@ -52,11 +53,13 @@ object CatalogModule {
         fileDao: LocalFilesFileDao,
         fileFolderDao: com.riffle.core.database.LocalFilesFileFolderDao,
         itemDao: LibraryItemDao,
+        overrideDao: LocalFileMetadataOverrideDao,
     ): CatalogFactory = LocalFilesCatalogFactory(
         folderDao = folderDao,
         fileDao = fileDao,
         fileFolderDao = fileFolderDao,
         itemDao = itemDao,
+        overrideDao = overrideDao,
     )
 
     @Provides

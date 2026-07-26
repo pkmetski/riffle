@@ -42,6 +42,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.graphics.Color
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.automirrored.filled.QueueMusic
 import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.ArrowDropDown
@@ -174,6 +175,7 @@ fun LibraryItemsScreen(
     val librarySortMode by viewModel.librarySortMode.collectAsState()
     val tabVisibility by viewModel.tabVisibility.collectAsState()
     val playlists by viewModel.playlists.collectAsState()
+    val isLocalFilesSource = viewModel.isLocalFilesSource
 
     val coversAreSquare by viewModel.coversAreSquare.collectAsState()
     // Versioned key: v2 = post-Annotations-tab-insertion. Without the version bump, a user
@@ -242,6 +244,26 @@ fun LibraryItemsScreen(
         }
     }
 
+    var itemForMetadataEdit: LibraryItem? by remember { mutableStateOf(null) }
+
+    itemForMetadataEdit?.let { editItem ->
+        EditLocalFileMetadataDialog(
+            item = editItem,
+            onSave = { title, author, seriesName, seriesIndex ->
+                viewModel.saveMetadataOverride(editItem, title, author, seriesName, seriesIndex)
+                itemForMetadataEdit = null
+            },
+            onDismiss = { itemForMetadataEdit = null },
+        )
+    }
+
+    val onEditMetadata: ((LibraryItem) -> Unit)? = if (isLocalFilesSource) {
+        { item -> itemForMetadataEdit = item }
+    } else null
+    val onResetTitleToFilename: ((LibraryItem) -> Unit)? = if (isLocalFilesSource) {
+        { item -> viewModel.resetTitleToFilename(item) }
+    } else null
+
     CompositionLocalProvider(
         LocalCoversAreSquare provides coversAreSquare,
         LocalCoverGridScale provides liveCoverScale,
@@ -291,6 +313,8 @@ fun LibraryItemsScreen(
                     onAudiobookBookmarkSelected = onAudiobookBookmarkSelected,
                     onShowAllAnnotations = onShowAllAnnotations,
                     linkedItemIds = linkedItemIds,
+                    onEditMetadata = onEditMetadata,
+                    onResetTitleToFilename = onResetTitleToFilename,
                 )
             } else {
                 when (selectedTab) {
@@ -313,6 +337,8 @@ fun LibraryItemsScreen(
                         onItemSelected = onItemSelected,
                         linkedItemIds = linkedItemIds,
                         onCoverScaleChange = onCoverScaleChange,
+                        onEditMetadata = onEditMetadata,
+                        onResetTitleToFilename = onResetTitleToFilename,
                     )
                     tabIndexForAnnotations() -> {
                         val annotationsVm: AnnotationsListViewModel = hiltViewModel()
@@ -353,6 +379,8 @@ fun LibraryItemsScreen(
                         onToggleNotStartedFilter = viewModel::toggleNotStartedFilter,
                         sortMode = librarySortMode,
                         onSortModeSelected = viewModel::setLibrarySortMode,
+                        onEditMetadata = onEditMetadata,
+                        onResetTitleToFilename = onResetTitleToFilename,
                     )
                     else -> {}
                 }
@@ -378,6 +406,8 @@ private fun SearchResultsContent(
     onAudiobookBookmarkSelected: (AudiobookBookmarkSearchResult) -> Unit,
     onShowAllAnnotations: (query: String) -> Unit,
     linkedItemIds: Set<String> = emptySet(),
+    onEditMetadata: ((LibraryItem) -> Unit)? = null,
+    onResetTitleToFilename: ((LibraryItem) -> Unit)? = null,
 ) {
     val allEmpty = filteredSeries.isEmpty() && filteredCollections.isEmpty() &&
         filteredItems.isEmpty() && annotationResults.isEmpty() && audiobookBookmarkResults.isEmpty()
@@ -412,6 +442,8 @@ private fun SearchResultsContent(
                     token = token,
                     onClick = { onItemSelected(item) },
                     hasReadaloudLink = item.id in linkedItemIds,
+                    onEditMetadata = onEditMetadata?.let { { it(item) } },
+                    onResetTitleToFilename = onResetTitleToFilename?.let { { it(item) } },
                 )
             }
         }
@@ -613,6 +645,8 @@ fun BookCoverTile(
     onClick: () -> Unit,
     hasReadaloudLink: Boolean = false,
     seriesNameBadge: String? = null,
+    onEditMetadata: (() -> Unit)? = null,
+    onResetTitleToFilename: (() -> Unit)? = null,
 ) {
     val alpha = if (!item.isPlayable) 0.38f else 1f
     // Audiobook covers are square (1:1); ebook covers are 2:3. The tile takes the cover's own aspect
@@ -620,6 +654,7 @@ fun BookCoverTile(
     // (ADR 0029).
     val isAudiobookOnly = item.isListenable && !item.isReadable
     val coverAspect = coverAspectRatio(isAudiobookOnly || LocalCoversAreSquare.current)
+    var showOverflowMenu by remember { mutableStateOf(false) }
     Column(
         modifier = Modifier
             .alpha(alpha)
@@ -691,6 +726,43 @@ fun BookCoverTile(
             }
             // No medium glyph: the square cover already distinguishes an Audiobook from a 2:3 ebook
             // (and a glyph would collide with the readaloud badge above).
+            if (onEditMetadata != null || onResetTitleToFilename != null) {
+                Box(modifier = Modifier.align(Alignment.BottomEnd)) {
+                    Box(
+                        modifier = Modifier
+                            .padding(4.dp)
+                            .size(28.dp)
+                            .clip(CircleShape)
+                            .background(Color.Black.copy(alpha = 0.55f))
+                            .clickable { showOverflowMenu = true },
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.MoreVert,
+                            contentDescription = "More options",
+                            tint = Color.White,
+                            modifier = Modifier.size(17.dp),
+                        )
+                    }
+                    DropdownMenu(
+                        expanded = showOverflowMenu,
+                        onDismissRequest = { showOverflowMenu = false },
+                    ) {
+                        if (onEditMetadata != null) {
+                            DropdownMenuItem(
+                                text = { Text("Edit metadata") },
+                                onClick = { showOverflowMenu = false; onEditMetadata() },
+                            )
+                        }
+                        if (onResetTitleToFilename != null) {
+                            DropdownMenuItem(
+                                text = { Text("Reset title to filename") },
+                                onClick = { showOverflowMenu = false; onResetTitleToFilename() },
+                            )
+                        }
+                    }
+                }
+            }
         }
         Spacer(modifier = Modifier.height(4.dp))
         Text(
@@ -1161,8 +1233,11 @@ internal fun LibraryItemCard(
     token: String,
     onClick: (() -> Unit)? = null,
     hasReadaloudLink: Boolean = false,
+    onEditMetadata: (() -> Unit)? = null,
+    onResetTitleToFilename: (() -> Unit)? = null,
 ) {
     val alpha = if (!item.isPlayable) 0.38f else 1f
+    var showOverflowMenu by remember { mutableStateOf(false) }
     // Square thumbnail for an audiobook (1:1), 2:3 for an ebook (ADR 0029).
     val isAudiobookOnly = item.isListenable && !item.isReadable
     Surface(
@@ -1231,6 +1306,37 @@ internal fun LibraryItemCard(
                             if (item.isDownloaded) {
                                 Badge(containerColor = MaterialTheme.colorScheme.primaryContainer) {
                                     Text("Downloaded", style = MaterialTheme.typography.labelSmall)
+                                }
+                            }
+                        }
+                        if (onEditMetadata != null || onResetTitleToFilename != null) {
+                            Box {
+                                IconButton(
+                                    onClick = { showOverflowMenu = true },
+                                    modifier = Modifier.size(24.dp),
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Filled.MoreVert,
+                                        contentDescription = "More options",
+                                        modifier = Modifier.size(16.dp),
+                                    )
+                                }
+                                DropdownMenu(
+                                    expanded = showOverflowMenu,
+                                    onDismissRequest = { showOverflowMenu = false },
+                                ) {
+                                    if (onEditMetadata != null) {
+                                        DropdownMenuItem(
+                                            text = { Text("Edit metadata") },
+                                            onClick = { showOverflowMenu = false; onEditMetadata() },
+                                        )
+                                    }
+                                    if (onResetTitleToFilename != null) {
+                                        DropdownMenuItem(
+                                            text = { Text("Reset title to filename") },
+                                            onClick = { showOverflowMenu = false; onResetTitleToFilename() },
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -1571,6 +1677,8 @@ internal fun ToReadTabContent(
     onItemSelected: (LibraryItem) -> Unit,
     linkedItemIds: Set<String> = emptySet(),
     onCoverScaleChange: (Float) -> Unit = {},
+    onEditMetadata: ((LibraryItem) -> Unit)? = null,
+    onResetTitleToFilename: ((LibraryItem) -> Unit)? = null,
 ) {
     if (isLoading) return
     if (items.isEmpty()) {
@@ -1596,7 +1704,14 @@ internal fun ToReadTabContent(
         }
         items(items, key = { it.id }) { item ->
             Box(modifier = Modifier.padding(4.dp)) {
-                BookCoverTile(item = item, token = token, onClick = { onItemSelected(item) }, hasReadaloudLink = item.id in linkedItemIds)
+                BookCoverTile(
+                    item = item,
+                    token = token,
+                    onClick = { onItemSelected(item) },
+                    hasReadaloudLink = item.id in linkedItemIds,
+                    onEditMetadata = onEditMetadata?.let { { it(item) } },
+                    onResetTitleToFilename = onResetTitleToFilename?.let { { it(item) } },
+                )
             }
         }
     }
@@ -1615,6 +1730,8 @@ private fun AllBooksTabContent(
     onToggleNotStartedFilter: () -> Unit = {},
     sortMode: LibrarySortMode = LibrarySortMode.ADDED_DESC,
     onSortModeSelected: (LibrarySortMode) -> Unit = {},
+    onEditMetadata: ((LibraryItem) -> Unit)? = null,
+    onResetTitleToFilename: ((LibraryItem) -> Unit)? = null,
 ) {
     if (isLoading) return
     Column(modifier = Modifier.fillMaxSize()) {
@@ -1672,6 +1789,8 @@ private fun AllBooksTabContent(
                             token = token,
                             onClick = { onItemSelected(item) },
                             hasReadaloudLink = item.id in linkedItemIds,
+                            onEditMetadata = onEditMetadata?.let { { it(item) } },
+                            onResetTitleToFilename = onResetTitleToFilename?.let { { it(item) } },
                         )
                     }
                 }

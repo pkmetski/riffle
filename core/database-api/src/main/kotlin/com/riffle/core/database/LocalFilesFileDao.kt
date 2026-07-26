@@ -23,6 +23,12 @@ interface LocalFilesFileDao {
     )
     suspend fun touchLastSeen(sourceId: String, sourceItemId: String, seenAt: Long)
 
+    @Query(
+        "UPDATE local_files_files SET displayName = :displayName " +
+            "WHERE sourceId = :sourceId AND sourceItemId = :sourceItemId",
+    )
+    suspend fun updateDisplayName(sourceId: String, sourceItemId: String, displayName: String)
+
     @Query("DELETE FROM local_files_files WHERE sourceId = :sourceId AND sourceItemId = :sourceItemId")
     suspend fun delete(sourceId: String, sourceItemId: String)
 }

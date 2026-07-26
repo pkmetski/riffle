@@ -291,6 +291,8 @@ class LibraryItemDetailViewModelTest {
         fetchAudiobookChaptersUseCase = fetchAudiobookChaptersUseCase,
         catalogRegistry = catalogRegistryOverride,
         libraryRefresher = libraryRefresher,
+        saveLocalFileMetadataOverride = com.riffle.app.testing.noopSaveLocalFileMetadataOverride(),
+        resetLocalFileTitleToFilename = com.riffle.app.testing.noopResetLocalFileTitleToFilename(),
     )
 
     // These tests exercise ViewModel state and side-effects; none read Ready.capabilities.

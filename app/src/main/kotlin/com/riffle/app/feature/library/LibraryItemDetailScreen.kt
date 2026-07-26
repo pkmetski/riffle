@@ -28,7 +28,10 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.outlined.FormatListBulleted
 import androidx.compose.material.icons.filled.LinkOff
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.outlined.Headphones
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.ui.res.painterResource
 import com.riffle.app.R
 import androidx.compose.material3.Button
@@ -116,6 +119,8 @@ fun LibraryItemDetailScreen(
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
     var showAddToPlaylistSheet by remember { mutableStateOf(false) }
+    var showMetadataOverflowMenu by remember { mutableStateOf(false) }
+    var showEditMetadataDialog by remember { mutableStateOf(false) }
 
     LaunchedEffect(viewModel) {
         viewModel.snackbarEvents.collect { message ->
@@ -135,20 +140,58 @@ fun LibraryItemDetailScreen(
         }
     }
 
+    val readyState = uiState as? LibraryItemDetailUiState.Ready
+
+    if (showEditMetadataDialog && readyState != null) {
+        EditLocalFileMetadataDialog(
+            item = readyState.item,
+            onSave = { title, author, seriesName, seriesIndex ->
+                viewModel.saveMetadataOverride(title, author, seriesName, seriesIndex)
+                showEditMetadataDialog = false
+            },
+            onDismiss = { showEditMetadataDialog = false },
+        )
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
                 title = {
-                    if (uiState is LibraryItemDetailUiState.Ready) {
-                        Text(
-                            text = (uiState as LibraryItemDetailUiState.Ready).item.title,
-                            maxLines = 1,
-                        )
+                    if (readyState != null) {
+                        Text(text = readyState.item.title, maxLines = 1)
                     }
                 },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                    }
+                },
+                actions = {
+                    if (readyState?.capabilities?.canEditMetadata == true) {
+                        Box {
+                            IconButton(onClick = { showMetadataOverflowMenu = true }) {
+                                Icon(Icons.Filled.MoreVert, contentDescription = "More options")
+                            }
+                            DropdownMenu(
+                                expanded = showMetadataOverflowMenu,
+                                onDismissRequest = { showMetadataOverflowMenu = false },
+                            ) {
+                                DropdownMenuItem(
+                                    text = { Text("Edit metadata") },
+                                    onClick = {
+                                        showMetadataOverflowMenu = false
+                                        showEditMetadataDialog = true
+                                    },
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("Reset title to filename") },
+                                    onClick = {
+                                        showMetadataOverflowMenu = false
+                                        viewModel.resetTitleToFilename()
+                                    },
+                                )
+                            }
+                        }
                     }
                 },
             )

@@ -30,11 +30,12 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         LocalFilesFolderEntity::class,
         LocalFilesFileEntity::class,
         LocalFilesFileFolderEntity::class,
+        LocalFileMetadataOverrideEntity::class,
         RemoteItemFreshnessEntity::class,
         PlaylistEntity::class,
         PlaylistItemEntity::class,
     ],
-    version = 59,
+    version = 60,
     exportSchema = true,
 )
 abstract class RiffleDatabase : RoomDatabase() {
@@ -59,6 +60,7 @@ abstract class RiffleDatabase : RoomDatabase() {
     abstract fun localFilesFolderDao(): LocalFilesFolderDao
     abstract fun localFilesFileDao(): LocalFilesFileDao
     abstract fun localFilesFileFolderDao(): LocalFilesFileFolderDao
+    abstract fun localFileMetadataOverrideDao(): LocalFileMetadataOverrideDao
     abstract fun remoteItemFreshnessDao(): RemoteItemFreshnessDao
     abstract fun playlistDao(): PlaylistDao
 
@@ -1631,6 +1633,37 @@ abstract class RiffleDatabase : RoomDatabase() {
         val MIGRATION_58_59 = object : Migration(58, 59) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("ALTER TABLE `annotations` ADD COLUMN `textSnippetHtml` TEXT DEFAULT NULL")
+            }
+        }
+
+        // User-editable metadata overrides for local-file books. Two additive changes:
+        //   1. `displayName` column on `local_files_files` — the document provider's display name
+        //      (e.g. "My Book.epub"), used by the "reset title to filename" action. Empty string
+        //      default; pre-existing rows receive the correct value on the next scan pass.
+        //   2. New `local_file_metadata_overrides` table — one nullable row per book for any
+        //      user-supplied title/author/series override. NULL field = use extracted value.
+        //      FK-cascade from sources(id) so removing a LocalFiles Source clears its overrides.
+        val MIGRATION_59_60 = object : Migration(59, 60) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "ALTER TABLE `local_files_files` ADD COLUMN `displayName` TEXT NOT NULL DEFAULT ''"
+                )
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `local_file_metadata_overrides` (" +
+                        "`sourceId` TEXT NOT NULL, " +
+                        "`sourceItemId` TEXT NOT NULL, " +
+                        "`title` TEXT, " +
+                        "`author` TEXT, " +
+                        "`seriesName` TEXT, " +
+                        "`seriesIndex` REAL, " +
+                        "PRIMARY KEY(`sourceId`, `sourceItemId`), " +
+                        "FOREIGN KEY(`sourceId`) REFERENCES `sources`(`id`) " +
+                        "ON UPDATE NO ACTION ON DELETE CASCADE)"
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS `index_local_file_metadata_overrides_sourceId` " +
+                        "ON `local_file_metadata_overrides` (`sourceId`)"
+                )
             }
         }
     }

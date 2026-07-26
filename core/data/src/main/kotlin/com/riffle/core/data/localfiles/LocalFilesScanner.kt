@@ -158,6 +158,7 @@ class LocalFilesScanner @Inject constructor(
         val existing = fileDao.findById(sourceId, identity)
         if (existing != null) {
             fileDao.touchLastSeen(sourceId, identity, scanStart)
+            fileDao.updateDisplayName(sourceId, identity, file.displayName)
             fileFolderDao.upsert(
                 LocalFilesFileFolderEntity(
                     sourceId = sourceId,
@@ -200,6 +201,7 @@ class LocalFilesScanner @Inject constructor(
                 sizeBytes = file.sizeBytes,
                 mtimeEpochMs = file.mtimeEpochMs,
                 lastSeenAtEpochMs = scanStart,
+                displayName = file.displayName,
             ),
         )
         fileFolderDao.upsert(
