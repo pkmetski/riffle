@@ -6,4 +6,5 @@ data class ReleaseInfo(
     val changelog: String,
     val downloadUrl: String,
     val sizeBytes: Long,
+    val releaseUrl: String = "",
 )

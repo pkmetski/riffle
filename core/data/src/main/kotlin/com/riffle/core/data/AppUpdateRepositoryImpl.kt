@@ -96,6 +96,7 @@ class AppUpdateRepositoryImpl @Inject constructor(
                     changelog = release.body,
                     downloadUrl = release.apkUrl,
                     sizeBytes = release.apkSizeBytes,
+                    releaseUrl = release.htmlUrl,
                 )
             }
 
