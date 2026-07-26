@@ -1,6 +1,10 @@
 package com.riffle.app.navigation
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.runtime.DisposableEffect
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.riffle.core.models.SourceType
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.rememberDrawerState
@@ -180,6 +184,25 @@ fun MainScreen(
         drawerTargetOpen = drawerState.targetValue == DrawerValue.Open,
     )) {
         scope.launch { drawerState.close() }
+    }
+
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        // Gate on seenStop so that rotation (which replays ON_START on the new observer
+        // with a fresh seenStop=false) doesn't re-show the dialog after the user dismissed
+        // it. Only a genuine background→foreground transition sets seenStop=true first.
+        // Cold start is handled by StartupUpdateViewModel.init; this observer only covers
+        // subsequent foreground returns.
+        var seenStop = false
+        val observer = LifecycleEventObserver { _, event ->
+            when (event) {
+                Lifecycle.Event.ON_STOP -> seenStop = true
+                Lifecycle.Event.ON_START -> if (seenStop) startupUpdateVm.checkNow()
+                else -> Unit
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
     // A media-notification tap jumps to whatever is playing. launchSingleTop makes this a no-op when

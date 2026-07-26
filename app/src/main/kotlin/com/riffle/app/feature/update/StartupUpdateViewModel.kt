@@ -37,6 +37,11 @@ class StartupUpdateViewModel @Inject constructor(
     val downloadState: StateFlow<UpdateDownloadState?> = _downloadState.asStateFlow()
 
     init {
+        checkNow()
+    }
+
+    fun checkNow() {
+        if (_dialogState.value != null) return
         viewModelScope.launch {
             val autoEnabled = appUpdatePreferencesStore.autoUpdateEnabled.first()
             if (!autoEnabled) return@launch
