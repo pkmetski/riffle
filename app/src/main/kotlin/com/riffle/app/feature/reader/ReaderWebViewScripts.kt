@@ -541,6 +541,33 @@ internal val SELECTION_SPAN_TRACKER_JS = """
                 return inner;
               };
               snippetHtml = walkInline(frag);
+              // walkInline only finds formatting that is a DESCENDANT of the selection range.
+              // When the selected text sits entirely inside a formatting ancestor (e.g. the user
+              // highlights "italic" from <em>italic</em>), cloneContents() returns a bare text
+              // node — <em> is an ancestor of the range, not part of its contents — so walkInline
+              // finds nothing. Walk up from commonAncestorContainer to body and collect any
+              // allowlist-tag ancestors; if any are found, wrap the plain text in them so the
+              // formatting survives into the elided view.
+              if (snippetHtml === escInline(text)) {
+                try {
+                  var anc = rng.commonAncestorContainer;
+                  var el = anc.nodeType === 3 ? anc.parentElement : anc;
+                  var wrapTags = [];
+                  while (el && el.tagName && el.tagName.toLowerCase() !== 'body') {
+                    var wt = el.tagName.toLowerCase();
+                    if (INLINE_ALLOW[wt]) wrapTags.push(wt);
+                    el = el.parentElement;
+                  }
+                  if (wrapTags.length > 0) {
+                    // wrapTags[0] is the innermost ancestor; wrap from innermost outward.
+                    var wrapped = escInline(text);
+                    for (var wi = 0; wi < wrapTags.length; wi++) {
+                      wrapped = '<' + wrapTags[wi] + '>' + wrapped + '</' + wrapTags[wi] + '>';
+                    }
+                    snippetHtml = wrapped;
+                  }
+                } catch (e) {}
+              }
               // Only report HTML that actually adds formatting on top of the plaintext — an
               // empty string tells the store to leave textSnippetHtml null and use the plain
               // render path (saves a DB write and keeps rows without formatting undecorated).
