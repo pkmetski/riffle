@@ -241,10 +241,10 @@ interface AnnotationDao {
     """
     )
     fun observeBooksWithHighlights(sourceId: String): Flow<List<BookHighlightSummary>>
-
-    /** Result row for [dirtySourceItems]. */
-    data class DirtySourceItem(val sourceId: String, val itemId: String)
 }
+
+/** Result row for [AnnotationDao.dirtySourceItems]. */
+data class DirtySourceItem(val sourceId: String, val itemId: String)
 
 /**
  * One row per book with at least one live highlight — powers the Annotations View library list

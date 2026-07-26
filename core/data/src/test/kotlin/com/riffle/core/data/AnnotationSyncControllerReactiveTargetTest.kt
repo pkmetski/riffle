@@ -1,6 +1,7 @@
 package com.riffle.core.data
 
 import com.riffle.core.database.AnnotationDao
+import com.riffle.core.database.DirtySourceItem
 import com.riffle.core.sync.AnnotationSyncStatusStore
 import com.riffle.core.database.AnnotationEntity
 import com.riffle.core.domain.AnnotationMergeService
@@ -96,7 +97,7 @@ private class NoOpAnnotationDao : AnnotationDao {
     override suspend fun renameBookmark(id: String, title: String, updatedAt: Long, deviceId: String) = Unit
     override fun observePendingCountForBook(sourceId: String, itemId: String): Flow<Int> = flowOf(0)
     override fun observePendingBookCountAcrossAll(): Flow<Int> = flowOf(0)
-    override suspend fun dirtySourceItems(): List<AnnotationDao.DirtySourceItem> = emptyList()
+    override suspend fun dirtySourceItems(): List<DirtySourceItem> = emptyList()
     override suspend fun markSynced(ids: List<String>, syncedAt: Long) = Unit
     override suspend fun purgeAgedTombstones(sourceId: String, itemId: String, cutoff: Long): Int = 0
     override suspend fun backfillNullOriginFontFamily(

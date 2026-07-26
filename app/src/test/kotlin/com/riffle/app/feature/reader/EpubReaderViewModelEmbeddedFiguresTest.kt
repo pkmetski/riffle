@@ -2,6 +2,7 @@ package com.riffle.app.feature.reader
 
 import com.riffle.core.data.AnnotationStoreImpl
 import com.riffle.core.database.AnnotationDao
+import com.riffle.core.database.DirtySourceItem
 import com.riffle.core.database.AnnotationEntity
 import com.riffle.core.database.BookHighlightSummary
 import com.riffle.core.domain.DeviceIdStore
@@ -109,9 +110,9 @@ class EpubReaderViewModelEmbeddedFiguresTest {
         override fun observePendingBookCountAcrossAll(): Flow<Int> =
             rows.map { all -> all.filter { it.updatedAt > it.lastSyncedAt }.distinctBy { it.sourceId to it.itemId }.size }
 
-        override suspend fun dirtySourceItems(): List<AnnotationDao.DirtySourceItem> =
+        override suspend fun dirtySourceItems(): List<DirtySourceItem> =
             rows.value.filter { it.updatedAt > it.lastSyncedAt }
-                .map { AnnotationDao.DirtySourceItem(it.sourceId, it.itemId) }
+                .map { DirtySourceItem(it.sourceId, it.itemId) }
                 .distinct()
 
         override suspend fun markSynced(ids: List<String>, syncedAt: Long) {

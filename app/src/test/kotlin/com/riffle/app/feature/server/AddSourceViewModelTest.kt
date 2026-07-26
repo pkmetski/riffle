@@ -6,6 +6,7 @@ import com.riffle.core.sync.CycleOutcome
 import com.riffle.core.sources.webdav.WebDavAnnotationSyncTargetFactory
 import com.riffle.core.data.credentialed.CredentialedAuthenticator
 import com.riffle.core.database.AnnotationDao
+import com.riffle.core.database.DirtySourceItem
 import com.riffle.core.database.AnnotationEntity
 import com.riffle.core.domain.AnnotationSweepEnqueuer
 import com.riffle.core.domain.AnnotationSyncConfig
@@ -223,7 +224,7 @@ class AddSourceViewModelTest {
         override suspend fun renameBookmark(id: String, title: String, updatedAt: Long, deviceId: String) {}
         override fun observePendingCountForBook(sourceId: String, itemId: String) = flowOf(0)
         override fun observePendingBookCountAcrossAll() = flowOf(pendingBookCount)
-        override suspend fun dirtySourceItems() = emptyList<AnnotationDao.DirtySourceItem>()
+        override suspend fun dirtySourceItems() = emptyList<DirtySourceItem>()
         override suspend fun markSynced(ids: List<String>, syncedAt: Long) {}
         override suspend fun purgeAgedTombstones(sourceId: String, itemId: String, cutoff: Long): Int = 0
         override suspend fun backfillNullOriginFontFamily(
@@ -585,7 +586,7 @@ class AddSourceViewModelTest {
             override suspend fun renameBookmark(id: String, title: String, updatedAt: Long, deviceId: String) {}
             override fun observePendingCountForBook(sourceId: String, itemId: String) = flowOf(0)
             override fun observePendingBookCountAcrossAll() = pending
-            override suspend fun dirtySourceItems() = emptyList<AnnotationDao.DirtySourceItem>()
+            override suspend fun dirtySourceItems() = emptyList<DirtySourceItem>()
             override suspend fun markSynced(ids: List<String>, syncedAt: Long) {}
             override suspend fun purgeAgedTombstones(sourceId: String, itemId: String, cutoff: Long): Int = 0
             override suspend fun backfillNullOriginFontFamily(

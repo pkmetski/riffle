@@ -1,6 +1,7 @@
 package com.riffle.core.data
 
 import com.riffle.core.database.AnnotationDao
+import com.riffle.core.database.DirtySourceItem
 import com.riffle.core.database.AnnotationEntity
 import com.riffle.core.database.BookHighlightSummary
 import kotlinx.coroutines.flow.Flow
@@ -71,7 +72,7 @@ internal class FakeAnnotationDao : AnnotationDao {
 
     override fun observePendingBookCountAcrossAll(): Flow<Int> = error("not used by this fake")
 
-    override suspend fun dirtySourceItems(): List<AnnotationDao.DirtySourceItem> = error("not used by this fake")
+    override suspend fun dirtySourceItems(): List<DirtySourceItem> = error("not used by this fake")
 
     override suspend fun markSynced(ids: List<String>, syncedAt: Long) = error("not used by this fake")
 
