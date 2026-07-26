@@ -26,6 +26,14 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.runtime.remember
+import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.text.LinkAnnotation
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.TextLinkStyles
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.text.withLink
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.riffle.core.domain.ReleaseInfo
@@ -83,15 +91,42 @@ fun ChangelogScreen(
 
 @Composable
 private fun ReleaseEntry(release: ReleaseInfo) {
+    val uriHandler = LocalUriHandler.current
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 12.dp),
     ) {
-        Text(
-            text = "v${release.versionName}",
-            style = MaterialTheme.typography.titleSmall,
-        )
+        if (release.releaseUrl.isNotBlank()) {
+            val linkColor = MaterialTheme.colorScheme.primary
+            val annotated = remember(release.releaseUrl, release.versionName, linkColor) {
+                buildAnnotatedString {
+                    withLink(
+                        LinkAnnotation.Clickable(
+                            tag = "release",
+                            styles = TextLinkStyles(
+                                style = SpanStyle(
+                                    color = linkColor,
+                                    textDecoration = TextDecoration.Underline,
+                                ),
+                            ),
+                            linkInteractionListener = { uriHandler.openUri(release.releaseUrl) },
+                        )
+                    ) {
+                        append("v${release.versionName}")
+                    }
+                }
+            }
+            Text(
+                text = annotated,
+                style = MaterialTheme.typography.titleSmall,
+            )
+        } else {
+            Text(
+                text = "v${release.versionName}",
+                style = MaterialTheme.typography.titleSmall,
+            )
+        }
         Spacer(modifier = Modifier.height(4.dp))
         Text(
             text = release.changelog.ifBlank { "No release notes." },

@@ -63,8 +63,8 @@ class AppUpdateRepositoryImplTest {
 
     // --- listReleasesSince ---
 
-    private fun release(tag: String, body: String = "", apkUrl: String = "https://x/$tag.apk", size: Long = 1000L) =
-        GitHubRelease(tagName = tag, apkUrl = apkUrl, apkSizeBytes = size, body = body)
+    private fun release(tag: String, body: String = "", apkUrl: String = "https://x/$tag.apk", size: Long = 1000L, htmlUrl: String = "https://github.com/pkmetski/riffle/releases/tag/$tag") =
+        GitHubRelease(tagName = tag, apkUrl = apkUrl, apkSizeBytes = size, body = body, htmlUrl = htmlUrl)
 
     @Test
     fun `listReleasesSince returns only releases newer than sinceVersionCode`() {
@@ -82,6 +82,7 @@ class AppUpdateRepositoryImplTest {
         assertEquals("Notes 1.6", result[0].changelog)
         assertEquals("https://x/v1.6.0.apk", result[0].downloadUrl)
         assertEquals(1000L, result[0].sizeBytes)
+        assertEquals("https://github.com/pkmetski/riffle/releases/tag/v1.6.0", result[0].releaseUrl)
     }
 
     @Test

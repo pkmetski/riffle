@@ -58,6 +58,18 @@ class ChangelogViewModelTest {
     }
 
     @Test
+    fun `releaseUrl is preserved in loaded state so the UI can render a link`() = runTest(testDispatcher) {
+        releasesResult = listOf(
+            ReleaseInfo("2.0.0", 20000, "Notes", "https://x", 1000L, "https://github.com/pkmetski/riffle/releases/tag/v2.0.0"),
+        )
+        val vm = makeViewModel()
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        val loaded = vm.state.value as ChangelogUiState.Loaded
+        assertEquals("https://github.com/pkmetski/riffle/releases/tag/v2.0.0", loaded.releases[0].releaseUrl)
+    }
+
+    @Test
     fun `state is Loaded with empty list when repo returns nothing`() = runTest(testDispatcher) {
         releasesResult = emptyList()
         val vm = makeViewModel()
