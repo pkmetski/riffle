@@ -4,6 +4,7 @@ import com.riffle.core.sources.webdav.AnnotationSyncException
 import com.riffle.core.sync.AnnotationSyncStatusStore
 import com.riffle.core.sync.CycleOutcome
 import com.riffle.core.database.AnnotationDao
+import com.riffle.core.database.DirtySourceItem
 import com.riffle.core.database.AnnotationEntity
 import com.riffle.core.domain.AnnotationSyncTarget
 import com.riffle.core.domain.AuthenticateResult
@@ -57,7 +58,7 @@ class AnnotationSweepTest {
         val status = AnnotationSyncStatusStore()
         val target = FakeTarget()
         val dao = FakeAnnotationDao(
-            dirty = listOf(AnnotationDao.DirtySourceItem("srv-A", "item-1")),
+            dirty = listOf(DirtySourceItem("srv-A", "item-1")),
             rowsByItem = mapOf(
                 ("srv-A" to "item-1") to listOf(
                     annotation("ann-1", "srv-A", "item-1", updatedAt = 100L, lastSyncedAt = 0L),
@@ -122,7 +123,7 @@ class AnnotationSweepTest {
         val status = AnnotationSyncStatusStore()
         val target = FakeTarget(writeException = AnnotationSyncException.AuthFailed(401))
         val dao = FakeAnnotationDao(
-            dirty = listOf(AnnotationDao.DirtySourceItem("srv-A", "item-1")),
+            dirty = listOf(DirtySourceItem("srv-A", "item-1")),
             rowsByItem = mapOf(("srv-A" to "item-1") to listOf(
                 annotation("ann-1", "srv-A", "item-1", updatedAt = 100L, lastSyncedAt = 0L)
             )),
@@ -157,8 +158,8 @@ class AnnotationSweepTest {
         val target = FakeTarget(writeException = AnnotationSyncException.NetworkError("eof"))
         val dao = FakeAnnotationDao(
             dirty = listOf(
-                AnnotationDao.DirtySourceItem("srv-A", "item-1"),
-                AnnotationDao.DirtySourceItem("srv-A", "item-2"),
+                DirtySourceItem("srv-A", "item-1"),
+                DirtySourceItem("srv-A", "item-2"),
             ),
             rowsByItem = mapOf(
                 ("srv-A" to "item-1") to listOf(annotation("ann-1", "srv-A", "item-1", updatedAt = 1L, lastSyncedAt = 0L)),
@@ -195,8 +196,8 @@ class AnnotationSweepTest {
         val target = FakeTarget()
         val dao = FakeAnnotationDao(
             dirty = listOf(
-                AnnotationDao.DirtySourceItem("srv-A", "item-1"),
-                AnnotationDao.DirtySourceItem("srv-B", "item-2"),
+                DirtySourceItem("srv-A", "item-1"),
+                DirtySourceItem("srv-B", "item-2"),
             ),
             rowsByItem = mapOf(
                 ("srv-A" to "item-1") to listOf(annotation("ann-A", "srv-A", "item-1", updatedAt = 1L, lastSyncedAt = 0L)),
@@ -259,7 +260,7 @@ class AnnotationSweepTest {
             emphasisStyles = "bold,underline",
         )
         val dao = FakeAnnotationDao(
-            dirty = listOf(AnnotationDao.DirtySourceItem("srv-A", "item-1")),
+            dirty = listOf(DirtySourceItem("srv-A", "item-1")),
             rowsByItem = mapOf(("srv-A" to "item-1") to listOf(emphasisRow)),
         )
         val sweep = AnnotationSweep(
@@ -330,13 +331,13 @@ class AnnotationSweepTest {
     }
 
     private class FakeAnnotationDao(
-        private val dirty: List<AnnotationDao.DirtySourceItem> = emptyList(),
+        private val dirty: List<DirtySourceItem> = emptyList(),
         private val rowsByItem: Map<Pair<String, String>, List<AnnotationEntity>> = emptyMap(),
     ) : StubAnnotationDao() {
         var markSyncedCalls = 0
         var lastMarkSyncedIds: List<String> = emptyList()
         var lastMarkSyncedAt: Long = 0L
-        override suspend fun dirtySourceItems(): List<AnnotationDao.DirtySourceItem> = dirty
+        override suspend fun dirtySourceItems(): List<DirtySourceItem> = dirty
         override suspend fun getAllForItemIncludingDeleted(sourceId: String, itemId: String): List<AnnotationEntity> =
             rowsByItem[sourceId to itemId].orEmpty()
         override suspend fun markSynced(ids: List<String>, syncedAt: Long) {
@@ -414,7 +415,7 @@ abstract class StubAnnotationDao : AnnotationDao {
     override suspend fun renameBookmark(id: String, title: String, updatedAt: Long, deviceId: String) {}
     override fun observePendingCountForBook(sourceId: String, itemId: String) = kotlinx.coroutines.flow.flowOf(0)
     override fun observePendingBookCountAcrossAll() = kotlinx.coroutines.flow.flowOf(0)
-    override suspend fun dirtySourceItems() = emptyList<AnnotationDao.DirtySourceItem>()
+    override suspend fun dirtySourceItems() = emptyList<DirtySourceItem>()
     override suspend fun markSynced(ids: List<String>, syncedAt: Long) {}
     override suspend fun purgeAgedTombstones(sourceId: String, itemId: String, cutoff: Long): Int = 0
     override suspend fun backfillNullOriginFontFamily(

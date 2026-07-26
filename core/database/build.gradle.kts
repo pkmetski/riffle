@@ -33,11 +33,8 @@ ksp {
 }
 
 dependencies {
-    api(libs.androidx.room.runtime)
-    api(libs.androidx.room.ktx)
+    api(project(":core:database-api"))
     ksp(libs.androidx.room.compiler)
-
-    testImplementation(libs.junit)
 
     androidTestImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)

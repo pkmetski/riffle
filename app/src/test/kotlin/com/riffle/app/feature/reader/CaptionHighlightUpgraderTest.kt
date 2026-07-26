@@ -2,6 +2,7 @@ package com.riffle.app.feature.reader
 
 import com.riffle.core.data.AnnotationStoreImpl
 import com.riffle.core.database.AnnotationDao
+import com.riffle.core.database.DirtySourceItem
 import com.riffle.core.database.AnnotationEntity
 import com.riffle.core.database.BookHighlightSummary
 import com.riffle.core.domain.DeviceIdStore
@@ -459,7 +460,7 @@ private class InMemoryDao(val rows: MutableStateFlow<List<AnnotationEntity>>) : 
 
     override suspend fun dirtySourceItems() =
         rows.value.filter { it.updatedAt > it.lastSyncedAt }
-            .map { AnnotationDao.DirtySourceItem(it.sourceId, it.itemId) }
+            .map { DirtySourceItem(it.sourceId, it.itemId) }
             .distinct()
 
     override suspend fun markSynced(ids: List<String>, syncedAt: Long) {
