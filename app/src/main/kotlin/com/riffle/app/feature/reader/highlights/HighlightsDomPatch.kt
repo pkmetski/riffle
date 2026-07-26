@@ -20,9 +20,15 @@ sealed class HighlightsDomPatch {
     /** JavaScript to `evaluateJavascript` on the WebView. Idempotent by design. */
     abstract fun applyJs(): String
 
-    /** Change the accent-bar palette colour on one highlight without re-rendering the paragraph. */
-    data class Recolor(val annotationId: String, val accentCssRgba: String) : HighlightsDomPatch() {
-        override fun applyJs(): String = buildRecolorJs(annotationId, accentCssRgba)
+    /** Change the accent-bar palette colour on one highlight without re-rendering the paragraph.
+     *  [barWidthPx] must match what [HighlightsPublicationFactory] bakes in at build time:
+     *  "4px" for coloured highlights, "1.5px" for ∅-colour (emphasis-only). */
+    data class Recolor(
+        val annotationId: String,
+        val accentCssRgba: String,
+        val barWidthPx: String = "4px",
+    ) : HighlightsDomPatch() {
+        override fun applyJs(): String = buildRecolorJs(annotationId, accentCssRgba, barWidthPx)
     }
 
     /**
@@ -57,25 +63,29 @@ sealed class HighlightsDomPatch {
 
 // ─── Rendering helpers — small enough to inline; kept package-private so tests can pin. ─────────
 
-internal fun buildRecolorJs(annotationId: String, accentCssRgba: String): String {
+internal fun buildRecolorJs(annotationId: String, accentCssRgba: String, barWidthPx: String = "4px"): String {
     val idJs = jsQuoteString(annotationId)
     val colorJs = jsQuoteString(accentCssRgba)
-    // Update the paragraph, adjacent aside, AND figure block sharing the same data-ann-id — the
-    // aside's and figure's border-left uses the same accent colour by design. Setting
-    // borderLeftColor is enough since the width/style are already inline (4px solid / 2px solid
-    // respectively, set at build time). `closest('p, figure')` covers text highlights (span inside
-    // <p>), embedded figures inside a highlight (span inside <figure class="riffle-fig">), and the
-    // <figure> itself now that we tag it with data-ann-id (fix 2026-07-10).
+    val widthJs = jsQuoteString(barWidthPx)
+    // Update the paragraph, adjacent aside, AND figure block sharing the same data-ann-id.
+    // Width is updated on <p>/<figure> hosts (asides are always 2px and don't change).
+    // `closest('p, figure')` covers text highlights (span inside <p>), embedded figures inside
+    // a highlight (span inside <figure class="riffle-fig">), and the <figure> itself now that
+    // we tag it with data-ann-id (fix 2026-07-10).
     return """
         |(function(){
         |  var id = $idJs;
         |  var color = $colorJs;
+        |  var width = $widthJs;
         |  var nodes = document.querySelectorAll('[data-ann-id="' + id + '"]');
         |  for (var i = 0; i < nodes.length; i++) {
         |    var el = nodes[i];
         |    var host = el.tagName === 'ASIDE' || el.tagName === 'FIGURE'
         |      ? el : el.closest('p, figure');
-        |    if (host) host.style.setProperty('border-left-color', color, 'important');
+        |    if (host) {
+        |      host.style.setProperty('border-left-color', color, 'important');
+        |      if (host.tagName !== 'ASIDE') host.style.setProperty('border-left-width', width, 'important');
+        |    }
         |  }
         |})();
     """.trimMargin()

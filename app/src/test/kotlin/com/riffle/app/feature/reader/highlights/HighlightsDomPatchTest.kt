@@ -12,6 +12,7 @@ class HighlightsDomPatchTest {
         val js = HighlightsDomPatch.Recolor(
             annotationId = "abc-123",
             accentCssRgba = "rgba(255,193,0,1)",
+            barWidthPx = "4px",
         ).applyJs()
         // Escaped id lands verbatim inside the JS querySelector string.
         assertTrue(js, js.contains("\"abc-123\""))
@@ -28,8 +29,22 @@ class HighlightsDomPatchTest {
             js.contains("FIGURE"),
         )
         assertTrue("recolor JS must set border-left-color", js.contains("border-left-color"))
+        assertTrue("recolor JS must set border-left-width on non-aside hosts", js.contains("border-left-width"))
+        assertTrue("recolor JS must not change aside border-left-width", js.contains("tagName !== 'ASIDE'"))
         assertTrue("recolor JS must use setProperty with 'important' to defeat ReadiumCSS theming",
             js.contains("'important'") || js.contains("!important"))
+        assertTrue("colored bar uses 4px width", js.contains("\"4px\""))
+    }
+
+    @Test
+    fun `Recolor JS uses 2px width for emphasis-only (no-color) highlights`() {
+        val js = HighlightsDomPatch.Recolor(
+            annotationId = "h-1",
+            accentCssRgba = EMPHASIS_ONLY_BAR_COLOR,
+            barWidthPx = "2px",
+        ).applyJs()
+        assertTrue("emphasis-only bar uses 2px width", js.contains("\"2px\""))
+        assertTrue("emphasis-only color present", js.contains(EMPHASIS_ONLY_BAR_COLOR))
     }
 
     @Test

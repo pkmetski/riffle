@@ -1252,6 +1252,7 @@ class EpubReaderViewModel @Inject constructor(
                     bookBodyFontFamily = elidedBodyFontFamily,
                     resourceFetcher = figureFetcher
                         ?: com.riffle.app.feature.reader.highlights.ResourceFetcher { null },
+                    emphasisBarCss = emphasisBarCss,
                 )
             } finally {
                 figureFetcher?.close()
@@ -3019,9 +3020,10 @@ class EpubReaderViewModel @Inject constructor(
                     val next = incomingById.getValue(id)
                     val previousRow = previous.getValue(id)
                     val accent = highlightAccentCssRgba(next.color)
+                    val barPx = if (next.color.isBlank()) "1.5px" else "4px"
                     if (previousRow.color != next.color) {
                         _highlightDomPatches.tryEmit(
-                            com.riffle.app.feature.reader.highlights.HighlightsDomPatch.Recolor(id, accent),
+                            com.riffle.app.feature.reader.highlights.HighlightsDomPatch.Recolor(id, accent, barPx),
                         )
                     }
                     if (previousRow.note != next.note) {
@@ -3109,11 +3111,19 @@ class EpubReaderViewModel @Inject constructor(
         return true
     }
 
+    // Theme-derived CSS for the ∅-colour bar — set from Compose via setEmphasisBarCss() so the
+    // elided bar and the annotation-list hollow circle use the exact same onSurfaceVariant colour.
+    @Volatile private var emphasisBarCss: String =
+        com.riffle.app.feature.reader.highlights.EMPHASIS_ONLY_BAR_COLOR
+
+    /** Called from EpubReaderScreen via SideEffect with MaterialTheme.colorScheme.onSurfaceVariant. */
+    fun setEmphasisBarCss(css: String) { emphasisBarCss = css }
+
     /** Palette CSS the elided reader paints an accent bar / note border with. Kept identical to
      *  what [HighlightsPublicationFactory.renderChapterHtml] bakes into the initial HTML so a
      *  live recolour lands on the SAME colour a fresh page load would produce. */
     private fun highlightAccentCssRgba(colorToken: String): String =
-        if (colorToken.isBlank()) com.riffle.app.feature.reader.highlights.EMPHASIS_ONLY_BAR_COLOR
+        if (colorToken.isBlank()) emphasisBarCss
         else com.riffle.core.models.HighlightColor.fromToken(colorToken).argb.toCssRgba()
 
     /** Soft-delete a highlight; annotationStore re-emits without it → decoration is removed.
