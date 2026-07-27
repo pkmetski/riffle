@@ -41,7 +41,13 @@ class HighlightsPdfExporter @Inject constructor(
     ): Uri {
         val html = buildCombinedHtml(factory, chapters, bookTitle, figureBytesByHref, publisherFontFaceCss, bookBodyFontFamily)
         val exportsDir = File(context.cacheDir, "exports").also { it.mkdirs() }
-        val pdfFile = File(exportsDir, "annotations-${itemId.take(64)}.pdf")
+        val safeName = bookTitle
+            ?.replace(Regex("[\\\\/:*?\"<>|]"), "_")
+            ?.trim()
+            ?.take(180)
+            ?.ifBlank { null }
+            ?: itemId.take(64)
+        val pdfFile = File(exportsDir, "$safeName Annotations.pdf")
         renderToPdf(html, bookTitle, pdfFile)
         return FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", pdfFile)
     }
