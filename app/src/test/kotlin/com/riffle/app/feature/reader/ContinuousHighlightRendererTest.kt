@@ -88,6 +88,7 @@ class ContinuousHighlightRendererTest {
         after: String? = null,
         useAccentBarStyle: Boolean = false,
         emphasisStyles: Set<EmphasisStyle> = emptySet(),
+        isBeingEdited: Boolean = false,
     ) = EpubReaderViewModel.HighlightRender(
         id = id,
         locator = Locator(
@@ -99,6 +100,7 @@ class ContinuousHighlightRendererTest {
         note = note,
         useAccentBarStyle = useAccentBarStyle,
         emphasisStyles = emphasisStyles,
+        isBeingEdited = isBeingEdited,
     )
 
     /** Creates a [Locator] with href and text highlight, suitable for search result tests. */
@@ -280,6 +282,35 @@ class ContinuousHighlightRendererTest {
     fun `applyAnnotations emits transparent cssColor when color is empty (remove-color)`() = runTest {
         val renders = listOf(
             makeRender("h1", "ch1.xhtml", "text one", color = ""),
+        )
+        renderer.applyAnnotations(renders)
+        val ann = fakeTarget.appliedAnnotations.single().values.single().single()
+        assertEquals(ContinuousHighlightRenderer.ACCENT_BAR_TRANSPARENT_CSS, ann.cssColor)
+    }
+
+    // Regression: draft annotation (isBeingEdited=true, color="") must show a neutral wash so the
+    // user can see the selection range while the actions sheet is open. Previously continuous mode
+    // collapsed both "draft, no color" and "committed, no color" into the same transparent branch,
+    // making the selection invisible — matching the fix that already existed in ReadiumHighlightRenderer.
+    @Test
+    fun `applyAnnotations emits editing-hint wash when color is empty and isBeingEdited`() = runTest {
+        val renders = listOf(
+            makeRender("h1", "ch1.xhtml", "text one", color = "", isBeingEdited = true),
+        )
+        renderer.applyAnnotations(renders)
+        val ann = fakeTarget.appliedAnnotations.single().values.single().single()
+        assertEquals(
+            ReadiumHighlightRenderer.EMPTY_COLOR_EDITING_HINT_ARGB.toCssRgba(),
+            ann.cssColor,
+        )
+    }
+
+    @Test
+    fun `applyAnnotations emits transparent when color is empty and not being edited`() = runTest {
+        // A committed ∅-colour annotation (sheet closed) must stay invisible — only the
+        // emphasis formatting (bold/italic/underline) is the visible surface.
+        val renders = listOf(
+            makeRender("h1", "ch1.xhtml", "text one", color = "", isBeingEdited = false),
         )
         renderer.applyAnnotations(renders)
         val ann = fakeTarget.appliedAnnotations.single().values.single().single()

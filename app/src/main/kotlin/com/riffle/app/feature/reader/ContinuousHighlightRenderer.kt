@@ -29,6 +29,7 @@ internal class ContinuousHighlightRenderer(
          * highlights either. `internal` for regression pinning.
          */
         internal const val ACCENT_BAR_TRANSPARENT_CSS = "transparent"
+
     }
 
     override suspend fun applySentenceHighlight(
@@ -86,10 +87,16 @@ internal class ContinuousHighlightRenderer(
                         // the colour — the exact bug that "removing color keeps it yellow"
                         // triggers in continuous mode. The mark is retained (never dropped) so
                         // layered emphasis and tap-to-edit still work on a colourless annotation.
-                        cssColor = if (h.useAccentBarStyle || h.color.isEmpty()) {
-                            ACCENT_BAR_TRANSPARENT_CSS
-                        } else {
-                            HighlightColor.fromToken(h.color).argb.toCssRgba()
+                        // ADR 0046 §4: mirror ReadiumHighlightRenderer's three-way tint logic.
+                        //  - useAccentBarStyle: transparent (mark kept for tap dispatch only).
+                        //  - empty colour + sheet open (draft): neutral wash so user sees range.
+                        //  - empty colour + sheet closed: transparent (emphasis-only annotation).
+                        //  - real colour: palette fill.
+                        cssColor = when {
+                            h.useAccentBarStyle -> ACCENT_BAR_TRANSPARENT_CSS
+                            h.color.isEmpty() && h.isBeingEdited -> ReadiumHighlightRenderer.EMPTY_COLOR_EDITING_HINT_ARGB.toCssRgba()
+                            h.color.isEmpty() -> ACCENT_BAR_TRANSPARENT_CSS
+                            else -> HighlightColor.fromToken(h.color).argb.toCssRgba()
                         },
                         hasNote = h.note != null,
                         before = h.locator.text.before.orEmpty(),

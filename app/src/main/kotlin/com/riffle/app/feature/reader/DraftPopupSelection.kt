@@ -40,6 +40,21 @@ internal data class DraftPopupSelection(
 )
 
 /**
+ * Commit-time guard: returns `true` when [commitDraft] should abort without creating any DB row.
+ *
+ * ∅ colour + no emphasis means the resulting annotation row would be invisible and carry no
+ * formatting — a phantom that the tombstone in [AnnotationSession.dismissHighlightActions] would
+ * normally clean up. The tombstone relies on `awaitAnnotation(500ms)`, which can race with Room
+ * Flow propagation and leave the phantom row behind. Skipping the create entirely is more
+ * reliable, and is consistent with [shouldAutoCommitDraftOnDismiss]: dismiss with ∅+nothing also
+ * discards without committing.
+ */
+internal fun shouldDiscardPhantomDraftCommit(
+    initialColor: String,
+    combinedStyles: Set<EmphasisStyle>,
+): Boolean = initialColor.isEmpty() && combinedStyles.isEmpty()
+
+/**
  * Dismiss behaviour predicate for a pending draft (Bug 2, 2026-07-19).
  *
  * Returns `true` when the popup's dismiss should COMMIT the draft using the per-book last-used

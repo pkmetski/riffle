@@ -104,6 +104,28 @@ class DraftPopupSelectionTest {
         assertEquals(false, shouldAutoCommitDraftOnDismiss(lastUsedColorIsNone = true, lastUsedEmphasisStyles = emptySet()))
     }
 
+    // ---- commitDraft phantom-empty guard ----
+
+    @Test
+    fun phantomGuard_discardsWhenColorEmptyAndStylesEmpty() {
+        // Regression: tapping ∅ on a draft with no emphasis preset must NOT persist a phantom
+        // empty annotation row. This assertion flips red if the shouldDiscardPhantomDraftCommit
+        // guard in commitDraft is removed or the condition is inverted.
+        assertEquals(true, shouldDiscardPhantomDraftCommit(initialColor = "", combinedStyles = emptySet()))
+    }
+
+    @Test
+    fun phantomGuard_allowsCommitWhenColorEmpty_butStylesPresent() {
+        // ∅ colour + BOLD emphasis is a valid emphasis-only annotation — must not be discarded.
+        assertEquals(false, shouldDiscardPhantomDraftCommit(initialColor = "", combinedStyles = setOf(EmphasisStyle.BOLD)))
+    }
+
+    @Test
+    fun phantomGuard_allowsCommitWhenColorSet_stylesEmpty() {
+        // Real colour + no emphasis is a standard highlight — must not be discarded.
+        assertEquals(false, shouldDiscardPhantomDraftCommit(initialColor = "YELLOW", combinedStyles = emptySet()))
+    }
+
     @Test
     fun persistedRow_ignoresLastUsedState() {
         // Regression: persisted-row pre-selection MUST NOT leak the per-book last-used state —
