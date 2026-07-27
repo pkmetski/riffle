@@ -11,6 +11,7 @@ import com.riffle.core.catalog.CatalogSeries
 import com.riffle.core.catalog.CatalogSeriesEntry
 import com.riffle.core.catalog.FacetSelection
 import com.riffle.core.catalog.OfflineBrowseCapability
+import com.riffle.core.catalog.OriginalCoverCapability
 import com.riffle.core.catalog.ReadCapability
 import com.riffle.core.catalog.SeriesCapability
 import com.riffle.core.catalog.SeriesEntryOrdering
@@ -52,7 +53,8 @@ class LocalFilesCatalog(
     SeriesCapability,
     OfflineBrowseCapability,
     ToReadListCapability,
-    ReadCapability {
+    ReadCapability,
+    OriginalCoverCapability {
 
     override val sourceType: SourceType = SourceType.LOCAL_FILES
 
@@ -70,7 +72,7 @@ class LocalFilesCatalog(
     ): List<CatalogItem> {
         // LocalFiles has no server-side facets — `facet` is ignored.
         val items = itemsInFolderLibraryWithOverrides(rootId)
-            .map { (entity, override) -> entity.toCatalogItem(override) }
+            .map { it.toCatalogItem() }
             .sortedWith(comparatorFor(sort))
         return items.pageOf(page, pageSize)
     }
@@ -84,7 +86,7 @@ class LocalFilesCatalog(
         val needle = query.trim().lowercase()
         if (needle.isEmpty()) return emptyList()
         val hits = itemsInFolderLibraryWithOverrides(rootId)
-            .map { (entity, override) -> entity.toCatalogItem(override) }
+            .map { it.toCatalogItem() }
             .filter {
                 it.title.lowercase().contains(needle) || it.author.lowercase().contains(needle)
             }
@@ -95,8 +97,13 @@ class LocalFilesCatalog(
     override suspend fun getItem(itemId: String): CatalogItem? {
         val entity = itemDao.getById(sourceId, itemId) ?: return null
         val override = overrideDao.getForItem(sourceId, itemId)
-        return entity.toCatalogItem(override)
+        val file = fileDao.findById(sourceId, itemId)
+        val originalCoverUrl = if (file == null) entity.coverUrl else file.coverPath?.toFileUrl()
+        return entity.toCatalogItem(override, originalCoverUrl)
     }
+
+    override suspend fun originalCoverUrl(itemId: String): String? =
+        fileDao.findById(sourceId, itemId)?.coverPath?.toFileUrl()
 
     override suspend fun fetchFile(itemId: String, format: BookFormat): CatalogFileHandle {
         val file = requireFile(itemId, format)
@@ -138,24 +145,27 @@ class LocalFilesCatalog(
 
     override suspend fun listSeries(rootId: String): List<CatalogSeries> {
         val rows = itemsInFolderLibraryWithOverrides(rootId)
-        val withSeries = rows.filter { (entity, override) ->
-            !(override?.seriesName ?: entity.seriesName).isNullOrBlank()
+        val withSeries = rows.filter { row ->
+            !(row.override?.seriesName ?: row.entity.seriesName).isNullOrBlank()
         }
         if (withSeries.isEmpty()) return emptyList()
-        return withSeries.groupBy { (entity, override) -> override?.seriesName ?: entity.seriesName!! }
+        return withSeries.groupBy { row -> row.override?.seriesName ?: row.entity.seriesName!! }
             .toSortedMap()
-            .map { (name, pairs) ->
-                val sorted = pairs.sortedWith(
-                    Comparator { a, b -> entityOrdering.compare(a.first, b.first) },
+            .map { (name, rowsForSeries) ->
+                val sorted = rowsForSeries.sortedWith(
+                    Comparator { a, b -> entityOrdering.compare(a.entity, b.entity) },
                 )
                 CatalogSeries(
                     id = name,
                     rootId = rootId,
                     name = name,
-                    coverUrl = sorted.firstNotNullOfOrNull { it.first.coverUrl },
+                    coverUrl = sorted.firstNotNullOfOrNull { it.toCatalogItem().coverUrl },
                     bookCount = sorted.size,
-                    items = sorted.map { (e, _) ->
-                        CatalogSeriesEntry(itemId = e.id, sequence = e.seriesSequence)
+                    items = sorted.map { row ->
+                        CatalogSeriesEntry(
+                            itemId = row.entity.id,
+                            sequence = row.entity.seriesSequence,
+                        )
                     },
                 )
             }
@@ -163,9 +173,9 @@ class LocalFilesCatalog(
 
     override suspend fun listItemsInSeries(rootId: String, seriesId: String): List<CatalogItem> =
         itemsInFolderLibraryWithOverrides(rootId)
-            .filter { (entity, override) -> (override?.seriesName ?: entity.seriesName) == seriesId }
-            .sortedWith(Comparator { a, b -> entityOrdering.compare(a.first, b.first) })
-            .map { (entity, override) -> entity.toCatalogItem(override) }
+            .filter { row -> (row.override?.seriesName ?: row.entity.seriesName) == seriesId }
+            .sortedWith(Comparator { a, b -> entityOrdering.compare(a.entity, b.entity) })
+            .map { it.toCatalogItem() }
 
     // endregion
 
@@ -180,18 +190,33 @@ class LocalFilesCatalog(
 
     /**
      * Like [itemsInFolderLibrary] but also bulk-loads any metadata overrides for the result set
-     * and pairs each entity with its override (null if the user has set none). Callers that build
-     * [CatalogItem]s — browse, search, listSeries — use this to apply user overrides in one pass.
+     * and the scanner-owned cover path. The latter is deliberately read from
+     * `local_files_files`, not `library_items`: a library refresh writes override-applied catalog
+     * metadata back to `library_items`, so that row cannot reliably identify the original cover.
      */
     private suspend fun itemsInFolderLibraryWithOverrides(
         libraryId: String,
-    ): List<Pair<LibraryItemEntity, LocalFileMetadataOverrideEntity?>> {
+    ): List<LocalItemRow> {
         val entities = itemsInFolderLibrary(libraryId)
         if (entities.isEmpty()) return emptyList()
         val overrides = entities.map { it.id }.chunked(BIND_VAR_CHUNK)
             .flatMap { overrideDao.getForItems(sourceId, it) }
             .associateBy { it.sourceItemId }
-        return entities.map { it to overrides[it.id] }
+        val files = entities.map { it.id }.chunked(BIND_VAR_CHUNK)
+            .flatMap { fileDao.getForItems(sourceId, it) }
+            .associateBy { it.sourceItemId }
+        return entities.map { entity ->
+            val file = files[entity.id]
+            LocalItemRow(
+                entity = entity,
+                override = overrides[entity.id],
+                originalCoverUrl = if (file == null) {
+                    entity.coverUrl
+                } else {
+                    file.coverPath?.toFileUrl()
+                },
+            )
+        }
     }
 
     private suspend fun requireFile(itemId: String, format: BookFormat): LocalFilesFileEntity {
@@ -217,12 +242,13 @@ class LocalFilesCatalog(
 
     private fun LibraryItemEntity.toCatalogItem(
         override: LocalFileMetadataOverrideEntity? = null,
+        originalCoverUrl: String? = coverUrl,
     ): CatalogItem = CatalogItem(
         id = id,
         rootId = libraryId,
         title = override?.title ?: title,
         author = override?.author ?: author,
-        coverUrl = override?.coverUrl ?: coverUrl,
+        coverUrl = override?.coverUrl ?: originalCoverUrl,
         ebookFormat = when (ebookFormat) {
             EbookFormat.STORAGE_EPUB -> BookFormat.Epub
             EbookFormat.STORAGE_PDF -> BookFormat.Pdf
@@ -246,6 +272,17 @@ class LocalFilesCatalog(
         asin = asin,
         readingProgress = readingProgress,
         updatedAt = null,
+    )
+
+    private fun LocalItemRow.toCatalogItem(): CatalogItem =
+        entity.toCatalogItem(override, originalCoverUrl)
+
+    private fun String.toFileUrl(): String = File(this).toURI().toString()
+
+    private data class LocalItemRow(
+        val entity: LibraryItemEntity,
+        val override: LocalFileMetadataOverrideEntity?,
+        val originalCoverUrl: String?,
     )
 
     private val entityOrdering: Comparator<LibraryItemEntity> =

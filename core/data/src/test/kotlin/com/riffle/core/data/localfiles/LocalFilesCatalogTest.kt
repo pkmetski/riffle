@@ -7,6 +7,7 @@ import com.riffle.core.catalog.CatalogFileHandle
 import com.riffle.core.catalog.CollectionsCapability
 import com.riffle.core.catalog.DownloadsCapability
 import com.riffle.core.catalog.OfflineBrowseCapability
+import com.riffle.core.catalog.OriginalCoverCapability
 import com.riffle.core.catalog.PlaylistsCapability
 import com.riffle.core.catalog.ProgressPeerCapability
 import com.riffle.core.catalog.ReadCapability
@@ -54,6 +55,7 @@ class LocalFilesCatalogTest {
         assertTrue(c is OfflineBrowseCapability)
         assertTrue(c is ToReadListCapability)
         assertTrue(c is ReadCapability)
+        assertTrue(c is OriginalCoverCapability)
         // Not declared — LocalFiles has no fetch step, no readaloud bundles, no audiobook streaming.
         assertTrue(c !is DownloadsCapability)
         assertTrue(c !is ReadaloudCapability)
@@ -432,6 +434,30 @@ class LocalFilesCatalogTest {
         assertEquals("S", results[0].seriesName)
     }
 
+    @Test
+    fun `cleared cover override restores scanner cover even when library item contains stale override`() = runTest {
+        val items = FakeLibraryItemDao()
+        val staleOverrideUrl = "file:///local_covers/book-5.jpg"
+        val scannerCoverPath = "/scanner-covers/book-5.jpg"
+        items.emit(
+            sourceId,
+            listOf(epubItem("book-5", "Book").copy(coverUrl = staleOverrideUrl)),
+        )
+        val fileDao = InMemoryFileDao().also { dao ->
+            dao.upsert(localFile("book-5", coverPath = scannerCoverPath))
+        }
+        val catalog = catalog(
+            folderDao = folderWith(libraryId),
+            fileDao = fileDao,
+            fileFolderDao = fileFolderWith(listOf("book-5")),
+            items = items,
+        )
+
+        val result = catalog.browse(libraryId, SortKey.TITLE).single()
+
+        assertEquals(File(scannerCoverPath).toURI().toString(), result.coverUrl)
+    }
+
     // endregion
 
     // region helpers
@@ -511,6 +537,19 @@ class LocalFilesCatalogTest {
         seriesSequence = seriesSequence,
     )
 
+    private fun localFile(id: String, coverPath: String?) = LocalFilesFileEntity(
+        sourceId = sourceId,
+        sourceItemId = id,
+        originalUri = "content://books/$id.epub",
+        copiedPath = "/copied/$id.epub",
+        coverPath = coverPath,
+        format = "epub",
+        sizeBytes = 100L,
+        mtimeEpochMs = 0L,
+        lastSeenAtEpochMs = 0L,
+        displayName = "$id.epub",
+    )
+
     // endregion
 
     // region in-memory DAOs
@@ -540,6 +579,11 @@ class LocalFilesCatalogTest {
             rows[sourceId to sourceItemId]
         override suspend fun forSource(sourceId: String): List<LocalFilesFileEntity> =
             rows.values.filter { it.sourceId == sourceId }
+        override suspend fun getForItems(
+            sourceId: String,
+            sourceItemIds: List<String>,
+        ): List<LocalFilesFileEntity> =
+            rows.values.filter { it.sourceId == sourceId && it.sourceItemId in sourceItemIds }
         override suspend fun touchLastSeen(sourceId: String, sourceItemId: String, seenAt: Long) {}
         override suspend fun updateDisplayName(sourceId: String, sourceItemId: String, displayName: String) {
             rows[sourceId to sourceItemId]?.let { rows[sourceId to sourceItemId] = it.copy(displayName = displayName) }
