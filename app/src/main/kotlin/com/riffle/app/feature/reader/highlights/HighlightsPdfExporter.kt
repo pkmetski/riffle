@@ -31,6 +31,8 @@ class HighlightsPdfExporter @Inject constructor(
      * Must be called from a coroutine; the WebView and PrintDocumentAdapter callbacks run on the
      * main thread ([kotlinx.coroutines.Dispatchers.Main]).
      */
+    data class ExportResult(val uri: Uri, val fileName: String)
+
     suspend fun export(
         chapters: List<ChapterElision>,
         bookTitle: String?,
@@ -38,7 +40,7 @@ class HighlightsPdfExporter @Inject constructor(
         figureBytesByHref: Map<String, String>,
         publisherFontFaceCss: String,
         bookBodyFontFamily: String?,
-    ): Uri {
+    ): ExportResult {
         val html = buildCombinedHtml(factory, chapters, bookTitle, figureBytesByHref, publisherFontFaceCss, bookBodyFontFamily)
         val exportsDir = File(context.cacheDir, "exports").also { it.mkdirs() }
         val safeName = bookTitle
@@ -47,9 +49,11 @@ class HighlightsPdfExporter @Inject constructor(
             ?.take(180)
             ?.ifBlank { null }
             ?: itemId.take(64)
-        val pdfFile = File(exportsDir, "$safeName Annotations.pdf")
+        val fileName = "$safeName Annotations.pdf"
+        val pdfFile = File(exportsDir, fileName)
         renderToPdf(html, bookTitle, pdfFile)
-        return FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", pdfFile)
+        val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", pdfFile)
+        return ExportResult(uri, fileName)
     }
 
     // WebView + PrintDocumentAdapter rendering — implemented in Task 3.

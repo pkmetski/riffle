@@ -3393,7 +3393,7 @@ class EpubReaderViewModel @Inject constructor(
         viewModelScope.launch {
             _isExporting.value = true
             try {
-                val uri = pdfExporter.export(
+                val result = pdfExporter.export(
                     chapters = chapters,
                     bookTitle = elidedBookTitle,
                     itemId = itemId,
@@ -3401,7 +3401,7 @@ class EpubReaderViewModel @Inject constructor(
                     publisherFontFaceCss = handle.publisherFontFaceCss,
                     bookBodyFontFamily = elidedBodyFontFamily,
                 )
-                _readerNavEvents.send(ReaderNavEvent.ShareHighlights(uri))
+                _readerNavEvents.send(ReaderNavEvent.ShareHighlights(result.uri, result.fileName))
             } catch (e: Exception) {
                 _readerNavEvents.send(ReaderNavEvent.ExportError)
             } finally {
