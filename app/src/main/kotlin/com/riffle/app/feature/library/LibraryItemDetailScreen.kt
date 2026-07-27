@@ -145,8 +145,9 @@ fun LibraryItemDetailScreen(
     if (showEditMetadataDialog && readyState != null) {
         EditLocalFileMetadataDialog(
             item = readyState.item,
-            onSave = { title, author, seriesName, seriesIndex, coverContentUri ->
-                viewModel.saveMetadataOverride(title, author, seriesName, seriesIndex, coverContentUri)
+            originalItem = readyState.originalItem,
+            onSave = { title, author, seriesName, seriesIndex, coverContentUri, clearCoverOverride ->
+                viewModel.saveMetadataOverride(title, author, seriesName, seriesIndex, coverContentUri, clearCoverOverride)
                 showEditMetadataDialog = false
             },
             onDismiss = { showEditMetadataDialog = false },
@@ -181,20 +182,6 @@ fun LibraryItemDetailScreen(
                                     onClick = {
                                         showMetadataOverflowMenu = false
                                         showEditMetadataDialog = true
-                                    },
-                                )
-                                DropdownMenuItem(
-                                    text = { Text("Reset title to filename") },
-                                    onClick = {
-                                        showMetadataOverflowMenu = false
-                                        viewModel.resetTitleToFilename()
-                                    },
-                                )
-                                DropdownMenuItem(
-                                    text = { Text("Restore original title") },
-                                    onClick = {
-                                        showMetadataOverflowMenu = false
-                                        viewModel.revertTitleToEmbedded()
                                     },
                                 )
                             }

@@ -292,8 +292,6 @@ class LibraryItemDetailViewModelTest {
         catalogRegistry = catalogRegistryOverride,
         libraryRefresher = libraryRefresher,
         saveLocalFileMetadataOverride = com.riffle.app.testing.noopSaveLocalFileMetadataOverride(),
-        resetLocalFileTitleToFilename = com.riffle.app.testing.noopResetLocalFileTitleToFilename(),
-        revertTitleOverride = com.riffle.app.testing.noopRevertTitleOverride(),
         copyCoverImage = com.riffle.app.testing.noopCopyCoverImage(),
     )
 

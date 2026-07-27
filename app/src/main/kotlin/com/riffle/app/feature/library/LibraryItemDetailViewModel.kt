@@ -27,8 +27,6 @@ import com.riffle.core.data.ToReadRepository
 import com.riffle.core.catalog.AudiobookMediaCapability
 import com.riffle.core.catalog.CatalogRegistry
 import com.riffle.core.data.localfiles.CopyCoverImageUseCase
-import com.riffle.core.data.localfiles.ResetLocalFileTitleToFilenameUseCase
-import com.riffle.core.data.localfiles.RevertTitleOverrideUseCase
 import com.riffle.core.data.localfiles.SaveLocalFileMetadataOverrideUseCase
 import com.riffle.core.models.SourceType
 import com.riffle.core.catalog.DownloadsCapability
@@ -75,6 +73,9 @@ sealed interface LibraryItemDetailUiState {
         // (e.g. an audiobook file dropped into a LocalFiles Source: `isListenable` is true, but
         // `hasAudiobookMedia` is false, so no Listen button appears — LocalFiles has no player yet).
         val capabilities: DetailCapabilities = DetailCapabilities.Empty,
+        // Scanner-extracted values before any user overrides — non-null only for LocalFiles items.
+        // Used by EditLocalFileMetadataDialog to let the user restore original embedded metadata.
+        val originalItem: LibraryItem? = null,
     ) : LibraryItemDetailUiState
     data object Error : LibraryItemDetailUiState
 }
@@ -183,8 +184,6 @@ class LibraryItemDetailViewModel @Inject constructor(
     private val catalogRegistry: CatalogRegistry,
     private val libraryRefresher: LibraryRefresher,
     private val saveLocalFileMetadataOverride: SaveLocalFileMetadataOverrideUseCase,
-    private val resetLocalFileTitleToFilename: ResetLocalFileTitleToFilenameUseCase,
-    private val revertTitleOverride: RevertTitleOverrideUseCase,
     private val copyCoverImage: CopyCoverImageUseCase,
 ) : ViewModel() {
 
@@ -252,61 +251,31 @@ class LibraryItemDetailViewModel @Inject constructor(
         seriesName: String,
         seriesIndex: Double?,
         coverContentUri: String? = null,
+        clearCoverOverride: Boolean = false,
     ) {
         val item = loadedItem ?: return
         viewModelScope.launch {
-            val newCoverPath = if (coverContentUri != null) {
-                copyCoverImage(item.sourceId, item.id, coverContentUri)
-            } else null
             val current = _uiState.value as? LibraryItemDetailUiState.Ready ?: return@launch
+            val (savedCoverUrl, displayCoverUrl) = when {
+                coverContentUri != null -> {
+                    val path = copyCoverImage(item.sourceId, item.id, coverContentUri)
+                    path to path
+                }
+                clearCoverOverride -> null to current.originalItem?.coverUrl
+                else -> current.item.coverUrl to current.item.coverUrl
+            }
             saveLocalFileMetadataOverride(
                 item.sourceId, item.id, title, author, seriesName, seriesIndex,
-                coverUrl = newCoverPath ?: current.item.coverUrl,
+                coverUrl = savedCoverUrl,
             )
             val patched = current.item.copy(
                 title = title.ifBlank { current.item.title },
                 author = author.ifBlank { current.item.author },
                 seriesName = seriesName.ifBlank { null },
-                coverUrl = newCoverPath ?: current.item.coverUrl,
+                coverUrl = displayCoverUrl,
             )
             _uiState.value = current.copy(item = patched)
             loadedItem = patched
-        }
-    }
-
-    fun resetTitleToFilename() {
-        val item = loadedItem ?: return
-        viewModelScope.launch {
-            val newTitle = resetLocalFileTitleToFilename(item.sourceId, item.id) ?: run {
-                _snackbarEvents.emit("Could not determine filename")
-                return@launch
-            }
-            val current = _uiState.value as? LibraryItemDetailUiState.Ready ?: return@launch
-            // Re-fetch to pick up the scanner-extracted coverUrl now that the override's coverUrl is cleared.
-            val refreshed = libraryObserver.getItem(item.sourceId, item.id)
-            val patched = current.item.copy(
-                title = newTitle,
-                coverUrl = refreshed?.coverUrl ?: current.item.coverUrl,
-            )
-            _uiState.value = current.copy(item = patched)
-            loadedItem = patched
-            _snackbarEvents.emit("Title reset to filename")
-        }
-    }
-
-    fun revertTitleToEmbedded() {
-        val item = loadedItem ?: return
-        viewModelScope.launch {
-            revertTitleOverride(item.sourceId, item.id)
-            val current = _uiState.value as? LibraryItemDetailUiState.Ready ?: return@launch
-            val refreshed = libraryObserver.getItem(item.sourceId, item.id)
-            if (refreshed == null || refreshed.title == current.item.title) {
-                _snackbarEvents.emit("Title already matches embedded metadata")
-                return@launch
-            }
-            _uiState.value = current.copy(item = refreshed)
-            loadedItem = refreshed
-            _snackbarEvents.emit("Title restored from embedded metadata")
         }
     }
 
@@ -380,6 +349,7 @@ class LibraryItemDetailViewModel @Inject constructor(
                         isCachedOrDownloaded = isCachedOrDownloaded,
                         isOffline = !connectivityObserver.isOnline.value,
                         capabilities = capabilities,
+                        originalItem = if (capabilities.canEditMetadata) item else null,
                     )
                 } else {
                     LibraryItemDetailUiState.Error

@@ -35,7 +35,7 @@ data class LocalFilesFileEntity(
     val mtimeEpochMs: Long,
     val lastSeenAtEpochMs: Long,
     // Display name of the source file (e.g. "My Book.epub"). Written at scan time from the
-    // document provider's displayName; used by ResetLocalFileTitleToFilenameUseCase. Empty for
-    // rows ingested before this column was added (they receive the correct value on the next scan).
+    // document provider's displayName. Empty for rows ingested before this column was added
+    // (they receive the correct value on the next scan).
     val displayName: String = "",
 )

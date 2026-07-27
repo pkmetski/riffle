@@ -40,32 +40,46 @@ import com.riffle.core.models.LibraryItem
 @Composable
 fun EditLocalFileMetadataDialog(
     item: LibraryItem,
-    onSave: (title: String, author: String, seriesName: String, seriesIndex: Double?, coverContentUri: String?) -> Unit,
+    originalItem: LibraryItem?,
+    onSave: (title: String, author: String, seriesName: String, seriesIndex: Double?, coverContentUri: String?, clearCoverOverride: Boolean) -> Unit,
     onDismiss: () -> Unit,
 ) {
+    fun String.seriesBaseName() = if (contains(" #")) substringBeforeLast(" #") else this
+    fun String.seriesNumber() = if (contains(" #")) substringAfterLast(" #") else ""
+
     val itemSeriesName = item.seriesName
     var title by remember { mutableStateOf(item.title) }
     var author by remember { mutableStateOf(item.author) }
-    var seriesName by remember {
-        mutableStateOf(
-            if (itemSeriesName != null && itemSeriesName.contains(" #"))
-                itemSeriesName.substringBeforeLast(" #")
-            else itemSeriesName ?: ""
-        )
-    }
-    var seriesIndexText by remember {
-        mutableStateOf(
-            if (itemSeriesName != null && itemSeriesName.contains(" #"))
-                itemSeriesName.substringAfterLast(" #")
-            else ""
-        )
-    }
+    var seriesName by remember { mutableStateOf(itemSeriesName?.seriesBaseName() ?: "") }
+    var seriesIndexText by remember { mutableStateOf(itemSeriesName?.seriesNumber() ?: "") }
+    // Tracks a newly picked gallery image URI; null = no new pick.
     var pickedCoverUri by remember { mutableStateOf<String?>(null) }
+    // True after the user taps "Restore from metadata" — tells the VM to clear the cover override.
+    var clearCoverOverride by remember { mutableStateOf(false) }
+    // The cover source to display in the preview. Starts from the item's current cover, updated
+    // when the user picks a new image or restores from metadata.
+    var displayCoverData by remember { mutableStateOf<Any?>(item.coverUrl) }
 
     val galleryLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent(),
     ) { uri ->
-        if (uri != null) pickedCoverUri = uri.toString()
+        if (uri != null) {
+            pickedCoverUri = uri.toString()
+            clearCoverOverride = false
+            displayCoverData = uri
+        }
+    }
+
+    fun restoreFromMetadata() {
+        val orig = originalItem ?: return
+        val origSeriesName = orig.seriesName
+        title = orig.title
+        author = orig.author ?: ""
+        seriesName = origSeriesName?.seriesBaseName() ?: ""
+        seriesIndexText = origSeriesName?.seriesNumber() ?: ""
+        pickedCoverUri = null
+        clearCoverOverride = true
+        displayCoverData = orig.coverUrl
     }
 
     AlertDialog(
@@ -81,11 +95,10 @@ fun EditLocalFileMetadataDialog(
                         .align(Alignment.CenterHorizontally),
                     contentAlignment = Alignment.BottomEnd,
                 ) {
-                    val coverData: Any? = pickedCoverUri ?: item.coverUrl
-                    if (coverData != null) {
+                    if (displayCoverData != null) {
                         AsyncImage(
                             model = ImageRequest.Builder(LocalContext.current)
-                                .data(coverData)
+                                .data(displayCoverData)
                                 .build(),
                             contentDescription = null,
                             contentScale = ContentScale.Crop,
@@ -131,6 +144,15 @@ fun EditLocalFileMetadataDialog(
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                     modifier = Modifier.fillMaxWidth(),
                 )
+
+                if (originalItem != null) {
+                    TextButton(
+                        onClick = { restoreFromMetadata() },
+                        modifier = Modifier.align(Alignment.Start),
+                    ) {
+                        Text("Restore from file metadata")
+                    }
+                }
             }
         },
         confirmButton = {
@@ -146,6 +168,7 @@ fun EditLocalFileMetadataDialog(
                                 seriesName,
                                 seriesIndexText.toDoubleOrNull(),
                                 pickedCoverUri,
+                                clearCoverOverride,
                             )
                         }
                     },
