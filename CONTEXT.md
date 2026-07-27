@@ -1,5 +1,39 @@
 # Riffle — Domain Glossary
 
+## Module Map
+
+Riffle is split into a **pure-Kotlin core** (KMP-candidate) and **Android-hosting** modules. New features belong in the innermost module whose dependency constraints they satisfy.
+
+### Pure-Kotlin core (no `android.*` / `androidx.*` — enforced by `checkNoAndroidImports`)
+
+| Module | Role |
+|---|---|
+| `core:common` | Shared interfaces: `Clock`, `FileStore`, `EncryptedKeyValueStore` |
+| `core:models` | Domain-neutral data models, serialization |
+| `core:domain` | Domain models, `WebSourceDescriptor`, `AudioPlayer` interface |
+| `core:network` | HTTP client (`AbsApiClient`, Ktor/OkHttp), `NetworkResult` |
+| `core:sources` | `Source`/`Service` abstractions, source adapters, annotation sync targets |
+| `core:sync` | Progress sweep, reconciler, locks — pure sync logic |
+| `core:catalog` | `Catalog` interface + `CatalogCapability` mixins |
+| `core:catalog-chitanka` | Chitanka Catalog implementation |
+| `core:catalog-gutenberg` | Gutenberg Catalog implementation |
+| `core:catalog-komga` | Komga Catalog implementation |
+| `core:annotations` | _(planned — not yet created)_ Annotation model & sync format |
+
+### Android-hosting modules
+
+| Module | Role |
+|---|---|
+| `core:data` | Hilt-wired repositories, Android DataStore, `LocalDirectoryTarget` |
+| `core:database` | Room database (`RiffleDatabase`), migrations, KSP |
+| `core:database-api` | Room `@Entity` / `@Dao` interfaces (Android-only; Room KMP pending — ADR 0048) |
+| `core:logging` | `LogChannel` enum, `AndroidLogger`, `checkRiffleLogTags` guardrail |
+| `app` | Compose UI, navigation, Hilt entry point, ExoPlayer, Readium |
+
+See [ADR 0049](docs/adr/0049-platform-agnostic-core-boundary.md) for the full rationale and the guardrail task descriptions.
+
+---
+
 **Riffle** is an Android app (min API 24 / Android 7.0) for reading ebooks — reflowable EPUB and fixed-layout PDF — from user-configured **Sources**. Riffle grew up ABS-first and its early terminology (`Server`, `ABS Server`) reflected that; the domain has since been re-rooted around a general **Source** abstraction with **Service** as a peer category (see [ADR 0041](docs/adr/0041-source-and-service-abstractions-replace-server.md)). ABS remains the primary Source and the reference implementation of every optional Catalog capability; LocalFiles is the second shipping Source.
 
 ## Terms
