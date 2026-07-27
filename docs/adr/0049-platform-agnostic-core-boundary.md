@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted — all extraction phases (#550–#556) landed 2026-07-27.
+Accepted — all phases (#550–#557) landed 2026-07-27.
 
 ## Context
 
@@ -49,7 +49,7 @@ Everything that fails these tests stays in an **Android-hosting** module
 | `core:models` | Serializable data classes for the ABS API and domain. No business logic. |
 | `core:domain` | Domain models (`WebSourceDescriptor`, `AudioPlayer` interface). No Android API references. |
 | `core:network` | `AbsApiClient`, `createDefaultHttpClient`, `NetworkResult`. Uses OkHttp + Ktor/kotlinx.serialization — all pure-JVM. |
-| `core:sources` | `Source`, `Service`, `Catalog`, `CatalogCapability` abstractions; source adapters (`AbsSourceAdapter`, `KomgaSourceAdapter`); annotation sync targets (`WebDavAnnotationSyncTarget`, `LocalDirectoryTarget`). |
+| `core:sources` | `Source`, `Service`, `Catalog`, `CatalogCapability` abstractions; source adapters (`AbsSourceAdapter`, `KomgaSourceAdapter`); WebDAV annotation sync target (`WebDavAnnotationSyncTarget`). |
 | `core:sync` | `ProgressSweep`, `ReconcileLocks`, `AnnotationSyncStatusStore`, `AudiobookBookmarkReconciler`. Pure reconciliation logic; injected with `Clock` and `EncryptedKeyValueStore` interfaces. |
 | `core:catalog` | `Catalog` interface + `CatalogCapability` mixins. |
 | `core:catalog-*` | One plugin module per singleton web-source (Chitanka, Gutenberg, Komga). |
@@ -59,7 +59,7 @@ Everything that fails these tests stays in an **Android-hosting** module
 
 | Module | Why Android |
 |---|---|
-| `core:data` | Hilt DI wiring, `Context.filesDir`, DataStore, `LocalStore`, repository impls. |
+| `core:data` | Hilt DI wiring, `Context.filesDir`, DataStore, `LocalStore`, repository impls, `LocalDirectoryTarget`. |
 | `core:database` | Room `@Database`, KSP code gen, migration SQL. |
 | `core:database-api` | Room `@Entity` / `@Dao` — Room annotations require `androidx.room`. KMP engine swap tracked in ADR 0048. |
 | `core:logging` | `AndroidLogger` calls `android.util.Log`; `LogChannel` enum defined here for co-location with the impl. |

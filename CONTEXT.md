@@ -4,21 +4,23 @@
 
 Riffle is split into a **pure-Kotlin core** (KMP-candidate) and **Android-hosting** modules. New features belong in the innermost module whose dependency constraints they satisfy.
 
-### Pure-Kotlin core (no `android.*` / `androidx.*` — enforced by `checkNoAndroidImports`)
+### Pure-Kotlin core (no `android.*` / `androidx.*`)
 
-| Module | Role |
-|---|---|
-| `core:common` | Shared interfaces: `Clock`, `FileStore`, `EncryptedKeyValueStore` |
-| `core:models` | Domain-neutral data models, serialization |
-| `core:domain` | Domain models, `WebSourceDescriptor`, `AudioPlayer` interface |
-| `core:network` | HTTP client (`AbsApiClient`, Ktor/OkHttp), `NetworkResult` |
-| `core:sources` | `Source`/`Service` abstractions, source adapters, annotation sync targets |
-| `core:sync` | Progress sweep, reconciler, locks — pure sync logic |
-| `core:catalog` | `Catalog` interface + `CatalogCapability` mixins |
-| `core:catalog-chitanka` | Chitanka Catalog implementation |
-| `core:catalog-gutenberg` | Gutenberg Catalog implementation |
-| `core:catalog-komga` | Komga Catalog implementation |
-| `core:annotations` | _(planned — not yet created)_ Annotation model & sync format |
+Modules marked **[guarded]** are actively scanned by `checkNoAndroidImports` on every CI push. Unguarded catalog modules are pure-Kotlin by convention but not yet in the scan set (see ADR 0049).
+
+| Module | Role | CI guard |
+|---|---|---|
+| `core:common` | Shared interfaces: `Clock`, `FileStore`, `EncryptedKeyValueStore` | **[guarded]** |
+| `core:models` | Domain-neutral data models, serialization | **[guarded]** |
+| `core:domain` | Domain models, `WebSourceDescriptor`, `AudioPlayer` interface | **[guarded]** |
+| `core:network` | HTTP client (`AbsApiClient`, Ktor/OkHttp), `NetworkResult` | **[guarded]** |
+| `core:sources` | `Source`/`Service` abstractions, source adapters, annotation sync targets | **[guarded]** |
+| `core:sync` | Progress sweep, reconciler, locks — pure sync logic | **[guarded]** |
+| `core:catalog` | `Catalog` interface + `CatalogCapability` mixins | unguarded |
+| `core:catalog-chitanka` | Chitanka Catalog implementation | unguarded |
+| `core:catalog-gutenberg` | Gutenberg Catalog implementation | unguarded |
+| `core:catalog-komga` | Komga Catalog implementation | unguarded |
+| `core:annotations` | _(planned — not yet created)_ Annotation model & sync format | **[guarded]** when created |
 
 ### Android-hosting modules
 
