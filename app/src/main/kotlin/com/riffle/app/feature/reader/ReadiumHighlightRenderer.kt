@@ -250,7 +250,7 @@ internal class ReadiumHighlightRenderer(
         // ADR 0046: temporary neutral wash painted only while the sheet is open on a ∅-color
         // annotation, so the user can see the range they're working on. Not persistent — a
         // ∅ annotation with the sheet closed and no emphasis draws nothing at all.
-        private const val EMPTY_COLOR_EDITING_HINT_ARGB: Int = 0x30808080
+        internal const val EMPTY_COLOR_EDITING_HINT_ARGB: Int = 0x30808080
         // Bold and italic don't paint overlays anymore — they reflow the underlying text via
         // the DOM injector. See [EmphasisDomInjector].
     }

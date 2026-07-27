@@ -300,7 +300,7 @@ class ContinuousHighlightRendererTest {
         renderer.applyAnnotations(renders)
         val ann = fakeTarget.appliedAnnotations.single().values.single().single()
         assertEquals(
-            ContinuousHighlightRenderer.EMPTY_COLOR_EDITING_HINT_ARGB.toCssRgba(),
+            ReadiumHighlightRenderer.EMPTY_COLOR_EDITING_HINT_ARGB.toCssRgba(),
             ann.cssColor,
         )
     }

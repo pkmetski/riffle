@@ -30,12 +30,6 @@ internal class ContinuousHighlightRenderer(
          */
         internal const val ACCENT_BAR_TRANSPARENT_CSS = "transparent"
 
-        /**
-         * ARGB wash painted on a draft annotation while the actions sheet is open and the user
-         * has ∅ (no colour) as their last pick. Matches [ReadiumHighlightRenderer.EMPTY_COLOR_EDITING_HINT_ARGB]
-         * so the feedback is identical across all three reader modes.
-         */
-        internal const val EMPTY_COLOR_EDITING_HINT_ARGB: Int = 0x30808080
     }
 
     override suspend fun applySentenceHighlight(
@@ -100,7 +94,7 @@ internal class ContinuousHighlightRenderer(
                         //  - real colour: palette fill.
                         cssColor = when {
                             h.useAccentBarStyle -> ACCENT_BAR_TRANSPARENT_CSS
-                            h.color.isEmpty() && h.isBeingEdited -> EMPTY_COLOR_EDITING_HINT_ARGB.toCssRgba()
+                            h.color.isEmpty() && h.isBeingEdited -> ReadiumHighlightRenderer.EMPTY_COLOR_EDITING_HINT_ARGB.toCssRgba()
                             h.color.isEmpty() -> ACCENT_BAR_TRANSPARENT_CSS
                             else -> HighlightColor.fromToken(h.color).argb.toCssRgba()
                         },

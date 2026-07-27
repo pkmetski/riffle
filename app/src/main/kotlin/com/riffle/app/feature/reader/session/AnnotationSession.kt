@@ -658,8 +658,13 @@ class AnnotationSession @AssistedInject constructor(
         val sid = boundServerId ?: return
         val iid = boundItemId ?: return
         if (colorToken.isEmpty()) {
+            // Optimistic update so dismissHighlightActions reads the correct value immediately,
+            // without waiting for DataStore to propagate through the Flow collector.
+            _lastUsedColorIsNone.value = true
             highlightColorPreferencesStore.setLastUsedIsNone(sid, iid, true)
         } else {
+            _lastUsedColorIsNone.value = false
+            _lastUsedHighlightColor.value = HighlightColor.fromToken(colorToken)
             highlightColorPreferencesStore.setLastUsedColor(sid, iid, HighlightColor.fromToken(colorToken))
             highlightColorPreferencesStore.setLastUsedIsNone(sid, iid, false)
         }
