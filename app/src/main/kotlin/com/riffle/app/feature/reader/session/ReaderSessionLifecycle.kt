@@ -198,15 +198,22 @@ class ReaderSessionLifecycle @AssistedInject constructor(
         val openAtCfiNonBlank = params.openAtCfi?.takeIf { it.isNotBlank() }
         // A search-result / annotation-tap open overrides the saved position. Requires `publication`
         // (set above) — cfiStringToLocator resolves against it.
-        val openAtLocator = openAtCfiNonBlank?.let { cfiStringToLocator(it) }
-        // openAtCfiNonBlank is non-null whenever openAtLocator is (openAtLocator is derived from it).
-        val initialFocusAnnotationId = if (openAtLocator != null && resolvedReaderServerId != null && openAtCfiNonBlank != null) {
+        val resolvedOpenAtLocator = openAtCfiNonBlank?.let { cfiStringToLocator(it) }
+        // openAtCfiNonBlank is non-null whenever resolvedOpenAtLocator is (the locator is derived
+        // from it). Fetch the matching row once: its id drives Continuous mark focus and its
+        // TextQuote makes Readium's paginated/vertical locator exact.
+        val openAtAnnotation = if (
+            resolvedOpenAtLocator != null &&
+            resolvedReaderServerId != null
+        ) {
             runCatching {
                 annotationStore.findByItemAndCfi(resolvedReaderServerId, params.itemId, openAtCfiNonBlank)
-            }.getOrNull()?.id
+            }.getOrNull()
         } else {
             null
         }
+        val openAtLocator = resolvedOpenAtLocator?.withAnnotationTextQuote(openAtAnnotation)
+        val initialFocusAnnotationId = openAtAnnotation?.id
 
         // Stored lastPosition is Readium Locator JSON. Rows written before ADR 0030's translation
         // fix may still hold a raw ABS `epubcfi(...)` — heal those on open so legacy progress

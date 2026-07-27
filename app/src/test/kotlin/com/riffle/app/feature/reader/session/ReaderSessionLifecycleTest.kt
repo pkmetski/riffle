@@ -467,8 +467,12 @@ class ReaderSessionLifecycleTest {
     @Test
     fun `open with openAtCfi resolves openAtLocator and initialFocusAnnotationId`() = runTest {
         val cfi = "epubcfi(/6/2!/4/2)"
-        val resolvedLocator = mockk<Locator>(relaxed = true)
-        val annotation = mockk<Annotation>(relaxed = true).also { every { it.id } returns "ann-99" }
+        val resolvedLocator = Locator(
+            href = mockk(relaxed = true),
+            mediaType = org.readium.r2.shared.util.mediatype.MediaType.XHTML,
+            locations = Locator.Locations(progression = 0.7),
+        )
+        val annotation = AnnotationSessionTest.makeAnnotation(id = "ann-99", cfi = cfi)
         val (lifecycle, _) = makeLifecycle(
             annotationStore = FakeAnnotationStore(
                 byCfi = mapOf(Triple("srv-abs", "item-1", cfi) to annotation),
@@ -477,10 +481,15 @@ class ReaderSessionLifecycleTest {
         )
         val outcome = lifecycle.open(params(openAtCfi = cfi)) as ReaderSessionLifecycle.OpenOutcome.Ready
 
-        assertSame(resolvedLocator, outcome.openAtLocator)
+        assertEquals(resolvedLocator.href, outcome.openAtLocator?.href)
+        assertEquals(resolvedLocator.mediaType, outcome.openAtLocator?.mediaType)
+        assertEquals(resolvedLocator.locations, outcome.openAtLocator?.locations)
+        assertEquals(annotation.textSnippet, outcome.openAtLocator?.text?.highlight)
+        assertEquals(annotation.textBefore, outcome.openAtLocator?.text?.before)
+        assertEquals(annotation.textAfter, outcome.openAtLocator?.text?.after)
         assertEquals("ann-99", outcome.initialFocusAnnotationId)
-        assertSame(resolvedLocator, outcome.initialLocator)
-        assertSame(resolvedLocator, outcome.effectiveInitialLocator)
+        assertSame(outcome.openAtLocator, outcome.initialLocator)
+        assertSame(outcome.openAtLocator, outcome.effectiveInitialLocator)
     }
 
     @Test

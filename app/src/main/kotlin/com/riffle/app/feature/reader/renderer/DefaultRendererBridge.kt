@@ -88,15 +88,34 @@ internal class DefaultRendererBridge(
 
     override suspend fun snapAfterGoTo(locator: Locator, landAtStartWhenNoTarget: Boolean) {
         val frag = fragment ?: return
-        // Prefer the fragment id carried in locations.fragments over any '#anchor' in the href.
-        // Annotation navigation resolves the CFI's DOM anchor into locations.fragments (never
-        // into the href string), so a naïve navTargetFragmentId(href) read would return null and
-        // the snap JS would fall back to a scroll-position round — which in paginated mode can
-        // leave the page one column short of the annotated paragraph even though Readium's own
-        // go(locator) already scrolled to it. Using the locator's fragment id makes the snap JS
-        // anchor on the DOM element directly.
-        val fragmentId = locator.locations.fragments.firstOrNull()
-            ?: navTargetFragmentId(locator.href.toString())
+        // For TOC/search/resume navigation (landAtStartWhenNoTarget=true), use the fragment id
+        // from locations.fragments or the href anchor to snap the JS to the exact target element.
+        //
+        // For annotation navigation (landAtStartWhenNoTarget=false), SKIP the fragment id even if
+        // one is present. extractAnchorFromCfi stores the innermost NAMED ancestor of the
+        // highlighted text node — typically a <section id="ch01"> or <div id="main"> that spans
+        // the entire chapter. Snapping to that element always resolves to column 0 (page 1)
+        // because getBoundingClientRect().left for a section that starts at the chapter top is 0.
+        // The locator's TextQuote is the precise target: Readium resolves it to the highlighted
+        // DOM Range on every rAF tick. Character-count progression remains the fallback for a
+        // missing/stale quote; unlike a range it can be a column off when block density varies.
+        val fragmentId = if (landAtStartWhenNoTarget) {
+            locator.locations.fragments.firstOrNull()
+                ?: navTargetFragmentId(locator.href.toString())
+        } else {
+            null
+        }
+        val progression = if (!landAtStartWhenNoTarget) {
+            locator.locations.progression
+        } else {
+            null
+        }
+        // A TextQuote locator lets Readium resolve the exact highlighted DOM range. Pass the
+        // complete locator into the reflow tracker so it can repeat that exact resolution after
+        // each scrollWidth change; progression is only a fallback when the quote is absent/stale.
+        val exactLocatorJson = locator.text.highlight
+            ?.takeIf { it.isNotBlank() }
+            ?.let { locator.toJSON().toString() }
         // Stash the pre-go scroll origin so the post-go smooth-tail can start from where the
         // user actually was on same-doc jumps (return-to-position card, same-chapter TOC entry)
         // instead of pre-landing half a viewport short — which flashes as "goes back a bit and
@@ -106,7 +125,12 @@ internal class DefaultRendererBridge(
         frag.evaluateJavascript(ColumnSnap.STASH_VERTICAL_ORIGIN_JS)
         frag.go(locator)
         frag.evaluateJavascript(
-            ColumnSnap.snapToTargetColumnJs(fragmentId, landAtStartWhenNoTarget),
+            ColumnSnap.snapToTargetColumnJs(
+                fragmentId = fragmentId,
+                landAtStartWhenNoTarget = landAtStartWhenNoTarget,
+                locatorProgression = progression,
+                locatorJson = exactLocatorJson,
+            ),
         )
     }
 

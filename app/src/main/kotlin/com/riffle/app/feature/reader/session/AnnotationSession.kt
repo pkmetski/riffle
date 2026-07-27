@@ -139,9 +139,10 @@ class AnnotationSession @AssistedInject constructor(
      */
     /**
      * A "navigate to this annotation" event. [locator] resolves to (chapter, progression,
-     * fragment) — the fragment is the range's START paragraph id (see [extractAnchorFromCfi]),
-     * which is enough for Readium's own navigators (paginated + vertical scroll) to land on
-     * the paragraph containing the highlight.
+     * fragment) and, for text highlights, carries the persisted TextQuote
+     * (highlight/before/after). Readium uses the quote to resolve the exact DOM range; the
+     * fragment remains the range's START paragraph id (see [extractAnchorFromCfi]) and the
+     * progression is the fallback for legacy rows whose quote no longer matches.
      *
      * Continuous mode uses [annotationId] to look up the actual `<mark data-riffle-ann="…">`
      * element in the DOM and centre the viewport on IT, not just on the enclosing paragraph.
@@ -731,7 +732,16 @@ class AnnotationSession @AssistedInject constructor(
         scope.launch {
             val annotation = _annotations.value.firstOrNull { it.id == id } ?: return@launch
             val resolver = cfiLocatorResolverFn ?: return@launch
-            val locator = resolver(annotation.cfi) ?: return@launch
+            val resolvedLocator = resolver(annotation.cfi) ?: return@launch
+            // The CFI resolver reconstructs chapter/progression/fragment but does not have the
+            // annotation row, so it cannot attach the TextQuote that Readium's scrollToLocator
+            // needs for exact range resolution. Enrich highlight locators here, where the
+            // persisted snippet and both disambiguating context strings are available.
+            //
+            // Character progression remains on the locator as a fallback for legacy/stale
+            // quotes. It is not precise enough to be the primary paginated target: block
+            // elements and variable line density mean progression can map one column away.
+            val locator = resolvedLocator.withAnnotationTextQuote(annotation)
             // Annotation.type uses the database-layer constants from AnnotationEntity. A typo
             // matching a lowercased literal here silently flipped every annotation to
             // isBookmark=false, which inverted the continuous-mode landing.
