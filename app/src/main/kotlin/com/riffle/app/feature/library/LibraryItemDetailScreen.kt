@@ -145,8 +145,8 @@ fun LibraryItemDetailScreen(
     if (showEditMetadataDialog && readyState != null) {
         EditLocalFileMetadataDialog(
             item = readyState.item,
-            onSave = { title, author, seriesName, seriesIndex ->
-                viewModel.saveMetadataOverride(title, author, seriesName, seriesIndex)
+            onSave = { title, author, seriesName, seriesIndex, coverContentUri ->
+                viewModel.saveMetadataOverride(title, author, seriesName, seriesIndex, coverContentUri)
                 showEditMetadataDialog = false
             },
             onDismiss = { showEditMetadataDialog = false },

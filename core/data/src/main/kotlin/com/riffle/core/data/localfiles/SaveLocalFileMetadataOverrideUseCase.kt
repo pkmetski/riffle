@@ -14,6 +14,7 @@ class SaveLocalFileMetadataOverrideUseCase @Inject constructor(
         author: String?,
         seriesName: String?,
         seriesIndex: Double?,
+        coverUrl: String? = null,
     ) {
         overrideDao.upsert(
             LocalFileMetadataOverrideEntity(
@@ -23,6 +24,7 @@ class SaveLocalFileMetadataOverrideUseCase @Inject constructor(
                 author = author?.ifBlank { null },
                 seriesName = seriesName?.ifBlank { null },
                 seriesIndex = seriesIndex,
+                coverUrl = coverUrl,
             ),
         )
     }

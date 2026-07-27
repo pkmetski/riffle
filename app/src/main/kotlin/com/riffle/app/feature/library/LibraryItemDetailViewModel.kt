@@ -26,6 +26,7 @@ import com.riffle.core.data.ReservedPlaylistNameException
 import com.riffle.core.data.ToReadRepository
 import com.riffle.core.catalog.AudiobookMediaCapability
 import com.riffle.core.catalog.CatalogRegistry
+import com.riffle.core.data.localfiles.CopyCoverImageUseCase
 import com.riffle.core.data.localfiles.ResetLocalFileTitleToFilenameUseCase
 import com.riffle.core.data.localfiles.SaveLocalFileMetadataOverrideUseCase
 import com.riffle.core.models.SourceType
@@ -182,6 +183,7 @@ class LibraryItemDetailViewModel @Inject constructor(
     private val libraryRefresher: LibraryRefresher,
     private val saveLocalFileMetadataOverride: SaveLocalFileMetadataOverrideUseCase,
     private val resetLocalFileTitleToFilename: ResetLocalFileTitleToFilenameUseCase,
+    private val copyCoverImage: CopyCoverImageUseCase,
 ) : ViewModel() {
 
     private val itemId: String = savedStateHandle.get<String>("itemId") ?: ""
@@ -247,15 +249,23 @@ class LibraryItemDetailViewModel @Inject constructor(
         author: String,
         seriesName: String,
         seriesIndex: Double?,
+        coverContentUri: String? = null,
     ) {
         val item = loadedItem ?: return
         viewModelScope.launch {
-            saveLocalFileMetadataOverride(item.sourceId, item.id, title, author, seriesName, seriesIndex)
+            val newCoverPath = if (coverContentUri != null) {
+                copyCoverImage(item.sourceId, item.id, coverContentUri)
+            } else null
             val current = _uiState.value as? LibraryItemDetailUiState.Ready ?: return@launch
+            saveLocalFileMetadataOverride(
+                item.sourceId, item.id, title, author, seriesName, seriesIndex,
+                coverUrl = newCoverPath ?: current.item.coverUrl,
+            )
             val patched = current.item.copy(
                 title = title.ifBlank { current.item.title },
                 author = author.ifBlank { current.item.author },
                 seriesName = seriesName.ifBlank { null },
+                coverUrl = newCoverPath ?: current.item.coverUrl,
             )
             _uiState.value = current.copy(item = patched)
             loadedItem = patched

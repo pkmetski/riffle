@@ -293,6 +293,7 @@ class LibraryItemDetailViewModelTest {
         libraryRefresher = libraryRefresher,
         saveLocalFileMetadataOverride = com.riffle.app.testing.noopSaveLocalFileMetadataOverride(),
         resetLocalFileTitleToFilename = com.riffle.app.testing.noopResetLocalFileTitleToFilename(),
+        copyCoverImage = com.riffle.app.testing.noopCopyCoverImage(),
     )
 
     // These tests exercise ViewModel state and side-effects; none read Ready.capabilities.

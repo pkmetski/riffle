@@ -29,4 +29,5 @@ data class LocalFileMetadataOverrideEntity(
     val author: String?,
     val seriesName: String?,
     val seriesIndex: Double?,
+    val coverUrl: String? = null,
 )

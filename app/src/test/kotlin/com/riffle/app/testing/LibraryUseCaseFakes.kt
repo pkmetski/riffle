@@ -1,5 +1,6 @@
 package com.riffle.app.testing
 
+import com.riffle.core.data.localfiles.CopyCoverImageUseCase
 import com.riffle.core.data.localfiles.ResetLocalFileTitleToFilenameUseCase
 import com.riffle.core.data.localfiles.SaveLocalFileMetadataOverrideUseCase
 import com.riffle.core.database.LocalFileMetadataOverrideDao
@@ -108,6 +109,7 @@ class NoopRefreshCollections(
 
 fun noopSaveLocalFileMetadataOverride() = SaveLocalFileMetadataOverrideUseCase(NoopOverrideDao)
 fun noopResetLocalFileTitleToFilename() = ResetLocalFileTitleToFilenameUseCase(NoopFileDao, NoopOverrideDao)
+fun noopCopyCoverImage() = io.mockk.mockk<CopyCoverImageUseCase>(relaxed = true)
 
 private object NoopOverrideDao : LocalFileMetadataOverrideDao {
     override suspend fun upsert(entity: LocalFileMetadataOverrideEntity) {}

@@ -35,7 +35,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         PlaylistEntity::class,
         PlaylistItemEntity::class,
     ],
-    version = 60,
+    version = 61,
     exportSchema = true,
 )
 abstract class RiffleDatabase : RoomDatabase() {
@@ -1663,6 +1663,17 @@ abstract class RiffleDatabase : RoomDatabase() {
                 db.execSQL(
                     "CREATE INDEX IF NOT EXISTS `index_local_file_metadata_overrides_sourceId` " +
                         "ON `local_file_metadata_overrides` (`sourceId`)"
+                )
+            }
+        }
+
+        // User-selectable cover image for local-file books. Adds `coverUrl` (nullable TEXT) to
+        // `local_file_metadata_overrides` so a gallery-picked cover can override the scanner-
+        // extracted cover without touching `library_items`. NULL = use the scanned cover.
+        val MIGRATION_60_61 = object : Migration(60, 61) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "ALTER TABLE `local_file_metadata_overrides` ADD COLUMN `coverUrl` TEXT"
                 )
             }
         }

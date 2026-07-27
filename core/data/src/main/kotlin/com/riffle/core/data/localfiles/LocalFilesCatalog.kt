@@ -222,7 +222,7 @@ class LocalFilesCatalog(
         rootId = libraryId,
         title = override?.title ?: title,
         author = override?.author ?: author,
-        coverUrl = coverUrl,
+        coverUrl = override?.coverUrl ?: coverUrl,
         ebookFormat = when (ebookFormat) {
             EbookFormat.STORAGE_EPUB -> BookFormat.Epub
             EbookFormat.STORAGE_PDF -> BookFormat.Pdf
