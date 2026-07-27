@@ -243,6 +243,37 @@ class ReaderWebViewScriptsTest {
         assertTrue("does NOT yank to column 0", !js.contains("se.scrollLeft=0;"))
     }
 
+    // Annotation navigation carries a TextQuote locator. Readium's own resolver can reconstruct
+    // the exact DOM Range from highlight + before/after, which avoids the one-column error of
+    // estimating a visual page from character progression. The rAF tracker must repeat that
+    // exact resolution after reflow and return before the progression fallback writes scrollLeft.
+    @Test
+    fun `snapToTargetColumnJs prefers exact Readium text locator before progression fallback`() {
+        val locatorJson =
+            """{"href":"chapter1.xhtml","type":"application/xhtml+xml","locations":{"progression":0.42},"text":{"before":"before","highlight":"target","after":"after"}}"""
+        val js = ColumnSnap.snapToTargetColumnJs(
+            fragmentId = null,
+            landAtStartWhenNoTarget = false,
+            locatorProgression = 0.42,
+            locatorJson = locatorJson,
+        )
+
+        assertTrue("embeds the exact locator safely", js.contains("var loc=JSON.parse("))
+        assertTrue(
+            "asks Readium to resolve and scroll to the exact range",
+            js.contains("if(window.readium.scrollToLocator(loc))return;"),
+        )
+        assertTrue(
+            "keeps progression as the stale-quote fallback",
+            js.contains("else{se.scrollLeft=Math.floor(0.42*se.scrollWidth/iw)*iw;}"),
+        )
+        assertTrue(
+            "exact range resolution runs before progression fallback",
+            js.indexOf("window.readium.scrollToLocator(loc)") <
+                js.indexOf("Math.floor(0.42*se.scrollWidth/iw)"),
+        )
+    }
+
     // progression is ignored when landAtStartWhenNoTarget=true — chapter-level jumps always floor to 0.
     @Test
     fun `snapToTargetColumnJs ignores progression and floors to column 0 when landAtStartWhenNoTarget is true`() {

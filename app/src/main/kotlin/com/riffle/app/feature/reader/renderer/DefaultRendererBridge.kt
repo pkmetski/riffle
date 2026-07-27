@@ -96,9 +96,9 @@ internal class DefaultRendererBridge(
         // highlighted text node — typically a <section id="ch01"> or <div id="main"> that spans
         // the entire chapter. Snapping to that element always resolves to column 0 (page 1)
         // because getBoundingClientRect().left for a section that starts at the chapter top is 0.
-        // Character-count progression is more reliable: it maps the annotation's text position to
-        // the column it actually occupies, and the rAF loop recomputes it against the settled
-        // scrollWidth each tick, so typography-injection reflow doesn't knock it off.
+        // The locator's TextQuote is the precise target: Readium resolves it to the highlighted
+        // DOM Range on every rAF tick. Character-count progression remains the fallback for a
+        // missing/stale quote; unlike a range it can be a column off when block density varies.
         val fragmentId = if (landAtStartWhenNoTarget) {
             locator.locations.fragments.firstOrNull()
                 ?: navTargetFragmentId(locator.href.toString())
@@ -110,6 +110,12 @@ internal class DefaultRendererBridge(
         } else {
             null
         }
+        // A TextQuote locator lets Readium resolve the exact highlighted DOM range. Pass the
+        // complete locator into the reflow tracker so it can repeat that exact resolution after
+        // each scrollWidth change; progression is only a fallback when the quote is absent/stale.
+        val exactLocatorJson = locator.text.highlight
+            ?.takeIf { it.isNotBlank() }
+            ?.let { locator.toJSON().toString() }
         // Stash the pre-go scroll origin so the post-go smooth-tail can start from where the
         // user actually was on same-doc jumps (return-to-position card, same-chapter TOC entry)
         // instead of pre-landing half a viewport short — which flashes as "goes back a bit and
@@ -118,7 +124,14 @@ internal class DefaultRendererBridge(
         // cover hides.
         frag.evaluateJavascript(ColumnSnap.STASH_VERTICAL_ORIGIN_JS)
         frag.go(locator)
-        frag.evaluateJavascript(ColumnSnap.snapToTargetColumnJs(fragmentId, landAtStartWhenNoTarget, progression))
+        frag.evaluateJavascript(
+            ColumnSnap.snapToTargetColumnJs(
+                fragmentId = fragmentId,
+                landAtStartWhenNoTarget = landAtStartWhenNoTarget,
+                locatorProgression = progression,
+                locatorJson = exactLocatorJson,
+            ),
+        )
     }
 
     override suspend fun snapToEnd() {

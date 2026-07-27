@@ -29,6 +29,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.readium.r2.shared.publication.Locator
@@ -921,12 +922,23 @@ class AnnotationSessionTest {
         session.navigateToAnnotation("a1")
 
         assertEquals(1, received.size)
-        assertEquals(targetLocator, received[0].locator)
+        // The resolver-owned navigation identity is preserved while AnnotationSession enriches
+        // the locator with the persisted quote needed for exact Readium range resolution.
+        assertEquals(targetLocator.href, received[0].locator.href)
+        assertEquals(targetLocator.mediaType, received[0].locator.mediaType)
+        assertEquals(targetLocator.locations, received[0].locator.locations)
         // The seeded annotation in this test has type="highlight", so the event must carry
         // isBookmark=false. Continuous-mode landing now uses viewport-midpoint for both types;
         // the flag is preserved on the event because downstream (analytics, tests) still
         // branches on annotation type.
         assertFalse(received[0].isBookmark)
+        // Readium's scrollToLocator resolves an exact DOM range only when the locator carries
+        // the annotation's TextQuote context. Without these fields annotation navigation falls
+        // back to character progression, which can land one paginated column away because text
+        // density and block layout are not uniform.
+        assertEquals(anno.textSnippet, received[0].locator.text.highlight)
+        assertEquals(anno.textBefore, received[0].locator.text.before)
+        assertEquals(anno.textAfter, received[0].locator.text.after)
         // The annotation id must ride along on the event: continuous-mode navigation uses it to
         // look up the actual `<mark data-riffle-ann="…">` device-Y (via
         // `ChapterWebView.annotationOffsetTopDevicePx`) and centre the viewport on the mark
@@ -967,6 +979,11 @@ class AnnotationSessionTest {
 
         assertEquals(1, received.size)
         assertTrue(received[0].isBookmark)
+        assertSame(
+            "bookmarks are point locators and must not receive a highlight TextQuote",
+            targetLocator,
+            received[0].locator,
+        )
 
         collectJob.cancel()
         sessionScope.coroutineContext[Job]?.cancel()

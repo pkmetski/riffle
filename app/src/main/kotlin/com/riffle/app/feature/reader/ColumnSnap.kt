@@ -494,18 +494,22 @@ internal object ColumnSnap {
     // within-chapter progression) rounds the current scroll to the column grid instead (false), preserving
     // where go() landed rather than yanking to the chapter top.
     //
-    // [locatorProgression] is used instead of the current scrollLeft when fragmentId is null and
-    // landAtStartWhenNoTarget is false. After a cross-chapter jump, typography-injection reflow resets
-    // scrollLeft to 0 before the rAF loop exits, so rounding scrollLeft snaps to column 0 instead of the
-    // annotation's actual column. Recomputing from progression * scrollWidth each tick is reflow-stable:
-    // scrollWidth re-settles to the post-reflow value, and progression * new_scrollWidth lands on the right
-    // column. The fragmentId path is already self-correcting via getBoundingClientRect, so it doesn't need this.
+    // [locatorJson] is the preferred target for text-anchored navigation. Readium resolves its
+    // TextQuote to the exact DOM Range on every tracked frame, so reflow cannot move the target
+    // away from the landing column. [locatorProgression] remains the fallback when the quote is
+    // absent or stale. It is re-evaluated against scrollWidth on each frame, which is stable
+    // across typography reflow but only approximate for visual layout.
     fun snapToTargetColumnJs(
         fragmentId: String?,
         landAtStartWhenNoTarget: Boolean = true,
         locatorProgression: Double? = null,
+        locatorJson: String? = null,
     ): String {
         val idLiteral = if (fragmentId.isNullOrEmpty()) "null" else JSONObject.quote(fragmentId)
+        val locatorLiteral = locatorJson
+            ?.takeIf { it.isNotBlank() }
+            ?.let { "JSON.parse(${JSONObject.quote(it)})" }
+            ?: "null"
         val noTargetSnap = when {
             landAtStartWhenNoTarget -> "se.scrollLeft=0;"
             locatorProgression != null -> "se.scrollLeft=Math.floor($locatorProgression*se.scrollWidth/iw)*iw;"
@@ -524,6 +528,7 @@ internal object ColumnSnap {
         // (which transiently reset scrollLeft to 0) are automatically absorbed.
         val skipVertical = !landAtStartWhenNoTarget && locatorProgression != null
         return "(function(){var id=$idLiteral;" +
+            "var loc=$locatorLiteral;" +
             "var se=document.scrollingElement;" +
             "var _skipV=$skipVertical;" +
             // Vertical (scroll-mode) smooth tail. Readium's `go(locator)` already teleported us to
@@ -558,6 +563,13 @@ internal object ColumnSnap {
             "var gen=(window.__riffleSnapGen=(window.__riffleSnapGen||0)+1);" +
             "var lastW=-1,stable=0,frames=0;" +
             "function snap(){var iw=window.innerWidth;" +
+            // Readium's own locator resolver uses text.highlight + before/after to reconstruct
+            // the exact DOM Range. Re-run it on every tracked frame so a typography reflow
+            // cannot reset the landing to column 0. This is strictly more precise than mapping
+            // character progression onto scrollWidth; progression remains the fallback when a
+            // legacy/stale quote no longer matches the publication.
+            "if(loc&&window.readium&&typeof window.readium.scrollToLocator==='function'){" +
+            "try{if(window.readium.scrollToLocator(loc))return;}catch(e){}}" +
             "if(id){var el=document.getElementById(id);" +
             "if(el){se.scrollLeft=Math.floor((el.getBoundingClientRect().left+se.scrollLeft)/iw)*iw;}" +
             "else{se.scrollLeft=Math.round(se.scrollLeft/iw)*iw;}}" +
