@@ -39,43 +39,28 @@ class AbsBookmarkAnnotationSyncTargetFactoryTest {
     )
 
     @Test
-    fun `create returns a target for allow-listed username 'plamen'`() = runTest {
+    fun `create returns a target for any valid ABS username`() = runTest {
+        assertNotNull(factory.create(source(username = "alice")))
+        assertNotNull(factory.create(source(username = "bob")))
+        assertNotNull(factory.create(source(username = "")))
         assertNotNull(factory.create(source(username = "plamen")))
-    }
-
-    @Test
-    fun `create returns a target for allow-listed username 'test'`() = runTest {
         assertNotNull(factory.create(source(username = "test")))
     }
 
     @Test
-    fun `create returns null for other usernames — temporary rollout gate`() = runTest {
-        assertNull(factory.create(source(username = "alice")))
-        assertNull(factory.create(source(username = "bob")))
-        assertNull(factory.create(source(username = "")))
-    }
-
-    @Test
-    fun `allow-list is case-insensitive and trims whitespace`() = runTest {
-        assertNotNull(factory.create(source(username = "Plamen")))
-        assertNotNull(factory.create(source(username = "TEST")))
-        assertNotNull(factory.create(source(username = "  plamen  ")))
-    }
-
-    @Test
-    fun `create returns null for non-ABS source even with allow-listed username`() = runTest {
-        assertNull(factory.create(source(username = "plamen", type = SourceType.LOCAL_FILES)))
+    fun `create returns null for non-ABS source`() = runTest {
+        assertNull(factory.create(source(username = "alice", type = SourceType.LOCAL_FILES)))
     }
 
     @Test
     fun `create returns null when absUserId is missing`() = runTest {
-        assertNull(factory.create(source(username = "plamen", absUserId = null)))
-        assertNull(factory.create(source(username = "plamen", absUserId = "  ")))
+        assertNull(factory.create(source(username = "alice", absUserId = null)))
+        assertNull(factory.create(source(username = "alice", absUserId = "  ")))
     }
 
     @Test
     fun `create returns null when the source has no stored token`() = runTest {
-        assertNull(factory.create(source(username = "plamen", id = "no-token-source")))
+        assertNull(factory.create(source(username = "alice", id = "no-token-source")))
     }
 }
 

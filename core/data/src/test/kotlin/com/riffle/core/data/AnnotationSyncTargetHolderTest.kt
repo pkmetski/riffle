@@ -107,10 +107,9 @@ class AnnotationSyncTargetHolderTest {
         assertNull(holder.current())
     }
 
-    // Regression: for accounts served by an ABS-bookmark child (currently the allow-listed
-    // `plamen` / `test` usernames), WebDAV steps aside so that account's annotations flow
-    // over ABS bookmarks only — no dual-write to WebDAV. Every other namespace (Komga, non-
-    // allow-listed ABS accounts) continues to route to WebDAV as before. See
+    // Regression: for accounts served by an ABS-bookmark child, WebDAV steps aside so that
+    // account's annotations flow over ABS bookmarks only — no dual-write to WebDAV. Every
+    // other namespace (e.g. Komga) continues to route to WebDAV. See
     // AnnotationSyncTargetHolder composition rules.
     @Test
     fun `webdav does not serve namespaces already covered by an abs-bookmark child`() = runTest {

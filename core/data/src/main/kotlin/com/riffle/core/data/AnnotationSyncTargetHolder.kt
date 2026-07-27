@@ -103,8 +103,8 @@ class AnnotationSyncTargetHolder(
         val absServedNamespaces: Set<String> = absChildren.mapNotNullTo(mutableSetOf()) { it.servedNamespace }
 
         // WebDAV steps aside for any namespace an ABS-bookmark child already serves — that account
-        // gets ABS bookmarks only, no WebDAV dual-write. Every other namespace (Komga, non-allow-
-        // listed ABS accounts) continues to route to WebDAV as before.
+        // gets ABS bookmarks only, no WebDAV dual-write. Every other namespace (e.g. Komga)
+        // continues to route to WebDAV as before.
         val webDavChild = webDavConfig
             ?.let { webDavFactory.create(it) }
             ?.let {
