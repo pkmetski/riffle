@@ -234,6 +234,9 @@ class LocalFilesCatalog(
         ebookFileIno = ebookFileIno,
         description = description,
         seriesName = override?.seriesName ?: seriesName,
+        seriesSequence = override?.seriesIndex?.let { idx ->
+            if (idx == kotlin.math.floor(idx) && !idx.isInfinite()) idx.toLong().toString() else idx.toString()
+        } ?: seriesSequence,
         publishedYear = publishedYear,
         genres = if (genres.isBlank()) emptyList() else genres.split(",").map { it.trim() }.filter { it.isNotEmpty() },
         publisher = publisher,

@@ -380,6 +380,28 @@ class LocalFilesCatalogTest {
         val item = catalog.getItem("book-3")
         assertEquals("Overridden Title", item?.title)
         assertEquals("My Series", item?.seriesName)
+        assertEquals("2", item?.seriesSequence)
+    }
+
+    @Test
+    fun `seriesIndex override formats whole numbers without decimal and preserves fractional`() = runTest {
+        val items = FakeLibraryItemDao()
+        items.emit(sourceId, listOf(epubItem("a", "A"), epubItem("b", "B")))
+        val overrideDao = InMemoryOverrideDao()
+        overrideDao.upsert(
+            LocalFileMetadataOverrideEntity(sourceId, "a", null, null, "S", seriesIndex = 3.0),
+        )
+        overrideDao.upsert(
+            LocalFileMetadataOverrideEntity(sourceId, "b", null, null, "S", seriesIndex = 2.5),
+        )
+        val catalog = catalog(
+            folderDao = folderWith(libraryId),
+            fileFolderDao = fileFolderWith(listOf("a", "b")),
+            items = items,
+            overrideDao = overrideDao,
+        )
+        assertEquals("3", catalog.getItem("a")?.seriesSequence)
+        assertEquals("2.5", catalog.getItem("b")?.seriesSequence)
     }
 
     @Test
