@@ -216,16 +216,58 @@ class ReaderWebViewScriptsTest {
     }
 
     // A no-fragment jump that must PRESERVE where go() landed (search hits, resume/peer sync) passes
-    // landAtStartWhenNoTarget=false: with no DOM target it ROUNDS the current scroll to the column grid
-    // instead of snapping to column 0. This is the contract search navigation relies on so a search hit
-    // (located by its occurrence-specific progression via go()) lands flush on its own page rather than
-    // being yanked to the chapter top.
+    // landAtStartWhenNoTarget=false without progression: with no DOM target it ROUNDS the current scroll
+    // to the column grid instead of snapping to column 0. This is the contract background-sync uses when
+    // go() already positioned within the same chapter and only a grid-alignment round is needed.
     @Test
     fun `snapToTargetColumnJs rounds the current scroll to the grid when no target and not landing at start`() {
         val js = ColumnSnap.snapToTargetColumnJs(null, landAtStartWhenNoTarget = false)
         assertTrue("id is null", js.contains("var id=null"))
         assertTrue("rounds the current scroll to the grid", js.contains("se.scrollLeft=Math.round(se.scrollLeft/iw)*iw"))
         assertTrue("does NOT yank to column 0", !js.contains("se.scrollLeft=0;"))
+    }
+
+    // landAtStartWhenNoTarget=false WITH progression: used for annotation navigation where there is no named
+    // DOM element in the CFI. After a cross-chapter jump, typography-injection reflow resets scrollLeft to 0
+    // before the rAF loop exits, so rounding scrollLeft snaps to column 0 (first page). By recomputing from
+    // progression * scrollWidth each tick the snap lands on the right column even after reflow, because
+    // scrollWidth re-settles to the post-reflow value and progression * new_scrollWidth is reflow-stable.
+    @Test
+    fun `snapToTargetColumnJs uses progression times scrollWidth when no target, not landing at start, and progression provided`() {
+        val js = ColumnSnap.snapToTargetColumnJs(null, landAtStartWhenNoTarget = false, locatorProgression = 0.42)
+        assertTrue("id is null", js.contains("var id=null"))
+        // The noTargetSnap branch (else{...} after if(id){...}) must use progression * scrollWidth.
+        assertTrue("uses progression * scrollWidth", js.contains("else{se.scrollLeft=Math.round(0.42*se.scrollWidth/iw)*iw;}"))
+        assertTrue("does NOT yank to column 0", !js.contains("se.scrollLeft=0;"))
+    }
+
+    // progression is ignored when landAtStartWhenNoTarget=true — chapter-level jumps always floor to 0.
+    @Test
+    fun `snapToTargetColumnJs ignores progression and floors to column 0 when landAtStartWhenNoTarget is true`() {
+        val js = ColumnSnap.snapToTargetColumnJs(null, landAtStartWhenNoTarget = true, locatorProgression = 0.42)
+        assertTrue("floors to 0", js.contains("se.scrollLeft=0;"))
+        assertTrue("does NOT use progression", !js.contains("0.42"))
+    }
+
+    // Annotation focus must set _skipV=true so the vertical smooth-tail block (if scrollHeight >
+    // innerHeight) is bypassed. The snap JS runs before CSS multicol is applied; at that moment
+    // scrollHeight > innerHeight, so without _skipV the vertical branch fires and returns early —
+    // the rAF paginated loop never runs, and Readium resets scrollLeft to 0. With _skipV=true the
+    // rAF loop runs, waits for scrollWidth to stabilize after multicol, then snaps to the right column.
+    @Test
+    fun `snapToTargetColumnJs sets skipV true for annotation focus to bypass vertical early-return`() {
+        val js = ColumnSnap.snapToTargetColumnJs(null, landAtStartWhenNoTarget = false, locatorProgression = 0.42)
+        assertTrue("_skipV is true", js.contains("var _skipV=true;"))
+        assertTrue("vertical check uses !_skipV guard", js.contains("if(!_skipV && se && se.scrollHeight > window.innerHeight + 4)"))
+    }
+
+    // Non-annotation navigation (TOC, resume, search) must NOT set _skipV — those jumps use the
+    // vertical smooth-tail for the same-doc animation and the snap-to-0 for chapter starts.
+    @Test
+    fun `snapToTargetColumnJs sets skipV false for TOC and resume navigation`() {
+        val js = ColumnSnap.snapToTargetColumnJs("ch01", landAtStartWhenNoTarget = true, locatorProgression = null)
+        assertTrue("_skipV is false", js.contains("var _skipV=false;"))
+        assertTrue("vertical check uses !_skipV guard", js.contains("if(!_skipV && se && se.scrollHeight > window.innerHeight + 4)"))
     }
 
     // Regression for the "highlight not saved in continuous mode" bug: Chromium WebView collapses

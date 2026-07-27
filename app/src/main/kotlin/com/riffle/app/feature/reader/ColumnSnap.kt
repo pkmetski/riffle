@@ -493,11 +493,39 @@ internal object ColumnSnap {
     // to column 0 (true, the default); a position-based jump (a background sync that already go()'d to a
     // within-chapter progression) rounds the current scroll to the column grid instead (false), preserving
     // where go() landed rather than yanking to the chapter top.
-    fun snapToTargetColumnJs(fragmentId: String?, landAtStartWhenNoTarget: Boolean = true): String {
+    //
+    // [locatorProgression] is used instead of the current scrollLeft when fragmentId is null and
+    // landAtStartWhenNoTarget is false. After a cross-chapter jump, typography-injection reflow resets
+    // scrollLeft to 0 before the rAF loop exits, so rounding scrollLeft snaps to column 0 instead of the
+    // annotation's actual column. Recomputing from progression * scrollWidth each tick is reflow-stable:
+    // scrollWidth re-settles to the post-reflow value, and progression * new_scrollWidth lands on the right
+    // column. The fragmentId path is already self-correcting via getBoundingClientRect, so it doesn't need this.
+    fun snapToTargetColumnJs(
+        fragmentId: String?,
+        landAtStartWhenNoTarget: Boolean = true,
+        locatorProgression: Double? = null,
+    ): String {
         val idLiteral = if (fragmentId.isNullOrEmpty()) "null" else JSONObject.quote(fragmentId)
-        val noTargetSnap = if (landAtStartWhenNoTarget) "se.scrollLeft=0;" else "se.scrollLeft=Math.round(se.scrollLeft/iw)*iw;"
+        val noTargetSnap = when {
+            landAtStartWhenNoTarget -> "se.scrollLeft=0;"
+            locatorProgression != null -> "se.scrollLeft=Math.round($locatorProgression*se.scrollWidth/iw)*iw;"
+            else -> "se.scrollLeft=Math.round(se.scrollLeft/iw)*iw;"
+        }
+        // For annotation focus (landAtStartWhenNoTarget=false with a progression), skip the
+        // vertical smooth-tail block entirely. The snap JS runs immediately after go(locator),
+        // before Readium has applied CSS multicol. At that moment scrollHeight > innerHeight (the
+        // natural page height), so the vertical check fires and returns early — the paginated rAF
+        // loop never runs. Then Readium applies multicol and resets scrollLeft to 0, always landing
+        // on page 1. By setting _skipV=true we fall straight into the rAF loop, which tracks
+        // scrollWidth each frame: it starts at innerWidth (pre-multicol → snap() is a near-no-op),
+        // then grows when multicol is applied, and on each subsequent frame the loop recomputes
+        // progression*scrollWidth/iw and snaps scrollLeft to the correct column. The loop exits
+        // only once scrollWidth has held steady for ≥3 frames, so typography-injection reflows
+        // (which transiently reset scrollLeft to 0) are automatically absorbed.
+        val skipVertical = !landAtStartWhenNoTarget && locatorProgression != null
         return "(function(){var id=$idLiteral;" +
             "var se=document.scrollingElement;" +
+            "var _skipV=$skipVertical;" +
             // Vertical (scroll-mode) smooth tail. Readium's `go(locator)` already teleported us to
             // the target, so we compute `targetV` from either the fragment element's rect or the
             // current scrollTop. The animation START point depends on whether the jump crossed
@@ -509,8 +537,8 @@ internal object ColumnSnap {
             // background sync must not reuse a stale origin from an unrelated navigation.
             // Skips the paginated rAF column-snap loop below — it only writes scrollLeft, which
             // is a no-op in vertical, and the smooth animation is one-shot rather than a
-            // reflow-tracking loop.
-            "if(se && se.scrollHeight > window.innerHeight + 4){" +
+            // reflow-tracking loop. Skipped entirely for annotation focus (_skipV=true) — see above.
+            "if(!_skipV && se && se.scrollHeight > window.innerHeight + 4){" +
             "var targetV;" +
             "if(id){var elV=document.getElementById(id);" +
             "if(elV){var rV=elV.getBoundingClientRect();" +
