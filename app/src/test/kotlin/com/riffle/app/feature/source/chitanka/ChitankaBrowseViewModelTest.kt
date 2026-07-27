@@ -7,6 +7,7 @@ import com.riffle.core.catalog.CatalogItem
 import com.riffle.core.catalog.CatalogRegistry
 import com.riffle.core.catalog.chitanka.ChitankaCatalog
 import com.riffle.core.data.websource.WebSourceLibraryItemUpserter
+import com.riffle.core.domain.CoverGridDensityStore
 import com.riffle.core.models.Source
 import com.riffle.core.domain.SourceRepository
 import com.riffle.core.models.SourceType
@@ -18,6 +19,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
@@ -58,6 +60,7 @@ class ChitankaBrowseViewModelTest {
         rootId: String = ChitankaCatalog.ROOT_BOOKS,
         upserter: WebSourceLibraryItemUpserter = mockk(relaxed = true),
         sourceRepo: SourceRepository = fakeSourceRepo(chitankaSource),
+        coverGridDensityStore: CoverGridDensityStore = fakeCoverGridDensityStore(),
         catalog: Catalog = mockk<Catalog>(relaxed = true).also {
             // Relaxed mocks return a stub CatalogItem instead of null for `getItem`, which breaks
             // the openDetail enrichment fallback in tests that don't explicitly stub it. Pin to
@@ -77,7 +80,14 @@ class ChitankaBrowseViewModelTest {
                 com.riffle.core.data.websource.WebSourceItemGate.Outcome.Fetched(listing)
             }
         }
-        return ChitankaBrowseViewModel(savedStateHandle, sourceRepo, registry, upserter, gate)
+        return ChitankaBrowseViewModel(
+            savedStateHandle,
+            sourceRepo,
+            registry,
+            upserter,
+            gate,
+            coverGridDensityStore,
+        )
     }
 
     private fun item(id: String) = CatalogItem(
@@ -139,6 +149,7 @@ class ChitankaBrowseViewModelTest {
             registry,
             mockk<WebSourceLibraryItemUpserter>(relaxed = true),
             gate,
+            fakeCoverGridDensityStore(),
         )
         advanceUntilIdle()
 
@@ -169,6 +180,7 @@ class ChitankaBrowseViewModelTest {
             registry,
             mockk<WebSourceLibraryItemUpserter>(relaxed = true),
             gate,
+            fakeCoverGridDensityStore(),
         )
         advanceUntilIdle()
 
@@ -199,6 +211,7 @@ class ChitankaBrowseViewModelTest {
             registry,
             upserter,
             gate,
+            fakeCoverGridDensityStore(),
         )
         advanceUntilIdle()
 
@@ -230,6 +243,19 @@ class ChitankaBrowseViewModelTest {
         val msg = friendlyErrorMessage(java.io.IOException("connection reset"))
         assertEquals("Couldn't reach chitanka.info. Check your connection and try again.", msg)
     }
+
+    @Test
+    fun `cover scale changes persist through the global density store after debounce`() =
+        runTest(dispatcher) {
+            val densityStore = RecordingCoverGridDensityStore()
+            val vm = makeVm(coverGridDensityStore = densityStore)
+            advanceUntilIdle()
+
+            vm.setCoverGridScale(1.4f)
+            advanceUntilIdle()
+
+            assertEquals(1.4f, densityStore.persistedScale)
+        }
 
     // ─── Pagination ──────────────────────────────────────────────────────────────────────────────
     //
@@ -353,5 +379,20 @@ class ChitankaBrowseViewModelTest {
         override suspend fun setActive(sourceId: String) { }
         override suspend fun remove(sourceId: String) { }
         override suspend fun getSourceVersion(sourceId: String): String? = null
+    }
+
+    private fun fakeCoverGridDensityStore(): CoverGridDensityStore =
+        object : CoverGridDensityStore {
+            override val scale = flowOf(1f)
+            override suspend fun setScale(value: Float) = Unit
+        }
+
+    private class RecordingCoverGridDensityStore : CoverGridDensityStore {
+        override val scale = flowOf(1f)
+        var persistedScale: Float? = null
+
+        override suspend fun setScale(value: Float) {
+            persistedScale = value
+        }
     }
 }

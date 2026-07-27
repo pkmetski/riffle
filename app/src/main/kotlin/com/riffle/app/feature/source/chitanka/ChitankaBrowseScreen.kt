@@ -11,11 +11,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.GridItemSpan
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
-import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
@@ -43,15 +38,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.snapshotFlow
-import kotlinx.coroutines.flow.distinctUntilChanged
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -66,6 +58,8 @@ import com.riffle.app.feature.annotations.AnnotationsListViewModel
 import com.riffle.app.feature.library.HomeTabContent
 import com.riffle.app.feature.library.LocalCoversAreSquare
 import com.riffle.app.feature.library.ToReadTabContent
+import com.riffle.app.feature.source.websource.UnboundedCatalogGrid
+import com.riffle.app.feature.source.websource.UnboundedCoverGridZoomProvider
 import com.riffle.app.ui.TabletContentWidthContainer
 import com.riffle.core.catalog.CatalogItem
 import com.riffle.core.catalog.chitanka.ChitankaCatalog
@@ -107,6 +101,7 @@ fun ChitankaBrowseScreen(
 
     val isAudioRoot = viewModel.rootId == ChitankaCatalog.ROOT_AUDIOBOOKS
     var searchOpen by remember { mutableStateOf(false) }
+    val persistedCoverScale by viewModel.coverGridScale.collectAsState()
 
     val visibility by hiltViewModel<com.riffle.app.feature.library.LibraryTabVisibilityViewModel>()
         .visibility.collectAsState()
@@ -186,16 +181,29 @@ fun ChitankaBrowseScreen(
             windowSizeClass = windowSizeClass,
             modifier = Modifier.fillMaxSize().padding(padding),
         ) {
-            CompositionLocalProvider(LocalCoversAreSquare provides isAudioRoot) {
-                when (selectedTab) {
-                    TAB_HOME -> ChitankaHomeTab(onOpenDetail = onOpenDetail)
-                    TAB_TO_READ -> ChitankaToReadTab(onOpenDetail = onOpenDetail)
-                    TAB_ANNOTATIONS -> ChitankaAnnotationsTab(onAnnotatedBookClick = onAnnotatedBookClick)
-                    TAB_LIBRARY -> LibraryTabContent(
-                        viewModel = viewModel,
-                        isAudioRoot = isAudioRoot,
-                        searchOpen = searchOpen,
-                    )
+            UnboundedCoverGridZoomProvider(
+                persistedScale = persistedCoverScale,
+                onPersistScaleChange = viewModel::setCoverGridScale,
+            ) { onCoverScaleChange ->
+                CompositionLocalProvider(LocalCoversAreSquare provides isAudioRoot) {
+                    when (selectedTab) {
+                        TAB_HOME -> ChitankaHomeTab(
+                            onOpenDetail = onOpenDetail,
+                            onCoverScaleChange = onCoverScaleChange,
+                        )
+                        TAB_TO_READ -> ChitankaToReadTab(
+                            onOpenDetail = onOpenDetail,
+                            onCoverScaleChange = onCoverScaleChange,
+                        )
+                        TAB_ANNOTATIONS ->
+                            ChitankaAnnotationsTab(onAnnotatedBookClick = onAnnotatedBookClick)
+                        TAB_LIBRARY -> LibraryTabContent(
+                            viewModel = viewModel,
+                            isAudioRoot = isAudioRoot,
+                            searchOpen = searchOpen,
+                            onCoverScaleChange = onCoverScaleChange,
+                        )
+                    }
                 }
             }
         }
@@ -207,15 +215,12 @@ private const val TAB_TO_READ = 1
 private const val TAB_ANNOTATIONS = 2
 private const val TAB_LIBRARY = 3
 
-// Kick off a next-page fetch when the user scrolls to within this many items of the end so the
-// grid stays populated ahead of the viewport (≈ two rows in Books mode, three rows in Audiobooks).
-private const val PAGINATION_PREFETCH_THRESHOLD = 6
-
 @Composable
 private fun LibraryTabContent(
     viewModel: ChitankaBrowseViewModel,
     isAudioRoot: Boolean,
     searchOpen: Boolean,
+    onCoverScaleChange: (Float) -> Unit,
 ) {
     val items by viewModel.items.collectAsState()
     val facets by viewModel.facets.collectAsState()
@@ -279,53 +284,20 @@ private fun LibraryTabContent(
                     )
                 }
                 else -> {
-                    val gridState = rememberLazyGridState()
-                    // Trigger a next-page fetch once the user scrolls to within ~6 items of the
-                    // end. `derivedStateOf` collapses re-emissions from `firstVisibleItem*` down
-                    // to a single boolean so the LaunchedEffect below only re-fires on the actual
-                    // threshold crossing. `distinctUntilChanged` further protects against Compose
-                    // recomposing the same true value repeatedly.
-                    val shouldLoadMore by remember {
-                        derivedStateOf {
-                            val info = gridState.layoutInfo
-                            val total = info.totalItemsCount
-                            if (total == 0) return@derivedStateOf false
-                            val lastVisible = info.visibleItemsInfo.lastOrNull()?.index ?: 0
-                            lastVisible >= total - PAGINATION_PREFETCH_THRESHOLD
-                        }
-                    }
-                    LaunchedEffect(gridState, hasMore) {
-                        snapshotFlow { shouldLoadMore }.distinctUntilChanged().collect { should ->
-                            if (should && hasMore) viewModel.loadMore()
-                        }
-                    }
-                    LazyVerticalGrid(
-                        state = gridState,
-                        columns = GridCells.Fixed(if (isAudioRoot) 2 else 3),
-                        contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp),
-                        verticalArrangement = Arrangement.spacedBy(14.dp),
-                        modifier = Modifier.fillMaxSize(),
-                    ) {
-                        items(items, key = { it.id }) { item ->
-                            CatalogItemCard(
-                                item = item,
-                                isAudio = isAudioRoot,
-                                onClick = { viewModel.openDetail(item) },
-                            )
-                        }
-                        // Footer spinner while the next page is fetching. Spans all columns so the
-                        // grid layout doesn't leave one item's worth of empty space beside it.
-                        if (isPaging) {
-                            item(span = { GridItemSpan(maxLineSpan) }) {
-                                Box(
-                                    modifier = Modifier.fillMaxWidth().padding(16.dp),
-                                    contentAlignment = Alignment.Center,
-                                ) {
-                                    CircularProgressIndicator()
-                                }
-                            }
-                        }
+                    UnboundedCatalogGrid(
+                        items = items,
+                        isPaging = isPaging,
+                        hasMore = hasMore,
+                        onLoadMore = viewModel::loadMore,
+                        onCoverScaleChange = onCoverScaleChange,
+                        itemKey = { it.id },
+                        coverCellSizeMultiplier = if (isAudioRoot) 4f / 3f else 1f,
+                    ) { item ->
+                        CatalogItemCard(
+                            item = item,
+                            isAudio = isAudioRoot,
+                            onClick = { viewModel.openDetail(item) },
+                        )
                     }
                 }
             }
@@ -336,6 +308,7 @@ private fun LibraryTabContent(
 @Composable
 private fun ChitankaHomeTab(
     onOpenDetail: (itemId: String) -> Unit,
+    onCoverScaleChange: (Float) -> Unit,
     viewModel: ChitankaLibraryViewModel = hiltViewModel(),
 ) {
     val inProgress by viewModel.inProgress.collectAsState()
@@ -355,12 +328,14 @@ private fun ChitankaHomeTab(
         token = "",
         onItemSelected = { item -> onOpenDetail(item.id) },
         onSectionSeeMore = {},
+        onCoverScaleChange = onCoverScaleChange,
     )
 }
 
 @Composable
 private fun ChitankaToReadTab(
     onOpenDetail: (itemId: String) -> Unit,
+    onCoverScaleChange: (Float) -> Unit,
     viewModel: ChitankaLibraryViewModel = hiltViewModel(),
 ) {
     val items by viewModel.toReadItems.collectAsState()
@@ -369,6 +344,7 @@ private fun ChitankaToReadTab(
         isLoading = false,
         token = "",
         onItemSelected = { item -> onOpenDetail(item.id) },
+        onCoverScaleChange = onCoverScaleChange,
     )
 }
 
