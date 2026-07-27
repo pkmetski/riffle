@@ -1,6 +1,7 @@
 package com.riffle.app.feature.reader.highlights
 
 import com.riffle.core.database.AnnotationEntity
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -86,6 +87,47 @@ class HighlightsPdfExporterTest {
             bookBodyFontFamily = null,
         )
         assertTrue("publisher font-face present", html.contains("TestFont"))
+    }
+
+    // ─── buildPdfFileName ─────────────────────────────────────────────────────
+
+    @Test
+    fun pdfFileName_usesBookTitleWithAnnotationsSuffix() {
+        assertEquals(
+            "My Book Annotations.pdf",
+            buildPdfFileName("My Book", "item-guid"),
+        )
+    }
+
+    @Test
+    fun pdfFileName_replacesIllegalCharacters() {
+        assertEquals(
+            "A _ B _ C Annotations.pdf",
+            buildPdfFileName("A / B : C", "item-guid"),
+        )
+    }
+
+    @Test
+    fun pdfFileName_fallsBackToItemIdWhenTitleNull() {
+        assertEquals(
+            "item-guid Annotations.pdf",
+            buildPdfFileName(null, "item-guid"),
+        )
+    }
+
+    @Test
+    fun pdfFileName_fallsBackToItemIdWhenTitleBlank() {
+        assertEquals(
+            "item-guid Annotations.pdf",
+            buildPdfFileName("   ", "item-guid"),
+        )
+    }
+
+    @Test
+    fun pdfFileName_capsBaseNameAt180Characters() {
+        val longTitle = "A".repeat(200)
+        val result = buildPdfFileName(longTitle, "fallback")
+        assertEquals("${"A".repeat(180)} Annotations.pdf", result)
     }
 
     @Test

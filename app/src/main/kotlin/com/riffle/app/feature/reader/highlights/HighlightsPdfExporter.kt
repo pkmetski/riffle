@@ -43,13 +43,7 @@ class HighlightsPdfExporter @Inject constructor(
     ): ExportResult {
         val html = buildCombinedHtml(factory, chapters, bookTitle, figureBytesByHref, publisherFontFaceCss, bookBodyFontFamily)
         val exportsDir = File(context.cacheDir, "exports").also { it.mkdirs() }
-        val safeName = bookTitle
-            ?.replace(Regex("[\\\\/:*?\"<>|]"), "_")
-            ?.trim()
-            ?.take(180)
-            ?.ifBlank { null }
-            ?: itemId.take(64)
-        val fileName = "$safeName Annotations.pdf"
+        val fileName = buildPdfFileName(bookTitle, itemId)
         val pdfFile = File(exportsDir, fileName)
         renderToPdf(html, bookTitle, pdfFile)
         val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", pdfFile)
@@ -150,6 +144,24 @@ class HighlightsPdfExporter @Inject constructor(
             }
         }
     }
+}
+
+// ─── Filename helpers ─────────────────────────────────────────────────────────
+
+/**
+ * Derives a filesystem-safe PDF filename from [bookTitle], falling back to [itemId] when the
+ * title is null or blank. Characters illegal on FAT/NTFS/ext4 (`\ / : * ? " < > |`) are replaced
+ * with underscores; the base name is capped at 180 characters so the full filename stays well
+ * below the 255-byte ext4 limit.
+ */
+internal fun buildPdfFileName(bookTitle: String?, itemId: String): String {
+    val safeName = bookTitle
+        ?.replace(Regex("[\\\\/:*?\"<>|]"), "_")
+        ?.trim()
+        ?.take(180)
+        ?.ifBlank { null }
+        ?: itemId.take(64)
+    return "$safeName Annotations.pdf"
 }
 
 // ─── PDF base styles ─────────────────────────────────────────────────────────
