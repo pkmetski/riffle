@@ -2099,13 +2099,21 @@ class EpubReaderViewModel @Inject constructor(
         keepSheetOpen: Boolean = true,
     ) {
         val draft = annotationSession.draftAnnotation.value ?: return
-        // Cleanup of a fully-empty annotation (no colour + no emphasis + no note) is deferred
-        // to [AnnotationSession.dismissHighlightActions]' tombstone-on-empty check, which uses
-        // the ACTUAL post-commit persisted state. An eager guard here that peeks at
-        // `lastUsedEmphasisStyles.value` (a StateFlow cache) races the observer that populates
-        // it — on a cold cache immediately after bind, the preset reads empty even when the
-        // store has real styles, and tapping ∅ would then discard a draft whose real preset
-        // would have layered emphasis onto the highlight ("annotation is discarded").
+        // Compute combinedStyles early so we can guard against a phantom empty row (∅ colour +
+        // no emphasis + no note) before doing any DB work. A cold-cache StateFlow reading {} is
+        // safe here: if the DataStore truly has e.g. {BOLD}, combinedStyles becomes {BOLD} and
+        // the guard does not fire; if the cache is stale-empty AND the store is also empty, the
+        // result is the same as the dismiss path's shouldAutoCommitDraftOnDismiss(true, {}) = false
+        // (discard) — consistent behaviour in both places.
+        val presetStyles = annotationSession.lastUsedEmphasisStyles.value
+        val combinedStyles = combineDraftEmphasisStyles(presetStyles, addEmphasisStyle)
+        if (shouldDiscardPhantomDraftCommit(initialColor, combinedStyles)) {
+            // Persist the ∅ preference so a subsequent dismiss-auto-commit evaluates
+            // shouldAutoCommitDraftOnDismiss(true, …) = false and does not try to auto-commit
+            // with whatever the previous colour was. Draft stays alive for the caller to handle.
+            annotationSession.persistLastUsedColorToken("")
+            return
+        }
         // Deferred overlap MERGE — a new selection that partially or fully overlaps existing
         // highlights in the same chapter is unioned with them into ONE highlight covering
         // `[min(starts), max(ends))`. Pre-fix behaviour (before 2026-07-19) required snippet
@@ -2204,8 +2212,6 @@ class EpubReaderViewModel @Inject constructor(
             // would misalign formatting against the wider text.
             textSnippetHtml = if (overlapMerge == null && adjacentMerge == null) draft.textSnippetHtml else null,
         )
-        val presetStyles = annotationSession.lastUsedEmphasisStyles.value
-        val combinedStyles = combineDraftEmphasisStyles(presetStyles, addEmphasisStyle)
         if (combinedStyles.isNotEmpty()) {
             annotationStore.createEmphasis(
                 sourceId = draft.sourceId,
