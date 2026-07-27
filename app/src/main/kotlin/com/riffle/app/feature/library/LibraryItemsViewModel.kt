@@ -33,7 +33,6 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -70,14 +69,9 @@ class LibraryItemsViewModel @Inject constructor(
     private val annotationStore: AnnotationStore,
     private val audiobookBookmarkStore: AudiobookBookmarkStore,
     private val annotationsLibraryRepository: AnnotationsLibraryRepository,
-    private val saveLocalFileMetadataOverride: com.riffle.core.data.localfiles.SaveLocalFileMetadataOverrideUseCase,
-    private val resetLocalFileTitleToFilename: com.riffle.core.data.localfiles.ResetLocalFileTitleToFilenameUseCase,
 ) : ViewModel() {
 
     val libraryId: String = savedStateHandle.get<String>("libraryId") ?: ""
-
-    /** True when this library is hosted by a LocalFiles Source (libraryId uses the local:folder: prefix). */
-    val isLocalFilesSource: Boolean = libraryId.startsWith("local:folder:")
 
     /** User's persisted pinch-to-zoom multiplier for the cover grids (1.0 = defaults). */
     val coverGridScale: StateFlow<Float> = coverGridDensityStore.scale
@@ -94,42 +88,6 @@ class LibraryItemsViewModel @Inject constructor(
         coverScalePersistJob = viewModelScope.launch {
             delay(200)
             coverGridDensityStore.setScale(value)
-        }
-    }
-
-    // Local overrides applied on top of Room-observed items so the UI reacts immediately after
-    // the user edits or resets metadata (the override table is separate from library_items, so
-    // Room won't fire a new emission on its own).
-    private val _localPatches = MutableStateFlow<Map<String, LibraryItem>>(emptyMap())
-
-    private fun Flow<List<LibraryItem>>.applyLocalPatches(): Flow<List<LibraryItem>> =
-        if (!isLocalFilesSource) this
-        else combine(this, _localPatches) { items, patches ->
-            if (patches.isEmpty()) items else items.map { patches[it.id] ?: it }
-        }
-
-    fun saveMetadataOverride(
-        item: com.riffle.core.models.LibraryItem,
-        title: String,
-        author: String,
-        seriesName: String,
-        seriesIndex: Double?,
-    ) {
-        viewModelScope.launch {
-            saveLocalFileMetadataOverride(item.sourceId, item.id, title, author, seriesName, seriesIndex)
-            val patched = item.copy(
-                title = title.ifBlank { item.title },
-                author = author.ifBlank { item.author },
-                seriesName = seriesName.ifBlank { null },
-            )
-            _localPatches.update { it + (item.id to patched) }
-        }
-    }
-
-    fun resetTitleToFilename(item: com.riffle.core.models.LibraryItem) {
-        viewModelScope.launch {
-            val newTitle = resetLocalFileTitleToFilename(item.sourceId, item.id) ?: return@launch
-            _localPatches.update { it + (item.id to item.copy(title = newTitle)) }
         }
     }
 
@@ -163,27 +121,21 @@ class LibraryItemsViewModel @Inject constructor(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
 
     val ungroupedItems: StateFlow<List<LibraryItem>> = libraryObserver.observeUngroupedLibraryItems(libraryId)
-        .applyLocalPatches()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     private val inProgress: StateFlow<List<LibraryItem>> = libraryObserver.observeInProgressItems(libraryId)
-        .applyLocalPatches()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     private val finished: StateFlow<List<LibraryItem>> = libraryObserver.observeFinishedItems(libraryId)
-        .applyLocalPatches()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     private val recentlyAdded: StateFlow<List<LibraryItem>> = libraryObserver.observeRecentlyAddedItems(libraryId)
-        .applyLocalPatches()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     private val continueSeriesBase: StateFlow<List<LibraryItem>> = libraryObserver.observeContinueSeriesItems(libraryId)
-        .applyLocalPatches()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     private val allBooks: StateFlow<List<LibraryItem>> = libraryObserver.observeAllBooks(libraryId)
-        .applyLocalPatches()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     val toReadItemIds: StateFlow<Set<String>> = toReadRepository.observeToReadItemIds(libraryId)
@@ -198,7 +150,6 @@ class LibraryItemsViewModel @Inject constructor(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptySet())
 
     private val allItems: StateFlow<List<LibraryItem>> = libraryObserver.observeLibraryItems(libraryId)
-        .applyLocalPatches()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     // An audiobooks-only library: every item is a listen-only Audiobook. Drives square covers across
