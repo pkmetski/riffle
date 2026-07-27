@@ -3,6 +3,9 @@ package com.riffle.app.feature.settings
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.riffle.app.BuildConfig
+import com.riffle.app.feature.annotationsync.AnnotationSyncKind
+import com.riffle.app.feature.annotationsync.WebdavUiCopy
+import com.riffle.app.feature.annotationsync.deriveAnnotationSyncKind
 import com.riffle.core.domain.AppTheme
 import com.riffle.core.domain.AppThemeStore
 import com.riffle.core.domain.AppUpdatePreferencesStore
@@ -25,8 +28,6 @@ import com.riffle.core.domain.ReadaloudPreferencesStore
 import com.riffle.core.domain.ReadaloudReviewRepository
 import com.riffle.core.models.Source
 import com.riffle.core.models.ServerType
-import com.riffle.app.feature.annotationsync.AnnotationSyncKind
-import com.riffle.app.feature.annotationsync.deriveAnnotationSyncKind
 import com.riffle.core.sync.AnnotationSyncStatusStore
 import com.riffle.core.sync.CycleOutcome
 import com.riffle.core.data.localfiles.LocalFilesFolderHealthChecker
@@ -129,7 +130,7 @@ class SettingsViewModel @Inject constructor(
         // behavior. The kind is still Pending either way, so the badge stays in sync with the
         // banner via [deriveAnnotationSyncKind].
         val sub = when {
-            config == null -> "Not configured · tap to set up a WebDAV server"
+            config == null -> WebdavUiCopy.NOT_CONFIGURED_STATUS
             outcome is CycleOutcome.NeverRun -> "Waiting for first sync…"
             outcome is CycleOutcome.Failed.Auth -> "Authentication failed · tap to re-enter credentials"
             outcome is CycleOutcome.Failed.Tls -> "TLS error · tap to check server URL"
