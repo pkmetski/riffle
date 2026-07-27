@@ -799,6 +799,7 @@ fun MainScreen(
             ) {
                 val viewModel: com.riffle.app.feature.reader.EpubReaderViewModel = hiltViewModel()
                 val context = LocalContext.current
+                val exportErrorMessage = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.export_pdf_error)
                 // Highlights mode's "Open in book" (Task 9, ADR 0041): leaves the elided reader and
                 // opens the full-book reader at the tapped highlight's CFI. Handled at the nav-host
                 // level (not inside EpubReaderScreen) since it pops this route off the back stack.
@@ -826,7 +827,7 @@ fun MainScreen(
                             com.riffle.app.feature.reader.ReaderNavEvent.ExportError -> {
                                 Toast.makeText(
                                     context,
-                                    context.getString(com.riffle.app.R.string.export_pdf_error),
+                                    exportErrorMessage,
                                     Toast.LENGTH_LONG,
                                 ).show()
                             }
