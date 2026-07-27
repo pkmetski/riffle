@@ -341,6 +341,11 @@ class LocalFilesScannerTest {
             rows[sourceId to sourceItemId]
         override suspend fun forSource(sourceId: String): List<LocalFilesFileEntity> =
             rows.values.filter { it.sourceId == sourceId }
+        override suspend fun getForItems(
+            sourceId: String,
+            sourceItemIds: List<String>,
+        ): List<LocalFilesFileEntity> =
+            rows.values.filter { it.sourceId == sourceId && it.sourceItemId in sourceItemIds }
         override suspend fun touchLastSeen(sourceId: String, sourceItemId: String, seenAt: Long) {
             val row = rows[sourceId to sourceItemId] ?: return
             rows[sourceId to sourceItemId] = row.copy(lastSeenAtEpochMs = seenAt)

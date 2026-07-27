@@ -1010,16 +1010,24 @@ class LibraryItemDetailViewModelTest {
     // saveMetadataOverride / originalItem
     // -------------------------------------------------------------------------
 
-    private object LocalFilesCatalogStub : com.riffle.core.catalog.Catalog by NoopCatalog {
+    private class LocalFilesCatalogStub(
+        private val originalCoverUrl: String?,
+    ) : com.riffle.core.catalog.Catalog by NoopCatalog,
+        com.riffle.core.catalog.OriginalCoverCapability {
         override val sourceType: com.riffle.core.models.SourceType = com.riffle.core.models.SourceType.LOCAL_FILES
+        override suspend fun originalCoverUrl(itemId: String): String? = originalCoverUrl
     }
 
-    private fun localFilesCatalogRegistry() = fakeCatalogRegistry(LocalFilesCatalogStub)
+    private fun localFilesCatalogRegistry(originalCoverUrl: String? = null) =
+        fakeCatalogRegistry(LocalFilesCatalogStub(originalCoverUrl))
 
     @Test
     fun `originalItem equals scanner item when catalog sourceType is LOCAL_FILES`() = runTest {
         val item = knownItem.copy(coverUrl = "file:///scan-cover.jpg")
-        val vm = makeVm(fakeRepo(item), catalogRegistryOverride = localFilesCatalogRegistry())
+        val vm = makeVm(
+            fakeRepo(item),
+            catalogRegistryOverride = localFilesCatalogRegistry(item.coverUrl),
+        )
         backgroundScope.launch { vm.uiState.collect {} }
         testDispatcher.scheduler.advanceUntilIdle()
 
@@ -1046,7 +1054,7 @@ class LibraryItemDetailViewModelTest {
         val recordingDao = RecordingOverrideDao()
         val vm = makeVm(
             fakeRepo(item),
-            catalogRegistryOverride = localFilesCatalogRegistry(),
+            catalogRegistryOverride = localFilesCatalogRegistry(scannerCoverUrl),
             saveOverride = com.riffle.core.data.localfiles.SaveLocalFileMetadataOverrideUseCase(recordingDao),
         )
         backgroundScope.launch { vm.uiState.collect {} }
@@ -1059,6 +1067,35 @@ class LibraryItemDetailViewModelTest {
         // UI shows the scanner cover after the user restores from metadata.
         assertEquals(scannerCoverUrl, ready.item.coverUrl)
         // The override row stores null so the catalog falls back to the embedded cover.
+        assertEquals(null, recordingDao.lastUpsertedCoverUrl)
+    }
+
+    @Test
+    fun `restore uses scanner cover when loaded item already contains a cover override`() = runTest {
+        val scannerCoverUrl = "file:///scanner-covers/item-1.jpg"
+        val overrideCoverUrl = "file:///local_covers/item-1.jpg"
+        val item = knownItem.copy(coverUrl = overrideCoverUrl)
+        val recordingDao = RecordingOverrideDao()
+        val vm = makeVm(
+            fakeRepo(item),
+            catalogRegistryOverride = localFilesCatalogRegistry(scannerCoverUrl),
+            saveOverride = com.riffle.core.data.localfiles.SaveLocalFileMetadataOverrideUseCase(recordingDao),
+        )
+        backgroundScope.launch { vm.uiState.collect {} }
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        vm.saveMetadataOverride(
+            "Title",
+            "Author",
+            "",
+            null,
+            coverContentUri = null,
+            clearCoverOverride = true,
+        )
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        val ready = vm.uiState.value as Ready
+        assertEquals(scannerCoverUrl, ready.item.coverUrl)
         assertEquals(null, recordingDao.lastUpsertedCoverUrl)
     }
 

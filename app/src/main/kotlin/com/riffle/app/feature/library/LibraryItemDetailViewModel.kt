@@ -30,6 +30,7 @@ import com.riffle.core.data.localfiles.CopyCoverImageUseCase
 import com.riffle.core.data.localfiles.SaveLocalFileMetadataOverrideUseCase
 import com.riffle.core.models.SourceType
 import com.riffle.core.catalog.DownloadsCapability
+import com.riffle.core.catalog.OriginalCoverCapability
 import com.riffle.core.catalog.PlaylistsCapability
 import com.riffle.core.catalog.ReadaloudCapability
 import com.riffle.core.catalog.SeriesCapability
@@ -346,6 +347,13 @@ class LibraryItemDetailViewModel @Inject constructor(
                         hasAddToPlaylist = catalog is PlaylistsCapability && item.isListenable && !item.isReadable,
                         canEditMetadata = catalog?.sourceType == SourceType.LOCAL_FILES,
                     )
+                    val originalItem = if (capabilities.canEditMetadata) {
+                        val originalCoverUrl = (catalog as? OriginalCoverCapability)
+                            ?.originalCoverUrl(item.id)
+                        item.copy(coverUrl = originalCoverUrl)
+                    } else {
+                        null
+                    }
                     LibraryItemDetailUiState.Ready(
                         item = item,
                         seriesId = seriesId,
@@ -353,7 +361,7 @@ class LibraryItemDetailViewModel @Inject constructor(
                         isCachedOrDownloaded = isCachedOrDownloaded,
                         isOffline = !connectivityObserver.isOnline.value,
                         capabilities = capabilities,
-                        originalItem = if (capabilities.canEditMetadata) item else null,
+                        originalItem = originalItem,
                     )
                 } else {
                     LibraryItemDetailUiState.Error

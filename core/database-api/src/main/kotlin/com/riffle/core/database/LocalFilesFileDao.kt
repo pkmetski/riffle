@@ -18,6 +18,15 @@ interface LocalFilesFileDao {
     suspend fun forSource(sourceId: String): List<LocalFilesFileEntity>
 
     @Query(
+        "SELECT * FROM local_files_files " +
+            "WHERE sourceId = :sourceId AND sourceItemId IN (:sourceItemIds)",
+    )
+    suspend fun getForItems(
+        sourceId: String,
+        sourceItemIds: List<String>,
+    ): List<LocalFilesFileEntity>
+
+    @Query(
         "UPDATE local_files_files SET lastSeenAtEpochMs = :seenAt " +
             "WHERE sourceId = :sourceId AND sourceItemId = :sourceItemId",
     )
