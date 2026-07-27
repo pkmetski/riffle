@@ -1919,7 +1919,7 @@ class MigrationTest {
         }
 
         val db = helper.runMigrationsAndValidate(
-            TEST_DB, 59, true,
+            TEST_DB, 60, true,
             RiffleDatabase.MIGRATION_1_2,
             RiffleDatabase.MIGRATION_2_3,
             RiffleDatabase.MIGRATION_3_4,
@@ -1978,6 +1978,8 @@ class MigrationTest {
             RiffleDatabase.MIGRATION_56_57,
             RiffleDatabase.MIGRATION_57_58,
             RiffleDatabase.MIGRATION_58_59,
+            RiffleDatabase.MIGRATION_59_60,
+            RiffleDatabase.MIGRATION_60_61,
         )
 
         db.query("SELECT url, username, serverType, absUserId, type FROM sources WHERE id = 's1'").use { cursor ->
@@ -2764,6 +2766,92 @@ class MigrationTest {
         db.query("SELECT textSnippetHtml FROM annotations WHERE id = 'a-formatted'").use { c ->
             assertTrue(c.moveToFirst())
             assertEquals("<em>italic bit</em> here", c.getString(0))
+        }
+
+        db.close()
+    }
+
+    @Test
+    fun migration59To60_addsDisplayNameAndOverridesTable() {
+        helper.createDatabase(TEST_DB, 59).apply {
+            execSQL(
+                "INSERT INTO sources (id, url, isActive, insecureConnectionAllowed, username, serverType, absUserId, type) " +
+                    "VALUES ('lf1', 'content://com.android.externalstorage.documents/tree/primary', 1, 0, '', 'LOCAL_FILES', NULL, 'LOCAL_FILES')"
+            )
+            execSQL(
+                "INSERT INTO local_files_files (sourceId, sourceItemId, originalUri, copiedPath, coverPath, format, sizeBytes, mtimeEpochMs, lastSeenAtEpochMs) " +
+                    "VALUES ('lf1', 'item1', 'content://authority/document/primary:Books/test.epub', '', NULL, 'EPUB', 12345, 1000, 2000)"
+            )
+            close()
+        }
+
+        val db = helper.runMigrationsAndValidate(TEST_DB, 60, true, RiffleDatabase.MIGRATION_59_60)
+
+        // Pre-existing file row has displayName defaulted to empty string
+        db.query("SELECT sourceItemId, displayName FROM local_files_files WHERE sourceId = 'lf1'").use { c ->
+            assertEquals(1, c.count)
+            assertTrue(c.moveToFirst())
+            assertEquals("item1", c.getString(0))
+            assertEquals("", c.getString(1))
+        }
+
+        // Overrides table exists and can accept a new row
+        db.execSQL(
+            "INSERT INTO local_file_metadata_overrides (sourceId, sourceItemId, title, author, seriesName, seriesIndex) " +
+                "VALUES ('lf1', 'item1', 'My Custom Title', 'Author Name', NULL, NULL)"
+        )
+        db.query("SELECT title, author, seriesName, seriesIndex FROM local_file_metadata_overrides WHERE sourceId = 'lf1'").use { c ->
+            assertEquals(1, c.count)
+            assertTrue(c.moveToFirst())
+            assertEquals("My Custom Title", c.getString(0))
+            assertEquals("Author Name", c.getString(1))
+            assertTrue("seriesName defaults to NULL", c.isNull(2))
+            assertTrue("seriesIndex defaults to NULL", c.isNull(3))
+        }
+
+        db.close()
+    }
+
+    @Test
+    fun migration60To61_addsCoverUrlToLocalFileMetadataOverrides() {
+        helper.createDatabase(TEST_DB, 60).apply {
+            execSQL(
+                "INSERT INTO sources (id, url, isActive, insecureConnectionAllowed, username, serverType, absUserId, type) " +
+                    "VALUES ('lf1', 'content://com.android.externalstorage.documents/tree/primary', 1, 0, '', 'LOCAL_FILES', NULL, 'LOCAL_FILES')"
+            )
+            // Pre-existing override row without coverUrl
+            execSQL(
+                "INSERT INTO local_file_metadata_overrides (sourceId, sourceItemId, title, author, seriesName, seriesIndex) " +
+                    "VALUES ('lf1', 'item1', 'Custom Title', 'Custom Author', NULL, NULL)"
+            )
+            close()
+        }
+
+        val db = helper.runMigrationsAndValidate(TEST_DB, 61, true, RiffleDatabase.MIGRATION_60_61)
+
+        // Pre-existing override row has coverUrl defaulted to NULL
+        db.query(
+            "SELECT sourceItemId, title, author, coverUrl FROM local_file_metadata_overrides WHERE sourceId = 'lf1'"
+        ).use { c ->
+            assertEquals(1, c.count)
+            assertTrue(c.moveToFirst())
+            assertEquals("item1", c.getString(0))
+            assertEquals("Custom Title", c.getString(1))
+            assertEquals("Custom Author", c.getString(2))
+            assertTrue("pre-existing row has coverUrl = NULL after migration", c.isNull(3))
+        }
+
+        // New row can store a coverUrl
+        db.execSQL(
+            "INSERT INTO local_file_metadata_overrides (sourceId, sourceItemId, title, author, seriesName, seriesIndex, coverUrl) " +
+                "VALUES ('lf1', 'item2', NULL, NULL, NULL, NULL, 'file:///data/data/com.riffle.app/files/local_covers/lf1_item2.jpg')"
+        )
+        db.query("SELECT coverUrl FROM local_file_metadata_overrides WHERE sourceItemId = 'item2'").use { c ->
+            assertTrue(c.moveToFirst())
+            assertEquals(
+                "file:///data/data/com.riffle.app/files/local_covers/lf1_item2.jpg",
+                c.getString(0),
+            )
         }
 
         db.close()

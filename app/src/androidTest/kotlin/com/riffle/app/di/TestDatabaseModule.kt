@@ -13,6 +13,7 @@ import com.riffle.core.database.CollectionDao
 import com.riffle.core.database.CrossEpubIndexDao
 import com.riffle.core.database.LibraryDao
 import com.riffle.core.database.LibraryItemDao
+import com.riffle.core.database.LocalFileMetadataOverrideDao
 import com.riffle.core.database.LocalFilesFileDao
 import com.riffle.core.database.LocalFilesFileFolderDao
 import com.riffle.core.database.LocalFilesFolderDao
@@ -72,6 +73,11 @@ object TestDatabaseModule {
     @Provides
     @Singleton
     fun provideLocalFilesFolderDao(db: RiffleDatabase): LocalFilesFolderDao = db.localFilesFolderDao()
+
+    @Provides
+    @Singleton
+    fun provideLocalFileMetadataOverrideDao(db: RiffleDatabase): LocalFileMetadataOverrideDao =
+        db.localFileMetadataOverrideDao()
 
     @Provides
     @Singleton

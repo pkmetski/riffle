@@ -26,6 +26,9 @@ import com.riffle.core.data.ReservedPlaylistNameException
 import com.riffle.core.data.ToReadRepository
 import com.riffle.core.catalog.AudiobookMediaCapability
 import com.riffle.core.catalog.CatalogRegistry
+import com.riffle.core.data.localfiles.CopyCoverImageUseCase
+import com.riffle.core.data.localfiles.SaveLocalFileMetadataOverrideUseCase
+import com.riffle.core.models.SourceType
 import com.riffle.core.catalog.DownloadsCapability
 import com.riffle.core.catalog.PlaylistsCapability
 import com.riffle.core.catalog.ReadaloudCapability
@@ -70,6 +73,9 @@ sealed interface LibraryItemDetailUiState {
         // (e.g. an audiobook file dropped into a LocalFiles Source: `isListenable` is true, but
         // `hasAudiobookMedia` is false, so no Listen button appears — LocalFiles has no player yet).
         val capabilities: DetailCapabilities = DetailCapabilities.Empty,
+        // Scanner-extracted values before any user overrides — non-null only for LocalFiles items.
+        // Used by EditLocalFileMetadataDialog to let the user restore original embedded metadata.
+        val originalItem: LibraryItem? = null,
     ) : LibraryItemDetailUiState
     data object Error : LibraryItemDetailUiState
 }
@@ -92,6 +98,9 @@ data class DetailCapabilities(
      * so the picker follows the same gate to stay consistent).
      */
     val hasAddToPlaylist: Boolean = false,
+    /** True when the item is from a LocalFiles Source — gates the "Edit metadata" and
+     *  "Reset title to filename" overflow actions. */
+    val canEditMetadata: Boolean = false,
 ) {
     companion object {
         /** Every capability present — matches the ABS shape used by the majority of items. */
@@ -102,6 +111,7 @@ data class DetailCapabilities(
             hasDownloads = true,
             hasReadaloud = true,
             hasAddToPlaylist = true,
+            canEditMetadata = false,
         )
 
         /** No capability present — safe default when the active Source's Catalog can't be resolved.
@@ -114,6 +124,7 @@ data class DetailCapabilities(
             hasDownloads = false,
             hasReadaloud = false,
             hasAddToPlaylist = false,
+            canEditMetadata = false,
         )
     }
 }
@@ -172,6 +183,8 @@ class LibraryItemDetailViewModel @Inject constructor(
     private val fetchAudiobookChaptersUseCase: FetchAudiobookChaptersUseCase,
     private val catalogRegistry: CatalogRegistry,
     private val libraryRefresher: LibraryRefresher,
+    private val saveLocalFileMetadataOverride: SaveLocalFileMetadataOverrideUseCase,
+    private val copyCoverImage: CopyCoverImageUseCase,
 ) : ViewModel() {
 
     private val itemId: String = savedStateHandle.get<String>("itemId") ?: ""
@@ -229,6 +242,44 @@ class LibraryItemDetailViewModel @Inject constructor(
         viewModelScope.launch {
             val sourceId = sourceRepository.getActive()?.id ?: return@launch
             libraryRefresher.refreshItemProgress(sourceId, itemId)
+        }
+    }
+
+    fun saveMetadataOverride(
+        title: String,
+        author: String,
+        seriesName: String,
+        seriesIndex: Double?,
+        coverContentUri: String? = null,
+        clearCoverOverride: Boolean = false,
+    ) {
+        val item = loadedItem ?: return
+        viewModelScope.launch {
+            val current = _uiState.value as? LibraryItemDetailUiState.Ready ?: return@launch
+            val (savedCoverUrl, displayCoverUrl) = when {
+                coverContentUri != null -> {
+                    val path = copyCoverImage(item.sourceId, item.id, coverContentUri)
+                    path to path
+                }
+                clearCoverOverride -> null to current.originalItem?.coverUrl
+                else -> current.item.coverUrl to current.item.coverUrl
+            }
+            saveLocalFileMetadataOverride(
+                item.sourceId, item.id, title, author, seriesName, seriesIndex,
+                coverUrl = savedCoverUrl,
+            )
+            val patched = current.item.copy(
+                title = title.ifBlank { current.item.title },
+                author = author.ifBlank { current.item.author },
+                seriesName = when {
+                    seriesName.isBlank() -> null
+                    seriesIndex != null -> "$seriesName #${if (seriesIndex == kotlin.math.floor(seriesIndex) && !seriesIndex.isInfinite()) seriesIndex.toLong().toString() else seriesIndex.toString()}"
+                    else -> seriesName
+                },
+                coverUrl = displayCoverUrl,
+            )
+            _uiState.value = current.copy(item = patched)
+            loadedItem = patched
         }
     }
 
@@ -293,6 +344,7 @@ class LibraryItemDetailViewModel @Inject constructor(
                         // "Add to playlist…" affordance. Mirrors the tab gate — ebook items on the
                         // same Source stay out of the Playlists surface.
                         hasAddToPlaylist = catalog is PlaylistsCapability && item.isListenable && !item.isReadable,
+                        canEditMetadata = catalog?.sourceType == SourceType.LOCAL_FILES,
                     )
                     LibraryItemDetailUiState.Ready(
                         item = item,
@@ -301,6 +353,7 @@ class LibraryItemDetailViewModel @Inject constructor(
                         isCachedOrDownloaded = isCachedOrDownloaded,
                         isOffline = !connectivityObserver.isOnline.value,
                         capabilities = capabilities,
+                        originalItem = if (capabilities.canEditMetadata) item else null,
                     )
                 } else {
                     LibraryItemDetailUiState.Error

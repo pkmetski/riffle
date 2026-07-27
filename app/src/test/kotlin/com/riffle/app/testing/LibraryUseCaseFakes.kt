@@ -1,6 +1,12 @@
 package com.riffle.app.testing
 
+import com.riffle.core.data.localfiles.CopyCoverImageUseCase
+import com.riffle.core.data.localfiles.SaveLocalFileMetadataOverrideUseCase
+import com.riffle.core.database.LocalFileMetadataOverrideDao
+import com.riffle.core.database.LocalFileMetadataOverrideEntity
 import com.riffle.core.domain.LibraryMutator
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
 import com.riffle.core.domain.LibraryRefreshResult
 import com.riffle.core.domain.LibraryRefresher
 import com.riffle.core.domain.ReadaloudLinkReconciler
@@ -96,6 +102,17 @@ class NoopRefreshCollections(
 ) : RefreshCollections(NoopLibraryRefresher) {
     var calls = 0
     override suspend fun invoke(libraryId: String): LibraryRefreshResult { calls++; return result }
+}
+
+fun noopSaveLocalFileMetadataOverride() = SaveLocalFileMetadataOverrideUseCase(NoopOverrideDao)
+fun noopCopyCoverImage() = io.mockk.mockk<CopyCoverImageUseCase>(relaxed = true)
+
+private object NoopOverrideDao : LocalFileMetadataOverrideDao {
+    override suspend fun upsert(entity: LocalFileMetadataOverrideEntity) {}
+    override fun observe(sourceId: String, sourceItemId: String): Flow<LocalFileMetadataOverrideEntity?> = MutableStateFlow(null)
+    override suspend fun getForItems(sourceId: String, sourceItemIds: List<String>) = emptyList<LocalFileMetadataOverrideEntity>()
+    override suspend fun getForItem(sourceId: String, sourceItemId: String): LocalFileMetadataOverrideEntity? = null
+    override suspend fun delete(sourceId: String, sourceItemId: String) {}
 }
 
 private object NoopReadaloudLinkRepository : com.riffle.core.domain.ReadaloudLinkRepository {

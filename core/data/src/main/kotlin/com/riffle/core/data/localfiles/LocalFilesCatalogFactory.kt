@@ -3,6 +3,7 @@ package com.riffle.core.data.localfiles
 import com.riffle.core.catalog.Catalog
 import com.riffle.core.catalog.CatalogFactory
 import com.riffle.core.database.LibraryItemDao
+import com.riffle.core.database.LocalFileMetadataOverrideDao
 import com.riffle.core.database.LocalFilesFileDao
 import com.riffle.core.database.LocalFilesFileFolderDao
 import com.riffle.core.database.LocalFilesFolderDao
@@ -20,6 +21,7 @@ class LocalFilesCatalogFactory @Inject constructor(
     private val fileDao: LocalFilesFileDao,
     private val fileFolderDao: LocalFilesFileFolderDao,
     private val itemDao: LibraryItemDao,
+    private val overrideDao: LocalFileMetadataOverrideDao,
 ) : CatalogFactory {
 
     override val sourceType: SourceType = SourceType.LOCAL_FILES
@@ -30,5 +32,6 @@ class LocalFilesCatalogFactory @Inject constructor(
         fileDao = fileDao,
         fileFolderDao = fileFolderDao,
         itemDao = itemDao,
+        overrideDao = overrideDao,
     )
 }

@@ -10,6 +10,7 @@ import com.riffle.core.database.BookFormattingPreferencesDao
 import com.riffle.core.database.CollectionDao
 import com.riffle.core.database.LibraryDao
 import com.riffle.core.database.LibraryItemDao
+import com.riffle.core.database.LocalFileMetadataOverrideDao
 import com.riffle.core.database.LocalFilesFileDao
 import com.riffle.core.database.LocalFilesFileFolderDao
 import com.riffle.core.database.LocalFilesFolderDao
@@ -99,6 +100,8 @@ object DatabaseModule {
                 RiffleDatabase.MIGRATION_56_57,
                 RiffleDatabase.MIGRATION_57_58,
                 RiffleDatabase.MIGRATION_58_59,
+                RiffleDatabase.MIGRATION_59_60,
+                RiffleDatabase.MIGRATION_60_61,
             )
             .build()
 
@@ -188,6 +191,11 @@ object DatabaseModule {
     @Singleton
     fun provideLocalFilesFileFolderDao(db: RiffleDatabase): LocalFilesFileFolderDao =
         db.localFilesFileFolderDao()
+
+    @Provides
+    @Singleton
+    fun provideLocalFileMetadataOverrideDao(db: RiffleDatabase): LocalFileMetadataOverrideDao =
+        db.localFileMetadataOverrideDao()
 
     @Provides
     @Singleton

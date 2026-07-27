@@ -423,7 +423,7 @@ class LibraryRepositoryImpl @Inject constructor(
         hasAudio = hasAudio,
         audioDurationSec = audioDurationSec,
         description = description,
-        seriesName = seriesName,
+        seriesName = if (seriesName != null && !seriesSequence.isNullOrBlank()) "$seriesName #$seriesSequence" else seriesName,
         publishedYear = publishedYear,
         genres = genres.split(",").filter { it.isNotEmpty() },
         publisher = publisher,

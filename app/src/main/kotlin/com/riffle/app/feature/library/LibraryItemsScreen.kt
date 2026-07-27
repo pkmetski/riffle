@@ -174,7 +174,6 @@ fun LibraryItemsScreen(
     val librarySortMode by viewModel.librarySortMode.collectAsState()
     val tabVisibility by viewModel.tabVisibility.collectAsState()
     val playlists by viewModel.playlists.collectAsState()
-
     val coversAreSquare by viewModel.coversAreSquare.collectAsState()
     // Versioned key: v2 = post-Annotations-tab-insertion. Without the version bump, a user
     // upgrading from a build where "Series" was index 2 would land on the new Annotations tab
@@ -689,8 +688,6 @@ fun BookCoverTile(
                     )
                 }
             }
-            // No medium glyph: the square cover already distinguishes an Audiobook from a 2:3 ebook
-            // (and a glyph would collide with the readaloud badge above).
         }
         Spacer(modifier = Modifier.height(4.dp))
         Text(
@@ -1596,7 +1593,12 @@ internal fun ToReadTabContent(
         }
         items(items, key = { it.id }) { item ->
             Box(modifier = Modifier.padding(4.dp)) {
-                BookCoverTile(item = item, token = token, onClick = { onItemSelected(item) }, hasReadaloudLink = item.id in linkedItemIds)
+                BookCoverTile(
+                    item = item,
+                    token = token,
+                    onClick = { onItemSelected(item) },
+                    hasReadaloudLink = item.id in linkedItemIds,
+                )
             }
         }
     }

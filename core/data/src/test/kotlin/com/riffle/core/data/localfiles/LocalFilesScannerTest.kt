@@ -345,6 +345,9 @@ class LocalFilesScannerTest {
             val row = rows[sourceId to sourceItemId] ?: return
             rows[sourceId to sourceItemId] = row.copy(lastSeenAtEpochMs = seenAt)
         }
+        override suspend fun updateDisplayName(sourceId: String, sourceItemId: String, displayName: String) {
+            rows[sourceId to sourceItemId]?.let { rows[sourceId to sourceItemId] = it.copy(displayName = displayName) }
+        }
         override suspend fun delete(sourceId: String, sourceItemId: String) {
             rows.remove(sourceId to sourceItemId)
         }

@@ -175,6 +175,8 @@ class LibraryItemDetailViewModelTocTest {
             override suspend fun forSourceId(sourceId: String): com.riffle.core.catalog.Catalog? = null
         },
         libraryRefresher = com.riffle.app.testing.NoopLibraryRefresher,
+        saveLocalFileMetadataOverride = com.riffle.app.testing.noopSaveLocalFileMetadataOverride(),
+        copyCoverImage = com.riffle.app.testing.noopCopyCoverImage(),
     )
 
     private val epubItem = LibraryItem(
