@@ -57,6 +57,9 @@ import com.riffle.app.ui.isTabletLayout
 import kotlinx.coroutines.launch
 import java.net.URLDecoder
 import java.net.URLEncoder
+import android.content.Intent
+import android.widget.Toast
+import androidx.compose.ui.platform.LocalContext
 
 private const val HOME = "home"
 private const val SOURCE_SETUP_GRAPH = "source_setup"
@@ -795,6 +798,8 @@ fun MainScreen(
                 )
             ) {
                 val viewModel: com.riffle.app.feature.reader.EpubReaderViewModel = hiltViewModel()
+                val context = LocalContext.current
+                val exportErrorMessage = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.export_pdf_error)
                 // Highlights mode's "Open in book" (Task 9, ADR 0041): leaves the elided reader and
                 // opens the full-book reader at the tapped highlight's CFI. Handled at the nav-host
                 // level (not inside EpubReaderScreen) since it pops this route off the back stack.
@@ -809,6 +814,22 @@ fun MainScreen(
                             }
                             com.riffle.app.feature.reader.ReaderNavEvent.CloseEmptyHighlights -> {
                                 navController.popBackStack()
+                            }
+                            is com.riffle.app.feature.reader.ReaderNavEvent.ShareHighlights -> {
+                                val intent = Intent(Intent.ACTION_SEND).apply {
+                                    type = "application/pdf"
+                                    putExtra(Intent.EXTRA_STREAM, event.uri)
+                                    putExtra(Intent.EXTRA_TITLE, event.fileName)
+                                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                }
+                                context.startActivity(Intent.createChooser(intent, null))
+                            }
+                            com.riffle.app.feature.reader.ReaderNavEvent.ExportError -> {
+                                Toast.makeText(
+                                    context,
+                                    exportErrorMessage,
+                                    Toast.LENGTH_LONG,
+                                ).show()
                             }
                         }
                     }

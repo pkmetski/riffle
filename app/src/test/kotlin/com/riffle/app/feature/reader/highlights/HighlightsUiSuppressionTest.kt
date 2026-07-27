@@ -33,4 +33,10 @@ class HighlightsUiSuppressionTest {
         assertTrue(shouldShowOpenInBook(ReaderSource.Highlights))
         assertFalse(shouldShowOpenInBook(ReaderSource.FullBook))
     }
+
+    @Test
+    fun shareHighlightsVisibleOnlyInHighlightsMode() {
+        assertTrue(shouldShowShareHighlights(ReaderSource.Highlights))
+        assertFalse(shouldShowShareHighlights(ReaderSource.FullBook))
+    }
 }

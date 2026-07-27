@@ -1,5 +1,7 @@
 package com.riffle.app.feature.reader
 
+import android.net.Uri
+
 /**
  * Navigation events emitted by [EpubReaderViewModel] that the nav host (MainScreen) must act on
  * outside the reader's own back stack — e.g. leaving the elided Highlights-mode reader to open the
@@ -15,4 +17,10 @@ sealed interface ReaderNavEvent {
      * book.
      */
     object CloseEmptyHighlights : ReaderNavEvent
+
+    /** The elided view PDF was generated successfully; the nav host fires [android.content.Intent.ACTION_SEND]. */
+    data class ShareHighlights(val uri: Uri, val fileName: String) : ReaderNavEvent
+
+    /** PDF generation failed; the nav host shows a toast. */
+    object ExportError : ReaderNavEvent
 }
