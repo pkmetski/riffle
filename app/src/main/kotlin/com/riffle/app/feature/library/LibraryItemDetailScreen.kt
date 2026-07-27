@@ -190,6 +190,13 @@ fun LibraryItemDetailScreen(
                                         viewModel.resetTitleToFilename()
                                     },
                                 )
+                                DropdownMenuItem(
+                                    text = { Text("Restore original title") },
+                                    onClick = {
+                                        showMetadataOverflowMenu = false
+                                        viewModel.revertTitleToEmbedded()
+                                    },
+                                )
                             }
                         }
                     }

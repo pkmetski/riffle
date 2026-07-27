@@ -28,6 +28,7 @@ import com.riffle.core.catalog.AudiobookMediaCapability
 import com.riffle.core.catalog.CatalogRegistry
 import com.riffle.core.data.localfiles.CopyCoverImageUseCase
 import com.riffle.core.data.localfiles.ResetLocalFileTitleToFilenameUseCase
+import com.riffle.core.data.localfiles.RevertTitleOverrideUseCase
 import com.riffle.core.data.localfiles.SaveLocalFileMetadataOverrideUseCase
 import com.riffle.core.models.SourceType
 import com.riffle.core.catalog.DownloadsCapability
@@ -183,6 +184,7 @@ class LibraryItemDetailViewModel @Inject constructor(
     private val libraryRefresher: LibraryRefresher,
     private val saveLocalFileMetadataOverride: SaveLocalFileMetadataOverrideUseCase,
     private val resetLocalFileTitleToFilename: ResetLocalFileTitleToFilenameUseCase,
+    private val revertTitleOverride: RevertTitleOverrideUseCase,
     private val copyCoverImage: CopyCoverImageUseCase,
 ) : ViewModel() {
 
@@ -289,6 +291,22 @@ class LibraryItemDetailViewModel @Inject constructor(
             _uiState.value = current.copy(item = patched)
             loadedItem = patched
             _snackbarEvents.emit("Title reset to filename")
+        }
+    }
+
+    fun revertTitleToEmbedded() {
+        val item = loadedItem ?: return
+        viewModelScope.launch {
+            revertTitleOverride(item.sourceId, item.id)
+            val current = _uiState.value as? LibraryItemDetailUiState.Ready ?: return@launch
+            val refreshed = libraryObserver.getItem(item.sourceId, item.id)
+            if (refreshed == null || refreshed.title == current.item.title) {
+                _snackbarEvents.emit("Title already matches embedded metadata")
+                return@launch
+            }
+            _uiState.value = current.copy(item = refreshed)
+            loadedItem = refreshed
+            _snackbarEvents.emit("Title restored from embedded metadata")
         }
     }
 
