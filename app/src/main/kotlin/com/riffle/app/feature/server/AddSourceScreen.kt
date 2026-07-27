@@ -49,6 +49,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.riffle.app.feature.annotationsync.WebdavUiCopy
 import com.riffle.app.ui.TabletContentWidthContainer
 import com.riffle.app.ui.source.SourceTypeIcon
 import com.riffle.core.domain.AddSourceCopy
@@ -87,7 +88,7 @@ fun AddSourceScreen(
         descriptor?.addSourceCopyFor(it.serverType)
     }
     val title = descriptorCopy?.let { if (isEditing) it.editTitle else it.addTitle }
-        ?: if (isEditing) "Edit WebDAV" else "Add WebDAV"
+        ?: if (isEditing) WebdavUiCopy.EDIT_TITLE else WebdavUiCopy.ADD_TITLE
     val urlLabel = descriptorCopy?.urlLabel ?: "WebDAV URL"
     val urlPlaceholder = descriptorCopy?.urlPlaceholder ?: "server.example.com/dav/annotations"
     val submitLabel = descriptorCopy
@@ -137,7 +138,7 @@ fun AddSourceScreen(
                 verticalArrangement = Arrangement.spacedBy(16.dp),
             ) {
                 val helpText = descriptorCopy?.helpText
-                    ?: "Sync highlights, notes, and bookmarks between your devices via a WebDAV server."
+                    ?: WebdavUiCopy.HELP_TEXT
                 if (helpText.isNotEmpty()) {
                     Text(
                         text = helpText,

@@ -6,27 +6,36 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import com.riffle.app.feature.annotationsync.WebdavUiCopy
 import com.riffle.app.feature.settings.AnnotationSyncBadge
 import com.riffle.app.feature.settings.AnnotationSyncRowState
 import com.riffle.app.feature.settings.DrillInChevron
 import com.riffle.app.feature.settings.SettingsSectionHeader
 
 /**
- * "Annotations Sync" section — collapsed to a single drill-in row that leads to the dedicated
- * WebDAV settings screen. Row preserves the four-state badge (Local/Synced/Pending/Error) and the
- * tone-colored subtitle (error/pending/normal) from the pre-collapse layout so status stays
- * legible at the main-screen altitude.
+ * WebDAV annotation-sync section — collapsed to a single drill-in row that leads to the dedicated
+ * settings screen. The title identifies Komga as the current consumer without binding the generic
+ * transport to it permanently. The row preserves the four-state badge
+ * (Local/Synced/Pending/Error) and tone-colored status subtitle.
  */
 @Composable
 internal fun AnnotationsSyncSection(
     row: AnnotationSyncRowState,
     onOpen: () -> Unit,
 ) {
-    SettingsSectionHeader("Annotations Sync")
+    SettingsSectionHeader(WebdavUiCopy.SECTION_TITLE)
     ListItem(
         modifier = Modifier.clickable(onClick = onOpen),
         leadingContent = { AnnotationSyncBadge(row.badge) },
-        headlineContent = { Text(if (row.badge == AnnotationSyncRowState.Badge.Local) "Configure WebDAV" else row.headline) },
+        headlineContent = {
+            Text(
+                if (row.badge == AnnotationSyncRowState.Badge.Local) {
+                    WebdavUiCopy.CONFIGURE_TITLE
+                } else {
+                    row.headline
+                },
+            )
+        },
         supportingContent = {
             Text(
                 text = row.sub,

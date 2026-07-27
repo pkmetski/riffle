@@ -25,6 +25,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.riffle.app.feature.annotationsync.WebdavUiCopy
 import com.riffle.app.feature.server.AddSourceBackend
 import com.riffle.app.feature.settings.AnnotationSyncBadge
 import com.riffle.app.feature.settings.AnnotationSyncRowState
@@ -35,7 +36,7 @@ import com.riffle.app.feature.settings.disabledListItemColors
 
 /**
  * Full-screen drill-in that hosts every WebDAV annotation-sync setting. Reached from the collapsed
- * "Annotations Sync" row on the main Settings screen. Groups:
+ * WebDAV row on the main Settings screen, whose copy names Komga as the current consumer. Groups:
  *  - **Server** — the Configure WebDAV row, tinted by [AnnotationSyncRowState] so status stays
  *    visible when the user opens the screen to check "is anything wrong?".
  *  - **Devices** — Maintenance row leading to [AnnotationSyncMaintenanceScreen] for rename /
@@ -57,7 +58,7 @@ fun AnnotationsSyncSettingsScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Annotations Sync") },
+                title = { Text(WebdavUiCopy.SCREEN_TITLE) },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
@@ -79,7 +80,7 @@ fun AnnotationsSyncSettingsScreen(
                     onNavigateToAddSource(AddSourceBackend.Webdav, null)
                 },
                 leadingContent = { AnnotationSyncBadge(row.badge) },
-                headlineContent = { Text("Configure WebDAV") },
+                headlineContent = { Text(WebdavUiCopy.CONFIGURE_TITLE) },
                 supportingContent = {
                     Text(
                         text = row.sub,
