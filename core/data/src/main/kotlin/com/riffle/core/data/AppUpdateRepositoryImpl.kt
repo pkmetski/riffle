@@ -39,7 +39,7 @@ class AppUpdateRepositoryImpl @Inject constructor(
         sweepStaleApks()
         val apk = File(updateDir.apply { mkdirs() }, "riffle-${update.versionName}.apk")
         send(UpdateDownloadState.Downloading(0))
-        val ok = releaseApi.download(update.downloadUrl, apk) { percent ->
+        val ok = releaseApi.download(update.downloadUrl, apk, update.sizeBytes) { percent ->
             trySend(UpdateDownloadState.Downloading(percent))
         }
         if (ok) {
