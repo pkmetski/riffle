@@ -37,7 +37,7 @@ class ResetLocalFileTitleToFilenameUseCaseTest {
     }
 
     @Test
-    fun `preserves existing override fields other than title`() = runTest {
+    fun `preserves author and series overrides but clears coverUrl`() = runTest {
         val fileDao = fakeFileDao(displayName = "New Name.epub")
         val overrideDao = InMemoryOverrideDao()
         overrideDao.rows[sourceId to "item-1"] = LocalFileMetadataOverrideEntity(
@@ -47,6 +47,7 @@ class ResetLocalFileTitleToFilenameUseCaseTest {
             author = "Existing Author",
             seriesName = "Existing Series",
             seriesIndex = 3.0,
+            coverUrl = "file:///data/data/com.riffle/files/local_covers/src-1_item-1.jpg",
         )
         val useCase = ResetLocalFileTitleToFilenameUseCase(fileDao, overrideDao)
         useCase(sourceId, "item-1")
@@ -55,6 +56,7 @@ class ResetLocalFileTitleToFilenameUseCaseTest {
         assertEquals("Existing Author", result.author)
         assertEquals("Existing Series", result.seriesName)
         assertEquals(3.0, result.seriesIndex)
+        assertNull(result.coverUrl)
     }
 
     @Test

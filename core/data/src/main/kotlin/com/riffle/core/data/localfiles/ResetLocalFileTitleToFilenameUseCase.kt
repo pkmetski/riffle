@@ -17,13 +17,14 @@ class ResetLocalFileTitleToFilenameUseCase @Inject constructor(
         val title = stripExtension(rawName).ifBlank { return null }
         val existing = overrideDao.getForItem(sourceId, sourceItemId)
         overrideDao.upsert(
-            existing?.copy(title = title) ?: LocalFileMetadataOverrideEntity(
+            existing?.copy(title = title, coverUrl = null) ?: LocalFileMetadataOverrideEntity(
                 sourceId = sourceId,
                 sourceItemId = sourceItemId,
                 title = title,
                 author = null,
                 seriesName = null,
                 seriesIndex = null,
+                coverUrl = null,
             ),
         )
         return title

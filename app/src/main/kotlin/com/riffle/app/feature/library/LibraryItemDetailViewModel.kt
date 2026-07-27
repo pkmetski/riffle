@@ -280,7 +280,12 @@ class LibraryItemDetailViewModel @Inject constructor(
                 return@launch
             }
             val current = _uiState.value as? LibraryItemDetailUiState.Ready ?: return@launch
-            val patched = current.item.copy(title = newTitle)
+            // Re-fetch to pick up the scanner-extracted coverUrl now that the override's coverUrl is cleared.
+            val refreshed = libraryObserver.getItem(item.sourceId, item.id)
+            val patched = current.item.copy(
+                title = newTitle,
+                coverUrl = refreshed?.coverUrl ?: current.item.coverUrl,
+            )
             _uiState.value = current.copy(item = patched)
             loadedItem = patched
             _snackbarEvents.emit("Title reset to filename")
