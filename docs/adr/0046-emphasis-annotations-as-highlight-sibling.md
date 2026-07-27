@@ -53,6 +53,8 @@ Two Emphasis rows auto-merge iff their `styles` sets are **identical** *and* the
 
 Rows with *different* `styles` sets never merge — they stay independent and the renderer unions their styles character-by-character at paint time. Same-range writes edit the existing row (mirror of `highlightOverlapsAtSamePosition` → `emphasisOverlapsAtSamePosition`). Toggling a style off from a *partial* selection of a merged row shrinks the row's range to the un-selected side.
 
+Highlight auto-merge is also gated by the sibling Emphasis set. Two same-colour Highlight rows merge only when their Emphasis sets are identical (including both empty). A plain green range and an overlapping or adjacent green + bold range therefore remain separate edit targets; collapsing them would either discard the bold intent or spread it across the previously plain text.
+
 ### 6. Annotations View — piggyback only, no query change
 
 The Annotations View tab query and empty-state remain `TYPE_HIGHLIGHT`-only. Standalone Emphasis does *not* surface a book in the tab. But an Emphasis row whose CFI range overlaps a rendered highlight snippet is applied to that snippet's text in the elided reader (bold, italic, underline, strike as stored), so the "editor's" marks on top of "collector's" marks flow through automatically.

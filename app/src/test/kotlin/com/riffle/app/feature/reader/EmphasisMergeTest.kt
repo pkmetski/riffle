@@ -204,4 +204,65 @@ class EmphasisMergeTest {
         assertEquals("first second third", current.textSnippet)
         assertEquals(BOLD, current.emphasisStyles)
     }
+
+    // -------- collectMergedEmphasisStyles (pins the emphasis-carry-forward fix) ---------------
+
+    @Test
+    fun `anchor emphasis at cascade CFI is carried forward to merged result`() {
+        // Regression: before the fix, mergeAdjacentIntoHighlight deleted all emphasis rows then
+        // never called createEmphasis — formatting on the newer annotation was silently lost.
+        val cfi = "epubcfi(/6/2!/4/2,/1:0,/1:5)"
+        val emphasisRow = emphasis(id = "e1", styles = BOLD).copy(cfi = cfi)
+        val result = collectMergedEmphasisStyles(
+            pool = listOf(emphasisRow),
+            cascadeCfis = setOf(cfi),
+        )
+        assertEquals(BOLD, result)
+    }
+
+    @Test
+    fun `absorbed neighbour emphasis is included in merged styles`() {
+        val anchorCfi = "epubcfi(/6/2!/4/2,/1:0,/1:5)"
+        val neighborCfi = "epubcfi(/6/2!/4/4,/1:0,/1:7)"
+        val neighborEmphasis = emphasis(id = "eN", styles = ITALIC).copy(cfi = neighborCfi)
+        val result = collectMergedEmphasisStyles(
+            pool = listOf(neighborEmphasis),
+            cascadeCfis = setOf(anchorCfi, neighborCfi),
+        )
+        assertEquals(ITALIC, result)
+    }
+
+    @Test
+    fun `union of anchor and absorbed emphasis styles is returned`() {
+        val anchorCfi = "epubcfi(/6/2!/4/2,/1:0,/1:5)"
+        val neighborCfi = "epubcfi(/6/2!/4/4,/1:0,/1:7)"
+        val anchorEmphasis = emphasis(id = "eA", styles = BOLD).copy(cfi = anchorCfi)
+        val neighborEmphasis = emphasis(id = "eN", styles = ITALIC).copy(cfi = neighborCfi)
+        val result = collectMergedEmphasisStyles(
+            pool = listOf(anchorEmphasis, neighborEmphasis),
+            cascadeCfis = setOf(anchorCfi, neighborCfi),
+        )
+        assertEquals(setOf(EmphasisStyle.BOLD, EmphasisStyle.ITALIC), result)
+    }
+
+    @Test
+    fun `emphasis at unrelated CFI is not included in merged styles`() {
+        val cascadeCfi = "epubcfi(/6/2!/4/2,/1:0,/1:5)"
+        val unrelatedCfi = "epubcfi(/6/2!/4/99,/1:0,/1:5)"
+        val unrelatedEmphasis = emphasis(id = "eU", styles = BOLD).copy(cfi = unrelatedCfi)
+        val result = collectMergedEmphasisStyles(
+            pool = listOf(unrelatedEmphasis),
+            cascadeCfis = setOf(cascadeCfi),
+        )
+        assertTrue("emphasis at an unrelated CFI must not bleed into the merged result", result.isEmpty())
+    }
+
+    @Test
+    fun `empty pool returns empty styles`() {
+        val result = collectMergedEmphasisStyles(
+            pool = emptyList(),
+            cascadeCfis = setOf("epubcfi(/6/2!/4/2,/1:0,/1:5)"),
+        )
+        assertTrue(result.isEmpty())
+    }
 }

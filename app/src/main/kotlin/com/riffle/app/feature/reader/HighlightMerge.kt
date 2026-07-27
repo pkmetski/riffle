@@ -307,3 +307,17 @@ internal fun hasFigureInGap(
     return findEnclosedFiguresInHtml(html, gapStart, gapEnd).isNotEmpty()
 }
 
+/**
+ * Collect the union of all [EmphasisStyle] values from emphasis rows in [pool] whose CFI is in
+ * [cascadeCfis]. The merge paths first require every participating highlight to have an identical
+ * style set, then use this helper before replacing those rows so the merged range can recreate
+ * that same formatting. Returns empty when the source annotations carry no emphasis.
+ */
+internal fun collectMergedEmphasisStyles(
+    pool: List<Annotation>,
+    cascadeCfis: Set<String>,
+): Set<EmphasisStyle> = pool
+    .filter { it.cfi in cascadeCfis }
+    .flatMap { it.emphasisStyles.orEmpty() }
+    .toSet()
+

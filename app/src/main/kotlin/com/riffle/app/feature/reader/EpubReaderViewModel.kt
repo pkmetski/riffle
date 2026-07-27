@@ -2129,12 +2129,21 @@ class EpubReaderViewModel @Inject constructor(
         // orphans on a debug device); manifested as "annotations don't show in the panel and the
         // underlying text stays formatted forever" (panel filters TYPE_EMPHASIS out, DOM injector
         // does not).
+        val presetStyles = annotationSession.lastUsedEmphasisStyles.value
+        val combinedStyles = combineDraftEmphasisStyles(presetStyles, addEmphasisStyle)
         val html = readChapterHtml(draft.spineIndex)
         val candidates = annotationSession.annotations.value
             .filter { it.type == com.riffle.core.database.AnnotationEntity.TYPE_HIGHLIGHT }
             .filter { normalizeEpubHref(it.chapterHref) == normalizeEpubHref(draft.chapterHref) }
         val overlapMerge = html?.let {
-            computeOverlapMerge(it, draft.textSnippet, draft.textBefore, candidates)
+            computeOverlapMerge(
+                html = it,
+                draftSnippet = draft.textSnippet,
+                draftTextBefore = draft.textBefore,
+                candidates = candidates,
+                draftEmphasisStyles = combinedStyles,
+                emphasisPool = annotationSession.emphasisPool.value,
+            )
         }
         overlapMerge?.victimIds?.forEach { victimId ->
             val victim = candidates.firstOrNull { it.id == victimId }
@@ -2172,6 +2181,8 @@ class EpubReaderViewModel @Inject constructor(
                 draftColor = initialColor,
                 draftEmbeddedFigures = overlapFields.embeddedFigures,
                 candidates = adjacentCandidates,
+                draftEmphasisStyles = combinedStyles,
+                emphasisPool = annotationSession.emphasisPool.value,
             )
         }
         adjacentMerge?.victimIds?.forEach { victimId ->
@@ -2301,7 +2312,19 @@ class EpubReaderViewModel @Inject constructor(
             logger.d(LogChannel.HighlightMerge) { "edit-merge skip id=$id reason=type=${current.type}" }
             return
         }
-        val pool = annotationSession.annotations.value
+        val unfilteredPool = annotationSession.annotations.value
+        val currentEmphasisStyles = collectMergedEmphasisStyles(
+            pool = annotationSession.emphasisPool.value,
+            cascadeCfis = setOf(current.cfi),
+        )
+        // Highlight and Emphasis are independent axes (ADR 0046). Only merge highlight ranges
+        // whose sibling emphasis sets are identical; otherwise a plain range adjacent to a bold
+        // range would collapse into one edit target and formatting would spread across the union.
+        val pool = highlightsWithEmphasisStyles(
+            candidates = unfilteredPool,
+            emphasisPool = annotationSession.emphasisPool.value,
+            expectedStyles = currentEmphasisStyles,
+        )
         // Trial-run the merge WITHOUT touching the DB. Track the leftmost source highlight as we
         // chain-absorb — its stored textBefore is our anchor for text-searching the actual char
         // position of the merged range in the chapter DOM. We can NOT use the stored progression
@@ -2434,6 +2457,13 @@ class EpubReaderViewModel @Inject constructor(
         // no-longer-existent range). Same cascade the panel-delete + overlap-dedup paths do.
         val anchorCfi = pool.firstOrNull { it.id == id }?.cfi
         val cascadeCfis = toAbsorb.map { it.cfi }.toSet() + (anchorCfi?.let { setOf(it) } ?: emptySet())
+        // Every source passed the identical-emphasis gate above. Capture that shared set BEFORE
+        // deleting the rows so the replacement keeps the same formatting; otherwise the cascade
+        // below would wipe the sibling emphasis and leave the merged range plain.
+        val mergedEmphasisStyles = collectMergedEmphasisStyles(
+            pool = annotationSession.emphasisPool.value,
+            cascadeCfis = cascadeCfis,
+        )
         if (cascadeCfis.isNotEmpty()) {
             annotationSession.emphasisPool.value
                 .filter { it.cfi in cascadeCfis }
@@ -2462,9 +2492,25 @@ class EpubReaderViewModel @Inject constructor(
             embeddedFigures = mergedEmbeddedFigures,
             originFontFamily = mergedOriginFont,
         )
+        if (mergedEmphasisStyles.isNotEmpty()) {
+            annotationStore.createEmphasis(
+                sourceId = sourceId,
+                itemId = itemId,
+                cfi = cfiRange,
+                textSnippet = domSnippet,
+                chapterHref = trialAnchor.chapterHref,
+                textBefore = trialAnchor.textBefore,
+                textAfter = trialAnchor.textAfter,
+                styles = mergedEmphasisStyles,
+                spineIndex = trialAnchor.spineIndex,
+                progression = storedProgression,
+                originFontFamily = mergedOriginFont,
+            )
+        }
         logger.d(LogChannel.HighlightMerge) {
             "edit-merge done anchorReplaced=$id newId=${created.id} absorbedText=${toAbsorb.size} " +
                 "figures=${mergedEmbeddedFigures?.size ?: 0} " +
+                "emphasisStyles=$mergedEmphasisStyles " +
                 "domLen=${domSnippet.length} startChar=$startChar"
         }
     }
