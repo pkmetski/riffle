@@ -1,5 +1,41 @@
 # Riffle — Domain Glossary
 
+## Module Map
+
+Riffle is split into a **pure-Kotlin core** (KMP-candidate) and **Android-hosting** modules. New features belong in the innermost module whose dependency constraints they satisfy.
+
+### Pure-Kotlin core (no `android.*` / `androidx.*`)
+
+Modules marked **[guarded]** are actively scanned by `checkNoAndroidImports` on every CI push. Unguarded catalog modules are pure-Kotlin by convention but not yet in the scan set (see ADR 0049).
+
+| Module | Role | CI guard |
+|---|---|---|
+| `core:common` | Shared interfaces: `Clock`, `FileStore`, `EncryptedKeyValueStore` | **[guarded]** |
+| `core:models` | Domain-neutral data models, serialization | **[guarded]** |
+| `core:domain` | Domain models, `WebSourceDescriptor`, `AudioPlayer` interface | **[guarded]** |
+| `core:network` | HTTP client (`AbsApiClient`, Ktor/OkHttp), `NetworkResult` | **[guarded]** |
+| `core:sources` | `Source`/`Service` abstractions, source adapters, annotation sync targets | **[guarded]** |
+| `core:sync` | Progress sweep, reconciler, locks — pure sync logic | **[guarded]** |
+| `core:catalog` | `Catalog` interface + `CatalogCapability` mixins | unguarded |
+| `core:catalog-chitanka` | Chitanka Catalog implementation | unguarded |
+| `core:catalog-gutenberg` | Gutenberg Catalog implementation | unguarded |
+| `core:catalog-komga` | Komga Catalog implementation | unguarded |
+| `core:annotations` | _(planned — not yet created)_ Annotation model & sync format | **[guarded]** when created |
+
+### Android-hosting modules
+
+| Module | Role |
+|---|---|
+| `core:data` | Hilt-wired repositories, Android DataStore, `LocalDirectoryTarget` |
+| `core:database` | Room database (`RiffleDatabase`), migrations, KSP |
+| `core:database-api` | Room `@Entity` / `@Dao` interfaces (Android-only; Room KMP pending — ADR 0048) |
+| `core:logging` | `LogChannel` enum, `AndroidLogger`, `checkRiffleLogTags` guardrail |
+| `app` | Compose UI, navigation, Hilt entry point, ExoPlayer, Readium |
+
+See [ADR 0049](docs/adr/0049-platform-agnostic-core-boundary.md) for the full rationale and the guardrail task descriptions.
+
+---
+
 **Riffle** is an Android app (min API 24 / Android 7.0) for reading ebooks — reflowable EPUB and fixed-layout PDF — from user-configured **Sources**. Riffle grew up ABS-first and its early terminology (`Server`, `ABS Server`) reflected that; the domain has since been re-rooted around a general **Source** abstraction with **Service** as a peer category (see [ADR 0041](docs/adr/0041-source-and-service-abstractions-replace-server.md)). ABS remains the primary Source and the reference implementation of every optional Catalog capability; LocalFiles is the second shipping Source.
 
 ## Terms

@@ -38,7 +38,7 @@ class AndroidImportLintTest {
     }
 
     private fun detect(
-        moduleRoots: List<String> = listOf("core/models", "core/net", "core/sources"),
+        moduleRoots: List<String> = listOf("core/models", "core/network", "core/domain", "core/sources"),
         allowlist: Set<String> = emptySet(),
     ) = AndroidImportLint.findAndroidImportOffenders(root, moduleRoots, allowlist)
 
@@ -52,7 +52,13 @@ class AndroidImportLintTest {
 
     @Test
     fun `flags android_util_Log import`() {
-        writeKt("core/net/src/main/kotlin/Foo.kt", "import android.util.Log\n")
+        writeKt("core/network/src/main/kotlin/Foo.kt", "import android.util.Log\n")
+        assertEquals(1, detect().size)
+    }
+
+    @Test
+    fun `flags android import in core_domain`() {
+        writeKt("core/domain/src/main/kotlin/Foo.kt", "import android.content.Context\n")
         assertEquals(1, detect().size)
     }
 
@@ -122,9 +128,10 @@ class AndroidImportLintTest {
 
     @Test
     fun `only scans configured module roots`() {
-        // File under an app module — outside the scan set — must be ignored.
+        // Files outside the configured scan set must be ignored: app/ is never scanned,
+        // and core/database is an Android-hosting module intentionally absent from DEFAULT_MODULE_ROOTS.
         writeKt("app/src/main/kotlin/Foo.kt", "import android.content.Context\n")
-        writeKt("core/network/src/main/kotlin/Foo.kt", "import android.content.Context\n")
+        writeKt("core/database/src/main/kotlin/Foo.kt", "import android.content.Context\n")
         assertTrue(detect().isEmpty())
     }
 
