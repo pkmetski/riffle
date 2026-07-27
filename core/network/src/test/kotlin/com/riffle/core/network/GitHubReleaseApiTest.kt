@@ -2,7 +2,11 @@ package com.riffle.core.network
 
 import com.riffle.core.network.createDefaultHttpClient
 
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.withTimeout
 import okhttp3.OkHttpClient
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
@@ -14,6 +18,7 @@ import org.junit.Before
 import org.junit.Test
 import java.io.File
 import java.nio.file.Files
+import java.util.concurrent.TimeUnit
 
 class GitHubReleaseApiTest {
 
@@ -176,6 +181,67 @@ class GitHubReleaseApiTest {
         assertTrue(dest.readBytes().contentEquals(payload))
         assertTrue("expected progress callbacks", seen.isNotEmpty())
         assertEquals(100, seen.last())
+    }
+
+    @Test
+    fun `download reports progress before the response finishes`() = runBlocking {
+        val payload = ByteArray(256 * 1024) { (it % 251).toByte() }
+        server.enqueue(
+            MockResponse()
+                .setBody(okio.Buffer().write(payload))
+                .throttleBody(64 * 1024, 1, TimeUnit.SECONDS)
+        )
+        val dest = File(Files.createTempDirectory("upd").toFile(), "riffle.apk")
+        val firstProgress = kotlinx.coroutines.CompletableDeferred<Int>()
+
+        val download = async(Dispatchers.IO) {
+            api.download(server.url("/riffle.apk").toString(), dest) { percent ->
+                firstProgress.complete(percent)
+            }
+        }
+
+        val percentWhileResponseIsInFlight = withTimeout(1_500) { firstProgress.await() }
+
+        assertTrue(percentWhileResponseIsInFlight in 1..99)
+        assertFalse("download should still be receiving the throttled response", download.isCompleted)
+        assertTrue(download.await())
+    }
+
+    // Regression: GitHub CDN can serve APK assets without Content-Length (chunked transfer), leaving
+    // total == -1 and suppressing all progress callbacks — the dialog stays frozen at 0% even though
+    // the download completes. When the caller provides expectedBytes the fallback kicks in so progress
+    // advances normally.
+    @Test
+    fun `download reports progress via expectedBytes when Content-Length is absent`() = runTest {
+        val payload = ByteArray(200_000) { (it % 251).toByte() }
+        server.enqueue(MockResponse().setChunkedBody(okio.Buffer().write(payload), 8192))
+        val dest = File(Files.createTempDirectory("upd").toFile(), "riffle.apk")
+        val seen = mutableListOf<Int>()
+
+        val ok = api.download(
+            server.url("/riffle.apk").toString(),
+            dest,
+            expectedBytes = payload.size.toLong(),
+        ) { seen.add(it) }
+
+        assertTrue(ok)
+        assertEquals(payload.size.toLong(), dest.length())
+        assertTrue("expected progress callbacks with expectedBytes fallback", seen.isNotEmpty())
+        assertEquals(100, seen.last())
+    }
+
+    @Test
+    fun `download reports no progress when both Content-Length and expectedBytes are absent`() = runTest {
+        val payload = ByteArray(200_000) { (it % 251).toByte() }
+        server.enqueue(MockResponse().setChunkedBody(okio.Buffer().write(payload), 8192))
+        val dest = File(Files.createTempDirectory("upd").toFile(), "riffle.apk")
+        val seen = mutableListOf<Int>()
+
+        val ok = api.download(server.url("/riffle.apk").toString(), dest) { seen.add(it) }
+
+        assertTrue(ok)
+        assertEquals(payload.size.toLong(), dest.length())
+        assertTrue("no progress expected without Content-Length or expectedBytes", seen.isEmpty())
     }
 
     @Test

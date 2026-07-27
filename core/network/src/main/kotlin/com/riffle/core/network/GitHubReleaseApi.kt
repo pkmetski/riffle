@@ -4,6 +4,7 @@ import io.ktor.client.HttpClient
 import io.ktor.client.call.body
 import io.ktor.client.request.get
 import io.ktor.client.request.header
+import io.ktor.client.request.prepareGet
 import io.ktor.client.statement.bodyAsChannel
 import io.ktor.http.HttpHeaders
 import io.ktor.http.contentLength
@@ -95,35 +96,47 @@ class GitHubReleaseApi(
     /**
      * Streams [url] into [dest], reporting whole-percent progress. Returns true on success. On any
      * failure [dest] is deleted, so a truncated APK is never handed to the installer.
+     *
+     * [expectedBytes] is used as a fallback file size when the server doesn't send a Content-Length
+     * header (e.g. GitHub CDN chunked responses). Pass -1 to indicate unknown.
      */
-    suspend fun download(url: String, dest: File, onProgress: (percent: Int) -> Unit): Boolean =
+    suspend fun download(
+        url: String,
+        dest: File,
+        expectedBytes: Long = -1L,
+        onProgress: (percent: Int) -> Unit,
+    ): Boolean =
         try {
-            val response = httpClient.get(url)
-            if (!response.status.isSuccess()) {
-                dest.delete()
-                return false
-            }
-            val total = response.contentLength() ?: -1L
-            val channel = response.bodyAsChannel()
-            dest.outputStream().use { out ->
-                val buffer = ByteArray(64 * 1024)
-                var copied = 0L
-                var lastPercent = -1
-                while (!channel.isClosedForRead) {
-                    val read = channel.readAvailable(buffer)
-                    if (read <= 0) break
-                    out.write(buffer, 0, read)
-                    copied += read
-                    if (total > 0) {
-                        val percent = ((copied * 100) / total).toInt().coerceIn(0, 100)
-                        if (percent != lastPercent) {
-                            lastPercent = percent
-                            onProgress(percent)
+            httpClient.prepareGet(url).execute { response ->
+                if (!response.status.isSuccess()) {
+                    dest.delete()
+                    return@execute false
+                }
+                val total = response.contentLength()
+                    ?.takeIf { it > 0 }
+                    ?: expectedBytes.takeIf { it > 0 }
+                    ?: -1L
+                val channel = response.bodyAsChannel()
+                dest.outputStream().use { out ->
+                    val buffer = ByteArray(64 * 1024)
+                    var copied = 0L
+                    var lastPercent = -1
+                    while (!channel.isClosedForRead) {
+                        val read = channel.readAvailable(buffer)
+                        if (read <= 0) break
+                        out.write(buffer, 0, read)
+                        copied += read
+                        if (total > 0) {
+                            val percent = ((copied * 100) / total).toInt().coerceIn(0, 100)
+                            if (percent != lastPercent) {
+                                lastPercent = percent
+                                onProgress(percent)
+                            }
                         }
                     }
                 }
+                true
             }
-            true
         } catch (e: IOException) {
             dest.delete()
             false
