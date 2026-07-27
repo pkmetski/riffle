@@ -5,21 +5,25 @@ import android.net.Uri
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.io.File
 import javax.inject.Inject
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 class CopyCoverImageUseCase @Inject constructor(
     @ApplicationContext private val context: Context,
 ) {
-    operator fun invoke(sourceId: String, sourceItemId: String, contentUriString: String): String? {
-        val uri = Uri.parse(contentUriString)
-        val dest = File(context.filesDir, "local_covers/${sourceId}_${sourceItemId}.jpg")
-        dest.parentFile?.mkdirs()
-        return try {
-            context.contentResolver.openInputStream(uri)?.use { input ->
-                dest.outputStream().use { output -> input.copyTo(output) }
+    suspend operator fun invoke(sourceId: String, sourceItemId: String, contentUriString: String): String? =
+        withContext(Dispatchers.IO) {
+            val uri = Uri.parse(contentUriString)
+            val dest = File(context.filesDir, "local_covers/${sourceId}_${sourceItemId}.jpg")
+            dest.parentFile?.mkdirs()
+            try {
+                val stream = context.contentResolver.openInputStream(uri) ?: return@withContext null
+                stream.use { input ->
+                    dest.outputStream().use { output -> input.copyTo(output) }
+                }
+                dest.toURI().toString()
+            } catch (_: Exception) {
+                null
             }
-            dest.toURI().toString()
-        } catch (_: Exception) {
-            null
         }
-    }
 }

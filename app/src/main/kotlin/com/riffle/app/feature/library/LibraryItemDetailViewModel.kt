@@ -271,7 +271,11 @@ class LibraryItemDetailViewModel @Inject constructor(
             val patched = current.item.copy(
                 title = title.ifBlank { current.item.title },
                 author = author.ifBlank { current.item.author },
-                seriesName = seriesName.ifBlank { null },
+                seriesName = when {
+                    seriesName.isBlank() -> null
+                    seriesIndex != null -> "$seriesName #${if (seriesIndex == kotlin.math.floor(seriesIndex) && !seriesIndex.isInfinite()) seriesIndex.toLong().toString() else seriesIndex.toString()}"
+                    else -> seriesName
+                },
                 coverUrl = displayCoverUrl,
             )
             _uiState.value = current.copy(item = patched)
