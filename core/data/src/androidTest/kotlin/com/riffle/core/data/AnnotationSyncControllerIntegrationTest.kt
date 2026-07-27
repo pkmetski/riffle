@@ -2,6 +2,7 @@ package com.riffle.core.data
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import com.riffle.core.logging.RecordingLogger
 import com.riffle.core.database.AnnotationDao
 import com.riffle.core.database.AnnotationEntity
 import com.riffle.core.domain.AnnotationMergeService
@@ -46,7 +47,7 @@ class AnnotationSyncControllerIntegrationTest {
     @Before
     fun setup() {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
-        target = LocalDirectoryTarget(context)
+        target = LocalDirectoryTarget(context, RecordingLogger())
         filesDir = context.filesDir
 
         // Clean up any previous test data

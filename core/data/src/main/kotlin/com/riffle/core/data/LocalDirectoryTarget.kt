@@ -1,13 +1,14 @@
 package com.riffle.core.data
 
 import android.content.Context
-import android.util.Log
 import com.riffle.core.domain.AnnotationFileRef
 import com.riffle.core.sources.webdav.LegacyAbsNamespaceMigration
 import com.riffle.core.domain.AnnotationSyncTarget
 import com.riffle.core.domain.DeviceFileSummary
 import com.riffle.core.domain.NamespaceDeviceListing
 import com.riffle.core.domain.NamespaceSummary
+import com.riffle.core.logging.LogChannel
+import com.riffle.core.logging.Logger
 import java.io.File
 
 /**
@@ -23,7 +24,10 @@ import java.io.File
  * (WebDAV) behind the same interface; the local-directory target remains useful for
  * tests and offline-only configurations.
  */
-class LocalDirectoryTarget(private val context: Context) : AnnotationSyncTarget {
+class LocalDirectoryTarget(
+    private val context: Context,
+    private val logger: Logger,
+) : AnnotationSyncTarget {
 
     @Volatile private var legacyAbsMigrated: Boolean = false
 
@@ -61,7 +65,7 @@ class LocalDirectoryTarget(private val context: Context) : AnnotationSyncTarget 
                 }
             }
         } catch (e: Exception) {
-            Log.e(TAG, "Legacy ABS dir migration failed (best-effort)", e)
+            logger.e(LogChannel.AnnotationSync, e) { "Legacy ABS dir migration failed (best-effort)" }
             allSucceeded = false
         }
         if (allSucceeded) legacyAbsMigrated = true
@@ -103,7 +107,7 @@ class LocalDirectoryTarget(private val context: Context) : AnnotationSyncTarget 
                 file.isFile && file.name.startsWith(ANNOTATION_NAME_PREFIX) && file.name.endsWith(JSONLD_SUFFIX)
             }?.map { it.name } ?: emptyList()
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to list annotations for $namespace/$itemId", e)
+            logger.e(LogChannel.AnnotationSync, e) { "Failed to list annotations for $namespace/$itemId" }
             emptyList()
         }
     }
@@ -115,7 +119,7 @@ class LocalDirectoryTarget(private val context: Context) : AnnotationSyncTarget 
             if (!file.exists()) return null
             file.readText()
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to read $filename for $namespace/$itemId", e)
+            logger.e(LogChannel.AnnotationSync, e) { "Failed to read $filename for $namespace/$itemId" }
             throw Exception("Failed to read $filename: ${e.message}", e)
         }
     }
@@ -129,7 +133,7 @@ class LocalDirectoryTarget(private val context: Context) : AnnotationSyncTarget 
             }
             annotationFile(namespace, itemId, filename).writeText(content)
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to write $filename for $namespace/$itemId", e)
+            logger.e(LogChannel.AnnotationSync, e) { "Failed to write $filename for $namespace/$itemId" }
             throw Exception("Failed to write $filename: ${e.message}", e)
         }
     }
@@ -139,7 +143,7 @@ class LocalDirectoryTarget(private val context: Context) : AnnotationSyncTarget 
             val file = annotationFile(namespace, itemId, filename)
             if (file.exists()) file.delete()
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to delete $filename for $namespace/$itemId", e)
+            logger.e(LogChannel.AnnotationSync, e) { "Failed to delete $filename for $namespace/$itemId" }
         }
     }
 
@@ -149,7 +153,7 @@ class LocalDirectoryTarget(private val context: Context) : AnnotationSyncTarget 
             val file = deviceMetaFile(namespace, deviceId)
             if (!file.exists()) null else file.readText()
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to read device-meta $deviceId for $namespace", e)
+            logger.e(LogChannel.AnnotationSync, e) { "Failed to read device-meta $deviceId for $namespace" }
             null
         }
     }
@@ -163,7 +167,7 @@ class LocalDirectoryTarget(private val context: Context) : AnnotationSyncTarget 
             }
             deviceMetaFile(namespace, deviceId).writeText(content)
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to write device-meta $deviceId for $namespace", e)
+            logger.e(LogChannel.AnnotationSync, e) { "Failed to write device-meta $deviceId for $namespace" }
             throw Exception("Failed to write device-meta $deviceId: ${e.message}", e)
         }
     }
@@ -173,7 +177,7 @@ class LocalDirectoryTarget(private val context: Context) : AnnotationSyncTarget 
             val file = deviceMetaFile(namespace, deviceId)
             if (file.exists()) file.delete()
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to delete device-meta $deviceId for $namespace", e)
+            logger.e(LogChannel.AnnotationSync, e) { "Failed to delete device-meta $deviceId for $namespace" }
         }
     }
 
@@ -207,7 +211,7 @@ class LocalDirectoryTarget(private val context: Context) : AnnotationSyncTarget 
             }
             NamespaceDeviceListing(devices = rows)
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to enumerate devices for $namespace", e)
+            logger.e(LogChannel.AnnotationSync, e) { "Failed to enumerate devices for $namespace" }
             NamespaceDeviceListing(emptyList())
         }
     }
@@ -230,7 +234,7 @@ class LocalDirectoryTarget(private val context: Context) : AnnotationSyncTarget 
                 )
             }.orEmpty().sortedBy { it.namespace }
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to enumerate namespaces", e)
+            logger.e(LogChannel.AnnotationSync, e) { "Failed to enumerate namespaces" }
             emptyList()
         }
     }
@@ -252,7 +256,7 @@ class LocalDirectoryTarget(private val context: Context) : AnnotationSyncTarget 
             dir.delete()
             deleted
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to forget namespace $namespace", e)
+            logger.e(LogChannel.AnnotationSync, e) { "Failed to forget namespace $namespace" }
             0
         }
     }
@@ -270,7 +274,6 @@ class LocalDirectoryTarget(private val context: Context) : AnnotationSyncTarget 
         File(namespaceDir(namespace), "$DEVICE_META_NAME_PREFIX$deviceId$JSON_SUFFIX")
 
     companion object {
-        private const val TAG = "LocalDirectoryTarget"
         private const val ROOT = "annotation-sync"
         private const val ANNOTATION_NAME_PREFIX = "annotations-"
         private const val DEVICE_META_NAME_PREFIX = "device-meta-"

@@ -2,6 +2,7 @@ package com.riffle.core.data
 
 import android.content.Context
 import androidx.security.crypto.EncryptedSharedPreferences
+import com.riffle.core.common.EncryptedKeyValueStore
 import androidx.security.crypto.MasterKeys
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
