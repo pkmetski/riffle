@@ -237,7 +237,9 @@ class ReaderWebViewScriptsTest {
         val js = ColumnSnap.snapToTargetColumnJs(null, landAtStartWhenNoTarget = false, locatorProgression = 0.42)
         assertTrue("id is null", js.contains("var id=null"))
         // The noTargetSnap branch (else{...} after if(id){...}) must use progression * scrollWidth.
-        assertTrue("uses progression * scrollWidth", js.contains("else{se.scrollLeft=Math.round(0.42*se.scrollWidth/iw)*iw;}"))
+        // Must FLOOR (not round) so an annotation past the midpoint of its column lands on that
+        // column, not the next one — Math.round(2.7) = 3 (wrong page), Math.floor(2.7) = 2 (right page).
+        assertTrue("floors to the column boundary using progression * scrollWidth", js.contains("else{se.scrollLeft=Math.floor(0.42*se.scrollWidth/iw)*iw;}"))
         assertTrue("does NOT yank to column 0", !js.contains("se.scrollLeft=0;"))
     }
 

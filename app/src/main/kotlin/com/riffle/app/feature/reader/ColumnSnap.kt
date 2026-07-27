@@ -508,7 +508,7 @@ internal object ColumnSnap {
         val idLiteral = if (fragmentId.isNullOrEmpty()) "null" else JSONObject.quote(fragmentId)
         val noTargetSnap = when {
             landAtStartWhenNoTarget -> "se.scrollLeft=0;"
-            locatorProgression != null -> "se.scrollLeft=Math.round($locatorProgression*se.scrollWidth/iw)*iw;"
+            locatorProgression != null -> "se.scrollLeft=Math.floor($locatorProgression*se.scrollWidth/iw)*iw;"
             else -> "se.scrollLeft=Math.round(se.scrollLeft/iw)*iw;"
         }
         // For annotation focus (landAtStartWhenNoTarget=false with a progression), skip the
