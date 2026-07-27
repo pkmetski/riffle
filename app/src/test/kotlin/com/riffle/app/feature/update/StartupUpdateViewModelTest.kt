@@ -1,5 +1,6 @@
 package com.riffle.app.feature.update
 
+import com.riffle.core.common.Clock
 import com.riffle.core.domain.AppUpdatePreferencesStore
 import com.riffle.core.domain.AppUpdateRepository
 import com.riffle.core.domain.AvailableUpdate
@@ -28,14 +29,24 @@ class StartupUpdateViewModelTest {
 
     private val testDispatcher = StandardTestDispatcher()
 
+    private class MutableClock(var timeMs: Long = 0L) : Clock {
+        override fun nowMs(): Long = timeMs
+        override fun nowNs(): Long = timeMs * 1_000_000
+    }
+
     @Before fun setUp() { Dispatchers.setMain(testDispatcher) }
     @After fun tearDown() { Dispatchers.resetMain() }
 
-    private fun releaseInfo(versionName: String, versionCode: Int, changelog: String = "") = ReleaseInfo(
+    private fun releaseInfo(
+        versionName: String,
+        versionCode: Int,
+        changelog: String = "",
+        downloadUrl: String = "https://x/$versionName.apk",
+    ) = ReleaseInfo(
         versionName = versionName,
         versionCode = versionCode,
         changelog = changelog,
-        downloadUrl = "https://x/$versionName.apk",
+        downloadUrl = downloadUrl,
         sizeBytes = 1000L,
     )
 
@@ -66,6 +77,7 @@ class StartupUpdateViewModelTest {
         val vm = StartupUpdateViewModel(
             appUpdateRepository = fakeRepo(listOf(releaseInfo("1.6.0", 10600))),
             appUpdatePreferencesStore = fakePrefs(autoEnabled = false),
+            clock = MutableClock(),
         )
         testDispatcher.scheduler.advanceUntilIdle()
 
@@ -77,6 +89,7 @@ class StartupUpdateViewModelTest {
         val vm = StartupUpdateViewModel(
             appUpdateRepository = fakeRepo(emptyList()),
             appUpdatePreferencesStore = fakePrefs(),
+            clock = MutableClock(),
         )
         testDispatcher.scheduler.advanceUntilIdle()
 
@@ -84,10 +97,46 @@ class StartupUpdateViewModelTest {
     }
 
     @Test
+    fun `dialog is null when newer release tags have no APK artifact`() = runTest {
+        val vm = StartupUpdateViewModel(
+            appUpdateRepository = fakeRepo(
+                listOf(releaseInfo("1.6.0", 10600, downloadUrl = "")),
+            ),
+            appUpdatePreferencesStore = fakePrefs(),
+            clock = MutableClock(),
+        )
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertNull(vm.dialogState.value)
+    }
+
+    @Test
+    fun `dialog skips a newer unfinished release and offers the latest release with an APK`() = runTest {
+        val vm = StartupUpdateViewModel(
+            appUpdateRepository = fakeRepo(
+                listOf(
+                    releaseInfo("1.6.0", 10600, downloadUrl = ""),
+                    releaseInfo("1.5.1", 10501, downloadUrl = "https://x/1.5.1.apk"),
+                ),
+            ),
+            appUpdatePreferencesStore = fakePrefs(),
+            clock = MutableClock(),
+        )
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        val state = vm.dialogState.value
+        assertNotNull(state)
+        assertEquals("1.5.1", state!!.update.versionName)
+        assertEquals("https://x/1.5.1.apk", state.update.downloadUrl)
+        assertEquals(listOf("1.5.1"), state.releases.map(ReleaseInfo::versionName))
+    }
+
+    @Test
     fun `dialog is null when latest version matches ignoredVersionCode`() = runTest {
         val vm = StartupUpdateViewModel(
             appUpdateRepository = fakeRepo(listOf(releaseInfo("1.6.0", 10600))),
             appUpdatePreferencesStore = fakePrefs(ignored = 10600),
+            clock = MutableClock(),
         )
         testDispatcher.scheduler.advanceUntilIdle()
 
@@ -103,6 +152,7 @@ class StartupUpdateViewModelTest {
         val vm = StartupUpdateViewModel(
             appUpdateRepository = fakeRepo(releases),
             appUpdatePreferencesStore = fakePrefs(),
+            clock = MutableClock(),
         )
         testDispatcher.scheduler.advanceUntilIdle()
 
@@ -120,6 +170,7 @@ class StartupUpdateViewModelTest {
         val vm = StartupUpdateViewModel(
             appUpdateRepository = fakeRepo(listOf(releaseInfo("1.6.0", 10600))),
             appUpdatePreferencesStore = prefs,
+            clock = MutableClock(),
         )
         testDispatcher.scheduler.advanceUntilIdle()
         assertNotNull(vm.dialogState.value)
@@ -132,16 +183,24 @@ class StartupUpdateViewModelTest {
     }
 
     @Test
-    fun `checkNow re-shows dialog after dismiss`() = runTest {
+    fun `checkNow re-shows dialog after dismiss once the throttle interval has elapsed`() = runTest {
+        val clock = MutableClock()
         val vm = StartupUpdateViewModel(
             appUpdateRepository = fakeRepo(listOf(releaseInfo("1.6.0", 10600))),
             appUpdatePreferencesStore = fakePrefs(),
+            clock = clock,
         )
         testDispatcher.scheduler.advanceUntilIdle()
         assertNotNull(vm.dialogState.value)
 
         vm.dismissDialog()
         assertNull(vm.dialogState.value)
+
+        vm.checkNow()
+        testDispatcher.scheduler.advanceUntilIdle()
+        assertNull(vm.dialogState.value)
+
+        clock.timeMs = StartupUpdateViewModel.AUTO_CHECK_INTERVAL_MS
 
         vm.checkNow()
         testDispatcher.scheduler.advanceUntilIdle()
@@ -166,6 +225,7 @@ class StartupUpdateViewModelTest {
         val vm = StartupUpdateViewModel(
             appUpdateRepository = repo,
             appUpdatePreferencesStore = fakePrefs(),
+            clock = MutableClock(),
         )
         testDispatcher.scheduler.advanceUntilIdle()
         val checksAfterInit = checkCount
@@ -177,11 +237,47 @@ class StartupUpdateViewModelTest {
     }
 
     @Test
+    fun `checkNow does not repeat a recent check when no dialog is showing`() = runTest {
+        var checkCount = 0
+        val clock = MutableClock()
+        val repo = object : AppUpdateRepository {
+            override suspend fun checkForUpdate(currentVersionCode: Int): UpdateCheckResult =
+                UpdateCheckResult.UpToDate
+            override fun downloadAndInstall(update: AvailableUpdate): Flow<UpdateDownloadState> =
+                flowOf(UpdateDownloadState.Installing)
+            override fun sweepStaleApks() {}
+            override suspend fun listReleasesSince(sinceVersionCode: Int): List<ReleaseInfo> {
+                checkCount++
+                return emptyList()
+            }
+        }
+        val vm = StartupUpdateViewModel(
+            appUpdateRepository = repo,
+            appUpdatePreferencesStore = fakePrefs(),
+            clock = clock,
+        )
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        clock.timeMs = StartupUpdateViewModel.AUTO_CHECK_INTERVAL_MS - 1
+        vm.checkNow()
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals("checks before the two-hour boundary are throttled", 1, checkCount)
+
+        clock.timeMs = StartupUpdateViewModel.AUTO_CHECK_INTERVAL_MS
+        vm.checkNow()
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals("the two-hour boundary permits a new check", 2, checkCount)
+    }
+
+    @Test
     fun `dismissDialog clears dialog without writing ignoredVersionCode`() = runTest {
         val prefs = fakePrefs()
         val vm = StartupUpdateViewModel(
             appUpdateRepository = fakeRepo(listOf(releaseInfo("1.6.0", 10600))),
             appUpdatePreferencesStore = prefs,
+            clock = MutableClock(),
         )
         testDispatcher.scheduler.advanceUntilIdle()
         assertNotNull(vm.dialogState.value)
