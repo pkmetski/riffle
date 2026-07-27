@@ -25,8 +25,8 @@ class HighlightsPdfExporter @Inject constructor(
 ) {
     /**
      * Assembles the combined HTML for all chapters, renders it to a PDF via a headless WebView,
-     * writes the result to `cacheDir/exports/annotations-<itemId>.pdf`, and returns a
-     * [FileProvider] URI suitable for [android.content.Intent.ACTION_SEND].
+     * writes the result to `cacheDir/exports/<bookTitle> Annotations.pdf` (sanitized, falling back
+     * to the item ID), and returns an [ExportResult] with the [FileProvider] URI and filename.
      *
      * Must be called from a coroutine; the WebView and PrintDocumentAdapter callbacks run on the
      * main thread ([kotlinx.coroutines.Dispatchers.Main]).
@@ -56,8 +56,16 @@ class HighlightsPdfExporter @Inject constructor(
         withContext(Dispatchers.Main) {
             suspendCancellableCoroutine<Unit> { cont ->
                 val webView = android.webkit.WebView(context)
+                // Tracks the open ParcelFileDescriptor so the cancellation handler can close it
+                // if the coroutine is cancelled after onLayoutFinished opens it but before any
+                // write callback closes it (otherwise the fd leaks).
+                val openPfd = java.util.concurrent.atomic.AtomicReference<android.os.ParcelFileDescriptor?>(null)
+                // Guard against WebView builds that fire onPageFinished more than once.
+                var layoutStarted = false
                 webView.webViewClient = object : android.webkit.WebViewClient() {
                     override fun onPageFinished(view: android.webkit.WebView, url: String) {
+                        if (layoutStarted) return
+                        layoutStarted = true
                         try {
                         val adapter = webView.createPrintDocumentAdapter(title ?: "Annotations")
                         val attributes = android.print.PrintAttributes.Builder()
@@ -74,45 +82,56 @@ class HighlightsPdfExporter @Inject constructor(
                                     info: android.print.PrintDocumentInfo,
                                     changed: Boolean,
                                 ) {
-                                    val pfd = android.os.ParcelFileDescriptor.open(
-                                        outFile,
-                                        android.os.ParcelFileDescriptor.MODE_READ_WRITE or
-                                            android.os.ParcelFileDescriptor.MODE_CREATE or
-                                            android.os.ParcelFileDescriptor.MODE_TRUNCATE,
-                                    )
-                                    adapter.onWrite(
-                                        arrayOf(android.print.PageRange.ALL_PAGES),
-                                        pfd,
-                                        null,
-                                        object : android.print.PrintDocumentAdapter.WriteResultCallback() {
-                                            override fun onWriteFinished(
-                                                pages: Array<out android.print.PageRange>,
-                                            ) {
-                                                pfd.close()
-                                                adapter.onFinish()
-                                                webView.destroy()
-                                                cont.resume(Unit)
-                                            }
+                                    // onLayoutFinished is invoked asynchronously by the print
+                                    // framework — it runs outside the try/catch above. Any throw
+                                    // here must be caught and routed to the continuation.
+                                    try {
+                                        val pfd = android.os.ParcelFileDescriptor.open(
+                                            outFile,
+                                            android.os.ParcelFileDescriptor.MODE_READ_WRITE or
+                                                android.os.ParcelFileDescriptor.MODE_CREATE or
+                                                android.os.ParcelFileDescriptor.MODE_TRUNCATE,
+                                        )
+                                        openPfd.set(pfd)
+                                        adapter.onWrite(
+                                            arrayOf(android.print.PageRange.ALL_PAGES),
+                                            pfd,
+                                            null,
+                                            object : android.print.PrintDocumentAdapter.WriteResultCallback() {
+                                                override fun onWriteFinished(
+                                                    pages: Array<out android.print.PageRange>,
+                                                ) {
+                                                    openPfd.getAndSet(null)?.close()
+                                                    adapter.onFinish()
+                                                    webView.destroy()
+                                                    cont.resume(Unit)
+                                                }
 
-                                            override fun onWriteFailed(error: CharSequence?) {
-                                                pfd.close()
-                                                adapter.onFinish()
-                                                webView.destroy()
-                                                cont.resumeWithException(
-                                                    java.io.IOException("PDF write failed: $error"),
-                                                )
-                                            }
+                                                override fun onWriteFailed(error: CharSequence?) {
+                                                    openPfd.getAndSet(null)?.close()
+                                                    adapter.onFinish()
+                                                    webView.destroy()
+                                                    cont.resumeWithException(
+                                                        java.io.IOException("PDF write failed: $error"),
+                                                    )
+                                                }
 
-                                            override fun onWriteCancelled() {
-                                                pfd.close()
-                                                adapter.onFinish()
-                                                webView.destroy()
-                                                cont.resumeWithException(
-                                                    java.io.IOException("PDF write cancelled"),
-                                                )
-                                            }
-                                        },
-                                    )
+                                                override fun onWriteCancelled() {
+                                                    openPfd.getAndSet(null)?.close()
+                                                    adapter.onFinish()
+                                                    webView.destroy()
+                                                    cont.resumeWithException(
+                                                        java.io.IOException("PDF write cancelled"),
+                                                    )
+                                                }
+                                            },
+                                        )
+                                    } catch (e: Exception) {
+                                        openPfd.getAndSet(null)?.close()
+                                        adapter.onFinish()
+                                        webView.destroy()
+                                        cont.resumeWithException(e)
+                                    }
                                 }
 
                                 override fun onLayoutFailed(error: CharSequence?) {
@@ -140,7 +159,10 @@ class HighlightsPdfExporter @Inject constructor(
                     }
                 }
                 webView.loadDataWithBaseURL(null, html, "text/html", "UTF-8", null)
-                cont.invokeOnCancellation { webView.destroy() }
+                cont.invokeOnCancellation {
+                    openPfd.getAndSet(null)?.close()
+                    webView.destroy()
+                }
             }
         }
     }
@@ -155,12 +177,13 @@ class HighlightsPdfExporter @Inject constructor(
  * below the 255-byte ext4 limit.
  */
 internal fun buildPdfFileName(bookTitle: String?, itemId: String): String {
+    val illegal = Regex("[\\\\/:*?\"<>|]")
     val safeName = bookTitle
-        ?.replace(Regex("[\\\\/:*?\"<>|]"), "_")
+        ?.replace(illegal, "_")
         ?.trim()
         ?.take(180)
         ?.ifBlank { null }
-        ?: itemId.take(64)
+        ?: itemId.replace(illegal, "_").trim().take(64)
     return "$safeName Annotations.pdf"
 }
 

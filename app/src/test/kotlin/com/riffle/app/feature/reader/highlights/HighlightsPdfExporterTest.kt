@@ -124,6 +124,16 @@ class HighlightsPdfExporterTest {
     }
 
     @Test
+    fun pdfFileName_sanitizesItemIdFallbackSlashes() {
+        // An itemId containing '/' (e.g. Chitanka-style "serie/foo") must not resolve into a
+        // subdirectory — File(exportsDir, "serie/foo Annotations.pdf") would throw on open.
+        assertEquals(
+            "serie_foo Annotations.pdf",
+            buildPdfFileName(null, "serie/foo"),
+        )
+    }
+
+    @Test
     fun pdfFileName_capsBaseNameAt180Characters() {
         val longTitle = "A".repeat(200)
         val result = buildPdfFileName(longTitle, "fallback")
