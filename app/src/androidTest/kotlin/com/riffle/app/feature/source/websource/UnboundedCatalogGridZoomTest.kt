@@ -37,28 +37,7 @@ class UnboundedCatalogGridZoomTest {
     @Test
     fun pinchOutMakesCatalogItemsLarger() {
         var observedScale = 1f
-        rule.setContent {
-            var scale by remember { mutableFloatStateOf(1f) }
-            CompositionLocalProvider(LocalCoverGridScale provides scale) {
-                UnboundedCatalogGrid(
-                    items = (0 until 30).toList(),
-                    isPaging = false,
-                    hasMore = false,
-                    onLoadMore = {},
-                    onCoverScaleChange = {
-                        scale = it
-                        observedScale = it
-                    },
-                    itemKey = { it },
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .aspectRatio(2f / 3f)
-                            .semantics { contentDescription = TILE_DESCRIPTION },
-                    )
-                }
-            }
-        }
+        setGridContent { observedScale = it }
 
         val columnsBefore = firstVisibleRowCount()
         rule.onRoot().performTouchInput {
@@ -77,6 +56,49 @@ class UnboundedCatalogGridZoomTest {
             "larger covers should reduce the first-row column count ($columnsBefore -> $columnsAfter)",
             columnsAfter < columnsBefore,
         )
+    }
+
+    @Test
+    fun pinchInMakesCatalogItemsSmaller() {
+        var observedScale = 1f
+        setGridContent { observedScale = it }
+
+        rule.onRoot().performTouchInput {
+            pinch(
+                start0 = Offset(left + 16f, centerY),
+                end0 = Offset(centerX - 24f, centerY),
+                start1 = Offset(right - 16f, centerY),
+                end1 = Offset(centerX + 24f, centerY),
+            )
+        }
+        rule.waitForIdle()
+
+        assertTrue("pinch-in should decrease the cover scale", observedScale < 1f)
+    }
+
+    private fun setGridContent(onScaleObserved: (Float) -> Unit) {
+        rule.setContent {
+            var scale by remember { mutableFloatStateOf(1f) }
+            CompositionLocalProvider(LocalCoverGridScale provides scale) {
+                UnboundedCatalogGrid(
+                    items = (0 until 30).toList(),
+                    isPaging = false,
+                    hasMore = false,
+                    onLoadMore = {},
+                    onCoverScaleChange = {
+                        scale = it
+                        onScaleObserved(it)
+                    },
+                    itemKey = { it },
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .aspectRatio(2f / 3f)
+                            .semantics { contentDescription = TILE_DESCRIPTION },
+                    )
+                }
+            }
+        }
     }
 
     private fun firstVisibleRowCount(): Int {
