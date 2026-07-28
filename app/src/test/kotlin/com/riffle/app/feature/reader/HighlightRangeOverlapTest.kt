@@ -542,6 +542,10 @@ class HighlightRangeOverlapTest {
             "merged snippet must contain para-2 text",
             snippet.contains("paragraph two"),
         )
+        assertEquals(
+            "first sentence in paragraph one.\nThe second sentence in paragraph two.",
+            snippet,
+        )
     }
 
     @Test
