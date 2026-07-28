@@ -27,23 +27,29 @@ object ServerReferenceLint {
      */
     val ALLOWLIST: Set<String> = setOf(
         // The ServerType enum itself is the taxonomy hinge — the enum name stays.
-        "core/models/src/main/kotlin/com/riffle/core/models/ServerType.kt",
+        "core/models/src/commonMain/kotlin/com/riffle/core/models/ServerType.kt",
         // Room database + migrations reference historical `serverId` columns and
         // `servers` table in SQL that must remain verbatim to preserve migration
         // history. Identifier holdouts (ServerRepository comment) live here too.
         "core/database/src/main/kotlin/com/riffle/core/database/RiffleDatabase.kt",
         // Domain models that still carry `serverType: ServerType` parameters.
-        "core/models/src/main/kotlin/com/riffle/core/models/Source.kt",
-        "core/domain/src/main/kotlin/com/riffle/core/domain/SourceRepository.kt",
-        "core/domain/src/main/kotlin/com/riffle/core/domain/PendingSource.kt",
-        "core/models/src/main/kotlin/com/riffle/core/models/ReadingSession.kt",
-        "core/domain/src/main/kotlin/com/riffle/core/domain/ProgressReconciler.kt",
-        "core/domain/src/main/kotlin/com/riffle/core/domain/ProgressSyncController.kt",
-        "core/domain/src/main/kotlin/com/riffle/core/domain/HighlightsResumeStore.kt",
+        "core/models/src/commonMain/kotlin/com/riffle/core/models/Source.kt",
+        "core/domain/src/commonMain/kotlin/com/riffle/core/domain/PendingSource.kt",
+        "core/models/src/commonMain/kotlin/com/riffle/core/models/ReadingSession.kt",
+        "core/domain/src/commonMain/kotlin/com/riffle/core/domain/ProgressReconciler.kt",
+        "core/domain/src/commonMain/kotlin/com/riffle/core/domain/ProgressSyncController.kt",
+        "core/domain/src/commonMain/kotlin/com/riffle/core/domain/HighlightsResumeStore.kt",
         // WebSourceDescriptor + its ABS/Storyteller subclasses branch on ServerType to pick the
         // right AddSource copy, icon URL, and namespace shape per credentialed web source (ADR
         // 0044). Same grandfathering rationale as SourceRepository / Source.
-        "core/domain/src/main/kotlin/com/riffle/core/domain/WebSourceDescriptor.kt",
+        "core/domain/src/commonMain/kotlin/com/riffle/core/domain/WebSourceDescriptor.kt",
+        // KMP source adapters still thread the grandfathered ServerType field through
+        // credentialed source setup. Moving source sets does not introduce new debt.
+        "core/sources/src/commonMain/kotlin/com/riffle/core/sources/SourceAdapter.kt",
+        "core/sources/src/commonMain/kotlin/com/riffle/core/sources/abs/AbsSourceAdapter.kt",
+        "core/sources/src/jvmMain/kotlin/com/riffle/core/sources/komga/KomgaSourceAdapter.kt",
+        // WebDAV's ServerError is an HTTP result, not the Source/Service taxonomy.
+        "core/sources/src/jvmMain/kotlin/com/riffle/core/sources/webdav/WebDavAnnotationSyncTarget.kt",
         // Credentialed-authenticator layer (ADR 0044 Phase 7) — the ABS and Komga authenticators
         // set `serverType` on the installed Source; the abstract Authenticator carries the field
         // through. Same rationale as SourceRepositoryImpl / AbsApiClient.
@@ -64,11 +70,16 @@ object ServerReferenceLint {
         "core/data/src/main/kotlin/com/riffle/core/data/ReadingSessionRepositoryImpl.kt",
         "core/data/src/main/kotlin/com/riffle/core/data/WebDavAnnotationSyncTarget.kt",
         "core/data/src/main/kotlin/com/riffle/core/data/PreferenceStoreFactories.kt",
+        // Existing ABS bookmark synchronization sites branch on the grandfathered
+        // ServerType/NetworkResult.ServerError names.
+        "core/data/src/main/kotlin/com/riffle/core/data/AnnotationSyncTargetHolder.kt",
+        "core/data/src/main/kotlin/com/riffle/core/data/absbookmark/AbsBookmarkAnnotationSyncTarget.kt",
+        "core/data/src/main/kotlin/com/riffle/core/data/absbookmark/AbsBookmarkAnnotationSyncTargetFactory.kt",
         // Network clients — ABS and Storyteller HTTP surfaces carry `serverType`.
-        "core/network/src/main/kotlin/com/riffle/core/network/AbsApiClient.kt",
-        "core/network/src/main/kotlin/com/riffle/core/network/StorytellerApi.kt",
-        "core/network/src/main/kotlin/com/riffle/core/network/StorytellerApiClient.kt",
-        "core/network/src/main/kotlin/com/riffle/core/network/NetworkResult.kt",
+        "core/net/src/commonMain/kotlin/com/riffle/core/network/AbsApiClient.kt",
+        "core/net/src/commonMain/kotlin/com/riffle/core/network/StorytellerApi.kt",
+        "core/net/src/commonMain/kotlin/com/riffle/core/network/StorytellerApiClient.kt",
+        "core/net/src/commonMain/kotlin/com/riffle/core/network/NetworkResult.kt",
         // Catalog abs adapter carries ServerException.
         "core/catalog/src/main/kotlin/com/riffle/core/catalog/abs/CatalogException.kt",
         // App-side view-models + screens that thread ServerType through and the
@@ -111,8 +122,7 @@ object ServerReferenceLint {
     /**
      * Walks [scanRoots] and returns every offending line. Files in [allowlist]
      * (paths relative to [projectRoot]) are skipped entirely. Test source sets
-     * (`/src/test/`, `/src/androidTest/`) are also skipped — fixtures legitimately
-     * reference the taxonomy under test.
+     * are also skipped — fixtures legitimately reference the taxonomy under test.
      */
     fun findServerReferenceOffenders(
         scanRoots: List<File>,
@@ -125,10 +135,7 @@ object ServerReferenceLint {
             .filter { it.exists() }
             .flatMap { it.walkTopDown() }
             .filter { it.isFile && it.extension == "kt" }
-            .filterNot {
-                val p = it.absolutePath
-                p.contains("/src/test/") || p.contains("/src/androidTest/")
-            }
+            .filterNot { TEST_SOURCE_SET_PATTERN.containsMatchIn(it.invariantSeparatorsPath) }
             .forEach { f ->
                 val rel = f.relativeTo(projectRoot).path
                 if (rel in allowlist) return@forEach
@@ -151,4 +158,6 @@ object ServerReferenceLint {
             }
         return offenders
     }
+
+    private val TEST_SOURCE_SET_PATTERN = Regex("""(?:^|/)src/(?:test|androidTest|[^/]+Test)/""")
 }

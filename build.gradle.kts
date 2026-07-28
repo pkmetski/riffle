@@ -1,4 +1,5 @@
 import com.riffle.buildlogic.AndroidImportLint
+import com.riffle.buildlogic.OkHttpConfinementLint
 import com.riffle.buildlogic.RiffleLogTagLint
 import com.riffle.buildlogic.ServerReferenceLint
 
@@ -10,6 +11,7 @@ plugins {
     alias(libs.plugins.hilt) apply false
     alias(libs.plugins.kotlin.compose) apply false
     alias(libs.plugins.kotlin.serialization) apply false
+    alias(libs.plugins.kotlin.multiplatform) apply false
 }
 
 // ktor-client-okhttp:3.1.3 pulls in okhttp-sse:4.12.0 as a transitive dep.
@@ -75,6 +77,8 @@ tasks.register("checkRiffleInfraSeams") {
             "core/domain/src/main/kotlin/com/riffle/core/domain/DispatcherProvider.kt",
             "core/domain/src/main/kotlin/com/riffle/core/domain/SystemClock.kt",
             "core/domain/src/main/kotlin/com/riffle/core/domain/DefaultDispatcherProvider.kt",
+            // core:common KMP — SystemClock is the production Clock impl; permitted in jvmMain.
+            "core/common/src/jvmMain/kotlin/com/riffle/core/common/SystemClock.kt",
             // ---- Grandfathered — Clock sweep follow-up.
             "app/src/main/kotlin/com/riffle/app/feature/audiobook/AudiobookPlayerViewModel.kt",
             "app/src/main/kotlin/com/riffle/app/feature/library/LibraryItemsViewModel.kt",
@@ -219,6 +223,27 @@ tasks.register("checkNoServerReferences") {
     }
 }
 
+// Enforces OkHttp confinement (issue #631): `okhttp3.*` imports are only allowed inside
+// `core/net/src/jvmMain`. Every other production Kotlin file must use the Ktor abstraction.
+// Detection logic lives in buildSrc/.../OkHttpConfinementLint.kt.
+tasks.register("checkNoOkHttpOutsideCoreNet") {
+    group = "verification"
+    description = "Fails if any production source outside core/net/src/jvmMain imports okhttp3.*."
+    notCompatibleWithConfigurationCache("reading the file system at execution time")
+
+    doLast {
+        val projectRoot = layout.projectDirectory.asFile
+        val offenders = OkHttpConfinementLint.findOkHttpOutsideCoreNet(projectRoot)
+        if (offenders.isNotEmpty()) {
+            throw GradleException(
+                "OkHttp is confined to core/net/src/jvmMain. Use the Ktor HttpClient abstraction " +
+                    "instead of importing okhttp3.* directly:\n" +
+                    offenders.joinToString("\n") { it.render(projectRoot) },
+            )
+        }
+    }
+}
+
 // Enforces the multi-platform-core boundary (#550): fails if any module under the
 // platform-agnostic core roots (core:models, core:net, core:sources, core:sync,
 // core:annotations) imports `android.*`, `androidx.*` (except androidx.annotation),
@@ -254,5 +279,6 @@ allprojects {
         dependsOn(rootProject.tasks.named("checkRendererBridgeUsage"))
         dependsOn(rootProject.tasks.named("checkNoServerReferences"))
         dependsOn(rootProject.tasks.named("checkNoAndroidImports"))
+        dependsOn(rootProject.tasks.named("checkNoOkHttpOutsideCoreNet"))
     }
 }

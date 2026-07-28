@@ -11,13 +11,12 @@ import com.riffle.core.data.LocalStoreMigrator
 import com.riffle.core.sync.ProgressSweep
 import com.riffle.core.data.localfiles.LocalFilesFolderWatcher
 import com.riffle.core.domain.ApplicationScope
+import com.riffle.core.network.createImageLoaderOkHttpClient
 import dagger.hilt.EntryPoint
 import dagger.hilt.InstallIn
 import dagger.hilt.android.EntryPointAccessors
 import dagger.hilt.android.HiltAndroidApp
 import dagger.hilt.components.SingletonComponent
-import okhttp3.Interceptor
-import okhttp3.OkHttpClient
 import org.acra.ACRA
 import org.acra.ReportField
 import org.acra.config.dialog
@@ -158,7 +157,7 @@ class RiffleApplication : Application(), ImageLoaderFactory {
 
     override fun newImageLoader(): ImageLoader =
         ImageLoader.Builder(this)
-            .okHttpClient { imageLoaderOkHttpClient() }
+            .okHttpClient { createImageLoaderOkHttpClient() }
             .diskCache {
                 DiskCache.Builder()
                     .directory(cacheDir.resolve("image_cache"))
@@ -179,28 +178,3 @@ internal fun shouldSkipMainProcessStartup(isAcraProcess: Boolean): Boolean = isA
 
 /** 100 MB cap for the on-disk cover cache. */
 internal const val IMAGE_DISK_CACHE_MAX_BYTES = 100L * 1024 * 1024
-
-/**
- * Treats covers as immutable so Coil's DiskCache serves them without ever needing the network —
- * critical for offline mode, where any revalidation would fail and leave cells blank. Safe because
- * cover URLs embed the item's `updatedAt` as `?t=…` (see `LibraryRepositoryImpl.absCoverUrl`): a
- * real cover change in ABS bumps `updatedAt`, producing a new URL and a fresh Coil cache key.
- */
-internal val coverCacheControlInterceptor = Interceptor { chain ->
-    chain.proceed(chain.request())
-        .newBuilder()
-        .header("Cache-Control", "max-age=31536000, immutable")
-        .build()
-}
-
-/**
- * OkHttp client for the cover [ImageLoader]. Deliberately carries **no** OkHttp `Cache`: Coil's own
- * DiskCache owns `cacheDir/image_cache`. An OkHttp `Cache` and Coil's `DiskCache` are two separate
- * `DiskLruCache` writers, and pointing both at that one directory corrupts the journal
- * ("unexpected journal header"), wiping the cover cache on launch. Keeping a single writer for the
- * directory is the fix — see RiffleImageLoaderTest.
- */
-internal fun imageLoaderOkHttpClient(): OkHttpClient =
-    OkHttpClient.Builder()
-        .addNetworkInterceptor(coverCacheControlInterceptor)
-        .build()

@@ -22,6 +22,7 @@ import com.riffle.core.models.EbookFormat
 import com.riffle.core.models.SourceType
 import com.riffle.core.network.AbsBookmarkApi
 import com.riffle.core.network.AbsLibraryApi
+import com.riffle.core.network.AbsEpubDownloadApi
 import com.riffle.core.network.AbsPlaybackApi
 import com.riffle.core.network.AbsServerInfoApi
 import com.riffle.core.network.AbsSessionApi
@@ -65,6 +66,9 @@ class AbsCatalogTest {
     }
 
     private val libraryApi = FakeAbsLibraryApi()
+    private val epubDownloadApi = AbsEpubDownloadApi { _, _, _, _, _ ->
+        NetworkResult.Unknown(UnsupportedOperationException("not used by this test"))
+    }
     private val playbackApi = FakeAbsPlaybackApi()
     private val sessionApi = FakeAbsSessionApi()
     private val serverInfoApi = FakeAbsServerInfoApi()
@@ -73,6 +77,7 @@ class AbsCatalogTest {
     private val catalog = AbsCatalog(
         config = config,
         libraryApi = libraryApi,
+        epubDownloadApi = epubDownloadApi,
         playbackApi = playbackApi,
         sessionApi = sessionApi,
         bookmarkApi = bookmarkApi,

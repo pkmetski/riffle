@@ -4,8 +4,7 @@ import com.riffle.core.catalog.komga.KomgaHttpClient
 import com.riffle.core.catalog.komga.probeKomgaUserId
 import com.riffle.core.domain.RemoteUserIdResolver
 import com.riffle.core.models.Source
-import com.riffle.core.network.createDefaultHttpClient
-import okhttp3.OkHttpClient
+import io.ktor.client.HttpClient
 import java.io.IOException
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -22,10 +21,10 @@ import javax.inject.Singleton
  */
 @Singleton
 class KomgaRemoteUserIdResolver @Inject constructor(
-    private val okHttpClient: OkHttpClient,
+    private val httpClient: HttpClient,
 ) : RemoteUserIdResolver {
     override suspend fun resolve(source: Source, token: String): String? {
-        val http = KomgaHttpClient(createDefaultHttpClient(okHttpClient), token)
+        val http = KomgaHttpClient(httpClient, token)
         // Any HTTP status is preserved but only 2xx-with-parsable-body yields a usable id;
         // callers treat a null return as "leave the source in PendingRemoteId and retry next
         // time". IOException collapses to null too — offline resolve is a no-op, not a fatal

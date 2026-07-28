@@ -148,7 +148,21 @@ class AndroidImportLintTest {
             "core/models/src/androidTest/kotlin/FooAndroidTest.kt",
             "import androidx.room.Dao\n",
         )
+        writeKt("core/models/src/jvmTest/kotlin/FooJvmTest.kt", "import android.content.Context\n")
+        writeKt("core/models/src/commonTest/kotlin/FooCommonTest.kt", "import android.content.Context\n")
         assertTrue(detect().isEmpty())
+    }
+
+    @Test
+    fun `scans commonMain but skips platform main source sets`() {
+        writeKt("core/models/src/commonMain/kotlin/Common.kt", "import android.content.Context\n")
+        writeKt("core/models/src/jvmMain/kotlin/Jvm.kt", "import android.content.Context\n")
+        writeKt("core/models/src/androidMain/kotlin/Android.kt", "import android.content.Context\n")
+        writeKt("core/models/src/iosMain/kotlin/Ios.kt", "import android.content.Context\n")
+
+        val offenders = detect()
+
+        assertEquals(listOf("Common.kt"), offenders.map { it.file.name })
     }
 
     @Test

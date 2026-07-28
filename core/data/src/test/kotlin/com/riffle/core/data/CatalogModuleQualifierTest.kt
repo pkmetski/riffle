@@ -8,8 +8,8 @@ class CatalogModuleQualifierTest {
 
     /**
      * Every unbounded-catalog (web) source's `CatalogFactory` provider must inject the
-     * `@WebSourceOkHttpClient`-qualified `OkHttpClient`, not the app-wide default. The qualified
-     * client is the only one carrying the ADR 0043 disk cache + `ForceCacheHeadersInterceptor` +
+     * `@WebSourceOkHttpClient`-qualified Ktor `HttpClient`, not the app-wide default. The qualified
+     * client is the only one backed by the ADR 0043 disk cache + `ForceCacheHeadersInterceptor` +
      * `OfflineStaleFallbackInterceptor`. Missing the qualifier turns filter switches into
      * uncached, non-retriable Gutendex/… round-trips that fail fast on transient IO — the
      * "couldn't reach Project Gutenberg" error the user hit after 1–2 filter taps (#516/#520).
@@ -34,9 +34,9 @@ class CatalogModuleQualifierTest {
             val params = m.groupValues[3]
             val type = runCatching { SourceType.valueOf(typeName) }.getOrNull() ?: continue
             if (!type.isUnboundedCatalog) continue
-            val okHttpParam = params.split(",").firstOrNull { it.contains("OkHttpClient") }
-                ?: error("Provider $fnName for $type has no OkHttpClient parameter")
-            if (!okHttpParam.contains("@WebSourceOkHttpClient")) {
+            val httpClientParam = params.split(",").firstOrNull { it.contains("HttpClient") }
+                ?: error("Provider $fnName for $type has no HttpClient parameter")
+            if (!httpClientParam.contains("@WebSourceOkHttpClient")) {
                 offenders += "$type → $fnName"
             }
         }

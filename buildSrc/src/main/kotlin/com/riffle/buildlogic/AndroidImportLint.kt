@@ -30,6 +30,7 @@ object AndroidImportLint {
         "core/models",
         "core/domain",
         "core/network",
+        "core/net",
         "core/sources",
         "core/sync",
         "core/annotations",
@@ -64,10 +65,11 @@ object AndroidImportLint {
      * Walks each of [moduleRoots] (project-relative paths under [projectRoot]) and
      * returns every offending import line. Missing module directories are skipped
      * — the guardrail is future-ready and no-ops for modules that don't exist yet.
-     * Test source sets (`/src/test/`, `/src/androidTest/`) are skipped; fakes and
-     * fixtures legitimately reference Android APIs when hosted inside the Android
-     * app for instrumentation. Files in [allowlist] (paths relative to
-     * [projectRoot]) are skipped entirely.
+     * Test source sets are skipped; fakes and fixtures legitimately reference
+     * Android APIs when hosted inside the Android app for instrumentation.
+     * Platform-specific KMP main source sets are also skipped — this guardrail
+     * protects common code, while platform implementations may use their native
+     * APIs. Files in [allowlist] (paths relative to [projectRoot]) are skipped.
      */
     fun findAndroidImportOffenders(
         projectRoot: File,
@@ -82,8 +84,9 @@ object AndroidImportLint {
             .flatMap { it.walkTopDown() }
             .filter { it.isFile && it.extension == "kt" }
             .filterNot {
-                val p = it.absolutePath
-                p.contains("/src/test/") || p.contains("/src/androidTest/")
+                val path = it.invariantSeparatorsPath
+                TEST_SOURCE_SET_PATTERN.containsMatchIn(path) ||
+                    PLATFORM_MAIN_SOURCE_SET_PATTERN.containsMatchIn(path)
             }
             .forEach { f ->
                 val rel = f.relativeTo(projectRoot).path
@@ -98,4 +101,7 @@ object AndroidImportLint {
             }
         return offenders
     }
+
+    private val TEST_SOURCE_SET_PATTERN = Regex("""(?:^|/)src/(?:test|androidTest|[^/]+Test)/""")
+    private val PLATFORM_MAIN_SOURCE_SET_PATTERN = Regex("""(?:^|/)src/(?!commonMain/)[^/]+Main/""")
 }
