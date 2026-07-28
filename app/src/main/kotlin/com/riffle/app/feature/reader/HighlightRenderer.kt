@@ -78,3 +78,21 @@ internal interface HighlightRenderer {
      */
     fun highlightSearchMatch(href: String, text: String)
 }
+
+/**
+ * Applies persisted annotation rendering in DOM-safe order.
+ *
+ * Paginated/vertical [ReadiumHighlightRenderer.applyAnnotations] mutates the chapter DOM for
+ * bold/italic emphasis before Readium measures annotation decorations. Note glyphs must be
+ * measured only after that mutation finishes; launching the two passes independently lets the
+ * glyph pass race ahead and retain pre-reflow bounds. Continuous mode keeps the same ordering even
+ * though its [HighlightRenderer.applyNoteGlyphs] implementation is a no-op because glyphs are
+ * emitted as part of [HighlightRenderer.applyAnnotations].
+ */
+internal suspend fun renderPersistedAnnotations(
+    renderer: HighlightRenderer,
+    renders: List<EpubReaderViewModel.HighlightRender>,
+) {
+    renderer.applyAnnotations(renders)
+    renderer.applyNoteGlyphs(renders)
+}

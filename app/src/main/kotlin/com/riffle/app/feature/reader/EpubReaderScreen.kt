@@ -2416,11 +2416,10 @@ private fun EpubNavigatorView(
     // worth applying to as soon as the ref is non-null — a slot the highlightRenderer key
     // alone doesn't cover.)
     LaunchedEffect(highlightRenderer, highlightRenders, reflowGeneration, pageLoadGeneration.value, activeFragmentRef?.substringBefore('#')) {
-        highlightRenderer.applyAnnotations(highlightRenders)
-    }
-
-    LaunchedEffect(highlightRenderer, highlightRenders, reflowGeneration, pageLoadGeneration.value) {
-        highlightRenderer.applyNoteGlyphs(highlightRenders)
+        // Readium's annotation pass may mutate/reflow the DOM for bold/italic emphasis. Keep the
+        // note-glyph pass in this same coroutine so it measures only the final DOM; separate
+        // effects race and can strand the glyph at stale, off-page bounds.
+        renderPersistedAnnotations(highlightRenderer, highlightRenders)
     }
 
     // ---- Figure borders (Task 8) ------------------------------------------------------------
