@@ -2418,10 +2418,12 @@ class EpubReaderViewModel @Inject constructor(
             logger.d(LogChannel.HighlightMerge) { "edit-merge FAIL id=$id reason=dom-text-empty startChar=$startChar endChar=$endChar" }
             return
         }
-        // Safety: our composed snippet and the DOM text must agree modulo whitespace normalisation.
-        // If they diverge, the adjacency check false-matched (probably a suffix-of-context
-        // coincidence) — abort rather than commit a broken merge.
-        if (!snippetsAgreeIgnoringWhitespace(domSnippet, trialAnchor.textSnippet)) {
+        // Safety: our composed snippet and the DOM text must agree modulo whitespace. On success,
+        // retain the composed Readium TextQuote rather than the flattened DOM text: paragraph and
+        // <br> boundaries have zero width in the readable-char model, but their captured newline
+        // is required for the merged decoration to resolve in all three reader modes.
+        val mergedSnippet = validatedMergedSnippet(domSnippet, trialAnchor.textSnippet)
+        if (mergedSnippet == null) {
             logger.d(LogChannel.HighlightMerge) {
                 "edit-merge FAIL id=$id reason=dom-mismatch " +
                     "dom='${domSnippet.take(60)}' composed='${trialAnchor.textSnippet.take(60)}'"
@@ -2480,7 +2482,7 @@ class EpubReaderViewModel @Inject constructor(
             sourceId = sourceId,
             itemId = itemId,
             cfi = cfiRange,
-            textSnippet = domSnippet,
+            textSnippet = mergedSnippet,
             chapterHref = trialAnchor.chapterHref,
             textBefore = trialAnchor.textBefore,
             textAfter = trialAnchor.textAfter,
@@ -2495,7 +2497,7 @@ class EpubReaderViewModel @Inject constructor(
                 sourceId = sourceId,
                 itemId = itemId,
                 cfi = cfiRange,
-                textSnippet = domSnippet,
+                textSnippet = mergedSnippet,
                 chapterHref = trialAnchor.chapterHref,
                 textBefore = trialAnchor.textBefore,
                 textAfter = trialAnchor.textAfter,
@@ -2509,7 +2511,7 @@ class EpubReaderViewModel @Inject constructor(
             "edit-merge done anchorReplaced=$id newId=${created.id} absorbedText=${toAbsorb.size} " +
                 "figures=${mergedEmbeddedFigures?.size ?: 0} " +
                 "emphasisStyles=$mergedEmphasisStyles " +
-                "domLen=${domSnippet.length} startChar=$startChar"
+                "snippetLen=${mergedSnippet.length} startChar=$startChar"
         }
     }
 

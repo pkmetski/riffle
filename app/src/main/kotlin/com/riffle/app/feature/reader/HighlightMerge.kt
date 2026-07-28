@@ -192,6 +192,26 @@ internal fun snippetsAgreeIgnoringWhitespace(a: String, b: String): Boolean {
     return na.equals(nb, ignoreCase = true)
 }
 
+/**
+ * Select the merged snippet that should be persisted after [domSnippet] has validated the merge.
+ *
+ * The readable-char DOM model deliberately drops blank-only nodes and gives block boundaries /
+ * `<br>` elements zero width. [composedSnippet], however, is assembled from the two Readium
+ * TextQuotes and their captured adjacency whitespace, so it retains the newline that makes a
+ * cross-line quote renderable. Persisting [domSnippet] would turn `"first\nsecond"` into
+ * `"firstsecond"`: the annotation row survives, but neither Readium nor continuous mode can
+ * resolve the merged visual range.
+ *
+ * Returns null when the non-whitespace content differs, preserving the existing false-match
+ * safety gate.
+ */
+internal fun validatedMergedSnippet(
+    domSnippet: String,
+    composedSnippet: String,
+): String? = composedSnippet.takeIf {
+    snippetsAgreeIgnoringWhitespace(domSnippet, composedSnippet)
+}
+
 /** Collapse every run of whitespace (any Unicode WS) to a single ASCII space. */
 private fun normaliseWs(s: String): String {
     val out = StringBuilder(s.length)

@@ -250,7 +250,10 @@ internal fun computeAdjacentCreateMerge(
     val endChar = snippetEndCharInBody(html, rightmostStart, rightmost.textSnippet).coerceAtMost(totalChars)
     if (endChar <= startChar) return null
     val domSnippet = readableTextBetween(html, startChar, endChar) ?: return null
-    if (!snippetsAgreeIgnoringWhitespace(domSnippet, trialAnchor.textSnippet)) return null
+    // Use the DOM text to validate the assembled range, but persist the Readium-composed quote.
+    // The readable-char model drops paragraph / <br> boundaries; the composed quote retains the
+    // newline that every reader mode needs to resolve and paint a cross-line annotation.
+    val mergedSnippet = validatedMergedSnippet(domSnippet, trialAnchor.textSnippet) ?: return null
     val spineStep = (draftSpineIndex + 1) * 2
     val cfiRange = buildHighlightCfiRange(spineStep, html, startChar, endChar - 1L) ?: return null
     val body = readableBodyText(html)
@@ -281,7 +284,7 @@ internal fun computeAdjacentCreateMerge(
     return AdjacentCreateMerge(
         fields = MergedDraftFields(
             cfiRange = cfiRange,
-            textSnippet = domSnippet,
+            textSnippet = mergedSnippet,
             textBefore = textBefore,
             textAfter = textAfter,
             progression = progression,

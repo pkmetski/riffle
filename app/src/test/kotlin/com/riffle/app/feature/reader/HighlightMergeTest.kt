@@ -316,6 +316,30 @@ class HighlightMergeTest {
         assertTrue(isMergeEligible(a, n))
     }
 
+    @Test
+    fun `validated merged snippet retains Readium line break omitted by readable DOM text`() {
+        val merged = validatedMergedSnippet(
+            domSnippet = "end of first lineStart of second line",
+            composedSnippet = "end of first line\nStart of second line",
+        )
+
+        assertEquals(
+            "the persisted TextQuote must retain the boundary used by every renderer",
+            "end of first line\nStart of second line",
+            merged,
+        )
+    }
+
+    @Test
+    fun `validated merged snippet rejects different readable content`() {
+        assertNull(
+            validatedMergedSnippet(
+                domSnippet = "end of first lineDifferent text",
+                composedSnippet = "end of first line\nStart of second line",
+            ),
+        )
+    }
+
     // -------- Cross-figure merge (revised 2026-07-10): reject when a figure sits between --------
 
     /**
