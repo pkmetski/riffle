@@ -18,6 +18,8 @@ import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.pinch
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.riffle.app.feature.library.LocalCoverGridScale
+import com.riffle.app.feature.library.MAX_COVER_SCALE
+import com.riffle.app.feature.library.MIN_COVER_SCALE
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -35,11 +37,10 @@ class UnboundedCatalogGridZoomTest {
     val rule = createComposeRule()
 
     @Test
-    fun pinchOutMakesCatalogItemsLarger() {
+    fun pinchOutIncreasesCoverScale() {
         var observedScale = 1f
-        setGridContent { observedScale = it }
+        setGridContent(onScaleObserved = { observedScale = it })
 
-        val columnsBefore = firstVisibleRowCount()
         rule.onRoot().performTouchInput {
             pinch(
                 start0 = Offset(centerX - 24f, centerY),
@@ -50,18 +51,13 @@ class UnboundedCatalogGridZoomTest {
         }
         rule.waitForIdle()
 
-        val columnsAfter = firstVisibleRowCount()
         assertTrue("pinch-out should increase the cover scale", observedScale > 1f)
-        assertTrue(
-            "larger covers should reduce the first-row column count ($columnsBefore -> $columnsAfter)",
-            columnsAfter < columnsBefore,
-        )
     }
 
     @Test
     fun pinchInMakesCatalogItemsSmaller() {
         var observedScale = 1f
-        setGridContent { observedScale = it }
+        setGridContent(onScaleObserved = { observedScale = it })
 
         rule.onRoot().performTouchInput {
             pinch(
@@ -76,9 +72,37 @@ class UnboundedCatalogGridZoomTest {
         assertTrue("pinch-in should decrease the cover scale", observedScale < 1f)
     }
 
-    private fun setGridContent(onScaleObserved: (Float) -> Unit) {
+    @Test
+    fun scaleBoundsReflowCatalogGridInBothDirections() {
+        lateinit var updateScale: (Float) -> Unit
+        setGridContent(onScaleObserved = {}, onScaleSetter = { updateScale = it })
+
+        val defaultColumns = firstVisibleRowCount()
+        rule.runOnIdle { updateScale(MAX_COVER_SCALE) }
+        rule.waitForIdle()
+        val largeCoverColumns = firstVisibleRowCount()
+
+        rule.runOnIdle { updateScale(MIN_COVER_SCALE) }
+        rule.waitForIdle()
+        val smallCoverColumns = firstVisibleRowCount()
+
+        assertTrue(
+            "maximum scale should reduce columns ($defaultColumns -> $largeCoverColumns)",
+            largeCoverColumns < defaultColumns,
+        )
+        assertTrue(
+            "minimum scale should increase columns ($defaultColumns -> $smallCoverColumns)",
+            smallCoverColumns > defaultColumns,
+        )
+    }
+
+    private fun setGridContent(
+        onScaleObserved: (Float) -> Unit,
+        onScaleSetter: ((Float) -> Unit) -> Unit = {},
+    ) {
         rule.setContent {
             var scale by remember { mutableFloatStateOf(1f) }
+            onScaleSetter { scale = it }
             CompositionLocalProvider(LocalCoverGridScale provides scale) {
                 UnboundedCatalogGrid(
                     items = (0 until 30).toList(),
