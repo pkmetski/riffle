@@ -2129,8 +2129,6 @@ class EpubReaderViewModel @Inject constructor(
         // orphans on a debug device); manifested as "annotations don't show in the panel and the
         // underlying text stays formatted forever" (panel filters TYPE_EMPHASIS out, DOM injector
         // does not).
-        val presetStyles = annotationSession.lastUsedEmphasisStyles.value
-        val combinedStyles = combineDraftEmphasisStyles(presetStyles, addEmphasisStyle)
         val html = readChapterHtml(draft.spineIndex)
         val candidates = annotationSession.annotations.value
             .filter { it.type == com.riffle.core.database.AnnotationEntity.TYPE_HIGHLIGHT }
