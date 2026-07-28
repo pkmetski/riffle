@@ -11,11 +11,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.GridItemSpan
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
-import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
@@ -42,15 +37,12 @@ import androidx.compose.material3.windowsizeclass.WindowSizeClass
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.snapshotFlow
-import kotlinx.coroutines.flow.distinctUntilChanged
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -64,6 +56,8 @@ import com.riffle.app.feature.annotations.AnnotationsListScreen
 import com.riffle.app.feature.annotations.AnnotationsListViewModel
 import com.riffle.app.feature.library.HomeTabContent
 import com.riffle.app.feature.library.ToReadTabContent
+import com.riffle.app.feature.source.websource.UnboundedCatalogGrid
+import com.riffle.app.feature.source.websource.UnboundedCoverGridZoomProvider
 import com.riffle.app.ui.TabletContentWidthContainer
 import com.riffle.core.catalog.CatalogItem
 
@@ -86,6 +80,7 @@ fun GutenbergBrowseScreen(
 ) {
     var selectedTab by rememberSaveable(key = "gutenberg_selected_tab_v1") { mutableIntStateOf(TAB_HOME) }
     var searchOpen by remember { mutableStateOf(false) }
+    val persistedCoverScale by viewModel.coverGridScale.collectAsState()
 
     val visibility by hiltViewModel<com.riffle.app.feature.library.LibraryTabVisibilityViewModel>()
         .visibility.collectAsState()
@@ -163,14 +158,27 @@ fun GutenbergBrowseScreen(
             windowSizeClass = windowSizeClass,
             modifier = Modifier.fillMaxSize().padding(padding),
         ) {
-            when (selectedTab) {
-                TAB_HOME -> GutenbergHomeTab(onOpenDetail = onOpenDetail)
-                TAB_TO_READ -> GutenbergToReadTab(onOpenDetail = onOpenDetail)
-                TAB_ANNOTATIONS -> GutenbergAnnotationsTab(onAnnotatedBookClick = onAnnotatedBookClick)
-                TAB_LIBRARY -> LibraryTabContent(
-                    viewModel = viewModel,
-                    searchOpen = searchOpen,
-                )
+            UnboundedCoverGridZoomProvider(
+                persistedScale = persistedCoverScale,
+                onPersistScaleChange = viewModel::setCoverGridScale,
+            ) { onCoverScaleChange ->
+                when (selectedTab) {
+                    TAB_HOME -> GutenbergHomeTab(
+                        onOpenDetail = onOpenDetail,
+                        onCoverScaleChange = onCoverScaleChange,
+                    )
+                    TAB_TO_READ -> GutenbergToReadTab(
+                        onOpenDetail = onOpenDetail,
+                        onCoverScaleChange = onCoverScaleChange,
+                    )
+                    TAB_ANNOTATIONS ->
+                        GutenbergAnnotationsTab(onAnnotatedBookClick = onAnnotatedBookClick)
+                    TAB_LIBRARY -> LibraryTabContent(
+                        viewModel = viewModel,
+                        searchOpen = searchOpen,
+                        onCoverScaleChange = onCoverScaleChange,
+                    )
+                }
             }
         }
     }
@@ -181,12 +189,11 @@ private const val TAB_TO_READ = 1
 private const val TAB_ANNOTATIONS = 2
 private const val TAB_LIBRARY = 3
 
-private const val PAGINATION_PREFETCH_THRESHOLD = 6
-
 @Composable
 private fun LibraryTabContent(
     viewModel: GutenbergBrowseViewModel,
     searchOpen: Boolean,
+    onCoverScaleChange: (Float) -> Unit,
 ) {
     val items by viewModel.items.collectAsState()
     val facets by viewModel.facets.collectAsState()
@@ -250,45 +257,18 @@ private fun LibraryTabContent(
                     )
                 }
                 else -> {
-                    val gridState = rememberLazyGridState()
-                    val shouldLoadMore by remember {
-                        derivedStateOf {
-                            val info = gridState.layoutInfo
-                            val total = info.totalItemsCount
-                            if (total == 0) return@derivedStateOf false
-                            val lastVisible = info.visibleItemsInfo.lastOrNull()?.index ?: 0
-                            lastVisible >= total - PAGINATION_PREFETCH_THRESHOLD
-                        }
-                    }
-                    LaunchedEffect(gridState, hasMore) {
-                        snapshotFlow { shouldLoadMore }.distinctUntilChanged().collect { should ->
-                            if (should && hasMore) viewModel.loadMore()
-                        }
-                    }
-                    LazyVerticalGrid(
-                        state = gridState,
-                        columns = GridCells.Fixed(3),
-                        contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp),
-                        verticalArrangement = Arrangement.spacedBy(14.dp),
-                        modifier = Modifier.fillMaxSize(),
-                    ) {
-                        items(items, key = { it.id }) { item ->
-                            CatalogItemCard(
-                                item = item,
-                                onClick = { viewModel.openDetail(item) },
-                            )
-                        }
-                        if (isPaging) {
-                            item(span = { GridItemSpan(maxLineSpan) }) {
-                                Box(
-                                    modifier = Modifier.fillMaxWidth().padding(16.dp),
-                                    contentAlignment = Alignment.Center,
-                                ) {
-                                    CircularProgressIndicator()
-                                }
-                            }
-                        }
+                    UnboundedCatalogGrid(
+                        items = items,
+                        isPaging = isPaging,
+                        hasMore = hasMore,
+                        onLoadMore = viewModel::loadMore,
+                        onCoverScaleChange = onCoverScaleChange,
+                        itemKey = { it.id },
+                    ) { item ->
+                        CatalogItemCard(
+                            item = item,
+                            onClick = { viewModel.openDetail(item) },
+                        )
                     }
                 }
             }
@@ -299,6 +279,7 @@ private fun LibraryTabContent(
 @Composable
 private fun GutenbergHomeTab(
     onOpenDetail: (itemId: String) -> Unit,
+    onCoverScaleChange: (Float) -> Unit,
     viewModel: GutenbergLibraryViewModel = hiltViewModel(),
 ) {
     val inProgress by viewModel.inProgress.collectAsState()
@@ -315,12 +296,14 @@ private fun GutenbergHomeTab(
         token = "",
         onItemSelected = { item -> onOpenDetail(item.id) },
         onSectionSeeMore = {},
+        onCoverScaleChange = onCoverScaleChange,
     )
 }
 
 @Composable
 private fun GutenbergToReadTab(
     onOpenDetail: (itemId: String) -> Unit,
+    onCoverScaleChange: (Float) -> Unit,
     viewModel: GutenbergLibraryViewModel = hiltViewModel(),
 ) {
     val items by viewModel.toReadItems.collectAsState()
@@ -329,6 +312,7 @@ private fun GutenbergToReadTab(
         isLoading = false,
         token = "",
         onItemSelected = { item -> onOpenDetail(item.id) },
+        onCoverScaleChange = onCoverScaleChange,
     )
 }
 

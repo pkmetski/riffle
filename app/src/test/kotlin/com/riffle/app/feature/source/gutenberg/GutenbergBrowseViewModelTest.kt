@@ -8,6 +8,7 @@ import com.riffle.core.catalog.CatalogRegistry
 import com.riffle.core.catalog.gutenberg.GutenbergCatalog
 import com.riffle.core.data.websource.WebSourceItemGate
 import com.riffle.core.data.websource.WebSourceLibraryItemUpserter
+import com.riffle.core.domain.CoverGridDensityStore
 import com.riffle.core.models.Source
 import com.riffle.core.domain.SourceRepository
 import com.riffle.core.models.SourceType
@@ -19,6 +20,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
@@ -75,7 +77,14 @@ class GutenbergBrowseViewModelTest {
         }
         val registry = mockk<CatalogRegistry>().also { coEvery { it.forSource(any()) } returns catalog }
         val handle = SavedStateHandle(mapOf("libraryId" to GutenbergCatalog.ROOT_BOOKS))
-        val vm = GutenbergBrowseViewModel(handle, sourceRepo, registry, upserter, gate)
+        val vm = GutenbergBrowseViewModel(
+            handle,
+            sourceRepo,
+            registry,
+            upserter,
+            gate,
+            fakeCoverGridDensityStore(),
+        )
         return vm to gate
     }
 
@@ -118,4 +127,10 @@ class GutenbergBrowseViewModelTest {
         override suspend fun remove(sourceId: String) { }
         override suspend fun getSourceVersion(sourceId: String): String? = null
     }
+
+    private fun fakeCoverGridDensityStore(): CoverGridDensityStore =
+        object : CoverGridDensityStore {
+            override val scale = flowOf(1f)
+            override suspend fun setScale(value: Float) = Unit
+        }
 }

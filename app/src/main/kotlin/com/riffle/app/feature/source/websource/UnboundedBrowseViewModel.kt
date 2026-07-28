@@ -9,6 +9,7 @@ import com.riffle.core.catalog.CatalogRegistry
 import com.riffle.core.catalog.FacetSelection
 import com.riffle.core.data.websource.WebSourceItemGate
 import com.riffle.core.data.websource.WebSourceLibraryItemUpserter
+import com.riffle.core.domain.CoverGridDensityStore
 import com.riffle.core.domain.SourceRepository
 import com.riffle.core.models.SourceType
 import kotlinx.coroutines.CancellationException
@@ -18,9 +19,11 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
 /**
@@ -39,8 +42,10 @@ import kotlinx.coroutines.launch
  *     catalogRegistry: CatalogRegistry,
  *     libraryItemUpserter: WebSourceLibraryItemUpserter,
  *     webSourceItemGate: WebSourceItemGate,
+ *     coverGridDensityStore: CoverGridDensityStore,
  * ) : UnboundedBrowseViewModel(
- *     savedStateHandle, sourceRepository, catalogRegistry, libraryItemUpserter, webSourceItemGate,
+ *     savedStateHandle, sourceRepository, catalogRegistry, libraryItemUpserter,
+ *     webSourceItemGate, coverGridDensityStore,
  *     sourceType = SourceType.FOO,
  *     defaultRootId = FooCatalog.ROOT_BOOKS,
  *     pageSize = 40,
@@ -58,6 +63,7 @@ abstract class UnboundedBrowseViewModel(
     private val catalogRegistry: CatalogRegistry,
     private val libraryItemUpserter: WebSourceLibraryItemUpserter,
     private val webSourceItemGate: WebSourceItemGate,
+    private val coverGridDensityStore: CoverGridDensityStore,
     private val sourceType: SourceType,
     defaultRootId: String,
     private val pageSize: Int,
@@ -70,6 +76,20 @@ abstract class UnboundedBrowseViewModel(
      */
     private val facetDebounceMs: Long = 250L,
 ) : ViewModel() {
+
+    /** Global per-device cover density, shared with bounded library screens. */
+    val coverGridScale: StateFlow<Float> = coverGridDensityStore.scale
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 1f)
+
+    private var coverScalePersistJob: Job? = null
+
+    fun setCoverGridScale(value: Float) {
+        coverScalePersistJob?.cancel()
+        coverScalePersistJob = viewModelScope.launch {
+            delay(200)
+            coverGridDensityStore.setScale(value)
+        }
+    }
 
     // The unbounded browse route uses the Riffle `libraryId` as the Catalog `rootId` — each of
     // the source's Riffle "libraries" (e.g. Chitanka's Books + Audiobooks) maps 1:1 to a Catalog
