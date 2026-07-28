@@ -18,18 +18,18 @@ import com.riffle.core.domain.DeviceIdStore
 import com.riffle.core.domain.SourceRepository
 import com.riffle.core.domain.TokenStorage
 import com.riffle.core.network.AbsBookmarkApi
+import com.riffle.core.network.AbsEpubDownloadApi
 import com.riffle.core.network.AbsLibraryApi
 import com.riffle.core.network.AbsPlaybackApi
 import com.riffle.core.network.AbsServerInfoApi
 import com.riffle.core.data.di.qualifiers.WebSourceOkHttpClient
 import com.riffle.core.network.AbsSessionApi
-import com.riffle.core.network.createDefaultHttpClient
-import okhttp3.OkHttpClient
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
 import dagger.multibindings.IntoMap
+import io.ktor.client.HttpClient
 import javax.inject.Singleton
 
 /**
@@ -68,6 +68,7 @@ object CatalogModule {
     @SourceTypeKey(SourceType.ABS)
     fun provideAbsCatalogFactory(
         libraryApi: AbsLibraryApi,
+        epubDownloadApi: AbsEpubDownloadApi,
         playbackApi: AbsPlaybackApi,
         sessionApi: AbsSessionApi,
         bookmarkApi: AbsBookmarkApi,
@@ -77,6 +78,7 @@ object CatalogModule {
         clock: Clock,
     ): CatalogFactory = AbsCatalogFactory(
         libraryApi = libraryApi,
+        epubDownloadApi = epubDownloadApi,
         playbackApi = playbackApi,
         sessionApi = sessionApi,
         bookmarkApi = bookmarkApi,
@@ -91,9 +93,9 @@ object CatalogModule {
     @IntoMap
     @SourceTypeKey(SourceType.CHITANKA)
     fun provideChitankaCatalogFactory(
-        @WebSourceOkHttpClient okHttpClient: OkHttpClient,
+        @WebSourceOkHttpClient httpClient: HttpClient,
     ): CatalogFactory = ChitankaCatalogFactory(
-        httpClient = createDefaultHttpClient(okHttpClient),
+        httpClient = httpClient,
         userAgent = "Riffle/dev (Android) chitanka-source",
     )
 
@@ -102,9 +104,9 @@ object CatalogModule {
     @IntoMap
     @SourceTypeKey(SourceType.GUTENBERG)
     fun provideGutenbergCatalogFactory(
-        @WebSourceOkHttpClient okHttpClient: OkHttpClient,
+        @WebSourceOkHttpClient httpClient: HttpClient,
     ): CatalogFactory = GutenbergCatalogFactory(
-        sharedHttpClient = createDefaultHttpClient(okHttpClient),
+        sharedHttpClient = httpClient,
         userAgent = "Riffle/dev (Android) gutenberg-source",
     )
 
@@ -113,10 +115,10 @@ object CatalogModule {
     @IntoMap
     @SourceTypeKey(SourceType.KOMGA)
     fun provideKomgaCatalogFactory(
-        okHttpClient: OkHttpClient,
+        httpClient: HttpClient,
         tokenStorage: TokenStorage,
     ): CatalogFactory = KomgaCatalogFactory(
-        httpClient = createDefaultHttpClient(okHttpClient),
+        httpClient = httpClient,
         tokenStorage = tokenStorage,
         userAgent = "Riffle/dev (Android) komga-source",
     )

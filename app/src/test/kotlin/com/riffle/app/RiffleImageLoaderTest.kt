@@ -1,5 +1,7 @@
 package com.riffle.app
 
+import com.riffle.core.network.COVER_CACHE_CONTROL_INTERCEPTOR
+import com.riffle.core.network.createImageLoaderOkHttpClient
 import okhttp3.Authenticator
 import okhttp3.Cache
 import okhttp3.Call
@@ -31,13 +33,13 @@ class RiffleImageLoaderTest {
         // The bug: an OkHttp Cache at cacheDir/image_cache shares the directory with Coil's own
         // DiskCache, corrupting the DiskLruCache journal. The fix keeps a single writer — no
         // OkHttp Cache on this client. Re-adding `.cache(...)` would reintroduce the corruption.
-        assertNull(imageLoaderOkHttpClient().cache)
+        assertNull(createImageLoaderOkHttpClient().cache)
     }
 
     @Test
     fun `cover OkHttp client keeps exactly the revalidation network interceptor`() {
-        val interceptors = imageLoaderOkHttpClient().networkInterceptors
-        assertEquals(listOf(coverCacheControlInterceptor), interceptors)
+        val interceptors = createImageLoaderOkHttpClient().networkInterceptors
+        assertEquals(listOf(COVER_CACHE_CONTROL_INTERCEPTOR), interceptors)
     }
 
     @Test
@@ -55,7 +57,7 @@ class RiffleImageLoaderTest {
             .body("img".toResponseBody(null))
             .build()
 
-        val result = coverCacheControlInterceptor.intercept(FakeChain(request, upstream))
+        val result = COVER_CACHE_CONTROL_INTERCEPTOR.intercept(FakeChain(request, upstream))
 
         assertEquals("max-age=31536000, immutable", result.header("Cache-Control"))
     }

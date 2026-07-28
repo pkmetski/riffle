@@ -6,14 +6,19 @@ import com.riffle.core.domain.AudiobookDownloadResult
 import com.riffle.core.domain.AudiobookRepository
 import com.riffle.core.domain.AudiobookSession
 import com.riffle.core.domain.AudiobookTimeline
+import com.riffle.core.data.di.qualifiers.StreamingHttpClient
 import com.riffle.core.models.AudiobookTrackSpan
 import com.riffle.core.domain.DispatcherProvider
+import io.ktor.client.HttpClient
+import io.ktor.client.request.get
+import io.ktor.client.statement.bodyAsChannel
+import io.ktor.http.contentLength
+import io.ktor.http.isSuccess
+import io.ktor.utils.io.jvm.javaio.toInputStream
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
-import okhttp3.OkHttpClient
-import okhttp3.Request
 import java.io.File
 import java.io.IOException
 import javax.inject.Inject
@@ -41,7 +46,7 @@ internal data class AudiobookDownloadManifest(
  */
 class AudiobookDownloadRepositoryImpl @Inject constructor(
     private val audiobookRepository: AudiobookRepository,
-    private val okHttpClient: OkHttpClient,
+    @StreamingHttpClient private val httpClient: HttpClient,
     @com.riffle.core.data.di.AudiobookDownloadsDir private val downloadsDir: File,
     private val dispatchers: DispatcherProvider,
 ) : AudiobookDownloadRepository {
@@ -88,22 +93,21 @@ class AudiobookDownloadRepositoryImpl @Inject constructor(
             session.trackUrls.forEachIndexed { i, url ->
                 val fileName = "track-$i"
                 val out = File(dir, fileName)
-                val request = Request.Builder().url(url).get().build()
-                okHttpClient.newCall(request).execute().use { response ->
-                    if (!response.isSuccessful) throw IOException("HTTP ${response.code} for track $i")
-                    val body = response.body
-                    val len = body.contentLength()
-                    if (len > 0) total += len
-                    body.byteStream().use { input ->
-                        out.outputStream().use { output ->
-                            val buf = ByteArray(64 * 1024)
-                            while (true) {
-                                val read = input.read(buf)
-                                if (read < 0) break
-                                output.write(buf, 0, read)
-                                downloaded += read
-                                onProgress(downloaded, total)
-                            }
+                val response = httpClient.get(url)
+                if (!response.status.isSuccess()) {
+                    throw IOException("HTTP ${response.status.value} for track $i")
+                }
+                val len = response.contentLength() ?: -1L
+                if (len > 0) total += len
+                response.bodyAsChannel().toInputStream().use { input ->
+                    out.outputStream().use { output ->
+                        val buf = ByteArray(64 * 1024)
+                        while (true) {
+                            val read = input.read(buf)
+                            if (read < 0) break
+                            output.write(buf, 0, read)
+                            downloaded += read
+                            onProgress(downloaded, total)
                         }
                     }
                 }

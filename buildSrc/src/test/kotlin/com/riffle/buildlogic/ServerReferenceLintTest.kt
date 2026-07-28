@@ -120,6 +120,8 @@ class ServerReferenceLintTest {
     fun `skips test source sets`() {
         writeKt("app/src/test/kotlin/FooTest.kt", """val t: ServerType? = null""")
         writeKt("app/src/androidTest/kotlin/FooAndroidTest.kt", """val id: String = serverId""")
+        writeKt("core/models/src/jvmTest/kotlin/FooJvmTest.kt", """val t: ServerType? = null""")
+        writeKt("core/models/src/commonTest/kotlin/FooCommonTest.kt", """val id: String = serverId""")
         assertTrue(detect().isEmpty())
     }
 

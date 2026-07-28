@@ -1,28 +1,28 @@
 package com.riffle.core.data.di.modules
 
 import android.content.Context
+import com.riffle.core.data.di.qualifiers.StreamingHttpClient
 import com.riffle.core.network.AbsApi
 import com.riffle.core.network.AbsApiClient
 import com.riffle.core.data.di.qualifiers.WebSourceOkHttpClient
-import com.riffle.core.network.DEFAULT_HTTP_CACHE_RULES
-import com.riffle.core.network.EndpointCacheHeadersInterceptor
-import com.riffle.core.network.ForceCacheHeadersInterceptor
-import com.riffle.core.network.OfflineStaleFallbackInterceptor
 import com.riffle.core.network.AbsBookmarkApi
+import com.riffle.core.network.AbsEpubDownloadApi
+import com.riffle.core.network.AbsEpubDownloadApiClient
 import com.riffle.core.network.AbsLibraryApi
 import com.riffle.core.network.AbsPlaybackApi
 import com.riffle.core.network.AbsServerInfoApi
 import com.riffle.core.network.AbsSessionApi
-import com.riffle.core.network.createDefaultHttpClient
-import com.riffle.core.network.createStreamingHttpClient
 import com.riffle.core.network.AudiobookBundleApiImpl
 import com.riffle.core.network.GitHubReleaseApi
+import com.riffle.core.network.JvmHttpClientPool
 import com.riffle.core.network.StorytellerApi
 import com.riffle.core.network.StorytellerApiClient
 import com.riffle.core.network.StorytellerBundleApiImpl
 import com.riffle.core.network.StorytellerLibraryApi
 import com.riffle.core.network.StorytellerPositionApi
 import com.riffle.core.network.StorytellerPositionApiImpl
+import com.riffle.core.network.createDefaultJvmHttpClientPool
+import com.riffle.core.network.createWebSourceHttpClient
 import com.riffle.core.sources.abs.AbsSourceAdapter
 import com.riffle.core.sources.komga.KomgaSourceAdapter
 import dagger.Binds
@@ -32,8 +32,6 @@ import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
 import io.ktor.client.HttpClient
-import okhttp3.Cache
-import okhttp3.OkHttpClient
 import java.io.File
 import javax.inject.Singleton
 
@@ -82,15 +80,11 @@ abstract class NetworkModule {
          */
         @Provides
         @Singleton
-        fun provideOkHttpClient(
+        fun provideJvmHttpClientPool(
             @ApplicationContext context: Context,
-        ): OkHttpClient {
+        ): JvmHttpClientPool {
             val cacheDir = File(context.cacheDir, "default-http")
-            val cache = Cache(cacheDir, DEFAULT_HTTP_CACHE_BYTES)
-            return OkHttpClient.Builder()
-                .cache(cache)
-                .addNetworkInterceptor(EndpointCacheHeadersInterceptor(DEFAULT_HTTP_CACHE_RULES))
-                .build()
+            return createDefaultJvmHttpClientPool(cacheDir, DEFAULT_HTTP_CACHE_BYTES)
         }
 
         private const val DEFAULT_HTTP_CACHE_BYTES: Long = 20L * 1024L * 1024L
@@ -106,16 +100,15 @@ abstract class NetworkModule {
         @Provides
         @Singleton
         @WebSourceOkHttpClient
-        fun provideWebSourceOkHttpClient(
+        fun provideWebSourceHttpClient(
             @ApplicationContext context: Context,
-        ): OkHttpClient {
+        ): HttpClient {
             val cacheDir = File(context.cacheDir, "web-source-http")
-            val cache = Cache(cacheDir, WEB_SOURCE_CACHE_BYTES)
-            return OkHttpClient.Builder()
-                .cache(cache)
-                .addNetworkInterceptor(ForceCacheHeadersInterceptor(WEB_SOURCE_MAX_AGE_SECONDS))
-                .addInterceptor(OfflineStaleFallbackInterceptor())
-                .build()
+            return createWebSourceHttpClient(
+                cacheDirectory = cacheDir,
+                cacheSizeBytes = WEB_SOURCE_CACHE_BYTES,
+                maxAgeSeconds = WEB_SOURCE_MAX_AGE_SECONDS,
+            )
         }
 
         private const val WEB_SOURCE_CACHE_BYTES: Long = 10L * 1024L * 1024L
@@ -123,38 +116,50 @@ abstract class NetworkModule {
 
         @Provides
         @Singleton
-        fun provideGitHubReleaseApi(okHttpClient: OkHttpClient): GitHubReleaseApi =
-            GitHubReleaseApi(createDefaultHttpClient(okHttpClient))
+        fun provideGitHubReleaseApi(httpClient: HttpClient): GitHubReleaseApi =
+            GitHubReleaseApi(httpClient)
 
         @Provides
         @Singleton
-        fun provideAbsApiClient(okHttpClient: OkHttpClient): AbsApiClient =
-            AbsApiClient(createDefaultHttpClient(okHttpClient))
+        fun provideAbsApiClient(httpClient: HttpClient): AbsApiClient =
+            AbsApiClient(httpClient)
 
         @Provides
         @Singleton
-        fun provideStorytellerApiClient(okHttpClient: OkHttpClient): StorytellerApiClient =
-            StorytellerApiClient(createDefaultHttpClient(okHttpClient))
+        fun provideAbsEpubDownloadApi(httpClient: HttpClient): AbsEpubDownloadApi =
+            AbsEpubDownloadApiClient(httpClient)
 
         @Provides
         @Singleton
-        fun provideStorytellerBundleApiImpl(okHttpClient: OkHttpClient): StorytellerBundleApiImpl =
-            StorytellerBundleApiImpl(createDefaultHttpClient(okHttpClient))
+        fun provideStorytellerApiClient(httpClient: HttpClient): StorytellerApiClient =
+            StorytellerApiClient(httpClient)
 
         @Provides
         @Singleton
-        fun provideAudiobookBundleApi(okHttpClient: OkHttpClient): AudiobookBundleApiImpl =
-            AudiobookBundleApiImpl(createStreamingHttpClient(okHttpClient))
+        fun provideStorytellerBundleApiImpl(httpClient: HttpClient): StorytellerBundleApiImpl =
+            StorytellerBundleApiImpl(httpClient)
 
         @Provides
         @Singleton
-        fun provideStorytellerPositionApi(okHttpClient: OkHttpClient): StorytellerPositionApi =
-            StorytellerPositionApiImpl(createDefaultHttpClient(okHttpClient))
+        fun provideAudiobookBundleApi(
+            @StreamingHttpClient httpClient: HttpClient,
+        ): AudiobookBundleApiImpl = AudiobookBundleApiImpl(httpClient)
 
         @Provides
         @Singleton
-        fun provideKtorHttpClient(okHttpClient: OkHttpClient): HttpClient =
-            createDefaultHttpClient(okHttpClient)
+        fun provideStorytellerPositionApi(httpClient: HttpClient): StorytellerPositionApi =
+            StorytellerPositionApiImpl(httpClient)
+
+        @Provides
+        @Singleton
+        fun provideKtorHttpClient(pool: JvmHttpClientPool): HttpClient =
+            pool.defaultHttpClient()
+
+        @Provides
+        @Singleton
+        @StreamingHttpClient
+        fun provideStreamingHttpClient(pool: JvmHttpClientPool): HttpClient =
+            pool.streamingHttpClient()
 
         @Provides
         @Singleton

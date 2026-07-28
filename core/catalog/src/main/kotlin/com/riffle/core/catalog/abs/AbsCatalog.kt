@@ -42,6 +42,7 @@ import com.riffle.core.models.EbookFormat
 import com.riffle.core.models.SourceType
 import com.riffle.core.network.AbsAudioUrl
 import com.riffle.core.network.AbsBookmarkApi
+import com.riffle.core.network.AbsEpubDownloadApi
 import com.riffle.core.network.AbsCoverUrl
 import com.riffle.core.network.AbsLibraryApi
 import com.riffle.core.network.AbsPlaybackApi
@@ -74,6 +75,7 @@ import com.riffle.core.network.errorAsThrowable
 class AbsCatalog(
     private val config: AbsCatalogConfig,
     private val libraryApi: AbsLibraryApi,
+    private val epubDownloadApi: AbsEpubDownloadApi,
     private val playbackApi: AbsPlaybackApi,
     private val sessionApi: AbsSessionApi,
     private val bookmarkApi: AbsBookmarkApi,
@@ -167,7 +169,7 @@ class AbsCatalog(
             BookFormat.Epub, BookFormat.Pdf, BookFormat.Cbz -> {
                 val ino = handleHint?.takeIf { it.isNotEmpty() }
                     ?: libraryApi.getItemEbookFileIno(config.baseUrl, itemId, config.token, config.insecureAllowed).unwrap()
-                val body = when (val r = libraryApi.downloadEpub(config.baseUrl, itemId, ino, config.token, config.insecureAllowed)) {
+                val body = when (val r = epubDownloadApi.downloadEpub(config.baseUrl, itemId, ino, config.token, config.insecureAllowed)) {
                     is NetworkResult.Success -> r.value
                     else -> throw CatalogException.Unknown(r.errorAsThrowable())
                 }

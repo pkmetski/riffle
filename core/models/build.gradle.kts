@@ -1,12 +1,21 @@
 plugins {
-    alias(libs.plugins.kotlin.jvm)
+    alias(libs.plugins.kotlin.multiplatform)
     alias(libs.plugins.kotlin.serialization)
 }
 
-dependencies {
-    api(project(":core:common"))
+kotlin {
+    jvm()
+    iosX64()
+    iosArm64()
+    iosSimulatorArm64()
 
-    implementation(libs.kotlinx.serialization.json)
-
-    testImplementation(libs.junit)
+    sourceSets {
+        commonMain.dependencies {
+            api(project(":core:common"))
+            implementation(libs.kotlinx.serialization.json)
+        }
+        jvmTest.dependencies {
+            implementation(libs.junit)
+        }
+    }
 }
