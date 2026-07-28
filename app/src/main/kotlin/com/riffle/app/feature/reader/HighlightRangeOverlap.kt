@@ -1,7 +1,9 @@
 package com.riffle.app.feature.reader
 
+import com.riffle.core.database.AnnotationEntity
 import com.riffle.core.models.Annotation
 import com.riffle.core.models.EmbeddedFigure
+import com.riffle.core.models.EmphasisStyle
 import com.riffle.core.domain.countBodyChars
 import org.jsoup.Jsoup
 
@@ -10,6 +12,19 @@ internal data class AdjacentCreateMerge(
     val fields: MergedDraftFields,
     val victimIds: List<String>,
 )
+
+/**
+ * Highlight auto-merge is formatting-aware: two highlight rows may share a colour but still
+ * represent distinct edit targets when their sibling Emphasis style sets differ.
+ */
+internal fun highlightsWithEmphasisStyles(
+    candidates: List<Annotation>,
+    emphasisPool: List<Annotation>,
+    expectedStyles: Set<EmphasisStyle>,
+): List<Annotation> = candidates.filter {
+    it.type == AnnotationEntity.TYPE_HIGHLIGHT &&
+        collectMergedEmphasisStyles(emphasisPool, setOf(it.cfi)) == expectedStyles
+}
 
 /** Overlap-merge context length: how much text to snapshot either side of the merged range as
  *  the persisted textBefore/textAfter. Matches [OVERLAP_CONTEXT_LEN] used by the legacy detector. */
@@ -25,8 +40,9 @@ private const val MERGED_CONTEXT_LEN = 60
  * → both highlights coexisted over the shared span (the doubled-orange bug in the video).
  *
  * The new detector operates on character-offset ranges resolved via [locateSnippetInBody] and
- * a strict interval-overlap test. Detection is a pure function so it is JVM-testable independently
- * of DOM I/O.
+ * a strict interval-overlap test. Candidates whose sibling emphasis styles differ from the draft
+ * are excluded so formatting boundaries remain separate edit targets. Detection is a pure
+ * function so it is JVM-testable independently of DOM I/O.
  */
 
 /** Half-open char range `[startChar, endChar)` — endChar exclusive so touching endpoints are
@@ -58,8 +74,8 @@ internal fun annotationCharRange(html: String, textSnippet: String, textBefore: 
 /**
  * Detect overlap victims for a new draft against every candidate existing highlight in the same
  * chapter. Returns the set of victim ids to delete AND the union range `[mergedStart, mergedEnd)`
- * spanning the draft + all overlapping victims. Null when no overlap or the draft itself can't
- * be located.
+ * spanning the draft + all formatting-compatible overlapping victims. Null when no compatible
+ * overlap exists or the draft itself can't be located.
  *
  * The caller (commitDraft) uses the union range to rebuild the merged snippet / textBefore /
  * textAfter / CFI, delete each victim (cascading its sibling emphasis rows), and persist ONE
@@ -174,7 +190,8 @@ internal fun buildMergedDraftFields(
  * the caller must delete (with their sibling emphasis rows) before persisting the merged highlight.
  *
  * [candidates] should already be filtered to same-chapter TYPE_HIGHLIGHT rows with overlap victims
- * excluded so they aren't double-processed.
+ * excluded so they aren't double-processed. This function additionally filters by the sibling
+ * Emphasis set because that is part of a Highlight's merge identity.
  */
 internal fun computeAdjacentCreateMerge(
     html: String,
@@ -187,7 +204,14 @@ internal fun computeAdjacentCreateMerge(
     draftColor: String,
     draftEmbeddedFigures: List<EmbeddedFigure>?,
     candidates: List<Annotation>,
+    draftEmphasisStyles: Set<EmphasisStyle> = emptySet(),
+    emphasisPool: List<Annotation> = emptyList(),
 ): AdjacentCreateMerge? {
+    val formattingCompatibleCandidates = highlightsWithEmphasisStyles(
+        candidates = candidates,
+        emphasisPool = emphasisPool,
+        expectedStyles = draftEmphasisStyles,
+    )
     var trialAnchor = MergeAnchor(
         spineIndex = draftSpineIndex,
         color = draftColor,
@@ -203,7 +227,12 @@ internal fun computeAdjacentCreateMerge(
     val toAbsorb = mutableListOf<Annotation>()
     val absorbedIds = mutableSetOf<String>()
     while (true) {
-        val match = findAnyMergeableNeighbor(trialAnchor, candidates, absorbedIds, html) ?: break
+        val match = findAnyMergeableNeighbor(
+            trialAnchor,
+            formattingCompatibleCandidates,
+            absorbedIds,
+            html,
+        ) ?: break
         when (match.side) {
             MergeSide.CANDIDATE_BEFORE_ANCHOR -> leftmost = match.neighbor.toMergeAnchor()
             MergeSide.CANDIDATE_AFTER_ANCHOR -> rightmost = match.neighbor.toMergeAnchor()
@@ -267,12 +296,19 @@ internal fun computeOverlapMerge(
     draftSnippet: String,
     draftTextBefore: String,
     candidates: List<Annotation>,
+    draftEmphasisStyles: Set<EmphasisStyle> = emptySet(),
+    emphasisPool: List<Annotation> = emptyList(),
 ): OverlapMergeResult? {
     val draftRange = annotationCharRange(html, draftSnippet, draftTextBefore) ?: return null
     var mergedStart = draftRange.startChar
     var mergedEnd = draftRange.endChar
     val victims = mutableListOf<String>()
-    for (candidate in candidates) {
+    val formattingCompatibleCandidates = highlightsWithEmphasisStyles(
+        candidates = candidates,
+        emphasisPool = emphasisPool,
+        expectedStyles = draftEmphasisStyles,
+    )
+    for (candidate in formattingCompatibleCandidates) {
         val range = annotationCharRange(html, candidate.textSnippet, candidate.textBefore) ?: continue
         if (!charRangesOverlap(draftRange, range)) continue
         victims += candidate.id

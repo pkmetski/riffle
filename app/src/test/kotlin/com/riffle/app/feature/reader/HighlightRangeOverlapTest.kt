@@ -2,6 +2,7 @@ package com.riffle.app.feature.reader
 
 import com.riffle.core.database.AnnotationEntity
 import com.riffle.core.models.Annotation
+import com.riffle.core.models.EmphasisStyle
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
@@ -120,6 +121,59 @@ class HighlightRangeOverlapTest {
         val expectedEnd = bodyText.indexOf("on the page").toLong() + "on the page".length
         assertEquals(expectedStart, result.mergedStart)
         assertEquals(expectedEnd, result.mergedEnd)
+    }
+
+    @Test
+    fun partialOverlap_differentTextFormatting_doesNotMerge() {
+        // Video regression (2026-07-24): annotation A is plain green; annotation B partially
+        // overlaps it and is green + bold. Merging them turns the whole union bold and destroys
+        // the user's two distinct formatting ranges.
+        val plainExisting = annotation(
+            id = "plain-green",
+            textSnippet = "was nothing more than a comma",
+            textBefore = "Apart from that, he ",
+        ).copy(color = "green")
+
+        val result = computeOverlapMerge(
+            html = html,
+            draftSnippet = "nothing more than a comma on the page",
+            draftTextBefore = "he was ",
+            candidates = listOf(plainExisting),
+            draftEmphasisStyles = setOf(EmphasisStyle.BOLD),
+            emphasisPool = emptyList(),
+        )
+
+        assertNull(
+            "plain green and green + bold must remain separate annotations",
+            result,
+        )
+    }
+
+    @Test
+    fun partialOverlap_matchingTextFormatting_stillMerges() {
+        val boldExisting = annotation(
+            id = "bold-green",
+            textSnippet = "was nothing more than a comma",
+            textBefore = "Apart from that, he ",
+        ).copy(color = "green")
+        val boldSibling = boldExisting.copy(
+            id = "emphasis-bold-green",
+            type = AnnotationEntity.TYPE_EMPHASIS,
+            color = "",
+            emphasisStyles = setOf(EmphasisStyle.BOLD),
+        )
+
+        val result = computeOverlapMerge(
+            html = html,
+            draftSnippet = "nothing more than a comma on the page",
+            draftTextBefore = "he was ",
+            candidates = listOf(boldExisting),
+            draftEmphasisStyles = setOf(EmphasisStyle.BOLD),
+            emphasisPool = listOf(boldSibling),
+        )
+
+        assertNotNull("green + bold ranges with matching formatting should still merge", result)
+        assertEquals(listOf("bold-green"), result!!.victimIds)
     }
 
     @Test
@@ -329,6 +383,16 @@ class HighlightRangeOverlapTest {
         updatedAt = 0L,
     )
 
+    private fun emphasisFor(
+        annotation: Annotation,
+        styles: Set<EmphasisStyle>,
+    ) = annotation.copy(
+        id = "emphasis-${annotation.id}",
+        type = AnnotationEntity.TYPE_EMPHASIS,
+        color = "",
+        emphasisStyles = styles,
+    )
+
     @Test
     fun adjacentTouching_singleParagraph_mergedAtCreateTime() {
         // Existing "eight sons." immediately before the new draft "Apart from".
@@ -382,6 +446,66 @@ class HighlightRangeOverlapTest {
             candidates = listOf(existing),
         )
         assertNull(result)
+    }
+
+    @Test
+    fun adjacentSameColor_differentTextFormatting_notMerged() {
+        val plainExisting = adjacentAnnotation(
+            id = "plain-green",
+            textSnippet = "eight sons.",
+            textBefore = "he had ",
+            textAfter = " Apart from that",
+            color = "green",
+        )
+
+        val result = computeAdjacentCreateMerge(
+            html = html,
+            draftSnippet = "Apart from that",
+            draftTextBefore = "eight sons. ",
+            draftTextAfter = ", he was nothing",
+            draftProgression = 0.3,
+            draftSpineIndex = 0,
+            draftChapterHref = "ch1.xhtml",
+            draftColor = "green",
+            draftEmbeddedFigures = null,
+            candidates = listOf(plainExisting),
+            draftEmphasisStyles = setOf(EmphasisStyle.BOLD),
+            emphasisPool = emptyList(),
+        )
+
+        assertNull(
+            "plain green and adjacent green + bold must remain separate annotations",
+            result,
+        )
+    }
+
+    @Test
+    fun adjacentSameColor_matchingTextFormatting_isMerged() {
+        val boldExisting = adjacentAnnotation(
+            id = "bold-green",
+            textSnippet = "eight sons.",
+            textBefore = "he had ",
+            textAfter = " Apart from that",
+            color = "green",
+        )
+
+        val result = computeAdjacentCreateMerge(
+            html = html,
+            draftSnippet = "Apart from that",
+            draftTextBefore = "eight sons. ",
+            draftTextAfter = ", he was nothing",
+            draftProgression = 0.3,
+            draftSpineIndex = 0,
+            draftChapterHref = "ch1.xhtml",
+            draftColor = "green",
+            draftEmbeddedFigures = null,
+            candidates = listOf(boldExisting),
+            draftEmphasisStyles = setOf(EmphasisStyle.BOLD),
+            emphasisPool = listOf(emphasisFor(boldExisting, setOf(EmphasisStyle.BOLD))),
+        )
+
+        assertNotNull("matching green + bold ranges should still auto-merge", result)
+        assertEquals(listOf("bold-green"), result!!.victimIds)
     }
 
     @Test
