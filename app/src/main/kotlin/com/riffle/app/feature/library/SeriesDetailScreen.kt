@@ -68,11 +68,29 @@ fun SeriesDetailScreen(
                 ) {
                     items(items, key = { it.id }) { item ->
                         Box(modifier = Modifier.padding(4.dp)) {
-                            BookCoverTile(item = item, token = viewModel.authToken, onClick = { onItemSelected(item) })
+                            BookCoverTile(
+                                item = item,
+                                token = viewModel.authToken,
+                                onClick = { onItemSelected(item) },
+                                seriesNameBadge = seriesPositionBadge(item.seriesName),
+                            )
                         }
                     }
                 }
             }
         }
     }
+}
+
+/**
+ * [LibraryItem.seriesName] includes its sequence as a `#` suffix when the source provides one.
+ * A series detail screen already names the series in its app bar, so only the position belongs on
+ * each cover.
+ */
+internal fun seriesPositionBadge(seriesName: String?): String? {
+    val sequence = seriesName
+        ?.substringAfterLast(" #", missingDelimiterValue = "")
+        ?.trim()
+        .orEmpty()
+    return sequence.takeIf { it.isNotEmpty() }?.let { "#$it" }
 }
