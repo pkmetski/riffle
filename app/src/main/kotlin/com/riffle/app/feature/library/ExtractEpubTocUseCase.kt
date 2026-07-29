@@ -8,13 +8,43 @@ import com.riffle.core.domain.PublicationMetricsRepository
 import com.riffle.core.models.LibraryItem
 import com.riffle.core.models.TocEntry
 import com.riffle.core.domain.TocRepository
+import kotlin.math.ceil
+import org.readium.r2.shared.publication.Layout
+import org.readium.r2.shared.publication.Publication
 import org.readium.r2.shared.util.AbsoluteUrl
 import org.readium.r2.shared.util.Try
+import org.readium.r2.shared.util.archive.archive
 import org.readium.r2.shared.util.asset.AssetRetriever
 import org.readium.r2.shared.util.use
-import org.readium.r2.shared.publication.services.positionsByReadingOrder
 import org.readium.r2.streamer.PublicationOpener
 import javax.inject.Inject
+
+private const val READIUM_EPUB_POSITION_PAGE_LENGTH = 1024L
+
+/**
+ * Counts positions using Readium's default EPUB strategy without materializing every Locator.
+ *
+ * `positionsByReadingOrder()` retains a Locator object for each 1 KiB position until the
+ * publication closes. Detail screens need only the count, so materializing another position list
+ * alongside the reader's publication creates avoidable memory pressure.
+ */
+internal suspend fun Publication.countEpubPositions(): Int? {
+    if (metadata.layout == Layout.FIXED) {
+        return readingOrder.size.takeIf { it > 0 }
+    }
+
+    val total = readingOrder.sumOf { link ->
+        get(link)?.use { resource ->
+            val length = resource.properties().getOrNull()?.archive?.entryLength
+                ?: resource.length().getOrNull()
+                ?: 0L
+            ceil(length.toDouble() / READIUM_EPUB_POSITION_PAGE_LENGTH.toDouble())
+                .toInt()
+                .coerceAtLeast(1)
+        } ?: 0
+    }
+    return total.takeIf { it > 0 }
+}
 
 class ExtractEpubTocUseCase @Inject constructor(
     private val epubRepository: EpubRepository,
@@ -74,8 +104,8 @@ class ExtractEpubTocUseCase @Inject constructor(
         return publication.use {
             val entries = it.tableOfContents.toTocEntries()
             val totalPositions = runCatching {
-                it.positionsByReadingOrder().sumOf { positions -> positions.size }
-            }.getOrNull()?.takeIf { count -> count > 0 }
+                it.countEpubPositions()
+            }.getOrNull()
             // Don't persist an empty TOC — it's almost always a transient parse failure, and
             // caching it would prevent a healthy re-extract on the next open.
             if (entries.isNotEmpty()) {

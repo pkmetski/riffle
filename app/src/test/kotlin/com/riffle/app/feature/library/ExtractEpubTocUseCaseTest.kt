@@ -22,13 +22,18 @@ import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import org.readium.r2.shared.publication.Layout
+import org.readium.r2.shared.publication.Link
 import org.readium.r2.shared.publication.Locator
 import org.readium.r2.shared.publication.Publication
 import org.readium.r2.shared.publication.services.PositionsService
 import org.readium.r2.shared.util.AbsoluteUrl
 import org.readium.r2.shared.util.Try
+import org.readium.r2.shared.util.archive.ArchiveProperties
+import org.readium.r2.shared.util.archive.archive
 import org.readium.r2.shared.util.asset.Asset
 import org.readium.r2.shared.util.asset.AssetRetriever
+import org.readium.r2.shared.util.resource.Resource
 import org.readium.r2.streamer.PublicationOpener
 
 class ExtractEpubTocUseCaseTest {
@@ -50,6 +55,39 @@ class ExtractEpubTocUseCaseTest {
         coverUrl = null, readingProgress = 0f, isCached = isCached, isDownloaded = false,
         ebookFormat = EbookFormat.Epub, ebookFileIno = ebookFileIno, sourceId = "srv1",
     )
+
+    @Test
+    fun `position count matches Readium fallback length strategy`() = runTest {
+        val publication = mockk<Publication>()
+        val firstLink = mockk<Link>()
+        val secondLink = mockk<Link>()
+        val firstResource = mockk<Resource>()
+        val secondResource = mockk<Resource>()
+
+        every { publication.metadata.layout } returns null
+        every { publication.readingOrder } returns listOf(firstLink, secondLink)
+        every { publication.get(firstLink) } returns firstResource
+        every { publication.get(secondLink) } returns secondResource
+        coEvery { firstResource.properties() } returns Try.Success(Resource.Properties())
+        coEvery { firstResource.length() } returns Try.Success(1025L)
+        coEvery { secondResource.properties() } returns Try.Success(Resource.Properties())
+        coEvery { secondResource.length() } returns Try.Success(0L)
+        every { firstResource.close() } just Runs
+        every { secondResource.close() } just Runs
+
+        assertEquals(3, publication.countEpubPositions())
+    }
+
+    @Test
+    fun `fixed layout counts one position per reading order resource`() = runTest {
+        val publication = mockk<Publication>()
+
+        every { publication.metadata.layout } returns Layout.FIXED
+        every { publication.readingOrder } returns List(7) { mockk() }
+
+        assertEquals(7, publication.countEpubPositions())
+        coVerify(exactly = 0) { publication.get(any<Link>()) }
+    }
 
     @Test
     fun `returns cached entries when inode matches cache`() = runTest {
@@ -159,10 +197,14 @@ class ExtractEpubTocUseCaseTest {
     }
 
     @Test
-    fun `extracts Readium positions and persists them as publication metrics`() = runTest {
+    fun `counts archive entries without materializing Readium positions and persists metrics`() = runTest {
         val file = File.createTempFile("riffle-positions", ".epub").apply { deleteOnExit() }
         val asset = mockk<Asset>()
         val publication = mockk<Publication>()
+        val firstLink = mockk<Link>()
+        val secondLink = mockk<Link>()
+        val firstResource = mockk<Resource>()
+        val secondResource = mockk<Resource>()
         val locator = mockk<Locator>()
         val positionsService = mockk<PositionsService>()
         val uri = mockk<Uri>()
@@ -180,6 +222,22 @@ class ExtractEpubTocUseCaseTest {
             List(40) { locator },
         )
         every { publication.tableOfContents } returns emptyList()
+        every { publication.metadata.layout } returns null
+        every { publication.readingOrder } returns listOf(firstLink, secondLink)
+        every { publication.get(firstLink) } returns firstResource
+        every { publication.get(secondLink) } returns secondResource
+        coEvery { firstResource.properties() } returns Try.Success(
+            Resource.Properties {
+                archive = ArchiveProperties(entryLength = 80L * 1024L, isEntryCompressed = true)
+            }
+        )
+        coEvery { secondResource.properties() } returns Try.Success(
+            Resource.Properties {
+                archive = ArchiveProperties(entryLength = 40L * 1024L, isEntryCompressed = true)
+            }
+        )
+        every { firstResource.close() } just Runs
+        every { secondResource.close() } just Runs
         every { publication.findService(PositionsService::class) } returns positionsService
         every { publication.close() } just Runs
         every { uri.isAbsolute } returns true
@@ -199,6 +257,7 @@ class ExtractEpubTocUseCaseTest {
                     PublicationMetrics(ebookFileIno = "ino1", totalPositions = 120),
                 )
             }
+            coVerify(exactly = 0) { positionsService.positionsByReadingOrder() }
         } finally {
             unmockkStatic(Uri::class)
         }
