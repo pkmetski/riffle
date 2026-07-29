@@ -127,9 +127,10 @@ internal fun buildSetNoteJs(annotationId: String, accentCssRgba: String, noteTex
         |    aside = document.createElement('aside');
         |    aside.setAttribute('class', 'riffle-note');
         |    aside.setAttribute('data-ann-id', id);
+        |    aside.setAttribute('role', 'note');
+        |    aside.setAttribute('aria-label', '$ELIDED_NOTE_ARIA_LABEL');
         |    aside.setAttribute('style',
-        |      'border-left: 2px solid ' + color + ' !important; padding-left: 12px; ' +
-        |      'font-style: italic; opacity: 0.75;');
+        |      'border-left: 2px solid ' + color + ' !important;');
         |    anchorHost.parentNode.insertBefore(aside, anchorHost.nextSibling);
         |  } else {
         |    aside.style.setProperty('border-left-color', color, 'important');

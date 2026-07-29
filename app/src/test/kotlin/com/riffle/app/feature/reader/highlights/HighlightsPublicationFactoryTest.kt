@@ -290,10 +290,12 @@ class HighlightsPublicationFactoryTest {
         )
     }
 
-    // Notes need their own paler/neutral background so they read as visually distinct from the
-    // highlight paragraph above them.
+    // A note must identify itself and sit visually under its owning highlight. Italics alone are
+    // ambiguous in an elided document because the source excerpt can itself contain italic text.
+    // The class-level CSS supplies the visible "Note" label, neutral callout surface, and tightened
+    // top margin; role/aria-label preserve the same relationship for accessibility.
     @Test
-    fun noteAsideCarriesNeutralBackground() {
+    fun noteAsideIsAnExplicitCalloutAttachedToItsHighlight() {
         val pub = factory.build(
             sourceId = "S1",
             itemId = "B1",
@@ -304,8 +306,27 @@ class HighlightsPublicationFactoryTest {
             urlFactory = ::testUrlFactory,
         )
         val html = readChapterHtml(pub, index = 0)
-        assertTrue(html.contains("<aside class=\"riffle-note\" data-ann-id=\"h1\" style=\"border-left: 2px solid "))
-        assertTrue(html.contains("font-style: italic; opacity: 0.75;\">my thought</aside>"))
+        assertTrue(
+            "note must expose note semantics and name its relationship to the preceding highlight",
+            html.contains(
+                "<aside class=\"riffle-note\" data-ann-id=\"h1\" role=\"note\" " +
+                    "aria-label=\"$ELIDED_NOTE_ARIA_LABEL\"",
+            ),
+        )
+        assertTrue(
+            "note CSS must add an explicit visible label",
+            html.contains(".riffle-note::before") &&
+                html.contains("content:\"$ELIDED_NOTE_LABEL\""),
+        )
+        assertTrue(
+            "note CSS must pull the note toward the owning excerpt and distinguish it as a callout",
+            html.contains("margin:-0.55em 0 1.5em 16px !important") &&
+                html.contains("background:rgba(127,127,127,0.12)"),
+        )
+        assertTrue(
+            "note must retain the owner's annotation id and accent colour",
+            html.contains("border-left: 2px solid") && html.contains(">my thought</aside>"),
+        )
     }
 
     // Issue #484: an annotation with a captured `originFontFamily` renders its excerpt `<p>` with
