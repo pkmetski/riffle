@@ -268,7 +268,7 @@ class GitHubReleaseApiTest {
                     "assets": [{ "name": "riffle-1.5.0-rc1.apk", "browser_download_url": "https://x/rc.apk", "size": 1 }] },
                   { "tag_name": "v1.5.0", "draft": false, "prerelease": false, "body": "### Fixes\n- Bug fix",
                     "assets": [{ "name": "riffle-1.5.0.apk", "browser_download_url": "https://x/1.5.0.apk", "size": 4200 }] },
-                  { "tag_name": "v1.4.0-draft", "draft": true, "prerelease": false, "body": "Draft",
+                  { "tag_name": "v1.4.0-draft", "draft": true, "prerelease": false, "body": "Draft", "published_at": null,
                     "assets": [] }
                 ]
                 """.trimIndent()
