@@ -3,6 +3,8 @@ package com.riffle.app.feature.library
 import com.riffle.core.models.EbookFormat
 import com.riffle.core.domain.EpubOpenResult
 import com.riffle.core.domain.EpubRepository
+import com.riffle.core.domain.PublicationMetrics
+import com.riffle.core.domain.PublicationMetricsRepository
 import com.riffle.core.models.LibraryItem
 import com.riffle.core.models.TocEntry
 import com.riffle.core.domain.TocRepository
@@ -21,8 +23,13 @@ class ExtractEpubTocUseCaseTest {
     private val publicationOpener = mockk<PublicationOpener>()
     private val assetRetriever = mockk<AssetRetriever>()
     private val tocRepository = mockk<TocRepository>()
+    private val publicationMetricsRepository = mockk<PublicationMetricsRepository>()
     private val useCase = ExtractEpubTocUseCase(
-        epubRepository, publicationOpener, assetRetriever, tocRepository,
+        epubRepository,
+        publicationOpener,
+        assetRetriever,
+        tocRepository,
+        publicationMetricsRepository,
     )
 
     private fun makeItem(isCached: Boolean = true, ebookFileIno: String? = "ino1") = LibraryItem(
@@ -35,16 +42,20 @@ class ExtractEpubTocUseCaseTest {
     fun `returns cached entries when inode matches cache`() = runTest {
         val cached = listOf(TocEntry("Chapter 1", "ch1.html"))
         coEvery { tocRepository.getCachedToc("srv1", "item1") } returns ("ino1" to cached)
+        coEvery { publicationMetricsRepository.get("srv1", "item1") } returns
+            PublicationMetrics("ino1", totalPositions = 120)
 
-        val result = useCase(makeItem())
+        val result = useCase.extractDetails(makeItem())
 
-        assertEquals(cached, result)
+        assertEquals(cached, result.tocEntries)
+        assertEquals(120, result.totalPositions)
         coVerify(exactly = 0) { epubRepository.openEpub(any()) }
     }
 
     @Test
     fun `returns empty when openEpub fails with NetworkError`() = runTest {
         coEvery { tocRepository.getCachedToc("srv1", "item1") } returns null
+        coEvery { publicationMetricsRepository.get("srv1", "item1") } returns null
         coEvery { epubRepository.openEpub(any()) } returns
             EpubOpenResult.NetworkError(RuntimeException("offline"))
 
@@ -57,6 +68,7 @@ class ExtractEpubTocUseCaseTest {
     fun `falls through with unknown sentinel when ebookFileIno is null`() = runTest {
         // Cache has no entry — extraction is attempted using "unknown" as the inode.
         coEvery { tocRepository.getCachedToc("srv1", "item1") } returns null
+        coEvery { publicationMetricsRepository.get("srv1", "item1") } returns null
         coEvery { epubRepository.openEpub(any()) } returns
             EpubOpenResult.NetworkError(RuntimeException("offline"))
 
@@ -72,6 +84,8 @@ class ExtractEpubTocUseCaseTest {
     fun `returns cached entries when ebookFileIno is null and cache key is unknown`() = runTest {
         val cached = listOf(TocEntry("Chapter 1", "ch1.html"))
         coEvery { tocRepository.getCachedToc("srv1", "item1") } returns ("unknown" to cached)
+        coEvery { publicationMetricsRepository.get("srv1", "item1") } returns
+            PublicationMetrics("unknown", totalPositions = 120)
 
         val result = useCase(makeItem(ebookFileIno = null))
 
@@ -85,6 +99,8 @@ class ExtractEpubTocUseCaseTest {
         // under the "unknown" inode key (ABS < v2.36). Since the key never changes, the empty
         // list would be returned forever. The fix treats empty as a cache miss.
         coEvery { tocRepository.getCachedToc("srv1", "item1") } returns ("unknown" to emptyList())
+        coEvery { publicationMetricsRepository.get("srv1", "item1") } returns
+            PublicationMetrics("unknown", totalPositions = 120)
         coEvery { epubRepository.openEpub(any()) } returns
             EpubOpenResult.NetworkError(RuntimeException("offline"))
 
@@ -100,6 +116,8 @@ class ExtractEpubTocUseCaseTest {
         // Same regression, but for ABS >= v2.36 where a real inode is present. An empty cached
         // list must not be trusted even when the inode matches.
         coEvery { tocRepository.getCachedToc("srv1", "item1") } returns ("ino1" to emptyList())
+        coEvery { publicationMetricsRepository.get("srv1", "item1") } returns
+            PublicationMetrics("ino1", totalPositions = 120)
         coEvery { epubRepository.openEpub(any()) } returns
             EpubOpenResult.NetworkError(RuntimeException("offline"))
 
@@ -114,6 +132,8 @@ class ExtractEpubTocUseCaseTest {
         val staleCached = listOf(TocEntry("Old Chapter", "old.html"))
         // Cache has inode "old-ino" but item now has "ino1"
         coEvery { tocRepository.getCachedToc("srv1", "item1") } returns ("old-ino" to staleCached)
+        coEvery { publicationMetricsRepository.get("srv1", "item1") } returns
+            PublicationMetrics("ino1", totalPositions = 120)
         coEvery { epubRepository.openEpub(any()) } returns
             EpubOpenResult.NetworkError(RuntimeException("network unavailable"))
 

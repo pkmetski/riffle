@@ -21,6 +21,7 @@ import com.riffle.core.database.ReadaloudLinkDao
 import com.riffle.core.database.ReadaloudResumePositionDao
 import com.riffle.core.database.ReadingPositionDao
 import com.riffle.core.database.PlaylistDao
+import com.riffle.core.database.PublicationMetricsCacheDao
 import com.riffle.core.database.RemoteItemFreshnessDao
 import com.riffle.core.database.RiffleDatabase
 import com.riffle.core.database.SeriesDao
@@ -103,6 +104,7 @@ object DatabaseModule {
                 RiffleDatabase.MIGRATION_59_60,
                 RiffleDatabase.MIGRATION_60_61,
                 RiffleDatabase.MIGRATION_61_62,
+                RiffleDatabase.MIGRATION_62_63,
             )
             .build()
 
@@ -174,6 +176,11 @@ object DatabaseModule {
     @Provides
     @Singleton
     fun provideTocCacheDao(db: RiffleDatabase): TocCacheDao = db.tocCacheDao()
+
+    @Provides
+    @Singleton
+    fun providePublicationMetricsCacheDao(db: RiffleDatabase): PublicationMetricsCacheDao =
+        db.publicationMetricsCacheDao()
 
     @Provides
     @Singleton

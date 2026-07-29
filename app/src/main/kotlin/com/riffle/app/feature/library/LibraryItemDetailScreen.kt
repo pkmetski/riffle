@@ -116,6 +116,8 @@ fun LibraryItemDetailScreen(
     val tocState by viewModel.tocState.collectAsState()
     val chaptersState by viewModel.chaptersState.collectAsState()
     val currentPositionHref by viewModel.currentPositionHref.collectAsState()
+    val estimatedTotalReadingTimeSec by viewModel.estimatedTotalReadingTimeSec.collectAsState()
+    val pdfPageCount by viewModel.pdfPageCount.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
     var showAddToPlaylistSheet by remember { mutableStateOf(false) }
@@ -270,6 +272,8 @@ fun LibraryItemDetailScreen(
                         tocState = tocState,
                         chaptersState = chaptersState,
                         currentPositionHref = currentPositionHref,
+                        estimatedTotalReadingTimeSec = estimatedTotalReadingTimeSec,
+                        pdfPageCount = pdfPageCount,
                         onReadItem = { item -> viewModel.markOpened(); onReadItem(item) },
                         onListenItem = { item -> viewModel.markOpened(); onListenItem(item) },
                         onReadItemAtHref = { item, href -> viewModel.markOpened(); onReadItemAtHref(item, href) },
@@ -303,6 +307,8 @@ fun LibraryItemDetailScreen(
                         tocState = tocState,
                         chaptersState = chaptersState,
                         currentPositionHref = currentPositionHref,
+                        estimatedTotalReadingTimeSec = estimatedTotalReadingTimeSec,
+                        pdfPageCount = pdfPageCount,
                         onReadItem = { item -> viewModel.markOpened(); onReadItem(item) },
                         onListenItem = { item -> viewModel.markOpened(); onListenItem(item) },
                         onReadItemAtHref = { item, href -> viewModel.markOpened(); onReadItemAtHref(item, href) },
@@ -336,6 +342,8 @@ fun LibraryItemDetailScreen(
                         tocState = tocState,
                         chaptersState = chaptersState,
                         currentPositionHref = currentPositionHref,
+                        estimatedTotalReadingTimeSec = estimatedTotalReadingTimeSec,
+                        pdfPageCount = pdfPageCount,
                         onReadItem = { item -> viewModel.markOpened(); onReadItem(item) },
                         onListenItem = { item -> viewModel.markOpened(); onListenItem(item) },
                         onReadItemAtHref = { item, href -> viewModel.markOpened(); onReadItemAtHref(item, href) },
@@ -400,6 +408,8 @@ private fun LibraryItemDetailContent(
     tocState: TocState = TocState.Loading,
     chaptersState: ChaptersState = ChaptersState.Loading,
     currentPositionHref: String? = null,
+    estimatedTotalReadingTimeSec: Long? = null,
+    pdfPageCount: Int? = null,
     onReadItem: (LibraryItem) -> Unit,
     onListenItem: (LibraryItem) -> Unit = {},
     onReadItemAtHref: (LibraryItem, String) -> Unit = { _, _ -> },
@@ -458,9 +468,7 @@ private fun LibraryItemDetailContent(
             AudiobookDurationLine(item.audioDurationSec, item.readingProgress)
         }
 
-        if (item.ebookFormat == com.riffle.core.models.EbookFormat.Cbz && (item.pageCount ?: 0) > 0) {
-            ComicPageCountLine(pageCount = item.pageCount!!)
-        }
+        PublicationFactsLine(item, estimatedTotalReadingTimeSec, pdfPageCount)
 
         if (item.readingProgress > 0f) {
             ReadingProgressIndicator(progress = item.readingProgress, listened = item.isListenable && !item.isReadable)
@@ -581,14 +589,51 @@ private fun LibraryItemDetailContent(
     }
 }
 
-/** "Comic · N pages" on the detail screen (ADR 0042). Mirrors AudiobookDurationLine's shape. */
 @Composable
-private fun ComicPageCountLine(pageCount: Int) {
+private fun PublicationFactsLine(
+    item: LibraryItem,
+    estimatedTotalReadingTimeSec: Long?,
+    extractedPdfPageCount: Int?,
+) {
+    val text = when (item.ebookFormat) {
+        EbookFormat.Epub -> estimatedTotalReadingTimeSec?.let {
+            ebookReadingTimeText(it, item.readingProgress)
+        }
+        EbookFormat.Pdf -> (extractedPdfPageCount ?: item.pageCount)
+            ?.takeIf { it > 0 }
+            ?.let { publicationPageCountText(EbookFormat.Pdf, it) }
+        EbookFormat.Cbz -> item.pageCount
+            ?.takeIf { it > 0 }
+            ?.let { publicationPageCountText(EbookFormat.Cbz, it) }
+        EbookFormat.Unsupported -> null
+    } ?: return
+
     Text(
-        text = "Comic · $pageCount pages",
+        text = text,
         style = MaterialTheme.typography.bodyMedium,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
     )
+}
+
+internal fun ebookReadingTimeText(totalSec: Long, readingProgress: Float): String {
+    val total = formatDuration(totalSec)
+    return when {
+        readingProgress >= READ_PROGRESS_THRESHOLD -> "$total estimated total"
+        readingProgress > 0f -> {
+            val remainingSec = ((1f - readingProgress) * totalSec).toLong().coerceAtLeast(0L)
+            "$total estimated total · ${formatDuration(remainingSec)} remaining"
+        }
+        else -> "$total estimated"
+    }
+}
+
+internal fun publicationPageCountText(format: EbookFormat, pageCount: Int): String {
+    val label = when (format) {
+        EbookFormat.Pdf -> "PDF"
+        EbookFormat.Cbz -> "Comic"
+        else -> "Ebook"
+    }
+    return "$label · $pageCount pages"
 }
 
 /** Total audiobook length on the detail screen, with remaining time when in progress (ADR 0029). */
@@ -610,7 +655,11 @@ private fun AudiobookDurationLine(durationSec: Double, readingProgress: Float = 
 }
 
 private fun formatAudiobookDuration(durationSec: Double): String {
-    val total = durationSec.toLong().coerceAtLeast(0)
+    return formatDuration(durationSec.toLong())
+}
+
+private fun formatDuration(durationSec: Long): String {
+    val total = durationSec.coerceAtLeast(0)
     val h = total / 3600
     val m = (total % 3600) / 60
     return when {
@@ -637,6 +686,8 @@ internal fun LibraryItemDetailContentTablet(
     tocState: TocState = TocState.Loading,
     chaptersState: ChaptersState = ChaptersState.Loading,
     currentPositionHref: String? = null,
+    estimatedTotalReadingTimeSec: Long? = null,
+    pdfPageCount: Int? = null,
     onReadItem: (LibraryItem) -> Unit,
     onListenItem: (LibraryItem) -> Unit = {},
     onReadItemAtHref: (LibraryItem, String) -> Unit = { _, _ -> },
@@ -702,9 +753,7 @@ internal fun LibraryItemDetailContentTablet(
             if (item.isListenable && item.audioDurationSec > 0) {
                 AudiobookDurationLine(item.audioDurationSec, item.readingProgress)
             }
-            if (item.ebookFormat == com.riffle.core.models.EbookFormat.Cbz && (item.pageCount ?: 0) > 0) {
-                ComicPageCountLine(pageCount = item.pageCount!!)
-            }
+            PublicationFactsLine(item, estimatedTotalReadingTimeSec, pdfPageCount)
             if (item.readingProgress > 0f) {
                 ReadingProgressIndicator(progress = item.readingProgress, listened = item.isListenable && !item.isReadable)
             }
@@ -848,6 +897,8 @@ internal fun LibraryItemDetailContentPhoneLandscape(
     tocState: TocState = TocState.Loading,
     chaptersState: ChaptersState = ChaptersState.Loading,
     currentPositionHref: String? = null,
+    estimatedTotalReadingTimeSec: Long? = null,
+    pdfPageCount: Int? = null,
     onReadItem: (LibraryItem) -> Unit,
     onListenItem: (LibraryItem) -> Unit = {},
     onReadItemAtHref: (LibraryItem, String) -> Unit = { _, _ -> },
@@ -914,9 +965,7 @@ internal fun LibraryItemDetailContentPhoneLandscape(
             if (item.isListenable && item.audioDurationSec > 0) {
                 AudiobookDurationLine(item.audioDurationSec, item.readingProgress)
             }
-            if (item.ebookFormat == com.riffle.core.models.EbookFormat.Cbz && (item.pageCount ?: 0) > 0) {
-                ComicPageCountLine(pageCount = item.pageCount!!)
-            }
+            PublicationFactsLine(item, estimatedTotalReadingTimeSec, pdfPageCount)
             if (item.readingProgress > 0f) {
                 ReadingProgressIndicator(progress = item.readingProgress, listened = item.isListenable && !item.isReadable)
             }
