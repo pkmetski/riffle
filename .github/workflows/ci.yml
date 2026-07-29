@@ -175,7 +175,7 @@ jobs:
           api-level: 30
           target: google_apis
           arch: x86_64
-          script: ./gradlew :core:database:connectedDebugAndroidTest
+          script: ./gradlew :core:database:connectedAndroidDeviceTest
       - name: Upload connected-test reports
         if: always()
         uses: actions/upload-artifact@v7

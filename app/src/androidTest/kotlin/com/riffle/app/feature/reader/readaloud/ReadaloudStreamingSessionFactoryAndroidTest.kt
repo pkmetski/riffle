@@ -1,6 +1,5 @@
 package com.riffle.app.feature.reader.readaloud
 
-import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.riffle.core.data.AudioIdentityResolverImpl
@@ -9,8 +8,9 @@ import com.riffle.core.data.ReadaloudSidecarStore
 import com.riffle.core.data.StorytellerSidecarFetcher
 import com.riffle.core.database.LibraryItemEntity
 import com.riffle.core.database.ReadaloudLinkEntity
-import com.riffle.core.database.RiffleDatabase
+import com.riffle.core.database.RiffleDatabaseAccess
 import com.riffle.core.database.SourceEntity
+import com.riffle.core.database.openInMemoryRiffleDatabase
 import com.riffle.core.domain.AuthenticateResult
 import com.riffle.core.domain.CommitSourceResult
 import com.riffle.core.domain.PendingSource
@@ -59,7 +59,7 @@ class ReadaloudStreamingSessionFactoryAndroidTest {
 
     private val ctx = ApplicationProvider.getApplicationContext<android.content.Context>()
     private lateinit var server: MockWebServer
-    private lateinit var db: RiffleDatabase
+    private lateinit var db: RiffleDatabaseAccess
     private lateinit var baseUrl: String
 
     private val ST_SERVER = "st"
@@ -128,7 +128,10 @@ class ReadaloudStreamingSessionFactoryAndroidTest {
 
     @Before
     fun setUp() {
-        db = Room.inMemoryDatabaseBuilder(ctx, RiffleDatabase::class.java).allowMainThreadQueries().build()
+        db = openInMemoryRiffleDatabase(
+            context = ctx,
+            allowMainThreadQueries = true,
+        )
         // Start each test from an empty sidecar cache so a prior run's prepared file can't mask the flow.
         java.io.File(ctx.cacheDir, "readaloud-sidecars").deleteRecursively()
     }

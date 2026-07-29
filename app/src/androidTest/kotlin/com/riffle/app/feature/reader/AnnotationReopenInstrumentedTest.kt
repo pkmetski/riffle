@@ -2,12 +2,12 @@ package com.riffle.app.feature.reader
 
 import com.riffle.core.domain.epubCfiToSpineIndex
 import com.riffle.core.domain.normalizeEpubHref
-import androidx.room.Room
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.riffle.core.data.AnnotationStoreImpl
-import com.riffle.core.database.RiffleDatabase
+import com.riffle.core.database.RiffleDatabaseAccess
 import com.riffle.core.database.SourceEntity
+import com.riffle.core.database.openInMemoryRiffleDatabase
 import com.riffle.core.domain.DeviceIdStore
 import dagger.hilt.android.testing.HiltAndroidRule
 import dagger.hilt.android.testing.HiltAndroidTest
@@ -47,7 +47,7 @@ class AnnotationReopenInstrumentedTest {
     @Inject lateinit var assetRetriever: AssetRetriever
     @Inject lateinit var publicationOpener: PublicationOpener
 
-    private lateinit var db: RiffleDatabase
+    private lateinit var db: RiffleDatabaseAccess
     private lateinit var store: AnnotationStoreImpl
 
     private class FixedDeviceIdStore : DeviceIdStore {
@@ -57,10 +57,10 @@ class AnnotationReopenInstrumentedTest {
     @Before
     fun setUp() {
         hiltRule.inject()
-        db = Room.inMemoryDatabaseBuilder(
-            InstrumentationRegistry.getInstrumentation().targetContext,
-            RiffleDatabase::class.java,
-        ).allowMainThreadQueries().build()
+        db = openInMemoryRiffleDatabase(
+            context = InstrumentationRegistry.getInstrumentation().targetContext,
+            allowMainThreadQueries = true,
+        )
         store = AnnotationStoreImpl(
             dao = db.annotationDao(),
             deviceIdStore = FixedDeviceIdStore(),
