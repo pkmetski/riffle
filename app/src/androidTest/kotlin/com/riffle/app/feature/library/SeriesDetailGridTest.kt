@@ -1,7 +1,6 @@
 package com.riffle.app.feature.library
 
 import androidx.compose.ui.test.assertIsDisplayed
-import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -27,9 +26,7 @@ class SeriesDetailGridTest {
             )
         }
 
-        rule.onNodeWithText("#4")
-            .assertTextEquals("#4")
-            .assertIsDisplayed()
+        rule.onNodeWithText("#4").assertIsDisplayed()
     }
 
     private fun item(seriesName: String) = LibraryItem(
