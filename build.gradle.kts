@@ -1,4 +1,5 @@
 import com.riffle.buildlogic.AndroidImportLint
+import com.riffle.buildlogic.DatabaseImplLeakLint
 import com.riffle.buildlogic.OkHttpConfinementLint
 import com.riffle.buildlogic.RiffleLogTagLint
 import com.riffle.buildlogic.ServerReferenceLint
@@ -6,6 +7,8 @@ import com.riffle.buildlogic.ServerReferenceLint
 plugins {
     alias(libs.plugins.android.application) apply false
     alias(libs.plugins.android.library) apply false
+    alias(libs.plugins.android.kotlin.multiplatform.library) apply false
+    alias(libs.plugins.androidx.room) apply false
     alias(libs.plugins.kotlin.jvm) apply false
     alias(libs.plugins.ksp) apply false
     alias(libs.plugins.hilt) apply false
@@ -271,6 +274,27 @@ tasks.register("checkNoAndroidImports") {
     }
 }
 
+// Keeps Room/SQLite implementation APIs behind the persistence boundary (ADR 0048, #555).
+// DAO consumers use RiffleDatabaseAccess and the DAO/entity contracts.
+tasks.register("checkNoDatabaseImplLeak") {
+    group = "verification"
+    description = "Fails if code outside the database modules imports Room/SQLite implementation APIs."
+    notCompatibleWithConfigurationCache("reading the file system at execution time")
+
+    doLast {
+        val projectRoot = layout.projectDirectory.asFile
+        val offenders = DatabaseImplLeakLint.findDatabaseImplLeaks(projectRoot)
+        if (offenders.isNotEmpty()) {
+            throw GradleException(
+                "Persistence implementation APIs are private to core:database and " +
+                    "core:database-api (ADR 0048, #555). Depend on RiffleDatabaseAccess and " +
+                    "the DAO/entity contracts instead:\n" +
+                    offenders.joinToString("\n") { it.render(projectRoot) },
+            )
+        }
+    }
+}
+
 // Make it part of the normal `./gradlew check` run.
 allprojects {
     tasks.matching { it.name == "check" }.configureEach {
@@ -279,6 +303,7 @@ allprojects {
         dependsOn(rootProject.tasks.named("checkRendererBridgeUsage"))
         dependsOn(rootProject.tasks.named("checkNoServerReferences"))
         dependsOn(rootProject.tasks.named("checkNoAndroidImports"))
+        dependsOn(rootProject.tasks.named("checkNoDatabaseImplLeak"))
         dependsOn(rootProject.tasks.named("checkNoOkHttpOutsideCoreNet"))
     }
 }

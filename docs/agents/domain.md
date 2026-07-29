@@ -41,9 +41,10 @@ Multi-context repo (presence of `CONTEXT-MAP.md` at the root):
 ## Module placement
 
 `CONTEXT.md` leads with a **Module Map** table. When creating a new file, pick the innermost module whose dependency constraints the file satisfies:
-- Business logic with no Android imports → pure-Kotlin core (`core:common`, `core:models`, `core:domain`, `core:network`, `core:sources`, `core:sync`, or a `core:catalog-*` plugin).
+- Shared business logic with no platform imports → KMP core (`core:common`, `core:models`, `core:domain`, `core:net`, `core:sources`, `core:sync`, or a `core:catalog-*` plugin).
+- JVM/Android streaming APIs that expose `InputStream` → the `core:network` host shim; shared HTTP clients and DTOs belong in `core:net`.
 - Code that needs Hilt wiring, `Context`, `DataStore`, or `android.*` → Android-hosting (`core:data`, `core:logging`, or `app`).
-- Room entities / DAOs → `core:database-api` or `core:database`.
+- Room entities / DAO contracts → `core:database-api/commonMain`; the generated database, migrations, drivers, and platform factories → `core:database`.
 
 The `checkNoAndroidImports` CI task enforces the boundary. See [ADR 0049](../adr/0049-platform-agnostic-core-boundary.md).
 

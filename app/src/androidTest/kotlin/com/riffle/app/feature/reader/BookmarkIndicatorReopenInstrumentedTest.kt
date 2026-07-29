@@ -1,12 +1,12 @@
 package com.riffle.app.feature.reader
 
 import com.riffle.core.domain.normalizeEpubHref
-import androidx.room.Room
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.riffle.core.data.AnnotationStoreImpl
-import com.riffle.core.database.RiffleDatabase
+import com.riffle.core.database.RiffleDatabaseAccess
 import com.riffle.core.database.SourceEntity
+import com.riffle.core.database.openInMemoryRiffleDatabase
 import com.riffle.core.domain.DeviceIdStore
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
@@ -35,7 +35,7 @@ import org.junit.runner.RunWith
 @RunWith(AndroidJUnit4::class)
 class BookmarkIndicatorReopenInstrumentedTest {
 
-    private lateinit var db: RiffleDatabase
+    private lateinit var db: RiffleDatabaseAccess
     private lateinit var store: AnnotationStoreImpl
 
     private class FixedDeviceIdStore : DeviceIdStore {
@@ -44,10 +44,10 @@ class BookmarkIndicatorReopenInstrumentedTest {
 
     @Before
     fun setUp() {
-        db = Room.inMemoryDatabaseBuilder(
-            InstrumentationRegistry.getInstrumentation().targetContext,
-            RiffleDatabase::class.java,
-        ).allowMainThreadQueries().build()
+        db = openInMemoryRiffleDatabase(
+            context = InstrumentationRegistry.getInstrumentation().targetContext,
+            allowMainThreadQueries = true,
+        )
         store = AnnotationStoreImpl(
             dao = db.annotationDao(),
             deviceIdStore = FixedDeviceIdStore(),

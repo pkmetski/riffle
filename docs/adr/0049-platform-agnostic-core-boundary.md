@@ -2,16 +2,14 @@
 
 ## Status
 
-Accepted — all phases (#550–#557) landed 2026-07-27.
+Accepted — updated 2026-07-28 alongside the missing KMP networking, sync, and persistence implementation.
 
 ## Context
 
-Riffle started as a monolithic Android app. Over seven phases (issues #550–#557,
-PRs #582, #589, #597, #610, #622, #624, #626, #629) the business logic was
-progressively extracted into pure-Kotlin modules that carry no Android runtime
-dependency. The goal is a codebase where a future KMP target (desktop, iOS, web)
-can consume the core as-is, with only the hosting layer (`app`, `core:data`, etc.)
-requiring re-implementation per platform.
+Riffle started as a monolithic Android app. Across issues #550–#557 and the Phase 2b
+follow-up #631, business logic was progressively extracted into Kotlin Multiplatform
+modules. Shared source sets carry no Android runtime dependency; platform source sets
+provide JVM/Android and iOS implementations where a native engine is required.
 
 Each phase extracted one slice:
 
@@ -19,63 +17,66 @@ Each phase extracted one slice:
 |---|---|---|
 | 0 | #550 | Guardrail task (`checkNoAndroidImports`), module scaffold |
 | 1 | #551 | `core:models` — pure data models, serialization |
-| 2 | #552 | `core:network` — `AbsApiClient`, `NetworkResult`, HTTP plumbing |
+| 2/2b | #552, #631 | `core:net` — shared clients/DTOs, JVM OkHttp engine, iOS Darwin engine |
 | 3 | #553 | `core:sources` — `Source`/`Service` abstractions, source adapters |
-| 3b | #554 | `core:catalog` + catalog plugin modules (Chitanka, Gutenberg, Komga) |
-| 4 | #555 | `core:sync` — `ProgressSweep`, `ReconcileLocks`, annotation sync status |
-| 5a/5b | #555 | `core:database-api` — Room `@Entity`/`@Dao` split (ADR 0048) |
-| 6 | #556 | `core:common` — `FileStore`, `EncryptedKeyValueStore`; `core:domain` — `AudioPlayer`; logger audit |
+| 4 | #554 | `core:sync` — `ProgressSweep`, `ReconcileLocks`, annotation/bookmark reconciliation |
+| 5a–5d | #555 | Room KMP database API/implementation, bundled SQLite, import guardrail (ADR 0048) |
+| 6 | #556 | `Clock`, `RandomProvider`, `FileStore`, key-value and audio boundaries; logger audit |
+| 7 | #557 | Boundary documentation and harness/JVM-test audit |
 
 ## Decision
 
 ### The boundary rule
 
-A module belongs in the **pure-Kotlin core** if and only if all of the following hold:
+A source file belongs in shared `commonMain` if and only if all of the following hold:
 
-1. Its production sources import no `android.*`, `androidx.*` (except
-   `androidx.annotation`), or `java.util.logging`.
+1. It imports no platform API (`android.*`, Java-only APIs, Darwin APIs, or platform engines).
 2. Its logic is platform-neutral — it describes *what* the app does, not *how*
    Android does it.
-3. A future non-Android host (desktop, iOS, CLI) could consume it unchanged.
+3. Every configured KMP target can compile and consume it unchanged.
 
-Everything that fails these tests stays in an **Android-hosting** module
-(`core:data`, `core:database`, `core:database-api`, `core:logging`, `app`).
+Platform implementations belong in `androidMain`, `jvmMain`, or `iosMain`. Android composition
+and UI remain in hosting modules (`core:data`, `core:logging`, `app`). `core:network` is a
+JVM/Android compatibility shim for streaming APIs that intentionally expose `InputStream`.
 
 ### Pure-Kotlin core modules
 
 | Module | Contents |
 |---|---|
-| `core:common` | `Clock`, `FileStore`, `EncryptedKeyValueStore` interfaces — shared contracts for time, file I/O, and secure key-value storage. Android implementations (`SystemClock`, `FilesdirFileStore`, DataStore-backed store) live in `core:data`. |
+| `core:common` | `Clock`, `RandomProvider`, `FileStore`, `EncryptedKeyValueStore` contracts. JVM system implementations live in `jvmMain`; Android storage implementations live in `core:data`. |
 | `core:models` | Serializable data classes for the ABS API and domain. No business logic. |
 | `core:domain` | Domain models (`WebSourceDescriptor`, `AudioPlayer` interface). No Android API references. |
-| `core:network` | `AbsApiClient`, `createDefaultHttpClient`, `NetworkResult`. Uses OkHttp + Ktor/kotlinx.serialization — all pure-JVM. |
+| `core:net` | Shared Ktor clients, DTOs, `NetworkResult`, and plugins in `commonMain`; OkHttp in `jvmMain`; Darwin in `iosMain`. |
 | `core:sources` | `Source`, `Service`, `Catalog`, `CatalogCapability` abstractions; source adapters (`AbsSourceAdapter`, `KomgaSourceAdapter`); WebDAV annotation sync target (`WebDavAnnotationSyncTarget`). |
-| `core:sync` | `ProgressSweep`, `ReconcileLocks`, `AnnotationSyncStatusStore`, `AudiobookBookmarkReconciler`. Pure reconciliation logic; injected with `Clock` and `EncryptedKeyValueStore` interfaces. |
+| `core:sync` | `ProgressSweep`, `ReconcileLocks`, `AnnotationSyncStatusStore`, `AudiobookBookmarkReconciler`. KMP reconciliation logic using injected `Clock`, `RandomProvider`, and source ports. |
 | `core:catalog` | `Catalog` interface + `CatalogCapability` mixins. |
 | `core:catalog-*` | One plugin module per singleton web-source (Chitanka, Gutenberg, Komga). |
 | `core:annotations` | _(planned)_ Annotation model and sync wire format. Not yet created. |
 
-### Android-hosting modules
+### Persistence and hosting modules
 
-| Module | Why Android |
+| Module | Boundary |
 |---|---|
+| `core:database-api` | KMP Room entity/DAO contracts and the platform-neutral `RiffleDatabaseAccess` surface. |
+| `core:database` | KMP Room `@Database`, all historical migrations, bundled SQLite driver, and Android/JVM/iOS factories. |
+| `core:network` | JVM/Android shim for EPUB/bundle streaming APIs that expose Java streams. |
 | `core:data` | Hilt DI wiring, `Context.filesDir`, DataStore, `LocalStore`, repository impls, `LocalDirectoryTarget`. |
-| `core:database` | Room `@Database`, KSP code gen, migration SQL. |
-| `core:database-api` | Room `@Entity` / `@Dao` — Room annotations require `androidx.room`. KMP engine swap tracked in ADR 0048. |
 | `core:logging` | `AndroidLogger` calls `android.util.Log`; `LogChannel` enum defined here for co-location with the impl. |
 | `app` | Compose UI, Readium navigator, ExoPlayer, Hilt component root, navigation. |
 
 ### Guardrail tasks
 
-Three Gradle tasks (wired into `check`, run on every CI push) enforce the boundary:
+Five Gradle tasks (wired into `check`, run on every CI push) enforce the boundary:
 
 | Task | Enforces |
 |---|---|
-| `checkNoAndroidImports` | No `android.*` / `androidx.*` (except `androidx.annotation`) / `java.util.logging` in pure-Kotlin core production sources. Detection in `buildSrc/…/AndroidImportLint.kt`. Scanned modules: `core/common`, `core/models`, `core/domain`, `core/network`, `core/sources`, `core/sync`, `core/annotations` (no-ops if directory absent). |
+| `checkNoAndroidImports` | No Android imports in shared core production sources. Platform-specific KMP source sets and tests are excluded. Scans `core/common`, `core/models`, `core/domain`, `core/net`, `core/network`, `core/sources`, `core/sync`, and the future `core/annotations`. |
+| `checkNoOkHttpOutsideCoreNet` | No `okhttp3` imports outside `core/net/src/jvmMain`; shared callers use Ktor. |
+| `checkNoDatabaseImplLeak` | No `RiffleDatabase`, Room, or SQLite implementation imports outside `core:database` and `core:database-api`; consumers use database access/DAO contracts. |
 | `checkNoServerReferences` | No `\bServer[A-Z]` identifiers or bare `serverId` in Kotlin files outside the grandfathered allowlist. Enforces the Source/Service taxonomy (ADR 0041). |
 | `checkRiffleLogTags` | No `android.util.Log` literals with `RIFFLE_*` tag strings in production sources. All logging goes through `Logger` + `LogChannel`. |
 
-Adding a new pure-Kotlin core module: add its directory path to
+Adding a new shared core module: add its directory path to
 `AndroidImportLint.DEFAULT_MODULE_ROOTS` and update the module map in
 `CONTEXT.md` and this ADR.
 
@@ -99,17 +100,19 @@ serialization, networking, DB, or reader regressions that unit tests would miss.
 ## Consequences
 
 **Positive.**
-- All sync logic, source adapters, and interface contracts run as fast JVM tests
-  with no Android device/emulator required.
-- A future KMP port can import `core:*` pure-Kotlin modules directly; only the
-  hosting layer needs re-implementation.
+- Shared networking, sources, sync, models, domain, and persistence compile for JVM and iOS.
+- Sync logic, source adapters, database contracts, and interface contracts run as fast JVM tests.
+- A future host supplies only platform composition, paths, secure storage, logging, and UI.
 - The `checkNoAndroidImports` guardrail catches boundary drift at CI time, before
   Android dependencies can spread into the core.
 
 **Negative / trade-offs.**
-- `core:database-api` is still Android-only because Room annotations require
-  `androidx.room`. This is the last major blocker for a full KMP port; ADR 0048
-  tracks the Room KMP engine swap.
+- Room annotations remain visible in the persistence contract even though Room now publishes KMP
+  artifacts; replacing Room would still require adapting DAO annotations.
+- Android migration tests remain device tests because they validate upgrades through the shipping
+  Android host. A JVM bundled-driver integration test provides an additional non-Android sentinel.
+- `core:network` remains a JVM/Android shim until its Java-stream consumers gain a portable stream
+  contract.
 - The catalog plugin modules (`core:catalog-*`) are pure-Kotlin today but are not
   scanned by `checkNoAndroidImports` — they are presentation-adjacent (display
   names, URLs) and less likely to accumulate Android drift. Add them to
@@ -119,4 +122,4 @@ serialization, networking, DB, or reader regressions that unit tests would miss.
 
 ADR 0002 (Android-first KMP-ready architecture), ADR 0041 (Source/Service
 taxonomy), ADR 0044 (WebSourceDescriptor), ADR 0045 (source-agnostic progress
-peers), ADR 0048 (Room KMP).
+peers), ADR 0048 (Room KMP), issue #631 (KMP networking follow-up).

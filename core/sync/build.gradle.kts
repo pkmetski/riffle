@@ -1,14 +1,23 @@
 plugins {
-    alias(libs.plugins.kotlin.jvm)
+    alias(libs.plugins.kotlin.multiplatform)
 }
 
-dependencies {
-    implementation(project(":core:domain"))
-    implementation(project(":core:models"))
-    implementation(project(":core:catalog"))
-    implementation(libs.kotlinx.coroutines.core)
-    implementation("javax.inject:javax.inject:1")
+kotlin {
+    jvm()
+    iosX64()
+    iosArm64()
+    iosSimulatorArm64()
 
-    testImplementation(libs.junit)
-    testImplementation(libs.kotlinx.coroutines.test)
+    sourceSets {
+        commonMain.dependencies {
+            implementation(project(":core:common"))
+            implementation(project(":core:domain"))
+            implementation(project(":core:models"))
+            implementation(libs.kotlinx.coroutines.core)
+        }
+        jvmTest.dependencies {
+            implementation(libs.junit)
+            implementation(libs.kotlinx.coroutines.test)
+        }
+    }
 }

@@ -1,14 +1,14 @@
 package com.riffle.app.feature.reader.session
 
 import androidx.compose.ui.unit.IntRect
-import androidx.room.Room
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.riffle.core.data.AnnotationStoreImpl
 import com.riffle.core.sync.AnnotationSyncStatusStore
 import com.riffle.core.database.AnnotationEntity
-import com.riffle.core.database.RiffleDatabase
+import com.riffle.core.database.RiffleDatabaseAccess
 import com.riffle.core.database.SourceEntity
+import com.riffle.core.database.openInMemoryRiffleDatabase
 import com.riffle.core.domain.DeviceIdStore
 import com.riffle.core.domain.EmphasisPreferencesStore
 import com.riffle.core.models.EmphasisStyle
@@ -50,7 +50,7 @@ import org.junit.runner.RunWith
 @RunWith(AndroidJUnit4::class)
 class DismissEmptyHighlightHarnessTest {
 
-    private lateinit var db: RiffleDatabase
+    private lateinit var db: RiffleDatabaseAccess
     private lateinit var store: AnnotationStoreImpl
     private lateinit var sessionScope: CoroutineScope
     private lateinit var session: AnnotationSession
@@ -78,9 +78,10 @@ class DismissEmptyHighlightHarnessTest {
     @Before
     fun setUp() {
         val ctx = InstrumentationRegistry.getInstrumentation().targetContext
-        db = Room.inMemoryDatabaseBuilder(ctx, RiffleDatabase::class.java)
-            .allowMainThreadQueries()
-            .build()
+        db = openInMemoryRiffleDatabase(
+            context = ctx,
+            allowMainThreadQueries = true,
+        )
         store = AnnotationStoreImpl(
             dao = db.annotationDao(),
             deviceIdStore = FixedDeviceIdStore(),
