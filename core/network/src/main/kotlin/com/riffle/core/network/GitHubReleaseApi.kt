@@ -55,6 +55,7 @@ class GitHubReleaseApi(
                         apkUrl = apk.downloadUrl,
                         apkSizeBytes = apk.size,
                         htmlUrl = release.htmlUrl,
+                        publishedAt = release.publishedAt,
                     )
                 )
             }
@@ -87,6 +88,7 @@ class GitHubReleaseApi(
                         apkSizeBytes = apk?.size ?: 0L,
                         body = release.body,
                         htmlUrl = release.htmlUrl,
+                        publishedAt = release.publishedAt,
                     )
                 }
         } catch (e: IOException) {
@@ -154,6 +156,7 @@ data class GitHubRelease(
     val apkSizeBytes: Long,
     val body: String = "",
     val htmlUrl: String = "",
+    val publishedAt: String = "",
 )
 
 @Serializable
@@ -164,6 +167,7 @@ private data class ReleaseResponse(
     val assets: List<AssetResponse> = emptyList(),
     val body: String = "",
     @SerialName("html_url") val htmlUrl: String = "",
+    @SerialName("published_at") val publishedAt: String = "",
 )
 
 @Serializable
