@@ -1,20 +1,33 @@
 package com.riffle.app.feature.library
 
-import com.riffle.core.models.EbookFormat
+import android.net.Uri
 import com.riffle.core.domain.EpubOpenResult
 import com.riffle.core.domain.EpubRepository
 import com.riffle.core.domain.PublicationMetrics
 import com.riffle.core.domain.PublicationMetricsRepository
+import com.riffle.core.domain.TocRepository
+import com.riffle.core.models.EbookFormat
 import com.riffle.core.models.LibraryItem
 import com.riffle.core.models.TocEntry
-import com.riffle.core.domain.TocRepository
+import io.mockk.Runs
 import io.mockk.coEvery
 import io.mockk.coVerify
+import io.mockk.every
+import io.mockk.just
 import io.mockk.mockk
+import io.mockk.mockkStatic
+import io.mockk.unmockkStatic
+import java.io.File
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import org.readium.r2.shared.publication.Locator
+import org.readium.r2.shared.publication.Publication
+import org.readium.r2.shared.publication.services.PositionsService
+import org.readium.r2.shared.util.AbsoluteUrl
+import org.readium.r2.shared.util.Try
+import org.readium.r2.shared.util.asset.Asset
 import org.readium.r2.shared.util.asset.AssetRetriever
 import org.readium.r2.streamer.PublicationOpener
 
@@ -143,5 +156,51 @@ class ExtractEpubTocUseCaseTest {
         coVerify(exactly = 1) { epubRepository.openEpub(any()) }
         // openEpub failed so result is empty (not the stale cached value)
         assertTrue(result.isEmpty())
+    }
+
+    @Test
+    fun `extracts Readium positions and persists them as publication metrics`() = runTest {
+        val file = File.createTempFile("riffle-positions", ".epub").apply { deleteOnExit() }
+        val asset = mockk<Asset>()
+        val publication = mockk<Publication>()
+        val locator = mockk<Locator>()
+        val positionsService = mockk<PositionsService>()
+        val uri = mockk<Uri>()
+
+        coEvery { tocRepository.getCachedToc("srv1", "item1") } returns null
+        coEvery { publicationMetricsRepository.get("srv1", "item1") } returns null
+        coEvery { publicationMetricsRepository.save(any(), any(), any()) } returns Unit
+        coEvery { epubRepository.openEpub(any()) } returns EpubOpenResult.Success(file, null)
+        coEvery { assetRetriever.retrieve(any<AbsoluteUrl>()) } returns Try.Success(asset)
+        coEvery {
+            publicationOpener.open(asset, allowUserInteraction = false)
+        } returns Try.Success(publication)
+        coEvery { positionsService.positionsByReadingOrder() } returns listOf(
+            List(80) { locator },
+            List(40) { locator },
+        )
+        every { publication.tableOfContents } returns emptyList()
+        every { publication.findService(PositionsService::class) } returns positionsService
+        every { publication.close() } just Runs
+        every { uri.isAbsolute } returns true
+        every { uri.isHierarchical } returns true
+
+        mockkStatic(Uri::class)
+        try {
+            every { Uri.parse(any()) } returns uri
+
+            val result = useCase.extractDetails(makeItem())
+
+            assertEquals(120, result.totalPositions)
+            coVerify(exactly = 1) {
+                publicationMetricsRepository.save(
+                    "srv1",
+                    "item1",
+                    PublicationMetrics(ebookFileIno = "ino1", totalPositions = 120),
+                )
+            }
+        } finally {
+            unmockkStatic(Uri::class)
+        }
     }
 }
