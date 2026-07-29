@@ -57,6 +57,11 @@ class HighlightsDomPatchTest {
         assertTrue(js, js.contains("\"Hello\""))
         assertTrue("must create an ASIDE element when missing", js.contains("createElement('aside')"))
         assertTrue("must set the class and data-ann-id on new asides", js.contains("'riffle-note'"))
+        assertTrue(
+            "live-created notes must expose the same note semantics as initial chapter HTML",
+            js.contains("setAttribute('role', 'note')") &&
+                js.contains("setAttribute('aria-label', '$ELIDED_NOTE_ARIA_LABEL')"),
+        )
         assertTrue("must look up the existing aside by its own data-ann-id (adjacency is unreliable through Readium's HTMLInjector)",
             js.contains("aside.riffle-note[data-ann-id="))
         assertTrue("must update textContent (not innerHTML — avoid injection)", js.contains("textContent"))

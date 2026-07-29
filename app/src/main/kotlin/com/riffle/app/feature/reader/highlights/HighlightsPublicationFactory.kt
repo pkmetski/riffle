@@ -330,6 +330,7 @@ class HighlightsPublicationFactory @Inject constructor() {
             |<html xmlns="http://www.w3.org/1999/xhtml"><head><title>$title</title>$READIUM_DEFAULT_CSS_LINK<style>$publisherFontFaceCss
             |$ACCENT_BAR_TAP_CSS
             |$FIGURE_CENTERING_CSS
+            |$NOTE_CALLOUT_CSS
             |$bodyFontStyleBlock</style></head>
             |<body>
             |  <h1>$title</h1>
@@ -372,6 +373,28 @@ internal const val ACCENT_BAR_TAP_CSS =
 internal const val FIGURE_CENTERING_CSS =
     ".riffle-fig{margin:1em auto !important;text-align:center;position:relative;}" +
         ".riffle-fig>img,.riffle-fig>svg{display:block;margin:0 auto;max-width:100%;height:auto;}"
+
+internal const val ELIDED_NOTE_LABEL = "Note"
+internal const val ELIDED_NOTE_ARIA_LABEL = "Note on this highlight"
+
+/**
+ * Makes an inline note unmistakable and visually attaches it to the highlighted excerpt above.
+ *
+ * The negative top margin cancels part of the excerpt's bottom margin, while the 16px left inset
+ * nests the callout under the excerpt text rather than presenting it as another peer annotation.
+ * A neutral translucent surface works across every reader theme; the owning highlight's palette
+ * colour remains on the inline border. The visible label is pseudo-content so live DOM patches can
+ * continue updating the aside safely through `textContent` without destroying nested markup.
+ */
+internal const val NOTE_CALLOUT_CSS =
+    ".riffle-note{display:block;box-sizing:border-box;" +
+        "margin:-0.55em 0 1.5em 16px !important;" +
+        "padding:0.65em 0.8em 0.7em 12px !important;" +
+        "border-radius:0 6px 6px 0;background:rgba(127,127,127,0.12) !important;" +
+        "font-style:normal !important;opacity:1 !important;white-space:pre-wrap;}" +
+        ".riffle-note::before{content:\"$ELIDED_NOTE_LABEL\";display:block;margin-bottom:0.3em;" +
+        "font-size:0.72em;font-style:normal !important;font-weight:700;" +
+        "letter-spacing:0.08em;text-transform:uppercase;opacity:0.65;}"
 
 /**
  * Renders a TYPE_HIGHLIGHT with its embedded figures interleaved at each figure's
@@ -457,19 +480,7 @@ private fun appendInterleavedHighlight(
             appendFigureBlock(sb, effectiveFigure, highlight.id, highlight.color, dataUriByHref, emphasisBarCss)
         }
     }
-    val note = highlight.note
-    if (note != null) {
-        val accent = if (highlight.color.isNotBlank()) highlightBackgroundCss(highlight.color)
-                     else emphasisBarCss
-        val idEscaped = highlight.id.xmlEscape()
-        sb.append("  <aside class=\"riffle-note\" data-ann-id=\"")
-        sb.append(idEscaped)
-        sb.append("\" style=\"border-left: 2px solid ")
-        sb.append(accent)
-        sb.append(" !important; padding-left: 12px; font-style: italic; opacity: 0.75;\">")
-        sb.append(note.xmlEscape())
-        sb.append("</aside>\n")
-    }
+    appendNoteAside(sb, highlight, emphasisBarCss)
 }
 
 /**
@@ -567,16 +578,29 @@ private fun appendTextHighlight(
         sb.append(highlight.textSnippet.xmlEscape())
     }
     sb.append("</span></p>\n")
-    val note = highlight.note
-    if (note != null) {
-        sb.append("  <aside class=\"riffle-note\" data-ann-id=\"")
-        sb.append(idEscaped)
-        sb.append("\" style=\"border-left: 2px solid ")
-        sb.append(accent)
-        sb.append(" !important; padding-left: 12px; font-style: italic; opacity: 0.75;\">")
-        sb.append(note.xmlEscape())
-        sb.append("</aside>\n")
+    appendNoteAside(sb, highlight, emphasisBarCss)
+}
+
+private fun appendNoteAside(
+    sb: StringBuilder,
+    highlight: AnnotationEntity,
+    emphasisBarCss: String,
+) {
+    val note = highlight.note ?: return
+    val accent = if (highlight.color.isNotBlank()) {
+        highlightBackgroundCss(highlight.color)
+    } else {
+        emphasisBarCss
     }
+    sb.append("  <aside class=\"riffle-note\" data-ann-id=\"")
+    sb.append(highlight.id.xmlEscape())
+    sb.append("\" role=\"note\" aria-label=\"")
+    sb.append(ELIDED_NOTE_ARIA_LABEL)
+    sb.append("\" style=\"border-left: 2px solid ")
+    sb.append(accent)
+    sb.append(" !important;\">")
+    sb.append(note.xmlEscape())
+    sb.append("</aside>\n")
 }
 
 /**
