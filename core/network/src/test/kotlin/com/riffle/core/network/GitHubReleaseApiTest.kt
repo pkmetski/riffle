@@ -262,12 +262,13 @@ class GitHubReleaseApiTest {
                 """
                 [
                   { "tag_name": "v1.6.0", "draft": false, "prerelease": false, "body": "### What's new\n- Feature A",
+                    "published_at": "2026-07-28T21:14:00Z",
                     "assets": [{ "name": "riffle-1.6.0.apk", "browser_download_url": "https://x/1.6.0.apk", "size": 5000 }] },
                   { "tag_name": "v1.5.0-rc1", "draft": false, "prerelease": true, "body": "RC notes",
                     "assets": [{ "name": "riffle-1.5.0-rc1.apk", "browser_download_url": "https://x/rc.apk", "size": 1 }] },
                   { "tag_name": "v1.5.0", "draft": false, "prerelease": false, "body": "### Fixes\n- Bug fix",
                     "assets": [{ "name": "riffle-1.5.0.apk", "browser_download_url": "https://x/1.5.0.apk", "size": 4200 }] },
-                  { "tag_name": "v1.4.0-draft", "draft": true, "prerelease": false, "body": "Draft",
+                  { "tag_name": "v1.4.0-draft", "draft": true, "prerelease": false, "body": "Draft", "published_at": null,
                     "assets": [] }
                 ]
                 """.trimIndent()
@@ -281,6 +282,7 @@ class GitHubReleaseApiTest {
         assertEquals("### What's new\n- Feature A", releases[0].body)
         assertEquals("https://x/1.6.0.apk", releases[0].apkUrl)
         assertEquals(5000L, releases[0].apkSizeBytes)
+        assertEquals("2026-07-28T21:14:00Z", releases[0].publishedAt)
         assertEquals("v1.5.0", releases[1].tagName)
         assertEquals("### Fixes\n- Bug fix", releases[1].body)
     }

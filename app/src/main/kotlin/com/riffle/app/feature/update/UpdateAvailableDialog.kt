@@ -49,6 +49,7 @@ internal fun UpdateAvailableDialog(
                             text = "v${release.versionName}",
                             style = MaterialTheme.typography.titleSmall,
                         )
+                        ReleaseDateText(release.publishedAt)
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
                             text = release.changelog.ifBlank { "No release notes." },

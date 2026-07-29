@@ -118,13 +118,26 @@ class AppUpdateRepositoryImplTest {
 
     // --- listReleasesSince ---
 
-    private fun release(tag: String, body: String = "", apkUrl: String = "https://x/$tag.apk", size: Long = 1000L, htmlUrl: String = "https://github.com/pkmetski/riffle/releases/tag/$tag") =
-        GitHubRelease(tagName = tag, apkUrl = apkUrl, apkSizeBytes = size, body = body, htmlUrl = htmlUrl)
+    private fun release(
+        tag: String,
+        body: String = "",
+        apkUrl: String = "https://x/$tag.apk",
+        size: Long = 1000L,
+        htmlUrl: String = "https://github.com/pkmetski/riffle/releases/tag/$tag",
+        publishedAt: String = "",
+    ) = GitHubRelease(
+        tagName = tag,
+        apkUrl = apkUrl,
+        apkSizeBytes = size,
+        body = body,
+        htmlUrl = htmlUrl,
+        publishedAt = publishedAt,
+    )
 
     @Test
     fun `listReleasesSince returns only releases newer than sinceVersionCode`() {
         val releases = listOf(
-            release("v1.6.0", "Notes 1.6"),
+            release("v1.6.0", "Notes 1.6", publishedAt = "2026-07-28T21:14:00Z"),
             release("v1.5.0", "Notes 1.5"),
             release("v1.4.0", "Notes 1.4"),
         )
@@ -138,6 +151,7 @@ class AppUpdateRepositoryImplTest {
         assertEquals("https://x/v1.6.0.apk", result[0].downloadUrl)
         assertEquals(1000L, result[0].sizeBytes)
         assertEquals("https://github.com/pkmetski/riffle/releases/tag/v1.6.0", result[0].releaseUrl)
+        assertEquals("2026-07-28T21:14:00Z", result[0].publishedAt)
     }
 
     @Test
