@@ -42,6 +42,7 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -51,6 +52,7 @@ import kotlinx.coroutines.flow.filterIsInstance
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -227,9 +229,13 @@ class LibraryItemDetailViewModel @Inject constructor(
     private val _currentPositionHref = MutableStateFlow<String?>(null)
     val currentPositionHref: StateFlow<String?> = _currentPositionHref.asStateFlow()
 
-    private val _estimatedTotalReadingTimeSec = MutableStateFlow<Long?>(null)
-    val estimatedTotalReadingTimeSec: StateFlow<Long?> =
-        _estimatedTotalReadingTimeSec.asStateFlow()
+    private val _epubTotalPositions = MutableStateFlow<Int?>(null)
+    val estimatedTotalReadingTimeSec: StateFlow<Long?> = combine(
+        _epubTotalPositions,
+        readingSpeedStore.speedSecPerPosition,
+    ) { totalPositions, secPerPosition ->
+        totalPositions?.let { estimatedReadingTimeSec(it, secPerPosition) }
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
     private val _pdfPageCount = MutableStateFlow<Int?>(null)
     val pdfPageCount: StateFlow<Int?> = _pdfPageCount.asStateFlow()
@@ -396,12 +402,7 @@ class LibraryItemDetailViewModel @Inject constructor(
                         _currentPositionHref.value = epubRepository.loadLastPositionHref(item.sourceId, item.id)
                         val details = extractEpubTocUseCase.extractDetails(item)
                         _tocState.value = TocState.Ready(details.tocEntries)
-                        val totalPositions = details.totalPositions
-                        if (totalPositions != null) {
-                            val secPerPosition = readingSpeedStore.speedSecPerPosition.first()
-                            _estimatedTotalReadingTimeSec.value =
-                                estimatedReadingTimeSec(totalPositions, secPerPosition)
-                        }
+                        _epubTotalPositions.value = details.totalPositions
                     }
                 }
                 if (item.ebookFormat == EbookFormat.Pdf) {

@@ -5,15 +5,17 @@ import com.riffle.core.domain.EpubOpenResult
 import com.riffle.core.domain.EpubRepository
 import com.riffle.core.domain.PublicationMetrics
 import com.riffle.core.domain.PublicationMetricsRepository
+import com.riffle.core.domain.TocRepository
 import com.riffle.core.models.LibraryItem
 import com.riffle.core.models.TocEntry
-import com.riffle.core.domain.TocRepository
+import java.io.File
+import java.net.URI
+import java.util.zip.ZipEntry
+import java.util.zip.ZipFile
 import kotlin.math.ceil
 import org.readium.r2.shared.publication.Layout
-import org.readium.r2.shared.publication.Publication
 import org.readium.r2.shared.util.AbsoluteUrl
 import org.readium.r2.shared.util.Try
-import org.readium.r2.shared.util.archive.archive
 import org.readium.r2.shared.util.asset.AssetRetriever
 import org.readium.r2.shared.util.use
 import org.readium.r2.streamer.PublicationOpener
@@ -22,27 +24,38 @@ import javax.inject.Inject
 private const val READIUM_EPUB_POSITION_PAGE_LENGTH = 1024L
 
 /**
- * Counts positions using Readium's default EPUB strategy without materializing every Locator.
+ * Counts positions using Readium's default EPUB strategy from ZIP entry metadata.
  *
- * `positionsByReadingOrder()` retains a Locator object for each 1 KiB position until the
- * publication closes. Detail screens need only the count, so materializing another position list
- * alongside the reader's publication creates avoidable memory pressure.
+ * Readium divides each spine entry's compressed size (uncompressed size for stored entries) into
+ * 1 KiB positions. Reading the central directory directly avoids both materializing Locators and
+ * opening/closing every Readium Resource; Resource.close() schedules asynchronous global cleanup,
+ * which can overlap the reader opened immediately from details.
  */
-internal suspend fun Publication.countEpubPositions(): Int? {
-    if (metadata.layout == Layout.FIXED) {
-        return readingOrder.size.takeIf { it > 0 }
+internal fun countEpubPositionsFromArchive(
+    epubFile: File,
+    readingOrderHrefs: List<String>,
+    layout: Layout?,
+): Int? {
+    if (layout == Layout.FIXED) {
+        return readingOrderHrefs.size.takeIf { it > 0 }
     }
 
-    val total = readingOrder.sumOf { link ->
-        get(link)?.use { resource ->
-            val length = resource.properties().getOrNull()?.archive?.entryLength
-                ?: resource.length().getOrNull()
-                ?: 0L
-            ceil(length.toDouble() / READIUM_EPUB_POSITION_PAGE_LENGTH.toDouble())
-                .toInt()
-                .coerceAtLeast(1)
-        } ?: 0
-    }
+    val total = runCatching {
+        ZipFile(epubFile).use { archive ->
+            readingOrderHrefs.sumOf { href ->
+                val path = runCatching { URI(href).path }
+                    .getOrNull()
+                    ?.removePrefix("/")
+                    ?: href.substringBefore('#').substringBefore('?').removePrefix("/")
+                val entry = archive.getEntry(path) ?: return@sumOf 0
+                val length = if (entry.method == ZipEntry.STORED) entry.size else entry.compressedSize
+                if (length < 0L) return@sumOf 1
+                ceil(length.toDouble() / READIUM_EPUB_POSITION_PAGE_LENGTH.toDouble())
+                    .toInt()
+                    .coerceAtLeast(1)
+            }
+        }
+    }.getOrNull() ?: return null
     return total.takeIf { it > 0 }
 }
 
@@ -104,7 +117,11 @@ class ExtractEpubTocUseCase @Inject constructor(
         return publication.use {
             val entries = it.tableOfContents.toTocEntries()
             val totalPositions = runCatching {
-                it.countEpubPositions()
+                countEpubPositionsFromArchive(
+                    epubFile = file,
+                    readingOrderHrefs = it.readingOrder.map { link -> link.href.toString() },
+                    layout = it.metadata.layout,
+                )
             }.getOrNull()
             // Don't persist an empty TOC — it's almost always a transient parse failure, and
             // caching it would prevent a healthy re-extract on the next open.

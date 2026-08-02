@@ -147,6 +147,11 @@ class LibraryItemDetailViewModelTocTest {
                 coEvery { uc(any<LibraryItem>()) } returns null
             },
         fetchAudiobookChaptersUseCase: FetchAudiobookChaptersUseCase = noOpFetchUseCase(),
+        readingSpeedStore: com.riffle.core.domain.ReadingSpeedStore =
+            object : com.riffle.core.domain.ReadingSpeedStore {
+                override val speedSecPerPosition = flowOf(63.0)
+                override suspend fun updateSpeed(newSecPerPosition: Double) = Unit
+            },
     ) = LibraryItemDetailViewModel(
         savedStateHandle = SavedStateHandle(mapOf("itemId" to (item?.id ?: "item-1"))),
         libraryObserver = fakeRepo(item),
@@ -183,10 +188,7 @@ class LibraryItemDetailViewModelTocTest {
         libraryRefresher = com.riffle.app.testing.NoopLibraryRefresher,
         saveLocalFileMetadataOverride = com.riffle.app.testing.noopSaveLocalFileMetadataOverride(),
         copyCoverImage = com.riffle.app.testing.noopCopyCoverImage(),
-        readingSpeedStore = object : com.riffle.core.domain.ReadingSpeedStore {
-            override val speedSecPerPosition = flowOf(63.0)
-            override suspend fun updateSpeed(newSecPerPosition: Double) = Unit
-        },
+        readingSpeedStore = readingSpeedStore,
     )
 
     private val epubItem = LibraryItem(
@@ -240,6 +242,34 @@ class LibraryItemDetailViewModelTocTest {
 
         assertEquals(TocState.Ready(entries), vm.tocState.value)
         assertEquals(7_560L, vm.estimatedTotalReadingTimeSec.value)
+    }
+
+    @Test
+    fun `reading estimate updates when learned reading speed changes`() = runTest {
+        val speed = MutableStateFlow(63.0)
+        val speedStore = object : com.riffle.core.domain.ReadingSpeedStore {
+            override val speedSecPerPosition = speed
+            override suspend fun updateSpeed(newSecPerPosition: Double) {
+                speed.value = newSecPerPosition
+            }
+        }
+        val extractUseCase = mockk<ExtractEpubTocUseCase>().also { useCase ->
+            coEvery { useCase.extractDetails(epubItem) } returns
+                ExtractEpubTocUseCase.Details(emptyList(), totalPositions = 120)
+        }
+        val vm = makeVm(
+            item = epubItem,
+            extractEpubTocUseCase = extractUseCase,
+            readingSpeedStore = speedStore,
+        )
+        backgroundScope.launch { vm.estimatedTotalReadingTimeSec.collect {} }
+        testDispatcher.scheduler.advanceUntilIdle()
+        assertEquals(7_560L, vm.estimatedTotalReadingTimeSec.value)
+
+        speedStore.updateSpeed(42.0)
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(5_040L, vm.estimatedTotalReadingTimeSec.value)
     }
 
     @Test

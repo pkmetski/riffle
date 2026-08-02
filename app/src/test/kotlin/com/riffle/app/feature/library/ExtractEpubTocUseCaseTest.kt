@@ -17,23 +17,25 @@ import io.mockk.just
 import io.mockk.mockk
 import io.mockk.mockkStatic
 import io.mockk.unmockkStatic
+import io.mockk.verify
 import java.io.File
+import java.util.zip.CRC32
+import java.util.zip.ZipEntry
+import java.util.zip.ZipOutputStream
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.readium.r2.shared.publication.Layout
+import org.readium.r2.shared.publication.Href
 import org.readium.r2.shared.publication.Link
 import org.readium.r2.shared.publication.Locator
 import org.readium.r2.shared.publication.Publication
 import org.readium.r2.shared.publication.services.PositionsService
 import org.readium.r2.shared.util.AbsoluteUrl
 import org.readium.r2.shared.util.Try
-import org.readium.r2.shared.util.archive.ArchiveProperties
-import org.readium.r2.shared.util.archive.archive
 import org.readium.r2.shared.util.asset.Asset
 import org.readium.r2.shared.util.asset.AssetRetriever
-import org.readium.r2.shared.util.resource.Resource
 import org.readium.r2.streamer.PublicationOpener
 
 class ExtractEpubTocUseCaseTest {
@@ -56,37 +58,58 @@ class ExtractEpubTocUseCaseTest {
         ebookFormat = EbookFormat.Epub, ebookFileIno = ebookFileIno, sourceId = "srv1",
     )
 
+    private fun storedEpub(vararg entries: Pair<String, Int>): File =
+        File.createTempFile("riffle-positions", ".epub").apply {
+            deleteOnExit()
+            ZipOutputStream(outputStream()).use { archive ->
+                entries.forEach { (name, size) ->
+                    val bytes = ByteArray(size) { index -> (index % 251).toByte() }
+                    val crc = CRC32().apply { update(bytes) }
+                    val entry = ZipEntry(name).apply {
+                        method = ZipEntry.STORED
+                        this.size = bytes.size.toLong()
+                        compressedSize = bytes.size.toLong()
+                        this.crc = crc.value
+                    }
+                    archive.putNextEntry(entry)
+                    archive.write(bytes)
+                    archive.closeEntry()
+                }
+            }
+        }
+
     @Test
-    fun `position count matches Readium fallback length strategy`() = runTest {
-        val publication = mockk<Publication>()
-        val firstLink = mockk<Link>()
-        val secondLink = mockk<Link>()
-        val firstResource = mockk<Resource>()
-        val secondResource = mockk<Resource>()
+    fun `position count matches Readium stored entry length strategy`() {
+        val file = storedEpub(
+            "OPS/first.xhtml" to 1025,
+            "OPS/second.xhtml" to 0,
+            "OPS/Chapter One.xhtml" to 2048,
+        )
 
-        every { publication.metadata.layout } returns null
-        every { publication.readingOrder } returns listOf(firstLink, secondLink)
-        every { publication.get(firstLink) } returns firstResource
-        every { publication.get(secondLink) } returns secondResource
-        coEvery { firstResource.properties() } returns Try.Success(Resource.Properties())
-        coEvery { firstResource.length() } returns Try.Success(1025L)
-        coEvery { secondResource.properties() } returns Try.Success(Resource.Properties())
-        coEvery { secondResource.length() } returns Try.Success(0L)
-        every { firstResource.close() } just Runs
-        every { secondResource.close() } just Runs
-
-        assertEquals(3, publication.countEpubPositions())
+        assertEquals(
+            5,
+            countEpubPositionsFromArchive(
+                epubFile = file,
+                readingOrderHrefs = listOf(
+                    "OPS/first.xhtml",
+                    "OPS/second.xhtml",
+                    "OPS/Chapter%20One.xhtml#section",
+                ),
+                layout = null,
+            ),
+        )
     }
 
     @Test
-    fun `fixed layout counts one position per reading order resource`() = runTest {
-        val publication = mockk<Publication>()
-
-        every { publication.metadata.layout } returns Layout.FIXED
-        every { publication.readingOrder } returns List(7) { mockk() }
-
-        assertEquals(7, publication.countEpubPositions())
-        coVerify(exactly = 0) { publication.get(any<Link>()) }
+    fun `fixed layout counts one position per reading order resource`() {
+        assertEquals(
+            7,
+            countEpubPositionsFromArchive(
+                epubFile = File("not-opened-for-fixed-layout.epub"),
+                readingOrderHrefs = List(7) { "page-$it.xhtml" },
+                layout = Layout.FIXED,
+            ),
+        )
     }
 
     @Test
@@ -198,13 +221,16 @@ class ExtractEpubTocUseCaseTest {
 
     @Test
     fun `counts archive entries without materializing Readium positions and persists metrics`() = runTest {
-        val file = File.createTempFile("riffle-positions", ".epub").apply { deleteOnExit() }
+        val file = storedEpub(
+            "OPS/first.xhtml" to 80 * 1024,
+            "OPS/second.xhtml" to 40 * 1024,
+        )
         val asset = mockk<Asset>()
         val publication = mockk<Publication>()
         val firstLink = mockk<Link>()
         val secondLink = mockk<Link>()
-        val firstResource = mockk<Resource>()
-        val secondResource = mockk<Resource>()
+        val firstHref = mockk<Href>()
+        val secondHref = mockk<Href>()
         val locator = mockk<Locator>()
         val positionsService = mockk<PositionsService>()
         val uri = mockk<Uri>()
@@ -224,20 +250,10 @@ class ExtractEpubTocUseCaseTest {
         every { publication.tableOfContents } returns emptyList()
         every { publication.metadata.layout } returns null
         every { publication.readingOrder } returns listOf(firstLink, secondLink)
-        every { publication.get(firstLink) } returns firstResource
-        every { publication.get(secondLink) } returns secondResource
-        coEvery { firstResource.properties() } returns Try.Success(
-            Resource.Properties {
-                archive = ArchiveProperties(entryLength = 80L * 1024L, isEntryCompressed = true)
-            }
-        )
-        coEvery { secondResource.properties() } returns Try.Success(
-            Resource.Properties {
-                archive = ArchiveProperties(entryLength = 40L * 1024L, isEntryCompressed = true)
-            }
-        )
-        every { firstResource.close() } just Runs
-        every { secondResource.close() } just Runs
+        every { firstLink.href } returns firstHref
+        every { secondLink.href } returns secondHref
+        every { firstHref.toString() } returns "OPS/first.xhtml"
+        every { secondHref.toString() } returns "OPS/second.xhtml"
         every { publication.findService(PositionsService::class) } returns positionsService
         every { publication.close() } just Runs
         every { uri.isAbsolute } returns true
@@ -258,6 +274,7 @@ class ExtractEpubTocUseCaseTest {
                 )
             }
             coVerify(exactly = 0) { positionsService.positionsByReadingOrder() }
+            verify(exactly = 0) { publication.get(any<Link>()) }
         } finally {
             unmockkStatic(Uri::class)
         }
