@@ -1,5 +1,6 @@
 package com.riffle.app.feature.reader
 
+import com.riffle.app.feature.reader.highlights.ReaderSource
 import com.riffle.core.domain.normalizeEpubHref
 import com.riffle.core.domain.withResolvedTheme
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -1334,5 +1335,43 @@ class AnnotationNavigationOptionsTest {
         // anchor; annotation nav always carries one, but pin the flag so a change is intentional.
         assertFalse(annotationNavigationOptions(isBookmark = true).landAtStartWhenNoTarget)
         assertFalse(annotationNavigationOptions(isBookmark = false).landAtStartWhenNoTarget)
+    }
+}
+
+/**
+ * Regression tests for [hasRealSegmentPositions].
+ *
+ * The elided view registers PerResourcePositionsService which intentionally gives every spine
+ * resource exactly one position (weight = 1f). The guard must not suppress time-remaining
+ * estimates for ReaderSource.Highlights even when all segment weights are equal.
+ */
+class HasRealSegmentPositionsTest {
+
+    private fun seg(weight: Float = 1f) = RailSegment("Chapter", "ch.xhtml", weight)
+
+    @Test
+    fun `returns false for FullBook with multiple equal-weight segments`() {
+        val segments = listOf(seg(1f), seg(1f), seg(1f))
+        assertFalse(hasRealSegmentPositions(segments, ReaderSource.FullBook))
+    }
+
+    @Test
+    fun `returns true for Highlights with multiple equal-weight segments`() {
+        // Regression: PerResourcePositionsService gives weight=1f per resource in the elided view;
+        // the guard must not suppress time-remaining estimates for ReaderSource.Highlights.
+        val segments = listOf(seg(1f), seg(1f), seg(1f))
+        assertTrue(hasRealSegmentPositions(segments, ReaderSource.Highlights))
+    }
+
+    @Test
+    fun `returns true for FullBook once position weights differ`() {
+        val segments = listOf(seg(1f), seg(2.5f), seg(1f))
+        assertTrue(hasRealSegmentPositions(segments, ReaderSource.FullBook))
+    }
+
+    @Test
+    fun `returns true for single-segment books regardless of source`() {
+        assertTrue(hasRealSegmentPositions(listOf(seg(1f)), ReaderSource.FullBook))
+        assertTrue(hasRealSegmentPositions(listOf(seg(1f)), ReaderSource.Highlights))
     }
 }
