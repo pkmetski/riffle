@@ -37,6 +37,7 @@ kotlin {
         }
         commonTest.dependencies {
             implementation(kotlin("test"))
+            implementation(libs.kotlinx.coroutines.test)
         }
         getByName("androidDeviceTest").dependencies {
             implementation(libs.junit)
@@ -47,7 +48,6 @@ kotlin {
         }
         jvmTest.dependencies {
             implementation(libs.junit)
-            implementation(libs.kotlinx.coroutines.test)
         }
     }
 }

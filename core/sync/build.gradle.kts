@@ -15,8 +15,8 @@ kotlin {
             implementation(project(":core:models"))
             implementation(libs.kotlinx.coroutines.core)
         }
-        jvmTest.dependencies {
-            implementation(libs.junit)
+        commonTest.dependencies {
+            implementation(kotlin("test"))
             implementation(libs.kotlinx.coroutines.test)
         }
     }

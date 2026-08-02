@@ -83,12 +83,13 @@ Adding a new shared core module: add its directory path to
 
 ### Harness test coverage
 
-The extraction phases added 9 JVM tests covering previously-untested logic:
+The extraction phases added 9 fast host-side tests covering previously-untested logic:
 
-- `core:sync` — `ProgressSweepTest`, `ProgressSweepBookmarkTest`,
+- `core:sync` (shared `commonTest`, executed on JVM and iOS) —
+  `ProgressSweepTest`, `ProgressSweepBookmarkTest`,
   `ReconcileLocksTest`, `AnnotationSyncStatusStoreTest`,
   `AudiobookBookmarkReconcilerTest`
-- `core:sources` — `AbsSourceAdapterTest`, `KomgaSourceAdapterTest`,
+- `core:sources` (JVM) — `AbsSourceAdapterTest`, `KomgaSourceAdapterTest`,
   `WebDavAnnotationSyncTargetTest`, `WebDavAnnotationSyncTargetFactoryTest`
 
 These are net-new coverage, not replacements for existing instrumented tests. An
@@ -98,11 +99,17 @@ reconciliation or source-adapter logic now covered by these JVM suites. The
 the full stack (login → library → EPUB open → progress-sync PATCH) to catch
 serialization, networking, DB, or reader regressions that unit tests would miss.
 
+CI names the device suites `Android harness tests (phone)` and
+`Android harness tests (tablet)`. A separate `iOS harness tests` job runs the
+shared sync suite and an iOS Room bundled-driver CRUD/Flow test on an iOS
+simulator target.
+
 ## Consequences
 
 **Positive.**
 - Shared networking, sources, sync, models, domain, and persistence compile for JVM and iOS.
-- Sync logic, source adapters, database contracts, and interface contracts run as fast JVM tests.
+- Sync logic and the current-schema database contract run on both JVM and iOS; source adapters and
+  remaining interface contracts run as fast JVM tests.
 - A future host supplies only platform composition, paths, secure storage, logging, and UI.
 - The `checkNoAndroidImports` guardrail catches boundary drift at CI time, before
   Android dependencies can spread into the core.
@@ -111,7 +118,8 @@ serialization, networking, DB, or reader regressions that unit tests would miss.
 - Room annotations remain visible in the persistence contract even though Room now publishes KMP
   artifacts; replacing Room would still require adapting DAO annotations.
 - Android migration tests remain device tests because they validate upgrades through the shipping
-  Android host. A JVM bundled-driver integration test provides an additional non-Android sentinel.
+  Android host. JVM and iOS bundled-driver integration tests provide current-schema non-Android
+  sentinels.
 - `core:network` remains a JVM/Android shim until its Java-stream consumers gain a portable stream
   contract.
 - The catalog plugin modules (`core:catalog-*`) are pure-Kotlin today but are not

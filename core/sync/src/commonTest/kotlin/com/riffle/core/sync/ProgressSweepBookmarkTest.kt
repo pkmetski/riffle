@@ -6,9 +6,9 @@ import com.riffle.core.domain.ProgressRemote
 import com.riffle.core.domain.RemoteProgress
 import com.riffle.core.domain.SyncPositionStore
 import kotlinx.coroutines.test.runTest
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertTrue
-import org.junit.Test
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 
 /**
  * The bookmark pass of the durable dirty sweep (ADR 0036, Task 12): bookmarks reconcile on the SAME
@@ -107,7 +107,7 @@ class ProgressSweepBookmarkTest {
     }
 
     @Test
-    fun `skips a bookmark item the live player is currently driving, consistent with the audio pass`() = runTest {
+    fun `skips a bookmark item the live player is currently driving consistent with the audio pass`() = runTest {
         val rec = RecordingBookmarkReconcile()
         val openTargets = OpenReconcileTargets().apply { markOpen("s1", "open") }
 
@@ -122,7 +122,7 @@ class ProgressSweepBookmarkTest {
     }
 
     @Test
-    fun `skips a bookmark-dirty source that cannot be resolved, leaving it for a later sweep`() = runTest {
+    fun `skips a bookmark-dirty source that cannot be resolved leaving it for a later sweep`() = runTest {
         val rec = RecordingBookmarkReconcile()
 
         sweep(

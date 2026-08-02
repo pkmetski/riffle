@@ -6,10 +6,10 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.async
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
-import org.junit.Assert.assertTrue
-import org.junit.Test
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertTrue
 
 /**
  * Contract tests for the [ReconcileLocks] singleton (#321). The progress and annotation axes use
@@ -40,7 +40,7 @@ class ReconcileLocksTest {
         }
         // Yield as much as possible — second must NOT enter while first is held.
         advanceUntilIdle()
-        assertFalse("second waiter must not enter while first holds the lock", secondEntered)
+        assertFalse(secondEntered, "second waiter must not enter while first holds the lock")
 
         firstHold.complete(Unit)
         first.await()
@@ -61,7 +61,7 @@ class ReconcileLocksTest {
             locks.withAnnotationLock("srv", "book-B") { secondCompleted = true }
         }
         advanceUntilIdle()
-        assertTrue("different books must not contend", secondCompleted)
+        assertTrue(secondCompleted, "different books must not contend")
 
         firstHold.complete(Unit)
         first.await()
@@ -83,7 +83,7 @@ class ReconcileLocksTest {
             locks.withAnnotationLock("srv", "item") { annotationRan = true }
         }
         advanceUntilIdle()
-        assertTrue("progress and annotation axes must be independent", annotationRan)
+        assertTrue(annotationRan, "progress and annotation axes must be independent")
 
         progressHold.complete(Unit)
         progress.await()
@@ -125,7 +125,7 @@ class ReconcileLocksTest {
             locks.withLock("srv", "item", RemoteKind.AUDIO_POSITION) { audioRan = true }
         }
         advanceUntilIdle()
-        assertTrue("different kinds must not contend on the same book", audioRan)
+        assertTrue(audioRan, "different kinds must not contend on the same book")
 
         ebookHold.complete(Unit)
         ebook.await()
