@@ -192,6 +192,17 @@ internal fun shouldRunReadingSideEffects(source: ReaderSource): Boolean =
 internal fun isElidedContinuousReader(source: ReaderSource): Boolean =
     source == ReaderSource.Highlights
 
+/**
+ * Returns true when [segments] carry meaningful position weights for time-remaining estimates.
+ *
+ * A real EPUB starts with all weights at the 1f fallback while Readium computes positions; we
+ * suppress estimates until at least one weight differs. The elided view uses
+ * PerResourcePositionsService which intentionally gives every resource exactly one position
+ * (equal weights), so we bypass the guard for [ReaderSource.Highlights].
+ */
+internal fun hasRealSegmentPositions(segments: List<RailSegment>, source: ReaderSource): Boolean =
+    segments.size <= 1 || segments.any { it.weight != 1f } || source == ReaderSource.Highlights
+
 sealed class ReaderState {
     data object Loading : ReaderState()
     data class Ready(
@@ -3625,10 +3636,7 @@ class EpubReaderViewModel @Inject constructor(
         val totalPositions = segments.fold(0f) { acc, seg -> acc + seg.weight }
         if (totalPositions == 0f) return@combine null
 
-        // If every segment has fallback weight 1f, position data wasn't available — estimates
-        // would be meaningless (always ~1 min). Return null until real data is loaded.
-        val hasRealPositions = segments.size <= 1 || segments.any { it.weight != 1f }
-        if (!hasRealPositions) return@combine null
+        if (!hasRealSegmentPositions(segments, source)) return@combine null
 
         if (pbState.connected && raTrack != null) {
             val posGlobal = pbState.positionGlobalSec
@@ -3666,10 +3674,7 @@ class EpubReaderViewModel @Inject constructor(
         val totalPositions = segments.fold(0f) { acc, seg -> acc + seg.weight }
         if (totalPositions == 0f) return@combine null
 
-        // If every segment has fallback weight 1f, position data wasn't available — estimates
-        // would be meaningless (always ~1 min). Return null until real data is loaded.
-        val hasRealPositions = segments.size <= 1 || segments.any { it.weight != 1f }
-        if (!hasRealPositions) return@combine null
+        if (!hasRealSegmentPositions(segments, source)) return@combine null
 
         if (pbState.connected && raTrack != null) {
             val posGlobal = pbState.positionGlobalSec
