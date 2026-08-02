@@ -5,11 +5,11 @@ import com.riffle.core.common.RandomProvider
 import com.riffle.core.domain.AudiobookBookmarkSyncStore
 import com.riffle.core.domain.SyncableAudiobookBookmark
 import kotlinx.coroutines.test.runTest
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNotNull
-import org.junit.Assert.assertNull
-import org.junit.Assert.assertTrue
-import org.junit.Test
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertNotNull
+import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 class AudiobookBookmarkReconcilerTest {
 
@@ -120,7 +120,7 @@ class AudiobookBookmarkReconcilerTest {
 
         assertEquals(listOf(FakeCatalog.Call("create", "i1", 12, "Intro")), cat.calls.filter { it.kind == "create" })
         val row = store.getById("a")!!
-        assertTrue("created row must become clean", row.localUpdatedAt <= row.lastSyncedAt)
+        assertTrue(row.localUpdatedAt <= row.lastSyncedAt, "created row must become clean")
     }
 
     @Test fun pushRename() = runTest {
@@ -132,7 +132,7 @@ class AudiobookBookmarkReconcilerTest {
         assertEquals(listOf(FakeCatalog.Call("update", "i1", 30, "New name")), cat.calls.filter { it.kind == "update" })
         assertTrue(cat.calls.none { it.kind == "create" })
         val row = store.getById("a")!!
-        assertTrue("renamed row must become clean", row.localUpdatedAt <= row.lastSyncedAt)
+        assertTrue(row.localUpdatedAt <= row.lastSyncedAt, "renamed row must become clean")
     }
 
     @Test fun pushDelete() = runTest {
@@ -142,7 +142,7 @@ class AudiobookBookmarkReconcilerTest {
         reconciler(store, cat).run()
 
         assertEquals(listOf(FakeCatalog.Call("delete", "i1", 45, "")), cat.calls.filter { it.kind == "delete" })
-        assertNull("confirmed delete must be hard-removed", store.getById("a"))
+        assertNull(store.getById("a"), "confirmed delete must be hard-removed")
     }
 
     @Test fun pushDeleteNetworkFailureKeepsTombstone() = runTest {
@@ -153,7 +153,7 @@ class AudiobookBookmarkReconcilerTest {
 
         val row = store.getById("a")!!
         assertEquals(true, row.deleted)
-        assertTrue("tombstone stays dirty for retry", row.localUpdatedAt > row.lastSyncedAt)
+        assertTrue(row.localUpdatedAt > row.lastSyncedAt, "tombstone stays dirty for retry")
     }
 
     @Test fun pullInsert() = runTest {
@@ -169,7 +169,7 @@ class AudiobookBookmarkReconcilerTest {
         assertEquals(1000L, row.localUpdatedAt)
         assertEquals(1000L, row.lastSyncedAt)
         assertEquals(false, row.deleted)
-        assertTrue("source-sourced row is clean", row.localUpdatedAt <= row.lastSyncedAt)
+        assertTrue(row.localUpdatedAt <= row.lastSyncedAt, "source-sourced row is clean")
     }
 
     @Test fun pullRemovesCleanRowAbsentFromServer() = runTest {
@@ -178,7 +178,7 @@ class AudiobookBookmarkReconcilerTest {
         val cat = FakeCatalog(listResult = Result.success(emptyList()))
         reconciler(store, cat).run()
 
-        assertNull("clean row missing from source must be removed", store.getById("a"))
+        assertNull(store.getById("a"), "clean row missing from source must be removed")
     }
 
     @Test fun pullDoesNotClobberDirtyRows() = runTest {
@@ -190,9 +190,9 @@ class AudiobookBookmarkReconcilerTest {
         cat.renameOk = false
         reconciler(store, cat).run()
 
-        assertNotNull("dirty pending create must survive pull", store.getById("create"))
+        assertNotNull(store.getById("create"), "dirty pending create must survive pull")
         val renameRow = store.getById("rename")!!
-        assertEquals("dirty local title must NOT be clobbered", "local title", renameRow.title)
+        assertEquals("local title", renameRow.title, "dirty local title must NOT be clobbered")
     }
 
     @Test fun listBookmarksNetworkErrorSkipsPullButPushesHappen() = runTest {
@@ -203,7 +203,7 @@ class AudiobookBookmarkReconcilerTest {
         reconciler(store, cat).run()
 
         assertEquals(listOf(FakeCatalog.Call("create", "i1", 12, "Intro")), cat.calls.filter { it.kind == "create" })
-        assertNotNull("pull skipped: clean row must NOT be removed", store.getById("clean"))
+        assertNotNull(store.getById("clean"), "pull skipped: clean row must NOT be removed")
     }
 
     @Test fun crossItemIsolation() = runTest {

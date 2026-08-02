@@ -1,9 +1,9 @@
 package com.riffle.core.sync
 
 import kotlinx.coroutines.test.runTest
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertTrue
-import org.junit.Test
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 
 class AnnotationSyncStatusStoreTest {
 
@@ -59,8 +59,9 @@ class AnnotationSyncStatusStoreTest {
         store.report(CycleOutcome.Success(100L))
         store.report(CycleOutcome.Failed.Network(200L, "timeout"))
         assertEquals(
+            100L,
+            store.lastSuccessAtMs.value,
             "a failed attempt must not overwrite the last successful sync timestamp",
-            100L, store.lastSuccessAtMs.value,
         )
     }
 }

@@ -6,10 +6,10 @@ import com.riffle.core.domain.ProgressRemote
 import com.riffle.core.domain.RemoteProgress
 import com.riffle.core.domain.SyncPositionStore
 import kotlinx.coroutines.test.runTest
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
-import org.junit.Assert.assertTrue
-import org.junit.Test
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertTrue
 
 /**
  * The durable multi-source dirty sweep (ADR 0030 slice 5): enumerate dirty rows across every source,
@@ -144,7 +144,7 @@ class ProgressSweepTest {
     }
 
     @Test
-    fun `skips sources that cannot be resolved, leaving their rows dirty`() = runTest {
+    fun `skips sources that cannot be resolved leaving their rows dirty`() = runTest {
         val store = FakeStore<String>().apply {
             rows["s1" to "i1"] = Triple("local1", 300L, 100L)
             rows["s2" to "i2"] = Triple("local2", 300L, 100L)
@@ -161,11 +161,11 @@ class ProgressSweepTest {
 
         assertFalse(store.dirty("s1", "i1"))
         assertTrue(store.dirty("s2", "i2"))
-        assertFalse("s2 must never be contacted", factory.ebookBuilt.contains("s2" to "i2"))
+        assertFalse(factory.ebookBuilt.contains("s2" to "i2"), "s2 must never be contacted")
     }
 
     @Test
-    fun `skips a book a live surface is currently driving, leaving it dirty`() = runTest {
+    fun `skips a book a live surface is currently driving leaving it dirty`() = runTest {
         val store = FakeStore<String>().apply { rows["s1" to "open"] = Triple("local", 300L, 100L) }
         val factory = RecordingFactory(
             ebookRemotes = mapOf(("s1" to "open") to FakeRemote(RemoteProgress("srv", 200L), stamp = 305L)),
@@ -200,7 +200,7 @@ class ProgressSweepTest {
     }
 
     @Test
-    fun `skips sources without progress capability, leaving their rows dirty`() = runTest {
+    fun `skips sources without progress capability leaving their rows dirty`() = runTest {
         // A LocalFiles source has no progress peer (ADR 0041). Its dirty position rows are legal
         // zero-peer entries, so no remote is built and `localUpdatedAt` stays as the reader wrote it.
         val store = FakeStore<String>().apply { rows["local-fs" to "book"] = Triple("local", 300L, 100L) }
@@ -212,8 +212,8 @@ class ProgressSweepTest {
             resolver, store, FakeStore(), factory,
         ).run()
 
-        assertTrue("row remains at its local timestamp — nothing to sync against", store.dirty("local-fs", "book"))
-        assertFalse("no remote must be built for a zero-peer source", factory.ebookBuilt.contains("local-fs" to "book"))
+        assertTrue(store.dirty("local-fs", "book"), "row remains at its local timestamp — nothing to sync against")
+        assertFalse(factory.ebookBuilt.contains("local-fs" to "book"), "no remote must be built for a zero-peer source")
     }
 
     @Test

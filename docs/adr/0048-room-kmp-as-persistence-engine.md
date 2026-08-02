@@ -115,8 +115,8 @@ APIs. Consumers depend on `RiffleDatabaseAccess` and DAO/entity contracts.
 - Non-database modules compile against DAO interfaces and `RiffleDatabaseAccess`, without seeing
   the concrete generated database.
 - All schema JSON files and migration assertions are retained.
-- The shared database compiles for JVM and iOS, and a real JVM database verifies DAO and `Flow`
-  behavior without an Android runtime.
+- The shared database compiles for JVM and iOS, and real JVM and iOS databases verify DAO and
+  `Flow` behavior without an Android runtime.
 - The project stays on a single persistence library throughout the migration, eliminating a
   parallel dependency tree.
 
@@ -127,7 +127,8 @@ APIs. Consumers depend on `RiffleDatabaseAccess` and DAO/entity contracts.
 - Historical migration callbacks now use the KMP SQLite API. The compatibility adapter is
   deliberately narrow and must grow if a future migration needs a new bind or cursor operation.
 - The full upgrade chain remains an Android device test because it validates the shipping host and
-  checked-in schema assets; JVM coverage validates current-schema construction and observation.
+  checked-in schema assets; JVM and iOS coverage validate current-schema construction and
+  observation.
 - SQLite 2.7.0 no longer publishes the iOS x64 variant required by Riffle's target matrix, so the
   bundled driver is pinned to 2.6.2 until that target is deliberately removed or restored upstream.
 
