@@ -9,12 +9,8 @@ import com.riffle.core.domain.AudiobookTimeline
 import com.riffle.core.data.di.qualifiers.StreamingHttpClient
 import com.riffle.core.models.AudiobookTrackSpan
 import com.riffle.core.domain.DispatcherProvider
+import com.riffle.core.network.withHttpByteStream
 import io.ktor.client.HttpClient
-import io.ktor.client.request.get
-import io.ktor.client.statement.bodyAsChannel
-import io.ktor.http.contentLength
-import io.ktor.http.isSuccess
-import io.ktor.utils.io.jvm.javaio.toInputStream
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
@@ -84,30 +80,37 @@ class AudiobookDownloadRepositoryImpl @Inject constructor(
         if (isDownloaded(sourceId, itemId)) return@withContext AudiobookDownloadResult.Success
         val session = audiobookRepository.openSession(sourceId, itemId)
             ?: return@withContext AudiobookDownloadResult.NetworkError(IOException("Could not open play session"))
+        val wholeAudiobookBytes = audiobookRepository.downloadSizeBytes(sourceId, itemId)
+            ?.takeIf { it > 0L }
+        val progress = CumulativeDownloadProgress(wholeAudiobookBytes ?: 0L, onProgress)
 
         val dir = itemDir(sourceId, itemId).apply { mkdirs() }
-        var downloaded = 0L
-        var total = 0L
         val manifestTracks = ArrayList<AudiobookDownloadManifest.ManifestTrack>()
         try {
             session.trackUrls.forEachIndexed { i, url ->
                 val fileName = "track-$i"
                 val out = File(dir, fileName)
-                val response = httpClient.get(url)
-                if (!response.status.isSuccess()) {
-                    throw IOException("HTTP ${response.status.value} for track $i")
-                }
-                val len = response.contentLength() ?: -1L
-                if (len > 0) total += len
-                response.bodyAsChannel().toInputStream().use { input ->
-                    out.outputStream().use { output ->
-                        val buf = ByteArray(64 * 1024)
-                        while (true) {
-                            val read = input.read(buf)
-                            if (read < 0) break
-                            output.write(buf, 0, read)
-                            downloaded += read
-                            onProgress(downloaded, total)
+                httpClient.withHttpByteStream(
+                    url = url,
+                    httpFailure = { failure -> IOException("HTTP ${failure.code} for track $i") },
+                ) { response ->
+                    // A per-track Content-Length is only the whole download size for a one-track
+                    // audiobook. For multi-track books, using each newly discovered length as the
+                    // denominator makes progress hit 100% at every track boundary and then go
+                    // backwards. Prefer the Source fingerprint's aggregate size; stay indeterminate
+                    // when a multi-track Source cannot provide one.
+                    if (session.trackUrls.size == 1) {
+                        progress.establishTotal(response.contentLength)
+                    }
+                    response.inputStream.use { input ->
+                        out.outputStream().use { output ->
+                            val buf = ByteArray(64 * 1024)
+                            while (true) {
+                                val read = input.read(buf)
+                                if (read < 0) break
+                                output.write(buf, 0, read)
+                                progress.record(read.toLong())
+                            }
                         }
                     }
                 }

@@ -8,22 +8,17 @@ import com.riffle.core.catalog.CatalogFileStream
 import com.riffle.core.catalog.CatalogHealth
 import com.riffle.core.catalog.CatalogItem
 import com.riffle.core.catalog.CatalogRoot
+import com.riffle.core.catalog.CatalogFileRetryPolicy
 import com.riffle.core.catalog.DownloadsCapability
 import com.riffle.core.catalog.FacetSelection
 import com.riffle.core.catalog.OfflineBrowseCapability
 import com.riffle.core.catalog.ReadCapability
 import com.riffle.core.catalog.SortKey
 import com.riffle.core.catalog.ToReadListCapability
+import com.riffle.core.catalog.withCatalogFileStream
 import com.riffle.core.models.SourceType
 import io.ktor.client.HttpClient
-import io.ktor.client.request.get
-import io.ktor.client.request.header
-import io.ktor.client.statement.bodyAsChannel
 import io.ktor.http.HttpHeaders
-import io.ktor.http.contentLength
-import io.ktor.http.isSuccess
-import io.ktor.utils.io.jvm.javaio.toInputStream
-import kotlinx.coroutines.delay
 import java.net.URLEncoder
 
 /**
@@ -151,46 +146,54 @@ class GutenbergCatalog(
             ?: throw GutenbergException("Unknown Gutenberg item: $itemId")
         val url = summary.epubUrl
             ?: throw GutenbergException("No EPUB link on Gutenberg $itemId")
-        return CatalogFileHandle.Stream(url = url, format = BookFormat.Epub)
+        return CatalogFileHandle.Stream(
+            url = url,
+            headers = mapOf(HttpHeaders.UserAgent to userAgent),
+            format = BookFormat.Epub,
+        )
     }
 
-    override suspend fun openFile(
+    override suspend fun <T> withFileStream(
         itemId: String,
         format: BookFormat,
         handleHint: String?,
-    ): CatalogFileStream {
+        block: suspend (CatalogFileStream) -> T,
+    ): T {
         val handle = fetchFile(itemId, format)
         if (handle !is CatalogFileHandle.Stream) {
             throw GutenbergException("Local file handles are not produced by Gutenberg Source")
         }
-        return fetchBytesWithRetry(handle.url, itemId)
+        return streamDownloadHandle(handle, itemId, block)
     }
 
-    internal suspend fun fetchBytesWithRetry(downloadUrl: String, itemId: String): CatalogFileStream {
-        var attempt = 0
-        while (true) {
-            val response = bytesClient.get(downloadUrl) {
-                header(HttpHeaders.UserAgent, userAgent)
-            }
-            if (response.status.isSuccess()) {
-                val channel = response.bodyAsChannel()
-                return object : CatalogFileStream {
-                    override val contentLength: Long = response.contentLength() ?: -1L
-                    override fun byteStream(): java.io.InputStream = channel.toInputStream()
-                    override fun close() { channel.cancel(null) }
-                }
-            }
-            val code = response.status.value
-            if ((code == 429 || code == 503) &&
-                attempt < GutenbergHttpClient.DEFAULT_RETRY_DELAYS_MS.size
-            ) {
-                delay(GutenbergHttpClient.DEFAULT_RETRY_DELAYS_MS[attempt])
-                attempt++
-                continue
-            }
-            throw GutenbergException("Failed to fetch bytes for $itemId: $code")
-        }
+    internal suspend fun <T> withBytesWithRetry(
+        downloadUrl: String,
+        itemId: String,
+        block: suspend (CatalogFileStream) -> T,
+    ): T {
+        val handle = CatalogFileHandle.Stream(
+            url = downloadUrl,
+            headers = mapOf(HttpHeaders.UserAgent to userAgent),
+            format = BookFormat.Epub,
+        )
+        return streamDownloadHandle(handle, itemId, block)
     }
+
+    private suspend fun <T> streamDownloadHandle(
+        handle: CatalogFileHandle.Stream,
+        itemId: String,
+        block: suspend (CatalogFileStream) -> T,
+    ): T = bytesClient.withCatalogFileStream(
+        handle = handle,
+        retryPolicy = CatalogFileRetryPolicy(
+            statusCodes = setOf(429, 503),
+            delaysMs = GutenbergHttpClient.DEFAULT_RETRY_DELAYS_MS,
+        ),
+        httpFailure = { failure ->
+            GutenbergException("Failed to fetch bytes for $itemId: ${failure.code}")
+        },
+        block = block,
+    )
 
     // ---- Connectivity -------------------------------------------------------
 

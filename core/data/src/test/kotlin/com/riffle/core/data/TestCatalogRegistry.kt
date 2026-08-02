@@ -9,8 +9,8 @@ import com.riffle.core.models.Source
 import com.riffle.core.domain.SourceRepository
 import com.riffle.core.network.AbsApiClient
 import com.riffle.core.network.AbsBookmarkApi
-import com.riffle.core.network.AbsEpubDownloadApi
-import com.riffle.core.network.AbsEpubDownloadApiClient
+import com.riffle.core.network.AbsFileDownloadApi
+import com.riffle.core.network.AbsFileDownloadApiClient
 import com.riffle.core.network.AbsLibraryApi
 import com.riffle.core.network.AbsPlaybackApi
 import com.riffle.core.network.AbsServerInfoApi
@@ -33,8 +33,8 @@ class TestCatalogRegistry(
     private val sourceRepository: SourceRepository,
     private val tokens: Map<String, String>,
     private val apiClient: AbsApiClient = AbsApiClient(createDefaultHttpClient(OkHttpClient())),
-    private val epubDownloadApi: AbsEpubDownloadApi =
-        AbsEpubDownloadApiClient(createDefaultHttpClient(OkHttpClient())),
+    private val fileDownloadApi: AbsFileDownloadApi =
+        AbsFileDownloadApiClient(createDefaultHttpClient(OkHttpClient())),
     private val clock: Clock = defaultTestClock,
     private val deviceId: String = "test-device",
 ) : CatalogRegistry {
@@ -55,7 +55,7 @@ class TestCatalogRegistry(
         return AbsCatalog(
             config = config,
             libraryApi = apiClient,
-            epubDownloadApi = epubDownloadApi,
+            fileDownloadApi = fileDownloadApi,
             playbackApi = apiClient,
             sessionApi = apiClient,
             bookmarkApi = apiClient,
@@ -85,8 +85,16 @@ fun testAbsCatalog(
     insecureAllowed: Boolean = false,
     deviceId: String = "test-device",
     libraryApi: AbsLibraryApi,
-    epubDownloadApi: AbsEpubDownloadApi = AbsEpubDownloadApi { _, _, _, _, _ ->
-        com.riffle.core.network.NetworkResult.Unknown(UnsupportedOperationException("noop"))
+    fileDownloadApi: AbsFileDownloadApi = object : AbsFileDownloadApi {
+        override suspend fun <T> streamFile(
+            baseUrl: String,
+            itemId: String,
+            fileIno: String,
+            token: String,
+            insecureAllowed: Boolean,
+            block: suspend (com.riffle.core.network.AbsFileStream) -> T,
+        ): com.riffle.core.network.NetworkResult<T> =
+            com.riffle.core.network.NetworkResult.Unknown(UnsupportedOperationException("noop"))
     },
     playbackApi: AbsPlaybackApi = NoopAbsPlaybackApi,
     sessionApi: AbsSessionApi = NoopAbsSessionApi,
@@ -96,7 +104,7 @@ fun testAbsCatalog(
 ): Catalog = AbsCatalog(
     config = AbsCatalogConfig(baseUrl, token, insecureAllowed, deviceId),
     libraryApi = libraryApi,
-    epubDownloadApi = epubDownloadApi,
+    fileDownloadApi = fileDownloadApi,
     playbackApi = playbackApi,
     sessionApi = sessionApi,
     bookmarkApi = bookmarkApi,

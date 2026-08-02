@@ -333,7 +333,7 @@ private class RecordingCatalog(
     }
     override suspend fun fetchFile(itemId: String, format: BookFormat): CatalogFileHandle =
         throw UnsupportedOperationException()
-    override suspend fun openFile(itemId: String, format: BookFormat, handleHint: String?): CatalogFileStream =
+    override suspend fun <T> withFileStream(itemId: String, format: BookFormat, handleHint: String?, block: suspend (CatalogFileStream) -> T): T =
         throw UnsupportedOperationException()
     override suspend fun connectivityCheck(): CatalogHealth = CatalogHealth(isReachable = true)
 }

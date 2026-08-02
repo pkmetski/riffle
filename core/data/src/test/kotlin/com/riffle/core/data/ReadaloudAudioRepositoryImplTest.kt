@@ -37,7 +37,16 @@ class ReadaloudAudioRepositoryImplTest {
         var parseCalls = 0
         val repo = object : ReadaloudAudioRepositoryImpl(
             downloader = AudiobookBundleDownloader(
-                api = { _, _, _, _, _ -> throw UnsupportedOperationException() },
+                api = object : com.riffle.core.network.AudiobookBundleApi {
+                    override suspend fun <T> withBundleStream(
+                        baseUrl: String,
+                        bookId: String,
+                        token: String,
+                        insecureAllowed: Boolean,
+                        fromByte: Long,
+                        block: suspend (com.riffle.core.network.AudiobookBundleStream) -> T,
+                    ): NetworkResult<T> = throw UnsupportedOperationException()
+                },
                 targetFileProvider = { _, _ -> File("") },
                 dispatchers = com.riffle.core.domain.DefaultDispatcherProvider,
             ),

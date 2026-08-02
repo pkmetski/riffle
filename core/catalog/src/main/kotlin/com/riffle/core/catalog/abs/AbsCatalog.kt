@@ -42,7 +42,7 @@ import com.riffle.core.models.EbookFormat
 import com.riffle.core.models.SourceType
 import com.riffle.core.network.AbsAudioUrl
 import com.riffle.core.network.AbsBookmarkApi
-import com.riffle.core.network.AbsEpubDownloadApi
+import com.riffle.core.network.AbsFileDownloadApi
 import com.riffle.core.network.AbsCoverUrl
 import com.riffle.core.network.AbsLibraryApi
 import com.riffle.core.network.AbsPlaybackApi
@@ -75,7 +75,7 @@ import com.riffle.core.network.errorAsThrowable
 class AbsCatalog(
     private val config: AbsCatalogConfig,
     private val libraryApi: AbsLibraryApi,
-    private val epubDownloadApi: AbsEpubDownloadApi,
+    private val fileDownloadApi: AbsFileDownloadApi,
     private val playbackApi: AbsPlaybackApi,
     private val sessionApi: AbsSessionApi,
     private val bookmarkApi: AbsBookmarkApi,
@@ -160,30 +160,40 @@ class AbsCatalog(
         }
     }
 
-    override suspend fun openFile(
+    override suspend fun <T> withFileStream(
         itemId: String,
         format: BookFormat,
         handleHint: String?,
-    ): CatalogFileStream {
-        return when (format) {
-            BookFormat.Epub, BookFormat.Pdf, BookFormat.Cbz -> {
-                val ino = handleHint?.takeIf { it.isNotEmpty() }
-                    ?: libraryApi.getItemEbookFileIno(config.baseUrl, itemId, config.token, config.insecureAllowed).unwrap()
-                val body = when (val r = epubDownloadApi.downloadEpub(config.baseUrl, itemId, ino, config.token, config.insecureAllowed)) {
-                    is NetworkResult.Success -> r.value
-                    else -> throw CatalogException.Unknown(r.errorAsThrowable())
+        block: suspend (CatalogFileStream) -> T,
+    ): T = when (format) {
+        BookFormat.Epub, BookFormat.Pdf, BookFormat.Cbz -> {
+            val ino = handleHint?.takeIf { it.isNotEmpty() }
+                ?: libraryApi.getItemEbookFileIno(config.baseUrl, itemId, config.token, config.insecureAllowed).unwrap()
+            when (
+                val result = fileDownloadApi.streamFile(
+                    config.baseUrl,
+                    itemId,
+                    ino,
+                    config.token,
+                    config.insecureAllowed,
+                ) { body ->
+                    block(
+                        object : CatalogFileStream {
+                            override val contentLength: Long = body.contentLength
+                            override fun byteStream(): java.io.InputStream = body.inputStream
+                            override fun close() { body.inputStream.close() }
+                        },
+                    )
                 }
-                object : CatalogFileStream {
-                    override val contentLength: Long = body.contentLength
-                    override fun byteStream(): java.io.InputStream = body.inputStream
-                    override fun close() { body.inputStream.close() }
-                }
+            ) {
+                is NetworkResult.Success -> result.value
+                else -> throw CatalogException.Unknown(result.errorAsThrowable())
             }
-            BookFormat.Audiobook -> throw CatalogException.UnsupportedFormat(
-                "Audiobook file streams are per-track — use AudiobookMediaCapability.buildStreamUrl",
-            )
-            BookFormat.Unsupported -> throw CatalogException.UnsupportedFormat("Cannot open Unsupported format")
         }
+        BookFormat.Audiobook -> throw CatalogException.UnsupportedFormat(
+            "Audiobook file streams are per-track — use AudiobookMediaCapability.buildStreamUrl",
+        )
+        BookFormat.Unsupported -> throw CatalogException.UnsupportedFormat("Cannot open Unsupported format")
     }
 
     override suspend fun connectivityCheck(): CatalogHealth {

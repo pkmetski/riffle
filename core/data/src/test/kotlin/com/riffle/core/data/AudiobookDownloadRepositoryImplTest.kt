@@ -1,14 +1,21 @@
 package com.riffle.core.data
 
+import com.riffle.core.domain.AudiobookDownloadResult
 import com.riffle.core.domain.AudiobookRepository
 import com.riffle.core.domain.AudiobookSession
 import com.riffle.core.domain.AudiobookTimeline
-import com.riffle.core.domain.AudiobookDownloadResult
 import com.riffle.core.models.AudiobookTrackSpan
+import com.riffle.core.network.createStreamingHttpClient
+import java.io.File
+import java.util.concurrent.TimeUnit
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.withTimeout
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
-import com.riffle.core.network.createStreamingHttpClient
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
 import org.junit.Assert.assertEquals
@@ -18,7 +25,6 @@ import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
-import java.io.File
 
 class AudiobookDownloadRepositoryImplTest {
 
@@ -135,6 +141,98 @@ class AudiobookDownloadRepositoryImplTest {
             assertEquals("audio-bytes", File(root, "srv/it/track-0").readText())
             assertTrue(File(root, "srv/it/manifest.json").exists())
             assertEquals(11L to 11L, progress.last())
+        } finally {
+            server.shutdown()
+        }
+    }
+
+    @Test
+    fun `download reports progress before a track response finishes`() = runBlocking {
+        val server = MockWebServer()
+        server.start()
+        try {
+            val payload = ByteArray(256 * 1024) { (it % 251).toByte() }
+            server.enqueue(
+                MockResponse()
+                    .setBody(okio.Buffer().write(payload))
+                    .throttleBody(64 * 1024, 1, TimeUnit.SECONDS),
+            )
+            val session = AudiobookSession(
+                trackUrls = listOf(server.url("/track.mp3").toString()),
+                tracks = listOf(AudiobookTrackSpan(index = 0, startOffsetSec = 0.0, durationSec = 12.0)),
+                timeline = AudiobookTimeline(durationSec = 12.0, chapters = emptyList()),
+                serverCurrentTimeSec = 0.0,
+            )
+            val source = object : AudiobookRepository {
+                override suspend fun openSession(sourceId: String, itemId: String): AudiobookSession = session
+                override suspend fun saveProgress(
+                    sourceId: String,
+                    itemId: String,
+                    positionSec: Double,
+                    durationSec: Double,
+                ) = Unit
+            }
+            val firstProgress = CompletableDeferred<Pair<Long, Long>>()
+
+            val download = async(Dispatchers.IO) {
+                repo(tmp.newFolder(), source).download("srv", "it") { downloaded, total ->
+                    firstProgress.complete(downloaded to total)
+                }
+            }
+
+            val (downloaded, total) = withTimeout(1_500) { firstProgress.await() }
+
+            assertTrue(downloaded in 1 until total)
+            assertFalse("download should still be receiving the throttled response", download.isCompleted)
+            assertEquals(AudiobookDownloadResult.Success, download.await())
+        } finally {
+            server.shutdown()
+        }
+    }
+
+    @Test
+    fun `download reports whole audiobook progress monotonically across tracks`() = runTest {
+        val server = MockWebServer()
+        server.start()
+        try {
+            val firstTrack = ByteArray(70 * 1024)
+            val secondTrack = ByteArray(130 * 1024)
+            val wholeAudiobookBytes = (firstTrack.size + secondTrack.size).toLong()
+            server.enqueue(MockResponse().setBody(okio.Buffer().write(firstTrack)))
+            server.enqueue(MockResponse().setBody(okio.Buffer().write(secondTrack)))
+            val session = AudiobookSession(
+                trackUrls = listOf(
+                    server.url("/track-1.mp3").toString(),
+                    server.url("/track-2.mp3").toString(),
+                ),
+                tracks = listOf(
+                    AudiobookTrackSpan(index = 0, startOffsetSec = 0.0, durationSec = 10.0),
+                    AudiobookTrackSpan(index = 1, startOffsetSec = 10.0, durationSec = 20.0),
+                ),
+                timeline = AudiobookTimeline(durationSec = 30.0, chapters = emptyList()),
+                serverCurrentTimeSec = 0.0,
+            )
+            val source = object : AudiobookRepository {
+                override suspend fun openSession(sourceId: String, itemId: String): AudiobookSession = session
+                override suspend fun downloadSizeBytes(sourceId: String, itemId: String) = wholeAudiobookBytes
+                override suspend fun saveProgress(
+                    sourceId: String,
+                    itemId: String,
+                    positionSec: Double,
+                    durationSec: Double,
+                ) = Unit
+            }
+            val progress = mutableListOf<Pair<Long, Long>>()
+
+            val result = repo(tmp.newFolder(), source).download("srv", "it") { downloaded, total ->
+                progress += downloaded to total
+            }
+
+            assertEquals(AudiobookDownloadResult.Success, result)
+            assertTrue("expected progress callbacks", progress.isNotEmpty())
+            assertTrue("every callback should use the whole-audiobook total", progress.all { it.second == wholeAudiobookBytes })
+            assertTrue("100% is only valid after the final track", progress.dropLast(1).all { it.first < it.second })
+            assertEquals(wholeAudiobookBytes to wholeAudiobookBytes, progress.last())
         } finally {
             server.shutdown()
         }

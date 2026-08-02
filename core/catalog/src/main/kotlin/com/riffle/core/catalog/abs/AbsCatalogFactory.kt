@@ -8,7 +8,7 @@ import com.riffle.core.domain.DeviceIdStore
 import com.riffle.core.models.Source
 import com.riffle.core.domain.TokenStorage
 import com.riffle.core.network.AbsBookmarkApi
-import com.riffle.core.network.AbsEpubDownloadApi
+import com.riffle.core.network.AbsFileDownloadApi
 import com.riffle.core.network.AbsLibraryApi
 import com.riffle.core.network.AbsPlaybackApi
 import com.riffle.core.network.AbsServerInfoApi
@@ -21,7 +21,7 @@ import com.riffle.core.network.AbsSessionApi
  */
 class AbsCatalogFactory(
     private val libraryApi: AbsLibraryApi,
-    private val epubDownloadApi: AbsEpubDownloadApi,
+    private val fileDownloadApi: AbsFileDownloadApi,
     private val playbackApi: AbsPlaybackApi,
     private val sessionApi: AbsSessionApi,
     private val bookmarkApi: AbsBookmarkApi,
@@ -45,7 +45,7 @@ class AbsCatalogFactory(
         return AbsCatalog(
             config = config,
             libraryApi = libraryApi,
-            epubDownloadApi = epubDownloadApi,
+            fileDownloadApi = fileDownloadApi,
             playbackApi = playbackApi,
             sessionApi = sessionApi,
             bookmarkApi = bookmarkApi,

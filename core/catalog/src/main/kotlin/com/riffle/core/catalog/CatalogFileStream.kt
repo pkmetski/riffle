@@ -4,8 +4,8 @@ import java.io.Closeable
 import java.io.InputStream
 
 /**
- * A byte stream over a Catalog item's file, returned by [Catalog.openFile]. Owns the underlying
- * transport resource (network socket, file handle) — the caller must [close] it once done.
+ * A byte stream over a Catalog item's file, scoped to [Catalog.withFileStream]. Owns the underlying
+ * transport resource (network socket, file handle); the Catalog closes it after the callback.
  *
  * [contentLength] is `-1` when the source cannot report a length up-front (chunked HTTP responses,
  * pipes) — callers that need a total for progress reporting should treat that as "unknown".

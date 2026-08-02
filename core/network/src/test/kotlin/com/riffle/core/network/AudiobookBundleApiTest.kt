@@ -46,7 +46,9 @@ class AudiobookBundleApiTest {
         val bytes = ByteArray(64) { it.toByte() }
         server.enqueue(MockResponse().setHeader("Content-Length", "64").setBody(Buffer().write(bytes)))
 
-        val result = api.openBundleStream(baseUrl(), "42", "tkn", insecureAllowed = false, fromByte = 0L)
+        val result = api.withBundleStream(baseUrl(), "42", "tkn", insecureAllowed = false, fromByte = 0L) { stream ->
+            Triple(stream.totalBytes, stream.isPartial, stream.body.readBytes().toList())
+        }
 
         val recorded = server.takeRequest()
         assertEquals("/api/books/42/synced", recorded.path)
@@ -55,9 +57,9 @@ class AudiobookBundleApiTest {
         assertNull("No Range header on a fresh download", recorded.getHeader("Range"))
         assertTrue(result is NetworkResult.Success)
         result as NetworkResult.Success
-        assertEquals(64L, result.value.totalBytes)
-        assertFalse(result.value.isPartial)
-        assertEquals(bytes.toList(), result.value.body.use { it.readBytes() }.toList())
+        assertEquals(64L, result.value.first)
+        assertFalse(result.value.second)
+        assertEquals(bytes.toList(), result.value.third)
     }
 
     @Test fun resume_sendsRangeHeader_parsesTotalFromContentRange() = runTest {
@@ -69,14 +71,16 @@ class AudiobookBundleApiTest {
                 .setBody(Buffer().write(tail)),
         )
 
-        val result = api.openBundleStream(baseUrl(), "42", "tkn", insecureAllowed = false, fromByte = 100L)
+        val result = api.withBundleStream(baseUrl(), "42", "tkn", insecureAllowed = false, fromByte = 100L) { stream ->
+            stream.totalBytes to stream.isPartial
+        }
 
         val recorded = server.takeRequest()
         assertEquals("bytes=100-", recorded.getHeader("Range"))
         assertTrue(result is NetworkResult.Success)
         result as NetworkResult.Success
-        assertEquals(128L, result.value.totalBytes)
-        assertTrue(result.value.isPartial)
+        assertEquals(128L, result.value.first)
+        assertTrue(result.value.second)
     }
 
     @Test fun cancelledDuringSlowHeaderWait_doesNotLeakConnection() = runBlocking {
@@ -98,7 +102,7 @@ class AudiobookBundleApiTest {
         )
 
         val job = launch(Dispatchers.IO) {
-            leakApi.openBundleStream(baseUrl(), "42", "tkn", insecureAllowed = false, fromByte = 0L)
+            leakApi.withBundleStream(baseUrl(), "42", "tkn", insecureAllowed = false, fromByte = 0L) { Unit }
         }
         delay(100)
         job.cancel()
@@ -117,7 +121,7 @@ class AudiobookBundleApiTest {
     @Test fun nonSuccess_returnsNetworkError() = runTest {
         server.enqueue(MockResponse().setResponseCode(500))
 
-        val result = api.openBundleStream(baseUrl(), "42", "tkn", insecureAllowed = false, fromByte = 0L)
+        val result = api.withBundleStream(baseUrl(), "42", "tkn", insecureAllowed = false, fromByte = 0L) { Unit }
 
         assertTrue(result is NetworkResult.Offline)
     }

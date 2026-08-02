@@ -31,29 +31,38 @@ class AudiobookBundleDownloaderTest {
         private val serveBytes: Int = full.size,
     ) : AudiobookBundleApi {
         var requestedFromByte: Long = -1
-        override suspend fun openBundleStream(
+        override suspend fun <T> withBundleStream(
             baseUrl: String,
             bookId: String,
             token: String,
             insecureAllowed: Boolean,
             fromByte: Long,
-        ): NetworkResult<AudiobookBundleStream> {
+            block: suspend (AudiobookBundleStream) -> T,
+        ): NetworkResult<T> {
             requestedFromByte = fromByte
             failWith?.let { return NetworkResult.Offline(it) }
-            return if (fromByte > 0 && honorRange) {
-                val tail = full.copyOfRange(fromByte.toInt(), full.size)
-                NetworkResult.Success(AudiobookBundleStream(
-                    body = ByteArrayInputStream(tail),
-                    totalBytes = full.size.toLong(),
-                    isPartial = true,
-                ))
-            } else {
-                // Advertise the FULL length but serve only [serveBytes] — a silent truncation.
-                NetworkResult.Success(AudiobookBundleStream(
-                    body = ByteArrayInputStream(full.copyOfRange(0, serveBytes)),
-                    totalBytes = full.size.toLong(),
-                    isPartial = false,
-                ))
+            return try {
+                if (fromByte > 0 && honorRange) {
+                    val tail = full.copyOfRange(fromByte.toInt(), full.size)
+                    NetworkResult.Success(
+                        block(AudiobookBundleStream(
+                            body = ByteArrayInputStream(tail),
+                            totalBytes = full.size.toLong(),
+                            isPartial = true,
+                        )),
+                    )
+                } else {
+                    // Advertise the FULL length but serve only [serveBytes] — a silent truncation.
+                    NetworkResult.Success(
+                        block(AudiobookBundleStream(
+                            body = ByteArrayInputStream(full.copyOfRange(0, serveBytes)),
+                            totalBytes = full.size.toLong(),
+                            isPartial = false,
+                        )),
+                    )
+                }
+            } catch (t: Throwable) {
+                NetworkResult.Unknown(t)
             }
         }
     }

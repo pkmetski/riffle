@@ -44,6 +44,14 @@ class AudiobookRepositoryImpl @Inject constructor(
         )
     }
 
+    override suspend fun downloadSizeBytes(sourceId: String, itemId: String): Long? {
+        val catalog = catalogRegistry.forSourceId(sourceId) ?: return null
+        val audioCap = catalog as? AudiobookMediaCapability ?: return null
+        return runCatching { audioCap.getFingerprint(itemId)?.fileSizeBytes }
+            .getOrNull()
+            ?.takeIf { it > 0L }
+    }
+
     override suspend fun saveProgress(sourceId: String, itemId: String, positionSec: Double, durationSec: Double) {
         val catalog = catalogRegistry.forSourceId(sourceId) ?: return
         val peer = catalog as? AudiobookProgressPeerCapability ?: return

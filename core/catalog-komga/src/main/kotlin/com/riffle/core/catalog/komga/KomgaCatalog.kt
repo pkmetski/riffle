@@ -21,15 +21,10 @@ import com.riffle.core.catalog.ReadCapability
 import com.riffle.core.catalog.SeriesCapability
 import com.riffle.core.catalog.SortKey
 import com.riffle.core.catalog.ToReadListCapability
+import com.riffle.core.catalog.withCatalogFileStream
 import com.riffle.core.models.SourceType
 import io.ktor.client.HttpClient
-import io.ktor.client.request.get
-import io.ktor.client.request.header
-import io.ktor.client.statement.bodyAsChannel
 import io.ktor.http.HttpHeaders
-import io.ktor.http.contentLength
-import io.ktor.http.isSuccess
-import io.ktor.utils.io.jvm.javaio.toInputStream
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.builtins.ListSerializer
@@ -41,7 +36,7 @@ import java.net.URLEncoder
  * documented `/api/v1` REST surface using HTTP Basic auth baked into [KomgaCatalogConfig].
  *
  * Capability shape:
- * - Mandatory core (listRoots/browse/search/getItem/fetchFile/openFile/connectivityCheck): yes.
+ * - Mandatory core (browse, lookup, response-scoped file access, connectivity): yes.
  * - [ReadCapability], [DownloadsCapability], [ToReadListCapability], [OfflineBrowseCapability]:
  *   marker mixins so the shared library UI enables the corresponding affordances.
  * - [SeriesCapability]: series-of-books grouping (Komga's core concept).
@@ -149,38 +144,32 @@ class KomgaCatalog(
         }
         return CatalogFileHandle.Stream(
             url = apiUrl("books/$itemId/file"),
-            headers = mapOf("Authorization" to config.basicAuthHeader),
+            headers = mapOf(
+                HttpHeaders.Authorization to config.basicAuthHeader,
+                HttpHeaders.Accept to "application/octet-stream, application/epub+zip, application/pdf, application/x-cbz",
+            ),
             format = format,
         )
     }
 
-    override suspend fun openFile(
+    override suspend fun <T> withFileStream(
         itemId: String,
         format: BookFormat,
         handleHint: String?,
-    ): CatalogFileStream = withContext(Dispatchers.IO) {
-        if (format == BookFormat.Audiobook || format == BookFormat.Unsupported) {
-            throw KomgaHttpException(code = 415, url = itemId, message = "Unsupported format $format")
-        }
-        val url = apiUrl("books/$itemId/file")
-        val response = try {
-            bytesClient.get(url) {
-                header(HttpHeaders.Authorization, config.basicAuthHeader)
-                header(HttpHeaders.Accept, "application/octet-stream, application/epub+zip, application/pdf, application/x-cbz")
-            }
+        block: suspend (CatalogFileStream) -> T,
+    ): T = withContext(Dispatchers.IO) {
+        val handle = fetchFile(itemId, format) as CatalogFileHandle.Stream
+        try {
+            bytesClient.withCatalogFileStream(
+                handle = handle,
+                httpFailure = { failure ->
+                    KomgaHttpException(failure.code, failure.url, failure.description)
+                },
+                block = block,
+            )
         } catch (e: java.io.IOException) {
-            throw KomgaHttpException(code = -1, url = url, message = e.message ?: "network error")
-        }
-        if (!response.status.isSuccess()) {
-            response.bodyAsChannel().cancel(null)
-            throw KomgaHttpException(code = response.status.value, url = url, message = response.status.description)
-        }
-        val contentLength = response.contentLength() ?: -1L
-        val channel = response.bodyAsChannel()
-        object : CatalogFileStream {
-            override val contentLength: Long = contentLength
-            override fun byteStream(): java.io.InputStream = channel.toInputStream()
-            override fun close() { channel.cancel(null) }
+            if (e is KomgaHttpException) throw e
+            throw KomgaHttpException(code = -1, url = handle.url, message = e.message ?: "network error")
         }
     }
 

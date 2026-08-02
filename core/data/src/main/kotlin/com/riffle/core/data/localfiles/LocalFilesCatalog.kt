@@ -114,11 +114,12 @@ class LocalFilesCatalog(
         )
     }
 
-    override suspend fun openFile(
+    override suspend fun <T> withFileStream(
         itemId: String,
         format: BookFormat,
         handleHint: String?,
-    ): CatalogFileStream {
+        block: suspend (CatalogFileStream) -> T,
+    ): T {
         val file = requireFile(itemId, format)
         val f = File(file.copiedPath)
         if (!f.exists()) {
@@ -127,11 +128,14 @@ class LocalFilesCatalog(
             )
         }
         val length = f.length()
-        val stream = FileInputStream(f)
-        return object : CatalogFileStream {
-            override val contentLength: Long = length
-            override fun byteStream(): java.io.InputStream = stream
-            override fun close() { stream.close() }
+        return FileInputStream(f).use { stream ->
+            block(
+                object : CatalogFileStream {
+                    override val contentLength: Long = length
+                    override fun byteStream(): java.io.InputStream = stream
+                    override fun close() { stream.close() }
+                },
+            )
         }
     }
 

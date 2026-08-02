@@ -130,7 +130,7 @@ class KomgaHttpException(
         if (responseBody.isNotBlank()) append(" | body: ").append(responseBody)
     },
 ) {
-    // Backwards-compatible constructor used by legacy call sites (e.g. KomgaCatalog.openFile).
+    // Backwards-compatible constructor used by legacy Catalog call sites.
     // New sites should prefer the primary constructor so response bodies bubble into the log.
     constructor(code: Int, url: String, message: String) : this(
         code = code,
