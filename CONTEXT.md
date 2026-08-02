@@ -4,16 +4,19 @@
 
 Riffle is split into a **pure-Kotlin core** (KMP-candidate) and **Android-hosting** modules. New features belong in the innermost module whose dependency constraints they satisfy.
 
-### Pure-Kotlin core (no `android.*` / `androidx.*`)
+### Multiplatform core
 
-Modules marked **[guarded]** are actively scanned by `checkNoAndroidImports` on every CI push. Unguarded catalog modules are pure-Kotlin by convention but not yet in the scan set (see ADR 0049).
+These modules expose shared `commonMain` code and compile for JVM, Android where applicable, and
+all supported iOS targets. Modules marked **[guarded]** are actively scanned by
+`checkNoAndroidImports` on every CI push. Platform-specific KMP source sets may use their native
+APIs; `commonMain` may not (see ADR 0049).
 
 | Module | Role | CI guard |
 |---|---|---|
-| `core:common` | Shared interfaces: `Clock`, `FileStore`, `EncryptedKeyValueStore` | **[guarded]** |
+| `core:common` | Shared interfaces: `Clock`, `RandomProvider`, `FileStore`, `EncryptedKeyValueStore` | **[guarded]** |
 | `core:models` | Domain-neutral data models, serialization | **[guarded]** |
 | `core:domain` | Domain models, `WebSourceDescriptor`, `AudioPlayer` interface | **[guarded]** |
-| `core:network` | HTTP client (`AbsApiClient`, Ktor/OkHttp), `NetworkResult` | **[guarded]** |
+| `core:net` | Shared Ktor clients/DTOs plus JVM OkHttp and iOS Darwin engine wiring | **[guarded]** |
 | `core:sources` | `Source`/`Service` abstractions, source adapters, annotation sync targets | **[guarded]** |
 | `core:sync` | Progress sweep, reconciler, locks — pure sync logic | **[guarded]** |
 | `core:catalog` | `Catalog` interface + `CatalogCapability` mixins | unguarded |
@@ -22,13 +25,14 @@ Modules marked **[guarded]** are actively scanned by `checkNoAndroidImports` on 
 | `core:catalog-komga` | Komga Catalog implementation | unguarded |
 | `core:annotations` | _(planned — not yet created)_ Annotation model & sync format | **[guarded]** when created |
 
-### Android-hosting modules
+### Persistence and host modules
 
 | Module | Role |
 |---|---|
+| `core:database-api` | KMP Room `@Entity` / `@Dao` contracts and `RiffleDatabaseAccess` |
+| `core:database` | KMP Room database, historical migrations, bundled SQLite driver, platform factories |
+| `core:network` | JVM/Android streaming shim for APIs exposing `InputStream` |
 | `core:data` | Hilt-wired repositories, Android DataStore, `LocalDirectoryTarget` |
-| `core:database` | Room database (`RiffleDatabase`), migrations, KSP |
-| `core:database-api` | Room `@Entity` / `@Dao` interfaces (Android-only; Room KMP pending — ADR 0048) |
 | `core:logging` | `LogChannel` enum, `AndroidLogger`, `checkRiffleLogTags` guardrail |
 | `app` | Compose UI, navigation, Hilt entry point, ExoPlayer, Readium |
 

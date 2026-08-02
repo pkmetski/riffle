@@ -1,12 +1,12 @@
 package com.riffle.app.feature.reader
 
-import androidx.room.Room
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.riffle.core.data.AnnotationStoreImpl
 import com.riffle.core.database.AnnotationEntity
-import com.riffle.core.database.RiffleDatabase
+import com.riffle.core.database.RiffleDatabaseAccess
 import com.riffle.core.database.SourceEntity
+import com.riffle.core.database.openInMemoryRiffleDatabase
 import com.riffle.core.domain.DeviceIdStore
 import com.riffle.core.models.Annotation
 import com.riffle.core.models.EmphasisStyle
@@ -30,7 +30,7 @@ import java.util.zip.ZipInputStream
 @RunWith(AndroidJUnit4::class)
 class AnnotationMergeFormattingHarnessTest {
 
-    private lateinit var database: RiffleDatabase
+    private lateinit var database: RiffleDatabaseAccess
     private lateinit var store: AnnotationStoreImpl
 
     private class FixedDeviceIdStore : DeviceIdStore {
@@ -40,9 +40,10 @@ class AnnotationMergeFormattingHarnessTest {
     @Before
     fun setUp() {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
-        database = Room.inMemoryDatabaseBuilder(context, RiffleDatabase::class.java)
-            .allowMainThreadQueries()
-            .build()
+        database = openInMemoryRiffleDatabase(
+            context = context,
+            allowMainThreadQueries = true,
+        )
         val nextId = AtomicInteger()
         store = AnnotationStoreImpl(
             dao = database.annotationDao(),
