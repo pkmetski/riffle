@@ -159,9 +159,14 @@ class CbzReaderViewModel @Inject constructor(
     }
 
     private suspend fun loadArchive(file: File, lastPosition: String?, title: String) {
-        val (opened, pageCount) = withContext(Dispatchers.IO) {
-            val a = CbzArchive(file)
-            a to a.pageCount
+        val (opened, pageCount) = try {
+            withContext(Dispatchers.IO) {
+                val a = CbzArchive(file)
+                a to a.pageCount
+            }
+        } catch (t: Throwable) {
+            _state.value = CbzReaderState.Error(t.message ?: "Failed to open comic archive")
+            return
         }
         if (pageCount == 0) {
             _state.value = CbzReaderState.Error("Comic has no pages")

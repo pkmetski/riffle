@@ -34,7 +34,7 @@ class LocalStoreImpl(
                 tmp.outputStream().use { out -> stream.copyTo(out) }
                 tmp.renameTo(dest)
                 dest
-            } catch (e: Exception) {
+            } catch (e: Throwable) {
                 tmp.delete()
                 throw e
             }

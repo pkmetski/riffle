@@ -21,12 +21,15 @@ import com.riffle.core.catalog.ReadCapability
 import com.riffle.core.catalog.SeriesCapability
 import com.riffle.core.catalog.SortKey
 import com.riffle.core.catalog.ToReadListCapability
-import com.riffle.core.catalog.withCatalogFileStream
 import com.riffle.core.models.SourceType
 import io.ktor.client.HttpClient
+import io.ktor.client.request.header
+import io.ktor.client.request.prepareGet
+import io.ktor.client.statement.bodyAsChannel
 import io.ktor.http.HttpHeaders
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
+import io.ktor.http.contentLength
+import io.ktor.http.isSuccess
+import io.ktor.utils.io.jvm.javaio.toInputStream
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.serializer
 import java.net.URLEncoder
@@ -157,19 +160,34 @@ class KomgaCatalog(
         format: BookFormat,
         handleHint: String?,
         block: suspend (CatalogFileStream) -> T,
-    ): T = withContext(Dispatchers.IO) {
-        val handle = fetchFile(itemId, format) as CatalogFileHandle.Stream
-        try {
-            bytesClient.withCatalogFileStream(
-                handle = handle,
-                httpFailure = { failure ->
-                    KomgaHttpException(failure.code, failure.url, failure.description)
-                },
-                block = block,
-            )
-        } catch (e: java.io.IOException) {
-            if (e is KomgaHttpException) throw e
-            throw KomgaHttpException(code = -1, url = handle.url, message = e.message ?: "network error")
+    ): T {
+        if (format == BookFormat.Audiobook || format == BookFormat.Unsupported) {
+            throw KomgaHttpException(code = 415, url = itemId, message = "Unsupported format $format")
+        }
+        val url = apiUrl("books/$itemId/file")
+        // Use prepareGet().execute {} so Ktor does NOT buffer the response body into memory.
+        // client.get() calls SavedCall.save() → reads the entire body as a ByteArray before
+        // returning; for a 274MB CBZ this is a fatal Java heap OOM. execute {} calls
+        // fetchStreamingResponse()/skipSaveBody() instead, so bytes flow directly to the caller.
+        // The callback scope keeps the HTTP connection alive until block() returns.
+        return bytesClient.prepareGet(url) {
+            header(HttpHeaders.Authorization, config.basicAuthHeader)
+            header(HttpHeaders.Accept, "application/octet-stream, application/epub+zip, application/pdf, application/x-cbz")
+        }.execute { response ->
+            if (!response.status.isSuccess()) {
+                throw KomgaHttpException(
+                    code = response.status.value,
+                    url = url,
+                    message = response.status.description,
+                )
+            }
+            val contentLength = response.contentLength() ?: -1L
+            val stream = object : CatalogFileStream {
+                override val contentLength: Long = contentLength
+                override fun byteStream(): java.io.InputStream = response.bodyAsChannel().toInputStream()
+                override fun close() { /* connection lifetime managed by execute {} */ }
+            }
+            block(stream)
         }
     }
 
@@ -532,20 +550,22 @@ class KomgaCatalog(
 
     /**
      * The current authenticated user's id (from `GET /api/v1/users/me`), cached for the lifetime
-     * of this catalog instance on success. On failure the call THROWS — an earlier version
-     * silently returned null on any error, which collapsed the ownership predicate to
-     * `ownerId == null || ownerId == null` for every readlist. On modern Komga (>= 1.19) all
-     * readlists carry a non-null `ownerId`, so a transient `/users/me` 5xx would filter out
-     * every readlist the user actually owns and cause `createPlaylist` to POST a duplicate on
-     * every subsequent operation until the cache repopulated. Failing loud lets the repo layer's
-     * `runCatching` log via `RIFFLE_TOREAD` and revert the optimistic add instead of silently
-     * corrupting server state.
+     * of this catalog instance on success. Returns null when the endpoint returns 404 — old Komga
+     * (< 0.157 / pre-1.0) didn't expose `/api/v1/users/me`; the 404 is not a transient failure
+     * and should not block the To-Read workflow. All other non-2xx codes (e.g. 500) still throw
+     * so the repo layer's `runCatching` can log via `RIFFLE_TOREAD` and revert optimistic adds
+     * rather than silently corrupting server state.
      */
     @Volatile private var cachedCurrentUserId: String? = null
 
-    private suspend fun currentUserId(): String {
+    private suspend fun currentUserId(): String? {
         cachedCurrentUserId?.let { return it }
-        val body = http.getString(apiUrl("users/me")) // throws KomgaHttpException on non-2xx
+        val body = try {
+            http.getString(apiUrl("users/me"))
+        } catch (e: KomgaHttpException) {
+            if (e.code == 404) return null  // endpoint absent on old Komga; don't cache
+            throw e
+        }
         val me = KomgaJson.decodeFromString(KomgaCurrentUserDto.serializer(), body)
         cachedCurrentUserId = me.id
         return me.id
@@ -558,6 +578,10 @@ class KomgaCatalog(
      * readlist owned by SOMEONE ELSE is skipped so we don't hand back an id that will 403 on
      * every subsequent PATCH — this is the exact regression the Komga integration hit against
      * a "To Read" readlist that had been created via Komga's web UI by a different user.
+     *
+     * When [currentUserId] returns null (server doesn't expose users/me), we can't determine
+     * ownership, so we match by name with null-ownerId entries only — old Komga never sets
+     * ownerId, so this is equivalent to matching everything on those servers.
      */
     private suspend fun firstOwnedReadListNamed(name: String): KomgaReadListDto? {
         val meId = currentUserId()

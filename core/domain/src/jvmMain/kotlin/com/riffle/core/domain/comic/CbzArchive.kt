@@ -1,6 +1,7 @@
 package com.riffle.core.domain.comic
 
 import java.io.File
+import java.io.InputStream
 import java.util.zip.ZipFile
 
 /**
@@ -38,6 +39,13 @@ class CbzArchive(file: File) : ComicArchive {
         val zipEntry = zip.getEntry(entry.name)
             ?: throw IllegalStateException("Missing entry ${entry.name}")
         return zip.getInputStream(zipEntry).use { it.readBytes() }
+    }
+
+    override fun openStream(pageIndex: Int): InputStream {
+        val entry = entries[pageIndex]
+        val zipEntry = zip.getEntry(entry.name)
+            ?: throw IllegalStateException("Missing entry ${entry.name}")
+        return zip.getInputStream(zipEntry)
     }
 
     override fun mediaType(pageIndex: Int): String = entries[pageIndex].mediaType

@@ -85,6 +85,20 @@ class DownloadManagerTest {
         assertEquals(DownloadState.NotDownloaded, manager.states.value["k"])
     }
 
+    // Regression: the original catch (e: Exception) missed java.lang.Error subclasses such as
+    // OutOfMemoryError. When an Error escaped the work lambda, set(key, terminal) was never
+    // reached and the download state stayed permanently at InProgress (spinning forever).
+    @Test
+    fun `work that throws an Error resolves the key to NotDownloaded instead of a stuck spinner`() = runTest {
+        val dispatcher = StandardTestDispatcher(testScheduler)
+        val manager = DownloadManager(CoroutineScope(dispatcher))
+
+        manager.start("k") { throw OutOfMemoryError("simulated OOM") }
+        testScheduler.advanceUntilIdle()
+
+        assertEquals(DownloadState.NotDownloaded, manager.states.value["k"])
+    }
+
     @Test
     fun `clear drops the tracked state for a key`() = runTest {
         val dispatcher = StandardTestDispatcher(testScheduler)
