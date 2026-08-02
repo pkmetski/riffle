@@ -54,9 +54,10 @@ class EpubRepositoryImpl(
                 downloadsStore.get(item.sourceId, item.id)
                     ?: cacheStore.get(item.sourceId, item.id)
                     ?: try {
-                        catalog.openFile(item.id, BookFormat.Epub, handleHint = item.ebookFileIno).use { stream ->
-                            cacheStore.save(item.sourceId, item.id, stream.byteStream())
-                        }
+                        CatalogFileTransfer.acquire(
+                            catalog, item.sourceId, item.id, BookFormat.Epub,
+                            item.ebookFileIno, cacheStore,
+                        )
                     } catch (t: Throwable) {
                         return EpubOpenResult.NetworkError(t)
                     }
@@ -85,10 +86,10 @@ class EpubRepositoryImpl(
             downloadsStore.get(item.sourceId, item.id)?.let { return@withLock EpubDownloadResult.AlreadyDownloaded }
             cacheStore.get(item.sourceId, item.id)?.let { return@withLock promoteCacheToDownloads(item, it, onProgress) }
             try {
-                catalog.openFile(item.id, BookFormat.Epub, handleHint = item.ebookFileIno).use { stream ->
-                    val progressStream = ProgressReportingInputStream(stream.byteStream(), stream.contentLength, onProgress)
-                    downloadsStore.save(item.sourceId, item.id, progressStream)
-                }
+                CatalogFileTransfer.acquire(
+                    catalog, item.sourceId, item.id, BookFormat.Epub,
+                    item.ebookFileIno, downloadsStore, onProgress,
+                )
                 EpubDownloadResult.Success
             } catch (t: Throwable) {
                 EpubDownloadResult.NetworkError(t)
@@ -101,11 +102,9 @@ class EpubRepositoryImpl(
         cached: java.io.File,
         onProgress: (downloaded: Long, total: Long) -> Unit,
     ): EpubDownloadResult {
-        val size = cached.length()
-        cached.inputStream().use {
-            downloadsStore.save(item.sourceId, item.id, ProgressReportingInputStream(it, size, onProgress))
-        }
-        cacheStore.delete(item.sourceId, item.id)
+        CatalogFileTransfer.promote(
+            item.sourceId, item.id, cached, cacheStore, downloadsStore, onProgress,
+        )
         return EpubDownloadResult.Success
     }
 

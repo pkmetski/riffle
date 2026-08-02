@@ -6,8 +6,8 @@ import com.riffle.core.network.AbsApi
 import com.riffle.core.network.AbsApiClient
 import com.riffle.core.data.di.qualifiers.WebSourceOkHttpClient
 import com.riffle.core.network.AbsBookmarkApi
-import com.riffle.core.network.AbsEpubDownloadApi
-import com.riffle.core.network.AbsEpubDownloadApiClient
+import com.riffle.core.network.AbsFileDownloadApi
+import com.riffle.core.network.AbsFileDownloadApiClient
 import com.riffle.core.network.AbsLibraryApi
 import com.riffle.core.network.AbsPlaybackApi
 import com.riffle.core.network.AbsServerInfoApi
@@ -126,8 +126,8 @@ abstract class NetworkModule {
 
         @Provides
         @Singleton
-        fun provideAbsEpubDownloadApi(httpClient: HttpClient): AbsEpubDownloadApi =
-            AbsEpubDownloadApiClient(httpClient)
+        fun provideAbsFileDownloadApi(httpClient: HttpClient): AbsFileDownloadApi =
+            AbsFileDownloadApiClient(httpClient)
 
         @Provides
         @Singleton

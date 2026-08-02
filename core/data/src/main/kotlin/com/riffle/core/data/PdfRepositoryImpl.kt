@@ -32,9 +32,10 @@ class PdfRepositoryImpl(
             val catalog = catalogRegistry.forSourceId(item.sourceId)
                 ?: return PdfOpenResult.NetworkError(IllegalStateException("No catalog for item"))
             try {
-                catalog.openFile(item.id, BookFormat.Pdf, handleHint = item.ebookFileIno).use { stream ->
-                    cacheStore.save(item.sourceId, item.id, stream.byteStream())
-                }
+                CatalogFileTransfer.acquire(
+                    catalog, item.sourceId, item.id, BookFormat.Pdf,
+                    item.ebookFileIno, cacheStore,
+                )
             } catch (t: Throwable) {
                 return PdfOpenResult.NetworkError(t)
             }
@@ -51,20 +52,18 @@ class PdfRepositoryImpl(
         if (downloadsStore.get(item.sourceId, item.id) != null) return PdfDownloadResult.AlreadyDownloaded
         val cached = cacheStore.get(item.sourceId, item.id)
         if (cached != null) {
-            val size = cached.length()
-            cached.inputStream().use {
-                downloadsStore.save(item.sourceId, item.id, ProgressReportingInputStream(it, size, onProgress))
-            }
-            cacheStore.delete(item.sourceId, item.id)
+            CatalogFileTransfer.promote(
+                item.sourceId, item.id, cached, cacheStore, downloadsStore, onProgress,
+            )
             return PdfDownloadResult.Success
         }
         val catalog = catalogRegistry.forSourceId(item.sourceId)
             ?: return PdfDownloadResult.NetworkError(IllegalStateException("No catalog for item"))
         return try {
-            catalog.openFile(item.id, BookFormat.Pdf, handleHint = item.ebookFileIno).use { stream ->
-                val progressStream = ProgressReportingInputStream(stream.byteStream(), stream.contentLength, onProgress)
-                downloadsStore.save(item.sourceId, item.id, progressStream)
-            }
+            CatalogFileTransfer.acquire(
+                catalog, item.sourceId, item.id, BookFormat.Pdf,
+                item.ebookFileIno, downloadsStore, onProgress,
+            )
             PdfDownloadResult.Success
         } catch (t: Throwable) {
             PdfDownloadResult.NetworkError(t)

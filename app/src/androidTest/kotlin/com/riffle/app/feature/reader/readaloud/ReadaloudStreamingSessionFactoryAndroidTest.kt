@@ -177,7 +177,7 @@ class ReadaloudStreamingSessionFactoryAndroidTest {
             },
         )
         val absApiClient = AbsApiClient(createDefaultHttpClient(OkHttpClient()))
-        val absEpubDownloadApi = com.riffle.core.network.AbsEpubDownloadApiClient(
+        val absEpubDownloadApi = com.riffle.core.network.AbsFileDownloadApiClient(
             createDefaultHttpClient(OkHttpClient()),
         )
         val testClock = object : com.riffle.core.common.Clock {
@@ -195,7 +195,7 @@ class ReadaloudStreamingSessionFactoryAndroidTest {
                     deviceId = "test-device",
                 ),
                 libraryApi = absApiClient,
-                epubDownloadApi = absEpubDownloadApi,
+                fileDownloadApi = absEpubDownloadApi,
                 playbackApi = absApiClient,
                 sessionApi = absApiClient,
                 bookmarkApi = absApiClient,

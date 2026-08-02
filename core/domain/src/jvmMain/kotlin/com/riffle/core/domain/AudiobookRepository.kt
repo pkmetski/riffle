@@ -25,6 +25,9 @@ interface AudiobookRepository {
     /** Opens an ABS direct-play session for the audiobook item, or null if it can't be opened. */
     suspend fun openSession(sourceId: String, itemId: String): AudiobookSession?
 
+    /** Whole-audiobook byte size for determinate offline-download progress, or null when unknown. */
+    suspend fun downloadSizeBytes(sourceId: String, itemId: String): Long? = null
+
     /**
      * Pushes the audiobook's book-absolute listen position to its single ABS progress record. This is
      * the audiobook-only single-peer sync (ADR 0029); a matched Readaloud routes through the canonical

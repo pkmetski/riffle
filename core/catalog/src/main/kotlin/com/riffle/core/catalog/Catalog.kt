@@ -57,23 +57,24 @@ interface Catalog {
     /** Single-item lookup; returns `null` when the item no longer exists on the Source. */
     suspend fun getItem(itemId: String): CatalogItem?
 
-    /** Openable handle for [itemId] in [format]. Throws on unsupported [format]. */
+    /** Resolved handle for [itemId] in [format]. Throws on unsupported [format]. */
     suspend fun fetchFile(itemId: String, format: BookFormat): CatalogFileHandle
 
     /**
-     * Open a byte stream over [itemId] in [format]. Encapsulates Source-specific transport
-     * concerns (auth headers, self-signed TLS trust, local file access) so callers only see bytes.
-     * Caller must [CatalogFileStream.close] the returned stream. Throws on unsupported [format].
+     * Runs [block] while [itemId]'s file is open. This response-scoped callback is the only Catalog
+     * byte-reading interface: network Sources expose bytes as they arrive and cannot accidentally
+     * return a stream whose HTTP response has already been buffered or closed. It is format-neutral;
+     * future [BookFormat] types use the same path without adding another transport method.
      *
-     * [handleHint] is a Source-specific opaque identifier that lets the Catalog skip a lookup when
-     * the caller already knows it (e.g. ABS's `ebookFileIno` persisted on the local library row).
-     * `null` means "resolve it yourself".
+     * [handleHint] is a Source-specific opaque identifier that can skip a lookup when the caller
+     * already knows it (for example ABS's persisted `ebookFileIno`).
      */
-    suspend fun openFile(
+    suspend fun <T> withFileStream(
         itemId: String,
         format: BookFormat,
         handleHint: String? = null,
-    ): CatalogFileStream
+        block: suspend (CatalogFileStream) -> T,
+    ): T
 
     /** Reachability + server-side identifiers; safe to call unauthenticated. */
     suspend fun connectivityCheck(): CatalogHealth

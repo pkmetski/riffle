@@ -15,6 +15,7 @@ import com.riffle.core.catalog.CatalogItem
 import com.riffle.core.catalog.CatalogRoot
 import com.riffle.core.catalog.CatalogSeries
 import com.riffle.core.catalog.CatalogSeriesEntry
+import com.riffle.core.catalog.CatalogFileRetryPolicy
 import com.riffle.core.catalog.DownloadsCapability
 import com.riffle.core.catalog.FacetSelection
 import com.riffle.core.catalog.OfflineBrowseCapability
@@ -22,15 +23,10 @@ import com.riffle.core.catalog.ReadCapability
 import com.riffle.core.catalog.SeriesCapability
 import com.riffle.core.catalog.SortKey
 import com.riffle.core.catalog.ToReadListCapability
+import com.riffle.core.catalog.withCatalogFileStream
 import com.riffle.core.models.SourceType
 import io.ktor.client.HttpClient
-import io.ktor.client.request.get
-import io.ktor.client.request.header
-import io.ktor.client.statement.bodyAsChannel
 import io.ktor.http.HttpHeaders
-import io.ktor.http.contentLength
-import io.ktor.http.isSuccess
-import io.ktor.utils.io.jvm.javaio.toInputStream
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -303,7 +299,7 @@ class ChitankaCatalog(
             }
             val url = detail.downloadUrl
                 ?: throw ChitankaException("No EPUB link on $itemId")
-            return CatalogFileHandle.Stream(url = url, format = BookFormat.Epub)
+            return downloadHandle(url, itemId)
         }
         // Audiobook — use AudiobookMediaCapability.buildStreamUrl per-track instead.
         throw ChitankaException(
@@ -311,47 +307,51 @@ class ChitankaCatalog(
         )
     }
 
-    override suspend fun openFile(
+    override suspend fun <T> withFileStream(
         itemId: String,
         format: BookFormat,
         handleHint: String?,
-    ): CatalogFileStream = withContext(Dispatchers.IO) {
+        block: suspend (CatalogFileStream) -> T,
+    ): T = withContext(Dispatchers.IO) {
         val handle = fetchFile(itemId, format)
         if (handle !is CatalogFileHandle.Stream) {
             throw ChitankaException("Local file handles are not produced by Chitanka Source")
         }
-        // Same UA/headers as [ChitankaHttpClient.getString] — required or chitanka.info 429s
-        // the download URL. Also mirror its 429 backoff schedule (1.5s, 3s) for parity.
-        fetchBytesWith429Retry(handle.url, itemId)
+        streamDownloadHandle(handle, block)
     }
 
-    internal suspend fun fetchBytesWith429Retry(downloadUrl: String, itemId: String): CatalogFileStream {
-        var attempt = 0
-        while (true) {
-            val response = bytesClient.get(downloadUrl) {
-                header(HttpHeaders.UserAgent, userAgent)
-                header(HttpHeaders.AcceptLanguage, "bg,en;q=0.5")
-                header(HttpHeaders.Referrer, "${ChitankaScraper.BASE}/$itemId")
-            }
-            if (response.status.isSuccess()) {
-                val channel = response.bodyAsChannel()
-                return object : CatalogFileStream {
-                    override val contentLength: Long = response.contentLength() ?: -1L
-                    override fun byteStream(): java.io.InputStream = channel.toInputStream()
-                    override fun close() { channel.cancel(null) }
-                }
-            }
-            val code = response.status.value
-            if (code == 429 && attempt < ChitankaHttpClient.DEFAULT_RETRY_DELAYS_MS.size) {
-                kotlinx.coroutines.delay(ChitankaHttpClient.DEFAULT_RETRY_DELAYS_MS[attempt])
-                attempt++
-                continue
-            }
-            throw ChitankaHttpException(code, downloadUrl, response.status.description)
-        }
-        @Suppress("UNREACHABLE_CODE")
-        error("unreachable")
+    internal suspend fun <T> withBytesWith429Retry(
+        downloadUrl: String,
+        itemId: String,
+        block: suspend (CatalogFileStream) -> T,
+    ): T {
+        return streamDownloadHandle(downloadHandle(downloadUrl, itemId), block)
     }
+
+    private fun downloadHandle(downloadUrl: String, itemId: String) = CatalogFileHandle.Stream(
+        url = downloadUrl,
+        headers = mapOf(
+            HttpHeaders.UserAgent to userAgent,
+            HttpHeaders.AcceptLanguage to "bg,en;q=0.5",
+            HttpHeaders.Referrer to "${ChitankaScraper.BASE}/$itemId",
+        ),
+        format = BookFormat.Epub,
+    )
+
+    private suspend fun <T> streamDownloadHandle(
+        handle: CatalogFileHandle.Stream,
+        block: suspend (CatalogFileStream) -> T,
+    ): T = bytesClient.withCatalogFileStream(
+        handle = handle,
+        retryPolicy = CatalogFileRetryPolicy(
+            statusCodes = setOf(429),
+            delaysMs = ChitankaHttpClient.DEFAULT_RETRY_DELAYS_MS,
+        ),
+        httpFailure = { failure ->
+            ChitankaHttpException(failure.code, failure.url, failure.description)
+        },
+        block = block,
+    )
 
     // ---- Connectivity -------------------------------------------------------
 

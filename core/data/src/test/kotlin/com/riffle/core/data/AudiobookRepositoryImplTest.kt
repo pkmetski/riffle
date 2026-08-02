@@ -82,23 +82,34 @@ class AudiobookRepositoryImplTest {
         assertNull(repo(PlainCatalog).openSession("srv", "it"))
     }
 
+    @Test
+    fun `downloadSizeBytes returns the Source fingerprint total`() = runTest {
+        val catalog = FakeAudioCatalog(stream = null, fileSizeBytes = 313_869_927L)
+
+        assertEquals(313_869_927L, repo(catalog).downloadSizeBytes("srv", "it"))
+    }
+
     private class FakeRegistry(private val catalog: Catalog?) : CatalogRegistry {
         override suspend fun forActive(): Catalog? = catalog
         override suspend fun forSource(source: Source): Catalog? = catalog
         override suspend fun forSourceId(sourceId: String): Catalog? = catalog
     }
 
-    private class FakeAudioCatalog(private val stream: CatalogAudiobookStream?) : Catalog, AudiobookMediaCapability {
+    private class FakeAudioCatalog(
+        private val stream: CatalogAudiobookStream?,
+        private val fileSizeBytes: Long = 0L,
+    ) : Catalog, AudiobookMediaCapability {
         override val sourceType = SourceType.ABS
         override suspend fun listRoots() = emptyList<CatalogRoot>()
         override suspend fun browse(rootId: String, sort: SortKey, page: Int, pageSize: Int, facet: FacetSelection?) = emptyList<CatalogItem>()
         override suspend fun search(rootId: String, query: String, page: Int, pageSize: Int) = emptyList<CatalogItem>()
         override suspend fun getItem(itemId: String): CatalogItem? = null
         override suspend fun fetchFile(itemId: String, format: BookFormat): CatalogFileHandle = throw UnsupportedOperationException()
-        override suspend fun openFile(itemId: String, format: BookFormat, handleHint: String?): CatalogFileStream = throw UnsupportedOperationException()
+        override suspend fun <T> withFileStream(itemId: String, format: BookFormat, handleHint: String?, block: suspend (CatalogFileStream) -> T): T = throw UnsupportedOperationException()
         override suspend fun connectivityCheck() = CatalogHealth(isReachable = true)
         override suspend fun getTracks(itemId: String): List<CatalogAudioTrack> = emptyList()
-        override suspend fun getFingerprint(itemId: String): CatalogAudioFingerprint? = CatalogAudioFingerprint(itemId, 0L, 0.0, emptyList())
+        override suspend fun getFingerprint(itemId: String): CatalogAudioFingerprint? =
+            CatalogAudioFingerprint(itemId, fileSizeBytes, 0.0, emptyList())
         override fun buildStreamUrl(itemId: String, trackIno: String) = ""
         override suspend fun openAudiobook(itemId: String, deviceLabel: String) = stream
         override suspend fun getAudiobookChapters(itemId: String) = emptyList<CatalogAudiobookChapter>()
@@ -112,7 +123,7 @@ class AudiobookRepositoryImplTest {
         override suspend fun search(rootId: String, query: String, page: Int, pageSize: Int) = emptyList<CatalogItem>()
         override suspend fun getItem(itemId: String): CatalogItem? = null
         override suspend fun fetchFile(itemId: String, format: BookFormat): CatalogFileHandle = throw UnsupportedOperationException()
-        override suspend fun openFile(itemId: String, format: BookFormat, handleHint: String?): CatalogFileStream = throw UnsupportedOperationException()
+        override suspend fun <T> withFileStream(itemId: String, format: BookFormat, handleHint: String?, block: suspend (CatalogFileStream) -> T): T = throw UnsupportedOperationException()
         override suspend fun connectivityCheck() = CatalogHealth(isReachable = true)
     }
 }

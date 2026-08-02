@@ -20,13 +20,20 @@ import com.riffle.core.catalog.ToReadListCapability
 import com.riffle.core.catalog.has
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.okhttp.OkHttp
+import java.util.concurrent.TimeUnit
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.withTimeout
 import okhttp3.mockwebserver.Dispatcher
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
 import okhttp3.mockwebserver.RecordedRequest
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -128,7 +135,9 @@ class ChitankaCatalogTest {
             bytesClient = HttpClient(OkHttp) {},
             userAgent = "Riffle/test",
         )
-        cat.fetchBytesWith429Retry(server.url("/download/foo.epub").toString(), itemId = "book/foo").close()
+        cat.withBytesWith429Retry(server.url("/download/foo.epub").toString(), itemId = "book/foo") { stream ->
+            stream.byteStream().readBytes()
+        }
         val req = server.takeRequest()
         assertEquals("Riffle/test", req.getHeader("User-Agent"))
         assertEquals("bg,en;q=0.5", req.getHeader("Accept-Language"))
@@ -144,9 +153,41 @@ class ChitankaCatalogTest {
             bytesClient = HttpClient(OkHttp) {},
             userAgent = "Riffle/test",
         )
-        val response = cat.fetchBytesWith429Retry(server.url("/download/foo.epub").toString(), itemId = "book/foo")
-        response.close()
+        cat.withBytesWith429Retry(server.url("/download/foo.epub").toString(), itemId = "book/foo") { stream ->
+            stream.byteStream().readBytes()
+        }
         assertEquals(2, server.requestCount)
+    }
+
+    @Test
+    fun `download exposes EPUB bytes before the response finishes`() = runBlocking {
+        val payload = ByteArray(256 * 1024) { (it % 251).toByte() }
+        server.enqueue(
+            MockResponse()
+                .setBody(okio.Buffer().write(payload))
+                .throttleBody(64 * 1024, 1, TimeUnit.SECONDS),
+        )
+        val cat = ChitankaCatalog(
+            http = ChitankaHttpClient(client = HttpClient(OkHttp) {}, userAgent = "Riffle/test", retryDelaysMs = emptyList()),
+            bytesClient = HttpClient(OkHttp) {},
+            userAgent = "Riffle/test",
+        )
+        val firstRead = CompletableDeferred<Int>()
+
+        val request = async(Dispatchers.IO) {
+            cat.withBytesWith429Retry(server.url("/download/foo.epub").toString(), itemId = "book/foo") { stream ->
+                val input = stream.byteStream()
+                val buffer = ByteArray(64 * 1024)
+                firstRead.complete(input.read(buffer))
+                while (input.read(buffer) >= 0) {
+                    // Drain the live response.
+                }
+            }
+        }
+
+        assertTrue(withTimeout(1_500) { firstRead.await() } > 0)
+        assertFalse("response should still be receiving throttled bytes", request.isCompleted)
+        request.await()
     }
 
     @Test

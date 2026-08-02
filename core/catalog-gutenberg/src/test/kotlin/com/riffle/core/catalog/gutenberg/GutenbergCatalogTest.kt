@@ -6,11 +6,18 @@ import com.riffle.core.catalog.FacetSelection
 import com.riffle.core.models.SourceType
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.okhttp.OkHttp
+import java.util.concurrent.TimeUnit
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.withTimeout
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -169,5 +176,31 @@ class GutenbergCatalogTest {
         } catch (_: RuntimeException) {
             // ok
         }
+    }
+
+    @Test
+    fun `download exposes EPUB bytes before the response finishes`() = runBlocking {
+        val payload = ByteArray(256 * 1024) { (it % 251).toByte() }
+        server.enqueue(
+            MockResponse()
+                .setBody(okio.Buffer().write(payload))
+                .throttleBody(64 * 1024, 1, TimeUnit.SECONDS),
+        )
+        val firstRead = CompletableDeferred<Int>()
+
+        val request = async(Dispatchers.IO) {
+            catalog.withBytesWithRetry(server.url("/book.epub").toString(), itemId = "1342") { stream ->
+                val input = stream.byteStream()
+                val buffer = ByteArray(64 * 1024)
+                firstRead.complete(input.read(buffer))
+                while (input.read(buffer) >= 0) {
+                    // Drain the live response.
+                }
+            }
+        }
+
+        assertTrue(withTimeout(1_500) { firstRead.await() } > 0)
+        assertFalse("response should still be receiving throttled bytes", request.isCompleted)
+        request.await()
     }
 }

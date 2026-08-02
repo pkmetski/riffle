@@ -104,7 +104,7 @@ class CrossEpubIndexBuilderService(
         cachedFile(sourceId, itemId)?.let { return it }
         val catalog = catalogRegistry.forSourceId(sourceId) ?: return null
         return runCatching {
-            catalog.openFile(itemId, BookFormat.Epub).use { stream ->
+            catalog.withFileStream(itemId, BookFormat.Epub) { stream ->
                 cacheStore.save(sourceId, itemId, stream.byteStream())
             }
         }.getOrNull()

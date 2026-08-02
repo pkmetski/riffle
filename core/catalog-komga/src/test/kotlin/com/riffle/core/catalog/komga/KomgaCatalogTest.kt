@@ -6,11 +6,18 @@ import com.riffle.core.catalog.CfiDialect
 import com.riffle.core.catalog.SortKey
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.okhttp.OkHttp
+import java.util.concurrent.TimeUnit
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.withTimeout
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -95,6 +102,31 @@ class KomgaCatalogTest {
         assertTrue(stream.url.endsWith("/api/v1/books/B1/file"))
         assertNotNull(stream.headers["Authorization"])
         assertTrue(stream.headers["Authorization"]!!.startsWith("Basic "))
+    }
+
+    @Test fun `withFileStream exposes comic bytes before the response finishes`() = runBlocking {
+        val payload = ByteArray(256 * 1024) { (it % 251).toByte() }
+        server.enqueue(
+            MockResponse()
+                .setBody(okio.Buffer().write(payload))
+                .throttleBody(64 * 1024, 1, TimeUnit.SECONDS),
+        )
+        val firstRead = CompletableDeferred<Int>()
+
+        val request = async(Dispatchers.IO) {
+            catalog.withFileStream("B1", BookFormat.Cbz) { stream ->
+                val input = stream.byteStream()
+                val buffer = ByteArray(64 * 1024)
+                firstRead.complete(input.read(buffer))
+                while (input.read(buffer) >= 0) {
+                    // Drain the live response.
+                }
+            }
+        }
+
+        assertTrue(withTimeout(1_500) { firstRead.await() } > 0)
+        assertFalse("response should still be receiving throttled bytes", request.isCompleted)
+        request.await()
     }
 
     @Test fun `getItem returns null on 404`() = runTest {

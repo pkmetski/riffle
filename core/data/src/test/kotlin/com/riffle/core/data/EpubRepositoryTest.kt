@@ -265,7 +265,7 @@ class EpubRepositoryTest {
     // ─── Single-flight coalescing (Chitanka 429 regression) ───────────────────────────────
     //
     // Chitanka's Cloudflare layer rate-limits per source IP and 429s a duplicate concurrent
-    // fetch of the same EPUB URL. Two paths reach openFile(): openEpub (from reader open /
+    // fetch of the same EPUB URL. Two paths reach withFileStream(): openEpub (from reader open /
     // TOC extraction) and downloadEpub (from user Download tap). Before the mutex, opening
     // the detail page fired openEpub for TOC extraction, and a same-instant Download tap
     // fired a second concurrent HTTP request — the second one 429'd. These tests pin the fix:

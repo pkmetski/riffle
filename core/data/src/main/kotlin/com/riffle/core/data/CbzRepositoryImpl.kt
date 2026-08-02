@@ -34,9 +34,10 @@ class CbzRepositoryImpl(
             val catalog = catalogRegistry.forSourceId(item.sourceId)
                 ?: return CbzOpenResult.NetworkError(IllegalStateException("No catalog for item"))
             try {
-                catalog.openFile(item.id, BookFormat.Cbz, handleHint = item.ebookFileIno).use { stream ->
-                    cacheStore.save(item.sourceId, item.id, stream.byteStream())
-                }
+                CatalogFileTransfer.acquire(
+                    catalog, item.sourceId, item.id, BookFormat.Cbz,
+                    item.ebookFileIno, cacheStore,
+                )
             } catch (t: Throwable) {
                 return CbzOpenResult.NetworkError(t)
             }
@@ -53,20 +54,18 @@ class CbzRepositoryImpl(
         if (downloadsStore.get(item.sourceId, item.id) != null) return CbzDownloadResult.AlreadyDownloaded
         val cached = cacheStore.get(item.sourceId, item.id)
         if (cached != null) {
-            val size = cached.length()
-            cached.inputStream().use {
-                downloadsStore.save(item.sourceId, item.id, ProgressReportingInputStream(it, size, onProgress))
-            }
-            cacheStore.delete(item.sourceId, item.id)
+            CatalogFileTransfer.promote(
+                item.sourceId, item.id, cached, cacheStore, downloadsStore, onProgress,
+            )
             return CbzDownloadResult.Success
         }
         val catalog = catalogRegistry.forSourceId(item.sourceId)
             ?: return CbzDownloadResult.NetworkError(IllegalStateException("No catalog for item"))
         return try {
-            catalog.openFile(item.id, BookFormat.Cbz, handleHint = item.ebookFileIno).use { stream ->
-                val progressStream = ProgressReportingInputStream(stream.byteStream(), stream.contentLength, onProgress)
-                downloadsStore.save(item.sourceId, item.id, progressStream)
-            }
+            CatalogFileTransfer.acquire(
+                catalog, item.sourceId, item.id, BookFormat.Cbz,
+                item.ebookFileIno, downloadsStore, onProgress,
+            )
             CbzDownloadResult.Success
         } catch (t: Throwable) {
             CbzDownloadResult.NetworkError(t)

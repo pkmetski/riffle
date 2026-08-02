@@ -18,7 +18,7 @@ import com.riffle.core.domain.DeviceIdStore
 import com.riffle.core.domain.SourceRepository
 import com.riffle.core.domain.TokenStorage
 import com.riffle.core.network.AbsBookmarkApi
-import com.riffle.core.network.AbsEpubDownloadApi
+import com.riffle.core.network.AbsFileDownloadApi
 import com.riffle.core.network.AbsLibraryApi
 import com.riffle.core.network.AbsPlaybackApi
 import com.riffle.core.network.AbsServerInfoApi
@@ -68,7 +68,7 @@ object CatalogModule {
     @SourceTypeKey(SourceType.ABS)
     fun provideAbsCatalogFactory(
         libraryApi: AbsLibraryApi,
-        epubDownloadApi: AbsEpubDownloadApi,
+        fileDownloadApi: AbsFileDownloadApi,
         playbackApi: AbsPlaybackApi,
         sessionApi: AbsSessionApi,
         bookmarkApi: AbsBookmarkApi,
@@ -78,7 +78,7 @@ object CatalogModule {
         clock: Clock,
     ): CatalogFactory = AbsCatalogFactory(
         libraryApi = libraryApi,
-        epubDownloadApi = epubDownloadApi,
+        fileDownloadApi = fileDownloadApi,
         playbackApi = playbackApi,
         sessionApi = sessionApi,
         bookmarkApi = bookmarkApi,

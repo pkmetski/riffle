@@ -1154,7 +1154,7 @@ class LibraryItemDetailViewModelTest {
         override suspend fun getItem(itemId: String): com.riffle.core.catalog.CatalogItem? = null
         override suspend fun fetchFile(itemId: String, format: com.riffle.core.catalog.BookFormat) =
             throw UnsupportedOperationException()
-        override suspend fun openFile(itemId: String, format: com.riffle.core.catalog.BookFormat, handleHint: String?) =
+        override suspend fun <T> withFileStream(itemId: String, format: com.riffle.core.catalog.BookFormat, handleHint: String?, block: suspend (com.riffle.core.catalog.CatalogFileStream) -> T): T =
             throw UnsupportedOperationException()
         override suspend fun connectivityCheck() = com.riffle.core.catalog.CatalogHealth(isReachable = true)
     }
