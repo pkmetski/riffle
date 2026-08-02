@@ -182,9 +182,10 @@ class KomgaCatalog(
                 )
             }
             val contentLength = response.contentLength() ?: -1L
+            val channel = response.bodyAsChannel()
             val stream = object : CatalogFileStream {
                 override val contentLength: Long = contentLength
-                override fun byteStream(): java.io.InputStream = response.bodyAsChannel().toInputStream()
+                override fun byteStream(): java.io.InputStream = channel.toInputStream()
                 override fun close() { /* connection lifetime managed by execute {} */ }
             }
             block(stream)

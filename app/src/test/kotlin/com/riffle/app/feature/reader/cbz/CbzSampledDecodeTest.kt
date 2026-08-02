@@ -53,8 +53,10 @@ class CbzSampledDecodeTest {
     // Regression for the BMP OOM fix: decodeSampledBitmap must catch OutOfMemoryError on each
     // attempt and retry with a doubled inSampleSize until sampleSize > 64 (7 iterations:
     // 1,2,4,8,16,32,64), then return null — never propagating the OOM to the caller.
-    // The source always throws OOM to avoid invoking BitmapFactory (which is an Android stub
-    // in JVM unit tests and throws RuntimeException("Stub!") when called).
+    //
+    // Simulates a BMP image: the bounds pass (inJustDecodeBounds) OOMs too, so the retry loop
+    // starts at sampleSize=1. Total openStream calls = 1 (bounds pass OOM) + 7 (retry loop) = 8.
+    // openStream throws before BitmapFactory is invoked to avoid the Android JVM stub.
     @Test
     fun decode_retries_all_sample_sizes_and_returns_null_when_always_oom() {
         var callCount = 0
@@ -69,7 +71,7 @@ class CbzSampledDecodeTest {
         val result = runCatching { decodeSampledBitmap(alwaysOomSource, 0, 4096) }
         assertTrue("decodeSampledBitmap must not propagate OutOfMemoryError", result.isSuccess)
         assertEquals(null, result.getOrNull())
-        // sampleSize doubles: 1,2,4,8,16,32,64 → 7 attempts before loop exits
-        assertEquals("retry loop must try all sample sizes up to 64", 7, callCount)
+        // 1 bounds-pass OOM + 7 retry attempts (sampleSize 1,2,4,8,16,32,64) = 8 total
+        assertEquals("bounds pass + retry loop must account for all openStream calls", 8, callCount)
     }
 }

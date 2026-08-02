@@ -620,8 +620,7 @@ private fun isReduceMotionEnabled(context: android.content.Context): Boolean {
 internal enum class CbzPageGestureAction { Ignore, Zoom, PanZoomed }
 
 // Large BMPs can exceed 274MB decoded. Subsample to this max dimension to keep the Bitmap
-// allocation under the app heap limit. Two-pass: inJustDecodeBounds first (header only,
-// no allocation), then decode at the calculated inSampleSize.
+// allocation under the app heap limit.
 private const val MAX_PAGE_DIMENSION = 4096
 private const val MAX_THUMB_DIMENSION = 256
 
@@ -632,12 +631,20 @@ internal fun calculateInSampleSize(width: Int, height: Int, maxDimension: Int): 
 }
 
 internal fun decodeSampledBitmap(source: CbzImageSource, pageIndex: Int, maxDimension: Int): Bitmap? {
-    // inJustDecodeBounds=true triggers a full internal allocation in Skia's BMP decoder even
-    // though no output Bitmap is produced — the 274MB attempt OOMs before returning dimensions.
-    // Instead: try decoding directly and escalate inSampleSize on each OutOfMemoryError.
-    // For normal-sized images sampleSize=1 succeeds immediately; for huge BMPs the loop
-    // doubles until the output Bitmap fits in the heap (sampleSize=4 → ~17MB for a 274MB BMP).
-    var sampleSize = 1
+    // Try a bounds-only pass first to pick an optimal starting inSampleSize without allocating
+    // any output Bitmap. BMP images OOM even on the bounds pass (Skia still reads the full row
+    // data internally), so catch that and fall back to starting at 1.
+    // Try a bounds-only pass first to pick an optimal starting inSampleSize without allocating
+    // any output Bitmap. BMP images OOM even on the bounds pass (Skia still reads the full row
+    // data internally), so catch that and fall back to starting at 1.
+    val startSampleSize = try {
+        val opts = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        source.openStream(pageIndex).use { BitmapFactory.decodeStream(it, null, opts) }
+        calculateInSampleSize(opts.outWidth, opts.outHeight, maxDimension)
+    } catch (_: Throwable) {
+        1
+    }
+    var sampleSize = startSampleSize
     while (sampleSize <= 64) {
         val opts = BitmapFactory.Options().apply { inSampleSize = sampleSize }
         val bitmap = try {
