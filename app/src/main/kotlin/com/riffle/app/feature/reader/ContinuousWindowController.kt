@@ -85,13 +85,12 @@ internal class ContinuousWindowController(
          *  stale scrollY. */
         private const val LANDING_HOLD_MS = 600L
 
-        /**
-         * Fixed animation duration for a volume-key page scroll. Matches the Chromium `behavior:
-         * 'smooth'` scroll duration used by paginated/vertical mode via [ScrollBoundaryNavigationContainer]
-         * closely enough that rapid presses feel the same in both modes. Also the validity window for
-         * [PageScrollCoalescer], so a new press coalesces iff its predecessor is still animating.
-         */
-        internal const val PAGE_SCROLL_DURATION_MS = 300
+        // The volume-key page-scroll animation duration is distance-based via
+        // [ContinuousPositionTracker.pageScrollDurationMs] to match the Chromium
+        // `behavior: 'smooth'` glide paginated/vertical mode gets from
+        // [ScrollBoundaryNavigationContainer]; a fixed 300 ms was visibly faster and more sudden
+        // than vertical mode for the same 0.9-viewport press. The coalescer validity window uses
+        // the duration cap — see [pageScrollCoalescer].
     }
 
     /** The [LinearLayout] the [ContinuousReaderView] wraps; controller owns and mutates its children. */
@@ -743,10 +742,18 @@ internal class ContinuousWindowController(
             minScrollY = 0,
             maxScrollY = port.maxScrollY,
         )
-        port.smoothScrollBy(target - current, PAGE_SCROLL_DURATION_MS)
+        val durationMs = ContinuousPositionTracker.pageScrollDurationMs(
+            distancePx = delta,
+            density = context.resources.displayMetrics.density,
+        )
+        port.smoothScrollBy(target - current, durationMs)
     }
 
-    private val pageScrollCoalescer = PageScrollCoalescer(PAGE_SCROLL_DURATION_MS.toLong())
+    /** Window = the duration cap rather than the per-press duration: once an animation has
+     *  finished, the pending target equals the settled scroll position, so an over-long window
+     *  cannot mis-base the next press. */
+    private val pageScrollCoalescer =
+        PageScrollCoalescer(ContinuousPositionTracker.PAGE_SCROLL_MAX_DURATION_MS.toLong())
 
     override fun highlightInChapter(href: String, fragmentId: String?, text: String, cssColor: String) {
         decorations.highlightInChapter(href, fragmentId, text, cssColor)

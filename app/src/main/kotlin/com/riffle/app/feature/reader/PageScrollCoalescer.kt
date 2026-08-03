@@ -9,9 +9,11 @@ package com.riffle.app.feature.reader
  *
  * Not thread-safe; expected to be called from the main thread.
  *
- * @param validityWindowMs how long a computed target stays "in flight" — should match the smooth-
- *   scroll animation duration passed to the port. A press arriving inside this window extends the
- *   previous target; a press arriving after resets to the current scroll position.
+ * @param validityWindowMs how long a computed target stays "in flight" — should be at least the
+ *   smooth-scroll animation duration passed to the port (a longer window is harmless: once the
+ *   animation finishes, the pending target equals the settled scroll position). A press arriving
+ *   inside this window extends the previous target; a press arriving after resets to the current
+ *   scroll position.
  */
 internal class PageScrollCoalescer(private val validityWindowMs: Long) {
 
