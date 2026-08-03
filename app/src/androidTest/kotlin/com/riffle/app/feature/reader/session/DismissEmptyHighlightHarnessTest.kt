@@ -110,6 +110,7 @@ class DismissEmptyHighlightHarnessTest {
             syncOnOpen = { _, _, _ -> },
             syncOnClose = { _, _, _ -> },
             mergeAfterEdit = { _, _, _ -> },
+            commitDraftWithNote = { _ -> },
         )
     }
 

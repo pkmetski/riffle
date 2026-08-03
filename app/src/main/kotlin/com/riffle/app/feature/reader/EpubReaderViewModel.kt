@@ -394,6 +394,7 @@ class EpubReaderViewModel @Inject constructor(
             mergeAfterEdit = { id, color, note ->
                 mergeAdjacentIntoHighlight(id, color, note)
             },
+            commitDraftWithNote = { note -> commitDraftFromNoteEditor(note) },
         )
 
     private val itemId: String = checkNotNull(savedStateHandle["itemId"])
@@ -2097,6 +2098,23 @@ class EpubReaderViewModel @Inject constructor(
     }
 
     /**
+     * Note-editor close on a pending draft (see [AnnotationSession.commitNoteEdit]). A non-null
+     * [note] always commits — even with the ∅ colour preset and no emphasis, a noted annotation
+     * is not a phantom row. A null note (cancel / blank confirm) falls back to the popup-dismiss
+     * semantics: auto-commit the per-book preset, or discard when the preset is ∅ + nothing.
+     */
+    private suspend fun commitDraftFromNoteEditor(note: String?) {
+        val presetColorIsNone = annotationSession.lastUsedColorIsNone.value
+        val presetEmphasis = annotationSession.lastUsedEmphasisStyles.value
+        if (!shouldCommitDraftOnNoteEditorClose(note, presetColorIsNone, presetEmphasis)) {
+            annotationSession.discardDraft()
+            return
+        }
+        val colorToken = if (presetColorIsNone) "" else annotationSession.lastUsedHighlightColor.value.token
+        commitDraft(initialColor = colorToken, note = note, keepSheetOpen = false)
+    }
+
+    /**
      * ADR 0046 §4: persist the pending draft with [initialColor] and (optionally) a sibling
      * emphasis row carrying the per-book last-used styles. Runs the deferred overlapping-highlight
      * dedup and standalone-TYPE_IMAGE absorption here — those side effects were previously done
@@ -2108,6 +2126,7 @@ class EpubReaderViewModel @Inject constructor(
         initialColor: String,
         addEmphasisStyle: com.riffle.core.models.EmphasisStyle? = null,
         keepSheetOpen: Boolean = true,
+        note: String? = null,
     ) {
         val draft = annotationSession.draftAnnotation.value ?: return
         // Compute combinedStyles early so we can guard against a phantom empty row (∅ colour +
@@ -2118,7 +2137,7 @@ class EpubReaderViewModel @Inject constructor(
         // (discard) — consistent behaviour in both places.
         val presetStyles = annotationSession.lastUsedEmphasisStyles.value
         val combinedStyles = combineDraftEmphasisStyles(presetStyles, addEmphasisStyle)
-        if (shouldDiscardPhantomDraftCommit(initialColor, combinedStyles)) {
+        if (shouldDiscardPhantomDraftCommit(initialColor, combinedStyles, note)) {
             // Persist the ∅ preference so a subsequent dismiss-auto-commit evaluates
             // shouldAutoCommitDraftOnDismiss(true, …) = false and does not try to auto-commit
             // with whatever the previous colour was. Draft stays alive for the caller to handle.
@@ -2232,6 +2251,9 @@ class EpubReaderViewModel @Inject constructor(
             // would misalign formatting against the wider text.
             textSnippetHtml = if (overlapMerge == null && adjacentMerge == null) draft.textSnippetHtml else null,
         )
+        if (note != null) {
+            annotationStore.updateNote(created.id, note)
+        }
         if (combinedStyles.isNotEmpty()) {
             annotationStore.createEmphasis(
                 sourceId = draft.sourceId,
