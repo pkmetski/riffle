@@ -53,4 +53,5 @@ class CbzThumbnailStripTest {
  */
 private class FakeCbzImageSource(override val pageCount: Int) : CbzImageSource {
     override fun imageBytes(pageIndex: Int): ByteArray = ByteArray(0)
+    override fun openStream(pageIndex: Int): java.io.InputStream = ByteArray(0).inputStream()
 }
