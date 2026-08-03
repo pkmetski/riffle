@@ -423,7 +423,7 @@ class ScrollBoundaryNavigationContainerTest {
         assertFalse(invoked)
         assertEquals(1, jsCapture.size)
         assertTrue(jsCapture[0].contains("behavior: 'smooth'"))
-        assertTrue(jsCapture[0].contains("innerHeight * 0.8"))
+        assertTrue(jsCapture[0].contains("innerHeight * ${ScrollBoundaryNavigationContainer.VOLUME_SCROLL_FRACTION}"))
         assertFalse(jsCapture[0].contains("-("))
     }
 
@@ -446,7 +446,7 @@ class ScrollBoundaryNavigationContainerTest {
         assertFalse(invoked)
         assertEquals(1, jsCapture.size)
         assertTrue(jsCapture[0].contains("behavior: 'smooth'"))
-        assertTrue(jsCapture[0].contains("-("))
+        assertTrue(jsCapture[0].contains("-(window.innerHeight * ${ScrollBoundaryNavigationContainer.VOLUME_SCROLL_FRACTION}"))
     }
 
     @Test
