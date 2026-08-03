@@ -167,6 +167,26 @@ internal object ContinuousPositionTracker {
         return ms.toInt().coerceIn(PAGE_SCROLL_MIN_DURATION_MS, PAGE_SCROLL_MAX_DURATION_MS)
     }
 
+    /** A resolved volume-key page-scroll animation: scroll by [scrollBy] px over [durationMs]. */
+    data class PageScrollAnimation(val scrollBy: Int, val durationMs: Int)
+
+    /**
+     * Animation for a volume-key page scroll from [currentScrollY] to the (coalescer-resolved,
+     * clamped) [targetScrollY]. The duration follows the *actual* animated distance via
+     * [pageScrollDurationMs], not the nominal per-press delta: at a content boundary the clamped
+     * remainder shouldn't crawl over a full-press duration, and a coalesced press that extended the
+     * in-flight target gets the longer glide Chromium's √distance heuristic would give it. Returns
+     * null when there is nothing to animate (target equals current, or non-positive [density]).
+     */
+    fun pageScrollAnimation(currentScrollY: Int, targetScrollY: Int, density: Float): PageScrollAnimation? {
+        val scrollBy = targetScrollY - currentScrollY
+        if (scrollBy == 0 || density <= 0f) return null
+        return PageScrollAnimation(
+            scrollBy = scrollBy,
+            durationMs = pageScrollDurationMs(kotlin.math.abs(scrollBy), density),
+        )
+    }
+
     /**
      * Resolve a text selection to the narrated-sentence id whose sentence contains it, for
      * "Play from here" in Continuous mode. [quoteTexts] maps sentence id → sentence text (built from

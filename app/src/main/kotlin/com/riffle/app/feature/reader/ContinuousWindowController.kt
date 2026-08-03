@@ -742,11 +742,12 @@ internal class ContinuousWindowController(
             minScrollY = 0,
             maxScrollY = port.maxScrollY,
         )
-        val durationMs = ContinuousPositionTracker.pageScrollDurationMs(
-            distancePx = delta,
+        val animation = ContinuousPositionTracker.pageScrollAnimation(
+            currentScrollY = current,
+            targetScrollY = target,
             density = context.resources.displayMetrics.density,
-        )
-        port.smoothScrollBy(target - current, durationMs)
+        ) ?: return
+        port.smoothScrollBy(animation.scrollBy, animation.durationMs)
     }
 
     /** Window = the duration cap rather than the per-press duration: once an animation has
