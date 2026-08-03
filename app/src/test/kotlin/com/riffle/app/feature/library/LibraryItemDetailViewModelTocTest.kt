@@ -32,6 +32,7 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Before
 import org.junit.Test
 
@@ -131,7 +132,8 @@ class LibraryItemDetailViewModelTocTest {
     }
 
     private fun noOpExtractUseCase(): ExtractEpubTocUseCase = mockk<ExtractEpubTocUseCase>().also { uc ->
-        coEvery { uc(any<LibraryItem>()) } returns emptyList<TocEntry>()
+        coEvery { uc.extractDetails(any<LibraryItem>()) } returns
+            ExtractEpubTocUseCase.Details(emptyList(), null)
     }
 
     private fun noOpFetchUseCase(): FetchAudiobookChaptersUseCase = mockk<FetchAudiobookChaptersUseCase>().also { uc ->
@@ -141,7 +143,16 @@ class LibraryItemDetailViewModelTocTest {
     private fun makeVm(
         item: LibraryItem?,
         extractEpubTocUseCase: ExtractEpubTocUseCase = noOpExtractUseCase(),
+        extractPdfPageCountUseCase: ExtractPdfPageCountUseCase =
+            mockk<ExtractPdfPageCountUseCase>().also { uc ->
+                coEvery { uc(any<LibraryItem>()) } returns null
+            },
         fetchAudiobookChaptersUseCase: FetchAudiobookChaptersUseCase = noOpFetchUseCase(),
+        readingSpeedStore: com.riffle.core.domain.ReadingSpeedStore =
+            object : com.riffle.core.domain.ReadingSpeedStore {
+                override val speedSecPerPosition = flowOf(63.0)
+                override suspend fun updateSpeed(newSecPerPosition: Double) = Unit
+            },
     ) = LibraryItemDetailViewModel(
         savedStateHandle = SavedStateHandle(mapOf("itemId" to (item?.id ?: "item-1"))),
         libraryObserver = fakeRepo(item),
@@ -168,6 +179,7 @@ class LibraryItemDetailViewModelTocTest {
         },
         sidecarPrefetcher = { _, _ -> },
         extractEpubTocUseCase = extractEpubTocUseCase,
+        extractPdfPageCountUseCase = extractPdfPageCountUseCase,
         fetchAudiobookChaptersUseCase = fetchAudiobookChaptersUseCase,
         catalogRegistry = object : com.riffle.core.catalog.CatalogRegistry {
             override suspend fun forActive(): com.riffle.core.catalog.Catalog? = null
@@ -177,6 +189,7 @@ class LibraryItemDetailViewModelTocTest {
         libraryRefresher = com.riffle.app.testing.NoopLibraryRefresher,
         saveLocalFileMetadataOverride = com.riffle.app.testing.noopSaveLocalFileMetadataOverride(),
         copyCoverImage = com.riffle.app.testing.noopCopyCoverImage(),
+        readingSpeedStore = readingSpeedStore,
     )
 
     private val epubItem = LibraryItem(
@@ -209,13 +222,19 @@ class LibraryItemDetailViewModelTocTest {
 
     private val audioOnlyItem = audiobookItem // alias for readability
 
+    private val pdfItem = epubItem.copy(
+        id = "item-pdf",
+        ebookFormat = EbookFormat.Pdf,
+    )
+
     // --- tests ---
 
     @Test
     fun `tocState transitions to Ready with entries for EPUB item`() = runTest {
         val entries = listOf(TocEntry("Chapter 1", "ch1.html"), TocEntry("Chapter 2", "ch2.html"))
         val extractUseCase = mockk<ExtractEpubTocUseCase>().also { uc ->
-            coEvery { uc(any<LibraryItem>()) } returns entries
+            coEvery { uc.extractDetails(any<LibraryItem>()) } returns
+                ExtractEpubTocUseCase.Details(entries, totalPositions = 120)
         }
 
         val vm = makeVm(item = epubItem, extractEpubTocUseCase = extractUseCase)
@@ -223,6 +242,48 @@ class LibraryItemDetailViewModelTocTest {
         testDispatcher.scheduler.advanceUntilIdle()
 
         assertEquals(TocState.Ready(entries), vm.tocState.value)
+        assertEquals(7_560L, vm.estimatedTotalReadingTimeSec.value)
+    }
+
+    @Test
+    fun `reading estimate updates when learned reading speed changes`() = runTest {
+        val speed = MutableStateFlow(63.0)
+        val speedStore = object : com.riffle.core.domain.ReadingSpeedStore {
+            override val speedSecPerPosition = speed
+            override suspend fun updateSpeed(newSecPerPosition: Double) {
+                speed.value = newSecPerPosition
+            }
+        }
+        val extractUseCase = mockk<ExtractEpubTocUseCase>().also { useCase ->
+            coEvery { useCase.extractDetails(epubItem) } returns
+                ExtractEpubTocUseCase.Details(emptyList(), totalPositions = 120)
+        }
+        val vm = makeVm(
+            item = epubItem,
+            extractEpubTocUseCase = extractUseCase,
+            readingSpeedStore = speedStore,
+        )
+        backgroundScope.launch { vm.estimatedTotalReadingTimeSec.collect {} }
+        testDispatcher.scheduler.advanceUntilIdle()
+        assertEquals(7_560L, vm.estimatedTotalReadingTimeSec.value)
+
+        speedStore.updateSpeed(42.0)
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(5_040L, vm.estimatedTotalReadingTimeSec.value)
+    }
+
+    @Test
+    fun `estimatedTotalReadingTimeSec is null when totalPositions is unknown`() = runTest {
+        val extractUseCase = mockk<ExtractEpubTocUseCase>().also { useCase ->
+            coEvery { useCase.extractDetails(epubItem) } returns
+                ExtractEpubTocUseCase.Details(emptyList(), totalPositions = null)
+        }
+        val vm = makeVm(item = epubItem, extractEpubTocUseCase = extractUseCase)
+        backgroundScope.launch { vm.estimatedTotalReadingTimeSec.collect {} }
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertNull(vm.estimatedTotalReadingTimeSec.value)
     }
 
     @Test
@@ -251,7 +312,7 @@ class LibraryItemDetailViewModelTocTest {
         testDispatcher.scheduler.advanceUntilIdle()
 
         assertEquals(TocState.Loading, vm.tocState.value)
-        coVerify(exactly = 0) { extractUseCase(any<LibraryItem>()) }
+        coVerify(exactly = 0) { extractUseCase.extractDetails(any<LibraryItem>()) }
     }
 
     @Test
@@ -267,12 +328,27 @@ class LibraryItemDetailViewModelTocTest {
     }
 
     @Test
+    fun `pdf page count is extracted for PDF item`() = runTest {
+        val extractUseCase = mockk<ExtractPdfPageCountUseCase>().also { uc ->
+            coEvery { uc(pdfItem) } returns 321
+        }
+
+        val vm = makeVm(item = pdfItem, extractPdfPageCountUseCase = extractUseCase)
+        backgroundScope.launch { vm.pdfPageCount.collect {} }
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(321, vm.pdfPageCount.value)
+        coVerify(exactly = 1) { extractUseCase(pdfItem) }
+    }
+
+    @Test
     fun `both tocState and chaptersState transition to Ready for a combined ebook+audiobook item`() = runTest {
         val combinedItem = epubItem.copy(id = "item-combined", hasAudio = true)
         val entries = listOf(TocEntry("Chapter 1", "ch1.html"))
         val chapters = listOf(AudiobookChapter(index = 0, startSec = 0.0, endSec = 600.0, title = "Chapter 1"))
         val extractUseCase = mockk<ExtractEpubTocUseCase>().also { uc ->
-            coEvery { uc(any<LibraryItem>()) } returns entries
+            coEvery { uc.extractDetails(any<LibraryItem>()) } returns
+                ExtractEpubTocUseCase.Details(entries, totalPositions = 120)
         }
         val fetchUseCase = mockk<FetchAudiobookChaptersUseCase>().also { uc ->
             coEvery { uc(any<LibraryItem>()) } returns chapters

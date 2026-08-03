@@ -34,8 +34,9 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         RemoteItemFreshnessEntity::class,
         PlaylistEntity::class,
         PlaylistItemEntity::class,
+        PublicationMetricsCacheEntity::class,
     ],
-    version = 62,
+    version = 63,
     exportSchema = true,
 )
 abstract class RiffleDatabase : RoomDatabase() {
@@ -63,6 +64,7 @@ abstract class RiffleDatabase : RoomDatabase() {
     abstract fun localFileMetadataOverrideDao(): LocalFileMetadataOverrideDao
     abstract fun remoteItemFreshnessDao(): RemoteItemFreshnessDao
     abstract fun playlistDao(): PlaylistDao
+    abstract fun publicationMetricsCacheDao(): PublicationMetricsCacheDao
 
     companion object {
         val MIGRATION_1_2 = object : Migration(1, 2) {
@@ -1685,6 +1687,31 @@ abstract class RiffleDatabase : RoomDatabase() {
                 db.execSQL(
                     "ALTER TABLE `book_formatting_preferences` " +
                         "ADD COLUMN `coloredChapterMap` INTEGER"
+                )
+            }
+        }
+
+        // Readium-derived publication facts used by the item-detail screen. EPUB position count
+        // drives the personalized total/remaining reading-time estimate; PDF page count drives
+        // the discrete page label. Both are keyed by ebookFileIno and TTL'd by the repository so
+        // file replacements and future derivation fixes self-heal without becoming catalog data.
+        val MIGRATION_62_63 = object : Migration(62, 63) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `publication_metrics_cache` (" +
+                        "`sourceId` TEXT NOT NULL, " +
+                        "`itemId` TEXT NOT NULL, " +
+                        "`ebookFileIno` TEXT NOT NULL, " +
+                        "`totalPositions` INTEGER, " +
+                        "`pageCount` INTEGER, " +
+                        "`cachedAt` INTEGER NOT NULL, " +
+                        "PRIMARY KEY(`sourceId`, `itemId`), " +
+                        "FOREIGN KEY(`sourceId`) REFERENCES `sources`(`id`) " +
+                        "ON UPDATE NO ACTION ON DELETE CASCADE)"
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS `index_publication_metrics_cache_sourceId` " +
+                        "ON `publication_metrics_cache` (`sourceId`)"
                 )
             }
         }

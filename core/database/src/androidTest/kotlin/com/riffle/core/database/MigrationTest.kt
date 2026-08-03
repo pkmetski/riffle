@@ -1919,7 +1919,7 @@ class MigrationTest {
         }
 
         val db = helper.runMigrationsAndValidate(
-            TEST_DB, 62, true,
+            TEST_DB, 63, true,
             RiffleDatabase.MIGRATION_1_2,
             RiffleDatabase.MIGRATION_2_3,
             RiffleDatabase.MIGRATION_3_4,
@@ -1981,6 +1981,7 @@ class MigrationTest {
             RiffleDatabase.MIGRATION_59_60,
             RiffleDatabase.MIGRATION_60_61,
             RiffleDatabase.MIGRATION_61_62,
+            RiffleDatabase.MIGRATION_62_63,
         )
 
         db.query("SELECT url, username, serverType, absUserId, type FROM sources WHERE id = 's1'").use { cursor ->
@@ -2853,6 +2854,51 @@ class MigrationTest {
                 "file:///data/data/com.riffle.app/files/local_covers/lf1_item2.jpg",
                 c.getString(0),
             )
+        }
+
+        db.close()
+    }
+
+    @Test
+    fun migration62To63_addsPublicationMetricsCache() {
+        helper.createDatabase(TEST_DB, 62).apply {
+            execSQL(
+                "INSERT INTO sources (id, url, isActive, insecureConnectionAllowed, username, serverType, absUserId, type) " +
+                    "VALUES ('src1', 'http://localhost', 1, 0, '', 'AUDIOBOOKSHELF', NULL, 'ABS')"
+            )
+            close()
+        }
+
+        val db = helper.runMigrationsAndValidate(
+            TEST_DB,
+            63,
+            true,
+            RiffleDatabase.MIGRATION_62_63,
+        )
+
+        db.execSQL(
+            "INSERT INTO publication_metrics_cache " +
+                "(sourceId, itemId, ebookFileIno, totalPositions, pageCount, cachedAt) " +
+                "VALUES ('src1', 'epub1', 'ino-epub', 480, NULL, 1234), " +
+                "('src1', 'pdf1', 'ino-pdf', NULL, 321, 5678)"
+        )
+        db.query(
+            "SELECT itemId, ebookFileIno, totalPositions, pageCount, cachedAt " +
+                "FROM publication_metrics_cache ORDER BY itemId"
+        ).use { cursor ->
+            assertEquals(2, cursor.count)
+            assertTrue(cursor.moveToFirst())
+            assertEquals("epub1", cursor.getString(0))
+            assertEquals("ino-epub", cursor.getString(1))
+            assertEquals(480, cursor.getInt(2))
+            assertTrue(cursor.isNull(3))
+            assertEquals(1234L, cursor.getLong(4))
+
+            assertTrue(cursor.moveToNext())
+            assertEquals("pdf1", cursor.getString(0))
+            assertTrue(cursor.isNull(2))
+            assertEquals(321, cursor.getInt(3))
+            assertEquals(5678L, cursor.getLong(4))
         }
 
         db.close()

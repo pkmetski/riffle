@@ -214,13 +214,26 @@ jobs:
           profile: pixel
           disable-animations: true
           emulator-options: -no-snapshot -no-window -no-boot-anim -no-audio -camera-back none -gpu swiftshader_indirect
-          script: ./gradlew :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.notAnnotation=com.riffle.app.harness.TabletLayout
+          script: |
+            adb logcat -G 16M || true
+            adb logcat -c || true
+            rc=0
+            ./gradlew :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.notAnnotation=com.riffle.app.harness.TabletLayout || rc=$?
+            adb logcat -d > logcat-phone.txt || true
+            exit $rc
       - name: Upload harness phone reports
         if: always()
         uses: actions/upload-artifact@v7
         with:
           name: harness-test-phone-reports
           path: app/build/reports/androidTests/
+          if-no-files-found: ignore
+      - name: Upload phone logcat
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: harness-test-phone-logcat
+          path: logcat-phone.txt
           if-no-files-found: ignore
 
   harness-test-tablet:

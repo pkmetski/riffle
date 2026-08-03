@@ -251,8 +251,13 @@ class LibraryItemDetailViewModelTest {
         readaloudAudioRepository: com.riffle.core.domain.ReadaloudAudioRepository = NoopReadaloudAudioRepository,
         crossEpubIndexBuildTrigger: com.riffle.core.data.CrossEpubIndexBuildTrigger = RecordingBuildTrigger(),
         extractEpubTocUseCase: ExtractEpubTocUseCase = io.mockk.mockk<ExtractEpubTocUseCase>().also { uc ->
-            io.mockk.coEvery { uc(any<com.riffle.core.models.LibraryItem>()) } returns emptyList<com.riffle.core.models.TocEntry>()
+            io.mockk.coEvery { uc.extractDetails(any<com.riffle.core.models.LibraryItem>()) } returns
+                ExtractEpubTocUseCase.Details(emptyList(), null)
         },
+        extractPdfPageCountUseCase: ExtractPdfPageCountUseCase =
+            io.mockk.mockk<ExtractPdfPageCountUseCase>().also { uc ->
+                io.mockk.coEvery { uc(any<com.riffle.core.models.LibraryItem>()) } returns null
+            },
         fetchAudiobookChaptersUseCase: FetchAudiobookChaptersUseCase = io.mockk.mockk<FetchAudiobookChaptersUseCase>().also { uc ->
             io.mockk.coEvery { uc(any<com.riffle.core.models.LibraryItem>()) } returns emptyList<com.riffle.core.domain.AudiobookChapter>()
         },
@@ -290,11 +295,16 @@ class LibraryItemDetailViewModelTest {
         crossEpubIndexBuildTrigger = crossEpubIndexBuildTrigger,
         sidecarPrefetcher = { _, _ -> },
         extractEpubTocUseCase = extractEpubTocUseCase,
+        extractPdfPageCountUseCase = extractPdfPageCountUseCase,
         fetchAudiobookChaptersUseCase = fetchAudiobookChaptersUseCase,
         catalogRegistry = catalogRegistryOverride,
         libraryRefresher = libraryRefresher,
         saveLocalFileMetadataOverride = saveOverride,
         copyCoverImage = copyCoverImageFn,
+        readingSpeedStore = object : com.riffle.core.domain.ReadingSpeedStore {
+            override val speedSecPerPosition = flowOf(63.0)
+            override suspend fun updateSpeed(newSecPerPosition: Double) = Unit
+        },
     )
 
     // These tests exercise ViewModel state and side-effects; none read Ready.capabilities.

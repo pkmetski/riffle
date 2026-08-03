@@ -13,6 +13,7 @@ import com.riffle.core.data.CrossEpubIndexBuildTrigger
 import com.riffle.core.data.EpubRepositoryImpl
 import com.riffle.core.data.LibraryRepositoryImpl
 import com.riffle.core.data.PdfRepositoryImpl
+import com.riffle.core.data.PublicationMetricsRepositoryImpl
 import com.riffle.core.data.ReadingSessionRepositoryImpl
 import com.riffle.core.data.SourceRepositoryImpl
 import com.riffle.core.data.ToReadRepository
@@ -33,6 +34,7 @@ import com.riffle.core.domain.LibraryObserver
 import com.riffle.core.domain.LibraryRefresher
 import com.riffle.core.domain.LocalStore
 import com.riffle.core.domain.PdfRepository
+import com.riffle.core.domain.PublicationMetricsRepository
 import com.riffle.core.domain.ReadingPositionStore
 import com.riffle.core.domain.ReadingSessionRepository
 import com.riffle.core.domain.SourceRepository
@@ -96,6 +98,12 @@ abstract class RepositoriesModule {
     @Binds
     @Singleton
     abstract fun bindTocRepository(impl: TocRepositoryImpl): TocRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindPublicationMetricsRepository(
+        impl: PublicationMetricsRepositoryImpl,
+    ): PublicationMetricsRepository
 
     @Binds
     @Singleton

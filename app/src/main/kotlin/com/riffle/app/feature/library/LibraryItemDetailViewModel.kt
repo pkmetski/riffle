@@ -16,6 +16,7 @@ import com.riffle.core.domain.LibraryObserver
 import com.riffle.core.domain.LibraryRefresher
 import com.riffle.core.domain.PdfDownloadResult
 import com.riffle.core.domain.PdfRepository
+import com.riffle.core.domain.ReadingSpeedStore
 import com.riffle.core.domain.usecase.MarkReadAcrossDimensions
 import com.riffle.core.domain.usecase.RecordItemOpened
 import com.riffle.core.domain.usecase.UpdateReadingProgress
@@ -41,6 +42,7 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -50,6 +52,7 @@ import kotlinx.coroutines.flow.filterIsInstance
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -158,6 +161,11 @@ internal fun readaloudDownloadStateFor(bundlePresent: Boolean): DownloadState =
 internal fun downloadPercent(downloaded: Long, total: Long): Int? =
     if (total > 0L) ((downloaded * 100L) / total).toInt().coerceIn(0, 100) else null
 
+internal fun estimatedReadingTimeSec(totalPositions: Int, secPerPosition: Double): Long? {
+    if (totalPositions <= 0 || !secPerPosition.isFinite() || secPerPosition <= 0.0) return null
+    return (totalPositions * secPerPosition).toLong().coerceAtLeast(0L)
+}
+
 @HiltViewModel
 class LibraryItemDetailViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
@@ -181,11 +189,13 @@ class LibraryItemDetailViewModel @Inject constructor(
     private val crossEpubIndexBuildTrigger: com.riffle.core.data.CrossEpubIndexBuildTrigger,
     private val sidecarPrefetcher: com.riffle.core.data.ReadaloudSidecarPrefetcher,
     private val extractEpubTocUseCase: ExtractEpubTocUseCase,
+    private val extractPdfPageCountUseCase: ExtractPdfPageCountUseCase,
     private val fetchAudiobookChaptersUseCase: FetchAudiobookChaptersUseCase,
     private val catalogRegistry: CatalogRegistry,
     private val libraryRefresher: LibraryRefresher,
     private val saveLocalFileMetadataOverride: SaveLocalFileMetadataOverrideUseCase,
     private val copyCoverImage: CopyCoverImageUseCase,
+    private val readingSpeedStore: ReadingSpeedStore,
 ) : ViewModel() {
 
     private val itemId: String = savedStateHandle.get<String>("itemId") ?: ""
@@ -218,6 +228,17 @@ class LibraryItemDetailViewModel @Inject constructor(
 
     private val _currentPositionHref = MutableStateFlow<String?>(null)
     val currentPositionHref: StateFlow<String?> = _currentPositionHref.asStateFlow()
+
+    private val _epubTotalPositions = MutableStateFlow<Int?>(null)
+    val estimatedTotalReadingTimeSec: StateFlow<Long?> = combine(
+        _epubTotalPositions,
+        readingSpeedStore.speedSecPerPosition,
+    ) { totalPositions, secPerPosition ->
+        totalPositions?.let { estimatedReadingTimeSec(it, secPerPosition) }
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, null)
+
+    private val _pdfPageCount = MutableStateFlow<Int?>(null)
+    val pdfPageCount: StateFlow<Int?> = _pdfPageCount.asStateFlow()
 
     fun reloadCurrentPositionHref() {
         val ready = _uiState.value as? LibraryItemDetailUiState.Ready ?: return
@@ -379,7 +400,14 @@ class LibraryItemDetailViewModel @Inject constructor(
                 if (item.ebookFormat == EbookFormat.Epub) {
                     launch {
                         _currentPositionHref.value = epubRepository.loadLastPositionHref(item.sourceId, item.id)
-                        _tocState.value = TocState.Ready(extractEpubTocUseCase(item))
+                        val details = extractEpubTocUseCase.extractDetails(item)
+                        _tocState.value = TocState.Ready(details.tocEntries)
+                        _epubTotalPositions.value = details.totalPositions
+                    }
+                }
+                if (item.ebookFormat == EbookFormat.Pdf) {
+                    launch {
+                        _pdfPageCount.value = extractPdfPageCountUseCase(item)
                     }
                 }
                 if (item.isListenable) {
