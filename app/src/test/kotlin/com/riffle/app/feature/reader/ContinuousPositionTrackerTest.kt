@@ -437,6 +437,91 @@ class ContinuousPositionTrackerTest {
         assertEquals(0, ContinuousPositionTracker.pageScrollDelta(-5))
     }
 
+    // ── pageScrollDurationMs ──────────────────────────────────────────────────
+
+    @Test
+    fun `pageScrollDurationMs matches Chromium's glide for a phone-sized page press`() {
+        // 0.9 of a 2160 px viewport at density 2.75 ≈ 707 CSS px; Chromium's delta-based
+        // duration is ~16.7 ms × √707 ≈ 443 ms. The old fixed 300 ms is what made continuous
+        // mode feel sudden next to vertical mode's smooth scroll — pin that we now exceed it.
+        val delta = ContinuousPositionTracker.pageScrollDelta(2160)
+        val duration = ContinuousPositionTracker.pageScrollDurationMs(delta, density = 2.75f)
+        assertEquals(443, duration)
+        assertTrue("duration must be longer than the old fixed 300 ms", duration > 300)
+    }
+
+    @Test
+    fun `pageScrollDurationMs is clamped to the min for tiny distances`() {
+        assertEquals(
+            ContinuousPositionTracker.PAGE_SCROLL_MIN_DURATION_MS,
+            ContinuousPositionTracker.pageScrollDurationMs(distancePx = 10, density = 2.75f),
+        )
+    }
+
+    @Test
+    fun `pageScrollDurationMs is clamped to the max for huge distances`() {
+        assertEquals(
+            ContinuousPositionTracker.PAGE_SCROLL_MAX_DURATION_MS,
+            ContinuousPositionTracker.pageScrollDurationMs(distancePx = 100_000, density = 1f),
+        )
+    }
+
+    // ── pageScrollAnimation ───────────────────────────────────────────────────
+
+    @Test
+    fun `pageScrollAnimation duration follows the actual animated distance, not the press delta`() {
+        // A press near the bottom boundary: the coalescer clamps the target so only 30 px remain.
+        // The duration must come from the 30 px remainder (min-clamped to 200 ms), not the ~443 ms
+        // a full 0.9-viewport press would get — otherwise the remainder crawls.
+        val boundary = ContinuousPositionTracker.pageScrollAnimation(
+            currentScrollY = 9_970, targetScrollY = 10_000, density = 2.75f,
+        )
+        assertEquals(30, boundary?.scrollBy)
+        assertEquals(ContinuousPositionTracker.PAGE_SCROLL_MIN_DURATION_MS, boundary?.durationMs)
+
+        // A coalesced press that extended the in-flight target to ~2 presses of distance: the
+        // glide gets the longer √distance duration, not the single-press duration.
+        val delta = ContinuousPositionTracker.pageScrollDelta(2160)
+        val coalesced = ContinuousPositionTracker.pageScrollAnimation(
+            currentScrollY = 0, targetScrollY = 2 * delta, density = 2.75f,
+        )
+        val singlePressMs = ContinuousPositionTracker.pageScrollDurationMs(delta, density = 2.75f)
+        assertEquals(2 * delta, coalesced?.scrollBy)
+        assertEquals(
+            ContinuousPositionTracker.pageScrollDurationMs(2 * delta, density = 2.75f),
+            coalesced?.durationMs,
+        )
+        assertTrue(
+            "coalesced glide must be longer than a single press",
+            coalesced!!.durationMs > singlePressMs,
+        )
+    }
+
+    @Test
+    fun `pageScrollAnimation preserves direction for backward presses`() {
+        val backward = ContinuousPositionTracker.pageScrollAnimation(
+            currentScrollY = 5_000, targetScrollY = 3_000, density = 2.75f,
+        )
+        assertEquals(-2_000, backward?.scrollBy)
+        assertEquals(
+            ContinuousPositionTracker.pageScrollDurationMs(2_000, density = 2.75f),
+            backward?.durationMs,
+        )
+    }
+
+    @Test
+    fun `pageScrollAnimation is null when there is nothing to animate`() {
+        assertNull(ContinuousPositionTracker.pageScrollAnimation(500, 500, density = 2.75f))
+        assertNull(ContinuousPositionTracker.pageScrollAnimation(0, 100, density = 0f))
+    }
+
+    @Test
+    fun `pageScrollDurationMs is zero for non-positive distance or density`() {
+        assertEquals(0, ContinuousPositionTracker.pageScrollDurationMs(0, 2.75f))
+        assertEquals(0, ContinuousPositionTracker.pageScrollDurationMs(-100, 2.75f))
+        assertEquals(0, ContinuousPositionTracker.pageScrollDurationMs(1000, 0f))
+    }
+
     // ── Bookmark vs. continuous-resume alignment ──────────────────────────────
     //
     // scrollYForProgression is the midpoint-inverse of locatorAt: it's correct for continuous
