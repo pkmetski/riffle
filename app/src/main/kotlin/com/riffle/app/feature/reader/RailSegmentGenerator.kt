@@ -246,10 +246,11 @@ fun findActiveSegmentIndex(
     progression: Float? = null,
 ): Int {
     if (segments.isEmpty()) return 0
-    val normalizedCurrentHref = normalizeEpubHref(currentHref)
-    val exact = segments.indexOfFirst { normalizeEpubHref(it.href) == normalizedCurrentHref }
-    if (exact >= 0) return exact
     val currentBase = hrefBase(currentHref)
+    // If currentHref has a fragment that exactly matches a segment href, prefer it
+    // so that e.g. "chapter.xhtml#s2" resolves to the specific section segment.
+    val exactFragment = segments.indexOfFirst { it.href == currentHref }
+    if (exactFragment >= 0) return exactFragment
     val baseMatches = segments.indices.filter {
         hrefBase(segments[it].href) == currentBase
     }
@@ -260,6 +261,11 @@ fun findActiveSegmentIndex(
         val offset = if (p >= 1f) baseMatches.lastIndex else minOf((p * baseMatches.size).toInt(), baseMatches.lastIndex)
         return baseMatches[offset]
     }
+    // No same-base-href segments and no exact fragment match: try normalized exact match
+    // (handles file:///...!/ prefixed hrefs) and then fall back to spine-based lookup.
+    val normalizedCurrentHref = normalizeEpubHref(currentHref)
+    val exact = segments.indexOfFirst { normalizeEpubHref(it.href) == normalizedCurrentHref }
+    if (exact >= 0) return exact
     if (spineHrefs.isEmpty()) return 0
     val spineBases = spineHrefs.map(::hrefBase)
     val currentSpineIndex = spineBases.indexOf(currentBase)

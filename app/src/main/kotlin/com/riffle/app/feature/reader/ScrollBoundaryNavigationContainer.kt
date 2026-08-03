@@ -76,14 +76,14 @@ class ScrollBoundaryNavigationContainer(context: Context) : FrameLayout(context)
                 lastVolumeNavMs = now
                 onNavigateForward?.invoke()
             } else {
-                evaluateJs("window.scrollBy({top: window.innerHeight * 0.8, behavior: 'smooth'})")
+                evaluateJs("window.scrollBy({top: window.innerHeight * $VOLUME_SCROLL_FRACTION, behavior: 'smooth'})")
             }
         } else {
             if (atBoundary) {
                 lastVolumeNavMs = now
                 onNavigateBackward?.invoke()
             } else {
-                evaluateJs("window.scrollBy({top: -(window.innerHeight * 0.8), behavior: 'smooth'})")
+                evaluateJs("window.scrollBy({top: -(window.innerHeight * $VOLUME_SCROLL_FRACTION), behavior: 'smooth'})")
             }
         }
     }
@@ -269,6 +269,7 @@ class ScrollBoundaryNavigationContainer(context: Context) : FrameLayout(context)
         // events. Kept separate from NAVIGATION_COOLDOWN_MS so a preceding chapter transition
         // never swallows a deliberate button press.
         internal const val VOLUME_NAV_COOLDOWN_MS = 300L
+        internal const val VOLUME_SCROLL_FRACTION = 0.9f
         // Mirrors R2WebView's hardcoded "navigate only if |yDelta| < 200 px" threshold
         // (R2WebView.kt:746). Used to decide whether to swallow ACTION_UP.
         internal const val NAV_Y_DELTA_THRESHOLD_PX = 200
