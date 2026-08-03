@@ -24,13 +24,16 @@ class RailSegmentGeneratorTest {
     // ── buildRailSegments: top-level ──────────────────────────────────────
 
     @Test
-    fun `returns one segment per top-level entry`() {
+    fun `hierarchical toc returns one segment per direct section`() {
         val segments = buildRailSegments(toc)
         assertEquals(
             listOf(
-                RailSegment("Chapter 1", "chapter1.xhtml"),
-                RailSegment("Chapter 2", "chapter2.xhtml"),
-                RailSegment("Chapter 3", "chapter3.xhtml"),
+                RailSegment("1.1", "chapter1.xhtml#s1", groupIndex = 0),
+                RailSegment("1.2", "chapter1.xhtml#s2", groupIndex = 0),
+                RailSegment("2.1", "chapter2.xhtml#s1", groupIndex = 1),
+                RailSegment("2.2", "chapter2.xhtml#s2", groupIndex = 1),
+                RailSegment("2.3", "chapter2.xhtml#s3", groupIndex = 1),
+                RailSegment("Chapter 3", "chapter3.xhtml", groupIndex = 2),
             ),
             segments,
         )
@@ -42,8 +45,8 @@ class RailSegmentGeneratorTest {
     }
 
     @Test
-    fun `subchapters are NOT promoted to top level for normally-titled entries`() {
-        assertEquals(3, buildRailSegments(toc).size)
+    fun `same-file subchapters are promoted to section segments`() {
+        assertEquals(6, buildRailSegments(toc).size)
     }
 
     // ── buildRailSegments: blank-title flattening ─────────────────────────
@@ -59,10 +62,10 @@ class RailSegmentGeneratorTest {
 
         assertEquals(
             listOf(
-                RailSegment("Cover", "cover.xhtml"),
-                RailSegment("Story 1", "story1.xhtml"),
-                RailSegment("Story 2", "story2.xhtml"),
-                RailSegment("Credits", "credits.xhtml"),
+                RailSegment("Cover", "cover.xhtml", groupIndex = 0),
+                RailSegment("Story 1", "story1.xhtml", groupIndex = 1),
+                RailSegment("Story 2", "story2.xhtml", groupIndex = 1),
+                RailSegment("Credits", "credits.xhtml", groupIndex = 2),
             ),
             buildRailSegments(toc),
         )
@@ -73,7 +76,7 @@ class RailSegmentGeneratorTest {
         val story1 = TocEntry("Story 1", "story1.xhtml")
         val blank = TocEntry("", "container.xhtml", listOf(story1))
         assertEquals(
-            listOf(RailSegment("Story 1", "story1.xhtml")),
+            listOf(RailSegment("Story 1", "story1.xhtml", groupIndex = 0)),
             buildRailSegments(listOf(blank)),
         )
     }
@@ -87,8 +90,8 @@ class RailSegmentGeneratorTest {
 
         assertEquals(
             listOf(
-                RailSegment("Leaf", "leaf.xhtml"),
-                RailSegment("Other", "other.xhtml"),
+                RailSegment("Leaf", "leaf.xhtml", groupIndex = 0),
+                RailSegment("Other", "other.xhtml", groupIndex = 1),
             ),
             buildRailSegments(toc),
         )
@@ -115,9 +118,9 @@ class RailSegmentGeneratorTest {
 
         assertEquals(
             listOf(
-                RailSegment("Cover", "cover.xhtml"),
-                RailSegment("Chapter 1", "ch1.xhtml"),
-                RailSegment("Chapter 2", "ch2.xhtml"),
+                RailSegment("Cover", "cover.xhtml", groupIndex = 0),
+                RailSegment("Chapter 1", "ch1.xhtml", groupIndex = 1),
+                RailSegment("Chapter 2", "ch2.xhtml", groupIndex = 1),
             ),
             buildRailSegments(toc, bookTitle = "Les Misérables"),
         )
@@ -128,7 +131,7 @@ class RailSegmentGeneratorTest {
         val ch1 = TocEntry("Chapter 1", "ch1.xhtml")
         val container = TocEntry("Lucky Starr And The Rings Of Saturn", "container.xhtml", listOf(ch1))
         assertEquals(
-            listOf(RailSegment("Chapter 1", "ch1.xhtml")),
+            listOf(RailSegment("Chapter 1", "ch1.xhtml", groupIndex = 0)),
             buildRailSegments(listOf(container), bookTitle = "Lucky Starr and the Rings of Saturn"),
         )
     }
@@ -138,7 +141,7 @@ class RailSegmentGeneratorTest {
         val ch1 = TocEntry("Chapter 1", "ch1.xhtml")
         val container = TocEntry("  The   Metamorphosis  ", "container.xhtml", listOf(ch1))
         assertEquals(
-            listOf(RailSegment("Chapter 1", "ch1.xhtml")),
+            listOf(RailSegment("Chapter 1", "ch1.xhtml", groupIndex = 0)),
             buildRailSegments(listOf(container), bookTitle = "The Metamorphosis"),
         )
     }
@@ -146,26 +149,31 @@ class RailSegmentGeneratorTest {
     @Test
     fun `container whose title is a prefix of book title is NOT flattened`() {
         // Guards against "Бай Ганьо тръгна по Европа" being treated as "Бай Ганьо".
-        // Children are same-file anchors — only book-title-match is under test here.
-        val s1 = TocEntry("Section 1", "container.xhtml#s1")
+        // A cross-file leaf avoids the independent same-file-section rule, so only
+        // book-title-match is under test here.
+        val s1 = TocEntry("Section 1", "section.xhtml")
         val container = TocEntry("Foo Bar Baz", "container.xhtml", listOf(s1))
         val segments = buildRailSegments(listOf(container), bookTitle = "Foo")
         assertEquals(1, segments.size)
-        assertEquals(RailSegment("Foo Bar Baz", "container.xhtml"), segments[0])
+        assertEquals(
+            RailSegment("Foo Bar Baz", "container.xhtml", groupIndex = 0),
+            segments[0],
+        )
     }
 
     @Test
     fun `container whose title differs from book title is NOT flattened`() {
-        // Children are same-file anchors — only book-title-match is under test here.
-        val s1 = TocEntry("Part 1", "appendix.xhtml#p1")
+        // A cross-file leaf avoids the independent same-file-section rule, so only
+        // book-title-match is under test here.
+        val s1 = TocEntry("Part 1", "appendix-part.xhtml")
         val container = TocEntry("Appendix", "appendix.xhtml", listOf(s1))
         val other = TocEntry("Chapter 1", "real-ch1.xhtml")
         val toc = listOf(other, container)
 
         assertEquals(
             listOf(
-                RailSegment("Chapter 1", "real-ch1.xhtml"),
-                RailSegment("Appendix", "appendix.xhtml"),
+                RailSegment("Chapter 1", "real-ch1.xhtml", groupIndex = 0),
+                RailSegment("Appendix", "appendix.xhtml", groupIndex = 1),
             ),
             buildRailSegments(toc, bookTitle = "Some Other Book"),
         )
@@ -175,8 +183,9 @@ class RailSegmentGeneratorTest {
     fun `empty book title disables book-title-match rule`() {
         // A container whose title happens to be "" would still flatten via blank-title rule,
         // but a non-blank container should NOT be flattened when no book title is provided.
-        // Children are same-file anchors — only book-title-match is under test here.
-        val s1 = TocEntry("Section 1", "container.xhtml#s1")
+        // A cross-file leaf avoids the independent same-file-section rule, so only
+        // book-title-match is under test here.
+        val s1 = TocEntry("Section 1", "section.xhtml")
         val container = TocEntry("Some Container", "container.xhtml", listOf(s1))
         val segments = buildRailSegments(listOf(container), bookTitle = "")
         assertEquals(1, segments.size)
@@ -188,7 +197,7 @@ class RailSegmentGeneratorTest {
         val ch1 = TocEntry("Ch 1", "ch1.xhtml")
         val blank = TocEntry("", "container.xhtml", listOf(ch1))
         assertEquals(
-            listOf(RailSegment("Ch 1", "ch1.xhtml")),
+            listOf(RailSegment("Ch 1", "ch1.xhtml", groupIndex = 0)),
             buildRailSegments(listOf(blank), bookTitle = "Some Book"),
         )
     }
@@ -201,7 +210,7 @@ class RailSegmentGeneratorTest {
         val inner = TocEntry("My Book", "inner.xhtml", listOf(leaf))
         val outer = TocEntry("My Book", "outer.xhtml", listOf(inner))
         assertEquals(
-            listOf(RailSegment("Leaf", "leaf.xhtml")),
+            listOf(RailSegment("Leaf", "leaf.xhtml", groupIndex = 0)),
             buildRailSegments(listOf(outer), bookTitle = "My Book"),
         )
     }
@@ -224,18 +233,18 @@ class RailSegmentGeneratorTest {
 
         assertEquals(
             listOf(
-                RailSegment("Chapter 1", "c01.xhtml"),
-                RailSegment("Chapter 2", "c02.xhtml"),
-                RailSegment("Chapter 3", "c03.xhtml"),
-                RailSegment("Chapter 4", "c04.xhtml"),
-                RailSegment("Chapter 5", "c05.xhtml"),
+                RailSegment("Chapter 1", "c01.xhtml", groupIndex = 0),
+                RailSegment("Chapter 2", "c02.xhtml", groupIndex = 0),
+                RailSegment("Chapter 3", "c03.xhtml", groupIndex = 0),
+                RailSegment("Chapter 4", "c04.xhtml", groupIndex = 1),
+                RailSegment("Chapter 5", "c05.xhtml", groupIndex = 1),
             ),
             buildRailSegments(listOf(part1, part2)),
         )
     }
 
     @Test
-    fun `chapter entry with same-file section heading children is kept as-is`() {
+    fun `same-file section headings become distinct grouped rail segments`() {
         // "Lean Customer Development" structure: Chapter → [section anchors on same file]
         val s1 = TocEntry("Section 1", "ch01.html#s1")
         val s2 = TocEntry("Section 2", "ch01.html#s2")
@@ -244,10 +253,40 @@ class RailSegmentGeneratorTest {
 
         assertEquals(
             listOf(
-                RailSegment("Chapter 1", "ch01.html"),
-                RailSegment("Chapter 2", "ch02.html"),
+                RailSegment("Section 1", "ch01.html#s1", groupIndex = 0),
+                RailSegment("Section 2", "ch01.html#s2", groupIndex = 0),
+                RailSegment("Chapter 2", "ch02.html", groupIndex = 1),
             ),
             buildRailSegments(listOf(ch1, ch2)),
+        )
+    }
+
+    @Test
+    fun `chapter groups color their exposed same-file sections`() {
+        // "A Philosophy of Software Design" shape from the reported regression:
+        // top-level chapters own indented same-file section anchors. Each section becomes a rail
+        // segment and inherits its top-level chapter's group color.
+        val chapter1 = TocEntry(
+            "1: Introduction",
+            "ch01.html",
+            listOf(TocEntry("1.1 How to use this book", "ch01.html#how-to-use")),
+        )
+        val chapter2 = TocEntry(
+            "2: The Nature of Complexity",
+            "ch02.html",
+            listOf(
+                TocEntry("2.1 Complexity defined", "ch02.html#defined"),
+                TocEntry("2.2 Symptoms of complexity", "ch02.html#symptoms"),
+            ),
+        )
+
+        assertEquals(
+            listOf(
+                RailSegment("1.1 How to use this book", "ch01.html#how-to-use", groupIndex = 0),
+                RailSegment("2.1 Complexity defined", "ch02.html#defined", groupIndex = 1),
+                RailSegment("2.2 Symptoms of complexity", "ch02.html#symptoms", groupIndex = 1),
+            ),
+            buildRailSegments(listOf(chapter1, chapter2)),
         )
     }
 
@@ -262,8 +301,8 @@ class RailSegmentGeneratorTest {
 
         assertEquals(
             listOf(
-                RailSegment("Chapter 1", "c01.xhtml"),
-                RailSegment("Chapter 2", "c02.xhtml"),
+                RailSegment("Chapter 1", "c01.xhtml", groupIndex = 0),
+                RailSegment("Chapter 2", "c02.xhtml", groupIndex = 0),
             ),
             buildRailSegments(listOf(part1)),
         )
@@ -279,8 +318,8 @@ class RailSegmentGeneratorTest {
 
         assertEquals(
             listOf(
-                RailSegment("Intro", "part01.xhtml#intro"),
-                RailSegment("Chapter 1", "c01.xhtml"),
+                RailSegment("Intro", "part01.xhtml#intro", groupIndex = 0),
+                RailSegment("Chapter 1", "c01.xhtml", groupIndex = 0),
             ),
             buildRailSegments(listOf(part1)),
         )
@@ -296,7 +335,7 @@ class RailSegmentGeneratorTest {
         val ch20 = TocEntry("Chapter 20", "chapter20.xhtml", listOf(sol376, sol380))
 
         assertEquals(
-            listOf(RailSegment("Chapter 20", "chapter20.xhtml")),
+            listOf(RailSegment("Chapter 20", "chapter20.xhtml", groupIndex = 0)),
             buildRailSegments(listOf(ch20)),
         )
     }
@@ -326,11 +365,11 @@ class RailSegmentGeneratorTest {
 
         assertEquals(
             listOf(
-                RailSegment("1 What Is ADHD?", "ch01.html"),
-                RailSegment("2 Poor Self-Regulation", "ch02.html"),
-                RailSegment("3 What Causes ADHD?", "ch03.html"),
-                RailSegment("7 Deciding to Evaluate", "ch07.html"),
-                RailSegment("8 Preparing for the Evaluation", "ch08.html"),
+                RailSegment("1 What Is ADHD?", "ch01.html", groupIndex = 0),
+                RailSegment("2 Poor Self-Regulation", "ch02.html", groupIndex = 0),
+                RailSegment("3 What Causes ADHD?", "ch03.html", groupIndex = 0),
+                RailSegment("7 Deciding to Evaluate", "ch07.html", groupIndex = 1),
+                RailSegment("8 Preparing for the Evaluation", "ch08.html", groupIndex = 1),
             ),
             buildRailSegments(listOf(partI, partII), spineHrefs = spineHrefs, positionCounts = positionCounts),
         )
@@ -351,7 +390,7 @@ class RailSegmentGeneratorTest {
         val positionCounts = listOf(15, 3, 3, 3)
 
         assertEquals(
-            listOf(RailSegment("Chapter 4", "chapter4.xhtml")),
+            listOf(RailSegment("Chapter 4", "chapter4.xhtml", groupIndex = 0)),
             buildRailSegments(listOf(ch4), spineHrefs = spineHrefs, positionCounts = positionCounts),
         )
     }
@@ -368,7 +407,10 @@ class RailSegmentGeneratorTest {
         val positionCounts = listOf(0, 10, 10)
 
         assertEquals(
-            listOf(RailSegment("A", "a.xhtml"), RailSegment("B", "b.xhtml")),
+            listOf(
+                RailSegment("A", "a.xhtml", groupIndex = 0),
+                RailSegment("B", "b.xhtml", groupIndex = 0),
+            ),
             buildRailSegments(listOf(container), spineHrefs = spineHrefs, positionCounts = positionCounts),
         )
     }
@@ -408,7 +450,9 @@ class RailSegmentGeneratorTest {
         // their own segment (chapter-1.xhtml through chapter-19.xhtml, all distinct spine
         // files). Locked here so any future heuristic change is caught before it silently
         // collapses this book back to a single "2" segment.
-        val expected = titles.mapIndexed { i, t -> RailSegment(t, "chapter-$i.xhtml") }
+        val expected = titles.mapIndexed { i, t ->
+            RailSegment(t, "chapter-$i.xhtml", groupIndex = 0)
+        }
         assertEquals(expected, segments)
     }
 
@@ -519,10 +563,10 @@ class RailSegmentGeneratorTest {
 
         assertEquals(
             listOf(
-                RailSegment("Ch 1", "p1c1.xhtml"),
-                RailSegment("Ch 2", "p1c2.xhtml"),
-                RailSegment("Ch 3", "p1c3.xhtml"),
-                RailSegment("Part II", "p2.xhtml"),
+                RailSegment("Ch 1", "p1c1.xhtml", groupIndex = 0),
+                RailSegment("Ch 2", "p1c2.xhtml", groupIndex = 0),
+                RailSegment("Ch 3", "p1c3.xhtml", groupIndex = 0),
+                RailSegment("Part II", "p2.xhtml", groupIndex = 1),
             ),
             buildRailSegments(listOf(partI, partII), spineHrefs = spineHrefs, positionCounts = positionCounts),
         )
@@ -582,7 +626,13 @@ class RailSegmentGeneratorTest {
         val positionCounts = listOf(1, 1, 3, 2, 2, 1, 2, 2, 1)
 
         assertEquals(
-            listOf(RailSegment("Четвърта глава. Детето съдия", "chapter-78.xhtml")),
+            listOf(
+                RailSegment(
+                    "Четвърта глава. Детето съдия",
+                    "chapter-78.xhtml",
+                    groupIndex = 0,
+                ),
+            ),
             buildRailSegments(listOf(parent), spineHrefs = spineHrefs, positionCounts = positionCounts),
         )
     }
@@ -600,7 +650,7 @@ class RailSegmentGeneratorTest {
         val positionCounts = listOf(1, 2, 3, 1)
 
         assertEquals(
-            listOf(RailSegment("Трета глава", "chapter-102.xhtml")),
+            listOf(RailSegment("Трета глава", "chapter-102.xhtml", groupIndex = 0)),
             buildRailSegments(listOf(parent), spineHrefs = spineHrefs, positionCounts = positionCounts),
         )
     }
@@ -630,7 +680,7 @@ class RailSegmentGeneratorTest {
         val positionCounts = listOf(2, 2, 2, 2, 2, 5, 2)
 
         assertEquals(
-            listOf(RailSegment("Първа глава", "chapter-91.xhtml")),
+            listOf(RailSegment("Първа глава", "chapter-91.xhtml", groupIndex = 0)),
             buildRailSegments(listOf(parent), spineHrefs = spineHrefs, positionCounts = positionCounts),
         )
     }
@@ -646,7 +696,7 @@ class RailSegmentGeneratorTest {
         val positionCounts = listOf(1, 20, 0)
 
         assertEquals(
-            listOf(RailSegment("Part", "part.xhtml")),
+            listOf(RailSegment("Part", "part.xhtml", groupIndex = 0)),
             buildRailSegments(listOf(parent), spineHrefs = spineHrefs, positionCounts = positionCounts),
         )
     }
@@ -659,21 +709,24 @@ class RailSegmentGeneratorTest {
         val sol2 = TocEntry("LOG 2", "sol2.xhtml")
         val ch = TocEntry("Chapter 20", "chapter20.xhtml", listOf(sol1, sol2))
         assertEquals(
-            listOf(RailSegment("Chapter 20", "chapter20.xhtml")),
+            listOf(RailSegment("Chapter 20", "chapter20.xhtml", groupIndex = 0)),
             buildRailSegments(listOf(ch)),
         )
     }
 
     @Test
-    fun `entry with children all on same file is NOT expanded (title kept)`() {
-        // An entry whose every child is a same-file anchor should stay as one segment —
-        // this is the normal Chapter → [Section headings] pattern.
+    fun `entry with children all on same file exposes each section`() {
+        // The accepted color-group design uses the normal Chapter → [Section headings]
+        // hierarchy as rail granularity, with every section inheriting the chapter's color.
         val s1 = TocEntry("Section A", "ch.xhtml#secA")
         val s2 = TocEntry("Section B", "ch.xhtml#secB")
         val ch = TocEntry("The Chapter", "ch.xhtml", listOf(s1, s2))
 
         assertEquals(
-            listOf(RailSegment("The Chapter", "ch.xhtml")),
+            listOf(
+                RailSegment("Section A", "ch.xhtml#secA", groupIndex = 0),
+                RailSegment("Section B", "ch.xhtml#secB", groupIndex = 0),
+            ),
             buildRailSegments(listOf(ch)),
         )
     }
@@ -757,9 +810,71 @@ class RailSegmentGeneratorTest {
     }
 
     @Test
+    fun `absolute href matches relative rail and spine hrefs`() {
+        val spine = listOf(
+            "chapter1.xhtml",
+            "chapter2.xhtml",
+            "chapter3.xhtml",
+        )
+
+        assertEquals(
+            1,
+            findActiveSegmentIndex(
+                bookSegments,
+                "https://localhost:8080/chapter2.xhtml#s3",
+                spineHrefs = spine,
+            ),
+        )
+        assertEquals(
+            0.5f,
+            bookmarkRailPosition(
+                bookSegments,
+                "https://localhost:8080/chapter2.xhtml",
+                progression = 0.5,
+                spineHrefs = spine,
+            )!!,
+            0.0001f,
+        )
+    }
+
+    @Test
     fun `fragment href falls back to base href match`() {
         assertEquals(1, findActiveSegmentIndex(bookSegments, "chapter2.xhtml#s3"))
         assertEquals(0, findActiveSegmentIndex(bookSegments, "chapter1.xhtml#s1"))
+    }
+
+    @Test
+    fun `resource progression selects the active same-file section`() {
+        val sections = listOf(
+            RailSegment("1.1", "chapter.xhtml#s1", groupIndex = 0),
+            RailSegment("1.2", "chapter.xhtml#s2", groupIndex = 0),
+            RailSegment("1.3", "chapter.xhtml#s3", groupIndex = 0),
+        )
+
+        assertEquals(0, findActiveSegmentIndex(sections, "chapter.xhtml", progression = 0.20f))
+        assertEquals(1, findActiveSegmentIndex(sections, "chapter.xhtml", progression = 0.50f))
+        assertEquals(2, findActiveSegmentIndex(sections, "chapter.xhtml", progression = 0.90f))
+        assertEquals(2, findActiveSegmentIndex(sections, "chapter.xhtml", progression = 1f))
+    }
+
+    @Test
+    fun `resource progression is converted to progression within active section`() {
+        val sections = listOf(
+            RailSegment("1.1", "chapter.xhtml#s1", groupIndex = 0),
+            RailSegment("1.2", "chapter.xhtml#s2", groupIndex = 0),
+            RailSegment("1.3", "chapter.xhtml#s3", groupIndex = 0),
+        )
+
+        assertEquals(
+            0.5f,
+            progressionWithinRailSegment(
+                sections,
+                currentHref = "chapter.xhtml",
+                activeIndex = 1,
+                progression = 0.5f,
+            ),
+            0.0001f,
+        )
     }
 
     @Test
@@ -1032,6 +1147,64 @@ class RailSegmentGeneratorTest {
         // activeIndex negative → clamped to first ("A" at [0.0, 0.25])
         assertEquals(0f, weightedRailCursorPosition(-3, segs, 0f), 0.0001f)
         assertEquals(0.25f, weightedRailCursorPosition(-3, segs, 1f), 0.0001f)
+    }
+
+    // ── bookmarkRailPosition ──────────────────────────────────────────────
+
+    @Test
+    fun `bookmark progression maps into its weighted rail segment`() {
+        val segs = listOf(
+            RailSegment("A", "a.xhtml", weight = 10f),
+            RailSegment("B", "b.xhtml", weight = 30f),
+            RailSegment("C", "c.xhtml", weight = 60f),
+        )
+
+        assertEquals(
+            0.25f,
+            bookmarkRailPosition(segs, "b.xhtml", progression = 0.5)!!,
+            0.0001f,
+        )
+    }
+
+    @Test
+    fun `bookmark progression crosses same-file section segments`() {
+        val sections = listOf(
+            RailSegment("1.1", "chapter.xhtml#s1", groupIndex = 0),
+            RailSegment("1.2", "chapter.xhtml#s2", groupIndex = 0),
+            RailSegment("1.3", "chapter.xhtml#s3", groupIndex = 0),
+        )
+
+        assertEquals(
+            0.5f,
+            bookmarkRailPosition(sections, "chapter.xhtml", progression = 0.5)!!,
+            0.0001f,
+        )
+    }
+
+    @Test
+    fun `bookmark in untocced spine resource uses preceding rail segment`() {
+        val segs = listOf(
+            RailSegment("A", "a.xhtml", weight = 10f),
+            RailSegment("B", "b.xhtml", weight = 30f),
+            RailSegment("C", "c.xhtml", weight = 60f),
+        )
+        val spineHrefs = listOf("a.xhtml", "b.xhtml", "interlude.xhtml", "c.xhtml")
+
+        assertEquals(
+            0.25f,
+            bookmarkRailPosition(
+                segs,
+                "interlude.xhtml",
+                progression = 0.5,
+                spineHrefs = spineHrefs,
+            )!!,
+            0.0001f,
+        )
+    }
+
+    @Test
+    fun `bookmark rail position is absent until segments load`() {
+        assertEquals(null, bookmarkRailPosition(emptyList(), "a.xhtml", progression = 0.5))
     }
 
     // ── railSegmentIndexAt (tap hit-test) ─────────────────────────────────

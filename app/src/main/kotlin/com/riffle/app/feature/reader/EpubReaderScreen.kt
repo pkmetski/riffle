@@ -761,6 +761,7 @@ fun EpubReaderScreen(
                     EpubChapterRailOverlay(
                         viewModel = viewModel,
                         showRail = formattingPrefs.showChapterMap,
+                        coloredChapterMap = formattingPrefs.coloredChapterMap,
                         showProgressLabels = formattingPrefs.showReadingProgressLabels,
                         showChapterNameLabel = formattingPrefs.showCurrentChapterLabel,
                         showReadingTimeEstimate = formattingPrefs.showReadingTimeEstimate,
@@ -994,6 +995,7 @@ internal fun readerTopAppBarColors() = androidx.compose.material3.TopAppBarDefau
 private fun EpubChapterRailOverlay(
     viewModel: EpubReaderViewModel,
     showRail: Boolean,
+    coloredChapterMap: Boolean,
     showProgressLabels: Boolean,
     showChapterNameLabel: Boolean,
     showReadingTimeEstimate: Boolean,
@@ -1003,6 +1005,7 @@ private fun EpubChapterRailOverlay(
     val railSegments by viewModel.railSegments.collectAsState()
     val activeRailSegmentIndex by viewModel.activeRailSegmentIndex.collectAsState()
     val cursorPosition by viewModel.railCursorPosition.collectAsState()
+    val bookmarkPositions by viewModel.bookmarkRailPositions.collectAsState()
     // Whole-book progress for the "% read" label — matches book details. Kept separate from
     // cursorPosition, which places the cursor inside the active (chapter-weighted) rail segment.
     val totalProgress by viewModel.currentLocatorTotalProgression.collectAsState()
@@ -1045,6 +1048,8 @@ private fun EpubChapterRailOverlay(
                     cursorPosition = cursorPosition,
                     readerTheme = readerTheme,
                     onSegmentClick = viewModel::navigateToSegment,
+                    coloredChapterMap = coloredChapterMap,
+                    bookmarkPositions = bookmarkPositions,
                 )
             }
         }

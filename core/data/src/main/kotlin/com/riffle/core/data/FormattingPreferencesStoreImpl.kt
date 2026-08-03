@@ -37,6 +37,8 @@ class FormattingPreferencesStoreImpl @Inject constructor(
                 ?.let { runCatching { ReaderOrientation.valueOf(it) }.getOrNull() }
                 ?: ReaderOrientation.Horizontal,
             showChapterMap = prefs[KEY_SHOW_CHAPTER_MAP] ?: true,
+            coloredChapterMap = prefs[KEY_COLORED_CHAPTER_MAP]
+                ?: FormattingPreferences.DEFAULT_COLORED_CHAPTER_MAP,
             showReadingProgressLabels = prefs[KEY_SHOW_READING_PROGRESS_LABELS] ?: false,
             showCurrentChapterLabel = prefs[KEY_SHOW_CURRENT_CHAPTER_LABEL] ?: false,
             showReadingTimeEstimate = prefs[KEY_SHOW_READING_TIME_ESTIMATE] ?: false,
@@ -77,6 +79,7 @@ class FormattingPreferencesStoreImpl @Inject constructor(
             prefs[KEY_MARGINS] = preferences.margins
             prefs[KEY_ORIENTATION] = preferences.orientation.name
             prefs[KEY_SHOW_CHAPTER_MAP] = preferences.showChapterMap
+            prefs[KEY_COLORED_CHAPTER_MAP] = preferences.coloredChapterMap
             prefs[KEY_SHOW_READING_PROGRESS_LABELS] = preferences.showReadingProgressLabels
             prefs[KEY_SHOW_CURRENT_CHAPTER_LABEL] = preferences.showCurrentChapterLabel
             prefs[KEY_SHOW_READING_TIME_ESTIMATE] = preferences.showReadingTimeEstimate
@@ -111,6 +114,7 @@ class FormattingPreferencesStoreImpl @Inject constructor(
         val KEY_MARGINS = floatPreferencesKey("margins")
         val KEY_ORIENTATION = stringPreferencesKey("orientation")
         val KEY_SHOW_CHAPTER_MAP = booleanPreferencesKey("show_chapter_map")
+        val KEY_COLORED_CHAPTER_MAP = booleanPreferencesKey("colored_chapter_map")
         val KEY_SHOW_READING_PROGRESS_LABELS = booleanPreferencesKey("show_reading_progress_labels")
         val KEY_SHOW_CURRENT_CHAPTER_LABEL = booleanPreferencesKey("show_current_chapter_label")
         val KEY_SHOW_READING_TIME_ESTIMATE = booleanPreferencesKey("show_reading_time_estimate")

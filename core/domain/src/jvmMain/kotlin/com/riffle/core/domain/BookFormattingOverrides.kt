@@ -8,6 +8,7 @@ data class BookFormattingOverrides(
     val margins: Float? = null,
     val orientation: ReaderOrientation? = null,
     val showChapterMap: Boolean? = null,
+    val coloredChapterMap: Boolean? = null,
     val showReadingProgressLabels: Boolean? = null,
     val showCurrentChapterLabel: Boolean? = null,
     val showReadingTimeEstimate: Boolean? = null,
@@ -24,6 +25,7 @@ data class BookFormattingOverrides(
             margins == null &&
             orientation == null &&
             showChapterMap == null &&
+            coloredChapterMap == null &&
             showReadingProgressLabels == null &&
             showCurrentChapterLabel == null &&
             showReadingTimeEstimate == null &&
@@ -40,6 +42,7 @@ data class BookFormattingOverrides(
         margins = margins ?: global.margins,
         orientation = orientation ?: global.orientation,
         showChapterMap = showChapterMap ?: global.showChapterMap,
+        coloredChapterMap = coloredChapterMap ?: global.coloredChapterMap,
         showReadingProgressLabels = showReadingProgressLabels ?: global.showReadingProgressLabels,
         showCurrentChapterLabel = showCurrentChapterLabel ?: global.showCurrentChapterLabel,
         showReadingTimeEstimate = showReadingTimeEstimate ?: global.showReadingTimeEstimate,
@@ -71,6 +74,7 @@ data class BookFormattingOverrides(
         margins = if (new.margins != previous.margins) new.margins else margins,
         orientation = if (new.orientation != previous.orientation) new.orientation else orientation,
         showChapterMap = if (new.showChapterMap != previous.showChapterMap) new.showChapterMap else showChapterMap,
+        coloredChapterMap = if (new.coloredChapterMap != previous.coloredChapterMap) new.coloredChapterMap else coloredChapterMap,
         showReadingProgressLabels = if (new.showReadingProgressLabels != previous.showReadingProgressLabels) new.showReadingProgressLabels else showReadingProgressLabels,
         showCurrentChapterLabel = if (new.showCurrentChapterLabel != previous.showCurrentChapterLabel) new.showCurrentChapterLabel else showCurrentChapterLabel,
         showReadingTimeEstimate = if (new.showReadingTimeEstimate != previous.showReadingTimeEstimate) new.showReadingTimeEstimate else showReadingTimeEstimate,

@@ -1919,7 +1919,7 @@ class MigrationTest {
         }
 
         val db = helper.runMigrationsAndValidate(
-            TEST_DB, 60, true,
+            TEST_DB, 62, true,
             RiffleDatabase.MIGRATION_1_2,
             RiffleDatabase.MIGRATION_2_3,
             RiffleDatabase.MIGRATION_3_4,
@@ -1980,6 +1980,7 @@ class MigrationTest {
             RiffleDatabase.MIGRATION_58_59,
             RiffleDatabase.MIGRATION_59_60,
             RiffleDatabase.MIGRATION_60_61,
+            RiffleDatabase.MIGRATION_61_62,
         )
 
         db.query("SELECT url, username, serverType, absUserId, type FROM sources WHERE id = 's1'").use { cursor ->
@@ -2856,5 +2857,36 @@ class MigrationTest {
 
         db.close()
     }
-}
 
+    @Test
+    fun migration61To62_addsColoredChapterMapOverride() {
+        helper.createDatabase(TEST_DB, 61).apply {
+            execSQL(
+                "INSERT INTO sources (id, url, isActive, insecureConnectionAllowed, username, serverType, absUserId, type) " +
+                    "VALUES ('s1', 'http://abs', 1, 0, '', 'AUDIOBOOKSHELF', NULL, 'ABS')"
+            )
+            execSQL(
+                "INSERT INTO book_formatting_preferences " +
+                    "(sourceId, itemId, scope, showChapterMap) " +
+                    "VALUES ('s1', 'item1', 'FullBook', 1)"
+            )
+            close()
+        }
+
+        val db = helper.runMigrationsAndValidate(TEST_DB, 62, true, RiffleDatabase.MIGRATION_61_62)
+
+        db.query(
+            "SELECT sourceId, itemId, scope, showChapterMap, coloredChapterMap " +
+                "FROM book_formatting_preferences WHERE itemId = 'item1'"
+        ).use { cursor ->
+            assertEquals(1, cursor.count)
+            assertTrue(cursor.moveToFirst())
+            assertEquals("s1", cursor.getString(0))
+            assertEquals("item1", cursor.getString(1))
+            assertEquals("FullBook", cursor.getString(2))
+            assertEquals(1, cursor.getInt(3))
+            assertTrue("legacy override follows the global color preference", cursor.isNull(4))
+        }
+        db.close()
+    }
+}

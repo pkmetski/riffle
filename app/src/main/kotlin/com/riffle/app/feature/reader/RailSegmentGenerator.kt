@@ -1,5 +1,6 @@
 package com.riffle.app.feature.reader
 
+import com.riffle.core.domain.normalizeEpubHref
 import com.riffle.core.models.TocEntry
 
 fun buildRailSegments(
@@ -11,14 +12,60 @@ fun buildRailSegments(
     val bookTitleNorm = bookTitle.normalize()
     val spineIndex = spineIndexOf(spineHrefs)
     val preprocessed = absorbFlatNumericRuns(tocEntries)
-    val expanded = preprocessed.flatMap { expandIfRedundant(it, bookTitleNorm, spineIndex, positionCounts) }
-    // Collapse entries that point to the same spine resource via different fragments. The
-    // navigator's locator carries no fragment during natural reading, so only the first
-    // matching segment would ever become active; siblings would visually skip on chapter
-    // transitions. Keep the first occurrence per base href so the rail shows one segment
-    // per spine resource.
+    val topLevelResults = preprocessed.mapIndexed { groupIndex, entry ->
+        val exposesSameFileSections = shouldExposeSameFileSections(entry)
+        val wasExpanded = exposesSameFileSections ||
+            shouldReplaceWithChildren(entry, bookTitleNorm, spineIndex, positionCounts)
+        val segments = if (wasExpanded) {
+            entry.children.flatMap { expandIfRedundant(it, bookTitleNorm, spineIndex, positionCounts) }
+        } else {
+            listOf(RailSegment(entry.title, entry.href))
+        }
+        TopLevelRailResult(
+            groupIndex = groupIndex,
+            wasExpanded = wasExpanded,
+            preserveFragmentSegments = exposesSameFileSections,
+            segments = segments,
+        )
+    }
+    // Hierarchy is a visual grouping signal. Same-file direct children are exposed as section
+    // segments above; other hierarchy may remain collapsed under the existing expansion rules.
+    val groupMode = topLevelResults.any { it.wasExpanded } ||
+        tocEntries.any { it.children.isNotEmpty() }
+    val expanded = topLevelResults.flatMap { result ->
+        result.segments.map { segment ->
+            segment.copy(groupIndex = result.groupIndex.takeIf { groupMode }) to
+                result.preserveFragmentSegments
+        }
+    }
+    // Flat/redundancy-generated entries that point to the same spine resource still collapse to
+    // the first base href. Intentional same-file section groups preserve their full fragment hrefs;
+    // locator progression resolves which one is active during natural reading.
     val seen = HashSet<String>(expanded.size)
-    return expanded.filter { seen.add(it.href.substringBefore('#')) }
+    return expanded.mapNotNull { (segment, preserveFragment) ->
+        val deduplicationKey = if (preserveFragment) segment.href else segment.href.substringBefore('#')
+        segment.takeIf { seen.add(deduplicationKey) }
+    }
+}
+
+private data class TopLevelRailResult(
+    val groupIndex: Int,
+    val wasExpanded: Boolean,
+    val preserveFragmentSegments: Boolean,
+    val segments: List<RailSegment>,
+)
+
+/**
+ * A normal Chapter → Section hierarchy often stores every section as an anchor in the chapter's
+ * single spine resource. These sections are intentional rail granularity: keep each fragment as a
+ * segment and let progression choose the active one.
+ */
+private fun shouldExposeSameFileSections(entry: TocEntry): Boolean {
+    if (entry.children.isEmpty()) return false
+    val parentBaseHref = entry.href.substringBefore('#')
+    return entry.children.all { child ->
+        child.href.substringBefore('#') == parentBaseHref
+    }
 }
 
 private fun expandIfRedundant(
@@ -176,7 +223,9 @@ private val NUMERIC_PREFIX = Regex("""^\s*(\d+)\s*[.)]\s+""")
 
 /** Shared spine-href → index lookup used by both the expand decision and the weight math. */
 private fun spineIndexOf(spineHrefs: List<String>): Map<String, Int> =
-    spineHrefs.withIndex().associate { (i, h) -> h to i }
+    spineHrefs.withIndex().associate { (i, h) -> normalizeEpubHref(h) to i }
+
+private fun hrefBase(href: String): String = normalizeEpubHref(href).substringBefore('#')
 
 private fun String.normalize(): String = trim().lowercase().replace(Regex("\\s+"), " ")
 
@@ -194,15 +243,25 @@ fun findActiveSegmentIndex(
     segments: List<RailSegment>,
     currentHref: String,
     spineHrefs: List<String> = emptyList(),
+    progression: Float? = null,
 ): Int {
     if (segments.isEmpty()) return 0
-    val exact = segments.indexOfFirst { it.href == currentHref }
+    val normalizedCurrentHref = normalizeEpubHref(currentHref)
+    val exact = segments.indexOfFirst { normalizeEpubHref(it.href) == normalizedCurrentHref }
     if (exact >= 0) return exact
-    val currentBase = currentHref.substringBefore('#')
-    val baseMatch = segments.indexOfFirst { it.href.substringBefore('#') == currentBase }
-    if (baseMatch >= 0) return baseMatch
+    val currentBase = hrefBase(currentHref)
+    val baseMatches = segments.indices.filter {
+        hrefBase(segments[it].href) == currentBase
+    }
+    if (baseMatches.size == 1) return baseMatches.first()
+    if (baseMatches.size > 1) {
+        val p = progression?.takeIf { it.isFinite() }?.coerceIn(0f, 1f)
+            ?: return baseMatches.first()
+        val offset = if (p >= 1f) baseMatches.lastIndex else minOf((p * baseMatches.size).toInt(), baseMatches.lastIndex)
+        return baseMatches[offset]
+    }
     if (spineHrefs.isEmpty()) return 0
-    val spineBases = spineHrefs.map { it.substringBefore('#') }
+    val spineBases = spineHrefs.map(::hrefBase)
     val currentSpineIndex = spineBases.indexOf(currentBase)
     if (currentSpineIndex < 0) return 0
     var bestSegIdx = -1
@@ -215,6 +274,28 @@ fun findActiveSegmentIndex(
         }
     }
     return if (bestSegIdx >= 0) bestSegIdx else 0
+}
+
+/**
+ * Convert resource-relative [progression] into progression within [activeIndex] when several
+ * section segments share the same spine resource.
+ */
+fun progressionWithinRailSegment(
+    segments: List<RailSegment>,
+    currentHref: String,
+    activeIndex: Int,
+    progression: Float,
+): Float {
+    val p = progression.coerceIn(0f, 1f)
+    val currentBase = hrefBase(currentHref)
+    val baseMatches = segments.indices.filter {
+        hrefBase(segments[it].href) == currentBase
+    }
+    if (baseMatches.size <= 1) return p
+    val offset = baseMatches.indexOf(activeIndex)
+    if (offset < 0) return p
+    if (p == 1f) return if (offset == baseMatches.lastIndex) 1f else 0f
+    return (p * baseMatches.size - offset).coerceIn(0f, 1f)
 }
 
 /**
@@ -232,7 +313,7 @@ fun weightSegmentsByChapterLength(
 ): List<RailSegment> {
     if (segments.isEmpty()) return segments
     val hrefToSpine = spineIndexOf(spineHrefs)
-    val spineForSegment: List<Int?> = segments.map { hrefToSpine[it.href.substringBefore('#')] }
+    val spineForSegment: List<Int?> = segments.map { hrefToSpine[hrefBase(it.href)] }
     // When multiple TOC entries point to the same spine resource (sub-sections of one file),
     // split that file's positions equally across them. When a TOC entry is the sole entry for
     // its resource, accumulate positions for ALL spine resources up to the next TOC entry —
@@ -301,6 +382,34 @@ fun weightedRailCursorPosition(
     for (k in 0 until i) cum += effective[k]
     val w = effective[i]
     return ((cum + progression.coerceIn(0f, 1f) * w) / totalWeight).coerceIn(0f, 1f)
+}
+
+/**
+ * Map a persisted bookmark's chapter-relative progression onto the weighted whole-book rail.
+ * Returns null only when there are no rail segments; unknown spine resources use
+ * [findActiveSegmentIndex]'s established fallback behavior.
+ */
+fun bookmarkRailPosition(
+    segments: List<RailSegment>,
+    chapterHref: String,
+    progression: Double,
+    spineHrefs: List<String> = emptyList(),
+): Float? {
+    if (segments.isEmpty()) return null
+    val resourceProgression = progression.toFloat()
+    val segmentIndex = findActiveSegmentIndex(
+        segments,
+        chapterHref,
+        spineHrefs,
+        progression = resourceProgression,
+    )
+    val segmentProgression = progressionWithinRailSegment(
+        segments,
+        chapterHref,
+        segmentIndex,
+        resourceProgression,
+    )
+    return weightedRailCursorPosition(segmentIndex, segments, segmentProgression)
 }
 
 /** Returns the segment index at horizontal pixel [x] for the weighted layout across [totalWidth]. */
