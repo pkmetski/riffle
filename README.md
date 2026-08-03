@@ -114,6 +114,7 @@ Riffle lets you browse your library, read EPUB, PDF, and CBZ files, listen to au
 - Cover grid with book details
 - Read/unread and "To Read" toggles
 - Full-text library search
+- Item detail screen shows personalized estimated reading time for EPUBs (based on learned reading speed) and discrete page count for PDFs
 
 ### Downloads & Offline
 - Download for offline reading, plus automatic caching on open
