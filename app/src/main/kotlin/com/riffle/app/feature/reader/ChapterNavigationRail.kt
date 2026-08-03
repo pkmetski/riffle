@@ -10,12 +10,54 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.riffle.core.domain.ReaderTheme
+import kotlin.math.roundToInt
+
+internal val CHAPTER_RAIL_GROUP_COLORS = listOf(
+    Color(0xFFE66100), // Vivid orange
+    Color(0xFF0072B2), // Strong blue
+    Color(0xFF009E73), // Bluish green
+    Color(0xFFCC3311), // Vermilion
+    Color(0xFFAA4499), // Purple
+    Color(0xFF00A6D6), // Cyan
+    Color(0xFFEE3377), // Magenta
+    Color(0xFFB8860B), // Dark amber
+)
+
+internal fun chapterRailUsesGroups(segments: List<RailSegment>): Boolean =
+    segments.any { it.groupIndex != null }
+
+internal fun chapterRailHeight(flatHeight: Dp): Dp =
+    flatHeight
+
+internal const val CHAPTER_RAIL_UNREAD_ALPHA = 0.35f
+internal val CHAPTER_RAIL_CURSOR_HALO_WIDTH = 4.dp
+internal val CHAPTER_RAIL_CURSOR_CORE_WIDTH = 2.dp
+
+internal fun chapterRailUsesColorProgress(
+    segments: List<RailSegment>,
+    coloredChapterMap: Boolean = true,
+): Boolean = coloredChapterMap && chapterRailUsesGroups(segments)
+
+internal fun chapterRailGroupColorIndex(groupIndex: Int): Int =
+    groupIndex % CHAPTER_RAIL_GROUP_COLORS.size
+
+internal fun chapterRailUnreadGroupColor(groupIndex: Int): Color =
+    CHAPTER_RAIL_GROUP_COLORS[chapterRailGroupColorIndex(groupIndex)]
+        .copy(alpha = CHAPTER_RAIL_UNREAD_ALPHA)
+
+internal fun chapterRailBookmarkXs(bookmarkPositions: List<Float>, totalWidth: Float): List<Float> =
+    bookmarkPositions.map { it.coerceIn(0f, 1f) * totalWidth }
+
+internal fun chapterRailProgressPercent(cursorPosition: Float): Int =
+    (cursorPosition.coerceIn(0f, 1f) * 100).roundToInt()
 
 @Composable
 fun ChapterNavigationRail(
@@ -24,8 +66,10 @@ fun ChapterNavigationRail(
     cursorPosition: Float,
     readerTheme: ReaderTheme,
     onSegmentClick: (RailSegment) -> Unit,
+    coloredChapterMap: Boolean = true,
+    bookmarkPositions: List<Float> = emptyList(),
     modifier: Modifier = Modifier,
-    railHeight: androidx.compose.ui.unit.Dp = 4.dp,
+    railHeight: Dp = 4.dp,
 ) {
     if (segments.isEmpty()) return
 
@@ -36,17 +80,24 @@ fun ChapterNavigationRail(
     val pageForeground = readerTheme.palette.foreground
     val barColor = pageForeground.copy(alpha = 0.30f)
     val fillColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.85f)
-    val cursorColor = MaterialTheme.colorScheme.primary
+    val cursorHaloColor = readerTheme.palette.background
+    val cursorColor = pageForeground
+    val bookmarkColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.90f)
 
     val activeTitle = segments.getOrNull(activeIndex)?.title ?: ""
     val clampedCursor = cursorPosition.coerceIn(0f, 1f)
+    val useColorProgress = chapterRailUsesColorProgress(segments, coloredChapterMap)
+    val effectiveRailHeight = chapterRailHeight(railHeight)
 
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .height(railHeight)
+            .height(effectiveRailHeight)
             .testTag("chapter_navigation_rail")
-            .semantics { contentDescription = "Active rail segment: $activeTitle" }
+            .semantics {
+                contentDescription =
+                    "Active rail segment: $activeTitle. Progress ${chapterRailProgressPercent(clampedCursor)}%"
+            }
             .pointerInput(segments) {
                 detectTapGestures { offset ->
                     val idx = railSegmentIndexAt(segments, offset.x, size.width.toFloat())
@@ -67,24 +118,71 @@ fun ChapterNavigationRail(
                         val w = (x1 - x0).coerceAtLeast(0f)
                         if (w <= 0f) return@forEachIndexed
 
-                        // Track for this chapter.
-                        drawRect(color = barColor, topLeft = Offset(x0, 0f), size = Size(w, size.height))
-
-                        // Continuous progress fill, clamped to this segment's span.
-                        if (fillX > x0) {
-                            val fw = (minOf(x1, fillX) - x0).coerceAtLeast(0f)
-                            if (fw > 0f) {
-                                drawRect(color = fillColor, topLeft = Offset(x0, 0f), size = Size(fw, size.height))
+                        if (useColorProgress) {
+                            val groupIndex = segments[i].groupIndex ?: 0
+                            val groupColor = CHAPTER_RAIL_GROUP_COLORS[
+                                chapterRailGroupColorIndex(groupIndex)
+                            ]
+                            // Keep unread sections identifiable by chapter color, but mute them
+                            // enough that the saturated read portion forms an unmistakable progress
+                            // bar without increasing the rail's approved 4dp height.
+                            drawRect(
+                                color = chapterRailUnreadGroupColor(groupIndex),
+                                topLeft = Offset(x0, 0f),
+                                size = Size(w, size.height),
+                            )
+                            if (fillX > x0) {
+                                val readWidth = (minOf(x1, fillX) - x0).coerceAtLeast(0f)
+                                if (readWidth > 0f) {
+                                    drawRect(
+                                        color = groupColor,
+                                        topLeft = Offset(x0, 0f),
+                                        size = Size(readWidth, size.height),
+                                    )
+                                }
+                            }
+                        } else {
+                            // Flat books retain the original track and continuous progress fill.
+                            drawRect(
+                                color = barColor,
+                                topLeft = Offset(x0, 0f),
+                                size = Size(w, size.height),
+                            )
+                            if (fillX > x0) {
+                                val fw = (minOf(x1, fillX) - x0).coerceAtLeast(0f)
+                                if (fw > 0f) {
+                                    drawRect(
+                                        color = fillColor,
+                                        topLeft = Offset(x0, 0f),
+                                        size = Size(fw, size.height),
+                                    )
+                                }
                             }
                         }
                     }
 
-                    // Cursor marking the exact reading position.
+                    chapterRailBookmarkXs(bookmarkPositions, size.width).forEach { bookmarkX ->
+                        drawLine(
+                            color = bookmarkColor,
+                            start = Offset(bookmarkX, 0f),
+                            end = Offset(bookmarkX, size.height),
+                            strokeWidth = 1.5.dp.toPx(),
+                        )
+                    }
+
+                    // A background-colored halo plus foreground core stays visible over every
+                    // chapter color and on all three reader themes.
+                    drawLine(
+                        color = cursorHaloColor,
+                        start = Offset(fillX, 0f),
+                        end = Offset(fillX, size.height),
+                        strokeWidth = CHAPTER_RAIL_CURSOR_HALO_WIDTH.toPx(),
+                    )
                     drawLine(
                         color = cursorColor,
                         start = Offset(fillX, 0f),
                         end = Offset(fillX, size.height),
-                        strokeWidth = 2.dp.toPx(),
+                        strokeWidth = CHAPTER_RAIL_CURSOR_CORE_WIDTH.toPx(),
                     )
                 }
             },

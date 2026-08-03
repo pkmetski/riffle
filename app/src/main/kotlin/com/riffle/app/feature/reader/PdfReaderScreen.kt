@@ -317,6 +317,7 @@ fun PdfReaderScreen(
         if (state is ReaderState.Ready && formattingPrefs.showChapterMap) {
             PdfChapterRailOverlay(
                 viewModel = viewModel,
+                coloredChapterMap = formattingPrefs.coloredChapterMap,
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
                     .fillMaxWidth(),
@@ -328,6 +329,7 @@ fun PdfReaderScreen(
 @Composable
 private fun PdfChapterRailOverlay(
     viewModel: PdfReaderViewModel,
+    coloredChapterMap: Boolean,
     modifier: Modifier = Modifier,
 ) {
     val railSegments by viewModel.railSegments.collectAsState()
@@ -347,6 +349,7 @@ private fun PdfChapterRailOverlay(
         // use Light as a neutral default that matches the typical PDF page background.
         readerTheme = ReaderTheme.Light,
         onSegmentClick = viewModel::navigateToSegment,
+        coloredChapterMap = coloredChapterMap,
         modifier = modifier,
     )
 }

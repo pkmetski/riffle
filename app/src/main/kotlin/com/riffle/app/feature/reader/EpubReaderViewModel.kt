@@ -3571,13 +3571,14 @@ class EpubReaderViewModel @Inject constructor(
     val activeRailSegmentIndex: StateFlow<Int> = combine(
         railSegments,
         currentLocatorHref,
+        currentLocatorProgression,
         state,
-    ) { segments, href, s ->
+    ) { segments, href, progression, s ->
         if (href == null) return@combine 0
         val spineHrefs = (s as? ReaderState.Ready)?.publication?.readingOrder
             ?.map { it.url().toString() }
             .orEmpty()
-        findActiveSegmentIndex(segments, href, spineHrefs)
+        findActiveSegmentIndex(segments, href, spineHrefs, progression)
     }.stateIn(viewModelScope, SharingStarted.Eagerly, 0)
 
     // Cursor position within the rail (0..1). Driven by totalProgression (monotonically
@@ -3605,6 +3606,21 @@ class EpubReaderViewModel @Inject constructor(
         }
         weightedRailCursorPosition(i, segments, withinSeg)
     }.stateIn(viewModelScope, SharingStarted.Eagerly, 0f)
+
+    val bookmarkRailPositions: StateFlow<List<Float>> = combine(
+        bookmarks.bookmarkPositions,
+        railSegments,
+        spinePositionCounts,
+    ) { bookmarkPositions, segments, (spineHrefs, _) ->
+        bookmarkPositions.mapNotNull { bookmark ->
+            bookmarkRailPosition(
+                segments = segments,
+                chapterHref = bookmark.chapterHref,
+                progression = bookmark.progression,
+                spineHrefs = spineHrefs,
+            )
+        }
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     // ---- Time-remaining estimates -------------------------------------------------------------
     // Reading-speed tracking now lives in [readingSessionCoordinator]; the time-remaining

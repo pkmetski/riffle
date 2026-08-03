@@ -35,7 +35,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         PlaylistEntity::class,
         PlaylistItemEntity::class,
     ],
-    version = 61,
+    version = 62,
     exportSchema = true,
 )
 abstract class RiffleDatabase : RoomDatabase() {
@@ -1674,6 +1674,17 @@ abstract class RiffleDatabase : RoomDatabase() {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL(
                     "ALTER TABLE `local_file_metadata_overrides` ADD COLUMN `coverUrl` TEXT"
+                )
+            }
+        }
+
+        // Optional colored chapter-map rendering. NULL keeps existing per-book rows following the
+        // global preference, whose default is enabled for backward-compatible visuals.
+        val MIGRATION_61_62 = object : Migration(61, 62) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "ALTER TABLE `book_formatting_preferences` " +
+                        "ADD COLUMN `coloredChapterMap` INTEGER"
                 )
             }
         }

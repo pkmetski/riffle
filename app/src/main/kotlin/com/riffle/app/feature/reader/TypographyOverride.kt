@@ -84,6 +84,7 @@ internal val EXCLUDED_FROM_TYPOGRAPHY_OVERRIDES: Map<String, String> = mapOf(
     "orientation" to "Layout/scroll mode, not a CSS property.",
     "doublePageSpread" to "Column-count layout mode, handled by RsProperties at fragment-creation time.",
     "showChapterMap" to "UI affordance outside the reader content; no CSS implication.",
+    "coloredChapterMap" to "Chapter-map rendering style outside the reader content; no CSS implication.",
     "showReadingProgressLabels" to "UI affordance outside the reader content; no CSS implication.",
     "showCurrentChapterLabel" to "UI affordance outside the reader content; no CSS implication.",
     "showReadingTimeEstimate" to "UI affordance outside the reader content; no CSS implication.",

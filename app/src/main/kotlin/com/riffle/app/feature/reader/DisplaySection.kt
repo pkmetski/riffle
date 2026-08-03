@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
@@ -17,6 +18,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import com.riffle.app.feature.reader.formatting.RenderCapabilities
 import com.riffle.core.domain.FormattingPreferences
@@ -125,6 +127,14 @@ fun DisplaySection(
         Text("On-screen info", style = MaterialTheme.typography.labelMedium)
         Spacer(Modifier.height(4.dp))
         ToggleRow("Chapter map", prefs.showChapterMap) { onPrefsChange(prefs.copy(showChapterMap = it)) }
+        ToggleRow(
+            label = "Colored chapter map",
+            checked = prefs.coloredChapterMap,
+            enabled = prefs.showChapterMap,
+            modifier = Modifier.padding(start = 16.dp),
+            testTag = "colored_chapter_map_toggle",
+            onChange = { onPrefsChange(prefs.copy(coloredChapterMap = it)) },
+        )
         if (capabilities.supportsPositionOverlays) {
             ToggleRow("Current chapter label", prefs.showCurrentChapterLabel) { onPrefsChange(prefs.copy(showCurrentChapterLabel = it)) }
             ToggleRow("Reading progress labels", prefs.showReadingProgressLabels) { onPrefsChange(prefs.copy(showReadingProgressLabels = it)) }
@@ -134,9 +144,26 @@ fun DisplaySection(
 }
 
 @Composable
-private fun ToggleRow(label: String, checked: Boolean, onChange: (Boolean) -> Unit) {
-    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+private fun ToggleRow(
+    label: String,
+    checked: Boolean,
+    enabled: Boolean = true,
+    modifier: Modifier = Modifier,
+    testTag: String? = null,
+    onChange: (Boolean) -> Unit,
+) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = modifier
+            .fillMaxWidth()
+            .alpha(if (enabled) 1f else 0.38f),
+    ) {
         Text(label, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
-        Switch(checked = checked, onCheckedChange = onChange)
+        Switch(
+            checked = checked,
+            onCheckedChange = onChange,
+            enabled = enabled,
+            modifier = testTag?.let { Modifier.testTag(it) } ?: Modifier,
+        )
     }
 }

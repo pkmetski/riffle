@@ -105,6 +105,16 @@ class FormattingPreferencesStoreTest {
     }
 
     @Test
+    fun `colored chapter map defaults on and round-trips through DataStore`() = testScope.runTest {
+        val store = buildStore()
+        assertEquals(true, store.preferences.first().coloredChapterMap)
+
+        store.update(FormattingPreferences(coloredChapterMap = false))
+
+        assertEquals(false, store.preferences.first().coloredChapterMap)
+    }
+
+    @Test
     fun `saved justifyText is returned after update`() = testScope.runTest {
         val store = buildStore()
         store.update(FormattingPreferences(justifyText = false))

@@ -2,7 +2,7 @@
 
 **Date:** 2026-07-27
 **Branch:** pkmetski/chapter-map-colored-sections
-**Status:** Approved, ready for implementation
+**Status:** Approved and implemented
 
 ---
 
@@ -10,14 +10,19 @@
 
 Extend the chapter-map rail (`ChapterNavigationRail`) with two new capabilities:
 
-1. **Parent-chapter color groups** — when a book's TOC has hierarchy (e.g. Part I → chapters, Part II → chapters), each top-level group's rail segments are painted a distinct muted color. Books with a flat TOC keep the current single-color behavior unchanged.
-2. **Bookmark markers** — thin vertical tick marks at each bookmark's rail position, drawn on top of the fill band.
+1. **Parent-chapter color groups** — when a book's TOC has Chapter → Section hierarchy, each section becomes a rail segment and inherits a distinct muted color from its parent chapter. Books with a flat TOC keep the current single-color behavior unchanged.
+2. **Bookmark markers** — thin vertical tick marks at each bookmark's rail position, drawn on top of the rail.
 
 ---
 
 ## Mode Detection: Group vs. Flat
 
-A book enters **group mode** when at least one top-level `TocEntry` was expanded into its children by `buildRailSegments` (i.e. `shouldReplaceWithChildren` returned `true` for it). If the entire TOC is flat — every top-level entry is a leaf — the rail stays in **flat mode** (current behavior, no changes).
+A book enters **group mode** when the source TOC has hierarchy — at least one top-level
+`TocEntry` has children — or when preprocessing creates a container that
+`buildRailSegments` expands. Ordinary Chapter → same-file Section TOCs expose every direct
+section as a rail segment, preserving fragment hrefs that the flat rail historically
+deduplicated. If the entire TOC is flat — every top-level entry is a leaf — the rail stays in
+**flat mode** (current behavior, no changes).
 
 Once group mode is active, **all** top-level entries receive a group index, including standalone ones like a "Preface" that was not itself expanded. This keeps the coloring consistent across the whole rail.
 
@@ -34,37 +39,41 @@ Once group mode is active, **all** top-level entries receive a group index, incl
 
 ### Group mode (new)
 ```
-┌─────── 3dp ───────┐  top strip — group color band
-│  [Part I color]   │  [Part II color]  │  ...
-├─────── 3dp ───────┤  bottom strip — progress fill
-│  primary@85% fill │  foreground@30% track
-└───────────────────┘
-  ▲ bookmark ticks: 1.5dp wide, full 6dp height
+┌──────────────────────── 4dp ────────────────────────┐
+│ [chapter 1 sections] │ [chapter 2 sections] │ ... │
+└─────────────────────────────────────────────────────┘
+  ▲ bookmark ticks: 1.5dp wide, full 4dp height
 ```
 
-Total rail height in group mode: **6dp** (up from 4dp).
+Total rail height in group mode remains **4dp**, identical to the existing chapter map.
 
-- **Top strip** (3dp): filled with the group's color at 70% alpha across the full segment width. Existing inter-segment gaps apply as before (2.5dp punched between segments).
-- **Bottom strip** (3dp): progress fill (`primary@85%`) up to the cursor x; unread portion (`foreground@30%`). This is the current strip's coloring, confined to the lower 3dp.
-- **Cursor line**: full 6dp height, `primary@100%`, 2dp wide — unchanged.
-- **Bookmark ticks**: drawn after fill, before cursor. `primary@90%` alpha, 1.5dp wide, spanning full rail height.
+- **Section segments**: each section is filled full-height with its parent chapter's group color. The read portion is 100% opaque and the unread portion retains the same hue at 35% opacity, producing a strong whole-book progress boundary without adding a second strip. Existing inter-segment gaps apply as before (2.5dp punched between segments).
+- **Cursor line**: full 4dp height with a 4dp page-background halo and a 2dp page-foreground core, so the exact position remains visible over every group color and reader theme.
+- **Bookmark ticks**: drawn after section colors, before cursor. `primary@90%` alpha, 1.5dp wide, spanning full rail height.
+
+The rail semantics also announce the rounded whole-book progress percentage alongside the active section title.
+
+Color grouping is controlled by **Display → Chapter map → Colored chapter map**. It defaults on.
+Turning it off restores the neutral chapter-map track and primary progress fill while preserving
+section boundaries, bookmark ticks, and the high-contrast cursor. The color toggle is disabled and
+visually muted whenever Chapter map itself is off.
 
 ---
 
 ## Color Palette
 
-Eight muted, mid-lightness colors cycling when there are more than 8 groups. All work visually at 70% alpha on both white (Light/Sepia) and black (Dark) reader backgrounds:
+Eight vivid, high-contrast, color-blind-friendly colors cycle when there are more than 8 groups. They render at full opacity so chapter groups remain legible for low-vision readers instead of blending into the page:
 
-| Index | Hex       | Name         |
-|-------|-----------|--------------|
-| 0     | `#B4634A` | Terracotta   |
-| 1     | `#5B7FA6` | Slate blue   |
-| 2     | `#5A8A6A` | Sage green   |
-| 3     | `#9B6B9B` | Dusty purple |
-| 4     | `#8B7355` | Warm brown   |
-| 5     | `#4A8B8B` | Teal         |
-| 6     | `#A67C52` | Amber        |
-| 7     | `#7B6B8B` | Mauve        |
+| Index | Hex       | Name          |
+|-------|-----------|---------------|
+| 0     | `#E66100` | Vivid orange  |
+| 1     | `#0072B2` | Strong blue   |
+| 2     | `#009E73` | Bluish green  |
+| 3     | `#CC3311` | Vermilion     |
+| 4     | `#AA4499` | Purple        |
+| 5     | `#00A6D6` | Cyan          |
+| 6     | `#EE3377` | Magenta       |
+| 7     | `#B8860B` | Dark amber    |
 
 Group index → palette index: `groupIndex % GROUP_COLORS.size`.
 
@@ -82,10 +91,11 @@ data class RailSegment(
 )
 ```
 
-`null` means flat mode (no top-level expansion occurred). `0..N` is the index of the top-level TocEntry this segment descended from.
+`null` means flat mode (no source hierarchy and no top-level expansion occurred). `0..N` is the index of the top-level TocEntry this segment descended from.
 
 ### Group mode detection
-After `buildRailSegments` runs, group mode is active when `segments.any { it.groupIndex != null }`.
+After `buildRailSegments` runs, group mode is active when
+`segments.any { it.groupIndex != null }`.
 
 ---
 
@@ -97,15 +107,22 @@ Add `groupIndex: Int? = null`.
 ### 2. `RailSegmentGenerator.kt` — `buildRailSegments`
 Thread group index through the recursion:
 - Iterate top-level `TocEntry` items with their index.
-- If `expandIfRedundant` expands the entry (returns multiple children), pass `groupIndex = topLevelIndex` to all resulting segments.
-- If `expandIfRedundant` does NOT expand (single leaf result), pass `groupIndex = topLevelIndex` only when at least one sibling top-level entry was expanded; otherwise leave `null`.
-- Implementation: change the return type of `expandIfRedundant` to carry the group index, or do a two-pass approach: first run current logic, then annotate group indices based on which top-level entries had >1 resulting segment OR had any of their children expanded.
+- When all direct children share the parent's spine resource, expose those same-file fragment
+  sections as separate rail segments and preserve each full fragment href.
+- If `expandIfRedundant` expands the entry, pass `groupIndex = topLevelIndex` to all resulting segments.
+- If `expandIfRedundant` does NOT expand (single parent result), pass
+  `groupIndex = topLevelIndex` when the source TOC has any top-level hierarchy or a sibling
+  was expanded; otherwise leave `null`.
+- Implementation: change the return type of `expandIfRedundant` to carry the group index, or do a two-pass approach: first run current logic, then annotate group indices using source hierarchy and expansion results.
 
 Two-pass is simpler and keeps `expandIfRedundant` signature unchanged:
   1. Run existing `buildRailSegments` to get the flat list (no group info yet).
-  2. For each top-level TocEntry, find which resulting segments' hrefs are descendants of it.
-  3. If any top-level entry contributed >1 segment (was expanded), mark all top-level entries' segments with their group index.
-  4. If every top-level entry contributed exactly 1 segment, leave all `groupIndex = null`.
+  2. For each top-level TocEntry, expose direct same-file sections or run the existing
+     redundancy-expansion rules.
+  3. If the source TOC has top-level hierarchy, or any top-level entry was expanded, mark all
+     top-level entries' segments with their group index.
+  4. Only when the source TOC is flat and no entry was expanded, leave all
+     `groupIndex = null`.
 
 ### 3. `ChapterNavigationRail.kt`
 New parameters:
@@ -118,13 +135,14 @@ fun ChapterNavigationRail(
     onSegmentClick: (RailSegment) -> Unit,
     bookmarkPositions: List<Float> = emptyList(),   // new: pre-computed 0..1 rail fractions
     modifier: Modifier = Modifier,
-    railHeight: Dp = 4.dp,                          // unchanged default; group mode overrides internally
+    railHeight: Dp = 4.dp,                          // unchanged in both modes
 )
 ```
 
 Drawing logic:
 - Detect group mode: `val groupMode = segments.any { it.groupIndex != null }`.
-- If `groupMode`: `effectiveHeight = 6.dp`; draw top strip (group colors) + bottom strip (progress). Otherwise draw single strip as today.
+- If `groupMode`: draw each section full-height with its parent group's color. Otherwise draw
+  the existing flat track and progress fill.
 - Draw bookmark ticks last before cursor.
 
 ### 4. `EpubReaderViewModel.kt`
@@ -138,9 +156,17 @@ bookmarkRailPositions = combine(
     bookmarksController.bookmarkPositions, railSegments, spineHrefs
 ) { bookmarks, segments, spineHrefs ->
     bookmarks.mapNotNull { bm ->
-        val idx = findActiveSegmentIndex(segments, bm.chapterHref, spineHrefs)
+        val idx = findActiveSegmentIndex(
+            segments, bm.chapterHref, spineHrefs, bm.progression.toFloat()
+        )
         if (idx < 0) null
-        else weightedRailCursorPosition(idx, segments, bm.progression.toFloat())
+        else weightedRailCursorPosition(
+            idx,
+            segments,
+            progressionWithinRailSegment(
+                segments, bm.chapterHref, idx, bm.progression.toFloat()
+            ),
+        )
     }
 }.stateIn(...)
 ```
@@ -158,8 +184,8 @@ No changes. `PdfTocEntry` is flat (no children field), so `buildPdfRailSegments`
 | Scenario | Behavior |
 |---|---|
 | Flat TOC (all top-level = leaves) | Flat mode: current 4dp single-strip, no colors |
-| 3-level book (Part → Chapter → Section) | Group = top-level (Part). Sections from the same Part share its color, regardless of how deep expansion goes. |
-| Single top-level entry (entire book is one Part) | Expanded children all get groupIndex=0 (one color). Visually a single-color rail, identical to current behavior effectively, but in group mode shape (6dp). |
+| Chapter → same-file Sections | Every direct section is a distinct segment; all siblings share the chapter color |
+| Single parent chapter | Its sections all get `groupIndex=0` and share one color at the normal 4dp height |
 | >8 groups | Colors cycle: `groupIndex % 8`. |
 | Bookmark in a spine resource with no TOC entry | `findActiveSegmentIndex` already handles this (falls back to last segment before the current spine position). Bookmark tick lands there. |
 | No bookmarks | `bookmarkPositions` is empty list; no ticks drawn. |
@@ -172,8 +198,8 @@ No changes. `PdfTocEntry` is flat (no children field), so `buildPdfRailSegments`
 |---|---|
 | `app/.../reader/RailSegment.kt` | Add `groupIndex: Int?` |
 | `app/.../reader/RailSegmentGenerator.kt` | Thread + assign group indices in `buildRailSegments` |
-| `app/.../reader/ChapterNavigationRail.kt` | Group-mode two-strip layout + bookmark ticks |
-| `app/.../reader/EpubReaderViewModel.kt` | Expose `bookmarkRailPositions: StateFlow<List<Float>>` |
+| `app/.../reader/ChapterNavigationRail.kt` | Full-height section colors + bookmark ticks |
+| `app/.../reader/EpubReaderViewModel.kt` | Progression-aware active sections + `bookmarkRailPositions` |
 | `app/.../reader/EpubReaderScreen.kt` | Pass bookmark positions to rail overlay |
 | Tests: `RailSegmentGeneratorTest.kt` | Cases for group index assignment, flat fallback |
 | Tests: `ChapterNavigationRailTest.kt` (if exists) or new | Verify group/flat draw path (Compose screenshot or unit) |

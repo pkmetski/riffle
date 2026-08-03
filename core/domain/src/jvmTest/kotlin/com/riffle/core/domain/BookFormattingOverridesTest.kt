@@ -33,6 +33,23 @@ class BookFormattingOverridesTest {
         assertFalse(BookFormattingOverrides(fontSize = 1.3f).isEmpty)
         assertFalse(BookFormattingOverrides(justifyText = true).isEmpty)
         assertFalse(BookFormattingOverrides(showCurrentChapterLabel = true).isEmpty)
+        assertFalse(BookFormattingOverrides(coloredChapterMap = false).isEmpty)
+    }
+
+    @Test
+    fun `colored chapter map follows global unless overridden and records changes`() {
+        assertTrue(BookFormattingOverrides().applyTo(global).coloredChapterMap)
+        assertFalse(
+            BookFormattingOverrides(coloredChapterMap = false)
+                .applyTo(global)
+                .coloredChapterMap,
+        )
+
+        val updated = BookFormattingOverrides().withChanges(
+            previous = global,
+            new = global.copy(coloredChapterMap = false),
+        )
+        assertEquals(false, updated.coloredChapterMap)
     }
 
     @Test

@@ -129,4 +129,20 @@ class BookFormattingPreferencesStoreScopeIsolationTest {
             store.load("item-1", FormattingScope.Highlights).fontSize,
         )
     }
+
+    @Test
+    fun `colored chapter map override round-trips for a book`() = runTest {
+        val store = newStore()
+
+        store.save(
+            "item-1",
+            FormattingScope.FullBook,
+            BookFormattingOverrides(coloredChapterMap = false),
+        )
+
+        assertEquals(
+            false,
+            store.load("item-1", FormattingScope.FullBook).coloredChapterMap,
+        )
+    }
 }
