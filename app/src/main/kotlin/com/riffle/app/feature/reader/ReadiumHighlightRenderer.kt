@@ -61,6 +61,7 @@ internal class ReadiumHighlightRenderer(
             style = HighlightTintStyle(tint = color.argb),
         )
         applyDecorationsWithClear(listOf(decoration), "readaloud")
+        adjustHighlightLeading()
         hasSentenceDecoration = true
     }
 
@@ -118,6 +119,7 @@ internal class ReadiumHighlightRenderer(
         // pageLoadGeneration, LaunchedEffect keys the same renders) would keep the stale pre-reflow
         // rects until the 400ms settle tick fires. Matches [applySentenceHighlight]'s pre-clear semantics.
         applyDecorationsWithClear(decorations, "annotations")
+        adjustHighlightLeading()
         hasAnnotationDecorations = true
         // ADR 0046: layered emphasis paints via companion decorations. Underline uses Readium's
         // built-in Style.Underline; strike/bold/italic v1 render as tinted overlays (bold + italic
@@ -182,6 +184,11 @@ internal class ReadiumHighlightRenderer(
     private suspend fun applyDecorationsWithClear(decorations: List<Decoration>, group: String) {
         applyDecorationsBlock(emptyList(), group)
         applyDecorationsBlock(decorations, group)
+    }
+
+    /** Expand Readium's tight DOM-range boxes to Android-selection-style full line bands. */
+    private suspend fun adjustHighlightLeading() {
+        evaluateJavascript?.invoke(readiumHighlightLeadingAdjustmentJs())
     }
 
     /**

@@ -58,9 +58,113 @@ internal fun highlightInlineStyle(cssColor: String): String =
     "background:$cssColor$HIGHLIGHT_INLINE_STYLE_SUFFIX"
 
 /**
- * Template for [HighlightTintStyle]. Geometry mirrors Readium's built-in highlight (BOXES layout,
- * 1px horizontal padding, 3px corner radius) so positioning is unchanged; the only difference is the
- * fill opacity comes from the tint's alpha channel rather than a fixed value.
+ * Installs the two geometry functions used by the Readium-overlay and continuous-`<mark>` paths.
+ *
+ * Android's native selection paint covers the full CSS line box. DOM range rectangles and inline
+ * backgrounds only cover the text box, leaving the line-leading transparent. The missing leading
+ * is `computed line-height - painted rect height`; splitting it above and below makes adjacent
+ * highlight bands meet exactly without changing text layout.
+ */
+internal val HIGHLIGHT_LEADING_ADJUSTMENT_HELPER_JS: String = """
+    (function() {
+      var lineHeightOf = function(element) {
+        var target = element || document.body || document.documentElement;
+        var style = window.getComputedStyle(target);
+        var lineHeight = parseFloat(style.lineHeight);
+        if (!isFinite(lineHeight)) {
+          var fontSize = parseFloat(style.fontSize);
+          lineHeight = (isFinite(fontSize) ? fontSize : 16) * 1.2;
+        }
+        return lineHeight;
+      };
+
+      window.__riffleFillInlineHighlightLeading = function(mark) {
+        if (!mark) return;
+        // Existing marks are recoloured by replacing cssText. Always remeasure from an unpadded
+        // inline box so repeat applications cannot compound the previous adjustment.
+        mark.style.removeProperty('padding-top');
+        mark.style.removeProperty('padding-bottom');
+        var rects = mark.getClientRects();
+        if (!rects || rects.length === 0) return;
+        var leading = Math.max(0, lineHeightOf(mark) - rects[0].height);
+        var half = leading / 2;
+        mark.style.setProperty('padding-top', half + 'px', 'important');
+        mark.style.setProperty('padding-bottom', half + 'px', 'important');
+        mark.style.setProperty('-webkit-box-decoration-break', 'clone');
+        mark.style.setProperty('box-decoration-break', 'clone');
+      };
+
+      window.__riffleFillReadiumHighlightLeading = function() {
+        var boxes = document.querySelectorAll('.$HIGHLIGHT_TINT_CLASS');
+        Array.prototype.forEach.call(boxes, function(box) {
+          var baseTop = parseFloat(box.getAttribute('data-riffle-base-top'));
+          var baseHeight = parseFloat(box.getAttribute('data-riffle-base-height'));
+          if (!isFinite(baseTop) || !isFinite(baseHeight)) {
+            baseTop = parseFloat(box.style.top);
+            baseHeight = parseFloat(box.style.height);
+            if (!isFinite(baseTop) || !isFinite(baseHeight)) return;
+            box.setAttribute('data-riffle-base-top', baseTop);
+            box.setAttribute('data-riffle-base-height', baseHeight);
+          }
+
+          // Reset before probing so a repeat apply measures the original Readium range box.
+          box.style.top = baseTop + 'px';
+          box.style.height = baseHeight + 'px';
+          var rect = box.getBoundingClientRect();
+          var source = null;
+          var x = rect.left + Math.min(Math.max(rect.width / 2, 1), Math.max(rect.width - 1, 1));
+          var y = rect.top + rect.height / 2;
+          if (x >= 0 && x < window.innerWidth && y >= 0 && y < window.innerHeight) {
+            // Decoration containers are pointer-events:none, so this resolves the source text
+            // underneath the overlay rather than the overlay itself.
+            source = document.elementFromPoint(x, y);
+          }
+          var lineHeight = lineHeightOf(source);
+          if (lineHeight <= baseHeight && box.parentNode) {
+            // A short final line's centre can fall beyond the paragraph's painted content, making
+            // elementFromPoint return body/html. Infer its line-height from the nearest sibling
+            // box's original top instead. The 1.5x ceiling excludes paragraph/page breaks.
+            var nearestAdvance = Infinity;
+            var siblings = box.parentNode.querySelectorAll('.$HIGHLIGHT_TINT_CLASS');
+            Array.prototype.forEach.call(siblings, function(sibling) {
+              if (sibling === box) return;
+              var siblingTop = parseFloat(sibling.getAttribute('data-riffle-base-top'));
+              if (!isFinite(siblingTop)) siblingTop = parseFloat(sibling.style.top);
+              var advance = Math.abs(siblingTop - baseTop);
+              if (advance > 0.5 && advance <= baseHeight * 1.5 && advance < nearestAdvance) {
+                nearestAdvance = advance;
+              }
+            });
+            if (isFinite(nearestAdvance)) lineHeight = nearestAdvance;
+          }
+          var leading = Math.max(0, lineHeight - baseHeight);
+          var half = leading / 2;
+          box.style.top = (baseTop - half) + 'px';
+          box.style.height = (baseHeight + leading) + 'px';
+        });
+        return boxes.length;
+      };
+    })();
+""".trimIndent()
+
+/** Runs after Readium's own requestAnimationFrame has materialised the fixed decoration boxes. */
+internal fun readiumHighlightLeadingAdjustmentJs(): String = """
+    $HIGHLIGHT_LEADING_ADJUSTMENT_HELPER_JS
+    (function() {
+      var attempts = 0;
+      var adjust = function() {
+        var count = window.__riffleFillReadiumHighlightLeading();
+        if (count === 0 && attempts++ < 3) window.setTimeout(adjust, 16);
+      };
+      if (window.requestAnimationFrame) window.requestAnimationFrame(adjust);
+      else window.setTimeout(adjust, 0);
+    })();
+""".trimIndent()
+
+/**
+ * Template for [HighlightTintStyle]. Readium creates one fixed box per DOM range rectangle; the
+ * post-apply [readiumHighlightLeadingAdjustmentJs] expands those boxes to the full line-height.
+ * Fill opacity comes from the tint's alpha channel rather than Readium's fixed value.
  */
 fun highlightTintTemplate(): HtmlDecorationTemplate =
     HtmlDecorationTemplate(
@@ -71,9 +175,9 @@ fun highlightTintTemplate(): HtmlDecorationTemplate =
         },
         stylesheet = """
             .$HIGHLIGHT_TINT_CLASS {
-                margin: -1px -1px 0 0;
+                margin: 0 -1px 0 0;
                 padding: 0 2px 0 0;
-                border-radius: 3px;
+                border-radius: 0;
                 box-sizing: border-box;
             }
         """.trimIndent(),
