@@ -37,9 +37,11 @@ internal fun chapterRailUsesGroups(segments: List<RailSegment>): Boolean =
 internal fun chapterRailHeight(flatHeight: Dp): Dp =
     flatHeight
 
-internal const val CHAPTER_RAIL_UNREAD_ALPHA = 0.35f
+internal const val CHAPTER_RAIL_UNREAD_ALPHA = 0.5f
 internal val CHAPTER_RAIL_CURSOR_HALO_WIDTH = 4.dp
 internal val CHAPTER_RAIL_CURSOR_CORE_WIDTH = 2.dp
+internal val CHAPTER_RAIL_BOOKMARK_DOT_RADIUS = 2.5.dp
+internal val CHAPTER_RAIL_BOOKMARK_HALO_RADIUS = 4.dp
 
 internal fun chapterRailUsesColorProgress(
     segments: List<RailSegment>,
@@ -82,7 +84,7 @@ fun ChapterNavigationRail(
     val fillColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.85f)
     val cursorHaloColor = readerTheme.palette.background
     val cursorColor = pageForeground
-    val bookmarkColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.90f)
+    val bookmarkColor = MaterialTheme.colorScheme.primary
 
     val activeTitle = segments.getOrNull(activeIndex)?.title ?: ""
     val clampedCursor = cursorPosition.coerceIn(0f, 1f)
@@ -161,12 +163,20 @@ fun ChapterNavigationRail(
                         }
                     }
 
+                    // Bookmarks are round dots, not vertical ticks — a thin line reads as just
+                    // another chapter-boundary gap on the 4dp rail. The background-colored halo
+                    // separates the dot from whatever segment color sits underneath.
                     chapterRailBookmarkXs(bookmarkPositions, size.width).forEach { bookmarkX ->
-                        drawLine(
+                        val center = Offset(bookmarkX, size.height / 2f)
+                        drawCircle(
+                            color = cursorHaloColor,
+                            radius = CHAPTER_RAIL_BOOKMARK_HALO_RADIUS.toPx(),
+                            center = center,
+                        )
+                        drawCircle(
                             color = bookmarkColor,
-                            start = Offset(bookmarkX, 0f),
-                            end = Offset(bookmarkX, size.height),
-                            strokeWidth = 1.5.dp.toPx(),
+                            radius = CHAPTER_RAIL_BOOKMARK_DOT_RADIUS.toPx(),
+                            center = center,
                         )
                     }
 

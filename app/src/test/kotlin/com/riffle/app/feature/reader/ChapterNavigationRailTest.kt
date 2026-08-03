@@ -32,8 +32,11 @@ class ChapterNavigationRailTest {
         assertEquals(4.dp, chapterRailHeight(4.dp))
         assertTrue(chapterRailUsesColorProgress(segments))
         assertFalse(chapterRailUsesColorProgress(segments, coloredChapterMap = false))
+        // 0.5f (bumped from the original 0.35f) keeps unread chapters clearly colored while the
+        // fully-saturated read portion still reads as the progress fill.
+        assertEquals(0.5f, CHAPTER_RAIL_UNREAD_ALPHA)
         assertEquals(
-            Color(0xFFE66100).copy(alpha = 0.35f),
+            Color(0xFFE66100).copy(alpha = 0.5f),
             chapterRailUnreadGroupColor(groupIndex = 0),
         )
         assertEquals(4.dp, CHAPTER_RAIL_CURSOR_HALO_WIDTH)
@@ -59,6 +62,16 @@ class ChapterNavigationRailTest {
         assertEquals(7, chapterRailGroupColorIndex(7))
         assertEquals(0, chapterRailGroupColorIndex(8))
         assertEquals(3, chapterRailGroupColorIndex(11))
+    }
+
+    @Test
+    fun `bookmark markers are haloed dots larger than the rail half-height`() {
+        // A dot must be distinct from the 1-ish-dp vertical chapter-boundary gaps: its radius
+        // exceeds the 2dp rail half-height so it bulges out of the 4dp strip, and the halo ring
+        // is wider still so the dot never blends into a same-hue segment underneath.
+        assertEquals(2.5.dp, CHAPTER_RAIL_BOOKMARK_DOT_RADIUS)
+        assertEquals(4.dp, CHAPTER_RAIL_BOOKMARK_HALO_RADIUS)
+        assertTrue(CHAPTER_RAIL_BOOKMARK_HALO_RADIUS > CHAPTER_RAIL_BOOKMARK_DOT_RADIUS)
     }
 
     @Test
