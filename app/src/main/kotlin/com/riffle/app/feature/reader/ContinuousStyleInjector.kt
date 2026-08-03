@@ -335,6 +335,7 @@ internal object ContinuousStyleInjector {
         // Colors are machine-generated CSS rgba() strings — no quote escaping needed.
         return """
             $SAFE_WRAP_HELPER_JS
+            $HIGHLIGHT_LEADING_ADJUSTMENT_HELPER_JS
             (function(texts,inactiveCss,activeT,activeProg,activeCss) {
                 var sel = window.getSelection();
                 var seen = {};
@@ -383,6 +384,7 @@ internal object ContinuousStyleInjector {
                             sel.removeAllRanges(); sel.addRange(skipR);
                             continue;
                         }
+                        window.__riffleFillInlineHighlightLeading(mark);
                         var advance = document.createRange();
                         advance.setStartAfter(mark); advance.collapse(true);
                         sel.removeAllRanges(); sel.addRange(advance);
@@ -406,6 +408,7 @@ internal object ContinuousStyleInjector {
                         best.setAttribute('data-riffle-sa', '');
                         best.removeAttribute('data-riffle-si');
                         best.style.cssText = 'background:' + activeCss + '$HIGHLIGHT_INLINE_STYLE_SUFFIX';
+                        window.__riffleFillInlineHighlightLeading(best);
                     }
                 }
                 if (sel) sel.removeAllRanges();
@@ -468,6 +471,7 @@ internal object ContinuousStyleInjector {
         val safeSvgUri = NOTE_GLYPH_SVG_DATA_URI.replace("'", "\\'")
         return """
             $SAFE_WRAP_HELPER_JS
+            $HIGHLIGHT_LEADING_ADJUSTMENT_HELPER_JS
             (function(anns) {
                 var SVG_URI = '$safeSvgUri';
                 // ADR 0046: build the extra inline CSS the emphasis set contributes to a mark's
@@ -624,7 +628,10 @@ internal object ContinuousStyleInjector {
                     // per block. Update colour in-place across all of them and skip relocation.
                     var existingAll = document.querySelectorAll('[data-riffle-ann="' + ann.id + '"]');
                     if (existingAll.length > 0) {
-                        existingAll.forEach(function(m) { m.style.cssText = 'background:' + ann.c + '$HIGHLIGHT_INLINE_STYLE_SUFFIX' + emphasisStyle(ann.e); });
+                        existingAll.forEach(function(m) {
+                            m.style.cssText = 'background:' + ann.c + '$HIGHLIGHT_INLINE_STYLE_SUFFIX' + emphasisStyle(ann.e);
+                            window.__riffleFillInlineHighlightLeading(m);
+                        });
                         var eg = document.querySelector('[data-riffle-note-glyph="' + ann.id + '"]');
                         // Highlights mode (ann.s === 1) suppresses the note glyph: the glyph would
                         // overlap the accent-bar tap span in the left gutter and swallow taps that
@@ -650,6 +657,7 @@ internal object ContinuousStyleInjector {
                         mark.setAttribute('data-riffle-ann', ann.id);
                         mark.style.cssText = 'background:' + ann.c + '$HIGHLIGHT_INLINE_STYLE_SUFFIX' + emphasisStyle(ann.e);
                         if (!window.__riffleSafeWrap(range, mark)) return;
+                        window.__riffleFillInlineHighlightLeading(mark);
                         // The mark just split a text node — invalidate the flat index so the NEXT
                         // annotation's locateRanges() rebuilds against the updated DOM. The other
                         // ranges in THIS annotation already hold their own text-node refs (captured
@@ -709,6 +717,7 @@ internal object ContinuousStyleInjector {
         val safe = fragmentId.replace("\\", "\\\\").replace("'", "\\'")
         return """
             $SAFE_WRAP_HELPER_JS
+            $HIGHLIGHT_LEADING_ADJUSTMENT_HELPER_JS
             (function() {
                 var existing = document.getElementById('_riffle_hl');
                 if (existing && existing.parentNode) existing.outerHTML = existing.innerHTML;
@@ -720,6 +729,7 @@ internal object ContinuousStyleInjector {
                 mark.id = '_riffle_hl';
                 mark.style.cssText = '${highlightInlineStyle("$cssColor")}';
                 if (!window.__riffleSafeWrap(range, mark)) return;
+                window.__riffleFillInlineHighlightLeading(mark);
                 var sel = window.getSelection ? window.getSelection() : null;
                 if (sel) sel.removeAllRanges();
             })();
@@ -731,6 +741,7 @@ internal object ContinuousStyleInjector {
         val safe = text.replace("\\", "\\\\").replace("'", "\\'").replace("\n", "\\n").replace("\r", "\\r")
         return """
             $SAFE_WRAP_HELPER_JS
+            $HIGHLIGHT_LEADING_ADJUSTMENT_HELPER_JS
             (function() {
                 var existing = document.getElementById('_riffle_hl');
                 var sentinel = null;
@@ -760,6 +771,7 @@ internal object ContinuousStyleInjector {
                 // Skip cross-block matches — extractContents would reparent block elements as
                 // inline children of <mark>, breaking the surrounding paragraphs.
                 if (!window.__riffleSafeWrap(range, mark)) { sel.removeAllRanges(); return; }
+                window.__riffleFillInlineHighlightLeading(mark);
                 sel.removeAllRanges();
             })();
         """.trimIndent()

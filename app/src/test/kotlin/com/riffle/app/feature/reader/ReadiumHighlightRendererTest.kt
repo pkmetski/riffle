@@ -110,6 +110,32 @@ class ReadiumHighlightRendererTest {
         assertEquals("h2", annotationCalls[1].first[1].id)
     }
 
+    @Test
+    fun `applyAnnotations expands decoration boxes after Readium applies them`() = runTest {
+        val callOrder = mutableListOf<String>()
+        val rendererWithGeometryAdjustment = ReadiumHighlightRenderer(
+            applyDecorationsBlock = { _, group -> callOrder.add("decorate:$group") },
+            fragmentLocator = { ref, _ ->
+                if (ref.isNotBlank()) minimalLocator(ref.substringBefore('#')) else null
+            },
+            evaluateJavascript = { script ->
+                if (script.contains("__riffleFillReadiumHighlightLeading")) {
+                    callOrder.add("fillLineLeading")
+                }
+            },
+        )
+
+        rendererWithGeometryAdjustment.applyAnnotations(listOf(makeRender("h1", "c1.xhtml")))
+
+        val lastDecoration = callOrder.indexOfLast { it == "decorate:annotations" }
+        val lineLeading = callOrder.indexOf("fillLineLeading")
+        assertTrue("decoration apply must occur", lastDecoration >= 0)
+        assertTrue(
+            "line-leading adjustment must run after Readium creates its boxes; order=$callOrder",
+            lineLeading > lastDecoration,
+        )
+    }
+
     // Regression: bold/italic DOM injection must be queued BEFORE Readium measures decoration
     // positions. EmphasisDomInjector wraps bold/italic text in <span> elements causing text
     // reflow; if injected after applyDecorationsWithClear, Readium's baked tap-target rects
