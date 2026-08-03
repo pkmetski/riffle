@@ -36,7 +36,7 @@ class ChapterNavigationRailTest {
         // fully-saturated read portion still reads as the progress fill.
         assertEquals(0.5f, CHAPTER_RAIL_UNREAD_ALPHA)
         assertEquals(
-            Color(0xFFE66100).copy(alpha = 0.5f),
+            Color(0xFFE66100).copy(alpha = CHAPTER_RAIL_UNREAD_ALPHA),
             chapterRailUnreadGroupColor(groupIndex = 0),
         )
         assertEquals(4.dp, CHAPTER_RAIL_CURSOR_HALO_WIDTH)
@@ -65,17 +65,16 @@ class ChapterNavigationRailTest {
     }
 
     @Test
-    fun `bookmark markers are haloed dots larger than the rail half-height`() {
-        // A dot must be distinct from the 1-ish-dp vertical chapter-boundary gaps: its radius
-        // exceeds the 2dp rail half-height so it bulges out of the 4dp strip, and the halo ring
-        // is wider still so the dot never blends into a same-hue segment underneath.
+    fun `bookmark markers are haloed dots bulging out of the rail`() {
+        // Pins the dot-marker geometry: the 2.5dp dot radius exceeds the 2dp rail half-height so
+        // the dot bulges out of the 4dp strip (a flush mark would read as another chapter-boundary
+        // gap), and the halo ring around it keeps the dot visible over a same-hue segment.
         assertEquals(2.5.dp, CHAPTER_RAIL_BOOKMARK_DOT_RADIUS)
         assertEquals(4.dp, CHAPTER_RAIL_BOOKMARK_HALO_RADIUS)
-        assertTrue(CHAPTER_RAIL_BOOKMARK_HALO_RADIUS > CHAPTER_RAIL_BOOKMARK_DOT_RADIUS)
     }
 
     @Test
-    fun `bookmark ticks map rail fractions to x and clamp invalid bounds`() {
+    fun `bookmark dots map rail fractions to x and clamp invalid bounds`() {
         assertEquals(
             listOf(0f, 25f, 100f),
             chapterRailBookmarkXs(listOf(-0.2f, 0.25f, 1.4f), totalWidth = 100f),

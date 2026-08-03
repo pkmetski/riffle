@@ -41,7 +41,11 @@ internal const val CHAPTER_RAIL_UNREAD_ALPHA = 0.5f
 internal val CHAPTER_RAIL_CURSOR_HALO_WIDTH = 4.dp
 internal val CHAPTER_RAIL_CURSOR_CORE_WIDTH = 2.dp
 internal val CHAPTER_RAIL_BOOKMARK_DOT_RADIUS = 2.5.dp
-internal val CHAPTER_RAIL_BOOKMARK_HALO_RADIUS = 4.dp
+
+// The halo is a ring around the dot, so it's defined relative to the dot radius rather than as an
+// independent size. Its 2dp bleed past the 4dp rail lands in the overlay backdrop, which is painted
+// the same reader-page background color the halo uses, so the overflow is invisible there.
+internal val CHAPTER_RAIL_BOOKMARK_HALO_RADIUS = CHAPTER_RAIL_BOOKMARK_DOT_RADIUS + 1.5.dp
 
 internal fun chapterRailUsesColorProgress(
     segments: List<RailSegment>,
@@ -82,7 +86,9 @@ fun ChapterNavigationRail(
     val pageForeground = readerTheme.palette.foreground
     val barColor = pageForeground.copy(alpha = 0.30f)
     val fillColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.85f)
-    val cursorHaloColor = readerTheme.palette.background
+    // Shared by the cursor and the bookmark dots: a page-background halo keeps either mark
+    // visible over every chapter color and on all three reader themes.
+    val haloColor = readerTheme.palette.background
     val cursorColor = pageForeground
     val bookmarkColor = MaterialTheme.colorScheme.primary
 
@@ -113,6 +119,10 @@ fun ChapterNavigationRail(
                 // Outer edges (start of the first segment, end of the last) stay flush.
                 val gap = 2.5.dp.toPx()
                 val fillX = clampedCursor * size.width
+                val bookmarkDotRadius = CHAPTER_RAIL_BOOKMARK_DOT_RADIUS.toPx()
+                val bookmarkHaloRadius = CHAPTER_RAIL_BOOKMARK_HALO_RADIUS.toPx()
+                val bookmarkCenters = chapterRailBookmarkXs(bookmarkPositions, size.width)
+                    .map { Offset(it, size.height / 2f) }
                 onDrawBehind {
                     bounds.forEachIndexed { i, (start, width) ->
                         val x0 = start + (if (i == 0) 0f else gap / 2f)
@@ -164,26 +174,22 @@ fun ChapterNavigationRail(
                     }
 
                     // Bookmarks are round dots, not vertical ticks — a thin line reads as just
-                    // another chapter-boundary gap on the 4dp rail. The background-colored halo
-                    // separates the dot from whatever segment color sits underneath.
-                    chapterRailBookmarkXs(bookmarkPositions, size.width).forEach { bookmarkX ->
-                        val center = Offset(bookmarkX, size.height / 2f)
+                    // another chapter-boundary gap on the 4dp rail.
+                    bookmarkCenters.forEach { center ->
                         drawCircle(
-                            color = cursorHaloColor,
-                            radius = CHAPTER_RAIL_BOOKMARK_HALO_RADIUS.toPx(),
+                            color = haloColor,
+                            radius = bookmarkHaloRadius,
                             center = center,
                         )
                         drawCircle(
                             color = bookmarkColor,
-                            radius = CHAPTER_RAIL_BOOKMARK_DOT_RADIUS.toPx(),
+                            radius = bookmarkDotRadius,
                             center = center,
                         )
                     }
 
-                    // A background-colored halo plus foreground core stays visible over every
-                    // chapter color and on all three reader themes.
                     drawLine(
-                        color = cursorHaloColor,
+                        color = haloColor,
                         start = Offset(fillX, 0f),
                         end = Offset(fillX, size.height),
                         strokeWidth = CHAPTER_RAIL_CURSOR_HALO_WIDTH.toPx(),
