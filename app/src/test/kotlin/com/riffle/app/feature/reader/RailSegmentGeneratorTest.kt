@@ -262,10 +262,50 @@ class RailSegmentGeneratorTest {
     }
 
     @Test
+    fun `section-heavy book collapses same-file sections back to chapter segments`() {
+        // "A Philosophy of Software Design" / "Monolith to Microservices" report: ~21 chapters,
+        // each carrying several same-file section anchors, explode into 100+ rail segments. The
+        // rail punches 2.5dp gaps between segments, so at that count the map is mostly gaps and
+        // unreadable. Above the readability cap, same-file sections must collapse so the rail
+        // shows one segment per chapter again.
+        val toc = (1..21).map { ch ->
+            TocEntry(
+                "Chapter $ch",
+                "ch$ch.xhtml",
+                (1..5).map { s -> TocEntry("$ch.$s", "ch$ch.xhtml#s$s") },
+            )
+        }
+
+        assertEquals(
+            (1..21).map { RailSegment("Chapter $it", "ch$it.xhtml", groupIndex = it - 1) },
+            buildRailSegments(toc),
+        )
+    }
+
+    @Test
+    fun `section-count cap is all-or-nothing across the book`() {
+        // One section-light chapter in an otherwise section-heavy book must not stay exploded
+        // while its siblings collapse — granularity is a whole-book decision.
+        val heavy = (1..20).map { ch ->
+            TocEntry(
+                "Chapter $ch",
+                "ch$ch.xhtml",
+                (1..5).map { s -> TocEntry("$ch.$s", "ch$ch.xhtml#s$s") },
+            )
+        }
+        val light = TocEntry("Epilogue", "epilogue.xhtml", listOf(TocEntry("Notes", "epilogue.xhtml#notes")))
+
+        val segments = buildRailSegments(heavy + light)
+
+        assertEquals(21, segments.size)
+        assertEquals(RailSegment("Epilogue", "epilogue.xhtml", groupIndex = 20), segments.last())
+    }
+
+    @Test
     fun `chapter groups color their exposed same-file sections`() {
-        // "A Philosophy of Software Design" shape from the reported regression:
-        // top-level chapters own indented same-file section anchors. Each section becomes a rail
-        // segment and inherits its top-level chapter's group color.
+        // Section-sparse Chapter → same-file-anchor shape: with the whole book under the
+        // readability cap, each section becomes a rail segment and inherits its top-level
+        // chapter's group color.
         val chapter1 = TocEntry(
             "1: Introduction",
             "ch01.html",

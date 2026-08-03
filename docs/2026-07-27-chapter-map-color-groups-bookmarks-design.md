@@ -185,6 +185,7 @@ No changes. `PdfTocEntry` is flat (no children field), so `buildPdfRailSegments`
 |---|---|
 | Flat TOC (all top-level = leaves) | Flat mode: current 4dp single-strip, no colors |
 | Chapter → same-file Sections | Every direct section is a distinct segment; all siblings share the chapter color |
+| Section-heavy book (same-file exposure would exceed 48 segments) | All same-file section groups collapse back to one segment per chapter (whole-book decision); chapters keep their group colors. Prevents the rail from degenerating into 2.5dp gaps on books like "A Philosophy of Software Design" (~21 chapters × ~5 sections) |
 | Single parent chapter | Its sections all get `groupIndex=0` and share one color at the normal 4dp height |
 | >8 groups | Colors cycle: `groupIndex % 8`. |
 | Bookmark in a spine resource with no TOC entry | `findActiveSegmentIndex` already handles this (falls back to last segment before the current spine position). Bookmark tick lands there. |
