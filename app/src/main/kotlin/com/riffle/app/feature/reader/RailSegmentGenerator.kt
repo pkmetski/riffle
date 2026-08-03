@@ -257,7 +257,7 @@ fun findActiveSegmentIndex(
     if (baseMatches.size > 1) {
         val p = progression?.takeIf { it.isFinite() }?.coerceIn(0f, 1f)
             ?: return baseMatches.first()
-        val offset = minOf((p * baseMatches.size).toInt(), baseMatches.lastIndex)
+        val offset = if (p >= 1f) baseMatches.lastIndex else minOf((p * baseMatches.size).toInt(), baseMatches.lastIndex)
         return baseMatches[offset]
     }
     if (spineHrefs.isEmpty()) return 0
