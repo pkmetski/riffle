@@ -245,6 +245,7 @@ class AnnotationSessionTest {
             TestApplicationScope(CoroutineScope(UnconfinedTestDispatcher() + SupervisorJob()))
         ),
         mergeAfterEdit: suspend (String, String, String?) -> Unit = { _, _, _ -> },
+        commitDraftWithNote: suspend (String?) -> Unit = { _ -> },
     ) = AnnotationSession(
         scope = scope,
         annotationStore = store,
@@ -257,6 +258,7 @@ class AnnotationSessionTest {
         syncOnOpen = syncOps.makeSyncOnOpen(),
         syncOnClose = syncOps.makeSyncOnClose(),
         mergeAfterEdit = mergeAfterEdit,
+        commitDraftWithNote = commitDraftWithNote,
     )
 
     private fun defaultBind(
@@ -806,6 +808,81 @@ class AnnotationSessionTest {
         assertEquals("h1", mergeCalls[0].first)
         assertEquals("green", mergeCalls[0].second)
         assertNull(mergeCalls[0].third)
+        sessionScope.coroutineContext[Job]?.cancel()
+    }
+
+    /**
+     * Regression (2026-08-03): confirming the note editor on a PENDING DRAFT must route to the
+     * draft-commit callback, NOT annotationStore.updateNote. The draft has no DB row, so
+     * `updateNote("__draft__", …)` matched zero rows and both the annotation and its note
+     * silently vanished ("doing an annotation AND adding a note at the same time — the
+     * annotation is not saved").
+     */
+    @Test
+    fun `commitNoteEdit on a draft routes to the draft-commit callback instead of updateNote`() = runTest {
+        val dispatcher = UnconfinedTestDispatcher(testScheduler)
+        val sessionScope = CoroutineScope(dispatcher)
+        val store = FakeAnnotationStore()
+        val draftNoteCalls = mutableListOf<String?>()
+        val session = makeSession(
+            store = store, syncOps = FakeSyncOps(), scope = sessionScope,
+            commitDraftWithNote = { note -> draftNoteCalls += note },
+        )
+        defaultBind(session)
+        session.openHighlightActions(AnnotationSession.DRAFT_ANNOTATION_ID, androidx.compose.ui.unit.IntRect(0, 0, 0, 0))
+        session.openNoteEditor(AnnotationSession.DRAFT_ANNOTATION_ID, androidx.compose.ui.unit.IntRect(0, 0, 0, 0))
+
+        session.commitNoteEdit(AnnotationSession.DRAFT_ANNOTATION_ID, "my thought")
+
+        assertEquals(listOf<String?>("my thought"), draftNoteCalls)
+        assertEquals(emptyList<Pair<String, String?>>(), store.updatedNotes)
+        assertNull(session.noteEditorTarget.value)
+        sessionScope.coroutineContext[Job]?.cancel()
+    }
+
+    /** A blank note confirmed on a draft normalizes to null — dismiss semantics, not a note. */
+    @Test
+    fun `commitNoteEdit on a draft with blank note routes null to the callback`() = runTest {
+        val dispatcher = UnconfinedTestDispatcher(testScheduler)
+        val sessionScope = CoroutineScope(dispatcher)
+        val store = FakeAnnotationStore()
+        val draftNoteCalls = mutableListOf<String?>()
+        val session = makeSession(
+            store = store, syncOps = FakeSyncOps(), scope = sessionScope,
+            commitDraftWithNote = { note -> draftNoteCalls += note },
+        )
+        defaultBind(session)
+        session.openNoteEditor(AnnotationSession.DRAFT_ANNOTATION_ID, androidx.compose.ui.unit.IntRect(0, 0, 0, 0))
+
+        session.commitNoteEdit(AnnotationSession.DRAFT_ANNOTATION_ID, "   ")
+
+        assertEquals(listOf<String?>(null), draftNoteCalls)
+        assertEquals(emptyList<Pair<String, String?>>(), store.updatedNotes)
+        sessionScope.coroutineContext[Job]?.cancel()
+    }
+
+    /**
+     * Regression (2026-08-03): cancelling the note editor on a draft must hand the draft back to
+     * the VM (null note → dismiss semantics: preset auto-commit or discard). Pre-fix it returned
+     * early on the missing "__draft__" row and the draft leaked — preview decoration kept
+     * painting with no popup attached.
+     */
+    @Test
+    fun `cancelNoteEdit on a draft routes null to the draft-commit callback`() = runTest {
+        val dispatcher = UnconfinedTestDispatcher(testScheduler)
+        val sessionScope = CoroutineScope(dispatcher)
+        val draftNoteCalls = mutableListOf<String?>()
+        val session = makeSession(
+            store = FakeAnnotationStore(), syncOps = FakeSyncOps(), scope = sessionScope,
+            commitDraftWithNote = { note -> draftNoteCalls += note },
+        )
+        defaultBind(session)
+        session.openNoteEditor(AnnotationSession.DRAFT_ANNOTATION_ID, androidx.compose.ui.unit.IntRect(0, 0, 0, 0))
+
+        session.cancelNoteEdit()
+
+        assertEquals(listOf<String?>(null), draftNoteCalls)
+        assertNull(session.noteEditorTarget.value)
         sessionScope.coroutineContext[Job]?.cancel()
     }
 

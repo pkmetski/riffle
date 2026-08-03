@@ -52,7 +52,22 @@ internal data class DraftPopupSelection(
 internal fun shouldDiscardPhantomDraftCommit(
     initialColor: String,
     combinedStyles: Set<EmphasisStyle>,
-): Boolean = initialColor.isEmpty() && combinedStyles.isEmpty()
+    note: String? = null,
+): Boolean = initialColor.isEmpty() && combinedStyles.isEmpty() && note == null
+
+/**
+ * Note-editor close on a pending draft: returns `true` when the draft must be committed.
+ *
+ * A non-null [note] always commits — the user typed a note on a fresh selection, and a ∅-colour
+ * annotation carrying a note is a valid row, not a phantom. With no note, the close is equivalent
+ * to dismissing the actions popup, so [shouldAutoCommitDraftOnDismiss] decides preset-commit vs
+ * discard.
+ */
+internal fun shouldCommitDraftOnNoteEditorClose(
+    note: String?,
+    lastUsedColorIsNone: Boolean,
+    lastUsedEmphasisStyles: Set<EmphasisStyle>,
+): Boolean = note != null || shouldAutoCommitDraftOnDismiss(lastUsedColorIsNone, lastUsedEmphasisStyles)
 
 /**
  * Dismiss behaviour predicate for a pending draft (Bug 2, 2026-07-19).

@@ -80,6 +80,16 @@ class AnnotationSession @AssistedInject constructor(
      * See docs/superpowers/specs/2026-07-05-highlight-auto-merge-design.md.
      */
     @Assisted("merge") private val mergeAfterEdit: suspend (id: String, color: String, note: String?) -> Unit,
+    /**
+     * Called when the note editor closes on a PENDING DRAFT (ADR 0046 §4). The draft has no DB
+     * row yet, so [commitNoteEdit]'s `updateNote` would match zero rows and the annotation (and
+     * its note) would silently vanish — the reported "annotate + add note at the same time saves
+     * nothing" bug (2026-08-03). Publication-dependent (the commit path rebuilds CFI ranges), so
+     * the VM owns the implementation: a non-null note commits the draft with the per-book preset
+     * colour + emphasis and the note; null (cancel / blank confirm) applies the popup-dismiss
+     * semantics — auto-commit the preset, or discard when the preset is ∅ + no emphasis.
+     */
+    @Assisted("draftNote") private val commitDraftWithNote: suspend (note: String?) -> Unit,
 ) {
 
     @AssistedFactory
@@ -91,6 +101,7 @@ class AnnotationSession @AssistedInject constructor(
             @Assisted("open") syncOnOpen: suspend (String, String, String) -> Unit,
             @Assisted("close") syncOnClose: suspend (String, String, String) -> Unit,
             @Assisted("merge") mergeAfterEdit: suspend (String, String, String?) -> Unit,
+            @Assisted("draftNote") commitDraftWithNote: suspend (String?) -> Unit,
         ): AnnotationSession
     }
 
@@ -535,6 +546,13 @@ class AnnotationSession @AssistedInject constructor(
      */
     suspend fun commitNoteEdit(id: String, note: String?) {
         val normalized = note?.takeIf { it.isNotBlank() }
+        // Pending draft — no DB row exists yet, so updateNote would match zero rows and the
+        // annotation + note would silently vanish. Route to the VM's draft-commit instead.
+        if (id == DRAFT_ANNOTATION_ID) {
+            _noteEditorTarget.value = null
+            commitDraftWithNote(normalized)
+            return
+        }
         annotationStore.updateNote(id, normalized)
         _noteEditorTarget.value = null
         val row = _annotations.value.firstOrNull { it.id == id }
@@ -555,6 +573,13 @@ class AnnotationSession @AssistedInject constructor(
         val target = _noteEditorTarget.value
         _noteEditorTarget.value = null
         val id = target?.id ?: return
+        // Pending draft — hand it back to the VM (null note → popup-dismiss semantics: preset
+        // auto-commit or discard). Pre-fix this returned early on the missing row and the draft
+        // leaked: preview decoration kept painting with no popup attached.
+        if (id == DRAFT_ANNOTATION_ID) {
+            scope.launch { commitDraftWithNote(null) }
+            return
+        }
         val row = _annotations.value.firstOrNull { it.id == id } ?: return
         if (row.type != AnnotationEntity.TYPE_HIGHLIGHT) return
         scope.launch { mergeAfterEdit(id, row.color, row.note) }

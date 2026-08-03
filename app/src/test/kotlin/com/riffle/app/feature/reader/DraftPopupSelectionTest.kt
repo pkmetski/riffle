@@ -127,6 +127,44 @@ class DraftPopupSelectionTest {
     }
 
     @Test
+    fun phantomGuard_allowsCommitWhenNotePresent_evenWithEmptyColorAndStyles() {
+        // Regression (2026-08-03): a draft committed FROM THE NOTE EDITOR carries a note — a
+        // ∅-colour, no-emphasis annotation with a note is a valid row, not a phantom. Flips red
+        // if commitDraft's guard stops considering the note.
+        assertEquals(
+            false,
+            shouldDiscardPhantomDraftCommit(initialColor = "", combinedStyles = emptySet(), note = "my thought"),
+        )
+    }
+
+    // ---- note-editor close on a draft ----
+
+    @Test
+    fun noteEditorClose_commitsWhenNotePresent_evenWithNoPreset() {
+        // Regression (2026-08-03): typing a note on a fresh selection must ALWAYS create the
+        // annotation, even when the per-book preset is ∅ + no emphasis (where a plain dismiss
+        // would discard).
+        assertEquals(
+            true,
+            shouldCommitDraftOnNoteEditorClose(note = "my thought", lastUsedColorIsNone = true, lastUsedEmphasisStyles = emptySet()),
+        )
+    }
+
+    @Test
+    fun noteEditorClose_withoutNote_followsDismissSemantics() {
+        // No note → identical to dismissing the actions popup: preset commit when a colour or
+        // emphasis preset exists, discard when the preset is ∅ + nothing.
+        assertEquals(
+            true,
+            shouldCommitDraftOnNoteEditorClose(note = null, lastUsedColorIsNone = false, lastUsedEmphasisStyles = emptySet()),
+        )
+        assertEquals(
+            false,
+            shouldCommitDraftOnNoteEditorClose(note = null, lastUsedColorIsNone = true, lastUsedEmphasisStyles = emptySet()),
+        )
+    }
+
+    @Test
     fun persistedRow_ignoresLastUsedState() {
         // Regression: persisted-row pre-selection MUST NOT leak the per-book last-used state —
         // that would show a chip active when no matching emphasis row exists.
