@@ -76,7 +76,7 @@ class RailSegmentGeneratorTest {
         val story1 = TocEntry("Story 1", "story1.xhtml")
         val blank = TocEntry("", "container.xhtml", listOf(story1))
         assertEquals(
-            listOf(RailSegment("Story 1", "story1.xhtml", groupIndex = 0)),
+            listOf(RailSegment("Story 1", "story1.xhtml")),
             buildRailSegments(listOf(blank)),
         )
     }
@@ -90,8 +90,8 @@ class RailSegmentGeneratorTest {
 
         assertEquals(
             listOf(
-                RailSegment("Leaf", "leaf.xhtml", groupIndex = 0),
-                RailSegment("Other", "other.xhtml", groupIndex = 1),
+                RailSegment("Leaf", "leaf.xhtml"),
+                RailSegment("Other", "other.xhtml"),
             ),
             buildRailSegments(toc),
         )
@@ -131,7 +131,7 @@ class RailSegmentGeneratorTest {
         val ch1 = TocEntry("Chapter 1", "ch1.xhtml")
         val container = TocEntry("Lucky Starr And The Rings Of Saturn", "container.xhtml", listOf(ch1))
         assertEquals(
-            listOf(RailSegment("Chapter 1", "ch1.xhtml", groupIndex = 0)),
+            listOf(RailSegment("Chapter 1", "ch1.xhtml")),
             buildRailSegments(listOf(container), bookTitle = "Lucky Starr and the Rings of Saturn"),
         )
     }
@@ -141,7 +141,7 @@ class RailSegmentGeneratorTest {
         val ch1 = TocEntry("Chapter 1", "ch1.xhtml")
         val container = TocEntry("  The   Metamorphosis  ", "container.xhtml", listOf(ch1))
         assertEquals(
-            listOf(RailSegment("Chapter 1", "ch1.xhtml", groupIndex = 0)),
+            listOf(RailSegment("Chapter 1", "ch1.xhtml")),
             buildRailSegments(listOf(container), bookTitle = "The Metamorphosis"),
         )
     }
@@ -156,7 +156,7 @@ class RailSegmentGeneratorTest {
         val segments = buildRailSegments(listOf(container), bookTitle = "Foo")
         assertEquals(1, segments.size)
         assertEquals(
-            RailSegment("Foo Bar Baz", "container.xhtml", groupIndex = 0),
+            RailSegment("Foo Bar Baz", "container.xhtml"),
             segments[0],
         )
     }
@@ -172,8 +172,8 @@ class RailSegmentGeneratorTest {
 
         assertEquals(
             listOf(
-                RailSegment("Chapter 1", "real-ch1.xhtml", groupIndex = 0),
-                RailSegment("Appendix", "appendix.xhtml", groupIndex = 1),
+                RailSegment("Chapter 1", "real-ch1.xhtml"),
+                RailSegment("Appendix", "appendix.xhtml"),
             ),
             buildRailSegments(toc, bookTitle = "Some Other Book"),
         )
@@ -197,7 +197,7 @@ class RailSegmentGeneratorTest {
         val ch1 = TocEntry("Ch 1", "ch1.xhtml")
         val blank = TocEntry("", "container.xhtml", listOf(ch1))
         assertEquals(
-            listOf(RailSegment("Ch 1", "ch1.xhtml", groupIndex = 0)),
+            listOf(RailSegment("Ch 1", "ch1.xhtml")),
             buildRailSegments(listOf(blank), bookTitle = "Some Book"),
         )
     }
@@ -210,7 +210,7 @@ class RailSegmentGeneratorTest {
         val inner = TocEntry("My Book", "inner.xhtml", listOf(leaf))
         val outer = TocEntry("My Book", "outer.xhtml", listOf(inner))
         assertEquals(
-            listOf(RailSegment("Leaf", "leaf.xhtml", groupIndex = 0)),
+            listOf(RailSegment("Leaf", "leaf.xhtml")),
             buildRailSegments(listOf(outer), bookTitle = "My Book"),
         )
     }
@@ -276,8 +276,10 @@ class RailSegmentGeneratorTest {
             )
         }
 
+        // Collapsed chapters are single-segment groups; coloring them would be a 21-color
+        // rainbow with no grouping information, so the rail also falls back to flat mode.
         assertEquals(
-            (1..21).map { RailSegment("Chapter $it", "ch$it.xhtml", groupIndex = it - 1) },
+            (1..21).map { RailSegment("Chapter $it", "ch$it.xhtml") },
             buildRailSegments(toc),
         )
     }
@@ -298,7 +300,7 @@ class RailSegmentGeneratorTest {
         val segments = buildRailSegments(heavy + light)
 
         assertEquals(21, segments.size)
-        assertEquals(RailSegment("Epilogue", "epilogue.xhtml", groupIndex = 20), segments.last())
+        assertEquals(RailSegment("Epilogue", "epilogue.xhtml"), segments.last())
     }
 
     @Test
@@ -375,7 +377,7 @@ class RailSegmentGeneratorTest {
         val ch20 = TocEntry("Chapter 20", "chapter20.xhtml", listOf(sol376, sol380))
 
         assertEquals(
-            listOf(RailSegment("Chapter 20", "chapter20.xhtml", groupIndex = 0)),
+            listOf(RailSegment("Chapter 20", "chapter20.xhtml")),
             buildRailSegments(listOf(ch20)),
         )
     }
@@ -430,7 +432,7 @@ class RailSegmentGeneratorTest {
         val positionCounts = listOf(15, 3, 3, 3)
 
         assertEquals(
-            listOf(RailSegment("Chapter 4", "chapter4.xhtml", groupIndex = 0)),
+            listOf(RailSegment("Chapter 4", "chapter4.xhtml")),
             buildRailSegments(listOf(ch4), spineHrefs = spineHrefs, positionCounts = positionCounts),
         )
     }
@@ -670,7 +672,6 @@ class RailSegmentGeneratorTest {
                 RailSegment(
                     "Четвърта глава. Детето съдия",
                     "chapter-78.xhtml",
-                    groupIndex = 0,
                 ),
             ),
             buildRailSegments(listOf(parent), spineHrefs = spineHrefs, positionCounts = positionCounts),
@@ -690,7 +691,7 @@ class RailSegmentGeneratorTest {
         val positionCounts = listOf(1, 2, 3, 1)
 
         assertEquals(
-            listOf(RailSegment("Трета глава", "chapter-102.xhtml", groupIndex = 0)),
+            listOf(RailSegment("Трета глава", "chapter-102.xhtml")),
             buildRailSegments(listOf(parent), spineHrefs = spineHrefs, positionCounts = positionCounts),
         )
     }
@@ -720,7 +721,7 @@ class RailSegmentGeneratorTest {
         val positionCounts = listOf(2, 2, 2, 2, 2, 5, 2)
 
         assertEquals(
-            listOf(RailSegment("Първа глава", "chapter-91.xhtml", groupIndex = 0)),
+            listOf(RailSegment("Първа глава", "chapter-91.xhtml")),
             buildRailSegments(listOf(parent), spineHrefs = spineHrefs, positionCounts = positionCounts),
         )
     }
@@ -736,7 +737,7 @@ class RailSegmentGeneratorTest {
         val positionCounts = listOf(1, 20, 0)
 
         assertEquals(
-            listOf(RailSegment("Part", "part.xhtml", groupIndex = 0)),
+            listOf(RailSegment("Part", "part.xhtml")),
             buildRailSegments(listOf(parent), spineHrefs = spineHrefs, positionCounts = positionCounts),
         )
     }
@@ -749,7 +750,7 @@ class RailSegmentGeneratorTest {
         val sol2 = TocEntry("LOG 2", "sol2.xhtml")
         val ch = TocEntry("Chapter 20", "chapter20.xhtml", listOf(sol1, sol2))
         assertEquals(
-            listOf(RailSegment("Chapter 20", "chapter20.xhtml", groupIndex = 0)),
+            listOf(RailSegment("Chapter 20", "chapter20.xhtml")),
             buildRailSegments(listOf(ch)),
         )
     }

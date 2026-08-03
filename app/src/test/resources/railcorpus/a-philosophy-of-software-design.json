@@ -1,0 +1,812 @@
+{
+  "book": "A Philosophy of Software Design",
+  "provenance": "TOC transcribed from the 1st-edition print contents (dandelon.com TOC scan, ISBN 9781732102200). Hrefs synthesized in the Calibre part-file convention observed in the user's real EPUB (philosophy_ch2.xhtml test fixture is titled 'part0006', i.e. chapter N = part(N+4)); section anchor ids are synthesized. Position counts approximated as one position per print page from the TOC page numbers. Re-extract toc/spine/anchors from the real EPUB when a media server is reachable; 'expected' captures the intended rail behavior and should only change with a deliberate rail-granularity decision.",
+  "toc": [
+    {
+      "title": "Preface",
+      "href": "text/part0004.html"
+    },
+    {
+      "title": "1 Introduction",
+      "href": "text/part0005.html",
+      "children": [
+        {
+          "title": "1.1 How to use this book",
+          "href": "text/part0005.html#s1-1"
+        }
+      ]
+    },
+    {
+      "title": "2 The Nature of Complexity",
+      "href": "text/part0006.html",
+      "children": [
+        {
+          "title": "2.1 Complexity defined",
+          "href": "text/part0006.html#s2-1"
+        },
+        {
+          "title": "2.2 Symptoms of complexity",
+          "href": "text/part0006.html#s2-2"
+        },
+        {
+          "title": "2.3 Causes of complexity",
+          "href": "text/part0006.html#s2-3"
+        },
+        {
+          "title": "2.4 Complexity is incremental",
+          "href": "text/part0006.html#s2-4"
+        },
+        {
+          "title": "2.5 Conclusion",
+          "href": "text/part0006.html#s2-5"
+        }
+      ]
+    },
+    {
+      "title": "3 Working Code Isn't Enough",
+      "href": "text/part0007.html",
+      "children": [
+        {
+          "title": "3.1 Tactical programming",
+          "href": "text/part0007.html#s3-1"
+        },
+        {
+          "title": "3.2 Strategic programming",
+          "href": "text/part0007.html#s3-2"
+        },
+        {
+          "title": "3.3 How much to invest?",
+          "href": "text/part0007.html#s3-3"
+        },
+        {
+          "title": "3.4 Startups and investment",
+          "href": "text/part0007.html#s3-4"
+        },
+        {
+          "title": "3.5 Conclusion",
+          "href": "text/part0007.html#s3-5"
+        }
+      ]
+    },
+    {
+      "title": "4 Modules Should Be Deep",
+      "href": "text/part0008.html",
+      "children": [
+        {
+          "title": "4.1 Modular design",
+          "href": "text/part0008.html#s4-1"
+        },
+        {
+          "title": "4.2 What's in an interface?",
+          "href": "text/part0008.html#s4-2"
+        },
+        {
+          "title": "4.3 Abstractions",
+          "href": "text/part0008.html#s4-3"
+        },
+        {
+          "title": "4.4 Deep modules",
+          "href": "text/part0008.html#s4-4"
+        },
+        {
+          "title": "4.5 Shallow modules",
+          "href": "text/part0008.html#s4-5"
+        },
+        {
+          "title": "4.6 Classitis",
+          "href": "text/part0008.html#s4-6"
+        },
+        {
+          "title": "4.7 Examples: Java and Unix I/O",
+          "href": "text/part0008.html#s4-7"
+        },
+        {
+          "title": "4.8 Conclusion",
+          "href": "text/part0008.html#s4-8"
+        }
+      ]
+    },
+    {
+      "title": "5 Information Hiding (and Leakage)",
+      "href": "text/part0009.html",
+      "children": [
+        {
+          "title": "5.1 Information hiding",
+          "href": "text/part0009.html#s5-1"
+        },
+        {
+          "title": "5.2 Information leakage",
+          "href": "text/part0009.html#s5-2"
+        },
+        {
+          "title": "5.3 Temporal decomposition",
+          "href": "text/part0009.html#s5-3"
+        },
+        {
+          "title": "5.4 Example: HTTP server",
+          "href": "text/part0009.html#s5-4"
+        },
+        {
+          "title": "5.5 Example: too many classes",
+          "href": "text/part0009.html#s5-5"
+        },
+        {
+          "title": "5.6 Example: HTTP parameter handling",
+          "href": "text/part0009.html#s5-6"
+        },
+        {
+          "title": "5.7 Example: defaults in HTTP responses",
+          "href": "text/part0009.html#s5-7"
+        },
+        {
+          "title": "5.8 Information hiding within a class",
+          "href": "text/part0009.html#s5-8"
+        },
+        {
+          "title": "5.9 Taking it too far",
+          "href": "text/part0009.html#s5-9"
+        },
+        {
+          "title": "5.10 Conclusion",
+          "href": "text/part0009.html#s5-10"
+        }
+      ]
+    },
+    {
+      "title": "6 General-Purpose Modules are Deeper",
+      "href": "text/part0010.html",
+      "children": [
+        {
+          "title": "6.1 Make classes somewhat general-purpose",
+          "href": "text/part0010.html#s6-1"
+        },
+        {
+          "title": "6.2 Example: storing text for an editor",
+          "href": "text/part0010.html#s6-2"
+        },
+        {
+          "title": "6.3 A more general-purpose API",
+          "href": "text/part0010.html#s6-3"
+        },
+        {
+          "title": "6.4 Generality leads to better information hiding",
+          "href": "text/part0010.html#s6-4"
+        },
+        {
+          "title": "6.5 Questions to ask yourself",
+          "href": "text/part0010.html#s6-5"
+        },
+        {
+          "title": "6.6 Conclusion",
+          "href": "text/part0010.html#s6-6"
+        }
+      ]
+    },
+    {
+      "title": "7 Different Layer, Different Abstraction",
+      "href": "text/part0011.html",
+      "children": [
+        {
+          "title": "7.1 Pass-through methods",
+          "href": "text/part0011.html#s7-1"
+        },
+        {
+          "title": "7.2 When is interface duplication OK?",
+          "href": "text/part0011.html#s7-2"
+        },
+        {
+          "title": "7.3 Decorators",
+          "href": "text/part0011.html#s7-3"
+        },
+        {
+          "title": "7.4 Interface versus implementation",
+          "href": "text/part0011.html#s7-4"
+        },
+        {
+          "title": "7.5 Pass-through variables",
+          "href": "text/part0011.html#s7-5"
+        },
+        {
+          "title": "7.6 Conclusion",
+          "href": "text/part0011.html#s7-6"
+        }
+      ]
+    },
+    {
+      "title": "8 Pull Complexity Downwards",
+      "href": "text/part0012.html",
+      "children": [
+        {
+          "title": "8.1 Example: editor text class",
+          "href": "text/part0012.html#s8-1"
+        },
+        {
+          "title": "8.2 Example: configuration parameters",
+          "href": "text/part0012.html#s8-2"
+        },
+        {
+          "title": "8.3 Taking it too far",
+          "href": "text/part0012.html#s8-3"
+        },
+        {
+          "title": "8.4 Conclusion",
+          "href": "text/part0012.html#s8-4"
+        }
+      ]
+    },
+    {
+      "title": "9 Better Together Or Better Apart?",
+      "href": "text/part0013.html",
+      "children": [
+        {
+          "title": "9.1 Bring together if information is shared",
+          "href": "text/part0013.html#s9-1"
+        },
+        {
+          "title": "9.2 Bring together if it will simplify the interface",
+          "href": "text/part0013.html#s9-2"
+        },
+        {
+          "title": "9.3 Bring together to eliminate duplication",
+          "href": "text/part0013.html#s9-3"
+        },
+        {
+          "title": "9.4 Separate general-purpose and special-purpose code",
+          "href": "text/part0013.html#s9-4"
+        },
+        {
+          "title": "9.5 Example: insertion cursor and selection",
+          "href": "text/part0013.html#s9-5"
+        },
+        {
+          "title": "9.6 Example: separate class for logging",
+          "href": "text/part0013.html#s9-6"
+        },
+        {
+          "title": "9.7 Example: editor undo mechanism",
+          "href": "text/part0013.html#s9-7"
+        },
+        {
+          "title": "9.8 Splitting and joining methods",
+          "href": "text/part0013.html#s9-8"
+        },
+        {
+          "title": "9.9 Conclusion",
+          "href": "text/part0013.html#s9-9"
+        }
+      ]
+    },
+    {
+      "title": "10 Define Errors Out Of Existence",
+      "href": "text/part0014.html",
+      "children": [
+        {
+          "title": "10.1 Why exceptions add complexity",
+          "href": "text/part0014.html#s10-1"
+        },
+        {
+          "title": "10.2 Too many exceptions",
+          "href": "text/part0014.html#s10-2"
+        },
+        {
+          "title": "10.3 Define errors out of existence",
+          "href": "text/part0014.html#s10-3"
+        },
+        {
+          "title": "10.4 Example: file deletion in Windows",
+          "href": "text/part0014.html#s10-4"
+        },
+        {
+          "title": "10.5 Example: Java substring method",
+          "href": "text/part0014.html#s10-5"
+        },
+        {
+          "title": "10.6 Mask exceptions",
+          "href": "text/part0014.html#s10-6"
+        },
+        {
+          "title": "10.7 Exception aggregation",
+          "href": "text/part0014.html#s10-7"
+        },
+        {
+          "title": "10.8 Just crash?",
+          "href": "text/part0014.html#s10-8"
+        },
+        {
+          "title": "10.9 Design special cases out of existence",
+          "href": "text/part0014.html#s10-9"
+        },
+        {
+          "title": "10.10 Taking it too far",
+          "href": "text/part0014.html#s10-10"
+        },
+        {
+          "title": "10.11 Conclusion",
+          "href": "text/part0014.html#s10-11"
+        }
+      ]
+    },
+    {
+      "title": "11 Design it Twice",
+      "href": "text/part0015.html"
+    },
+    {
+      "title": "12 Why Write Comments? The Four Excuses",
+      "href": "text/part0016.html",
+      "children": [
+        {
+          "title": "12.1 Good code is self-documenting",
+          "href": "text/part0016.html#s12-1"
+        },
+        {
+          "title": "12.2 I don't have time to write comments",
+          "href": "text/part0016.html#s12-2"
+        },
+        {
+          "title": "12.3 Comments get out of date and become misleading",
+          "href": "text/part0016.html#s12-3"
+        },
+        {
+          "title": "12.4 All the comments I have seen are worthless",
+          "href": "text/part0016.html#s12-4"
+        },
+        {
+          "title": "12.5 Benefits of well-written comments",
+          "href": "text/part0016.html#s12-5"
+        }
+      ]
+    },
+    {
+      "title": "13 Comments Should Describe Things that Aren't Obvious from the Code",
+      "href": "text/part0017.html",
+      "children": [
+        {
+          "title": "13.1 Pick conventions",
+          "href": "text/part0017.html#s13-1"
+        },
+        {
+          "title": "13.2 Don't repeat the code",
+          "href": "text/part0017.html#s13-2"
+        },
+        {
+          "title": "13.3 Lower-level comments add precision",
+          "href": "text/part0017.html#s13-3"
+        },
+        {
+          "title": "13.4 Higher-level comments enhance intuition",
+          "href": "text/part0017.html#s13-4"
+        },
+        {
+          "title": "13.5 Interface documentation",
+          "href": "text/part0017.html#s13-5"
+        },
+        {
+          "title": "13.6 Implementation comments: what and why, not how",
+          "href": "text/part0017.html#s13-6"
+        },
+        {
+          "title": "13.7 Cross-module design decisions",
+          "href": "text/part0017.html#s13-7"
+        },
+        {
+          "title": "13.8 Conclusion",
+          "href": "text/part0017.html#s13-8"
+        },
+        {
+          "title": "13.9 Answers to questions on page 113",
+          "href": "text/part0017.html#s13-9"
+        }
+      ]
+    },
+    {
+      "title": "14 Choosing Names",
+      "href": "text/part0018.html",
+      "children": [
+        {
+          "title": "14.1 Example: bad names cause bugs",
+          "href": "text/part0018.html#s14-1"
+        },
+        {
+          "title": "14.2 Create an image",
+          "href": "text/part0018.html#s14-2"
+        },
+        {
+          "title": "14.3 Names should be precise",
+          "href": "text/part0018.html#s14-3"
+        },
+        {
+          "title": "14.4 Use names consistently",
+          "href": "text/part0018.html#s14-4"
+        },
+        {
+          "title": "14.5 A different opinion: Go style guide",
+          "href": "text/part0018.html#s14-5"
+        },
+        {
+          "title": "14.6 Conclusion",
+          "href": "text/part0018.html#s14-6"
+        }
+      ]
+    },
+    {
+      "title": "15 Write The Comments First",
+      "href": "text/part0019.html",
+      "children": [
+        {
+          "title": "15.1 Delayed comments are bad comments",
+          "href": "text/part0019.html#s15-1"
+        },
+        {
+          "title": "15.2 Write the comments first",
+          "href": "text/part0019.html#s15-2"
+        },
+        {
+          "title": "15.3 Comments are a design tool",
+          "href": "text/part0019.html#s15-3"
+        },
+        {
+          "title": "15.4 Early comments are fun comments",
+          "href": "text/part0019.html#s15-4"
+        },
+        {
+          "title": "15.5 Are early comments expensive?",
+          "href": "text/part0019.html#s15-5"
+        },
+        {
+          "title": "15.6 Conclusion",
+          "href": "text/part0019.html#s15-6"
+        }
+      ]
+    },
+    {
+      "title": "16 Modifying Existing Code",
+      "href": "text/part0020.html",
+      "children": [
+        {
+          "title": "16.1 Stay strategic",
+          "href": "text/part0020.html#s16-1"
+        },
+        {
+          "title": "16.2 Maintaining comments: keep the comments near the code",
+          "href": "text/part0020.html#s16-2"
+        },
+        {
+          "title": "16.3 Comments belong in the code, not the commit log",
+          "href": "text/part0020.html#s16-3"
+        },
+        {
+          "title": "16.4 Maintaining comments: avoid duplication",
+          "href": "text/part0020.html#s16-4"
+        },
+        {
+          "title": "16.5 Maintaining comments: check the diffs",
+          "href": "text/part0020.html#s16-5"
+        },
+        {
+          "title": "16.6 Higher-level comments are easier to maintain",
+          "href": "text/part0020.html#s16-6"
+        }
+      ]
+    },
+    {
+      "title": "17 Consistency",
+      "href": "text/part0021.html",
+      "children": [
+        {
+          "title": "17.1 Examples of consistency",
+          "href": "text/part0021.html#s17-1"
+        },
+        {
+          "title": "17.2 Ensuring consistency",
+          "href": "text/part0021.html#s17-2"
+        },
+        {
+          "title": "17.3 Taking it too far",
+          "href": "text/part0021.html#s17-3"
+        },
+        {
+          "title": "17.4 Conclusion",
+          "href": "text/part0021.html#s17-4"
+        }
+      ]
+    },
+    {
+      "title": "18 Code Should be Obvious",
+      "href": "text/part0022.html",
+      "children": [
+        {
+          "title": "18.1 Things that make code more obvious",
+          "href": "text/part0022.html#s18-1"
+        },
+        {
+          "title": "18.2 Things that make code less obvious",
+          "href": "text/part0022.html#s18-2"
+        },
+        {
+          "title": "18.3 Conclusion",
+          "href": "text/part0022.html#s18-3"
+        }
+      ]
+    },
+    {
+      "title": "19 Software Trends",
+      "href": "text/part0023.html",
+      "children": [
+        {
+          "title": "19.1 Object-oriented programming and inheritance",
+          "href": "text/part0023.html#s19-1"
+        },
+        {
+          "title": "19.2 Agile development",
+          "href": "text/part0023.html#s19-2"
+        },
+        {
+          "title": "19.3 Unit tests",
+          "href": "text/part0023.html#s19-3"
+        },
+        {
+          "title": "19.4 Test-driven development",
+          "href": "text/part0023.html#s19-4"
+        },
+        {
+          "title": "19.5 Design patterns",
+          "href": "text/part0023.html#s19-5"
+        },
+        {
+          "title": "19.6 Getters and setters",
+          "href": "text/part0023.html#s19-6"
+        },
+        {
+          "title": "19.7 Conclusion",
+          "href": "text/part0023.html#s19-7"
+        }
+      ]
+    },
+    {
+      "title": "20 Designing for Performance",
+      "href": "text/part0024.html",
+      "children": [
+        {
+          "title": "20.1 How to think about performance",
+          "href": "text/part0024.html#s20-1"
+        },
+        {
+          "title": "20.2 Measure before modifying",
+          "href": "text/part0024.html#s20-2"
+        },
+        {
+          "title": "20.3 Design around the critical path",
+          "href": "text/part0024.html#s20-3"
+        },
+        {
+          "title": "20.4 An example: RAMCloud Buffers",
+          "href": "text/part0024.html#s20-4"
+        },
+        {
+          "title": "20.5 Conclusion",
+          "href": "text/part0024.html#s20-5"
+        }
+      ]
+    },
+    {
+      "title": "21 Conclusion",
+      "href": "text/part0025.html"
+    },
+    {
+      "title": "Index",
+      "href": "text/part0026.html"
+    },
+    {
+      "title": "Summary of Design Principles",
+      "href": "text/part0027.html"
+    },
+    {
+      "title": "Summary of Red Flags",
+      "href": "text/part0028.html"
+    }
+  ],
+  "spine": [
+    {
+      "href": "text/part0004.html",
+      "positions": 4
+    },
+    {
+      "href": "text/part0005.html",
+      "positions": 4
+    },
+    {
+      "href": "text/part0006.html",
+      "positions": 8
+    },
+    {
+      "href": "text/part0007.html",
+      "positions": 6
+    },
+    {
+      "href": "text/part0008.html",
+      "positions": 10
+    },
+    {
+      "href": "text/part0009.html",
+      "positions": 10
+    },
+    {
+      "href": "text/part0010.html",
+      "positions": 6
+    },
+    {
+      "href": "text/part0011.html",
+      "positions": 10
+    },
+    {
+      "href": "text/part0012.html",
+      "positions": 4
+    },
+    {
+      "href": "text/part0013.html",
+      "positions": 16
+    },
+    {
+      "href": "text/part0014.html",
+      "positions": 16
+    },
+    {
+      "href": "text/part0015.html",
+      "positions": 4
+    },
+    {
+      "href": "text/part0016.html",
+      "positions": 6
+    },
+    {
+      "href": "text/part0017.html",
+      "positions": 20
+    },
+    {
+      "href": "text/part0018.html",
+      "positions": 8
+    },
+    {
+      "href": "text/part0019.html",
+      "positions": 6
+    },
+    {
+      "href": "text/part0020.html",
+      "positions": 6
+    },
+    {
+      "href": "text/part0021.html",
+      "positions": 4
+    },
+    {
+      "href": "text/part0022.html",
+      "positions": 6
+    },
+    {
+      "href": "text/part0023.html",
+      "positions": 8
+    },
+    {
+      "href": "text/part0024.html",
+      "positions": 10
+    },
+    {
+      "href": "text/part0025.html",
+      "positions": 2
+    },
+    {
+      "href": "text/part0026.html",
+      "positions": 4
+    },
+    {
+      "href": "text/part0027.html",
+      "positions": 2
+    },
+    {
+      "href": "text/part0028.html",
+      "positions": 1
+    }
+  ],
+  "expected": [
+    {
+      "title": "Preface",
+      "href": "text/part0004.html"
+    },
+    {
+      "title": "1 Introduction",
+      "href": "text/part0005.html"
+    },
+    {
+      "title": "2 The Nature of Complexity",
+      "href": "text/part0006.html"
+    },
+    {
+      "title": "3 Working Code Isn't Enough",
+      "href": "text/part0007.html"
+    },
+    {
+      "title": "4 Modules Should Be Deep",
+      "href": "text/part0008.html"
+    },
+    {
+      "title": "5 Information Hiding (and Leakage)",
+      "href": "text/part0009.html"
+    },
+    {
+      "title": "6 General-Purpose Modules are Deeper",
+      "href": "text/part0010.html"
+    },
+    {
+      "title": "7 Different Layer, Different Abstraction",
+      "href": "text/part0011.html"
+    },
+    {
+      "title": "8 Pull Complexity Downwards",
+      "href": "text/part0012.html"
+    },
+    {
+      "title": "9 Better Together Or Better Apart?",
+      "href": "text/part0013.html"
+    },
+    {
+      "title": "10 Define Errors Out Of Existence",
+      "href": "text/part0014.html"
+    },
+    {
+      "title": "11 Design it Twice",
+      "href": "text/part0015.html"
+    },
+    {
+      "title": "12 Why Write Comments? The Four Excuses",
+      "href": "text/part0016.html"
+    },
+    {
+      "title": "13 Comments Should Describe Things that Aren't Obvious from the Code",
+      "href": "text/part0017.html"
+    },
+    {
+      "title": "14 Choosing Names",
+      "href": "text/part0018.html"
+    },
+    {
+      "title": "15 Write The Comments First",
+      "href": "text/part0019.html"
+    },
+    {
+      "title": "16 Modifying Existing Code",
+      "href": "text/part0020.html"
+    },
+    {
+      "title": "17 Consistency",
+      "href": "text/part0021.html"
+    },
+    {
+      "title": "18 Code Should be Obvious",
+      "href": "text/part0022.html"
+    },
+    {
+      "title": "19 Software Trends",
+      "href": "text/part0023.html"
+    },
+    {
+      "title": "20 Designing for Performance",
+      "href": "text/part0024.html"
+    },
+    {
+      "title": "21 Conclusion",
+      "href": "text/part0025.html"
+    },
+    {
+      "title": "Index",
+      "href": "text/part0026.html"
+    },
+    {
+      "title": "Summary of Design Principles",
+      "href": "text/part0027.html"
+    },
+    {
+      "title": "Summary of Red Flags",
+      "href": "text/part0028.html"
+    }
+  ]
+}

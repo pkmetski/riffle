@@ -1,0 +1,370 @@
+{
+  "book": "Monolith to Microservices",
+  "provenance": "RECONSTRUCTED (not extracted from the real EPUB — ABS/Storyteller were unreachable and oreilly.com blocks fetches): chapter/section structure from the book's published section listings (github.com/SaraLerma/Monolith-To-Microservices summary cross-checked against O'Reilly chapter pages indexed in search results), depth-2 only; O'Reilly-convention hrefs, synthesized anchors, positions approximated from print page spans (~270 pages total). The real O'Reilly nav is DEEPER than this (pattern subsections like 'How It Works'/'Where to Use It' at depth 3, which do not become rail segments) and may name a few depth-2 sections differently. Re-extract from the real EPUB when available. 'expected' captures the intended rail behavior: 57 same-file sections exceed the readability cap, so the rail collapses to chapter granularity.",
+  "toc": [
+    {
+      "title": "Preface",
+      "href": "preface01.html",
+      "children": [
+        {
+          "title": "What You Will Learn",
+          "href": "preface01.html#learn"
+        },
+        {
+          "title": "Conventions Used in This Book",
+          "href": "preface01.html#conventions"
+        },
+        {
+          "title": "O'Reilly Online Learning",
+          "href": "preface01.html#oreilly"
+        },
+        {
+          "title": "Acknowledgments",
+          "href": "preface01.html#acks"
+        }
+      ]
+    },
+    {
+      "title": "1. Just Enough Microservices",
+      "href": "ch01.html",
+      "children": [
+        {
+          "title": "What Are Microservices?",
+          "href": "ch01.html#what-are"
+        },
+        {
+          "title": "The Monolith",
+          "href": "ch01.html#monolith"
+        },
+        {
+          "title": "On Coupling and Cohesion",
+          "href": "ch01.html#coupling"
+        },
+        {
+          "title": "Just Enough Domain-Driven Design",
+          "href": "ch01.html#ddd"
+        },
+        {
+          "title": "Summary",
+          "href": "ch01.html#summary"
+        }
+      ]
+    },
+    {
+      "title": "2. Planning a Migration",
+      "href": "ch02.html",
+      "children": [
+        {
+          "title": "Understanding the Goal",
+          "href": "ch02.html#goal"
+        },
+        {
+          "title": "Why Might You Choose Microservices?",
+          "href": "ch02.html#why"
+        },
+        {
+          "title": "When Might Microservices Be a Bad Idea?",
+          "href": "ch02.html#bad-idea"
+        },
+        {
+          "title": "Trade-Offs",
+          "href": "ch02.html#tradeoffs"
+        },
+        {
+          "title": "Taking People on the Journey",
+          "href": "ch02.html#people"
+        },
+        {
+          "title": "Changing Organizations",
+          "href": "ch02.html#orgs"
+        },
+        {
+          "title": "Importance of Incremental Migration",
+          "href": "ch02.html#incremental"
+        },
+        {
+          "title": "Cost of Change",
+          "href": "ch02.html#cost"
+        },
+        {
+          "title": "Domain-Driven Design",
+          "href": "ch02.html#ddd"
+        },
+        {
+          "title": "Reorganizing Teams",
+          "href": "ch02.html#teams"
+        },
+        {
+          "title": "How Will You Know if the Transition Is Working?",
+          "href": "ch02.html#working"
+        },
+        {
+          "title": "Summary",
+          "href": "ch02.html#summary"
+        }
+      ]
+    },
+    {
+      "title": "3. Splitting the Monolith",
+      "href": "ch03.html",
+      "children": [
+        {
+          "title": "To Change the Monolith, or Not?",
+          "href": "ch03.html#change-or-not"
+        },
+        {
+          "title": "Migration Patterns",
+          "href": "ch03.html#patterns"
+        },
+        {
+          "title": "Pattern: Strangler Fig Application",
+          "href": "ch03.html#strangler"
+        },
+        {
+          "title": "Changing Behavior While Migrating Functionality",
+          "href": "ch03.html#behavior"
+        },
+        {
+          "title": "Pattern: UI Composition",
+          "href": "ch03.html#ui-composition"
+        },
+        {
+          "title": "Pattern: Branch by Abstraction",
+          "href": "ch03.html#branch-abstraction"
+        },
+        {
+          "title": "Pattern: Parallel Run",
+          "href": "ch03.html#parallel-run"
+        },
+        {
+          "title": "Pattern: Decorating Collaborator",
+          "href": "ch03.html#decorating"
+        },
+        {
+          "title": "Pattern: Change Data Capture",
+          "href": "ch03.html#cdc"
+        },
+        {
+          "title": "Summary",
+          "href": "ch03.html#summary"
+        }
+      ]
+    },
+    {
+      "title": "4. Decomposing the Database",
+      "href": "ch04.html",
+      "children": [
+        {
+          "title": "Pattern: The Shared Database",
+          "href": "ch04.html#shared-db"
+        },
+        {
+          "title": "But It Can't Be Done!",
+          "href": "ch04.html#cant-be-done"
+        },
+        {
+          "title": "Pattern: Database View",
+          "href": "ch04.html#db-view"
+        },
+        {
+          "title": "Pattern: Database Wrapping Service",
+          "href": "ch04.html#db-wrapping"
+        },
+        {
+          "title": "Pattern: Database-as-a-Service Interface",
+          "href": "ch04.html#dbaas"
+        },
+        {
+          "title": "Transferring Ownership",
+          "href": "ch04.html#ownership"
+        },
+        {
+          "title": "Data Synchronization",
+          "href": "ch04.html#data-sync"
+        },
+        {
+          "title": "Pattern: Synchronize Data in Application",
+          "href": "ch04.html#sync-in-app"
+        },
+        {
+          "title": "Pattern: Tracer Write",
+          "href": "ch04.html#tracer-write"
+        },
+        {
+          "title": "Splitting Apart the Database",
+          "href": "ch04.html#splitting"
+        },
+        {
+          "title": "Schema Separation Examples",
+          "href": "ch04.html#schema-examples"
+        },
+        {
+          "title": "Transactions",
+          "href": "ch04.html#transactions"
+        },
+        {
+          "title": "Sagas",
+          "href": "ch04.html#sagas"
+        },
+        {
+          "title": "Summary",
+          "href": "ch04.html#summary"
+        }
+      ]
+    },
+    {
+      "title": "5. Growing Pains",
+      "href": "ch05.html",
+      "children": [
+        {
+          "title": "More Services, More Pain",
+          "href": "ch05.html#more-pain"
+        },
+        {
+          "title": "Ownership at Scale",
+          "href": "ch05.html#ownership"
+        },
+        {
+          "title": "Breaking Changes",
+          "href": "ch05.html#breaking"
+        },
+        {
+          "title": "Reporting",
+          "href": "ch05.html#reporting"
+        },
+        {
+          "title": "Monitoring and Troubleshooting",
+          "href": "ch05.html#monitoring"
+        },
+        {
+          "title": "Local Developer Experience",
+          "href": "ch05.html#dev-experience"
+        },
+        {
+          "title": "Running Too Many Things",
+          "href": "ch05.html#too-many"
+        },
+        {
+          "title": "End-to-End Testing",
+          "href": "ch05.html#e2e"
+        },
+        {
+          "title": "Global Versus Local Optimization",
+          "href": "ch05.html#optimization"
+        },
+        {
+          "title": "Robustness and Resiliency",
+          "href": "ch05.html#robustness"
+        },
+        {
+          "title": "Orphaned Services",
+          "href": "ch05.html#orphaned"
+        },
+        {
+          "title": "Summary",
+          "href": "ch05.html#summary"
+        }
+      ]
+    },
+    {
+      "title": "6. Closing Words",
+      "href": "ch06.html"
+    },
+    {
+      "title": "A. Bibliography",
+      "href": "app01.html"
+    },
+    {
+      "title": "B. Pattern Index",
+      "href": "app02.html"
+    },
+    {
+      "title": "Index",
+      "href": "ix01.html"
+    }
+  ],
+  "spine": [
+    {
+      "href": "preface01.html",
+      "positions": 8
+    },
+    {
+      "href": "ch01.html",
+      "positions": 38
+    },
+    {
+      "href": "ch02.html",
+      "positions": 42
+    },
+    {
+      "href": "ch03.html",
+      "positions": 68
+    },
+    {
+      "href": "ch04.html",
+      "positions": 88
+    },
+    {
+      "href": "ch05.html",
+      "positions": 38
+    },
+    {
+      "href": "ch06.html",
+      "positions": 3
+    },
+    {
+      "href": "app01.html",
+      "positions": 2
+    },
+    {
+      "href": "app02.html",
+      "positions": 3
+    },
+    {
+      "href": "ix01.html",
+      "positions": 12
+    }
+  ],
+  "expected": [
+    {
+      "title": "Preface",
+      "href": "preface01.html"
+    },
+    {
+      "title": "1. Just Enough Microservices",
+      "href": "ch01.html"
+    },
+    {
+      "title": "2. Planning a Migration",
+      "href": "ch02.html"
+    },
+    {
+      "title": "3. Splitting the Monolith",
+      "href": "ch03.html"
+    },
+    {
+      "title": "4. Decomposing the Database",
+      "href": "ch04.html"
+    },
+    {
+      "title": "5. Growing Pains",
+      "href": "ch05.html"
+    },
+    {
+      "title": "6. Closing Words",
+      "href": "ch06.html"
+    },
+    {
+      "title": "A. Bibliography",
+      "href": "app01.html"
+    },
+    {
+      "title": "B. Pattern Index",
+      "href": "app02.html"
+    },
+    {
+      "title": "Index",
+      "href": "ix01.html"
+    }
+  ]
+}

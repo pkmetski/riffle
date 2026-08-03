@@ -2,6 +2,7 @@ import com.riffle.buildlogic.AndroidImportLint
 import com.riffle.buildlogic.OkHttpConfinementLint
 import com.riffle.buildlogic.RiffleLogTagLint
 import com.riffle.buildlogic.ServerReferenceLint
+import com.riffle.buildlogic.TestGuardrailLint
 
 plugins {
     alias(libs.plugins.android.application) apply false
@@ -97,6 +98,27 @@ tasks.register("checkRiffleInfraSeams") {
             // migrate once the reader layer routes through DispatcherProvider.
             "app/src/main/kotlin/com/riffle/app/feature/reader/cbz/CbzReaderViewModel.kt",
             "app/src/main/kotlin/com/riffle/app/feature/reader/cbz/CbzReaderScreen.kt",
+            // ---- Grandfathered when CI enforcement of these lints was turned on (the custom
+            // checks were wired into `check`, which no CI job ran — drift below accumulated
+            // unenforced). Same sweep-follow-up rationale as the blocks above.
+            // DefaultDispatcherProvider moved main → jvmMain in the core carve-out (#576).
+            "core/domain/src/jvmMain/kotlin/com/riffle/core/domain/DefaultDispatcherProvider.kt",
+            // Catalog adapters: network/parse work pinned to Dispatchers.IO/Default.
+            "core/catalog-chitanka/src/main/kotlin/com/riffle/core/catalog/chitanka/ChitankaCatalog.kt",
+            "core/catalog-gutenberg/src/main/kotlin/com/riffle/core/catalog/gutenberg/GutenbergCatalog.kt",
+            "core/catalog-komga/src/main/kotlin/com/riffle/core/catalog/komga/KomgaCatalog.kt",
+            // core:data — file I/O, connectivity callbacks, sync timestamps.
+            "core/data/src/main/kotlin/com/riffle/core/data/ConnectivityObserverImpl.kt",
+            "core/data/src/main/kotlin/com/riffle/core/data/SourceRepositoryImpl.kt",
+            "core/data/src/main/kotlin/com/riffle/core/data/absbookmark/AbsBookmarkAnnotationSyncTarget.kt",
+            "core/data/src/main/kotlin/com/riffle/core/data/localfiles/CopyCoverImageUseCase.kt",
+            "core/data/src/main/kotlin/com/riffle/core/data/localfiles/LocalFilesScanner.kt",
+            // Reader/session/export layer — same reader-layer rationale as the CBZ entries.
+            "app/src/main/kotlin/com/riffle/app/feature/reader/EpubReaderScreen.kt",
+            "app/src/main/kotlin/com/riffle/app/feature/reader/FigureZoomOverlay.kt",
+            "app/src/main/kotlin/com/riffle/app/feature/reader/highlights/HighlightsPdfExporter.kt",
+            "app/src/main/kotlin/com/riffle/app/feature/reader/session/ReaderSessionLifecycle.kt",
+            "app/src/main/kotlin/com/riffle/app/feature/source/localfiles/PdfiumPdfMetadataExtractor.kt",
         )
 
         val scanRoots = listOf(
@@ -154,10 +176,23 @@ tasks.register("checkRendererBridgeUsage") {
         val bridgePackageRoot = layout.projectDirectory.dir(
             "app/src/main/kotlin/com/riffle/app/feature/reader/renderer",
         ).asFile.absolutePath
-        // Continuous mode has its own custom WebViews — out of scope per the issue.
+        // Continuous mode has its own custom WebViews — out of scope per the issue. The last two
+        // entries are sanctioned non-continuous seams; anything new belongs in RendererBridge.
         val continuousAllowlist = setOf(
             "app/src/main/kotlin/com/riffle/app/feature/reader/ChapterWebView.kt",
             "app/src/main/kotlin/com/riffle/app/feature/reader/ContinuousReaderView.kt",
+            // Continuous-mode controllers/binder drive the same custom ChapterWebViews.
+            "app/src/main/kotlin/com/riffle/app/feature/reader/ContinuousDecorationController.kt",
+            "app/src/main/kotlin/com/riffle/app/feature/reader/ContinuousWindowController.kt",
+            "app/src/main/kotlin/com/riffle/app/feature/reader/ChapterWebViewBinder.kt",
+            // Cadence's continuous chapter-load hook receives a ChapterWebView (issue #403).
+            "app/src/main/kotlin/com/riffle/app/feature/reader/EpubReaderScreen.kt",
+            // WebViewFiguresInRangeResolver is unwired scaffolding (DI binds the Noop); it must
+            // move behind RendererBridge when the WebView seam that wires it lands.
+            "app/src/main/kotlin/com/riffle/app/feature/reader/FiguresInRangeResolver.kt",
+            // ADR 0046: the presenter's typed suspend wrapper around the Readium navigator's
+            // evaluateJavascript IS the sanctioned seam for emphasis-span injection.
+            "app/src/main/kotlin/com/riffle/app/feature/reader/presenter/ReadiumPresenter.kt",
         )
         val scanRoots = listOf(
             layout.projectDirectory.dir("app/src/main").asFile,
@@ -271,6 +306,85 @@ tasks.register("checkNoAndroidImports") {
     }
 }
 
+// Treats every @Test function as a guardrail: a test that disappears relative to the merge base
+// with main — deleted or renamed — fails the build unless a commit message on the branch declares
+// it with a `Removed-test: <exact test name>` trailer. Tests pin behavioral claims; the chapter-map
+// section-flood regression shipped by renaming three pinning tests to assert the opposite inside a
+// large feature diff. The trailer doesn't bypass judgment — it forces the retired claim to be
+// visible in `git log` and the PR instead of buried in a test-file diff. Detection logic lives in
+// buildSrc/.../TestGuardrailLint.kt; see AGENTS.md "Don't blindly update tests".
+tasks.register("checkTestGuardrails") {
+    group = "verification"
+    description = "Fails if @Test functions disappeared vs origin/main without a Removed-test: commit trailer."
+    notCompatibleWithConfigurationCache("invokes git at execution time")
+
+    doLast {
+        val projectRoot = layout.projectDirectory.asFile
+        fun git(vararg args: String): String? {
+            val process = ProcessBuilder(listOf("git") + args)
+                .directory(projectRoot)
+                .start()
+            val stdout = process.inputStream.bufferedReader().readText()
+            process.errorStream.bufferedReader().readText()
+            return if (process.waitFor() == 0) stdout else null
+        }
+
+        val base = git("merge-base", "HEAD", "origin/main")?.trim()
+            ?: git("merge-base", "HEAD", "main")?.trim()
+        if (base == null) {
+            logger.warn("checkTestGuardrails: no merge base with origin/main (shallow clone or missing remote) — skipping.")
+            return@doLast
+        }
+        val head = git("rev-parse", "HEAD")?.trim()
+        if (head == null || base == head) return@doLast
+
+        val oldTests = mutableMapOf<String, Set<String>>()
+        val newTests = mutableMapOf<String, Set<String>>()
+        val nameStatus = git("diff", "--name-status", "-M", base, "HEAD") ?: return@doLast
+        for (line in nameStatus.lineSequence().filter { it.isNotBlank() }) {
+            val parts = line.split('\t')
+            val status = parts[0]
+            val oldPath = parts.getOrNull(1) ?: continue
+            val newPath = if (status.startsWith("R") || status.startsWith("C")) parts.getOrNull(2) else oldPath
+            if (!status.startsWith("A") && TestGuardrailLint.isTestSourceFile(oldPath)) {
+                git("show", "$base:$oldPath")?.let { oldTests[oldPath] = TestGuardrailLint.extractTestNames(it) }
+            }
+            if (!status.startsWith("D") && newPath != null && TestGuardrailLint.isTestSourceFile(newPath)) {
+                git("show", "$head:$newPath")?.let { newTests[newPath] = TestGuardrailLint.extractTestNames(it) }
+            }
+        }
+
+        val declared = TestGuardrailLint.parseDeclaredRemovals(git("log", "--format=%B", "$base..HEAD").orEmpty())
+        val offenders = TestGuardrailLint.findUndeclaredRemovals(oldTests, newTests, declared)
+        if (offenders.isNotEmpty()) {
+            throw GradleException(
+                "Tests are guardrails: these @Test functions exist at the merge base with main but not on this " +
+                    "branch. If retiring each behavioral claim is intentional, declare it with a commit-message " +
+                    "trailer line `Removed-test: <exact test name>` and justify the change in the commit body / " +
+                    "PR (see AGENTS.md \"Don't blindly update tests\"):\n" +
+                    offenders.joinToString("\n") { "  ${it.render()}" },
+            )
+        }
+    }
+}
+
+// Aggregate for CI: the six static lints plus the test-guardrail check. The CI Lint job runs this
+// explicitly — module `check` tasks (which also depend on these) are never invoked on CI, where
+// unit tests run via `./gradlew test`.
+tasks.register("riffleChecks") {
+    group = "verification"
+    description = "Runs all custom Riffle lint/guardrail checks."
+    dependsOn(
+        "checkRiffleLogTags",
+        "checkRiffleInfraSeams",
+        "checkRendererBridgeUsage",
+        "checkNoServerReferences",
+        "checkNoAndroidImports",
+        "checkNoOkHttpOutsideCoreNet",
+        "checkTestGuardrails",
+    )
+}
+
 // Make it part of the normal `./gradlew check` run.
 allprojects {
     tasks.matching { it.name == "check" }.configureEach {
@@ -280,5 +394,6 @@ allprojects {
         dependsOn(rootProject.tasks.named("checkNoServerReferences"))
         dependsOn(rootProject.tasks.named("checkNoAndroidImports"))
         dependsOn(rootProject.tasks.named("checkNoOkHttpOutsideCoreNet"))
+        dependsOn(rootProject.tasks.named("checkTestGuardrails"))
     }
 }
