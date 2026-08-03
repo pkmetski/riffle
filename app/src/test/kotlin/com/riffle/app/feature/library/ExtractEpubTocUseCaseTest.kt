@@ -12,6 +12,7 @@ import com.riffle.core.models.TocEntry
 import io.mockk.Runs
 import io.mockk.coEvery
 import io.mockk.coVerify
+import io.mockk.coVerifyOrder
 import io.mockk.every
 import io.mockk.just
 import io.mockk.mockk
@@ -267,6 +268,14 @@ class ExtractEpubTocUseCaseTest {
 
             assertEquals(120, result.totalPositions)
             coVerify(exactly = 1) {
+                publicationMetricsRepository.save(
+                    "srv1",
+                    "item1",
+                    PublicationMetrics(ebookFileIno = "ino1", totalPositions = 120),
+                )
+            }
+            coVerifyOrder {
+                publication.close()
                 publicationMetricsRepository.save(
                     "srv1",
                     "item1",

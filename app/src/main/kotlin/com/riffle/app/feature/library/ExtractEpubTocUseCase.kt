@@ -114,31 +114,31 @@ class ExtractEpubTocUseCase @Inject constructor(
             is Try.Failure -> return Details(matchingCachedEntries.orEmpty(), matchingPositionCount)
         }
 
-        return publication.use {
-            val entries = it.tableOfContents.toTocEntries()
-            val totalPositions = runCatching {
-                countEpubPositionsFromArchive(
-                    epubFile = file,
-                    readingOrderHrefs = it.readingOrder.map { link -> link.href.toString() },
-                    layout = it.metadata.layout,
-                )
-            }.getOrNull()
-            // Don't persist an empty TOC — it's almost always a transient parse failure, and
-            // caching it would prevent a healthy re-extract on the next open.
-            if (entries.isNotEmpty()) {
-                tocRepository.saveToc(item.sourceId, item.id, inode, entries)
-            }
-            if (totalPositions != null) {
-                publicationMetricsRepository.save(
-                    item.sourceId,
-                    item.id,
-                    PublicationMetrics(
-                        ebookFileIno = inode,
-                        totalPositions = totalPositions,
-                    ),
-                )
-            }
-            Details(entries, totalPositions)
+        val details = publication.use {
+            Details(
+                tocEntries = it.tableOfContents.toTocEntries(),
+                totalPositions = runCatching {
+                    countEpubPositionsFromArchive(
+                        epubFile = file,
+                        readingOrderHrefs = it.readingOrder.map { link -> link.href.toString() },
+                        layout = it.metadata.layout,
+                    )
+                }.getOrNull(),
+            )
         }
+        if (details.tocEntries.isNotEmpty()) {
+            tocRepository.saveToc(item.sourceId, item.id, inode, details.tocEntries)
+        }
+        if (details.totalPositions != null) {
+            publicationMetricsRepository.save(
+                item.sourceId,
+                item.id,
+                PublicationMetrics(
+                    ebookFileIno = inode,
+                    totalPositions = details.totalPositions,
+                ),
+            )
+        }
+        return details
     }
 }
