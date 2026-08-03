@@ -282,6 +282,32 @@ class KomgaPlaylistsCapabilityTest {
         }
     }
 
+    // Regression: old Komga servers (< 0.157 / pre-1.0) don't expose GET /api/v1/users/me —
+    // the endpoint returns 404 with Spring's "No endpoint" body. Previously that 404 propagated
+    // as a KomgaHttpException and broke the To-Read workflow entirely on those servers. Fix:
+    // 404 on /users/me is treated as "ownership unknown" and we match readlists by name only
+    // (old Komga never sets ownerId, so the null-ownerId predicate covers all their readlists).
+    @Test fun `findPlaylist succeeds when users me returns 404 (old Komga without the endpoint)`() = runTest {
+        server.enqueue(MockResponse().setResponseCode(404).setBody("""{"status":404,"message":"No endpoint GET /api/v1/users/me."}"""))
+        server.enqueue(readListPage("""{"id":"RL1","name":"To Read","bookIds":["B1"]}"""))
+        server.enqueue(bookPage("""{"id":"B1","libraryId":"L1","media":{"mediaType":"application/epub+zip"},"metadata":{"title":"Book","authors":[]}}"""))
+
+        val playlist = catalog.findPlaylist(rootId = "L1", name = "To Read")
+
+        assertNotNull(playlist)
+        assertEquals("RL1", playlist!!.id)
+        assertEquals(listOf("B1"), playlist.itemIds)
+    }
+
+    @Test fun `findPlaylist returns null for old Komga when no matching readlist exists`() = runTest {
+        server.enqueue(MockResponse().setResponseCode(404))
+        server.enqueue(readListPage("""{"id":"RL2","name":"Favourites","bookIds":[]}"""))
+
+        val playlist = catalog.findPlaylist(rootId = "L1", name = "To Read")
+
+        assertNull(playlist)
+    }
+
     @Test fun `createPlaylist appends initialItemId to existing owned readlist`() = runTest {
         enqueueMe()
         server.enqueue(readListPage(

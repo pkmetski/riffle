@@ -35,8 +35,9 @@ class DownloadManager @Inject constructor(
                 work { downloaded, total ->
                     set(key, DownloadState.InProgress(downloadPercent(downloaded, total)))
                 }
-            } catch (e: Exception) {
+            } catch (e: Throwable) {
                 // A repo that lets something escape must not leave the key stuck on a spinner.
+                // Catches Error subclasses (e.g. OutOfMemoryError) that Exception misses.
                 if (e is kotlinx.coroutines.CancellationException) throw e
                 DownloadState.NotDownloaded
             }

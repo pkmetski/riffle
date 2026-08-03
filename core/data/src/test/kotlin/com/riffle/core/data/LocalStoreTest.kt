@@ -66,6 +66,25 @@ class LocalStoreTest {
         assertTrue(storeDir.walkTopDown().none { it.name.contains("item-broken") })
     }
 
+    // Regression: the original catch (e: Exception) missed java.lang.Error subclasses such as
+    // OutOfMemoryError. When readBytes() threw an OOM mid-stream, tmp.delete() was never called,
+    // leaving a partial .tmp file on disk that wasted storage.
+    @Test
+    fun `save is atomic — no partial file left when stream throws an Error`() = runTest {
+        val failingStream = object : java.io.InputStream() {
+            var bytesRead = 0
+            override fun read(): Int {
+                if (bytesRead++ > 4) throw OutOfMemoryError("simulated OOM")
+                return 'x'.code
+            }
+        }
+        try {
+            store.save("source-1", "item-oom", failingStream)
+        } catch (_: OutOfMemoryError) {}
+        assertNull(store.get("source-1", "item-oom"))
+        assertTrue(storeDir.walkTopDown().none { it.name.contains("item-oom") })
+    }
+
     @Test
     fun `delete removes a previously saved file`() = runTest {
         store.save("source-1", "item-1", "content".toByteArray().inputStream())

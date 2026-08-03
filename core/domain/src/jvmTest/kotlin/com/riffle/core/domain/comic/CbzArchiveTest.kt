@@ -38,6 +38,25 @@ class CbzArchiveTest {
         }
     }
 
+    // Regression: imageBytes() calls readBytes() which allocates the full decompressed content as
+    // a ByteArray. For large scans (e.g. 274MB BMP in a CBZ) this OOM-crashes the JVM and causes
+    // GC-thrashing ANRs. openStream() returns the raw InflaterInputStream without buffering so the
+    // caller (BitmapFactory in the screen) can decode natively.
+    @Test
+    fun `openStream returns the same bytes as imageBytes`() {
+        val file = tmp.newFile("comic.cbz").apply {
+            ZipOutputStream(outputStream()).use { z ->
+                z.write("page-001.jpg", pngBytes(0x01))
+                z.write("page-002.png", pngBytes(0x02))
+            }
+        }
+
+        CbzArchive(file).use { archive ->
+            assertArrayEquals(pngBytes(0x01), archive.openStream(0).use { it.readBytes() })
+            assertArrayEquals(pngBytes(0x02), archive.openStream(1).use { it.readBytes() })
+        }
+    }
+
     @Test
     fun `zero pages when archive has no images`() {
         val file = tmp.newFile("empty.cbz").apply {

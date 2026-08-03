@@ -1,5 +1,7 @@
 package com.riffle.app.feature.reader.cbz
 
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.view.WindowManager
 import android.provider.Settings
 import androidx.compose.animation.AnimatedVisibility
@@ -269,8 +271,10 @@ private fun CbzPage(
     var scale by remember(pageIndex) { mutableStateOf(1f) }
     var offsetX by remember(pageIndex) { mutableStateOf(0f) }
     var offsetY by remember(pageIndex) { mutableStateOf(0f) }
-    val bytes by produceState<ByteArray?>(initialValue = null, key1 = pageIndex, key2 = source) {
-        value = withContext(Dispatchers.IO) { source.imageBytes(pageIndex) }
+    val bitmap by produceState<Bitmap?>(initialValue = null, key1 = pageIndex, key2 = source) {
+        value = withContext(Dispatchers.IO) {
+            runCatching { decodeSampledBitmap(source, pageIndex, MAX_PAGE_DIMENSION) }.getOrNull()
+        }
     }
     val context = LocalContext.current
 
@@ -330,7 +334,7 @@ private fun CbzPage(
     ) {
         SubcomposeAsyncImage(
             model = ImageRequest.Builder(context)
-                .data(bytes)
+                .data(bitmap)
                 .crossfade(false)
                 .build(),
             contentDescription = "Comic page ${pageIndex + 1}",
@@ -372,8 +376,10 @@ private fun CbzPanelViewer(
         }
     }
 
-    val bytes by produceState<ByteArray?>(initialValue = null, key1 = currentPage, key2 = state.imageSource) {
-        value = withContext(Dispatchers.IO) { state.imageSource.imageBytes(currentPage) }
+    val bitmap by produceState<Bitmap?>(initialValue = null, key1 = currentPage, key2 = state.imageSource) {
+        value = withContext(Dispatchers.IO) {
+            runCatching { decodeSampledBitmap(state.imageSource, currentPage, MAX_PAGE_DIMENSION) }.getOrNull()
+        }
     }
 
     var viewportW by remember { mutableStateOf(0) }
@@ -454,7 +460,7 @@ private fun CbzPanelViewer(
 
         SubcomposeAsyncImage(
             model = ImageRequest.Builder(context)
-                .data(bytes)
+                .data(bitmap)
                 .crossfade(false)
                 .build(),
             contentDescription = "Comic page ${currentPage + 1} panel ${panelIndex + 1}",
@@ -563,8 +569,10 @@ private fun CbzThumbnail(
     onClick: () -> Unit,
 ) {
     val context = LocalContext.current
-    val bytes by produceState<ByteArray?>(initialValue = null, key1 = pageIndex, key2 = imageSource) {
-        value = withContext(Dispatchers.IO) { runCatching { imageSource.imageBytes(pageIndex) }.getOrNull() }
+    val bitmap by produceState<Bitmap?>(initialValue = null, key1 = pageIndex, key2 = imageSource) {
+        value = withContext(Dispatchers.IO) {
+            runCatching { decodeSampledBitmap(imageSource, pageIndex, MAX_THUMB_DIMENSION) }.getOrNull()
+        }
     }
     val borderColor = if (isCurrent) MaterialTheme.colorScheme.primary else Color.Transparent
     Box(
@@ -575,11 +583,11 @@ private fun CbzThumbnail(
             .clickable { onClick() }
             .testTag("cbz_thumb_$pageIndex"),
     ) {
-        val currentBytes = bytes
-        if (currentBytes != null) {
+        val currentBitmap = bitmap
+        if (currentBitmap != null) {
             AsyncImage(
                 model = ImageRequest.Builder(context)
-                    .data(currentBytes)
+                    .data(currentBitmap)
                     .size(CoilSize(264, 360))
                     .crossfade(false)
                     .build(),
@@ -610,6 +618,45 @@ private fun isReduceMotionEnabled(context: android.content.Context): Boolean {
 }
 
 internal enum class CbzPageGestureAction { Ignore, Zoom, PanZoomed }
+
+// Large BMPs can exceed 274MB decoded. Subsample to this max dimension to keep the Bitmap
+// allocation under the app heap limit.
+private const val MAX_PAGE_DIMENSION = 4096
+private const val MAX_THUMB_DIMENSION = 256
+
+internal fun calculateInSampleSize(width: Int, height: Int, maxDimension: Int): Int {
+    var sampleSize = 1
+    while (maxOf(width, height) / sampleSize > maxDimension) sampleSize *= 2
+    return sampleSize
+}
+
+internal fun decodeSampledBitmap(source: CbzImageSource, pageIndex: Int, maxDimension: Int): Bitmap? {
+    // Try a bounds-only pass first to pick an optimal starting inSampleSize without allocating
+    // any output Bitmap. BMP images OOM even on the bounds pass (Skia still reads the full row
+    // data internally), so catch that and fall back to starting at 1.
+    // Try a bounds-only pass first to pick an optimal starting inSampleSize without allocating
+    // any output Bitmap. BMP images OOM even on the bounds pass (Skia still reads the full row
+    // data internally), so catch that and fall back to starting at 1.
+    val startSampleSize = try {
+        val opts = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        source.openStream(pageIndex).use { BitmapFactory.decodeStream(it, null, opts) }
+        calculateInSampleSize(opts.outWidth, opts.outHeight, maxDimension)
+    } catch (_: Throwable) {
+        1
+    }
+    var sampleSize = startSampleSize
+    while (sampleSize <= 64) {
+        val opts = BitmapFactory.Options().apply { inSampleSize = sampleSize }
+        val bitmap = try {
+            source.openStream(pageIndex).use { BitmapFactory.decodeStream(it, null, opts) }
+        } catch (_: OutOfMemoryError) {
+            null
+        }
+        if (bitmap != null) return bitmap
+        sampleSize *= 2
+    }
+    return null
+}
 
 /**
  * Decides how the per-page pointer handler should react to an event.
