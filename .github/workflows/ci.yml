@@ -38,7 +38,7 @@ jobs:
   lint:
     name: Lint
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-java@v5
@@ -141,7 +141,7 @@ jobs:
   connected-test:
     name: Database tests (core:database)
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-java@v5
@@ -179,11 +179,7 @@ jobs:
   harness-test-phone:
     name: Harness tests (phone)
     runs-on: ubuntu-latest
-<<<<<<< HEAD
-    timeout-minutes: 17
-=======
     timeout-minutes: 25
->>>>>>> f7158c275 (ci: allow cold verification jobs to finish)
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-java@v5
@@ -230,7 +226,7 @@ jobs:
   harness-test-tablet:
     name: Harness tests (tablet)
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-java@v5
