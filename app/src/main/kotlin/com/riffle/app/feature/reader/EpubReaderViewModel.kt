@@ -63,9 +63,11 @@ import com.riffle.core.domain.resolveEpubHref
 import com.riffle.core.database.AnnotationDao
 import com.riffle.core.database.AnnotationEntity
 import com.riffle.app.feature.reader.highlights.ChapterElision
+import com.riffle.app.feature.reader.highlights.GENERIC_CSS_FONT_KEYWORDS
 import com.riffle.app.feature.reader.highlights.HighlightsPdfExporter
 import com.riffle.app.feature.reader.highlights.HighlightsPublicationFactory
 import com.riffle.app.feature.reader.highlights.ReaderSource
+import com.riffle.app.feature.reader.highlights.realCapturedFontOrNull
 import com.riffle.app.feature.reader.highlights.toFormattingScope
 import com.riffle.core.logging.LogChannel
 import com.riffle.core.logging.Logger
@@ -128,8 +130,7 @@ private const val FALLBACK_ORIGIN_FONT_FAMILY =
  *  by lazy backfill yet, OR when the stored value is the [FALLBACK_ORIGIN_FONT_FAMILY] sentinel
  *  (which is not a real captured font and must not propagate through merges). */
 private fun entityFontFamily(annotation: Annotation): String? =
-    annotation.originFontFamily
-        ?.takeIf { it.isNotBlank() && it != FALLBACK_ORIGIN_FONT_FAMILY }
+    realCapturedFontOrNull(annotation.originFontFamily)
 
 /** Plurality (mode) `originFontFamily` across every annotation in [chapters], skipping blanks
  *  AND the [FALLBACK_ORIGIN_FONT_FAMILY] sentinel — a book whose annotations were all created
@@ -156,13 +157,41 @@ internal fun combineDraftEmphasisStyles(
     else -> preset + tapped
 }
 
+/**
+ * Heals every row whose stored `originFontFamily` is a bare generic CSS keyword — not only the
+ * `serif` sentinel — to the probed real face [fontFamily]. Rows written as `sans-serif` (etc.)
+ * by captures made while a reader Font pref was active are equally "no real captured value" and
+ * must converge to the publisher's face once the book is next opened in Original mode
+ * (elided-view-always-sans regression, *Taking Charge of ADHD*). The caller guarantees
+ * [fontFamily] is itself never a generic ([noteBookBodyFontFamily]'s refusal guard), so this
+ * can't churn sync on a book whose CSS legitimately computes to a bare generic. Top-level so a
+ * JVM test can exercise the loop against [AnnotationStore] without standing up the ViewModel
+ * (Readium's `Url` needs the real `android.net.Uri`).
+ */
+internal suspend fun healGenericOriginFonts(
+    annotationStore: com.riffle.core.domain.AnnotationStore,
+    sourceId: String,
+    itemId: String,
+    fontFamily: String,
+): Int = GENERIC_CSS_FONT_KEYWORDS.sumOf { generic ->
+    runCatching {
+        annotationStore.healSentinelOriginFontFamily(
+            sourceId = sourceId,
+            itemId = itemId,
+            sentinel = generic,
+            fontFamily = fontFamily,
+        )
+    }.getOrElse { 0 }
+}
+
 internal fun pluralityOriginFont(chapters: List<ChapterElision>): String? =
     chapters.asSequence()
         .flatMap { it.highlights.asSequence() }
         .mapNotNull {
-            it.originFontFamily?.takeIf { f ->
-                f.isNotBlank() && f != FALLBACK_ORIGIN_FONT_FAMILY
-            }
+            // Skip bare generic keywords, not just the sentinel — a row stamped `sans-serif`
+            // (captured while a reader font pref was active) must not win the vote and pin the
+            // whole book's elided view to the pref face (elided-view-always-sans regression).
+            realCapturedFontOrNull(it.originFontFamily)
         }
         .groupingBy { it }
         .eachCount()
@@ -1242,8 +1271,9 @@ class EpubReaderViewModel @Inject constructor(
             // in-memory probe unknown) means "emit no `font-family`, ReadiumCSS default wins" —
             // pre-issue-484 behaviour and the pre-regression rendering for chapter titles.
             elidedBodyFontFamily = pluralityOriginFont(chapters)
-                ?: bookBodyFontFamilyReported.get()
-                    .takeIf { it.isNotBlank() && it != FALLBACK_ORIGIN_FONT_FAMILY }
+                ?: realCapturedFontOrNull(
+                    bookBodyFontFamilyReported.get(),
+                )
             // Serve figure bytes from the source EPUB (if it's been downloaded) so annotated
             // figures render as their real image in the elided view instead of the "[figure
             // image not captured]" placeholder. Highlights mode never runs the normal
@@ -1912,7 +1942,12 @@ class EpubReaderViewModel @Inject constructor(
         // default), and skipping leaves the atomic empty so a later chapter whose computed
         // font is a REAL face (e.g. `Nimbusromno9l, serif` on a chapter that mounts a font
         // stack, not the generic keyword) can still fill it in.
-        if (trimmed == FALLBACK_ORIGIN_FONT_FAMILY) return
+        // Same reasoning for every bare generic keyword, not just the `serif` sentinel: a probe
+        // that computed to bare `sans-serif`/`monospace`/… is the ReadiumCSS user-font override
+        // (Font pref ≠ Original) leaking through, never a real publisher face — latching it
+        // would backfill/heal every row on the book to the pref face and pin the elided view
+        // to it permanently (elided-view-always-sans regression, *Taking Charge of ADHD*).
+        if (realCapturedFontOrNull(trimmed) == null) return
         // Set-once per (VM lifecycle, book). AtomicReference.compareAndSet returns false when
         // we've already stored a non-blank font — cheap no-op on the many repeat reports the
         // JS tracker fires as chapters install across a reading session.
@@ -1929,14 +1964,7 @@ class EpubReaderViewModel @Inject constructor(
             // the elided view even after the user opens the source book. The store no-ops
             // when [trimmed] equals the sentinel, so a book whose CSS legitimately sets
             // `body { font-family: serif }` doesn't churn sync.
-            val healed = runCatching {
-                annotationStore.healSentinelOriginFontFamily(
-                    sourceId = sourceId,
-                    itemId = itemId,
-                    sentinel = FALLBACK_ORIGIN_FONT_FAMILY,
-                    fontFamily = trimmed,
-                )
-            }.getOrElse { 0 }
+            val healed = healGenericOriginFonts(annotationStore, sourceId, itemId, trimmed)
             val updated = backfilled + healed
             if (updated > 0) {
                 logger.d(LogChannel.HighlightMerge) {
@@ -2065,7 +2093,7 @@ class EpubReaderViewModel @Inject constructor(
             // [FALLBACK_ORIGIN_FONT_FAMILY] sentinel. Preferring (a) means the elided view's
             // per-excerpt `<p>` still renders in the publisher's face for annotations created in
             // rare-race sessions, avoiding the pre-fix "elided body forced to browser serif" bug.
-            val originFont = SelectionFontStash.consume().takeIf { it.isNotBlank() }
+            val originFont = realCapturedFontOrNull(SelectionFontStash.consume())
                 ?: bookBodyFontFamilyReported.get().takeIf { it.isNotBlank() }
                 ?: FALLBACK_ORIGIN_FONT_FAMILY
             // Inline-formatted excerpt HTML (issue: elided view drops italics). Empty string means
@@ -2663,7 +2691,7 @@ class EpubReaderViewModel @Inject constructor(
                 // the entire book was bookmark-only). Only if both are unknown do we stamp the
                 // [FALLBACK_ORIGIN_FONT_FAMILY] sentinel; the sentinel is filtered at render time
                 // and healed by the next full-book open. Issue #484.
-                val bookmarkFont = SelectionFontStash.consume().takeIf { it.isNotBlank() }
+                val bookmarkFont = realCapturedFontOrNull(SelectionFontStash.consume())
                     ?: bookBodyFontFamilyReported.get().takeIf { it.isNotBlank() }
                     ?: FALLBACK_ORIGIN_FONT_FAMILY
                 annotationStore.createBookmark(

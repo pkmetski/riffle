@@ -202,6 +202,21 @@ internal fun readiumDecorationTemplatesRegisterJs(): String {
 // on selectionchange, because the live DOM selection is gone by the time the action-mode menu handler
 // runs. getClientRects()[0] is the rect of the selection's first glyph (its start).
 /**
+ * JS boolean expression: true when a ReadiumCSS user-font override is active in this document.
+ * Both reader stacks mark an active Font pref the same way — `--USER__fontOverride:
+ * readium-font-on` inside the inline `style` attribute on `<html>` (paginated/vertical via
+ * Readium's `EpubSettings`/`UserProperties.toCss()`, continuous via
+ * [ContinuousStyleInjector.buildHtmlStyleAttr]) — so a plain substring check on the attribute
+ * covers all three modes. While the override is on, every `getComputedStyle().fontFamily` in the
+ * document reports the USER's pref stack (e.g. bare `sans-serif`), not the publisher's face, so
+ * the font probes below must not capture it (elided-view-always-sans regression: a highlight
+ * created under the Sans pref stamped `sans-serif` on the row and pinned the whole book's elided
+ * view to sans).
+ */
+internal const val FONT_OVERRIDE_ACTIVE_JS =
+    "((document.documentElement.getAttribute('style') || '').indexOf('readium-font-on') !== -1)"
+
+/**
  * Reads the current text selection for the continuous-mode action-mode menu handlers ("Highlight",
  * "Copy", "Share", "Play from here"). Returns a JSON payload with `text`, within-chapter
  * progression `p`, the range's viewport rect (`l`/`t`/`r`/`b`, CSS px), and 60-char before/after
@@ -257,12 +272,18 @@ internal val CONTINUOUS_SELECTION_READ_JS = """
                     aft = afterR.toString().slice(0, 60);
                 } catch (e) { aft = ''; }
             }
+            // Skip the capture entirely while a user font override is active — the computed
+            // style is the Font pref's stack, not the publisher's face (see
+            // [FONT_OVERRIDE_ACTIVE_JS]). Empty ff falls back to the body probe / sentinel
+            // machinery on the Kotlin side.
             try {
-                var startEl = range.startContainer;
-                if (startEl && startEl.nodeType === 3) startEl = startEl.parentElement;
-                if (startEl && startEl.nodeType === 1) {
-                    var cs = window.getComputedStyle(startEl);
-                    if (cs) ff = cs.fontFamily || '';
+                if (!$FONT_OVERRIDE_ACTIVE_JS) {
+                    var startEl = range.startContainer;
+                    if (startEl && startEl.nodeType === 3) startEl = startEl.parentElement;
+                    if (startEl && startEl.nodeType === 1) {
+                        var cs = window.getComputedStyle(startEl);
+                        if (cs) ff = cs.fontFamily || '';
+                    }
                 }
             } catch (e) { ff = ''; }
         }
@@ -289,8 +310,16 @@ internal val SELECTION_SPAN_TRACKER_JS = """
       // whole "elided view inherits the origin's font" contract (elided-view-serif-font-
       // regression). `<body>` remains the final fallback for chapter shells that don't yet
       // have inner content (the tracker re-fires on the next install once content mounts).
+      //
+      // Skipped entirely while a user font override is active (Font pref ≠ Original): every
+      // computed font-family in the document is then the USER's pref stack, not the publisher's
+      // face, and capturing it would backfill/heal the pref face onto every annotation on the
+      // book (elided-view-always-sans regression). Leaving __riffleBookBodyFont empty is the
+      // same as the "chapter shell with no content" case — the Kotlin side falls back to the
+      // sentinel machinery, and a later session in Original mode fills the real value in.
       try {
         var probeEl = null;
+        if ($FONT_OVERRIDE_ACTIVE_JS) throw 'font-override-active';
         // Prefer real body-text elements over chapter-header wrappers. `<p>` and `<li>` are the
         // canonical body-text carriers publisher CSS styles; the earlier version fell straight
         // through to `<div>`/`<span>` and picked up leading `<div class="chapternum">7</div>`
@@ -499,7 +528,9 @@ internal val SELECTION_SPAN_TRACKER_JS = """
             // no content yet) do we fall through to the start-element style — better than
             // recording nothing.
             var ff = window.__riffleBookBodyFont || '';
-            if (!ff) {
+            // Same font-override guard as the body probe: under an active Font pref the
+            // start-element's computed style is the pref stack, not the publisher face.
+            if (!ff && !$FONT_OVERRIDE_ACTIVE_JS) {
               try {
                 var startEl = rng.startContainer;
                 if (startEl && startEl.nodeType === 3) startEl = startEl.parentElement;
