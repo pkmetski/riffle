@@ -227,6 +227,9 @@ private fun spineIndexOf(spineHrefs: List<String>): Map<String, Int> =
 
 private fun hrefBase(href: String): String = normalizeEpubHref(href).substringBefore('#')
 
+private fun normalizedHref(href: String): String =
+    hrefBase(href) + href.substringAfter('#', "").takeIf { it.isNotEmpty() }?.let { "#$it" }.orEmpty()
+
 private fun String.normalize(): String = trim().lowercase().replace(Regex("\\s+"), " ")
 
 /**
@@ -246,11 +249,12 @@ fun findActiveSegmentIndex(
     progression: Float? = null,
 ): Int {
     if (segments.isEmpty()) return 0
-    val currentBase = hrefBase(currentHref)
-    // If currentHref has a fragment that exactly matches a segment href, prefer it
+    // If currentHref matches a segment href exactly (normalized, fragment preserved), prefer it
     // so that e.g. "chapter.xhtml#s2" resolves to the specific section segment.
-    val exactFragment = segments.indexOfFirst { it.href == currentHref }
-    if (exactFragment >= 0) return exactFragment
+    val normalizedCurrentHref = normalizedHref(currentHref)
+    val exact = segments.indexOfFirst { normalizedHref(it.href) == normalizedCurrentHref }
+    if (exact >= 0) return exact
+    val currentBase = hrefBase(currentHref)
     val baseMatches = segments.indices.filter {
         hrefBase(segments[it].href) == currentBase
     }
@@ -261,11 +265,6 @@ fun findActiveSegmentIndex(
         val offset = if (p >= 1f) baseMatches.lastIndex else minOf((p * baseMatches.size).toInt(), baseMatches.lastIndex)
         return baseMatches[offset]
     }
-    // No same-base-href segments and no exact fragment match: try normalized exact match
-    // (handles file:///...!/ prefixed hrefs) and then fall back to spine-based lookup.
-    val normalizedCurrentHref = normalizeEpubHref(currentHref)
-    val exact = segments.indexOfFirst { normalizeEpubHref(it.href) == normalizedCurrentHref }
-    if (exact >= 0) return exact
     if (spineHrefs.isEmpty()) return 0
     val spineBases = spineHrefs.map(::hrefBase)
     val currentSpineIndex = spineBases.indexOf(currentBase)
