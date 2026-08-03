@@ -32,6 +32,7 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Before
 import org.junit.Test
 
@@ -270,6 +271,19 @@ class LibraryItemDetailViewModelTocTest {
         testDispatcher.scheduler.advanceUntilIdle()
 
         assertEquals(5_040L, vm.estimatedTotalReadingTimeSec.value)
+    }
+
+    @Test
+    fun `estimatedTotalReadingTimeSec is null when totalPositions is unknown`() = runTest {
+        val extractUseCase = mockk<ExtractEpubTocUseCase>().also { useCase ->
+            coEvery { useCase.extractDetails(epubItem) } returns
+                ExtractEpubTocUseCase.Details(emptyList(), totalPositions = null)
+        }
+        val vm = makeVm(item = epubItem, extractEpubTocUseCase = extractUseCase)
+        backgroundScope.launch { vm.estimatedTotalReadingTimeSec.collect {} }
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertNull(vm.estimatedTotalReadingTimeSec.value)
     }
 
     @Test

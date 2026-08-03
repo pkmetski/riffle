@@ -40,4 +40,15 @@ class LibraryItemDetailPublicationFactsTest {
     fun `pdf page count is labelled by format`() {
         assertEquals("PDF · 321 pages", publicationPageCountText(EbookFormat.Pdf, 321))
     }
+
+    @Test
+    fun `zero or negative speed produces no estimate`() {
+        assertNull(estimatedReadingTimeSec(totalPositions = 120, secPerPosition = 0.0))
+        assertNull(estimatedReadingTimeSec(totalPositions = 120, secPerPosition = -1.0))
+    }
+
+    @Test
+    fun `comic page count is labelled by format`() {
+        assertEquals("Comic · 120 pages", publicationPageCountText(EbookFormat.Cbz, 120))
+    }
 }
