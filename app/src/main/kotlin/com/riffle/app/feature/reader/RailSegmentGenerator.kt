@@ -1,5 +1,6 @@
 package com.riffle.app.feature.reader
 
+import com.riffle.core.domain.normalizeEpubHref
 import com.riffle.core.models.TocEntry
 
 fun buildRailSegments(
@@ -222,7 +223,9 @@ private val NUMERIC_PREFIX = Regex("""^\s*(\d+)\s*[.)]\s+""")
 
 /** Shared spine-href → index lookup used by both the expand decision and the weight math. */
 private fun spineIndexOf(spineHrefs: List<String>): Map<String, Int> =
-    spineHrefs.withIndex().associate { (i, h) -> h to i }
+    spineHrefs.withIndex().associate { (i, h) -> normalizeEpubHref(h) to i }
+
+private fun hrefBase(href: String): String = normalizeEpubHref(href).substringBefore('#')
 
 private fun String.normalize(): String = trim().lowercase().replace(Regex("\\s+"), " ")
 
@@ -243,11 +246,12 @@ fun findActiveSegmentIndex(
     progression: Float? = null,
 ): Int {
     if (segments.isEmpty()) return 0
-    val exact = segments.indexOfFirst { it.href == currentHref }
+    val normalizedCurrentHref = normalizeEpubHref(currentHref)
+    val exact = segments.indexOfFirst { normalizeEpubHref(it.href) == normalizedCurrentHref }
     if (exact >= 0) return exact
-    val currentBase = currentHref.substringBefore('#')
+    val currentBase = hrefBase(currentHref)
     val baseMatches = segments.indices.filter {
-        segments[it].href.substringBefore('#') == currentBase
+        hrefBase(segments[it].href) == currentBase
     }
     if (baseMatches.size == 1) return baseMatches.first()
     if (baseMatches.size > 1) {
@@ -257,7 +261,7 @@ fun findActiveSegmentIndex(
         return baseMatches[offset]
     }
     if (spineHrefs.isEmpty()) return 0
-    val spineBases = spineHrefs.map { it.substringBefore('#') }
+    val spineBases = spineHrefs.map(::hrefBase)
     val currentSpineIndex = spineBases.indexOf(currentBase)
     if (currentSpineIndex < 0) return 0
     var bestSegIdx = -1
@@ -283,9 +287,9 @@ fun progressionWithinRailSegment(
     progression: Float,
 ): Float {
     val p = progression.coerceIn(0f, 1f)
-    val currentBase = currentHref.substringBefore('#')
+    val currentBase = hrefBase(currentHref)
     val baseMatches = segments.indices.filter {
-        segments[it].href.substringBefore('#') == currentBase
+        hrefBase(segments[it].href) == currentBase
     }
     if (baseMatches.size <= 1) return p
     val offset = baseMatches.indexOf(activeIndex)
@@ -309,7 +313,7 @@ fun weightSegmentsByChapterLength(
 ): List<RailSegment> {
     if (segments.isEmpty()) return segments
     val hrefToSpine = spineIndexOf(spineHrefs)
-    val spineForSegment: List<Int?> = segments.map { hrefToSpine[it.href.substringBefore('#')] }
+    val spineForSegment: List<Int?> = segments.map { hrefToSpine[hrefBase(it.href)] }
     // When multiple TOC entries point to the same spine resource (sub-sections of one file),
     // split that file's positions equally across them. When a TOC entry is the sole entry for
     // its resource, accumulate positions for ALL spine resources up to the next TOC entry —

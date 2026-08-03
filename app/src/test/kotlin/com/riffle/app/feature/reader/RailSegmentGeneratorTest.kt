@@ -810,6 +810,34 @@ class RailSegmentGeneratorTest {
     }
 
     @Test
+    fun `absolute href matches relative rail and spine hrefs`() {
+        val spine = listOf(
+            "chapter1.xhtml",
+            "chapter2.xhtml",
+            "chapter3.xhtml",
+        )
+
+        assertEquals(
+            1,
+            findActiveSegmentIndex(
+                bookSegments,
+                "https://localhost:8080/chapter2.xhtml#s3",
+                spineHrefs = spine,
+            ),
+        )
+        assertEquals(
+            0.5f,
+            bookmarkRailPosition(
+                bookSegments,
+                "https://localhost:8080/chapter2.xhtml",
+                progression = 0.5,
+                spineHrefs = spine,
+            )!!,
+            0.0001f,
+        )
+    }
+
+    @Test
     fun `fragment href falls back to base href match`() {
         assertEquals(1, findActiveSegmentIndex(bookSegments, "chapter2.xhtml#s3"))
         assertEquals(0, findActiveSegmentIndex(bookSegments, "chapter1.xhtml#s1"))
