@@ -12,8 +12,26 @@ fun buildRailSegments(
     val bookTitleNorm = bookTitle.normalize()
     val spineIndex = spineIndexOf(spineHrefs)
     val preprocessed = absorbFlatNumericRuns(tocEntries)
+    val withSections =
+        assembleRailSegments(preprocessed, bookTitleNorm, spineIndex, positionCounts, tocEntries, exposeSameFileSections = true)
+    if (withSections.size <= MAX_SEGMENTS_WITH_SAME_FILE_SECTIONS) return withSections
+    // Section-heavy books (many chapters × many same-file section anchors) would explode into
+    // 100+ segments; with 2.5dp gaps punched between segments the rail becomes mostly gaps and
+    // unreadable. Collapse ALL same-file section groups back to chapter granularity — a
+    // whole-book decision, so no chapter stays exploded while its siblings collapse.
+    return assembleRailSegments(preprocessed, bookTitleNorm, spineIndex, positionCounts, tocEntries, exposeSameFileSections = false)
+}
+
+private fun assembleRailSegments(
+    preprocessed: List<TocEntry>,
+    bookTitleNorm: String,
+    spineIndex: Map<String, Int>,
+    positionCounts: List<Int>,
+    tocEntries: List<TocEntry>,
+    exposeSameFileSections: Boolean,
+): List<RailSegment> {
     val topLevelResults = preprocessed.mapIndexed { groupIndex, entry ->
-        val exposesSameFileSections = shouldExposeSameFileSections(entry)
+        val exposesSameFileSections = exposeSameFileSections && shouldExposeSameFileSections(entry)
         val wasExpanded = exposesSameFileSections ||
             shouldReplaceWithChildren(entry, bookTitleNorm, spineIndex, positionCounts)
         val segments = if (wasExpanded) {
@@ -42,10 +60,17 @@ fun buildRailSegments(
     // the first base href. Intentional same-file section groups preserve their full fragment hrefs;
     // locator progression resolves which one is active during natural reading.
     val seen = HashSet<String>(expanded.size)
-    return expanded.mapNotNull { (segment, preserveFragment) ->
+    val deduped = expanded.mapNotNull { (segment, preserveFragment) ->
         val deduplicationKey = if (preserveFragment) segment.href else segment.href.substringBefore('#')
         segment.takeIf { seen.add(deduplicationKey) }
     }
+    // Group colors exist to show which segments belong together. When every group ends up as a
+    // single rendered segment (e.g. a section-heavy book collapsed to chapter granularity, or
+    // hierarchy fully swallowed by dedup), coloring each chapter differently is pure noise —
+    // render the classic flat rail instead.
+    val hasMultiSegmentGroup = deduped.groupingBy { it.groupIndex }.eachCount()
+        .any { (groupIndex, count) -> groupIndex != null && count > 1 }
+    return if (hasMultiSegmentGroup) deduped else deduped.map { it.copy(groupIndex = null) }
 }
 
 private data class TopLevelRailResult(
@@ -218,6 +243,14 @@ private fun spineLength(href: String, spineIndex: Map<String, Int>, positionCoun
 // paperback pages. Below this a "chapter" is really a fragment and shouldn't earn its own
 // rail segment even if it happens to be twice the length of a still-tinier parent.
 private const val MIN_SUBSTANTIAL_POSITIONS = 3
+
+// Readability cap for same-file section exposure. The rail punches a 2.5dp gap between adjacent
+// segments; on the narrowest supported phone rail (~320dp) 48 segments already spend ~118dp on
+// gaps, leaving ~4dp of visible fill per segment on average — the floor of legibility. Beyond
+// this, section granularity degrades the map instead of enriching it, so the rail falls back to
+// one segment per chapter. Cross-file expansions (Part → chapter files) are not capped: they
+// mirror the book's real spine granularity, which flat books have always shown uncapped.
+internal const val MAX_SEGMENTS_WITH_SAME_FILE_SECTIONS = 48
 
 private val NUMERIC_PREFIX = Regex("""^\s*(\d+)\s*[.)]\s+""")
 
