@@ -173,15 +173,26 @@ internal suspend fun healGenericOriginFonts(
     sourceId: String,
     itemId: String,
     fontFamily: String,
-): Int = GENERIC_CSS_FONT_KEYWORDS.sumOf { generic ->
-    runCatching {
-        annotationStore.healSentinelOriginFontFamily(
-            sourceId = sourceId,
-            itemId = itemId,
-            sentinel = generic,
-            fontFamily = fontFamily,
-        )
-    }.getOrElse { 0 }
+): Int {
+    // The store heal is an exact-match UPDATE, so enumerate every concrete form a polluted
+    // capture can take: the bare keyword (paginated mode — Readium serializes generics
+    // unquoted) plus single/double-quoted variants (continuous mode's
+    // [ContinuousStyleInjector.buildHtmlStyleAttr] quotes every stack entry, and Chromium's
+    // computed value preserves the quoting). Cased variants can't be produced by either
+    // injector; render-side [realCapturedFontOrNull] still filters them defensively.
+    val sentinels = GENERIC_CSS_FONT_KEYWORDS.flatMap { generic ->
+        listOf(generic, "\"$generic\"", "'$generic'")
+    }
+    return sentinels.sumOf { sentinel ->
+        runCatching {
+            annotationStore.healSentinelOriginFontFamily(
+                sourceId = sourceId,
+                itemId = itemId,
+                sentinel = sentinel,
+                fontFamily = fontFamily,
+            )
+        }.getOrElse { 0 }
+    }
 }
 
 internal fun pluralityOriginFont(chapters: List<ChapterElision>): String? =
@@ -2974,7 +2985,11 @@ class EpubReaderViewModel @Inject constructor(
                     }
                     next
                 } else {
-                    val originFont = highlight.originFontFamily?.takeIf { it.isNotBlank() }
+                    // realCapturedFontOrNull, not a bare isNotBlank(): copying a polluted
+                    // generic (`sans-serif` captured under a font pref) from the source
+                    // highlight into a NEW emphasis row would re-spread the very value the
+                    // heal path is trying to retire (elided-view-always-sans regression).
+                    val originFont = realCapturedFontOrNull(highlight.originFontFamily)
                         ?: FALLBACK_ORIGIN_FONT_FAMILY
                     annotationStore.createEmphasis(
                         sourceId = sourceId,

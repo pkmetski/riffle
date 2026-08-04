@@ -124,6 +124,8 @@ class HealGenericOriginFontsTest {
         val store = RecordingStore(
             mutableMapOf(
                 "polluted-sans" to "sans-serif",
+                "polluted-sans-quoted" to "\"sans-serif\"",
+                "polluted-serif-squoted" to "'serif'",
                 "legacy-sentinel" to "serif",
                 "polluted-mono" to "monospace",
                 "real-face" to "Minion",
@@ -134,11 +136,21 @@ class HealGenericOriginFontsTest {
 
         val healed = healGenericOriginFonts(store, "S1", "B1", "Minion Pro")
 
-        assertEquals("all three generic-stamped rows must be healed", 3, healed)
+        assertEquals("all five generic-stamped rows must be healed", 5, healed)
         assertEquals(
             "the sans-serif row (elided-view-always-sans regression) converges to the probed face",
             "Minion Pro",
             store.fonts["polluted-sans"],
+        )
+        assertEquals(
+            "continuous mode quotes stack entries — the double-quoted variant heals too",
+            "Minion Pro",
+            store.fonts["polluted-sans-quoted"],
+        )
+        assertEquals(
+            "single-quoted variant heals too",
+            "Minion Pro",
+            store.fonts["polluted-serif-squoted"],
         )
         assertEquals("the serif sentinel row still heals", "Minion Pro", store.fonts["legacy-sentinel"])
         assertEquals("monospace pollution heals too", "Minion Pro", store.fonts["polluted-mono"])
