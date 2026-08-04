@@ -37,6 +37,34 @@ import org.readium.r2.shared.util.resource.Resource
 internal const val FALLBACK_ORIGIN_FONT_FAMILY = "serif"
 
 /**
+ * Bare CSS generic font keywords that can never be trusted as a *captured publisher face*.
+ * A `getComputedStyle().fontFamily` equal to one of these is almost always the ReadiumCSS
+ * user-font override leaking into the probe (elided-view-always-sans regression: a highlight
+ * created while the reader Font pref was Sans stored `sans-serif`, which then won
+ * [pluralityOriginFont] and pinned the whole elided view to sans for that book — *Taking
+ * Charge of ADHD*). The trade-off is the same one [FALLBACK_ORIGIN_FONT_FAMILY] already made
+ * for bare `serif`: a publisher whose CSS legitimately computes to a bare generic falls back
+ * to ReadiumCSS's default face instead — never worse than rendering every book annotated
+ * under a font pref in that pref's face forever.
+ */
+internal val GENERIC_CSS_FONT_KEYWORDS: Set<String> = setOf(
+    "serif", "sans-serif", "monospace", "cursive", "fantasy", "system-ui",
+)
+
+/**
+ * Returns [value] trimmed when it is a plausible *captured publisher face*: non-blank and not a
+ * bare generic CSS font keyword (quoted or not, any case) — else null. A comma-separated stack
+ * (`Nimbusromno9l, serif`) passes: the leading entry is a real face and the generics are only
+ * its fallbacks. Subsumes the [FALLBACK_ORIGIN_FONT_FAMILY] sentinel check (`serif` is in
+ * [GENERIC_CSS_FONT_KEYWORDS]).
+ */
+internal fun realCapturedFontOrNull(value: String?): String? {
+    val trimmed = value?.trim().takeUnless { it.isNullOrEmpty() } ?: return null
+    val bare = trimmed.trim('"', '\'').trim().lowercase()
+    return trimmed.takeUnless { bare in GENERIC_CSS_FONT_KEYWORDS }
+}
+
+/**
  * One chapter's worth of highlights to be rendered into the elided reader (ADR 0041).
  *
  * [highlights] must already be sorted by (spineIndex, progression, createdAt) — the factory
@@ -315,7 +343,7 @@ class HighlightsPublicationFactory @Inject constructor() {
         // font-pref rule (which uses `!important` in Serif/Sans/publisher-typography modes)
         // now cleanly wins over ours for the whole document — body AND heading — so the toggle
         // finally does what the user expects.
-        val realBodyFont = bookBodyFontFamily?.takeIf { it != FALLBACK_ORIGIN_FONT_FAMILY }
+        val realBodyFont = realCapturedFontOrNull(bookBodyFontFamily)
         val safeBodyFont = sanitizeCssFontFamily(realBodyFont)
         val bodyFontStyleBlock = if (safeBodyFont != null) {
             val escaped = safeBodyFont.xmlEscape()
@@ -630,10 +658,8 @@ private fun appendOriginFontFamilyStyle(
     // book. Elided-view excerpts are always body paragraphs, so the book body font is right
     // for every row. Falls back to the annotation's own captured value only when the caller
     // has no body-font hint (fresh Highlights VM whose DB rows all lack a real captured value).
-    val body = bookBodyFontFamily
-        ?.takeIf { it.isNotBlank() && it != FALLBACK_ORIGIN_FONT_FAMILY }
-    val ownFont = originFontFamily
-        ?.takeIf { it.isNotBlank() && it != FALLBACK_ORIGIN_FONT_FAMILY }
+    val body = realCapturedFontOrNull(bookBodyFontFamily)
+    val ownFont = realCapturedFontOrNull(originFontFamily)
     val raw = body ?: ownFont
     val safe = sanitizeCssFontFamily(raw) ?: return
     // No `!important` (elided-view-serif-font-regression follow-up): with it, the captured

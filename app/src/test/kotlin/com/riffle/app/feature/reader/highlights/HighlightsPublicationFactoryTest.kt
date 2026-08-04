@@ -442,6 +442,55 @@ class HighlightsPublicationFactoryTest {
         )
     }
 
+    // Regression (elided-view-always-sans, *Taking Charge of ADHD*): a highlight created while
+    // the reader Font pref was Sans captured the ReadiumCSS override — the bare generic
+    // `sans-serif` — instead of the publisher's face. That value then flowed in as both the
+    // per-row [originFontFamily] and (via the plurality vote) the book-wide
+    // [bookBodyFontFamily], pinning the whole elided view to sans-serif regardless of mode or
+    // pref. Bare generic CSS keywords are "no captured value", exactly like the sentinel: no
+    // font-family declaration may be emitted for them.
+    @Test
+    fun bareGenericKeyword_doesNotForceSansOnBodyOrExcerpts() {
+        val pub = factory.build(
+            sourceId = "S1", itemId = "B1", bookTitle = null,
+            chapters = listOf(
+                ChapterElision(
+                    "ch0.xhtml", "Chapter Title Here",
+                    listOf(hl("h1", "excerpt", originFontFamily = "sans-serif")),
+                ),
+            ),
+            urlFactory = ::testUrlFactory,
+            bookBodyFontFamily = "sans-serif",
+        )
+        val html = readChapterHtml(pub, index = 0)
+        assertTrue(
+            "bare generic keyword must NOT emit any font-family declaration; html was: $html",
+            !html.contains("font-family:"),
+        )
+    }
+
+    // Same regression, mixed inputs: a real book-body face must still be emitted even when the
+    // annotation's own captured value is a polluted generic keyword.
+    @Test
+    fun realBookFontWinsOverGenericKeywordAnnotationCapture() {
+        val pub = factory.build(
+            sourceId = "S1", itemId = "B1", bookTitle = null,
+            chapters = listOf(
+                ChapterElision(
+                    "ch0.xhtml", "One",
+                    listOf(hl("h1", "excerpt", originFontFamily = "sans-serif")),
+                ),
+            ),
+            urlFactory = ::testUrlFactory,
+            bookBodyFontFamily = "Minion",
+        )
+        val html = readChapterHtml(pub, index = 0)
+        assertTrue(
+            "excerpt <p> must render in the real book face, not the polluted generic; html was: $html",
+            html.contains("font-family: Minion;") && !html.contains("sans-serif"),
+        )
+    }
+
     // Same regression, per-excerpt path: an annotation whose stored [originFontFamily] is the
     // sentinel must render its `<p>` without a `font-family` override, deferring to whatever
     // real fallback the caller passes (or ReadiumCSS default when both are absent).
@@ -890,6 +939,34 @@ class HighlightsPublicationFactoryTest {
         val result = joinEmphasisStylesToHighlights(listOf(highlight))
         val joinedHighlight = result.first { it.id == "h1" }
         assertNull("emphasisStyles stays null when no emphasis rows", joinedHighlight.emphasisStyles)
+    }
+
+    // [realCapturedFontOrNull] is the single filter every consumer of a captured font goes
+    // through (plurality vote, per-<p> emitter, body-font style block, PDF export, body-font
+    // latch). Pinning its edge cases here pins them for all of those sites at once.
+    @Test
+    fun realCapturedFontOrNullFiltersBareGenericsInAnyDressing() {
+        assertNull(realCapturedFontOrNull(null))
+        assertNull(realCapturedFontOrNull("   "))
+        assertNull(realCapturedFontOrNull(FALLBACK_ORIGIN_FONT_FAMILY))
+        assertNull("the elided-view-always-sans capture", realCapturedFontOrNull("sans-serif"))
+        assertNull("case-insensitive", realCapturedFontOrNull("Sans-Serif"))
+        assertNull("double-quoted override stacks", realCapturedFontOrNull("\"sans-serif\""))
+        assertNull("single-quoted override stacks", realCapturedFontOrNull("'monospace'"))
+        assertNull("whitespace-padded", realCapturedFontOrNull("  serif  "))
+        assertNull(realCapturedFontOrNull("system-ui"))
+    }
+
+    @Test
+    fun realCapturedFontOrNullKeepsRealFacesAndStacks() {
+        assertEquals("Minion", realCapturedFontOrNull("Minion"))
+        assertEquals("trims but preserves", "Georgia, serif", realCapturedFontOrNull(" Georgia, serif "))
+        assertEquals("\"Fira Sans\", sans-serif", realCapturedFontOrNull("\"Fira Sans\", sans-serif"))
+        assertEquals(
+            "a real face whose stack ends in a generic is a captured publisher font",
+            "Nimbusromno9l, serif",
+            realCapturedFontOrNull("Nimbusromno9l, serif"),
+        )
     }
 
     private fun readChapterHtml(pub: Publication, index: Int): String {

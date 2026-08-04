@@ -48,6 +48,46 @@ class HighlightsPdfExporterTest {
         assertTrue("Chapter Two h1", html.contains("<h1>Chapter Two</h1>"))
     }
 
+    // Regression (elided-view-always-sans, *Taking Charge of ADHD*): the PDF export must apply
+    // the same "bare generic keyword = no captured value" filter as the elided view — a book
+    // whose plurality font was polluted to `sans-serif` by a capture made under an active Font
+    // pref must not export with a sans-serif body rule.
+    @Test
+    fun combinedHtml_dropsBareGenericBookBodyFont() {
+        val html = buildCombinedHtml(
+            factory = factory,
+            chapters = listOf(
+                ChapterElision("ch1.xhtml", "Chapter One", listOf(highlight("h1", "text"))),
+            ),
+            bookTitle = "My Book",
+            figureBytesByHref = emptyMap(),
+            publisherFontFaceCss = "",
+            bookBodyFontFamily = "sans-serif",
+        )
+        assertTrue(
+            "generic keyword must not emit a body font rule; html was: $html",
+            !html.contains("font-family:sans-serif"),
+        )
+    }
+
+    @Test
+    fun combinedHtml_keepsRealBookBodyFont() {
+        val html = buildCombinedHtml(
+            factory = factory,
+            chapters = listOf(
+                ChapterElision("ch1.xhtml", "Chapter One", listOf(highlight("h1", "text"))),
+            ),
+            bookTitle = "My Book",
+            figureBytesByHref = emptyMap(),
+            publisherFontFaceCss = "",
+            bookBodyFontFamily = "Minion",
+        )
+        assertTrue(
+            "real face still exports as the body rule; html was: $html",
+            html.contains("body,h1,h2,h3,h4,h5,h6{font-family:Minion;}"),
+        )
+    }
+
     @Test
     fun combinedHtml_hasNoReadiumAssetLink() {
         val html = buildCombinedHtml(

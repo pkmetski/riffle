@@ -342,6 +342,37 @@ class ReaderWebViewScriptsTest {
         assertTrue("returns before/after context (bef/aft)", js.contains("bef: stash.bef") && js.contains("aft: stash.aft"))
     }
 
+    // Regression pin (elided-view-always-sans, *Taking Charge of ADHD*): while a ReadiumCSS
+    // user-font override is active (Font pref ≠ Original), every getComputedStyle().fontFamily
+    // in the chapter document reports the USER's pref stack (e.g. bare `sans-serif`), not the
+    // publisher's face. All three capture paths — the one-shot body-font probe, the
+    // selectionchange stash's start-element fallback, and the continuous live-read fallback —
+    // must therefore skip the capture when the `readium-font-on` flag is present in the inline
+    // `style` attribute on `<html>` (how BOTH reader stacks mark an active Font pref). Without
+    // the guard, one highlight created under the Sans pref stamps `sans-serif` on the row, the
+    // plurality vote elects it, and the book's entire elided view is pinned to sans forever.
+    @Test
+    fun `font probes skip capture while a user font override is active`() {
+        assertTrue(
+            "override detector checks the readium-font-on flag on <html>",
+            FONT_OVERRIDE_ACTIVE_JS.contains("readium-font-on"),
+        )
+        val tracker = SELECTION_SPAN_TRACKER_JS
+        // Both the body probe and the stash's start-element fallback carry the guard.
+        assertTrue(
+            "body-font probe bails out under an active font override",
+            tracker.contains("if ($FONT_OVERRIDE_ACTIVE_JS) throw 'font-override-active'"),
+        )
+        assertTrue(
+            "selectionchange ff fallback is gated on the override being off",
+            tracker.contains("if (!ff && !$FONT_OVERRIDE_ACTIVE_JS)"),
+        )
+        assertTrue(
+            "continuous live-read ff fallback is gated on the override being off",
+            CONTINUOUS_SELECTION_READ_JS.contains("if (!$FONT_OVERRIDE_ACTIVE_JS)"),
+        )
+    }
+
     // Regression pin: the figure walker inside SELECTION_SPAN_TRACKER_JS must scan the range's scope
     // with querySelectorAll + range.intersectsNode, NOT document.createTreeWalker + an acceptNode
     // callback. The TreeWalker form never yielded any enclosed <img> in Chromium's paginated Readium

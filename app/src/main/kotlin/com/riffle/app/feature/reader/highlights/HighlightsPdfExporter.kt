@@ -238,7 +238,7 @@ internal fun buildCombinedHtml(
 
     val bodyFontRule = run {
         val safe = sanitizeCssFontFamily(
-            bookBodyFontFamily?.takeIf { it != FALLBACK_ORIGIN_FONT_FAMILY },
+            realCapturedFontOrNull(bookBodyFontFamily),
         ) ?: return@run ""
         "body,h1,h2,h3,h4,h5,h6{font-family:$safe;}"
     }

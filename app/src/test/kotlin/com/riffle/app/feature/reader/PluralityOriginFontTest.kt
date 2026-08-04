@@ -80,6 +80,61 @@ class PluralityOriginFontTest {
         assertNull(pluralityOriginFont(chapters))
     }
 
+    // Regression: elided-view-always-sans (*Taking Charge of ADHD*). A highlight created while
+    // the reader Font pref was Sans captured the ReadiumCSS override (`sans-serif`) instead of
+    // the publisher's face; plurality elected it and pinned the book's whole elided view to
+    // sans-serif regardless of reading mode or pref. Bare generic CSS keywords are never a
+    // captured publisher face — plurality must skip every one of them, not just the `serif`
+    // sentinel.
+    @Test
+    fun pluralityIgnoresBareGenericKeywords() {
+        val chapters = listOf(
+            chapter(
+                "ch0",
+                hl("h1", originFontFamily = "sans-serif"),
+                hl("h2", originFontFamily = "sans-serif"),
+                hl("h3", originFontFamily = "monospace"),
+                hl("h4", originFontFamily = "Minion"),
+            ),
+        )
+        assertEquals(
+            "generic-keyword rows outnumber the real face, but plurality must still pick the real one",
+            "Minion",
+            pluralityOriginFont(chapters),
+        )
+    }
+
+    @Test
+    fun pluralityReturnsNullWhenOnlyGenericKeywordRowsExist() {
+        val chapters = listOf(
+            chapter(
+                "ch0",
+                hl("h1", originFontFamily = "sans-serif"),
+                hl("h2", originFontFamily = "\"sans-serif\""),
+                hl("h3", originFontFamily = "Sans-Serif"),
+            ),
+        )
+        assertNull(
+            "quoted/cased variants of a bare generic keyword must be skipped too",
+            pluralityOriginFont(chapters),
+        )
+    }
+
+    @Test
+    fun pluralityKeepsStacksWhoseFallbackIsGeneric() {
+        val chapters = listOf(
+            chapter(
+                "ch0",
+                hl("h1", originFontFamily = "Nimbusromno9l, serif"),
+            ),
+        )
+        assertEquals(
+            "a real face with a generic fallback in its stack is a captured publisher font",
+            "Nimbusromno9l, serif",
+            pluralityOriginFont(chapters),
+        )
+    }
+
     private fun chapter(href: String, vararg highlights: AnnotationEntity) =
         ChapterElision(href = href, title = "T", highlights = highlights.toList())
 
