@@ -230,7 +230,9 @@ fun LibraryItemsScreen(
     // can intercept Back if the drawer is still in its closing animation.
     val activity = LocalActivity.current
     BackHandler(enabled = backEnabled) {
-        when (libraryBackAction(searchQuery, selectedTab)) {
+        val action = libraryBackAction(searchQuery, selectedTab)
+        android.util.Log.d(com.riffle.core.logging.LogChannel.Nav.tag, "[DEBUG-BURGER] LibraryItems BackHandler: action=$action backEnabled=$backEnabled searchQuery='$searchQuery' selectedTab=$selectedTab")
+        when (action) {
             LibraryBackAction.ClearSearch -> {
                 viewModel.onSearchQueryChange("")
                 focusManager.clearFocus(force = true)

@@ -170,7 +170,8 @@ fun MainScreen(
         ?.arguments?.getString("libraryId")
     val currentRoute = currentBackStack?.destination?.route
     LaunchedEffect(currentRoute) {
-        Log.d(LogChannel.Nav.tag, "[DEBUG-BURGER] route changed: $currentRoute")
+        val stack = navController.backQueue.mapNotNull { it.destination.route }
+        Log.d(LogChannel.Nav.tag, "[DEBUG-BURGER] route changed: $currentRoute | stack=${stack}")
     }
     val usePermanentDrawer = isTablet
     // Reader screens are immersive — collapse the permanent side panel so the book/PDF
