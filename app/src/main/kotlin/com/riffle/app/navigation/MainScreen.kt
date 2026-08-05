@@ -95,7 +95,7 @@ private const val FILTERED_BOOKS = "filtered_books/{libraryId}/{facetType}/{face
 private const val LIBRARY_ITEM_DETAIL = "library_item_detail/{itemId}"
 private const val PLAYLIST_DETAIL = "playlist_detail/{libraryId}/{playlistId}/{playlistName}"
 private const val EPUB_READER =
-    "epub_reader/{itemId}?startReadaloudAtSec={startReadaloudAtSec}&openAtCfi={openAtCfi}&startTocHref={startTocHref}&source={source}&sourceId={sourceId}"
+    "epub_reader/{itemId}?startReadaloudAtSec={startReadaloudAtSec}&openAtCfi={openAtCfi}&openAnnotationId={openAnnotationId}&startTocHref={startTocHref}&source={source}&sourceId={sourceId}"
 private const val PDF_READER = "pdf_reader/{itemId}"
 private const val CBZ_READER = "cbz_reader/{itemId}"
 private const val ANNOTATION_SEARCH = "annotation_search/{libraryId}?query={query}"
@@ -594,7 +594,10 @@ fun MainScreen(
                     onAnnotationSelected = { result ->
                         val encodedId = URLEncoder.encode(result.annotation.itemId, "UTF-8")
                         val encodedCfi = URLEncoder.encode(result.annotation.cfi, "UTF-8")
-                        navController.navigate("epub_reader/$encodedId?openAtCfi=$encodedCfi")
+                        val encodedAnnotationId = URLEncoder.encode(result.annotation.id, "UTF-8")
+                        navController.navigate(
+                            "epub_reader/$encodedId?openAtCfi=$encodedCfi&openAnnotationId=$encodedAnnotationId"
+                        )
                     },
                     onAudiobookBookmarkSelected = { result ->
                         val encodedId = URLEncoder.encode(result.bookmark.itemId, "UTF-8")
@@ -780,6 +783,11 @@ fun MainScreen(
                         nullable = true
                         defaultValue = null
                     },
+                    navArgument("openAnnotationId") {
+                        type = NavType.StringType
+                        nullable = true
+                        defaultValue = null
+                    },
                     navArgument("startTocHref") {
                         type = NavType.StringType
                         nullable = true
@@ -809,8 +817,11 @@ fun MainScreen(
                             is com.riffle.app.feature.reader.ReaderNavEvent.OpenInSourceBook -> {
                                 val encodedId = URLEncoder.encode(event.itemId, "UTF-8")
                                 val encodedCfi = URLEncoder.encode(event.cfi, "UTF-8")
+                                val encodedAnnotationId = URLEncoder.encode(event.annotationId, "UTF-8")
                                 navController.popBackStack()
-                                navController.navigate("epub_reader/$encodedId?openAtCfi=$encodedCfi")
+                                navController.navigate(
+                                    "epub_reader/$encodedId?openAtCfi=$encodedCfi&openAnnotationId=$encodedAnnotationId"
+                                )
                             }
                             com.riffle.app.feature.reader.ReaderNavEvent.CloseEmptyHighlights -> {
                                 navController.popBackStack()
@@ -856,7 +867,10 @@ fun MainScreen(
                     onAnnotationSelected = { result ->
                         val encodedId = URLEncoder.encode(result.annotation.itemId, "UTF-8")
                         val encodedCfi = URLEncoder.encode(result.annotation.cfi, "UTF-8")
-                        navController.navigate("epub_reader/$encodedId?openAtCfi=$encodedCfi")
+                        val encodedAnnotationId = URLEncoder.encode(result.annotation.id, "UTF-8")
+                        navController.navigate(
+                            "epub_reader/$encodedId?openAtCfi=$encodedCfi&openAnnotationId=$encodedAnnotationId"
+                        )
                     },
                     onAudiobookBookmarkSelected = { result ->
                         val encodedId = URLEncoder.encode(result.bookmark.itemId, "UTF-8")

@@ -297,8 +297,14 @@ class ReaderSessionLifecycleTest {
     private fun params(
         itemId: String = "item-1",
         openAtCfi: String? = null,
+        openAnnotationId: String? = null,
         startTocHref: String? = null,
-    ) = ReaderSessionLifecycle.OpenParams(itemId, openAtCfi, startTocHref)
+    ) = ReaderSessionLifecycle.OpenParams(
+        itemId = itemId,
+        openAtCfi = openAtCfi,
+        openAnnotationId = openAnnotationId,
+        startTocHref = startTocHref,
+    )
 
     // ── Tests ────────────────────────────────────────────────────────────────────────────
 
@@ -522,6 +528,26 @@ class ReaderSessionLifecycleTest {
             0.000001,
         )
         assertNull(outcome.openAtLocator!!.text.highlight)
+        assertSame(outcome.openAtLocator, outcome.initialLocator)
+    }
+
+    @Test
+    fun `open carries route annotation id when exact CFI lookup misses`() = runTest {
+        val cfi = "epubcfi(/6/2!/4/2)"
+        val resolvedLocator = Locator(
+            href = mockk(relaxed = true),
+            mediaType = org.readium.r2.shared.util.mediatype.MediaType.XHTML,
+            locations = Locator.Locations(progression = 0.7),
+        )
+        val (lifecycle, _) = makeLifecycle(
+            cfiResolver = { candidate -> if (candidate == cfi) resolvedLocator else null },
+        )
+
+        val outcome = lifecycle.open(
+            params(openAtCfi = cfi, openAnnotationId = "ann-from-route"),
+        ) as ReaderSessionLifecycle.OpenOutcome.Ready
+
+        assertEquals("ann-from-route", outcome.initialFocusAnnotationId)
         assertSame(outcome.openAtLocator, outcome.initialLocator)
     }
 

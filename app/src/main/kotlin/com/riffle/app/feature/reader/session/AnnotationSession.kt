@@ -656,12 +656,20 @@ class AnnotationSession @AssistedInject constructor(
      * Emit a locator directly to the annotation navigation channel. Used by the VM's
      * openBook() path to snap to the initial annotation-nav target (openAtCfi) using the same
      * channel that [navigateToAnnotation] uses — so the screen only needs one subscriber.
+     * [annotationId] lets paginated navigation use Readium's already-resolved decoration Range
+     * and lets continuous navigation centre the matching mark.
      * The openAtCfi path is highlight/note-shaped (text anchor), so we send `isBookmark = false`
      * to reflect the annotation type on the event. Continuous-mode landing is uniform midpoint
      * for both types; the flag no longer affects alignment.
      */
-    fun emitAnnotationNavigation(locator: Locator) {
-        _annotationNavigationChannel.trySend(AnnotationNavigationEvent(locator, isBookmark = false))
+    fun emitAnnotationNavigation(locator: Locator, annotationId: String?) {
+        _annotationNavigationChannel.trySend(
+            AnnotationNavigationEvent(
+                locator = locator,
+                isBookmark = false,
+                annotationId = annotationId,
+            ),
+        )
     }
 
     /**
@@ -772,9 +780,8 @@ class AnnotationSession @AssistedInject constructor(
                 AnnotationNavigationEvent(
                     locator = locator,
                     isBookmark = annotation.type == AnnotationEntity.TYPE_BOOKMARK,
-                    // Carry the id so continuous mode can look up the actual mark and centre on
-                    // it (see AnnotationNavigationEvent doc). Paginated / vertical don't need it —
-                    // they rely on Readium's own fragment-based landing.
+                    // Carry the id so continuous mode can centre the actual mark and paginated
+                    // mode can snap to Readium's already-resolved decoration Range.
                     annotationId = id,
                 ),
             )

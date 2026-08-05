@@ -517,7 +517,10 @@ internal object ContinuousStyleInjector {
                     var relTop = Math.max(0, markRect.top - blockRect.top + 2);
                     // Mirror paged-mode NoteGlyphStyle: position 28px to the LEFT of the mark's
                     // first-line left edge (not the block's left edge, which is the page margin).
-                    var relLeft = markRect.left - blockRect.left - 28;
+                    var relLeft = Math.max(
+                        markRect.left - blockRect.left - 28,
+                        $NOTE_GLYPH_VIEWPORT_INSET_PX - blockRect.left
+                    );
                     var s = document.createElement('span');
                     s.setAttribute('data-riffle-note-glyph', id);
                     s.style.cssText = 'position:absolute;left:' + relLeft + 'px;top:' + relTop + 'px;' +

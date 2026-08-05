@@ -219,9 +219,49 @@ class ReadiumHighlightRendererTest {
         )
         renderer.applyNoteGlyphs(renders)
         val decorationCall = applied.last()
-        assertEquals("annotation-notes", decorationCall.second)
+        assertEquals(NOTE_GLYPH_DECORATION_GROUP, decorationCall.second)
         assertEquals(1, decorationCall.first.size)
         assertEquals("h1", decorationCall.first[0].id)
+    }
+
+    @Test
+    fun `applyNoteGlyphs completes a pending focus after Readium adds the range`() = runTest {
+        val callOrder = mutableListOf<String>()
+        val rendererWithJavascript = ReadiumHighlightRenderer(
+            applyDecorationsBlock = { _, group -> callOrder += "decorate:$group" },
+            fragmentLocator = { ref, _ ->
+                if (ref.isNotBlank()) minimalLocator(ref.substringBefore('#')) else null
+            },
+            evaluateJavascript = { script -> callOrder += "javascript:$script" },
+        )
+
+        rendererWithJavascript.applyNoteGlyphs(
+            listOf(makeRender("h1", "c.xhtml", note = "My note")),
+        )
+
+        val finalDecoration = callOrder.indexOfLast { it == "decorate:$NOTE_GLYPH_DECORATION_GROUP" }
+        val viewportClamp = callOrder.indexOfFirst {
+            it.startsWith("javascript:") &&
+                it.contains(".$NOTE_GLYPH_ICON_CLASS") &&
+                it.contains("spreadLeft + $NOTE_GLYPH_VIEWPORT_INSET_PX")
+        }
+        val focusCompletion = callOrder.indexOfFirst {
+                it.startsWith("javascript:") &&
+                it.contains("window.$NOTE_GLYPH_FOCUS_ID_JS_KEY") &&
+                it.contains("item.range.getClientRects()") &&
+                it.contains("se.scrollLeft = target") &&
+                it.contains("matchedFrames >= 60") &&
+                it.contains("frames++ < 600")
+        }
+        assertTrue("note group is applied", finalDecoration >= 0)
+        assertTrue(
+            "viewport clamp is queued after the note DOM is applied: $callOrder",
+            viewportClamp > finalDecoration,
+        )
+        assertTrue(
+            "focus completion is queued after the note Range is applied: $callOrder",
+            focusCompletion > viewportClamp,
+        )
     }
 
     @Test
@@ -233,7 +273,7 @@ class ReadiumHighlightRendererTest {
         renderer.applyNoteGlyphs(listOf(makeRender("h2", "c.xhtml", note = null)))
         assertEquals(1, applied.size)
         assertEquals(emptyList<Decoration>(), applied[0].first)
-        assertEquals("annotation-notes", applied[0].second)
+        assertEquals(NOTE_GLYPH_DECORATION_GROUP, applied[0].second)
     }
 
     // ---- applySearch ---------------------------------------------------------

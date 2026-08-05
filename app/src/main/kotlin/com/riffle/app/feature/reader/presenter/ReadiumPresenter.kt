@@ -173,9 +173,10 @@ internal class ReadiumPresenter(
         val locator = target.toLocator(publication) ?: return
         if (options.snap) {
             bridge.snapAfterGoTo(
-                locator,
-                options.landAtStartWhenNoTarget,
-                options.snapProgressionToNearestColumn,
+                locator = locator,
+                landAtStartWhenNoTarget = options.landAtStartWhenNoTarget,
+                snapProgressionToNearestColumn = options.snapProgressionToNearestColumn,
+                focusAnnotationId = options.focusAnnotationId,
             )
         } else {
             fragment.go(locator, animated = options.animated)

@@ -249,7 +249,7 @@ internal sealed class AnnotationTapEvent {
  *
  * Honoured by:
  * - [ReadiumPresenter]: [snap], [landAtStartWhenNoTarget], [snapProgressionToNearestColumn],
- *   [animated]. [alignToTop] is irrelevant (Readium handles column alignment internally).
+ *   [animated], and [focusAnnotationId]. [alignToTop] is irrelevant (Readium handles column alignment internally).
  * - [ContinuousPresenter]: [alignToTop]. The other flags do not apply (no column grid, no
  *   Readium-go animation control).
  */
@@ -279,6 +279,8 @@ internal data class NavigationOptions(
      * Readium (it handles column alignment internally).
      */
     val alignToTop: Boolean = false,
+    /** Annotation id whose already-resolved decoration Range should anchor a Readium jump. */
+    val focusAnnotationId: String? = null,
 )
 
 internal sealed class NavigationTarget {

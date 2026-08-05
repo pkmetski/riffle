@@ -1330,13 +1330,17 @@ class AnnotationNavigationOptionsTest {
     fun `highlights land at viewport midpoint (alignToTop=false)`() {
         // Highlights are text-anchored — centring on the mark preserves reading context above
         // the anchor. Kept at midpoint by design.
-        val opts = annotationNavigationOptions(isBookmark = false)
+        val opts = annotationNavigationOptions(
+            isBookmark = false,
+            annotationId = "annotation-42",
+        )
         assertFalse(opts.alignToTop)
         assertFalse(
             "highlight progression is only an arbitrary fallback and must stay on its " +
                 "containing page",
             opts.snapProgressionToNearestColumn,
         )
+        assertEquals("annotation-42", opts.focusAnnotationId)
     }
 
     @Test

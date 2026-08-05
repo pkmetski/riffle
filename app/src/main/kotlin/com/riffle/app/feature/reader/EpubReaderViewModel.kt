@@ -459,6 +459,9 @@ class EpubReaderViewModel @Inject constructor(
     // When opened from a library annotation search result, jump to this CFI instead of the saved
     // reading position. Null/blank for a normal open. EPUB-only (annotations anchor on ABS-EPUB CFI).
     private val openAtCfi: String? = savedStateHandle.get<String>("openAtCfi")
+    // Stable identity for an annotation-open route. Older/deep-linked routes may omit this, in
+    // which case ReaderSessionLifecycle falls back to resolving the row from the CFI.
+    private val openAnnotationId: String? = savedStateHandle.get<String>("openAnnotationId")
 
     // TOC entry to open immediately on launch — navigated once the publication is ready, using the same
     // _navigationEvents channel as the TOC panel's tap handler (see navigateToEntry).
@@ -1370,6 +1373,7 @@ class EpubReaderViewModel @Inject constructor(
             com.riffle.app.feature.reader.session.ReaderSessionLifecycle.OpenParams(
                 itemId = itemId,
                 openAtCfi = openAtCfi,
+                openAnnotationId = openAnnotationId,
                 startTocHref = startTocHref,
             ),
         )
@@ -1583,7 +1587,10 @@ class EpubReaderViewModel @Inject constructor(
         if (o.openAtLocator != null &&
             formatting.effectiveFormattingPreferences.value.orientation == ReaderOrientation.Horizontal
         ) {
-            annotationSession.emitAnnotationNavigation(o.openAtLocator)
+            annotationSession.emitAnnotationNavigation(
+                locator = o.openAtLocator,
+                annotationId = o.initialFocusAnnotationId,
+            )
         }
 
         // Audiobook→readaloud handoff: opened by swiping the audiobook player down. Auto-start
@@ -3349,6 +3356,7 @@ class EpubReaderViewModel @Inject constructor(
                     sourceId = row.sourceId,
                     itemId = row.itemId,
                     cfi = row.cfi,
+                    annotationId = row.id,
                 ),
             )
         }
