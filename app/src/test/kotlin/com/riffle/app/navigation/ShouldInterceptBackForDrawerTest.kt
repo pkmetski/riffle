@@ -54,3 +54,76 @@ class ShouldInterceptBackForDrawerTest {
         assertFalse(shouldInterceptBackForDrawer(usePermanentDrawer = true, drawerCurrentOpen = false, drawerTargetOpen = false))
     }
 }
+
+/**
+ * Pins the fix for the sub-screen Back intercept: Compose Navigation 2.8+ keeps the previous
+ * back-stack entry in composition for predictive-back animations, so LibraryItemsScreen's
+ * BackHandler remains registered (and enabled) while library_item_detail is foreground. Without
+ * the currentRoute gate, pressing Back from a sub-screen fires the library BackHandler instead
+ * of the NavHost pop — causing unexpected app-exit or blank-screen navigation.
+ *
+ * Assertion that flips red if the currentRoute guard is removed from libraryItemsBackEnabled:
+ * the assertFalse cases below would return true, re-enabling the handler on sub-screens.
+ */
+class LibraryItemsBackEnabledTest {
+
+    @Test
+    fun `enabled when library_items is foreground and drawer is closed`() {
+        assertTrue(libraryItemsBackEnabled(
+            currentRoute = "library_items/lib-1/Books",
+            usePermanentDrawer = false,
+            drawerCurrentOpen = false,
+            drawerTargetOpen = false,
+        ))
+    }
+
+    @Test
+    fun `disabled when library_item_detail is foreground (predictive-back preview)`() {
+        assertFalse(libraryItemsBackEnabled(
+            currentRoute = "library_item_detail/item-1",
+            usePermanentDrawer = false,
+            drawerCurrentOpen = false,
+            drawerTargetOpen = false,
+        ))
+    }
+
+    @Test
+    fun `disabled when series_detail is foreground`() {
+        assertFalse(libraryItemsBackEnabled(
+            currentRoute = "series_detail/lib-1/series-1/MySeries",
+            usePermanentDrawer = false,
+            drawerCurrentOpen = false,
+            drawerTargetOpen = false,
+        ))
+    }
+
+    @Test
+    fun `disabled when reader is foreground`() {
+        assertFalse(libraryItemsBackEnabled(
+            currentRoute = "epub_reader/item-1",
+            usePermanentDrawer = false,
+            drawerCurrentOpen = false,
+            drawerTargetOpen = false,
+        ))
+    }
+
+    @Test
+    fun `disabled when library_items is foreground but drawer is open`() {
+        assertFalse(libraryItemsBackEnabled(
+            currentRoute = "library_items/lib-1/Books",
+            usePermanentDrawer = false,
+            drawerCurrentOpen = true,
+            drawerTargetOpen = true,
+        ))
+    }
+
+    @Test
+    fun `disabled when route is null (initial navigation not yet resolved)`() {
+        assertFalse(libraryItemsBackEnabled(
+            currentRoute = null,
+            usePermanentDrawer = false,
+            drawerCurrentOpen = false,
+            drawerTargetOpen = false,
+        ))
+    }
+}

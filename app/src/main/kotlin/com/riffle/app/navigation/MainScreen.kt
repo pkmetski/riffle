@@ -54,8 +54,6 @@ import com.riffle.app.feature.settings.readaloud.ReadaloudMatchesScreen
 import com.riffle.app.feature.settings.readaloud.ReadaloudSettingsScreen
 import com.riffle.app.playback.NowPlaying
 import com.riffle.app.ui.isTabletLayout
-import android.util.Log
-import com.riffle.core.logging.LogChannel
 import kotlinx.coroutines.launch
 import java.net.URLDecoder
 import java.net.URLEncoder
@@ -169,10 +167,6 @@ fun MainScreen(
         ?.takeIf { it.destination.route?.startsWith("library_items/") == true }
         ?.arguments?.getString("libraryId")
     val currentRoute = currentBackStack?.destination?.route
-    LaunchedEffect(currentRoute) {
-        val stack = navController.currentBackStack.value.mapNotNull { it.destination.route }
-        Log.d(LogChannel.Nav.tag, "[DEBUG-BURGER] route changed: $currentRoute | stack=${stack}")
-    }
     val usePermanentDrawer = isTablet
     // Reader screens are immersive — collapse the permanent side panel so the book/PDF
     // fills the width, matching the modal drawer's gesture suppression on phones.
@@ -192,7 +186,6 @@ fun MainScreen(
         drawerCurrentOpen = drawerState.currentValue == DrawerValue.Open,
         drawerTargetOpen = drawerState.targetValue == DrawerValue.Open,
     )) {
-        Log.d(LogChannel.Nav.tag, "[DEBUG-BURGER] BackHandler: closing drawer current=${drawerState.currentValue} target=${drawerState.targetValue}")
         scope.launch { drawerState.close() }
     }
 
@@ -232,7 +225,6 @@ fun MainScreen(
 
     LaunchedEffect(Unit) {
         viewModel.redirectToLibrary.collect { library ->
-            Log.d(LogChannel.Nav.tag, "[DEBUG-BURGER] redirectToLibrary: library=${library.id} drawer current=${drawerState.currentValue} target=${drawerState.targetValue}")
             navController.navigateAsRoot(libraryEntryRoute(activeServer?.type, library.id, library.name))
             viewModel.setActiveLibrary(library.id)
         }
@@ -250,24 +242,19 @@ fun MainScreen(
         serverVersions = serverVersions,
         showDownloadsLink = showDownloadsLink,
         onServerSelected = { server ->
-            Log.d(LogChannel.Nav.tag, "[DEBUG-BURGER] onServerSelected: server=${server.id} drawer current=${drawerState.currentValue} target=${drawerState.targetValue}")
             viewModel.setActiveServer(server.id)
             scope.launch { drawerState.close() }
-            navController.navigateAsRoot(HOME)
         },
         onLibrarySelected = { library ->
-            Log.d(LogChannel.Nav.tag, "[DEBUG-BURGER] onLibrarySelected: library=${library.id} drawer current=${drawerState.currentValue} target=${drawerState.targetValue}")
             viewModel.setActiveLibrary(library.id)
             scope.launch { drawerState.close() }
             navController.navigateAsRoot(libraryEntryRoute(activeServer?.type, library.id, library.name))
         },
         onDownloadsSelected = {
-            Log.d(LogChannel.Nav.tag, "[DEBUG-BURGER] onDownloadsSelected: drawer current=${drawerState.currentValue} target=${drawerState.targetValue}")
             scope.launch { drawerState.close() }
             navController.navigate(DOWNLOADS)
         },
         onSettingsSelected = {
-            Log.d(LogChannel.Nav.tag, "[DEBUG-BURGER] onSettingsSelected: drawer current=${drawerState.currentValue} target=${drawerState.targetValue}")
             scope.launch { drawerState.close() }
             navController.navigate(SETTINGS)
         },
@@ -324,10 +311,7 @@ fun MainScreen(
                 com.riffle.app.feature.source.chitanka.ChitankaBrowseScreen(
                     libraryName = libraryName,
                     windowSizeClass = windowSizeClass,
-                    onOpenDrawer = {
-                        Log.d(LogChannel.Nav.tag, "[DEBUG-BURGER] onOpenDrawer: current=${drawerState.currentValue} target=${drawerState.targetValue}")
-                        scope.launch { drawerState.open() }
-                    },
+                    onOpenDrawer = { scope.launch { drawerState.open() } },
                     onOpenDetail = { itemId ->
                         val encodedId = URLEncoder.encode(itemId, "UTF-8")
                         navController.navigate("library_item_detail/$encodedId")
@@ -364,10 +348,7 @@ fun MainScreen(
                 com.riffle.app.feature.source.gutenberg.GutenbergBrowseScreen(
                     libraryName = libraryName,
                     windowSizeClass = windowSizeClass,
-                    onOpenDrawer = {
-                        Log.d(LogChannel.Nav.tag, "[DEBUG-BURGER] onOpenDrawer: current=${drawerState.currentValue} target=${drawerState.targetValue}")
-                        scope.launch { drawerState.open() }
-                    },
+                    onOpenDrawer = { scope.launch { drawerState.open() } },
                     onOpenDetail = { itemId ->
                         val encodedId = URLEncoder.encode(itemId, "UTF-8")
                         navController.navigate("library_item_detail/$encodedId")
@@ -587,22 +568,23 @@ fun MainScreen(
                     backStackEntry.arguments?.getString("libraryName") ?: "",
                     "UTF-8"
                 )
-                // Force the drawer fully closed when the library destination first composes.
-                // Without this its closing animation can race a Back press and the drawer's
-                // own BackHandler captures it instead of exiting the app (issue #60).
+                // Close the drawer when the library destination first enters composition if it
+                // is open or animating open — e.g. the user tapped a library in the drawer and
+                // the composable re-enters before the close animation finishes. Skip the call
+                // when the drawer is already Closed: even a settled Closed state still triggers
+                // a spring animation that takes 14–125 ms, unnecessarily holding backEnabled=true
+                // during that window and creating a timing hazard on Back.
                 LaunchedEffect(Unit) {
-                    Log.d(LogChannel.Nav.tag, "[DEBUG-BURGER] library LaunchedEffect close: current=${drawerState.currentValue} target=${drawerState.targetValue}")
-                    drawerState.close()
-                    Log.d(LogChannel.Nav.tag, "[DEBUG-BURGER] library LaunchedEffect close done: current=${drawerState.currentValue} target=${drawerState.targetValue}")
+                    if (drawerState.currentValue == DrawerValue.Open || drawerState.targetValue == DrawerValue.Open) {
+                        drawerState.close()
+                    }
                 }
                 LibraryItemsScreen(
                     libraryName = libraryName,
-                    onOpenDrawer = {
-                        Log.d(LogChannel.Nav.tag, "[DEBUG-BURGER] onOpenDrawer: current=${drawerState.currentValue} target=${drawerState.targetValue}")
-                        scope.launch { drawerState.open() }
-                    },
-                    backEnabled = !shouldInterceptBackForDrawer(
-                        usePermanentDrawer,
+                    onOpenDrawer = { scope.launch { drawerState.open() } },
+                    backEnabled = libraryItemsBackEnabled(
+                        currentRoute = currentRoute,
+                        usePermanentDrawer = usePermanentDrawer,
                         drawerCurrentOpen = drawerState.currentValue == DrawerValue.Open,
                         drawerTargetOpen = drawerState.targetValue == DrawerValue.Open,
                     ),
@@ -1016,6 +998,25 @@ internal fun shouldInterceptBackForDrawer(
     drawerCurrentOpen: Boolean,
     drawerTargetOpen: Boolean,
 ): Boolean = !usePermanentDrawer && (drawerCurrentOpen || drawerTargetOpen)
+
+/**
+ * Whether [LibraryItemsScreen]'s BackHandler should be enabled.
+ *
+ * Two conditions must both hold:
+ * 1. [currentRoute] is the library-items destination — Compose Navigation 2.8+ keeps the
+ *    previous back-stack entry in composition simultaneously for predictive-back animations.
+ *    Without this gate, Back pressed on any sub-screen (item detail, series, etc.) would fire
+ *    this handler instead of the NavHost pop, causing unexpected exits or blank screens.
+ * 2. The drawer is not open or animating — when it is, the top-level drawer BackHandler must
+ *    take Back to close the drawer (see [shouldInterceptBackForDrawer]).
+ */
+internal fun libraryItemsBackEnabled(
+    currentRoute: String?,
+    usePermanentDrawer: Boolean,
+    drawerCurrentOpen: Boolean,
+    drawerTargetOpen: Boolean,
+): Boolean = currentRoute?.startsWith("library_items/") == true &&
+    !shouldInterceptBackForDrawer(usePermanentDrawer, drawerCurrentOpen, drawerTargetOpen)
 
 internal fun isReaderRoute(route: String?): Boolean =
     route?.startsWith(EPUB_READER.substringBefore("{")) == true ||

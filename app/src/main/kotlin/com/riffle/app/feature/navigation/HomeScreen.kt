@@ -11,9 +11,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import android.util.Log
 import androidx.compose.runtime.LaunchedEffect
-import com.riffle.core.logging.LogChannel
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -23,6 +21,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.withResumed
 import kotlinx.coroutines.withContext
 
 @Composable
@@ -34,16 +34,10 @@ fun HomeScreen(
     var retryKey by remember { mutableIntStateOf(0) }
     var showRetry by remember { mutableStateOf(false) }
 
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
     LaunchedEffect(retryKey) {
-        Log.d(LogChannel.Nav.tag, "[DEBUG-BURGER] HomeScreen LaunchedEffect: retryKey=$retryKey")
-        showRetry = false
-        val dest = viewModel.getStartDestination()
-        Log.d(LogChannel.Nav.tag, "[DEBUG-BURGER] HomeScreen dest=$dest")
-        // Navigate on the main looper: after getStartDestination() returns through
-        // withContext(IO), the Compose test interceptor may resume this continuation
-        // on the instrumentation thread. NavController.navigate() calls
-        // LifecycleRegistry.setCurrentState() which requires the main thread.
-        withContext(viewModel.dispatchers.mainImmediate) {
+        navigateFromHome(awaitResumed = { lifecycle.withResumed { } }, viewModel = viewModel) { dest ->
+            showRetry = false
             when (dest) {
                 is HomeViewModel.StartDestination.AddSource -> onNavigateToAddSource()
                 is HomeViewModel.StartDestination.Library -> onNavigateToLibrary(dest.libraryId, dest.libraryName)
@@ -70,5 +64,26 @@ fun HomeScreen(
         } else {
             CircularProgressIndicator()
         }
+    }
+}
+
+// Compose Navigation 2.8+ keeps the previous back-stack entry in composition simultaneously
+// for its own predictive-back animations. HOME can therefore be in STARTED state while
+// library_items is the foreground destination. Calling navigateAsRoot from STARTED state
+// triggers popUpTo(HOME) which removes the live library_items entry, creating a gap with no
+// LibraryItemsScreen BackHandler registered. A Back event in that gap falls through to the
+// NavHost handler, which pops library_items to HOME, which fires the LaunchedEffect again →
+// loop. awaitResumed suspends until HOME is the foreground destination before touching the
+// NavController. In production this is `{ lifecycle.withResumed { } }`; in tests it is a
+// plain suspend lambda so the test controls exactly when navigation is unblocked.
+internal suspend fun navigateFromHome(
+    awaitResumed: suspend () -> Unit,
+    viewModel: HomeViewModel,
+    onDestination: suspend (HomeViewModel.StartDestination) -> Unit,
+) {
+    awaitResumed()
+    val dest = viewModel.getStartDestination()
+    withContext(viewModel.dispatchers.mainImmediate) {
+        onDestination(dest)
     }
 }

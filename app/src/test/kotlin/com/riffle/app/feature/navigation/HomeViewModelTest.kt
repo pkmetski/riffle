@@ -18,13 +18,19 @@ import com.riffle.core.models.Source
 import com.riffle.core.domain.SourceRepository
 import com.riffle.core.models.SourceUrl
 import java.io.IOException
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -213,6 +219,47 @@ class HomeViewModelTest {
         val result = makeVm().getStartDestination()
 
         assertEquals(HomeViewModel.StartDestination.Library("lib-1", "lib-1"), result)
+    }
+
+    // Pins the fix for the predictive-back burger-menu infinite loop: Compose Navigation 2.8+
+    // keeps the previous back-stack entry in composition simultaneously (predictive-back
+    // animations), so HOME can be STARTED while library_items is foreground. Without the
+    // awaitResumed guard in navigateFromHome, onDestination would fire immediately while HOME is
+    // in STARTED state, calling navigateAsRoot(libraryItems) whose popUpTo(HOME) removes the live
+    // library_items entry → BackHandler gap → Back falls through → NavHost pops → HOME → loop.
+    //
+    // Assertion that flips red if awaitResumed() is removed from navigateFromHome: the
+    // assertFalse below would fail because onDestination would be called without waiting.
+    @Test
+    fun `navigateFromHome defers navigation until awaitResumed unblocks`() = runTest {
+        serversFlow.value = listOf(server("s", active = true))
+        librariesFlow.value = listOf(library("lib-1"))
+
+        val gate = CompletableDeferred<Unit>()
+        var navigated = false
+        val job = launch {
+            navigateFromHome(awaitResumed = { gate.await() }, viewModel = makeVm()) { navigated = true }
+        }
+
+        advanceUntilIdle()
+        assertFalse("navigateFromHome must not fire before awaitResumed completes", navigated)
+
+        gate.complete(Unit)
+        advanceUntilIdle()
+        assertTrue("navigateFromHome must fire once awaitResumed completes", navigated)
+
+        job.cancelAndJoin()
+    }
+
+    @Test
+    fun `navigateFromHome fires immediately when awaitResumed is a no-op`() = runTest {
+        serversFlow.value = listOf(server("s", active = true))
+        librariesFlow.value = listOf(library("lib-1"))
+
+        var navigated = false
+        navigateFromHome(awaitResumed = {}, viewModel = makeVm()) { navigated = true }
+
+        assertTrue("navigateFromHome must fire immediately when awaitResumed does not suspend", navigated)
     }
 
     @Test

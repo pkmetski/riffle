@@ -148,8 +148,10 @@ fun LibraryItemsScreen(
     onSectionSeeMore: (LibrarySectionType) -> Unit,
     onAnnotatedBookClick: (sourceId: String, itemId: String) -> Unit,
     onPlaylistSelected: (com.riffle.core.catalog.CatalogPlaylist) -> Unit = {},
-    // When the navigation drawer is open, its own BackHandler must take Back so it can close
-    // itself. We disable our layered Back in that case (issue #60).
+    // Disabled when (a) the navigation drawer is open (it closes itself on Back) or (b) this
+    // screen is in STARTED state (a sub-screen is the foreground destination) — Compose
+    // Navigation 2.8+ keeps the previous back-stack entry in composition for predictive-back
+    // animations, so without this gate the BackHandler fires on Back from sub-screens.
     backEnabled: Boolean = true,
     viewModel: LibraryItemsViewModel = hiltViewModel(),
 ) {
@@ -231,7 +233,6 @@ fun LibraryItemsScreen(
     val activity = LocalActivity.current
     BackHandler(enabled = backEnabled) {
         val action = libraryBackAction(searchQuery, selectedTab)
-        android.util.Log.d(com.riffle.core.logging.LogChannel.Nav.tag, "[DEBUG-BURGER] LibraryItems BackHandler: action=$action backEnabled=$backEnabled searchQuery='$searchQuery' selectedTab=$selectedTab")
         when (action) {
             LibraryBackAction.ClearSearch -> {
                 viewModel.onSearchQueryChange("")
@@ -239,7 +240,7 @@ fun LibraryItemsScreen(
                 keyboardController?.hide()
             }
             LibraryBackAction.ResetToHomeTab -> { selectedTab = 0 }
-            LibraryBackAction.Exit -> activity?.finish()
+            LibraryBackAction.Exit -> handleLibraryExit(activity)
         }
     }
 
