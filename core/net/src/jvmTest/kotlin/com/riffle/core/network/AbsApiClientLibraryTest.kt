@@ -294,6 +294,54 @@ class AbsApiClientLibraryTest {
     }
 
     @Test
+    fun `getUserProgress passes audio position through instead of collapsing to the stored scalar`() = runTest {
+        // Regression for the "progress bar jumps back and forth" bug: ABS's stored `progress`
+        // scalar can be stale (a client once PATCHed it computed against the wrong duration)
+        // while `currentTime`/`duration` remain authoritative. When audio position data is
+        // present, the mapping must surface it raw and must NOT fold the scalar into
+        // ebookProgress — otherwise the bulk library refresh writes the stale scalar over the
+        // audio-derived fraction the per-item pull just wrote.
+        server.enqueue(
+            MockResponse()
+                .setResponseCode(200)
+                .addHeader("Content-Type", "application/json")
+                .setBody(
+                    """{"mediaProgress":[
+                        {"libraryItemId":"audio-1","mediaItemType":"book",
+                         "progress":0.05,"ebookProgress":0.0,"currentTime":148.3,"duration":251.4,
+                         "isFinished":false,"lastUpdate":1780170049396}
+                    ]}""".trimIndent()
+                )
+        )
+
+        val result = client.getUserProgress(server.url("/").toString().trimEnd('/'), "tok", false)
+
+        val entry = (result as NetworkResult.Success).value["audio-1"]!!
+        assertEquals(148.3, entry.currentTime, 0.0001)
+        assertEquals(251.4, entry.duration, 0.0001)
+        assertEquals(false, entry.isFinished)
+        assertNull(entry.ebookProgress)
+    }
+
+    @Test
+    fun `getUserProgress parses isFinished from mediaProgress entries`() = runTest {
+        server.enqueue(
+            MockResponse()
+                .setResponseCode(200)
+                .addHeader("Content-Type", "application/json")
+                .setBody(
+                    """{"mediaProgress":[
+                        {"libraryItemId":"item-1","progress":1.0,"isFinished":true,"lastUpdate":100}
+                    ]}""".trimIndent()
+                )
+        )
+
+        val result = client.getUserProgress(server.url("/").toString().trimEnd('/'), "tok", false)
+
+        assertEquals(true, (result as NetworkResult.Success).value["item-1"]?.isFinished)
+    }
+
+    @Test
     fun `getUserProgress yields null lastUpdate when field is absent`() = runTest {
         server.enqueue(
             MockResponse()

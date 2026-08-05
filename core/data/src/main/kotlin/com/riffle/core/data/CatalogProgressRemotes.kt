@@ -102,10 +102,10 @@ class CatalogAudioProgressRemote(
         // fraction=0, clobbering the ebook reconciler's just-written readingProgress. isFinished
         // is a separate signal — treat it as a real audio "done" event even without duration.
         if (!r.isFinished && r.audioDuration <= 0.0 && r.audioCurrentTime <= 0.0) return null
-        // Single-item ABS pullProgress leaves `ebookProgress` at 0 for audio-only items (unlike
-        // pullAllProgress which folds `progress` into it — ADR 0029); derive from currentTime/
-        // duration here so an audio-only book's library-grid % reflects the just-pulled listen
-        // fraction. `isFinished` overrides to 1f in case duration is 0/absent on server payload.
+        // ABS pullProgress leaves `ebookProgress` at 0 for audio-only items; derive from
+        // currentTime/duration here so an audio-only book's library-grid % reflects the
+        // just-pulled listen fraction (ADR 0029). `isFinished` overrides to 1f in case
+        // duration is 0/absent on server payload.
         val fraction = when {
             r.isFinished -> 1f
             r.audioDuration > 0.0 -> (r.audioCurrentTime / r.audioDuration).toFloat().coerceIn(0f, 1f)

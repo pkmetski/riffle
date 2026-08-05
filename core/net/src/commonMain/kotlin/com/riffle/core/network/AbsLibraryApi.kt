@@ -7,6 +7,9 @@ data class NetworkUserMediaProgress(
     val ebookProgress: Float?,
     val lastUpdate: Long?,
     val finishedAt: Long? = null,
+    val currentTime: Double = 0.0,
+    val duration: Double = 0.0,
+    val isFinished: Boolean = false,
 )
 
 interface AbsLibraryApi {

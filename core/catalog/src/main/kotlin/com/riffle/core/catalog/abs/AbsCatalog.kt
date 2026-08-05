@@ -358,9 +358,9 @@ class AbsCatalog(
                     itemId = id,
                     ebookLocation = null,
                     ebookProgress = p.ebookProgress ?: 0f,
-                    audioCurrentTime = 0.0,
-                    audioDuration = 0.0,
-                    isFinished = p.finishedAt != null,
+                    audioCurrentTime = p.currentTime,
+                    audioDuration = p.duration,
+                    isFinished = p.isFinished || p.finishedAt != null,
                     finishedAt = p.finishedAt,
                     lastUpdate = p.lastUpdate ?: 0L,
                 )
