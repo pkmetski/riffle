@@ -170,7 +170,7 @@ fun MainScreen(
         ?.arguments?.getString("libraryId")
     val currentRoute = currentBackStack?.destination?.route
     LaunchedEffect(currentRoute) {
-        val stack = navController.backQueue.mapNotNull { it.destination.route }
+        val stack = navController.currentBackStack.value.mapNotNull { it.destination.route }
         Log.d(LogChannel.Nav.tag, "[DEBUG-BURGER] route changed: $currentRoute | stack=${stack}")
     }
     val usePermanentDrawer = isTablet
