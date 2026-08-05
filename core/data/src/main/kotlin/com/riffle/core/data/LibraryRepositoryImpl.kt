@@ -233,14 +233,15 @@ class LibraryRepositoryImpl @Inject constructor(
                         title = item.title,
                         author = item.author,
                         coverUrl = item.coverUrl ?: "",
-                        // For an audiobook-only item the ABS user-progress fallback already maps
-                        // its listen fraction into `ebookProgress` (AbsApiClient: ebookProgress ?:
-                        // progress), so this single field is the unified "how far through this
-                        // item" value that surfaces audiobooks in In Progress too (ADR 0029).
+                        // The unified "how far through this item" fraction (ebook CFI progress,
+                        // else audio currentTime/duration) that surfaces audiobooks in In
+                        // Progress too (ADR 0029) — same derivation as refreshItemProgress so
+                        // the bulk and per-item pulls can never disagree.
                         // Note: for existing items the DAO's updateMetadata ignores this field and
                         // preserves the locally-tracked value. It is only used when inserting a
                         // new item for the first time.
-                        readingProgress = serverProgress?.ebookProgress ?: item.readingProgress ?: 0f,
+                        readingProgress = serverProgress?.unifiedLibraryFraction()
+                            ?: item.readingProgress ?: 0f,
                         ebookFileIno = item.ebookFileIno,
                         ebookFormat = item.ebookFormat.toEbookFormat().toStorageString(),
                         hasAudio = item.hasAudio,
@@ -286,7 +287,11 @@ class LibraryRepositoryImpl @Inject constructor(
             for (item in items) {
                 if (item.id in dirtyIds) continue
                 val sp = serverProgressMap[item.id] ?: continue
-                libraryItemDao.updateReadingProgress(source.id, item.id, sp.ebookProgress)
+                // Same derivation (and same empty-payload skip) as refreshItemProgress: the two
+                // pulls hit different endpoints, and deriving differently here is exactly what
+                // made the library card ping-pong against the detail screen's per-item pull.
+                val fraction = sp.unifiedLibraryFraction() ?: continue
+                libraryItemDao.updateReadingProgress(source.id, item.id, fraction)
             }
             val isUnsupported = entities.isNotEmpty() && entities.none { it.ebookFormat != EbookFormat.Unsupported.toStorageString() }
             libraryDao.setUnsupported(source.id, libraryId, isUnsupported)
@@ -312,22 +317,12 @@ class LibraryRepositoryImpl @Inject constructor(
             }
             return LibraryRefreshResult.NetworkError(t)
         } ?: return LibraryRefreshResult.Success
-        // Single-item pullProgress doesn't apply the "audio → ebookProgress" fallback that
-        // pullAllProgress does (ABS ships `progress` on audio-only items, `ebookProgress = 0`),
-        // so derive the unified library fraction here (ADR 0029). isFinished pins to 1f to cover
-        // "server marks finished but audioCurrentTime slightly under duration" boundary.
-        // Skip when the payload carries no meaningful progress at all (fresh item / audio-only
-        // book whose duration hasn't been populated server-side yet) — writing 0 in that case
-        // would clobber a previously-adopted non-zero value in library_items.readingProgress.
-        if (!sp.isFinished && sp.ebookProgress <= 0f && sp.audioDuration <= 0.0 && sp.audioCurrentTime <= 0.0) {
-            return LibraryRefreshResult.Success
-        }
-        val fraction = when {
-            sp.isFinished -> 1f
-            sp.ebookProgress > 0f -> sp.ebookProgress
-            sp.audioDuration > 0.0 -> (sp.audioCurrentTime / sp.audioDuration).toFloat().coerceIn(0f, 1f)
-            else -> 0f
-        }
+        // Derive the unified library fraction (ADR 0029) through the shared helper so this
+        // per-item pull can never disagree with refreshLibraryItems' bulk pull. A null fraction
+        // means the payload carries no meaningful progress at all (fresh item / audio-only book
+        // whose duration hasn't been populated server-side yet) — writing 0 in that case would
+        // clobber a previously-adopted non-zero value in library_items.readingProgress.
+        val fraction = sp.unifiedLibraryFraction() ?: return LibraryRefreshResult.Success
         val finishedAt = sp.finishedAt ?: sp.lastUpdate.takeIf { sp.isFinished }
         libraryItemDao.updateReadingProgress(source.id, itemId, fraction)
         libraryItemDao.updateFinishedAt(source.id, itemId, finishedAt)

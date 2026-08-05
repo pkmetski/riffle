@@ -99,10 +99,19 @@ class AbsApiClient(
                 it.libraryItemId to NetworkUserMediaProgress(
                     // ABS reports completion in two fields: an ebook carries a precise
                     // `ebookProgress` (CFI-based, can exceed `progress`); an audiobook carries
-                    // `progress` (currentTime/duration) with `ebookProgress` 0/absent. Prefer a
-                    // real (>0) `ebookProgress`, else fall back to `progress` — so a 0
-                    // `ebookProgress` no longer shadows a real audiobook position (ADR 0029).
-                    ebookProgress = it.ebookProgress?.takeIf { p -> p > 0f } ?: it.progress,
+                    // `currentTime`/`duration` with `ebookProgress` 0/absent. Surface a real
+                    // (>0) `ebookProgress` and the raw audio position so callers derive one
+                    // unified fraction (ADR 0029). Do NOT fold the stored `progress` scalar in
+                    // when audio position data exists — that scalar can be stale (a client once
+                    // pushed it computed against the wrong duration) and folding it made the
+                    // bulk pull disagree with the per-item pull, ping-ponging the library UI.
+                    // Only when the entry carries no duration at all is `progress` the sole
+                    // signal left, so keep it as the last-resort fallback there.
+                    ebookProgress = it.ebookProgress?.takeIf { p -> p > 0f }
+                        ?: it.progress.takeIf { _ -> it.duration <= 0.0 },
+                    currentTime = it.currentTime,
+                    duration = it.duration,
+                    isFinished = it.isFinished,
                     lastUpdate = it.lastUpdate,
                     finishedAt = it.finishedAt,
                 )

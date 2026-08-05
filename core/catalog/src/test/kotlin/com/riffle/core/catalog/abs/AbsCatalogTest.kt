@@ -513,6 +513,27 @@ class AbsCatalogTest {
         assertEquals(true, result["b"]!!.isFinished)
     }
 
+    @Test fun `pullAllProgress carries audio position and isFinished instead of hardcoding zeros`() = runTest {
+        // Regression for the "progress bar jumps back and forth" bug: the bulk pull used to
+        // hardcode audioCurrentTime/audioDuration to 0.0, so the library refresh could never
+        // derive the same unified fraction as the per-item pullProgress and the two writers
+        // ping-ponged library_items.readingProgress.
+        libraryApi.userProgress = mapOf(
+            "a" to NetworkUserMediaProgress(
+                ebookProgress = null, lastUpdate = 100L,
+                currentTime = 59.0, duration = 100.0, isFinished = false,
+            ),
+            "b" to NetworkUserMediaProgress(ebookProgress = null, lastUpdate = 200L, isFinished = true),
+        )
+
+        val result = catalog.pullAllProgress().associateBy { it.itemId }
+
+        assertEquals(59.0, result["a"]!!.audioCurrentTime, 0.0001)
+        assertEquals(100.0, result["a"]!!.audioDuration, 0.0001)
+        assertEquals(false, result["a"]!!.isFinished)
+        assertEquals(true, result["b"]!!.isFinished)
+    }
+
     // endregion
 
     // region ReadingSessionsCapability

@@ -605,6 +605,111 @@ class LibraryRepositoryTest {
     }
 
     @Test
+    fun `refreshLibraryItems derives the audio fraction instead of clobbering with the stored scalar`() = runTest {
+        // Regression for the "progress bar jumps back and forth on detail open/close" bug: an
+        // audio-dimension item whose server record has ebookProgress=0 plus authoritative
+        // currentTime/duration (59/100). The detail screen's per-item refreshItemProgress derives
+        // 0.59 and writes it; the bulk library refresh on the home screen's ON_RESUME used to
+        // write back the collapsed stored scalar (or 0), ping-ponging the card between the two
+        // values on every navigation. Both writers must derive the same unified fraction.
+        fakeServerRepository.activeServer = activeServer()
+        fakeTokenStorage.tokens["s1"] = "tok"
+        val dao = FakeLibraryItemDao()
+        dao.upsertAll(listOf(
+            LibraryItemEntity(
+                "s1", "item-1", "lib-1", "Book", "A", null, 0.59f,
+                lastOpenedAt = 10_000L, addedAt = 0L,
+            ),
+        ))
+        val api = object : AbsLibraryApi {
+            override suspend fun getUserProgress(baseUrl: String, token: String, insecureAllowed: Boolean): NetworkResult<Map<String, NetworkUserMediaProgress>> =
+                com.riffle.core.network.NetworkResult.Success(
+                    mapOf("item-1" to com.riffle.core.network.NetworkUserMediaProgress(
+                        ebookProgress = null, lastUpdate = 5_000L,
+                        currentTime = 59.0, duration = 100.0, isFinished = false,
+                    ))
+                )
+            override suspend fun getLibraries(baseUrl: String, token: String, insecureAllowed: Boolean): NetworkResult<List<NetworkLibrary>> =
+                NetworkResult.Success(emptyList())
+            override suspend fun getLibraryItems(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean): NetworkResult<List<NetworkLibraryItem>> =
+                NetworkResult.Success(listOf(
+                    NetworkLibraryItem("item-1", "lib-1", "Book", "A", 0f, ebookFormat = EbookFormat.Epub)
+                ))
+            override suspend fun getSeries(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean): NetworkResult<List<NetworkSeries>> =
+                NetworkResult.Success(emptyList())
+            override suspend fun getCollections(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean): NetworkResult<List<NetworkCollection>> =
+                NetworkResult.Success(emptyList())
+        }
+        makeRepo(libraryItemDao = dao, api = api).refreshLibraryItems("lib-1")
+        assertEquals(0.59f, dao.itemsFor("lib-1").first { it.id == "item-1" }.readingProgress, 0.001f)
+    }
+
+    @Test
+    fun `refreshLibraryItems keeps existing readingProgress when the payload carries no meaningful progress`() = runTest {
+        // A record whose every progress dimension is empty (fresh item, or an audio-only book
+        // whose duration hasn't populated server-side yet) must not clobber a previously-adopted
+        // non-zero value — same guard refreshItemProgress applies to the per-item pull.
+        fakeServerRepository.activeServer = activeServer()
+        fakeTokenStorage.tokens["s1"] = "tok"
+        val dao = FakeLibraryItemDao()
+        dao.upsertAll(listOf(
+            LibraryItemEntity(
+                "s1", "item-1", "lib-1", "Book", "A", null, 0.59f,
+                lastOpenedAt = 10_000L, addedAt = 0L,
+            ),
+        ))
+        val api = object : AbsLibraryApi {
+            override suspend fun getUserProgress(baseUrl: String, token: String, insecureAllowed: Boolean): NetworkResult<Map<String, NetworkUserMediaProgress>> =
+                com.riffle.core.network.NetworkResult.Success(
+                    mapOf("item-1" to com.riffle.core.network.NetworkUserMediaProgress(ebookProgress = null, lastUpdate = 5_000L))
+                )
+            override suspend fun getLibraries(baseUrl: String, token: String, insecureAllowed: Boolean): NetworkResult<List<NetworkLibrary>> =
+                NetworkResult.Success(emptyList())
+            override suspend fun getLibraryItems(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean): NetworkResult<List<NetworkLibraryItem>> =
+                NetworkResult.Success(listOf(
+                    NetworkLibraryItem("item-1", "lib-1", "Book", "A", 0f, ebookFormat = EbookFormat.Epub)
+                ))
+            override suspend fun getSeries(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean): NetworkResult<List<NetworkSeries>> =
+                NetworkResult.Success(emptyList())
+            override suspend fun getCollections(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean): NetworkResult<List<NetworkCollection>> =
+                NetworkResult.Success(emptyList())
+        }
+        makeRepo(libraryItemDao = dao, api = api).refreshLibraryItems("lib-1")
+        assertEquals(0.59f, dao.itemsFor("lib-1").first { it.id == "item-1" }.readingProgress, 0.001f)
+    }
+
+    @Test
+    fun `refreshLibraryItems seeds a newly inserted audiobook row from the audio position`() = runTest {
+        // ADR 0029: audiobook-only items must surface in "In Progress" too. The bulk /api/me
+        // mapping no longer folds the stored scalar into ebookProgress when audio position data
+        // is present, so the insert seed must derive the fraction from currentTime/duration.
+        fakeServerRepository.activeServer = activeServer()
+        fakeTokenStorage.tokens["s1"] = "tok"
+        val dao = FakeLibraryItemDao() // no pre-existing items
+        val api = object : AbsLibraryApi {
+            override suspend fun getUserProgress(baseUrl: String, token: String, insecureAllowed: Boolean): NetworkResult<Map<String, NetworkUserMediaProgress>> =
+                com.riffle.core.network.NetworkResult.Success(
+                    mapOf("item-1" to com.riffle.core.network.NetworkUserMediaProgress(
+                        ebookProgress = null, lastUpdate = 1_000L,
+                        currentTime = 25.0, duration = 100.0, isFinished = false,
+                    ))
+                )
+            override suspend fun getLibraries(baseUrl: String, token: String, insecureAllowed: Boolean): NetworkResult<List<NetworkLibrary>> =
+                NetworkResult.Success(emptyList())
+            override suspend fun getLibraryItems(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean): NetworkResult<List<NetworkLibraryItem>> =
+                NetworkResult.Success(listOf(
+                    NetworkLibraryItem("item-1", "lib-1", "My Book", "Author A", 0f, ebookFormat = EbookFormat.Epub)
+                ))
+            override suspend fun getSeries(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean): NetworkResult<List<NetworkSeries>> =
+                NetworkResult.Success(emptyList())
+            override suspend fun getCollections(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean): NetworkResult<List<NetworkCollection>> =
+                NetworkResult.Success(emptyList())
+        }
+        makeRepo(libraryItemDao = dao, api = api).refreshLibraryItems("lib-1")
+        assertEquals(0.25f, dao.itemsFor("lib-1").first { it.id == "item-1" }.readingProgress, 0.001f)
+    }
+
+    @Test
     fun `refreshLibraryItems uses source readingProgress when no local record exists`() = runTest {
         fakeServerRepository.activeServer = activeServer()
         fakeTokenStorage.tokens["s1"] = "tok"
