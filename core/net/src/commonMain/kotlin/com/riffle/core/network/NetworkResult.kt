@@ -2,6 +2,7 @@ package com.riffle.core.network
 
 import com.riffle.core.models.InsecureConnectionType
 import io.ktor.client.plugins.ResponseException
+import kotlinx.coroutines.CancellationException
 import kotlinx.serialization.SerializationException
 
 /**
@@ -32,6 +33,8 @@ object KtorClassifier {
      */
     suspend fun <T> classify(block: suspend () -> T): NetworkResult<T> = try {
         NetworkResult.Success(block())
+    } catch (e: CancellationException) {
+        throw e
     } catch (e: HttpException) {
         if (e.code == 401) NetworkResult.Auth
         else NetworkResult.ServerError(e.code, e.message)

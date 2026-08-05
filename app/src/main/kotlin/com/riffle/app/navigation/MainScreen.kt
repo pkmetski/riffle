@@ -54,6 +54,8 @@ import com.riffle.app.feature.settings.readaloud.ReadaloudMatchesScreen
 import com.riffle.app.feature.settings.readaloud.ReadaloudSettingsScreen
 import com.riffle.app.playback.NowPlaying
 import com.riffle.app.ui.isTabletLayout
+import android.util.Log
+import com.riffle.core.logging.LogChannel
 import kotlinx.coroutines.launch
 import java.net.URLDecoder
 import java.net.URLEncoder
@@ -186,6 +188,7 @@ fun MainScreen(
         drawerCurrentOpen = drawerState.currentValue == DrawerValue.Open,
         drawerTargetOpen = drawerState.targetValue == DrawerValue.Open,
     )) {
+        Log.d(LogChannel.Nav.tag, "[DEBUG-BURGER] BackHandler: closing drawer current=${drawerState.currentValue} target=${drawerState.targetValue}")
         scope.launch { drawerState.close() }
     }
 
@@ -225,6 +228,7 @@ fun MainScreen(
 
     LaunchedEffect(Unit) {
         viewModel.redirectToLibrary.collect { library ->
+            Log.d(LogChannel.Nav.tag, "[DEBUG-BURGER] redirectToLibrary: library=${library.id} drawer current=${drawerState.currentValue} target=${drawerState.targetValue}")
             navController.navigateAsRoot(libraryEntryRoute(activeServer?.type, library.id, library.name))
             viewModel.setActiveLibrary(library.id)
         }
@@ -242,20 +246,24 @@ fun MainScreen(
         serverVersions = serverVersions,
         showDownloadsLink = showDownloadsLink,
         onServerSelected = { server ->
+            Log.d(LogChannel.Nav.tag, "[DEBUG-BURGER] onServerSelected: server=${server.id} drawer current=${drawerState.currentValue} target=${drawerState.targetValue}")
             viewModel.setActiveServer(server.id)
             scope.launch { drawerState.close() }
             navController.navigateAsRoot(HOME)
         },
         onLibrarySelected = { library ->
+            Log.d(LogChannel.Nav.tag, "[DEBUG-BURGER] onLibrarySelected: library=${library.id} drawer current=${drawerState.currentValue} target=${drawerState.targetValue}")
             viewModel.setActiveLibrary(library.id)
             scope.launch { drawerState.close() }
             navController.navigateAsRoot(libraryEntryRoute(activeServer?.type, library.id, library.name))
         },
         onDownloadsSelected = {
+            Log.d(LogChannel.Nav.tag, "[DEBUG-BURGER] onDownloadsSelected: drawer current=${drawerState.currentValue} target=${drawerState.targetValue}")
             scope.launch { drawerState.close() }
             navController.navigate(DOWNLOADS)
         },
         onSettingsSelected = {
+            Log.d(LogChannel.Nav.tag, "[DEBUG-BURGER] onSettingsSelected: drawer current=${drawerState.currentValue} target=${drawerState.targetValue}")
             scope.launch { drawerState.close() }
             navController.navigate(SETTINGS)
         },
@@ -312,7 +320,10 @@ fun MainScreen(
                 com.riffle.app.feature.source.chitanka.ChitankaBrowseScreen(
                     libraryName = libraryName,
                     windowSizeClass = windowSizeClass,
-                    onOpenDrawer = { scope.launch { drawerState.open() } },
+                    onOpenDrawer = {
+                        Log.d(LogChannel.Nav.tag, "[DEBUG-BURGER] onOpenDrawer: current=${drawerState.currentValue} target=${drawerState.targetValue}")
+                        scope.launch { drawerState.open() }
+                    },
                     onOpenDetail = { itemId ->
                         val encodedId = URLEncoder.encode(itemId, "UTF-8")
                         navController.navigate("library_item_detail/$encodedId")
@@ -349,7 +360,10 @@ fun MainScreen(
                 com.riffle.app.feature.source.gutenberg.GutenbergBrowseScreen(
                     libraryName = libraryName,
                     windowSizeClass = windowSizeClass,
-                    onOpenDrawer = { scope.launch { drawerState.open() } },
+                    onOpenDrawer = {
+                        Log.d(LogChannel.Nav.tag, "[DEBUG-BURGER] onOpenDrawer: current=${drawerState.currentValue} target=${drawerState.targetValue}")
+                        scope.launch { drawerState.open() }
+                    },
                     onOpenDetail = { itemId ->
                         val encodedId = URLEncoder.encode(itemId, "UTF-8")
                         navController.navigate("library_item_detail/$encodedId")
@@ -572,10 +586,17 @@ fun MainScreen(
                 // Force the drawer fully closed when the library destination first composes.
                 // Without this its closing animation can race a Back press and the drawer's
                 // own BackHandler captures it instead of exiting the app (issue #60).
-                LaunchedEffect(Unit) { drawerState.close() }
+                LaunchedEffect(Unit) {
+                    Log.d(LogChannel.Nav.tag, "[DEBUG-BURGER] library LaunchedEffect close: current=${drawerState.currentValue} target=${drawerState.targetValue}")
+                    drawerState.close()
+                    Log.d(LogChannel.Nav.tag, "[DEBUG-BURGER] library LaunchedEffect close done: current=${drawerState.currentValue} target=${drawerState.targetValue}")
+                }
                 LibraryItemsScreen(
                     libraryName = libraryName,
-                    onOpenDrawer = { scope.launch { drawerState.open() } },
+                    onOpenDrawer = {
+                        Log.d(LogChannel.Nav.tag, "[DEBUG-BURGER] onOpenDrawer: current=${drawerState.currentValue} target=${drawerState.targetValue}")
+                        scope.launch { drawerState.open() }
+                    },
                     backEnabled = !shouldInterceptBackForDrawer(
                         usePermanentDrawer,
                         drawerCurrentOpen = drawerState.currentValue == DrawerValue.Open,
