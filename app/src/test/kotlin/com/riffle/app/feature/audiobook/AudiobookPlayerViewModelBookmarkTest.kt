@@ -69,6 +69,7 @@ import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -101,6 +102,7 @@ class AudiobookPlayerViewModelBookmarkTest {
     private class FakeController(var position: Double) : AudiobookController() {
         val seeks = mutableListOf<Double>()
         var preparedStartAtSec: Double? = null
+        var preparedBookTitle: String? = null
         var stopCount = 0
         override val state = MutableStateFlow(PlaybackState())
         private val ended = kotlinx.coroutines.flow.MutableSharedFlow<Unit>(extraBufferCapacity = 1)
@@ -113,7 +115,11 @@ class AudiobookPlayerViewModelBookmarkTest {
             startAtSec: Double,
             localZipFile: File?,
             coverUri: String?,
-        ) { preparedStartAtSec = startAtSec }
+            bookTitle: String?,
+        ) {
+            preparedStartAtSec = startAtSec
+            preparedBookTitle = bookTitle
+        }
         override fun play() {}
         override fun setSpeed(speed: Float) {}
         override fun currentAbsoluteSec(): Double = position
@@ -142,6 +148,7 @@ class AudiobookPlayerViewModelBookmarkTest {
         logger: RecordingLogger = RecordingLogger(),
         playlistsRepository: com.riffle.core.data.PlaylistsRepository = NoopPlaylistsRepository,
         savedState: Map<String, Any?> = mapOf("itemId" to itemId),
+        handoffState: AudiobookHandoffState = AudiobookHandoffState(),
     ): AudiobookPlayerViewModel {
         val session = AudiobookSession(
             trackUrls = listOf("http://x/track0"),
@@ -174,7 +181,7 @@ class AudiobookPlayerViewModelBookmarkTest {
             progressFlushScope = ProgressFlushScope(TestApplicationScope(CoroutineScope(testDispatcher))),
             bookmarkStore = bookmarkStore,
             connectivityObserver = connectivity,
-            audiobookHandoffState = AudiobookHandoffState(),
+            audiobookHandoffState = handoffState,
             followLoopOrchestrator = FollowLoopOrchestrator(
                 clock = object : Clock {
                     override fun nowMs(): Long = fixedNow
@@ -574,6 +581,45 @@ class AudiobookPlayerViewModelBookmarkTest {
         runCurrent()
 
         assertEquals(0.0, ctrl.preparedStartAtSec!!, 0.0001)
+        vm.clearForTest()
+    }
+
+    @Test
+    fun `prepare is called with the catalog book title so ID3 tags cannot bleed into the notification`() = runTest(testDispatcher) {
+        // Regression: some catalog MP3s embed raw source labels like "Track /радио" in their ID3
+        // TIT2 tag. If bookTitle is not set on the MediaItem's MediaMetadata, Media3 falls through
+        // to the ID3-extracted value and shows the suffix in the persistent notification.
+        val ctrl = FakeController(position = 0.0)
+        val vm = buildViewModel(ctrl, FakeBookmarkStore())
+        runCurrent()
+
+        // FakeLibraryRepository returns a LibraryItem with title = "Book".
+        assertEquals("Book", ctrl.preparedBookTitle)
+        vm.clearForTest()
+    }
+
+    @Test
+    fun `handoff-path prepare is called with the catalog book title so ID3 tags cannot bleed into the notification`() = runTest(testDispatcher) {
+        // Regression: the same ID3 bleed-through can happen via the readaloud→audiobook swipe-up
+        // handoff path (activateFromHandoff), which calls prepare() with resolvedBookTitle. If that
+        // field is not stored during init, it arrives as null and the ID3 title wins.
+        val handoffState = AudiobookHandoffState()
+        val ctrl = FakeController(position = 0.0)
+        // PREWARM_SENTINEL (-2f) defers prepare() during init; prepare() is called only on handoff.
+        val vm = buildViewModel(
+            ctrl,
+            FakeBookmarkStore(),
+            savedState = mapOf("itemId" to itemId, "startAtSec" to -2f),
+            handoffState = handoffState,
+        )
+        runCurrent()
+        assertNull(ctrl.preparedBookTitle) // no prepare() yet in prewarm mode
+
+        handoffState.signal(itemId, 0.0)
+        runCurrent()
+
+        // FakeLibraryRepository returns a LibraryItem with title = "Book".
+        assertEquals("Book", ctrl.preparedBookTitle)
         vm.clearForTest()
     }
 

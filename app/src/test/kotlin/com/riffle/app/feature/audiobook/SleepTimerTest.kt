@@ -147,6 +147,7 @@ class SleepTimerTest {
             startAtSec: Double,
             localZipFile: File?,
             coverUri: String?,
+            bookTitle: String?,
         ) { /* no-op */ }
 
         override fun play() {}

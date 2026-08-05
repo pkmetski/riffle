@@ -224,6 +224,7 @@ class AudiobookPlayerViewModel @Inject constructor(
     // can await rather than drop when a swipe arrives before the ~1–2 s bundle-session fetch is done.
     private val sessionDeferred = CompletableDeferred<com.riffle.core.domain.AudiobookSession?>()
     private var resolvedCoverUri: String? = null
+    private var resolvedBookTitle: String? = null
     private var resolvedInitialSpeed: Float = 1f
 
     private val meta = MutableStateFlow(
@@ -487,6 +488,7 @@ class AudiobookPlayerViewModel @Inject constructor(
             resolvedSession = session
             sessionDeferred.complete(session)
             resolvedCoverUri = item.coverUrl
+            resolvedBookTitle = item.title
             resolvedInitialSpeed = initialSpeed
             logger.d(LogChannel.Handoff) { "AB.VM init: resolvedSession ready +${clock.nowMs() - t0}ms (startAtSec=$startAtSec)" }
 
@@ -506,6 +508,7 @@ class AudiobookPlayerViewModel @Inject constructor(
                     startAtSec = playbackStartSec,
                     localZipFile = session.localZipFile,
                     coverUri = item.coverUrl,
+                    bookTitle = item.title,
                 )
                 // Record the active session so a media-notification tap reopens this audiobook player.
                 nowPlayingStore.set(com.riffle.app.playback.NowPlaying.Audiobook(itemId))
@@ -817,6 +820,7 @@ class AudiobookPlayerViewModel @Inject constructor(
             startAtSec = finalSec,
             localZipFile = session.localZipFile,
             coverUri = resolvedCoverUri,
+            bookTitle = resolvedBookTitle,
         )
         logger.d(LogChannel.Handoff) { "AB.activateFromHandoff: prepare() done +${clock.nowMs() - t0}ms" }
         controller.setSpeed(resolvedInitialSpeed)
