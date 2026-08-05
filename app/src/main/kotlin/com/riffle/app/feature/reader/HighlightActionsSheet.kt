@@ -1,8 +1,10 @@
 package com.riffle.app.feature.reader
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -31,17 +33,18 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.activity.compose.BackHandler
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -223,10 +226,21 @@ fun HighlightActionsPopup(
         properties = PopupProperties(focusable = false),
     ) {
         BackHandler(enabled = true, onBack = onDismiss)
+        val currentOnDismiss by rememberUpdatedState(onDismiss)
         Surface(
             shape = RoundedCornerShape(12.dp),
             shadowElevation = 4.dp,
             tonalElevation = 0.dp,
+            // Dismiss when a vertical drag is detected on the popup surface. Without this, a scroll
+            // gesture that starts inside the popup bounds is absorbed by the popup window and the
+            // reader never sees it — the user experiences resistance until they lift and retry from
+            // outside the popup area. Dismissing on drag start clears the popup immediately so the
+            // user's next gesture scrolls the reader without friction.
+            // Unit key keeps the detector stable for the popup's lifetime; rememberUpdatedState
+            // ensures the latest onDismiss is always called even if the lambda reference changes.
+            modifier = Modifier.pointerInput(Unit) {
+                detectVerticalDragGestures(onDragStart = { currentOnDismiss() }) { _, _ -> }
+            },
         ) {
             Column(modifier = Modifier.width(280.dp)) {
                 if (!noteOnly) {
