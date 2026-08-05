@@ -79,9 +79,15 @@ internal interface RendererBridge {
 
     /**
      * Navigate to [locator] then snap onto the target's column. [landAtStartWhenNoTarget] picks
-     * the no-DOM-fragment landing (chapter top vs. round-to-grid for a within-chapter sync).
+     * the no-DOM-fragment landing (chapter top vs. progression for a within-chapter jump).
+     * [snapProgressionToNearestColumn] distinguishes exact bookmark page boundaries from
+     * arbitrary progressions which must floor to their containing page.
      */
-    suspend fun snapAfterGoTo(locator: Locator, landAtStartWhenNoTarget: Boolean = true)
+    suspend fun snapAfterGoTo(
+        locator: Locator,
+        landAtStartWhenNoTarget: Boolean = true,
+        snapProgressionToNearestColumn: Boolean = false,
+    )
 
     /** Re-pin the current page to its LAST column through a backward cross-resource turn's reflow. */
     suspend fun snapToEnd()

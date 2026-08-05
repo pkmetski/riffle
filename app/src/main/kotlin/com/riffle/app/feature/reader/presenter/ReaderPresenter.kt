@@ -240,14 +240,16 @@ internal sealed class AnnotationTapEvent {
  *
  * - **Source-progress resume / annotation jump**: [landAtStartWhenNoTarget] = `false` — don't yank
  *   to the chapter top; honour the locator's progression.
+ * - **Bookmark jump**: [snapProgressionToNearestColumn] = `true` — its persisted progression is
+ *   an exact page boundary, so floating-point underflow must not floor it to the previous page.
  * - **Readaloud `play-from-here`**: [snap] = `false`, [animated] = `false` — the locator already
  *   names the precise sentence column; snap would round it off.
  * - **Annotation jump in continuous mode**: [alignToTop] = `true` — bookmark progressions are
  *   content-top-relative, not viewport-midpoint (the inverse [locatorAt] uses).
  *
  * Honoured by:
- * - [ReadiumPresenter]: [snap], [landAtStartWhenNoTarget], [animated]. [alignToTop] is irrelevant
- *   (Readium handles column alignment internally).
+ * - [ReadiumPresenter]: [snap], [landAtStartWhenNoTarget], [snapProgressionToNearestColumn],
+ *   [animated]. [alignToTop] is irrelevant (Readium handles column alignment internally).
  * - [ContinuousPresenter]: [alignToTop]. The other flags do not apply (no column grid, no
  *   Readium-go animation control).
  */
@@ -260,6 +262,12 @@ internal data class NavigationOptions(
      * (continuous always honours the explicit progression).
      */
     val landAtStartWhenNoTarget: Boolean = true,
+    /**
+     * Readium-only. Round a progression target to the nearest column instead of flooring it.
+     * Enable only for bookmarks whose progression was captured at a paginated page boundary;
+     * arbitrary progressions (sync and legacy fallbacks) still floor to their containing page.
+     */
+    val snapProgressionToNearestColumn: Boolean = false,
     /**
      * Readium-only. Whether the page-turn animates. Only consulted on the non-snap branch — the
      * snap branch's animation is owned by [ColumnSnap.goAndSnap].

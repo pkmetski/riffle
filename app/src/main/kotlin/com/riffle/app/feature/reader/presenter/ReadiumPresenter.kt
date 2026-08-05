@@ -172,7 +172,11 @@ internal class ReadiumPresenter(
         val fragment = fragment ?: return
         val locator = target.toLocator(publication) ?: return
         if (options.snap) {
-            bridge.snapAfterGoTo(locator, options.landAtStartWhenNoTarget)
+            bridge.snapAfterGoTo(
+                locator,
+                options.landAtStartWhenNoTarget,
+                options.snapProgressionToNearestColumn,
+            )
         } else {
             fragment.go(locator, animated = options.animated)
         }
@@ -224,12 +228,13 @@ internal class ReadiumPresenter(
     suspend fun navigateToLocator(
         locator: Locator,
         landAtStartWhenNoTarget: Boolean = true,
+        snapProgressionToNearestColumn: Boolean = false,
         snap: Boolean = true,
         animated: Boolean = true,
     ) {
         val fragment = fragment ?: return
         if (snap) {
-            bridge.snapAfterGoTo(locator, landAtStartWhenNoTarget)
+            bridge.snapAfterGoTo(locator, landAtStartWhenNoTarget, snapProgressionToNearestColumn)
         } else {
             fragment.go(locator, animated = animated)
         }

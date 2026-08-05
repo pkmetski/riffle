@@ -200,8 +200,9 @@ class ReaderSessionLifecycle @AssistedInject constructor(
         // (set above) — cfiStringToLocator resolves against it.
         val resolvedOpenAtLocator = openAtCfiNonBlank?.let { cfiStringToLocator(it) }
         // openAtCfiNonBlank is non-null whenever resolvedOpenAtLocator is (the locator is derived
-        // from it). Fetch the matching row once: its id drives Continuous mark focus and its
-        // TextQuote makes Readium's paginated/vertical locator exact.
+        // from it). Fetch the matching row once: its id drives Continuous mark focus, its
+        // TextQuote makes highlight locators exact, and its persisted progression restores a
+        // bookmark's original live-reader page boundary.
         val openAtAnnotation = if (
             resolvedOpenAtLocator != null &&
             resolvedReaderServerId != null
@@ -212,7 +213,7 @@ class ReaderSessionLifecycle @AssistedInject constructor(
         } else {
             null
         }
-        val openAtLocator = resolvedOpenAtLocator?.withAnnotationTextQuote(openAtAnnotation)
+        val openAtLocator = resolvedOpenAtLocator?.withAnnotationNavigationAnchor(openAtAnnotation)
         val initialFocusAnnotationId = openAtAnnotation?.id
 
         // Stored lastPosition is Readium Locator JSON. Rows written before ADR 0030's translation
