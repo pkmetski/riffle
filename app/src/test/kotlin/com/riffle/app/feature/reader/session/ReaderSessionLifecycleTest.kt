@@ -2,6 +2,7 @@ package com.riffle.app.feature.reader.session
 
 import com.riffle.core.sync.OpenReconcileTargets
 import com.riffle.core.models.Annotation
+import com.riffle.core.database.AnnotationEntity
 import com.riffle.core.domain.AnnotationStore
 import com.riffle.core.models.AudioIdentity
 import com.riffle.core.domain.AudioIdentityResolver
@@ -490,6 +491,38 @@ class ReaderSessionLifecycleTest {
         assertEquals("ann-99", outcome.initialFocusAnnotationId)
         assertSame(outcome.openAtLocator, outcome.initialLocator)
         assertSame(outcome.openAtLocator, outcome.effectiveInitialLocator)
+    }
+
+    @Test
+    fun `open at bookmark restores persisted live-reader progression instead of translated CFI approximation`() = runTest {
+        val cfi = "epubcfi(/6/2!/4/2)"
+        val cfiApproximation = Locator(
+            href = mockk(relaxed = true),
+            mediaType = org.readium.r2.shared.util.mediatype.MediaType.XHTML,
+            locations = Locator.Locations(progression = 0.7),
+        )
+        val bookmark = AnnotationSessionTest.makeAnnotation(
+            id = "bookmark-99",
+            type = AnnotationEntity.TYPE_BOOKMARK,
+            cfi = cfi,
+        )
+        val (lifecycle, _) = makeLifecycle(
+            annotationStore = FakeAnnotationStore(
+                byCfi = mapOf(Triple("srv-abs", "item-1", cfi) to bookmark),
+            ),
+            cfiResolver = { c -> if (c == cfi) cfiApproximation else null },
+        )
+
+        val outcome = lifecycle.open(params(openAtCfi = cfi)) as ReaderSessionLifecycle.OpenOutcome.Ready
+
+        assertEquals(
+            "cold-open bookmark navigation must use the original page boundary saved on the row",
+            bookmark.progression,
+            outcome.openAtLocator!!.locations.progression!!,
+            0.000001,
+        )
+        assertNull(outcome.openAtLocator!!.text.highlight)
+        assertSame(outcome.openAtLocator, outcome.initialLocator)
     }
 
     @Test

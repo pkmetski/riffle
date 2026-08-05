@@ -1035,7 +1035,7 @@ class AnnotationSessionTest {
         val sessionScope = CoroutineScope(dispatcher)
         val store = FakeAnnotationStore()
         val syncOps = FakeSyncOps()
-        val targetLocator = buildLocator()
+        val targetLocator = buildLocator(progression = 0.71)
         val anno = fakeAnnotation(id = "b1", type = com.riffle.core.database.AnnotationEntity.TYPE_BOOKMARK, cfi = "epubcfi(/6/4!/4/2)")
         store.allAnnotations.value = listOf(anno)
         val session = makeSession(store = store, syncOps = syncOps, scope = sessionScope)
@@ -1056,12 +1056,58 @@ class AnnotationSessionTest {
 
         assertEquals(1, received.size)
         assertTrue(received[0].isBookmark)
-        assertSame(
+        assertEquals(
+            "bookmark navigation must restore the original live-reader progression persisted on " +
+                "the annotation, not the lossy progression reconstructed from its translated CFI",
+            anno.progression,
+            received[0].locator.locations.progression!!,
+            0.000001,
+        )
+        assertEquals(targetLocator.href, received[0].locator.href)
+        assertEquals(targetLocator.mediaType, received[0].locator.mediaType)
+        assertNull(
             "bookmarks are point locators and must not receive a highlight TextQuote",
-            targetLocator,
-            received[0].locator,
+            received[0].locator.text.highlight,
         )
 
+        collectJob.cancel()
+        sessionScope.coroutineContext[Job]?.cancel()
+    }
+
+    @Test
+    fun `navigateToAnnotation retains CFI progression for legacy bookmark with unknown zero progression`() = runTest {
+        val dispatcher = UnconfinedTestDispatcher(testScheduler)
+        val sessionScope = CoroutineScope(dispatcher)
+        val store = FakeAnnotationStore()
+        val syncOps = FakeSyncOps()
+        val targetLocator = buildLocator(progression = 0.71)
+        val legacyBookmark = fakeAnnotation(
+            id = "legacy-bookmark",
+            type = AnnotationEntity.TYPE_BOOKMARK,
+            cfi = "epubcfi(/6/4!/4/2)",
+        ).copy(progression = 0.0)
+        store.allAnnotations.value = listOf(legacyBookmark)
+        val session = makeSession(store = store, syncOps = syncOps, scope = sessionScope)
+        session.bind(
+            sourceId = "srv1",
+            namespace = "ns1",
+            itemId = "item1",
+            highlightRenderResolver = { emptyList() },
+            cfiLocatorResolver = { targetLocator },
+        )
+        val received = mutableListOf<AnnotationSession.AnnotationNavigationEvent>()
+        val collectJob = sessionScope.launch {
+            session.annotationNavigationEvents.collect { received.add(it) }
+        }
+
+        session.navigateToAnnotation(legacyBookmark.id)
+
+        assertEquals(
+            "a legacy zero means unknown when its translated CFI points later in the chapter",
+            targetLocator.locations.progression!!,
+            received.single().locator.locations.progression!!,
+            0.000001,
+        )
         collectJob.cancel()
         sessionScope.coroutineContext[Job]?.cancel()
     }

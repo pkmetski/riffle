@@ -86,7 +86,11 @@ internal class DefaultRendererBridge(
         frag.evaluateJavascript(ColumnSnap.snapToTargetColumnJs(navTargetFragmentId(link.href.toString())))
     }
 
-    override suspend fun snapAfterGoTo(locator: Locator, landAtStartWhenNoTarget: Boolean) {
+    override suspend fun snapAfterGoTo(
+        locator: Locator,
+        landAtStartWhenNoTarget: Boolean,
+        snapProgressionToNearestColumn: Boolean,
+    ) {
         val frag = fragment ?: return
         // For TOC/search/resume navigation (landAtStartWhenNoTarget=true), use the fragment id
         // from locations.fragments or the href anchor to snap the JS to the exact target element.
@@ -96,9 +100,9 @@ internal class DefaultRendererBridge(
         // highlighted text node — typically a <section id="ch01"> or <div id="main"> that spans
         // the entire chapter. Snapping to that element always resolves to column 0 (page 1)
         // because getBoundingClientRect().left for a section that starts at the chapter top is 0.
-        // The locator's TextQuote is the precise target: Readium resolves it to the highlighted
-        // DOM Range on every rAF tick. Character-count progression remains the fallback for a
-        // missing/stale quote; unlike a range it can be a column off when block density varies.
+        // A highlight locator's TextQuote is the precise DOM target. A bookmark has no text range:
+        // its persisted live-reader progression is the precise page boundary. Character-count
+        // progression remains only a fallback for missing/stale highlight quotes.
         val fragmentId = if (landAtStartWhenNoTarget) {
             locator.locations.fragments.firstOrNull()
                 ?: navTargetFragmentId(locator.href.toString())
@@ -110,9 +114,9 @@ internal class DefaultRendererBridge(
         } else {
             null
         }
-        // A TextQuote locator lets Readium resolve the exact highlighted DOM range. Pass the
-        // complete locator into the reflow tracker so it can repeat that exact resolution after
-        // each scrollWidth change; progression is only a fallback when the quote is absent/stale.
+        // A TextQuote locator lets Readium resolve the exact DOM range. Pass the complete locator
+        // into the reflow tracker so it can repeat that exact resolution after each scrollWidth
+        // change; progression is only a fallback when the quote is absent/stale.
         val exactLocatorJson = locator.text.highlight
             ?.takeIf { it.isNotBlank() }
             ?.let { locator.toJSON().toString() }
@@ -130,6 +134,7 @@ internal class DefaultRendererBridge(
                 landAtStartWhenNoTarget = landAtStartWhenNoTarget,
                 locatorProgression = progression,
                 locatorJson = exactLocatorJson,
+                snapProgressionToNearestColumn = snapProgressionToNearestColumn,
             ),
         )
     }

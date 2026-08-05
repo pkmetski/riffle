@@ -1330,7 +1330,11 @@ internal fun readaloudLocatorJson(ref: String, quote: SentenceQuote?): JSONObjec
  * the anchor sat.
  */
 internal fun annotationNavigationOptions(isBookmark: Boolean): NavigationOptions =
-    NavigationOptions(landAtStartWhenNoTarget = false, alignToTop = isBookmark)
+    NavigationOptions(
+        landAtStartWhenNoTarget = false,
+        snapProgressionToNearestColumn = isBookmark,
+        alignToTop = isBookmark,
+    )
 
 @OptIn(ExperimentalReadiumApi::class)
 @Composable

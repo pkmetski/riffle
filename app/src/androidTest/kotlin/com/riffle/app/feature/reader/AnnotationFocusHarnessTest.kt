@@ -3,6 +3,8 @@ package com.riffle.app.feature.reader
 import android.view.View
 import android.view.ViewGroup
 import android.webkit.WebView
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.hasText
@@ -10,9 +12,12 @@ import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextReplacement
+import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.test.click
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.riffle.app.MainActivity
@@ -29,6 +34,7 @@ import dagger.hilt.android.testing.HiltAndroidRule
 import dagger.hilt.android.testing.HiltAndroidTest
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
 import org.jsoup.Jsoup
 import org.junit.After
 import org.junit.Assert.assertTrue
@@ -87,6 +93,75 @@ class AnnotationFocusHarnessTest {
     @Test
     fun paginatedMode_annotationTap_focusesAnnotationOnScreen() {
         runModeTest(ReaderOrientation.Horizontal)
+    }
+
+    @Test
+    fun paginatedMode_bookmarkTap_focusesBookmarkedPage() {
+        runBookmarkModeTest(ReaderOrientation.Horizontal)
+    }
+
+    @Test
+    fun verticalMode_bookmarkTap_focusesBookmarkedPosition() {
+        runBookmarkModeTest(ReaderOrientation.Vertical)
+    }
+
+    @Test
+    fun continuousMode_bookmarkTap_focusesBookmarkedPosition() {
+        runBookmarkModeTest(ReaderOrientation.Continuous)
+    }
+
+    private fun runBookmarkModeTest(orientation: ReaderOrientation) {
+        runBlocking {
+            val prefs = formattingPreferencesStore.preferences.first()
+            formattingPreferencesStore.update(prefs.copy(orientation = orientation))
+        }
+        addServerAndBrowseLibrary()
+        composeTestRule.waitUntil(timeoutMillis = 15_000) {
+            composeTestRule.onAllNodesWithText(StubAbsServer.TEST_STANDALONE_ITEM_TITLE)
+                .fetchSemanticsNodes().isNotEmpty()
+        }
+        composeTestRule.onNodeWithText(StubAbsServer.TEST_STANDALONE_ITEM_TITLE).performClick()
+        composeTestRule.tapReadInDetailScreen()
+        waitForReaderReady()
+
+        // Create the bookmark through the production path. This is important: toggleBookmark()
+        // stores Readium's live page-boundary progression alongside a lossy character-count CFI.
+        navigateWithSearch(targetPhrase)
+        assertTrue(
+            "search did not reach the bookmark target",
+            waitForPhraseOnScreen(orientation, 15_000, targetPhrase).onScreen,
+        )
+        closeSearch()
+        showTopAppBar()
+        composeTestRule.onNodeWithContentDescription("Bookmark this page").performClick()
+        val bookmark = runBlocking {
+            withTimeout(10_000) {
+                annotationStore.observeBookmarks(
+                    database.sourceDao().getActive()?.id ?: error("no active source"),
+                    StubAbsServer.TEST_STANDALONE_ITEM_ID,
+                ).first { it.isNotEmpty() }.single()
+            }
+        }
+
+        // Leave the bookmarked page, then return through the actual Annotations panel navigation.
+        navigateWithSearch("Section 1.1: Origins")
+        closeSearch()
+        showTopAppBar()
+        composeTestRule.onNodeWithContentDescription("Annotations").performClick()
+        composeTestRule.waitUntil(timeoutMillis = 8_000) {
+            composeTestRule.onAllNodesWithText(bookmark.bookmarkTitle).fetchSemanticsNodes().isNotEmpty()
+        }
+        composeTestRule.onNodeWithText(bookmark.bookmarkTitle).performClick()
+
+        val result = waitForPhraseOnScreen(
+            orientation,
+            timeoutMs = 15_000,
+            phrase = targetPhrase,
+        )
+        assertTrue(
+            "$orientation bookmark navigation did not land on the bookmarked position. $result",
+            result.onScreen,
+        )
     }
 
     @Test
@@ -168,11 +243,15 @@ class AnnotationFocusHarnessTest {
         override fun toString() = detail
     }
 
-    private fun waitForPhraseOnScreen(orientation: ReaderOrientation, timeoutMs: Long): FocusResult {
+    private fun waitForPhraseOnScreen(
+        orientation: ReaderOrientation,
+        timeoutMs: Long,
+        phrase: String = targetPhrase,
+    ): FocusResult {
         val deadline = System.currentTimeMillis() + timeoutMs
         var last = FocusResult(false, "phrase never located")
         while (System.currentTimeMillis() < deadline) {
-            last = phraseOnScreen(orientation)
+            last = phraseOnScreen(orientation, phrase)
             if (last.onScreen) return last
             Thread.sleep(150)
         }
@@ -191,12 +270,12 @@ class AnnotationFocusHarnessTest {
      * runs on the UI thread — so we register the eval inside onActivity and await OUTSIDE it (never
      * block the UI thread waiting on its own callback).
      */
-    private fun phraseOnScreen(orientation: ReaderOrientation): FocusResult {
+    private fun phraseOnScreen(orientation: ReaderOrientation, phrase: String): FocusResult {
         val webViews = visibleWebViews()
         if (webViews.isEmpty()) return FocusResult(false, "no visible WebView")
         // Find the WebView whose phrase rect resolves, and read its rect + viewport.
         for (wv in webViews) {
-            val raw = evalJs(wv, phraseRectJs(targetPhrase))
+            val raw = evalJs(wv, phraseRectJs(phrase))
             val parts = raw.takeIf { it != "null" && it != "NO_WEBVIEW" && it.isNotBlank() }?.split(',')
             if (parts == null || parts.size < 4) continue
             val left = parts[0].toDoubleOrNull() ?: continue
@@ -351,5 +430,52 @@ class AnnotationFocusHarnessTest {
             composeTestRule.onAllNodesWithContentDescription("All Books").fetchSemanticsNodes().isNotEmpty()
         }
         composeTestRule.onNodeWithContentDescription("All Books").performClick()
+    }
+
+    private fun waitForReaderReady() {
+        composeTestRule.waitUntil(timeoutMillis = 20_000) {
+            composeTestRule.onAllNodesWithTag(ReaderSemanticMatchers.TAG_READER_READY)
+                .fetchSemanticsNodes().isNotEmpty()
+        }
+    }
+
+    private fun navigateWithSearch(phrase: String) {
+        showTopAppBar()
+        composeTestRule.onNodeWithContentDescription("Search").performClick()
+        composeTestRule.waitUntil(timeoutMillis = 5_000) {
+            composeTestRule.onAllNodesWithTag(SearchTopBarTags.FIELD).fetchSemanticsNodes().isNotEmpty()
+        }
+        composeTestRule.onNodeWithTag(SearchTopBarTags.FIELD).performTextReplacement(phrase)
+        composeTestRule.waitUntil(timeoutMillis = 30_000) {
+            composeTestRule.onAllNodesWithTag(SearchTopBarTags.COUNT).fetchSemanticsNodes()
+                .any { node ->
+                    runCatching { node.config[SemanticsProperties.Text] }.getOrElse { emptyList() }
+                        .any { it.text.contains(" of ") }
+                }
+        }
+    }
+
+    private fun closeSearch() {
+        composeTestRule.onNodeWithContentDescription("Close search").performClick()
+        composeTestRule.waitUntil(timeoutMillis = 5_000) {
+            composeTestRule.onAllNodesWithTag(SearchTopBarTags.FIELD).fetchSemanticsNodes().isEmpty()
+        }
+    }
+
+    private fun showTopAppBar() {
+        repeat(3) {
+            composeTestRule
+                .onNodeWithTag(ReaderSemanticMatchers.TAG_READER_READY)
+                .performTouchInput { click(Offset(width * 0.5f, height * 0.3f)) }
+            try {
+                composeTestRule.waitUntil(timeoutMillis = 2_000) {
+                    composeTestRule.onAllNodesWithContentDescription("Back").fetchSemanticsNodes().isNotEmpty()
+                }
+                return
+            } catch (_: androidx.compose.ui.test.ComposeTimeoutException) {
+                // A dismiss-overlay race can re-hide the bar; retry the reader tap.
+            }
+        }
+        throw AssertionError("showTopAppBar: Back button not visible after 3 tap attempts")
     }
 }

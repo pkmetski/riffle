@@ -504,6 +504,7 @@ internal object ColumnSnap {
         landAtStartWhenNoTarget: Boolean = true,
         locatorProgression: Double? = null,
         locatorJson: String? = null,
+        snapProgressionToNearestColumn: Boolean = false,
     ): String {
         val idLiteral = if (fragmentId.isNullOrEmpty()) "null" else JSONObject.quote(fragmentId)
         val locatorLiteral = locatorJson
@@ -512,6 +513,8 @@ internal object ColumnSnap {
             ?: "null"
         val noTargetSnap = when {
             landAtStartWhenNoTarget -> "se.scrollLeft=0;"
+            locatorProgression != null && snapProgressionToNearestColumn ->
+                "se.scrollLeft=Math.round($locatorProgression*se.scrollWidth/iw)*iw;"
             locatorProgression != null -> "se.scrollLeft=Math.floor($locatorProgression*se.scrollWidth/iw)*iw;"
             else -> "se.scrollLeft=Math.round(se.scrollLeft/iw)*iw;"
         }

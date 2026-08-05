@@ -243,6 +243,30 @@ class ReaderWebViewScriptsTest {
         assertTrue("does NOT yank to column 0", !js.contains("se.scrollLeft=0;"))
     }
 
+    @Test
+    fun `snapToTargetColumnJs rounds a persisted bookmark page boundary instead of landing one page early`() {
+        val progressionWithFloatingUnderflow = 0.4285714285714285
+        val js = ColumnSnap.snapToTargetColumnJs(
+            fragmentId = null,
+            landAtStartWhenNoTarget = false,
+            locatorProgression = progressionWithFloatingUnderflow,
+            snapProgressionToNearestColumn = true,
+        )
+
+        assertTrue(
+            "the exact page-boundary progression saved by toggleBookmark must round back to its " +
+                "column; Math.floor would turn 2.999999999999999 into the previous page",
+            js.contains(
+                "else{se.scrollLeft=Math.round(" +
+                    "$progressionWithFloatingUnderflow*se.scrollWidth/iw)*iw;}",
+            ),
+        )
+        assertTrue(
+            "bookmark page boundaries must not use the arbitrary-progression floor path",
+            !js.contains("Math.floor($progressionWithFloatingUnderflow*se.scrollWidth/iw)"),
+        )
+    }
+
     // Annotation navigation carries a TextQuote locator. Readium's own resolver can reconstruct
     // the exact DOM Range from highlight + before/after, which avoids the one-column error of
     // estimating a visual page from character progression. The rAF tracker must repeat that

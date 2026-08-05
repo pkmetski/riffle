@@ -1319,6 +1319,11 @@ class AnnotationNavigationOptionsTest {
                 "annotationNavigationOptions and the #399 eps analysis in its doc",
             opts.alignToTop,
         )
+        assertTrue(
+            "paginated bookmark navigation must round its saved page-boundary progression; " +
+                "flooring a slightly-underflowed boundary lands on the previous page",
+            opts.snapProgressionToNearestColumn,
+        )
     }
 
     @Test
@@ -1327,6 +1332,11 @@ class AnnotationNavigationOptionsTest {
         // the anchor. Kept at midpoint by design.
         val opts = annotationNavigationOptions(isBookmark = false)
         assertFalse(opts.alignToTop)
+        assertFalse(
+            "highlight progression is only an arbitrary fallback and must stay on its " +
+                "containing page",
+            opts.snapProgressionToNearestColumn,
+        )
     }
 
     @Test
