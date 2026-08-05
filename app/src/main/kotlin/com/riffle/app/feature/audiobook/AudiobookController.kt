@@ -135,6 +135,7 @@ open class AudiobookController @Inject constructor(
         startAtSec: Double,
         localZipFile: File? = null,
         coverUri: String? = null,
+        bookTitle: String? = null,
     ) {
         logger.d(LogChannel.Handoff) { "AB.prepare start (controller already connected=${controller != null})" }
         val t0 = clock.nowMs()
@@ -153,6 +154,7 @@ open class AudiobookController @Inject constructor(
         lastRemainingMinuteBucket = (initialRemainingSec / 60.0).toLong()
         val metadata = androidx.media3.common.MediaMetadata.Builder()
             .apply { if (coverUri != null) setArtworkUri(android.net.Uri.parse(coverUri)) }
+            .apply { if (bookTitle != null) setTitle(bookTitle) }
             .setArtist(formatRemainingReadable(initialRemainingSec))
             .build()
         val items = trackUrls.map { url ->
