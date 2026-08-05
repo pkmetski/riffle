@@ -37,6 +37,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -225,6 +226,7 @@ fun HighlightActionsPopup(
         properties = PopupProperties(focusable = false),
     ) {
         BackHandler(enabled = true, onBack = onDismiss)
+        val currentOnDismiss by rememberUpdatedState(onDismiss)
         Surface(
             shape = RoundedCornerShape(12.dp),
             shadowElevation = 4.dp,
@@ -234,8 +236,10 @@ fun HighlightActionsPopup(
             // reader never sees it — the user experiences resistance until they lift and retry from
             // outside the popup area. Dismissing on drag start clears the popup immediately so the
             // user's next gesture scrolls the reader without friction.
-            modifier = Modifier.pointerInput(onDismiss) {
-                detectVerticalDragGestures(onDragStart = { onDismiss() }) { _, _ -> }
+            // Unit key keeps the detector stable for the popup's lifetime; rememberUpdatedState
+            // ensures the latest onDismiss is always called even if the lambda reference changes.
+            modifier = Modifier.pointerInput(Unit) {
+                detectVerticalDragGestures(onDragStart = { currentOnDismiss() }) { _, _ -> }
             },
         ) {
             Column(modifier = Modifier.width(280.dp)) {
