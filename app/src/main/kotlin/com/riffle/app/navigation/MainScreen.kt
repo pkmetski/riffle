@@ -169,6 +169,9 @@ fun MainScreen(
         ?.takeIf { it.destination.route?.startsWith("library_items/") == true }
         ?.arguments?.getString("libraryId")
     val currentRoute = currentBackStack?.destination?.route
+    LaunchedEffect(currentRoute) {
+        Log.d(LogChannel.Nav.tag, "[DEBUG-BURGER] route changed: $currentRoute")
+    }
     val usePermanentDrawer = isTablet
     // Reader screens are immersive — collapse the permanent side panel so the book/PDF
     // fills the width, matching the modal drawer's gesture suppression on phones.

@@ -11,7 +11,9 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import android.util.Log
 import androidx.compose.runtime.LaunchedEffect
+import com.riffle.core.logging.LogChannel
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -33,8 +35,10 @@ fun HomeScreen(
     var showRetry by remember { mutableStateOf(false) }
 
     LaunchedEffect(retryKey) {
+        Log.d(LogChannel.Nav.tag, "[DEBUG-BURGER] HomeScreen LaunchedEffect: retryKey=$retryKey")
         showRetry = false
         val dest = viewModel.getStartDestination()
+        Log.d(LogChannel.Nav.tag, "[DEBUG-BURGER] HomeScreen dest=$dest")
         // Navigate on the main looper: after getStartDestination() returns through
         // withContext(IO), the Compose test interceptor may resume this continuation
         // on the instrumentation thread. NavController.navigate() calls
