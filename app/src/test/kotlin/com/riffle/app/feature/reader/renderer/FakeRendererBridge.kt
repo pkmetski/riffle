@@ -61,9 +61,10 @@ internal class FakeRendererBridge(
         locator: Locator,
         landAtStartWhenNoTarget: Boolean,
         snapProgressionToNearestColumn: Boolean,
+        focusAnnotationId: String?,
     ) {
         calls += "snapAfterGoTo(locator=${locator.href}, landAtStart=$landAtStartWhenNoTarget, " +
-            "nearest=$snapProgressionToNearestColumn)"
+            "nearest=$snapProgressionToNearestColumn, focusAnnotationId=$focusAnnotationId)"
     }
 
     override suspend fun snapToEnd() {

@@ -90,6 +90,7 @@ internal class DefaultRendererBridge(
         locator: Locator,
         landAtStartWhenNoTarget: Boolean,
         snapProgressionToNearestColumn: Boolean,
+        focusAnnotationId: String?,
     ) {
         val frag = fragment ?: return
         // For TOC/search/resume navigation (landAtStartWhenNoTarget=true), use the fragment id
@@ -135,6 +136,7 @@ internal class DefaultRendererBridge(
                 locatorProgression = progression,
                 locatorJson = exactLocatorJson,
                 snapProgressionToNearestColumn = snapProgressionToNearestColumn,
+                focusAnnotationId = focusAnnotationId,
             ),
         )
     }

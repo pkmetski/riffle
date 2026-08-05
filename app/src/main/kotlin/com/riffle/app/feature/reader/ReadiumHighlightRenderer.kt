@@ -141,14 +141,16 @@ internal class ReadiumHighlightRenderer(
         val noted = renders.filter { it.note != null && !it.useAccentBarStyle }
         if (noted.isEmpty()) {
             if (!hasNoteGlyphDecorations) return
-            applyDecorationsBlock(emptyList(), "annotation-notes")
+            applyDecorationsBlock(emptyList(), NOTE_GLYPH_DECORATION_GROUP)
             hasNoteGlyphDecorations = false
             return
         }
         val noteDecorations = noted.map { h ->
             Decoration(id = h.id, locator = h.locator, style = NoteGlyphStyle())
         }
-        applyDecorationsWithClear(noteDecorations, "annotation-notes")
+        applyDecorationsWithClear(noteDecorations, NOTE_GLYPH_DECORATION_GROUP)
+        evaluateJavascript?.invoke(noteGlyphViewportClampAfterApplyJs())
+        evaluateJavascript?.invoke(noteGlyphFocusAfterApplyJs())
         hasNoteGlyphDecorations = true
     }
 

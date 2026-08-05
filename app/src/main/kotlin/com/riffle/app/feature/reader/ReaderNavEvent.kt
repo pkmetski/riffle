@@ -8,7 +8,12 @@ import android.net.Uri
  * real source book (ADR 0041, Task 9).
  */
 sealed interface ReaderNavEvent {
-    data class OpenInSourceBook(val sourceId: String, val itemId: String, val cfi: String) : ReaderNavEvent
+    data class OpenInSourceBook(
+        val sourceId: String,
+        val itemId: String,
+        val cfi: String,
+        val annotationId: String,
+    ) : ReaderNavEvent
 
     /**
      * Highlights-mode reader has no highlights left (user deleted the last one). The synthesised

@@ -657,6 +657,16 @@ class ContinuousStyleInjectorTest {
     }
 
     @Test
+    fun `note glyph position is clamped to readable viewport inset`() {
+        val js = ContinuousStyleInjector.applyAnnotationHighlightsJs(
+            listOf(AnnotationHighlight("a1", "text", "red", true, "", "")),
+        )
+
+        assertTrue(js.contains("$NOTE_GLYPH_VIEWPORT_INSET_PX - blockRect.left"))
+        assertTrue(js.contains("var relLeft = Math.max("))
+    }
+
+    @Test
     fun `existing marks are updated in-place via cssText rewrite`() {
         val js = applyJs(AnnotationHighlight("ann1", "text", "#abc"))
         // Multi-paragraph annotations produce one <mark> per block — the in-place update path

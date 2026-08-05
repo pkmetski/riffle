@@ -51,6 +51,16 @@ class NoteGlyphDecorationTest {
     }
 
     @Test
+    fun `viewport clamp preserves inset without pulling adjacent spread glyphs into view`() {
+        val js = noteGlyphViewportClampAfterApplyJs()
+
+        assertTrue(js.contains("document.querySelectorAll('.$NOTE_GLYPH_ICON_CLASS')"))
+        assertTrue(js.contains("boundsRect.left + se.scrollLeft"))
+        assertTrue(js.contains("spreadLeft + $NOTE_GLYPH_VIEWPORT_INSET_PX"))
+        assertTrue(js.contains("translateX("))
+    }
+
+    @Test
     fun `noteGlyphTemplate stylesheet uses mask-image for theme-aware colouring`() {
         val stylesheet = noteGlyphTemplate().stylesheet ?: ""
         assertTrue("stylesheet must use -webkit-mask-image so glyph inherits currentColor",

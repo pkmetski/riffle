@@ -208,13 +208,19 @@ class ReaderSessionLifecycle @AssistedInject constructor(
             resolvedReaderServerId != null
         ) {
             runCatching {
-                annotationStore.findByItemAndCfi(resolvedReaderServerId, params.itemId, openAtCfiNonBlank)
+                annotationStore.findByItemAndCfi(
+                    resolvedReaderServerId,
+                    params.itemId,
+                    openAtCfiNonBlank,
+                )
             }.getOrNull()
         } else {
             null
         }
         val openAtLocator = resolvedOpenAtLocator?.withAnnotationNavigationAnchor(openAtAnnotation)
-        val initialFocusAnnotationId = openAtAnnotation?.id
+        // New routes carry the stable annotation id directly. Keep the exact-CFI lookup as a
+        // compatibility fallback for old deep links and use it independently to enrich TextQuote.
+        val initialFocusAnnotationId = params.openAnnotationId ?: openAtAnnotation?.id
 
         // Stored lastPosition is Readium Locator JSON. Rows written before ADR 0030's translation
         // fix may still hold a raw ABS `epubcfi(...)` — heal those on open so legacy progress
@@ -316,6 +322,7 @@ class ReaderSessionLifecycle @AssistedInject constructor(
         val itemId: String,
         val openAtCfi: String?,
         val startTocHref: String?,
+        val openAnnotationId: String? = null,
     )
 
     sealed interface OpenOutcome {

@@ -1329,11 +1329,15 @@ internal fun readaloudLocatorJson(ref: String, quote: SentenceQuote?): JSONObjec
  * `<= eps` check keeps the indicator lit on arrival regardless of where in the saved viewport
  * the anchor sat.
  */
-internal fun annotationNavigationOptions(isBookmark: Boolean): NavigationOptions =
+internal fun annotationNavigationOptions(
+    isBookmark: Boolean,
+    annotationId: String? = null,
+): NavigationOptions =
     NavigationOptions(
         landAtStartWhenNoTarget = false,
         snapProgressionToNearestColumn = isBookmark,
         alignToTop = isBookmark,
+        focusAnnotationId = annotationId,
     )
 
 @OptIn(ExperimentalReadiumApi::class)
@@ -2318,7 +2322,12 @@ private fun EpubNavigatorView(
     // Continuous has no equivalent seam — the paragraph anchor is only ~correct, so we look up the
     // actual `<mark data-riffle-ann>` device-Y and centre on it. Cannot live behind ReaderPresenter
     // without leaking Readium/Continuous internals up the stack.
-    LaunchedEffect(annotationNavigationEvents, isContinuous) {
+    LaunchedEffect(
+        annotationNavigationEvents,
+        isContinuous,
+        readerPresenter,
+        formattingPrefs.orientation,
+    ) {
         annotationNavigationEvents.collect { event ->
             val view = continuousViewRef.value
             if (isContinuous && !event.isBookmark && event.annotationId != null && view != null) {
@@ -2335,7 +2344,12 @@ private fun EpubNavigatorView(
             } else {
                 navigateWithCover(
                     NavigationTarget.ToLocatorJson(event.locator.toJSON().toString()),
-                    annotationNavigationOptions(isBookmark = event.isBookmark),
+                    annotationNavigationOptions(
+                        isBookmark = event.isBookmark,
+                        annotationId = event.annotationId.takeIf {
+                            formattingPrefs.orientation == ReaderOrientation.Horizontal
+                        },
+                    ),
                     event.locator.href.toString(),
                 )
             }
@@ -2475,7 +2489,7 @@ private fun EpubNavigatorView(
         val fragment = fragmentRef.value as? DecorableNavigator
         val listener = object : DecorableNavigator.Listener {
             override fun onDecorationActivated(event: DecorableNavigator.OnActivatedEvent): Boolean {
-                if (event.group != "annotation-notes") return false
+                if (event.group != NOTE_GLYPH_DECORATION_GROUP) return false
                 val container = containerRef.value ?: return false
                 val rawRect = event.rect ?: return false
                 val rect = rawRect.toWindowIntRect(container)
@@ -2483,7 +2497,7 @@ private fun EpubNavigatorView(
                 return true
             }
         }
-        fragment?.addDecorationListener("annotation-notes", listener)
+        fragment?.addDecorationListener(NOTE_GLYPH_DECORATION_GROUP, listener)
         onDispose { fragment?.removeDecorationListener(listener) }
     }
 

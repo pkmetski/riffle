@@ -505,6 +505,7 @@ internal object ColumnSnap {
         locatorProgression: Double? = null,
         locatorJson: String? = null,
         snapProgressionToNearestColumn: Boolean = false,
+        focusAnnotationId: String? = null,
     ): String {
         val idLiteral = if (fragmentId.isNullOrEmpty()) "null" else JSONObject.quote(fragmentId)
         val locatorLiteral = locatorJson
@@ -518,6 +519,11 @@ internal object ColumnSnap {
             locatorProgression != null -> "se.scrollLeft=Math.floor($locatorProgression*se.scrollWidth/iw)*iw;"
             else -> "se.scrollLeft=Math.round(se.scrollLeft/iw)*iw;"
         }
+        val noteGroupLiteral = JSONObject.quote(NOTE_GLYPH_DECORATION_GROUP)
+        val focusAnnotationLiteral = focusAnnotationId
+            ?.takeIf { it.isNotBlank() }
+            ?.let(JSONObject::quote)
+            ?: "null"
         // For annotation focus (landAtStartWhenNoTarget=false with a progression), skip the
         // vertical smooth-tail block entirely. The snap JS runs immediately after go(locator),
         // before Readium has applied CSS multicol. At that moment scrollHeight > innerHeight (the
@@ -532,6 +538,8 @@ internal object ColumnSnap {
         val skipVertical = !landAtStartWhenNoTarget && locatorProgression != null
         return "(function(){var id=$idLiteral;" +
             "var loc=$locatorLiteral;" +
+            "var focusAnnotationId=$focusAnnotationLiteral;" +
+            "window.$NOTE_GLYPH_FOCUS_ID_JS_KEY=focusAnnotationId;" +
             "var se=document.scrollingElement;" +
             "var _skipV=$skipVertical;" +
             // Vertical (scroll-mode) smooth tail. Readium's `go(locator)` already teleported us to
@@ -564,8 +572,31 @@ internal object ColumnSnap {
             VERTICAL_SMOOTH_TAIL_JS +
             "return;}" +
             "var gen=(window.__riffleSnapGen=(window.__riffleSnapGen||0)+1);" +
-            "var lastW=-1,stable=0,frames=0;" +
+            "var lastW=-1,stable=0,frames=0,rangeMatched=false,rangeStable=0;" +
             "function snap(){var iw=window.innerWidth;" +
+            // On older WebViews Readium's scrollToLocator(TextQuote) can settle exactly one
+            // column after the quote. Once the note decoration exists, Readium has already
+            // resolved that same quote to a live Range. Prefer its first client rect: this is
+            // both more direct and uses the same geometry the glyph itself follows. The group
+            // may not exist on early ticks, so the normal locator/progression fallbacks remain.
+            "if((focusAnnotationId||(loc&&loc.text&&loc.text.highlight))&&se.scrollWidth>iw+4&&" +
+            "window.readium&&typeof window.readium.getDecorations==='function'){" +
+            "try{var notes=window.readium.getDecorations($noteGroupLiteral);" +
+            "var items=notes&&notes.items?notes.items:[];" +
+            "for(var ni=0;ni<items.length;ni++){" +
+            "var item=items[ni],dl=item.decoration&&item.decoration.locator;" +
+            "if(focusAnnotationId){" +
+            "if(!item.decoration||item.decoration.id!==focusAnnotationId)continue;" +
+            "}else{" +
+            "if(!dl||!dl.text||dl.text.highlight!==loc.text.highlight)continue;" +
+            "if(loc.text.before&&dl.text.before&&dl.text.before!==loc.text.before)continue;" +
+            "if(loc.text.after&&dl.text.after&&dl.text.after!==loc.text.after)continue;}" +
+            "var rects=item.range.getClientRects();" +
+            "var nr=rects&&rects.length?rects[0]:item.range.getBoundingClientRect();" +
+            "if(nr){var noteColumn=Math.floor((nr.left+se.scrollLeft)/iw)*iw;" +
+            "if(Math.abs(se.scrollLeft-noteColumn)>1)rangeStable=0;else rangeStable++;" +
+            "se.scrollLeft=noteColumn;rangeMatched=true;return;}" +
+            "}}catch(e){}}" +
             // Readium's own locator resolver uses text.highlight + before/after to reconstruct
             // the exact DOM Range. Re-run it on every tracked frame so a typography reflow
             // cannot reset the landing to column 0. This is strictly more precise than mapping
@@ -580,7 +611,16 @@ internal object ColumnSnap {
             "function tick(){if(gen!==window.__riffleSnapGen)return;" + // a newer jump superseded us
             "var w=se.scrollWidth;if(w===lastW)stable++;else{stable=0;lastW=w;}" +
             "snap();" +
-            "if((stable>=3&&frames>=2)||frames++>72){snap();return;}" + // settled, or ~1.2s safety cap
+            // A note Range can resolve before Readium's final API-25 layout write. Keep pinning it
+            // for a full second of correct frames; consuming focus on the first match lets that
+            // later write restore the stale one-column-ahead position. Focused jumps also wait
+            // longer for a late decoration publication, while ordinary navigation keeps the
+            // existing short settle cap.
+            "var rangeDone=rangeMatched&&rangeStable>=60;" +
+            "var ordinaryDone=!focusAnnotationId&&!rangeMatched&&stable>=3&&frames>=2;" +
+            "var cap=focusAnnotationId?600:72;" +
+            "if(rangeDone||ordinaryDone||frames++>cap){" +
+            "snap();window.$NOTE_GLYPH_FOCUS_ID_JS_KEY=null;return;}" +
             "requestAnimationFrame(tick);}" +
             "tick();})()"
     }

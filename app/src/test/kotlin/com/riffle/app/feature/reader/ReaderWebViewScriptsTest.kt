@@ -196,7 +196,7 @@ class ReaderWebViewScriptsTest {
         assertTrue("reads the live column pitch", js.contains("window.innerWidth"))
         assertTrue("re-applies across frames", js.contains("requestAnimationFrame"))
         assertTrue("waits for scrollWidth to hold steady", js.contains("scrollWidth"))
-        assertTrue("bounded by a safety cap", js.contains("frames++>72"))
+        assertTrue("bounded by a safety cap", js.contains("focusAnnotationId?600:72"))
         assertTrue("a newer jump supersedes it", js.contains("__riffleSnapGen"))
     }
 
@@ -295,6 +295,55 @@ class ReaderWebViewScriptsTest {
             "exact range resolution runs before progression fallback",
             js.indexOf("window.readium.scrollToLocator(loc)") <
                 js.indexOf("Math.floor(0.42*se.scrollWidth/iw)"),
+        )
+    }
+
+    // Readium's scrollToLocator can land one column after a TextQuote on older WebViews. Once the
+    // note decoration has resolved that same quote to a live DOM Range, its geometry is the
+    // authoritative target and avoids repeating the faulty locator scroll.
+    @Test
+    fun `snapToTargetColumnJs prefers the resolved note range over locator navigation`() {
+        val locatorJson =
+            """{"href":"chapter1.xhtml","type":"application/xhtml+xml","locations":{"progression":0.42},"text":{"highlight":"target"}}"""
+        val js = ColumnSnap.snapToTargetColumnJs(
+            fragmentId = null,
+            landAtStartWhenNoTarget = false,
+            locatorProgression = 0.42,
+            locatorJson = locatorJson,
+        )
+
+        val rangeSnap = js.indexOf("notes.items")
+        val locatorSnap = js.indexOf("window.readium.scrollToLocator(loc)")
+        assertTrue("looks up Readium's resolved note items", rangeSnap >= 0)
+        assertTrue("reads the live decoration Range", js.contains("range.getBoundingClientRect()"))
+        assertTrue(
+            "uses the resolved decoration Range before the locator fallback",
+            locatorSnap >= 0 && rangeSnap < locatorSnap,
+        )
+    }
+
+    @Test
+    fun `snapToTargetColumnJs selects the focused note decoration by annotation id`() {
+        val js = ColumnSnap.snapToTargetColumnJs(
+            fragmentId = null,
+            landAtStartWhenNoTarget = false,
+            locatorProgression = 0.42,
+            focusAnnotationId = "annotation-42",
+        )
+
+        assertTrue("embeds the focus id safely", js.contains("var focusAnnotationId=\"annotation-42\""))
+        assertTrue(
+            "matches the resolved decoration by its persisted annotation id",
+            js.contains("item.decoration.id!==focusAnnotationId"),
+        )
+        assertTrue("uses the matched decoration Range", js.contains("item.range.getClientRects()"))
+        assertTrue(
+            "leaves the focus pending for a later decoration apply",
+            js.contains("window.$NOTE_GLYPH_FOCUS_ID_JS_KEY=focusAnnotationId"),
+        )
+        assertTrue(
+            "holds the resolved Range through the final layout-settle window",
+            js.contains("rangeMatched&&rangeStable>=60"),
         )
     }
 

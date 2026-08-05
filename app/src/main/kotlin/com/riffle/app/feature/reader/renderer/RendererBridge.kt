@@ -82,11 +82,13 @@ internal interface RendererBridge {
      * the no-DOM-fragment landing (chapter top vs. progression for a within-chapter jump).
      * [snapProgressionToNearestColumn] distinguishes exact bookmark page boundaries from
      * arbitrary progressions which must floor to their containing page.
+     * [focusAnnotationId] selects an already-resolved note decoration Range when available.
      */
     suspend fun snapAfterGoTo(
         locator: Locator,
         landAtStartWhenNoTarget: Boolean = true,
         snapProgressionToNearestColumn: Boolean = false,
+        focusAnnotationId: String? = null,
     )
 
     /** Re-pin the current page to its LAST column through a backward cross-resource turn's reflow. */
