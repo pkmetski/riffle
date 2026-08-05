@@ -98,7 +98,7 @@ internal fun noteGlyphViewportClampAfterApplyJs(): String = """
           }
           if (icons.length > 0) seenFrames++;
         } catch (e) {}
-        if ((seenFrames < 4 || seenFrames === 0) && frames++ < 72) {
+        if (seenFrames < 4 && frames++ < 72) {
           requestAnimationFrame(clamp);
         }
       }
