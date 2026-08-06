@@ -58,11 +58,8 @@ import kotlinx.coroutines.launch
 import java.net.URLDecoder
 import java.net.URLEncoder
 import android.content.Intent
-import android.util.Log
 import android.widget.Toast
 import androidx.compose.ui.platform.LocalContext
-import androidx.navigation.NavDestination
-import com.riffle.core.logging.LogChannel
 
 private const val HOME = "home"
 private const val SOURCE_SETUP_GRAPH = "source_setup"
@@ -151,18 +148,6 @@ fun MainScreen(
 
     val navController = rememberNavController()
 
-    // [DEBUG-BURGER2] NavController listener: logs every navigation event with the full back
-    // stack. Fires synchronously on the NavController thread (main), so it's more reliable than
-    // the recomposition-based LaunchedEffect(currentRoute) approach which can miss rapid changes.
-    DisposableEffect(navController) {
-        val listener = NavController.OnDestinationChangedListener { controller, dest, _ ->
-            val stack = controller.currentBackStack.value.mapNotNull { it.destination.route }
-            Log.d(LogChannel.Nav.tag, "[DEBUG-BURGER2] nav→${dest.route} | stack=$stack")
-        }
-        navController.addOnDestinationChangedListener(listener)
-        onDispose { navController.removeOnDestinationChangedListener(listener) }
-    }
-
     val drawerState = rememberDrawerState(DrawerValue.Closed)
     val scope = rememberCoroutineScope()
     // ADR 0019: the Tablet Layout activates only when the window is large in BOTH dimensions —
@@ -184,12 +169,18 @@ fun MainScreen(
         ?.arguments?.getString("libraryId")
     val currentRoute = currentBackStack?.destination?.route
 
-    // currentBackStackEntryAsState() temporarily reflects the PREVIEW destination during a
-    // predictive-back gesture, which would enable LibraryItemsScreen's BackHandler while
-    // library_item_detail is still the real top. currentBackStack (StateFlow) only updates on
-    // committed navigation, so committedTopRoute gives the genuine top for the BackHandler gate.
-    val realBackStackEntries by navController.currentBackStack.collectAsState()
-    val realCurrentRoute = committedTopRoute(realBackStackEntries.map { it.destination.route })
+    val drawerCurrentOpen = drawerState.currentValue == DrawerValue.Open
+    val drawerTargetOpen = drawerState.targetValue == DrawerValue.Open
+    // Use currentRoute (from currentBackStackEntryAsState) — not the committed-stack route —
+    // for the BackHandler enabled gate. During a predictive-back gesture from a sub-screen,
+    // currentBackStackEntryAsState already reflects the preview destination (library_items)
+    // at gesture-start and stays there through the commit, so there is NO 16ms recomposition
+    // window after the commit where the handler would be disabled. Using the committed-stack
+    // route via collectAsState() creates exactly that lag window: after the back commits but
+    // before the next recomposition, libBackEnabled stays false and a second input event
+    // (e.g. the second ☰ tap) falls through to NavHost, popping library_items → HOME.
+    val libBackEnabled = libraryItemsBackEnabled(currentRoute, isTablet, drawerCurrentOpen, drawerTargetOpen)
+
     val usePermanentDrawer = isTablet
     // Reader screens are immersive — collapse the permanent side panel so the book/PDF
     // fills the width, matching the modal drawer's gesture suppression on phones.
@@ -209,7 +200,6 @@ fun MainScreen(
         drawerCurrentOpen = drawerState.currentValue == DrawerValue.Open,
         drawerTargetOpen = drawerState.targetValue == DrawerValue.Open,
     )) {
-        Log.d(LogChannel.Nav.tag, "[DEBUG-BURGER2] drawerBackHandler fired cur=${drawerState.currentValue} tgt=${drawerState.targetValue}")
         scope.launch { drawerState.close() }
     }
 
@@ -249,8 +239,6 @@ fun MainScreen(
 
     LaunchedEffect(Unit) {
         viewModel.redirectToLibrary.collect { library ->
-            val stack = navController.currentBackStack.value.mapNotNull { it.destination.route }
-            Log.d(LogChannel.Nav.tag, "[DEBUG-BURGER2] redirectToLibrary→${library.id} | stack=$stack")
             navController.navigateAsRoot(libraryEntryRoute(activeServer?.type, library.id, library.name))
             viewModel.setActiveLibrary(library.id)
         }
@@ -608,12 +596,17 @@ fun MainScreen(
                 LibraryItemsScreen(
                     libraryName = libraryName,
                     onOpenDrawer = { scope.launch { drawerState.open() } },
-                    backEnabled = libraryItemsBackEnabled(
-                        currentRoute = realCurrentRoute,
-                        usePermanentDrawer = usePermanentDrawer,
-                        drawerCurrentOpen = drawerState.currentValue == DrawerValue.Open,
-                        drawerTargetOpen = drawerState.targetValue == DrawerValue.Open,
-                    ),
+                    backEnabled = libBackEnabled,
+                    // Read the committed back stack synchronously at handler-fire time (not via
+                    // Compose state) so we correctly distinguish: library_items is the committed
+                    // top (run library back action) vs. a sub-screen is the committed top but
+                    // library_items shows as the predictive-back preview or the recomposition
+                    // window hasn't caught up yet (pop the sub-screen instead).
+                    isCommittedOnLibraryItems = {
+                        committedTopRoute(navController.currentBackStack.value.map { it.destination.route })
+                            ?.startsWith("library_items/") == true
+                    },
+                    onNavigateBack = { navController.popBackStack() },
                     onSeriesSelected = { series ->
                         navController.navigate(seriesDetailRoute(libraryId, series.id, series.name))
                     },

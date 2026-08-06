@@ -148,11 +148,17 @@ fun LibraryItemsScreen(
     onSectionSeeMore: (LibrarySectionType) -> Unit,
     onAnnotatedBookClick: (sourceId: String, itemId: String) -> Unit,
     onPlaylistSelected: (com.riffle.core.catalog.CatalogPlaylist) -> Unit = {},
-    // Disabled when (a) the navigation drawer is open (it closes itself on Back) or (b) this
-    // screen is in STARTED state (a sub-screen is the foreground destination) — Compose
-    // Navigation 2.8+ keeps the previous back-stack entry in composition for predictive-back
-    // animations, so without this gate the BackHandler fires on Back from sub-screens.
+    // Disabled when the navigation drawer is open or animating (the drawer closes itself on
+    // Back via its own BackHandler registered above this one). Enabled even when a sub-screen
+    // is the committed top — the handler resolves the sub-screen case via isCommittedOnLibraryItems.
     backEnabled: Boolean = true,
+    // Called synchronously at handler-fire time when backEnabled is true but library_items is
+    // not the committed top of the back stack (i.e. a sub-screen is still on the stack, which
+    // can happen during a predictive-back preview or during the brief recomposition window after
+    // the previous predictive-back committed). In that case the handler pops the real top instead
+    // of executing a library exit/search-clear/tab-reset action.
+    isCommittedOnLibraryItems: () -> Boolean = { true },
+    onNavigateBack: () -> Unit = {},
     viewModel: LibraryItemsViewModel = hiltViewModel(),
 ) {
     val searchQuery by viewModel.searchQuery.collectAsState()
@@ -232,8 +238,20 @@ fun LibraryItemsScreen(
     // can intercept Back if the drawer is still in its closing animation.
     val activity = LocalActivity.current
     BackHandler(enabled = backEnabled) {
+        // Check the committed back stack synchronously. navController.currentBackStack is a
+        // StateFlow (always up-to-date); reading .value here is NOT subject to the Compose
+        // recomposition lag that affects collectAsState() / currentBackStackEntryAsState().
+        // This handles two cases where backEnabled is true but library_items is not committed:
+        //   (a) during a predictive-back preview from a sub-screen (library_items shows as the
+        //       preview background while the sub-screen is still the committed top)
+        //   (b) during the brief recomposition window after the previous back committed but
+        //       before Compose has recomposed with the updated back stack
+        // In both cases the right action is to let the sub-screen pop, not run library logic.
+        if (!isCommittedOnLibraryItems()) {
+            onNavigateBack()
+            return@BackHandler
+        }
         val action = libraryBackAction(searchQuery, selectedTab)
-        Log.d(LogChannel.Nav.tag, "[DEBUG-BURGER2] libraryBackHandler fired action=$action backEnabled=$backEnabled")
         when (action) {
             LibraryBackAction.ClearSearch -> {
                 viewModel.onSearchQueryChange("")

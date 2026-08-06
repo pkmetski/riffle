@@ -131,19 +131,18 @@ class LibraryItemsBackEnabledTest {
 }
 
 /**
- * Pins the fix for the predictive-back blank-screen bug:
+ * Pins the role of committedTopRoute() in the isCommittedOnLibraryItems runtime check:
  *
- * During a predictive-back gesture from library_item_detail → library_items,
- * currentBackStackEntryAsState() temporarily returns the PREVIEW destination ("library_items/...")
- * while library_item_detail is still the committed top. Passing that preview route to
- * libraryItemsBackEnabled would enable LibraryItemsScreen's BackHandler, which fires moveTaskToBack
- * → app goes to background → white screen.
+ * LibraryItemsScreen's BackHandler uses currentRoute (the preview destination) for its enabled
+ * gate — no 16ms recomposition lag. Inside the handler, isCommittedOnLibraryItems() reads
+ * navController.currentBackStack.value synchronously via committedTopRoute() to decide:
+ *   - library_items is the committed top → run library back actions (clear search, reset tab, exit)
+ *   - sub-screen is the committed top  → call onNavigateBack() to pop the sub-screen
  *
- * The fix: use navController.currentBackStack (the committed StateFlow) and extract the top route
- * via committedTopRoute(), which always reflects the real top regardless of predictive-back state.
- *
- * Assertion that flips red if committedTopRoute() is removed: callers would fall back to the
- * preview route ("library_items/..."), enabling the BackHandler when library_item_detail is real top.
+ * The two cases arise during a predictive-back gesture from library_item_detail (library_items
+ * shows as the preview background, library_item_detail is still the committed top) and during the
+ * brief recomposition window right after a commit (both Compose state sources are momentarily stale,
+ * but navController.currentBackStack.value is always synchronously up-to-date).
  */
 class CommittedTopRouteTest {
 
@@ -151,23 +150,34 @@ class CommittedTopRouteTest {
     fun `returns last non-null route from back stack`() {
         // During predictive back from library_item_detail → library_items, the committed back stack
         // is [home, library_items/..., library_item_detail/...]. committedTopRoute must return
-        // library_item_detail, not the preview destination library_items.
+        // library_item_detail — isCommittedOnLibraryItems() returns false → onNavigateBack() fires.
         val routes = listOf("home", "library_items/lib-1/Books", "library_item_detail/item-1")
         assertEquals("library_item_detail/item-1", committedTopRoute(routes))
     }
 
     @Test
-    fun `with committed top route, libraryItemsBackEnabled is false during predictive-back preview`() {
-        // The predictive-back bug: currentBackStackEntryAsState returns "library_items/..." (preview)
-        // while library_item_detail is real top. committedTopRoute returns "library_item_detail/...",
-        // so the BackHandler is disabled — the NavHost pop proceeds normally.
-        val routes = listOf("home", "library_items/lib-1/Books", "library_item_detail/item-1")
-        assertFalse(libraryItemsBackEnabled(
-            currentRoute = committedTopRoute(routes),
-            usePermanentDrawer = false,
-            drawerCurrentOpen = false,
-            drawerTargetOpen = false,
-        ))
+    fun `during predictive-back from sub-screen, isCommittedOnLibraryItems returns false`() {
+        // During the predictive-back gesture, navController.currentBackStack.value still has
+        // library_item_detail on top (it hasn't committed yet). committedTopRoute returns
+        // "library_item_detail/..." → startsWith("library_items/") == false → onNavigateBack().
+        val routes = listOf(null, "home", "library_items/lib-1/Books", "library_item_detail/item-1")
+        val committedTop = committedTopRoute(routes)
+        assertFalse(
+            "isCommittedOnLibraryItems must be false while sub-screen is committed top",
+            committedTop?.startsWith("library_items/") == true,
+        )
+    }
+
+    @Test
+    fun `when library_items is committed top, isCommittedOnLibraryItems returns true`() {
+        // After the sub-screen back commits (and navController.currentBackStack.value is updated),
+        // committedTopRoute returns "library_items/..." → isCommittedOnLibraryItems() = true.
+        val routes = listOf(null, "home", "library_items/lib-1/Books")
+        val committedTop = committedTopRoute(routes)
+        assertTrue(
+            "isCommittedOnLibraryItems must be true once library_items is the committed top",
+            committedTop?.startsWith("library_items/") == true,
+        )
     }
 
     @Test
