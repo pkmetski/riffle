@@ -1112,6 +1112,80 @@ class AnnotationSessionTest {
         sessionScope.coroutineContext[Job]?.cancel()
     }
 
+    @Test
+    fun `navigateToAnnotation sets locations fragments from fragmentAnchor on new bookmarks`() = runTest {
+        val dispatcher = UnconfinedTestDispatcher(testScheduler)
+        val sessionScope = CoroutineScope(dispatcher)
+        val store = FakeAnnotationStore()
+        val syncOps = FakeSyncOps()
+        val targetLocator = buildLocator(progression = 0.43)
+        val bookmark = fakeAnnotation(
+            id = "bm-new",
+            type = AnnotationEntity.TYPE_BOOKMARK,
+            cfi = "epubcfi(/6/4!/4/2)",
+        ).copy(progression = 0.43, fragmentAnchor = "para-ch03")
+        store.allAnnotations.value = listOf(bookmark)
+        val session = makeSession(store = store, syncOps = syncOps, scope = sessionScope)
+        session.bind(
+            sourceId = "srv1",
+            namespace = "ns1",
+            itemId = "item1",
+            highlightRenderResolver = { emptyList() },
+            cfiLocatorResolver = { targetLocator },
+        )
+        val received = mutableListOf<AnnotationSession.AnnotationNavigationEvent>()
+        val collectJob = sessionScope.launch {
+            session.annotationNavigationEvents.collect { received.add(it) }
+        }
+
+        session.navigateToAnnotation(bookmark.id)
+
+        assertEquals(1, received.size)
+        assertTrue(received[0].isBookmark)
+        assertEquals(
+            "bookmark with fragmentAnchor must populate locations.fragments for element-anchored snap",
+            listOf("para-ch03"),
+            received[0].locator.locations.fragments,
+        )
+        collectJob.cancel()
+        sessionScope.coroutineContext[Job]?.cancel()
+    }
+
+    @Test
+    fun `navigateToAnnotation retains progression path for legacy bookmarks without fragmentAnchor`() = runTest {
+        val dispatcher = UnconfinedTestDispatcher(testScheduler)
+        val sessionScope = CoroutineScope(dispatcher)
+        val store = FakeAnnotationStore()
+        val syncOps = FakeSyncOps()
+        val targetLocator = buildLocator(progression = 0.43)
+        val legacyBookmark = fakeAnnotation(
+            id = "bm-legacy",
+            type = AnnotationEntity.TYPE_BOOKMARK,
+            cfi = "epubcfi(/6/4!/4/2)",
+        ).copy(progression = 0.43, fragmentAnchor = null)
+        store.allAnnotations.value = listOf(legacyBookmark)
+        val session = makeSession(store = store, syncOps = syncOps, scope = sessionScope)
+        session.bind(
+            sourceId = "srv1", namespace = "ns1", itemId = "item1",
+            highlightRenderResolver = { emptyList() },
+            cfiLocatorResolver = { targetLocator },
+        )
+        val received = mutableListOf<AnnotationSession.AnnotationNavigationEvent>()
+        val collectJob = sessionScope.launch {
+            session.annotationNavigationEvents.collect { received.add(it) }
+        }
+
+        session.navigateToAnnotation(legacyBookmark.id)
+
+        assertEquals(1, received.size)
+        assertTrue(received[0].isBookmark)
+        assertTrue("legacy bookmark must have empty fragments (uses progression fallback)",
+            received[0].locator.locations.fragments.isEmpty())
+        assertEquals(legacyBookmark.progression, received[0].locator.locations.progression!!, 0.000001)
+        collectJob.cancel()
+        sessionScope.coroutineContext[Job]?.cancel()
+    }
+
     /**
      * Test 5: syncBanner reflects annotationStatusStore states (Syncing/Synced/Failed)
      */

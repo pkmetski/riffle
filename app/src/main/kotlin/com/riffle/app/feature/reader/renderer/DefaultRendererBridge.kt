@@ -104,13 +104,16 @@ internal class DefaultRendererBridge(
         // A highlight locator's TextQuote is the precise DOM target. A bookmark has no text range:
         // its persisted live-reader progression is the precise page boundary. Character-count
         // progression remains only a fallback for missing/stale highlight quotes.
-        val fragmentId = if (landAtStartWhenNoTarget) {
-            locator.locations.fragments.firstOrNull()
-                ?: navTargetFragmentId(locator.href.toString())
-        } else {
-            null
+        val fragmentId = when {
+            landAtStartWhenNoTarget ->
+                locator.locations.fragments.firstOrNull()
+                    ?: navTargetFragmentId(locator.href.toString())
+            locator.locations.fragments.isNotEmpty() ->
+                // New-style bookmark: a paragraph-level element id was captured at creation time.
+                locator.locations.fragments.firstOrNull()
+            else -> null
         }
-        val progression = if (!landAtStartWhenNoTarget) {
+        val progression = if (!landAtStartWhenNoTarget && fragmentId == null) {
             locator.locations.progression
         } else {
             null

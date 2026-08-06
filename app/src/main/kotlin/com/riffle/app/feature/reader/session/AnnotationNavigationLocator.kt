@@ -15,13 +15,24 @@ import org.readium.r2.shared.publication.Locator
 internal fun Locator.withAnnotationNavigationAnchor(annotation: Annotation?): Locator =
     when {
         annotation?.type == AnnotationEntity.TYPE_BOOKMARK -> {
-            // Migration 9→10 and pre-extension W3C imports defaulted an unknown progression to
-            // 0.0. Keep the CFI-derived fallback for those legacy rows when the CFI clearly points
-            // later in the resource; a real first-page bookmark resolves to 0.0 as well.
-            val persistedProgression = annotation.progression.takeIf {
-                it > 0.0 || locations.progression == null
+            val anchor = annotation.fragmentAnchor
+            if (anchor != null) {
+                // New bookmark: element-anchored navigation. Put the captured paragraph id
+                // into locations.fragments so DefaultRendererBridge uses it as fragmentId
+                // rather than the container id from extractAnchorFromCfi.
+                copy(locations = locations.copy(fragments = listOf(anchor)))
+            } else {
+                // Legacy bookmark: no captured element id; restore the live-reader progression
+                // so the progression-ratio fallback in snapToTargetColumnJs lands correctly.
+                // Migration 9→10 and pre-extension W3C imports defaulted an unknown progression
+                // to 0.0. Keep the CFI-derived fallback for those legacy rows when the CFI
+                // clearly points later in the resource; a real first-page bookmark resolves to
+                // 0.0 as well.
+                val persistedProgression = annotation.progression.takeIf {
+                    it > 0.0 || locations.progression == null
+                }
+                copy(locations = locations.copy(progression = persistedProgression ?: locations.progression))
             }
-            copy(locations = locations.copy(progression = persistedProgression ?: locations.progression))
         }
         annotation?.type == AnnotationEntity.TYPE_HIGHLIGHT && annotation.textSnippet.isNotBlank() -> copy(
             text = Locator.Text(

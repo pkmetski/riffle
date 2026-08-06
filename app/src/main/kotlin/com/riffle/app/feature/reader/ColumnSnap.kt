@@ -524,18 +524,18 @@ internal object ColumnSnap {
             ?.takeIf { it.isNotBlank() }
             ?.let(JSONObject::quote)
             ?: "null"
-        // For annotation focus (landAtStartWhenNoTarget=false with a progression), skip the
-        // vertical smooth-tail block entirely. The snap JS runs immediately after go(locator),
-        // before Readium has applied CSS multicol. At that moment scrollHeight > innerHeight (the
-        // natural page height), so the vertical check fires and returns early — the paginated rAF
-        // loop never runs. Then Readium applies multicol and resets scrollLeft to 0, always landing
-        // on page 1. By setting _skipV=true we fall straight into the rAF loop, which tracks
+        // For all annotation navigation (landAtStartWhenNoTarget=false), skip the vertical
+        // smooth-tail block entirely. The snap JS runs immediately after go(locator), before
+        // Readium has applied CSS multicol. At that moment scrollHeight > innerHeight (the natural
+        // page height), so the vertical check fires and returns early — the paginated rAF loop
+        // never runs. Then Readium applies multicol and resets scrollLeft to 0, always landing on
+        // page 1. By setting _skipV=true we fall straight into the rAF loop, which tracks
         // scrollWidth each frame: it starts at innerWidth (pre-multicol → snap() is a near-no-op),
-        // then grows when multicol is applied, and on each subsequent frame the loop recomputes
-        // progression*scrollWidth/iw and snaps scrollLeft to the correct column. The loop exits
-        // only once scrollWidth has held steady for ≥3 frames, so typography-injection reflows
-        // (which transiently reset scrollLeft to 0) are automatically absorbed.
-        val skipVertical = !landAtStartWhenNoTarget && locatorProgression != null
+        // then grows when multicol is applied, and on each subsequent frame the loop either follows
+        // the element id (new-style bookmark) or recomputes progression*scrollWidth/iw (legacy).
+        // The loop exits only once scrollWidth has held steady for ≥3 frames, so
+        // typography-injection reflows (which transiently reset scrollLeft to 0) are absorbed.
+        val skipVertical = !landAtStartWhenNoTarget
         return "(function(){var id=$idLiteral;" +
             "var loc=$locatorLiteral;" +
             "var focusAnnotationId=$focusAnnotationLiteral;" +

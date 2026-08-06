@@ -1,6 +1,7 @@
 package com.riffle.app.feature.reader
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -243,6 +244,22 @@ class ReaderWebViewScriptsTest {
         // column, not the next one — Math.round(2.7) = 3 (wrong page), Math.floor(2.7) = 2 (right page).
         assertTrue("floors to the column boundary using progression * scrollWidth", js.contains("else{se.scrollLeft=Math.floor(0.42*se.scrollWidth/iw)*iw;}"))
         assertTrue("does NOT yank to column 0", !js.contains("se.scrollLeft=0;"))
+    }
+
+    @Test
+    fun `snapToTargetColumnJs with bookmark fragmentId uses getBoundingClientRect path not progression`() {
+        val js = ColumnSnap.snapToTargetColumnJs(
+            fragmentId = "para-ch03",
+            landAtStartWhenNoTarget = false,
+            locatorProgression = null,
+            snapProgressionToNearestColumn = false,
+        )
+        assertTrue("must set the id variable to the captured fragment",
+            js.contains("\"para-ch03\""))
+        assertTrue("must use getBoundingClientRect for the element",
+            js.contains("getBoundingClientRect"))
+        assertFalse("must not reference Math.round(…*scrollWidth…) when no progression supplied",
+            js.contains("scrollWidth/iw)*iw"))
     }
 
     @Test

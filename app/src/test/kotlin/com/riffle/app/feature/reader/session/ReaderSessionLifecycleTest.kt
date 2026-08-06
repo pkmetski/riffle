@@ -532,6 +532,36 @@ class ReaderSessionLifecycleTest {
     }
 
     @Test
+    fun `open at new-style bookmark puts fragmentAnchor in locations fragments`() = runTest {
+        val cfi = "epubcfi(/6/2!/4/2)"
+        val cfiApproximation = Locator(
+            href = mockk(relaxed = true),
+            mediaType = org.readium.r2.shared.util.mediatype.MediaType.XHTML,
+            locations = Locator.Locations(progression = 0.43),
+        )
+        val bookmark = AnnotationSessionTest.makeAnnotation(
+            id = "bm-new",
+            type = AnnotationEntity.TYPE_BOOKMARK,
+            cfi = cfi,
+        ).copy(fragmentAnchor = "para-ch03")
+        val (lifecycle, _) = makeLifecycle(
+            annotationStore = FakeAnnotationStore(
+                byCfi = mapOf(Triple("srv-abs", "item-1", cfi) to bookmark),
+            ),
+            cfiResolver = { c -> if (c == cfi) cfiApproximation else null },
+        )
+
+        val outcome = lifecycle.open(params(openAtCfi = cfi)) as ReaderSessionLifecycle.OpenOutcome.Ready
+
+        assertEquals(
+            "cold-open new-style bookmark must put fragmentAnchor into locations.fragments",
+            listOf("para-ch03"),
+            outcome.openAtLocator!!.locations.fragments,
+        )
+        assertNull(outcome.openAtLocator!!.text.highlight)
+    }
+
+    @Test
     fun `open carries route annotation id when exact CFI lookup misses`() = runTest {
         val cfi = "epubcfi(/6/2!/4/2)"
         val resolvedLocator = Locator(
