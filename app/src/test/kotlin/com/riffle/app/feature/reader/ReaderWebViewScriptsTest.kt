@@ -612,7 +612,7 @@ class ReaderWebViewScriptsTest {
     // making the feature a no-op there while running in vertical/continuous where it should not.
     @Test
     fun `capturePageFragmentAnchorJs returns null when not in paginated mode`() {
-        val js = ColumnSnap.capturePageFragmentAnchorJs()
+        val js = ColumnSnap.CAPTURE_PAGE_FRAGMENT_ANCHOR_JS
         // Must return null when the page has vertical overflow (non-paginated), not when it doesn't.
         assertTrue(
             "guard must return null when scrollHeight > innerHeight (non-paginated), NOT when <=",
@@ -628,7 +628,7 @@ class ReaderWebViewScriptsTest {
     // selectors (div, section, article) so the most semantically precise named element wins.
     @Test
     fun `capturePageFragmentAnchorJs prefers paragraph elements over section containers`() {
-        val js = ColumnSnap.capturePageFragmentAnchorJs()
+        val js = ColumnSnap.CAPTURE_PAGE_FRAGMENT_ANCHOR_JS
         val pIdx = js.indexOf("p[id]")
         val sectionIdx = js.indexOf("section[id]")
         assertTrue("p[id] must be queried before section[id]", pIdx in 0 until sectionIdx)
@@ -638,7 +638,7 @@ class ReaderWebViewScriptsTest {
     // and its left edge must fall in [0, innerWidth).
     @Test
     fun `capturePageFragmentAnchorJs checks getBoundingClientRect for column visibility`() {
-        val js = ColumnSnap.capturePageFragmentAnchorJs()
+        val js = ColumnSnap.CAPTURE_PAGE_FRAGMENT_ANCHOR_JS
         assertTrue("uses getBoundingClientRect for visibility", js.contains("getBoundingClientRect()"))
         assertTrue("checks height > 0", js.contains("r.height>0"))
         assertTrue("checks left >= 0", js.contains("r.left>=0"))

@@ -59,6 +59,8 @@ import com.riffle.app.feature.reader.presenter.NavigationTarget
 import com.riffle.app.feature.reader.presenter.PageDirection
 import com.riffle.app.feature.reader.presenter.ReaderPresenter
 import com.riffle.app.feature.reader.presenter.ReadiumPresenter
+import com.riffle.app.feature.reader.renderer.DefaultRendererBridge
+import com.riffle.app.feature.reader.renderer.RendererBridge
 import com.riffle.app.feature.reader.sentence.SentencePlaybackController
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
@@ -407,7 +409,7 @@ fun EpubReaderScreen(
                     // composables (e.g. CornerBookmarkIndicator) can invoke bridge methods
                     // without being placed inside EpubNavigatorView itself.
                     val rendererBridgeRef = remember {
-                        mutableStateOf<com.riffle.app.feature.reader.renderer.RendererBridge?>(null)
+                        mutableStateOf<RendererBridge?>(null)
                     }
                     LaunchedEffect(tocVisible, showFormattingPanel) {
                         if (tocVisible || showFormattingPanel) viewModel.closeSearch()
@@ -1474,7 +1476,7 @@ private fun EpubNavigatorView(
     /** Notified once per publication with the [RendererBridge] that was just created. Callers that
      *  need to capture the bridge for use outside this composable (e.g. the `CornerBookmarkIndicator`
      *  sibling in `EpubReaderScreen`) can stash it in a `mutableStateOf`. */
-    onRendererBridgeCreated: (com.riffle.app.feature.reader.renderer.RendererBridge) -> Unit = {},
+    onRendererBridgeCreated: (RendererBridge) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -1499,12 +1501,12 @@ private fun EpubNavigatorView(
     // current value at install time).
     val currentReadaloudReservePxState = remember { mutableStateOf(readaloudReservePx) }
     currentReadaloudReservePxState.value = readaloudReservePx
-    val rendererBridge: com.riffle.app.feature.reader.renderer.RendererBridge =
+    val rendererBridge: RendererBridge =
         remember(state.publication, coroutineScope) {
             // Shared across modes: the bridge short-circuits to a no-op when `fragmentProvider`
             // returns null (continuous mode keeps the fragment parked at height=0), so it is safe
             // to construct once per publication and not key on isContinuous.
-            com.riffle.app.feature.reader.renderer.DefaultRendererBridge(
+            DefaultRendererBridge(
                 fragmentProvider = { fragmentRef.value },
                 readaloudReserveProvider = { currentReadaloudReservePxState.value },
             )

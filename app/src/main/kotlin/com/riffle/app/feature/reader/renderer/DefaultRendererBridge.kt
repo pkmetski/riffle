@@ -107,10 +107,10 @@ internal class DefaultRendererBridge(
             landAtStartWhenNoTarget ->
                 locator.locations.fragments.firstOrNull()
                     ?: navTargetFragmentId(locator.href.toString())
-            locator.locations.fragments.isNotEmpty() ->
+            else ->
                 // New-style bookmark: a paragraph-level element id was captured at creation time.
+                // firstOrNull() already returns null for an empty list, so no isNotEmpty() guard needed.
                 locator.locations.fragments.firstOrNull()
-            else -> null
         }
         // Always pass progression for annotation navigation (landAtStartWhenNoTarget=false) so
         // that if getElementById fails (e.g. element id changed in a revised EPUB), the JS
@@ -236,7 +236,7 @@ internal class DefaultRendererBridge(
     }
 
     override suspend fun capturePageFragmentAnchor(): String? {
-        val raw = fragment?.evaluateJavascript(ColumnSnap.capturePageFragmentAnchorJs()) ?: return null
+        val raw = fragment?.evaluateJavascript(ColumnSnap.CAPTURE_PAGE_FRAGMENT_ANCHOR_JS) ?: return null
         val trimmed = raw.trim('"')
         return if (trimmed == "null" || trimmed.isBlank()) null else trimmed
     }
