@@ -898,4 +898,148 @@ class ContinuousPositionTrackerTest {
         assertEquals(2, initial.totalChapters)
         assertEquals(setOf(0, 1), initial.pendingMeasureIndices())
     }
+
+    @Test
+    fun `backward fling floor caps a crossing fling one page past the folded boundary`() {
+        // Field repro 2026-08-05 (Scenario A, behind-buffer path): window [ch06, pt02, ch07]
+        // loaded at open; one backward fling from ch07's top teleported ~4 viewports into
+        // unpainted ch06. The floor folds the 476 px part title into the boundary and lands
+        // the fling one page (90% of 2400 = 2160) above pt02's top.
+        val window = listOf(
+            ContinuousPositionTracker.ChapterSlot("ch06", top = 0,      height = 32_727),
+            ContinuousPositionTracker.ChapterSlot("pt02", top = 32_727, height = 476),
+            ContinuousPositionTracker.ChapterSlot("ch07", top = 33_203, height = 29_127),
+        )
+        assertEquals(
+            32_727 - 2_160,
+            ContinuousPositionTracker.backwardFlingFloor(
+                scrollYStart = 33_400, // just inside ch07
+                window = window,
+                viewportHeightPx = 2_400,
+            ),
+        )
+        // Deep inside ch06 the fling's own chapter top is the window's first slot: no constraint.
+        assertEquals(
+            0,
+            ContinuousPositionTracker.backwardFlingFloor(
+                scrollYStart = 18_000,
+                window = window,
+                viewportHeightPx = 2_400,
+            ),
+        )
+        // Viewport TOP still inside ch06's tail while the reader is already looking at ch07
+        // (midpoint past pt02) — e.g. a nav smooth-scroll settling. The floor must anchor on the
+        // midpoint; anchoring on the top resolved to the window's first slot and returned no
+        // floor, letting the fling teleport (second 2026-08-05 repro round).
+        assertEquals(
+            32_727 - 2_160,
+            ContinuousPositionTracker.backwardFlingFloor(
+                scrollYStart = 32_600,
+                window = window,
+                viewportHeightPx = 2_400,
+            ),
+        )
+    }
+
+    @Test
+    fun `backward fling floor folds at most half a viewport of tiny back-matter chapters`() {
+        // Field repro 2026-08-05 ("Free Excerpt" edition): back matter is a RUN of sub-viewport
+        // resources. Unbounded folding treated the whole run as one boundary, so a single pull
+        // from the excerpt page skipped about-the-author + publisher pages and landed deep in
+        // the index. The fold stops once the folded run exceeds viewport/2 (1200 here): only
+        // the 800 px promo page folds; the boundary is ITS top, not the index's bottom.
+        val window = listOf(
+            ContinuousPositionTracker.ChapterSlot("index",   top = 0,      height = 20_000),
+            ContinuousPositionTracker.ChapterSlot("author",  top = 20_000, height = 900),
+            ContinuousPositionTracker.ChapterSlot("promo",   top = 20_900, height = 800),
+            ContinuousPositionTracker.ChapterSlot("excerpt", top = 21_700, height = 8_000),
+        )
+        assertEquals(
+            20_900 - 2_160,
+            ContinuousPositionTracker.backwardFlingFloor(
+                scrollYStart = 21_800, // just inside the excerpt page
+                window = window,
+                viewportHeightPx = 2_400,
+            ),
+        )
+    }
+
+    @Test
+    fun `backward fling floor never goes negative near the window top`() {
+        val window = listOf(
+            ContinuousPositionTracker.ChapterSlot("ch05", top = 0,   height = 800),
+            ContinuousPositionTracker.ChapterSlot("ch06", top = 800, height = 30_000),
+        )
+        assertEquals(
+            0,
+            ContinuousPositionTracker.backwardFlingFloor(
+                scrollYStart = 900,
+                window = window,
+                viewportHeightPx = 2_400,
+            ),
+        )
+    }
+
+    @Test
+    fun `backward prepend scroll floor pins the reader at the boundary while the placeholder loads`() {
+        // Field repro 2026-08-05 (ch07 → ch06): pixels dragged through the unmeasured blank
+        // placeholder resolve to never-seen content once the real height lands — an abrupt
+        // teleport deep into the previous chapter. While the top slot is still a placeholder the
+        // floor is its bottom edge (= the chapter boundary); it lifts as soon as it measures.
+        assertEquals(
+            2_274,
+            ContinuousPositionTracker.backwardPrependScrollFloor(
+                topSlotStillPlaceholder = true, topSlotHeightPx = 2_274,
+            ),
+        )
+        assertEquals(
+            0,
+            ContinuousPositionTracker.backwardPrependScrollFloor(
+                topSlotStillPlaceholder = false, topSlotHeightPx = 34_372,
+            ),
+        )
+    }
+
+    @Test
+    fun `backward prepend scroll floor holds at real chapter height during layout-pending window`() {
+        // Regression 2026-08-06: after onHeightMeasured fires, prependAwaitingLayout=true until
+        // doOnNextLayout completes the compensating scrollBy. During that window the controller
+        // feeds topSlotStillPlaceholder=true (prependAwaitingLayout | …) into backwardPrependScrollFloor.
+        // The floor must equal the real measured chapter height — not 0 — to prevent any fling or
+        // drag from carrying the user past the boundary before the compensating scroll fires.
+        assertEquals(
+            42_704,
+            ContinuousPositionTracker.backwardPrependScrollFloor(
+                topSlotStillPlaceholder = true,  // prependAwaitingLayout=true post-measurement
+                topSlotHeightPx = 42_704,        // real height measured by JS (index.html field repro)
+            ),
+        )
+        // Once doOnNextLayout fires and prependAwaitingLayout clears (and boundaryDetentArmed
+        // clears on the next touch-down), the floor drops to zero — normal scrolling resumes.
+        assertEquals(
+            0,
+            ContinuousPositionTracker.backwardPrependScrollFloor(
+                topSlotStillPlaceholder = false,
+                topSlotHeightPx = 42_704,
+            ),
+        )
+    }
+
+    @Test
+    fun `backward prepend scroll floor holds at real chapter height when boundary detent is armed after measurement`() {
+        // Regression for 2026-08-06: prependChapter must arm boundaryDetentArmed so the floor
+        // stays at the chapter's real height even after prependAwaitingMeasure becomes false
+        // (measurement complete). Without the detent, topSlotStillPlaceholder=false → floor=0 →
+        // a mid-gesture drag or fling after the chapter measures carries the user past the
+        // boundary into the newly-revealed chapter (field-reported as "abrupt jump to Index").
+        // The detent keeps topSlotStillPlaceholder=true (via boundaryDetentArmed) so the floor
+        // equals the real height until the next deliberate ACTION_DOWN.
+        assertEquals(
+            25_000,
+            ContinuousPositionTracker.backwardPrependScrollFloor(
+                topSlotStillPlaceholder = true,  // boundaryDetentArmed=true post-measurement
+                topSlotHeightPx = 25_000,        // real chapter height after measure completes
+            ),
+        )
+    }
 }

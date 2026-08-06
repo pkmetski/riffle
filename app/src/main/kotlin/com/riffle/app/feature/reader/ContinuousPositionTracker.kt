@@ -294,4 +294,62 @@ internal object ContinuousPositionTracker {
         val totalChapters = minOf(windowSize, allChaptersSize - topIndex)
         return InitialWindow(topIndex = topIndex, totalChapters = totalChapters, targetWindowIndex = behind)
     }
+
+    /**
+     * Scroll floor while a backward prepend is still an unmeasured placeholder: the placeholder's
+     * bottom edge (its height, since the prepend always occupies slot 0 at top=0). Scrolling into
+     * the blank placeholder maps those pixels to unseen content once the real height lands —
+     * perceived as an abrupt jump deep into the previous chapter (field repro 2026-08-05). The
+     * reader holds at the boundary until the chapter measures; 0 (no floor) otherwise.
+     */
+    fun backwardPrependScrollFloor(topSlotStillPlaceholder: Boolean, topSlotHeightPx: Int): Int =
+        if (topSlotStillPlaceholder) topSlotHeightPx else 0
+
+    /**
+     * Lowest scrollY a BACKWARD fling starting at [scrollYStart] may reach: one page (90% of
+     * [viewportHeightPx]) above the chapter boundary directly above the fling's starting
+     * chapter, with sub-half-viewport resources (part titles) folded into that boundary.
+     *
+     * A ballistic fling travels several viewports; unconstrained, one crossing a chapter
+     * boundary teleports the reader deep into the previous chapter — through content that is
+     * often not even rasterized yet (field repro 2026-08-05: one fling from the Part II page
+     * landed 4 viewports into ch06 on solid white). Capping the landing at one page past the
+     * boundary shows exactly the previous chapter's tail; the next gesture reads on normally.
+     * Flings that never reach their chapter's top are unaffected (the floor lies above their
+     * ballistic target only when a crossing would occur). Returns 0 (no constraint) when the
+     * start position is in the window's first slot.
+     */
+    fun backwardFlingFloor(
+        scrollYStart: Int,
+        window: List<ChapterSlot>,
+        viewportHeightPx: Int,
+    ): Int {
+        if (window.isEmpty() || viewportHeightPx <= 0) return 0
+        // Anchor on the viewport MIDPOINT, matching locatorAt's perception model. The viewport
+        // top routinely sits a few hundred px inside the previous chapter's slot while the user
+        // is already reading the next one (e.g. a nav smooth-scroll still settling); anchoring
+        // on the top would resolve to the window's first slot and silently return no floor.
+        val midpoint = scrollYStart + viewportHeightPx / 2
+        var containing = window.indexOfLast { it.top <= midpoint }
+        if (containing < 0) containing = 0
+        // Fold tiny divider resources (shorter than half a viewport) into the boundary: the
+        // boundary the reader perceives is the bottom of the previous SUBSTANTIAL chapter.
+        // The fold is CAPPED at half a viewport of cumulative height: back matter is often a
+        // RUN of tiny resources (about-the-author, publisher page, promo pages — field repro
+        // 2026-08-05, "Free Excerpt" edition), and an unbounded fold walks the entire run so a
+        // single pull skips them all and lands pages deep in whatever precedes them (the index).
+        var boundaryIndex = containing
+        var foldedPx = 0
+        while (boundaryIndex > 0) {
+            val above = window[boundaryIndex - 1]
+            if (above.height >= viewportHeightPx / 2) break
+            if (foldedPx + above.height > viewportHeightPx / 2) break
+            foldedPx += above.height
+            boundaryIndex--
+        }
+        if (boundaryIndex == 0) return 0
+        val boundaryTop = window[boundaryIndex].top
+        val onePageAbove = boundaryTop - viewportHeightPx * 9 / 10
+        return onePageAbove.coerceAtLeast(0)
+    }
 }

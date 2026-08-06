@@ -206,6 +206,15 @@ internal class ChapterWebView(context: Context) : WebView(context), ChapterWebVi
      */
     private var loadToken = 0
 
+    /**
+     * URL owned by the current [loadChapter] call. A pooled WebView is first navigated to
+     * `about:blank` to release the previous chapter's DOM and tiles. Chromium can deliver that
+     * navigation's delayed `onPageFinished` after the view has already been rebound to a new
+     * chapter, so the callback must be checked against this URL before it is allowed to inject or
+     * measure anything.
+     */
+    private var expectedChapterUrl: String? = null
+
     /** Must be called before [loadChapter] so [shouldInterceptRequest] can serve EPUB resources. */
     fun setPublication(pub: Publication) {
         publication = pub
@@ -276,6 +285,7 @@ internal class ChapterWebView(context: Context) : WebView(context), ChapterWebVi
         }
         webViewClient = object : WebViewClient() {
             override fun onPageFinished(view: WebView?, url: String?) {
+                if (!isCurrentChapterPage(url, expectedChapterUrl)) return
                 this@ChapterWebView.onPageFinished?.invoke()
                 // Body-font probe (issue #484): read the value the SELECTION_SPAN_TRACKER_JS
                 // installer stashed on `window.__riffleBookBodyFont` and route to the VM via
@@ -415,8 +425,28 @@ internal class ChapterWebView(context: Context) : WebView(context), ChapterWebVi
      * thread immediately after) can inject the CSS directly into the HTML bytes, eliminating the
      * flash of unstyled content that occurs when styles are injected via JS after page load.
      */
+    /**
+     * Invoke [callback] once this WebView's current DOM has actually been DRAWN on screen
+     * (Chromium visual-state callback). Measurement (layout height) completes long before
+     * rasterization on large chapters — scrolling into a measured-but-unpainted region shows
+     * solid white for seconds on slow GPUs. Guarded by [loadToken] so a stale callback from a
+     * recycled view's previous page can't fire for the new chapter.
+     */
+    fun onCurrentContentPainted(callback: () -> Unit) {
+        val token = loadToken
+        postVisualStateCallback(
+            token.toLong(),
+            object : WebView.VisualStateCallback() {
+                override fun onComplete(requestId: Long) {
+                    if (requestId == token.toLong() && token == loadToken) callback()
+                }
+            },
+        )
+    }
+
     fun loadChapter(href: String, chapterUrl: String, prefs: FormattingPreferences) {
         chapterHref = href
+        expectedChapterUrl = chapterUrl
         currentPrefs = prefs
         rawChapterHtml = null
         footnoteDoc = null
@@ -804,6 +834,13 @@ internal class ChapterWebView(context: Context) : WebView(context), ChapterWebVi
         }
     }
 }
+
+/**
+ * Whether a WebView completion belongs to the chapter currently assigned to that view.
+ * Kept pure so the recycled-`about:blank` race is pinned by a JVM regression test.
+ */
+internal fun isCurrentChapterPage(callbackUrl: String?, expectedChapterUrl: String?): Boolean =
+    callbackUrl != null && callbackUrl == expectedChapterUrl
 
 /**
  * Computes the clamped (top, bottom) for a selection content rect so that, when forwarded to the

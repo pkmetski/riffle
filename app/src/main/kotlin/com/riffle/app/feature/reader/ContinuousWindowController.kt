@@ -4,6 +4,7 @@ import android.content.Context
 import android.view.ViewGroup.LayoutParams.MATCH_PARENT
 import android.view.ViewGroup.LayoutParams.WRAP_CONTENT
 import android.widget.LinearLayout
+import androidx.core.view.doOnNextLayout
 import com.riffle.core.domain.FormattingPreferences
 import com.riffle.core.logging.LogChannel
 import com.riffle.core.logging.Logger
@@ -85,12 +86,41 @@ internal class ContinuousWindowController(
          *  stale scrollY. */
         private const val LANDING_HOLD_MS = 600L
 
-        // The volume-key page-scroll animation duration is distance-based via
-        // [ContinuousPositionTracker.pageScrollDurationMs] to match the Chromium
-        // `behavior: 'smooth'` glide paginated/vertical mode gets from
-        // [ScrollBoundaryNavigationContainer]; a fixed 300 ms was visibly faster and more sudden
-        // than vertical mode for the same 0.9-viewport press. The coalescer validity window uses
-        // the duration cap — see [pageScrollCoalescer].
+        /**
+         * Fixed animation duration for a volume-key page scroll. Matches the Chromium `behavior:
+         * 'smooth'` scroll duration used by paginated/vertical mode via [ScrollBoundaryNavigationContainer]
+         * closely enough that rapid presses feel the same in both modes. Also the validity window for
+         * [PageScrollCoalescer], so a new press coalesces iff its predecessor is still animating.
+         */
+        internal const val PAGE_SCROLL_DURATION_MS = 300
+
+        /**
+         * Upper bound on the loaded window when [ChapterWindowManager.Decision.AppendOnly] is
+         * growing it to escape a fits-in-viewport wall-off. Real front-matter sequences (praise,
+         * "selected works from…", title, copyright, dedication, contents, author's note) top out
+         * well under this; the cap only exists to prevent a pathological all-tiny-chapters book
+         * from loading the entire spine at open. Once one chapter measures larger than the
+         * remaining viewport space, AppendOnly stops firing naturally regardless of the cap.
+         */
+        private const val APPEND_ONLY_MAX_WINDOW = 8
+
+        /**
+         * Poll interval for retiring a stale [backwardNavigationIntent] after ACTION_UP. The
+         * intent must outlive the finger (a backward fling reaches the top clamp after UP), so
+         * it can only be dropped once the scroller comes to rest. One frame (~16 ms) would race
+         * the posted [maybeShift] that consumes the intent at the clamp; 150 ms is comfortably
+         * after it while still far shorter than any deliberate next gesture.
+         */
+        private const val BACKWARD_INTENT_IDLE_POLL_MS = 150L
+
+        /**
+         * Upper bound on how long the backward-prepend scroll floor may wait for Chromium's
+         * visual-state (paint) callback after the chapter has measured. Generous because slow
+         * GPUs are exactly the case the paint gate exists for; when it expires the floor lifts
+         * and behavior degrades to the pre-gate state (scrolling may briefly show unpainted
+         * white).
+         */
+        private const val PREPEND_PAINT_TIMEOUT_MS = 5_000L
     }
 
     /** The [LinearLayout] the [ContinuousReaderView] wraps; controller owns and mutates its children. */
@@ -226,6 +256,54 @@ internal class ContinuousWindowController(
     private val windowManager = ChapterWindowManager(DEFAULT_CHAPTERS_BEHIND)
 
     /**
+     * Direction of the active manual navigation. A short part-title page can leave the viewport
+     * midpoint in the following chapter even at scrollY=0, so geometry cannot distinguish a
+     * genuine backward gesture from forward-shift compensation.
+     */
+    private var backwardNavigationIntent = false
+
+    /**
+     * A drag can deliver more ACTION_MOVE events after its first prepend has completed. Those
+     * moves still describe the same gesture, so they must not re-arm another prepend while the
+     * placeholder-height scroll compensation is settling.
+     */
+    private var backwardShiftConsumedForTouchGesture = false
+
+    @androidx.annotation.VisibleForTesting
+    internal val hasPendingBackwardNavigationIntent: Boolean
+        get() = backwardNavigationIntent
+
+    /**
+     * Test seam: true once [onTouchDown] has fired after the most recent [openWindowAt]. Drives
+     * the regression guard that prevents a late reapply-landing (triggered by an image load
+     * completing after initial measurement) from re-arming the landing hold and freezing the
+     * reader after the user starts scrolling — the "stuck title page" regression.
+     */
+    @androidx.annotation.VisibleForTesting
+    internal val isReapplyLandingSuperseded: Boolean
+        get() = reapplyLandingSuperseded
+
+    /**
+     * Test seam: true from every [prependChapter] call until the next [onTouchDown] (after the
+     * chapter is measured and painted). With this armed, [backwardPrependScrollFloorY] keeps the
+     * scroll floor at the real chapter height through the end of the crossing gesture, preventing
+     * the "abrupt jump to Index" regression (2026-08-06).
+     */
+    @androidx.annotation.VisibleForTesting
+    internal val isBoundaryDetentArmed: Boolean
+        get() = boundaryDetentArmed
+
+    /**
+     * True while the current touch gesture has already been consumed by a backward prepend.
+     * [ContinuousReaderView.fling] checks this to swallow the gesture's release-velocity fling:
+     * the top clamp ate the gesture, so letting its momentum restart AFTER the prepend's scroll
+     * compensation would carry the reader deep past the chapter boundary the prepend just
+     * revealed. Cleared on the next ACTION_DOWN (and every window rebuild / explicit nav).
+     */
+    val suppressGestureFling: Boolean
+        get() = backwardShiftConsumedForTouchGesture
+
+    /**
      * Chapters kept behind the viewport before a forward shift fires. Elided-view opens set this
      * to 2+ (see [DEFAULT_CHAPTERS_BEHIND]) so tiny synthetic chapters don't oscillate. MUST be
      * set before [openWindowAt] — the initial window size derives from it and can't be resized
@@ -289,6 +367,19 @@ internal class ContinuousWindowController(
      */
     private var smoothTailInProgress: Boolean = false
 
+    /**
+     * True from the first [onTouchDown] after [openWindowAt] until the next [openWindowAt].
+     * Guards against already-posted `postLandAt` closures running after the user has touched:
+     * a `reapplyLandingAfterFallback` triggered by a late chapter remeasure (e.g. a cover image
+     * loading AFTER the initial height measurement) can have a `port.post { postLandAt }` already
+     * queued when `onTouchDown` runs. `onTouchDown` nulls `reapplyLandingAfterFallback` to block
+     * FUTURE invocations, but cannot cancel the already-posted message. That queued `postLandAt`
+     * re-arms `landingHoldTargetY` for 600 ms, pinning the reader to the chapter's open position
+     * while `tickLandingHold` reverts every scroll tick — the "stuck title page" symptom.
+     * Checking this flag inside the `port.post { }` body aborts any re-apply that slipped through.
+     */
+    private var reapplyLandingSuperseded = false
+
     /** Annotation id to focus on initial open. See [ContinuousReaderView.pendingFocusAnnotationId]. */
     private var pendingFocusAnnotationId: String? = null
 
@@ -312,14 +403,16 @@ internal class ContinuousWindowController(
     /** Pool of detached [ChapterWebView]s kept for reuse across window shifts. */
     private val recycledViews = ArrayDeque<ChapterWebView>()
 
-    private fun obtainWebView(): ChapterWebView =
-        (recycledViews.removeFirstOrNull() ?: ChapterWebView(context)).also { wv ->
+    private fun obtainWebView(): ChapterWebView {
+        val recycled = recycledViews.removeFirstOrNull()
+        return (recycled ?: ChapterWebView(context)).also { wv ->
             // Route JS console errors/warnings to the ReaderDecoration log channel so the in-app
             // debug screen surfaces DOM-side throws (e.g. #428's createTreeWalker-on-null-body)
             // alongside the Kotlin-side decoration events. Wired here so recycled views also
             // pick up the current logger.
             wv.jsConsoleLogger = logger
         }
+    }
 
     /**
      * Detach [wv] from active use and pool it for reuse (or destroy it if the pool is full).
@@ -405,7 +498,25 @@ internal class ContinuousWindowController(
         pendingFallbackRunnable?.let { port.removeCallbacks(it) }
         pendingFallbackRunnable = null
         windowManager.reset()
+        backwardNavigationIntent = false
+        backwardShiftConsumedForTouchGesture = false
+        prependAwaitingMeasure = false
+        prependLayoutGeneration = 0
+        prependAwaitingLayout = false
+        boundaryDetentArmed = false
+        backwardFlingFloorY = 0
+        releasePaintGate()
         smoothTailInProgress = smoothTail
+        reapplyLandingSuperseded = false
+        // Cross-window user navigation (smoothTail=true): reset firstLoadComplete so the
+        // isFirstLoadComplete state cycles false→true while the new window loads. EpubReaderScreen
+        // observes this to keep the nav cover up until the content is visible, preventing the
+        // blank-flash + abrupt-jump the user sees when a chapter-map tap fires after the initial
+        // landing has already placed the reader at the saved reading position.
+        if (smoothTail && firstLoadComplete) {
+            firstLoadComplete = false
+            onFirstLoadRestart()
+        }
         container.visibility = android.view.View.INVISIBLE
 
         val targetIndex = ContinuousPositionTracker
@@ -453,6 +564,15 @@ internal class ContinuousWindowController(
                     }
                     val isFirstLand = landCount == 0
                     landCount++
+                    // A re-apply triggered by a late chapter remeasure (e.g. cover image load)
+                    // can have this `port.post` queued BEFORE onTouchDown runs. onTouchDown nulls
+                    // reapplyLandingAfterFallback for future calls but cannot cancel this message.
+                    // Without this guard the queued postLandAt re-arms landingHoldTargetY, pinning
+                    // the reader to the open position for 600 ms while the user scrolls — the
+                    // "stuck title page" symptom.
+                    if (!isFirstLand && reapplyLandingSuperseded) {
+                        return@post
+                    }
                     port.abortFling()
                     if (smoothTail && isFirstLand) {
                         val pre = ContinuousPositionTracker.preLandY(y, port.viewportHeightPx)
@@ -584,6 +704,11 @@ internal class ContinuousWindowController(
      * open-time `focusAnnotationId` path in [openWindowAt].
      */
     override fun navigateTo(href: String, progression: Float, alignToTop: Boolean, focusAnnotationId: String?) {
+        backwardNavigationIntent = false
+        backwardShiftConsumedForTouchGesture = false
+        // Programmatic navigation overrides any gesture-scoped scroll floor: a leftover
+        // backward-fling floor from the previous gesture must not clamp the landing scroll.
+        backwardFlingFloorY = 0
         val target = href.substringBefore('#')
         val fragment = href.substringAfter('#', "")
         val targetIndex = ContinuousPositionTracker.chapterIndexForHref(
@@ -592,7 +717,13 @@ internal class ContinuousWindowController(
         if (targetIndex < 0) return
         val inWindow = targetIndex in topIndex until (topIndex + webViews.size)
         if (inWindow) {
+            // The posted landing can execute SECONDS later when the main thread is busy with
+            // WebView measure storms (observed 1.8 s on an emulator). If the user has touched
+            // the reader in the meantime, they've superseded the navigation — landing anyway
+            // yanks the viewport back to a stale target from under their scroll.
+            inWindowNavSupersededByTouch = false
             port.post {
+                if (inWindowNavSupersededByTouch) return@post
                 scrollToLoadedChapter(
                     target, progression, fragment,
                     smooth = true, alignToTop = alignToTop,
@@ -732,6 +863,12 @@ internal class ContinuousWindowController(
     override fun scrollByPage(forward: Boolean) {
         val delta = ContinuousPositionTracker.pageScrollDelta(port.viewportHeightPx)
         if (delta == 0) return
+        // A volume-key page is a fresh navigation just like a new touch gesture: release the
+        // boundary detent once the revealed chapter is ready, or volume-only readers would stay
+        // pinned at the boundary forever (touch releases it via onTouchDown instead).
+        if (!prependAwaitingMeasure && !prependAwaitingLayout && !prependAwaitingPaint) boundaryDetentArmed = false
+        backwardShiftConsumedForTouchGesture = false
+        backwardNavigationIntent = !forward
         clearLandingHold()
         val signedDelta = if (forward) delta else -delta
         val current = port.currentScrollY
@@ -746,7 +883,10 @@ internal class ContinuousWindowController(
             currentScrollY = current,
             targetScrollY = target,
             density = context.resources.displayMetrics.density,
-        ) ?: return
+        ) ?: run {
+            if (!forward && target == current) scheduleShiftCheck()
+            return
+        }
         port.smoothScrollBy(animation.scrollBy, animation.durationMs)
     }
 
@@ -854,6 +994,19 @@ internal class ContinuousWindowController(
                     val scroll = pendingInitialScroll
                     pendingInitialScroll = null
                     scroll?.invoke()
+                    // Post a shift check: if the whole initial window measured shorter than one
+                    // viewport (short front-matter — e.g. praise / "selected works from…" / title),
+                    // scrollY stays pinned at 0 and no onScrollChangeListener will fire to trigger
+                    // handleScrollChange, so decide() would never see the wall-off. Post-drain is
+                    // the earliest safe moment: all initial heights are known and the initial-
+                    // scroll gate has cleared.
+                    if (!shiftPending) {
+                        shiftPending = true
+                        port.post {
+                            shiftPending = false
+                            maybeShift()
+                        }
+                    }
                     // In smoothTail mode the closure launched a NestedScrollView smoothScrollTo;
                     // arming the reapply here would let a late target-chapter remeasure fire the
                     // closure again during the 250 ms tween, taking its ELSE branch (hard
@@ -868,6 +1021,24 @@ internal class ContinuousWindowController(
                 ) {
                     reapplyTargetLastHeight = measuredPx
                     reapplyLandingAfterFallback?.invoke()
+                }
+
+                // AppendOnly-chain: an AppendOnly-appended chapter enters at placeholder height
+                // (viewport-sized), which temporarily makes fitsInViewport=false and halts further
+                // AppendOnly decisions. When it measures back to its actual (short) height the
+                // window may fit in the viewport again and need another append — but no
+                // onScrollChangeListener fires (scrollY stays at 0), so without this post the
+                // chain stalls. Only trigger when wasPlaceholder (first real measurement from
+                // placeholder) and the initial-scroll gate has already cleared (so we don't race
+                // with the initial-land post above).
+                if (wasPlaceholder && pendingInitialScroll == null && pendingInitialMeasureIndices.isEmpty()) {
+                    if (!shiftPending) {
+                        shiftPending = true
+                        port.post {
+                            shiftPending = false
+                            maybeShift()
+                        }
+                    }
                 }
             }
         }
@@ -884,6 +1055,125 @@ internal class ContinuousWindowController(
         wv.loadChapter(entry.link.href.toString(), entry.url, formattingPrefs)
     }
 
+    /**
+     * True from a backward prepend until its chapter reports a real measured height. Passed to
+     * [ChapterWindowManager.decide] to hold further ShiftBackwards: each prepend enters at a
+     * screen-sized blank placeholder, and on a slow device a large chapter takes seconds to load —
+     * without this gate a few quick backward pulls stack unmeasured placeholders until every
+     * rendered chapter has been evicted and the screen is solid white (field repro 2026-08-04).
+     */
+    private var prependAwaitingMeasure = false
+
+    /**
+     * True from a backward prepend's first real measurement until the LinearLayout completes its
+     * layout pass with the new chapter height. The compensating scroll is deferred until then
+     * because NestedScrollView's max-scroll boundary is still based on the placeholder height
+     * until layout runs — applying port.scrollBy(delta) earlier clips the scroll to the old
+     * max-scroll, landing the user deep mid-chapter instead of at the boundary (field repro
+     * 2026-08-06: index.html measured to 42 704 px but scrollBy(40 367) only reached scrollY=2793
+     * because content height was still 2337 px in the layout). Included in [topSlotStillPlaceholder]
+     * so another ShiftBackward cannot fire while the first is still pending layout.
+     */
+    private var prependAwaitingLayout = false
+
+    /**
+     * Monotonically increasing token incremented by each [prependChapter] call (when it registers
+     * a [doOnNextLayout]) and by [removeTop] (when it evicts the pending prepend). Each
+     * [doOnNextLayout] closure captures the generation at registration time; on firing it compares
+     * against the current value and aborts if they differ. This guards against a recycled WebView
+     * carrying a stale [doOnNextLayout] listener from a previous prepend: when that wv is
+     * re-added to the container for a new prepend, the layout pass fires BOTH the old listener and
+     * the new one. The old listener would see `j >= 0` (the wv is now the new prepend's slot) and
+     * incorrectly apply the previous chapter's delta and clear [prependAwaitingLayout] for the new
+     * prepend — causing an early scroll correction and unblocking [ShiftBackward] before the new
+     * compensating scroll fires.
+     */
+    private var prependLayoutGeneration = 0
+
+    /**
+     * True from a backward prepend's first real measurement until Chromium reports the chapter
+     * actually PAINTED (visual-state callback), or [PREPEND_PAINT_TIMEOUT_MS] elapses. Layout
+     * height lands within ~300 ms even for a 33k-px chapter, but rasterization takes seconds on
+     * slow GPUs — lifting the scroll floor at measure time let the very next flick travel deep
+     * into a measured-but-unpainted region: a solid white screen that fills in much later
+     * (field repro 2026-08-05, reproduced on emulator: landed mid-ch06 at 56% with 10+s of
+     * white). The floor therefore holds the reader at the boundary — on painted content —
+     * until the revealed chapter is genuinely drawn.
+     */
+    private var prependAwaitingPaint = false
+
+    /**
+     * Boundary detent: armed by every backward prepend, released by the first ACTION_DOWN that
+     * arrives once the chapter is measured AND painted. Keeps the scroll floor active through
+     * the END of the gesture that crossed the boundary — however fast the chapter measures and
+     * paints — so the crossing pull always lands exactly AT the boundary. Without this, on a
+     * fast GPU the measure (+~300 ms) and paint could complete mid-gesture, the floor lifted,
+     * and the rest of the same pull (or its release fling on older builds) carried the reader
+     * several viewports past the boundary — the "abrupt jump" field-reported through 2026-08-05.
+     * The next deliberate gesture starts from the boundary and scrolls normally.
+     */
+    private var boundaryDetentArmed = false
+
+    /** See the in-window branch of [navigateTo]: set by any touch-down so a still-queued
+     *  posted landing knows the user has taken over and must not fire. */
+    private var inWindowNavSupersededByTouch = false
+
+    /**
+     * Floor for the CURRENTLY animating backward fling, armed by [armBackwardFlingFloor] at
+     * fling start and cleared on the next touch-down. Caps a ballistic backward fling at one
+     * page past the chapter boundary above its starting chapter (see
+     * [ContinuousPositionTracker.backwardFlingFloor]) — covering the behind-buffer path where
+     * no prepend (and therefore no prepend floor/detent) exists.
+     */
+    private var backwardFlingFloorY = 0
+
+    /**
+     * Floor candidate captured at ACTION_DOWN. The fling only starts at ACTION_UP, by which
+     * time the drag portion of the gesture may already have carried the viewport across the
+     * boundary into the previous chapter's slot — computing the floor there finds the window's
+     * first slot and returns no constraint. The boundary the user perceives is the one above
+     * where the GESTURE began.
+     */
+    private var gestureStartFlingFloorY = 0
+
+    /**
+     * Called by [ContinuousReaderView.fling] before starting a backward fling. Latches the
+     * gesture-start floor candidate as the active fling floor enforced by the scroll clamp.
+     */
+    fun armBackwardFlingFloor(): Int {
+        backwardFlingFloorY = gestureStartFlingFloorY
+        return backwardFlingFloorY
+    }
+
+    /** Safety valve: release the paint gate even if the visual-state callback never fires. */
+    private var paintGateTimeout: Runnable? = null
+
+    private fun releasePaintGate() {
+        prependAwaitingPaint = false
+        paintGateTimeout?.let { port.removeCallbacks(it) }
+        paintGateTimeout = null
+    }
+
+    /**
+     * Lowest scrollY the user may reach while a backward prepend is still an unmeasured
+     * placeholder — the placeholder's bottom edge, i.e. the chapter boundary. Scrolling INTO the
+     * blank placeholder maps those pixels to arbitrary positions once the real height lands (the
+     * scroll compensation preserves distance-from-boundary, so blank-dragged pixels resolve to
+     * content the user never saw scrolling by — perceived as an abrupt teleport, field repro
+     * 2026-08-05 ch07→ch06). [ContinuousReaderView.onOverScrolled] clamps to this floor, holding
+     * the reader at the boundary until the chapter renders; the measure's compensating scrollBy
+     * then lands them exactly at the boundary and scrolling continues through real content.
+     */
+    val backwardPrependScrollFloorY: Int
+        get() = maxOf(
+            ContinuousPositionTracker.backwardPrependScrollFloor(
+                topSlotStillPlaceholder =
+                    prependAwaitingMeasure || prependAwaitingLayout || prependAwaitingPaint || boundaryDetentArmed,
+                topSlotHeightPx = measuredHeights.firstOrNull() ?: 0,
+            ),
+            backwardFlingFloorY,
+        )
+
     private fun prependChapter(index: Int) {
         val entry = allChapters[index]
         val wv = obtainWebView()
@@ -891,14 +1181,38 @@ internal class ContinuousWindowController(
         binder.bind(wv, annotationsAvailable = annotationsAvailable, readaloudAvailable = readaloudAvailable)
         wv.onPlayFromHere = { text, evalJs -> onPlayFromHereSelection?.invoke(wv.chapterHref, text, evalJs) }
         val placeholder = placeholderHeight
+        prependAwaitingMeasure = true
+        boundaryDetentArmed = true
         wv.onHeightMeasured = { measuredPx ->
             val i = webViews.indexOf(wv)
+            prependAwaitingMeasure = false
             if (i >= 0) {
-                val delta = measuredPx - measuredHeights[i]
-                measuredHeights[i] = measuredPx
                 publishViewportFraction(wv, measuredPx)
+                // Update the layout params to the real height, triggering a layout pass.
+                // Do NOT update measuredHeights or compensate scroll yet: NestedScrollView's
+                // max-scroll boundary is still based on the placeholder height until layout runs.
+                // Calling port.scrollBy(delta) before layout clips the scroll to the old
+                // max-scroll — for a large chapter (e.g. a 42 704 px index) this lands the user
+                // deep mid-chapter instead of at the boundary (field repro 2026-08-06: expected
+                // scrollY=42 704, got 2793 because content height was still 2337 px in layout).
+                prependAwaitingLayout = true
+                val myGeneration = ++prependLayoutGeneration
                 wv.layoutParams = wv.layoutParams.also { it.height = measuredPx }
-                if (delta != 0) port.scrollBy(delta)
+                wv.doOnNextLayout {
+                    // Stale-callback guard: if removeTop() evicted this wv and a new prependChapter
+                    // reused it, the generation will have advanced past myGeneration. Abort so the
+                    // previous chapter's delta is not applied to the new prepend's slot.
+                    if (prependLayoutGeneration != myGeneration) return@doOnNextLayout
+                    val j = webViews.indexOf(wv)
+                    if (j < 0) {
+                        prependAwaitingLayout = false
+                        return@doOnNextLayout
+                    }
+                    val delta = measuredPx - measuredHeights[j]
+                    measuredHeights[j] = measuredPx
+                    prependAwaitingLayout = false
+                    if (delta != 0) port.scrollBy(delta)
+                }
             }
         }
         wv.onBookBodyFont = { ff -> onBookBodyFont?.invoke(ff) }
@@ -917,6 +1231,14 @@ internal class ContinuousWindowController(
 
     private fun removeTop() {
         if (webViews.isEmpty()) return
+        // The top chapter is the only slot a prepend occupies; evicting it cancels any pending
+        // placeholder measurement (recycle() detaches its onHeightMeasured), so the gates must
+        // not stay latched or backward navigation stays blocked until the next window rebuild.
+        prependAwaitingMeasure = false
+        prependLayoutGeneration++ // invalidate any still-registered doOnNextLayout for the evicted wv
+        prependAwaitingLayout = false
+        boundaryDetentArmed = false
+        releasePaintGate()
         val h = measuredHeights.removeAt(0)
         val wv = webViews.removeAt(0)
         container.removeView(wv)
@@ -959,24 +1281,37 @@ internal class ContinuousWindowController(
         val window = buildWindow()
         if (window.isEmpty()) return
         val sY = port.currentScrollY
-        val (href, _) = ContinuousPositionTracker.locatorAt(sY, port.viewportHeightPx, window)
+        val vh = port.viewportHeightPx
+        val (href, _) = ContinuousPositionTracker.locatorAt(sY, vh, window)
         val viewportMidIndex = allChapters.indexOfFirst { it.link.href.toString() == href }
-
         val decision = windowManager.decide(
-            sY, viewportMidIndex, window, topIndex, allChapters.size, port.viewportHeightPx,
+            sY, viewportMidIndex, window, topIndex, allChapters.size, vh,
+            appendOnlyMaxWindow = APPEND_ONLY_MAX_WINDOW,
+            backwardNavigationIntent = backwardNavigationIntent,
+            topChapterStillPlaceholder = prependAwaitingMeasure || prependAwaitingLayout || prependAwaitingPaint,
         )
         when (decision) {
             ChapterWindowManager.Decision.ShiftBackward -> {
+                // Consume the navigation before scroll compensation posts another shift check.
+                // Keep the gesture guard armed until the next ACTION_DOWN so later MOVE events
+                // from this same pull cannot prepend every earlier resource in succession.
+                backwardNavigationIntent = false
+                backwardShiftConsumedForTouchGesture = true
                 shiftInProgress = true
+                // The top clamp consumed this gesture — kill its residual momentum. NestedScrollView
+                // flings apply scroller DELTAS in computeScroll, so an in-flight fling composes
+                // with the prepend's scrollBy compensations and keeps subtracting after the
+                // prepended chapter measures, dragging the reader thousands of px past the
+                // boundary into the revealed chapter (field repro 2026-08-03: ch07→ch06 landed
+                // ~4 viewports too far back). Backward navigation across a boundary must land AT
+                // the boundary. abortFling() covers a fling already running; the view swallows
+                // this same gesture's not-yet-started fling via [suppressGestureFling] (the fling
+                // often starts only at ACTION_UP, after this branch has already run). The abort
+                // also covers the smooth-tail annotation-nav case it was previously limited to.
+                port.abortFling()
                 removeBottom()
                 topIndex--
                 prependChapter(topIndex)
-                // prependChapter calls scrollBy(+placeholder) to keep visible content in place.
-                // During smooth-tail annotation nav the OverScroller targets the annotation Y; its
-                // next computeScroll frame would overwrite the scrollBy, making content jump.
-                // Guard on smoothTailInProgress so normal user flings are not interrupted at
-                // chapter boundaries.
-                if (smoothTailInProgress) port.abortFling()
                 shiftInProgress = false
             }
             ChapterWindowManager.Decision.ShiftForward -> {
@@ -991,6 +1326,28 @@ internal class ContinuousWindowController(
                 val nextIndex = topIndex + webViews.size
                 if (nextIndex < allChapters.size) appendChapter(nextIndex)
                 shiftInProgress = false
+            }
+            ChapterWindowManager.Decision.AppendOnly -> {
+                // Grow the window without dropping the top: the fits-in-viewport wall-off case
+                // (short front-matter chapters totalling less than one viewport) needs more content
+                // loaded so the user can scroll off the initial page, but must NOT lose the
+                // chapters they opened at. See ChapterWindowManager.Decision.AppendOnly.
+                shiftInProgress = true
+                val nextIndex = topIndex + webViews.size
+                if (nextIndex < allChapters.size) appendChapter(nextIndex)
+                shiftInProgress = false
+                // Re-post: the newly-appended chapter enters at placeholder height (~viewport),
+                // which lifts loadedContentBottom above the viewport and stops further AppendOnly
+                // firings. But when it measures back down to its true (short) height, the window
+                // may fit in the viewport again and need another append. This re-post catches that
+                // via handleScrollChange-style coalescing.
+                if (!shiftPending) {
+                    shiftPending = true
+                    port.post {
+                        shiftPending = false
+                        maybeShift()
+                    }
+                }
             }
             ChapterWindowManager.Decision.Hold -> {}
         }
@@ -1017,14 +1374,100 @@ internal class ContinuousWindowController(
      * stop auto-re-landing on reflow so we never yank the page out from under a manual scroll.
      */
     fun onTouchDown() {
+        inWindowNavSupersededByTouch = true
+        // A user gesture supersedes any pending programmatic landing: without this, navigating
+        // (TOC/chapter map) and scrolling away within the fallback window (2.5 s) let the
+        // fallback fire later and yank the reader back to the stale navigation target —
+        // surfaced by the harness once its forward leg raced the in-window nav path, and a
+        // long-standing papercut on device. The fallback's second duty — clearing the pending
+        // initial-scroll state so the shift machinery unblocks — must still happen, just
+        // WITHOUT invoking the stale landing scroll.
+        pendingFallbackRunnable?.let { port.removeCallbacks(it) }
+        pendingFallbackRunnable = null
+        pendingInitialScroll = null
+        pendingInitialMeasureIndices.clear()
+        backwardFlingFloorY = 0
+        gestureStartFlingFloorY = ContinuousPositionTracker.backwardFlingFloor(
+            scrollYStart = port.currentScrollY,
+            window = buildWindow(),
+            viewportHeightPx = port.viewportHeightPx,
+        )
+        // Release the boundary detent only when the revealed chapter is genuinely ready — a new
+        // gesture that starts while it is still loading/painting must stay pinned at the
+        // boundary rather than pull into blank content.
+        if (!prependAwaitingMeasure && !prependAwaitingLayout && !prependAwaitingPaint) boundaryDetentArmed = false
         reapplyLandingAfterFallback = null
+        reapplyLandingSuperseded = true
         pendingFocusAnnotationId = null
         landingHoldTargetY = -1
         landingHoldUntilUptimeMs = 0L
         smoothTailInProgress = false
+        backwardNavigationIntent = false
+        backwardShiftConsumedForTouchGesture = false
+        retireIntentRunnable?.let { port.removeCallbacks(it) }
+        retireIntentRunnable = null
         // A manual scroll may leave [port.currentScrollY] far from the coalescer's pending target;
         // reset so the next volume press bases its animation on the user's new position.
         pageScrollCoalescer.reset()
+    }
+
+    /**
+     * Record finger direction before NestedScrollView changes scrollY. A downward-moving finger
+     * means backward reading. At the top clamp Android emits no scroll callback, so explicitly
+     * schedule a decision to let the window prepend the previous chapter.
+     */
+    fun onTouchMove(fingerDeltaY: Float) {
+        if (fingerDeltaY == 0f) return
+        backwardNavigationIntent = fingerDeltaY > 0f && !backwardShiftConsumedForTouchGesture
+        if (backwardNavigationIntent) scheduleShiftCheck()
+    }
+
+    /** Self-cancelling idle watch armed by [onTouchUp]; see [BACKWARD_INTENT_IDLE_POLL_MS]. */
+    private var retireIntentRunnable: Runnable? = null
+
+    /**
+     * Called on ACTION_UP / ACTION_CANCEL. A backward intent must survive the finger lift — a
+     * backward fling reaches the scrollY=0 clamp (where the prepend is consumed) well after UP.
+     * But an intent that outlives the entire settle without being consumed is stale: leaving it
+     * latched lets any later posted decision (e.g. a reflow remeasure) fire a phantom prepend
+     * the user never asked for. Watch the scroller and retire the intent once it comes to rest.
+     */
+    fun onTouchUp() {
+        if (!backwardNavigationIntent) return
+        retireIntentRunnable?.let { port.removeCallbacks(it) }
+        var lastY = port.currentScrollY
+        val watch = object : Runnable {
+            override fun run() {
+                if (retireIntentRunnable !== this || !backwardNavigationIntent) return
+                val y = port.currentScrollY
+                if (y == lastY) {
+                    // Final decision before retiring. Under main-thread contention the posted
+                    // shift check from the last scroll change (the one that reached the clamp)
+                    // can run AFTER this watch — dropping the intent first would silently
+                    // swallow a legitimate boundary prepend (observed as harness flakes on a
+                    // contended emulator: pull at the clamp, nothing happens). maybeShift
+                    // consumes the intent itself when a prepend fires; clearing afterwards is
+                    // then a no-op.
+                    maybeShift()
+                    backwardNavigationIntent = false
+                    retireIntentRunnable = null
+                } else {
+                    lastY = y
+                    port.postDelayed(this, BACKWARD_INTENT_IDLE_POLL_MS)
+                }
+            }
+        }
+        retireIntentRunnable = watch
+        port.postDelayed(watch, BACKWARD_INTENT_IDLE_POLL_MS)
+    }
+
+    private fun scheduleShiftCheck() {
+        if (shiftPending) return
+        shiftPending = true
+        port.post {
+            shiftPending = false
+            maybeShift()
+        }
     }
 
     /**

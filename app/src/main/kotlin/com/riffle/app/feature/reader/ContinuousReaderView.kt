@@ -289,6 +289,22 @@ internal class ContinuousReaderView @JvmOverloads constructor(
     @androidx.annotation.VisibleForTesting
     internal fun onSelectionActiveForTest(active: Boolean) = onChildSelectionActiveChanged(active)
 
+    /** Test seam for the one-shot backward gesture consumed by a window prepend. */
+    @androidx.annotation.VisibleForTesting
+    internal val hasPendingBackwardNavigationIntent: Boolean
+        get() = controller.hasPendingBackwardNavigationIntent
+
+    /** Test seam for the "stuck title page" regression guard. See
+     *  [ContinuousWindowController.isReapplyLandingSuperseded]. */
+    @androidx.annotation.VisibleForTesting
+    internal val isReapplyLandingSuperseded: Boolean
+        get() = controller.isReapplyLandingSuperseded
+
+    /** Test seam — see [ContinuousWindowController.isBoundaryDetentArmed]. */
+    @androidx.annotation.VisibleForTesting
+    internal val isBoundaryDetentArmed: Boolean
+        get() = controller.isBoundaryDetentArmed
+
     /**
      * Decline to be a nested-scrolling parent for child [ChapterWebView]s. See historical comment
      * in git — Chromium WebView's dispatchNestedPreScroll would otherwise scroll our viewport to
@@ -370,17 +386,32 @@ internal class ContinuousReaderView @JvmOverloads constructor(
     // the WebView owning touch long enough to read as scroll resistance). Suppressed entirely
     // while a text-selection action mode is active.
     private var interceptDownY = 0f
+    private var interceptLastY = 0f
     override fun onInterceptTouchEvent(ev: MotionEvent): Boolean {
         if (selectionActiveCount > 0) return false
         when (ev.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
                 interceptDownY = ev.y
+                interceptLastY = ev.y
                 controller.onTouchDown()
             }
-            MotionEvent.ACTION_MOVE ->
+            MotionEvent.ACTION_MOVE -> {
+                controller.onTouchMove(ev.y - interceptLastY)
+                interceptLastY = ev.y
                 if (abs(ev.y - interceptDownY) > touchSlop / 2f) return true
+            }
         }
         return super.onInterceptTouchEvent(ev)
+    }
+
+    // UP/CANCEL are routed through dispatchTouchEvent, not onInterceptTouchEvent: once this view
+    // intercepts a drag, subsequent events bypass interception entirely, so the gesture's end
+    // would never reach the controller and a latched backward intent would outlive the gesture.
+    override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
+        when (ev.actionMasked) {
+            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> controller.onTouchUp()
+        }
+        return super.dispatchTouchEvent(ev)
     }
 
     private val touchSlop = android.view.ViewConfiguration.get(context).scaledTouchSlop
@@ -392,7 +423,33 @@ internal class ContinuousReaderView @JvmOverloads constructor(
     private val maxFlingVelocity =
         (android.view.ViewConfiguration.get(context).scaledMaximumFlingVelocity * 0.60f).toInt()
 
+    // Every gesture/fling scroll funnels through overScrollByCompat → onOverScrolled. While a
+    // backward prepend is still an unmeasured blank placeholder, clamp the scroll to the
+    // placeholder's bottom edge (the chapter boundary): pixels dragged through the blank resolve
+    // to never-seen content once the real height lands — an abrupt teleport deep into the
+    // previous chapter. The controller's compensating scrollBys only ever move BELOW the floor,
+    // so they pass unclamped, and the floor lifts the moment the chapter measures.
+    override fun onOverScrolled(scrollX: Int, scrollY: Int, clampedX: Boolean, clampedY: Boolean) {
+        val floor = controller.backwardPrependScrollFloorY
+        if (floor > 0 && scrollY < floor) {
+            super.onOverScrolled(scrollX, floor, clampedX, true)
+        } else {
+            super.onOverScrolled(scrollX, scrollY, clampedX, clampedY)
+        }
+    }
+
     override fun fling(velocityY: Int) {
+        // Swallow the release-velocity fling of a gesture that already triggered a backward
+        // prepend. The gesture spent itself against the scrollY=0 clamp; NestedScrollView would
+        // still start a fling from the release velocity at ACTION_UP, and because computeScroll
+        // applies scroller deltas it composes with the prepend's scroll compensation — carrying
+        // the reader thousands of px past the boundary into the freshly revealed chapter. See
+        // the ShiftBackward branch in [ContinuousWindowController.maybeShift].
+        if (controller.suppressGestureFling) return
+        // A backward fling is capped at one page past the chapter boundary above its starting
+        // chapter (behind-buffer chapters included — the prepend floor never sees those). The
+        // floor is enforced by onOverScrolled while this fling animates.
+        if (velocityY < 0) controller.armBackwardFlingFloor()
         super.fling(velocityY.coerceIn(-maxFlingVelocity, maxFlingVelocity))
     }
 

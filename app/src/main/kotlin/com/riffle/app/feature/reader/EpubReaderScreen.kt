@@ -2230,7 +2230,26 @@ private fun EpubNavigatorView(
             // (set synchronously by loadFormattingPreferences() before openBook() fires the event),
             // so it always carries the correct orientation at this point.
             if (formattingPrefsProvider().orientation == ReaderOrientation.Continuous) {
-                coordinator.onTocNavigation(link)
+                // For a cross-window jump (target not in the loaded window), the controller tears
+                // down all WebViews and calls openWindowAt, which sets container.visibility=INVISIBLE
+                // while the new window builds. Without a cover the user sees a blank flash between
+                // the old content and the new chapter landing — the "abrupt jump" symptom on chapter-
+                // map taps that fire while the book is still loading its initial position.
+                // isTargetInWindow returns false (or view is null) when we need the cover.
+                val view = continuousViewRef.value
+                val outOfWindow = view?.isTargetInWindow(link.href.toString().substringBefore('#')) != true
+                if (outOfWindow) navigating = true
+                try {
+                    coordinator.onTocNavigation(link)
+                    // openWindowAt(smoothTail=true) resets isFirstLoadComplete to false; wait for
+                    // postLandAt to reveal the new window before removing the cover.
+                    val v = continuousViewRef.value
+                    if (outOfWindow && v != null && !v.isFirstLoadComplete.value) {
+                        snapshotFlow { v.isFirstLoadComplete.value }.filter { it }.first()
+                    }
+                } finally {
+                    navigating = false
+                }
                 return@collect
             }
             // Wait for the fragment to be ready — same timing concern as the continuous case above.
