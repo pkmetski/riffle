@@ -16,6 +16,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.navigation.NavBackStackEntry
 import androidx.navigation.NavController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
@@ -57,6 +58,7 @@ import com.riffle.app.ui.isTabletLayout
 import kotlinx.coroutines.launch
 import java.net.URLDecoder
 import java.net.URLEncoder
+import android.annotation.SuppressLint
 import android.content.Intent
 import android.widget.Toast
 import androidx.compose.ui.platform.LocalContext
@@ -147,6 +149,7 @@ fun MainScreen(
     val updateDownloadState by startupUpdateVm.downloadState.collectAsState()
 
     val navController = rememberNavController()
+
     val drawerState = rememberDrawerState(DrawerValue.Closed)
     val scope = rememberCoroutineScope()
     // ADR 0019: the Tablet Layout activates only when the window is large in BOTH dimensions —
@@ -167,6 +170,19 @@ fun MainScreen(
         ?.takeIf { it.destination.route?.startsWith("library_items/") == true }
         ?.arguments?.getString("libraryId")
     val currentRoute = currentBackStack?.destination?.route
+
+    val drawerCurrentOpen = drawerState.currentValue == DrawerValue.Open
+    val drawerTargetOpen = drawerState.targetValue == DrawerValue.Open
+
+    // Committed top (synchronously up-to-date StateFlow; recomposes when the stack mutates).
+    // Using the COMMITTED route (not the preview from currentBackStackEntryAsState) keeps
+    // libBackEnabled=true even while a predictive-back gesture from library_items is in
+    // progress (the committed top stays library_items until the gesture commits), so the
+    // BackHandler intercepts and runs ClearSearch/ResetTab/Exit instead of letting NavHost
+    // pop library_items and flash the HOME spinner.
+    val committedRoute = navController.committedTopRouteAsState()
+    val libBackEnabled = libraryItemsBackEnabled(committedRoute, isTablet, drawerCurrentOpen, drawerTargetOpen)
+
     val usePermanentDrawer = isTablet
     // Reader screens are immersive — collapse the permanent side panel so the book/PDF
     // fills the width, matching the modal drawer's gesture suppression on phones.
@@ -244,7 +260,6 @@ fun MainScreen(
         onServerSelected = { server ->
             viewModel.setActiveServer(server.id)
             scope.launch { drawerState.close() }
-            navController.navigateAsRoot(HOME)
         },
         onLibrarySelected = { library ->
             viewModel.setActiveLibrary(library.id)
@@ -569,18 +584,31 @@ fun MainScreen(
                     backStackEntry.arguments?.getString("libraryName") ?: "",
                     "UTF-8"
                 )
-                // Force the drawer fully closed when the library destination first composes.
-                // Without this its closing animation can race a Back press and the drawer's
-                // own BackHandler captures it instead of exiting the app (issue #60).
-                LaunchedEffect(Unit) { drawerState.close() }
+                // Close the drawer when the library destination first enters composition if it
+                // is open or animating open — e.g. the user tapped a library in the drawer and
+                // the composable re-enters before the close animation finishes. Skip the call
+                // when the drawer is already Closed: even a settled Closed state still triggers
+                // a spring animation that takes 14–125 ms, unnecessarily holding backEnabled=true
+                // during that window and creating a timing hazard on Back.
+                LaunchedEffect(Unit) {
+                    if (drawerState.currentValue == DrawerValue.Open || drawerState.targetValue == DrawerValue.Open) {
+                        drawerState.close()
+                    }
+                }
                 LibraryItemsScreen(
                     libraryName = libraryName,
                     onOpenDrawer = { scope.launch { drawerState.open() } },
-                    backEnabled = !shouldInterceptBackForDrawer(
-                        usePermanentDrawer,
-                        drawerCurrentOpen = drawerState.currentValue == DrawerValue.Open,
-                        drawerTargetOpen = drawerState.targetValue == DrawerValue.Open,
-                    ),
+                    backEnabled = libBackEnabled,
+                    // Read the committed back stack synchronously at handler-fire time (not via
+                    // Compose state) so we correctly distinguish: library_items is the committed
+                    // top (run library back action) vs. a sub-screen is the committed top but
+                    // library_items shows as the predictive-back preview or the recomposition
+                    // window hasn't caught up yet (pop the sub-screen instead).
+                    isCommittedOnLibraryItems = {
+                        committedTopRoute(navController.currentBackStackSnapshot().map { it.destination.route })
+                            ?.startsWith("library_items/") == true
+                    },
+                    onNavigateBack = { navController.popBackStack() },
                     onSeriesSelected = { series ->
                         navController.navigate(seriesDetailRoute(libraryId, series.id, series.name))
                     },
@@ -725,10 +753,18 @@ fun MainScreen(
                 arguments = listOf(
                     navArgument("itemId") { type = NavType.StringType },
                 )
-            ) {
+            ) { backStackEntry ->
                 LibraryItemDetailScreen(
                     windowSizeClass = windowSizeClass,
-                    onNavigateBack = { navController.popBackStack() },
+                    onNavigateBack = {
+                        guardedNavigateBack(
+                            isStillTop = {
+                                navController.currentBackStackSnapshot()
+                                    .lastOrNull { it.destination.route != null } == backStackEntry
+                            },
+                            popBack = { navController.popBackStack() },
+                        )
+                    },
                     onReadItem = { item ->
                         readerRouteFor(item)?.let { navController.navigate(it) }
                     },
@@ -1006,7 +1042,76 @@ internal fun shouldInterceptBackForDrawer(
     drawerTargetOpen: Boolean,
 ): Boolean = !usePermanentDrawer && (drawerCurrentOpen || drawerTargetOpen)
 
+/**
+ * Whether [LibraryItemsScreen]'s BackHandler should be enabled.
+ *
+ * Two conditions must both hold:
+ * 1. [committedRoute] (top of [NavController.currentBackStack]) is the library-items
+ *    destination. Using the COMMITTED route (not the preview from
+ *    [currentBackStackEntryAsState()]) keeps the handler armed even while a predictive-back
+ *    gesture FROM library_items is in progress — the committed top stays library_items until
+ *    the gesture commits, so the handler intercepts and runs ClearSearch/ResetTab/Exit instead
+ *    of letting NavHost pop library_items and flash the HOME spinner. When library_item_detail
+ *    is the committed top (user navigated into a sub-screen), the handler is disabled and NavHost
+ *    handles its own predictive-back pop animation for the sub-screen. The [isCommittedOnLibraryItems]
+ *    runtime check inside the handler is a safety net for any residual lag edge cases.
+ * 2. The drawer is not open or animating — when it is, the top-level drawer BackHandler must
+ *    take Back to close the drawer (see [shouldInterceptBackForDrawer]).
+ */
+internal fun libraryItemsBackEnabled(
+    committedRoute: String?,
+    usePermanentDrawer: Boolean,
+    drawerCurrentOpen: Boolean,
+    drawerTargetOpen: Boolean,
+): Boolean = committedRoute?.startsWith("library_items/") == true &&
+    !shouldInterceptBackForDrawer(usePermanentDrawer, drawerCurrentOpen, drawerTargetOpen)
+
+// Extract the committed top route from a back stack, ignoring graph-root entries that have
+// no route string. Used by [libraryItemsBackEnabled] so it operates on the COMMITTED top, not
+// the predictive-back preview destination that [currentBackStackEntryAsState] temporarily reflects.
+internal fun committedTopRoute(backStackRoutes: List<String?>): String? =
+    backStackRoutes.lastOrNull { it != null }
+
+/**
+ * Calls [popBack] only if [isStillTop] returns true.
+ *
+ * Guards back-navigation callbacks in sub-screens against double-pops during Compose exit
+ * animations. When a screen exits, its composable stays alive for the animation duration
+ * (~300ms). A second tap on the ← button during that window re-fires [onNavigateBack], but the
+ * committed back stack has already advanced — [isStillTop] catches this and skips the pop to
+ * prevent removing the wrong entry (e.g. library_items → HOME spinner).
+ */
+internal fun guardedNavigateBack(isStillTop: () -> Boolean, popBack: () -> Unit) {
+    if (isStillTop()) popBack()
+}
+
 internal fun isReaderRoute(route: String?): Boolean =
     route?.startsWith(EPUB_READER.substringBefore("{")) == true ||
         route?.startsWith(PDF_READER.substringBefore("{")) == true ||
         route?.startsWith(CBZ_READER.substringBefore("{")) == true
+
+/**
+ * Returns the committed top route as Compose state, recomposing whenever the back stack changes.
+ *
+ * [NavController.currentBackStack] is `@RestrictedApi` (internal to `androidx.navigation`).
+ * It is used here intentionally: [currentBackStackEntryAsState] reflects the *preview*
+ * destination during a predictive-back gesture, which would incorrectly disable
+ * [libraryItemsBackEnabled] while the gesture is still in progress. Reading the committed
+ * back stack via [NavController.currentBackStack] avoids this.
+ */
+@Composable
+@SuppressLint("RestrictedApi")
+internal fun NavController.committedTopRouteAsState(): String? {
+    val backStack by currentBackStack.collectAsState()
+    return committedTopRoute(backStack.map { it.destination.route })
+}
+
+/**
+ * Reads [NavController.currentBackStack] synchronously. Centralises the [SuppressLint] so
+ * call sites that need a one-shot snapshot don't each need their own suppression annotation.
+ *
+ * Access is intentional — see [committedTopRouteAsState] for rationale.
+ */
+@SuppressLint("RestrictedApi")
+internal fun NavController.currentBackStackSnapshot(): List<NavBackStackEntry> =
+    currentBackStack.value

@@ -362,6 +362,30 @@ class NavigationDrawerViewModelTest {
     }
 
     @Test
+    fun `redirectToLibrary emits when switching servers leaves the active library absent from the new server`() = runTest(testDispatcher) {
+        // Regression for the server-switch spinner: onServerSelected no longer navigates to HOME;
+        // instead it relies entirely on redirectToLibrary to navigate straight to the new
+        // server's library. Verify that the emit fires when setActiveServer is called and the
+        // new server's visible libraries do not contain _lastActiveLibraryId.
+        serversFlow.value = listOf(server("srv-1", active = true), server("srv-2"))
+        librariesFlow.value = listOf(library("lib-A"))
+        val vm = makeVm()
+        vm.setActiveLibrary("lib-A")
+
+        val redirect = async { vm.redirectToLibrary.first() }
+        testScheduler.advanceUntilIdle()
+        assertTrue("no redirect before server switch", !redirect.isCompleted)
+
+        // Switch to srv-2 whose libraries don't include lib-A.
+        vm.setActiveServer("srv-2")
+        serversFlow.update { list -> list.map { it.copy(isActive = it.id == "srv-2") } }
+        librariesFlow.value = listOf(library("lib-B"), library("lib-C"))
+        testScheduler.advanceUntilIdle()
+
+        assertEquals(library("lib-B"), redirect.await())
+    }
+
+    @Test
     fun `switching servers updates visibleLibraries to the new server libraries`() = runTest {
         serversFlow.value = listOf(server("srv-1", active = true), server("srv-2"))
         librariesFlow.value = listOf(library("lib-A"))

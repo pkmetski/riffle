@@ -18,17 +18,32 @@ import com.riffle.core.models.Source
 import com.riffle.core.domain.SourceRepository
 import com.riffle.core.models.SourceUrl
 import java.io.IOException
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.test.setMain
+import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
+import org.junit.Before
 import org.junit.Test
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class HomeViewModelTest {
+
+    @Before fun setUp() { Dispatchers.setMain(UnconfinedTestDispatcher()) }
+    @After fun tearDown() { Dispatchers.resetMain() }
 
     private val serversFlow = MutableStateFlow<List<Source>>(emptyList())
     private val librariesFlow = MutableStateFlow<List<Library>>(emptyList())
@@ -215,6 +230,47 @@ class HomeViewModelTest {
         assertEquals(HomeViewModel.StartDestination.Library("lib-1", "lib-1"), result)
     }
 
+    // Pins the fix for the predictive-back burger-menu infinite loop: Compose Navigation 2.8+
+    // keeps the previous back-stack entry in composition simultaneously (predictive-back
+    // animations), so HOME can be STARTED while library_items is foreground. Without the
+    // awaitResumed guard in navigateFromHome, onDestination would fire immediately while HOME is
+    // in STARTED state, calling navigateAsRoot(libraryItems) whose popUpTo(HOME) removes the live
+    // library_items entry → BackHandler gap → Back falls through → NavHost pops → HOME → loop.
+    //
+    // Assertion that flips red if awaitResumed() is removed from navigateFromHome: the
+    // assertFalse below would fail because onDestination would be called without waiting.
+    @Test
+    fun `navigateFromHome defers navigation until awaitResumed unblocks`() = runTest {
+        serversFlow.value = listOf(server("s", active = true))
+        librariesFlow.value = listOf(library("lib-1"))
+
+        val gate = CompletableDeferred<Unit>()
+        var navigated = false
+        val job = launch {
+            navigateFromHome(awaitResumed = { gate.await() }, viewModel = makeVm()) { navigated = true }
+        }
+
+        advanceUntilIdle()
+        assertFalse("navigateFromHome must not fire before awaitResumed completes", navigated)
+
+        gate.complete(Unit)
+        advanceUntilIdle()
+        assertTrue("navigateFromHome must fire once awaitResumed completes", navigated)
+
+        job.cancelAndJoin()
+    }
+
+    @Test
+    fun `navigateFromHome fires immediately when awaitResumed is a no-op`() = runTest {
+        serversFlow.value = listOf(server("s", active = true))
+        librariesFlow.value = listOf(library("lib-1"))
+
+        var navigated = false
+        navigateFromHome(awaitResumed = {}, viewModel = makeVm()) { navigated = true }
+
+        assertTrue("navigateFromHome must fire immediately when awaitResumed does not suspend", navigated)
+    }
+
     @Test
     fun `getStartDestination ignores a last opened library remembered for a different server`() = runTest {
         serversFlow.value = listOf(server("srv-1", active = true))
@@ -236,5 +292,76 @@ class HomeViewModelTest {
         val result = makeVm().getStartDestination()
 
         assertEquals(HomeViewModel.StartDestination.Library("lib-2", "lib-2"), result)
+    }
+
+    // Pins the transient-RESUMED guard introduced to fix the burger-menu spinner flash.
+    //
+    // navigateAsRoot's popUpTo(HOME) step momentarily promotes HOME to RESUMED before
+    // navigate(library_route) pushes library_items back on top (demoting HOME to STARTED).
+    // Without the yield + isStillResumed re-check, a bare lifecycle.withResumed { }
+    // would fire during that transient window and navigateFromHome would navigate a second time,
+    // causing the HOME spinner flash.
+    //
+    // Tests use awaitGenuinelyResumedWith (controllable lambdas) to avoid races between
+    // yield() and UnconfinedTestDispatcher — the testable variant was extracted for exactly
+    // this reason. The invariant being pinned is the same: the function must not resolve
+    // when isStillResumed() returns false after waitForResumed completes.
+    //
+    // Assertion that flips red if the isStillResumed loop is removed from awaitGenuinelyResumedWith:
+    // `unblocked` would be true even when isStillResumed returns false.
+    @Test
+    fun `awaitGenuinelyResumedWith does not unblock when isStillResumed is false (transient RESUMED pulse)`() = runTest {
+        // Use Channel (not CompletableDeferred): after one receive(), the channel blocks on the
+        // next call — CompletableDeferred.await() returns immediately once completed, which would
+        // spin the loop infinitely and hang the test.
+        val resumeSignal = Channel<Unit>()
+        var isResumedNow = false
+        var unblocked = false
+
+        val job = launch {
+            awaitGenuinelyResumedWith(
+                waitForResumed = { resumeSignal.receive() },
+                isStillResumed = { isResumedNow },
+            )
+            unblocked = true
+        }
+
+        advanceUntilIdle()
+        assertFalse("must not fire before signal is sent", unblocked)
+
+        // Send a signal with isStillResumed=false — simulates popUpTo(HOME) firing withResumed
+        // while navigate(library_route) has already demoted HOME back to STARTED.
+        // With UnconfinedTestDispatcher, send() resumes the coroutine eagerly: receive() returns,
+        // yield() runs, isStillResumed()=false → loop, receive() blocks again → control returns here.
+        isResumedNow = false
+        resumeSignal.send(Unit)
+
+        assertFalse("must not unblock when isStillResumed returns false after waitForResumed", unblocked)
+        job.cancelAndJoin()
+    }
+
+    @Test
+    fun `awaitGenuinelyResumedWith unblocks when isStillResumed is true (genuine RESUMED)`() = runTest {
+        val resumeSignal = Channel<Unit>()
+        var isResumedNow = false
+        var unblocked = false
+
+        val job = launch {
+            awaitGenuinelyResumedWith(
+                waitForResumed = { resumeSignal.receive() },
+                isStillResumed = { isResumedNow },
+            )
+            unblocked = true
+        }
+
+        // Genuine RESUMED: lifecycle stays RESUMED after waitForResumed returns.
+        isResumedNow = true
+        resumeSignal.send(Unit)
+        // yield() inside awaitGenuinelyResumedWith suspends the coroutine; advanceUntilIdle()
+        // lets that continuation run so isStillResumed()=true → break → unblocked=true.
+        advanceUntilIdle()
+
+        assertTrue("must unblock when isStillResumed returns true", unblocked)
+        job.cancelAndJoin()
     }
 }

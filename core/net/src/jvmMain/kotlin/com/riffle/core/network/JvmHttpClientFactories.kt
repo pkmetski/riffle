@@ -5,6 +5,7 @@ import okhttp3.Cache
 import okhttp3.Interceptor
 import okhttp3.OkHttpClient
 import java.io.File
+import java.util.concurrent.TimeUnit
 
 /**
  * Owns the JVM engine client so Android composition roots can share its connection pool and cache
@@ -27,6 +28,7 @@ fun createDefaultJvmHttpClientPool(
         OkHttpClient.Builder()
             .cache(cache)
             .addNetworkInterceptor(EndpointCacheHeadersInterceptor(DEFAULT_HTTP_CACHE_RULES))
+            .callTimeout(30, TimeUnit.SECONDS)
             .build(),
     )
 }
