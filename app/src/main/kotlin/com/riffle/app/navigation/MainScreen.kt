@@ -16,6 +16,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.navigation.NavBackStackEntry
 import androidx.navigation.NavController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
@@ -604,7 +605,7 @@ fun MainScreen(
                     // library_items shows as the predictive-back preview or the recomposition
                     // window hasn't caught up yet (pop the sub-screen instead).
                     isCommittedOnLibraryItems = {
-                        committedTopRoute(navController.currentBackStack.value.map { it.destination.route })
+                        committedTopRoute(navController.currentBackStackSnapshot().map { it.destination.route })
                             ?.startsWith("library_items/") == true
                     },
                     onNavigateBack = { navController.popBackStack() },
@@ -755,7 +756,7 @@ fun MainScreen(
                     onNavigateBack = {
                         guardedNavigateBack(
                             isStillTop = {
-                                navController.currentBackStack.value
+                                navController.currentBackStackSnapshot()
                                     .lastOrNull { it.destination.route != null } == backStackEntry
                             },
                             popBack = { navController.popBackStack() },
@@ -1090,3 +1091,13 @@ internal fun NavController.committedTopRouteAsState(): String? {
     val backStack by currentBackStack.collectAsState()
     return committedTopRoute(backStack.map { it.destination.route })
 }
+
+/**
+ * Reads [NavController.currentBackStack] synchronously. Centralises the [SuppressLint] so
+ * call sites that need a one-shot snapshot don't each need their own suppression annotation.
+ *
+ * Access is intentional — see [committedTopRouteAsState] for rationale.
+ */
+@SuppressLint("RestrictedApi")
+internal fun NavController.currentBackStackSnapshot(): List<NavBackStackEntry> =
+    currentBackStack.value
