@@ -501,6 +501,8 @@ internal class ContinuousWindowController(
         backwardNavigationIntent = false
         backwardShiftConsumedForTouchGesture = false
         prependAwaitingMeasure = false
+        prependLayoutGeneration = 0
+        prependAwaitingLayout = false
         boundaryDetentArmed = false
         backwardFlingFloorY = 0
         releasePaintGate()
@@ -1075,6 +1077,20 @@ internal class ContinuousWindowController(
     private var prependAwaitingLayout = false
 
     /**
+     * Monotonically increasing token incremented by each [prependChapter] call (when it registers
+     * a [doOnNextLayout]) and by [removeTop] (when it evicts the pending prepend). Each
+     * [doOnNextLayout] closure captures the generation at registration time; on firing it compares
+     * against the current value and aborts if they differ. This guards against a recycled WebView
+     * carrying a stale [doOnNextLayout] listener from a previous prepend: when that wv is
+     * re-added to the container for a new prepend, the layout pass fires BOTH the old listener and
+     * the new one. The old listener would see `j >= 0` (the wv is now the new prepend's slot) and
+     * incorrectly apply the previous chapter's delta and clear [prependAwaitingLayout] for the new
+     * prepend — causing an early scroll correction and unblocking [ShiftBackward] before the new
+     * compensating scroll fires.
+     */
+    private var prependLayoutGeneration = 0
+
+    /**
      * True from a backward prepend's first real measurement until Chromium reports the chapter
      * actually PAINTED (visual-state callback), or [PREPEND_PAINT_TIMEOUT_MS] elapses. Layout
      * height lands within ~300 ms even for a 33k-px chapter, but rasterization takes seconds on
@@ -1180,10 +1196,13 @@ internal class ContinuousWindowController(
                 // deep mid-chapter instead of at the boundary (field repro 2026-08-06: expected
                 // scrollY=42 704, got 2793 because content height was still 2337 px in layout).
                 prependAwaitingLayout = true
+                val myGeneration = ++prependLayoutGeneration
                 wv.layoutParams = wv.layoutParams.also { it.height = measuredPx }
                 wv.doOnNextLayout {
-                    // Guard: if removeTop() evicted this wv before the layout pass completed,
-                    // measuredHeights no longer has a slot for it — skip the compensation.
+                    // Stale-callback guard: if removeTop() evicted this wv and a new prependChapter
+                    // reused it, the generation will have advanced past myGeneration. Abort so the
+                    // previous chapter's delta is not applied to the new prepend's slot.
+                    if (prependLayoutGeneration != myGeneration) return@doOnNextLayout
                     val j = webViews.indexOf(wv)
                     if (j < 0) {
                         prependAwaitingLayout = false
@@ -1216,6 +1235,7 @@ internal class ContinuousWindowController(
         // placeholder measurement (recycle() detaches its onHeightMeasured), so the gates must
         // not stay latched or backward navigation stays blocked until the next window rebuild.
         prependAwaitingMeasure = false
+        prependLayoutGeneration++ // invalidate any still-registered doOnNextLayout for the evicted wv
         prependAwaitingLayout = false
         boundaryDetentArmed = false
         releasePaintGate()
