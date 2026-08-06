@@ -1350,6 +1350,17 @@ class AnnotationNavigationOptionsTest {
         assertFalse(annotationNavigationOptions(isBookmark = true).landAtStartWhenNoTarget)
         assertFalse(annotationNavigationOptions(isBookmark = false).landAtStartWhenNoTarget)
     }
+
+    @Test
+    fun `bookmark navigation never sets focusAnnotationId`() {
+        // Bookmarks have no note-glyph decoration in the WebView ("annotation-notes" group).
+        // Setting focusAnnotationId for a bookmark makes the rAF tracker run for 600 frames
+        // (~10s) instead of exiting after scrollWidth stabilises (~4 frames), overriding every
+        // page turn the user makes during that window.
+        assertNull(
+            annotationNavigationOptions(isBookmark = true, annotationId = "bookmark-id").focusAnnotationId,
+        )
+    }
 }
 
 /**

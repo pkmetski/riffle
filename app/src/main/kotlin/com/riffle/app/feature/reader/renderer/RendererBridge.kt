@@ -208,6 +208,13 @@ internal interface RendererBridge {
     // ── Cadence (issue #403) ───────────────────────────────────────────────────────────────────
 
     /**
+     * Evaluates JS to find the first named paragraph-level element visible in the current
+     * paginated column. Returns its `id` attribute, or null if not in paginated mode or no
+     * named element is visible on the current page.
+     */
+    suspend fun capturePageFragmentAnchor(): String?
+
+    /**
      * Probe the paged/vertical WebView for `Intl.Segmenter`. Returns `"true"` / `"false"` (raw
      * JSON), or null when the fragment is gone. The reader screen uses this to gate the Cadence
      * top-bar toggle: no `Intl.Segmenter` → toggle hidden, feature disabled.

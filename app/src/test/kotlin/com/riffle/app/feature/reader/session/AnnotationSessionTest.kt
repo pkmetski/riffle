@@ -84,7 +84,7 @@ class AnnotationSessionTest {
         override suspend fun createBookmark(
             sourceId: String, itemId: String, cfi: String, textSnippet: String,
             chapterHref: String, spineIndex: Int, progression: Double, bookmarkTitle: String,
-            originFontFamily: String,
+            originFontFamily: String, fragmentAnchor: String?,
         ): Annotation = makeAnnotation(id = "b1", type = "bookmark", cfi = cfi)
         override suspend fun createImageAnnotation(
             sourceId: String, itemId: String, cfi: String, textSnippet: String, chapterHref: String,
@@ -1108,6 +1108,136 @@ class AnnotationSessionTest {
             received.single().locator.locations.progression!!,
             0.000001,
         )
+        collectJob.cancel()
+        sessionScope.coroutineContext[Job]?.cancel()
+    }
+
+    @Test
+    fun `navigateToAnnotation sets locations fragments from fragmentAnchor on new bookmarks`() = runTest {
+        val dispatcher = UnconfinedTestDispatcher(testScheduler)
+        val sessionScope = CoroutineScope(dispatcher)
+        val store = FakeAnnotationStore()
+        val syncOps = FakeSyncOps()
+        val targetLocator = buildLocator(progression = 0.43)
+        val bookmark = fakeAnnotation(
+            id = "bm-new",
+            type = AnnotationEntity.TYPE_BOOKMARK,
+            cfi = "epubcfi(/6/4!/4/2)",
+        ).copy(progression = 0.43, fragmentAnchor = "para-ch03")
+        store.allAnnotations.value = listOf(bookmark)
+        val session = makeSession(store = store, syncOps = syncOps, scope = sessionScope)
+        session.bind(
+            sourceId = "srv1",
+            namespace = "ns1",
+            itemId = "item1",
+            highlightRenderResolver = { emptyList() },
+            cfiLocatorResolver = { targetLocator },
+        )
+        val received = mutableListOf<AnnotationSession.AnnotationNavigationEvent>()
+        val collectJob = sessionScope.launch {
+            session.annotationNavigationEvents.collect { received.add(it) }
+        }
+
+        session.navigateToAnnotation(bookmark.id)
+
+        assertEquals(1, received.size)
+        assertTrue(received[0].isBookmark)
+        assertEquals(
+            "bookmark with fragmentAnchor must populate locations.fragments for element-anchored snap",
+            listOf("para-ch03"),
+            received[0].locator.locations.fragments,
+        )
+        collectJob.cancel()
+        sessionScope.coroutineContext[Job]?.cancel()
+    }
+
+    @Test
+    fun `navigateToAnnotation preserves zero progression for new-style bookmark on first column`() = runTest {
+        // Regression: annotation.progression.takeIf { it > 0.0 } dropped 0.0, falling back to
+        // the CFI-derived progression (0.71 here). A new-style bookmark on the first column of a
+        // chapter has progression=0.0, which is a legitimate value. If getElementById misses the
+        // element (revised EPUB), the JS fallback must use 0.0, not the CFI approximation.
+        val dispatcher = UnconfinedTestDispatcher(testScheduler)
+        val sessionScope = CoroutineScope(dispatcher)
+        val store = FakeAnnotationStore()
+        val syncOps = FakeSyncOps()
+        val cfiFallbackLocator = buildLocator(progression = 0.71)
+        val bookmark = fakeAnnotation(
+            id = "bm-first-col",
+            type = AnnotationEntity.TYPE_BOOKMARK,
+            cfi = "epubcfi(/6/4!/4/2)",
+        ).copy(progression = 0.0, fragmentAnchor = "para-intro")
+        store.allAnnotations.value = listOf(bookmark)
+        val session = makeSession(store = store, syncOps = syncOps, scope = sessionScope)
+        session.bind(
+            sourceId = "srv1", namespace = "ns1", itemId = "item1",
+            highlightRenderResolver = { emptyList() },
+            cfiLocatorResolver = { cfiFallbackLocator },
+        )
+        val received = mutableListOf<AnnotationSession.AnnotationNavigationEvent>()
+        val collectJob = sessionScope.launch {
+            session.annotationNavigationEvents.collect { received.add(it) }
+        }
+
+        session.navigateToAnnotation(bookmark.id)
+
+        assertEquals(1, received.size)
+        assertEquals(
+            "new-style bookmark at progression=0.0 must NOT fall back to the CFI progression (0.71)",
+            0.0,
+            received[0].locator.locations.progression!!,
+            0.000001,
+        )
+        collectJob.cancel()
+        sessionScope.coroutineContext[Job]?.cancel()
+    }
+
+    @Test
+    fun `navigateToAnnotation retains progression path for legacy bookmarks without fragmentAnchor`() = runTest {
+        val dispatcher = UnconfinedTestDispatcher(testScheduler)
+        val sessionScope = CoroutineScope(dispatcher)
+        val store = FakeAnnotationStore()
+        val syncOps = FakeSyncOps()
+        // Simulate the production cfiLocatorResolver output: it calls extractAnchorFromCfi and
+        // puts the container-level section id into locations.fragments. A legacy bookmark arrives
+        // at withAnnotationNavigationAnchor with fragments = ["section-ch01"], not empty. Without
+        // Fix 2, snapAfterGoTo sees a non-empty fragments list and takes the element-snap path,
+        // which always resolves to column 0 (the section container's left edge).
+        val locatorWithContainerFragment = Locator(
+            href = buildLocator().href,
+            mediaType = org.readium.r2.shared.util.mediatype.MediaType.XHTML,
+            locations = Locator.Locations(
+                progression = 0.43,
+                fragments = listOf("section-ch01"), // container-level CFI artifact
+            ),
+        )
+        val legacyBookmark = fakeAnnotation(
+            id = "bm-legacy",
+            type = AnnotationEntity.TYPE_BOOKMARK,
+            cfi = "epubcfi(/6/4!/4/2)",
+        ).copy(progression = 0.43, fragmentAnchor = null)
+        store.allAnnotations.value = listOf(legacyBookmark)
+        val session = makeSession(store = store, syncOps = syncOps, scope = sessionScope)
+        session.bind(
+            sourceId = "srv1", namespace = "ns1", itemId = "item1",
+            highlightRenderResolver = { emptyList() },
+            cfiLocatorResolver = { locatorWithContainerFragment },
+        )
+        val received = mutableListOf<AnnotationSession.AnnotationNavigationEvent>()
+        val collectJob = sessionScope.launch {
+            session.annotationNavigationEvents.collect { received.add(it) }
+        }
+
+        session.navigateToAnnotation(legacyBookmark.id)
+
+        assertEquals(1, received.size)
+        assertTrue(received[0].isBookmark)
+        assertTrue(
+            "legacy bookmark must clear CFI-derived container fragments so snapAfterGoTo uses " +
+                "progression fallback instead of always snapping to column 0",
+            received[0].locator.locations.fragments.isEmpty(),
+        )
+        assertEquals(legacyBookmark.progression, received[0].locator.locations.progression!!, 0.000001)
         collectJob.cancel()
         sessionScope.coroutineContext[Job]?.cancel()
     }

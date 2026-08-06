@@ -91,6 +91,13 @@ data class AnnotationEntity(
      * back to the plain-text render path in [HighlightsPublicationFactory].
      */
     val textSnippetHtml: String? = null,
+    /**
+     * Paragraph-level DOM element `id` captured at bookmark-creation time in paginated mode.
+     * Used as `locations.fragments` during navigation so the column snap can use
+     * `getBoundingClientRect()` rather than progression math. Null for bookmarks created before
+     * this column existed and for all non-bookmark annotation types.
+     */
+    val fragmentAnchor: String? = null,
 ) {
     companion object {
         const val TYPE_HIGHLIGHT = "HIGHLIGHT"

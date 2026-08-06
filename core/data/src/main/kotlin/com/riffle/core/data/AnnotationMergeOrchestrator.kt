@@ -172,6 +172,12 @@ internal class AnnotationMergeOrchestrator(
                     // sync round-trips don't flatten the excerpt back to plaintext and drop the
                     // publisher's inline formatting (<em>, <b>, <sup>, …) from the elided view.
                     textSnippetHtml = existing?.textSnippetHtml,
+                    // fragmentAnchor is not on the W3C wire format — preserve the local value so
+                    // a WebDAV round-trip doesn't drop the captured paragraph-level element id that
+                    // new-style bookmarks use for exact column-snap navigation. Without this,
+                    // every merge resets fragmentAnchor to null, silently regressing new-style
+                    // bookmarks to the legacy progression-only path.
+                    fragmentAnchor = existing?.fragmentAnchor,
                 )
             }
 

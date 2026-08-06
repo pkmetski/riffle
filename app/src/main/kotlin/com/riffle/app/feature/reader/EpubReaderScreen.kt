@@ -59,6 +59,8 @@ import com.riffle.app.feature.reader.presenter.NavigationTarget
 import com.riffle.app.feature.reader.presenter.PageDirection
 import com.riffle.app.feature.reader.presenter.ReaderPresenter
 import com.riffle.app.feature.reader.presenter.ReadiumPresenter
+import com.riffle.app.feature.reader.renderer.DefaultRendererBridge
+import com.riffle.app.feature.reader.renderer.RendererBridge
 import com.riffle.app.feature.reader.sentence.SentencePlaybackController
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
@@ -403,6 +405,12 @@ fun EpubReaderScreen(
                 } else {
                     val locatorHref by viewModel.currentLocatorHref.collectAsState()
                     val tocEntries by viewModel.tocEntries.collectAsState()
+                    // Holds the RendererBridge created inside EpubNavigatorView so sibling
+                    // composables (e.g. CornerBookmarkIndicator) can invoke bridge methods
+                    // without being placed inside EpubNavigatorView itself.
+                    val rendererBridgeRef = remember {
+                        mutableStateOf<RendererBridge?>(null)
+                    }
                     LaunchedEffect(tocVisible, showFormattingPanel) {
                         if (tocVisible || showFormattingPanel) viewModel.closeSearch()
                         viewModel.onPanelStateChanged(tocVisible || showFormattingPanel)
@@ -624,6 +632,7 @@ fun EpubReaderScreen(
                         onBookBodyFontFamily = viewModel::noteBookBodyFontFamily,
                         dispatchers = viewModel.dispatchers,
                         logger = viewModel.logger,
+                        onRendererBridgeCreated = { rendererBridgeRef.value = it },
                         modifier = Modifier
                             .fillMaxSize()
                             .testTag("reader_ready")
@@ -673,7 +682,17 @@ fun EpubReaderScreen(
                     CornerBookmarkIndicator(
                         isBookmarked = isCurrentPageBookmarked,
                         isVisible = annotationsAvailable,
-                        onToggle = viewModel::toggleBookmark,
+                        onToggle = {
+                            viewModel.toggleBookmark {
+                                // MODE-FORK: capturePageFragmentAnchor is a paginated/vertical JS
+                                // probe; skip it in Continuous mode which has no rendererBridge JS
+                                // seam. Tracked by ReaderModeForkGuardTest — bump MAX_MODE_BRANCHES
+                                // if you add another fork nearby.
+                                rendererBridgeRef.value
+                                    ?.takeIf { formattingPrefs.orientation != ReaderOrientation.Continuous }
+                                    ?.capturePageFragmentAnchor()
+                            }
+                        },
                         modifier = Modifier
                             .align(Alignment.TopEnd)
                             .padding(end = 12.dp)
@@ -1337,7 +1356,10 @@ internal fun annotationNavigationOptions(
         landAtStartWhenNoTarget = false,
         snapProgressionToNearestColumn = isBookmark,
         alignToTop = isBookmark,
-        focusAnnotationId = annotationId,
+        // Bookmarks have no note-glyph decoration in the WebView ("annotation-notes" group).
+        // Passing focusAnnotationId for a bookmark makes the rAF tracker wait 600 frames (~10s)
+        // for a decoration that never arrives, overriding page turns the whole time.
+        focusAnnotationId = annotationId.takeIf { !isBookmark },
     )
 
 @OptIn(ExperimentalReadiumApi::class)
@@ -1451,6 +1473,10 @@ private fun EpubNavigatorView(
      *  its memory-capped configuration. */
     isElidedContinuous: Boolean = false,
     onScrollStart: () -> Unit = {},
+    /** Notified once per publication with the [RendererBridge] that was just created. Callers that
+     *  need to capture the bridge for use outside this composable (e.g. the `CornerBookmarkIndicator`
+     *  sibling in `EpubReaderScreen`) can stash it in a `mutableStateOf`. */
+    onRendererBridgeCreated: (RendererBridge) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -1475,16 +1501,17 @@ private fun EpubNavigatorView(
     // current value at install time).
     val currentReadaloudReservePxState = remember { mutableStateOf(readaloudReservePx) }
     currentReadaloudReservePxState.value = readaloudReservePx
-    val rendererBridge: com.riffle.app.feature.reader.renderer.RendererBridge =
+    val rendererBridge: RendererBridge =
         remember(state.publication, coroutineScope) {
             // Shared across modes: the bridge short-circuits to a no-op when `fragmentProvider`
             // returns null (continuous mode keeps the fragment parked at height=0), so it is safe
             // to construct once per publication and not key on isContinuous.
-            com.riffle.app.feature.reader.renderer.DefaultRendererBridge(
+            DefaultRendererBridge(
                 fragmentProvider = { fragmentRef.value },
                 readaloudReserveProvider = { currentReadaloudReservePxState.value },
             )
         }
+    LaunchedEffect(rendererBridge) { onRendererBridgeCreated(rendererBridge) }
     val readiumPresenter: ReadiumPresenter? = remember(state.publication, isContinuous, coroutineScope) {
         if (isContinuous) null else ReadiumPresenter(coroutineScope, state.publication, rendererBridge, dispatchers.main)
     }

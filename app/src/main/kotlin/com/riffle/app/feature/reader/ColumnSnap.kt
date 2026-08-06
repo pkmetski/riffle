@@ -524,18 +524,18 @@ internal object ColumnSnap {
             ?.takeIf { it.isNotBlank() }
             ?.let(JSONObject::quote)
             ?: "null"
-        // For annotation focus (landAtStartWhenNoTarget=false with a progression), skip the
-        // vertical smooth-tail block entirely. The snap JS runs immediately after go(locator),
-        // before Readium has applied CSS multicol. At that moment scrollHeight > innerHeight (the
-        // natural page height), so the vertical check fires and returns early — the paginated rAF
-        // loop never runs. Then Readium applies multicol and resets scrollLeft to 0, always landing
-        // on page 1. By setting _skipV=true we fall straight into the rAF loop, which tracks
+        // For all annotation navigation (landAtStartWhenNoTarget=false), skip the vertical
+        // smooth-tail block entirely. The snap JS runs immediately after go(locator), before
+        // Readium has applied CSS multicol. At that moment scrollHeight > innerHeight (the natural
+        // page height), so the vertical check fires and returns early — the paginated rAF loop
+        // never runs. Then Readium applies multicol and resets scrollLeft to 0, always landing on
+        // page 1. By setting _skipV=true we fall straight into the rAF loop, which tracks
         // scrollWidth each frame: it starts at innerWidth (pre-multicol → snap() is a near-no-op),
-        // then grows when multicol is applied, and on each subsequent frame the loop recomputes
-        // progression*scrollWidth/iw and snaps scrollLeft to the correct column. The loop exits
-        // only once scrollWidth has held steady for ≥3 frames, so typography-injection reflows
-        // (which transiently reset scrollLeft to 0) are automatically absorbed.
-        val skipVertical = !landAtStartWhenNoTarget && locatorProgression != null
+        // then grows when multicol is applied, and on each subsequent frame the loop either follows
+        // the element id (new-style bookmark) or recomputes progression*scrollWidth/iw (legacy).
+        // The loop exits only once scrollWidth has held steady for ≥3 frames, so
+        // typography-injection reflows (which transiently reset scrollLeft to 0) are absorbed.
+        val skipVertical = !landAtStartWhenNoTarget
         return "(function(){var id=$idLiteral;" +
             "var loc=$locatorLiteral;" +
             "var focusAnnotationId=$focusAnnotationLiteral;" +
@@ -624,6 +624,34 @@ internal object ColumnSnap {
             "requestAnimationFrame(tick);}" +
             "tick();})()"
     }
+
+    /**
+     * JS expression that finds the first paragraph-level element with an `id` attribute that is
+     * visible in the current paginated column (viewport). Returns a JSON-encoded string (the id)
+     * or `null` when not in paginated mode or no named element is visible.
+     *
+     * A single `querySelectorAll` with a priority-ordered selector list is used so the DOM is
+     * traversed once. Block-text types (p, h1–h6, li, blockquote) appear before generic containers
+     * (div, section, article) so paragraph-level ids are preferred over section wrappers. The first
+     * match in the current viewport wins. `getBoundingClientRect().left` in [0, innerWidth) means
+     * the element starts in the current column.
+     *
+     * The result is wrapped by `evaluateJavascript` in outer JSON quotes, so the caller must
+     * call `raw.trim('"')` and then check for the literal string `"null"` before using.
+     *
+     * This expression is constant — evaluated once and reused across all bookmark-creation calls.
+     */
+    val CAPTURE_PAGE_FRAGMENT_ANCHOR_JS: String =
+        "(function(){" +
+            "var se=document.scrollingElement;" +
+            "if(!se||se.scrollHeight>window.innerHeight+4)return null;" +
+            "var iw=window.innerWidth;" +
+            "var els=document.querySelectorAll(" +
+            "'p[id],h1[id],h2[id],h3[id],h4[id],h5[id],h6[id],li[id],blockquote[id],div[id],section[id],article[id]');" +
+            "for(var i=0;i<els.length;i++){" +
+            "var r=els[i].getBoundingClientRect();" +
+            "if(r.height>0&&r.left>=0&&r.left<iw)return els[i].id;}" +
+            "return null;})()"
 
     /**
      * Parse the raw string [measureNarratedColumnsJs] returned through `evaluateJavascript`.

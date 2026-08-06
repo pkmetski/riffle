@@ -96,25 +96,30 @@ internal class DefaultRendererBridge(
         // For TOC/search/resume navigation (landAtStartWhenNoTarget=true), use the fragment id
         // from locations.fragments or the href anchor to snap the JS to the exact target element.
         //
-        // For annotation navigation (landAtStartWhenNoTarget=false), SKIP the fragment id even if
-        // one is present. extractAnchorFromCfi stores the innermost NAMED ancestor of the
-        // highlighted text node — typically a <section id="ch01"> or <div id="main"> that spans
-        // the entire chapter. Snapping to that element always resolves to column 0 (page 1)
-        // because getBoundingClientRect().left for a section that starts at the chapter top is 0.
-        // A highlight locator's TextQuote is the precise DOM target. A bookmark has no text range:
-        // its persisted live-reader progression is the precise page boundary. Character-count
-        // progression remains only a fallback for missing/stale highlight quotes.
-        val fragmentId = if (landAtStartWhenNoTarget) {
-            locator.locations.fragments.firstOrNull()
-                ?: navTargetFragmentId(locator.href.toString())
-        } else {
-            null
+        // For annotation navigation (landAtStartWhenNoTarget=false), skip CFI-derived section-level
+        // fragments (the extractAnchorFromCfi ancestor is typically a <section id="ch01"> spanning
+        // the whole chapter; getBoundingClientRect().left is 0 for it → always column 0). Instead,
+        // use fragments only when withAnnotationNavigationAnchor placed a paragraph-level id there
+        // (i.e. a bookmark with a fragmentAnchor captured at creation time from the live page). For
+        // highlights the TextQuote is the precise DOM target; for legacy bookmarks the persisted
+        // live-reader progression is used as fallback via the else branch below.
+        val fragmentId = when {
+            landAtStartWhenNoTarget ->
+                locator.locations.fragments.firstOrNull()
+                    ?: navTargetFragmentId(locator.href.toString())
+            else ->
+                // New-style bookmark: a paragraph-level element id was captured at creation time.
+                // firstOrNull() already returns null for an empty list, so no isNotEmpty() guard needed.
+                locator.locations.fragments.firstOrNull()
         }
-        val progression = if (!landAtStartWhenNoTarget) {
-            locator.locations.progression
-        } else {
-            null
-        }
+        // Always pass progression for annotation navigation (landAtStartWhenNoTarget=false) so
+        // that if getElementById fails (e.g. element id changed in a revised EPUB), the JS
+        // fallback can still snap to the right column using the persisted progression ratio.
+        // With Fix 2 ensuring legacy bookmarks have cleared fragments, new-style bookmarks have
+        // both fragments AND progression set; the JS tries element first, falls back to progression.
+        // For TOC/resume navigation (landAtStartWhenNoTarget=true) we don't provide progression
+        // because those jumps always land at the chapter start or a specific element anchor.
+        val progression = if (!landAtStartWhenNoTarget) locator.locations.progression else null
         // A TextQuote locator lets Readium resolve the exact DOM range. Pass the complete locator
         // into the reflow tracker so it can repeat that exact resolution after each scrollWidth
         // change; progression is only a fallback when the quote is absent/stale.
@@ -228,6 +233,12 @@ internal class DefaultRendererBridge(
 
     override suspend fun evaluateBoundaryScroll(js: String) {
         fragment?.evaluateJavascript(js)
+    }
+
+    override suspend fun capturePageFragmentAnchor(): String? {
+        val raw = fragment?.evaluateJavascript(ColumnSnap.CAPTURE_PAGE_FRAGMENT_ANCHOR_JS) ?: return null
+        val trimmed = raw.trim('"')
+        return if (trimmed == "null" || trimmed.isBlank()) null else trimmed
     }
 
     override suspend fun evaluateCadenceFeatureDetect(): String? =

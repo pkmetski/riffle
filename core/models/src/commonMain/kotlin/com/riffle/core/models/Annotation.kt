@@ -41,6 +41,8 @@ data class Annotation(
      * reader. Nullable — legacy rows and rows received via W3C sync fall back to plaintext.
      */
     val textSnippetHtml: String? = null,
+    /** Paragraph-level DOM element `id` captured at bookmark creation time in paginated mode. Null for legacy bookmarks and all non-bookmark types. */
+    val fragmentAnchor: String? = null,
 )
 
 /**

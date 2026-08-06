@@ -15,13 +15,32 @@ import org.readium.r2.shared.publication.Locator
 internal fun Locator.withAnnotationNavigationAnchor(annotation: Annotation?): Locator =
     when {
         annotation?.type == AnnotationEntity.TYPE_BOOKMARK -> {
-            // Migration 9→10 and pre-extension W3C imports defaulted an unknown progression to
-            // 0.0. Keep the CFI-derived fallback for those legacy rows when the CFI clearly points
-            // later in the resource; a real first-page bookmark resolves to 0.0 as well.
-            val persistedProgression = annotation.progression.takeIf {
-                it > 0.0 || locations.progression == null
+            val anchor = annotation.fragmentAnchor
+            if (anchor != null) {
+                // New-style bookmark: element-anchored. Progression was captured precisely at
+                // creation time (live-reader column ratio), so trust it unconditionally — no >0.0
+                // guard. The JS tries getElementById first; progression is the fallback if the
+                // element id disappears in a revised EPUB, including the 0.0 case (first column).
+                copy(locations = locations.copy(
+                    fragments = listOf(anchor),
+                    progression = annotation.progression,
+                ))
+            } else {
+                // Legacy bookmark: no captured element id. Clear any CFI-derived container fragments
+                // (section-level, always resolve to column 0) and use stored progression instead.
+                // The production cfiLocatorResolver (EpubReaderViewModel.cfiStringToLocator) calls
+                // extractAnchorFromCfi and puts the result into locations.fragments — so even a
+                // legacy bookmark arrives here with a container-level id like "section#ch01" in
+                // fragments. If we don't clear it, snapAfterGoTo sees a non-empty fragments list,
+                // takes the element-snap path, and always lands at column 0 (the container's left).
+                val persistedProgression = annotation.progression.takeIf {
+                    it > 0.0 || locations.progression == null
+                }
+                copy(locations = locations.copy(
+                    fragments = emptyList(),
+                    progression = persistedProgression ?: locations.progression,
+                ))
             }
-            copy(locations = locations.copy(progression = persistedProgression ?: locations.progression))
         }
         annotation?.type == AnnotationEntity.TYPE_HIGHLIGHT && annotation.textSnippet.isNotBlank() -> copy(
             text = Locator.Text(

@@ -73,6 +73,7 @@ class HealGenericOriginFontsTest {
             progression: Double,
             bookmarkTitle: String,
             originFontFamily: String,
+            fragmentAnchor: String?,
         ): Annotation = error("unused")
         override suspend fun createImageAnnotation(
             sourceId: String,

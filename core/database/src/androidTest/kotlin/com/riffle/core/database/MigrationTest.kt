@@ -1919,7 +1919,7 @@ class MigrationTest {
         }
 
         val db = helper.runMigrationsAndValidate(
-            TEST_DB, 63, true,
+            TEST_DB, 64, true,
             RiffleDatabase.MIGRATION_1_2,
             RiffleDatabase.MIGRATION_2_3,
             RiffleDatabase.MIGRATION_3_4,
@@ -1982,6 +1982,7 @@ class MigrationTest {
             RiffleDatabase.MIGRATION_60_61,
             RiffleDatabase.MIGRATION_61_62,
             RiffleDatabase.MIGRATION_62_63,
+            RiffleDatabase.MIGRATION_63_64,
         )
 
         db.query("SELECT url, username, serverType, absUserId, type FROM sources WHERE id = 's1'").use { cursor ->
@@ -2934,5 +2935,28 @@ class MigrationTest {
             assertTrue("legacy override follows the global color preference", cursor.isNull(4))
         }
         db.close()
+    }
+
+    @Test
+    fun migration63To64_addsFragmentAnchorToAnnotations() {
+        helper.createDatabase(TEST_DB, 63).use { db ->
+            db.execSQL(
+                """INSERT INTO annotations (id, sourceId, itemId, type, cfi, color, textSnippet,
+               textBefore, textAfter, chapterHref, spineIndex, progression, bookmarkTitle,
+               createdAt, updatedAt, originDeviceId, lastModifiedByDeviceId, deleted, lastSyncedAt)
+               VALUES ('bm-1', 'srv-1', 'item-1', 'BOOKMARK', 'epubcfi(/6/4!/4/2)',
+               '', 'before text', '', '', 'ch01.xhtml', 0, 0.5, 'Test Bookmark',
+               1000, 1000, 'dev-1', 'dev-1', 0, 0)"""
+            )
+        }
+        helper.runMigrationsAndValidate(TEST_DB, 64, true, RiffleDatabase.MIGRATION_63_64).use { db ->
+            val cursor = db.query("SELECT fragmentAnchor FROM annotations WHERE id='bm-1'")
+            cursor.moveToFirst()
+            assertNull(
+                "pre-existing bookmark must have null fragmentAnchor after migration",
+                cursor.getString(cursor.getColumnIndexOrThrow("fragmentAnchor")),
+            )
+            cursor.close()
+        }
     }
 }

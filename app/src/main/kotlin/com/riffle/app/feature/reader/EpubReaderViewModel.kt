@@ -2668,7 +2668,7 @@ class EpubReaderViewModel @Inject constructor(
      * removes it; otherwise creates a new bookmark anchored to the top-of-viewport CFI with the
      * surrounding text as snippet.
      */
-    fun toggleBookmark() {
+    fun toggleBookmark(fragmentAnchorProvider: suspend () -> String? = { null }) {
         if (source == ReaderSource.Highlights) return
         val sourceId = annotationServerId ?: return
         viewModelScope.launch {
@@ -2712,6 +2712,7 @@ class EpubReaderViewModel @Inject constructor(
                 val bookmarkFont = realCapturedFontOrNull(SelectionFontStash.consume())
                     ?: bookBodyFontFamilyReported.get().takeIf { it.isNotBlank() }
                     ?: FALLBACK_ORIGIN_FONT_FAMILY
+                val fragmentAnchor = fragmentAnchorProvider()
                 annotationStore.createBookmark(
                     sourceId = sourceId,
                     itemId = itemId,
@@ -2722,6 +2723,7 @@ class EpubReaderViewModel @Inject constructor(
                     progression = prog,
                     bookmarkTitle = title,
                     originFontFamily = bookmarkFont,
+                    fragmentAnchor = fragmentAnchor,
                 )
                 scheduleAnnotationSync()
             }

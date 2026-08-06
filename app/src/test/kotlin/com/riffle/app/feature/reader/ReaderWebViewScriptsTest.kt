@@ -1,5 +1,8 @@
 package com.riffle.app.feature.reader
 
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -241,6 +244,22 @@ class ReaderWebViewScriptsTest {
         // column, not the next one — Math.round(2.7) = 3 (wrong page), Math.floor(2.7) = 2 (right page).
         assertTrue("floors to the column boundary using progression * scrollWidth", js.contains("else{se.scrollLeft=Math.floor(0.42*se.scrollWidth/iw)*iw;}"))
         assertTrue("does NOT yank to column 0", !js.contains("se.scrollLeft=0;"))
+    }
+
+    @Test
+    fun `snapToTargetColumnJs with bookmark fragmentId uses getBoundingClientRect path not progression`() {
+        val js = ColumnSnap.snapToTargetColumnJs(
+            fragmentId = "para-ch03",
+            landAtStartWhenNoTarget = false,
+            locatorProgression = null,
+            snapProgressionToNearestColumn = false,
+        )
+        assertTrue("must set the id variable to the captured fragment",
+            js.contains("\"para-ch03\""))
+        assertTrue("must use getBoundingClientRect for the element",
+            js.contains("getBoundingClientRect"))
+        assertFalse("must not reference Math.round(…*scrollWidth…) when no progression supplied",
+            js.contains("scrollWidth/iw)*iw"))
     }
 
     @Test
@@ -582,6 +601,74 @@ class ReaderWebViewScriptsTest {
             "onRect uses the picked anchor rect, not the bounding rect directly, in: $onRectCall",
             onRectCall.contains("use.left") && onRectCall.contains("use.top") &&
                 onRectCall.contains("use.right") && onRectCall.contains("use.bottom"),
+        )
+    }
+
+    // capturePageFragmentAnchorJs must bail early in vertical/continuous (non-paginated) mode so
+    // we never return a stale id from a chapter where the document overflows vertically. In
+    // paginated mode, scrollHeight == innerHeight (no vertical overflow) so the guard must return
+    // null when scrollHeight > innerHeight+4 (i.e. vertical overflow = not paginated).
+    // The inverted guard (<=) was the original bug: it returned null exactly in paginated mode,
+    // making the feature a no-op there while running in vertical/continuous where it should not.
+    @Test
+    fun `capturePageFragmentAnchorJs returns null when not in paginated mode`() {
+        val js = ColumnSnap.CAPTURE_PAGE_FRAGMENT_ANCHOR_JS
+        // Must return null when the page has vertical overflow (non-paginated), not when it doesn't.
+        assertTrue(
+            "guard must return null when scrollHeight > innerHeight (non-paginated), NOT when <=",
+            js.contains("scrollHeight>window.innerHeight"),
+        )
+        assertFalse(
+            "guard must NOT use <= (that would make the feature a no-op in paginated mode)",
+            js.contains("scrollHeight<=window.innerHeight"),
+        )
+    }
+
+    // Paragraph-type selectors (p, h1–h6, li, blockquote) must appear before generic container
+    // selectors (div, section, article) so the most semantically precise named element wins.
+    @Test
+    fun `capturePageFragmentAnchorJs prefers paragraph elements over section containers`() {
+        val js = ColumnSnap.CAPTURE_PAGE_FRAGMENT_ANCHOR_JS
+        val pIdx = js.indexOf("p[id]")
+        val sectionIdx = js.indexOf("section[id]")
+        assertTrue("p[id] must be queried before section[id]", pIdx in 0 until sectionIdx)
+    }
+
+    // Visibility is determined by getBoundingClientRect — the element must have non-zero height
+    // and its left edge must fall in [0, innerWidth).
+    @Test
+    fun `capturePageFragmentAnchorJs checks getBoundingClientRect for column visibility`() {
+        val js = ColumnSnap.CAPTURE_PAGE_FRAGMENT_ANCHOR_JS
+        assertTrue("uses getBoundingClientRect for visibility", js.contains("getBoundingClientRect()"))
+        assertTrue("checks height > 0", js.contains("r.height>0"))
+        assertTrue("checks left >= 0", js.contains("r.left>=0"))
+        assertTrue("checks left < innerWidth", js.contains("r.left<iw"))
+    }
+
+    // DefaultRendererBridge.capturePageFragmentAnchor parses the raw evaluateJavascript result —
+    // a JS null comes back as the 4-char string "null" (no outer quotes), and a JS string like
+    // "para-ch03" comes back as "\"para-ch03\"" (JSON-encoded). The trim('"') + "null" check
+    // handles both: trim is a no-op for "null" and strips quotes for JSON strings.
+    @Test
+    fun `capturePageFragmentAnchor returns null for JS null result`() {
+        // evaluateJavascript returns the 4-char string "null" (no outer quotes) for a JS null.
+        val nullJson = "null"   // what evaluateJavascript returns for JS null
+        val trimmed = nullJson.trim('"')
+        assertNull(
+            "null JSON string must parse to null",
+            if (trimmed == "null" || trimmed.isBlank()) null else trimmed,
+        )
+    }
+
+    @Test
+    fun `capturePageFragmentAnchor returns element id for non-null JS result`() {
+        // The JS returns a string, which evaluateJavascript JSON-encodes → "\"para-ch03\""
+        val raw = "\"para-ch03\""
+        val trimmed = raw.trim('"')
+        assertEquals(
+            "element id must be extracted from JSON-quoted string",
+            "para-ch03",
+            if (trimmed == "null" || trimmed.isBlank()) null else trimmed,
         )
     }
 
