@@ -57,6 +57,7 @@ import com.riffle.app.ui.isTabletLayout
 import kotlinx.coroutines.launch
 import java.net.URLDecoder
 import java.net.URLEncoder
+import android.annotation.SuppressLint
 import android.content.Intent
 import android.widget.Toast
 import androidx.compose.ui.platform.LocalContext
@@ -178,8 +179,7 @@ fun MainScreen(
     // progress (the committed top stays library_items until the gesture commits), so the
     // BackHandler intercepts and runs ClearSearch/ResetTab/Exit instead of letting NavHost
     // pop library_items and flash the HOME spinner.
-    val committedBackStack by navController.currentBackStack.collectAsState()
-    val committedRoute = committedTopRoute(committedBackStack.map { it.destination.route })
+    val committedRoute = navController.committedTopRouteAsState()
     val libBackEnabled = libraryItemsBackEnabled(committedRoute, isTablet, drawerCurrentOpen, drawerTargetOpen)
 
     val usePermanentDrawer = isTablet
@@ -1074,3 +1074,19 @@ internal fun isReaderRoute(route: String?): Boolean =
     route?.startsWith(EPUB_READER.substringBefore("{")) == true ||
         route?.startsWith(PDF_READER.substringBefore("{")) == true ||
         route?.startsWith(CBZ_READER.substringBefore("{")) == true
+
+/**
+ * Returns the committed top route as Compose state, recomposing whenever the back stack changes.
+ *
+ * [NavController.currentBackStack] is `@RestrictedApi` (internal to `androidx.navigation`).
+ * It is used here intentionally: [currentBackStackEntryAsState] reflects the *preview*
+ * destination during a predictive-back gesture, which would incorrectly disable
+ * [libraryItemsBackEnabled] while the gesture is still in progress. Reading the committed
+ * back stack via [NavController.currentBackStack] avoids this.
+ */
+@Composable
+@SuppressLint("RestrictedApi")
+internal fun NavController.committedTopRouteAsState(): String? {
+    val backStack by currentBackStack.collectAsState()
+    return committedTopRoute(backStack.map { it.destination.route })
+}
