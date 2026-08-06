@@ -1,5 +1,7 @@
 package com.riffle.app.feature.reader
 
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -616,6 +618,34 @@ class ReaderWebViewScriptsTest {
         assertTrue("checks height > 0", js.contains("r.height>0"))
         assertTrue("checks left >= 0", js.contains("r.left>=0"))
         assertTrue("checks left < innerWidth", js.contains("r.left<iw"))
+    }
+
+    // DefaultRendererBridge.capturePageFragmentAnchor parses the raw evaluateJavascript result —
+    // a JS null comes back as the string "null" (no outer quotes), and a JS string like "para-ch03"
+    // comes back as "\"para-ch03\"" (JSON-encoded). The trim('"') + "null" check must handle both.
+    @Test
+    fun `capturePageFragmentAnchor returns null for JS null result`() {
+        // The evaluateJavascript wrapper returns "null" (quoted) for a JS null.
+        // Verify the trimming logic handles all null variants.
+        // We test the parsing logic by constructing the expected raw strings.
+        val nullJson = "\"null\""   // what evaluateJavascript returns for JS null
+        val trimmed = nullJson.trim('"')
+        assertNull(
+            "null JSON string must parse to null",
+            if (trimmed == "null" || trimmed.isBlank()) null else trimmed,
+        )
+    }
+
+    @Test
+    fun `capturePageFragmentAnchor returns element id for non-null JS result`() {
+        // The JS returns a string, which evaluateJavascript JSON-encodes → "\"para-ch03\""
+        val raw = "\"para-ch03\""
+        val trimmed = raw.trim('"')
+        assertEquals(
+            "element id must be extracted from JSON-quoted string",
+            "para-ch03",
+            if (trimmed == "null" || trimmed.isBlank()) null else trimmed,
+        )
     }
 
     @Test

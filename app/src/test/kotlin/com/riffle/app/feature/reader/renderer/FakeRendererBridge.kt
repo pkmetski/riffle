@@ -143,6 +143,8 @@ internal class FakeRendererBridge(
         return viewportFractionResult
     }
 
+    override suspend fun capturePageFragmentAnchor(): String? = null
+
     override suspend fun evaluateCadenceFeatureDetect(): String? {
         calls += "evaluateCadenceFeatureDetect"
         return cadenceFeatureDetectResult

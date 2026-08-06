@@ -230,6 +230,12 @@ internal class DefaultRendererBridge(
         fragment?.evaluateJavascript(js)
     }
 
+    override suspend fun capturePageFragmentAnchor(): String? {
+        val raw = fragment?.evaluateJavascript(ColumnSnap.capturePageFragmentAnchorJs()) ?: return null
+        val trimmed = raw.trim('"')
+        return if (trimmed == "null" || trimmed.isBlank()) null else trimmed
+    }
+
     override suspend fun evaluateCadenceFeatureDetect(): String? =
         fragment?.evaluateJavascript(
             com.riffle.app.feature.reader.cadence.CadenceDomScript.FEATURE_DETECT_JS,
