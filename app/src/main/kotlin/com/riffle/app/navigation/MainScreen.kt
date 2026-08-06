@@ -183,6 +183,13 @@ fun MainScreen(
         ?.takeIf { it.destination.route?.startsWith("library_items/") == true }
         ?.arguments?.getString("libraryId")
     val currentRoute = currentBackStack?.destination?.route
+
+    // currentBackStackEntryAsState() temporarily reflects the PREVIEW destination during a
+    // predictive-back gesture, which would enable LibraryItemsScreen's BackHandler while
+    // library_item_detail is still the real top. currentBackStack (StateFlow) only updates on
+    // committed navigation, so committedTopRoute gives the genuine top for the BackHandler gate.
+    val realBackStackEntries by navController.currentBackStack.collectAsState()
+    val realCurrentRoute = committedTopRoute(realBackStackEntries.map { it.destination.route })
     val usePermanentDrawer = isTablet
     // Reader screens are immersive — collapse the permanent side panel so the book/PDF
     // fills the width, matching the modal drawer's gesture suppression on phones.
@@ -602,7 +609,7 @@ fun MainScreen(
                     libraryName = libraryName,
                     onOpenDrawer = { scope.launch { drawerState.open() } },
                     backEnabled = libraryItemsBackEnabled(
-                        currentRoute = currentRoute,
+                        currentRoute = realCurrentRoute,
                         usePermanentDrawer = usePermanentDrawer,
                         drawerCurrentOpen = drawerState.currentValue == DrawerValue.Open,
                         drawerTargetOpen = drawerState.targetValue == DrawerValue.Open,
@@ -1022,10 +1029,11 @@ internal fun shouldInterceptBackForDrawer(
  * Whether [LibraryItemsScreen]'s BackHandler should be enabled.
  *
  * Two conditions must both hold:
- * 1. [currentRoute] is the library-items destination — Compose Navigation 2.8+ keeps the
- *    previous back-stack entry in composition simultaneously for predictive-back animations.
- *    Without this gate, Back pressed on any sub-screen (item detail, series, etc.) would fire
- *    this handler instead of the NavHost pop, causing unexpected exits or blank screens.
+ * 1. [currentRoute] is the library-items destination — must come from
+ *    [NavController.currentBackStack] (the committed StateFlow), NOT from
+ *    [currentBackStackEntryAsState()]. The latter temporarily reflects the PREVIEW destination
+ *    during a predictive-back gesture, which would enable this handler while a sub-screen
+ *    (item detail, series, etc.) is still the real top, causing unexpected exits.
  * 2. The drawer is not open or animating — when it is, the top-level drawer BackHandler must
  *    take Back to close the drawer (see [shouldInterceptBackForDrawer]).
  */
@@ -1036,6 +1044,12 @@ internal fun libraryItemsBackEnabled(
     drawerTargetOpen: Boolean,
 ): Boolean = currentRoute?.startsWith("library_items/") == true &&
     !shouldInterceptBackForDrawer(usePermanentDrawer, drawerCurrentOpen, drawerTargetOpen)
+
+// Extract the committed top route from a back stack, ignoring graph-root entries that have
+// no route string. Used by [libraryItemsBackEnabled] so it operates on the COMMITTED top, not
+// the predictive-back preview destination that [currentBackStackEntryAsState] temporarily reflects.
+internal fun committedTopRoute(backStackRoutes: List<String?>): String? =
+    backStackRoutes.lastOrNull { it != null }
 
 internal fun isReaderRoute(route: String?): Boolean =
     route?.startsWith(EPUB_READER.substringBefore("{")) == true ||

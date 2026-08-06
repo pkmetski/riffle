@@ -1,6 +1,8 @@
 package com.riffle.app.navigation
 
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -125,5 +127,56 @@ class LibraryItemsBackEnabledTest {
             drawerCurrentOpen = false,
             drawerTargetOpen = false,
         ))
+    }
+}
+
+/**
+ * Pins the fix for the predictive-back blank-screen bug:
+ *
+ * During a predictive-back gesture from library_item_detail → library_items,
+ * currentBackStackEntryAsState() temporarily returns the PREVIEW destination ("library_items/...")
+ * while library_item_detail is still the committed top. Passing that preview route to
+ * libraryItemsBackEnabled would enable LibraryItemsScreen's BackHandler, which fires moveTaskToBack
+ * → app goes to background → white screen.
+ *
+ * The fix: use navController.currentBackStack (the committed StateFlow) and extract the top route
+ * via committedTopRoute(), which always reflects the real top regardless of predictive-back state.
+ *
+ * Assertion that flips red if committedTopRoute() is removed: callers would fall back to the
+ * preview route ("library_items/..."), enabling the BackHandler when library_item_detail is real top.
+ */
+class CommittedTopRouteTest {
+
+    @Test
+    fun `returns last non-null route from back stack`() {
+        // During predictive back from library_item_detail → library_items, the committed back stack
+        // is [home, library_items/..., library_item_detail/...]. committedTopRoute must return
+        // library_item_detail, not the preview destination library_items.
+        val routes = listOf("home", "library_items/lib-1/Books", "library_item_detail/item-1")
+        assertEquals("library_item_detail/item-1", committedTopRoute(routes))
+    }
+
+    @Test
+    fun `with committed top route, libraryItemsBackEnabled is false during predictive-back preview`() {
+        // The predictive-back bug: currentBackStackEntryAsState returns "library_items/..." (preview)
+        // while library_item_detail is real top. committedTopRoute returns "library_item_detail/...",
+        // so the BackHandler is disabled — the NavHost pop proceeds normally.
+        val routes = listOf("home", "library_items/lib-1/Books", "library_item_detail/item-1")
+        assertFalse(libraryItemsBackEnabled(
+            currentRoute = committedTopRoute(routes),
+            usePermanentDrawer = false,
+            drawerCurrentOpen = false,
+            drawerTargetOpen = false,
+        ))
+    }
+
+    @Test
+    fun `returns null for empty back stack`() {
+        assertNull(committedTopRoute(emptyList()))
+    }
+
+    @Test
+    fun `skips null entries (graph root has no route string)`() {
+        assertEquals("home", committedTopRoute(listOf(null, "home")))
     }
 }
