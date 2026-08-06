@@ -58,8 +58,11 @@ import kotlinx.coroutines.launch
 import java.net.URLDecoder
 import java.net.URLEncoder
 import android.content.Intent
+import android.util.Log
 import android.widget.Toast
 import androidx.compose.ui.platform.LocalContext
+import androidx.navigation.NavDestination
+import com.riffle.core.logging.LogChannel
 
 private const val HOME = "home"
 private const val SOURCE_SETUP_GRAPH = "source_setup"
@@ -147,6 +150,19 @@ fun MainScreen(
     val updateDownloadState by startupUpdateVm.downloadState.collectAsState()
 
     val navController = rememberNavController()
+
+    // [DEBUG-BURGER2] NavController listener: logs every navigation event with the full back
+    // stack. Fires synchronously on the NavController thread (main), so it's more reliable than
+    // the recomposition-based LaunchedEffect(currentRoute) approach which can miss rapid changes.
+    DisposableEffect(navController) {
+        val listener = NavController.OnDestinationChangedListener { controller, dest, _ ->
+            val stack = controller.currentBackStack.value.mapNotNull { it.destination.route }
+            Log.d(LogChannel.Nav.tag, "[DEBUG-BURGER2] nav→${dest.route} | stack=$stack")
+        }
+        navController.addOnDestinationChangedListener(listener)
+        onDispose { navController.removeOnDestinationChangedListener(listener) }
+    }
+
     val drawerState = rememberDrawerState(DrawerValue.Closed)
     val scope = rememberCoroutineScope()
     // ADR 0019: the Tablet Layout activates only when the window is large in BOTH dimensions —
@@ -186,6 +202,7 @@ fun MainScreen(
         drawerCurrentOpen = drawerState.currentValue == DrawerValue.Open,
         drawerTargetOpen = drawerState.targetValue == DrawerValue.Open,
     )) {
+        Log.d(LogChannel.Nav.tag, "[DEBUG-BURGER2] drawerBackHandler fired cur=${drawerState.currentValue} tgt=${drawerState.targetValue}")
         scope.launch { drawerState.close() }
     }
 
@@ -225,6 +242,8 @@ fun MainScreen(
 
     LaunchedEffect(Unit) {
         viewModel.redirectToLibrary.collect { library ->
+            val stack = navController.currentBackStack.value.mapNotNull { it.destination.route }
+            Log.d(LogChannel.Nav.tag, "[DEBUG-BURGER2] redirectToLibrary→${library.id} | stack=$stack")
             navController.navigateAsRoot(libraryEntryRoute(activeServer?.type, library.id, library.name))
             viewModel.setActiveLibrary(library.id)
         }

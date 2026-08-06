@@ -1,5 +1,8 @@
 package com.riffle.app.feature.navigation
 
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleOwner
+import androidx.lifecycle.LifecycleRegistry
 import com.riffle.core.domain.AuthenticateResult
 import com.riffle.core.domain.CommitSourceResult
 import com.riffle.core.models.Collection
@@ -26,15 +29,23 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.test.setMain
+import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
+import org.junit.Before
 import org.junit.Test
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class HomeViewModelTest {
+
+    @Before fun setUp() { Dispatchers.setMain(UnconfinedTestDispatcher()) }
+    @After fun tearDown() { Dispatchers.resetMain() }
 
     private val serversFlow = MutableStateFlow<List<Source>>(emptyList())
     private val librariesFlow = MutableStateFlow<List<Library>>(emptyList())
@@ -283,5 +294,61 @@ class HomeViewModelTest {
         val result = makeVm().getStartDestination()
 
         assertEquals(HomeViewModel.StartDestination.Library("lib-2", "lib-2"), result)
+    }
+
+    // Pins the transient-RESUMED guard introduced to fix the burger-menu spinner flash.
+    //
+    // navigateAsRoot's popUpTo(HOME) step momentarily promotes HOME to RESUMED before
+    // navigate(library_route) pushes library_items back on top (demoting HOME to STARTED).
+    // Without the yield + lifecycle.currentState re-check, a bare lifecycle.withResumed { }
+    // would fire during that transient window and navigateFromHome would navigate a second time,
+    // causing the HOME spinner flash.
+    //
+    // Assertion that flips red if the yield+re-check loop is removed from awaitGenuinelyResumed:
+    // `unblocked` would be true after the RESUMED→STARTED pulse instead of remaining false.
+    @Test
+    fun `awaitGenuinelyResumed does not unblock on a transient RESUMED pulse`() = runTest {
+        val owner = object : LifecycleOwner {
+            val registry = LifecycleRegistry.createUnsafe(this)
+            override val lifecycle: Lifecycle get() = registry
+        }
+        owner.registry.currentState = Lifecycle.State.STARTED
+        var unblocked = false
+
+        val job = launch {
+            awaitGenuinelyResumed(owner.lifecycle)
+            unblocked = true
+        }
+
+        // Pulse RESUMED → STARTED: simulates navigateAsRoot's popUpTo(HOME) followed by navigate()
+        owner.registry.currentState = Lifecycle.State.RESUMED
+        advanceUntilIdle() // lets withResumed fire and the yield() inside awaitGenuinelyResumed run
+        owner.registry.currentState = Lifecycle.State.STARTED // navigate(library_route) demotes HOME
+        advanceUntilIdle() // loop re-checks lifecycle.currentState; it's STARTED → loop again
+
+        assertFalse("must not unblock on a transient RESUMED pulse", unblocked)
+        job.cancelAndJoin()
+    }
+
+    @Test
+    fun `awaitGenuinelyResumed unblocks when lifecycle is genuinely RESUMED`() = runTest {
+        val owner = object : LifecycleOwner {
+            val registry = LifecycleRegistry.createUnsafe(this)
+            override val lifecycle: Lifecycle get() = registry
+        }
+        owner.registry.currentState = Lifecycle.State.STARTED
+        var unblocked = false
+
+        val job = launch {
+            awaitGenuinelyResumed(owner.lifecycle)
+            unblocked = true
+        }
+
+        // Genuine RESUMED: no library is pushed on top — lifecycle stays RESUMED
+        owner.registry.currentState = Lifecycle.State.RESUMED
+        advanceUntilIdle()
+
+        assertTrue("must unblock when lifecycle is genuinely RESUMED", unblocked)
+        job.cancelAndJoin()
     }
 }

@@ -233,6 +233,7 @@ fun LibraryItemsScreen(
     val activity = LocalActivity.current
     BackHandler(enabled = backEnabled) {
         val action = libraryBackAction(searchQuery, selectedTab)
+        Log.d(LogChannel.Nav.tag, "[DEBUG-BURGER2] libraryBackHandler fired action=$action backEnabled=$backEnabled")
         when (action) {
             LibraryBackAction.ClearSearch -> {
                 viewModel.onSearchQueryChange("")

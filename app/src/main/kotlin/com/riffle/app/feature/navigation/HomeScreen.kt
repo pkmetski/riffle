@@ -21,8 +21,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.withResumed
+import kotlinx.coroutines.yield
 import kotlinx.coroutines.withContext
 
 @Composable
@@ -36,7 +38,10 @@ fun HomeScreen(
 
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     LaunchedEffect(retryKey) {
-        navigateFromHome(awaitResumed = { lifecycle.withResumed { } }, viewModel = viewModel) { dest ->
+        navigateFromHome(
+            awaitResumed = { awaitGenuinelyResumed(lifecycle) },
+            viewModel = viewModel,
+        ) { dest ->
             showRetry = false
             when (dest) {
                 is HomeViewModel.StartDestination.AddSource -> onNavigateToAddSource()
@@ -67,14 +72,39 @@ fun HomeScreen(
     }
 }
 
+// navigateAsRoot(library_route) does popUpTo(HOME) { inclusive=false } followed by
+// navigate(library_route). The popUpTo step momentarily promotes HOME to RESUMED before the
+// subsequent navigate() pushes library_items back on top (demoting HOME to STARTED). If
+// lifecycle.withResumed { } is used directly, it fires during that transient RESUMED window,
+// waking up navigateFromHome and causing a second navigateAsRoot call → flash of HOME spinner.
+//
+// awaitGenuinelyResumed yields once after withResumed to let the synchronous navigate() call
+// complete, then checks the lifecycle state. If HOME fell back to STARTED the loop repeats and
+// we wait for the next RESUMED event — which only arrives when HOME is genuinely the foreground.
+internal suspend fun awaitGenuinelyResumed(lifecycle: Lifecycle) {
+    awaitGenuinelyResumedWith(
+        waitForResumed = { lifecycle.withResumed { } },
+        isStillResumed = { lifecycle.currentState >= Lifecycle.State.RESUMED },
+    )
+}
+
+// Separated so tests can simulate the lifecycle transitions without a real Lifecycle object
+// and the Dispatchers.Main dependency that lifecycle.withResumed requires.
+internal suspend fun awaitGenuinelyResumedWith(
+    waitForResumed: suspend () -> Unit,
+    isStillResumed: () -> Boolean,
+) {
+    while (true) {
+        waitForResumed()
+        yield()
+        if (isStillResumed()) break
+    }
+}
+
 // Compose Navigation 2.8+ keeps the previous back-stack entry in composition simultaneously
 // for its own predictive-back animations. HOME can therefore be in STARTED state while
-// library_items is the foreground destination. Calling navigateAsRoot from STARTED state
-// triggers popUpTo(HOME) which removes the live library_items entry, creating a gap with no
-// LibraryItemsScreen BackHandler registered. A Back event in that gap falls through to the
-// NavHost handler, which pops library_items to HOME, which fires the LaunchedEffect again →
-// loop. awaitResumed suspends until HOME is the foreground destination before touching the
-// NavController. In production this is `{ lifecycle.withResumed { } }`; in tests it is a
+// library_items is the foreground destination. awaitResumed (backed by awaitGenuinelyResumed in
+// production) suspends until HOME is genuinely the foreground destination. In tests it is a
 // plain suspend lambda so the test controls exactly when navigation is unblocked.
 internal suspend fun navigateFromHome(
     awaitResumed: suspend () -> Unit,
