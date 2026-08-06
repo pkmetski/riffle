@@ -16,7 +16,9 @@ import okhttp3.mockwebserver.RecordedRequest
  *    section of the library items screen and is used for the direct-open EPUB test.
  *  - TEST_PDF_ITEM (item-test-3): a PDF item used for the PDF reader harness test.
  */
-class StubAbsServer {
+class StubAbsServer(
+    private val epubBytesProvider: (() -> ByteArray)? = null,
+) {
 
     companion object {
         const val TEST_USER_ID = "test-user-id"
@@ -126,7 +128,8 @@ class StubAbsServer {
 
     private fun epubFileResponse(): MockResponse {
         val context = InstrumentationRegistry.getInstrumentation().context
-        val bytes = context.assets.open("test.epub").use { it.readBytes() }
+        val bytes = epubBytesProvider?.invoke()
+            ?: context.assets.open("test.epub").use { it.readBytes() }
         return MockResponse()
             .setResponseCode(200)
             .addHeader("Content-Type", "application/epub+zip")

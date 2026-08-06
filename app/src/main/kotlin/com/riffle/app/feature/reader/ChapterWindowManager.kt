@@ -91,6 +91,8 @@ internal class ChapterWindowManager(chaptersBehind: Int) {
         totalChapters: Int,
         viewportHeight: Int = 0,
         appendOnlyMaxWindow: Int = 0,
+        backwardNavigationIntent: Boolean = false,
+        topChapterStillPlaceholder: Boolean = false,
     ): Decision {
         if (window.isEmpty()) return Decision.Hold
 
@@ -119,10 +121,25 @@ internal class ChapterWindowManager(chaptersBehind: Int) {
         // `scrollY < firstChapterHeight/2` is a false positive that removes the trailing chapter
         // and prepends behind content, then leaves the window still sub-viewport with no further
         // trigger to fire AppendOnly (no scroll events fire when maxScrollY==0).
+        // A short first resource can be smaller than half the viewport. In that geometry the
+        // viewport midpoint remains in the following chapter even at scrollY=0, so chapter
+        // indices cannot tell a genuine backward gesture from a forward-shift compensation.
+        // Require direction supplied by the controller: forward intent absorbs compensation,
+        // while backward intent can prepend even when the scroll view is pinned at zero.
+        // One unmeasured prepend at a time. A prepended chapter enters at a screen-sized blank
+        // placeholder; on a slow device a large real chapter takes seconds to load and measure.
+        // Each further backward pull during that window would prepend ANOTHER blank placeholder
+        // (its scrollY threshold is met inside the placeholder), and a few quick pulls replace
+        // every rendered chapter in the window with white placeholders — field-observed
+        // 2026-08-04 as a solid white screen at the ch11/Part III boundary. Holding here until
+        // the pending prepend measures keeps at most one blank screen above the reader; the
+        // measure's compensating scroll change re-runs the decision immediately after.
         val shouldShiftBackward = !skipBackward
             && scrollY < firstChapterHeight / 2
             && topIndex > 0
             && !fitsInViewport
+            && backwardNavigationIntent
+            && !topChapterStillPlaceholder
         val atBottomOfLoadedWindow = viewportHeight > 0 &&
             loadedContentBottom > viewportHeight &&
             scrollY + viewportHeight >= loadedContentBottom
@@ -136,7 +153,27 @@ internal class ChapterWindowManager(chaptersBehind: Int) {
         // by growing the window without dropping the top. Both conditions are mutually exclusive with
         // loadedContentBottom > viewportHeight, so gating out ShiftForward here does not affect the
         // atBottomOfLoadedWindow trigger path.
-        val shouldShiftForward = !fitsInViewport && ContinuousPositionTracker.forwardShiftNeeded(
+        // Geometric guard on top-chapter eviction. The behind budget counts CHAPTERS, but a
+        // sub-viewport part-title between the top chapter and the midpoint chapter makes the
+        // index gap overshoot while the reader is still geometrically at the top chapter's
+        // bottom edge. Right after a backward prepend the compensated scrollY equals exactly
+        // firstChapterHeight; evicting the top chapter then clamps scrollY back to ~0, which
+        // re-arms the backward trigger on the next gesture — an endless prepend/evict ping-pong
+        // the user sees as a growing blank region (the prepended chapter is evicted before its
+        // placeholder ever renders). Eviction is only legal when it leaves at least half a
+        // viewport of scrollback behind the reader. Callers that don't pass viewportHeight
+        // (legacy tests) keep the pure index-based behavior.
+        //
+        // The atBottomOfLoadedWindow trigger is exempt: at the bottom clamp the reader is
+        // wedged against the end of loaded content and eviction is the only way to progress
+        // (see the short-trailing-chapter wall-off tests) — and that state is geometrically
+        // disjoint from the post-prepend state this guard protects (right after a prepend the
+        // viewport sits near the TOP of the loaded window, viewports away from the bottom clamp).
+        val evictionLeavesScrollback = viewportHeight <= 0 ||
+            atBottomOfLoadedWindow ||
+            scrollY - firstChapterHeight >= viewportHeight / 2
+        val shouldShiftForward = !backwardNavigationIntent && evictionLeavesScrollback &&
+            !fitsInViewport && ContinuousPositionTracker.forwardShiftNeeded(
             viewportChapterIndex = viewportChapterIndex,
             topIndex = topIndex,
             loadedChapterCount = window.size,
@@ -147,21 +184,28 @@ internal class ChapterWindowManager(chaptersBehind: Int) {
 
         val moreChaptersExist = topIndex + window.size < totalChapters
         // AppendOnly is opt-in via [appendOnlyMaxWindow] > 0 so legacy call sites (all existing
-        // tests) preserve their prior Hold behavior. The cap prevents a pathological all-short-
-        // chapters book from loading the entire spine at open — the controller passes a small
-        // constant (~8) that comfortably covers real front-matter sequences but stops runaway.
+        // tests) preserve their prior Hold behavior.
         //
         // Fires in two cases (see Decision.AppendOnly docstring):
         // 1. fitsInViewport: all loaded content fits in one viewport (scrollY pinned at 0).
-        // 2. atBottomOfLoadedWindow: the viewport bottom already touches the end of loaded content
-        //    but the window is under its max size. ShiftForward here would drop the top chapter,
-        //    reset scrollY to 0, trigger ShiftBackward (which prepends the dropped chapter at
-        //    placeholder height), then overshoot the forward trigger again — an infinite oscillation.
-        //    AppendOnly breaks the loop by extending forward without losing the opening chapter.
-        val shouldAppendOnly = (fitsInViewport || atBottomOfLoadedWindow) &&
-            moreChaptersExist &&
+        //    The window-size cap does NOT apply here: when all content fits in one screen there
+        //    are no scroll events, so the only way to break the deadlock is to keep appending
+        //    chapters until content spills past the viewport and the user can scroll. The cap
+        //    is self-enforced naturally — AppendOnly stops as soon as fitsInViewport flips to
+        //    false. Without this bypass, a book where exactly [appendOnlyMaxWindow] short
+        //    front-matter chapters fit in one viewport would lock the reader: AppendOnly is
+        //    exhausted, ShiftForward is suppressed by fitsInViewport, no scroll events fire
+        //    at maxScrollY==0, and maybeShift never re-runs.
+        // 2. atBottomOfLoadedWindow: the viewport bottom already touches the end of loaded
+        //    content but the window is under its max size. ShiftForward here would drop the top
+        //    chapter, reset scrollY to 0, trigger ShiftBackward (which prepends the dropped
+        //    chapter at placeholder height), then overshoot the forward trigger again — an
+        //    infinite oscillation. AppendOnly breaks the loop by extending forward without losing
+        //    the opening chapter. The cap ([appendOnlyMaxWindow]) applies here because ShiftForward
+        //    is the correct action once the window is large enough.
+        val shouldAppendOnly = moreChaptersExist &&
             appendOnlyMaxWindow > 0 &&
-            window.size < appendOnlyMaxWindow
+            (fitsInViewport || (atBottomOfLoadedWindow && window.size < appendOnlyMaxWindow))
 
         // AppendOnly takes priority over ShiftForward: when the window can still grow, extend it
         // before evicting the top chapter. ShiftForward only fires once the window is full or
