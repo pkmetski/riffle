@@ -753,15 +753,13 @@ fun MainScreen(
                 LibraryItemDetailScreen(
                     windowSizeClass = windowSizeClass,
                     onNavigateBack = {
-                        // Guard against double-pop during the exit animation: the exit animation
-                        // keeps library_item_detail visible for ~300ms. A second tap during that
-                        // window re-fires this callback, but the committed back stack has already
-                        // moved on — check before popping to prevent a second navController.popBackStack()
-                        // from removing library_items and flashing the HOME spinner.
-                        if (navController.currentBackStack.value
-                                .lastOrNull { it.destination.route != null } == backStackEntry) {
-                            navController.popBackStack()
-                        }
+                        guardedNavigateBack(
+                            isStillTop = {
+                                navController.currentBackStack.value
+                                    .lastOrNull { it.destination.route != null } == backStackEntry
+                            },
+                            popBack = { navController.popBackStack() },
+                        )
                     },
                     onReadItem = { item ->
                         readerRouteFor(item)?.let { navController.navigate(it) }
@@ -1058,6 +1056,19 @@ internal fun libraryItemsBackEnabled(
 // the predictive-back preview destination that [currentBackStackEntryAsState] temporarily reflects.
 internal fun committedTopRoute(backStackRoutes: List<String?>): String? =
     backStackRoutes.lastOrNull { it != null }
+
+/**
+ * Calls [popBack] only if [isStillTop] returns true.
+ *
+ * Guards back-navigation callbacks in sub-screens against double-pops during Compose exit
+ * animations. When a screen exits, its composable stays alive for the animation duration
+ * (~300ms). A second tap on the ← button during that window re-fires [onNavigateBack], but the
+ * committed back stack has already advanced — [isStillTop] catches this and skips the pop to
+ * prevent removing the wrong entry (e.g. library_items → HOME spinner).
+ */
+internal fun guardedNavigateBack(isStillTop: () -> Boolean, popBack: () -> Unit) {
+    if (isStillTop()) popBack()
+}
 
 internal fun isReaderRoute(route: String?): Boolean =
     route?.startsWith(EPUB_READER.substringBefore("{")) == true ||

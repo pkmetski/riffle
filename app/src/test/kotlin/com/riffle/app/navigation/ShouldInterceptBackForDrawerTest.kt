@@ -204,3 +204,35 @@ class CommittedTopRouteTest {
         assertEquals("home", committedTopRoute(listOf(null, "home")))
     }
 }
+
+/**
+ * Pins the double-tap guard fix for the burger-menu freeze.
+ *
+ * Root cause: the ← back button on library_item_detail sits at the same screen coordinates as
+ * ☰ on library_items. Compose's exit animation keeps library_item_detail alive for ~300ms after
+ * the first tap commits the pop. A second tap during that window re-fires onNavigateBack → a
+ * second navController.popBackStack() removes library_items and surfaces HOME → white spinner.
+ *
+ * The fix wraps the pop in guardedNavigateBack(), which checks isStillTop() before popping.
+ * At double-tap time the entry is already gone from the committed back stack, so isStillTop()
+ * returns false and the second pop is suppressed.
+ *
+ * Assertion that flips red if the guard is removed: the `does not call popBack` test would fail
+ * because popBack would be called even when isStillTop() returns false.
+ */
+class GuardedNavigateBackTest {
+
+    @Test
+    fun `calls popBack when entry is still the committed top`() {
+        var called = false
+        guardedNavigateBack(isStillTop = { true }, popBack = { called = true })
+        assertTrue(called)
+    }
+
+    @Test
+    fun `does not call popBack when entry is no longer the committed top (double-tap during exit animation)`() {
+        var called = false
+        guardedNavigateBack(isStillTop = { false }, popBack = { called = true })
+        assertFalse(called)
+    }
+}
