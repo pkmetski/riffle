@@ -96,14 +96,13 @@ internal class DefaultRendererBridge(
         // For TOC/search/resume navigation (landAtStartWhenNoTarget=true), use the fragment id
         // from locations.fragments or the href anchor to snap the JS to the exact target element.
         //
-        // For annotation navigation (landAtStartWhenNoTarget=false), SKIP the fragment id even if
-        // one is present. extractAnchorFromCfi stores the innermost NAMED ancestor of the
-        // highlighted text node — typically a <section id="ch01"> or <div id="main"> that spans
-        // the entire chapter. Snapping to that element always resolves to column 0 (page 1)
-        // because getBoundingClientRect().left for a section that starts at the chapter top is 0.
-        // A highlight locator's TextQuote is the precise DOM target. A bookmark has no text range:
-        // its persisted live-reader progression is the precise page boundary. Character-count
-        // progression remains only a fallback for missing/stale highlight quotes.
+        // For annotation navigation (landAtStartWhenNoTarget=false), skip CFI-derived section-level
+        // fragments (the extractAnchorFromCfi ancestor is typically a <section id="ch01"> spanning
+        // the whole chapter; getBoundingClientRect().left is 0 for it → always column 0). Instead,
+        // use fragments only when withAnnotationNavigationAnchor placed a paragraph-level id there
+        // (i.e. a bookmark with a fragmentAnchor captured at creation time from the live page). For
+        // highlights the TextQuote is the precise DOM target; for legacy bookmarks the persisted
+        // live-reader progression is used as fallback via the else branch below.
         val fragmentId = when {
             landAtStartWhenNoTarget ->
                 locator.locations.fragments.firstOrNull()
