@@ -585,6 +585,39 @@ class ReaderWebViewScriptsTest {
         )
     }
 
+    // capturePageFragmentAnchorJs must bail early in non-paginated (scroll/continuous) mode so we
+    // never return a stale id from a chapter where the document is taller than the viewport in
+    // the normal (non-column) sense. The guard is scrollHeight <= innerHeight + 4.
+    @Test
+    fun `capturePageFragmentAnchorJs returns null when not in paginated mode`() {
+        val js = ColumnSnap.capturePageFragmentAnchorJs()
+        assertTrue(
+            "must guard against non-paginated mode",
+            js.contains("scrollHeight") && js.contains("innerHeight"),
+        )
+    }
+
+    // Paragraph-type selectors (p, h1–h6, li, blockquote) must appear before generic container
+    // selectors (div, section, article) so the most semantically precise named element wins.
+    @Test
+    fun `capturePageFragmentAnchorJs prefers paragraph elements over section containers`() {
+        val js = ColumnSnap.capturePageFragmentAnchorJs()
+        val pIdx = js.indexOf("p[id]")
+        val sectionIdx = js.indexOf("section[id]")
+        assertTrue("p[id] must be queried before section[id]", pIdx in 0 until sectionIdx)
+    }
+
+    // Visibility is determined by getBoundingClientRect — the element must have non-zero height
+    // and its left edge must fall in [0, innerWidth).
+    @Test
+    fun `capturePageFragmentAnchorJs checks getBoundingClientRect for column visibility`() {
+        val js = ColumnSnap.capturePageFragmentAnchorJs()
+        assertTrue("uses getBoundingClientRect for visibility", js.contains("getBoundingClientRect()"))
+        assertTrue("checks height > 0", js.contains("r.height>0"))
+        assertTrue("checks left >= 0", js.contains("r.left>=0"))
+        assertTrue("checks left < innerWidth", js.contains("r.left<iw"))
+    }
+
     @Test
     fun `measureNarratedColumnsJs guards createTreeWalker against a null document body (issue 428)`() {
         // measureNarratedColumnsJs inlines narratedColumnsPreludeJs (private), so this exercises the

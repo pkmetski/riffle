@@ -626,6 +626,33 @@ internal object ColumnSnap {
     }
 
     /**
+     * JS expression that finds the first paragraph-level element with an `id` attribute that is
+     * visible in the current paginated column (viewport). Returns a JSON-encoded string (the id)
+     * or `null` when not in paginated mode or no named element is visible.
+     *
+     * Element types are queried in priority order: block-text types (p, h1–h6, li, blockquote)
+     * before generic containers (div, section, article). The first match in the current viewport
+     * wins. `getBoundingClientRect().left` in [0, innerWidth) means the element starts in the
+     * current column.
+     *
+     * The result is wrapped by `evaluateJavascript` in outer JSON quotes, so the caller must
+     * call `raw.trim('"')` and then check for the literal string `"null"` before using.
+     */
+    fun capturePageFragmentAnchorJs(): String =
+        "(function(){" +
+            "var se=document.scrollingElement;" +
+            "if(!se||se.scrollHeight<=window.innerHeight+4)return null;" +
+            "var iw=window.innerWidth;" +
+            "var sel=['p[id]','h1[id]','h2[id]','h3[id]','h4[id]','h5[id]','h6[id]'," +
+            "'li[id]','blockquote[id]','div[id]','section[id]','article[id]'];" +
+            "for(var s=0;s<sel.length;s++){" +
+            "var els=document.querySelectorAll(sel[s]);" +
+            "for(var i=0;i<els.length;i++){" +
+            "var r=els[i].getBoundingClientRect();" +
+            "if(r.height>0&&r.left>=0&&r.left<iw)return els[i].id;}}" +
+            "return null;})()"
+
+    /**
      * Parse the raw string [measureNarratedColumnsJs] returned through `evaluateJavascript`.
      * `evaluateJavascript` wraps a returned string in JSON quotes (the inner JSON number array
      * has no quotes to escape) and returns `null` when the page is gone. Protocol:
