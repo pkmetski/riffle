@@ -4,6 +4,7 @@ import android.content.Context
 import android.view.ViewGroup.LayoutParams.MATCH_PARENT
 import android.view.ViewGroup.LayoutParams.WRAP_CONTENT
 import android.widget.LinearLayout
+import androidx.core.view.doOnNextLayout
 import com.riffle.core.domain.FormattingPreferences
 import com.riffle.core.logging.LogChannel
 import com.riffle.core.logging.Logger
@@ -863,7 +864,7 @@ internal class ContinuousWindowController(
         // A volume-key page is a fresh navigation just like a new touch gesture: release the
         // boundary detent once the revealed chapter is ready, or volume-only readers would stay
         // pinned at the boundary forever (touch releases it via onTouchDown instead).
-        if (!prependAwaitingMeasure && !prependAwaitingPaint) boundaryDetentArmed = false
+        if (!prependAwaitingMeasure && !prependAwaitingLayout && !prependAwaitingPaint) boundaryDetentArmed = false
         backwardShiftConsumedForTouchGesture = false
         backwardNavigationIntent = !forward
         clearLandingHold()
@@ -1062,6 +1063,18 @@ internal class ContinuousWindowController(
     private var prependAwaitingMeasure = false
 
     /**
+     * True from a backward prepend's first real measurement until the LinearLayout completes its
+     * layout pass with the new chapter height. The compensating scroll is deferred until then
+     * because NestedScrollView's max-scroll boundary is still based on the placeholder height
+     * until layout runs — applying port.scrollBy(delta) earlier clips the scroll to the old
+     * max-scroll, landing the user deep mid-chapter instead of at the boundary (field repro
+     * 2026-08-06: index.html measured to 42 704 px but scrollBy(40 367) only reached scrollY=2793
+     * because content height was still 2337 px in the layout). Included in [topSlotStillPlaceholder]
+     * so another ShiftBackward cannot fire while the first is still pending layout.
+     */
+    private var prependAwaitingLayout = false
+
+    /**
      * True from a backward prepend's first real measurement until Chromium reports the chapter
      * actually PAINTED (visual-state callback), or [PREPEND_PAINT_TIMEOUT_MS] elapses. Layout
      * height lands within ~300 ms even for a 33k-px chapter, but rasterization takes seconds on
@@ -1139,7 +1152,7 @@ internal class ContinuousWindowController(
         get() = maxOf(
             ContinuousPositionTracker.backwardPrependScrollFloor(
                 topSlotStillPlaceholder =
-                    prependAwaitingMeasure || prependAwaitingPaint || boundaryDetentArmed,
+                    prependAwaitingMeasure || prependAwaitingLayout || prependAwaitingPaint || boundaryDetentArmed,
                 topSlotHeightPx = measuredHeights.firstOrNull() ?: 0,
             ),
             backwardFlingFloorY,
@@ -1158,11 +1171,29 @@ internal class ContinuousWindowController(
             val i = webViews.indexOf(wv)
             prependAwaitingMeasure = false
             if (i >= 0) {
-                val delta = measuredPx - measuredHeights[i]
-                measuredHeights[i] = measuredPx
                 publishViewportFraction(wv, measuredPx)
+                // Update the layout params to the real height, triggering a layout pass.
+                // Do NOT update measuredHeights or compensate scroll yet: NestedScrollView's
+                // max-scroll boundary is still based on the placeholder height until layout runs.
+                // Calling port.scrollBy(delta) before layout clips the scroll to the old
+                // max-scroll — for a large chapter (e.g. a 42 704 px index) this lands the user
+                // deep mid-chapter instead of at the boundary (field repro 2026-08-06: expected
+                // scrollY=42 704, got 2793 because content height was still 2337 px in layout).
+                prependAwaitingLayout = true
                 wv.layoutParams = wv.layoutParams.also { it.height = measuredPx }
-                if (delta != 0) port.scrollBy(delta)
+                wv.doOnNextLayout {
+                    // Guard: if removeTop() evicted this wv before the layout pass completed,
+                    // measuredHeights no longer has a slot for it — skip the compensation.
+                    val j = webViews.indexOf(wv)
+                    if (j < 0) {
+                        prependAwaitingLayout = false
+                        return@doOnNextLayout
+                    }
+                    val delta = measuredPx - measuredHeights[j]
+                    measuredHeights[j] = measuredPx
+                    prependAwaitingLayout = false
+                    if (delta != 0) port.scrollBy(delta)
+                }
             }
         }
         wv.onBookBodyFont = { ff -> onBookBodyFont?.invoke(ff) }
@@ -1185,6 +1216,7 @@ internal class ContinuousWindowController(
         // placeholder measurement (recycle() detaches its onHeightMeasured), so the gates must
         // not stay latched or backward navigation stays blocked until the next window rebuild.
         prependAwaitingMeasure = false
+        prependAwaitingLayout = false
         boundaryDetentArmed = false
         releasePaintGate()
         val h = measuredHeights.removeAt(0)
@@ -1236,7 +1268,7 @@ internal class ContinuousWindowController(
             sY, viewportMidIndex, window, topIndex, allChapters.size, vh,
             appendOnlyMaxWindow = APPEND_ONLY_MAX_WINDOW,
             backwardNavigationIntent = backwardNavigationIntent,
-            topChapterStillPlaceholder = prependAwaitingMeasure || prependAwaitingPaint,
+            topChapterStillPlaceholder = prependAwaitingMeasure || prependAwaitingLayout || prependAwaitingPaint,
         )
         when (decision) {
             ChapterWindowManager.Decision.ShiftBackward -> {
@@ -1343,7 +1375,7 @@ internal class ContinuousWindowController(
         // Release the boundary detent only when the revealed chapter is genuinely ready — a new
         // gesture that starts while it is still loading/painting must stay pinned at the
         // boundary rather than pull into blank content.
-        if (!prependAwaitingMeasure && !prependAwaitingPaint) boundaryDetentArmed = false
+        if (!prependAwaitingMeasure && !prependAwaitingLayout && !prependAwaitingPaint) boundaryDetentArmed = false
         reapplyLandingAfterFallback = null
         reapplyLandingSuperseded = true
         pendingFocusAnnotationId = null
