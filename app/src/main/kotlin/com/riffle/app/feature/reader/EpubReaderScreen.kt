@@ -682,8 +682,10 @@ fun EpubReaderScreen(
                         isVisible = annotationsAvailable,
                         onToggle = {
                             viewModel.toggleBookmark {
-                                // capturePageFragmentAnchor is a paginated/vertical JS probe;
-                                // skip it in Continuous mode which has no rendererBridge JS seam.
+                                // MODE-FORK: capturePageFragmentAnchor is a paginated/vertical JS
+                                // probe; skip it in Continuous mode which has no rendererBridge JS
+                                // seam. Tracked by ReaderModeForkGuardTest — bump MAX_MODE_BRANCHES
+                                // if you add another fork nearby.
                                 rendererBridgeRef.value
                                     ?.takeIf { formattingPrefs.orientation != ReaderOrientation.Continuous }
                                     ?.capturePageFragmentAnchor()
