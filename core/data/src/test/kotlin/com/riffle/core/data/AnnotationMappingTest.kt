@@ -100,4 +100,22 @@ class AnnotationMappingTest {
         assertNull(back.imageHref)
         assertNull(back.imageSvg)
     }
+
+    @Test
+    fun `toDomain maps fragmentAnchor through to Annotation`() {
+        val entity = baseAnnotation().toEntity().copy(
+            type = AnnotationEntity.TYPE_BOOKMARK,
+            fragmentAnchor = "para-42",
+        )
+        assertEquals("para-42", entity.toDomain().fragmentAnchor)
+    }
+
+    @Test
+    fun `toDomain maps null fragmentAnchor for legacy bookmarks`() {
+        val entity = baseAnnotation().toEntity().copy(
+            type = AnnotationEntity.TYPE_BOOKMARK,
+            fragmentAnchor = null,
+        )
+        assertNull(entity.toDomain().fragmentAnchor)
+    }
 }

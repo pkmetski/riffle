@@ -66,6 +66,7 @@ interface AnnotationStore {
         /** Computed `font-family` at the bookmark's anchor element. Same non-null contract as
          *  [createHighlight]. */
         originFontFamily: String,
+        fragmentAnchor: String? = null,
     ): Annotation
 
     /**

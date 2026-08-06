@@ -36,7 +36,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         PlaylistItemEntity::class,
         PublicationMetricsCacheEntity::class,
     ],
-    version = 63,
+    version = 64,
     exportSchema = true,
 )
 abstract class RiffleDatabase : RoomDatabase() {
@@ -1688,6 +1688,15 @@ abstract class RiffleDatabase : RoomDatabase() {
                     "ALTER TABLE `book_formatting_preferences` " +
                         "ADD COLUMN `coloredChapterMap` INTEGER"
                 )
+            }
+        }
+
+        // Paragraph-level DOM anchor captured at bookmark creation time (paginated mode). Used to
+        // snap the reader column to the exact element instead of relying on progression math.
+        // NULL for all pre-existing bookmarks and every non-BOOKMARK annotation type.
+        val MIGRATION_63_64 = object : Migration(63, 64) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `annotations` ADD COLUMN `fragmentAnchor` TEXT")
             }
         }
 

@@ -162,7 +162,7 @@ class ReaderSessionLifecycleTest {
         override suspend fun createBookmark(
             sourceId: String, itemId: String, cfi: String, textSnippet: String, chapterHref: String,
             spineIndex: Int, progression: Double, bookmarkTitle: String,
-            originFontFamily: String,
+            originFontFamily: String, fragmentAnchor: String?,
         ): Annotation = error("not needed")
         override suspend fun createImageAnnotation(
             sourceId: String, itemId: String, cfi: String, textSnippet: String, chapterHref: String,

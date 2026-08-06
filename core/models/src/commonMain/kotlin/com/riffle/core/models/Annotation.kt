@@ -41,6 +41,7 @@ data class Annotation(
      * reader. Nullable — legacy rows and rows received via W3C sync fall back to plaintext.
      */
     val textSnippetHtml: String? = null,
+    val fragmentAnchor: String? = null,
 )
 
 /**

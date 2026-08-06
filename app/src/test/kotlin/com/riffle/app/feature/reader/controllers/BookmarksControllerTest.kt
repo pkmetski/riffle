@@ -61,7 +61,7 @@ class BookmarksControllerTest {
         override suspend fun createBookmark(
             sourceId: String, itemId: String, cfi: String, textSnippet: String,
             chapterHref: String, spineIndex: Int, progression: Double, bookmarkTitle: String,
-            originFontFamily: String,
+            originFontFamily: String, fragmentAnchor: String?,
         ): Annotation {
             val a = Annotation(
                 id = "bm-${created.size}",

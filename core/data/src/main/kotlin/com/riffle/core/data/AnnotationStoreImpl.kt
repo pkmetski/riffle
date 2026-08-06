@@ -109,6 +109,7 @@ class AnnotationStoreImpl(
         progression: Double,
         bookmarkTitle: String,
         originFontFamily: String,
+        fragmentAnchor: String?,
     ): Annotation {
         require(originFontFamily.isNotBlank()) {
             "originFontFamily must be non-blank for locally-created bookmarks (issue #484)"
@@ -134,6 +135,7 @@ class AnnotationStoreImpl(
             lastModifiedByDeviceId = deviceId,
             deleted = false,
             originFontFamily = originFontFamily,
+            fragmentAnchor = fragmentAnchor,
         )
         dao.upsert(entity)
         return entity.toDomain()
@@ -456,6 +458,7 @@ internal fun Annotation.toEntity() = AnnotationEntity(
     originFontFamily = originFontFamily,
     emphasisStyles = EmphasisStyle.encode(emphasisStyles.orEmpty()),
     textSnippetHtml = textSnippetHtml,
+    fragmentAnchor = fragmentAnchor,
 )
 
 internal fun AnnotationEntity.toDomain() = Annotation(
@@ -482,4 +485,5 @@ internal fun AnnotationEntity.toDomain() = Annotation(
     originFontFamily = originFontFamily,
     emphasisStyles = EmphasisStyle.decode(emphasisStyles),
     textSnippetHtml = textSnippetHtml,
+    fragmentAnchor = fragmentAnchor,
 )
