@@ -1337,7 +1337,10 @@ internal fun annotationNavigationOptions(
         landAtStartWhenNoTarget = false,
         snapProgressionToNearestColumn = isBookmark,
         alignToTop = isBookmark,
-        focusAnnotationId = annotationId,
+        // Bookmarks have no note-glyph decoration in the WebView ("annotation-notes" group).
+        // Passing focusAnnotationId for a bookmark makes the rAF tracker wait 600 frames (~10s)
+        // for a decoration that never arrives, overriding page turns the whole time.
+        focusAnnotationId = annotationId.takeIf { !isBookmark },
     )
 
 @OptIn(ExperimentalReadiumApi::class)
