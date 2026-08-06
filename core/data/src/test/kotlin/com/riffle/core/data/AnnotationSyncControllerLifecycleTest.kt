@@ -924,6 +924,34 @@ class AnnotationSyncControllerLifecycleTest {
         )
     }
 
+    // ===== Fix 6: syncOnOpen preserves fragmentAnchor on existing bookmark rows =====
+
+    @Test
+    fun `syncOnOpen preserves fragmentAnchor on existing bookmark rows`() = runTest {
+        // Seed Room with a bookmark that has a captured paragraph-level element id. The W3C
+        // wire format does NOT carry fragmentAnchor, so a naive entity rebuild from the parsed
+        // W3CAnnotation drops the value — every sync round-trip resets it to null and silently
+        // regresses new-style bookmarks to the legacy progression-only navigation path.
+        // Regression: fragmentAnchor must survive the sync round-trip.
+        val anchor = "para-ch03"
+        val local = highlightEntity("uuid-anchor-preserve", updatedAt = 1000L)
+            .copy(type = AnnotationEntity.TYPE_BOOKMARK, fragmentAnchor = anchor)
+        dao.localAnnotations += local
+
+        target.files["annotations-own.jsonld"] = jsonArrayOf(
+            w3c("uuid-anchor-preserve", updatedAt = 1000L, deviceId = DEVICE_ID),
+        )
+
+        newController().syncOnOpen(SRV, NS, ITEM)
+
+        val upserted = dao.upserts.single { it.id == "uuid-anchor-preserve" }
+        assertEquals(
+            "fragmentAnchor must survive the sync round-trip",
+            anchor,
+            upserted.fragmentAnchor,
+        )
+    }
+
     // ===== stamp + report + enqueue-on-failure =====
 
     @Test
