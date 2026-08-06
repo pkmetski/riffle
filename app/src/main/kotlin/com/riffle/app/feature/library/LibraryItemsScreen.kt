@@ -96,8 +96,11 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.painter.ColorPainter
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.boundsInWindow
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
@@ -1092,6 +1095,16 @@ internal fun LibrarySearchHeader(
         keyboardController?.hide()
     }
     val dividerColor = MaterialTheme.colorScheme.outlineVariant
+    val view = LocalView.current
+    DisposableEffect(view) {
+        onDispose {
+            // Clear the exclusion rect when this composable leaves composition so
+            // other screens are not affected.
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+                view.systemGestureExclusionRects = emptyList()
+            }
+        }
+    }
     Column(modifier = Modifier.windowInsetsPadding(WindowInsets.systemBars.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal))) {
         Box(
             modifier = Modifier
@@ -1103,7 +1116,23 @@ internal fun LibrarySearchHeader(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.padding(end = 16.dp),
         ) {
-            IconButton(onClick = onOpenDrawer) {
+            IconButton(
+                onClick = onOpenDrawer,
+                modifier = Modifier.onGloballyPositioned { coords ->
+                    // The ☰ button sits within Android's left-edge back-gesture zone (~40dp).
+                    // A quick tap here can be misinterpreted as a swipe-back gesture by the
+                    // system gesture monitor, firing a spurious BACK event. Declaring a system
+                    // gesture exclusion rect over the button area prevents this capture so the
+                    // tap always reaches the app as a click, not a back gesture.
+                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+                        val bounds = coords.boundsInWindow()
+                        // Extend left to x=0 to cover the full gesture zone from the screen edge.
+                        view.systemGestureExclusionRects = listOf(
+                            android.graphics.Rect(0, bounds.top.toInt(), bounds.right.toInt(), bounds.bottom.toInt())
+                        )
+                    }
+                },
+            ) {
                 Icon(Icons.Default.Menu, contentDescription = "Open menu")
             }
             Text(

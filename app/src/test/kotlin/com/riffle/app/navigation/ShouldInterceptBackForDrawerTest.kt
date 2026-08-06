@@ -79,6 +79,20 @@ class LibraryItemsBackEnabledTest {
         ))
     }
 
+    // currentRoute comes from currentBackStackEntryAsState() which reflects the PREVIEW
+    // destination during predictive back. During a back gesture from library_item_detail,
+    // currentRoute is already "library_items/..." — so libBackEnabled stays true with no lag.
+    // Spurious exits in this state are blocked at handler-fire time by isCommittedOnLibraryItems().
+    @Test
+    fun `enabled when library_items is the predictive-back preview destination from sub-screen`() {
+        assertTrue(libraryItemsBackEnabled(
+            currentRoute = "library_items/lib-1/Books",
+            usePermanentDrawer = false,
+            drawerCurrentOpen = false,
+            drawerTargetOpen = false,
+        ))
+    }
+
     @Test
     fun `disabled when library_item_detail is foreground (predictive-back preview)`() {
         assertFalse(libraryItemsBackEnabled(

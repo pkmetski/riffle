@@ -1022,11 +1022,13 @@ internal fun shouldInterceptBackForDrawer(
  * Whether [LibraryItemsScreen]'s BackHandler should be enabled.
  *
  * Two conditions must both hold:
- * 1. [currentRoute] is the library-items destination — must come from
- *    [NavController.currentBackStack] (the committed StateFlow), NOT from
- *    [currentBackStackEntryAsState()]. The latter temporarily reflects the PREVIEW destination
- *    during a predictive-back gesture, which would enable this handler while a sub-screen
- *    (item detail, series, etc.) is still the real top, causing unexpected exits.
+ * 1. [currentRoute] is the library-items destination — sourced from
+ *    [currentBackStackEntryAsState()], which already reflects the PREVIEW destination during a
+ *    predictive-back gesture. This means the handler stays enabled (= true) from the gesture
+ *    start through commit with no recomposition lag. Unexpected exits while a sub-screen is the
+ *    committed top are prevented at runtime by [LibraryItemsScreen]'s [isCommittedOnLibraryItems]
+ *    check, which reads [NavController.currentBackStack] synchronously at handler-fire time and
+ *    delegates to [onNavigateBack] instead of running library back actions.
  * 2. The drawer is not open or animating — when it is, the top-level drawer BackHandler must
  *    take Back to close the drawer (see [shouldInterceptBackForDrawer]).
  */
