@@ -1001,6 +1001,31 @@ class ContinuousPositionTrackerTest {
     }
 
     @Test
+    fun `backward prepend scroll floor holds at real chapter height during layout-pending window`() {
+        // Regression 2026-08-06: after onHeightMeasured fires, prependAwaitingLayout=true until
+        // doOnNextLayout completes the compensating scrollBy. During that window the controller
+        // feeds topSlotStillPlaceholder=true (prependAwaitingLayout | …) into backwardPrependScrollFloor.
+        // The floor must equal the real measured chapter height — not 0 — to prevent any fling or
+        // drag from carrying the user past the boundary before the compensating scroll fires.
+        assertEquals(
+            42_704,
+            ContinuousPositionTracker.backwardPrependScrollFloor(
+                topSlotStillPlaceholder = true,  // prependAwaitingLayout=true post-measurement
+                topSlotHeightPx = 42_704,        // real height measured by JS (index.html field repro)
+            ),
+        )
+        // Once doOnNextLayout fires and prependAwaitingLayout clears (and boundaryDetentArmed
+        // clears on the next touch-down), the floor drops to zero — normal scrolling resumes.
+        assertEquals(
+            0,
+            ContinuousPositionTracker.backwardPrependScrollFloor(
+                topSlotStillPlaceholder = false,
+                topSlotHeightPx = 42_704,
+            ),
+        )
+    }
+
+    @Test
     fun `backward prepend scroll floor holds at real chapter height when boundary detent is armed after measurement`() {
         // Regression for 2026-08-06: prependChapter must arm boundaryDetentArmed so the floor
         // stays at the chapter's real height even after prependAwaitingMeasure becomes false

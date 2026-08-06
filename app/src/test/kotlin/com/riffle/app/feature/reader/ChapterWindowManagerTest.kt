@@ -427,6 +427,57 @@ class ChapterWindowManagerTest {
     }
 
     @Test
+    fun `backward shift holds during the layout-pending window after measurement completes`() {
+        // Regression 2026-08-06: after a prependChapter the measuring callback fires, sets the
+        // WebView's layoutParams to the real height, and returns. The LinearLayout hasn't run its
+        // layout pass yet — NestedScrollView's max-scroll boundary still reflects the placeholder
+        // height. ContinuousWindowController sets prependAwaitingLayout=true from that moment until
+        // doOnNextLayout fires and threads topChapterStillPlaceholder=true into decide().
+        // Without this gate, decide() sees a fully-measured (non-placeholder) slot and may fire
+        // another ShiftBackward before the first compensating scrollBy has been applied, stacking
+        // another blank prepend on top of an already-correcting one.
+        val mgr = ChapterWindowManager(chaptersBehind = 1)
+        val window = listOf(
+            // ch06 is now measured (42 704 px) but the LinearLayout hasn't committed that height
+            // yet — controller still tracks the real height in measuredHeights[0] for this test,
+            // but passes topChapterStillPlaceholder=true to reflect the layout-pending state.
+            slot("ch06",  top = 0,      height = 42_704),
+            slot("ch07",  top = 42_704, height = 34_372),
+            slot("ch08",  top = 77_076, height = 34_372),
+        )
+        val held = mgr.decide(
+            scrollY = 900,
+            viewportChapterIndex = 1,
+            window = window,
+            topIndex = 5,
+            totalChapters = 12,
+            viewportHeight = 2_337,
+            backwardNavigationIntent = true,
+            topChapterStillPlaceholder = true, // prependAwaitingLayout=true in controller
+        )
+        assertEquals(
+            "must hold while the layout pass for the measured prepend is still pending",
+            ChapterWindowManager.Decision.Hold,
+            held,
+        )
+        val afterLayout = mgr.decide(
+            scrollY = 900,
+            viewportChapterIndex = 1,
+            window = window,
+            topIndex = 5,
+            totalChapters = 12,
+            viewportHeight = 2_337,
+            backwardNavigationIntent = true,
+            topChapterStillPlaceholder = false, // doOnNextLayout fired, prependAwaitingLayout=false
+        )
+        assertEquals(
+            "once the layout pass completes the next backward shift may fire",
+            ChapterWindowManager.Decision.ShiftBackward,
+            afterLayout,
+        )
+    }
+
+    @Test
     fun `forward shift still fires once the reader has scrolled clear of the top chapter`() {
         val mgr = ChapterWindowManager(chaptersBehind = 1)
         val window = listOf(
