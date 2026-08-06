@@ -17,12 +17,13 @@ internal fun Locator.withAnnotationNavigationAnchor(annotation: Annotation?): Lo
         annotation?.type == AnnotationEntity.TYPE_BOOKMARK -> {
             val anchor = annotation.fragmentAnchor
             if (anchor != null) {
-                // New-style bookmark: element-anchored. Also restore progression as JS fallback
-                // if getElementById misses the element (e.g. element id changed in a revised EPUB).
-                val persistedProgression = annotation.progression.takeIf { it > 0.0 }
+                // New-style bookmark: element-anchored. Progression was captured precisely at
+                // creation time (live-reader column ratio), so trust it unconditionally — no >0.0
+                // guard. The JS tries getElementById first; progression is the fallback if the
+                // element id disappears in a revised EPUB, including the 0.0 case (first column).
                 copy(locations = locations.copy(
                     fragments = listOf(anchor),
-                    progression = persistedProgression ?: locations.progression,
+                    progression = annotation.progression,
                 ))
             } else {
                 // Legacy bookmark: no captured element id. Clear any CFI-derived container fragments

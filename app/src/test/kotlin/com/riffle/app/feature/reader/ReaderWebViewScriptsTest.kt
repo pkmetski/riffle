@@ -646,14 +646,13 @@ class ReaderWebViewScriptsTest {
     }
 
     // DefaultRendererBridge.capturePageFragmentAnchor parses the raw evaluateJavascript result —
-    // a JS null comes back as the string "null" (no outer quotes), and a JS string like "para-ch03"
-    // comes back as "\"para-ch03\"" (JSON-encoded). The trim('"') + "null" check must handle both.
+    // a JS null comes back as the 4-char string "null" (no outer quotes), and a JS string like
+    // "para-ch03" comes back as "\"para-ch03\"" (JSON-encoded). The trim('"') + "null" check
+    // handles both: trim is a no-op for "null" and strips quotes for JSON strings.
     @Test
     fun `capturePageFragmentAnchor returns null for JS null result`() {
-        // The evaluateJavascript wrapper returns "null" (quoted) for a JS null.
-        // Verify the trimming logic handles all null variants.
-        // We test the parsing logic by constructing the expected raw strings.
-        val nullJson = "\"null\""   // what evaluateJavascript returns for JS null
+        // evaluateJavascript returns the 4-char string "null" (no outer quotes) for a JS null.
+        val nullJson = "null"   // what evaluateJavascript returns for JS null
         val trimmed = nullJson.trim('"')
         assertNull(
             "null JSON string must parse to null",

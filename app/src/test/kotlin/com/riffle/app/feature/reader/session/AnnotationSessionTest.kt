@@ -1152,6 +1152,47 @@ class AnnotationSessionTest {
     }
 
     @Test
+    fun `navigateToAnnotation preserves zero progression for new-style bookmark on first column`() = runTest {
+        // Regression: annotation.progression.takeIf { it > 0.0 } dropped 0.0, falling back to
+        // the CFI-derived progression (0.71 here). A new-style bookmark on the first column of a
+        // chapter has progression=0.0, which is a legitimate value. If getElementById misses the
+        // element (revised EPUB), the JS fallback must use 0.0, not the CFI approximation.
+        val dispatcher = UnconfinedTestDispatcher(testScheduler)
+        val sessionScope = CoroutineScope(dispatcher)
+        val store = FakeAnnotationStore()
+        val syncOps = FakeSyncOps()
+        val cfiFallbackLocator = buildLocator(progression = 0.71)
+        val bookmark = fakeAnnotation(
+            id = "bm-first-col",
+            type = AnnotationEntity.TYPE_BOOKMARK,
+            cfi = "epubcfi(/6/4!/4/2)",
+        ).copy(progression = 0.0, fragmentAnchor = "para-intro")
+        store.allAnnotations.value = listOf(bookmark)
+        val session = makeSession(store = store, syncOps = syncOps, scope = sessionScope)
+        session.bind(
+            sourceId = "srv1", namespace = "ns1", itemId = "item1",
+            highlightRenderResolver = { emptyList() },
+            cfiLocatorResolver = { cfiFallbackLocator },
+        )
+        val received = mutableListOf<AnnotationSession.AnnotationNavigationEvent>()
+        val collectJob = sessionScope.launch {
+            session.annotationNavigationEvents.collect { received.add(it) }
+        }
+
+        session.navigateToAnnotation(bookmark.id)
+
+        assertEquals(1, received.size)
+        assertEquals(
+            "new-style bookmark at progression=0.0 must NOT fall back to the CFI progression (0.71)",
+            0.0,
+            received[0].locator.locations.progression!!,
+            0.000001,
+        )
+        collectJob.cancel()
+        sessionScope.coroutineContext[Job]?.cancel()
+    }
+
+    @Test
     fun `navigateToAnnotation retains progression path for legacy bookmarks without fragmentAnchor`() = runTest {
         val dispatcher = UnconfinedTestDispatcher(testScheduler)
         val sessionScope = CoroutineScope(dispatcher)
