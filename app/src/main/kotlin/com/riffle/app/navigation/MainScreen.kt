@@ -749,10 +749,20 @@ fun MainScreen(
                 arguments = listOf(
                     navArgument("itemId") { type = NavType.StringType },
                 )
-            ) {
+            ) { backStackEntry ->
                 LibraryItemDetailScreen(
                     windowSizeClass = windowSizeClass,
-                    onNavigateBack = { navController.popBackStack() },
+                    onNavigateBack = {
+                        // Guard against double-pop during the exit animation: the exit animation
+                        // keeps library_item_detail visible for ~300ms. A second tap during that
+                        // window re-fires this callback, but the committed back stack has already
+                        // moved on — check before popping to prevent a second navController.popBackStack()
+                        // from removing library_items and flashing the HOME spinner.
+                        if (navController.currentBackStack.value
+                                .lastOrNull { it.destination.route != null } == backStackEntry) {
+                            navController.popBackStack()
+                        }
+                    },
                     onReadItem = { item ->
                         readerRouteFor(item)?.let { navController.navigate(it) }
                     },
