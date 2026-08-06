@@ -72,21 +72,21 @@ class LibraryItemsBackEnabledTest {
     @Test
     fun `enabled when library_items is foreground and drawer is closed`() {
         assertTrue(libraryItemsBackEnabled(
-            currentRoute = "library_items/lib-1/Books",
+            committedRoute = "library_items/lib-1/Books",
             usePermanentDrawer = false,
             drawerCurrentOpen = false,
             drawerTargetOpen = false,
         ))
     }
 
-    // currentRoute comes from currentBackStackEntryAsState() which reflects the PREVIEW
-    // destination during predictive back. During a back gesture from library_item_detail,
-    // currentRoute is already "library_items/..." — so libBackEnabled stays true with no lag.
-    // Spurious exits in this state are blocked at handler-fire time by isCommittedOnLibraryItems().
+    // Pins the fix for the burger-menu freeze when swiping back FROM library_items:
+    // the committed route stays library_items while the predictive-back gesture is in progress
+    // (the gesture hasn't committed yet), so the handler stays armed and intercepts the back
+    // to run ClearSearch/ResetTab/Exit instead of letting NavHost pop library_items.
     @Test
-    fun `enabled when library_items is the predictive-back preview destination from sub-screen`() {
+    fun `enabled during predictive-back FROM library_items (committed top is still library_items)`() {
         assertTrue(libraryItemsBackEnabled(
-            currentRoute = "library_items/lib-1/Books",
+            committedRoute = "library_items/lib-1/Books",
             usePermanentDrawer = false,
             drawerCurrentOpen = false,
             drawerTargetOpen = false,
@@ -96,7 +96,7 @@ class LibraryItemsBackEnabledTest {
     @Test
     fun `disabled when library_item_detail is foreground (predictive-back preview)`() {
         assertFalse(libraryItemsBackEnabled(
-            currentRoute = "library_item_detail/item-1",
+            committedRoute = "library_item_detail/item-1",
             usePermanentDrawer = false,
             drawerCurrentOpen = false,
             drawerTargetOpen = false,
@@ -106,7 +106,7 @@ class LibraryItemsBackEnabledTest {
     @Test
     fun `disabled when series_detail is foreground`() {
         assertFalse(libraryItemsBackEnabled(
-            currentRoute = "series_detail/lib-1/series-1/MySeries",
+            committedRoute = "series_detail/lib-1/series-1/MySeries",
             usePermanentDrawer = false,
             drawerCurrentOpen = false,
             drawerTargetOpen = false,
@@ -116,7 +116,7 @@ class LibraryItemsBackEnabledTest {
     @Test
     fun `disabled when reader is foreground`() {
         assertFalse(libraryItemsBackEnabled(
-            currentRoute = "epub_reader/item-1",
+            committedRoute = "epub_reader/item-1",
             usePermanentDrawer = false,
             drawerCurrentOpen = false,
             drawerTargetOpen = false,
@@ -126,7 +126,7 @@ class LibraryItemsBackEnabledTest {
     @Test
     fun `disabled when library_items is foreground but drawer is open`() {
         assertFalse(libraryItemsBackEnabled(
-            currentRoute = "library_items/lib-1/Books",
+            committedRoute = "library_items/lib-1/Books",
             usePermanentDrawer = false,
             drawerCurrentOpen = true,
             drawerTargetOpen = true,
@@ -136,7 +136,7 @@ class LibraryItemsBackEnabledTest {
     @Test
     fun `disabled when route is null (initial navigation not yet resolved)`() {
         assertFalse(libraryItemsBackEnabled(
-            currentRoute = null,
+            committedRoute = null,
             usePermanentDrawer = false,
             drawerCurrentOpen = false,
             drawerTargetOpen = false,

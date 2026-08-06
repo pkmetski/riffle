@@ -171,15 +171,16 @@ fun MainScreen(
 
     val drawerCurrentOpen = drawerState.currentValue == DrawerValue.Open
     val drawerTargetOpen = drawerState.targetValue == DrawerValue.Open
-    // Use currentRoute (from currentBackStackEntryAsState) — not the committed-stack route —
-    // for the BackHandler enabled gate. During a predictive-back gesture from a sub-screen,
-    // currentBackStackEntryAsState already reflects the preview destination (library_items)
-    // at gesture-start and stays there through the commit, so there is NO 16ms recomposition
-    // window after the commit where the handler would be disabled. Using the committed-stack
-    // route via collectAsState() creates exactly that lag window: after the back commits but
-    // before the next recomposition, libBackEnabled stays false and a second input event
-    // (e.g. the second ☰ tap) falls through to NavHost, popping library_items → HOME.
-    val libBackEnabled = libraryItemsBackEnabled(currentRoute, isTablet, drawerCurrentOpen, drawerTargetOpen)
+
+    // Committed top (synchronously up-to-date StateFlow; recomposes when the stack mutates).
+    // Using the COMMITTED route (not the preview from currentBackStackEntryAsState) keeps
+    // libBackEnabled=true even while a predictive-back gesture from library_items is in
+    // progress (the committed top stays library_items until the gesture commits), so the
+    // BackHandler intercepts and runs ClearSearch/ResetTab/Exit instead of letting NavHost
+    // pop library_items and flash the HOME spinner.
+    val committedBackStack by navController.currentBackStack.collectAsState()
+    val committedRoute = committedTopRoute(committedBackStack.map { it.destination.route })
+    val libBackEnabled = libraryItemsBackEnabled(committedRoute, isTablet, drawerCurrentOpen, drawerTargetOpen)
 
     val usePermanentDrawer = isTablet
     // Reader screens are immersive — collapse the permanent side panel so the book/PDF
@@ -1022,22 +1023,24 @@ internal fun shouldInterceptBackForDrawer(
  * Whether [LibraryItemsScreen]'s BackHandler should be enabled.
  *
  * Two conditions must both hold:
- * 1. [currentRoute] is the library-items destination — sourced from
- *    [currentBackStackEntryAsState()], which already reflects the PREVIEW destination during a
- *    predictive-back gesture. This means the handler stays enabled (= true) from the gesture
- *    start through commit with no recomposition lag. Unexpected exits while a sub-screen is the
- *    committed top are prevented at runtime by [LibraryItemsScreen]'s [isCommittedOnLibraryItems]
- *    check, which reads [NavController.currentBackStack] synchronously at handler-fire time and
- *    delegates to [onNavigateBack] instead of running library back actions.
+ * 1. [committedRoute] (top of [NavController.currentBackStack]) is the library-items
+ *    destination. Using the COMMITTED route (not the preview from
+ *    [currentBackStackEntryAsState()]) keeps the handler armed even while a predictive-back
+ *    gesture FROM library_items is in progress — the committed top stays library_items until
+ *    the gesture commits, so the handler intercepts and runs ClearSearch/ResetTab/Exit instead
+ *    of letting NavHost pop library_items and flash the HOME spinner. When library_item_detail
+ *    is the committed top (user navigated into a sub-screen), the handler is disabled and NavHost
+ *    handles its own predictive-back pop animation for the sub-screen. The [isCommittedOnLibraryItems]
+ *    runtime check inside the handler is a safety net for any residual lag edge cases.
  * 2. The drawer is not open or animating — when it is, the top-level drawer BackHandler must
  *    take Back to close the drawer (see [shouldInterceptBackForDrawer]).
  */
 internal fun libraryItemsBackEnabled(
-    currentRoute: String?,
+    committedRoute: String?,
     usePermanentDrawer: Boolean,
     drawerCurrentOpen: Boolean,
     drawerTargetOpen: Boolean,
-): Boolean = currentRoute?.startsWith("library_items/") == true &&
+): Boolean = committedRoute?.startsWith("library_items/") == true &&
     !shouldInterceptBackForDrawer(usePermanentDrawer, drawerCurrentOpen, drawerTargetOpen)
 
 // Extract the committed top route from a back stack, ignoring graph-root entries that have
