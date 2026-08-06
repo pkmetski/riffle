@@ -1157,7 +1157,19 @@ class AnnotationSessionTest {
         val sessionScope = CoroutineScope(dispatcher)
         val store = FakeAnnotationStore()
         val syncOps = FakeSyncOps()
-        val targetLocator = buildLocator(progression = 0.43)
+        // Simulate the production cfiLocatorResolver output: it calls extractAnchorFromCfi and
+        // puts the container-level section id into locations.fragments. A legacy bookmark arrives
+        // at withAnnotationNavigationAnchor with fragments = ["section-ch01"], not empty. Without
+        // Fix 2, snapAfterGoTo sees a non-empty fragments list and takes the element-snap path,
+        // which always resolves to column 0 (the section container's left edge).
+        val locatorWithContainerFragment = Locator(
+            href = buildLocator().href,
+            mediaType = org.readium.r2.shared.util.mediatype.MediaType.XHTML,
+            locations = Locator.Locations(
+                progression = 0.43,
+                fragments = listOf("section-ch01"), // container-level CFI artifact
+            ),
+        )
         val legacyBookmark = fakeAnnotation(
             id = "bm-legacy",
             type = AnnotationEntity.TYPE_BOOKMARK,
@@ -1168,7 +1180,7 @@ class AnnotationSessionTest {
         session.bind(
             sourceId = "srv1", namespace = "ns1", itemId = "item1",
             highlightRenderResolver = { emptyList() },
-            cfiLocatorResolver = { targetLocator },
+            cfiLocatorResolver = { locatorWithContainerFragment },
         )
         val received = mutableListOf<AnnotationSession.AnnotationNavigationEvent>()
         val collectJob = sessionScope.launch {
@@ -1179,8 +1191,11 @@ class AnnotationSessionTest {
 
         assertEquals(1, received.size)
         assertTrue(received[0].isBookmark)
-        assertTrue("legacy bookmark must have empty fragments (uses progression fallback)",
-            received[0].locator.locations.fragments.isEmpty())
+        assertTrue(
+            "legacy bookmark must clear CFI-derived container fragments so snapAfterGoTo uses " +
+                "progression fallback instead of always snapping to column 0",
+            received[0].locator.locations.fragments.isEmpty(),
+        )
         assertEquals(legacyBookmark.progression, received[0].locator.locations.progression!!, 0.000001)
         collectJob.cancel()
         sessionScope.coroutineContext[Job]?.cancel()

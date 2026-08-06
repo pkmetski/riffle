@@ -641,7 +641,7 @@ internal object ColumnSnap {
     fun capturePageFragmentAnchorJs(): String =
         "(function(){" +
             "var se=document.scrollingElement;" +
-            "if(!se||se.scrollHeight<=window.innerHeight+4)return null;" +
+            "if(!se||se.scrollHeight>window.innerHeight+4)return null;" +
             "var iw=window.innerWidth;" +
             "var sel=['p[id]','h1[id]','h2[id]','h3[id]','h4[id]','h5[id]','h6[id]'," +
             "'li[id]','blockquote[id]','div[id]','section[id]','article[id]'];" +

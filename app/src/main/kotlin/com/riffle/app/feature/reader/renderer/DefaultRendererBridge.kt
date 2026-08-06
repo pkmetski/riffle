@@ -112,11 +112,14 @@ internal class DefaultRendererBridge(
                 locator.locations.fragments.firstOrNull()
             else -> null
         }
-        val progression = if (!landAtStartWhenNoTarget && fragmentId == null) {
-            locator.locations.progression
-        } else {
-            null
-        }
+        // Always pass progression for annotation navigation (landAtStartWhenNoTarget=false) so
+        // that if getElementById fails (e.g. element id changed in a revised EPUB), the JS
+        // fallback can still snap to the right column using the persisted progression ratio.
+        // With Fix 2 ensuring legacy bookmarks have cleared fragments, new-style bookmarks have
+        // both fragments AND progression set; the JS tries element first, falls back to progression.
+        // For TOC/resume navigation (landAtStartWhenNoTarget=true) we don't provide progression
+        // because those jumps always land at the chapter start or a specific element anchor.
+        val progression = if (!landAtStartWhenNoTarget) locator.locations.progression else null
         // A TextQuote locator lets Readium resolve the exact DOM range. Pass the complete locator
         // into the reflow tracker so it can repeat that exact resolution after each scrollWidth
         // change; progression is only a fallback when the quote is absent/stale.

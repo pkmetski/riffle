@@ -604,15 +604,23 @@ class ReaderWebViewScriptsTest {
         )
     }
 
-    // capturePageFragmentAnchorJs must bail early in non-paginated (scroll/continuous) mode so we
-    // never return a stale id from a chapter where the document is taller than the viewport in
-    // the normal (non-column) sense. The guard is scrollHeight <= innerHeight + 4.
+    // capturePageFragmentAnchorJs must bail early in vertical/continuous (non-paginated) mode so
+    // we never return a stale id from a chapter where the document overflows vertically. In
+    // paginated mode, scrollHeight == innerHeight (no vertical overflow) so the guard must return
+    // null when scrollHeight > innerHeight+4 (i.e. vertical overflow = not paginated).
+    // The inverted guard (<=) was the original bug: it returned null exactly in paginated mode,
+    // making the feature a no-op there while running in vertical/continuous where it should not.
     @Test
     fun `capturePageFragmentAnchorJs returns null when not in paginated mode`() {
         val js = ColumnSnap.capturePageFragmentAnchorJs()
+        // Must return null when the page has vertical overflow (non-paginated), not when it doesn't.
         assertTrue(
-            "must guard against non-paginated mode",
-            js.contains("scrollHeight") && js.contains("innerHeight"),
+            "guard must return null when scrollHeight > innerHeight (non-paginated), NOT when <=",
+            js.contains("scrollHeight>window.innerHeight"),
+        )
+        assertFalse(
+            "guard must NOT use <= (that would make the feature a no-op in paginated mode)",
+            js.contains("scrollHeight<=window.innerHeight"),
         )
     }
 
