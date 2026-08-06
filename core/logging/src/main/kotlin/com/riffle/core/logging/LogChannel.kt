@@ -25,5 +25,4 @@ enum class LogChannel(val tag: String) {
     ProgressSync("RIFFLE_PS"),
     Oom("RIFFLE_OOM"),
     AnnotationSync("RIFFLE_ANNSYNC"),
-    Nav("RIFFLE_NAV"),
 }
