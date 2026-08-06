@@ -1691,15 +1691,6 @@ abstract class RiffleDatabase : RoomDatabase() {
             }
         }
 
-        // Paragraph-level DOM anchor captured at bookmark creation time (paginated mode). Used to
-        // snap the reader column to the exact element instead of relying on progression math.
-        // NULL for all pre-existing bookmarks and every non-BOOKMARK annotation type.
-        val MIGRATION_63_64 = object : Migration(63, 64) {
-            override fun migrate(db: SupportSQLiteDatabase) {
-                db.execSQL("ALTER TABLE `annotations` ADD COLUMN `fragmentAnchor` TEXT")
-            }
-        }
-
         // Readium-derived publication facts used by the item-detail screen. EPUB position count
         // drives the personalized total/remaining reading-time estimate; PDF page count drives
         // the discrete page label. Both are keyed by ebookFileIno and TTL'd by the repository so
@@ -1722,6 +1713,15 @@ abstract class RiffleDatabase : RoomDatabase() {
                     "CREATE INDEX IF NOT EXISTS `index_publication_metrics_cache_sourceId` " +
                         "ON `publication_metrics_cache` (`sourceId`)"
                 )
+            }
+        }
+
+        // Paragraph-level DOM anchor captured at bookmark creation time (paginated mode). Used to
+        // snap the reader column to the exact element instead of relying on progression math.
+        // NULL for all pre-existing bookmarks and every non-BOOKMARK annotation type.
+        val MIGRATION_63_64 = object : Migration(63, 64) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `annotations` ADD COLUMN `fragmentAnchor` TEXT")
             }
         }
     }
