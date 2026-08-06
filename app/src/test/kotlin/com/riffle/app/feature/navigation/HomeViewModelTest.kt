@@ -1,8 +1,5 @@
 package com.riffle.app.feature.navigation
 
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.LifecycleOwner
-import androidx.lifecycle.LifecycleRegistry
 import com.riffle.core.domain.AuthenticateResult
 import com.riffle.core.domain.CommitSourceResult
 import com.riffle.core.models.Collection
@@ -23,6 +20,7 @@ import com.riffle.core.models.SourceUrl
 import java.io.IOException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -300,55 +298,70 @@ class HomeViewModelTest {
     //
     // navigateAsRoot's popUpTo(HOME) step momentarily promotes HOME to RESUMED before
     // navigate(library_route) pushes library_items back on top (demoting HOME to STARTED).
-    // Without the yield + lifecycle.currentState re-check, a bare lifecycle.withResumed { }
+    // Without the yield + isStillResumed re-check, a bare lifecycle.withResumed { }
     // would fire during that transient window and navigateFromHome would navigate a second time,
     // causing the HOME spinner flash.
     //
-    // Assertion that flips red if the yield+re-check loop is removed from awaitGenuinelyResumed:
-    // `unblocked` would be true after the RESUMED→STARTED pulse instead of remaining false.
+    // Tests use awaitGenuinelyResumedWith (controllable lambdas) to avoid races between
+    // yield() and UnconfinedTestDispatcher — the testable variant was extracted for exactly
+    // this reason. The invariant being pinned is the same: the function must not resolve
+    // when isStillResumed() returns false after waitForResumed completes.
+    //
+    // Assertion that flips red if the isStillResumed loop is removed from awaitGenuinelyResumedWith:
+    // `unblocked` would be true even when isStillResumed returns false.
     @Test
-    fun `awaitGenuinelyResumed does not unblock on a transient RESUMED pulse`() = runTest {
-        val owner = object : LifecycleOwner {
-            val registry = LifecycleRegistry.createUnsafe(this)
-            override val lifecycle: Lifecycle get() = registry
-        }
-        owner.registry.currentState = Lifecycle.State.STARTED
+    fun `awaitGenuinelyResumedWith does not unblock when isStillResumed is false (transient RESUMED pulse)`() = runTest {
+        // Use Channel (not CompletableDeferred): after one receive(), the channel blocks on the
+        // next call — CompletableDeferred.await() returns immediately once completed, which would
+        // spin the loop infinitely and hang the test.
+        val resumeSignal = Channel<Unit>()
+        var isResumedNow = false
         var unblocked = false
 
         val job = launch {
-            awaitGenuinelyResumed(owner.lifecycle)
+            awaitGenuinelyResumedWith(
+                waitForResumed = { resumeSignal.receive() },
+                isStillResumed = { isResumedNow },
+            )
             unblocked = true
         }
 
-        // Pulse RESUMED → STARTED: simulates navigateAsRoot's popUpTo(HOME) followed by navigate()
-        owner.registry.currentState = Lifecycle.State.RESUMED
-        advanceUntilIdle() // lets withResumed fire and the yield() inside awaitGenuinelyResumed run
-        owner.registry.currentState = Lifecycle.State.STARTED // navigate(library_route) demotes HOME
-        advanceUntilIdle() // loop re-checks lifecycle.currentState; it's STARTED → loop again
+        advanceUntilIdle()
+        assertFalse("must not fire before signal is sent", unblocked)
 
-        assertFalse("must not unblock on a transient RESUMED pulse", unblocked)
+        // Send a signal with isStillResumed=false — simulates popUpTo(HOME) firing withResumed
+        // while navigate(library_route) has already demoted HOME back to STARTED.
+        // With UnconfinedTestDispatcher, send() resumes the coroutine eagerly: receive() returns,
+        // yield() runs, isStillResumed()=false → loop, receive() blocks again → control returns here.
+        isResumedNow = false
+        resumeSignal.send(Unit)
+
+        assertFalse("must not unblock when isStillResumed returns false after waitForResumed", unblocked)
         job.cancelAndJoin()
     }
 
     @Test
-    fun `awaitGenuinelyResumed unblocks when lifecycle is genuinely RESUMED`() = runTest {
-        val owner = object : LifecycleOwner {
-            val registry = LifecycleRegistry.createUnsafe(this)
-            override val lifecycle: Lifecycle get() = registry
-        }
-        owner.registry.currentState = Lifecycle.State.STARTED
+    fun `awaitGenuinelyResumedWith unblocks when isStillResumed is true (genuine RESUMED)`() = runTest {
+        val resumeSignal = Channel<Unit>()
+        var isResumedNow = false
         var unblocked = false
 
         val job = launch {
-            awaitGenuinelyResumed(owner.lifecycle)
+            awaitGenuinelyResumedWith(
+                waitForResumed = { resumeSignal.receive() },
+                isStillResumed = { isResumedNow },
+            )
             unblocked = true
         }
 
-        // Genuine RESUMED: no library is pushed on top — lifecycle stays RESUMED
-        owner.registry.currentState = Lifecycle.State.RESUMED
+        // Genuine RESUMED: lifecycle stays RESUMED after waitForResumed returns.
+        isResumedNow = true
+        resumeSignal.send(Unit)
+        // yield() inside awaitGenuinelyResumedWith suspends the coroutine; advanceUntilIdle()
+        // lets that continuation run so isStillResumed()=true → break → unblocked=true.
         advanceUntilIdle()
 
-        assertTrue("must unblock when lifecycle is genuinely RESUMED", unblocked)
+        assertTrue("must unblock when isStillResumed returns true", unblocked)
         job.cancelAndJoin()
     }
 }
