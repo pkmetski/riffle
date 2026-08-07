@@ -36,7 +36,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         PlaylistItemEntity::class,
         PublicationMetricsCacheEntity::class,
     ],
-    version = 64,
+    version = 65,
     exportSchema = true,
 )
 abstract class RiffleDatabase : RoomDatabase() {
@@ -1722,6 +1722,12 @@ abstract class RiffleDatabase : RoomDatabase() {
         val MIGRATION_63_64 = object : Migration(63, 64) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("ALTER TABLE `annotations` ADD COLUMN `fragmentAnchor` TEXT")
+            }
+        }
+
+        val MIGRATION_64_65 = object : Migration(64, 65) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `publication_metrics_cache` ADD COLUMN `epubVersion` TEXT")
             }
         }
     }

@@ -61,6 +61,32 @@ class PublicationMetricsRepositoryImplTest {
     }
 
     @Test
+    fun `epub version round trips`() = runTest {
+        val repository = PublicationMetricsRepositoryImpl(FakeDao(), TestClock(NOW_MS))
+
+        repository.save(
+            "src",
+            "epub",
+            PublicationMetrics(ebookFileIno = "ino-1", epubVersion = "3.0"),
+        )
+
+        assertEquals("3.0", repository.get("src", "epub")?.epubVersion)
+    }
+
+    @Test
+    fun `null epub version round trips`() = runTest {
+        val repository = PublicationMetricsRepositoryImpl(FakeDao(), TestClock(NOW_MS))
+
+        repository.save(
+            "src",
+            "epub",
+            PublicationMetrics(ebookFileIno = "ino-1", epubVersion = null),
+        )
+
+        assertNull(repository.get("src", "epub")?.epubVersion)
+    }
+
+    @Test
     fun `stale derived metrics are ignored`() = runTest {
         val dao = FakeDao()
         dao.rows["src" to "epub"] = PublicationMetricsCacheEntity(

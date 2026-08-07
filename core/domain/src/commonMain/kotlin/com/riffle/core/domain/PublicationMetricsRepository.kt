@@ -8,6 +8,7 @@ data class PublicationMetrics(
     val ebookFileIno: String,
     val totalPositions: Int? = null,
     val pageCount: Int? = null,
+    val epubVersion: String? = null,
 )
 
 interface PublicationMetricsRepository {
