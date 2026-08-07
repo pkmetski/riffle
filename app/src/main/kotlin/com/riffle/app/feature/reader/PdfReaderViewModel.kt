@@ -160,7 +160,7 @@ class PdfReaderViewModel @Inject constructor(
     private var lastLocator: Locator? = null
     val latestLocator: Locator? get() = lastLocator
     private var closeSyncDone = false
-    private var initialLocatorSeen = false
+    private val locatorGate = PdfLocatorGate()
 
     // PDF heartbeat-sync only — speed-tracking stays opt-out (PDF "position" units don't share
     // semantics with EPUB's locator positions, so we leave the speed-store untouched by passing
@@ -503,7 +503,7 @@ class PdfReaderViewModel @Inject constructor(
     fun onReaderResumed() {
         readerStateHolder.isReaderActive = true
         closeSyncDone = false
-        initialLocatorSeen = false
+        locatorGate.reset()
         if (_state.value is ReaderState.Ready) {
             syncCurrentPosition()
             readingSessionCoordinator.onResumed(
@@ -543,10 +543,7 @@ class PdfReaderViewModel @Inject constructor(
     fun onPageChanged(locator: Locator) {
         lastLocator = locator
         _currentPage.value = locator.locations.position
-        if (!initialLocatorSeen) {
-            initialLocatorSeen = true
-            return
-        }
+        if (!locatorGate.advance(locator)) return
         viewModelScope.launch {
             positionSaveCoordinator.onChanged(locator.toJSON().toString())
         }
