@@ -235,7 +235,9 @@ fun MainScreen(
         viewModel.activeServer
             .filterNotNull()
             .drop(1)
-            .collect { navController.navigateAsRoot(HOME) }
+            .collect {
+                if (shouldNavigateHomeOnSourceSwitch()) navController.navigateAsRoot(HOME)
+            }
     }
 
     RiffleNavigationDrawer(
@@ -1098,8 +1100,9 @@ internal fun NavController.popBackStackIfTop(backStackEntry: NavBackStackEntry) 
     )
 }
 
-internal fun isItemDetailRoute(route: String?): Boolean =
-    route?.startsWith(LIBRARY_ITEM_DETAIL.substringBefore("{")) == true
+// Navigating to HOME on every source switch lets getStartDestination() pick the correct library
+// for the new source (last-opened per source, falling back to the first in the list).
+internal fun shouldNavigateHomeOnSourceSwitch(): Boolean = true
 
 internal fun isReaderRoute(route: String?): Boolean =
     route?.startsWith(EPUB_READER.substringBefore("{")) == true ||
