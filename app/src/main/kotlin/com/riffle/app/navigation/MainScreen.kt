@@ -190,23 +190,6 @@ fun MainScreen(
     // fills the width, matching the modal drawer's gesture suppression on phones.
     val hidePermanentDrawerPanel = isReaderRoute(currentRoute)
 
-    // Material3's ModalNavigationDrawer doesn't install its own BackHandler — so when the
-    // drawer is open or animating we add one here. Registered above the NavHost so screen-level
-    // handlers (e.g. LibraryItemsScreen) don't override it.
-    //
-    // Check both currentValue and targetValue: targetValue flips to Open the instant
-    // drawerState.open() is called (catches Back during the open animation), and currentValue
-    // stays Open until the close animation finishes (catches Back during the close animation).
-    // Using only targetValue misses the close-animation window; using only isOpen (currentValue)
-    // misses the open-animation window that caused the burger-tap white-screen freeze.
-    BackHandler(enabled = shouldInterceptBackForDrawer(
-        usePermanentDrawer,
-        drawerCurrentOpen = drawerState.currentValue == DrawerValue.Open,
-        drawerTargetOpen = drawerState.targetValue == DrawerValue.Open,
-    )) {
-        scope.launch { drawerState.close() }
-    }
-
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
         // Gate on seenStop so that rotation (which replays ON_START on the new observer
@@ -999,6 +982,26 @@ fun MainScreen(
                 )
             }
         }
+    }
+
+    // Material3's ModalNavigationDrawer doesn't install its own BackHandler — so when the
+    // drawer is open or animating we add one here. Must be registered AFTER RiffleNavigationDrawer
+    // (and thus after NavHost and the NavController) so it has higher priority in the
+    // OnBackPressedDispatcher (last-registered wins). A position before NavHost gives the
+    // NavController's callback higher priority, causing it to pop library_items and trigger a
+    // library reload instead of closing the drawer.
+    //
+    // Check both currentValue and targetValue: targetValue flips to Open the instant
+    // drawerState.open() is called (catches Back during the open animation), and currentValue
+    // stays Open until the close animation finishes (catches Back during the close animation).
+    // Using only targetValue misses the close-animation window; using only isOpen (currentValue)
+    // misses the open-animation window that caused the burger-tap white-screen freeze.
+    BackHandler(enabled = shouldInterceptBackForDrawer(
+        usePermanentDrawer,
+        drawerCurrentOpen = drawerState.currentValue == DrawerValue.Open,
+        drawerTargetOpen = drawerState.targetValue == DrawerValue.Open,
+    )) {
+        scope.launch { drawerState.close() }
     }
 
     updateDialogState?.let { dialogState ->
