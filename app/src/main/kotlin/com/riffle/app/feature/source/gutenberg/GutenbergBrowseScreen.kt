@@ -1,6 +1,5 @@
 package com.riffle.app.feature.source.gutenberg
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -58,6 +57,7 @@ import com.riffle.app.feature.library.HomeTabContent
 import com.riffle.app.feature.library.ToReadTabContent
 import com.riffle.app.feature.source.websource.UnboundedCatalogGrid
 import com.riffle.app.feature.source.websource.UnboundedCoverGridZoomProvider
+import com.riffle.app.ui.DefaultCoverPlaceholder
 import com.riffle.app.ui.TabletContentWidthContainer
 import com.riffle.core.catalog.CatalogItem
 
@@ -342,20 +342,14 @@ private fun CatalogItemCard(
             modifier = Modifier
                 .fillMaxWidth()
                 .aspectRatio(2f / 3f)
-                .clip(RoundedCornerShape(8.dp))
-                .background(MaterialTheme.colorScheme.surfaceVariant),
+                .clip(RoundedCornerShape(8.dp)),
         ) {
+            DefaultCoverPlaceholder(isAudiobook = false)
             if (!item.coverUrl.isNullOrBlank()) {
                 AsyncImage(
                     model = item.coverUrl,
                     contentDescription = null,
                     modifier = Modifier.fillMaxSize(),
-                )
-            } else {
-                Text(
-                    "📖",
-                    modifier = Modifier.align(Alignment.Center),
-                    style = MaterialTheme.typography.headlineMedium,
                 )
             }
         }

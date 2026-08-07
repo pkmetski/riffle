@@ -86,6 +86,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.riffle.app.feature.reader.TocPanel
+import com.riffle.app.ui.DefaultCoverPlaceholder
 import com.riffle.app.ui.isPhoneLandscape
 import com.riffle.app.ui.isTabletLayout
 import com.riffle.core.models.EbookFormat
@@ -436,32 +437,39 @@ private fun LibraryItemDetailContent(
             .padding(horizontal = 16.dp, vertical = 8.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        item.coverUrl?.let { url ->
-            val configuration = LocalConfiguration.current
-            val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
-            // A tablet in portrait is below the 840dp Expanded breakpoint (ADR 0019), so it
-            // lands on this single-column phone layout. fillMaxWidth() makes the cover span
-            // the whole tablet width — ginormous. Cap it on tablet-wide screens; real phones
-            // (< 600dp) keep the full-bleed cover.
-            val isWideScreen = configuration.screenWidthDp >= 600
-            val coverWidth = when {
-                isLandscape -> Modifier.fillMaxWidth(0.4f)
-                isWideScreen -> Modifier.widthIn(max = 280.dp)
-                else -> Modifier.fillMaxWidth()
+        val configuration = LocalConfiguration.current
+        val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+        // A tablet in portrait is below the 840dp Expanded breakpoint (ADR 0019), so it
+        // lands on this single-column phone layout. fillMaxWidth() makes the cover span
+        // the whole tablet width — ginormous. Cap it on tablet-wide screens; real phones
+        // (< 600dp) keep the full-bleed cover.
+        val isWideScreen = configuration.screenWidthDp >= 600
+        val coverWidth = when {
+            isLandscape -> Modifier.fillMaxWidth(0.4f)
+            isWideScreen -> Modifier.widthIn(max = 280.dp)
+            else -> Modifier.fillMaxWidth()
+        }
+        val isAudiobook = item.isListenable && !item.isReadable
+        Box(
+            modifier = Modifier
+                .then(coverWidth)
+                .aspectRatio(if (isAudiobook) 1f else 2f / 3f)
+                .align(Alignment.CenterHorizontally)
+                .clip(RoundedCornerShape(4.dp)),
+        ) {
+            DefaultCoverPlaceholder(isAudiobook = isAudiobook, modifier = Modifier.fillMaxSize())
+            if (item.coverUrl != null) {
+                AsyncImage(
+                    model = ImageRequest.Builder(LocalContext.current)
+                        .data(item.coverUrl)
+                        .addHeader("Authorization", token.asAuthHeader())
+                        .instrumentCover("detail", item.id, item.coverUrl)
+                        .build(),
+                    contentDescription = null,
+                    contentScale = ContentScale.Fit,
+                    modifier = Modifier.fillMaxSize(),
+                )
             }
-            AsyncImage(
-                model = ImageRequest.Builder(LocalContext.current)
-                    .data(url)
-                    .addHeader("Authorization", token.asAuthHeader())
-                    .instrumentCover("detail", item.id, url)
-                    .build(),
-                contentDescription = null,
-                contentScale = ContentScale.Fit,
-                modifier = Modifier
-                    .then(coverWidth)
-                    .aspectRatio(2f / 3f)
-                    .align(Alignment.CenterHorizontally),
-            )
         }
 
         if (item.isListenable && item.audioDurationSec > 0) {
@@ -718,31 +726,38 @@ internal fun LibraryItemDetailContentTablet(
                 .padding(horizontal = 16.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            item.coverUrl?.let { url ->
-                // The left pane is non-scrolling (CONTEXT.md / ADR 0020), so the cover
-                // must yield height to the action row. weight(fill = false) lets the
-                // cover shrink if it can't fit, keeping the Read button visible.
-                //
-                // The cap is orientation-aware: in portrait the pane is tall, so an
-                // uncapped cover dominates — cap it small. In landscape the pane is
-                // short and wide, so a small cap leaves the cover looking lost — allow
-                // it larger (weight still shrinks it if the action row needs the room).
-                val isLandscape =
-                    LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
-                AsyncImage(
-                    model = ImageRequest.Builder(LocalContext.current)
-                        .data(url)
-                        .addHeader("Authorization", token.asAuthHeader())
-                        .instrumentCover("detail", item.id, url)
-                        .build(),
-                    contentDescription = null,
-                    contentScale = ContentScale.Fit,
-                    modifier = Modifier
-                        .weight(1f, fill = false)
-                        .widthIn(max = if (isLandscape) 230.dp else 100.dp)
-                        .aspectRatio(2f / 3f)
-                        .align(Alignment.CenterHorizontally),
-                )
+            // The left pane is non-scrolling (CONTEXT.md / ADR 0020), so the cover
+            // must yield height to the action row. weight(fill = false) lets the
+            // cover shrink if it can't fit, keeping the Read button visible.
+            //
+            // The cap is orientation-aware: in portrait the pane is tall, so an
+            // uncapped cover dominates — cap it small. In landscape the pane is
+            // short and wide, so a small cap leaves the cover looking lost — allow
+            // it larger (weight still shrinks it if the action row needs the room).
+            val isLandscape =
+                LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
+            val isAudiobook = item.isListenable && !item.isReadable
+            Box(
+                modifier = Modifier
+                    .weight(1f, fill = false)
+                    .widthIn(max = if (isLandscape) 230.dp else 100.dp)
+                    .aspectRatio(if (isAudiobook) 1f else 2f / 3f)
+                    .align(Alignment.CenterHorizontally)
+                    .clip(RoundedCornerShape(4.dp)),
+            ) {
+                DefaultCoverPlaceholder(isAudiobook = isAudiobook, modifier = Modifier.fillMaxSize())
+                if (item.coverUrl != null) {
+                    AsyncImage(
+                        model = ImageRequest.Builder(LocalContext.current)
+                            .data(item.coverUrl)
+                            .addHeader("Authorization", token.asAuthHeader())
+                            .instrumentCover("detail", item.id, item.coverUrl)
+                            .build(),
+                        contentDescription = null,
+                        contentScale = ContentScale.Fit,
+                        modifier = Modifier.fillMaxSize(),
+                    )
+                }
             }
             TitleWithReadaloudIndicator(
                 title = item.title,
@@ -919,27 +934,34 @@ internal fun LibraryItemDetailContentPhoneLandscape(
     var showChaptersSheet by remember { mutableStateOf(false) }
 
     Row(modifier = modifier.fillMaxSize()) {
-        item.coverUrl?.let { url ->
+        Box(
+            modifier = Modifier
+                .testTag(LIBRARY_ITEM_DETAIL_LEFT_PANE_TAG)
+                .fillMaxHeight()
+                .padding(start = 16.dp, top = 8.dp, bottom = 8.dp, end = 8.dp),
+            contentAlignment = Alignment.Center,
+        ) {
+            val isAudiobook = item.isListenable && !item.isReadable
             Box(
                 modifier = Modifier
-                    .testTag(LIBRARY_ITEM_DETAIL_LEFT_PANE_TAG)
-                    .fillMaxHeight()
-                    .padding(start = 16.dp, top = 8.dp, bottom = 8.dp, end = 8.dp),
-                contentAlignment = Alignment.Center,
-            ) {
-                AsyncImage(
-                    model = ImageRequest.Builder(LocalContext.current)
-                        .data(url)
-                        .addHeader("Authorization", token.asAuthHeader())
-                        .instrumentCover("detail", item.id, url)
-                        .build(),
-                    contentDescription = null,
-                    contentScale = ContentScale.Fit,
                     // The cover owns the column's full height; aspectRatio derives its width from that.
-                    modifier = Modifier
-                        .fillMaxHeight()
-                        .aspectRatio(2f / 3f, matchHeightConstraintsFirst = true),
-                )
+                    .fillMaxHeight()
+                    .aspectRatio(if (isAudiobook) 1f else 2f / 3f, matchHeightConstraintsFirst = true)
+                    .clip(RoundedCornerShape(4.dp)),
+            ) {
+                DefaultCoverPlaceholder(isAudiobook = isAudiobook, modifier = Modifier.fillMaxSize())
+                if (item.coverUrl != null) {
+                    AsyncImage(
+                        model = ImageRequest.Builder(LocalContext.current)
+                            .data(item.coverUrl)
+                            .addHeader("Authorization", token.asAuthHeader())
+                            .instrumentCover("detail", item.id, item.coverUrl)
+                            .build(),
+                        contentDescription = null,
+                        contentScale = ContentScale.Fit,
+                        modifier = Modifier.fillMaxSize(),
+                    )
+                }
             }
         }
         Column(

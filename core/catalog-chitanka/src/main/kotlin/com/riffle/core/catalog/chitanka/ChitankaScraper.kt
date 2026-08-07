@@ -18,6 +18,14 @@ private fun textWithLineBreaks(el: Element): String {
 }
 
 /**
+ * Returns true when [imgSrc] is Chitanka's built-in "no cover" placeholder
+ * (`.../thumb/book-cover/00/0.{size}.{ext}`). Treat as null so the app's
+ * DefaultCoverPlaceholder renders instead of Chitanka's generic book icon.
+ */
+private fun isChitankaDefaultCover(imgSrc: String) =
+    imgSrc.contains("book-cover/00/0.")
+
+/**
  * Kotlin/jsoup port of `lib/scraper/chitanka.ts` from the reference
  * [chitanka-to-audiobookshelf](https://github.com/pkmetski/chitanka-to-audiobookshelf). Pure
  * parsing — no network, no I/O — every method takes raw HTML in and returns typed data out.
@@ -60,7 +68,7 @@ internal object ChitankaScraper {
             val url = toAbsolute(href)
             val title = el.selectFirst("[itemprop=name]")?.text()?.trim().orEmpty()
             val imgSrc = el.selectFirst("img[itemprop=image]")?.attr("src")
-            val coverUrl = if (!imgSrc.isNullOrEmpty()) toAbsolute(imgSrc) else null
+            val coverUrl = if (!imgSrc.isNullOrEmpty() && !isChitankaDefaultCover(imgSrc)) toAbsolute(imgSrc) else null
             val slug = href.replace(Regex("^/book/\\d+-"), "")
             if (title.isNotEmpty() && href.isNotEmpty()) {
                 items += ChitankaBookSummary(
@@ -111,7 +119,7 @@ internal object ChitankaScraper {
                     bookLink.attr("title").trim()
                 }
                 val imgSrc = el.selectFirst("img[itemprop=image]")?.attr("src")
-                val coverUrl = if (!imgSrc.isNullOrEmpty()) toAbsolute(imgSrc) else null
+                val coverUrl = if (!imgSrc.isNullOrEmpty() && !isChitankaDefaultCover(imgSrc)) toAbsolute(imgSrc) else null
 
                 val authors = el.select("[itemprop=author]")
                     .map { it.text().trim() }
@@ -196,7 +204,7 @@ internal object ChitankaScraper {
         }
 
         val imgSrc = doc.selectFirst("[itemprop=image]")?.attr("src")
-        val coverUrl = if (!imgSrc.isNullOrEmpty()) toAbsolute(imgSrc, pageUrl) else null
+        val coverUrl = if (!imgSrc.isNullOrEmpty() && !isChitankaDefaultCover(imgSrc)) toAbsolute(imgSrc, pageUrl) else null
 
         val epubHref = doc.selectFirst("a[href\$=.epub]")?.attr("href").orEmpty()
         val downloadUrl = if (epubHref.isNotEmpty()) toAbsolute(epubHref, pageUrl) else null
