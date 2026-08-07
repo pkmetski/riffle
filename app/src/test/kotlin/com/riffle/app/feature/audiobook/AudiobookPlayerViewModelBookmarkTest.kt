@@ -116,6 +116,7 @@ class AudiobookPlayerViewModelBookmarkTest {
             localZipFile: File?,
             coverUri: String?,
             bookTitle: String?,
+            chapters: List<com.riffle.core.domain.AudiobookChapter>,
         ) {
             preparedStartAtSec = startAtSec
             preparedBookTitle = bookTitle

@@ -1,5 +1,6 @@
 package com.riffle.app.feature.audio
 
+import com.riffle.core.domain.AudiobookChapter
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
@@ -23,5 +24,14 @@ class TimeFormatTest {
 
     @Test fun `negative input clamps to zero`() {
         assertEquals("Less than a minute left", formatRemainingReadable(-42.0))
+    }
+
+    @Test fun `notification artist includes chapter title when chapter is present`() {
+        val chapter = AudiobookChapter(index = 2, startSec = 0.0, endSec = 100.0, title = "Part Two")
+        assertEquals("Part Two · 3h 12m left", notificationArtistText(chapter, 3 * 3600.0 + 12 * 60.0 + 30))
+    }
+
+    @Test fun `notification artist is just remaining time when no chapter`() {
+        assertEquals("45m left", notificationArtistText(null, 45 * 60.0))
     }
 }

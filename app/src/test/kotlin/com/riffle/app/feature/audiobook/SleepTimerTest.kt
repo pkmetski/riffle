@@ -148,6 +148,7 @@ class SleepTimerTest {
             localZipFile: File?,
             coverUri: String?,
             bookTitle: String?,
+            chapters: List<AudiobookChapter>,
         ) { /* no-op */ }
 
         override fun play() {}

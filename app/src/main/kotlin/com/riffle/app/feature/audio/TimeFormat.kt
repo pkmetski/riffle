@@ -1,5 +1,7 @@
 package com.riffle.app.feature.audio
 
+import com.riffle.core.domain.AudiobookChapter
+
 /** mm:ss under an hour, h:mm:ss otherwise. */
 internal fun formatHms(totalSec: Double): String {
     val s = totalSec.toLong().coerceAtLeast(0)
@@ -20,4 +22,13 @@ fun formatRemainingReadable(remainingSec: Double): String {
     val h = totalMinutes / 60
     val m = totalMinutes % 60
     return if (h > 0) "${h}h ${m}m left" else "${m}m left"
+}
+
+/**
+ * Artist line for the system media notification: "Chapter Title · 3h 12m left" when [chapter] is
+ * non-null (the book has chapter markers), or just the remaining time otherwise.
+ */
+internal fun notificationArtistText(chapter: AudiobookChapter?, remainingSec: Double): String {
+    val remaining = formatRemainingReadable(remainingSec)
+    return if (chapter != null) "${chapter.title} · $remaining" else remaining
 }
