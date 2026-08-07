@@ -206,12 +206,31 @@ class EpubMetadataExtractorTest {
         assertEquals(EpubMetadata.EMPTY, md)
     }
 
+    @Test
+    fun `epub3 package version is extracted`() {
+        val epub = buildEpub(opfMetadata = "<dc:title>T</dc:title>", packageVersion = "3.0")
+        assertEquals("3.0", EpubMetadataExtractor.extract(epub).epubVersion)
+    }
+
+    @Test
+    fun `epub2 package version is extracted`() {
+        val epub = buildEpub(opfMetadata = "<dc:title>T</dc:title>", packageVersion = "2.0")
+        assertEquals("2.0", EpubMetadataExtractor.extract(epub).epubVersion)
+    }
+
+    @Test
+    fun `package without version attribute returns null epubVersion`() {
+        val epub = buildEpub(opfMetadata = "<dc:title>T</dc:title>", packageVersion = "")
+        assertNull(EpubMetadataExtractor.extract(epub).epubVersion)
+    }
+
     // --- helpers ---
 
     private fun buildEpub(
         opfMetadata: String,
         extraManifestItems: String = "",
         extraZipEntries: List<Pair<String, ByteArray>> = emptyList(),
+        packageVersion: String = "3.0",
     ): ByteArray {
         val container = """<?xml version="1.0"?>
             <container xmlns="urn:oasis:names:tc:opendocument:xmlns:container">
@@ -221,7 +240,7 @@ class EpubMetadataExtractorTest {
             </container>
         """.trimIndent()
         val opf = """<?xml version="1.0" encoding="UTF-8"?>
-            <package xmlns="http://www.idpf.org/2007/opf" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:opf="http://www.idpf.org/2007/opf" version="3.0">
+            <package xmlns="http://www.idpf.org/2007/opf" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:opf="http://www.idpf.org/2007/opf"${if (packageVersion.isNotEmpty()) " version=\"$packageVersion\"" else ""}>
               <metadata>
                 $opfMetadata
               </metadata>

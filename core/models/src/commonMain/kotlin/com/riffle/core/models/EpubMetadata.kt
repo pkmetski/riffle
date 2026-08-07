@@ -26,6 +26,7 @@ data class EpubMetadata(
     val genres: List<String>,
     val coverBytes: ByteArray?,
     val coverExtension: String?,
+    val epubVersion: String? = null,
 ) {
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
@@ -35,6 +36,7 @@ data class EpubMetadata(
             description == other.description && isbn == other.isbn && asin == other.asin &&
             seriesName == other.seriesName && seriesSequence == other.seriesSequence &&
             genres == other.genres &&
+            epubVersion == other.epubVersion &&
             coverExtension == other.coverExtension &&
             (coverBytes?.contentEquals(other.coverBytes) ?: (other.coverBytes == null))
     }
@@ -53,6 +55,7 @@ data class EpubMetadata(
         r = 31 * r + genres.hashCode()
         r = 31 * r + (coverBytes?.contentHashCode() ?: 0)
         r = 31 * r + (coverExtension?.hashCode() ?: 0)
+        r = 31 * r + (epubVersion?.hashCode() ?: 0)
         return r
     }
 
