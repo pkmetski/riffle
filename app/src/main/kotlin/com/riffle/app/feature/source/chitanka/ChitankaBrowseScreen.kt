@@ -1,6 +1,5 @@
 package com.riffle.app.feature.source.chitanka
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -60,6 +59,7 @@ import com.riffle.app.feature.library.LocalCoversAreSquare
 import com.riffle.app.feature.library.ToReadTabContent
 import com.riffle.app.feature.source.websource.UnboundedCatalogGrid
 import com.riffle.app.feature.source.websource.UnboundedCoverGridZoomProvider
+import com.riffle.app.ui.DefaultCoverPlaceholder
 import com.riffle.app.ui.TabletContentWidthContainer
 import com.riffle.core.catalog.CatalogItem
 import com.riffle.core.catalog.chitanka.ChitankaCatalog
@@ -376,20 +376,14 @@ private fun CatalogItemCard(
             modifier = Modifier
                 .fillMaxWidth()
                 .aspectRatio(ratio)
-                .clip(RoundedCornerShape(8.dp))
-                .background(MaterialTheme.colorScheme.surfaceVariant),
+                .clip(RoundedCornerShape(8.dp)),
         ) {
+            DefaultCoverPlaceholder(isAudiobook = isAudio)
             if (!item.coverUrl.isNullOrBlank()) {
                 AsyncImage(
                     model = item.coverUrl,
                     contentDescription = null,
                     modifier = Modifier.fillMaxSize(),
-                )
-            } else {
-                Text(
-                    if (isAudio) "🎧" else "📖",
-                    modifier = Modifier.align(Alignment.Center),
-                    style = MaterialTheme.typography.headlineMedium,
                 )
             }
         }

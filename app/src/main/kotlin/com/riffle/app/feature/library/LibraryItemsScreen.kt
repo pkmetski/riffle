@@ -128,6 +128,7 @@ import com.riffle.core.models.Series
 import kotlinx.coroutines.flow.filterIsInstance
 import kotlin.math.floor
 import kotlin.math.max
+import com.riffle.app.ui.DefaultCoverPlaceholder
 import com.riffle.app.ui.source.asAuthHeader
 
 
@@ -655,9 +656,9 @@ fun BookCoverTile(
             modifier = Modifier
                 .fillMaxWidth()
                 .aspectRatio(coverAspect)
-                .clip(RoundedCornerShape(4.dp))
-                .background(MaterialTheme.colorScheme.surfaceVariant),
+                .clip(RoundedCornerShape(4.dp)),
         ) {
+            DefaultCoverPlaceholder(isAudiobook = isAudiobookOnly, modifier = Modifier.fillMaxSize())
             AsyncImage(
                 model = ImageRequest.Builder(LocalContext.current)
                     .data(item.coverUrl)
@@ -665,7 +666,6 @@ fun BookCoverTile(
                     .crossfade(true)
                     .instrumentCover("item", item.id, item.coverUrl)
                     .build(),
-                placeholder = ColorPainter(MaterialTheme.colorScheme.surfaceVariant),
                 contentDescription = item.title,
                 contentScale = ContentScale.Crop,
                 modifier = Modifier.fillMaxSize(),
@@ -740,21 +740,25 @@ fun SeriesCoverTile(
     onClick: () -> Unit,
 ) {
     Column(modifier = Modifier.clickable(onClick = onClick)) {
-        AsyncImage(
-            model = ImageRequest.Builder(LocalContext.current)
-                .data(series.coverUrl)
-                .addHeader("Authorization", token.asAuthHeader())
-                .crossfade(true)
-                .instrumentCover("series", series.id, series.coverUrl)
-                .build(),
-            placeholder = ColorPainter(MaterialTheme.colorScheme.surfaceVariant),
-            contentDescription = series.name,
-            contentScale = ContentScale.Crop,
+        Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .aspectRatio(coverAspectRatio(LocalCoversAreSquare.current))
                 .clip(RoundedCornerShape(4.dp)),
-        )
+        ) {
+            DefaultCoverPlaceholder(isAudiobook = false, modifier = Modifier.fillMaxSize())
+            AsyncImage(
+                model = ImageRequest.Builder(LocalContext.current)
+                    .data(series.coverUrl)
+                    .addHeader("Authorization", token.asAuthHeader())
+                    .crossfade(true)
+                    .instrumentCover("series", series.id, series.coverUrl)
+                    .build(),
+                contentDescription = series.name,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize(),
+            )
+        }
         Spacer(modifier = Modifier.height(4.dp))
         Text(
             text = series.name,
@@ -880,19 +884,19 @@ private fun SearchSeriesRow(series: Series, token: String, onClick: () -> Unit) 
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
     ) {
         Row(modifier = Modifier.padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
-            AsyncImage(
-                model = ImageRequest.Builder(LocalContext.current)
-                    .data(series.coverUrl)
-                    .addHeader("Authorization", token.asAuthHeader())
-                    .crossfade(true)
-                    .build(),
-                placeholder = ColorPainter(MaterialTheme.colorScheme.surfaceVariant),
-                contentDescription = series.name,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier
-                    .size(width = 48.dp, height = 72.dp)
-                    .clip(RoundedCornerShape(4.dp)),
-            )
+            Box(modifier = Modifier.size(width = 48.dp, height = 72.dp).clip(RoundedCornerShape(4.dp))) {
+                DefaultCoverPlaceholder(isAudiobook = false, modifier = Modifier.fillMaxSize())
+                AsyncImage(
+                    model = ImageRequest.Builder(LocalContext.current)
+                        .data(series.coverUrl)
+                        .addHeader("Authorization", token.asAuthHeader())
+                        .crossfade(true)
+                        .build(),
+                    contentDescription = series.name,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize(),
+                )
+            }
             Spacer(modifier = Modifier.width(12.dp))
             Column {
                 Text(text = series.name, style = MaterialTheme.typography.titleSmall, maxLines = 2, overflow = TextOverflow.Ellipsis)
@@ -1237,20 +1241,24 @@ internal fun LibraryItemCard(
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
     ) {
         Row(modifier = Modifier.padding(8.dp), verticalAlignment = Alignment.Top) {
-            AsyncImage(
-                model = ImageRequest.Builder(LocalContext.current)
-                    .data(item.coverUrl)
-                    .addHeader("Authorization", token.asAuthHeader())
-                    .crossfade(true)
-                    .instrumentCover("card", item.id, item.coverUrl)
-                    .build(),
-                placeholder = ColorPainter(MaterialTheme.colorScheme.surfaceVariant),
-                contentDescription = item.title,
-                contentScale = ContentScale.Crop,
+            Box(
                 modifier = Modifier
                     .size(width = 48.dp, height = if (isAudiobookOnly) 48.dp else 72.dp)
                     .clip(RoundedCornerShape(4.dp)),
-            )
+            ) {
+                DefaultCoverPlaceholder(isAudiobook = isAudiobookOnly, modifier = Modifier.fillMaxSize())
+                AsyncImage(
+                    model = ImageRequest.Builder(LocalContext.current)
+                        .data(item.coverUrl)
+                        .addHeader("Authorization", token.asAuthHeader())
+                        .crossfade(true)
+                        .instrumentCover("card", item.id, item.coverUrl)
+                        .build(),
+                    contentDescription = item.title,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize(),
+                )
+            }
             Spacer(modifier = Modifier.width(12.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Row(

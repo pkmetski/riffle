@@ -23,6 +23,30 @@ class ChitankaScraperTest {
     }
 
     @Test
+    fun `category listing strips Chitanka default cover so DefaultCoverPlaceholder can show`() {
+        // book/1494-az-detektivytnobelist has src="…/thumb/book-cover/00/0.120.png" — Chitanka's
+        // "no cover" sentinel. Returning it as a non-null coverUrl causes Coil to load Chitanka's
+        // generic book icon instead of showing our DefaultCoverPlaceholder. Regression: would flip
+        // if isChitankaDefaultCover() filter is removed and null is replaced by the actual URL.
+        val html = fixture("chitanka-category.html")
+        val res = ChitankaScraper.parseSearchResults(html)
+        val noCoverBook = res.items.find { it.url.contains("/book/1494-") }
+        assertNotNull("expected book 1494 in category results", noCoverBook)
+        assertNull(
+            "book 1494 uses Chitanka's default cover — should be null, not '…/00/0.120.png'",
+            noCoverBook!!.coverUrl,
+        )
+        // Sanity: a book that has a real cover should still return it.
+        val withCover = res.items.find { it.url.contains("/book/3186-") }
+        assertNotNull("expected book 3186 in category results", withCover)
+        assertNotNull("book 3186 has a real cover — should not be null", withCover!!.coverUrl)
+        assertTrue(
+            "real cover URL should NOT contain the default-cover sentinel",
+            !withCover.coverUrl!!.contains("book-cover/00/0."),
+        )
+    }
+
+    @Test
     fun `categories page yields 20+ entries and are Bulgarian-sorted`() {
         val html = fixture("chitanka-categories.html")
         val cats = ChitankaScraper.parseCategories(html)

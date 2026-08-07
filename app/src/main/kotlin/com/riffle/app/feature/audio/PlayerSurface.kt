@@ -63,6 +63,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
+import com.riffle.app.ui.DefaultCoverPlaceholder
 import com.riffle.app.feature.audiobook.SleepTimerMode
 import com.riffle.app.feature.audiobook.formatCountdown
 
@@ -205,18 +206,23 @@ private fun PlayerSurfaceTwoColumn(
 /** Square audiobook cover (ADR 0029). [modifier] supplies the size (fraction of width, or fixed). */
 @Composable
 private fun PlayerCover(state: PlayerSurfaceState, modifier: Modifier) {
-    AsyncImage(
-        model = ImageRequest.Builder(LocalContext.current)
-            .data(state.coverUrl)
-            .addHeader("Authorization", "Bearer ${state.authToken}")
-            .build(),
-        contentDescription = null,
-        contentScale = ContentScale.Crop,
+    Box(
         modifier = modifier
             .aspectRatio(1f)
             .shadow(16.dp, RoundedCornerShape(12.dp))
             .clip(RoundedCornerShape(12.dp)),
-    )
+    ) {
+        DefaultCoverPlaceholder(isAudiobook = true, modifier = Modifier.fillMaxSize())
+        AsyncImage(
+            model = ImageRequest.Builder(LocalContext.current)
+                .data(state.coverUrl)
+                .addHeader("Authorization", "Bearer ${state.authToken}")
+                .build(),
+            contentDescription = null,
+            contentScale = ContentScale.Crop,
+            modifier = Modifier.fillMaxSize(),
+        )
+    }
 }
 
 @Composable
