@@ -1,10 +1,12 @@
 package com.riffle.app.feature.reader
 
+import android.animation.ObjectAnimator
 import android.content.Context
 import android.util.AttributeSet
 import android.view.MotionEvent
 import android.view.ViewGroup.LayoutParams.MATCH_PARENT
 import android.view.ViewGroup.LayoutParams.WRAP_CONTENT
+import android.view.animation.AccelerateDecelerateInterpolator
 import android.widget.OverScroller
 import androidx.compose.runtime.mutableStateOf
 import androidx.core.widget.NestedScrollView
@@ -76,7 +78,7 @@ internal class ContinuousReaderView @JvmOverloads constructor(
         override fun smoothScrollTo(y: Int) = this@ContinuousReaderView.smoothScrollTo(0, y)
         override fun smoothScrollBy(dy: Int) = this@ContinuousReaderView.smoothScrollBy(0, dy)
         override fun smoothScrollBy(dy: Int, durationMs: Int) =
-            this@ContinuousReaderView.smoothScrollBy(0, dy, durationMs)
+            this@ContinuousReaderView.smoothScrollByDirect(dy, durationMs)
         override fun abortFling() = this@ContinuousReaderView.abortFling()
         override fun post(block: () -> Unit) { this@ContinuousReaderView.post(block) }
         override fun postOnAnimation(block: () -> Unit) { this@ContinuousReaderView.postOnAnimation(block) }
@@ -558,5 +560,38 @@ internal class ContinuousReaderView @JvmOverloads constructor(
             f.isAccessible = true
             (f.get(this) as? OverScroller)?.abortAnimation()
         } catch (_: Exception) {}
+    }
+
+    /**
+     * Animated scroll by [dy] physical pixels over [durationMs] milliseconds, bypassing
+     * [NestedScrollView]'s 250 ms ANIMATED_SCROLL_GAP check. That check coalesces rapid
+     * programmatic scroll calls into an instant [scrollBy], but volume-key presses repeat every
+     * ~50 ms — well inside the gap — so every press after the first would teleport instead of
+     * animating, making the duration constant irrelevant.
+     *
+     * Driving [mScroller] directly looks simpler but breaks: [NestedScrollView.computeScroll]
+     * computes each frame's delta as `mScroller.getCurrY() - mLastScrollerY`, and
+     * `mLastScrollerY` is only initialized by the private `runAnimatedScroll()` that we'd also
+     * have to replicate via reflection. Skipping it leaves a stale `mLastScrollerY` so the first
+     * frame jumps the full distance at once, causing the flicker.
+     *
+     * [ObjectAnimator] on `scrollY` sidesteps all of this: it drives [View.setScrollY] each
+     * frame, which goes through [NestedScrollView.scrollTo] (clamping, `onScrollChanged`) without
+     * touching the scroller state at all. The ongoing OverScroller fling (if any) is aborted first
+     * so the two don't compete.
+     */
+    private var pageScrollAnimator: ObjectAnimator? = null
+
+    private fun smoothScrollByDirect(dy: Int, durationMs: Int) {
+        abortFling()
+        val maxScroll = ((getChildAt(0)?.height ?: 0) - height).coerceAtLeast(0)
+        val targetY = (scrollY + dy).coerceIn(0, maxScroll)
+        if (targetY == scrollY) { pageScrollAnimator?.cancel(); return }
+        pageScrollAnimator?.cancel()
+        pageScrollAnimator = ObjectAnimator.ofInt(this, "scrollY", scrollY, targetY).apply {
+            duration = durationMs.toLong()
+            interpolator = AccelerateDecelerateInterpolator()
+            start()
+        }
     }
 }
