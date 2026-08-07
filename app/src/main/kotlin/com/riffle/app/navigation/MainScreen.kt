@@ -56,6 +56,7 @@ import com.riffle.app.feature.settings.readaloud.ReadaloudSettingsScreen
 import com.riffle.app.playback.NowPlaying
 import com.riffle.app.ui.isTabletLayout
 import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.launch
 import java.net.URLDecoder
 import java.net.URLEncoder
@@ -95,7 +96,7 @@ private const val LIBRARY_SECTION = "library_section/{libraryId}/{libraryName}/{
 private const val SERIES_DETAIL = "series_detail/{libraryId}/{seriesId}/{seriesName}"
 private const val COLLECTION_DETAIL = "collection_detail/{libraryId}/{collectionId}/{collectionName}"
 private const val FILTERED_BOOKS = "filtered_books/{libraryId}/{facetType}/{facetValue}"
-private const val LIBRARY_ITEM_DETAIL = "library_item_detail/{itemId}"
+internal const val LIBRARY_ITEM_DETAIL = "library_item_detail/{itemId}"
 private const val PLAYLIST_DETAIL = "playlist_detail/{libraryId}/{playlistId}/{playlistName}"
 private const val EPUB_READER =
     "epub_reader/{itemId}?startReadaloudAtSec={startReadaloudAtSec}&openAtCfi={openAtCfi}&openAnnotationId={openAnnotationId}&startTocHref={startTocHref}&source={source}&sourceId={sourceId}"
@@ -249,9 +250,13 @@ fun MainScreen(
 
     LaunchedEffect(Unit) {
         viewModel.activeServer
+            .filterNotNull()
             .drop(1)
             .collect {
-                if (isItemDetailRoute(navController.currentDestination?.route)) {
+                val stackHasItemDetail = navController.currentBackStackSnapshot().any { entry ->
+                    isItemDetailRoute(entry.destination.route)
+                }
+                if (stackHasItemDetail) {
                     navController.navigateAsRoot(HOME)
                 }
             }

@@ -8,7 +8,7 @@ class IsItemDetailRouteTest {
 
     @Test
     fun `library item detail route is recognized`() {
-        assertTrue(isItemDetailRoute("library_item_detail/item-id-123"))
+        assertTrue(isItemDetailRoute("${LIBRARY_ITEM_DETAIL.substringBefore("{")}item-id-123"))
     }
 
     @Test
