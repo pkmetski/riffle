@@ -147,7 +147,7 @@ internal object ContinuousPositionTracker {
      *  window in [ContinuousWindowController] — a window slightly longer than a finished animation
      *  is harmless because the pending target then equals the settled scroll position. */
     internal const val PAGE_SCROLL_MIN_DURATION_MS = 200
-    internal const val PAGE_SCROLL_MAX_DURATION_MS = 800
+    internal const val PAGE_SCROLL_MAX_DURATION_MS = 1000
 
     /**
      * Animation speed for a volume-key page scroll: ms per √(CSS px). Chromium's own rate for
