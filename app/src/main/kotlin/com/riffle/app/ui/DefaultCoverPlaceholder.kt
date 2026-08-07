@@ -56,32 +56,36 @@ private fun DrawScope.drawShelfGlyph(color: Color) {
     fun h(v: Float) = v * sy
     fun cr(v: Float) = CornerRadius(v * sx, v * sy)
 
-    drawRoundRect(
-        color = color.copy(alpha = 0.85f),
-        topLeft = Offset(x(1f), y(6f)),
-        size = Size(w(9f), h(30f)),
-        cornerRadius = cr(2f),
-    )
-    withTransform({ rotate(-4f, Offset(x(18f), y(19f))) }) {
-        drawRoundRect(
-            color = color.copy(alpha = 0.6f),
-            topLeft = Offset(x(13f), y(2f)),
-            size = Size(w(11f), h(34f)),
-            cornerRadius = cr(2f),
-        )
-    }
-    drawRoundRect(
-        color = color.copy(alpha = 0.4f),
-        topLeft = Offset(x(28f), y(4f)),
-        size = Size(w(10f), h(32f)),
-        cornerRadius = cr(2f),
-    )
+    // Shelf drawn first so books sit cleanly on top without opacity bleed
     drawLine(
         color = color.copy(alpha = 0.5f),
         start = Offset(x(0f), y(37f)),
         end = Offset(x(42f), y(37f)),
         strokeWidth = h(2.5f),
         cap = StrokeCap.Round,
+    )
+    // Books end at y=35.5, just above the shelf stroke's top edge (~35.75),
+    // so they sit on the shelf with no overlap.
+    drawRoundRect(
+        color = color.copy(alpha = 0.85f),
+        topLeft = Offset(x(1f), y(6f)),
+        size = Size(w(9f), h(29.5f)),
+        cornerRadius = cr(2f),
+    )
+    // Middle book x: 13→11.5 so its top spine visually touches the left book after rotation
+    withTransform({ rotate(-4f, Offset(x(17f), y(18.75f))) }) {
+        drawRoundRect(
+            color = color.copy(alpha = 0.6f),
+            topLeft = Offset(x(11.5f), y(2f)),
+            size = Size(w(11f), h(33.5f)),
+            cornerRadius = cr(2f),
+        )
+    }
+    drawRoundRect(
+        color = color.copy(alpha = 0.4f),
+        topLeft = Offset(x(28f), y(4f)),
+        size = Size(w(10f), h(31.5f)),
+        cornerRadius = cr(2f),
     )
 }
 
