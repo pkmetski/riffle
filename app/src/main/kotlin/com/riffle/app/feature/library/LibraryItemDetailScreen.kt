@@ -473,7 +473,6 @@ private fun LibraryItemDetailContent(
             AudiobookDurationLine(item.audioDurationSec, item.readingProgress)
         }
 
-        FormatLine(item.ebookFormat, epubVersion)
         PublicationFactsLine(item, estimatedTotalReadingTimeSec, pdfPageCount)
 
         if (item.readingProgress > 0f) {
@@ -571,6 +570,7 @@ private fun LibraryItemDetailContent(
         }
 
         MetadataLines(item = item, onFacet = onFacet)
+        FormatLine(item.ebookFormat, epubVersion)
     }
 
     if (showTocSheet) {
@@ -775,7 +775,6 @@ internal fun LibraryItemDetailContentTablet(
             if (item.isListenable && item.audioDurationSec > 0) {
                 AudiobookDurationLine(item.audioDurationSec, item.readingProgress)
             }
-            FormatLine(item.ebookFormat, epubVersion)
             PublicationFactsLine(item, estimatedTotalReadingTimeSec, pdfPageCount)
             if (item.readingProgress > 0f) {
                 ReadingProgressIndicator(progress = item.readingProgress, listened = item.isListenable && !item.isReadable)
@@ -871,6 +870,7 @@ internal fun LibraryItemDetailContentTablet(
                 }
             }
             MetadataLines(item = item, onFacet = onFacet)
+            FormatLine(item.ebookFormat, epubVersion)
         }
     }
 
@@ -989,7 +989,6 @@ internal fun LibraryItemDetailContentPhoneLandscape(
             if (item.isListenable && item.audioDurationSec > 0) {
                 AudiobookDurationLine(item.audioDurationSec, item.readingProgress)
             }
-            FormatLine(item.ebookFormat, epubVersion)
             PublicationFactsLine(item, estimatedTotalReadingTimeSec, pdfPageCount)
             if (item.readingProgress > 0f) {
                 ReadingProgressIndicator(progress = item.readingProgress, listened = item.isListenable && !item.isReadable)
@@ -1071,6 +1070,7 @@ internal fun LibraryItemDetailContentPhoneLandscape(
                 CollapsibleDescription(desc)
             }
             MetadataLines(item = item, onFacet = onFacet)
+            FormatLine(item.ebookFormat, epubVersion)
         }
     }
 
