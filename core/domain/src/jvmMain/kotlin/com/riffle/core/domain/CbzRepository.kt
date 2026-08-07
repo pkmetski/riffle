@@ -32,7 +32,7 @@ interface CbzRepository {
     fun isCached(sourceId: String, itemId: String): Boolean
     suspend fun saveReadingPosition(itemId: String, locatorJson: String)
     /** True when the catalog for [sourceId] implements [CbzPageStreamCapability]. */
-    fun supportsStreaming(sourceId: String): Boolean
+    suspend fun supportsStreaming(sourceId: String): Boolean
     /**
      * Fetch the raw image bytes for [pageIndex] (0-based) directly from the catalog.
      * Only valid when [supportsStreaming] returns true for the item's source.
