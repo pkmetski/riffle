@@ -22,9 +22,10 @@ import org.junit.Test
  *   the close animation (targetValue is already Closed at that point, so isOpen alone
  *   would miss it in the opposite direction).
  *
- * The same predicate also gates LibraryItemsScreen's backEnabled, because that child
- * BackHandler has LIFO priority over the top-level handler and would otherwise intercept
- * Back first during the animation windows.
+ * The same predicate also gates LibraryItemsScreen's backEnabled as belt-and-suspenders:
+ * the drawer BackHandler is now registered AFTER NavHost (higher LIFO priority in
+ * OnBackPressedDispatcher) so it fires before the library handler. Disabling the library
+ * handler when the drawer is open avoids any residual edge-case race.
  */
 class ShouldInterceptBackForDrawerTest {
 
