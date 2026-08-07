@@ -406,7 +406,7 @@ class LibraryItemDetailViewModel @Inject constructor(
                         val details = extractEpubTocUseCase.extractDetails(item)
                         _tocState.value = TocState.Ready(details.tocEntries)
                         _epubTotalPositions.value = details.totalPositions
-                        _epubVersion.value = details.epubVersion
+                        _epubVersion.value = details.epubVersion?.ifEmpty { null }
                     }
                 }
                 if (item.ebookFormat == EbookFormat.Pdf) {

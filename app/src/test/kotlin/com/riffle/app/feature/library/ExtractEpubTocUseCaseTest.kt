@@ -271,7 +271,9 @@ class ExtractEpubTocUseCaseTest {
                 publicationMetricsRepository.save(
                     "srv1",
                     "item1",
-                    PublicationMetrics(ebookFileIno = "ino1", totalPositions = 120),
+                    // "" sentinel: the test EPUB has no valid OPF so extractor returns EMPTY;
+                    // the sentinel prevents infinite re-extraction for version-less EPUBs.
+                    PublicationMetrics(ebookFileIno = "ino1", totalPositions = 120, epubVersion = ""),
                 )
             }
             coVerifyOrder {
@@ -279,7 +281,7 @@ class ExtractEpubTocUseCaseTest {
                 publicationMetricsRepository.save(
                     "srv1",
                     "item1",
-                    PublicationMetrics(ebookFileIno = "ino1", totalPositions = 120),
+                    PublicationMetrics(ebookFileIno = "ino1", totalPositions = 120, epubVersion = ""),
                 )
             }
             coVerify(exactly = 0) { positionsService.positionsByReadingOrder() }

@@ -58,6 +58,23 @@ class ExtractEpubTocUseCaseCacheTest {
     }
 
     @Test
+    fun `cache hit with empty-string sentinel epubVersion is a full cache hit`() = runTest {
+        // An EPUB whose <package> has no version attribute stores "" as the sentinel. The guard
+        // must treat "" as "already extracted" — not re-extract on every open.
+        val tocRepo = mockk<TocRepository>()
+        coEvery { tocRepo.getCachedToc("src-1", "item-1") } returns (inode to tocEntries)
+
+        val metricsRepo = mockk<PublicationMetricsRepository>()
+        coEvery { metricsRepo.get("src-1", "item-1") } returns
+            PublicationMetrics(ebookFileIno = inode, totalPositions = 100, epubVersion = "")
+
+        val details = makeUseCase(tocRepo, metricsRepo).extractDetails(item)
+
+        assertEquals("", details.epubVersion)
+        assertEquals(tocEntries, details.tocEntries)
+    }
+
+    @Test
     fun `cache hit with null epubVersion falls through to extraction`() = runTest {
         // Pre-migration rows have NULL epubVersion. The early-return must NOT fire so the
         // version is re-extracted on the next detail-screen open.

@@ -108,7 +108,9 @@ class ExtractEpubTocUseCase @Inject constructor(
             else -> return Details(matchingCachedEntries.orEmpty(), matchingPositionCount, matchingEpubVersion)
         }
 
-        val extractedEpubVersion = EpubMetadataExtractor.extract(file).epubVersion
+        // Use "" as a sentinel meaning "extracted but version attribute absent", so a version-less
+        // EPUB doesn't permanently fail the cache-hit guard (which treats null as "never extracted").
+        val extractedEpubVersion = EpubMetadataExtractor.extract(file).epubVersion ?: ""
 
         val url = AbsoluteUrl("file://${file.absolutePath}")
             ?: return Details(matchingCachedEntries.orEmpty(), matchingPositionCount, matchingEpubVersion)
