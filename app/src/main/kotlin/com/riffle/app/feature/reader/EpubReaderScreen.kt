@@ -2608,7 +2608,10 @@ private fun EpubNavigatorView(
         }
     }
 
-    LaunchedEffect(volumeNavEvents) {
+    // Key on readerPresenter so a mode flip (paginated/vertical ↔ continuous) restarts the
+    // collect with the new presenter. Without this, the closure captures the old detached
+    // presenter and pageBy() is a no-op — same rationale as returnNavEvents / searchNavigationEvents.
+    LaunchedEffect(volumeNavEvents, readerPresenter) {
         volumeNavEvents.collect { event ->
             val direction = if (event == VolumeNavEvent.Forward) PageDirection.Forward else PageDirection.Backward
             val container = containerRef.value
