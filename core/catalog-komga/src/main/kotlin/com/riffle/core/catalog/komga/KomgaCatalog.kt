@@ -16,6 +16,7 @@ import com.riffle.core.catalog.DownloadsCapability
 import com.riffle.core.catalog.FacetSelection
 import com.riffle.core.catalog.OfflineBrowseCapability
 import com.riffle.core.catalog.PlaylistsCapability
+import com.riffle.core.catalog.CbzPageStreamCapability
 import com.riffle.core.catalog.ProgressPeerCapability
 import com.riffle.core.catalog.ReadCapability
 import com.riffle.core.catalog.SeriesCapability
@@ -68,7 +69,8 @@ class KomgaCatalog(
     OfflineBrowseCapability,
     SeriesCapability,
     PlaylistsCapability,
-    ProgressPeerCapability {
+    ProgressPeerCapability,
+    CbzPageStreamCapability {
 
     override val sourceType: SourceType = SourceType.KOMGA
 
@@ -209,6 +211,21 @@ class KomgaCatalog(
             error = if (reachable) null else "Komga is unreachable",
         )
     }
+
+    // region CbzPageStreamCapability
+
+    override suspend fun fetchCbzPageImage(itemId: String, pageIndex: Int): ByteArray =
+        http.getBytes(apiUrl("books/$itemId/pages/${pageIndex + 1}"))
+
+    override suspend fun fetchCbzPageCount(itemId: String): Int {
+        val body = http.getString(apiUrl("books/$itemId"))
+        val dto = runCatching {
+            KomgaJson.decodeFromString(serializer<KomgaBookDto>(), body)
+        }.getOrNull()
+        return dto?.media?.pagesCount ?: 0
+    }
+
+    // endregion
 
     // region ProgressPeerCapability (#528)
 

@@ -10,6 +10,7 @@ import io.ktor.client.request.patch
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
 import io.ktor.client.statement.HttpResponse
+import io.ktor.client.statement.bodyAsBytes
 import io.ktor.client.statement.bodyAsText
 import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
@@ -82,6 +83,23 @@ class KomgaHttpClient(
             header(HttpHeaders.UserAgent, userAgent)
         }
         readSuccessOrThrow("DELETE", url, response)
+    }
+
+    /** GET [url], return response body as raw bytes. Throws [KomgaHttpException] on non-2xx. */
+    suspend fun getBytes(url: String): ByteArray {
+        val response = client.get(url) {
+            header(HttpHeaders.Authorization, basicAuthHeader)
+            header(HttpHeaders.UserAgent, userAgent)
+        }
+        if (!response.status.isSuccess()) {
+            throw KomgaHttpException(
+                code = response.status.value,
+                url = url,
+                method = "GET",
+                statusMessage = response.status.description,
+            )
+        }
+        return response.bodyAsBytes()
     }
 
     /** Status of a GET without reading the body. Returns HTTP code (or -1 on IOException). */
