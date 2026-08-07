@@ -16,6 +16,7 @@ class KomgaCatalogFactory(
     private val httpClient: HttpClient,
     private val tokenStorage: TokenStorage,
     private val userAgent: String = "Riffle/dev (Android) komga-source",
+    private val bytesClient: HttpClient = httpClient,
 ) : CatalogFactory {
 
     override val sourceType: SourceType = SourceType.KOMGA
@@ -41,6 +42,6 @@ class KomgaCatalogFactory(
             basicAuthHeader = basicAuthHeader,
             userAgent = userAgent,
         )
-        return KomgaCatalog(config = config, http = http, bytesClient = httpClient)
+        return KomgaCatalog(config = config, http = http, bytesClient = bytesClient)
     }
 }

@@ -29,5 +29,7 @@ sealed class CbzReaderState {
         val title: String,
         val pageCount: Int,
         val imageSource: CbzImageSource,
+        /** Low-resolution source for the thumbnail strip. Null = use [imageSource] (fast for local archives). */
+        val thumbnailSource: CbzImageSource? = null,
     ) : CbzReaderState()
 }

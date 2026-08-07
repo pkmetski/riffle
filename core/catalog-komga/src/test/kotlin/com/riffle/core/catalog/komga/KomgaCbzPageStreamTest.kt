@@ -70,6 +70,36 @@ class KomgaCbzPageStreamTest {
         assertEquals("/api/v1/books/B1/pages/5", request.path)
     }
 
+    @Test fun `fetchCbzPageImage appends width query param when maxWidth is provided`() = runTest {
+        val fakeBytes = byteArrayOf(1, 2, 3, 4)
+        server.enqueue(
+            MockResponse()
+                .setResponseCode(200)
+                .setBody(Buffer().write(fakeBytes))
+        )
+
+        val cap = catalog as CbzPageStreamCapability
+        cap.fetchCbzPageImage("B1", 0, maxWidth = 300)
+
+        val request = server.takeRequest()
+        assertEquals("/api/v1/books/B1/pages/1?width=300", request.path)
+    }
+
+    @Test fun `fetchCbzPageImage omits width query param when maxWidth is null`() = runTest {
+        val fakeBytes = byteArrayOf(1, 2, 3, 4)
+        server.enqueue(
+            MockResponse()
+                .setResponseCode(200)
+                .setBody(Buffer().write(fakeBytes))
+        )
+
+        val cap = catalog as CbzPageStreamCapability
+        cap.fetchCbzPageImage("B1", 0, maxWidth = null)
+
+        val request = server.takeRequest()
+        assertEquals("/api/v1/books/B1/pages/1", request.path)
+    }
+
     @Test fun `fetchCbzPageCount returns pagesCount from book metadata`() = runTest {
         server.enqueue(MockResponse().setBody("""
             {

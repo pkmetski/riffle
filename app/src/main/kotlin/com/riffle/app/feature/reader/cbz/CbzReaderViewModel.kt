@@ -220,16 +220,23 @@ class CbzReaderViewModel @Inject constructor(
         _currentPanelIndex.value = 0
 
         val networkSource = NetworkImageSource(item.sourceId, item.id, result.pageCount, cbzRepository)
+        val thumbnailSource = NetworkImageSource(item.sourceId, item.id, result.pageCount, cbzRepository, thumbnailWidth = 300)
+        panelBook = panelOrchestrator.forBook(
+            bookId = bookId,
+            imageBytes = { pageIndex -> networkSource.imageBytes(pageIndex) },
+        )
         _state.value = CbzReaderState.Ready(
             title = item.title,
             pageCount = result.pageCount,
             imageSource = networkSource,
+            thumbnailSource = thumbnailSource,
         )
 
         val payload = result.lastPosition?.takeIf { it.isNotEmpty() }?.let {
             SessionPayload(ebookLocation = it, ebookProgress = 0f)
         } ?: SessionPayload("", 0f)
         syncSession.sync(payload)
+        onCurrentPageChanged(resumeIndex)
 
         // Background: download the full file and swap to the local archive once ready.
         viewModelScope.launch {
@@ -272,6 +279,7 @@ class CbzReaderViewModel @Inject constructor(
         _state.value = current.copy(
             pageCount = effectivePageCount,
             imageSource = ArchiveImageSource(newArchive),
+            thumbnailSource = null,
         )
         onCurrentPageChanged(_currentPage.value)
     }

@@ -37,7 +37,7 @@ interface CbzRepository {
      * Fetch the raw image bytes for [pageIndex] (0-based) directly from the catalog.
      * Only valid when [supportsStreaming] returns true for the item's source.
      */
-    suspend fun fetchStreamingPageImage(sourceId: String, itemId: String, pageIndex: Int): ByteArray
+    suspend fun fetchStreamingPageImage(sourceId: String, itemId: String, pageIndex: Int, maxWidth: Int? = null): ByteArray
     /**
      * Download the full CBZ to the local cache store and return the [File].
      * Returns null on network failure. Idempotent: returns the existing file if already present.

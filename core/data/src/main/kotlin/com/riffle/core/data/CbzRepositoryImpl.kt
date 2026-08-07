@@ -104,10 +104,10 @@ class CbzRepositoryImpl(
     override suspend fun supportsStreaming(sourceId: String): Boolean =
         catalogRegistry.forSourceId(sourceId) as? CbzPageStreamCapability != null
 
-    override suspend fun fetchStreamingPageImage(sourceId: String, itemId: String, pageIndex: Int): ByteArray {
+    override suspend fun fetchStreamingPageImage(sourceId: String, itemId: String, pageIndex: Int, maxWidth: Int?): ByteArray {
         val cap = catalogRegistry.forSourceId(sourceId) as? CbzPageStreamCapability
             ?: throw IllegalStateException("No CbzPageStreamCapability for source $sourceId")
-        return cap.fetchCbzPageImage(itemId, pageIndex)
+        return cap.fetchCbzPageImage(itemId, pageIndex, maxWidth)
     }
 
     override suspend fun awaitCachedFile(item: LibraryItem): File? {

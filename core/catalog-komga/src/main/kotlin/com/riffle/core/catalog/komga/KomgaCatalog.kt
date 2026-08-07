@@ -214,8 +214,11 @@ class KomgaCatalog(
 
     // region CbzPageStreamCapability
 
-    override suspend fun fetchCbzPageImage(itemId: String, pageIndex: Int): ByteArray =
-        http.getBytes(apiUrl("books/$itemId/pages/${pageIndex + 1}"))
+    override suspend fun fetchCbzPageImage(itemId: String, pageIndex: Int, maxWidth: Int?): ByteArray {
+        val base = apiUrl("books/$itemId/pages/${pageIndex + 1}")
+        val url = if (maxWidth != null) "$base?width=$maxWidth" else base
+        return http.getBytes(url)
+    }
 
     override suspend fun fetchCbzPageCount(itemId: String): Int {
         val body = http.getString(apiUrl("books/$itemId"))

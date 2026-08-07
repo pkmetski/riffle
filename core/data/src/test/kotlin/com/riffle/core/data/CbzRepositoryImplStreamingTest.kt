@@ -50,9 +50,11 @@ class CbzRepositoryImplStreamingTest {
             block: suspend (CatalogFileStream) -> T,
         ): T = throw UnsupportedOperationException()
         override suspend fun connectivityCheck(): CatalogHealth = CatalogHealth(isReachable = true)
-        override suspend fun fetchCbzPageImage(itemId: String, pageIndex: Int): ByteArray {
+        var lastMaxWidth: Int? = null
+        override suspend fun fetchCbzPageImage(itemId: String, pageIndex: Int, maxWidth: Int?): ByteArray {
             lastItemId = itemId
             lastPageIndex = pageIndex
+            lastMaxWidth = maxWidth
             return imageBytes
         }
         override suspend fun fetchCbzPageCount(itemId: String): Int = 20

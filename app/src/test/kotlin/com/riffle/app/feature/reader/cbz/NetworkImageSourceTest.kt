@@ -27,10 +27,12 @@ class NetworkImageSourceTest {
         override fun isCached(sourceId: String, itemId: String): Boolean = false
         override suspend fun saveReadingPosition(itemId: String, locatorJson: String) {}
         override suspend fun supportsStreaming(sourceId: String): Boolean = true
-        override suspend fun fetchStreamingPageImage(sourceId: String, itemId: String, pageIndex: Int): ByteArray {
+        var requestedMaxWidth: Int? = null
+        override suspend fun fetchStreamingPageImage(sourceId: String, itemId: String, pageIndex: Int, maxWidth: Int?): ByteArray {
             requestedSourceId = sourceId
             requestedItemId = itemId
             requestedPageIndex = pageIndex
+            requestedMaxWidth = maxWidth
             return fakeBytes
         }
         override suspend fun awaitCachedFile(item: LibraryItem): File? = null
@@ -55,5 +57,31 @@ class NetworkImageSourceTest {
         val stream = source.openStream(0)
         val read = stream.readBytes()
         assertArrayEquals(fakeBytes, read)
+    }
+
+    @Test fun `thumbnailWidth is forwarded as maxWidth to repository`() {
+        val source = NetworkImageSource("src", "item", 10, fakeRepo, thumbnailWidth = 300)
+        source.imageBytes(2)
+        assertEquals(300, fakeRepo.requestedMaxWidth)
+    }
+
+    @Test fun `null thumbnailWidth passes null maxWidth to repository`() {
+        val source = NetworkImageSource("src", "item", 10, fakeRepo, thumbnailWidth = null)
+        source.imageBytes(2)
+        assertEquals(null, fakeRepo.requestedMaxWidth)
+    }
+
+    @Test fun `byte cache prevents second network request for same pageIndex`() {
+        var callCount = 0
+        val countingRepo = object : CbzRepository by fakeRepo {
+            override suspend fun fetchStreamingPageImage(sourceId: String, itemId: String, pageIndex: Int, maxWidth: Int?): ByteArray {
+                callCount++
+                return fakeBytes
+            }
+        }
+        val source = NetworkImageSource("src", "item", 10, countingRepo)
+        source.imageBytes(5)
+        source.imageBytes(5) // same index — should hit cache
+        assertEquals("expected only 1 network call due to byte cache", 1, callCount)
     }
 }

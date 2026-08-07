@@ -29,6 +29,7 @@ import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
 import dagger.multibindings.IntoMap
+import com.riffle.core.network.JvmHttpClientPool
 import io.ktor.client.HttpClient
 import javax.inject.Singleton
 
@@ -116,10 +117,12 @@ object CatalogModule {
     @SourceTypeKey(SourceType.KOMGA)
     fun provideKomgaCatalogFactory(
         httpClient: HttpClient,
+        pool: JvmHttpClientPool,
         tokenStorage: TokenStorage,
     ): CatalogFactory = KomgaCatalogFactory(
         httpClient = httpClient,
         tokenStorage = tokenStorage,
+        bytesClient = pool.fileTransferClient(),
         userAgent = "Riffle/dev (Android) komga-source",
     )
 

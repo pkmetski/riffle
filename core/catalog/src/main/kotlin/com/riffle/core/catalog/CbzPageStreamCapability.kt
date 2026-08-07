@@ -9,8 +9,12 @@ package com.riffle.core.catalog
  * expects (Komga uses 1-based page numbers).
  */
 interface CbzPageStreamCapability : CatalogCapability {
-    /** Returns the raw image bytes for [pageIndex] (0-based). */
-    suspend fun fetchCbzPageImage(itemId: String, pageIndex: Int): ByteArray
+    /**
+     * Returns the raw image bytes for [pageIndex] (0-based).
+     * Pass [maxWidth] to request a downscaled image (e.g. 300 for thumbnails);
+     * null requests the full-resolution original.
+     */
+    suspend fun fetchCbzPageImage(itemId: String, pageIndex: Int, maxWidth: Int? = null): ByteArray
     /** Returns the total page count for the item. */
     suspend fun fetchCbzPageCount(itemId: String): Int
 }
