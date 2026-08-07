@@ -92,7 +92,6 @@ open class AudiobookController @Inject constructor(
     private var pollJob: Job? = null
     private var spans: List<AudiobookTrackSpan> = emptyList()
     private var chapters: List<AudiobookChapter> = emptyList()
-    private var bookTitle: String? = null
     private var durationSec: Double = 0.0
     private var prepared = false
     private var wantsToPlay = false
@@ -146,7 +145,6 @@ open class AudiobookController @Inject constructor(
         val t0 = clock.nowMs()
         this.spans = spans
         this.chapters = chapters
-        this.bookTitle = bookTitle
         this.durationSec = durationSec
         SharedAudiobookContext.spans = spans
         SharedAudiobookContext.totalDurationMs = (durationSec * 1000.0).toLong()
@@ -311,7 +309,6 @@ open class AudiobookController @Inject constructor(
         connector?.release()
         spans = emptyList()
         chapters = emptyList()
-        bookTitle = null
         prepared = false
         wantsToPlay = false
         // Release the bundle reference only if THIS session set it (parity with ReadaloudController),
@@ -349,7 +346,6 @@ open class AudiobookController @Inject constructor(
         connector?.releaseForHandoff()
         spans = emptyList()
         chapters = emptyList()
-        bookTitle = null
         prepared = false
         wantsToPlay = false
         ownsSharedBundle = false
