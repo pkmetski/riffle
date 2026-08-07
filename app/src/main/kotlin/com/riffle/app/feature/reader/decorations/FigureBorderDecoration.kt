@@ -69,13 +69,15 @@ internal object FigureBorderDecoration {
                     a.imageHref?.let { refs += Ref(it, a.color, hasNote, a.updatedAt, tintCaption = true) }
                 AnnotationEntity.TYPE_HIGHLIGHT -> a.embeddedFigures?.forEach { fig ->
                     fig.href?.let {
-                        refs += Ref(it, a.color, hasNote, a.updatedAt, tintCaption = !highlightCoversCaption(a, fig))
+                        refs += Ref(it, a.color, hasNote, a.updatedAt, tintCaption = !highlightOverlapsCaption(a, fig))
                     }
                 }
             }
         }
         return refs.groupBy { hrefFilename(it.href) }
-            .mapValues { (_, group) -> group.maxByOrNull { it.updatedAt }!! }
+            .mapValues { (_, group) ->
+                group.maxByOrNull { it.updatedAt }!!.copy(tintCaption = group.all { it.tintCaption })
+            }
             .values
             .map {
                 RasterMark(
@@ -108,7 +110,7 @@ internal object FigureBorderDecoration {
     private const val SVG_FINGERPRINT_PREFIX_LEN = 200
 
     /**
-     * True when the highlight's captured `textSnippet` covers the figure's caption text — the
+     * True when the highlight's captured `textSnippet` overlaps the figure's caption text — the
      * signal that Readium's highlight decoration is already painting the caption for us and the
      * render-side CSS tint would double-paint. False when the highlight range excludes the
      * caption (e.g. a pre-caption-highlight text-selection across body prose that happens to
@@ -124,17 +126,56 @@ internal object FigureBorderDecoration {
      * shape via the same canonical caption prefix used by
      * `HighlightsPublicationFactory.appendInterleavedHighlight` and treat it as covered.
      */
-    private fun highlightCoversCaption(annotation: Annotation, figure: com.riffle.core.models.EmbeddedFigure): Boolean {
+    private fun highlightOverlapsCaption(annotation: Annotation, figure: com.riffle.core.models.EmbeddedFigure): Boolean {
         val normalizedSnippet = annotation.textSnippet.replace(Regex("\\s+"), " ").trim()
         if (figure.caption.isBlank()) {
-            return CAPTION_HIGHLIGHT_PREFIX_REGEX.containsMatchIn(normalizedSnippet)
+            if (CAPTION_HIGHLIGHT_PREFIX_REGEX.containsMatchIn(normalizedSnippet)) return true
+            // Caption element is not a <figcaption> (e.g. <p class="caption">) — the JS stash
+            // stored caption="". When charOffset is known, check if the text from the figure's
+            // position contains a caption label ("Figure N:") — the colon discriminates a real
+            // caption label from prose references like "Figure 3.1 illustrates...".
+            val offset = figure.charOffset ?: return false
+            val snippetFromFigure = annotation.textSnippet
+                .drop(offset.coerceAtMost(annotation.textSnippet.length.toLong()).toInt())
+                .replace(Regex("\\s+"), " ")
+                .trim()
+            return CAPTION_LABEL_REGEX.containsMatchIn(snippetFromFigure)
         }
         val normalizedCaption = figure.caption.replace(Regex("\\s+"), " ").trim()
-        return normalizedSnippet.contains(normalizedCaption)
+        if (normalizedSnippet.contains(normalizedCaption)) return true
+        val figureOffset = figure.charOffset
+        if (figureOffset == null) {
+            // charOffset not captured (JS-stash-only figure or pre-offset legacy row). Fall back
+            // to a suffix/prefix overlap: if the snippet's tail matches a prefix of the caption,
+            // the selection entered the figcaption from above (prose → figure → partial caption).
+            val maxOverlap = minOf(normalizedCaption.length, normalizedSnippet.length)
+            return (maxOverlap downTo MIN_CAPTION_BOUNDARY_OVERLAP).any { overlap ->
+                normalizedCaption.take(overlap) == normalizedSnippet.takeLast(overlap)
+            }
+        }
+        val snippetFromFigure = annotation.textSnippet
+            .drop(figureOffset.coerceAtMost(annotation.textSnippet.length.toLong()).toInt())
+            .replace(Regex("\\s+"), " ")
+            .trim()
+        if (snippetFromFigure.isEmpty()) return false
+        if (normalizedCaption.startsWith(snippetFromFigure) || snippetFromFigure.startsWith(normalizedCaption)) return true
+        if (figureOffset == 0L && normalizedCaption.contains(normalizedSnippet)) return true
+        val maxOverlap = minOf(normalizedCaption.length, snippetFromFigure.length)
+        return (maxOverlap downTo MIN_CAPTION_BOUNDARY_OVERLAP).any { overlap ->
+            normalizedCaption.takeLast(overlap) == snippetFromFigure.take(overlap)
+        }
     }
+
+    private const val MIN_CAPTION_BOUNDARY_OVERLAP = 8
 
     private val CAPTION_HIGHLIGHT_PREFIX_REGEX =
         Regex("^\\s*(Figure|Fig\\.?|Table|Chart)\\s+\\d", RegexOption.IGNORE_CASE)
+
+    // Matches a caption label "Figure N:" / "Table N:" anywhere in text — the colon after
+    // the number distinguishes a real figcaption label from a prose reference like
+    // "Figure 3.1 illustrates". Used when figure.caption is blank (no <figcaption> element).
+    private val CAPTION_LABEL_REGEX =
+        Regex("(Figure|Fig\\.?|Table|Chart)\\s+\\d[^:]*:", RegexOption.IGNORE_CASE)
 
     /**
      * One entry per SVG annotation covering the current document. Newest-wins by `updatedAt` when
@@ -165,14 +206,16 @@ internal object FigureBorderDecoration {
                 }
                 AnnotationEntity.TYPE_HIGHLIGHT -> a.embeddedFigures?.forEach { figure ->
                     figure.svg?.take(SVG_FINGERPRINT_PREFIX_LEN)?.let {
-                        refs += Ref(it, a.color, hasNote, a.updatedAt, tintCaption = !highlightCoversCaption(a, figure))
+                        refs += Ref(it, a.color, hasNote, a.updatedAt, tintCaption = !highlightOverlapsCaption(a, figure))
                     }
                 }
             }
         }
 
         return refs.groupBy { it.fingerprint }
-            .mapValues { (_, group) -> group.maxByOrNull { it.updatedAt }!! }
+            .mapValues { (_, group) ->
+                group.maxByOrNull { it.updatedAt }!!.copy(tintCaption = group.all { it.tintCaption })
+            }
             .values
             .map {
                 SvgMatch(

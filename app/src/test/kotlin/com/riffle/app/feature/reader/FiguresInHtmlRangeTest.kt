@@ -194,6 +194,25 @@ class FiguresInHtmlRangeTest {
     }
 
     @Test
+    fun `mergeEnclosedFigures promotes charOffset from walk entry into stash entry that lacks it`() {
+        // The JS stash never captures charOffset; the Kotlin walk always does. Without promotion
+        // the merged figure has charOffset=null → highlightOverlapsCaption returns false for the
+        // null branch → tintCaption=true → CSS double-paints the figcaption.
+        val stash = listOf(
+            EmbeddedFigure(href = "images/fig.png", svg = null, caption = "cap", order = 0, imageBytes = "data:image/png;base64,AA=="),
+        )
+        val walk = listOf(
+            EmbeddedFigure(href = "images/fig.png", svg = null, caption = "cap", order = 0, charOffset = 42L),
+        )
+
+        val merged = mergeEnclosedFigures(stash, walk)
+
+        assertEquals(1, merged.size)
+        assertEquals("data:image/png;base64,AA==", merged.single().imageBytes)
+        assertEquals(42L, merged.single().charOffset)
+    }
+
+    @Test
     fun `mergeEnclosedFigures returns html walk when stash is empty`() {
         val walk = listOf(
             EmbeddedFigure(href = "images/eq.jpg", svg = null, caption = "", order = 0, imageBytes = null),
