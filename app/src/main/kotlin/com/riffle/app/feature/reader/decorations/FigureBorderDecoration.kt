@@ -1,5 +1,6 @@
 package com.riffle.app.feature.reader.decorations
 
+import com.riffle.app.feature.reader.normalizeCaptionText
 import com.riffle.app.feature.reader.toCssRgba
 import com.riffle.core.database.AnnotationEntity
 import com.riffle.core.models.Annotation
@@ -127,7 +128,7 @@ internal object FigureBorderDecoration {
      * `HighlightsPublicationFactory.appendInterleavedHighlight` and treat it as covered.
      */
     private fun highlightOverlapsCaption(annotation: Annotation, figure: com.riffle.core.models.EmbeddedFigure): Boolean {
-        val normalizedSnippet = annotation.textSnippet.replace(Regex("\\s+"), " ").trim()
+        val normalizedSnippet = normalizeCaptionText(annotation.textSnippet)
         if (figure.caption.isBlank()) {
             if (CAPTION_HIGHLIGHT_PREFIX_REGEX.containsMatchIn(normalizedSnippet)) return true
             // Caption element is not a <figcaption> (e.g. <p class="caption">) — the JS stash
@@ -135,13 +136,9 @@ internal object FigureBorderDecoration {
             // position contains a caption label ("Figure N:") — the colon discriminates a real
             // caption label from prose references like "Figure 3.1 illustrates...".
             val offset = figure.charOffset ?: return false
-            val snippetFromFigure = annotation.textSnippet
-                .drop(offset.coerceAtMost(annotation.textSnippet.length.toLong()).toInt())
-                .replace(Regex("\\s+"), " ")
-                .trim()
-            return CAPTION_LABEL_REGEX.containsMatchIn(snippetFromFigure)
+            return CAPTION_LABEL_REGEX.containsMatchIn(snippetFromOffset(annotation.textSnippet, offset))
         }
-        val normalizedCaption = figure.caption.replace(Regex("\\s+"), " ").trim()
+        val normalizedCaption = normalizeCaptionText(figure.caption)
         if (normalizedSnippet.contains(normalizedCaption)) return true
         val figureOffset = figure.charOffset
         if (figureOffset == null) {
@@ -153,29 +150,31 @@ internal object FigureBorderDecoration {
                 normalizedCaption.take(overlap) == normalizedSnippet.takeLast(overlap)
             }
         }
-        val snippetFromFigure = annotation.textSnippet
-            .drop(figureOffset.coerceAtMost(annotation.textSnippet.length.toLong()).toInt())
-            .replace(Regex("\\s+"), " ")
-            .trim()
+        val snippetFromFigure = snippetFromOffset(annotation.textSnippet, figureOffset)
         if (snippetFromFigure.isEmpty()) return false
         if (normalizedCaption.startsWith(snippetFromFigure) || snippetFromFigure.startsWith(normalizedCaption)) return true
-        if (figureOffset == 0L && normalizedCaption.contains(normalizedSnippet)) return true
+        if (normalizedCaption.contains(snippetFromFigure)) return true
         val maxOverlap = minOf(normalizedCaption.length, snippetFromFigure.length)
         return (maxOverlap downTo MIN_CAPTION_BOUNDARY_OVERLAP).any { overlap ->
             normalizedCaption.takeLast(overlap) == snippetFromFigure.take(overlap)
         }
     }
 
+    private fun snippetFromOffset(raw: String, offset: Long): String =
+        normalizeCaptionText(raw.drop(offset.coerceAtMost(raw.length.toLong()).toInt()))
+
     private const val MIN_CAPTION_BOUNDARY_OVERLAP = 8
 
+    private const val CAPTION_KEYWORDS = "Figure|Fig\\.?|Table|Chart"
+
     private val CAPTION_HIGHLIGHT_PREFIX_REGEX =
-        Regex("^\\s*(Figure|Fig\\.?|Table|Chart)\\s+\\d", RegexOption.IGNORE_CASE)
+        Regex("^\\s*($CAPTION_KEYWORDS)\\s+\\d", RegexOption.IGNORE_CASE)
 
     // Matches a caption label "Figure N:" / "Table N:" anywhere in text — the colon after
     // the number distinguishes a real figcaption label from a prose reference like
     // "Figure 3.1 illustrates". Used when figure.caption is blank (no <figcaption> element).
     private val CAPTION_LABEL_REGEX =
-        Regex("(Figure|Fig\\.?|Table|Chart)\\s+\\d[^:]*:", RegexOption.IGNORE_CASE)
+        Regex("($CAPTION_KEYWORDS)\\s+\\d[^:]*:", RegexOption.IGNORE_CASE)
 
     /**
      * One entry per SVG annotation covering the current document. Newest-wins by `updatedAt` when
