@@ -55,6 +55,7 @@ import com.riffle.app.feature.settings.readaloud.ReadaloudMatchesScreen
 import com.riffle.app.feature.settings.readaloud.ReadaloudSettingsScreen
 import com.riffle.app.playback.NowPlaying
 import com.riffle.app.ui.isTabletLayout
+import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.launch
 import java.net.URLDecoder
 import java.net.URLEncoder
@@ -244,6 +245,16 @@ fun MainScreen(
             navController.navigateAsRoot(libraryEntryRoute(activeServer?.type, library.id, library.name))
             viewModel.setActiveLibrary(library.id)
         }
+    }
+
+    LaunchedEffect(Unit) {
+        viewModel.activeServer
+            .drop(1)
+            .collect {
+                if (isItemDetailRoute(navController.currentDestination?.route)) {
+                    navController.navigateAsRoot(HOME)
+                }
+            }
     }
 
     RiffleNavigationDrawer(
@@ -1085,6 +1096,9 @@ internal fun NavController.popBackStackIfTop(backStackEntry: NavBackStackEntry) 
         popBack = { popBackStack() },
     )
 }
+
+internal fun isItemDetailRoute(route: String?): Boolean =
+    route?.startsWith(LIBRARY_ITEM_DETAIL.substringBefore("{")) == true
 
 internal fun isReaderRoute(route: String?): Boolean =
     route?.startsWith(EPUB_READER.substringBefore("{")) == true ||
