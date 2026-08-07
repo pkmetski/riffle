@@ -509,6 +509,7 @@ class AudiobookPlayerViewModel @Inject constructor(
                     localZipFile = session.localZipFile,
                     coverUri = item.coverUrl,
                     bookTitle = item.title,
+                    chapters = session.timeline.chapters,
                 )
                 // Record the active session so a media-notification tap reopens this audiobook player.
                 nowPlayingStore.set(com.riffle.app.playback.NowPlaying.Audiobook(itemId))
@@ -821,6 +822,7 @@ class AudiobookPlayerViewModel @Inject constructor(
             localZipFile = session.localZipFile,
             coverUri = resolvedCoverUri,
             bookTitle = resolvedBookTitle,
+            chapters = session.timeline.chapters,
         )
         logger.d(LogChannel.Handoff) { "AB.activateFromHandoff: prepare() done +${clock.nowMs() - t0}ms" }
         controller.setSpeed(resolvedInitialSpeed)
