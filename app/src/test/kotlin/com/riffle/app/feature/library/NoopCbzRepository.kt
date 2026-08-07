@@ -16,4 +16,7 @@ internal class NoopCbzRepository(
     ) = error("unused in test")
     override suspend fun removeDownload(sourceId: String, itemId: String) = error("unused in test")
     override suspend fun saveReadingPosition(itemId: String, locatorJson: String) = error("unused in test")
+    override suspend fun supportsStreaming(sourceId: String): Boolean = false
+    override suspend fun fetchStreamingPageImage(sourceId: String, itemId: String, pageIndex: Int): ByteArray = error("unused in test")
+    override suspend fun awaitCachedFile(item: com.riffle.core.models.LibraryItem): java.io.File? = null
 }

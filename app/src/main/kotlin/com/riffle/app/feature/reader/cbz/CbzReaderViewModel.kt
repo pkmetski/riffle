@@ -13,6 +13,7 @@ import com.riffle.core.domain.CbzRepository
 import com.riffle.core.domain.LibraryObserver
 import com.riffle.core.domain.ProgressSyncController
 import com.riffle.core.domain.ReadingSessionRepository
+import com.riffle.core.models.LibraryItem
 import com.riffle.core.models.SessionPayload
 import com.riffle.core.domain.WakeLockPreferencesStore
 import com.riffle.core.domain.comic.CbzArchive
@@ -151,6 +152,7 @@ class CbzReaderViewModel @Inject constructor(
         }
         when (val result = cbzRepository.openCbz(item)) {
             is CbzOpenResult.Success -> loadArchive(result.cbzFile, result.lastPosition, item.title)
+            is CbzOpenResult.Streaming -> loadStreaming(result, item)
             is CbzOpenResult.NetworkError -> _state.value = CbzReaderState.Error(
                 result.cause.message ?: "Network error"
             )
@@ -202,6 +204,76 @@ class CbzReaderViewModel @Inject constructor(
         syncSession.sync(payload)
         // Prefetch panels for the resume page and the next two.
         onCurrentPageChanged(resumeIndex)
+    }
+
+    private fun loadStreaming(result: CbzOpenResult.Streaming, item: LibraryItem) {
+        if (result.pageCount == 0) {
+            _state.value = CbzReaderState.Error("Comic has no pages")
+            return
+        }
+        val resumeIndex = result.lastPosition
+            ?.let { parsePageIndex(it) }
+            ?.coerceIn(0, result.pageCount - 1)
+            ?: 0
+        _currentPage.value = resumeIndex
+        lastSavedPage = resumeIndex
+        _currentPanelIndex.value = 0
+
+        val networkSource = NetworkImageSource(item.sourceId, item.id, result.pageCount, cbzRepository)
+        _state.value = CbzReaderState.Ready(
+            title = item.title,
+            pageCount = result.pageCount,
+            imageSource = networkSource,
+        )
+
+        val payload = result.lastPosition?.takeIf { it.isNotEmpty() }?.let {
+            SessionPayload(ebookLocation = it, ebookProgress = 0f)
+        } ?: SessionPayload("", 0f)
+        syncSession.sync(payload)
+
+        // Background: download the full file and swap to the local archive once ready.
+        viewModelScope.launch {
+            val file = withContext(Dispatchers.IO) { cbzRepository.awaitCachedFile(item) } ?: return@launch
+            swapToLocalArchive(file, item.title)
+        }
+    }
+
+    private suspend fun swapToLocalArchive(file: File, title: String) {
+        val (newArchive, actualPageCount) = try {
+            withContext(Dispatchers.IO) {
+                val a = CbzArchive(file)
+                a to a.pageCount
+            }
+        } catch (_: Throwable) {
+            return  // Keep streaming; archive open failed (corrupt download, etc.)
+        }
+        if (archiveClosed) {
+            newArchive.close()
+            return
+        }
+        val current = _state.value as? CbzReaderState.Ready
+        if (current == null) {
+            newArchive.close()
+            return
+        }
+        // Close any prior archive (shouldn't exist for the streaming path, but guard anyway).
+        archive?.close()
+        archive = newArchive
+        panelBook = panelOrchestrator.forBook(
+            bookId = bookId,
+            imageBytes = { pageIndex -> newArchive.imageBytes(pageIndex) },
+        )
+        // If the server-reported page count differed from the actual archive, clamp current page.
+        if (actualPageCount > 0 && _currentPage.value >= actualPageCount) {
+            _currentPage.value = actualPageCount - 1
+            lastSavedPage = _currentPage.value
+        }
+        val effectivePageCount = if (actualPageCount > 0) actualPageCount else current.pageCount
+        _state.value = current.copy(
+            pageCount = effectivePageCount,
+            imageSource = ArchiveImageSource(newArchive),
+        )
+        onCurrentPageChanged(_currentPage.value)
     }
 
     private fun parsePageIndex(json: String): Int? = try {
