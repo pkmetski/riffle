@@ -131,6 +131,200 @@ class FigureBorderDecorationTest {
     }
 
     @Test
+    fun `TYPE_HIGHLIGHT ending inside figcaption suppresses duplicate CSS caption tint`() {
+        val beforeCaption = "The surrounding selection includes the diagram. "
+        val partialCaption = "Figure 3.1: At the beginning, a tactical approach"
+        val caption = "$partialCaption to programming will make progress more quickly."
+        val highlight = highlightAnnotation(
+            id = "hl-partial-caption",
+            color = "yellow",
+            embedded = listOf(
+                EmbeddedFigure(
+                    href = "g.png",
+                    svg = null,
+                    caption = caption,
+                    order = 0,
+                    charOffset = beforeCaption.length.toLong(),
+                ),
+            ),
+            textSnippet = beforeCaption + partialCaption,
+        )
+
+        val mark = FigureBorderDecoration.buildRasterMarks(listOf(highlight)).single()
+
+        assertFalse(mark.tintCaption)
+    }
+
+    @Test
+    fun `TYPE_HIGHLIGHT starting inside figcaption suppresses duplicate CSS caption tint`() {
+        val selectedCaptionTail = "tactical approach to programming will make progress more quickly."
+        val caption = "Figure 3.1: At the beginning, a $selectedCaptionTail"
+        val highlight = highlightAnnotation(
+            id = "hl-caption-tail",
+            color = "yellow",
+            embedded = listOf(
+                EmbeddedFigure(
+                    href = "g.png",
+                    svg = null,
+                    caption = caption,
+                    order = 0,
+                    charOffset = 0,
+                ),
+            ),
+            textSnippet = "$selectedCaptionTail Following prose.",
+        )
+
+        val mark = FigureBorderDecoration.buildRasterMarks(listOf(highlight)).single()
+
+        assertFalse(mark.tintCaption)
+    }
+
+    @Test
+    fun `separate caption and diagram annotations do not double tint the caption`() {
+        val caption = "Figure 3.1: A tactical approach makes progress quickly."
+        val captionHighlight = highlightAnnotation(
+            id = "caption",
+            color = "green",
+            embedded = listOf(EmbeddedFigure(href = "g.png", svg = null, caption = caption, order = 0)),
+            updatedAt = 100,
+            textSnippet = caption,
+        )
+        val diagramHighlight = imageAnnotation(
+            id = "diagram",
+            imageHref = "g.png",
+            color = "yellow",
+            updatedAt = 200,
+        )
+
+        val mark = FigureBorderDecoration.buildRasterMarks(listOf(captionHighlight, diagramHighlight)).single()
+
+        assertFalse(mark.tintCaption)
+
+        val svg = "<svg id=\"diagram\"></svg>"
+        val svgCaptionHighlight = highlightAnnotation(
+            id = "svg-caption",
+            color = "green",
+            embedded = listOf(EmbeddedFigure(href = null, svg = svg, caption = caption, order = 0)),
+            updatedAt = 100,
+            textSnippet = caption,
+        )
+        val svgDiagramHighlight = imageAnnotation(
+            id = "svg-diagram",
+            imageSvg = svg,
+            color = "yellow",
+            updatedAt = 200,
+        )
+
+        val svgMark = FigureBorderDecoration.buildSvgMatches(listOf(svgCaptionHighlight, svgDiagramHighlight)).single()
+
+        assertFalse(svgMark.tintCaption)
+    }
+
+    @Test
+    fun `TYPE_HIGHLIGHT with blank caption and prose-before-figure snippet suppresses CSS caption tint via caption label`() {
+        // Real-world case: book uses <p class="caption"> instead of <figcaption>. The JS stash
+        // stores caption="" because there's no <figcaption> element. charOffset points to where
+        // the image sits in the snippet. Text after the image starts with "Figure N:" which is
+        // the canonical caption-label discriminator vs prose references like "Figure N illustrates".
+        // Old code: CAPTION_HIGHLIGHT_PREFIX_REGEX only checked snippet[0..], so prose-prefix
+        // snippets fell through → tintCaption=true → CSS double-painted the caption element.
+        val highlight = highlightAnnotation(
+            id = "hl-blank-cap",
+            color = "yellow",
+            embedded = listOf(
+                EmbeddedFigure(
+                    href = "g.png",
+                    svg = null,
+                    caption = "",
+                    order = 0,
+                    charOffset = 100L,
+                ),
+            ),
+            textSnippet = "You will quickly recover the cost of the initial investment. Figure 3.1 illustrates this phenomenon. Figure 3.1: At the beginning, a tactical approach",
+        )
+
+        val mark = FigureBorderDecoration.buildRasterMarks(listOf(highlight)).single()
+
+        assertFalse("blank-caption figure whose snippet crosses into caption label must not request CSS tint", mark.tintCaption)
+    }
+
+    @Test
+    fun `TYPE_HIGHLIGHT with blank caption and prose-only snippet keeps CSS caption tint`() {
+        // Companion: when the snippet does NOT reach the caption element (no caption label after
+        // the figure position), the CSS tint must fire so the caption gets any colour at all.
+        val highlight = highlightAnnotation(
+            id = "hl-no-cap",
+            color = "yellow",
+            embedded = listOf(
+                EmbeddedFigure(
+                    href = "g.png",
+                    svg = null,
+                    caption = "",
+                    order = 0,
+                    charOffset = 80L,
+                ),
+            ),
+            textSnippet = "This paragraph precedes the figure and the next paragraph follows it. The image shows",
+        )
+
+        val mark = FigureBorderDecoration.buildRasterMarks(listOf(highlight)).single()
+
+        assertTrue("blank-caption figure with prose-only snippet must keep CSS tint", mark.tintCaption)
+    }
+
+    @Test
+    fun `TYPE_HIGHLIGHT with null charOffset and snippet ending inside figcaption suppresses CSS caption tint`() {
+        // Regression: JS-stash-only figures arrive with charOffset=null. The old code returned
+        // false immediately via `?: return false`, so tintCaption stayed true and the CSS painted
+        // the whole figcaption even though Readium's decoration already covered the selected portion.
+        val beforeCaption = "You will quickly recover the cost of the initial investment. Figure 3.1 illustrates this phenomenon. "
+        val partialCaption = "Figure 3.1: At the beginning, a tactical approach"
+        val caption = "$partialCaption to programming will make progress more quickly. Note: this figure."
+        val highlight = highlightAnnotation(
+            id = "hl-null-offset",
+            color = "yellow",
+            embedded = listOf(
+                EmbeddedFigure(
+                    href = "g.png",
+                    svg = null,
+                    caption = caption,
+                    order = 0,
+                    charOffset = null,
+                ),
+            ),
+            textSnippet = beforeCaption + partialCaption,
+        )
+
+        val mark = FigureBorderDecoration.buildRasterMarks(listOf(highlight)).single()
+
+        assertFalse("null-charOffset snippet ending in figcaption must not request CSS tint (would double-paint)", mark.tintCaption)
+    }
+
+    @Test
+    fun `TYPE_HIGHLIGHT with null charOffset and snippet excluding figcaption keeps CSS caption tint`() {
+        // Companion to the above: when the snippet does NOT reach the figcaption (no suffix/prefix
+        // overlap), the CSS tint must still fire so the figcaption gets any colour at all.
+        val highlight = highlightAnnotation(
+            id = "hl-no-caption",
+            color = "yellow",
+            embedded = listOf(
+                EmbeddedFigure(
+                    href = "g.png",
+                    svg = null,
+                    caption = "Figure 3.1: A completely unrelated caption text here.",
+                    order = 0,
+                    charOffset = null,
+                ),
+            ),
+            textSnippet = "This paragraph mentions the diagram but does not include its caption.",
+        )
+
+        val mark = FigureBorderDecoration.buildRasterMarks(listOf(highlight)).single()
+
+        assertTrue("null-charOffset snippet not entering figcaption must keep CSS tint", mark.tintCaption)
+    }
+
+    @Test
     fun `TYPE_HIGHLIGHT whose range excludes the figcaption keeps CSS caption tint`() {
         // Regression pin for the 2026-07-14 review finding: a legacy text-highlight of body
         // prose that happens to enclose a figure (PR #533 shape) does NOT cover the

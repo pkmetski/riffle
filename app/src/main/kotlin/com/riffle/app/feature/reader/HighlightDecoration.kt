@@ -119,6 +119,13 @@ internal val HIGHLIGHT_LEADING_ADJUSTMENT_HELPER_JS: String = """
             // underneath the overlay rather than the overlay itself.
             source = document.elementFromPoint(x, y);
           }
+          var mediaSelector = 'img,svg,picture,canvas,video,object,embed,iframe';
+          var intersectsMedia = Array.prototype.some.call(document.querySelectorAll(mediaSelector), function(media) {
+            var mediaRect = media.getBoundingClientRect();
+            return rect.left < mediaRect.right && rect.right > mediaRect.left &&
+              rect.top < mediaRect.bottom && rect.bottom > mediaRect.top;
+          });
+          if (intersectsMedia || (source && source.closest && source.closest(mediaSelector))) return;
           var lineHeight = lineHeightOf(source);
           if (lineHeight <= baseHeight && box.parentNode) {
             // A short final line's centre can fall beyond the paragraph's painted content, making

@@ -24,6 +24,20 @@ class HighlightLineCoverageWebViewTest {
         </html>
     """.trimIndent()
 
+    private val diagramFixture = """
+        <!doctype html>
+        <html>
+          <head><meta name="viewport" content="width=device-width, initial-scale=1"></head>
+          <body style="margin:0;font-size:16px;line-height:24px">
+            <p style="margin:20px">Text before the diagram.</p>
+            <figure style="margin:20px;width:400px">
+              <img id="diagram" alt="Diagram" style="display:block;width:400px;height:240px">
+            </figure>
+            <p style="margin:20px">Text after the diagram.</p>
+          </body>
+        </html>
+    """.trimIndent()
+
     @Test
     fun continuousAnnotationMarkCoversFullLineBandsWithoutGaps() {
         withSizedWebViewFixture(fixture, widthPx = 480, heightPx = 800) { webView ->
@@ -82,6 +96,36 @@ class HighlightLineCoverageWebViewTest {
             assertNativeSelectionLineCoverage(
                 painted = webView.rects("document.querySelectorAll('.riffle-highlight-tint')"),
                 text = webView.savedRawRects(),
+            )
+        }
+    }
+
+    @Test
+    fun readiumDecorationDoesNotExpandThinBoxOverDiagram() {
+        withSizedWebViewFixture(diagramFixture, widthPx = 480, heightPx = 800) { webView ->
+            webView.awaitInnerHeight()
+            webView.evalSync(
+                """
+                (function() {
+                  var diagram = document.getElementById('diagram').getBoundingClientRect();
+                  var box = document.createElement('div');
+                  box.className = 'riffle-highlight-tint';
+                  box.style.cssText = 'position:absolute;pointer-events:none;' +
+                    'left:' + (diagram.left + window.pageXOffset) + 'px;' +
+                    'top:' + (diagram.top + window.pageYOffset) + 'px;' +
+                    'width:' + diagram.width + 'px;height:2px;' +
+                    'background:rgba(251,191,36,0.50) !important;';
+                  document.body.appendChild(box);
+                })();
+                """.trimIndent(),
+            )
+            webView.evalSync(readiumHighlightLeadingAdjustmentJs())
+            webView.awaitReadiumLeadingAdjustment()
+
+            val painted = webView.rects("document.querySelector('.riffle-highlight-tint')").single()
+            assertTrue(
+                "diagram boundary box must remain subtle; height=${painted.bottom - painted.top}",
+                painted.bottom - painted.top <= 2.75,
             )
         }
     }
