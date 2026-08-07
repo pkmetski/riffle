@@ -442,10 +442,9 @@ class ContinuousPositionTrackerTest {
     @Test
     fun `pageScrollDurationMs matches vertical mode's perceived glide for a phone-sized page press`() {
         // 0.9 of a 2160 px viewport at density 2.75 ≈ 707 CSS px; Chromium's bare rate is
-        // ~16.7 ms/√(CSS px) → ~443 ms. Continuous mode needs a higher rate to compensate for
-        // Android OverScroller's ease-out curve feeling faster than Chromium's ease-in-out at the
-        // same duration. PAGE_SCROLL_MS_PER_SQRT_CSS_PX sets that rate; verify the result is
-        // substantially longer than Chromium's bare 443 ms.
+        // ~16.7 ms/√(CSS px) → ~443 ms. Continuous mode targets a higher rate (device-tuned) for
+        // a more deliberate feel; PAGE_SCROLL_MS_PER_SQRT_CSS_PX sets that rate. Verify the result
+        // substantially exceeds Chromium's bare 443 ms.
         val delta = ContinuousPositionTracker.pageScrollDelta(2160)
         val duration = ContinuousPositionTracker.pageScrollDurationMs(delta, density = 2.75f)
         val cssPx = delta / 2.75
