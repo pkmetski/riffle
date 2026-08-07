@@ -118,6 +118,7 @@ fun LibraryItemDetailScreen(
     val currentPositionHref by viewModel.currentPositionHref.collectAsState()
     val estimatedTotalReadingTimeSec by viewModel.estimatedTotalReadingTimeSec.collectAsState()
     val pdfPageCount by viewModel.pdfPageCount.collectAsState()
+    val epubVersion by viewModel.epubVersion.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
     var showAddToPlaylistSheet by remember { mutableStateOf(false) }
@@ -274,6 +275,7 @@ fun LibraryItemDetailScreen(
                         currentPositionHref = currentPositionHref,
                         estimatedTotalReadingTimeSec = estimatedTotalReadingTimeSec,
                         pdfPageCount = pdfPageCount,
+                        epubVersion = epubVersion,
                         onReadItem = { item -> viewModel.markOpened(); onReadItem(item) },
                         onListenItem = { item -> viewModel.markOpened(); onListenItem(item) },
                         onReadItemAtHref = { item, href -> viewModel.markOpened(); onReadItemAtHref(item, href) },
@@ -309,6 +311,7 @@ fun LibraryItemDetailScreen(
                         currentPositionHref = currentPositionHref,
                         estimatedTotalReadingTimeSec = estimatedTotalReadingTimeSec,
                         pdfPageCount = pdfPageCount,
+                        epubVersion = epubVersion,
                         onReadItem = { item -> viewModel.markOpened(); onReadItem(item) },
                         onListenItem = { item -> viewModel.markOpened(); onListenItem(item) },
                         onReadItemAtHref = { item, href -> viewModel.markOpened(); onReadItemAtHref(item, href) },
@@ -344,6 +347,7 @@ fun LibraryItemDetailScreen(
                         currentPositionHref = currentPositionHref,
                         estimatedTotalReadingTimeSec = estimatedTotalReadingTimeSec,
                         pdfPageCount = pdfPageCount,
+                        epubVersion = epubVersion,
                         onReadItem = { item -> viewModel.markOpened(); onReadItem(item) },
                         onListenItem = { item -> viewModel.markOpened(); onListenItem(item) },
                         onReadItemAtHref = { item, href -> viewModel.markOpened(); onReadItemAtHref(item, href) },
@@ -410,6 +414,7 @@ private fun LibraryItemDetailContent(
     currentPositionHref: String? = null,
     estimatedTotalReadingTimeSec: Long? = null,
     pdfPageCount: Int? = null,
+    epubVersion: String? = null,
     onReadItem: (LibraryItem) -> Unit,
     onListenItem: (LibraryItem) -> Unit = {},
     onReadItemAtHref: (LibraryItem, String) -> Unit = { _, _ -> },
@@ -468,6 +473,7 @@ private fun LibraryItemDetailContent(
             AudiobookDurationLine(item.audioDurationSec, item.readingProgress)
         }
 
+        FormatLine(item.ebookFormat, epubVersion)
         PublicationFactsLine(item, estimatedTotalReadingTimeSec, pdfPageCount)
 
         if (item.readingProgress > 0f) {
@@ -590,6 +596,21 @@ private fun LibraryItemDetailContent(
 }
 
 @Composable
+private fun FormatLine(format: EbookFormat, epubVersion: String?) {
+    val label = when (format) {
+        EbookFormat.Epub -> if (epubVersion != null) "EPUB $epubVersion" else "EPUB"
+        EbookFormat.Pdf -> "PDF"
+        EbookFormat.Cbz -> "CBZ"
+        EbookFormat.Unsupported -> return
+    }
+    Text(
+        text = label,
+        style = MaterialTheme.typography.bodyMedium,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+}
+
+@Composable
 private fun PublicationFactsLine(
     item: LibraryItem,
     estimatedTotalReadingTimeSec: Long?,
@@ -688,6 +709,7 @@ internal fun LibraryItemDetailContentTablet(
     currentPositionHref: String? = null,
     estimatedTotalReadingTimeSec: Long? = null,
     pdfPageCount: Int? = null,
+    epubVersion: String? = null,
     onReadItem: (LibraryItem) -> Unit,
     onListenItem: (LibraryItem) -> Unit = {},
     onReadItemAtHref: (LibraryItem, String) -> Unit = { _, _ -> },
@@ -753,6 +775,7 @@ internal fun LibraryItemDetailContentTablet(
             if (item.isListenable && item.audioDurationSec > 0) {
                 AudiobookDurationLine(item.audioDurationSec, item.readingProgress)
             }
+            FormatLine(item.ebookFormat, epubVersion)
             PublicationFactsLine(item, estimatedTotalReadingTimeSec, pdfPageCount)
             if (item.readingProgress > 0f) {
                 ReadingProgressIndicator(progress = item.readingProgress, listened = item.isListenable && !item.isReadable)
@@ -899,6 +922,7 @@ internal fun LibraryItemDetailContentPhoneLandscape(
     currentPositionHref: String? = null,
     estimatedTotalReadingTimeSec: Long? = null,
     pdfPageCount: Int? = null,
+    epubVersion: String? = null,
     onReadItem: (LibraryItem) -> Unit,
     onListenItem: (LibraryItem) -> Unit = {},
     onReadItemAtHref: (LibraryItem, String) -> Unit = { _, _ -> },
@@ -965,6 +989,7 @@ internal fun LibraryItemDetailContentPhoneLandscape(
             if (item.isListenable && item.audioDurationSec > 0) {
                 AudiobookDurationLine(item.audioDurationSec, item.readingProgress)
             }
+            FormatLine(item.ebookFormat, epubVersion)
             PublicationFactsLine(item, estimatedTotalReadingTimeSec, pdfPageCount)
             if (item.readingProgress > 0f) {
                 ReadingProgressIndicator(progress = item.readingProgress, listened = item.isListenable && !item.isReadable)

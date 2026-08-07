@@ -240,6 +240,9 @@ class LibraryItemDetailViewModel @Inject constructor(
     private val _pdfPageCount = MutableStateFlow<Int?>(null)
     val pdfPageCount: StateFlow<Int?> = _pdfPageCount.asStateFlow()
 
+    private val _epubVersion = MutableStateFlow<String?>(null)
+    val epubVersion: StateFlow<String?> = _epubVersion.asStateFlow()
+
     fun reloadCurrentPositionHref() {
         val ready = _uiState.value as? LibraryItemDetailUiState.Ready ?: return
         val item = ready.item
@@ -403,6 +406,7 @@ class LibraryItemDetailViewModel @Inject constructor(
                         val details = extractEpubTocUseCase.extractDetails(item)
                         _tocState.value = TocState.Ready(details.tocEntries)
                         _epubTotalPositions.value = details.totalPositions
+                        _epubVersion.value = details.epubVersion
                     }
                 }
                 if (item.ebookFormat == EbookFormat.Pdf) {
