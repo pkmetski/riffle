@@ -464,10 +464,10 @@ fun MainScreen(
                     }
                 }
             }
-            composable(SETTINGS) {
+            composable(SETTINGS) { backStackEntry ->
                 SettingsScreen(
                     windowSizeClass = windowSizeClass,
-                    onNavigateBack = { navController.popBackStack() },
+                    onNavigateBack = { navController.popBackStackIfTop(backStackEntry) },
                     // Storyteller/WebDAV are Services (not Sources) and deep-link straight to the
                     // form from their respective Settings drill-ins; editing an existing ABS
                     // Source also skips the picker (the Source Type is already known). All three
@@ -756,15 +756,7 @@ fun MainScreen(
             ) { backStackEntry ->
                 LibraryItemDetailScreen(
                     windowSizeClass = windowSizeClass,
-                    onNavigateBack = {
-                        guardedNavigateBack(
-                            isStillTop = {
-                                navController.currentBackStackSnapshot()
-                                    .lastOrNull { it.destination.route != null } == backStackEntry
-                            },
-                            popBack = { navController.popBackStack() },
-                        )
-                    },
+                    onNavigateBack = { navController.popBackStackIfTop(backStackEntry) },
                     onReadItem = { item ->
                         readerRouteFor(item)?.let { navController.navigate(it) }
                     },
@@ -1083,6 +1075,15 @@ internal fun committedTopRoute(backStackRoutes: List<String?>): String? =
  */
 internal fun guardedNavigateBack(isStillTop: () -> Boolean, popBack: () -> Unit) {
     if (isStillTop()) popBack()
+}
+
+internal fun NavController.popBackStackIfTop(backStackEntry: NavBackStackEntry) {
+    guardedNavigateBack(
+        isStillTop = {
+            currentBackStackSnapshot().lastOrNull { it.destination.route != null } == backStackEntry
+        },
+        popBack = { popBackStack() },
+    )
 }
 
 internal fun isReaderRoute(route: String?): Boolean =
