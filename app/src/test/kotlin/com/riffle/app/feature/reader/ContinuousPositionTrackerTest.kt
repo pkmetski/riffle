@@ -440,14 +440,21 @@ class ContinuousPositionTrackerTest {
     // ── pageScrollDurationMs ──────────────────────────────────────────────────
 
     @Test
-    fun `pageScrollDurationMs matches Chromium's glide for a phone-sized page press`() {
-        // 0.9 of a 2160 px viewport at density 2.75 ≈ 707 CSS px; Chromium's delta-based
-        // duration is ~16.7 ms × √707 ≈ 443 ms. The old fixed 300 ms is what made continuous
-        // mode feel sudden next to vertical mode's smooth scroll — pin that we now exceed it.
+    fun `pageScrollDurationMs matches vertical mode's perceived glide for a phone-sized page press`() {
+        // 0.9 of a 2160 px viewport at density 2.75 ≈ 707 CSS px; Chromium's bare rate is
+        // ~16.7 ms/√(CSS px) → ~443 ms. Continuous mode targets a higher rate (device-tuned) for
+        // a more deliberate feel; PAGE_SCROLL_MS_PER_SQRT_CSS_PX sets that rate. Verify the result
+        // substantially exceeds Chromium's bare 443 ms.
         val delta = ContinuousPositionTracker.pageScrollDelta(2160)
         val duration = ContinuousPositionTracker.pageScrollDurationMs(delta, density = 2.75f)
-        assertEquals(443, duration)
-        assertTrue("duration must be longer than the old fixed 300 ms", duration > 300)
+        val cssPx = delta / 2.75
+        val chromiumBaseline = (16.7 * kotlin.math.sqrt(cssPx)).toInt()
+        assertEquals(
+            (ContinuousPositionTracker.PAGE_SCROLL_MS_PER_SQRT_CSS_PX * kotlin.math.sqrt(cssPx)).toInt()
+                .coerceIn(ContinuousPositionTracker.PAGE_SCROLL_MIN_DURATION_MS, ContinuousPositionTracker.PAGE_SCROLL_MAX_DURATION_MS),
+            duration,
+        )
+        assertTrue("duration must substantially exceed Chromium's bare heuristic of $chromiumBaseline ms", duration > chromiumBaseline)
     }
 
     @Test
@@ -471,8 +478,8 @@ class ContinuousPositionTrackerTest {
     @Test
     fun `pageScrollAnimation duration follows the actual animated distance, not the press delta`() {
         // A press near the bottom boundary: the coalescer clamps the target so only 30 px remain.
-        // The duration must come from the 30 px remainder (min-clamped to 200 ms), not the ~443 ms
-        // a full 0.9-viewport press would get — otherwise the remainder crawls.
+        // The duration must come from the 30 px remainder (min-clamped to 200 ms), not the full
+        // single-press duration — otherwise the remainder crawls.
         val boundary = ContinuousPositionTracker.pageScrollAnimation(
             currentScrollY = 9_970, targetScrollY = 10_000, density = 2.75f,
         )

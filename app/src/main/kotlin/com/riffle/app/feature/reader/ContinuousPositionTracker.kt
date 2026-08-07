@@ -147,23 +147,27 @@ internal object ContinuousPositionTracker {
      *  window in [ContinuousWindowController] — a window slightly longer than a finished animation
      *  is harmless because the pending target then equals the settled scroll position. */
     internal const val PAGE_SCROLL_MIN_DURATION_MS = 200
-    internal const val PAGE_SCROLL_MAX_DURATION_MS = 700
+    internal const val PAGE_SCROLL_MAX_DURATION_MS = 1000
+
+    /**
+     * Animation speed for a volume-key page scroll: ms per √(CSS px). Chromium's own rate for
+     * `window.scrollBy({behavior:'smooth'})` is ~16.7 (= 1000/60). Continuous mode targets a
+     * higher value — tune this constant to align with vertical mode's feel on device.
+     */
+    internal const val PAGE_SCROLL_MS_PER_SQRT_CSS_PX = 35.0
 
     /**
      * Animation duration for a volume-key page scroll of [distancePx] physical pixels, on a screen
-     * with the given [density]. Approximates the delta-based duration Chromium picks for the
-     * `window.scrollBy({behavior: 'smooth'})` that paginated/vertical mode issues from
-     * [ScrollBoundaryNavigationContainer] — ~16.7 ms per √(CSS px), ease-shaped over ~445 ms for a
-     * typical 0.9-viewport press. A fixed 300 ms here made the same press visibly faster and more
-     * sudden in continuous mode than in vertical mode. Chromium computes in CSS pixels, so the
-     * physical distance is divided by [density] first; the result is clamped to
+     * with the given [density]. Uses [PAGE_SCROLL_MS_PER_SQRT_CSS_PX] scaled by √(CSS px) so
+     * coalesced presses (larger distance) get proportionally longer glides. Chromium computes in
+     * CSS pixels, so the physical distance is divided by [density] first; the result is clamped to
      * [[PAGE_SCROLL_MIN_DURATION_MS], [PAGE_SCROLL_MAX_DURATION_MS]]. Returns 0 for a non-positive
      * distance or density.
      */
     fun pageScrollDurationMs(distancePx: Int, density: Float): Int {
         if (distancePx <= 0 || density <= 0f) return 0
         val cssPx = distancePx / density
-        val ms = (1000.0 / 60.0) * kotlin.math.sqrt(cssPx.toDouble())
+        val ms = PAGE_SCROLL_MS_PER_SQRT_CSS_PX * kotlin.math.sqrt(cssPx.toDouble())
         return ms.toInt().coerceIn(PAGE_SCROLL_MIN_DURATION_MS, PAGE_SCROLL_MAX_DURATION_MS)
     }
 
