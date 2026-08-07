@@ -118,7 +118,7 @@ class ExtractEpubTocUseCaseTest {
         val cached = listOf(TocEntry("Chapter 1", "ch1.html"))
         coEvery { tocRepository.getCachedToc("srv1", "item1") } returns ("ino1" to cached)
         coEvery { publicationMetricsRepository.get("srv1", "item1") } returns
-            PublicationMetrics("ino1", totalPositions = 120)
+            PublicationMetrics("ino1", totalPositions = 120, epubVersion = "3.0")
 
         val result = useCase.extractDetails(makeItem())
 
@@ -160,7 +160,7 @@ class ExtractEpubTocUseCaseTest {
         val cached = listOf(TocEntry("Chapter 1", "ch1.html"))
         coEvery { tocRepository.getCachedToc("srv1", "item1") } returns ("unknown" to cached)
         coEvery { publicationMetricsRepository.get("srv1", "item1") } returns
-            PublicationMetrics("unknown", totalPositions = 120)
+            PublicationMetrics("unknown", totalPositions = 120, epubVersion = "3.0")
 
         val result = useCase(makeItem(ebookFileIno = null))
 

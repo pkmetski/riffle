@@ -99,7 +99,7 @@ class ExtractEpubTocUseCase @Inject constructor(
         // transient extraction failure (e.g. a Readium parse hiccup on first open) doesn't poison
         // the cache forever — especially under the "unknown" inode key used for ABS < v2.36, where
         // the key never changes and there's no other invalidation trigger.
-        if (matchingCachedEntries != null && matchingPositionCount != null) {
+        if (matchingCachedEntries != null && matchingPositionCount != null && matchingEpubVersion != null) {
             return Details(matchingCachedEntries, matchingPositionCount, matchingEpubVersion)
         }
 
