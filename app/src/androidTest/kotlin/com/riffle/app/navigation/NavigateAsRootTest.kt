@@ -41,6 +41,35 @@ class NavigateAsRootTest {
         nav.currentBackStack.value.any { it.destination.route == route }
 
     @Test
+    fun settingsBackDoubleTapOnlyPopsSettings() {
+        lateinit var nav: NavHostController
+        composeTestRule.setContent {
+            nav = rememberNavController()
+            NavHost(navController = nav, startDestination = "home") {
+                composable("home") {}
+                composable("library") {}
+                composable("settings") {}
+            }
+        }
+
+        composeTestRule.runOnUiThread {
+            nav.navigate("library")
+            nav.navigate("settings")
+        }
+        composeTestRule.waitForIdle()
+        val settingsEntry = nav.currentBackStackEntry!!
+
+        composeTestRule.runOnUiThread {
+            nav.popBackStackIfTop(settingsEntry)
+            nav.popBackStackIfTop(settingsEntry)
+        }
+        composeTestRule.waitForIdle()
+
+        assertEquals("library", nav.currentBackStackEntry?.destination?.route)
+        assertTrue(hasRoute(nav, "home"))
+    }
+
+    @Test
     fun switchingRootsNeverAccumulatesOrEmptiesBackStack() {
         lateinit var nav: NavHostController
         composeTestRule.setContent {
