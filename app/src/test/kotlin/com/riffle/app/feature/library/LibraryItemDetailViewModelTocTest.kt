@@ -342,6 +342,36 @@ class LibraryItemDetailViewModelTocTest {
     }
 
     @Test
+    fun `epubVersion is exposed after extractDetails completes`() = runTest {
+        val extractUseCase = mockk<ExtractEpubTocUseCase>().also { uc ->
+            coEvery { uc.extractDetails(any<LibraryItem>()) } returns
+                ExtractEpubTocUseCase.Details(emptyList(), totalPositions = null, epubVersion = "3.0")
+        }
+
+        val vm = makeVm(item = epubItem, extractEpubTocUseCase = extractUseCase)
+        backgroundScope.launch { vm.epubVersion.collect {} }
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals("3.0", vm.epubVersion.value)
+    }
+
+    @Test
+    fun `epubVersion sentinel empty string is converted to null before UI exposure`() = runTest {
+        // The "" sentinel means "extracted, but <package> had no version attribute". The ViewModel
+        // must convert it to null so the UI shows plain "EPUB" rather than "EPUB ".
+        val extractUseCase = mockk<ExtractEpubTocUseCase>().also { uc ->
+            coEvery { uc.extractDetails(any<LibraryItem>()) } returns
+                ExtractEpubTocUseCase.Details(emptyList(), totalPositions = null, epubVersion = "")
+        }
+
+        val vm = makeVm(item = epubItem, extractEpubTocUseCase = extractUseCase)
+        backgroundScope.launch { vm.epubVersion.collect {} }
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertNull(vm.epubVersion.value)
+    }
+
+    @Test
     fun `both tocState and chaptersState transition to Ready for a combined ebook+audiobook item`() = runTest {
         val combinedItem = epubItem.copy(id = "item-combined", hasAudio = true)
         val entries = listOf(TocEntry("Chapter 1", "ch1.html"))

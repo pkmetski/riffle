@@ -36,6 +36,8 @@ object EpubMetadataExtractor {
         val opfBytes = lookup(opfPath) ?: return EpubMetadata.EMPTY
         val opf = parseXml(opfBytes) ?: return EpubMetadata.EMPTY
 
+        val epubVersion = opf.getAttribute("version").ifEmpty { null }
+
         val metadataEl = opf.firstElementByTag("metadata")
         val title = metadataEl?.firstDcText("title")
         val author = metadataEl?.collectDcText("creator")?.joinToString(", ")?.ifEmpty { null }
@@ -65,6 +67,7 @@ object EpubMetadataExtractor {
             genres = genres,
             coverBytes = coverBytes,
             coverExtension = coverExt,
+            epubVersion = epubVersion,
         )
     } catch (_: Exception) {
         EpubMetadata.EMPTY

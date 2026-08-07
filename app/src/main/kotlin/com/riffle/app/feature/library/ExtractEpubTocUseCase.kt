@@ -1,6 +1,7 @@
 package com.riffle.app.feature.library
 
 import com.riffle.app.feature.reader.toTocEntries
+import com.riffle.core.domain.EpubMetadataExtractor
 import com.riffle.core.domain.EpubOpenResult
 import com.riffle.core.domain.EpubRepository
 import com.riffle.core.domain.PublicationMetrics
@@ -69,6 +70,7 @@ class ExtractEpubTocUseCase @Inject constructor(
     data class Details(
         val tocEntries: List<TocEntry>,
         val totalPositions: Int?,
+        val epubVersion: String? = null,
     )
 
     suspend operator fun invoke(item: LibraryItem): List<TocEntry> =
@@ -90,28 +92,35 @@ class ExtractEpubTocUseCase @Inject constructor(
             ?.takeIf { it.ebookFileIno == inode }
             ?.totalPositions
             ?.takeIf { it > 0 }
+        val matchingEpubVersion = cachedMetrics
+            ?.takeIf { it.ebookFileIno == inode }
+            ?.epubVersion
         // Only trust a cache hit that has entries. An empty cached list is treated as a miss so a
         // transient extraction failure (e.g. a Readium parse hiccup on first open) doesn't poison
         // the cache forever — especially under the "unknown" inode key used for ABS < v2.36, where
         // the key never changes and there's no other invalidation trigger.
-        if (matchingCachedEntries != null && matchingPositionCount != null) {
-            return Details(matchingCachedEntries, matchingPositionCount)
+        if (matchingCachedEntries != null && matchingPositionCount != null && matchingEpubVersion != null) {
+            return Details(matchingCachedEntries, matchingPositionCount, matchingEpubVersion)
         }
 
         val file = when (val r = epubRepository.openEpub(item)) {
             is EpubOpenResult.Success -> r.epubFile
-            else -> return Details(matchingCachedEntries.orEmpty(), matchingPositionCount)
+            else -> return Details(matchingCachedEntries.orEmpty(), matchingPositionCount, matchingEpubVersion)
         }
 
+        // Use "" as a sentinel meaning "extracted but version attribute absent", so a version-less
+        // EPUB doesn't permanently fail the cache-hit guard (which treats null as "never extracted").
+        val extractedEpubVersion = EpubMetadataExtractor.extract(file).epubVersion ?: ""
+
         val url = AbsoluteUrl("file://${file.absolutePath}")
-            ?: return Details(matchingCachedEntries.orEmpty(), matchingPositionCount)
+            ?: return Details(matchingCachedEntries.orEmpty(), matchingPositionCount, matchingEpubVersion)
         val asset = when (val r = assetRetriever.retrieve(url)) {
             is Try.Success -> r.value
-            is Try.Failure -> return Details(matchingCachedEntries.orEmpty(), matchingPositionCount)
+            is Try.Failure -> return Details(matchingCachedEntries.orEmpty(), matchingPositionCount, matchingEpubVersion)
         }
         val publication = when (val r = publicationOpener.open(asset, allowUserInteraction = false)) {
             is Try.Success -> r.value
-            is Try.Failure -> return Details(matchingCachedEntries.orEmpty(), matchingPositionCount)
+            is Try.Failure -> return Details(matchingCachedEntries.orEmpty(), matchingPositionCount, matchingEpubVersion)
         }
 
         val details = publication.use {
@@ -124,6 +133,7 @@ class ExtractEpubTocUseCase @Inject constructor(
                         layout = it.metadata.layout,
                     )
                 }.getOrNull(),
+                epubVersion = extractedEpubVersion,
             )
         }
         if (details.tocEntries.isNotEmpty()) {
@@ -136,6 +146,7 @@ class ExtractEpubTocUseCase @Inject constructor(
                 PublicationMetrics(
                     ebookFileIno = inode,
                     totalPositions = details.totalPositions,
+                    epubVersion = details.epubVersion,
                 ),
             )
         }

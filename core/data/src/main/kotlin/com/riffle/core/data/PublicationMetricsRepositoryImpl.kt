@@ -20,6 +20,7 @@ class PublicationMetricsRepositoryImpl @Inject constructor(
             ebookFileIno = entity.ebookFileIno,
             totalPositions = entity.totalPositions,
             pageCount = entity.pageCount,
+            epubVersion = entity.epubVersion,
         )
     }
 
@@ -35,6 +36,7 @@ class PublicationMetricsRepositoryImpl @Inject constructor(
                 ebookFileIno = metrics.ebookFileIno,
                 totalPositions = metrics.totalPositions,
                 pageCount = metrics.pageCount,
+                epubVersion = metrics.epubVersion,
                 cachedAt = clock.nowMs(),
             )
         )

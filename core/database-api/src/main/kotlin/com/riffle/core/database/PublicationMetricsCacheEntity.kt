@@ -24,4 +24,5 @@ data class PublicationMetricsCacheEntity(
     val totalPositions: Int?,
     val pageCount: Int?,
     val cachedAt: Long,
+    val epubVersion: String? = null,
 )

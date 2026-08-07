@@ -1919,7 +1919,7 @@ class MigrationTest {
         }
 
         val db = helper.runMigrationsAndValidate(
-            TEST_DB, 64, true,
+            TEST_DB, 65, true,
             RiffleDatabase.MIGRATION_1_2,
             RiffleDatabase.MIGRATION_2_3,
             RiffleDatabase.MIGRATION_3_4,
@@ -1983,6 +1983,7 @@ class MigrationTest {
             RiffleDatabase.MIGRATION_61_62,
             RiffleDatabase.MIGRATION_62_63,
             RiffleDatabase.MIGRATION_63_64,
+            RiffleDatabase.MIGRATION_64_65,
         )
 
         db.query("SELECT url, username, serverType, absUserId, type FROM sources WHERE id = 's1'").use { cursor ->
@@ -2957,6 +2958,33 @@ class MigrationTest {
                 cursor.getString(cursor.getColumnIndexOrThrow("fragmentAnchor")),
             )
             cursor.close()
+        }
+    }
+
+    @Test
+    fun migration64To65_addsEpubVersionToPublicationMetrics() {
+        helper.createDatabase(TEST_DB, 64).use { db ->
+            db.execSQL(
+                "INSERT INTO sources (id, url, isActive, insecureConnectionAllowed, username, serverType, absUserId, type) " +
+                    "VALUES ('src1', 'http://localhost', 1, 0, '', 'AUDIOBOOKSHELF', NULL, 'ABS')"
+            )
+            db.execSQL(
+                "INSERT INTO publication_metrics_cache " +
+                    "(sourceId, itemId, ebookFileIno, totalPositions, pageCount, cachedAt) " +
+                    "VALUES ('src1', 'epub1', 'ino-1', 480, NULL, 1000)"
+            )
+        }
+
+        helper.runMigrationsAndValidate(TEST_DB, 65, true, RiffleDatabase.MIGRATION_64_65).use { db ->
+            db.query(
+                "SELECT epubVersion FROM publication_metrics_cache WHERE itemId = 'epub1'"
+            ).use { cursor ->
+                assertTrue(cursor.moveToFirst())
+                assertNull(
+                    "pre-existing row must have null epubVersion after migration",
+                    cursor.getString(cursor.getColumnIndexOrThrow("epubVersion")),
+                )
+            }
         }
     }
 }

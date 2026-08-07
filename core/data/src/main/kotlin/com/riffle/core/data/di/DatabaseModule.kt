@@ -106,6 +106,7 @@ object DatabaseModule {
                 RiffleDatabase.MIGRATION_61_62,
                 RiffleDatabase.MIGRATION_62_63,
                 RiffleDatabase.MIGRATION_63_64,
+                RiffleDatabase.MIGRATION_64_65,
             )
             .build()
 
