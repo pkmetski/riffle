@@ -329,6 +329,10 @@ class LibraryItemsViewModel @Inject constructor(
             combine(_refreshFailed, connectivityObserver.isOnline) { failed, online -> failed && online }
                 .collectLatest { shouldPoll ->
                     if (shouldPoll) {
+                        // Immediate retry covers cold-start transient failures (fast-fail
+                        // "network unreachable" clears within milliseconds). Subsequent
+                        // retries use the full interval for genuine server-down scenarios.
+                        runRefresh()
                         while (true) {
                             delay(FAILED_REFRESH_RETRY_INTERVAL_MS)
                             runRefresh()

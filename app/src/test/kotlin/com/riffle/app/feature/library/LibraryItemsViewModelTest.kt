@@ -905,6 +905,26 @@ class LibraryItemsViewModelTest {
     }
 
     @Test
+    fun `offline banner clears immediately on first retry after transient cold-start failure`() = runTest {
+        // Regression: the polling loop always delayed 10 s before its first retry, so a fast
+        // cold-start transient (network briefly unreachable → immediate fail) kept the banner
+        // up for the full interval even though the server was reachable moments later.
+        var callCount = 0
+        val vm = makeViewModel(
+            refreshLibraryItemsUseCase = CountingRefreshLibraryItems({
+                // First call (init refresh) fails; every subsequent call succeeds.
+                if (callCount == 1) LibraryRefreshResult.NetworkError(RuntimeException("transient"))
+                else LibraryRefreshResult.Success
+            }) { callCount++ },
+        )
+        backgroundScope.launch { vm.isOffline.collect {} }
+        // runCurrent() runs: (1) init refresh → NetworkError, then (2) immediate retry → Success.
+        // No time advance needed — the banner must clear without waiting 10 s.
+        testDispatcher.scheduler.runCurrent()
+        assertEquals(false, vm.isOffline.value)
+    }
+
+    @Test
     fun `filteredRecentlyAdded when offline cap still applies after filtering`() = runTest {
         val downloadedIds = (1..60).map { "id-Book $it" }.toSet()
         val vm = makeViewModel(
