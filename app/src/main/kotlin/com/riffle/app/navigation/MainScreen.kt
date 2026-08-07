@@ -235,14 +235,7 @@ fun MainScreen(
         viewModel.activeServer
             .filterNotNull()
             .drop(1)
-            .collect {
-                val stackHasItemDetail = navController.currentBackStackSnapshot().any { entry ->
-                    isItemDetailRoute(entry.destination.route)
-                }
-                if (stackHasItemDetail) {
-                    navController.navigateAsRoot(HOME)
-                }
-            }
+            .collect { navController.navigateAsRoot(HOME) }
     }
 
     RiffleNavigationDrawer(
