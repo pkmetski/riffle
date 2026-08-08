@@ -40,6 +40,20 @@ class SteppedTypographyValueTest {
         assertEquals(0.2f, steppedTypographyValue(0.2f, -0.2f, marginsRange), 1e-4f)
     }
 
+    // Regression: if the user drags the continuous slider to an off-grid position (e.g. 1.7 on
+    // the 0.2-step margins slider), the icon tap must snap to the nearest grid point in the
+    // step direction — not blindly add the step (which gives 1.9, skipping 1.8 entirely).
+    @Test fun marginsIconTapFromOffGridSnapsToNearestGridPoint() {
+        // From 1.7 (between grid points 1.6 and 1.8): + → 1.8, not 1.9
+        assertEquals(1.8f, steppedTypographyValue(1.7f, 0.2f, marginsRange), 1e-4f)
+        // From 1.9 (between grid points 1.8 and 2.0): - → 1.8, not 1.7
+        assertEquals(1.8f, steppedTypographyValue(1.9f, -0.2f, marginsRange), 1e-4f)
+        // Symmetry: - from 1.7 → 1.6 (nearest grid point below)
+        assertEquals(1.6f, steppedTypographyValue(1.7f, -0.2f, marginsRange), 1e-4f)
+        // Symmetry: + from 1.9 → 2.0 (nearest grid point above)
+        assertEquals(2.0f, steppedTypographyValue(1.9f, 0.2f, marginsRange), 1e-4f)
+    }
+
     @Test fun wpmIconStepLandsOnTwentyWpmGrid() {
         // The pacing sliders route the icon-tap through AutoScrollSpeed.of so a 20-wpm delta
         // is re-snapped to the underlying 10-wpm lattice; both directions must clamp at the
