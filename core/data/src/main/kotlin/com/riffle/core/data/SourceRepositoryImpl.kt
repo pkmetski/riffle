@@ -18,6 +18,7 @@ import com.riffle.core.domain.SyncNamespace
 import com.riffle.core.domain.TokenStorage
 import com.riffle.core.domain.WebSourceDescriptors
 import com.riffle.core.network.AbsServerInfoApi
+import com.riffle.core.network.KomgaServerInfoApi
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
@@ -29,6 +30,7 @@ class SourceRepositoryImpl @Inject constructor(
     private val dao: SourceDao,
     private val tokenStorage: TokenStorage,
     private val serverInfoApi: AbsServerInfoApi,
+    private val komgaServerInfoApi: KomgaServerInfoApi,
     private val libraryDao: LibraryDao,
     private val libraryItemDao: LibraryItemDao,
     private val filesCleaner: SourceFilesCleaner,
@@ -89,6 +91,15 @@ class SourceRepositoryImpl @Inject constructor(
         val source = dao.getById(sourceId)?.toDomain() ?: return null
         // Storyteller exposes no /server-info endpoint; the UI deliberately shows no version for it.
         if (source.serverType == ServerType.STORYTELLER_SERVICE) return null
+        if (source.type == SourceType.KOMGA) {
+            val password = tokenStorage.getPassword(sourceId) ?: return null
+            return komgaServerInfoApi.getServerVersion(
+                baseUrl = source.url.value,
+                username = source.username,
+                password = password,
+                insecureAllowed = source.insecureConnectionAllowed,
+            )
+        }
         val token = tokenStorage.getToken(sourceId) ?: return null
         return serverInfoApi.getServerInfo(
             baseUrl = source.url.value,
