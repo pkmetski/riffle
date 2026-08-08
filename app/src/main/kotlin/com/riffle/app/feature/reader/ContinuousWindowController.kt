@@ -674,8 +674,8 @@ internal class ContinuousWindowController(
     /** Update preferences and re-inject styles + remeasure all loaded chapters. */
     override fun updatePreferences(prefs: FormattingPreferences) {
         if (prefs == formattingPrefs) return
+        val styleJs = ContinuousStyleInjector.buildLiveUpdateJs(formattingPrefs, prefs)
         formattingPrefs = prefs
-        val styleJs = ContinuousStyleInjector.buildStyleInjectionJs(prefs)
         webViews.forEach { wv -> wv.reinjectAndRemeasure(styleJs) }
     }
 
@@ -1044,7 +1044,8 @@ internal class ContinuousWindowController(
         }
         wv.onBookBodyFont = { ff -> onBookBodyFont?.invoke(ff) }
         wv.onPageFinished = {
-            val styleJs = ContinuousStyleInjector.buildStyleInjectionJs(formattingPrefs)
+            // buildStyleSetJs: no visibility toggle at load time — see the doc on that function.
+            val styleJs = ContinuousStyleInjector.buildStyleSetJs(formattingPrefs)
             wv.injectStylesAndMeasure(styleJs)
             wv.evaluateJavascript(SELECTION_SPAN_TRACKER_JS, null as ((String?) -> Unit)?)
             decorations.onChapterLoaded(wv, onAnnotationsApplied = { onAnnotationHighlightsApplied(wv) })
@@ -1217,7 +1218,8 @@ internal class ContinuousWindowController(
         }
         wv.onBookBodyFont = { ff -> onBookBodyFont?.invoke(ff) }
         wv.onPageFinished = {
-            val styleJs = ContinuousStyleInjector.buildStyleInjectionJs(formattingPrefs)
+            // buildStyleSetJs: no visibility toggle at load time — see the doc on that function.
+            val styleJs = ContinuousStyleInjector.buildStyleSetJs(formattingPrefs)
             wv.injectStylesAndMeasure(styleJs)
             wv.evaluateJavascript(SELECTION_SPAN_TRACKER_JS, null as ((String?) -> Unit)?)
             decorations.onChapterLoaded(wv, onAnnotationsApplied = { onAnnotationHighlightsApplied(wv) })

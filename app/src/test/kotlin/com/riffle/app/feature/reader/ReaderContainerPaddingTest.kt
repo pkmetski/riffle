@@ -88,4 +88,21 @@ class ReaderContainerPaddingTest {
         assertEquals(0, top)
         assertEquals(0, bottom)
     }
+
+    // Double-page mode gets the same container padding as single-page paginated. The container's
+    // Compose background (painted because alignViewport = isPaginated covers both modes) fills the
+    // gaps with the reader theme color, so the user's margins setting visually affects all four
+    // sides. ReadiumCSS forces body { padding: 0 calc(...) } in paginated mode, so the container
+    // padding is the only source of top/bottom breathing room in double-page mode too.
+    @Test
+    fun `double-page mode produces same non-zero padding as single-page paginated`() {
+        val (topSingle, bottomSingle) = readerContainerPaddingPx(
+            margins = 1.5f,
+            density = density,
+            isFixedLayout = false,
+            isScrollMode = false,
+        )
+        assertTrue("top must be > 0 in double-page mode", topSingle > 0)
+        assertTrue("bottom must be > 0 in double-page mode", bottomSingle > 0)
+    }
 }

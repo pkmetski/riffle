@@ -40,19 +40,35 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import java.util.Locale
 import kotlin.math.abs
+import kotlin.math.floor
 import kotlin.math.roundToInt
 
 /**
- * Advance [current] by [step] (positive or negative), clamp to [range], and round to 1 decimal.
- * Used by the edge-icon tap handlers on the typography sliders so keyboard-analogue nudging
- * lands on the same 0.1× lattice the slider itself snaps to.
+ * Return the next step-grid value above (step > 0) or below (step < 0) [current], clamped to
+ * [range] and rounded to 1 decimal.
+ *
+ * Unlike a simple `current + step`, this function snaps to the step grid anchored at
+ * [range].start, so it always produces a valid grid value regardless of where the continuous
+ * slider left the current position. Example: from 1.7 (reachable by dragging the 0.2-step
+ * margins slider), pressing + returns 1.8, not 1.9.
  */
 internal fun steppedTypographyValue(
     current: Float,
     step: Float,
     range: ClosedFloatingPointRange<Float>,
 ): Float {
-    val next = (current + step).coerceIn(range)
+    val stepSize = abs(step)
+    // Small epsilon prevents float imprecision from misclassifying a value that is exactly
+    // on the grid as slightly-above (for increment) or slightly-below (for decrement).
+    val eps = 1e-5f
+    val stepsFromStart = (current - range.start) / stepSize
+    val n = if (step > 0) {
+        floor(stepsFromStart + eps).toInt() + 1
+    } else {
+        floor(stepsFromStart - eps).toInt()
+    }
+    val maxSteps = ((range.endInclusive - range.start) / stepSize + eps).toInt()
+    val next = (range.start + n.coerceIn(0, maxSteps) * stepSize).coerceIn(range)
     return (next * 10f).roundToInt() / 10f
 }
 

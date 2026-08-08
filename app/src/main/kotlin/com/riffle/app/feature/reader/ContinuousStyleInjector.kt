@@ -198,22 +198,52 @@ internal object ContinuousStyleInjector {
         return out
     }
 
+    /** Escapes [this] for embedding inside a JS single-quoted string literal. */
+    private fun String.escapeForJs() = replace("\\", "\\\\").replace("'", "\\'")
+
     /**
-     * JS that re-applies the user-settings `style` attribute on `<html>` after a live preference
-     * change (no reload), then re-measures. ReadiumCSS reads the `--USER__*` variables and
-     * `readium-*-on` flags straight from this attribute via its `[style*=…]` selectors, so setting
-     * the whole attribute string is enough to re-style without reloading the chapter.
+     * JS that sets the `--USER__*` style attribute on `<html>` at initial page load (from
+     * [onPageFinished]), and also for live non-theme preference changes (margins, font size, …).
+     * Does NOT toggle `visibility: hidden` for two reasons:
+     *
+     * - **Initial load:** Fresh pages have no stale rasterised tiles, so the tile-cache
+     *   invalidation is unnecessary. The toggle creates a race: HEIGHT_MEASUREMENT_JS fires
+     *   `onHeightMeasured` → `pendingInitialScroll` → `container.visibility = VISIBLE`, but the
+     *   RAF restore for `visibility: hidden` hasn't fired yet. The container is Android-VISIBLE
+     *   with the chapter root CSS-hidden → blank screen until RAF fires.
+     *
+     * - **Live layout changes (margins, font size, line spacing, …):** At large margin values
+     *   (1.8+) the CSS reflow is heavy (narrow content → more text wrapping), blocking the
+     *   renderer thread longer than the 100 ms RAF/setTimeout restore window. The blank persists
+     *   for the full reflow duration. Stale tiles for layout-only changes show the old geometry
+     *   for one or two frames at most — imperceptible compared to a persistent blank.
+     *
+     * Use [buildStyleInjectionJs] only for theme switches, where stale tile colours (sepia bg
+     * against dark text) make content unreadable.
      */
-    // Force Chromium to invalidate the composited raster tiles for this WebView after every live
-    // preference change. WebSettingsCompat.setOffscreenPreRaster(true) (#413) keeps rasterised
-    // tiles alive for off-screen chapters so the chapter-boundary blank-flash doesn't return; the
-    // side-effect is that a bare `:root` style-attribute mutation — how every live theme /
-    // typography change is applied — doesn't reliably invalidate those cached tiles. The CSSOM
-    // updates, ReadiumCSS re-cascades, `getComputedStyle` returns the new colours, but the
-    // composited image on screen still shows the pre-change theme: users see the OLD background
-    // survive a Sepia → Dim switch, with the text vanishing entirely because the stale sepia
-    // raster is now displaying dark-mode text against sepia bg with contrast the tile was never
-    // rasterised for.
+    fun buildStyleSetJs(prefs: FormattingPreferences): String {
+        val styleAttr = buildHtmlStyleAttr(prefs).escapeForJs()
+        return "(function() { document.documentElement.setAttribute('style', '$styleAttr'); })();"
+    }
+
+    /**
+     * Picks between [buildStyleSetJs] and [buildStyleInjectionJs] for a live preference change.
+     * Theme changes require tile-cache invalidation (stale sepia tiles against dark text make
+     * content invisible); all other changes (layout, font, justification) use the no-toggle path
+     * to avoid a blank screen at large margin values.
+     */
+    fun buildLiveUpdateJs(oldPrefs: FormattingPreferences, newPrefs: FormattingPreferences): String =
+        if (oldPrefs.theme != newPrefs.theme) buildStyleInjectionJs(newPrefs) else buildStyleSetJs(newPrefs)
+
+    // Force Chromium to invalidate the composited raster tiles for this WebView after every theme
+    // change. WebSettingsCompat.setOffscreenPreRaster(true) (#413) keeps rasterised tiles alive
+    // for off-screen chapters so the chapter-boundary blank-flash doesn't return; the side-effect
+    // is that a bare `:root` style-attribute mutation doesn't reliably invalidate those cached
+    // tiles. The CSSOM updates, ReadiumCSS re-cascades, `getComputedStyle` returns the new
+    // colours, but the composited image on screen still shows the pre-change theme: users see the
+    // OLD background survive a Sepia → Dim switch, with the text vanishing entirely because the
+    // stale sepia raster is now displaying dark-mode text against sepia bg with contrast the tile
+    // was never rasterised for.
     //
     // Toggling `visibility: hidden` on `:root`, then restoring on the next animation frame, is a
     // paint-invalidating change that overrides the pre-raster tile cache. Restoration is
@@ -224,9 +254,7 @@ internal object ContinuousStyleInjector {
     // suspenders guards against `requestAnimationFrame` being throttled or paused (Chromium pauses
     // RAF for backgrounded WebViews; off-screen stacked WebViews can hit that state).
     fun buildStyleInjectionJs(prefs: FormattingPreferences): String {
-        val styleAttr = buildHtmlStyleAttr(prefs)
-            .replace("\\", "\\\\")
-            .replace("'", "\\'")
+        val styleAttr = buildHtmlStyleAttr(prefs).escapeForJs()
         return """
             (function() {
                 document.documentElement.setAttribute('style', '$styleAttr');
