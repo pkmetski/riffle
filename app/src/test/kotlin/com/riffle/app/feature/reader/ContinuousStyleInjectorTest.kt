@@ -193,6 +193,32 @@ class ContinuousStyleInjectorTest {
             .contains("ReadiumCSS-default.css"))
     }
 
+    // ── page-load + non-theme live-update style-set JS (no visibility toggle) ────
+    //
+    // buildStyleSetJs is used at two sites:
+    //  1. onPageFinished (initial chapter load): The visibility toggle in buildStyleInjectionJs
+    //     creates a race — HEIGHT_MEASUREMENT_JS fires onHeightMeasured → pendingInitialScroll
+    //     → container.visibility = VISIBLE, but the RAF restoring visibility: '' hasn't fired
+    //     yet. Container is Android-VISIBLE with the chapter root CSS-hidden → blank screen.
+    //  2. updatePreferences for non-theme changes (margins, font size, line spacing…): The
+    //     visibility:hidden reflow at large margin values (1.8+) is heavy enough to block the
+    //     renderer thread longer than the 100 ms restore timeout, causing a persistent blank
+    //     screen until the renderer finishes. For layout-only changes the stale tiles show the
+    //     old layout shape for at most one or two frames — imperceptible compared to a blank.
+    //     Only theme changes need the tile-invalidation toggle (stale sepia tiles against dark
+    //     text would make the text invisible).
+
+    @Test
+    fun `buildStyleSetJs sets the style attribute without visibility toggle`() {
+        val js = ContinuousStyleInjector.buildStyleSetJs(FormattingPreferences(fontSize = 1.5f))
+        assertTrue(js.contains("document.documentElement.setAttribute('style'"))
+        assertTrue(js.contains("--USER__fontSize: 150% !important;"))
+        assertFalse(
+            "no visibility: hidden at page load — would race pendingInitialScroll and blank the screen",
+            js.contains("visibility"),
+        )
+    }
+
     // ── live preference-change JS ───────────────────────────────────────────────
 
     @Test

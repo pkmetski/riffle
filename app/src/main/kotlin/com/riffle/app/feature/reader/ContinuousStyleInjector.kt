@@ -204,6 +204,25 @@ internal object ContinuousStyleInjector {
      * `readium-*-on` flags straight from this attribute via its `[style*=…]` selectors, so setting
      * the whole attribute string is enough to re-style without reloading the chapter.
      */
+    /**
+     * JS that sets the `--USER__*` style attribute on `<html>` at initial page load (from
+     * [onPageFinished]). Does NOT toggle `visibility: hidden` — there are no stale rasterised
+     * tiles to invalidate on a fresh page load. The visibility toggle in [buildStyleInjectionJs]
+     * creates a race at load time: HEIGHT_MEASUREMENT_JS fires `onHeightMeasured` which triggers
+     * `pendingInitialScroll` → `container.visibility = VISIBLE`, but the RAF restore for the
+     * `visibility: hidden` hasn't fired yet. The container is then Android-VISIBLE with the
+     * chapter root CSS-hidden, producing a blank screen until the RAF finally fires.
+     *
+     * Use [buildStyleInjectionJs] for LIVE preference changes where the pre-raster tile cache
+     * holds stale composited tiles (see [WebSettingsCompat.setOffscreenPreRaster]).
+     */
+    fun buildStyleSetJs(prefs: FormattingPreferences): String {
+        val styleAttr = buildHtmlStyleAttr(prefs)
+            .replace("\\", "\\\\")
+            .replace("'", "\\'")
+        return "(function() { document.documentElement.setAttribute('style', '$styleAttr'); })();"
+    }
+
     // Force Chromium to invalidate the composited raster tiles for this WebView after every live
     // preference change. WebSettingsCompat.setOffscreenPreRaster(true) (#413) keeps rasterised
     // tiles alive for off-screen chapters so the chapter-boundary blank-flash doesn't return; the

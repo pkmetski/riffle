@@ -674,8 +674,21 @@ internal class ContinuousWindowController(
     /** Update preferences and re-inject styles + remeasure all loaded chapters. */
     override fun updatePreferences(prefs: FormattingPreferences) {
         if (prefs == formattingPrefs) return
+        val oldPrefs = formattingPrefs
         formattingPrefs = prefs
-        val styleJs = ContinuousStyleInjector.buildStyleInjectionJs(prefs)
+        // Use the visibility-toggle invalidation ONLY for theme changes. The tile cache carries
+        // the old background and text colours — without an invalidation, stale sepia tiles
+        // persist against dark-mode text, making the content unreadable. For layout-only changes
+        // (margins, font size, line spacing, font family, justification) the stale tiles show the
+        // old layout shape for a frame or two at most, which is imperceptible. Using
+        // buildStyleInjectionJs for those changes causes a blank screen at large margin values
+        // (1.8+) because the heavy reflow blocks the renderer thread longer than the 100 ms
+        // restore timeout, so visibility:hidden hangs on until the reflow finishes.
+        val styleJs = if (oldPrefs.theme != prefs.theme) {
+            ContinuousStyleInjector.buildStyleInjectionJs(prefs)
+        } else {
+            ContinuousStyleInjector.buildStyleSetJs(prefs)
+        }
         webViews.forEach { wv -> wv.reinjectAndRemeasure(styleJs) }
     }
 
@@ -1044,7 +1057,8 @@ internal class ContinuousWindowController(
         }
         wv.onBookBodyFont = { ff -> onBookBodyFont?.invoke(ff) }
         wv.onPageFinished = {
-            val styleJs = ContinuousStyleInjector.buildStyleInjectionJs(formattingPrefs)
+            // buildStyleSetJs: no visibility toggle at load time — see the doc on that function.
+            val styleJs = ContinuousStyleInjector.buildStyleSetJs(formattingPrefs)
             wv.injectStylesAndMeasure(styleJs)
             wv.evaluateJavascript(SELECTION_SPAN_TRACKER_JS, null as ((String?) -> Unit)?)
             decorations.onChapterLoaded(wv, onAnnotationsApplied = { onAnnotationHighlightsApplied(wv) })
@@ -1217,7 +1231,8 @@ internal class ContinuousWindowController(
         }
         wv.onBookBodyFont = { ff -> onBookBodyFont?.invoke(ff) }
         wv.onPageFinished = {
-            val styleJs = ContinuousStyleInjector.buildStyleInjectionJs(formattingPrefs)
+            // buildStyleSetJs: no visibility toggle at load time — see the doc on that function.
+            val styleJs = ContinuousStyleInjector.buildStyleSetJs(formattingPrefs)
             wv.injectStylesAndMeasure(styleJs)
             wv.evaluateJavascript(SELECTION_SPAN_TRACKER_JS, null as ((String?) -> Unit)?)
             decorations.onChapterLoaded(wv, onAnnotationsApplied = { onAnnotationHighlightsApplied(wv) })
