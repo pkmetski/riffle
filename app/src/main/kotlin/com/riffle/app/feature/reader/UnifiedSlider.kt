@@ -40,7 +40,6 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import java.util.Locale
 import kotlin.math.abs
-import kotlin.math.ceil
 import kotlin.math.floor
 import kotlin.math.roundToInt
 
@@ -66,7 +65,7 @@ internal fun steppedTypographyValue(
     val n = if (step > 0) {
         floor(stepsFromStart + eps).toInt() + 1
     } else {
-        ceil(stepsFromStart - eps).toInt() - 1
+        floor(stepsFromStart - eps).toInt()
     }
     val maxSteps = ((range.endInclusive - range.start) / stepSize + eps).toInt()
     val next = (range.start + n.coerceIn(0, maxSteps) * stepSize).coerceIn(range)
