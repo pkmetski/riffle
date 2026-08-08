@@ -449,6 +449,7 @@ private fun ChapterSeekBar(
     // Bookmark ticks read over both the filled and unfilled track; onSurfaceVariant contrasts with
     // the accent fill and the muted base track alike.
     val bookmarkTickColor = MaterialTheme.colorScheme.onSurfaceVariant
+    val cursorHaloColor = MaterialTheme.colorScheme.surface
     // While the user is actively dragging, render the bar from the finger position instead of the
     // polled `positionSec`. Seeks round-trip through the MediaController binder on a ~250 ms poll, so
     // mid-drag the polled value lags multiple seeks behind the finger and the bar visibly snaps back
@@ -482,58 +483,60 @@ private fun ChapterSeekBar(
             },
         contentAlignment = Alignment.Center,
     ) {
-        Canvas(modifier = Modifier.fillMaxWidth().height(9.dp)) {
+        Canvas(modifier = Modifier.fillMaxSize()) {
             val w = size.width
-            val h = size.height
+            val totalH = size.height
+            val trackH = 5.dp.toPx()
+            val trackTop = (totalH - trackH) / 2f
+            val gapW = 3.dp.toPx()
+            val cursorRadius = 7.dp.toPx()
             val displayedSec = dragSec ?: positionSec
             val frac = if (durationSec > 0) (displayedSec / durationSec).coerceIn(0.0, 1.0).toFloat() else 0f
+            val trackSize = Size(w, trackH)
+            val cr = CornerRadius(trackH / 2, trackH / 2)
             // base track
-            drawRoundRect(color = track, size = size, cornerRadius = CornerRadius(h / 2, h / 2))
-            // buffered-ahead band (rendered under the filled portion so its right edge extends past
-            // the playhead; hidden when nothing is buffered past the current position).
+            drawRoundRect(color = track, topLeft = Offset(0f, trackTop), size = trackSize, cornerRadius = cr)
+            // buffered-ahead band
             if (durationSec > 0 && bufferedPositionSec > displayedSec) {
                 val bufFrac = (bufferedPositionSec / durationSec).coerceIn(0.0, 1.0).toFloat()
                 drawRoundRect(
                     color = buffered,
-                    size = Size(w * bufFrac, h),
-                    cornerRadius = CornerRadius(h / 2, h / 2),
+                    topLeft = Offset(0f, trackTop),
+                    size = Size(w * bufFrac, trackH),
+                    cornerRadius = cr,
                 )
             }
             // filled portion
             drawRoundRect(
                 color = accent,
-                size = Size(w * frac, h),
-                cornerRadius = CornerRadius(h / 2, h / 2),
+                topLeft = Offset(0f, trackTop),
+                size = Size(w * frac, trackH),
+                cornerRadius = cr,
             )
-            // chapter boundary ticks
+            // chapter boundary gaps — wider than the old tick, drawn in background color to punch
+            // through the track fill (same technique as ChapterNavigationRail segment gaps).
             if (durationSec > 0) {
                 chapterStartsSec.forEach { start ->
                     val x = (start / durationSec).toFloat().coerceIn(0f, 1f) * w
-                    drawRect(color = tickColor, topLeft = Offset(x - 1f, 0f), size = Size(2f, h))
+                    drawRect(color = tickColor, topLeft = Offset(x - gapW / 2f, trackTop), size = Size(gapW, trackH))
                 }
-                // bookmark ticks — thin marks that overshoot the track top & bottom so they're
-                // legible against the chapter ticks and the playhead. Visual-only (drawn inside the
-                // existing track Canvas, which never consumes the Box's drag/tap gestures).
                 val bmTickWidth = 2.5.dp.toPx()
-                val bmOvershoot = h * 0.6f
+                val bmOvershoot = trackH * 0.6f
                 bookmarkPositionsSec.forEach { pos ->
                     val x = (pos / durationSec).toFloat().coerceIn(0f, 1f) * w
                     drawRoundRect(
                         color = bookmarkTickColor,
-                        topLeft = Offset(x - bmTickWidth / 2f, -bmOvershoot),
-                        size = Size(bmTickWidth, h + bmOvershoot * 2f),
+                        topLeft = Offset(x - bmTickWidth / 2f, trackTop - bmOvershoot),
+                        size = Size(bmTickWidth, trackH + bmOvershoot * 2f),
                         cornerRadius = CornerRadius(bmTickWidth / 2f, bmTickWidth / 2f),
                     )
                 }
             }
-            // vertical playhead
+            // dot cursor centered on the track — halo punches it out from the track fill
             val px = (w * frac).coerceIn(0f, w)
-            drawRoundRect(
-                color = Color.White,
-                topLeft = Offset(px - 2f, -h * 0.7f),
-                size = Size(4f, h * 2.4f),
-                cornerRadius = CornerRadius(2f, 2f),
-            )
+            val cy = totalH / 2f
+            drawCircle(color = cursorHaloColor, radius = cursorRadius + 1.5.dp.toPx(), center = Offset(px, cy))
+            drawCircle(color = accent, radius = cursorRadius, center = Offset(px, cy))
         }
     }
 }
