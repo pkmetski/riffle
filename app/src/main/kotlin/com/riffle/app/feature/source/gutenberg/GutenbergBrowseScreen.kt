@@ -8,12 +8,14 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.Home
@@ -23,6 +25,7 @@ import com.riffle.app.ui.theme.RiffleIcons
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -195,7 +198,8 @@ private fun LibraryTabContent(
     searchOpen: Boolean,
     onCoverScaleChange: (Float) -> Unit,
 ) {
-    val items by viewModel.items.collectAsState()
+    val items by viewModel.filteredItems.collectAsState()
+    val notStartedFilterActive by viewModel.notStartedFilterActive.collectAsState()
     val facets by viewModel.facets.collectAsState()
     val selectedFacet by viewModel.selectedFacet.collectAsState()
     val query by viewModel.query.collectAsState()
@@ -217,11 +221,27 @@ private fun LibraryTabContent(
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text),
             )
         }
-        if (facets.isNotEmpty()) {
-            LazyRow(
-                contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
+        LazyRow(
+            contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            item {
+                FilterChip(
+                    selected = notStartedFilterActive,
+                    onClick = { viewModel.toggleNotStartedFilter() },
+                    label = { Text("Not Started") },
+                    leadingIcon = if (notStartedFilterActive) {
+                        {
+                            Icon(
+                                Icons.Filled.Check,
+                                contentDescription = null,
+                                modifier = Modifier.size(FilterChipDefaults.IconSize),
+                            )
+                        }
+                    } else null,
+                )
+            }
+            if (facets.isNotEmpty()) {
                 item {
                     FilterChip(
                         selected = selectedFacet == null,

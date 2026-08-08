@@ -8,6 +8,8 @@ import com.riffle.core.catalog.CatalogRegistry
 import com.riffle.core.catalog.chitanka.ChitankaCatalog
 import com.riffle.core.data.websource.WebSourceLibraryItemUpserter
 import com.riffle.core.domain.CoverGridDensityStore
+import com.riffle.core.domain.LibraryObserver
+import com.riffle.core.models.LibraryItem
 import com.riffle.core.models.Source
 import com.riffle.core.domain.SourceRepository
 import com.riffle.core.models.SourceType
@@ -18,6 +20,8 @@ import io.mockk.mockk
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.async
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -27,6 +31,8 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 
@@ -61,6 +67,7 @@ class ChitankaBrowseViewModelTest {
         upserter: WebSourceLibraryItemUpserter = mockk(relaxed = true),
         sourceRepo: SourceRepository = fakeSourceRepo(chitankaSource),
         coverGridDensityStore: CoverGridDensityStore = fakeCoverGridDensityStore(),
+        libraryObserver: LibraryObserver = emptyLibraryObserver(),
         catalog: Catalog = mockk<Catalog>(relaxed = true).also {
             // Relaxed mocks return a stub CatalogItem instead of null for `getItem`, which breaks
             // the openDetail enrichment fallback in tests that don't explicitly stub it. Pin to
@@ -87,6 +94,7 @@ class ChitankaBrowseViewModelTest {
             upserter,
             gate,
             coverGridDensityStore,
+            libraryObserver,
         )
     }
 
@@ -150,6 +158,7 @@ class ChitankaBrowseViewModelTest {
             mockk<WebSourceLibraryItemUpserter>(relaxed = true),
             gate,
             fakeCoverGridDensityStore(),
+            emptyLibraryObserver(),
         )
         advanceUntilIdle()
 
@@ -181,6 +190,7 @@ class ChitankaBrowseViewModelTest {
             mockk<WebSourceLibraryItemUpserter>(relaxed = true),
             gate,
             fakeCoverGridDensityStore(),
+            emptyLibraryObserver(),
         )
         advanceUntilIdle()
 
@@ -212,6 +222,7 @@ class ChitankaBrowseViewModelTest {
             upserter,
             gate,
             fakeCoverGridDensityStore(),
+            emptyLibraryObserver(),
         )
         advanceUntilIdle()
 
@@ -395,4 +406,101 @@ class ChitankaBrowseViewModelTest {
             persistedScale = value
         }
     }
+
+    // ─── Not-Started filter ───────────────────────────────────────────────────────────────────────
+
+    @Test
+    fun `toggleNotStartedFilter hides catalog items that have been started in Room`() =
+        runTest(dispatcher) {
+            val startedId = "text/111"
+            val notStartedId = "text/222"
+            val neverSeenId = "text/333"
+
+            val startedItem = libraryItem(startedId, progress = 0.5f)
+            val notStartedItem = libraryItem(notStartedId, progress = 0f)
+            val roomItems = MutableStateFlow(listOf(startedItem, notStartedItem))
+
+            val catalog = mockk<Catalog>(relaxed = true)
+            coEvery { catalog.browse(rootId = any(), page = 0, pageSize = any(), facet = any()) } returns
+                listOf(item(startedId), item(notStartedId), item(neverSeenId))
+
+            val vm = makeVm(
+                catalog = catalog,
+                libraryObserver = libraryObserverWithAllBooks(roomItems),
+            )
+            advanceUntilIdle()
+
+            // Before filter: all three items visible
+            assertEquals(3, vm.filteredItems.value.size)
+            assertFalse(vm.notStartedFilterActive.value)
+
+            vm.toggleNotStartedFilter()
+            advanceUntilIdle()
+
+            // After filter: started item hidden; not-started (progress=0) and never-seen pass through
+            assertTrue(vm.notStartedFilterActive.value)
+            val ids = vm.filteredItems.value.map { it.id }
+            assertEquals(listOf(notStartedId, neverSeenId), ids)
+        }
+
+    @Test
+    fun `toggleNotStartedFilter off restores all catalog items`() = runTest(dispatcher) {
+        val startedId = "text/444"
+        val roomItems = MutableStateFlow(listOf(libraryItem(startedId, progress = 0.8f)))
+
+        val catalog = mockk<Catalog>(relaxed = true)
+        coEvery { catalog.browse(rootId = any(), page = 0, pageSize = any(), facet = any()) } returns
+            listOf(item(startedId), item("text/555"))
+
+        val vm = makeVm(catalog = catalog, libraryObserver = libraryObserverWithAllBooks(roomItems))
+        advanceUntilIdle()
+
+        vm.toggleNotStartedFilter()
+        advanceUntilIdle()
+        assertEquals(1, vm.filteredItems.value.size)
+
+        vm.toggleNotStartedFilter()
+        advanceUntilIdle()
+
+        assertFalse(vm.notStartedFilterActive.value)
+        assertEquals(2, vm.filteredItems.value.size)
+    }
+
+    // ---- filter helpers ----------------------------------------------------------
+
+    private fun libraryItem(id: String, progress: Float) = LibraryItem(
+        id = id,
+        libraryId = ChitankaCatalog.ROOT_BOOKS,
+        title = id,
+        author = "A",
+        coverUrl = null,
+        readingProgress = progress,
+        isCached = false,
+        isDownloaded = false,
+        ebookFormat = com.riffle.core.models.EbookFormat.Epub,
+    )
+
+    private fun emptyLibraryObserver(): LibraryObserver = libraryObserverWithAllBooks(flowOf(emptyList()))
+
+    private fun libraryObserverWithAllBooks(allBooks: Flow<List<LibraryItem>>): LibraryObserver =
+        object : LibraryObserver {
+            override fun observeAllBooks(libraryId: String) = allBooks
+            override fun observeLibraries() = flowOf(emptyList<com.riffle.core.models.Library>())
+            override fun observeLibraries(sourceId: String) = flowOf(emptyList<com.riffle.core.models.Library>())
+            override fun observeLibraryItems(libraryId: String) = flowOf(emptyList<LibraryItem>())
+            override fun observeUngroupedLibraryItems(libraryId: String) = flowOf(emptyList<LibraryItem>())
+            override fun observeInProgressItems(libraryId: String) = flowOf(emptyList<LibraryItem>())
+            override fun observeFinishedItems(libraryId: String) = flowOf(emptyList<LibraryItem>())
+            override fun observeRecentlyAddedItems(libraryId: String) = flowOf(emptyList<LibraryItem>())
+            override fun observeSeries(libraryId: String) = flowOf(emptyList<com.riffle.core.models.Series>())
+            override fun observeCollections(libraryId: String) = flowOf(emptyList<com.riffle.core.models.Collection>())
+            override fun observeSeriesItems(seriesId: String) = flowOf(emptyList<LibraryItem>())
+            override fun observeContinueSeriesItems(libraryId: String) = flowOf(emptyList<LibraryItem>())
+            override fun observeCollectionItems(collectionId: String) = flowOf(emptyList<LibraryItem>())
+            override suspend fun getItem(itemId: String): LibraryItem? = null
+            override fun observeItem(itemId: String) = flowOf<LibraryItem?>(null)
+            override suspend fun getItem(sourceId: String, itemId: String): LibraryItem? = null
+            override suspend fun getLibrary(libraryId: String): com.riffle.core.models.Library? = null
+            override suspend fun getSeriesIdForItem(sourceId: String, itemId: String): String? = null
+        }
 }

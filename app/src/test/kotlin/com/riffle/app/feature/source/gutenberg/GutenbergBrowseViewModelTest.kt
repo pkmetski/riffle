@@ -9,6 +9,8 @@ import com.riffle.core.catalog.gutenberg.GutenbergCatalog
 import com.riffle.core.data.websource.WebSourceItemGate
 import com.riffle.core.data.websource.WebSourceLibraryItemUpserter
 import com.riffle.core.domain.CoverGridDensityStore
+import com.riffle.core.domain.LibraryObserver
+import com.riffle.core.models.LibraryItem
 import com.riffle.core.models.Source
 import com.riffle.core.domain.SourceRepository
 import com.riffle.core.models.SourceType
@@ -19,6 +21,7 @@ import io.mockk.mockk
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.async
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -84,6 +87,7 @@ class GutenbergBrowseViewModelTest {
             upserter,
             gate,
             fakeCoverGridDensityStore(),
+            emptyLibraryObserver(),
         )
         return vm to gate
     }
@@ -133,4 +137,25 @@ class GutenbergBrowseViewModelTest {
             override val scale = flowOf(1f)
             override suspend fun setScale(value: Float) = Unit
         }
+
+    private fun emptyLibraryObserver(): LibraryObserver = object : LibraryObserver {
+        override fun observeAllBooks(libraryId: String): Flow<List<LibraryItem>> = flowOf(emptyList())
+        override fun observeLibraries() = flowOf(emptyList<com.riffle.core.models.Library>())
+        override fun observeLibraries(sourceId: String) = flowOf(emptyList<com.riffle.core.models.Library>())
+        override fun observeLibraryItems(libraryId: String) = flowOf(emptyList<LibraryItem>())
+        override fun observeUngroupedLibraryItems(libraryId: String) = flowOf(emptyList<LibraryItem>())
+        override fun observeInProgressItems(libraryId: String) = flowOf(emptyList<LibraryItem>())
+        override fun observeFinishedItems(libraryId: String) = flowOf(emptyList<LibraryItem>())
+        override fun observeRecentlyAddedItems(libraryId: String) = flowOf(emptyList<LibraryItem>())
+        override fun observeSeries(libraryId: String) = flowOf(emptyList<com.riffle.core.models.Series>())
+        override fun observeCollections(libraryId: String) = flowOf(emptyList<com.riffle.core.models.Collection>())
+        override fun observeSeriesItems(seriesId: String) = flowOf(emptyList<LibraryItem>())
+        override fun observeContinueSeriesItems(libraryId: String) = flowOf(emptyList<LibraryItem>())
+        override fun observeCollectionItems(collectionId: String) = flowOf(emptyList<LibraryItem>())
+        override suspend fun getItem(itemId: String): LibraryItem? = null
+        override fun observeItem(itemId: String) = flowOf<LibraryItem?>(null)
+        override suspend fun getItem(sourceId: String, itemId: String): LibraryItem? = null
+        override suspend fun getLibrary(libraryId: String): com.riffle.core.models.Library? = null
+        override suspend fun getSeriesIdForItem(sourceId: String, itemId: String): String? = null
+    }
 }
