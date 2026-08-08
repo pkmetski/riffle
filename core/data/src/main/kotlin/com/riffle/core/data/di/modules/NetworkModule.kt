@@ -15,6 +15,8 @@ import com.riffle.core.network.AbsSessionApi
 import com.riffle.core.network.AudiobookBundleApiImpl
 import com.riffle.core.network.GitHubReleaseApi
 import com.riffle.core.network.JvmHttpClientPool
+import com.riffle.core.network.KomgaServerInfoApi
+import com.riffle.core.network.KomgaServerInfoApiClient
 import com.riffle.core.network.StorytellerApi
 import com.riffle.core.network.StorytellerApiClient
 import com.riffle.core.network.StorytellerBundleApiImpl
@@ -169,6 +171,11 @@ abstract class NetworkModule {
             libraryApi: AbsLibraryApi,
             storytellerApi: StorytellerApi,
         ): AbsSourceAdapter = AbsSourceAdapter(absApi, libraryApi, storytellerApi)
+
+        @Provides
+        @Singleton
+        fun provideKomgaServerInfoApiClient(httpClient: HttpClient): KomgaServerInfoApi =
+            KomgaServerInfoApiClient(httpClient)
 
         @Provides
         @Singleton
