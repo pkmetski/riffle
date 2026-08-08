@@ -2738,7 +2738,11 @@ private fun EpubNavigatorView(
     val density = LocalDensity.current.density
     val isPaginated = !isFixedLayout && formattingPrefs.orientation == ReaderOrientation.Horizontal
     val isDoublePage = isPaginated && formattingPrefs.doublePageSpread && isLandscape
-    val alignViewport = isPaginated && !isDoublePage
+    // Both single-page and double-page paginated modes align the viewport to a whole-pixel width
+    // so the CSS column-snap pitch (window.innerWidth) matches the physical pixel pitch exactly.
+    // Without alignment, on non-integer-DPR devices the settle-snap fires a 1-2 CSS px correction
+    // after each page turn — the "shifts right before settling" double-page bug.
+    val alignViewport = isPaginated
     // MODE-FORK: continuous needs the container's own background painted (see the paginated-only
     // gutter branch above). ContinuousReaderView's NestedScrollView paints only over its child
     // heights; a short chapter (Highlights view with few annotations) leaves the area beneath
@@ -2882,10 +2886,6 @@ private fun EpubNavigatorView(
                 // RS properties (colCount/colWidth) are baked into the fragment at creation time and
                 // cannot be changed via submitPreferences. Recreate the fragment whenever the
                 // double-page mode changes so the new RS config takes effect.
-                val isDoublePage = !isFixedLayout &&
-                    formattingPrefs.orientation == ReaderOrientation.Horizontal &&
-                    formattingPrefs.doublePageSpread &&
-                    isLandscape
                 val existingFrag = fragmentRef.value
                 if (existingFrag != null && fragmentDoublePageHolder[0] != isDoublePage) {
                     fm.beginTransaction().remove(existingFrag).commitNowAllowingStateLoss()
