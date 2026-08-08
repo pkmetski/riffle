@@ -371,22 +371,18 @@ class PanelDetectorTest {
     @Test
     fun `top strip with dark-bordered gutters is split into 4 panels`() {
         // Regression for the "4 top panels treated as one" bug. Layout: a narrow top strip with
-        // 4 panels whose between-panel gutters contain enough dark art pixels to confuse the
-        // column projection (colContent > 15% cutoff → gutter treated as content → all 4 panels
-        // merge into one wide cell in gridByProjection). The flood-fill-based split corrects it:
-        // the background pixels in those gutters are still reachable from the page border
-        // (≥30% flood-fill gutter pixels per column), so the split fires.
+        // 4 panels whose between-panel gutters have enough dark art pixels to push the column
+        // projection above the 15% cutoff, so gridByProjection merges all 4 into one wide cell.
+        // The detector detects the suspicious single-wide column band and falls back to CC
+        // detection, which correctly finds all 5 panels via separate connected components.
         val grid = fixture(width = 600, height = 800) { canvas ->
             canvas.fill(background = LIGHT)
             // Top strip: 4 panels each 125px wide with 12px gutters. Each gutter has enough dark
-            // pixels (spanning full gutter height in the middle half) to push the column
-            // projection above the 15% cutoff — simulating art that bleeds slightly into the gutter.
+            // pixels (spanning the middle portion) to push the column projection above the 15%
+            // cutoff, while still leaving white background pixels reachable from the page border.
             for (i in 0 until 4) {
                 canvas.rect(x = 15 + i * 137, y = 15, w = 125, h = 140, color = DARK)
             }
-            // Dark pixels filling the middle 80px of each gutter column — enough to exceed the
-            // projection cutoff (80/140 = 57% > 15%) yet leave background pixels reachable from
-            // the page border via the white top/bottom of the gutter.
             for (i in 0 until 3) {
                 val gx = 140 + i * 137  // first gutter column for gap i
                 canvas.rect(x = gx, y = 45, w = 12, h = 80, color = DARK)
@@ -402,6 +398,43 @@ class PanelDetectorTest {
             5, result.panels.size)
         val topPanels = result.panels.filter { it.y < 170 }
         assertEquals("expected 4 top-strip panels", 4, topPanels.size)
+    }
+
+    @Test
+    fun `panel with flood-fill-accessible interior is not falsely split by projection path`() {
+        // Regression: previously splitAtInternalGutters ran on every gridByProjection bbox.
+        // If the downscaled image had a gap in a speech-balloon border, the flood-fill would
+        // penetrate the white interior. The horizontal gutter check then fired on those interior
+        // rows (scoring ~70% gutter pixels, well above the 30% threshold) and the panel was
+        // halved; both halves were too short to survive minPanelDimensionFraction, so the first
+        // panel disappeared from the reading sequence entirely.
+        //
+        // Fix: gridByProjection no longer calls splitAtInternalGutters; projection already
+        // separates panels via gutter bands, so no further splitting is needed there.
+        //
+        // Fixture: 2×2 grid. Top-left panel has a white interior (x=60..199, y=50..149) connected
+        // to the top page gutter via a white channel (x=90..109, y=10..49) — this is the
+        // synthetic equivalent of a downscaling gap in the outer panel border. The channel makes
+        // the interior flood-fill-reachable, which would trigger the old false split.
+        val grid = fixture(width = 600, height = 400) { canvas ->
+            canvas.fill(background = LIGHT)
+            canvas.rect(x = 10, y = 10, w = 200, h = 190, color = DARK)
+            canvas.rect(x = 90, y = 10, w = 20, h = 40, color = LIGHT)   // gap → top gutter
+            canvas.rect(x = 60, y = 50, w = 140, h = 100, color = LIGHT) // large interior
+            canvas.rect(x = 250, y = 10, w = 200, h = 190, color = DARK)
+            canvas.rect(x = 10, y = 220, w = 200, h = 170, color = DARK)
+            canvas.rect(x = 250, y = 220, w = 200, h = 170, color = DARK)
+        }
+
+        val result = detector.detect(grid, pageIndex = 0, originalWidth = 600, originalHeight = 400)
+
+        assertEquals(PanelSource.Auto, result.source)
+        assertEquals("expected 4 panels, got ${result.panels.map { "(${it.x},${it.y})${it.width}x${it.height}" }}",
+            4, result.panels.size)
+        val topLeft = result.panels.filter { it.x < 240 && it.y < 200 }
+        assertEquals("top-left panel with flood-fill-accessible interior must survive as one panel", 1, topLeft.size)
+        assertTrue("top-left panel must span the full panel height, not just a falsely-split remnant",
+            topLeft[0].height >= 150)
     }
 
     // --- Fixture builders ---

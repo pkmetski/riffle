@@ -230,24 +230,28 @@ class PanelDetector(
         val totalCells = bandColBands.sumOf { it.size }
         if (totalCells < 2 && rowBands.size < 2) return null
 
-        // Build bboxes in cropped space from the projection-detected row/column bands.
-        // The projection may miss thin gutters (< projectionMinBandThickness) between adjacent
-        // panels in the same row, leaving them as one merged cell. The flood-fill-based split
-        // corrects this: real between-panel gutters connect to the page border and score ~100%
-        // flood-fill gutter pixels; panel interiors are enclosed and score 0%, so they never
-        // trigger a false split.
+        // If any row produced only one column band spanning the vast majority of the cropped
+        // width, the projection couldn't find interior column gutters — either they're narrower
+        // than projectionMinBandThickness, or dark art pixels pushed the column counts above the
+        // gutter cutoff. Rather than trying to re-split with a flood-fill heuristic (which
+        // creates false splits on panels whose interiors the flood-fill can penetrate through
+        // downscaling gaps), hand the page to the CC detector which is immune to this: it
+        // operates on flood-fill gutter connectivity, not projection valleys.
+        val suspiciousWideRow = bandColBands.any { colBands ->
+            colBands.size == 1 && colBands[0].let { it.end - it.start + 1 } >= cropped.width * 0.9
+        }
+        if (suspiciousWideRow) return null
+
         val bboxesInCropped = mutableListOf<Bbox>()
         for ((rowIndex, rowBand) in rowBands.withIndex()) {
             for (colBand in bandColBands[rowIndex]) {
                 bboxesInCropped.add(Bbox(colBand.start, rowBand.start, colBand.end, rowBand.end))
             }
         }
-        val projGutter = floodFillGutter(cropped)
-        val split = splitAtInternalGutters(bboxesInCropped, cropped, projGutter)
 
         val scaleX = originalWidth.toDouble() / downscaledWidth.toDouble()
         val scaleY = originalHeight.toDouble() / downscaledHeight.toDouble()
-        val regions = split.map { bbox ->
+        val regions = bboxesInCropped.map { bbox ->
             val minX = ((bbox.minX + cropped.offsetX) * scaleX).toInt().coerceIn(0, originalWidth - 1)
             val minY = ((bbox.minY + cropped.offsetY) * scaleY).toInt().coerceIn(0, originalHeight - 1)
             val maxX = ((bbox.maxX + 1 + cropped.offsetX) * scaleX).toInt().coerceIn(1, originalWidth)
