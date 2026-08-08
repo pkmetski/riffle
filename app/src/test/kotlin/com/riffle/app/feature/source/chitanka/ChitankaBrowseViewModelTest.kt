@@ -8,6 +8,7 @@ import com.riffle.core.catalog.CatalogRegistry
 import com.riffle.core.catalog.chitanka.ChitankaCatalog
 import com.riffle.core.data.websource.WebSourceLibraryItemUpserter
 import com.riffle.core.domain.CoverGridDensityStore
+import com.riffle.app.testing.FakeLibraryObserver
 import com.riffle.core.domain.LibraryObserver
 import com.riffle.core.models.LibraryItem
 import com.riffle.core.models.Source
@@ -480,27 +481,8 @@ class ChitankaBrowseViewModelTest {
         ebookFormat = com.riffle.core.models.EbookFormat.Epub,
     )
 
-    private fun emptyLibraryObserver(): LibraryObserver = libraryObserverWithAllBooks(flowOf(emptyList()))
+    private fun emptyLibraryObserver(): LibraryObserver = FakeLibraryObserver()
 
     private fun libraryObserverWithAllBooks(allBooks: Flow<List<LibraryItem>>): LibraryObserver =
-        object : LibraryObserver {
-            override fun observeAllBooks(libraryId: String) = allBooks
-            override fun observeLibraries() = flowOf(emptyList<com.riffle.core.models.Library>())
-            override fun observeLibraries(sourceId: String) = flowOf(emptyList<com.riffle.core.models.Library>())
-            override fun observeLibraryItems(libraryId: String) = flowOf(emptyList<LibraryItem>())
-            override fun observeUngroupedLibraryItems(libraryId: String) = flowOf(emptyList<LibraryItem>())
-            override fun observeInProgressItems(libraryId: String) = flowOf(emptyList<LibraryItem>())
-            override fun observeFinishedItems(libraryId: String) = flowOf(emptyList<LibraryItem>())
-            override fun observeRecentlyAddedItems(libraryId: String) = flowOf(emptyList<LibraryItem>())
-            override fun observeSeries(libraryId: String) = flowOf(emptyList<com.riffle.core.models.Series>())
-            override fun observeCollections(libraryId: String) = flowOf(emptyList<com.riffle.core.models.Collection>())
-            override fun observeSeriesItems(seriesId: String) = flowOf(emptyList<LibraryItem>())
-            override fun observeContinueSeriesItems(libraryId: String) = flowOf(emptyList<LibraryItem>())
-            override fun observeCollectionItems(collectionId: String) = flowOf(emptyList<LibraryItem>())
-            override suspend fun getItem(itemId: String): LibraryItem? = null
-            override fun observeItem(itemId: String) = flowOf<LibraryItem?>(null)
-            override suspend fun getItem(sourceId: String, itemId: String): LibraryItem? = null
-            override suspend fun getLibrary(libraryId: String): com.riffle.core.models.Library? = null
-            override suspend fun getSeriesIdForItem(sourceId: String, itemId: String): String? = null
-        }
+        FakeLibraryObserver(allBooksFlow = allBooks)
 }
