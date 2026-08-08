@@ -151,6 +151,25 @@ class JsonPanelStoreTest {
     }
 
     @Test
+    fun `v7 cache file is rejected so stale pre-algorithm-fix detections are never served`() {
+        // Regression pin: three algorithm changes shipped in the panel-detection-first-row branch
+        // (flood-fill split criterion, suspiciousWideRow fallback, projection path no longer calls
+        // splitAtInternalGutters) but CURRENT_SCHEMA_VERSION was not bumped until after all three.
+        // During that window the store served old cached results on every page open, making the
+        // fixed detector code unreachable on device. Pinning v7 as "stale" ensures this class of
+        // mistake can't silently recur: if someone reverts the version bump to ≤7, this test fails.
+        val file = File(rootDir, "book-1.json")
+        file.writeText(
+            """{"schemaVersion":7,"bookId":"book-1","pages":[""" +
+                """{"pageIndex":0,"imageWidth":600,"imageHeight":840,""" +
+                """"panels":[{"x":0,"y":0,"width":600,"height":840}],"source":"Fallback"}""" +
+                "]}"
+        )
+        assertNull("v7 file must not be served — v7 caches hold stale detection results from before the algorithm fix", store.load("book-1", 0))
+        assertTrue(store.loadAll("book-1").isEmpty())
+    }
+
+    @Test
     fun `Fallback page round-trips`() {
         val fallback = PagePanels(
             pageIndex = 2,

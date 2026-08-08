@@ -319,6 +319,124 @@ class PanelDetectorTest {
         assertEquals(PanelSource.Fallback, result.source)
     }
 
+    @Test
+    fun `wide hollow-bordered panels are not falsely split at low-content interior rows`() {
+        // Regression: splitAtInternalGutters was classifying interior rows of hollow panels as
+        // "gutter" when the panel was wide (making the 5%-content threshold smaller than the 6
+        // border pixels each row contributed). Result: each CC bbox was split at the balloon
+        // interior, producing two tiny halves that were filtered by minHeight, leaving 0 panels.
+        // Fix: use flood-fill gutter pixel count instead of content count — panel interiors are
+        // not flood-fill-reachable so they never trigger a split.
+        val grid = fixture(width = 600, height = 400) { canvas ->
+            canvas.fill(background = LIGHT)
+            // Two wide (250px) hollow panels. Wide enough that (border pixels) / width < 5%,
+            // which previously triggered the false gutter classification.
+            canvas.hollowRect(x = 20, y = 20, w = 250, h = 360, borderPx = 3, color = DARK)
+            canvas.hollowRect(x = 300, y = 20, w = 250, h = 360, borderPx = 3, color = DARK)
+        }
+
+        val result = detector.detect(grid, pageIndex = 0, originalWidth = 600, originalHeight = 400)
+
+        assertEquals(PanelSource.Auto, result.source)
+        assertEquals("expected 2 panels (wide hollow rects), got ${result.panels.map { "(${it.x},${it.y})${it.width}x${it.height}" }}",
+            2, result.panels.size)
+    }
+
+    @Test
+    fun `multi-row page with sparse-interior panels detects all rows`() {
+        // Regression for the user's Maus-page bug: 4 rows of panels where each panel has a
+        // hollow border (white balloon interior). The top row survived in older code because
+        // panels happened to be wide enough; rows 2-4 were shorter and their sub-panels fell
+        // below minHeight after the false split. Fix: gutter-based split never triggers on
+        // enclosed panel interiors, so all 8 panels survive.
+        val grid = fixture(width = 400, height = 560) { canvas ->
+            canvas.fill(background = LIGHT)
+            // 4 rows × 2 panels, each hollow-bordered. Row height ~100px (much shorter than
+            // the 2-row case), so sub-panels after a false split would be ~15px — well below
+            // the 84px minHeight floor.
+            for (row in 0 until 4) {
+                val y = 20 + row * 130
+                canvas.hollowRect(x = 20, y = y, w = 160, h = 110, borderPx = 3, color = DARK)
+                canvas.hollowRect(x = 210, y = y, w = 160, h = 110, borderPx = 3, color = DARK)
+            }
+        }
+
+        val result = detector.detect(grid, pageIndex = 0, originalWidth = 400, originalHeight = 560)
+
+        assertEquals(PanelSource.Auto, result.source)
+        assertEquals("expected 8 panels (4-row grid of hollow rects), got ${result.panels.map { "(${it.x},${it.y})${it.width}x${it.height}" }}",
+            8, result.panels.size)
+    }
+
+    @Test
+    fun `top strip with dark-bordered gutters is split into 4 panels`() {
+        // Regression for the "4 top panels treated as one" bug. Layout: a narrow top strip with
+        // 4 panels whose between-panel gutters have enough dark art pixels to push the column
+        // projection above the 15% cutoff, so gridByProjection merges all 4 into one wide cell.
+        // The detector detects the suspicious single-wide column band and falls back to CC
+        // detection, which correctly finds all 5 panels via separate connected components.
+        val grid = fixture(width = 600, height = 800) { canvas ->
+            canvas.fill(background = LIGHT)
+            // Top strip: 4 panels each 125px wide with 12px gutters. Each gutter has enough dark
+            // pixels (spanning the middle portion) to push the column projection above the 15%
+            // cutoff, while still leaving white background pixels reachable from the page border.
+            for (i in 0 until 4) {
+                canvas.rect(x = 15 + i * 137, y = 15, w = 125, h = 140, color = DARK)
+            }
+            for (i in 0 until 3) {
+                val gx = 140 + i * 137  // first gutter column for gap i
+                canvas.rect(x = gx, y = 45, w = 12, h = 80, color = DARK)
+            }
+            // Large panel below.
+            canvas.rect(x = 15, y = 175, w = 555, h = 600, color = DARK)
+        }
+
+        val result = detector.detect(grid, pageIndex = 0, originalWidth = 600, originalHeight = 800)
+
+        assertEquals(PanelSource.Auto, result.source)
+        assertEquals("expected 5 panels (4 top strip + 1 large), got ${result.panels.map { "(${it.x},${it.y})${it.width}x${it.height}" }}",
+            5, result.panels.size)
+        val topPanels = result.panels.filter { it.y < 170 }
+        assertEquals("expected 4 top-strip panels", 4, topPanels.size)
+    }
+
+    @Test
+    fun `panel with flood-fill-accessible interior is not falsely split by projection path`() {
+        // Regression: previously splitAtInternalGutters ran on every gridByProjection bbox.
+        // If the downscaled image had a gap in a speech-balloon border, the flood-fill would
+        // penetrate the white interior. The horizontal gutter check then fired on those interior
+        // rows (scoring ~70% gutter pixels, well above the 30% threshold) and the panel was
+        // halved; both halves were too short to survive minPanelDimensionFraction, so the first
+        // panel disappeared from the reading sequence entirely.
+        //
+        // Fix: gridByProjection no longer calls splitAtInternalGutters; projection already
+        // separates panels via gutter bands, so no further splitting is needed there.
+        //
+        // Fixture: 2×2 grid. Top-left panel has a white interior (x=60..199, y=50..149) connected
+        // to the top page gutter via a white channel (x=90..109, y=10..49) — this is the
+        // synthetic equivalent of a downscaling gap in the outer panel border. The channel makes
+        // the interior flood-fill-reachable, which would trigger the old false split.
+        val grid = fixture(width = 600, height = 400) { canvas ->
+            canvas.fill(background = LIGHT)
+            canvas.rect(x = 10, y = 10, w = 200, h = 190, color = DARK)
+            canvas.rect(x = 90, y = 10, w = 20, h = 40, color = LIGHT)   // gap → top gutter
+            canvas.rect(x = 60, y = 50, w = 140, h = 100, color = LIGHT) // large interior
+            canvas.rect(x = 250, y = 10, w = 200, h = 190, color = DARK)
+            canvas.rect(x = 10, y = 220, w = 200, h = 170, color = DARK)
+            canvas.rect(x = 250, y = 220, w = 200, h = 170, color = DARK)
+        }
+
+        val result = detector.detect(grid, pageIndex = 0, originalWidth = 600, originalHeight = 400)
+
+        assertEquals(PanelSource.Auto, result.source)
+        assertEquals("expected 4 panels, got ${result.panels.map { "(${it.x},${it.y})${it.width}x${it.height}" }}",
+            4, result.panels.size)
+        val topLeft = result.panels.filter { it.x < 240 && it.y < 200 }
+        assertEquals("top-left panel with flood-fill-accessible interior must survive as one panel", 1, topLeft.size)
+        assertTrue("top-left panel must span the full panel height, not just a falsely-split remnant",
+            topLeft[0].height >= 150)
+    }
+
     // --- Fixture builders ---
 
     private val LIGHT: Byte = 240.toByte()

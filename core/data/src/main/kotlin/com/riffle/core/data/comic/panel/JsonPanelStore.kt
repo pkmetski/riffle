@@ -83,8 +83,7 @@ class JsonPanelStore @Inject constructor(
     @Serializable
     private data class BookFile(
         // Missing on files written before the field was added (v1) — Serializable defaults it to
-        // 1, so those pre-versioning caches read back as v1 and mismatch the current version
-        // (currently 2, bumped when the detector algorithm changes materially).
+        // 1, so those pre-versioning caches read back as v1 and mismatch CURRENT_SCHEMA_VERSION.
         val schemaVersion: Int = 1,
         val bookId: String,
         val pages: List<PagePanels>,
@@ -116,8 +115,13 @@ class JsonPanelStore @Inject constructor(
          *  7 — PanelSource enum shrunk to Auto/Fallback (Acbf/ComicInfo removed since the
          *      ACBF sidecar path was never actually reachable in production). v6 caches would
          *      fail to deserialize the removed enum values.
+         *  8 — internal-gutter split criterion switched from content-count (5%) to flood-fill
+         *      fraction (30%) so hollow panel interiors (speech balloons, white fills) no longer
+         *      trigger false splits. projection path loses splitAtInternalGutters; instead a
+         *      suspiciousWideRow check detects under-split projection rows and hands them to CC.
+         *      v7 caches held either wrong splits or wrong merges from the old heuristic.
          */
-        internal const val CURRENT_SCHEMA_VERSION: Int = 7
+        internal const val CURRENT_SCHEMA_VERSION: Int = 8
 
         private val UNSAFE = Regex("[^A-Za-z0-9._-]")
     }

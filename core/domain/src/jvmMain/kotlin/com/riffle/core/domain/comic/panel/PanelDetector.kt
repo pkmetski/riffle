@@ -126,11 +126,14 @@ class PanelDetector(
         val maxInternalGutterSplitDepth: Int = 3,
 
         /**
-         * Fraction of the perpendicular dimension below which a row/column counts as "gutter"
-         * during internal-gutter detection. 0.05 = a row is a horizontal gutter if fewer than
-         * 5% of the panel's columns have content in that row.
+         * A row/column inside a CC bbox is a real internal gutter if at least this fraction of
+         * its pixels are flood-fill gutter pixels (i.e. background reachable from the page
+         * border). 0.3 = 30% of the row must be page-gutter. Genuine gutters between adjacent
+         * panels score ~100% (fully reachable); hollow panel interiors score 0% (enclosed by
+         * the panel border, not reachable from outside). This replaces the old content-fraction
+         * heuristic which fired on speech balloon interiors and dark-tone panel shadows.
          */
-        val internalGutterContentFraction: Double = 0.05,
+        val internalGutterFloodFillFraction: Double = 0.3,
 
         /**
          * Ignore internal gutters this close to the panel edge (fraction of panel dimension).
@@ -180,7 +183,7 @@ class PanelDetector(
         val filtered = filterAndTighten(components, cropped)
         // Split any bbox that straddles a full-crossing internal gutter — CC can merge two
         // real panels into one bbox when a stray content pixel bridges them at the edge.
-        val split = splitAtInternalGutters(filtered, cropped)
+        val split = splitAtInternalGutters(filtered, cropped, gutter)
 
         return sanityCheck(
             candidates = split,
@@ -227,19 +230,35 @@ class PanelDetector(
         val totalCells = bandColBands.sumOf { it.size }
         if (totalCells < 2 && rowBands.size < 2) return null
 
-        // Build bboxes in cropped space so we can post-process them (internal-gutter splits)
-        // before converting to original-image coordinates.
+        // If any row produced only one column band spanning the vast majority of the cropped
+        // width, the projection couldn't find interior column gutters — either they're narrower
+        // than projectionMinBandThickness, or dark art pixels pushed the column counts above the
+        // gutter cutoff. Rather than trying to re-split with a flood-fill heuristic (which
+        // creates false splits on panels whose interiors the flood-fill can penetrate through
+        // downscaling gaps), hand the page to the CC detector which is immune to this: it
+        // operates on flood-fill gutter connectivity, not projection valleys.
+        val suspiciousWideRow = bandColBands.any { colBands ->
+            colBands.size == 1 && colBands[0].let { it.end - it.start + 1 } >= cropped.width * 0.9
+        }
+        if (suspiciousWideRow) return null
+
+        // Known limitation: a gutter narrower than projectionMinBandThickness (15px) but wider
+        // than internalGutterMinThickness (4px) will be missed by the column projection AND won't
+        // trigger suspiciousWideRow if the merged cell is < 90% of the cropped width. In that
+        // case the two panels appear merged here with no recovery. Accepted tradeoff: the
+        // alternative (calling splitAtInternalGutters on projection bboxes) risks false-splitting
+        // panels whose interiors are flood-fill-reachable through downscaling border gaps, causing
+        // panels to disappear entirely — a worse outcome than a merged zoom region.
         val bboxesInCropped = mutableListOf<Bbox>()
         for ((rowIndex, rowBand) in rowBands.withIndex()) {
             for (colBand in bandColBands[rowIndex]) {
                 bboxesInCropped.add(Bbox(colBand.start, rowBand.start, colBand.end, rowBand.end))
             }
         }
-        val split = splitAtInternalGutters(bboxesInCropped, cropped)
 
         val scaleX = originalWidth.toDouble() / downscaledWidth.toDouble()
         val scaleY = originalHeight.toDouble() / downscaledHeight.toDouble()
-        val regions = split.map { bbox ->
+        val regions = bboxesInCropped.map { bbox ->
             val minX = ((bbox.minX + cropped.offsetX) * scaleX).toInt().coerceIn(0, originalWidth - 1)
             val minY = ((bbox.minY + cropped.offsetY) * scaleY).toInt().coerceIn(0, originalHeight - 1)
             val maxX = ((bbox.maxX + 1 + cropped.offsetX) * scaleX).toInt().coerceIn(1, originalWidth)
@@ -263,32 +282,26 @@ class PanelDetector(
     }
 
     /**
-     * Recursively split any bbox that contains a full-crossing internal gutter — either a run
-     * of low-content rows (horizontal gutter → split top/bottom) or low-content columns
-     * (vertical gutter → split left/right).
+     * Recursively split any CC bbox that contains a full-crossing internal gutter — a run of
+     * rows or columns where ≥ [Config.internalGutterFloodFillFraction] of pixels are
+     * flood-fill gutter (background reachable from the page border).
      *
-     * This catches the failure mode where the projection detector or CC merged two real panels
-     * into one bbox because they share a wide dimension AND the between-panel gutter had a
-     * stray edge pixel that let flood-fill / projection connect them. Runs on each bbox in the
-     * cropped-mask coordinate space; caller converts to original coordinates afterwards.
+     * This catches the CC failure mode where two real adjacent panels are merged into one bbox
+     * because a stray pixel bridged their shared gutter. The flood-fill criterion is crucial:
+     * genuine between-panel gutters are fully reachable (~100% gutter pixels), while hollow
+     * panel interiors and dark-tone panel backgrounds are enclosed by the panel border and
+     * score 0% — so they never trigger a false split.
      */
-    private fun splitAtInternalGutters(bboxes: List<Bbox>, cropped: CroppedMask): List<Bbox> =
-        bboxes.flatMap { splitSinglePanelRecursively(it, cropped, depth = 0) }
+    private fun splitAtInternalGutters(bboxes: List<Bbox>, cropped: CroppedMask, gutter: BooleanArray): List<Bbox> =
+        bboxes.flatMap { splitSinglePanelRecursively(it, cropped, gutter, depth = 0) }
 
-    private fun splitSinglePanelRecursively(bbox: Bbox, cropped: CroppedMask, depth: Int): List<Bbox> {
+    private fun splitSinglePanelRecursively(bbox: Bbox, cropped: CroppedMask, gutter: BooleanArray, depth: Int): List<Bbox> {
         if (depth >= config.maxInternalGutterSplitDepth) return listOf(bbox)
         val height = bbox.maxY - bbox.minY + 1
         val width = bbox.maxX - bbox.minX + 1
-        // Don't split anything already small — real panels aren't hair-thin, and if we're this
-        // small we'll be dropped by the min-dimension sanity check anyway.
         val minSplitDim = 20
         if (width < minSplitDim * 2 || height < minSplitDim * 2) return listOf(bbox)
 
-        // Only apply the inner-sample trick to LARGE bboxes (>= 70% of the mask in a dimension) —
-        // these are the ones where a decorative page border or wraparound bleed can legitimately
-        // block detection of internal gutters through the interior. For smaller bboxes, sampling
-        // the whole width/height is more accurate (a hollow-border panel's interior looks like
-        // gutter in the inner-sample view, which would falsely split every panel).
         val useInnerWidthSample = width >= (cropped.width * 0.7)
         val useInnerHeightSample = height >= (cropped.height * 0.7)
 
@@ -297,22 +310,29 @@ class PanelDetector(
         val innerMinX = bbox.minX + innerMarginX
         val innerMaxX = bbox.maxX - innerMarginX
         val innerWidth = (innerMaxX - innerMinX + 1).coerceAtLeast(1)
-        val rowGutterCutoff = (innerWidth * config.internalGutterContentFraction).toInt().coerceAtLeast(1)
         val horizontalGutter = widestGutterRun(
             axisStart = bbox.minY + edgeMarginY,
             axisEnd = bbox.maxY - edgeMarginY,
-        ) { y -> cropped.rowContentCount(y, innerMinX, innerMaxX) < rowGutterCutoff }
+        ) { y ->
+            val base = y * cropped.width
+            var g = 0
+            for (x in innerMinX..innerMaxX) if (gutter[base + x]) g++
+            g.toLong() * 1000 >= innerWidth.toLong() * (config.internalGutterFloodFillFraction * 1000).toLong()
+        }
 
         val edgeMarginX = (width * config.internalGutterEdgeMargin).toInt().coerceAtLeast(2)
         val innerMarginY = if (useInnerHeightSample) (height * config.internalGutterInnerSampleInset).toInt().coerceAtLeast(0) else 0
         val innerMinY = bbox.minY + innerMarginY
         val innerMaxY = bbox.maxY - innerMarginY
         val innerHeight = (innerMaxY - innerMinY + 1).coerceAtLeast(1)
-        val colGutterCutoff = (innerHeight * config.internalGutterContentFraction).toInt().coerceAtLeast(1)
         val verticalGutter = widestGutterRun(
             axisStart = bbox.minX + edgeMarginX,
             axisEnd = bbox.maxX - edgeMarginX,
-        ) { x -> cropped.colContentCount(x, innerMinY, innerMaxY) < colGutterCutoff }
+        ) { x ->
+            var g = 0
+            for (y in innerMinY..innerMaxY) if (gutter[y * cropped.width + x]) g++
+            g.toLong() * 1000 >= innerHeight.toLong() * (config.internalGutterFloodFillFraction * 1000).toLong()
+        }
 
         val bestGutter = listOfNotNull(
             horizontalGutter?.let { Triple("h", it.first, it.second) },
@@ -327,13 +347,13 @@ class PanelDetector(
         return if (axis == "h") {
             val topBbox = Bbox(bbox.minX, bbox.minY, bbox.maxX, start - 1)
             val bottomBbox = Bbox(bbox.minX, end + 1, bbox.maxX, bbox.maxY)
-            splitSinglePanelRecursively(topBbox, cropped, depth + 1) +
-                splitSinglePanelRecursively(bottomBbox, cropped, depth + 1)
+            splitSinglePanelRecursively(topBbox, cropped, gutter, depth + 1) +
+                splitSinglePanelRecursively(bottomBbox, cropped, gutter, depth + 1)
         } else {
             val leftBbox = Bbox(bbox.minX, bbox.minY, start - 1, bbox.maxY)
             val rightBbox = Bbox(end + 1, bbox.minY, bbox.maxX, bbox.maxY)
-            splitSinglePanelRecursively(leftBbox, cropped, depth + 1) +
-                splitSinglePanelRecursively(rightBbox, cropped, depth + 1)
+            splitSinglePanelRecursively(leftBbox, cropped, gutter, depth + 1) +
+                splitSinglePanelRecursively(rightBbox, cropped, gutter, depth + 1)
         }
     }
 
