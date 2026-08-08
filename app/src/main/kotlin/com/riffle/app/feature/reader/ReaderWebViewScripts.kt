@@ -549,6 +549,7 @@ internal val SELECTION_SPAN_TRACKER_JS = """
             var snippetHtml = '';
             try {
               var INLINE_ALLOW = { em: 1, i: 1, strong: 1, b: 1, sup: 1, sub: 1, u: 1, s: 1 };
+              var BLOCK_TAGS = { p: 1, div: 1, li: 1, ul: 1, ol: 1, h1: 1, h2: 1, h3: 1, h4: 1, h5: 1, h6: 1, blockquote: 1, dt: 1, dd: 1 };
               var frag = rng.cloneContents();
               var escInline = function (t) {
                 return String(t)
@@ -565,10 +566,18 @@ internal val SELECTION_SPAN_TRACKER_JS = """
                   return out;
                 }
                 var tag = String(node.tagName || '').toLowerCase();
+                if (tag === 'br') return '<br>';
                 var inner = '';
                 var k2 = node.childNodes;
                 for (var wj = 0; wj < k2.length; wj++) inner += walkInline(k2[wj]);
                 if (INLINE_ALLOW[tag]) return '<' + tag + '>' + inner + '</' + tag + '>';
+                if (BLOCK_TAGS[tag]) return inner ? inner + '<br>' : '';
+                if (tag === 'span') {
+                  var st = '';
+                  try { st = (node.getAttribute('style') || '').toLowerCase(); } catch (e) {}
+                  if (/font-weight\s*:\s*(bold\b|bolder\b|[6-9]\d{2})/.test(st)) inner = '<b>' + inner + '</b>';
+                  if (/font-style\s*:\s*italic/.test(st)) inner = '<em>' + inner + '</em>';
+                }
                 return inner;
               };
               snippetHtml = walkInline(frag);
