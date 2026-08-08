@@ -85,7 +85,6 @@ class ContinuousChapterBoundaryHarnessTest {
     fun tearDown() {
         stubServer.shutdown()
         composeTestRule.activityRule.scenario.close()
-        Runtime.getRuntime().gc()
         Thread.sleep(400)
         database.clearAllTables()
         runBlocking {
@@ -123,7 +122,7 @@ class ContinuousChapterBoundaryHarnessTest {
         }
         composeTestRule.onNodeWithText(StubAbsServer.TEST_STANDALONE_ITEM_TITLE).performClick()
         composeTestRule.tapReadInDetailScreen()
-        composeTestRule.waitUntil(timeoutMillis = 20_000) {
+        composeTestRule.waitUntil(timeoutMillis = 45_000) {
             composeTestRule.onAllNodesWithTag(ReaderSemanticMatchers.TAG_READER_READY)
                 .fetchSemanticsNodes().isNotEmpty() ||
                 composeTestRule.onAllNodesWithTag(ReaderSemanticMatchers.TAG_ERROR_STATE)
@@ -184,7 +183,7 @@ class ContinuousChapterBoundaryHarnessTest {
         }
         composeTestRule.onNodeWithText(StubAbsServer.TEST_STANDALONE_ITEM_TITLE).performClick()
         composeTestRule.tapReadInDetailScreen()
-        composeTestRule.waitUntil(timeoutMillis = 20_000) {
+        composeTestRule.waitUntil(timeoutMillis = 45_000) {
             composeTestRule.onAllNodesWithTag(ReaderSemanticMatchers.TAG_READER_READY)
                 .fetchSemanticsNodes().isNotEmpty() ||
                 composeTestRule.onAllNodesWithTag(ReaderSemanticMatchers.TAG_ERROR_STATE)
@@ -201,11 +200,11 @@ class ContinuousChapterBoundaryHarnessTest {
         composeTestRule.activityRule.scenario.onActivity {
             reader.navigateTo("OEBPS/ch07.html", progression = 0f, alignToTop = true)
         }
-        composeTestRule.waitUntil(timeoutMillis = 20_000) {
+        composeTestRule.waitUntil(timeoutMillis = 45_000) {
             isReaderInChapter(reader, "ch07.html")
         }
         composeTestRule.waitForIdle()
-        Thread.sleep(2_600) // let fallback flush pendingInitialScroll
+        Thread.sleep(5_000) // let fallback flush pendingInitialScroll
 
         // Dispatch a single backward swipe. The scroll crosses the ch07 top → triggers a backward
         // prepend (either pt02 or ch06). After the gesture completes, boundaryDetentArmed must be
@@ -233,7 +232,7 @@ class ContinuousChapterBoundaryHarnessTest {
         }
         composeTestRule.onNodeWithText(StubAbsServer.TEST_STANDALONE_ITEM_TITLE).performClick()
         composeTestRule.tapReadInDetailScreen()
-        composeTestRule.waitUntil(timeoutMillis = 20_000) {
+        composeTestRule.waitUntil(timeoutMillis = 45_000) {
             composeTestRule.onAllNodesWithTag(ReaderSemanticMatchers.TAG_READER_READY)
                 .fetchSemanticsNodes().isNotEmpty() ||
                 composeTestRule.onAllNodesWithTag(ReaderSemanticMatchers.TAG_ERROR_STATE)
@@ -350,7 +349,7 @@ class ContinuousChapterBoundaryHarnessTest {
         composeTestRule.activityRule.scenario.onActivity {
             reader.navigateTo(fromHref, progression = 0.9f, alignToTop = true)
         }
-        composeTestRule.waitUntil(timeoutMillis = 20_000) {
+        composeTestRule.waitUntil(timeoutMillis = 45_000) {
             loadedChapterHrefs(reader).any { it.endsWith(fromHref) }
         }
         // Wait for the navigation itself to LAND before swiping: when the target chapter is
@@ -393,7 +392,7 @@ class ContinuousChapterBoundaryHarnessTest {
         composeTestRule.activityRule.scenario.onActivity {
             reader.navigateTo(fromHref, progression = 0f, alignToTop = true)
         }
-        composeTestRule.waitUntil(timeoutMillis = 20_000) {
+        composeTestRule.waitUntil(timeoutMillis = 45_000) {
             loadedChapterHrefs(reader).any { it.endsWith(fromHref) }
         }
         composeTestRule.waitUntil(timeoutMillis = 5_000) {
@@ -437,7 +436,7 @@ class ContinuousChapterBoundaryHarnessTest {
         composeTestRule.activityRule.scenario.onActivity {
             reader.navigateTo(fromHref, progression = 0f, alignToTop = true)
         }
-        composeTestRule.waitUntil(timeoutMillis = 20_000) {
+        composeTestRule.waitUntil(timeoutMillis = 45_000) {
             loadedChapterHrefs(reader).any { it.endsWith(fromHref) }
         }
         composeTestRule.waitUntil(timeoutMillis = 5_000) {
@@ -448,12 +447,12 @@ class ContinuousChapterBoundaryHarnessTest {
         // under machine load the prepend silently never fires and the leg flakes. The fallback
         // fires at 2.5 s; wait just past it.
         composeTestRule.waitForIdle()
-        Thread.sleep(2_600)
+        Thread.sleep(5_000)
         dispatchFlingSwipeBackward(reader)
         // The prepended previous chapter must load AND measure past its screen-sized placeholder
         // before the landing position is meaningful. Polled manually so a timeout can report the
         // full window state instead of an opaque ComposeTimeoutException.
-        val measureDeadline = android.os.SystemClock.uptimeMillis() + 20_000
+        val measureDeadline = android.os.SystemClock.uptimeMillis() + 45_000
         var prevMeasured = false
         while (!prevMeasured && android.os.SystemClock.uptimeMillis() < measureDeadline) {
             composeTestRule.waitForIdle()

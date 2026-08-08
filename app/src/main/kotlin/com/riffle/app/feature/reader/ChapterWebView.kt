@@ -455,6 +455,18 @@ internal class ChapterWebView(context: Context) : WebView(context), ChapterWebVi
     }
 
     /**
+     * Test-only: loads raw HTML with the real WebViewClient setup active (including
+     * [shouldInterceptRequest] and all JS interfaces). Sets [expectedChapterUrl] to [baseUrl] so
+     * [onPageFinished] fires as expected; without this, the stale-blank guard would swallow the
+     * callback and the fixture would time out.
+     */
+    @androidx.annotation.VisibleForTesting
+    internal fun loadHtmlForTesting(html: String, baseUrl: String = "file:///android_asset/test/") {
+        expectedChapterUrl = baseUrl
+        loadDataWithBaseURL(baseUrl, html, "text/html", "utf-8", null)
+    }
+
+    /**
      * Inject user styles + trigger height measurement.
      * Call this from [onPageFinished] after the page has loaded.
      *

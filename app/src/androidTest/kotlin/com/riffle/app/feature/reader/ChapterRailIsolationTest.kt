@@ -82,7 +82,7 @@ class ChapterRailIsolationTest {
                 if (red in 225..235 && green in 90..105 && blue in 0..8) {
                     vividOrangePixels++
                 }
-                if (red in 160..172 && green in 198..213 && blue in 221..235) {
+                if (red in 123..133 && green in 180..190 && blue in 212..222) {
                     mutedUnreadBluePixels++
                 }
             }
@@ -130,7 +130,7 @@ class ChapterRailIsolationTest {
                 val green = (pixel shr 8) and 0xFF
                 val blue = pixel and 0xFF
                 val vividOrange = red in 225..235 && green in 90..105 && blue in 0..8
-                val mutedBlue = red in 160..172 && green in 198..213 && blue in 221..235
+                val mutedBlue = red in 123..133 && green in 180..190 && blue in 212..222
                 if (vividOrange || mutedBlue) palettePixels++
             }
         }

@@ -114,6 +114,9 @@ import com.riffle.core.domain.ReaderTheme
 import com.riffle.core.common.TimeRemaining
 import kotlin.math.roundToInt
 import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.filter
@@ -122,6 +125,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.transform
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicLong
@@ -690,7 +694,22 @@ fun EpubReaderScreen(
                                 // if you add another fork nearby.
                                 rendererBridgeRef.value
                                     ?.takeIf { formattingPrefs.orientation != ReaderOrientation.Continuous }
-                                    ?.capturePageFragmentAnchor()
+                                    ?.let { bridge ->
+                                        // Readium's runJavaScriptSuspend uses suspendCoroutine
+                                        // (non-cancellable). A plain withTimeoutOrNull wrapper
+                                        // leaves a zombie child that blocks createBookmark from
+                                        // running. Run the JS probe in a detached scope so the
+                                        // hang cannot propagate upward; wait via a
+                                        // CompletableDeferred whose await() IS cancellable.
+                                        val anchor = CompletableDeferred<String?>()
+                                        CoroutineScope(Dispatchers.Main.immediate).launch {
+                                            anchor.complete(
+                                                try { bridge.capturePageFragmentAnchor() }
+                                                catch (_: Exception) { null }
+                                            )
+                                        }
+                                        withTimeoutOrNull(2_000L) { anchor.await() }
+                                    }
                             }
                         },
                         modifier = Modifier
