@@ -984,7 +984,7 @@ private const val PARAGRAPH_GAP_STYLE = "margin: 1em 0;"
  *  below re-enforces the allowlist as defence-in-depth (the DB is not a trust boundary and a
  *  legacy row / future extractor could put anything in the column). Text nodes are expected
  *  pre-XML-escaped by the extractor — we don't touch them here.  */
-private val ALLOWED_INLINE_SNIPPET_TAGS = setOf("em", "i", "strong", "b", "sup", "sub", "u", "s")
+private val ALLOWED_INLINE_SNIPPET_TAGS = setOf("em", "i", "strong", "b", "sup", "sub", "u", "s", "br")
 
 /**
  * Reduce [html] to a safe subset for the excerpt render path:
@@ -1016,7 +1016,9 @@ internal fun sanitizeInlineSnippetHtml(html: String): String {
             .lowercase()
             .trim()
         if (name in ALLOWED_INLINE_SNIPPET_TAGS) {
-            sb.append(if (isClose) "</" else "<").append(name).append('>')
+            // <br> is a void element — XHTML requires the self-closing form <br/>.
+            if (name == "br") sb.append("<br/>")
+            else sb.append(if (isClose) "</" else "<").append(name).append('>')
         }
         i = end + 1
     }

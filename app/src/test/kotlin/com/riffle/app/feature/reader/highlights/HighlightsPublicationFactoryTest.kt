@@ -778,6 +778,81 @@ class HighlightsPublicationFactoryTest {
         assertTrue("text of stripped <a> preserved", html.contains("hi"))
     }
 
+    @Test
+    fun brTagInSnippetHtmlPassesThroughSanitizerAndRendersInExcerpt() {
+        // Regression: block-element boundaries (e.g. <p>/<li> from a publisher's multi-paragraph
+        // selection) are emitted as <br> by walkInline(). The sanitizer must pass <br> through
+        // so line breaks are visible in the elided view instead of all text running together.
+        val pub = factory.build(
+            sourceId = "S1", itemId = "B1", bookTitle = null,
+            chapters = listOf(
+                ChapterElision(
+                    "ch0.xhtml", "Chapter One",
+                    listOf(
+                        hl(
+                            id = "h1",
+                            snippet = "first line second line",
+                            textSnippetHtml = "first line<br>second line",
+                        ),
+                    ),
+                ),
+            ),
+            urlFactory = ::testUrlFactory,
+        )
+        val html = readChapterHtml(pub, 0)
+        assertTrue("<br/> (XHTML self-closing) passes through sanitizer and is present in rendered HTML", html.contains("first line<br/>second line"))
+    }
+
+    @Test
+    fun boldTagInSnippetHtmlRendersInExcerpt() {
+        // Regression: publisher bold via <b> (or walkInline-promoted <span style="font-weight:bold">)
+        // must render in the elided view excerpt.
+        val pub = factory.build(
+            sourceId = "S1", itemId = "B1", bookTitle = null,
+            chapters = listOf(
+                ChapterElision(
+                    "ch0.xhtml", "Chapter One",
+                    listOf(
+                        hl(
+                            id = "h1",
+                            snippet = "Thumbs up. Give thumbs up.",
+                            textSnippetHtml = "<b>Thumbs up.</b> Give thumbs up.",
+                        ),
+                    ),
+                ),
+            ),
+            urlFactory = ::testUrlFactory,
+        )
+        val html = readChapterHtml(pub, 0)
+        assertTrue("<b> tag preserved in rendered excerpt", html.contains("<b>Thumbs up.</b>"))
+    }
+
+    @Test
+    fun brAndBoldCombinedInSnippetHtmlRendersCorrectly() {
+        // Multi-item list with bold leads — the common shape of a publisher's "tips" or
+        // "nonverbal signs" section. Each list item emits "bold lead<br>" from walkInline.
+        val pub = factory.build(
+            sourceId = "S1", itemId = "B1", bookTitle = null,
+            chapters = listOf(
+                ChapterElision(
+                    "ch0.xhtml", "Chapter One",
+                    listOf(
+                        hl(
+                            id = "h1",
+                            snippet = "Thumbs up. Give thumbs up. Eye contact. Make eye contact.",
+                            textSnippetHtml = "<b>Thumbs up.</b> Give thumbs up.<br><b>Eye contact.</b> Make eye contact.<br>",
+                        ),
+                    ),
+                ),
+            ),
+            urlFactory = ::testUrlFactory,
+        )
+        val html = readChapterHtml(pub, 0)
+        assertTrue("<b> preserved for first item", html.contains("<b>Thumbs up.</b>"))
+        assertTrue("<br/> separator between items", html.contains("Give thumbs up.<br/>"))
+        assertTrue("<b> preserved for second item", html.contains("<b>Eye contact.</b>"))
+    }
+
     // ===== emphasis styles (Case 2 — user-applied B/I/U/S) =====
 
     @Test

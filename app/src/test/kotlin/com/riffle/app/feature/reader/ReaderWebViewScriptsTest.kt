@@ -804,4 +804,58 @@ class ReaderWebViewScriptsTest {
             js.substring(maxOf(0, bridgeIdx - 200), bridgeIdx).contains("RiffleSelBridge.onSnippetHtml"),
         )
     }
+
+    // Regression for line-break loss in elided view: block elements (<p>, <li>, etc.) were
+    // silently dropped by walkInline, merging paragraphs and list items into one run of text.
+    // walkInline now emits <br> after each block element's content, and <br> elements directly.
+    @Test
+    fun `SELECTION_SPAN_TRACKER_JS walkInline emits br for block element boundaries`() {
+        val js = SELECTION_SPAN_TRACKER_JS
+        // BLOCK_TAGS must be defined alongside INLINE_ALLOW so walkInline can test against it.
+        assertTrue(
+            "BLOCK_TAGS map is defined before walkInline",
+            js.contains("var BLOCK_TAGS = {"),
+        )
+        // Block elements must include the common structural tags a highlight might span.
+        assertTrue("BLOCK_TAGS includes p", js.contains("p: 1"))
+        assertTrue("BLOCK_TAGS includes li", js.contains("li: 1"))
+        assertTrue("BLOCK_TAGS includes blockquote", js.contains("blockquote: 1"))
+        // The br-emission path for block elements must be present in walkInline.
+        assertTrue(
+            "walkInline emits <br> after block element inner content",
+            js.contains("if (BLOCK_TAGS[tag]) return inner ? inner + '<br>' : '';"),
+        )
+        // <br> must return '<br>' directly (not empty string as before).
+        assertTrue(
+            "walkInline returns '<br>' for <br> element",
+            js.contains("if (tag === 'br') return '<br>';"),
+        )
+    }
+
+    // Regression for publisher bold not showing in elided view when publisher uses inline
+    // style (font-weight: bold) rather than semantic <b>/<strong>.
+    @Test
+    fun `SELECTION_SPAN_TRACKER_JS walkInline promotes span with inline font-weight bold to b`() {
+        val js = SELECTION_SPAN_TRACKER_JS
+        // The span branch must check the style attribute for font-weight.
+        assertTrue(
+            "walkInline inspects span style attribute",
+            js.contains("node.getAttribute('style')"),
+        )
+        // Must cover 'bold', 'bolder', and numeric weights 600–900.
+        assertTrue(
+            "walkInline regex covers bold keyword and weights >= 600",
+            js.contains("/font-weight\\s*:\\s*(bold\\b|bolder\\b|[6-9]\\d{2})/.test(st)"),
+        )
+        // Bold spans must be wrapped in <b>.
+        assertTrue(
+            "bold span is wrapped in <b>",
+            js.contains("inner = '<b>' + inner + '</b>'"),
+        )
+        // Italic spans must be wrapped in <em>.
+        assertTrue(
+            "italic span is wrapped in <em>",
+            js.contains("inner = '<em>' + inner + '</em>'"),
+        )
+    }
 }
