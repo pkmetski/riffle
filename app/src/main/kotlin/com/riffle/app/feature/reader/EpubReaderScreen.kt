@@ -122,6 +122,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.transform
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicLong
@@ -690,7 +691,7 @@ fun EpubReaderScreen(
                                 // if you add another fork nearby.
                                 rendererBridgeRef.value
                                     ?.takeIf { formattingPrefs.orientation != ReaderOrientation.Continuous }
-                                    ?.capturePageFragmentAnchor()
+                                    ?.let { bridge -> withTimeoutOrNull(2_000L) { bridge.capturePageFragmentAnchor() } }
                             }
                         },
                         modifier = Modifier

@@ -61,6 +61,10 @@ internal fun withSizedWebViewFixture(html: String, widthPx: Int, heightPx: Int, 
     instrumentation.runOnMainSync {
         val webView = WebView(context).also {
             it.settings.javaScriptEnabled = true
+            // Without these, Chrome 55 (API-25) uses the 980px wide-viewport default for pages
+            // without <meta viewport>, making window.innerWidth report 980 instead of the layout width.
+            it.settings.useWideViewPort = false
+            it.settings.loadWithOverviewMode = false
             it.webViewClient = object : WebViewClient() {
                 override fun onPageFinished(view: WebView?, url: String?) = ready.countDown()
             }

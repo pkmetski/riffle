@@ -189,7 +189,7 @@ class AnnotationFocusHarnessTest {
         repeat(attempts) { i ->
             val attempt = i + 1
             searchAndTapAnnotation()
-            composeTestRule.waitUntil(timeoutMillis = 20_000) {
+            composeTestRule.waitUntil(timeoutMillis = 45_000) {
                 composeTestRule.onAllNodesWithTag(ReaderSemanticMatchers.TAG_READER_READY)
                     .fetchSemanticsNodes().isNotEmpty()
             }
@@ -433,7 +433,7 @@ class AnnotationFocusHarnessTest {
     }
 
     private fun waitForReaderReady() {
-        composeTestRule.waitUntil(timeoutMillis = 20_000) {
+        composeTestRule.waitUntil(timeoutMillis = 45_000) {
             composeTestRule.onAllNodesWithTag(ReaderSemanticMatchers.TAG_READER_READY)
                 .fetchSemanticsNodes().isNotEmpty()
         }

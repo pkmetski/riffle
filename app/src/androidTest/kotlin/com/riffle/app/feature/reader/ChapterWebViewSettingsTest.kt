@@ -235,7 +235,7 @@ class ChapterWebViewSettingsTest {
             )
             wv.layout(0, 0, widthPx, heightPx)
             holder[0] = wv
-            wv.loadDataWithBaseURL(null, html, "text/html", "utf-8", null)
+            wv.loadHtmlForTesting(html)
         }
         assertTrue("ChapterWebView page did not finish loading within 10 s", ready.await(10, TimeUnit.SECONDS))
         val wv = holder[0]!!
