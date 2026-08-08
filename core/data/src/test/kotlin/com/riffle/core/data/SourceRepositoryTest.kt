@@ -19,6 +19,7 @@ import com.riffle.core.domain.TokenStorage
 import com.riffle.core.network.AbsApi
 import com.riffle.core.network.AbsLibraryApi
 import com.riffle.core.network.AbsServerInfoApi
+import com.riffle.core.network.KomgaServerInfoApi
 import com.riffle.core.network.NetworkLibrary
 import com.riffle.core.network.StorytellerApi
 import kotlinx.coroutines.flow.Flow
@@ -229,10 +230,14 @@ class ServerRepositoryTest {
         val resolvers = mapOf<com.riffle.core.models.SourceType, com.riffle.core.domain.RemoteUserIdResolver>(
             com.riffle.core.models.SourceType.ABS to absResolver,
         )
+        val fakeKomgaServerInfoApi = object : KomgaServerInfoApi {
+            override suspend fun getServerVersion(baseUrl: String, username: String, password: String, insecureAllowed: Boolean): String? = null
+        }
         return SourceRepositoryImpl(
             dao = dao,
             tokenStorage = tokens,
             serverInfoApi = serverInfoApi,
+            komgaServerInfoApi = fakeKomgaServerInfoApi,
             libraryDao = libraryDao,
             libraryItemDao = libraryItemDao,
             filesCleaner = filesCleaner,
