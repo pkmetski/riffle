@@ -6,7 +6,6 @@ import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
 import org.junit.After
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Before
 import org.junit.Test
@@ -61,9 +60,10 @@ class KomgaServerInfoApiClientTest {
         )
         val request = server.takeRequest()
         assertEquals("/actuator/info", request.path)
-        // "admin:pass" base64-encoded
-        assertNotNull(request.getHeader("Authorization"))
-        assert(request.getHeader("Authorization")!!.startsWith("Basic "))
+        assertEquals(
+            KomgaServerInfoApiClient.buildBasicAuthHeader("admin", "pass"),
+            request.getHeader("Authorization"),
+        )
     }
 
     @Test

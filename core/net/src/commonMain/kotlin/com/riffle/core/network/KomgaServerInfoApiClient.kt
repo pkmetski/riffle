@@ -17,8 +17,6 @@ class KomgaServerInfoApiClient(
     private val httpClient: HttpClient,
 ) : KomgaServerInfoApi {
 
-    private val json = Json { ignoreUnknownKeys = true }
-
     override suspend fun getServerVersion(
         baseUrl: String,
         username: String,
