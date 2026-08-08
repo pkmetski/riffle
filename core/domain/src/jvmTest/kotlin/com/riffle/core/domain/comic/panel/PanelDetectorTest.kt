@@ -368,6 +368,42 @@ class PanelDetectorTest {
             8, result.panels.size)
     }
 
+    @Test
+    fun `top strip with dark-bordered gutters is split into 4 panels`() {
+        // Regression for the "4 top panels treated as one" bug. Layout: a narrow top strip with
+        // 4 panels whose between-panel gutters contain enough dark art pixels to confuse the
+        // column projection (colContent > 15% cutoff → gutter treated as content → all 4 panels
+        // merge into one wide cell in gridByProjection). The flood-fill-based split corrects it:
+        // the background pixels in those gutters are still reachable from the page border
+        // (≥30% flood-fill gutter pixels per column), so the split fires.
+        val grid = fixture(width = 600, height = 800) { canvas ->
+            canvas.fill(background = LIGHT)
+            // Top strip: 4 panels each 125px wide with 12px gutters. Each gutter has enough dark
+            // pixels (spanning full gutter height in the middle half) to push the column
+            // projection above the 15% cutoff — simulating art that bleeds slightly into the gutter.
+            for (i in 0 until 4) {
+                canvas.rect(x = 15 + i * 137, y = 15, w = 125, h = 140, color = DARK)
+            }
+            // Dark pixels filling the middle 80px of each gutter column — enough to exceed the
+            // projection cutoff (80/140 = 57% > 15%) yet leave background pixels reachable from
+            // the page border via the white top/bottom of the gutter.
+            for (i in 0 until 3) {
+                val gx = 140 + i * 137  // first gutter column for gap i
+                canvas.rect(x = gx, y = 45, w = 12, h = 80, color = DARK)
+            }
+            // Large panel below.
+            canvas.rect(x = 15, y = 175, w = 555, h = 600, color = DARK)
+        }
+
+        val result = detector.detect(grid, pageIndex = 0, originalWidth = 600, originalHeight = 800)
+
+        assertEquals(PanelSource.Auto, result.source)
+        assertEquals("expected 5 panels (4 top strip + 1 large), got ${result.panels.map { "(${it.x},${it.y})${it.width}x${it.height}" }}",
+            5, result.panels.size)
+        val topPanels = result.panels.filter { it.y < 170 }
+        assertEquals("expected 4 top-strip panels", 4, topPanels.size)
+    }
+
     // --- Fixture builders ---
 
     private val LIGHT: Byte = 240.toByte()
