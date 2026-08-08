@@ -17,6 +17,15 @@ class JvmHttpClientPool internal constructor(
     fun defaultHttpClient(): HttpClient = createDefaultHttpClient(okHttpClient)
 
     fun streamingHttpClient(): HttpClient = createStreamingHttpClient(okHttpClient)
+
+    /**
+     * Ktor client for large file downloads. Uses a fresh OkHttpClient derived from the pool
+     * client (same connection pool and interceptors) but with no call timeout — the pool's
+     * 30-second ceiling kills multi-megabyte downloads before the body is fully read.
+     */
+    fun fileTransferClient(): HttpClient = createStreamingHttpClient(
+        okHttpClient.newBuilder().callTimeout(0, TimeUnit.SECONDS).build()
+    )
 }
 
 fun createDefaultJvmHttpClientPool(

@@ -203,7 +203,7 @@ fun CbzReaderScreen(
                 CbzThumbnailStrip(
                     currentPage = currentPage,
                     pageCount = ready.pageCount,
-                    imageSource = ready.imageSource,
+                    imageSource = ready.thumbnailSource ?: ready.imageSource,
                     onSeek = { viewModel.jumpToPage(it) },
                 )
             }
