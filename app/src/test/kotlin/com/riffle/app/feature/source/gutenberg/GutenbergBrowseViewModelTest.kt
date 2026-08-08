@@ -9,6 +9,7 @@ import com.riffle.core.catalog.gutenberg.GutenbergCatalog
 import com.riffle.core.data.websource.WebSourceItemGate
 import com.riffle.core.data.websource.WebSourceLibraryItemUpserter
 import com.riffle.core.domain.CoverGridDensityStore
+import com.riffle.app.testing.FakeLibraryObserver
 import com.riffle.core.models.Source
 import com.riffle.core.domain.SourceRepository
 import com.riffle.core.models.SourceType
@@ -84,6 +85,7 @@ class GutenbergBrowseViewModelTest {
             upserter,
             gate,
             fakeCoverGridDensityStore(),
+            emptyLibraryObserver(),
         )
         return vm to gate
     }
@@ -133,4 +135,6 @@ class GutenbergBrowseViewModelTest {
             override val scale = flowOf(1f)
             override suspend fun setScale(value: Float) = Unit
         }
+
+    private fun emptyLibraryObserver() = FakeLibraryObserver()
 }

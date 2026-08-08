@@ -10,6 +10,7 @@ import com.riffle.core.catalog.FacetSelection
 import com.riffle.core.data.websource.WebSourceItemGate
 import com.riffle.core.data.websource.WebSourceLibraryItemUpserter
 import com.riffle.core.domain.CoverGridDensityStore
+import com.riffle.core.domain.LibraryObserver
 import com.riffle.core.domain.SourceRepository
 import com.riffle.core.models.SourceType
 import kotlinx.coroutines.CancellationException
@@ -23,6 +24,8 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
@@ -64,6 +67,7 @@ abstract class UnboundedBrowseViewModel(
     private val libraryItemUpserter: WebSourceLibraryItemUpserter,
     private val webSourceItemGate: WebSourceItemGate,
     private val coverGridDensityStore: CoverGridDensityStore,
+    private val libraryObserver: LibraryObserver,
     private val sourceType: SourceType,
     defaultRootId: String,
     private val pageSize: Int,
@@ -119,6 +123,24 @@ abstract class UnboundedBrowseViewModel(
 
     private val _items = MutableStateFlow<List<CatalogItem>>(emptyList())
     val items: StateFlow<List<CatalogItem>> = _items.asStateFlow()
+
+    private val _notStartedFilterActive = MutableStateFlow(false)
+    val notStartedFilterActive: StateFlow<Boolean> = _notStartedFilterActive.asStateFlow()
+
+    fun toggleNotStartedFilter() {
+        _notStartedFilterActive.value = !_notStartedFilterActive.value
+    }
+
+    // IDs of Room-backed items that have been started (readingProgress > 0). Items absent from
+    // Room have no progress and are treated as not-started by the filter.
+    private val startedItemIds: StateFlow<Set<String>> = libraryObserver.observeAllBooks(rootId)
+        .map { books -> books.filter { it.readingProgress > 0f }.mapTo(HashSet()) { it.id } }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptySet())
+
+    val filteredItems: StateFlow<List<CatalogItem>> =
+        combine(_items, startedItemIds, _notStartedFilterActive) { catalog, started, active ->
+            if (active) catalog.filter { it.id !in started } else catalog
+        }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     private val _isLoading = MutableStateFlow(false)
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()

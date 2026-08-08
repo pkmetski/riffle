@@ -7,6 +7,7 @@ import com.riffle.core.catalog.gutenberg.GutenbergCatalog
 import com.riffle.core.data.websource.WebSourceItemGate
 import com.riffle.core.data.websource.WebSourceLibraryItemUpserter
 import com.riffle.core.domain.CoverGridDensityStore
+import com.riffle.core.domain.LibraryObserver
 import com.riffle.core.domain.SourceRepository
 import com.riffle.core.models.SourceType
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -28,6 +29,7 @@ class GutenbergBrowseViewModel @Inject constructor(
     libraryItemUpserter: WebSourceLibraryItemUpserter,
     webSourceItemGate: WebSourceItemGate,
     coverGridDensityStore: CoverGridDensityStore,
+    libraryObserver: LibraryObserver,
 ) : UnboundedBrowseViewModel(
     savedStateHandle = savedStateHandle,
     sourceRepository = sourceRepository,
@@ -35,6 +37,7 @@ class GutenbergBrowseViewModel @Inject constructor(
     libraryItemUpserter = libraryItemUpserter,
     webSourceItemGate = webSourceItemGate,
     coverGridDensityStore = coverGridDensityStore,
+    libraryObserver = libraryObserver,
     sourceType = SourceType.GUTENBERG,
     defaultRootId = GutenbergCatalog.ROOT_BOOKS,
     // Gutendex ships 32 items per page — matching the server-side size keeps our request-page
