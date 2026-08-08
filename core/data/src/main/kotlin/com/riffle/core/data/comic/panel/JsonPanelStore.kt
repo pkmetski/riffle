@@ -83,8 +83,7 @@ class JsonPanelStore @Inject constructor(
     @Serializable
     private data class BookFile(
         // Missing on files written before the field was added (v1) — Serializable defaults it to
-        // 1, so those pre-versioning caches read back as v1 and mismatch the current version
-        // (currently 2, bumped when the detector algorithm changes materially).
+        // 1, so those pre-versioning caches read back as v1 and mismatch CURRENT_SCHEMA_VERSION.
         val schemaVersion: Int = 1,
         val bookId: String,
         val pages: List<PagePanels>,

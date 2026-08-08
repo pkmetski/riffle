@@ -242,6 +242,13 @@ class PanelDetector(
         }
         if (suspiciousWideRow) return null
 
+        // Known limitation: a gutter narrower than projectionMinBandThickness (15px) but wider
+        // than internalGutterMinThickness (4px) will be missed by the column projection AND won't
+        // trigger suspiciousWideRow if the merged cell is < 90% of the cropped width. In that
+        // case the two panels appear merged here with no recovery. Accepted tradeoff: the
+        // alternative (calling splitAtInternalGutters on projection bboxes) risks false-splitting
+        // panels whose interiors are flood-fill-reachable through downscaling border gaps, causing
+        // panels to disappear entirely — a worse outcome than a merged zoom region.
         val bboxesInCropped = mutableListOf<Bbox>()
         for ((rowIndex, rowBand) in rowBands.withIndex()) {
             for (colBand in bandColBands[rowIndex]) {
