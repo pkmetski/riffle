@@ -76,7 +76,6 @@ class NavigationSnapHarnessTest {
     fun tearDown() {
         stubServer.shutdown()
         composeTestRule.activityRule.scenario.close()
-        Runtime.getRuntime().gc()
         Thread.sleep(400)
         database.clearAllTables()
     }
@@ -348,7 +347,7 @@ class NavigationSnapHarnessTest {
         }
         composeTestRule.onNodeWithText(StubAbsServer.TEST_STANDALONE_ITEM_TITLE).performClick()
         composeTestRule.tapReadInDetailScreen()
-        composeTestRule.waitUntil(timeoutMillis = 90_000) {
+        composeTestRule.waitUntil(timeoutMillis = 20_000) {
             composeTestRule.onAllNodesWithTag(ReaderSemanticMatchers.TAG_READER_READY).fetchSemanticsNodes().isNotEmpty()
         }
         Thread.sleep(1_200) // first page layout / reflow settle

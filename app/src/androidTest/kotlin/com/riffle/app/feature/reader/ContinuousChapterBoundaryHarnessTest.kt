@@ -85,7 +85,6 @@ class ContinuousChapterBoundaryHarnessTest {
     fun tearDown() {
         stubServer.shutdown()
         composeTestRule.activityRule.scenario.close()
-        Runtime.getRuntime().gc()
         Thread.sleep(400)
         database.clearAllTables()
         runBlocking {
@@ -358,7 +357,7 @@ class ContinuousChapterBoundaryHarnessTest {
         // measures), and if the reader incidentally already satisfies the destination check the
         // swipe loop exits instantly — the late nav landing then legitimately moves the reader
         // during the settle assertions and the leg fails as a phantom "yank".
-        composeTestRule.waitUntil(timeoutMillis = 20_000) {
+        composeTestRule.waitUntil(timeoutMillis = 10_000) {
             isReaderInChapter(reader, fromHref)
         }
         for (attempt in 0 until 80) {
