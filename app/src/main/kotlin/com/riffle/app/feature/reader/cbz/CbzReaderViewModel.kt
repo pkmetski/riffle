@@ -271,16 +271,11 @@ class CbzReaderViewModel @Inject constructor(
             imageBytes = { pageIndex -> newArchive.imageBytes(pageIndex) },
         )
         // If the server-reported page count differed from the actual archive, clamp current page.
-        if (actualPageCount > 0 && _currentPage.value >= actualPageCount) {
-            _currentPage.value = actualPageCount - 1
-            lastSavedPage = _currentPage.value
+        clampPageForSwap(_currentPage.value, actualPageCount)?.let { clamped ->
+            _currentPage.value = clamped
+            lastSavedPage = clamped
         }
-        val effectivePageCount = if (actualPageCount > 0) actualPageCount else current.pageCount
-        _state.value = current.copy(
-            pageCount = effectivePageCount,
-            imageSource = ArchiveImageSource(newArchive),
-            thumbnailSource = null,
-        )
+        _state.value = computeArchiveSwapState(current, actualPageCount, ArchiveImageSource(newArchive))
         onCurrentPageChanged(_currentPage.value)
     }
 
@@ -483,3 +478,27 @@ class CbzReaderViewModel @Inject constructor(
         archive = null
     }
 }
+
+/**
+ * Computes the new [CbzReaderState.Ready] after a streaming→archive swap. Extracted for unit
+ * testing — the ViewModel extends AndroidViewModel and can't be instantiated in JVM tests.
+ */
+internal fun computeArchiveSwapState(
+    current: CbzReaderState.Ready,
+    actualPageCount: Int,
+    newSource: CbzImageSource,
+): CbzReaderState.Ready {
+    val effectivePageCount = if (actualPageCount > 0) actualPageCount else current.pageCount
+    return current.copy(
+        pageCount = effectivePageCount,
+        imageSource = newSource,
+        thumbnailSource = null,
+    )
+}
+
+/**
+ * Returns the clamped page index when an archive swap reveals the real page count is smaller
+ * than what the server reported during streaming, or null if no clamping is needed.
+ */
+internal fun clampPageForSwap(currentPage: Int, actualPageCount: Int): Int? =
+    if (actualPageCount > 0 && currentPage >= actualPageCount) actualPageCount - 1 else null
