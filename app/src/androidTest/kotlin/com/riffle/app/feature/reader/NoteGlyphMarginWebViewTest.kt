@@ -15,7 +15,7 @@ class NoteGlyphMarginWebViewTest {
         val html = """
             <!doctype html>
             <html>
-              <head><meta name="viewport" content="width=400"><style>$stylesheet</style></head>
+              <head><style>$stylesheet</style></head>
               <body style="margin:0">
                 <div id="selection" style="position:absolute;left:8px;top:40px;width:160px;height:24px">
                   $NOTE_GLYPH_ELEMENT_HTML
@@ -28,6 +28,13 @@ class NoteGlyphMarginWebViewTest {
         """.trimIndent()
 
         withSizedWebViewFixture(html, widthPx = 400, heightPx = 600) { webView ->
+            // The clamp JS reads window.innerWidth to identify spreads. On high-DPI emulators the
+            // detached WebView reports CSS px (physicalPx/dpr) rather than the fixture widthPx.
+            // Override it explicitly so the test is DPR-agnostic, matching what Readium sets in
+            // production where the WebView has a properly-sized viewport.
+            webView.evalSync(
+                "Object.defineProperty(window,'innerWidth',{configurable:true,get:function(){return 400}})"
+            )
             webView.evalSync(noteGlyphViewportClampAfterApplyJs())
             val lefts = webView.evalSync(
                 "JSON.stringify(Array.prototype.map.call(" +

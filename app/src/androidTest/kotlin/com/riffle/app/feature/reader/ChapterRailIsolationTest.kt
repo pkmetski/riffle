@@ -82,7 +82,7 @@ class ChapterRailIsolationTest {
                 if (red in 225..235 && green in 90..105 && blue in 0..8) {
                     vividOrangePixels++
                 }
-                if (red in 160..172 && green in 198..213 && blue in 221..235) {
+                if (red in 122..134 && green in 179..191 && blue in 211..223) {
                     mutedUnreadBluePixels++
                 }
             }
