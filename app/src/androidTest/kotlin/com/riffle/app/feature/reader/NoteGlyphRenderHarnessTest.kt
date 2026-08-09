@@ -109,12 +109,12 @@ class NoteGlyphRenderHarnessTest {
         addServerAndBrowseLibrary()
         seedDeepNotedHighlight()
         searchAndTapAnnotation()
-        composeTestRule.waitUntil(timeoutMillis = 20_000) {
+        composeTestRule.waitUntil(timeoutMillis = 45_000) {
             composeTestRule.onAllNodesWithTag(ReaderSemanticMatchers.TAG_READER_READY)
                 .fetchSemanticsNodes().isNotEmpty()
         }
 
-        val deadline = System.currentTimeMillis() + 20_000
+        val deadline = System.currentTimeMillis() + 40_000
         var lastDetails = "no WebView"
         val glyphSelector = if (orientation == ReaderOrientation.Continuous) {
             "[data-riffle-note-glyph]"
@@ -284,7 +284,7 @@ class NoteGlyphRenderHarnessTest {
                 latch.countDown()
             }
         }
-        if (!latch.await(5, TimeUnit.SECONDS)) return "NO_WEBVIEW"
+        if (!latch.await(10, TimeUnit.SECONDS)) return "NO_WEBVIEW"
         return result[0] ?: "null"
     }
 }

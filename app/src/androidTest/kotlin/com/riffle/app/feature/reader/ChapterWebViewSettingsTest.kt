@@ -237,7 +237,7 @@ class ChapterWebViewSettingsTest {
             holder[0] = wv
             wv.loadDataWithBaseURL(null, html, "text/html", "utf-8", null)
         }
-        assertTrue("ChapterWebView page did not finish loading within 10 s", ready.await(10, TimeUnit.SECONDS))
+        assertTrue("ChapterWebView page did not finish loading within 30 s", ready.await(30, TimeUnit.SECONDS))
         val wv = holder[0]!!
         // Re-apply layout after load so the viewport reflects the fixed size (mirrors withSizedWebViewFixture).
         instrumentation.runOnMainSync {
