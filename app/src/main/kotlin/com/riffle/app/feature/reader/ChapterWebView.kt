@@ -840,7 +840,7 @@ internal class ChapterWebView(context: Context) : WebView(context), ChapterWebVi
  * Kept pure so the recycled-`about:blank` race is pinned by a JVM regression test.
  */
 internal fun isCurrentChapterPage(callbackUrl: String?, expectedChapterUrl: String?): Boolean =
-    callbackUrl != null && callbackUrl == expectedChapterUrl
+    expectedChapterUrl == null || (callbackUrl != null && callbackUrl == expectedChapterUrl)
 
 /**
  * Computes the clamped (top, bottom) for a selection content rect so that, when forwarded to the
