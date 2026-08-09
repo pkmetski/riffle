@@ -708,7 +708,16 @@ internal class ContinuousWindowController(
         backwardShiftConsumedForTouchGesture = false
         // Programmatic navigation overrides any gesture-scoped scroll floor: a leftover
         // backward-fling floor from the previous gesture must not clamp the landing scroll.
+        // The boundary detent is also cleared: it holds position during the release of a
+        // crossing gesture, but must not block a TOC/programmatic navigate to an explicit target.
         backwardFlingFloorY = 0
+        boundaryDetentArmed = false
+        // Cancel any pending re-application of a previous openWindowAt landing. Without this,
+        // a chapter remeasure (e.g. style injection on ch11 completing after we navigated to ch10)
+        // triggers reapplyLandingAfterFallback, which calls port.scrollTo(ch11.top) and arms
+        // landingHoldTargetY — overriding the new navigation's smooth scroll mid-flight.
+        reapplyLandingAfterFallback = null
+        reapplyLandingSuperseded = true
         val target = href.substringBefore('#')
         val fragment = href.substringAfter('#', "")
         val targetIndex = ContinuousPositionTracker.chapterIndexForHref(

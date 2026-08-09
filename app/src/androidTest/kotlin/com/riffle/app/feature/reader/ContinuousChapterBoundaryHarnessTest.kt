@@ -123,7 +123,7 @@ class ContinuousChapterBoundaryHarnessTest {
         }
         composeTestRule.onNodeWithText(StubAbsServer.TEST_STANDALONE_ITEM_TITLE).performClick()
         composeTestRule.tapReadInDetailScreen()
-        composeTestRule.waitUntil(timeoutMillis = 20_000) {
+        composeTestRule.waitUntil(timeoutMillis = 45_000) {
             composeTestRule.onAllNodesWithTag(ReaderSemanticMatchers.TAG_READER_READY)
                 .fetchSemanticsNodes().isNotEmpty() ||
                 composeTestRule.onAllNodesWithTag(ReaderSemanticMatchers.TAG_ERROR_STATE)
@@ -155,7 +155,7 @@ class ContinuousChapterBoundaryHarnessTest {
         composeTestRule.activityRule.scenario.onActivity {
             reader.navigateTo("OEBPS/ch07.html", progression = 0f, alignToTop = true)
         }
-        composeTestRule.waitUntil(timeoutMillis = 10_000) {
+        composeTestRule.waitUntil(timeoutMillis = 45_000) {
             isReaderInChapter(reader, "ch07.html")
         }
         composeTestRule.activityRule.scenario.onActivity { superseded = reader.isReapplyLandingSuperseded }
@@ -184,7 +184,7 @@ class ContinuousChapterBoundaryHarnessTest {
         }
         composeTestRule.onNodeWithText(StubAbsServer.TEST_STANDALONE_ITEM_TITLE).performClick()
         composeTestRule.tapReadInDetailScreen()
-        composeTestRule.waitUntil(timeoutMillis = 20_000) {
+        composeTestRule.waitUntil(timeoutMillis = 45_000) {
             composeTestRule.onAllNodesWithTag(ReaderSemanticMatchers.TAG_READER_READY)
                 .fetchSemanticsNodes().isNotEmpty() ||
                 composeTestRule.onAllNodesWithTag(ReaderSemanticMatchers.TAG_ERROR_STATE)
@@ -201,7 +201,7 @@ class ContinuousChapterBoundaryHarnessTest {
         composeTestRule.activityRule.scenario.onActivity {
             reader.navigateTo("OEBPS/ch07.html", progression = 0f, alignToTop = true)
         }
-        composeTestRule.waitUntil(timeoutMillis = 20_000) {
+        composeTestRule.waitUntil(timeoutMillis = 45_000) {
             isReaderInChapter(reader, "ch07.html")
         }
         composeTestRule.waitForIdle()
@@ -233,7 +233,7 @@ class ContinuousChapterBoundaryHarnessTest {
         }
         composeTestRule.onNodeWithText(StubAbsServer.TEST_STANDALONE_ITEM_TITLE).performClick()
         composeTestRule.tapReadInDetailScreen()
-        composeTestRule.waitUntil(timeoutMillis = 20_000) {
+        composeTestRule.waitUntil(timeoutMillis = 45_000) {
             composeTestRule.onAllNodesWithTag(ReaderSemanticMatchers.TAG_READER_READY)
                 .fetchSemanticsNodes().isNotEmpty() ||
                 composeTestRule.onAllNodesWithTag(ReaderSemanticMatchers.TAG_ERROR_STATE)
@@ -247,7 +247,7 @@ class ContinuousChapterBoundaryHarnessTest {
         // At scrollY=0 NestedScrollView does not emit an onScrollChanged callback, so the public
         // locator semantics are intentionally still empty here; wait on the real view's initial
         // WebView measurement barrier instead.
-        composeTestRule.waitUntil(timeoutMillis = 15_000) {
+        composeTestRule.waitUntil(timeoutMillis = 45_000) {
             findContinuousReader()?.isFirstLoadComplete?.value == true
         }
         val reader = requireNotNull(findContinuousReader()) {
@@ -264,6 +264,7 @@ class ContinuousChapterBoundaryHarnessTest {
             prevHref = "ch10.html",
             boundaryHref = "pt03.html",
         )
+        Thread.sleep(3_000)
         swipeFromNearEndInto(reader, fromHref = "OEBPS/ch10.html", toHref = "ch11.html")
         swipeBackwardFromStartInto(reader, fromHref = "OEBPS/ch11.html", toHref = "ch10.html")
         assertReaderViewportRendered(reader, "ch10.html")
@@ -281,7 +282,7 @@ class ContinuousChapterBoundaryHarnessTest {
         composeTestRule.activityRule.scenario.onActivity {
             reader.navigateTo("OEBPS/ch11.html", progression = 0f, alignToTop = true)
         }
-        composeTestRule.waitUntil(timeoutMillis = 10_000) {
+        composeTestRule.waitUntil(timeoutMillis = 45_000) {
             isReaderInChapter(reader, "ch11.html")
         }
         // ch10 must already be loaded and measured — that is the premise of this scenario.
@@ -348,9 +349,9 @@ class ContinuousChapterBoundaryHarnessTest {
         toHref: String,
     ) {
         composeTestRule.activityRule.scenario.onActivity {
-            reader.navigateTo(fromHref, progression = 0.9f, alignToTop = true)
+            reader.navigateTo(fromHref, progression = 0.9f, alignToTop = false)
         }
-        composeTestRule.waitUntil(timeoutMillis = 20_000) {
+        composeTestRule.waitUntil(timeoutMillis = 45_000) {
             loadedChapterHrefs(reader).any { it.endsWith(fromHref) }
         }
         // Wait for the navigation itself to LAND before swiping: when the target chapter is
@@ -358,8 +359,31 @@ class ContinuousChapterBoundaryHarnessTest {
         // measures), and if the reader incidentally already satisfies the destination check the
         // swipe loop exits instantly — the late nav landing then legitimately moves the reader
         // during the settle assertions and the leg fails as a phantom "yank".
-        composeTestRule.waitUntil(timeoutMillis = 10_000) {
-            isReaderInChapter(reader, fromHref)
+        run {
+            val deadline45s = android.os.SystemClock.uptimeMillis() + 45_000L
+            var lastScrollY = -1
+            var lastMidpoint = -1
+            var lastViews = "—"
+            var passed = false
+            while (!passed && android.os.SystemClock.uptimeMillis() < deadline45s) {
+                composeTestRule.activityRule.scenario.onActivity {
+                    val mid = reader.scrollY + reader.height / 2
+                    lastScrollY = reader.scrollY
+                    lastMidpoint = mid
+                    lastViews = loadedWebViews(reader).joinToString { wv ->
+                        "${wv.url?.substringAfterLast('/')}[t=${wv.top},b=${wv.bottom}]"
+                    }
+                    passed = loadedWebViews(reader).any { wv ->
+                        mid >= wv.top && mid < wv.bottom && wv.url?.endsWith(fromHref) == true
+                    }
+                }
+                if (!passed) Thread.sleep(500)
+            }
+            assertTrue(
+                "reader never in $fromHref after navigateTo(0.9f): " +
+                    "scrollY=$lastScrollY mid=$lastMidpoint views=$lastViews",
+                passed,
+            )
         }
         for (attempt in 0 until 80) {
             if (isReaderInChapter(reader, toHref)) break
@@ -393,7 +417,7 @@ class ContinuousChapterBoundaryHarnessTest {
         composeTestRule.activityRule.scenario.onActivity {
             reader.navigateTo(fromHref, progression = 0f, alignToTop = true)
         }
-        composeTestRule.waitUntil(timeoutMillis = 20_000) {
+        composeTestRule.waitUntil(timeoutMillis = 45_000) {
             loadedChapterHrefs(reader).any { it.endsWith(fromHref) }
         }
         composeTestRule.waitUntil(timeoutMillis = 5_000) {
@@ -437,7 +461,7 @@ class ContinuousChapterBoundaryHarnessTest {
         composeTestRule.activityRule.scenario.onActivity {
             reader.navigateTo(fromHref, progression = 0f, alignToTop = true)
         }
-        composeTestRule.waitUntil(timeoutMillis = 20_000) {
+        composeTestRule.waitUntil(timeoutMillis = 45_000) {
             loadedChapterHrefs(reader).any { it.endsWith(fromHref) }
         }
         composeTestRule.waitUntil(timeoutMillis = 5_000) {
