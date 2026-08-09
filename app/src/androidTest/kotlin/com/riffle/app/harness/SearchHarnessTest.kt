@@ -64,6 +64,7 @@ class SearchHarnessTest {
     fun tearDown() {
         stubServer.shutdown()
         composeTestRule.activityRule.scenario.close()
+        Runtime.getRuntime().gc()
         Thread.sleep(400)
         database.clearAllTables()
     }

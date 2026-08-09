@@ -15,7 +15,7 @@ class NoteGlyphMarginWebViewTest {
         val html = """
             <!doctype html>
             <html>
-              <head><style>$stylesheet</style></head>
+              <head><meta name="viewport" content="width=400"><style>$stylesheet</style></head>
               <body style="margin:0">
                 <div id="selection" style="position:absolute;left:8px;top:40px;width:160px;height:24px">
                   $NOTE_GLYPH_ELEMENT_HTML
