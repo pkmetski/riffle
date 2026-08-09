@@ -2672,7 +2672,8 @@ class EpubReaderViewModel @Inject constructor(
         if (source == ReaderSource.Highlights) return
         val sourceId = annotationServerId ?: return
         viewModelScope.launch {
-            val locator = position.snapshotLastLocator() ?: return@launch
+            val locator = position.snapshotLastLocator()
+            locator ?: return@launch
             val href = locator.href.toString()
             val hrefNorm = normalizeEpubHref(href)
             val prog = locator.locations.progression ?: 0.0

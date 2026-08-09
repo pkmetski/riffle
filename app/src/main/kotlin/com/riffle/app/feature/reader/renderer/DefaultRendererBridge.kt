@@ -3,6 +3,7 @@ package com.riffle.app.feature.reader.renderer
 import com.riffle.app.feature.reader.ColumnSnap
 import com.riffle.app.feature.reader.FigureTapBridge
 import com.riffle.app.feature.reader.FigureTapScript
+import kotlinx.coroutines.withTimeoutOrNull
 import com.riffle.app.feature.reader.FootnoteAnchorBridge
 import com.riffle.app.feature.reader.RECT_TO_JSON_POLYFILL_JS
 import com.riffle.app.feature.reader.SELECTION_SPAN_TRACKER_JS
@@ -236,7 +237,13 @@ internal class DefaultRendererBridge(
     }
 
     override suspend fun capturePageFragmentAnchor(): String? {
-        val raw = fragment?.evaluateJavascript(ColumnSnap.CAPTURE_PAGE_FRAGMENT_ANCHOR_JS) ?: return null
+        // Readium's evaluateJavascript internally calls page.awaitLoaded(), which can suspend
+        // indefinitely on slow devices (e.g. API-25 emulator with ART JIT) if the page hasn't
+        // received its onPageFinished signal yet. A bookmark created without a fragment anchor
+        // is fully valid — anchor is best-effort precision, not required.
+        val raw = withTimeoutOrNull(5_000) {
+            fragment?.evaluateJavascript(ColumnSnap.CAPTURE_PAGE_FRAGMENT_ANCHOR_JS)
+        } ?: return null
         val trimmed = raw.trim('"')
         return if (trimmed == "null" || trimmed.isBlank()) null else trimmed
     }
