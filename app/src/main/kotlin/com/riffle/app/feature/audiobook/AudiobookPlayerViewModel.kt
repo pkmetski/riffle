@@ -523,7 +523,13 @@ class AudiobookPlayerViewModel @Inject constructor(
                 // playback immediately rather than landing on a paused player. A genuinely-newer remote
                 // resume is still honoured: attachReaderSync's inbound-only reconcile seeks the
                 // already-playing position to the reconciled point (ADR 0029).
-                controller.play()
+                //
+                // Exception: if the book was detected as finished on open (resume near the end →
+                // reset to 0 by the finished-book guard), skip auto-play. This prevents the player
+                // from starting a "replay from the beginning" without user intent when Android
+                // restores the back stack after killing the process while the book was playing in
+                // the background. The user presses Play explicitly to re-listen.
+                if (!resume.wasFinishedOnOpen) controller.play()
 
                 // The cross-EPUB index build (needed for the full ebook-sync coordinator) is self-healed
                 // by ReaderSyncFactory.createIfApplicable below: if the bundle is present but the index
