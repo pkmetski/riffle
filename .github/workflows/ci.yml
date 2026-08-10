@@ -218,7 +218,7 @@ jobs:
           arch: x86
           profile: pixel
           disable-animations: true
-          emulator-options: -no-snapshot -no-window -no-boot-anim -no-audio -camera-back none -gpu swiftshader_indirect -memory 4096
+          emulator-options: -no-snapshot -no-window -no-boot-anim -no-audio -camera-back none -gpu swiftshader_indirect
           # Run harness (EPUB reader) tests first, before 300+ feature tests accumulate WebView
           # native memory. WakeLockHarnessTest is alphabetically last and freezes for 90s when
           # the API-25 emulator's WebView native memory is exhausted by the time it runs.
