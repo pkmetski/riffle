@@ -993,7 +993,7 @@ class AudiobookPlayerViewModelBookmarkTest {
         // Position store: local = 999.5 s, timestamp > server timestamp → PushLocal wins → resumeSec = 999.5
         // audiobookStartSec(999.5, 1000.0) resets to 0.0 → wasFinishedOnOpen = true → play() skipped.
         val controller = FakeController(position = 0.0)
-        buildViewModel(
+        val vm = buildViewModel(
             controller = controller,
             bookmarkStore = FakeBookmarkStore(),
             positionStore = FakePositionStore(savedSec = 999.5, savedUpdatedAt = fixedNow),
@@ -1005,5 +1005,6 @@ class AudiobookPlayerViewModelBookmarkTest {
             0,
             controller.playCount,
         )
+        vm.clearForTest()
     }
 }
