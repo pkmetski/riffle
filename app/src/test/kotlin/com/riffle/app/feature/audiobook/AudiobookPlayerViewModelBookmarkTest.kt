@@ -121,7 +121,8 @@ class AudiobookPlayerViewModelBookmarkTest {
             preparedStartAtSec = startAtSec
             preparedBookTitle = bookTitle
         }
-        override fun play() {}
+        var playCount = 0
+        override fun play() { playCount++ }
         override fun setSpeed(speed: Float) {}
         override fun currentAbsoluteSec(): Double = position
         override fun seekTo(absoluteSec: Double) { seeks.add(absoluteSec) }
@@ -982,5 +983,28 @@ class AudiobookPlayerViewModelBookmarkTest {
 
     private object StubBuildTrigger : CrossEpubIndexBuildTrigger {
         override fun enqueueBuild(link: ReadaloudLink) {}
+    }
+
+    @Test
+    fun `finished book does not auto-play on open — controller play() is not called`() = runTest(testDispatcher) {
+        // Regression: when Android restores the back stack after killing the process, the new VM's
+        // init resolves the saved position (near end), audiobookStartSec() resets it to 0, and
+        // controller.play() was called unconditionally. The guard added by the fix must suppress it.
+        // Position store: local = 999.5 s, timestamp > server timestamp → PushLocal wins → resumeSec = 999.5
+        // audiobookStartSec(999.5, 1000.0) resets to 0.0 → wasFinishedOnOpen = true → play() skipped.
+        val controller = FakeController(position = 0.0)
+        val vm = buildViewModel(
+            controller = controller,
+            bookmarkStore = FakeBookmarkStore(),
+            positionStore = FakePositionStore(savedSec = 999.5, savedUpdatedAt = fixedNow),
+        )
+        runCurrent()
+
+        assertEquals(
+            "play() must not be called when the book was finished on open",
+            0,
+            controller.playCount,
+        )
+        vm.clearForTest()
     }
 }

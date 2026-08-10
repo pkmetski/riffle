@@ -31,10 +31,15 @@ class AudiobookResumeResolver @Inject constructor(
      *   pull us back). Zero on the offline-with-bundle-only fallback path (where [resumeSec] came
      *   from `readingProgress`); non-zero when the resume came from a genuinely tracked position
      *   (reconciler decision or handoff override).
+     * @property wasFinishedOnOpen true when the reconciled resume was at/near the end of the book
+     *   and [resumeSec] was reset to 0 by the finished-book guard. The player should open paused
+     *   in this case — the user must press Play to explicitly re-listen — rather than auto-playing
+     *   from the start, which would surprise users whose back stack was restored after process death.
      */
     data class ResumePoint(
         val resumeSec: Double,
         val resumeStamp: Long,
+        val wasFinishedOnOpen: Boolean = false,
     )
 
     /**
@@ -96,9 +101,17 @@ class AudiobookResumeResolver @Inject constructor(
         // A finished book (resume at the end) is unplayable if seeded there — ExoPlayer lands in
         // STATE_ENDED and play() is a no-op. Reopening it is a replay, so restart from 0. Only on
         // a normal open: the handoff below sets an explicit position that must not be reset.
+        val resumeBeforeFinishedGuard = resumeSec
         if (startAtSec < 0.0) {
             resumeSec = audiobookStartSec(resumeSec, session.timeline.durationSec)
         }
+        // Mirror the same guard condition as audiobookStartSec() rather than comparing
+        // before/after: a 1-second book at position 0 would give 0.0 == 0.0 (false negative)
+        // with an equality check, even though the guard fired and auto-play should be suppressed.
+        val durationSec = session.timeline.durationSec
+        val wasFinishedOnOpen = startAtSec < 0.0
+            && durationSec > 0.0
+            && resumeBeforeFinishedGuard >= durationSec - AUDIOBOOK_FINISHED_EPS_SEC
 
         // readaloud→audiobook swipe handoff: continue from exactly where the reader handed off,
         // overriding the store/server resume (which can lag the just-left listen position). Persist
@@ -116,6 +129,7 @@ class AudiobookResumeResolver @Inject constructor(
         return ResumePoint(
             resumeSec = resumeSec,
             resumeStamp = resumeStamp,
+            wasFinishedOnOpen = wasFinishedOnOpen,
         )
     }
 }
