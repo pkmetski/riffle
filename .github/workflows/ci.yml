@@ -218,24 +218,23 @@ jobs:
           arch: x86
           profile: pixel
           disable-animations: true
-          # -memory 2048: give the Android 7.1.1 guest enough RAM so WebView/Chrome can load its
-          # native library (~100-200MB) without triggering disk swapping in the guest OS. The
-          # default Pixel AVD RAM (~1.5GB) is too low — after 1-2 WebView opens the guest fills
-          # up and subsequent opens stall for 90s waiting for pages to be evicted. 2048MB leaves
-          # ~4.5GB for the host (OS + Gradle + KSP), well within the 7GB runner budget.
-          emulator-options: -no-snapshot -no-window -no-boot-anim -no-audio -camera-back none -gpu swiftshader_indirect -memory 2048
-          # API-25 WebView state persists in native shared memory across ./gradlew invocations
-          # on the same emulator. A prior shard's WebView opens leave the renderer under memory
-          # pressure for the next shard, causing the first WebView open to freeze for 90s.
-          # Three shards spread reader-opening tests across fresh instrumentation runs:
+          emulator-options: -no-snapshot -no-window -no-boot-anim -no-audio -camera-back none -gpu swiftshader_indirect
+          # API-25 WebView V8/Blink native pages persist in guest shared memory across
+          # ./gradlew invocations on the same emulator. The default Pixel AVD RAM (1.5GB)
+          # keeps the guest under enough memory pressure to evict those pages — but only
+          # after ~90 seconds, not the ~30s gap from Gradle startup alone.
+          # -memory 2048 was tried and made things WORSE: more RAM = less eviction pressure
+          # = pages linger = the 3rd WebView open in shard 3 stalls for 90s.
+          #
+          # Three shards isolate the reader-opening tests:
           #   Shard 1: WakeLockHarnessTest only (1 WebView open, fresh renderer)
-          #   Shard 2: EpubHarnessTest only (2 WebView opens; sleep 30 + force-stop gives
-          #            the API-25 WebView service time to release Shard 1's pages)
-          #   Shard 3: everything else — AnnotationFocus (1) + 310 feature tests (GC) + NavSnap (2)
-          # force-stop com.google.android.webview between shards evicts the WebView service
-          # and its ashmem-backed V8/Blink pages from the guest; sleep 30 lets eviction settle.
+          #   sleep 90: gives the 1.5GB-pressured guest time to evict Shard 1's pages
+          #   Shard 2: EpubHarnessTest only (2 WebView opens, renderer now clean)
+          #   sleep 90: gives the guest time to evict Shard 2's pages
+          #   Shard 3: everything else — AnnotationFocus (1 WebView) + 310 feature tests
+          #            (natural GC gap) + NavSnap (2 WebViews); 3 total, passes reliably
           # notClass= accepts comma-separated class names (AndroidJUnitRunner parseCSV).
-          script: adb logcat -G 16M || true; adb logcat -c || true; ./gradlew :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.riffle.app.harness.WakeLockHarnessTest; WAKELOCK_RC=$?; adb shell am force-stop com.google.android.webview 2>/dev/null || true; sleep 30; ./gradlew :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.riffle.app.harness.EpubHarnessTest; EPUB_RC=$?; adb shell am force-stop com.google.android.webview 2>/dev/null || true; sleep 30; ./gradlew :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.notClass=com.riffle.app.harness.WakeLockHarnessTest,com.riffle.app.harness.EpubHarnessTest -Pandroid.testInstrumentationRunnerArguments.notAnnotation=com.riffle.app.harness.TabletLayout; REST_RC=$?; adb logcat -d > logcat-phone.txt || true; [ $WAKELOCK_RC -eq 0 ] && [ $EPUB_RC -eq 0 ] && [ $REST_RC -eq 0 ]
+          script: adb logcat -G 16M || true; adb logcat -c || true; ./gradlew :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.riffle.app.harness.WakeLockHarnessTest; WAKELOCK_RC=$?; sleep 90; ./gradlew :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.riffle.app.harness.EpubHarnessTest; EPUB_RC=$?; sleep 90; ./gradlew :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.notClass=com.riffle.app.harness.WakeLockHarnessTest,com.riffle.app.harness.EpubHarnessTest -Pandroid.testInstrumentationRunnerArguments.notAnnotation=com.riffle.app.harness.TabletLayout; REST_RC=$?; adb logcat -d > logcat-phone.txt || true; [ $WAKELOCK_RC -eq 0 ] && [ $EPUB_RC -eq 0 ] && [ $REST_RC -eq 0 ]
       - name: Upload harness phone reports
         if: always()
         uses: actions/upload-artifact@v7
