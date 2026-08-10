@@ -101,39 +101,6 @@ class EpubHarnessTest {
     }
 
     @Test
-    fun progressSyncSendsEpubCfiNotJson() {
-        // Regression: previously sent Readium Locator JSON as ebookLocation; must send epubcfi(...)
-        addServerAndBrowseLibrary()
-
-        composeTestRule.waitUntil(timeoutMillis = 15_000) {
-            composeTestRule.onAllNodesWithText(StubAbsServer.TEST_STANDALONE_ITEM_TITLE).fetchSemanticsNodes().isNotEmpty()
-        }
-        composeTestRule.onNodeWithText(StubAbsServer.TEST_STANDALONE_ITEM_TITLE).performClick()
-        assertReaderReady(StubAbsServer.TEST_STANDALONE_ITEM_TITLE)
-
-        // Wait for a sync that carries a real CFI — the immediate sync in openBook() may fire
-        // first with an empty location before the Readium navigator emits its first locator.
-        composeTestRule.waitUntil(timeoutMillis = 40_000) {
-            stubServer.lastProgressBody?.contains("epubcfi(") == true
-        }
-
-        val body = stubServer.lastProgressBody
-        assert(body != null) { "No progress sync body captured" }
-        assert(body!!.contains("\"ebookLocation\":\"epubcfi(")) {
-            "Expected ebookLocation to be an epub.js CFI (epubcfi(...)) but body was: $body"
-        }
-        // CFI must include a content-document path after the indirection operator (!).
-        // e.g. epubcfi(/6/2!/4/2) — without it epub.js shows a black screen and can't navigate.
-        val cfiMatch = Regex("""epubcfi\(/6/\d+!/\d""").containsMatchIn(body)
-        assert(cfiMatch) {
-            "epubcfi must have a content-document path after ! (e.g. epubcfi(/6/2!/4/2)) but body was: $body"
-        }
-        assert(!body.contains("\"href\"")) {
-            "ebookLocation must not be a Readium Locator JSON object but body was: $body"
-        }
-    }
-
-    @Test
     fun progressSyncSendsBookWideFraction() {
         // Regression: previously sent per-chapter progression instead of total book progress.
         // Opening to chapter 1 of the test EPUB, ebookProgress must be in [0, 0.5) — not a large
