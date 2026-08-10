@@ -28,17 +28,15 @@ import org.junit.Test
 import org.junit.runner.RunWith
 
 /**
- * Golden trace sentinel for the multi-platform-core migration (issue #550).
- *
- * Composes the full user-visible round trip in a single test so subsequent phases
- * (#551–#557) can be gated on "does this still pass". If any phase breaks
- * serialization, networking, persistence, or reader wiring, this fails first.
- *
- * Trace: login to ABS → open library → open EPUB → progress-sync round-trip.
+ * Progress-sync regression tests split out of EpubHarnessTest to cap the WebView-open count
+ * per shard. Each test here opens a reader and waits 40 s for a progress-sync round-trip,
+ * leaving significant native memory behind. Running them in the REST shard (shard 3) gives
+ * them a fresh renderer after the long GC gap provided by the 200+ preceding feature tests,
+ * while keeping EpubHarnessTest's own shard (shard 2) at ≤2 WebView opens.
  */
 @HiltAndroidTest
 @RunWith(AndroidJUnit4::class)
-class GoldenTraceHarnessTest {
+class EpubProgressHarnessTest {
 
     @get:Rule(order = 0) val hiltRule = HiltAndroidRule(this)
     @get:Rule(order = 1) val composeTestRule = createAndroidComposeRule<MainActivity>()
@@ -50,6 +48,8 @@ class GoldenTraceHarnessTest {
 
     @Before
     fun setUp() {
+        Runtime.getRuntime().gc()
+        Thread.sleep(800)
         stubServer.start()
         hiltRule.inject()
         database.clearAllTables()
@@ -61,16 +61,61 @@ class GoldenTraceHarnessTest {
         stubServer.shutdown()
         composeTestRule.activityRule.scenario.close()
         Runtime.getRuntime().gc()
-        // GoldenTrace keeps Readium active for ~40 s waiting for progress sync, leaving more
-        // native WebView memory behind than a quick reader-open test. 90 s matches the
-        // inter-shard sleep and gives the guest OS enough time under 1.5 GB RAM pressure to
-        // evict ashmem-backed pages before the next test class opens its WebView.
-        Thread.sleep(90_000)
+        Thread.sleep(800)
         database.clearAllTables()
     }
 
     @Test
-    fun goldenTraceLoginLibraryOpenEpubSync() {
+    fun progressSyncUsesCorrectEndpoint() {
+        // Regression: previously synced to /api/session (wrong endpoint); must use PATCH /api/me/progress/:itemId
+        addServerAndBrowseLibrary()
+
+        composeTestRule.waitUntil(timeoutMillis = 15_000) {
+            composeTestRule.onAllNodesWithText(StubAbsServer.TEST_STANDALONE_ITEM_TITLE).fetchSemanticsNodes().isNotEmpty()
+        }
+        composeTestRule.onNodeWithText(StubAbsServer.TEST_STANDALONE_ITEM_TITLE).performClick()
+        assertReaderReady()
+
+        composeTestRule.waitUntil(timeoutMillis = 40_000) {
+            stubServer.sessionSyncCount > 0
+        }
+
+        val path = stubServer.lastProgressPath
+        assert(path == "/api/me/progress/${StubAbsServer.TEST_STANDALONE_ITEM_ID}") {
+            "Expected PATCH /api/me/progress/:itemId but got: $path"
+        }
+    }
+
+    @Test
+    fun progressSyncSendsEpubCfiNotJson() {
+        // Regression: previously sent Readium Locator JSON as ebookLocation; must send epubcfi(...)
+        addServerAndBrowseLibrary()
+
+        composeTestRule.waitUntil(timeoutMillis = 15_000) {
+            composeTestRule.onAllNodesWithText(StubAbsServer.TEST_STANDALONE_ITEM_TITLE).fetchSemanticsNodes().isNotEmpty()
+        }
+        composeTestRule.onNodeWithText(StubAbsServer.TEST_STANDALONE_ITEM_TITLE).performClick()
+        assertReaderReady()
+
+        composeTestRule.waitUntil(timeoutMillis = 40_000) {
+            stubServer.lastProgressBody?.contains("epubcfi(") == true
+        }
+
+        val body = stubServer.lastProgressBody
+        assert(body != null) { "No progress sync body captured" }
+        assert(body!!.contains("\"ebookLocation\":\"epubcfi(")) {
+            "Expected ebookLocation to be an epub.js CFI (epubcfi(...)) but body was: $body"
+        }
+        val cfiMatch = Regex("""epubcfi\(/6/\d+!/\d""").containsMatchIn(body)
+        assert(cfiMatch) {
+            "epubcfi must have a content-document path after ! (e.g. epubcfi(/6/2!/4/2)) but body was: $body"
+        }
+        assert(!body.contains("\"href\"")) {
+            "ebookLocation must not be a Readium Locator JSON object but body was: $body"
+        }
+    }
+
+    private fun addServerAndBrowseLibrary() {
         composeTestRule.waitUntil(timeoutMillis = 5_000) {
             composeTestRule.onAllNodesWithText("Audiobookshelf").fetchSemanticsNodes().isNotEmpty()
         }
@@ -86,16 +131,13 @@ class GoldenTraceHarnessTest {
             composeTestRule.onAllNodesWithText("Connect anyway").fetchSemanticsNodes().isNotEmpty()
         }
         composeTestRule.onNodeWithText("Connect anyway").performClick()
-
         composeTestRule.waitUntil(timeoutMillis = 10_000) {
             composeTestRule.onAllNodesWithContentDescription("All Books").fetchSemanticsNodes().isNotEmpty()
         }
         composeTestRule.onNodeWithContentDescription("All Books").performClick()
+    }
 
-        composeTestRule.waitUntil(timeoutMillis = 15_000) {
-            composeTestRule.onAllNodesWithText(StubAbsServer.TEST_STANDALONE_ITEM_TITLE).fetchSemanticsNodes().isNotEmpty()
-        }
-        composeTestRule.onNodeWithText(StubAbsServer.TEST_STANDALONE_ITEM_TITLE).performClick()
+    private fun assertReaderReady() {
         composeTestRule.tapReadInDetailScreen()
         composeTestRule.waitUntil(timeoutMillis = 90_000) {
             composeTestRule.onAllNodesWithTag(ReaderSemanticMatchers.TAG_READER_READY).fetchSemanticsNodes().isNotEmpty() ||
@@ -103,13 +145,5 @@ class GoldenTraceHarnessTest {
         }
         composeTestRule.assertNoErrorState()
         composeTestRule.onNodeWithTag(ReaderSemanticMatchers.TAG_READER_READY).assertExists()
-
-        composeTestRule.waitUntil(timeoutMillis = 40_000) {
-            stubServer.lastProgressBody?.contains("epubcfi(") == true
-        }
-        val path = stubServer.lastProgressPath
-        assert(path == "/api/me/progress/${StubAbsServer.TEST_STANDALONE_ITEM_ID}") {
-            "Expected PATCH /api/me/progress/:itemId but got: $path"
-        }
     }
 }

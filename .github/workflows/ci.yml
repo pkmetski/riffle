@@ -184,7 +184,7 @@ jobs:
   harness-test-phone:
     name: Harness tests (phone)
     runs-on: ubuntu-latest
-    timeout-minutes: 40
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-java@v5
@@ -226,19 +226,25 @@ jobs:
           # -memory 2048 was tried and made things WORSE: more RAM = less eviction pressure
           # = pages linger = subsequent WebView opens stall for 90s.
           #
-          # Five shards isolate the reader-opening tests:
-          #   Shard 1: WakeLockHarnessTest (3 tests, 2 WebView opens)
+          # Five shards isolate the reader-opening tests. "Heavy" WebView tests wait ~40 s
+          # for a progress-sync round-trip while Readium is active, leaving far more native
+          # memory behind than a quick reader-open-and-close ("light") test.
+          #
+          #   Shard 1: WakeLockHarnessTest (3 tests, 2 light WebView opens)
           #   sleep 90: evicts Shard 1's pages
-          #   Shard 2: EpubHarnessTest (4 tests, 4 WebView opens)
+          #   Shard 2: EpubHarnessTest (2 tests: 1 light + 1 heavy WebView open)
           #   sleep 90: evicts Shard 2's pages
-          #   Shard 3: 300+ feature tests (GC for Shard 2 pages) + ContinuousChapter (2
-          #            WebViews after the long GC gap). GoldenTrace/NavSnap/Search excluded:
-          #            they run after ContinuousChapter alphabetically with only ~25s of GC
-          #            between, which is insufficient to evict those 2 WebViews — the 5th
-          #            consecutive open (NavSnap same) stalls for 90s.
+          #   Shard 3: 200+ feature tests (long GC gap) + ContinuousChapterBoundary (2 light
+          #            WebViews) + EpubProgressHarnessTest (2 heavy WebViews, safe after the
+          #            long feature-test GC gap). GoldenTrace/NavSnap/Search excluded: each
+          #            GoldenTrace open is very heavy (2 min active Readium + 40 s sync) and
+          #            exhausts native memory even after a 90 s sleep — NavSnap stalls as the
+          #            very next open. GoldenTrace's own @After carries a 90 s sleep to evict
+          #            its pages before NavSnap runs.
           #   sleep 90: evicts Shard 3's pages
-          #   Shard 4: GoldenTrace + NavSnap + Search (6 WebViews, fresh renderer after
-          #            eviction — same as AnnotationFocus passing 9+ WebViews fresh)
+          #   Shard 4: GoldenTrace (1 very-heavy WebView + 90 s @After sleep) + NavSnap (3
+          #            light) + Search (3 light). Fresh renderer; GoldenTrace runs first
+          #            alphabetically; its @After sleep resets the renderer before NavSnap.
           #   sleep 90: evicts Shard 4's pages
           #   Shard 5: AnnotationFocusHarnessTest (6 tests, fresh renderer)
           # notClass= accepts comma-separated class names (AndroidJUnitRunner parseCSV).

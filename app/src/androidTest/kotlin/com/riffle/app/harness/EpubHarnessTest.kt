@@ -1,7 +1,5 @@
 package com.riffle.app.harness
 
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
@@ -12,22 +10,11 @@ import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
-import androidx.compose.ui.test.performTextClearance
-import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.performTextReplacement
-import androidx.compose.ui.test.click
-import androidx.compose.ui.test.performTouchInput
-import androidx.core.view.WindowInsetsCompat
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.riffle.app.MainActivity
-import com.riffle.app.harness.ReaderSemanticMatchers.assertContentDescriptionPresent
-import com.riffle.app.harness.ReaderSemanticMatchers.assertInChapter
 import com.riffle.app.harness.ReaderSemanticMatchers.assertNoErrorState
-import com.riffle.app.harness.ReaderSemanticMatchers.assertRailActiveSegment
-import com.riffle.app.harness.ReaderSemanticMatchers.assertTextVisible
 import com.riffle.app.harness.ReaderSemanticMatchers.tapReadInDetailScreen
-import com.riffle.app.harness.ReaderSemanticMatchers.waitUntilInChapter
-import com.riffle.app.harness.ReaderSemanticMatchers.waitUntilRailActiveSegment
 import com.riffle.core.data.di.EpubCacheStore
 import com.riffle.core.database.RiffleDatabase
 import com.riffle.core.domain.LocalStore
@@ -106,56 +93,6 @@ class EpubHarnessTest {
     }
 
     @Test
-    fun progressSyncUsesCorrectEndpoint() {
-        // Regression: previously synced to /api/session (wrong endpoint); must use PATCH /api/me/progress/:itemId
-        addServerAndBrowseLibrary()
-
-        composeTestRule.waitUntil(timeoutMillis = 15_000) {
-            composeTestRule.onAllNodesWithText(StubAbsServer.TEST_STANDALONE_ITEM_TITLE).fetchSemanticsNodes().isNotEmpty()
-        }
-        composeTestRule.onNodeWithText(StubAbsServer.TEST_STANDALONE_ITEM_TITLE).performClick()
-        assertReaderReady(StubAbsServer.TEST_STANDALONE_ITEM_TITLE)
-
-        composeTestRule.waitUntil(timeoutMillis = 40_000) {
-            stubServer.sessionSyncCount > 0
-        }
-
-        val path = stubServer.lastProgressPath
-        assert(path == "/api/me/progress/${StubAbsServer.TEST_STANDALONE_ITEM_ID}") {
-            "Expected PATCH /api/me/progress/:itemId but got: $path"
-        }
-    }
-
-    @Test
-    fun progressSyncSendsEpubCfiNotJson() {
-        // Regression: previously sent Readium Locator JSON as ebookLocation; must send epubcfi(...)
-        addServerAndBrowseLibrary()
-
-        composeTestRule.waitUntil(timeoutMillis = 15_000) {
-            composeTestRule.onAllNodesWithText(StubAbsServer.TEST_STANDALONE_ITEM_TITLE).fetchSemanticsNodes().isNotEmpty()
-        }
-        composeTestRule.onNodeWithText(StubAbsServer.TEST_STANDALONE_ITEM_TITLE).performClick()
-        assertReaderReady(StubAbsServer.TEST_STANDALONE_ITEM_TITLE)
-
-        composeTestRule.waitUntil(timeoutMillis = 40_000) {
-            stubServer.lastProgressBody?.contains("epubcfi(") == true
-        }
-
-        val body = stubServer.lastProgressBody
-        assert(body != null) { "No progress sync body captured" }
-        assert(body!!.contains("\"ebookLocation\":\"epubcfi(")) {
-            "Expected ebookLocation to be an epub.js CFI (epubcfi(...)) but body was: $body"
-        }
-        val cfiMatch = Regex("""epubcfi\(/6/\d+!/\d""").containsMatchIn(body)
-        assert(cfiMatch) {
-            "epubcfi must have a content-document path after ! (e.g. epubcfi(/6/2!/4/2)) but body was: $body"
-        }
-        assert(!body.contains("\"href\"")) {
-            "ebookLocation must not be a Readium Locator JSON object but body was: $body"
-        }
-    }
-
-    @Test
     fun progressSyncSendsBookWideFraction() {
         // Regression: previously sent per-chapter progression instead of total book progress.
         // Opening to chapter 1 of the test EPUB, ebookProgress must be in [0, 0.5) — not a large
@@ -182,18 +119,6 @@ class EpubHarnessTest {
         }
     }
 
-
-    // Reads the navigation-bar inset from the activity's decor view. Returns 0 if the bar
-    // is hidden, a positive pixel value otherwise.
-    private fun navigationBarInsetPx(): Int {
-        var inset = -1
-        composeTestRule.activityRule.scenario.onActivity { activity ->
-            val raw = activity.window.decorView.rootWindowInsets ?: return@onActivity
-            inset = WindowInsetsCompat.toWindowInsetsCompat(raw)
-                .getInsets(WindowInsetsCompat.Type.navigationBars()).bottom
-        }
-        return inset.coerceAtLeast(0)
-    }
 
     // ── Helpers ─────────────────────────────────────────────────────────────
 
@@ -234,14 +159,4 @@ class EpubHarnessTest {
         composeTestRule.onNodeWithTag(ReaderSemanticMatchers.TAG_READER_READY).assertExists()
     }
 
-    // Taps the reader content to exit immersive mode and reveal the floating TopAppBar,
-    // then waits for the Back button to appear. Call this before interacting with toolbar items.
-    private fun showTopAppBar() {
-        composeTestRule
-            .onNodeWithTag(ReaderSemanticMatchers.TAG_READER_READY)
-            .performTouchInput { click(Offset(width * 0.5f, height * 0.3f)) }
-        composeTestRule.waitUntil(timeoutMillis = 2_000) {
-            composeTestRule.onAllNodesWithContentDescription("Back").fetchSemanticsNodes().isNotEmpty()
-        }
-    }
 }
