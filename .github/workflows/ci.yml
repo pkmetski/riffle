@@ -184,7 +184,7 @@ jobs:
   harness-test-phone:
     name: Harness tests (phone)
     runs-on: ubuntu-latest
-    timeout-minutes: 35
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-java@v5
@@ -224,17 +224,21 @@ jobs:
           # keeps the guest under enough memory pressure to evict those pages — but only
           # after ~90 seconds, not the ~30s gap from Gradle startup alone.
           # -memory 2048 was tried and made things WORSE: more RAM = less eviction pressure
-          # = pages linger = the 3rd WebView open in shard 3 stalls for 90s.
+          # = pages linger = subsequent WebView opens stall for 90s.
           #
-          # Three shards isolate the reader-opening tests:
-          #   Shard 1: WakeLockHarnessTest only (1 WebView open, fresh renderer)
-          #   sleep 90: gives the 1.5GB-pressured guest time to evict Shard 1's pages
-          #   Shard 2: EpubHarnessTest only (2 WebView opens, renderer now clean)
-          #   sleep 90: gives the guest time to evict Shard 2's pages
-          #   Shard 3: everything else — AnnotationFocus (1 WebView) + 310 feature tests
-          #            (natural GC gap) + NavSnap (2 WebViews); 3 total, passes reliably
+          # Four shards isolate the reader-opening tests:
+          #   Shard 1: WakeLockHarnessTest (3 tests, 2 WebView opens)
+          #   sleep 90: evicts Shard 1's pages
+          #   Shard 2: EpubHarnessTest (4 tests, 4 WebView opens)
+          #   sleep 90: evicts Shard 2's pages
+          #   Shard 3: feature tests (300+ non-reader tests = GC time) + ContinuousChapter
+          #            + GoldenTrace + NavSnap + Search; AnnotationFocus excluded here
+          #            because its 6 tests × 3 reader opens each = 18 WebViews exhausts
+          #            the renderer for the tests that follow it alphabetically.
+          #   sleep 90: evicts Shard 3's pages
+          #   Shard 4: AnnotationFocusHarnessTest only (6 tests, isolated fresh renderer)
           # notClass= accepts comma-separated class names (AndroidJUnitRunner parseCSV).
-          script: adb logcat -G 16M || true; adb logcat -c || true; ./gradlew :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.riffle.app.harness.WakeLockHarnessTest; WAKELOCK_RC=$?; sleep 90; ./gradlew :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.riffle.app.harness.EpubHarnessTest; EPUB_RC=$?; sleep 90; ./gradlew :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.notClass=com.riffle.app.harness.WakeLockHarnessTest,com.riffle.app.harness.EpubHarnessTest -Pandroid.testInstrumentationRunnerArguments.notAnnotation=com.riffle.app.harness.TabletLayout; REST_RC=$?; adb logcat -d > logcat-phone.txt || true; [ $WAKELOCK_RC -eq 0 ] && [ $EPUB_RC -eq 0 ] && [ $REST_RC -eq 0 ]
+          script: adb logcat -G 16M || true; adb logcat -c || true; ./gradlew :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.riffle.app.harness.WakeLockHarnessTest; WAKELOCK_RC=$?; sleep 90; ./gradlew :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.riffle.app.harness.EpubHarnessTest; EPUB_RC=$?; sleep 90; ./gradlew :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.notClass=com.riffle.app.harness.WakeLockHarnessTest,com.riffle.app.harness.EpubHarnessTest,com.riffle.app.feature.reader.AnnotationFocusHarnessTest -Pandroid.testInstrumentationRunnerArguments.notAnnotation=com.riffle.app.harness.TabletLayout; REST_RC=$?; sleep 90; ./gradlew :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.riffle.app.feature.reader.AnnotationFocusHarnessTest; ANNOT_RC=$?; adb logcat -d > logcat-phone.txt || true; [ $WAKELOCK_RC -eq 0 ] && [ $EPUB_RC -eq 0 ] && [ $REST_RC -eq 0 ] && [ $ANNOT_RC -eq 0 ]
       - name: Upload harness phone reports
         if: always()
         uses: actions/upload-artifact@v7
