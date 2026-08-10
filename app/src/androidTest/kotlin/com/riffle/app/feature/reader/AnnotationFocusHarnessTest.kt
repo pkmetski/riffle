@@ -79,7 +79,8 @@ class AnnotationFocusHarnessTest {
     fun tearDown() {
         stubServer.shutdown()
         composeTestRule.activityRule.scenario.close()
-        Thread.sleep(400)
+        Runtime.getRuntime().gc()
+        Thread.sleep(800)
         database.clearAllTables()
     }
 

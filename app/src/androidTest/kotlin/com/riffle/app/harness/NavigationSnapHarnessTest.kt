@@ -66,6 +66,8 @@ class NavigationSnapHarnessTest {
 
     @Before
     fun setUp() {
+        Runtime.getRuntime().gc()
+        Thread.sleep(800)
         stubServer.start()
         hiltRule.inject()
         database.clearAllTables()

@@ -58,6 +58,11 @@ class EpubHarnessTest {
 
     @Before
     fun setUp() {
+        // Late in the suite (test 309+) the API-25 emulator accumulates enough WebView/Readium
+        // heap from preceding tests that the EPUB reader can't initialize within the timeout.
+        // A gc() hint before each test reclaims orphaned WebView memory from previous tests.
+        Runtime.getRuntime().gc()
+        Thread.sleep(800)
         stubServer.start()
         hiltRule.inject()
         database.clearAllTables()
@@ -71,7 +76,8 @@ class EpubHarnessTest {
         // launches a new Activity. The sleep gives Readium's DataStore coroutine scope time
         // to cancel and deregister from the DataStore registry (async cancellation).
         composeTestRule.activityRule.scenario.close()
-        Thread.sleep(400)
+        Runtime.getRuntime().gc()
+        Thread.sleep(800)
         // Clear DB after closing the activity so the next test's activity starts with an
         // empty DB. Without this, HomeScreen.LaunchedEffect can read stale server data
         // before setUp()'s clearAllTables() runs and navigate to the wrong screen.
