@@ -184,7 +184,7 @@ jobs:
   harness-test-phone:
     name: Harness tests (phone)
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 35
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-java@v5
@@ -219,7 +219,11 @@ jobs:
           profile: pixel
           disable-animations: true
           emulator-options: -no-snapshot -no-window -no-boot-anim -no-audio -camera-back none -gpu swiftshader_indirect -memory 4096
-          script: adb logcat -G 16M || true; adb logcat -c || true; ./gradlew :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.notAnnotation=com.riffle.app.harness.TabletLayout; GRADLE_RC=$?; adb logcat -d > logcat-phone.txt || true; exit $GRADLE_RC
+          # Run harness (EPUB reader) tests first, before 300+ feature tests accumulate WebView
+          # native memory. WakeLockHarnessTest is alphabetically last and freezes for 90s when
+          # the API-25 emulator's WebView native memory is exhausted by the time it runs.
+          # Two separate gradle invocations share the same shell so exit codes are captured.
+          script: adb logcat -G 16M || true; adb logcat -c || true; ./gradlew :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.package=com.riffle.app.harness -Pandroid.testInstrumentationRunnerArguments.notAnnotation=com.riffle.app.harness.TabletLayout; HARNESS_RC=$?; ./gradlew :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.notPackage=com.riffle.app.harness -Pandroid.testInstrumentationRunnerArguments.notAnnotation=com.riffle.app.harness.TabletLayout; FEATURE_RC=$?; adb logcat -d > logcat-phone.txt || true; [ $HARNESS_RC -eq 0 ] && [ $FEATURE_RC -eq 0 ]
       - name: Upload harness phone reports
         if: always()
         uses: actions/upload-artifact@v7
