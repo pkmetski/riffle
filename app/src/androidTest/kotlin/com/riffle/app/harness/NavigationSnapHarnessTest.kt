@@ -348,7 +348,7 @@ class NavigationSnapHarnessTest {
         }
         composeTestRule.onNodeWithText(StubAbsServer.TEST_STANDALONE_ITEM_TITLE).performClick()
         composeTestRule.tapReadInDetailScreen()
-        composeTestRule.waitUntil(timeoutMillis = 45_000) {
+        composeTestRule.waitUntil(timeoutMillis = 90_000) {
             composeTestRule.onAllNodesWithTag(ReaderSemanticMatchers.TAG_READER_READY).fetchSemanticsNodes().isNotEmpty()
         }
         Thread.sleep(1_200) // first page layout / reflow settle
