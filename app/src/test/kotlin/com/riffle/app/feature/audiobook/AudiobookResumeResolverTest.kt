@@ -204,6 +204,26 @@ class AudiobookResumeResolverTest {
     }
 
     @Test
+    fun `finished-book guard fires at exact boundary durationSec minus eps`() = runTest {
+        // Off-by-one protection: a position exactly at durationSec - AUDIOBOOK_FINISHED_EPS_SEC (the
+        // inclusive boundary) must trigger wasFinishedOnOpen. A change from >= to > in the guard would
+        // make this position fall through and auto-play a nearly-finished book from the end.
+        val store = FakePositionStore(loadedSec = 999.0, loadedTs = 5_000L)
+        val resolver = AudiobookResumeResolver(store, FakeClock(0L))
+
+        val result = resolver.resolve(
+            sourceId = "srv",
+            itemId = "book",
+            session = session(duration = 1000.0, serverCurrentTimeSec = 999.0, serverLastUpdate = 5_000L),
+            readingProgressFraction = 0f,
+            startAtSec = -1.0,
+        )
+
+        assertEquals(0.0, result.resumeSec, 0.0001)
+        assertTrue("inclusive boundary must set wasFinishedOnOpen", result.wasFinishedOnOpen)
+    }
+
+    @Test
     fun `zeroed session (Chitanka fresh open) → resumeSec=0, resumeStamp=0, no crash`() = runTest {
         // Chitanka's openAudiobook returns a stream with serverCurrentTimeSec=0, serverLastUpdate=0,
         // totalDurationSec=0 (unknown until ExoPlayer resolves each track). A fresh open has no local
@@ -224,6 +244,7 @@ class AudiobookResumeResolverTest {
         assertEquals(0.0, result.resumeSec, 0.0001)
         assertEquals(0L, result.resumeStamp)
         assertTrue("zeroed session must not write back to store", store.saves.isEmpty())
+        assertEquals("unknown duration cannot be finished", false, result.wasFinishedOnOpen)
     }
 
     @Test

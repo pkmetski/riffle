@@ -105,7 +105,13 @@ class AudiobookResumeResolver @Inject constructor(
         if (startAtSec < 0.0) {
             resumeSec = audiobookStartSec(resumeSec, session.timeline.durationSec)
         }
-        val wasFinishedOnOpen = startAtSec < 0.0 && resumeSec != resumeBeforeFinishedGuard
+        // Mirror the same guard condition as audiobookStartSec() rather than comparing
+        // before/after: a 1-second book at position 0 would give 0.0 == 0.0 (false negative)
+        // with an equality check, even though the guard fired and auto-play should be suppressed.
+        val durationSec = session.timeline.durationSec
+        val wasFinishedOnOpen = startAtSec < 0.0
+            && durationSec > 0.0
+            && resumeBeforeFinishedGuard >= durationSec - AUDIOBOOK_FINISHED_EPS_SEC
 
         // readaloud→audiobook swipe handoff: continue from exactly where the reader handed off,
         // overriding the store/server resume (which can lag the just-left listen position). Persist
