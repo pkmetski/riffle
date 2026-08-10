@@ -219,11 +219,15 @@ jobs:
           profile: pixel
           disable-animations: true
           emulator-options: -no-snapshot -no-window -no-boot-anim -no-audio -camera-back none -gpu swiftshader_indirect
-          # Run harness (EPUB reader) tests first, before 300+ feature tests accumulate WebView
-          # native memory. WakeLockHarnessTest is alphabetically last and freezes for 90s when
-          # the API-25 emulator's WebView native memory is exhausted by the time it runs.
-          # Two separate gradle invocations share the same shell so exit codes are captured.
-          script: adb logcat -G 16M || true; adb logcat -c || true; ./gradlew :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.package=com.riffle.app.harness -Pandroid.testInstrumentationRunnerArguments.notAnnotation=com.riffle.app.harness.TabletLayout; HARNESS_RC=$?; ./gradlew :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.notPackage=com.riffle.app.harness -Pandroid.testInstrumentationRunnerArguments.notAnnotation=com.riffle.app.harness.TabletLayout; FEATURE_RC=$?; adb logcat -d > logcat-phone.txt || true; [ $HARNESS_RC -eq 0 ] && [ $FEATURE_RC -eq 0 ]
+          # API-25 imposes two conflicting constraints:
+          #   (A) WakeLockHarnessTest freezes for 90s when WebView native memory is exhausted
+          #       by earlier reader tests — it must run FIRST in a fresh process.
+          #   (B) NavigationSnapHarnessTest.sameChapterAnchorJump needs JIT warmth to pass —
+          #       it must run AFTER 300+ feature tests have populated the JIT code cache.
+          # Satisfying both requires two separate process shards:
+          #   Shard 1: WakeLockHarnessTest only (fresh process, fresh WebView memory)
+          #   Shard 2: Everything else — feature tests warm the JIT before NavigationSnap runs
+          script: adb logcat -G 16M || true; adb logcat -c || true; ./gradlew :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.riffle.app.harness.WakeLockHarnessTest; WAKELOCK_RC=$?; ./gradlew :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.notClass=com.riffle.app.harness.WakeLockHarnessTest -Pandroid.testInstrumentationRunnerArguments.notAnnotation=com.riffle.app.harness.TabletLayout; FEATURE_RC=$?; adb logcat -d > logcat-phone.txt || true; [ $WAKELOCK_RC -eq 0 ] && [ $FEATURE_RC -eq 0 ]
       - name: Upload harness phone reports
         if: always()
         uses: actions/upload-artifact@v7
