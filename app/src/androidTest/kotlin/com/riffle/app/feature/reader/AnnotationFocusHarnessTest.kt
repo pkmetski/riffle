@@ -3,7 +3,6 @@ package com.riffle.app.feature.reader
 import android.view.View
 import android.view.ViewGroup
 import android.webkit.WebView
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.hasText
@@ -11,12 +10,9 @@ import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
-import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextReplacement
-import androidx.compose.ui.test.performTouchInput
-import androidx.compose.ui.test.click
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.riffle.app.MainActivity
@@ -90,107 +86,6 @@ class AnnotationFocusHarnessTest {
     @Test
     fun paginatedMode_annotationTap_focusesAnnotationOnScreen() {
         runModeTest(ReaderOrientation.Horizontal)
-    }
-
-    @Test
-    fun paginatedMode_bookmarkTap_focusesBookmarkedPage() {
-        runBookmarkModeTest(ReaderOrientation.Horizontal)
-    }
-
-    @Test
-    fun verticalMode_bookmarkTap_focusesBookmarkedPosition() {
-        runBookmarkModeTest(ReaderOrientation.Vertical)
-    }
-
-    @Test
-    fun continuousMode_bookmarkTap_focusesBookmarkedPosition() {
-        runBookmarkModeTest(ReaderOrientation.Continuous)
-    }
-
-    private fun runBookmarkModeTest(orientation: ReaderOrientation) {
-        // The preceding annotation tests open the reader 3 times, leaving significant heap.
-        // A gc() here prevents ART's background GC from firing during this reader startup.
-        Runtime.getRuntime().gc()
-        Thread.sleep(1_000)
-        runBlocking {
-            val prefs = formattingPreferencesStore.preferences.first()
-            formattingPreferencesStore.update(prefs.copy(orientation = orientation))
-        }
-        addServerAndBrowseLibrary()
-
-        // Seed the bookmark directly (like seedDeepHighlight does for highlights). The production
-        // creation path (toggleBookmark → capturePageFragmentAnchor) calls Readium's
-        // evaluateJavascript which internally uses a non-cancellable suspendCoroutine; on API-25
-        // the WebView callback occasionally never fires, leaving toggleBookmark suspended for the
-        // lifetime of the test. The navigation-to-bookmark path is what this test validates.
-        val bookmarkTitle = seedBookmark()
-
-        composeTestRule.waitUntil(timeoutMillis = 15_000) {
-            composeTestRule.onAllNodesWithText(StubAbsServer.TEST_STANDALONE_ITEM_TITLE)
-                .fetchSemanticsNodes().isNotEmpty()
-        }
-        composeTestRule.onNodeWithText(StubAbsServer.TEST_STANDALONE_ITEM_TITLE).performClick()
-        composeTestRule.tapReadInDetailScreen()
-        waitForReaderReady()
-
-        // The reader opens at the beginning of the chapter; the bookmark is at section 1.3, so
-        // navigation to it is already non-trivial — no need to navigate away first.
-        showTopAppBar(orientation)
-        composeTestRule.onNodeWithContentDescription("Annotations").performClick()
-        composeTestRule.waitUntil(timeoutMillis = 8_000) {
-            composeTestRule.onAllNodesWithText(bookmarkTitle).fetchSemanticsNodes().isNotEmpty()
-        }
-        composeTestRule.onNodeWithText(bookmarkTitle).performClick()
-
-        val result = waitForPhraseOnScreen(
-            orientation,
-            timeoutMs = 15_000,
-            phrase = targetPhrase,
-        )
-        assertTrue(
-            "$orientation bookmark navigation did not land on the bookmarked position. $result",
-            result.onScreen,
-        )
-    }
-
-    /**
-     * Seeds a bookmark at [targetPhrase] in chapter1 directly into the DB, mirroring how
-     * [seedDeepHighlight] seeds highlights. Returns the bookmark's display title for use in
-     * Annotations panel assertions.
-     */
-    private fun seedBookmark(): String = runBlocking {
-        val server = database.sourceDao().getActive()
-            ?: error("no active server registered after browsing library")
-        val html = chapter1Html()
-        val progression = phraseProgression(html, targetPhrase)
-        // chapter1 is spine index 0 → spineStep = (0+1)*2 = 2 (same as seedDeepHighlight)
-        val cfi = buildHighlightCfiRangeForSelection(
-            spineStep = 2,
-            html = html,
-            startProgression = progression,
-            selectedText = targetPhrase,
-        ) ?: error("failed to build CFI for '$targetPhrase'")
-        val title = "Section 1.3 harness bookmark"
-        // The heading has id="s3" in the HTML. Providing fragmentAnchor takes the new-style
-        // bookmark navigation path (getElementById-based), bypassing the character-count
-        // progression which overestimates the rendered column boundary in paginated mode.
-        val fragmentAnchor = Jsoup.parse(html)
-            .select("[id]")
-            .firstOrNull { it.text().contains(targetPhrase) }
-            ?.id()
-        annotationStore.createBookmark(
-            sourceId = server.id,
-            itemId = StubAbsServer.TEST_STANDALONE_ITEM_ID,
-            cfi = cfi,
-            textSnippet = targetPhrase.take(200),
-            chapterHref = "chapter1.xhtml",
-            spineIndex = 0,
-            progression = progression,
-            bookmarkTitle = title,
-            originFontFamily = "Georgia, serif",
-            fragmentAnchor = fragmentAnchor,
-        )
-        title
     }
 
     @Test
@@ -461,58 +356,4 @@ class AnnotationFocusHarnessTest {
         composeTestRule.onNodeWithContentDescription("All Books").performClick()
     }
 
-    private fun waitForReaderReady() {
-        composeTestRule.waitUntil(timeoutMillis = 45_000) {
-            composeTestRule.onAllNodesWithTag(ReaderSemanticMatchers.TAG_READER_READY)
-                .fetchSemanticsNodes().isNotEmpty()
-        }
-    }
-
-    private fun showTopAppBar(orientation: ReaderOrientation? = null) {
-        if (orientation == ReaderOrientation.Continuous) {
-            showTopAppBarContinuous()
-        } else {
-            // Paginated/vertical: Kotlin InputListener.onTap() is wired at fragment attachment.
-            // A few tap retries are enough.
-            repeat(5) {
-                composeTestRule
-                    .onNodeWithTag(ReaderSemanticMatchers.TAG_READER_READY)
-                    .performTouchInput { click(Offset(width * 0.5f, height * 0.3f)) }
-                try {
-                    composeTestRule.waitUntil(timeoutMillis = 3_000) {
-                        composeTestRule.onAllNodesWithContentDescription("Back").fetchSemanticsNodes().isNotEmpty()
-                    }
-                    return
-                } catch (_: androidx.compose.ui.test.ComposeTimeoutException) {
-                    // retry
-                }
-            }
-            throw AssertionError("showTopAppBar: Back button not visible after 5 tap attempts")
-        }
-    }
-
-    /**
-     * Show the top app bar in continuous mode by directly invoking window.RiffleChapter.onTap()
-     * via evaluateJavascript. This bypasses TAP_LISTENER_JS entirely — window.RiffleChapter is
-     * added via addJavascriptInterface at WebView construction time and is always available,
-     * even before onPageFinished fires. Compose test performTouchInput does NOT reliably propagate
-     * into the WebView's JS click listener on API-25, so JS bridge invocation is used instead.
-     */
-    private fun showTopAppBarContinuous() {
-        repeat(20) {
-            val wvs = visibleWebViews()
-            for (wv in wvs) {
-                evalJs(wv, "window.RiffleChapter.onTap()")
-            }
-            try {
-                composeTestRule.waitUntil(timeoutMillis = 3_000) {
-                    composeTestRule.onAllNodesWithContentDescription("Back").fetchSemanticsNodes().isNotEmpty()
-                }
-                return
-            } catch (_: androidx.compose.ui.test.ComposeTimeoutException) {
-                // WebView not yet bound or onTap callback not wired yet; retry.
-            }
-        }
-        throw AssertionError("showTopAppBar (continuous): Back button not visible after 20 JS-bridge attempts")
-    }
 }

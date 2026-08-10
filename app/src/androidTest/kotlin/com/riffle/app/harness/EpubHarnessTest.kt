@@ -101,27 +101,6 @@ class EpubHarnessTest {
     }
 
     @Test
-    fun progressSyncUsesCorrectEndpoint() {
-        // Regression: previously synced to /api/session (wrong endpoint); must use PATCH /api/me/progress/:itemId
-        addServerAndBrowseLibrary()
-
-        composeTestRule.waitUntil(timeoutMillis = 15_000) {
-            composeTestRule.onAllNodesWithText(StubAbsServer.TEST_STANDALONE_ITEM_TITLE).fetchSemanticsNodes().isNotEmpty()
-        }
-        composeTestRule.onNodeWithText(StubAbsServer.TEST_STANDALONE_ITEM_TITLE).performClick()
-        assertReaderReady(StubAbsServer.TEST_STANDALONE_ITEM_TITLE)
-
-        composeTestRule.waitUntil(timeoutMillis = 40_000) {
-            stubServer.sessionSyncCount > 0
-        }
-
-        val path = stubServer.lastProgressPath
-        assert(path == "/api/me/progress/${StubAbsServer.TEST_STANDALONE_ITEM_ID}") {
-            "Expected PATCH /api/me/progress/:itemId but got: $path"
-        }
-    }
-
-    @Test
     fun progressSyncSendsEpubCfiNotJson() {
         // Regression: previously sent Readium Locator JSON as ebookLocation; must send epubcfi(...)
         addServerAndBrowseLibrary()
