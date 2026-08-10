@@ -1,8 +1,13 @@
 package com.riffle.app.feature.reader
 
+import android.graphics.Bitmap
+import android.os.Handler
 import android.view.MotionEvent
+import android.view.PixelCopy
+import android.view.Surface
 import android.view.View
 import android.view.ViewGroup
+import android.view.Window
 import android.webkit.WebView
 import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.hasText
@@ -219,6 +224,82 @@ class ContinuousChapterBoundaryHarnessTest {
         )
     }
 
+    @Test
+    fun scrollsAcrossBothLongChapterShortPartTitleBoundaries() {
+        addServerAndBrowseLibrary()
+        composeTestRule.waitUntil(timeoutMillis = 15_000) {
+            composeTestRule.onAllNodesWithText(StubAbsServer.TEST_STANDALONE_ITEM_TITLE)
+                .fetchSemanticsNodes().isNotEmpty()
+        }
+        composeTestRule.onNodeWithText(StubAbsServer.TEST_STANDALONE_ITEM_TITLE).performClick()
+        composeTestRule.tapReadInDetailScreen()
+        composeTestRule.waitUntil(timeoutMillis = 45_000) {
+            composeTestRule.onAllNodesWithTag(ReaderSemanticMatchers.TAG_READER_READY)
+                .fetchSemanticsNodes().isNotEmpty() ||
+                composeTestRule.onAllNodesWithTag(ReaderSemanticMatchers.TAG_ERROR_STATE)
+                    .fetchSemanticsNodes().isNotEmpty()
+        }
+        composeTestRule.assertNoErrorState()
+
+        composeTestRule.waitUntil(timeoutMillis = 45_000) {
+            findContinuousReader()?.isFirstLoadComplete?.value == true
+        }
+        val reader = requireNotNull(findContinuousReader()) {
+            "continuous reader view was not mounted"
+        }
+
+        dismissUpdateDialogIfPresent()
+        swipeFromNearEndInto(reader, fromHref = "OEBPS/ch06.html", toHref = "ch07.html")
+        swipeBackwardFromStartInto(reader, fromHref = "OEBPS/ch07.html", toHref = "ch06.html")
+        assertReaderViewportRendered(reader, "ch06.html")
+        flingBackwardLandsAtBoundary(
+            reader,
+            fromHref = "OEBPS/ch11.html",
+            prevHref = "ch10.html",
+            boundaryHref = "pt03.html",
+        )
+        Thread.sleep(3_000)
+        swipeFromNearEndInto(reader, fromHref = "OEBPS/ch10.html", toHref = "ch11.html")
+        swipeBackwardFromStartInto(reader, fromHref = "OEBPS/ch11.html", toHref = "ch10.html")
+        assertReaderViewportRendered(reader, "ch10.html")
+        flingBackwardOverLoadedChapterStopsNearBoundary(reader)
+    }
+
+    private fun flingBackwardOverLoadedChapterStopsNearBoundary(reader: ContinuousReaderView) {
+        composeTestRule.activityRule.scenario.onActivity {
+            reader.navigateTo("OEBPS/ch11.html", progression = 0f, alignToTop = true)
+        }
+        composeTestRule.waitUntil(timeoutMillis = 45_000) {
+            isReaderInChapter(reader, "ch11.html")
+        }
+        var ch10Height = 0
+        composeTestRule.activityRule.scenario.onActivity {
+            ch10Height = loadedWebViews(reader)
+                .firstOrNull { it.url?.endsWith("ch10.html") == true }?.height ?: 0
+        }
+        assertTrue("premise broken: ch10 not loaded/measured before the fling", ch10Height > 10_000)
+        dispatchFlingSwipeBackward(reader)
+        composeTestRule.waitForIdle()
+        Thread.sleep(1_500)
+        var boundaryTop = -1
+        var scrollYNow = -1
+        var viewportH = 0
+        composeTestRule.activityRule.scenario.onActivity {
+            boundaryTop = loadedWebViews(reader)
+                .firstOrNull { it.url?.endsWith("pt03.html") == true }?.top ?: -1
+            scrollYNow = reader.scrollY
+            viewportH = reader.height
+        }
+        assertTrue("pt03 missing from window after fling", boundaryTop >= 0)
+        val overshoot = boundaryTop - scrollYNow
+        assertTrue(
+            "no-prepend backward fling overshot the pt03 boundary by $overshoot px " +
+                "(scrollY=$scrollYNow, boundaryTop=$boundaryTop, viewport=$viewportH) — " +
+                "the backward-fling floor must cap crossing flings at one page past the boundary",
+            overshoot <= viewportH,
+        )
+    }
+
     private fun findContinuousReader(): ContinuousReaderView? {
         var result: ContinuousReaderView? = null
         composeTestRule.activityRule.scenario.onActivity { activity ->
@@ -324,6 +405,184 @@ class ContinuousChapterBoundaryHarnessTest {
         }
         Thread.sleep(8)
         send(MotionEvent.ACTION_UP, endY, 9 * 8L)
+    }
+
+    private fun swipeFromNearEndInto(
+        reader: ContinuousReaderView,
+        fromHref: String,
+        toHref: String,
+    ) {
+        composeTestRule.activityRule.scenario.onActivity {
+            reader.navigateTo(fromHref, progression = 0.9f, alignToTop = false)
+        }
+        composeTestRule.waitUntil(timeoutMillis = 45_000) {
+            loadedChapterHrefs(reader).any { it.endsWith(fromHref) }
+        }
+        run {
+            val deadline45s = android.os.SystemClock.uptimeMillis() + 45_000L
+            var passed = false
+            while (!passed && android.os.SystemClock.uptimeMillis() < deadline45s) {
+                composeTestRule.activityRule.scenario.onActivity {
+                    val mid = reader.scrollY + reader.height / 2
+                    passed = loadedWebViews(reader).any { wv ->
+                        mid >= wv.top && mid < wv.bottom && wv.url?.endsWith(fromHref) == true
+                    }
+                }
+                if (!passed) Thread.sleep(500)
+            }
+            assertTrue("reader never in $fromHref after navigateTo(0.9f)", passed)
+        }
+        for (attempt in 0 until 80) {
+            if (isReaderInChapter(reader, toHref)) break
+            dispatchSwipeUp(reader)
+            composeTestRule.waitForIdle()
+            Thread.sleep(100)
+        }
+        composeTestRule.waitUntil(timeoutMillis = 5_000) { isReaderInChapter(reader, toHref) }
+        repeat(8) { composeTestRule.waitForIdle(); Thread.sleep(100) }
+        if (!isReaderInChapter(reader, toHref)) {
+            var diag = ""
+            composeTestRule.activityRule.scenario.onActivity {
+                diag = loadedWebViews(reader).joinToString(prefix = "[", postfix = "]") {
+                    "${it.url?.substringAfterLast('/')}:h=${it.height}:top=${it.top}"
+                } + " scrollY=${reader.scrollY} vh=${reader.height}"
+            }
+            org.junit.Assert.fail("expected $toHref to remain reachable; window=$diag")
+        }
+    }
+
+    private fun swipeBackwardFromStartInto(
+        reader: ContinuousReaderView,
+        fromHref: String,
+        toHref: String,
+    ) {
+        composeTestRule.activityRule.scenario.onActivity {
+            reader.navigateTo(fromHref, progression = 0f, alignToTop = true)
+        }
+        composeTestRule.waitUntil(timeoutMillis = 45_000) {
+            loadedChapterHrefs(reader).any { it.endsWith(fromHref) }
+        }
+        composeTestRule.waitUntil(timeoutMillis = 5_000) { isReaderInChapter(reader, fromHref) }
+        for (attempt in 0 until 40) {
+            if (isReaderInChapter(reader, toHref)) break
+            dispatchSwipe(reader, forward = false)
+            composeTestRule.waitForIdle()
+            Thread.sleep(100)
+        }
+        composeTestRule.waitUntil(timeoutMillis = 5_000) { isReaderInChapter(reader, toHref) }
+        composeTestRule.waitForIdle()
+        assertFalse(
+            "one backward gesture must be consumed by one prepend; leaving it latched lets " +
+                "scroll compensation prepend every earlier resource until the screen is blank",
+            reader.hasPendingBackwardNavigationIntent,
+        )
+    }
+
+    private fun flingBackwardLandsAtBoundary(
+        reader: ContinuousReaderView,
+        fromHref: String,
+        prevHref: String,
+        boundaryHref: String,
+    ) {
+        composeTestRule.activityRule.scenario.onActivity {
+            reader.navigateTo(fromHref, progression = 0f, alignToTop = true)
+        }
+        composeTestRule.waitUntil(timeoutMillis = 45_000) {
+            loadedChapterHrefs(reader).any { it.endsWith(fromHref) }
+        }
+        composeTestRule.waitUntil(timeoutMillis = 5_000) { isReaderInChapter(reader, fromHref) }
+        composeTestRule.waitForIdle()
+        Thread.sleep(2_600)
+        dispatchFlingSwipeBackward(reader)
+        val measureDeadline = android.os.SystemClock.uptimeMillis() + 20_000
+        var prevMeasured = false
+        while (!prevMeasured && android.os.SystemClock.uptimeMillis() < measureDeadline) {
+            composeTestRule.waitForIdle()
+            composeTestRule.activityRule.scenario.onActivity {
+                prevMeasured = loadedWebViews(reader).any { wv ->
+                    wv.url?.endsWith(prevHref) == true && wv.height > reader.height * 3
+                }
+            }
+            if (!prevMeasured) Thread.sleep(200)
+        }
+        if (!prevMeasured) {
+            var diag = ""
+            composeTestRule.activityRule.scenario.onActivity {
+                diag = loadedWebViews(reader).joinToString(prefix = "[", postfix = "]") {
+                    "${it.url?.substringAfterLast('/')}:h=${it.height}:top=${it.top}"
+                } + " scrollY=${reader.scrollY} vh=${reader.height}"
+            }
+            org.junit.Assert.fail("prepended $prevHref never measured after backward fling; window=$diag")
+        }
+        composeTestRule.waitForIdle()
+        Thread.sleep(1_000)
+        var boundaryTop = -1
+        var scrollYNow = -1
+        var viewportH = 0
+        composeTestRule.activityRule.scenario.onActivity {
+            boundaryTop = loadedWebViews(reader)
+                .firstOrNull { it.url?.endsWith(boundaryHref) == true }?.top ?: -1
+            scrollYNow = reader.scrollY
+            viewportH = reader.height
+        }
+        assertTrue("boundary resource $boundaryHref not in window after backward fling", boundaryTop >= 0)
+        val overshoot = boundaryTop - scrollYNow
+        assertTrue(
+            "backward fling overshot the $boundaryHref boundary by $overshoot px " +
+                "(scrollY=$scrollYNow, boundaryTop=$boundaryTop, viewport=$viewportH)",
+            overshoot <= viewportH,
+        )
+    }
+
+    private fun assertReaderViewportRendered(reader: ContinuousReaderView, href: String) {
+        composeTestRule.waitForIdle()
+        Thread.sleep(1_500)
+        val screen = captureWindowToBitmap(composeTestRule.activity.window)
+        val location = IntArray(2)
+        composeTestRule.activityRule.scenario.onActivity { reader.getLocationOnScreen(location) }
+        val xStart = location[0].coerceAtLeast(0)
+        val xEnd = (location[0] + reader.width).coerceAtMost(screen.width)
+        val yStart = (location[1] + reader.height * 0.1f).toInt().coerceAtLeast(0)
+        val yEnd = (location[1] + reader.height * 0.85f).toInt().coerceAtMost(screen.height)
+        var inkPixels = 0
+        for (y in yStart until yEnd step 2) {
+            for (x in xStart until xEnd step 2) {
+                val pixel = screen.getPixel(x, y)
+                val red = (pixel shr 16) and 0xFF
+                val green = (pixel shr 8) and 0xFF
+                val blue = pixel and 0xFF
+                if (red + green + blue < 540) inkPixels++
+            }
+        }
+        assertTrue(
+            "expected rendered text after navigating backward into $href; " +
+                "only $inkPixels sampled ink pixels were visible",
+            inkPixels >= 500,
+        )
+    }
+
+    private fun captureWindowToBitmap(window: Window): Bitmap {
+        val decor = window.decorView
+        val viewRoot = decor.parent
+        val surfaceField = viewRoot.javaClass.getDeclaredField("mSurface").apply { isAccessible = true }
+        val surface = surfaceField.get(viewRoot) as Surface
+        val bitmap = Bitmap.createBitmap(decor.width, decor.height, Bitmap.Config.ARGB_8888)
+        val latch = CountDownLatch(1)
+        val result = intArrayOf(-1)
+        val handlerThread = android.os.HandlerThread("ContinuousBoundaryPixelCopy").apply { start() }
+        try {
+            PixelCopy.request(
+                surface,
+                bitmap,
+                { code -> result[0] = code; latch.countDown() },
+                Handler(handlerThread.looper),
+            )
+            assertTrue("PixelCopy timed out", latch.await(5, TimeUnit.SECONDS))
+            assertEquals("PixelCopy result was not SUCCESS", PixelCopy.SUCCESS, result[0])
+        } finally {
+            handlerThread.quitSafely()
+        }
+        return bitmap
     }
 
     private fun dismissUpdateDialogIfPresent() {

@@ -176,4 +176,64 @@ class ChapterWebViewSettingsTest {
         }
     }
 
+    /**
+     * Loads an HTML page with **no** `<meta name="viewport">` into a [ChapterWebView] and verifies
+     * that `document.documentElement.clientWidth` equals the WebView's own CSS-pixel width, not 980.
+     */
+    @Test
+    fun layoutViewportEqualsWebViewCssPxWidthNotWideViewportDefault() {
+        val html = "<html><head></head><body><p>text</p></body></html>"
+        val physicalWidth = 1080
+        val physicalHeight = 1920
+        withChapterWebViewFixture(html, widthPx = physicalWidth, heightPx = physicalHeight) { wv ->
+            wv.awaitInnerHeight(timeoutMs = 5_000)
+            val dpr = wv.evalSync("window.devicePixelRatio").trim('"').toDoubleOrNull() ?: 1.0
+            val expectedCssPx = physicalWidth / dpr
+            val clientWidth = wv.evalSync("document.documentElement.clientWidth")
+                .trim('"').toDoubleOrNull() ?: 0.0
+            assertEquals(
+                "document.documentElement.clientWidth must equal the WebView's CSS-pixel width " +
+                    "(~${expectedCssPx.toInt()} px on this device), " +
+                    "not the 980px wide-viewport default",
+                expectedCssPx,
+                clientWidth,
+                2.0,
+            )
+        }
+    }
+
+    private fun withChapterWebViewFixture(
+        html: String,
+        widthPx: Int,
+        heightPx: Int,
+        block: (ChapterWebView) -> Unit,
+    ) {
+        val ready = CountDownLatch(1)
+        val holder = arrayOfNulls<ChapterWebView>(1)
+        instrumentation.runOnMainSync {
+            val wv = ChapterWebView(context)
+            wv.onPageFinished = { ready.countDown() }
+            wv.measure(
+                View.MeasureSpec.makeMeasureSpec(widthPx, View.MeasureSpec.EXACTLY),
+                View.MeasureSpec.makeMeasureSpec(heightPx, View.MeasureSpec.EXACTLY),
+            )
+            wv.layout(0, 0, widthPx, heightPx)
+            holder[0] = wv
+            wv.loadDataWithBaseURL(null, html, "text/html", "utf-8", null)
+        }
+        assertTrue("ChapterWebView page did not finish loading within 30 s", ready.await(30, TimeUnit.SECONDS))
+        val wv = holder[0]!!
+        instrumentation.runOnMainSync {
+            wv.measure(
+                View.MeasureSpec.makeMeasureSpec(widthPx, View.MeasureSpec.EXACTLY),
+                View.MeasureSpec.makeMeasureSpec(heightPx, View.MeasureSpec.EXACTLY),
+            )
+            wv.layout(0, 0, widthPx, heightPx)
+        }
+        try {
+            block(wv)
+        } finally {
+            instrumentation.runOnMainSync { wv.destroy() }
+        }
+    }
 }

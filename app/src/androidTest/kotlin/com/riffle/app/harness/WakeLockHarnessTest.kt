@@ -61,6 +61,16 @@ class WakeLockHarnessTest {
     }
 
     @Test
+    fun wakeLockIsActiveByDefaultInEpubReader() {
+        addServerAndBrowseToReader()
+
+        composeTestRule.assertNoErrorState()
+        composeTestRule
+            .onNode(hasTestTag(ReaderSemanticMatchers.TAG_READER_READY) and hasContentDescription("wake-lock:on", substring = true))
+            .assertExists()
+    }
+
+    @Test
     fun wakeLockIsOffWhenDisabledInSettings() {
         // Disable "Keep screen on" in Settings before opening a book
         addServerAndNavigateToSettings()
