@@ -218,7 +218,7 @@ jobs:
           arch: x86
           profile: pixel
           disable-animations: true
-          emulator-options: -no-snapshot -no-window -no-boot-anim -no-audio -camera-back none -gpu swiftshader_indirect
+          emulator-options: -no-snapshot -no-window -no-boot-anim -no-audio -camera-back none -gpu swiftshader_indirect -memory 4096
           script: adb logcat -G 16M || true; adb logcat -c || true; ./gradlew :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.notAnnotation=com.riffle.app.harness.TabletLayout; GRADLE_RC=$?; adb logcat -d > logcat-phone.txt || true; exit $GRADLE_RC
       - name: Upload harness phone reports
         if: always()
