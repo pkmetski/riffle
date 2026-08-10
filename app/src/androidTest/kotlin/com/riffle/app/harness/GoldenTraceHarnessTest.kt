@@ -61,11 +61,7 @@ class GoldenTraceHarnessTest {
         stubServer.shutdown()
         composeTestRule.activityRule.scenario.close()
         Runtime.getRuntime().gc()
-        // GoldenTrace keeps Readium active for ~40 s waiting for progress sync, leaving more
-        // native WebView memory behind than a quick reader-open test. 90 s matches the
-        // inter-shard sleep and gives the guest OS enough time under 1.5 GB RAM pressure to
-        // evict ashmem-backed pages before the next test class opens its WebView.
-        Thread.sleep(90_000)
+        Thread.sleep(400)
         database.clearAllTables()
     }
 
