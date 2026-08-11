@@ -29,7 +29,13 @@ class DownloadsViewModelTest {
     @Before fun setUp() { Dispatchers.setMain(dispatcher) }
     @After fun tearDown() { Dispatchers.resetMain() }
 
-    private fun item(sourceId: String, id: String, title: String) = LibraryItem(
+    private fun item(
+        sourceId: String,
+        id: String,
+        title: String,
+        ebookFormat: EbookFormat = EbookFormat.Epub,
+        hasAudio: Boolean = false,
+    ) = LibraryItem(
         id = id,
         libraryId = "lib-$sourceId",
         title = title,
@@ -38,7 +44,8 @@ class DownloadsViewModelTest {
         readingProgress = 0f,
         isCached = false,
         isDownloaded = false,
-        ebookFormat = EbookFormat.Epub,
+        ebookFormat = ebookFormat,
+        hasAudio = hasAudio,
         sourceId = sourceId,
     )
 
@@ -60,9 +67,11 @@ class DownloadsViewModelTest {
         every { downloadsRepo.getDownloadedItems() } returns listOf(
             StoredItemRef("abs", "abs-book"),
             StoredItemRef("chitanka", "ch-book"),
+            StoredItemRef("abs", "ab-book"),
         )
         every { downloadsRepo.getCachedItems() } returns listOf(
             StoredItemRef("abs", "abs-cached"),
+            StoredItemRef("abs", "ab-cached"),
         )
         every { downloadsRepo.sizeOf(any(), any()) } returns 1024L
 
@@ -70,6 +79,10 @@ class DownloadsViewModelTest {
         coEvery { libraryObserver.getItem("abs", "abs-book") } returns item("abs", "abs-book", "ABS Downloaded")
         coEvery { libraryObserver.getItem("chitanka", "ch-book") } returns item("chitanka", "ch-book", "Chitanka Downloaded")
         coEvery { libraryObserver.getItem("abs", "abs-cached") } returns item("abs", "abs-cached", "ABS Cached")
+        coEvery { libraryObserver.getItem("abs", "ab-book") } returns
+            item("abs", "ab-book", "ABS Audiobook Downloaded", ebookFormat = EbookFormat.Unsupported, hasAudio = true)
+        coEvery { libraryObserver.getItem("abs", "ab-cached") } returns
+            item("abs", "ab-cached", "ABS Audiobook Cached", ebookFormat = EbookFormat.Unsupported, hasAudio = true)
         coEvery { libraryObserver.getItem("storyteller", "st-book") } returns item("storyteller", "st-book", "Storyteller Readaloud")
 
         val sidecarStore = mockk<ReadaloudSidecarStore>(relaxed = true)
@@ -82,10 +95,10 @@ class DownloadsViewModelTest {
 
         val state = vm.uiState.value
         assertEquals(
-            listOf("ABS Downloaded", "Chitanka Downloaded"),
+            listOf("ABS Downloaded", "Chitanka Downloaded", "ABS Audiobook Downloaded"),
             state.downloadedItems.map { it.item.title },
         )
-        assertEquals(listOf("ABS Cached"), state.cachedItems.map { it.item.title })
+        assertEquals(listOf("ABS Cached", "ABS Audiobook Cached"), state.cachedItems.map { it.item.title })
         assertEquals(listOf("Storyteller Readaloud"), state.readaloudSidecars.map { it.item.title })
     }
 }

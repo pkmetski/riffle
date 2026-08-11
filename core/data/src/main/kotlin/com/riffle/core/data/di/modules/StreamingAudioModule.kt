@@ -3,6 +3,7 @@ package com.riffle.core.data.di.modules
 import android.content.Context
 import com.riffle.core.data.AudioIdentityResolverImpl
 import com.riffle.core.data.AudiobookBundleDownloader
+import com.riffle.core.data.AudiobookCacheRepositoryImpl
 import com.riffle.core.data.AudiobookChapterCacheRepositoryImpl
 import com.riffle.core.data.AudiobookDownloadRepositoryImpl
 import com.riffle.core.data.AudiobookRepositoryImpl
@@ -16,6 +17,7 @@ import com.riffle.core.data.di.EpubDownloadsStore
 import com.riffle.core.data.readaloudLinksByAbsItemKey
 import com.riffle.core.domain.ApplicationScope
 import com.riffle.core.domain.AudioIdentityResolver
+import com.riffle.core.domain.AudiobookCacheRepository
 import com.riffle.core.domain.AudiobookChapterCacheRepository
 import com.riffle.core.domain.AudiobookDownloadRepository
 import com.riffle.core.domain.AudiobookRepository
@@ -47,6 +49,10 @@ abstract class StreamingAudioModule {
     @Binds
     @Singleton
     abstract fun bindAudiobookDownloadRepository(impl: AudiobookDownloadRepositoryImpl): AudiobookDownloadRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindAudiobookCacheRepository(impl: AudiobookCacheRepositoryImpl): AudiobookCacheRepository
 
     @Binds
     @Singleton

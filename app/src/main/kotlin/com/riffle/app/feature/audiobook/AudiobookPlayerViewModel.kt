@@ -10,6 +10,7 @@ import com.riffle.core.models.AudiobookBookmark
 import com.riffle.core.domain.ListeningPreferencesStore
 import com.riffle.core.domain.AudiobookBookmarkStore
 import com.riffle.core.domain.AudiobookChapter
+import com.riffle.core.domain.AudiobookCacheRepository
 import com.riffle.core.domain.AudiobookRepository
 import com.riffle.core.domain.AudiobookTimeline
 import com.riffle.core.domain.BookmarkTitleBuilder
@@ -172,6 +173,7 @@ class AudiobookPlayerViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
     private val audiobookRepository: AudiobookRepository,
     private val audiobookDownloadRepository: com.riffle.core.domain.AudiobookDownloadRepository,
+    private val audiobookCacheRepository: AudiobookCacheRepository,
     private val bundleAudiobookSource: com.riffle.core.domain.BundleAudiobookSource,
     private val libraryObserver: LibraryObserver,
     private val updateReadingProgressUseCase: UpdateReadingProgress,
@@ -383,15 +385,20 @@ class AudiobookPlayerViewModel @Inject constructor(
             logger.d(LogChannel.Handoff) { "AB.VM init: got server +${clock.nowMs() - t0}ms" }
             val item = libraryObserver.getItem(itemId)
             logger.d(LogChannel.Handoff) { "AB.VM init: got item +${clock.nowMs() - t0}ms" }
-            // Prefer a dedicated audiobook download, then a downloaded readaloud bundle's audio, then
-            // stream from ABS (connectivity-independent: a local copy always beats streaming).
+            // Prefer a dedicated audiobook download, then a downloaded readaloud bundle's audio,
+            // then an auto-cached copy, then stream from ABS (connectivity-independent: a local copy
+            // always beats streaming). The streaming path launches a background job to cache all
+            // tracks and swap the player's unplayed queue items to file:// URLs on completion.
+            var launchCacheJob = false
             val session = if (sourceId.isEmpty()) null
                 else audiobookDownloadRepository.localSession(sourceId, itemId)
                     ?.also { logger.d(LogChannel.Handoff) { "AB.VM init: local download session +${clock.nowMs() - t0}ms" } }
                     ?: bundleAudiobookSource.localSession(sourceId, itemId)
                     ?.also { logger.d(LogChannel.Handoff) { "AB.VM init: bundle session +${clock.nowMs() - t0}ms" } }
+                    ?: audiobookCacheRepository.localSession(sourceId, itemId)
+                    ?.also { logger.d(LogChannel.Handoff) { "AB.VM init: auto-cache session +${clock.nowMs() - t0}ms" } }
                     ?: audiobookRepository.openSession(sourceId, itemId)
-                    ?.also { logger.d(LogChannel.Handoff) { "AB.VM init: ABS network session +${clock.nowMs() - t0}ms" } }
+                    ?.also { launchCacheJob = true; logger.d(LogChannel.Handoff) { "AB.VM init: ABS network session +${clock.nowMs() - t0}ms" } }
             if (item == null || session == null) {
                 logger.d(LogChannel.Handoff) { "AB.VM init: FAILED (item=${item != null} session=${session != null}) +${clock.nowMs() - t0}ms" }
                 meta.value = meta.value.copy(loading = false, failed = true)
@@ -480,6 +487,28 @@ class AudiobookPlayerViewModel @Inject constructor(
                 val rewindOnResume = listeningPreferencesStore.rewindOnResumeSeconds.first().toDouble()
                 if (rewindOnResume > 0.0 && resumeSec > 0.0) {
                     playbackStartSec = (resumeSec - rewindOnResume).coerceAtLeast(0.0)
+                }
+            }
+
+            // Background auto-cache: download all tracks silently so the next open (or the current
+            // session after the swap) uses local files instead of the live stream. Launched before
+            // prepare() so the download starts as early as possible. viewModelScope cancels it if
+            // the user exits before caching completes; the partial dir is cleaned up by the impl.
+            if (launchCacheJob) {
+                val capturedSession = session
+                val capturedSourceId = sourceId
+                val capturedItemId = itemId
+                viewModelScope.launch {
+                    audiobookCacheRepository.awaitCachedAudiobook(capturedSourceId, capturedItemId, capturedSession)
+                    // Swap the unplayed tail of the queue to file:// URLs.
+                    val cachedSession = audiobookCacheRepository.localSession(capturedSourceId, capturedItemId) ?: return@launch
+                    val currentTrackIndex = com.riffle.core.models.AudiobookTracks.trackIndexAt(
+                        controller.currentAbsoluteSec(),
+                        capturedSession.tracks,
+                    )
+                    val nextIndex = currentTrackIndex + 1
+                    controller.swapTracksFromIndex(nextIndex, cachedSession.trackUrls.drop(nextIndex))
+                    logger.d(LogChannel.Handoff) { "AB.VM cache swap: tracks from $nextIndex swapped to local files" }
                 }
             }
 

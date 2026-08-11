@@ -195,6 +195,7 @@ class SleepTimerTest {
             savedStateHandle = SavedStateHandle(mapOf("itemId" to itemId)),
             audiobookRepository = FakeAudiobookRepository(session),
             audiobookDownloadRepository = NoDownloadRepo,
+            audiobookCacheRepository = NoCacheRepo,
             bundleAudiobookSource = NoBundleSource,
             libraryObserver = FakeLibraryRepository(),
             updateReadingProgressUseCase = com.riffle.app.testing.NoopUpdateReadingProgress(),
@@ -410,6 +411,13 @@ class SleepTimerTest {
     private object NoBundleSource : BundleAudiobookSource {
         override suspend fun localSession(sourceId: String, itemId: String): AudiobookSession? = null
         override fun isAvailableOffline(sourceId: String, itemId: String) = false
+    }
+
+    private object NoCacheRepo : com.riffle.core.domain.AudiobookCacheRepository {
+        override fun isCached(sourceId: String, itemId: String) = false
+        override fun localSession(sourceId: String, itemId: String): AudiobookSession? = null
+        override suspend fun awaitCachedAudiobook(sourceId: String, itemId: String, session: AudiobookSession) = Unit
+        override suspend fun remove(sourceId: String, itemId: String): Long = 0
     }
 
     private inner class FakeLibraryRepository : LibraryObserver {

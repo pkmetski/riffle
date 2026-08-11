@@ -17,6 +17,7 @@ import com.riffle.core.data.LocalStoreMigrator
 import com.riffle.core.data.ReadaloudResumeStoreImpl
 import com.riffle.core.data.ReadingPositionStoreImpl
 import com.riffle.core.data.SourceFilesCleanerImpl
+import com.riffle.core.data.di.AudiobookCacheDir
 import com.riffle.core.data.di.AudiobookDownloadsDir
 import com.riffle.core.data.di.CrashReportDir
 import com.riffle.core.data.di.CbzCacheStore
@@ -125,6 +126,12 @@ abstract class LocalStoreModule {
 
         @Provides
         @Singleton
+        @AudiobookCacheDir
+        fun provideAudiobookCacheDir(@ApplicationContext context: Context): File =
+            context.cacheDir.resolve("audiobooks").also { it.mkdirs() }
+
+        @Provides
+        @Singleton
         @PdfCacheStore
         fun providePdfCacheStore(@ApplicationContext context: Context, dispatchers: com.riffle.core.domain.DispatcherProvider): LocalStore =
             LocalStoreImpl(context.cacheDir.resolve("pdfs").also { it.mkdirs() }, ".pdf", dispatchers)
@@ -177,10 +184,13 @@ abstract class LocalStoreModule {
             @PdfDownloadsStore pdfDownloadsStore: LocalStore,
             @CbzCacheStore cbzCacheStore: LocalStore,
             @CbzDownloadsStore cbzDownloadsStore: LocalStore,
+            @AudiobookCacheDir audiobookCacheDir: File,
+            @AudiobookDownloadsDir audiobookDownloadsDir: File,
         ): DownloadsRepository = DownloadsRepositoryImpl(
             epubCacheStore, epubDownloadsStore,
             pdfCacheStore, pdfDownloadsStore,
             cbzCacheStore, cbzDownloadsStore,
+            audiobookCacheDir, audiobookDownloadsDir,
         )
 
         @Provides
