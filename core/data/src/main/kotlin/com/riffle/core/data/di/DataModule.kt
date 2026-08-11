@@ -97,6 +97,10 @@ annotation class AudiobookDownloadsDir
 
 @Qualifier
 @Retention(AnnotationRetention.BINARY)
+annotation class AudiobookCacheDir
+
+@Qualifier
+@Retention(AnnotationRetention.BINARY)
 annotation class PdfCacheStore
 
 @Qualifier

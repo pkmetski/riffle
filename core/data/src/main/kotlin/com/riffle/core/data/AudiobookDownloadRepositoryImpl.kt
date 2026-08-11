@@ -6,11 +6,8 @@ import com.riffle.core.domain.AudiobookDownloadResult
 import com.riffle.core.domain.AudiobookRepository
 import com.riffle.core.domain.AudiobookSession
 import com.riffle.core.domain.AudiobookTimeline
-import com.riffle.core.data.di.qualifiers.StreamingHttpClient
-import com.riffle.core.models.AudiobookTrackSpan
 import com.riffle.core.domain.DispatcherProvider
-import com.riffle.core.network.withHttpByteStream
-import io.ktor.client.HttpClient
+import com.riffle.core.models.AudiobookTrackSpan
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
@@ -38,11 +35,12 @@ internal data class AudiobookDownloadManifest(
  * reconstructs a playable [AudiobookSession] from them offline (ADR 0029). The directory holds one
  * file per track plus `manifest.json`; the manifest is written **last**, so its presence is the
  * atomic "fully downloaded" marker — a partial download (some tracks, no manifest) reads as
- * not-downloaded and is simply re-fetched.
+ * not-downloaded and is simply re-fetched. All tracks are downloaded in parallel via
+ * [AudiobookTrackDownloader].
  */
 class AudiobookDownloadRepositoryImpl @Inject constructor(
     private val audiobookRepository: AudiobookRepository,
-    @StreamingHttpClient private val httpClient: HttpClient,
+    private val trackDownloader: AudiobookTrackDownloader,
     @com.riffle.core.data.di.AudiobookDownloadsDir private val downloadsDir: File,
     private val dispatchers: DispatcherProvider,
 ) : AudiobookDownloadRepository {
@@ -85,46 +83,11 @@ class AudiobookDownloadRepositoryImpl @Inject constructor(
         val progress = CumulativeDownloadProgress(wholeAudiobookBytes ?: 0L, onProgress)
 
         val dir = itemDir(sourceId, itemId).apply { mkdirs() }
-        val manifestTracks = ArrayList<AudiobookDownloadManifest.ManifestTrack>()
         try {
-            session.trackUrls.forEachIndexed { i, url ->
-                val fileName = "track-$i"
-                val out = File(dir, fileName)
-                httpClient.withHttpByteStream(
-                    url = url,
-                    httpFailure = { failure -> IOException("HTTP ${failure.code} for track $i") },
-                ) { response ->
-                    // A per-track Content-Length is only the whole download size for a one-track
-                    // audiobook. For multi-track books, using each newly discovered length as the
-                    // denominator makes progress hit 100% at every track boundary and then go
-                    // backwards. Prefer the Source fingerprint's aggregate size; stay indeterminate
-                    // when a multi-track Source cannot provide one.
-                    if (session.trackUrls.size == 1) {
-                        progress.establishTotal(response.contentLength)
-                    }
-                    response.inputStream.use { input ->
-                        out.outputStream().use { output ->
-                            val buf = ByteArray(64 * 1024)
-                            while (true) {
-                                val read = input.read(buf)
-                                if (read < 0) break
-                                output.write(buf, 0, read)
-                                progress.record(read.toLong())
-                            }
-                        }
-                    }
-                }
-                val span = session.tracks.getOrNull(i)
-                manifestTracks += AudiobookDownloadManifest.ManifestTrack(
-                    index = span?.index ?: i,
-                    file = fileName,
-                    startOffsetSec = span?.startOffsetSec ?: 0.0,
-                    durationSec = span?.durationSec ?: 0.0,
-                )
-            }
+            val manifestTracks = trackDownloader.download(session, dir, progress)
             val manifest = AudiobookDownloadManifest(
                 durationSec = session.timeline.durationSec,
-                tracks = manifestTracks,
+                tracks = manifestTracks.sortedBy { it.index },
                 chapters = session.timeline.chapters.map {
                     AudiobookDownloadManifest.ManifestChapter(it.index, it.startSec, it.endSec, it.title)
                 },

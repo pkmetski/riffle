@@ -41,12 +41,16 @@ class AudiobookDownloadRepositoryImplTest {
     private fun repo(
         root: File,
         audiobookRepository: AudiobookRepository = NoopAudiobookRepository,
-    ) = AudiobookDownloadRepositoryImpl(
-        audiobookRepository,
-        createStreamingHttpClient(),
-        root,
-        com.riffle.core.domain.DefaultDispatcherProvider,
-    )
+    ): AudiobookDownloadRepositoryImpl {
+        val httpClient = createStreamingHttpClient()
+        val trackDownloader = AudiobookTrackDownloader(httpClient, com.riffle.core.domain.DefaultDispatcherProvider)
+        return AudiobookDownloadRepositoryImpl(
+            audiobookRepository,
+            trackDownloader,
+            root,
+            com.riffle.core.domain.DefaultDispatcherProvider,
+        )
+    }
 
     /** Write a completed download (track files + manifest) for (srv, it) under [root]. */
     private fun writeDownload(root: File) {

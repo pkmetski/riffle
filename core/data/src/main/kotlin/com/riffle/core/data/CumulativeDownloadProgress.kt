@@ -5,6 +5,9 @@ import java.io.InputStream
 /**
  * Owns the cumulative byte count and stable total for a transfer. One instance can track a single
  * book stream or successive audiobook tracks; a non-positive total remains indeterminate.
+ *
+ * Thread-safe: [record] and [establishTotal] synchronize on `this` so parallel track downloads can
+ * all report into the same counter without races.
  */
 internal class CumulativeDownloadProgress(
     total: Long,
@@ -16,10 +19,12 @@ internal class CumulativeDownloadProgress(
     private var total = total.takeIf { it > 0L } ?: 0L
 
     /** Establishes an initially unknown total exactly once. */
+    @Synchronized
     fun establishTotal(candidate: Long?) {
         if (total == 0L && candidate != null && candidate > 0L) total = candidate
     }
 
+    @Synchronized
     fun record(delta: Long) {
         if (delta <= 0L) return
         downloaded += delta

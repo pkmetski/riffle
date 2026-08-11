@@ -285,6 +285,22 @@ open class AudiobookController @Inject constructor(
     }
 
     /**
+     * Replaces media items from [fromIndex] to the end of the queue with [newUrls]. Used by the
+     * auto-cache swap: once all tracks are cached locally the VM calls this to point the unplayed
+     * tail of the queue at `file://` URLs instead of the original `http://` stream URLs. The
+     * currently-playing track (indices < [fromIndex]) is left untouched.
+     */
+    open fun swapTracksFromIndex(fromIndex: Int, newUrls: List<String>) {
+        val c = controller ?: return
+        if (!prepared || newUrls.isEmpty() || fromIndex >= c.mediaItemCount) return
+        val templateMetadata = c.getMediaItemAt(fromIndex.coerceAtMost(c.mediaItemCount - 1)).mediaMetadata
+        val items = newUrls.map { url ->
+            MediaItem.Builder().setMediaId(url).setUri(url).setMediaMetadata(templateMetadata).build()
+        }
+        c.replaceMediaItems(fromIndex, c.mediaItemCount, items)
+    }
+
+    /**
      * Discard any cached end-of-book event WITHOUT tearing the session down. Called when the
      * outgoing playlist-item VM hands off to the next item's VM on the same singleton controller:
      * the next VM's collector must NOT immediately re-consume the previous item's STATE_ENDED

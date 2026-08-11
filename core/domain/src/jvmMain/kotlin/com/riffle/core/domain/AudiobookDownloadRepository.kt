@@ -9,8 +9,8 @@ sealed class AudiobookDownloadResult {
  * Permanent offline copy of an [Audiobook] — the ebook-Download analogue for audio (ADR 0029). An
  * audiobook is several ABS tracks, so a download is a *directory* of track files plus a manifest that
  * records the timeline (per-track offsets/durations + chapters) so playback reconstructs the book
- * offline without re-opening an ABS play session. v1 is download-or-nothing; there is no auto-cache
- * tier for audio yet.
+ * offline without re-opening an ABS play session. For the auto-cache (evictable) tier see
+ * [AudiobookCacheRepository].
  */
 interface AudiobookDownloadRepository {
     fun isDownloaded(sourceId: String, itemId: String): Boolean
