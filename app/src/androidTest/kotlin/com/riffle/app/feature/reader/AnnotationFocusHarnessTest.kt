@@ -151,7 +151,15 @@ class AnnotationFocusHarnessTest {
         navigateWithSearch("Section 1.1: Origins")
         closeSearch()
         showTopAppBar()
-        composeTestRule.onNodeWithContentDescription("Annotations").performClick()
+        // The bar can still be animating in when the click injects ("Failed to inject touch
+        // input" on slow emulators) — settle and retry once before giving up.
+        try {
+            composeTestRule.onNodeWithContentDescription("Annotations").performClick()
+        } catch (_: AssertionError) {
+            composeTestRule.waitForIdle()
+            showTopAppBar()
+            composeTestRule.onNodeWithContentDescription("Annotations").performClick()
+        }
         composeTestRule.waitUntil(timeoutMillis = 8_000) {
             composeTestRule.onAllNodesWithText(bookmark.bookmarkTitle).fetchSemanticsNodes().isNotEmpty()
         }
