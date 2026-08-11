@@ -1,6 +1,8 @@
 package com.riffle.app.feature.reader
 
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsFocused
+import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
@@ -101,5 +103,18 @@ class HighlightActionsPopupTest {
         showPopup(note = null, noteOnly = true)
         composeTestRule.onNodeWithText("Note").assertIsDisplayed()
         composeTestRule.onNodeWithText("Edit").assertDoesNotExist()
+    }
+
+    @Test
+    fun noteEditor_autofocusesTextFieldWhenOpened() {
+        composeTestRule.setContent {
+            NoteEditorDialog(
+                initialNote = "",
+                onConfirm = {},
+                onDismiss = {},
+            )
+        }
+
+        composeTestRule.onNode(hasSetTextAction()).assertIsFocused()
     }
 }
