@@ -107,9 +107,6 @@ class AudiobookCacheRepositoryImplTest {
             val s = r.localSession("srv", "it")!!
             assertEquals(2, s.trackUrls.size)
             assertTrue(s.trackUrls[0].startsWith("file:"))
-            // Parallel downloads: responses arrive in FIFO order from MockWebServer regardless of
-            // which coroutine connects first, so we can't assert per-file content — only that both
-            // files are non-empty and together contain the full expected payload.
             val allContent = setOf(
                 File(root, "srv/it/track-0").readText(),
                 File(root, "srv/it/track-1").readText(),
