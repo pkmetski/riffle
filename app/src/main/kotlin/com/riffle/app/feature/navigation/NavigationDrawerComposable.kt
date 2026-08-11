@@ -25,6 +25,7 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.ListItem
+import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.ModalDrawerSheet
 import androidx.compose.material3.ModalNavigationDrawer
 import androidx.compose.material3.NavigationDrawerItem
@@ -37,16 +38,22 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.riffle.app.BuildConfig
 import com.riffle.app.ui.source.SourceIcon
 import com.riffle.core.models.Library
@@ -195,15 +202,6 @@ private fun DrawerHeader(
     var headerWidth by remember { mutableStateOf(Dp.Unspecified) }
     val density = LocalDensity.current
 
-    // Same product type appearing more than once forces the host to appear in the supporting
-    // line so users can tell the two instances apart. With a single instance the host is noise.
-    // Zero-config web sources (LocalFiles, Chitanka, Gutenberg) have `hasNetworkHost = false` in
-    // their [WebSourceDescriptor] — the descriptor is the source of truth so a new credentialed
-    // source (Komga) drops in without editing this predicate.
-    val activeNeedsHost = activeServer != null &&
-        WebSourceDescriptors.forType(activeServer.type)?.hasNetworkHost == true &&
-        allServers.count { it.serverType == activeServer.serverType && it.type == activeServer.type } > 1
-
     Box(modifier = Modifier
         .fillMaxWidth()
         .onSizeChanged { headerWidth = with(density) { it.width.toDp() } }
@@ -218,28 +216,31 @@ private fun DrawerHeader(
                     ?.takeIf { WebSourceDescriptors.forType(it.type)?.hasCredentials == true }
                     ?.username?.takeIf { it.isNotEmpty() }
                 if (username != null) {
-                    Text(
-                        buildAnnotatedString {
+                    AutoShrinkingSingleLineText(
+                        text = buildAnnotatedString {
                             append(name)
                             append(" ")
                             withStyle(SpanStyle(color = MaterialTheme.colorScheme.onSurfaceVariant)) {
                                 append("[$username]")
                             }
-                        }
+                        },
                     )
                 } else {
-                    Text(name)
+                    AutoShrinkingSingleLineText(
+                        text = name,
+                    )
                 }
             },
             supportingContent = {
                 val support = activeServer?.let {
-                    sourceSubtitle(
-                        source = it,
-                        host = if (activeNeedsHost) it.url.authority() else null,
-                        version = activeVersion,
+                    sourceSwitcherSubtitle(source = it, version = activeVersion)
+                }
+                if (support != null) {
+                    AutoShrinkingSingleLineText(
+                        text = support,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
-                if (support != null) Text(support)
             },
             trailingContent = {
                 Icon(
@@ -255,8 +256,6 @@ private fun DrawerHeader(
             modifier = if (headerWidth != Dp.Unspecified) Modifier.width(headerWidth) else Modifier,
         ) {
             allServers.forEach { server ->
-                val needsHost = WebSourceDescriptors.forType(server.type)?.hasNetworkHost == true &&
-                    allServers.count { it.serverType == server.serverType && it.type == server.type } > 1
                 DropdownMenuItem(
                     text = {
                         Column {
@@ -265,25 +264,26 @@ private fun DrawerHeader(
                                 .takeIf { WebSourceDescriptors.forType(it.type)?.hasCredentials == true }
                                 ?.username?.takeIf { it.isNotEmpty() }
                             if (username != null) {
-                                Text(
-                                    buildAnnotatedString {
+                                AutoShrinkingSingleLineText(
+                                    text = buildAnnotatedString {
                                         append(displayName)
                                         append(" ")
                                         withStyle(SpanStyle(color = MaterialTheme.colorScheme.onSurfaceVariant)) {
                                             append("[$username]")
                                         }
-                                    }
+                                    },
                                 )
                             } else {
-                                Text(displayName)
+                                AutoShrinkingSingleLineText(
+                                    text = displayName,
+                                )
                             }
-                            val support = sourceSubtitle(
+                            val support = sourceSwitcherSubtitle(
                                 source = server,
-                                host = if (needsHost) server.url.authority() else null,
                                 version = serverVersions[server.id],
                             )
                             if (support != null) {
-                                Text(
+                                AutoShrinkingSingleLineText(
                                     text = support,
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -309,6 +309,50 @@ private fun DrawerHeader(
     }
 }
 
+@Composable
+private fun AutoShrinkingSingleLineText(
+    text: String,
+    color: Color = Color.Unspecified,
+    style: TextStyle = LocalTextStyle.current,
+    minFontSize: TextUnit = 12.sp,
+) {
+    AutoShrinkingSingleLineText(
+        text = AnnotatedString(text),
+        color = color,
+        style = style,
+        minFontSize = minFontSize,
+    )
+}
+
+@Composable
+private fun AutoShrinkingSingleLineText(
+    text: AnnotatedString,
+    color: Color = Color.Unspecified,
+    style: TextStyle = LocalTextStyle.current,
+    minFontSize: TextUnit = 12.sp,
+) {
+    var resizedStyle by remember(text, style, minFontSize) { mutableStateOf(style) }
+    Text(
+        text = text,
+        color = color,
+        style = resizedStyle,
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
+        onTextLayout = { result ->
+            val currentSize = resizedStyle.fontSize
+            if (result.hasVisualOverflow &&
+                currentSize != TextUnit.Unspecified &&
+                currentSize.value > minFontSize.value
+            ) {
+                val nextSize = maxOf(minFontSize.value, currentSize.value * 0.9f).sp
+                if (nextSize != currentSize) {
+                    resizedStyle = resizedStyle.copy(fontSize = nextSize)
+                }
+            }
+        },
+    )
+}
+
 /**
  * Leading icon for a source row in the switcher. Network sources render their server's favicon
  * via [SourceIcon] (bundled monogram fallback); LocalFiles keeps its Material Folder treatment
@@ -331,7 +375,7 @@ private fun SourceRowIcon(server: Source) {
  * Drawer supporting line: `host · version`, `host`, `version`, or null if nothing to show.
  * Storyteller never has a version (the repository returns null for it).
  */
-private fun buildSupportingLine(host: String?, version: String?): String? {
+internal fun buildSupportingLine(host: String?, version: String?): String? {
     val v = version?.let { "v$it" }
     return when {
         host != null && v != null -> "$host · $v"
@@ -346,17 +390,20 @@ private fun buildSupportingLine(host: String?, version: String?): String? {
  * their [com.riffle.core.domain.WebSourceDescriptor]; ABS is per-server (the same SourceType
  * covers Audiobookshelf and Storyteller product servers) so it picks the server-type label.
  */
-private fun sourceDisplayName(source: Source): String =
+internal fun sourceDisplayName(source: Source): String =
     if (source.type == SourceType.ABS) source.serverType.label
     else WebSourceDescriptors.forTypeOrError(source.type).displayName
 
 /**
- * Subtitle for the source-switcher row. Credentialed sources with a network host (ABS today,
- * Komga tomorrow) render [buildSupportingLine] (host · version); everything else falls back to
- * the descriptor's static subtitle. Gated on [WebSourceDescriptor.hasNetworkHost] so a new
- * credentialed source drops in without an edit here.
+ * Subtitle for the source-switcher row. Sources with a network host render their configured
+ * address on every row; everything else falls back to the descriptor's static subtitle. Gated on
+ * [WebSourceDescriptor.hasNetworkHost] so a new credentialed source drops in without an edit here.
  */
-private fun sourceSubtitle(source: Source, host: String?, version: String?): String? {
+internal fun sourceSwitcherSubtitle(source: Source, version: String?): String? {
     val descriptor = WebSourceDescriptors.forType(source.type) ?: return null
-    return if (descriptor.hasNetworkHost) buildSupportingLine(host, version) else descriptor.subtitle
+    return if (descriptor.hasNetworkHost) {
+        buildSupportingLine(source.url.authority(), version)
+    } else {
+        descriptor.subtitle
+    }
 }
