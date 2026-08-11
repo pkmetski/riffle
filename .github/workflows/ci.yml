@@ -97,7 +97,10 @@ jobs:
           key: fonts-v1-${{ hashFiles('Makefile') }}
           restore-keys: fonts-v1-
       - run: make fonts
-      - run: ./gradlew test
+      # KMP modules (core:common/models/domain/sources/net) have no `test` lifecycle
+      # task — their JVM tests only run via `jvmTest`. `./gradlew test` alone silently
+      # skipped all of them from the KMP conversion (#644) onward.
+      - run: ./gradlew test jvmTest
       - name: Upload test reports
         if: always()
         uses: actions/upload-artifact@v7
@@ -219,13 +222,15 @@ jobs:
           profile: pixel
           disable-animations: true
           emulator-options: -no-snapshot -no-window -no-boot-anim -no-audio -camera-back none -gpu swiftshader_indirect
+          # android-emulator-runner executes every script line as a separate `sh -c`
+          # process, so shell variables do NOT survive across lines. Keep the gradle
+          # invocation, the logcat capture, and the exit on ONE line or test failures
+          # get silently swallowed (that exact bug shipped in #650 and green-washed
+          # every harness failure from 2026-08-03 onward).
           script: |
             adb logcat -G 16M || true
             adb logcat -c || true
-            rc=0
-            ./gradlew :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.notAnnotation=com.riffle.app.harness.TabletLayout || rc=$?
-            adb logcat -d > logcat-phone.txt || true
-            exit $rc
+            rc=0; ./gradlew :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.notAnnotation=com.riffle.app.harness.TabletLayout || rc=$?; adb logcat -d > logcat-phone.txt || true; exit $rc
       - name: Upload harness phone reports
         if: always()
         uses: actions/upload-artifact@v7
