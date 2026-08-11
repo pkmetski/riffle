@@ -86,8 +86,18 @@ class EpubHarnessTest {
     fun opensEpubViaSeriesNavigationAndShowsReaderWithoutError() {
         addServerAndBrowseLibrary()
 
-        // Navigate to the Series tab
-        composeTestRule.onNodeWithContentDescription("Series").performClick()
+        // Navigate to the Series tab. The library keeps recomposing as items stream in, which
+        // can detach the tab's semantics node between resolution and injection ("Failed to
+        // inject touch input" on slow emulators) — wait for it and retry once after settling.
+        composeTestRule.waitUntil(timeoutMillis = 10_000) {
+            composeTestRule.onAllNodesWithContentDescription("Series").fetchSemanticsNodes().isNotEmpty()
+        }
+        try {
+            composeTestRule.onNodeWithContentDescription("Series").performClick()
+        } catch (_: AssertionError) {
+            composeTestRule.waitForIdle()
+            composeTestRule.onNodeWithContentDescription("Series").performClick()
+        }
 
         // Library items screen shows the series — tap into it
         composeTestRule.waitUntil(timeoutMillis = 15_000) {
