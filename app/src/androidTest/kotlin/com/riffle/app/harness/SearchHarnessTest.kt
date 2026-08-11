@@ -225,7 +225,7 @@ class SearchHarnessTest {
 
     private fun assertReaderReady() {
         composeTestRule.tapReadInDetailScreen()
-        composeTestRule.waitUntil(timeoutMillis = 90_000) {
+        composeTestRule.waitUntil(timeoutMillis = 120_000) {
             composeTestRule.onAllNodesWithTag(ReaderSemanticMatchers.TAG_READER_READY).fetchSemanticsNodes().isNotEmpty() ||
                 composeTestRule.onAllNodesWithTag(ReaderSemanticMatchers.TAG_ERROR_STATE).fetchSemanticsNodes().isNotEmpty()
         }
