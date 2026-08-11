@@ -21,6 +21,7 @@ class DownloadManager @Inject constructor(
 ) {
     private val _states = MutableStateFlow<Map<String, DownloadState>>(emptyMap())
     val states: StateFlow<Map<String, DownloadState>> = _states
+    private val lock = Any()
     private val silentKeys = mutableSetOf<String>()
 
     /**
@@ -56,8 +57,14 @@ class DownloadManager @Inject constructor(
         stateWhileRunning: DownloadState,
         work: suspend () -> DownloadState,
     ) {
-        if (_states.value[key] is DownloadState.InProgress || key in silentKeys) return
-        silentKeys += key
+        val shouldStart = synchronized(lock) {
+            if (_states.value[key] is DownloadState.InProgress || !silentKeys.add(key)) {
+                false
+            } else {
+                true
+            }
+        }
+        if (!shouldStart) return
         set(key, stateWhileRunning)
         scope.launch {
             val terminal = try {
@@ -66,7 +73,7 @@ class DownloadManager @Inject constructor(
                 if (e is kotlinx.coroutines.CancellationException) throw e
                 DownloadState.NotDownloaded
             } finally {
-                silentKeys -= key
+                synchronized(lock) { silentKeys -= key }
             }
             set(key, terminal)
         }
