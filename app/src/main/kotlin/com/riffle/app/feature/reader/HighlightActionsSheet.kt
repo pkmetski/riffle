@@ -34,6 +34,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -43,6 +44,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
@@ -405,6 +408,8 @@ internal fun NoteEditorDialog(
     onDismiss: () -> Unit,
 ) {
     var text by rememberSaveable(initialNote) { mutableStateOf(initialNote) }
+    val focusRequester = remember { FocusRequester() }
+    LaunchedEffect(Unit) { focusRequester.requestFocus() }
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("Note") },
@@ -415,7 +420,7 @@ internal fun NoteEditorDialog(
                 placeholder = { Text("Add a note…") },
                 minLines = 3,
                 maxLines = 6,
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth().focusRequester(focusRequester),
             )
         },
         confirmButton = {
