@@ -300,7 +300,7 @@ class EpubRepositoryTest {
     }
 
     @Test
-    fun `removeDownload deletes file from downloads and cache stores`() = runTest {
+    fun `removeDownload deletes file from downloads store`() = runTest {
         downloadsStore.save("source-1", "item-1", epubBytes.inputStream())
         cacheStore.save("source-1", "item-1", epubBytes.inputStream())
         repo.removeDownload("source-1", "item-1")

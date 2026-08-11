@@ -256,7 +256,7 @@ class PdfRepositoryTest {
     }
 
     @Test
-    fun `removeDownload deletes file from downloads and cache stores`() = runTest {
+    fun `removeDownload deletes file from downloads store`() = runTest {
         downloadsStore.save("source-1", "item-1", pdfBytes.inputStream())
         cacheStore.save("source-1", "item-1", pdfBytes.inputStream())
         repo.removeDownload("source-1", "item-1")
