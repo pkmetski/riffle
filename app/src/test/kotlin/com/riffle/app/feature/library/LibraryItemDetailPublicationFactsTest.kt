@@ -2,7 +2,9 @@ package com.riffle.app.feature.library
 
 import com.riffle.core.models.EbookFormat
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class LibraryItemDetailPublicationFactsTest {
@@ -50,5 +52,19 @@ class LibraryItemDetailPublicationFactsTest {
     @Test
     fun `comic page count is labelled by format`() {
         assertEquals("Comic · 120 pages", publicationPageCountText(EbookFormat.Cbz, 120))
+    }
+
+    @Test
+    fun `facts line reserves space for async formats so the action row never reflows`() {
+        // EPUB estimates and extracted PDF page counts arrive seconds after first render;
+        // the line must hold its slot from the first frame (tap-target stability).
+        assertTrue(publicationFactsLineReservesSpace(EbookFormat.Epub))
+        assertTrue(publicationFactsLineReservesSpace(EbookFormat.Pdf))
+    }
+
+    @Test
+    fun `facts line does not reserve space for synchronous formats`() {
+        assertFalse(publicationFactsLineReservesSpace(EbookFormat.Cbz))
+        assertFalse(publicationFactsLineReservesSpace(EbookFormat.Unsupported))
     }
 }

@@ -204,6 +204,13 @@ class ContinuousChapterBoundaryHarnessTest {
         composeTestRule.waitUntil(timeoutMillis = 20_000) {
             isReaderInChapter(reader, "ch07.html")
         }
+        // Cross-window navigateTo rebuilds the window with the container INVISIBLE until the
+        // initial landing runs (posted; can lag seconds under WebView measure storms). Touches
+        // dispatched before the reveal find no touch target, so backwardNavigationIntent never
+        // arms and the gesture is a silent no-op. Wait for the landing's reveal barrier first.
+        composeTestRule.waitUntil(timeoutMillis = 20_000) {
+            reader.isFirstLoadComplete.value
+        }
         composeTestRule.waitForIdle()
         Thread.sleep(2_600) // let fallback flush pendingInitialScroll
 
@@ -284,6 +291,12 @@ class ContinuousChapterBoundaryHarnessTest {
         composeTestRule.waitUntil(timeoutMillis = 10_000) {
             isReaderInChapter(reader, "ch11.html")
         }
+        // Wait for the rebuild's landing reveal — before it the container is INVISIBLE and the
+        // fling below would dispatch into a viewless hierarchy (see comment in
+        // boundaryDetentArmedAfterBackwardPrepend).
+        composeTestRule.waitUntil(timeoutMillis = 20_000) {
+            reader.isFirstLoadComplete.value
+        }
         // ch10 must already be loaded and measured — that is the premise of this scenario.
         var ch10Height = 0
         composeTestRule.activityRule.scenario.onActivity {
@@ -353,13 +366,31 @@ class ContinuousChapterBoundaryHarnessTest {
         composeTestRule.waitUntil(timeoutMillis = 20_000) {
             loadedChapterHrefs(reader).any { it.endsWith(fromHref) }
         }
+        // Out-of-window navigateTo rebuilds the window with the container INVISIBLE until the
+        // initial landing reveals it; wait on that barrier so the landing has actually run
+        // before we sample positions or dispatch touches (see comment in
+        // boundaryDetentArmedAfterBackwardPrepend).
+        composeTestRule.waitUntil(timeoutMillis = 20_000) {
+            reader.isFirstLoadComplete.value
+        }
         // Wait for the navigation itself to LAND before swiping: when the target chapter is
         // already in the window the posted landing can run seconds later (main thread busy with
         // measures), and if the reader incidentally already satisfies the destination check the
         // swipe loop exits instantly — the late nav landing then legitimately moves the reader
         // during the settle assertions and the leg fails as a phantom "yank".
-        composeTestRule.waitUntil(timeoutMillis = 10_000) {
-            isReaderInChapter(reader, fromHref)
+        val landDeadline = android.os.SystemClock.uptimeMillis() + 20_000
+        while (!isReaderInChapter(reader, fromHref) && android.os.SystemClock.uptimeMillis() < landDeadline) {
+            composeTestRule.waitForIdle()
+            Thread.sleep(200)
+        }
+        if (!isReaderInChapter(reader, fromHref)) {
+            var diag = ""
+            composeTestRule.activityRule.scenario.onActivity {
+                diag = loadedWebViews(reader).joinToString(prefix = "[", postfix = "]") {
+                    "${it.url?.substringAfterLast('/')}:h=${it.height}:top=${it.top}"
+                } + " scrollY=${reader.scrollY} vh=${reader.height} firstLoad=${reader.isFirstLoadComplete.value}"
+            }
+            throw AssertionError("swipeFromNearEndInto: nav to $fromHref@0.9 never landed; $diag")
         }
         for (attempt in 0 until 80) {
             if (isReaderInChapter(reader, toHref)) break
@@ -396,7 +427,11 @@ class ContinuousChapterBoundaryHarnessTest {
         composeTestRule.waitUntil(timeoutMillis = 20_000) {
             loadedChapterHrefs(reader).any { it.endsWith(fromHref) }
         }
-        composeTestRule.waitUntil(timeoutMillis = 5_000) {
+        // Same landing-reveal barrier as swipeFromNearEndInto — see comment there.
+        composeTestRule.waitUntil(timeoutMillis = 20_000) {
+            reader.isFirstLoadComplete.value
+        }
+        composeTestRule.waitUntil(timeoutMillis = 20_000) {
             isReaderInChapter(reader, fromHref)
         }
         for (attempt in 0 until 40) {
@@ -442,6 +477,12 @@ class ContinuousChapterBoundaryHarnessTest {
         }
         composeTestRule.waitUntil(timeoutMillis = 5_000) {
             isReaderInChapter(reader, fromHref)
+        }
+        // Wait for the rebuild's landing reveal — before it the container is INVISIBLE and the
+        // fling below would dispatch into a viewless hierarchy, never arming
+        // backwardNavigationIntent (see comment in boundaryDetentArmedAfterBackwardPrepend).
+        composeTestRule.waitUntil(timeoutMillis = 20_000) {
+            reader.isFirstLoadComplete.value
         }
         // Let the rebuild's initial-scroll land fully: while pendingInitialScroll is set the
         // controller ignores every shift decision (including the one this gesture triggers), so

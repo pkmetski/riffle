@@ -11,6 +11,7 @@ import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 
 /**
  * Domain-specific semantic assertion helpers for the EPUB reader screen.
@@ -33,7 +34,34 @@ object ReaderSemanticMatchers {
         waitUntil(timeoutMillis = timeoutMillis) {
             onAllNodesWithText("Read").fetchSemanticsNodes().isNotEmpty()
         }
-        onNodeWithText("Read").performClick()
+        // Click-and-verify: async detail rows (reading-time estimate, PDF page count) can
+        // reflow the screen right as the click dispatches, landing it on stale coordinates
+        // with no error. A SUCCESSFUL click navigates synchronously, so within the grace
+        // period either the detail screen is gone or a reader tag (loading/ready/error) is
+        // mounted — re-click ONLY when neither happened (a genuine miss). Re-clicking while
+        // an open is merely slow would navigate() a second time and stack a second reader
+        // on the back stack, wedging the open (exactly what happened on the slow CI
+        // emulator, where first opens legitimately take >2s).
+        repeat(3) {
+            // The detail screen is a scrollable Column; on short screens (CI's 1080x1920 pixel
+            // profile) the full-width 2:3 cover plus the facts line pushes the action row below
+            // the fold, and a click injected at the off-screen node's center lands in dead
+            // space with no error. Scroll the button into view first. runCatching: on layouts
+            // where the button is in a non-scrollable pane (tablet) performScrollTo throws.
+            runCatching { onNodeWithText("Read").performScrollTo() }
+            onNodeWithText("Read").performClick()
+            val navigated = runCatching {
+                waitUntil(timeoutMillis = 2_000) {
+                    onAllNodesWithText("Read").fetchSemanticsNodes().isEmpty() ||
+                        onAllNodesWithTag(TAG_LOADING).fetchSemanticsNodes().isNotEmpty() ||
+                        onAllNodesWithTag(TAG_READER_READY).fetchSemanticsNodes().isNotEmpty() ||
+                        onAllNodesWithTag(TAG_ERROR_STATE).fetchSemanticsNodes().isNotEmpty()
+                }
+            }.isSuccess
+            if (navigated) return
+        }
+        // Still on the detail screen with no reader mounted after three attempts — let the
+        // caller's reader-ready wait surface the failure with its own diagnostics.
     }
 
     /** Asserts the reader error UI is not visible. */

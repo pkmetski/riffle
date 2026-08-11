@@ -235,7 +235,10 @@ class ChapterWebViewSettingsTest {
             )
             wv.layout(0, 0, widthPx, heightPx)
             holder[0] = wv
-            wv.loadDataWithBaseURL(null, html, "text/html", "utf-8", null)
+            // Load through the ownership seam: the internal client drops onPageFinished for any
+            // URL that doesn't match expectedChapterUrl (the about:blank-recycle guard from #673),
+            // so a bare loadDataWithBaseURL(null, …) never completes this latch.
+            wv.loadTestHtml(html)
         }
         assertTrue("ChapterWebView page did not finish loading within 10 s", ready.await(10, TimeUnit.SECONDS))
         val wv = holder[0]!!
