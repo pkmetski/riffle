@@ -184,10 +184,13 @@ abstract class LocalStoreModule {
             @PdfDownloadsStore pdfDownloadsStore: LocalStore,
             @CbzCacheStore cbzCacheStore: LocalStore,
             @CbzDownloadsStore cbzDownloadsStore: LocalStore,
+            @AudiobookCacheDir audiobookCacheDir: File,
+            @AudiobookDownloadsDir audiobookDownloadsDir: File,
         ): DownloadsRepository = DownloadsRepositoryImpl(
             epubCacheStore, epubDownloadsStore,
             pdfCacheStore, pdfDownloadsStore,
             cbzCacheStore, cbzDownloadsStore,
+            audiobookCacheDir, audiobookDownloadsDir,
         )
 
         @Provides
