@@ -132,7 +132,11 @@ class AnnotationFocusHarnessTest {
             waitForPhraseOnScreen(orientation, 15_000, targetPhrase).onScreen,
         )
         closeSearch()
-        showTopAppBar()
+        // The corner bookmark ribbon sits at TopEnd, UNDER the floating TopAppBar overlay.
+        // Closing search restores the visible top bar (pinned behavior), so a tap injected at
+        // the ribbon's coordinates lands on the bar surface and toggleBookmark never fires.
+        // Chrome must be hidden before tapping the ribbon — same as a real reader session.
+        hideTopAppBar()
         composeTestRule.onNodeWithContentDescription("Bookmark this page").performClick()
         val bookmark = runBlocking {
             withTimeout(10_000) {
@@ -437,6 +441,13 @@ class AnnotationFocusHarnessTest {
             composeTestRule.onAllNodesWithTag(ReaderSemanticMatchers.TAG_READER_READY)
                 .fetchSemanticsNodes().isNotEmpty()
         }
+        // Continuous mode keeps its container INVISIBLE behind the loading spinner until the
+        // initial landing completes — TAG_READER_READY is already mounted, but a tap dispatched
+        // before the reveal finds no touch target and chrome toggling silently no-ops.
+        composeTestRule.waitUntil(timeoutMillis = 20_000) {
+            composeTestRule.onAllNodesWithTag(ReaderSemanticMatchers.TAG_LOADING)
+                .fetchSemanticsNodes().isEmpty()
+        }
     }
 
     private fun navigateWithSearch(phrase: String) {
@@ -460,6 +471,28 @@ class AnnotationFocusHarnessTest {
         composeTestRule.waitUntil(timeoutMillis = 5_000) {
             composeTestRule.onAllNodesWithTag(SearchTopBarTags.FIELD).fetchSemanticsNodes().isEmpty()
         }
+    }
+
+    /** Inverse of [showTopAppBar]: tap the reader until the chrome (Back button) is gone, so
+     *  overlaid content like the corner bookmark ribbon becomes tappable again. */
+    private fun hideTopAppBar() {
+        repeat(3) {
+            if (composeTestRule.onAllNodesWithContentDescription("Back").fetchSemanticsNodes().isEmpty()) {
+                return
+            }
+            composeTestRule
+                .onNodeWithTag(ReaderSemanticMatchers.TAG_READER_READY)
+                .performTouchInput { click(Offset(width * 0.5f, height * 0.55f)) }
+            try {
+                composeTestRule.waitUntil(timeoutMillis = 2_000) {
+                    composeTestRule.onAllNodesWithContentDescription("Back").fetchSemanticsNodes().isEmpty()
+                }
+                return
+            } catch (_: androidx.compose.ui.test.ComposeTimeoutException) {
+                // Retry — the tap may have been consumed by a link/overlay.
+            }
+        }
+        throw AssertionError("hideTopAppBar: Back button still visible after 3 tap attempts")
     }
 
     private fun showTopAppBar() {

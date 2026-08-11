@@ -455,6 +455,18 @@ internal class ChapterWebView(context: Context) : WebView(context), ChapterWebVi
     }
 
     /**
+     * Test seam: load fixture HTML through the same ownership contract as [loadChapter], so the
+     * internal client's [isCurrentChapterPage] guard recognises the completion. A bare
+     * `loadDataWithBaseURL(null, …)` leaves [expectedChapterUrl] null and the guard (correctly)
+     * swallows `onPageFinished` — fixtures must not bypass the contract.
+     */
+    @androidx.annotation.VisibleForTesting
+    internal fun loadTestHtml(html: String, baseUrl: String = "https://riffle.test/fixture.html") {
+        expectedChapterUrl = baseUrl
+        loadDataWithBaseURL(baseUrl, html, "text/html", "utf-8", null)
+    }
+
+    /**
      * Inject user styles + trigger height measurement.
      * Call this from [onPageFinished] after the page has loaded.
      *

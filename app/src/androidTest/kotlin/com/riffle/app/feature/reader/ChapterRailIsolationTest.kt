@@ -16,6 +16,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.unit.dp
@@ -30,6 +31,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
+import kotlin.math.roundToInt
 
 // Regression: cursor-position changes must recompose only the rail overlay, not sibling EpubNavigatorView.
 @RunWith(AndroidJUnit4::class)
@@ -82,7 +84,7 @@ class ChapterRailIsolationTest {
                 if (red in 225..235 && green in 90..105 && blue in 0..8) {
                     vividOrangePixels++
                 }
-                if (red in 160..172 && green in 198..213 && blue in 221..235) {
+                if (isMutedUnreadBluePixel(red, green, blue)) {
                     mutedUnreadBluePixels++
                 }
             }
@@ -130,7 +132,7 @@ class ChapterRailIsolationTest {
                 val green = (pixel shr 8) and 0xFF
                 val blue = pixel and 0xFF
                 val vividOrange = red in 225..235 && green in 90..105 && blue in 0..8
-                val mutedBlue = red in 160..172 && green in 198..213 && blue in 221..235
+                val mutedBlue = isMutedUnreadBluePixel(red, green, blue)
                 if (vividOrange || mutedBlue) palettePixels++
             }
         }
@@ -209,6 +211,17 @@ class ChapterRailIsolationTest {
             countAfterInit,
             siblingRecomposeCount,
         )
+    }
+
+    // Unread siblings render the parent-chapter hue at CHAPTER_RAIL_UNREAD_ALPHA composited
+    // over the white test background. Derived from the production constants so a deliberate
+    // alpha change updates this expectation in lockstep (the JVM test pins the alpha value).
+    private fun isMutedUnreadBluePixel(red: Int, green: Int, blue: Int): Boolean {
+        val expected = chapterRailUnreadGroupColor(groupIndex = 1).compositeOver(Color.White)
+        val er = (expected.red * 255).roundToInt()
+        val eg = (expected.green * 255).roundToInt()
+        val eb = (expected.blue * 255).roundToInt()
+        return red in (er - 6)..(er + 6) && green in (eg - 7)..(eg + 7) && blue in (eb - 7)..(eb + 7)
     }
 
     private fun captureWindowToBitmap(window: Window): Bitmap {

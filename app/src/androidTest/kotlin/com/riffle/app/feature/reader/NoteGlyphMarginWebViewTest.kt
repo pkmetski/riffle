@@ -28,6 +28,14 @@ class NoteGlyphMarginWebViewTest {
         """.trimIndent()
 
         withSizedWebViewFixture(html, widthPx = 400, heightPx = 600) { webView ->
+            webView.awaitInnerHeight()
+            // The clamp treats window.innerWidth as the spread pitch (ColumnSnap sizes the real
+            // reader so they match). The fixture's widthPx is PHYSICAL px, so the CSS-px pitch is
+            // widthPx / density — measure it instead of assuming 400.
+            val spreadPitch = webView.evalSync("window.innerWidth").trim('"').toDouble()
+            webView.evalSync(
+                "document.getElementById('next-selection').style.left = ($spreadPitch + 8) + 'px'"
+            )
             webView.evalSync(noteGlyphViewportClampAfterApplyJs())
             val lefts = webView.evalSync(
                 "JSON.stringify(Array.prototype.map.call(" +
@@ -40,8 +48,8 @@ class NoteGlyphMarginWebViewTest {
                 lefts[0] >= NOTE_GLYPH_VIEWPORT_INSET_PX,
             )
             assertTrue(
-                "adjacent-spread glyph must stay on its own spread; lefts=$lefts",
-                lefts[1] >= 400 + NOTE_GLYPH_VIEWPORT_INSET_PX,
+                "adjacent-spread glyph must stay on its own spread; lefts=$lefts spreadPitch=$spreadPitch",
+                lefts[1] >= spreadPitch + NOTE_GLYPH_VIEWPORT_INSET_PX,
             )
         }
     }

@@ -33,7 +33,20 @@ object ReaderSemanticMatchers {
         waitUntil(timeoutMillis = timeoutMillis) {
             onAllNodesWithText("Read").fetchSemanticsNodes().isNotEmpty()
         }
-        onNodeWithText("Read").performClick()
+        // Click-and-verify: async detail rows (reading-time estimate, PDF page count) can
+        // reflow the screen right as the click dispatches, landing it on stale coordinates
+        // with no error. If the detail screen is still up after a grace period, re-click.
+        repeat(3) {
+            onNodeWithText("Read").performClick()
+            val leftDetailScreen = runCatching {
+                waitUntil(timeoutMillis = 2_000) {
+                    onAllNodesWithText("Read").fetchSemanticsNodes().isEmpty()
+                }
+            }.isSuccess
+            if (leftDetailScreen) return
+        }
+        // Still on the detail screen after three attempts — let the caller's
+        // reader-ready wait surface the failure with its own diagnostics.
     }
 
     /** Asserts the reader error UI is not visible. */
