@@ -54,15 +54,17 @@ class ContinuousHighlightRendererTest {
     // ---- Helpers -------------------------------------------------------------
 
     // Builds an AbsoluteUrl for JVM tests without calling android.net.Uri.parse, which is not
-    // available there. The helper allocates AbsoluteUrl via sun.misc.Unsafe and injects our
-    // test-only FakeUri so the private Uri-backed field is populated.
+    // available there. The helper allocates AbsoluteUrl reflectively and injects our test-only
+    // FakeUri so the private Uri-backed field is populated.
     @Suppress("UNCHECKED_CAST")
     private fun makeAbsoluteUrl(urlString: String): AbsoluteUrl {
-        val unsafe = Class.forName("sun.misc.Unsafe")
+        val unsafeClass = Class.forName("sun.misc.Unsafe")
+        val unsafe = unsafeClass
             .getDeclaredField("theUnsafe")
             .also { it.isAccessible = true }
-            .get(null) as sun.misc.Unsafe
-        val instance = unsafe.allocateInstance(AbsoluteUrl::class.java) as AbsoluteUrl
+            .get(null)
+        val allocateInstance = unsafeClass.getMethod("allocateInstance", Class::class.java)
+        val instance = allocateInstance.invoke(unsafe, AbsoluteUrl::class.java) as AbsoluteUrl
         val uriField = AbsoluteUrl::class.java.getDeclaredField("uri")
             .also { it.isAccessible = true }
         uriField.set(instance, FakeUri(urlString))
