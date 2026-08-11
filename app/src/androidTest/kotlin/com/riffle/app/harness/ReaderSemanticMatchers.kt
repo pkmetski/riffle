@@ -35,18 +35,26 @@ object ReaderSemanticMatchers {
         }
         // Click-and-verify: async detail rows (reading-time estimate, PDF page count) can
         // reflow the screen right as the click dispatches, landing it on stale coordinates
-        // with no error. If the detail screen is still up after a grace period, re-click.
+        // with no error. A SUCCESSFUL click navigates synchronously, so within the grace
+        // period either the detail screen is gone or a reader tag (loading/ready/error) is
+        // mounted — re-click ONLY when neither happened (a genuine miss). Re-clicking while
+        // an open is merely slow would navigate() a second time and stack a second reader
+        // on the back stack, wedging the open (exactly what happened on the slow CI
+        // emulator, where first opens legitimately take >2s).
         repeat(3) {
             onNodeWithText("Read").performClick()
-            val leftDetailScreen = runCatching {
+            val navigated = runCatching {
                 waitUntil(timeoutMillis = 2_000) {
-                    onAllNodesWithText("Read").fetchSemanticsNodes().isEmpty()
+                    onAllNodesWithText("Read").fetchSemanticsNodes().isEmpty() ||
+                        onAllNodesWithTag(TAG_LOADING).fetchSemanticsNodes().isNotEmpty() ||
+                        onAllNodesWithTag(TAG_READER_READY).fetchSemanticsNodes().isNotEmpty() ||
+                        onAllNodesWithTag(TAG_ERROR_STATE).fetchSemanticsNodes().isNotEmpty()
                 }
             }.isSuccess
-            if (leftDetailScreen) return
+            if (navigated) return
         }
-        // Still on the detail screen after three attempts — let the caller's
-        // reader-ready wait surface the failure with its own diagnostics.
+        // Still on the detail screen with no reader mounted after three attempts — let the
+        // caller's reader-ready wait surface the failure with its own diagnostics.
     }
 
     /** Asserts the reader error UI is not visible. */
