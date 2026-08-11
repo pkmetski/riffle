@@ -35,7 +35,7 @@ internal data class AudiobookDownloadManifest(
  * reconstructs a playable [AudiobookSession] from them offline (ADR 0029). The directory holds one
  * file per track plus `manifest.json`; the manifest is written **last**, so its presence is the
  * atomic "fully downloaded" marker — a partial download (some tracks, no manifest) reads as
- * not-downloaded and is simply re-fetched. All tracks are downloaded in parallel via
+ * not-downloaded and is simply re-fetched. Track transfer is delegated to the shared
  * [AudiobookTrackDownloader].
  */
 class AudiobookDownloadRepositoryImpl @Inject constructor(
