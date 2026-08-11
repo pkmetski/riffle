@@ -661,8 +661,9 @@ class AudiobookPlayerViewModel @Inject constructor(
             followLoopOrchestrator.flushNow()
         } else {
             val rewindSec = rewindOnResumeSec.value
+            val posBeforeRewind = controller.currentAbsoluteSec()
             if (rewindSec > 0) {
-                val newPos = (controller.currentAbsoluteSec() - rewindSec).coerceAtLeast(0.0)
+                val newPos = (posBeforeRewind - rewindSec).coerceAtLeast(0.0)
                 reconciledResumeSec = newPos
                 controller.seekTo(newPos)
             }
