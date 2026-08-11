@@ -4,6 +4,10 @@ import androidx.lifecycle.SavedStateHandle
 import com.riffle.app.feature.library.LibraryItemDetailUiState.Ready
 import com.riffle.core.data.ToReadRepository
 import com.riffle.core.domain.AuthenticateResult
+import com.riffle.core.domain.AudiobookCacheRepository
+import com.riffle.core.domain.AudiobookDownloadRepository
+import com.riffle.core.domain.AudiobookDownloadResult
+import com.riffle.core.domain.AudiobookSession
 import com.riffle.core.domain.CommitSourceResult
 import com.riffle.core.models.Collection
 import com.riffle.core.domain.ConnectivityObserver
@@ -17,6 +21,7 @@ import com.riffle.core.models.Library
 import com.riffle.core.models.LibraryItem
 import com.riffle.core.domain.LibraryRefreshResult
 import com.riffle.core.domain.LibraryObserver
+import com.riffle.core.domain.LocalAvailabilityEvents
 import com.riffle.core.domain.PdfDownloadResult
 import com.riffle.core.domain.PdfOpenResult
 import com.riffle.core.domain.PdfRepository
@@ -26,6 +31,7 @@ import com.riffle.core.domain.SourceRepository
 import com.riffle.core.models.SourceUrl
 import com.riffle.core.models.ProgressSyncCycleResult
 import com.riffle.core.domain.ReadingSessionRepository
+import com.riffle.core.domain.StoredItemRef
 import com.riffle.core.models.SessionPayload
 import com.riffle.core.models.SyncSessionResult
 import com.riffle.core.domain.TokenStorage
@@ -33,7 +39,9 @@ import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
@@ -132,22 +140,32 @@ class LibraryItemDetailViewModelTest {
     private class FakeEpubRepository(
         var downloadResult: EpubDownloadResult = EpubDownloadResult.Success,
         private val initialDownloaded: Boolean = false,
-        private val cachedIds: Set<String> = emptySet(),
+        cachedIds: Set<String> = emptySet(),
         // When set, downloadEpub suspends on this gate before completing — models an in-flight
         // download so a test can observe InProgress and then release it.
         private val gate: kotlinx.coroutines.CompletableDeferred<Unit>? = null,
     ) : EpubRepository {
         private var downloaded = initialDownloaded
+        private val cached = cachedIds.toMutableSet()
         override suspend fun openEpub(item: LibraryItem): EpubOpenResult = throw UnsupportedOperationException()
         override suspend fun downloadEpub(item: LibraryItem, onProgress: (Long, Long) -> Unit): EpubDownloadResult {
             gate?.await()
-            if (downloadResult is EpubDownloadResult.Success) downloaded = true
+            if (downloadResult is EpubDownloadResult.Success) {
+                downloaded = true
+                cached -= item.id
+            }
             return downloadResult
         }
-        override suspend fun removeDownload(sourceId: String, itemId: String) { downloaded = false }
+        override suspend fun removeDownload(sourceId: String, itemId: String) {
+            downloaded = false
+            cached -= itemId
+        }
         override fun isDownloaded(sourceId: String, itemId: String): Boolean = downloaded
-        override fun isCached(sourceId: String, itemId: String): Boolean = itemId in cachedIds
+        override fun isCached(sourceId: String, itemId: String): Boolean = itemId in cached
         override suspend fun saveReadingPosition(itemId: String, cfi: String) {}
+        fun cache(itemId: String) {
+            cached += itemId
+        }
     }
 
     private class FakeConnectivityObserver(online: Boolean = true) : ConnectivityObserver {
@@ -155,17 +173,74 @@ class LibraryItemDetailViewModelTest {
         override val isOnline: StateFlow<Boolean> = state
     }
 
-    private class FakePdfRepository : PdfRepository {
-        private var downloaded = false
+    private class FakePdfRepository(
+        private val initialDownloaded: Boolean = false,
+        cachedIds: Set<String> = emptySet(),
+    ) : PdfRepository {
+        private var downloaded = initialDownloaded
+        private val cached = cachedIds.toMutableSet()
         override suspend fun openPdf(item: LibraryItem): PdfOpenResult = throw UnsupportedOperationException()
         override suspend fun downloadPdf(item: LibraryItem, onProgress: (Long, Long) -> Unit): PdfDownloadResult {
             downloaded = true
+            cached -= item.id
             return PdfDownloadResult.Success
         }
-        override suspend fun removeDownload(sourceId: String, itemId: String) { downloaded = false }
+        override suspend fun removeDownload(sourceId: String, itemId: String) {
+            downloaded = false
+            cached -= itemId
+        }
         override fun isDownloaded(sourceId: String, itemId: String): Boolean = downloaded
-        override fun isCached(sourceId: String, itemId: String): Boolean = false
+        override fun isCached(sourceId: String, itemId: String): Boolean = itemId in cached
         override suspend fun saveReadingPosition(itemId: String, locatorJson: String) {}
+    }
+
+    private class FakeAudiobookDownloadRepository(
+        private val initialDownloaded: Boolean = false,
+        private val gate: kotlinx.coroutines.CompletableDeferred<Unit>? = null,
+    ) : AudiobookDownloadRepository {
+        private var downloaded = initialDownloaded
+        override fun isDownloaded(sourceId: String, itemId: String): Boolean = downloaded
+        override fun localSession(sourceId: String, itemId: String): AudiobookSession? = null
+        override suspend fun download(
+            sourceId: String,
+            itemId: String,
+            onProgress: (downloaded: Long, total: Long) -> Unit,
+        ): AudiobookDownloadResult {
+            gate?.await()
+            downloaded = true
+            return AudiobookDownloadResult.Success
+        }
+        override suspend fun remove(sourceId: String, itemId: String): Long {
+            downloaded = false
+            return 0L
+        }
+    }
+
+    private class FakeAudiobookCacheRepository(
+        cachedIds: Set<String> = emptySet(),
+    ) : AudiobookCacheRepository {
+        private val cached = cachedIds.toMutableSet()
+        override fun isCached(sourceId: String, itemId: String): Boolean = itemId in cached
+        override fun localSession(sourceId: String, itemId: String): AudiobookSession? = null
+        override suspend fun awaitCachedAudiobook(sourceId: String, itemId: String, session: AudiobookSession) {
+            cached += itemId
+        }
+        override suspend fun remove(sourceId: String, itemId: String): Long {
+            cached -= itemId
+            return 0L
+        }
+        fun cache(itemId: String) {
+            cached += itemId
+        }
+    }
+
+    private class FakeLocalAvailabilityEvents : LocalAvailabilityEvents {
+        private val _changes = MutableSharedFlow<StoredItemRef>(extraBufferCapacity = 16)
+        override val changes: SharedFlow<StoredItemRef> = _changes
+
+        override fun notifyChanged(sourceId: String, itemId: String) {
+            _changes.tryEmit(StoredItemRef(sourceId, itemId))
+        }
     }
 
     private val noOpSessionRepository = object : ReadingSessionRepository {
@@ -242,6 +317,7 @@ class LibraryItemDetailViewModelTest {
         itemId: String = "item-1",
         epubRepository: EpubRepository = FakeEpubRepository(),
         pdfRepository: PdfRepository = FakePdfRepository(),
+        cbzRepository: com.riffle.core.domain.CbzRepository = NoopCbzRepository(),
         toReadRepo: ToReadRepository = FakeToReadRepository(),
         sourceRepository: SourceRepository = noOpServerRepo,
         connectivityObserver: ConnectivityObserver = FakeConnectivityObserver(),
@@ -249,6 +325,9 @@ class LibraryItemDetailViewModelTest {
         sessionRepository: ReadingSessionRepository = noOpSessionRepository,
         readaloudLinkRepository: com.riffle.core.domain.ReadaloudLinkRepository = NoopReadaloudLinkRepository,
         readaloudAudioRepository: com.riffle.core.domain.ReadaloudAudioRepository = NoopReadaloudAudioRepository,
+        audiobookDownloadRepository: AudiobookDownloadRepository = NoopAudiobookDownloadRepository,
+        audiobookCacheRepository: AudiobookCacheRepository = NoopAudiobookCacheRepository,
+        localAvailabilityEvents: LocalAvailabilityEvents = FakeLocalAvailabilityEvents(),
         crossEpubIndexBuildTrigger: com.riffle.core.data.CrossEpubIndexBuildTrigger = RecordingBuildTrigger(),
         extractEpubTocUseCase: ExtractEpubTocUseCase = io.mockk.mockk<ExtractEpubTocUseCase>().also { uc ->
             io.mockk.coEvery { uc.extractDetails(any<com.riffle.core.models.LibraryItem>()) } returns
@@ -280,12 +359,14 @@ class LibraryItemDetailViewModelTest {
         tokenStorage = noOpTokenStorage,
         epubRepository = epubRepository,
         pdfRepository = pdfRepository,
-        cbzRepository = NoopCbzRepository(),
+        cbzRepository = cbzRepository,
         toReadRepository = toReadRepo,
         playlistsRepository = NoopPlaylistsRepository(),
         readaloudLinkRepository = readaloudLinkRepository,
         readaloudAudioRepository = readaloudAudioRepository,
-        audiobookDownloadRepository = NoopAudiobookDownloadRepository,
+        audiobookDownloadRepository = audiobookDownloadRepository,
+        audiobookCacheRepository = audiobookCacheRepository,
+        localAvailabilityEvents = localAvailabilityEvents,
         readaloudOfflineDownloader = object : com.riffle.app.feature.reader.readaloud.ReadaloudOfflineDownloader {
             // Not streaming-eligible in these tests → null routes to the bundle download path.
             override suspend fun download(storytellerSourceId: String, storytellerBookId: String, onProgress: (Float) -> Unit): Boolean? = null
@@ -511,6 +592,57 @@ class LibraryItemDetailViewModelTest {
     }
 
     @Test
+    fun `downloadState is Cached when epub is only in cache store`() = runTest {
+        val vm = makeVm(
+            fakeRepo(knownItem),
+            epubRepository = FakeEpubRepository(cachedIds = setOf(knownItem.id)),
+        )
+        backgroundScope.launch { vm.downloadState.collect {} }
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(DownloadState.Cached, vm.downloadState.value)
+    }
+
+    @Test
+    fun `downloadState is Cached when pdf is only in cache store`() = runTest {
+        val pdfItem = knownItem.copy(ebookFormat = EbookFormat.Pdf)
+        val vm = makeVm(
+            fakeRepo(pdfItem),
+            pdfRepository = FakePdfRepository(cachedIds = setOf(pdfItem.id)),
+        )
+        backgroundScope.launch { vm.downloadState.collect {} }
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(DownloadState.Cached, vm.downloadState.value)
+    }
+
+    @Test
+    fun `downloadState is Cached when comic is only in cache store`() = runTest {
+        val comicItem = knownItem.copy(ebookFormat = EbookFormat.Cbz)
+        val vm = makeVm(
+            fakeRepo(comicItem),
+            cbzRepository = NoopCbzRepository(cached = true),
+        )
+        backgroundScope.launch { vm.downloadState.collect {} }
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(DownloadState.Cached, vm.downloadState.value)
+    }
+
+    @Test
+    fun `audiobookDownloadState is Cached when audiobook is only in cache store`() = runTest {
+        val audiobookItem = knownItem.copy(ebookFormat = EbookFormat.Unsupported, hasAudio = true)
+        val vm = makeVm(
+            fakeRepo(audiobookItem),
+            audiobookCacheRepository = FakeAudiobookCacheRepository(cachedIds = setOf(audiobookItem.id)),
+        )
+        backgroundScope.launch { vm.audiobookDownloadState.collect {} }
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(DownloadState.Cached, vm.audiobookDownloadState.value)
+    }
+
+    @Test
     fun `startDownload transitions NotDownloaded to InProgress then Downloaded`() = runTest {
         val fakeEpub = FakeEpubRepository()
         val vm = makeVm(fakeRepo(knownItem), epubRepository = fakeEpub)
@@ -521,6 +653,233 @@ class LibraryItemDetailViewModelTest {
         testDispatcher.scheduler.advanceUntilIdle()
 
         assertEquals(DownloadState.Downloaded, vm.downloadState.value)
+    }
+
+    @Test
+    fun `startDownload promotes cached readable item without showing download progress`() = runTest {
+        val manager = DownloadManager(kotlinx.coroutines.CoroutineScope(testDispatcher))
+        val gate = kotlinx.coroutines.CompletableDeferred<Unit>()
+        val fakeEpub = FakeEpubRepository(cachedIds = setOf(knownItem.id), gate = gate)
+        val vm = makeVm(fakeRepo(knownItem), epubRepository = fakeEpub, downloadManager = manager)
+        backgroundScope.launch { vm.downloadState.collect {} }
+        testDispatcher.scheduler.advanceUntilIdle()
+        assertEquals(DownloadState.Cached, vm.downloadState.value)
+
+        vm.startDownload()
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(DownloadState.Cached, vm.downloadState.value)
+        gate.complete(Unit)
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(DownloadState.Downloaded, vm.downloadState.value)
+    }
+
+    @Test
+    fun `onDownloadAudiobook promotes cached audiobook without showing download progress`() = runTest {
+        val audiobookItem = knownItem.copy(ebookFormat = EbookFormat.Unsupported, hasAudio = true)
+        val manager = DownloadManager(kotlinx.coroutines.CoroutineScope(testDispatcher))
+        val gate = kotlinx.coroutines.CompletableDeferred<Unit>()
+        val downloadRepository = FakeAudiobookDownloadRepository(gate = gate)
+        val cacheRepository = FakeAudiobookCacheRepository(cachedIds = setOf(audiobookItem.id))
+        val vm = makeVm(
+            fakeRepo(audiobookItem),
+            downloadManager = manager,
+            audiobookDownloadRepository = downloadRepository,
+            audiobookCacheRepository = cacheRepository,
+        )
+        backgroundScope.launch { vm.audiobookDownloadState.collect {} }
+        testDispatcher.scheduler.advanceUntilIdle()
+        assertEquals(DownloadState.Cached, vm.audiobookDownloadState.value)
+
+        vm.onDownloadAudiobook()
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(DownloadState.Cached, vm.audiobookDownloadState.value)
+        gate.complete(Unit)
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(DownloadState.Downloaded, vm.audiobookDownloadState.value)
+    }
+
+    @Test
+    fun `removeDownload after cached item was downloaded does not reveal cached state again`() = runTest {
+        val fakeEpub = FakeEpubRepository(cachedIds = setOf(knownItem.id))
+        val vm = makeVm(fakeRepo(knownItem), epubRepository = fakeEpub)
+        backgroundScope.launch { vm.downloadState.collect {} }
+        testDispatcher.scheduler.advanceUntilIdle()
+        assertEquals(DownloadState.Cached, vm.downloadState.value)
+
+        vm.startDownload()
+        testDispatcher.scheduler.advanceUntilIdle()
+        assertEquals(DownloadState.Downloaded, vm.downloadState.value)
+
+        vm.removeDownload()
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(DownloadState.NotDownloaded, vm.downloadState.value)
+        assertFalse((vm.uiState.value as Ready).isCachedOrDownloaded)
+    }
+
+    @Test
+    fun `remove audiobook download after cached audiobook was downloaded does not reveal cached state again`() = runTest {
+        val audiobookItem = knownItem.copy(ebookFormat = EbookFormat.Unsupported, hasAudio = true)
+        val downloadRepository = FakeAudiobookDownloadRepository()
+        val cacheRepository = FakeAudiobookCacheRepository(cachedIds = setOf(audiobookItem.id))
+        val vm = makeVm(
+            fakeRepo(audiobookItem),
+            audiobookDownloadRepository = downloadRepository,
+            audiobookCacheRepository = cacheRepository,
+        )
+        backgroundScope.launch { vm.audiobookDownloadState.collect {} }
+        testDispatcher.scheduler.advanceUntilIdle()
+        assertEquals(DownloadState.Cached, vm.audiobookDownloadState.value)
+
+        vm.onDownloadAudiobook()
+        testDispatcher.scheduler.advanceUntilIdle()
+        assertEquals(DownloadState.Downloaded, vm.audiobookDownloadState.value)
+
+        vm.onRemoveAudiobook()
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(DownloadState.NotDownloaded, vm.audiobookDownloadState.value)
+    }
+
+    @Test
+    fun `removeDownload emits download removed snackbar`() = runTest(testDispatcher) {
+        val fakeEpub = FakeEpubRepository(initialDownloaded = true)
+        val vm = makeVm(fakeRepo(knownItem), epubRepository = fakeEpub)
+        val snackbarMessages = mutableListOf<String>()
+        val collectorJob = launch(start = CoroutineStart.UNDISPATCHED) {
+            vm.snackbarEvents.collect { snackbarMessages += it }
+        }
+        backgroundScope.launch { vm.uiState.collect {} }
+        backgroundScope.launch { vm.downloadState.collect {} }
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        vm.removeDownload()
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(listOf("Download removed"), snackbarMessages)
+        collectorJob.cancel()
+    }
+
+    @Test
+    fun `onRemoveAudiobook emits download removed snackbar`() = runTest(testDispatcher) {
+        val audiobookItem = knownItem.copy(ebookFormat = EbookFormat.Unsupported, hasAudio = true)
+        val vm = makeVm(
+            fakeRepo(audiobookItem),
+            audiobookDownloadRepository = FakeAudiobookDownloadRepository(initialDownloaded = true),
+        )
+        val snackbarMessages = mutableListOf<String>()
+        val collectorJob = launch(start = CoroutineStart.UNDISPATCHED) {
+            vm.snackbarEvents.collect { snackbarMessages += it }
+        }
+        backgroundScope.launch { vm.uiState.collect {} }
+        backgroundScope.launch { vm.audiobookDownloadState.collect {} }
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        vm.onRemoveAudiobook()
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(listOf("Download removed"), snackbarMessages)
+        collectorJob.cancel()
+    }
+
+    @Test
+    fun `refreshLocalAvailability updates downloadState when reader has cached the epub`() = runTest {
+        val fakeEpub = FakeEpubRepository()
+        val vm = makeVm(fakeRepo(knownItem), epubRepository = fakeEpub)
+        backgroundScope.launch { vm.downloadState.collect {} }
+        testDispatcher.scheduler.advanceUntilIdle()
+        assertEquals(DownloadState.NotDownloaded, vm.downloadState.value)
+
+        fakeEpub.cache(knownItem.id)
+        vm.refreshLocalAvailability()
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(DownloadState.Cached, vm.downloadState.value)
+        assertTrue((vm.uiState.value as Ready).isCachedOrDownloaded)
+    }
+
+    @Test
+    fun `refreshLocalAvailability updates audiobookDownloadState when player has cached the audiobook`() = runTest {
+        val audiobookItem = knownItem.copy(ebookFormat = EbookFormat.Unsupported, hasAudio = true)
+        val cacheRepository = FakeAudiobookCacheRepository()
+        val vm = makeVm(
+            fakeRepo(audiobookItem),
+            audiobookCacheRepository = cacheRepository,
+        )
+        backgroundScope.launch { vm.audiobookDownloadState.collect {} }
+        testDispatcher.scheduler.advanceUntilIdle()
+        assertEquals(DownloadState.NotDownloaded, vm.audiobookDownloadState.value)
+
+        cacheRepository.cache(audiobookItem.id)
+        vm.refreshLocalAvailability()
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(DownloadState.Cached, vm.audiobookDownloadState.value)
+    }
+
+    @Test
+    fun `audiobookDownloadState updates when player cache completes while details is still open`() = runTest {
+        val audiobookItem = knownItem.copy(ebookFormat = EbookFormat.Unsupported, hasAudio = true)
+        val cacheRepository = FakeAudiobookCacheRepository()
+        val localAvailabilityEvents = FakeLocalAvailabilityEvents()
+        val vm = makeVm(
+            fakeRepo(audiobookItem),
+            audiobookCacheRepository = cacheRepository,
+            localAvailabilityEvents = localAvailabilityEvents,
+        )
+        backgroundScope.launch { vm.audiobookDownloadState.collect {} }
+        testDispatcher.scheduler.advanceUntilIdle()
+        assertEquals(DownloadState.NotDownloaded, vm.audiobookDownloadState.value)
+
+        cacheRepository.cache(audiobookItem.id)
+        localAvailabilityEvents.notifyChanged(audiobookItem.sourceId, audiobookItem.id)
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(DownloadState.Cached, vm.audiobookDownloadState.value)
+    }
+
+    @Test
+    fun `downloadState updates when readable item cache completes while details is still open`() = runTest {
+        val epubRepository = FakeEpubRepository()
+        val localAvailabilityEvents = FakeLocalAvailabilityEvents()
+        val vm = makeVm(
+            fakeRepo(knownItem),
+            epubRepository = epubRepository,
+            localAvailabilityEvents = localAvailabilityEvents,
+        )
+        backgroundScope.launch { vm.downloadState.collect {} }
+        testDispatcher.scheduler.advanceUntilIdle()
+        assertEquals(DownloadState.NotDownloaded, vm.downloadState.value)
+
+        epubRepository.cache(knownItem.id)
+        localAvailabilityEvents.notifyChanged(knownItem.sourceId, knownItem.id)
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(DownloadState.Cached, vm.downloadState.value)
+    }
+
+    @Test
+    fun `refreshLocalAvailability keeps an in-progress download instead of replacing it with Cached`() = runTest {
+        val manager = DownloadManager(kotlinx.coroutines.CoroutineScope(testDispatcher))
+        val gate = kotlinx.coroutines.CompletableDeferred<Unit>()
+        val fakeEpub = FakeEpubRepository(gate = gate)
+        val vm = makeVm(fakeRepo(knownItem), epubRepository = fakeEpub, downloadManager = manager)
+        backgroundScope.launch { vm.downloadState.collect {} }
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        vm.startDownload()
+        testDispatcher.scheduler.advanceUntilIdle()
+        fakeEpub.cache(knownItem.id)
+        vm.refreshLocalAvailability()
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertTrue(vm.downloadState.value is DownloadState.InProgress)
+        gate.complete(Unit)
+        testDispatcher.scheduler.advanceUntilIdle()
     }
 
     @Test

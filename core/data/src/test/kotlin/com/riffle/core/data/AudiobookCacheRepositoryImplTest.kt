@@ -2,8 +2,12 @@ package com.riffle.core.data
 
 import com.riffle.core.domain.AudiobookSession
 import com.riffle.core.domain.AudiobookTimeline
+import com.riffle.core.domain.LocalAvailabilityEvents
+import com.riffle.core.domain.StoredItemRef
 import com.riffle.core.models.AudiobookTrackSpan
 import com.riffle.core.network.createStreamingHttpClient
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
@@ -26,10 +30,26 @@ class AudiobookCacheRepositoryImplTest {
 
     private val json = Json { ignoreUnknownKeys = true }
 
-    private fun repo(root: File): AudiobookCacheRepositoryImpl {
+    private fun repo(
+        root: File,
+        localAvailabilityEvents: LocalAvailabilityEvents = NoopLocalAvailabilityEvents,
+    ): AudiobookCacheRepositoryImpl {
         val httpClient = createStreamingHttpClient()
         val trackDownloader = AudiobookTrackDownloader(httpClient, com.riffle.core.domain.DefaultDispatcherProvider)
-        return AudiobookCacheRepositoryImpl(root, trackDownloader, com.riffle.core.domain.DefaultDispatcherProvider)
+        return AudiobookCacheRepositoryImpl(
+            root,
+            trackDownloader,
+            com.riffle.core.domain.DefaultDispatcherProvider,
+            localAvailabilityEvents,
+        )
+    }
+
+    private class RecordingLocalAvailabilityEvents : LocalAvailabilityEvents {
+        val refs = mutableListOf<StoredItemRef>()
+        override val changes: SharedFlow<StoredItemRef> = MutableSharedFlow()
+        override fun notifyChanged(sourceId: String, itemId: String) {
+            refs += StoredItemRef(sourceId, itemId)
+        }
     }
 
     private fun writeCache(root: File) {
@@ -112,6 +132,29 @@ class AudiobookCacheRepositoryImplTest {
                 File(root, "srv/it/track-1").readText(),
             )
             assertEquals(setOf("audio-track-0", "audio-track-1"), allContent)
+        } finally {
+            server.shutdown()
+        }
+    }
+
+    @Test
+    fun `awaitCachedAudiobook notifies local availability changed after manifest is written`() = runTest {
+        val server = MockWebServer()
+        server.start()
+        try {
+            server.enqueue(MockResponse().setBody("audio-track-0"))
+            val session = AudiobookSession(
+                trackUrls = listOf(server.url("/track-0.mp3").toString()),
+                tracks = listOf(AudiobookTrackSpan(0, 0.0, 10.0)),
+                timeline = AudiobookTimeline(durationSec = 10.0, chapters = emptyList()),
+                serverCurrentTimeSec = 0.0,
+            )
+            val events = RecordingLocalAvailabilityEvents()
+            val r = repo(tmp.newFolder(), events)
+
+            r.awaitCachedAudiobook("srv", "it", session)
+
+            assertEquals(listOf(StoredItemRef("srv", "it")), events.refs)
         } finally {
             server.shutdown()
         }

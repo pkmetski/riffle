@@ -186,11 +186,13 @@ abstract class LocalStoreModule {
             @CbzDownloadsStore cbzDownloadsStore: LocalStore,
             @AudiobookCacheDir audiobookCacheDir: File,
             @AudiobookDownloadsDir audiobookDownloadsDir: File,
+            localAvailabilityEvents: com.riffle.core.domain.LocalAvailabilityEvents,
         ): DownloadsRepository = DownloadsRepositoryImpl(
             epubCacheStore, epubDownloadsStore,
             pdfCacheStore, pdfDownloadsStore,
             cbzCacheStore, cbzDownloadsStore,
             audiobookCacheDir, audiobookDownloadsDir,
+            localAvailabilityEvents,
         )
 
         @Provides

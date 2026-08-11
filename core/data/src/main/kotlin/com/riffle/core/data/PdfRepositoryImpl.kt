@@ -3,6 +3,7 @@ package com.riffle.core.data
 import com.riffle.core.catalog.BookFormat
 import com.riffle.core.catalog.CatalogRegistry
 import com.riffle.core.models.LibraryItem
+import com.riffle.core.domain.LocalAvailabilityEvents
 import com.riffle.core.domain.LocalStore
 import com.riffle.core.domain.PdfDownloadResult
 import com.riffle.core.domain.PdfOpenResult
@@ -17,6 +18,7 @@ class PdfRepositoryImpl(
     private val downloadsStore: LocalStore,
     private val positionStore: ReadingPositionStore,
     private val sourceRepository: SourceRepository,
+    private val localAvailabilityEvents: LocalAvailabilityEvents = NoopLocalAvailabilityEvents,
 ) : PdfRepository {
 
     override suspend fun openPdf(item: LibraryItem): PdfOpenResult {
@@ -35,7 +37,7 @@ class PdfRepositoryImpl(
                 CatalogFileTransfer.acquire(
                     catalog, item.sourceId, item.id, BookFormat.Pdf,
                     item.ebookFileIno, cacheStore,
-                )
+                ).also { localAvailabilityEvents.notifyChanged(item.sourceId, item.id) }
             } catch (t: Throwable) {
                 return PdfOpenResult.NetworkError(t)
             }
@@ -43,6 +45,31 @@ class PdfRepositoryImpl(
         val activeSource = sourceRepository.getActive()
         val lastPosition = activeSource?.let { positionStore.load(it.id, item.id) }
         return PdfOpenResult.Success(pdfFile = pdfFile, lastPosition = lastPosition)
+    }
+
+    override suspend fun openPdfForMetadata(item: LibraryItem): PdfOpenResult {
+        val local = (downloadsStore.get(item.sourceId, item.id) ?: cacheStore.get(item.sourceId, item.id))?.takeIf { it.isValidPdf() }
+        if (local == null) {
+            cacheStore.delete(item.sourceId, item.id)
+        }
+        val (pdfFile, temporary) = if (local != null) {
+            local to false
+        } else {
+            val catalog = catalogRegistry.forSourceId(item.sourceId)
+                ?: return PdfOpenResult.NetworkError(IllegalStateException("No catalog for item"))
+            try {
+                CatalogFileTransfer.acquireTemporary(
+                    catalog,
+                    item.id,
+                    BookFormat.Pdf,
+                    item.ebookFileIno,
+                    ".pdf",
+                ) to true
+            } catch (t: Throwable) {
+                return PdfOpenResult.NetworkError(t)
+            }
+        }
+        return PdfOpenResult.Success(pdfFile = pdfFile, lastPosition = null, temporary = temporary)
     }
 
     override suspend fun downloadPdf(
@@ -55,6 +82,7 @@ class PdfRepositoryImpl(
             CatalogFileTransfer.promote(
                 item.sourceId, item.id, cached, cacheStore, downloadsStore, onProgress,
             )
+            localAvailabilityEvents.notifyChanged(item.sourceId, item.id)
             return PdfDownloadResult.Success
         }
         val catalog = catalogRegistry.forSourceId(item.sourceId)
@@ -64,6 +92,7 @@ class PdfRepositoryImpl(
                 catalog, item.sourceId, item.id, BookFormat.Pdf,
                 item.ebookFileIno, downloadsStore, onProgress,
             )
+            localAvailabilityEvents.notifyChanged(item.sourceId, item.id)
             PdfDownloadResult.Success
         } catch (t: Throwable) {
             PdfDownloadResult.NetworkError(t)
@@ -72,6 +101,8 @@ class PdfRepositoryImpl(
 
     override suspend fun removeDownload(sourceId: String, itemId: String) {
         downloadsStore.delete(sourceId, itemId)
+        cacheStore.delete(sourceId, itemId)
+        localAvailabilityEvents.notifyChanged(sourceId, itemId)
     }
 
     override fun isDownloaded(sourceId: String, itemId: String): Boolean = downloadsStore.get(sourceId, itemId) != null

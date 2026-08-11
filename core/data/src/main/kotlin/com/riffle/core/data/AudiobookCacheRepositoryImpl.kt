@@ -6,6 +6,7 @@ import com.riffle.core.domain.AudiobookChapter
 import com.riffle.core.domain.AudiobookSession
 import com.riffle.core.domain.AudiobookTimeline
 import com.riffle.core.domain.DispatcherProvider
+import com.riffle.core.domain.LocalAvailabilityEvents
 import com.riffle.core.models.AudiobookTrackSpan
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.withContext
@@ -18,6 +19,7 @@ class AudiobookCacheRepositoryImpl @Inject constructor(
     @AudiobookCacheDir private val cacheDir: File,
     private val trackDownloader: AudiobookTrackDownloader,
     private val dispatchers: DispatcherProvider,
+    private val localAvailabilityEvents: LocalAvailabilityEvents = NoopLocalAvailabilityEvents,
 ) : AudiobookCacheRepository {
 
     private val json = Json { ignoreUnknownKeys = true }
@@ -65,6 +67,7 @@ class AudiobookCacheRepositoryImpl @Inject constructor(
             )
             // Written last → atomic completion marker (same pattern as AudiobookDownloadRepositoryImpl).
             manifestFile(sourceId, itemId).writeText(json.encodeToString(manifest))
+            localAvailabilityEvents.notifyChanged(sourceId, itemId)
         } catch (e: CancellationException) {
             dir.deleteRecursively()
             throw e
@@ -78,6 +81,7 @@ class AudiobookCacheRepositoryImpl @Inject constructor(
         val dir = itemDir(sourceId, itemId)
         val freed = dir.walkBottomUp().filter { it.isFile }.sumOf { it.length() }
         dir.deleteRecursively()
+        localAvailabilityEvents.notifyChanged(sourceId, itemId)
         freed
     }
 }

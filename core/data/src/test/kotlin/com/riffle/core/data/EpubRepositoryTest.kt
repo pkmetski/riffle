@@ -8,8 +8,10 @@ import com.riffle.core.models.EbookFormat
 import com.riffle.core.domain.EpubDownloadResult
 import com.riffle.core.domain.EpubOpenResult
 import com.riffle.core.domain.EpubRepository
+import com.riffle.core.domain.LocalAvailabilityEvents
 import com.riffle.core.models.LibraryItem
 import com.riffle.core.domain.ReadingPositionStore
+import com.riffle.core.domain.StoredItemRef
 import com.riffle.core.models.Source
 import com.riffle.core.domain.SourceRepository
 import com.riffle.core.models.ServerType
@@ -20,6 +22,8 @@ import com.riffle.core.network.StorytellerBundleApi
 import com.riffle.core.network.StorytellerBundleProbeApi
 import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
 import okhttp3.MediaType.Companion.toMediaType
@@ -119,6 +123,14 @@ class EpubRepositoryTest {
         override suspend fun updateLocalTimestamp(sourceId: String, itemId: String, millis: Long) = Unit
     }
 
+    private class RecordingLocalAvailabilityEvents : LocalAvailabilityEvents {
+        val refs = mutableListOf<StoredItemRef>()
+        override val changes: SharedFlow<StoredItemRef> = MutableSharedFlow()
+        override fun notifyChanged(sourceId: String, itemId: String) {
+            refs += StoredItemRef(sourceId, itemId)
+        }
+    }
+
     private fun item(id: String = "item-1", ino: String? = "ino-42", sourceId: String = "source-1") = LibraryItem(
         id = id,
         libraryId = "lib-1",
@@ -147,6 +159,48 @@ class EpubRepositoryTest {
         source.enqueue(MockResponse().setResponseCode(200).setBody(Buffer().write(epubBytes)))
         repo.openEpub(item())
         assertTrue(cacheStore.get("source-1", "item-1") != null)
+    }
+
+    @Test
+    fun `openEpub with cache miss notifies local availability changed`() = runTest {
+        val events = RecordingLocalAvailabilityEvents()
+        repo = EpubRepositoryImpl(
+            catalogRegistry = TestCatalogRegistry(fakeServerRepository(source.url("/").toString().trimEnd('/')), mapOf("source-1" to "test-token")),
+            cacheStore = cacheStore,
+            downloadsStore = downloadsStore,
+            positionStore = positionStore,
+            sourceRepository = fakeServerRepository(source.url("/").toString().trimEnd('/')),
+            localAvailabilityEvents = events,
+        )
+        source.enqueue(MockResponse().setResponseCode(200).setBody(Buffer().write(epubBytes)))
+
+        repo.openEpub(item())
+
+        assertEquals(listOf(StoredItemRef("source-1", "item-1")), events.refs)
+    }
+
+    @Test
+    fun `openEpubForMetadata with local miss downloads temporary file without caching item`() = runTest {
+        source.enqueue(MockResponse().setResponseCode(200).setBody(Buffer().write(epubBytes)))
+        val result = repo.openEpubForMetadata(item()) as EpubOpenResult.Success
+
+        assertTrue(result.temporary)
+        assertTrue(result.epubFile.exists())
+        assertEquals(1, source.requestCount)
+        assertFalse(repo.isCached("source-1", "item-1"))
+        assertFalse(repo.isDownloaded("source-1", "item-1"))
+
+        result.epubFile.delete()
+    }
+
+    @Test
+    fun `openEpubForMetadata with cache hit reuses cached file`() = runTest {
+        val cached = cacheStore.save("source-1", "item-1", epubBytes.inputStream())
+        val result = repo.openEpubForMetadata(item()) as EpubOpenResult.Success
+
+        assertFalse(result.temporary)
+        assertEquals(cached, result.epubFile)
+        assertEquals(0, source.requestCount)
     }
 
     @Test
@@ -248,8 +302,10 @@ class EpubRepositoryTest {
     @Test
     fun `removeDownload deletes file from downloads store`() = runTest {
         downloadsStore.save("source-1", "item-1", epubBytes.inputStream())
+        cacheStore.save("source-1", "item-1", epubBytes.inputStream())
         repo.removeDownload("source-1", "item-1")
         assertTrue(!repo.isDownloaded("source-1", "item-1"))
+        assertTrue(!repo.isCached("source-1", "item-1"))
     }
 
     @Test

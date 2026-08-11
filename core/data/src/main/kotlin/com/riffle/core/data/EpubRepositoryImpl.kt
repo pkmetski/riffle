@@ -6,6 +6,7 @@ import com.riffle.core.domain.EpubDownloadResult
 import com.riffle.core.domain.EpubOpenResult
 import com.riffle.core.domain.EpubRepository
 import com.riffle.core.models.LibraryItem
+import com.riffle.core.domain.LocalAvailabilityEvents
 import com.riffle.core.domain.LocalStore
 import com.riffle.core.domain.ReadingPositionStore
 import com.riffle.core.domain.SourceRepository
@@ -18,6 +19,7 @@ class EpubRepositoryImpl(
     private val downloadsStore: LocalStore,
     private val positionStore: ReadingPositionStore,
     private val sourceRepository: SourceRepository,
+    private val localAvailabilityEvents: LocalAvailabilityEvents = NoopLocalAvailabilityEvents,
 ) : EpubRepository {
 
     /**
@@ -57,7 +59,7 @@ class EpubRepositoryImpl(
                         CatalogFileTransfer.acquire(
                             catalog, item.sourceId, item.id, BookFormat.Epub,
                             item.ebookFileIno, cacheStore,
-                        )
+                        ).also { localAvailabilityEvents.notifyChanged(item.sourceId, item.id) }
                     } catch (t: Throwable) {
                         return EpubOpenResult.NetworkError(t)
                     }
@@ -69,6 +71,32 @@ class EpubRepositoryImpl(
         val activeSource = sourceRepository.getActive()
         val lastPosition = activeSource?.let { positionStore.load(it.id, item.id) }
         return EpubOpenResult.Success(epubFile = epubFile, lastPosition = lastPosition)
+    }
+
+    override suspend fun openEpubForMetadata(item: LibraryItem): EpubOpenResult {
+        val local = downloadsStore.get(item.sourceId, item.id) ?: cacheStore.get(item.sourceId, item.id)
+        val (epubFile, temporary) = if (local != null) {
+            local to false
+        } else {
+            val catalog = catalogRegistry.forSourceId(item.sourceId)
+                ?: return EpubOpenResult.NetworkError(IllegalStateException("No catalog for item"))
+            lockFor(item.sourceId, item.id).withLock {
+                downloadsStore.get(item.sourceId, item.id)?.let { it to false }
+                    ?: cacheStore.get(item.sourceId, item.id)?.let { it to false }
+                    ?: try {
+                        CatalogFileTransfer.acquireTemporary(
+                            catalog,
+                            item.id,
+                            BookFormat.Epub,
+                            item.ebookFileIno,
+                            ".epub",
+                        ) to true
+                    } catch (t: Throwable) {
+                        return EpubOpenResult.NetworkError(t)
+                    }
+            }
+        }
+        return EpubOpenResult.Success(epubFile = epubFile, lastPosition = null, temporary = temporary)
     }
 
     override suspend fun downloadEpub(
@@ -90,6 +118,7 @@ class EpubRepositoryImpl(
                     catalog, item.sourceId, item.id, BookFormat.Epub,
                     item.ebookFileIno, downloadsStore, onProgress,
                 )
+                localAvailabilityEvents.notifyChanged(item.sourceId, item.id)
                 EpubDownloadResult.Success
             } catch (t: Throwable) {
                 EpubDownloadResult.NetworkError(t)
@@ -105,11 +134,14 @@ class EpubRepositoryImpl(
         CatalogFileTransfer.promote(
             item.sourceId, item.id, cached, cacheStore, downloadsStore, onProgress,
         )
+        localAvailabilityEvents.notifyChanged(item.sourceId, item.id)
         return EpubDownloadResult.Success
     }
 
     override suspend fun removeDownload(sourceId: String, itemId: String) {
         downloadsStore.delete(sourceId, itemId)
+        cacheStore.delete(sourceId, itemId)
+        localAvailabilityEvents.notifyChanged(sourceId, itemId)
     }
 
     override fun isDownloaded(sourceId: String, itemId: String): Boolean = downloadsStore.get(sourceId, itemId) != null

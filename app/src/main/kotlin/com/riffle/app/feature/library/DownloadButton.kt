@@ -58,6 +58,23 @@ fun DownloadButton(
                 modifier = modifier,
             )
         }
+        DownloadState.Cached -> {
+            Box(
+                modifier = modifier
+                    .size(size)
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.secondaryContainer)
+                    .clickable(enabled = enabled, onClick = onDownload),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    imageVector = Icons.Default.ArrowDownward,
+                    contentDescription = "Download cached item",
+                    tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                    modifier = Modifier.size(20.dp),
+                )
+            }
+        }
         DownloadState.Downloaded -> {
             Box(
                 modifier = modifier

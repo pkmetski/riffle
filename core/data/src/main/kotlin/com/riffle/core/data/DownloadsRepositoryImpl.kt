@@ -1,6 +1,7 @@
 package com.riffle.core.data
 
 import com.riffle.core.domain.DownloadsRepository
+import com.riffle.core.domain.LocalAvailabilityEvents
 import com.riffle.core.domain.LocalStore
 import com.riffle.core.domain.StoredItemRef
 import java.io.File
@@ -14,6 +15,7 @@ class DownloadsRepositoryImpl(
     private val cbzDownloadsStore: LocalStore,
     private val audiobookCacheDir: File,
     private val audiobookDownloadsDir: File,
+    private val localAvailabilityEvents: LocalAvailabilityEvents = NoopLocalAvailabilityEvents,
 ) : DownloadsRepository {
 
     private val downloadStores = listOf(epubDownloadsStore, pdfDownloadsStore, cbzDownloadsStore)
@@ -37,12 +39,16 @@ class DownloadsRepositoryImpl(
 
     override suspend fun removeDownload(sourceId: String, itemId: String) {
         downloadStores.forEach { it.delete(sourceId, itemId) }
+        cacheStores.forEach { it.delete(sourceId, itemId) }
         itemDir(audiobookDownloadsDir, sourceId, itemId).deleteRecursively()
+        itemDir(audiobookCacheDir, sourceId, itemId).deleteRecursively()
+        localAvailabilityEvents.notifyChanged(sourceId, itemId)
     }
 
     override suspend fun removeCached(sourceId: String, itemId: String) {
         cacheStores.forEach { it.delete(sourceId, itemId) }
         itemDir(audiobookCacheDir, sourceId, itemId).deleteRecursively()
+        localAvailabilityEvents.notifyChanged(sourceId, itemId)
     }
 
     override suspend fun removeAllDownloads() {

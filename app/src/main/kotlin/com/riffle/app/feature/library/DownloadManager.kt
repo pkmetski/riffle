@@ -21,6 +21,8 @@ class DownloadManager @Inject constructor(
 ) {
     private val _states = MutableStateFlow<Map<String, DownloadState>>(emptyMap())
     val states: StateFlow<Map<String, DownloadState>> = _states
+    private val lock = Any()
+    private val silentKeys = mutableSetOf<String>()
 
     /**
      * Starts [work] for [key] on the application scope unless a download for [key] is already in
@@ -40,6 +42,38 @@ class DownloadManager @Inject constructor(
                 // Catches Error subclasses (e.g. OutOfMemoryError) that Exception misses.
                 if (e is kotlinx.coroutines.CancellationException) throw e
                 DownloadState.NotDownloaded
+            }
+            set(key, terminal)
+        }
+    }
+
+    /**
+     * Runs local promotion work in the same app scope as network downloads, but keeps the visible
+     * state stable until the terminal state arrives. Cached-to-downloaded promotion should not look
+     * like a fresh download.
+     */
+    fun startWithoutProgress(
+        key: String,
+        stateWhileRunning: DownloadState,
+        work: suspend () -> DownloadState,
+    ) {
+        val shouldStart = synchronized(lock) {
+            if (_states.value[key] is DownloadState.InProgress || !silentKeys.add(key)) {
+                false
+            } else {
+                true
+            }
+        }
+        if (!shouldStart) return
+        set(key, stateWhileRunning)
+        scope.launch {
+            val terminal = try {
+                work()
+            } catch (e: Throwable) {
+                if (e is kotlinx.coroutines.CancellationException) throw e
+                DownloadState.NotDownloaded
+            } finally {
+                synchronized(lock) { silentKeys -= key }
             }
             set(key, terminal)
         }

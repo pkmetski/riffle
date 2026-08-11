@@ -169,6 +169,11 @@ class LibraryItemDetailViewModelTocTest {
         readaloudLinkRepository = NoopReadaloudLinkRepository,
         readaloudAudioRepository = NoopReadaloudAudioRepository,
         audiobookDownloadRepository = NoopAudiobookDownloadRepository,
+        audiobookCacheRepository = NoopAudiobookCacheRepository,
+        localAvailabilityEvents = object : com.riffle.core.domain.LocalAvailabilityEvents {
+            override val changes = kotlinx.coroutines.flow.MutableSharedFlow<com.riffle.core.domain.StoredItemRef>()
+            override fun notifyChanged(sourceId: String, itemId: String) = Unit
+        },
         readaloudOfflineDownloader = object : com.riffle.app.feature.reader.readaloud.ReadaloudOfflineDownloader {
             override suspend fun download(storytellerSourceId: String, storytellerBookId: String, onProgress: (Float) -> Unit): Boolean? = null
         },

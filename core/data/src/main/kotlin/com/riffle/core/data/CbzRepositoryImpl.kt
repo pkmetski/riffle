@@ -7,6 +7,7 @@ import com.riffle.core.domain.CbzDownloadResult
 import com.riffle.core.domain.CbzOpenResult
 import com.riffle.core.domain.CbzRepository
 import com.riffle.core.models.LibraryItem
+import com.riffle.core.domain.LocalAvailabilityEvents
 import com.riffle.core.domain.LocalStore
 import com.riffle.core.domain.ReadingPositionStore
 import com.riffle.core.domain.SourceRepository
@@ -25,6 +26,7 @@ class CbzRepositoryImpl(
     private val downloadsStore: LocalStore,
     private val positionStore: ReadingPositionStore,
     private val sourceRepository: SourceRepository,
+    private val localAvailabilityEvents: LocalAvailabilityEvents = NoopLocalAvailabilityEvents,
 ) : CbzRepository {
 
     override suspend fun openCbz(item: LibraryItem): CbzOpenResult {
@@ -55,6 +57,7 @@ class CbzRepositoryImpl(
                 catalog, item.sourceId, item.id, BookFormat.Cbz,
                 item.ebookFileIno, cacheStore,
             )
+            localAvailabilityEvents.notifyChanged(item.sourceId, item.id)
             val activeSource = sourceRepository.getActive()
             val lastPosition = activeSource?.let { positionStore.load(it.id, item.id) }
             CbzOpenResult.Success(cbzFile = cbzFile, lastPosition = lastPosition)
@@ -73,6 +76,7 @@ class CbzRepositoryImpl(
             CatalogFileTransfer.promote(
                 item.sourceId, item.id, cached, cacheStore, downloadsStore, onProgress,
             )
+            localAvailabilityEvents.notifyChanged(item.sourceId, item.id)
             return CbzDownloadResult.Success
         }
         val catalog = catalogRegistry.forSourceId(item.sourceId)
@@ -82,6 +86,7 @@ class CbzRepositoryImpl(
                 catalog, item.sourceId, item.id, BookFormat.Cbz,
                 item.ebookFileIno, downloadsStore, onProgress,
             )
+            localAvailabilityEvents.notifyChanged(item.sourceId, item.id)
             CbzDownloadResult.Success
         } catch (t: Throwable) {
             downloadsStore.delete(item.sourceId, item.id)
@@ -91,6 +96,8 @@ class CbzRepositoryImpl(
 
     override suspend fun removeDownload(sourceId: String, itemId: String) {
         downloadsStore.delete(sourceId, itemId)
+        cacheStore.delete(sourceId, itemId)
+        localAvailabilityEvents.notifyChanged(sourceId, itemId)
     }
 
     override fun isDownloaded(sourceId: String, itemId: String): Boolean = downloadsStore.get(sourceId, itemId) != null
@@ -119,7 +126,7 @@ class CbzRepositoryImpl(
             CatalogFileTransfer.acquire(
                 catalog, item.sourceId, item.id, BookFormat.Cbz,
                 item.ebookFileIno, cacheStore,
-            )
+            ).also { localAvailabilityEvents.notifyChanged(item.sourceId, item.id) }
         } catch (_: Throwable) {
             cacheStore.delete(item.sourceId, item.id)
             null

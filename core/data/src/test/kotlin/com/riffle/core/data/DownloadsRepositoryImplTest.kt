@@ -44,6 +44,24 @@ class DownloadsRepositoryImplTest {
     }
 
     @Test
+    fun `removeDownload clears matching cache entries so items do not reappear as cached`() = runTest {
+        val stores = stores()
+        stores.epubDownloads.save("srv", "ebook", ByteArrayInputStream("download".toByteArray()))
+        stores.epubCache.save("srv", "ebook", ByteArrayInputStream("cache".toByteArray()))
+        writeAudiobook(stores.audiobookDownloadsDir, "srv", "audio", "downloaded-track")
+        writeAudiobook(stores.audiobookCacheDir, "srv", "audio", "cached-track")
+        val repo = repo(stores)
+
+        repo.removeDownload("srv", "ebook")
+        repo.removeDownload("srv", "audio")
+
+        assertTrue(repo.getDownloadedItems().none { it.sourceId == "srv" && it.itemId in setOf("ebook", "audio") })
+        assertTrue(repo.getCachedItems().none { it.sourceId == "srv" && it.itemId in setOf("ebook", "audio") })
+        assertFalse(stores.audiobookDownloadsDir.resolve("srv").resolve("audio").exists())
+        assertFalse(stores.audiobookCacheDir.resolve("srv").resolve("audio").exists())
+    }
+
+    @Test
     fun `size and removals include directory backed audiobook artifacts`() = runTest {
         val stores = stores()
         writeAudiobook(stores.audiobookDownloadsDir, "srv", "audio-down", "downloaded-track")

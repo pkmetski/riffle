@@ -9,7 +9,7 @@ interface DownloadsRepository {
     /** Total bytes of the item's local artifact(s), including directory-backed audiobook data. */
     fun sizeOf(sourceId: String, itemId: String): Long
 
-    /** Removes the permanent download for a single item. Immediate; no Undo. */
+    /** Removes the permanent download and any hidden same-item cache copy. Immediate; no Undo. */
     suspend fun removeDownload(sourceId: String, itemId: String)
 
     /** Removes the cached copy for a single item. Immediate; no Undo. */

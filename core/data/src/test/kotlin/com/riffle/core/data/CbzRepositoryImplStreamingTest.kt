@@ -11,6 +11,7 @@ import com.riffle.core.catalog.CatalogRegistry
 import com.riffle.core.catalog.CbzPageStreamCapability
 import com.riffle.core.catalog.SortKey
 import com.riffle.core.models.SourceType
+import com.riffle.core.domain.CbzDownloadResult
 import com.riffle.core.domain.CbzOpenResult
 import com.riffle.core.domain.LocalStore
 import com.riffle.core.domain.ReadingPositionStore
@@ -28,9 +29,14 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
+import org.junit.Rule
 import org.junit.Test
+import org.junit.rules.TemporaryFolder
 
 class CbzRepositoryImplStreamingTest {
+
+    @get:Rule
+    val tmp = TemporaryFolder()
 
     // --- Fakes ---
 
@@ -116,6 +122,44 @@ class CbzRepositoryImplStreamingTest {
     )
 
     // --- Tests ---
+
+    @Test fun `removeDownload deletes file from downloads and cache stores`() = runTest {
+        val cacheStore = LocalStoreImpl(tmp.newFolder("cache"), ".cbz", com.riffle.core.domain.DefaultDispatcherProvider)
+        val downloadsStore = LocalStoreImpl(tmp.newFolder("downloads"), ".cbz", com.riffle.core.domain.DefaultDispatcherProvider)
+        val repo = CbzRepositoryImpl(
+            registryFor("src1", null),
+            cacheStore,
+            downloadsStore,
+            emptyPositionStore,
+            noActiveSource,
+        )
+        cacheStore.save("src1", "item1", "cache".byteInputStream())
+        downloadsStore.save("src1", "item1", "download".byteInputStream())
+
+        repo.removeDownload("src1", "item1")
+
+        assertFalse(repo.isDownloaded("src1", "item1"))
+        assertFalse(repo.isCached("src1", "item1"))
+    }
+
+    @Test fun `downloadCbz promotes cached file to downloads without fetching from catalog`() = runTest {
+        val cacheStore = LocalStoreImpl(tmp.newFolder("cache"), ".cbz", com.riffle.core.domain.DefaultDispatcherProvider)
+        val downloadsStore = LocalStoreImpl(tmp.newFolder("downloads"), ".cbz", com.riffle.core.domain.DefaultDispatcherProvider)
+        val repo = CbzRepositoryImpl(
+            registryFor("src1", basicCatalog),
+            cacheStore,
+            downloadsStore,
+            emptyPositionStore,
+            noActiveSource,
+        )
+        cacheStore.save("src1", "item1", "cache".byteInputStream())
+
+        val result = repo.downloadCbz(fakeItem("src1"))
+
+        assertEquals(CbzDownloadResult.Success, result)
+        assertTrue(repo.isDownloaded("src1", "item1"))
+        assertFalse(repo.isCached("src1", "item1"))
+    }
 
     @Test fun `supportsStreaming returns true when catalog implements CbzPageStreamCapability`() = runTest {
         val repo = CbzRepositoryImpl(

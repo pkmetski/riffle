@@ -7,6 +7,7 @@ import com.riffle.core.domain.AudiobookRepository
 import com.riffle.core.domain.AudiobookSession
 import com.riffle.core.domain.AudiobookTimeline
 import com.riffle.core.domain.DispatcherProvider
+import com.riffle.core.domain.LocalAvailabilityEvents
 import com.riffle.core.models.AudiobookTrackSpan
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
@@ -41,14 +42,18 @@ internal data class AudiobookDownloadManifest(
 class AudiobookDownloadRepositoryImpl @Inject constructor(
     private val audiobookRepository: AudiobookRepository,
     private val trackDownloader: AudiobookTrackDownloader,
+    @com.riffle.core.data.di.AudiobookCacheDir private val cacheDir: File,
     @com.riffle.core.data.di.AudiobookDownloadsDir private val downloadsDir: File,
     private val dispatchers: DispatcherProvider,
+    private val localAvailabilityEvents: LocalAvailabilityEvents,
 ) : AudiobookDownloadRepository {
 
     private val json = Json { ignoreUnknownKeys = true }
 
     private fun itemDir(sourceId: String, itemId: String) = File(downloadsDir, "$sourceId/$itemId")
+    private fun cacheItemDir(sourceId: String, itemId: String) = File(cacheDir, "$sourceId/$itemId")
     private fun manifestFile(sourceId: String, itemId: String) = File(itemDir(sourceId, itemId), "manifest.json")
+    private fun cacheManifestFile(sourceId: String, itemId: String) = File(cacheItemDir(sourceId, itemId), "manifest.json")
 
     override fun isDownloaded(sourceId: String, itemId: String): Boolean =
         manifestFile(sourceId, itemId).exists()
@@ -76,6 +81,9 @@ class AudiobookDownloadRepositoryImpl @Inject constructor(
         onProgress: (downloaded: Long, total: Long) -> Unit,
     ): AudiobookDownloadResult = withContext(dispatchers.io) {
         if (isDownloaded(sourceId, itemId)) return@withContext AudiobookDownloadResult.Success
+        if (cacheManifestFile(sourceId, itemId).exists()) {
+            return@withContext promoteCacheToDownload(sourceId, itemId, onProgress)
+        }
         val session = audiobookRepository.openSession(sourceId, itemId)
             ?: return@withContext AudiobookDownloadResult.NetworkError(IOException("Could not open play session"))
         val wholeAudiobookBytes = audiobookRepository.downloadSizeBytes(sourceId, itemId)
@@ -94,9 +102,35 @@ class AudiobookDownloadRepositoryImpl @Inject constructor(
             )
             // Written last → atomic completion marker.
             manifestFile(sourceId, itemId).writeText(json.encodeToString(manifest))
+            localAvailabilityEvents.notifyChanged(sourceId, itemId)
             AudiobookDownloadResult.Success
         } catch (e: IOException) {
             dir.deleteRecursively() // leave no partial download behind
+            AudiobookDownloadResult.NetworkError(e)
+        }
+    }
+
+    private fun promoteCacheToDownload(
+        sourceId: String,
+        itemId: String,
+        onProgress: (downloaded: Long, total: Long) -> Unit,
+    ): AudiobookDownloadResult {
+        val from = cacheItemDir(sourceId, itemId)
+        val to = itemDir(sourceId, itemId)
+        val total = directorySize(from)
+        return try {
+            to.deleteRecursively()
+            to.parentFile?.mkdirs()
+            if (!from.renameTo(to)) {
+                copyDirectory(from, to, total, onProgress)
+                from.deleteRecursively()
+            } else {
+                onProgress(total, total)
+            }
+            localAvailabilityEvents.notifyChanged(sourceId, itemId)
+            AudiobookDownloadResult.Success
+        } catch (e: IOException) {
+            to.deleteRecursively()
             AudiobookDownloadResult.NetworkError(e)
         }
     }
@@ -105,6 +139,38 @@ class AudiobookDownloadRepositoryImpl @Inject constructor(
         val dir = itemDir(sourceId, itemId)
         val freed = dir.walkBottomUp().filter { it.isFile }.sumOf { it.length() }
         dir.deleteRecursively()
+        localAvailabilityEvents.notifyChanged(sourceId, itemId)
         freed
+    }
+
+    private fun directorySize(dir: File): Long =
+        if (!dir.exists()) 0L else dir.walkTopDown().filter { it.isFile }.sumOf { it.length() }
+
+    private fun copyDirectory(
+        from: File,
+        to: File,
+        total: Long,
+        onProgress: (downloaded: Long, total: Long) -> Unit,
+    ) {
+        var copied = 0L
+        from.walkTopDown()
+            .filter { it.isFile }
+            .forEach { source ->
+                val target = to.resolve(source.relativeTo(from).path)
+                target.parentFile?.mkdirs()
+                source.inputStream().use { input ->
+                    target.outputStream().use { output ->
+                        val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
+                        while (true) {
+                            val read = input.read(buffer)
+                            if (read < 0) break
+                            output.write(buffer, 0, read)
+                            copied += read
+                            onProgress(copied, total)
+                        }
+                    }
+                }
+            }
+        onProgress(total, total)
     }
 }
