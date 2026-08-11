@@ -67,6 +67,62 @@ class GitHubReleaseApiTest {
     }
 
     @Test
+    fun `latestRelease accepts legacy app release apk assets`() = runTest {
+        server.enqueue(
+            MockResponse().setBody(
+                """
+                [
+                  {
+                    "tag_name": "v1.4.0",
+                    "draft": false,
+                    "prerelease": false,
+                    "assets": [
+                      { "name": "app-release.apk", "browser_download_url": "https://x/app-release.apk", "size": 4100 }
+                    ]
+                  }
+                ]
+                """.trimIndent()
+            ).addHeader("Content-Type", "application/json")
+        )
+
+        val result = api.latestRelease("pkmetski/riffle")
+
+        assertTrue(result is GitHubReleaseResult.Success)
+        val release = (result as GitHubReleaseResult.Success).release
+        assertEquals("v1.4.0", release.tagName)
+        assertEquals("https://x/app-release.apk", release.apkUrl)
+        assertEquals(4100L, release.apkSizeBytes)
+    }
+
+    @Test
+    fun `latestRelease prefers the versioned riffle apk over legacy apk assets`() = runTest {
+        server.enqueue(
+            MockResponse().setBody(
+                """
+                [
+                  {
+                    "tag_name": "v1.7.0",
+                    "draft": false,
+                    "prerelease": false,
+                    "assets": [
+                      { "name": "app-release.apk", "browser_download_url": "https://x/legacy.apk", "size": 4100 },
+                      { "name": "riffle-1.7.0.apk", "browser_download_url": "https://x/riffle-1.7.0.apk", "size": 4700 }
+                    ]
+                  }
+                ]
+                """.trimIndent()
+            ).addHeader("Content-Type", "application/json")
+        )
+
+        val result = api.latestRelease("pkmetski/riffle")
+
+        assertTrue(result is GitHubReleaseResult.Success)
+        val release = (result as GitHubReleaseResult.Success).release
+        assertEquals("https://x/riffle-1.7.0.apk", release.apkUrl)
+        assertEquals(4700L, release.apkSizeBytes)
+    }
+
+    @Test
     fun `latestRelease skips a still-building release and falls back to the prior apk release`() = runTest {
         server.enqueue(
             MockResponse().setBody(
@@ -285,6 +341,26 @@ class GitHubReleaseApiTest {
         assertEquals("2026-07-28T21:14:00Z", releases[0].publishedAt)
         assertEquals("v1.5.0", releases[1].tagName)
         assertEquals("### Fixes\n- Bug fix", releases[1].body)
+    }
+
+    @Test
+    fun `listReleases keeps download metadata for legacy app release apk assets`() = runTest {
+        server.enqueue(
+            MockResponse().setBody(
+                """
+                [
+                  { "tag_name": "v1.4.0", "draft": false, "prerelease": false, "body": "Notes",
+                    "assets": [{ "name": "app-release.apk", "browser_download_url": "https://x/app-release.apk", "size": 4100 }] }
+                ]
+                """.trimIndent()
+            ).addHeader("Content-Type", "application/json")
+        )
+
+        val releases = api.listReleases("pkmetski/riffle")
+
+        assertEquals(1, releases.size)
+        assertEquals("https://x/app-release.apk", releases[0].apkUrl)
+        assertEquals(4100L, releases[0].apkSizeBytes)
     }
 
     @Test
