@@ -339,18 +339,27 @@ private fun AutoShrinkingSingleLineText(
         maxLines = 1,
         overflow = TextOverflow.Ellipsis,
         onTextLayout = { result ->
-            val currentSize = resizedStyle.fontSize
-            if (result.hasVisualOverflow &&
-                currentSize != TextUnit.Unspecified &&
-                currentSize.value > minFontSize.value
-            ) {
-                val nextSize = maxOf(minFontSize.value, currentSize.value * 0.9f).sp
-                if (nextSize != currentSize) {
-                    resizedStyle = resizedStyle.copy(fontSize = nextSize)
-                }
+            val nextSize = nextOverflowFontSize(
+                currentSize = resizedStyle.fontSize,
+                minFontSize = minFontSize,
+                hasVisualOverflow = result.hasVisualOverflow,
+            )
+            if (nextSize != null) {
+                resizedStyle = resizedStyle.copy(fontSize = nextSize)
             }
         },
     )
+}
+
+internal fun nextOverflowFontSize(
+    currentSize: TextUnit,
+    minFontSize: TextUnit,
+    hasVisualOverflow: Boolean,
+): TextUnit? {
+    if (!hasVisualOverflow || currentSize == TextUnit.Unspecified) return null
+    if (currentSize.value <= minFontSize.value) return null
+    val nextValue = maxOf(minFontSize.value, currentSize.value * 0.9f)
+    return nextValue.sp.takeIf { it != currentSize }
 }
 
 /**
