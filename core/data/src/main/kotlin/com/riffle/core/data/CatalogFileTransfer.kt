@@ -43,4 +43,25 @@ internal object CatalogFileTransfer {
         cache.delete(sourceId, itemId)
         return downloaded
     }
+
+    suspend fun acquireTemporary(
+        catalog: Catalog,
+        itemId: String,
+        format: BookFormat,
+        handleHint: String?,
+        suffix: String,
+    ): File {
+        val temp = File.createTempFile("riffle-metadata-", suffix)
+        return try {
+            catalog.withFileStream(itemId, format, handleHint) { stream ->
+                stream.byteStream().use { input ->
+                    temp.outputStream().use { output -> input.copyTo(output) }
+                }
+                temp
+            }
+        } catch (t: Throwable) {
+            temp.delete()
+            throw t
+        }
+    }
 }

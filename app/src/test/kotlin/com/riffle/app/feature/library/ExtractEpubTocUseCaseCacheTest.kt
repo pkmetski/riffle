@@ -87,7 +87,7 @@ class ExtractEpubTocUseCaseCacheTest {
 
         val epubRepo = mockk<EpubRepository>()
         // openEpub fails (file not cached) — extraction falls through but epub wasn't accessible
-        coEvery { epubRepo.openEpub(any()) } returns
+        coEvery { epubRepo.openEpubForMetadata(any()) } returns
             EpubOpenResult.NetworkError(RuntimeException("unavailable"))
 
         val details = makeUseCase(tocRepo, metricsRepo, epubRepo).extractDetails(item)

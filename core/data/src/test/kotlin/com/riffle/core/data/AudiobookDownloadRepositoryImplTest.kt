@@ -4,6 +4,8 @@ import com.riffle.core.domain.AudiobookDownloadResult
 import com.riffle.core.domain.AudiobookRepository
 import com.riffle.core.domain.AudiobookSession
 import com.riffle.core.domain.AudiobookTimeline
+import com.riffle.core.domain.LocalAvailabilityEvents
+import com.riffle.core.domain.StoredItemRef
 import com.riffle.core.models.AudiobookTrackSpan
 import com.riffle.core.network.createStreamingHttpClient
 import java.io.File
@@ -14,6 +16,8 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import okhttp3.mockwebserver.MockResponse
@@ -40,16 +44,28 @@ class AudiobookDownloadRepositoryImplTest {
 
     private fun repo(
         root: File,
+        cacheRoot: File = tmp.newFolder(),
         audiobookRepository: AudiobookRepository = NoopAudiobookRepository,
+        localAvailabilityEvents: LocalAvailabilityEvents = NoopLocalAvailabilityEvents,
     ): AudiobookDownloadRepositoryImpl {
         val httpClient = createStreamingHttpClient()
         val trackDownloader = AudiobookTrackDownloader(httpClient, com.riffle.core.domain.DefaultDispatcherProvider)
         return AudiobookDownloadRepositoryImpl(
             audiobookRepository,
             trackDownloader,
+            cacheRoot,
             root,
             com.riffle.core.domain.DefaultDispatcherProvider,
+            localAvailabilityEvents,
         )
+    }
+
+    private class RecordingLocalAvailabilityEvents : LocalAvailabilityEvents {
+        val refs = mutableListOf<StoredItemRef>()
+        override val changes: SharedFlow<StoredItemRef> = MutableSharedFlow()
+        override fun notifyChanged(sourceId: String, itemId: String) {
+            refs += StoredItemRef(sourceId, itemId)
+        }
     }
 
     /** Write a completed download (track files + manifest) for (srv, it) under [root]. */
@@ -114,6 +130,38 @@ class AudiobookDownloadRepositoryImplTest {
     }
 
     @Test
+    fun `download promotes completed cache without opening a network session`() = runTest {
+        val downloadsRoot = tmp.newFolder("downloads")
+        val cacheRoot = tmp.newFolder("cache")
+        writeDownload(cacheRoot)
+        val source = object : AudiobookRepository {
+            override suspend fun openSession(sourceId: String, itemId: String): AudiobookSession? {
+                throw AssertionError("cached audiobook promotion must not open a network session")
+            }
+            override suspend fun saveProgress(
+                sourceId: String,
+                itemId: String,
+                positionSec: Double,
+                durationSec: Double,
+            ) = Unit
+        }
+        val progress = mutableListOf<Pair<Long, Long>>()
+        val events = RecordingLocalAvailabilityEvents()
+        val r = repo(downloadsRoot, cacheRoot, source, events)
+
+        val result = r.download("srv", "it") { downloaded, total ->
+            progress += downloaded to total
+        }
+
+        assertEquals(AudiobookDownloadResult.Success, result)
+        assertTrue(r.isDownloaded("srv", "it"))
+        assertFalse(File(cacheRoot, "srv/it").exists())
+        assertTrue(progress.last().first >= 30L)
+        assertEquals(progress.last().second, progress.last().first)
+        assertEquals(listOf(StoredItemRef("srv", "it")), events.refs)
+    }
+
+    @Test
     fun `download streams every track through the Ktor client and writes the manifest last`() = runTest {
         val server = MockWebServer()
         server.start()
@@ -137,7 +185,7 @@ class AudiobookDownloadRepositoryImplTest {
             val root = tmp.newFolder()
             val progress = mutableListOf<Pair<Long, Long>>()
 
-            val result = repo(root, source).download("srv", "it") { downloaded, total ->
+            val result = repo(root, audiobookRepository = source).download("srv", "it") { downloaded, total ->
                 progress += downloaded to total
             }
 
@@ -179,7 +227,7 @@ class AudiobookDownloadRepositoryImplTest {
             val firstProgress = CompletableDeferred<Pair<Long, Long>>()
 
             val download = async(Dispatchers.IO) {
-                repo(tmp.newFolder(), source).download("srv", "it") { downloaded, total ->
+                repo(tmp.newFolder(), audiobookRepository = source).download("srv", "it") { downloaded, total ->
                     firstProgress.complete(downloaded to total)
                 }
             }
@@ -228,7 +276,7 @@ class AudiobookDownloadRepositoryImplTest {
             }
             val progress = mutableListOf<Pair<Long, Long>>()
 
-            val result = repo(tmp.newFolder(), source).download("srv", "it") { downloaded, total ->
+            val result = repo(tmp.newFolder(), audiobookRepository = source).download("srv", "it") { downloaded, total ->
                 progress += downloaded to total
             }
 

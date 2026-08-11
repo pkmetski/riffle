@@ -7,6 +7,7 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.riffle.core.domain.AudiobookChapter
+import com.riffle.core.domain.AudiobookCacheRepository
 import com.riffle.core.domain.ConnectivityObserver
 import com.riffle.core.models.EbookFormat
 import com.riffle.core.domain.EpubDownloadResult
@@ -14,6 +15,7 @@ import com.riffle.core.domain.EpubRepository
 import com.riffle.core.models.LibraryItem
 import com.riffle.core.domain.LibraryObserver
 import com.riffle.core.domain.LibraryRefresher
+import com.riffle.core.domain.LocalAvailabilityEvents
 import com.riffle.core.domain.PdfDownloadResult
 import com.riffle.core.domain.PdfRepository
 import com.riffle.core.domain.ReadingSpeedStore
@@ -65,8 +67,8 @@ sealed interface LibraryItemDetailUiState {
         // series, or series data not yet synced.
         val seriesId: String? = null,
         val isInToRead: Boolean = false,
-        // True when the epub is available locally (cached or downloaded). Used by the UI to decide
-        // whether to disable the Read button when offline (#35).
+        // True when the readable file is available locally (cached or downloaded). Used by the UI
+        // to decide whether to disable the Read button when offline (#35).
         val isCachedOrDownloaded: Boolean = false,
         // True when the device is currently offline. Reactive — updated via combine with
         // ConnectivityObserver.isOnline in the ViewModel.
@@ -135,6 +137,7 @@ data class DetailCapabilities(
 
 sealed interface DownloadState {
     data object NotDownloaded : DownloadState
+    data object Cached : DownloadState
     /** [percent] is 0..100 when the download advertises a size; null means indeterminate (spinner). */
     data class InProgress(val percent: Int? = null) : DownloadState
     data object Downloaded : DownloadState
@@ -183,6 +186,8 @@ class LibraryItemDetailViewModel @Inject constructor(
     private val readaloudLinkRepository: com.riffle.core.domain.ReadaloudLinkRepository,
     private val readaloudAudioRepository: com.riffle.core.domain.ReadaloudAudioRepository,
     private val audiobookDownloadRepository: com.riffle.core.domain.AudiobookDownloadRepository,
+    private val audiobookCacheRepository: AudiobookCacheRepository,
+    private val localAvailabilityEvents: LocalAvailabilityEvents,
     private val readaloudOfflineDownloader: com.riffle.app.feature.reader.readaloud.ReadaloudOfflineDownloader,
     private val connectivityObserver: ConnectivityObserver,
     private val downloadManager: DownloadManager,
@@ -249,6 +254,18 @@ class LibraryItemDetailViewModel @Inject constructor(
         if (item.ebookFormat != EbookFormat.Epub) return
         viewModelScope.launch {
             _currentPositionHref.value = epubRepository.loadLastPositionHref(item.sourceId, item.id)
+        }
+    }
+
+    fun refreshLocalAvailability() {
+        val current = _uiState.value as? LibraryItemDetailUiState.Ready ?: return
+        val item = current.item
+        _uiState.value = current.copy(isCachedOrDownloaded = isCachedOrDownloadedForFormat(item))
+        if (_downloadState.value !is DownloadState.InProgress) {
+            _downloadState.value = deriveDownloadState(item)
+        }
+        if (_audiobookDownloadState.value !is DownloadState.InProgress) {
+            _audiobookDownloadState.value = if (item.isListenable) deriveAudiobookDownloadState(item) else null
         }
     }
 
@@ -339,10 +356,9 @@ class LibraryItemDetailViewModel @Inject constructor(
                         sidecarPrefetcher.prepare(link.storytellerSourceId, link.storytellerBookId)
                     }
                     _audiobookDownloadState.value = if (item.isListenable) {
-                        if (audiobookDownloadRepository.isDownloaded(item.sourceId, item.id)) DownloadState.Downloaded
-                        else DownloadState.NotDownloaded
+                        deriveAudiobookDownloadState(item)
                     } else null
-                    val isCachedOrDownloaded = epubRepository.isCached(item.sourceId, item.id) || epubRepository.isDownloaded(item.sourceId, item.id)
+                    val isCachedOrDownloaded = isCachedOrDownloadedForFormat(item)
                     // Render from the locally-cached To Read state immediately. The server refresh
                     // below runs off the critical path so a slow/unreachable ABS server can't keep
                     // the detail screen stuck in Loading for the network timeout (~10s).
@@ -446,7 +462,7 @@ class LibraryItemDetailViewModel @Inject constructor(
                     states[ebookKey(item)]?.let { state ->
                         if (_downloadState.value != state) {
                             _downloadState.value = state
-                            if (state is DownloadState.Downloaded) refreshCacheState()
+                            if (state is DownloadState.Downloaded) refreshLocalAvailability()
                         }
                     }
                     if (_audiobookDownloadState.value != null) {
@@ -457,6 +473,14 @@ class LibraryItemDetailViewModel @Inject constructor(
                             states[readaloudKey(link)]?.let { _readaloudDownloadState.value = it }
                         }
                     }
+                }
+                .launchIn(viewModelScope)
+
+            localAvailabilityEvents.changes
+                .onEach { changed ->
+                    val item = loadedItem ?: return@onEach
+                    if (changed.sourceId != item.sourceId || changed.itemId != item.id) return@onEach
+                    refreshLocalAvailability()
                 }
                 .launchIn(viewModelScope)
         }
@@ -598,24 +622,15 @@ class LibraryItemDetailViewModel @Inject constructor(
     fun startDownload() {
         if (_downloadState.value is DownloadState.InProgress) return
         val item = (uiState.value as? LibraryItemDetailUiState.Ready)?.item ?: return
+        if (deriveDownloadState(item) == DownloadState.Cached) {
+            downloadManager.startWithoutProgress(ebookKey(item), DownloadState.Cached) {
+                downloadEbook(item) { _, _ -> }
+            }
+            return
+        }
         // Runs on the app-scoped DownloadManager; the states observer above patches _downloadState.
         downloadManager.start(ebookKey(item)) { onProgress ->
-            when (item.ebookFormat) {
-                EbookFormat.Epub -> when (epubRepository.downloadEpub(item, onProgress)) {
-                    EpubDownloadResult.Success, EpubDownloadResult.AlreadyDownloaded -> DownloadState.Downloaded
-                    is EpubDownloadResult.NetworkError -> DownloadState.NotDownloaded
-                }
-                EbookFormat.Pdf -> when (pdfRepository.downloadPdf(item, onProgress)) {
-                    PdfDownloadResult.Success, PdfDownloadResult.AlreadyDownloaded -> DownloadState.Downloaded
-                    is PdfDownloadResult.NetworkError -> DownloadState.NotDownloaded
-                }
-                EbookFormat.Cbz -> when (cbzRepository.downloadCbz(item, onProgress)) {
-                    com.riffle.core.domain.CbzDownloadResult.Success,
-                    com.riffle.core.domain.CbzDownloadResult.AlreadyDownloaded -> DownloadState.Downloaded
-                    is com.riffle.core.domain.CbzDownloadResult.NetworkError -> DownloadState.NotDownloaded
-                }
-                else -> DownloadState.NotDownloaded
-            }
+            downloadEbook(item, onProgress)
         }
     }
 
@@ -629,8 +644,13 @@ class LibraryItemDetailViewModel @Inject constructor(
                 else -> {}
             }
             if (item != null) downloadManager.clear(ebookKey(item))
-            _downloadState.value = DownloadState.NotDownloaded
-            refreshCacheState()
+            if (item != null) {
+                _downloadState.value = deriveDownloadState(item)
+            } else {
+                _downloadState.value = DownloadState.NotDownloaded
+            }
+            refreshLocalAvailability()
+            _snackbarEvents.tryEmit("Download removed")
         }
     }
 
@@ -668,17 +688,21 @@ class LibraryItemDetailViewModel @Inject constructor(
             readaloudAudioRepository.removeAudio(link.storytellerSourceId, link.storytellerBookId)
             downloadManager.clear(readaloudKey(link))
             _readaloudDownloadState.value = DownloadState.NotDownloaded
+            _snackbarEvents.tryEmit("Download removed")
         }
     }
 
     fun onDownloadAudiobook() {
         val item = (_uiState.value as? LibraryItemDetailUiState.Ready)?.item ?: return
         if (_audiobookDownloadState.value is DownloadState.InProgress) return
+        if (deriveAudiobookDownloadState(item) == DownloadState.Cached) {
+            downloadManager.startWithoutProgress(audiobookKey(item), DownloadState.Cached) {
+                downloadAudiobook(item) { _, _ -> }
+            }
+            return
+        }
         downloadManager.start(audiobookKey(item)) { onProgress ->
-            val result = audiobookDownloadRepository.download(item.sourceId, item.id, onProgress)
-            val ok = result is com.riffle.core.domain.AudiobookDownloadResult.Success
-            if (!ok) _snackbarEvents.tryEmit("Couldn't download audiobook")
-            if (ok) DownloadState.Downloaded else DownloadState.NotDownloaded
+            downloadAudiobook(item, onProgress)
         }
     }
 
@@ -686,15 +710,11 @@ class LibraryItemDetailViewModel @Inject constructor(
         val item = (_uiState.value as? LibraryItemDetailUiState.Ready)?.item ?: return
         viewModelScope.launch {
             audiobookDownloadRepository.remove(item.sourceId, item.id)
+            audiobookCacheRepository.remove(item.sourceId, item.id)
             downloadManager.clear(audiobookKey(item))
-            _audiobookDownloadState.value = DownloadState.NotDownloaded
+            _audiobookDownloadState.value = deriveAudiobookDownloadState(item)
+            _snackbarEvents.tryEmit("Download removed")
         }
-    }
-
-    private fun refreshCacheState() {
-        val current = _uiState.value as? LibraryItemDetailUiState.Ready ?: return
-        val refreshed = epubRepository.isCached(current.item.sourceId, itemId) || epubRepository.isDownloaded(current.item.sourceId, itemId)
-        _uiState.value = current.copy(isCachedOrDownloaded = refreshed)
     }
 
     // DownloadManager keys — stable per (server, item/book) so a recreated VM observes the same
@@ -705,9 +725,40 @@ class LibraryItemDetailViewModel @Inject constructor(
     private fun readaloudKey(link: com.riffle.core.models.ReadaloudLink) =
         "readaloud:${link.storytellerSourceId}:${link.storytellerBookId}"
 
+    private suspend fun downloadEbook(
+        item: LibraryItem,
+        onProgress: (downloaded: Long, total: Long) -> Unit,
+    ): DownloadState = when (item.ebookFormat) {
+        EbookFormat.Epub -> when (epubRepository.downloadEpub(item, onProgress)) {
+            EpubDownloadResult.Success, EpubDownloadResult.AlreadyDownloaded -> DownloadState.Downloaded
+            is EpubDownloadResult.NetworkError -> DownloadState.NotDownloaded
+        }
+        EbookFormat.Pdf -> when (pdfRepository.downloadPdf(item, onProgress)) {
+            PdfDownloadResult.Success, PdfDownloadResult.AlreadyDownloaded -> DownloadState.Downloaded
+            is PdfDownloadResult.NetworkError -> DownloadState.NotDownloaded
+        }
+        EbookFormat.Cbz -> when (cbzRepository.downloadCbz(item, onProgress)) {
+            com.riffle.core.domain.CbzDownloadResult.Success,
+            com.riffle.core.domain.CbzDownloadResult.AlreadyDownloaded -> DownloadState.Downloaded
+            is com.riffle.core.domain.CbzDownloadResult.NetworkError -> DownloadState.NotDownloaded
+        }
+        else -> DownloadState.NotDownloaded
+    }
+
+    private suspend fun downloadAudiobook(
+        item: LibraryItem,
+        onProgress: (downloaded: Long, total: Long) -> Unit,
+    ): DownloadState {
+        val result = audiobookDownloadRepository.download(item.sourceId, item.id, onProgress)
+        val ok = result is com.riffle.core.domain.AudiobookDownloadResult.Success
+        if (!ok) _snackbarEvents.tryEmit("Couldn't download audiobook")
+        return if (ok) DownloadState.Downloaded else DownloadState.NotDownloaded
+    }
+
     private fun deriveDownloadState(item: LibraryItem): DownloadState {
         return when {
             isDownloadedForFormat(item) -> DownloadState.Downloaded
+            isCachedForFormat(item) -> DownloadState.Cached
             else -> DownloadState.NotDownloaded
         }
     }
@@ -718,4 +769,20 @@ class LibraryItemDetailViewModel @Inject constructor(
         EbookFormat.Cbz -> cbzRepository.isDownloaded(item.sourceId, item.id)
         else -> false
     }
+
+    private fun isCachedForFormat(item: LibraryItem): Boolean = when (item.ebookFormat) {
+        EbookFormat.Epub -> epubRepository.isCached(item.sourceId, item.id)
+        EbookFormat.Pdf -> pdfRepository.isCached(item.sourceId, item.id)
+        EbookFormat.Cbz -> cbzRepository.isCached(item.sourceId, item.id)
+        else -> false
+    }
+
+    private fun deriveAudiobookDownloadState(item: LibraryItem): DownloadState = when {
+        audiobookDownloadRepository.isDownloaded(item.sourceId, item.id) -> DownloadState.Downloaded
+        audiobookCacheRepository.isCached(item.sourceId, item.id) -> DownloadState.Cached
+        else -> DownloadState.NotDownloaded
+    }
+
+    private fun isCachedOrDownloadedForFormat(item: LibraryItem): Boolean =
+        isCachedForFormat(item) || isDownloadedForFormat(item)
 }

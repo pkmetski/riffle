@@ -142,6 +142,30 @@ class PdfRepositoryTest {
     }
 
     @Test
+    fun `openPdfForMetadata with local miss downloads temporary file without caching item`() = runTest {
+        source.enqueue(MockResponse().setResponseCode(200).setBody(Buffer().write(pdfBytes)))
+        val result = repo.openPdfForMetadata(item()) as PdfOpenResult.Success
+
+        assertTrue(result.temporary)
+        assertTrue(result.pdfFile.exists())
+        assertEquals(1, source.requestCount)
+        assertFalse(repo.isCached("source-1", "item-1"))
+        assertFalse(repo.isDownloaded("source-1", "item-1"))
+
+        result.pdfFile.delete()
+    }
+
+    @Test
+    fun `openPdfForMetadata with cache hit reuses cached file`() = runTest {
+        val cached = cacheStore.save("source-1", "item-1", pdfBytes.inputStream())
+        val result = repo.openPdfForMetadata(item()) as PdfOpenResult.Success
+
+        assertFalse(result.temporary)
+        assertEquals(cached, result.pdfFile)
+        assertEquals(0, source.requestCount)
+    }
+
+    @Test
     fun `openPdf with cache hit makes no network request`() = runTest {
         cacheStore.save("source-1", "item-1", pdfBytes.inputStream())
         val result = repo.openPdf(item())
@@ -232,10 +256,12 @@ class PdfRepositoryTest {
     }
 
     @Test
-    fun `removeDownload deletes file from downloads store`() = runTest {
+    fun `removeDownload deletes file from downloads and cache stores`() = runTest {
         downloadsStore.save("source-1", "item-1", pdfBytes.inputStream())
+        cacheStore.save("source-1", "item-1", pdfBytes.inputStream())
         repo.removeDownload("source-1", "item-1")
         assertTrue(!repo.isDownloaded("source-1", "item-1"))
+        assertTrue(!repo.isCached("source-1", "item-1"))
     }
 
     @Test

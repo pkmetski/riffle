@@ -27,33 +27,38 @@ class ExtractPdfPageCountUseCase @Inject constructor(
             ?.takeIf { it > 0 }
             ?.let { return it }
 
-        val file = when (val result = pdfRepository.openPdf(item)) {
-            is PdfOpenResult.Success -> result.pdfFile
+        val opened = when (val result = pdfRepository.openPdfForMetadata(item)) {
+            is PdfOpenResult.Success -> result
             else -> return null
         }
-        val url = AbsoluteUrl("file://${file.absolutePath}") ?: return null
-        val asset = when (val result = assetRetriever.retrieve(url)) {
-            is Try.Success -> result.value
-            is Try.Failure -> return null
-        }
-        val publication = when (
-            val result = publicationOpener.open(asset, allowUserInteraction = false)
-        ) {
-            is Try.Success -> result.value
-            is Try.Failure -> return null
-        }
+        val file = opened.pdfFile
+        try {
+            val url = AbsoluteUrl("file://${file.absolutePath}") ?: return null
+            val asset = when (val result = assetRetriever.retrieve(url)) {
+                is Try.Success -> result.value
+                is Try.Failure -> return null
+            }
+            val publication = when (
+                val result = publicationOpener.open(asset, allowUserInteraction = false)
+            ) {
+                is Try.Success -> result.value
+                is Try.Failure -> return null
+            }
 
-        return publication.use {
-            val pageCount = it.metadata.numberOfPages?.takeIf { count -> count > 0 } ?: return@use null
-            publicationMetricsRepository.save(
-                item.sourceId,
-                item.id,
-                PublicationMetrics(
-                    ebookFileIno = inode,
-                    pageCount = pageCount,
-                ),
-            )
-            pageCount
+            return publication.use {
+                val pageCount = it.metadata.numberOfPages?.takeIf { count -> count > 0 } ?: return@use null
+                publicationMetricsRepository.save(
+                    item.sourceId,
+                    item.id,
+                    PublicationMetrics(
+                        ebookFileIno = inode,
+                        pageCount = pageCount,
+                    ),
+                )
+                pageCount
+            }
+        } finally {
+            if (opened.temporary) file.delete()
         }
     }
 }

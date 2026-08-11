@@ -18,6 +18,7 @@ import io.mockk.unmockkStatic
 import java.io.File
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Test
 import org.readium.r2.shared.publication.Metadata
@@ -61,17 +62,17 @@ class ExtractPdfPageCountUseCaseTest {
             PublicationMetrics(ebookFileIno = "ino-1", pageCount = 321)
 
         assertEquals(321, useCase(item))
-        coVerify(exactly = 0) { pdfRepository.openPdf(any()) }
+        coVerify(exactly = 0) { pdfRepository.openPdfForMetadata(any()) }
     }
 
     @Test
     fun `page count from a replaced file is not reused`() = runTest {
         coEvery { metricsRepository.get("src-1", "pdf-1") } returns
             PublicationMetrics(ebookFileIno = "old-ino", pageCount = 321)
-        coEvery { pdfRepository.openPdf(item) } returns PdfOpenResult.Offline
+        coEvery { pdfRepository.openPdfForMetadata(item) } returns PdfOpenResult.Offline
 
         assertNull(useCase(item))
-        coVerify(exactly = 1) { pdfRepository.openPdf(item) }
+        coVerify(exactly = 1) { pdfRepository.openPdfForMetadata(item) }
     }
 
     @Test
@@ -84,7 +85,8 @@ class ExtractPdfPageCountUseCaseTest {
 
         coEvery { metricsRepository.get("src-1", "pdf-1") } returns null
         coEvery { metricsRepository.save(any(), any(), any()) } returns Unit
-        coEvery { pdfRepository.openPdf(item) } returns PdfOpenResult.Success(file, null)
+        coEvery { pdfRepository.openPdfForMetadata(item) } returns
+            PdfOpenResult.Success(file, null, temporary = true)
         coEvery { assetRetriever.retrieve(any<AbsoluteUrl>()) } returns Try.Success(asset)
         coEvery {
             publicationOpener.open(asset, allowUserInteraction = false)
@@ -107,6 +109,7 @@ class ExtractPdfPageCountUseCaseTest {
                     PublicationMetrics(ebookFileIno = "ino-1", pageCount = 321),
                 )
             }
+            assertFalse(file.exists())
         } finally {
             unmockkStatic(Uri::class)
         }

@@ -46,7 +46,6 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.PlainTooltip
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
@@ -136,6 +135,7 @@ fun LibraryItemDetailScreen(
     LaunchedEffect(lifecycleOwner, viewModel) {
         lifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
             viewModel.reloadCurrentPositionHref()
+            viewModel.refreshLocalAvailability()
             // Pull server progress for THIS item so the blue bar / % refresh on every visit,
             // even when the user reaches the details page without going through the library grid
             // (deep link, back from reader). The library-grid ON_RESUME is a separate trigger and
@@ -234,18 +234,6 @@ fun LibraryItemDetailScreen(
             }
 
             is LibraryItemDetailUiState.Ready -> {
-                // Removal is immediate with no Undo: for a Storyteller bundle, re-downloading on
-                // Undo silently re-pulls hundreds of MB — the exact data burn the explicit-download
-                // model exists to prevent. Re-downloading is a deliberate Download tap (ADR 0024).
-                val onRemove: () -> Unit = {
-                    viewModel.removeDownload()
-                    scope.launch {
-                        snackbarHostState.showSnackbar(
-                            message = "Download removed",
-                            duration = SnackbarDuration.Short,
-                        )
-                    }
-                }
                 val isTablet = windowSizeClass.isTabletLayout()
                 // A phone in landscape is wide-but-short: it keeps the phone chrome (modal drawer) but
                 // is still wide enough for a two-column cover-beside-text detail layout, which scrolls
@@ -286,7 +274,7 @@ fun LibraryItemDetailScreen(
                         onToggleToRead = { viewModel.toggleToRead() },
                         onAddToPlaylist = { showAddToPlaylistSheet = true },
                         onDownload = { viewModel.startDownload() },
-                        onRemove = onRemove,
+                        onRemove = viewModel::removeDownload,
                         onDownloadReadaloud = viewModel::onDownloadReadaloud,
                         onRemoveReadaloud = viewModel::onRemoveReadaloud,
                         onDownloadAudiobook = viewModel::onDownloadAudiobook,
@@ -322,7 +310,7 @@ fun LibraryItemDetailScreen(
                         onToggleToRead = { viewModel.toggleToRead() },
                         onAddToPlaylist = { showAddToPlaylistSheet = true },
                         onDownload = { viewModel.startDownload() },
-                        onRemove = onRemove,
+                        onRemove = viewModel::removeDownload,
                         onDownloadReadaloud = viewModel::onDownloadReadaloud,
                         onRemoveReadaloud = viewModel::onRemoveReadaloud,
                         onDownloadAudiobook = viewModel::onDownloadAudiobook,
@@ -358,7 +346,7 @@ fun LibraryItemDetailScreen(
                         onToggleToRead = { viewModel.toggleToRead() },
                         onAddToPlaylist = { showAddToPlaylistSheet = true },
                         onDownload = { viewModel.startDownload() },
-                        onRemove = onRemove,
+                        onRemove = viewModel::removeDownload,
                         onDownloadReadaloud = viewModel::onDownloadReadaloud,
                         onRemoveReadaloud = viewModel::onRemoveReadaloud,
                         onDownloadAudiobook = viewModel::onDownloadAudiobook,
@@ -1309,8 +1297,10 @@ private fun ActionRow(
             // The audiobook player resolves download > bundle > ABS stream (ADR 0029), so Listen needs
             // connectivity only when neither a dedicated audiobook download nor a readaloud bundle is
             // present locally — either local source plays offline.
+            val audiobookAvailableOffline = audiobookDownloadState == DownloadState.Downloaded ||
+                audiobookDownloadState == DownloadState.Cached
             val listenBlockedOffline = isOffline &&
-                audiobookDownloadState != DownloadState.Downloaded &&
+                !audiobookAvailableOffline &&
                 readaloudDownloadState != DownloadState.Downloaded
             if (listenBlockedOffline) {
                 TooltipBox(

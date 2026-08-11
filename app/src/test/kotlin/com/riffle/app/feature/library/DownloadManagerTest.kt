@@ -36,6 +36,53 @@ class DownloadManagerTest {
     }
 
     @Test
+    fun `startWithoutProgress keeps the visible state stable until work completes`() = runTest {
+        val dispatcher = StandardTestDispatcher(testScheduler)
+        val manager = DownloadManager(CoroutineScope(dispatcher))
+        val gate = CompletableDeferred<Unit>()
+
+        manager.startWithoutProgress("k", DownloadState.Cached) {
+            gate.await()
+            DownloadState.Downloaded
+        }
+
+        assertEquals(DownloadState.Cached, manager.states.value["k"])
+        testScheduler.advanceUntilIdle()
+        assertEquals(DownloadState.Cached, manager.states.value["k"])
+
+        gate.complete(Unit)
+        testScheduler.advanceUntilIdle()
+
+        assertEquals(DownloadState.Downloaded, manager.states.value["k"])
+    }
+
+    @Test
+    fun `startWithoutProgress ignores duplicate work for a silently running key`() = runTest {
+        val dispatcher = StandardTestDispatcher(testScheduler)
+        val manager = DownloadManager(CoroutineScope(dispatcher))
+        val gate = CompletableDeferred<Unit>()
+        var runs = 0
+
+        manager.startWithoutProgress("k", DownloadState.Cached) {
+            runs++
+            gate.await()
+            DownloadState.Downloaded
+        }
+        testScheduler.advanceUntilIdle()
+        manager.startWithoutProgress("k", DownloadState.Cached) {
+            runs++
+            DownloadState.Downloaded
+        }
+        testScheduler.advanceUntilIdle()
+
+        gate.complete(Unit)
+        testScheduler.advanceUntilIdle()
+
+        assertEquals(1, runs)
+        assertEquals(DownloadState.Downloaded, manager.states.value["k"])
+    }
+
+    @Test
     fun `progress callbacks surface as InProgress percentages`() = runTest {
         val dispatcher = StandardTestDispatcher(testScheduler)
         val manager = DownloadManager(CoroutineScope(dispatcher))

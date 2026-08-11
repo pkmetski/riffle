@@ -25,6 +25,7 @@ import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.readium.r2.shared.publication.Layout
@@ -124,14 +125,14 @@ class ExtractEpubTocUseCaseTest {
 
         assertEquals(cached, result.tocEntries)
         assertEquals(120, result.totalPositions)
-        coVerify(exactly = 0) { epubRepository.openEpub(any()) }
+        coVerify(exactly = 0) { epubRepository.openEpubForMetadata(any()) }
     }
 
     @Test
     fun `returns empty when openEpub fails with NetworkError`() = runTest {
         coEvery { tocRepository.getCachedToc("srv1", "item1") } returns null
         coEvery { publicationMetricsRepository.get("srv1", "item1") } returns null
-        coEvery { epubRepository.openEpub(any()) } returns
+        coEvery { epubRepository.openEpubForMetadata(any()) } returns
             EpubOpenResult.NetworkError(RuntimeException("offline"))
 
         val result = useCase(makeItem())
@@ -144,14 +145,14 @@ class ExtractEpubTocUseCaseTest {
         // Cache has no entry — extraction is attempted using "unknown" as the inode.
         coEvery { tocRepository.getCachedToc("srv1", "item1") } returns null
         coEvery { publicationMetricsRepository.get("srv1", "item1") } returns null
-        coEvery { epubRepository.openEpub(any()) } returns
+        coEvery { epubRepository.openEpubForMetadata(any()) } returns
             EpubOpenResult.NetworkError(RuntimeException("offline"))
 
         val result = useCase(makeItem(ebookFileIno = null))
 
         // Cache was consulted (not skipped) and openEpub was called.
         coVerify(exactly = 1) { tocRepository.getCachedToc("srv1", "item1") }
-        coVerify(exactly = 1) { epubRepository.openEpub(any()) }
+        coVerify(exactly = 1) { epubRepository.openEpubForMetadata(any()) }
         assertTrue(result.isEmpty())
     }
 
@@ -165,7 +166,7 @@ class ExtractEpubTocUseCaseTest {
         val result = useCase(makeItem(ebookFileIno = null))
 
         assertEquals(cached, result)
-        coVerify(exactly = 0) { epubRepository.openEpub(any()) }
+        coVerify(exactly = 0) { epubRepository.openEpubForMetadata(any()) }
     }
 
     @Test
@@ -176,13 +177,13 @@ class ExtractEpubTocUseCaseTest {
         coEvery { tocRepository.getCachedToc("srv1", "item1") } returns ("unknown" to emptyList())
         coEvery { publicationMetricsRepository.get("srv1", "item1") } returns
             PublicationMetrics("unknown", totalPositions = 120)
-        coEvery { epubRepository.openEpub(any()) } returns
+        coEvery { epubRepository.openEpubForMetadata(any()) } returns
             EpubOpenResult.NetworkError(RuntimeException("offline"))
 
         val result = useCase(makeItem(ebookFileIno = null))
 
         // The empty cache is bypassed — openEpub is called even though a cache row exists.
-        coVerify(exactly = 1) { epubRepository.openEpub(any()) }
+        coVerify(exactly = 1) { epubRepository.openEpubForMetadata(any()) }
         assertTrue(result.isEmpty())
     }
 
@@ -193,12 +194,12 @@ class ExtractEpubTocUseCaseTest {
         coEvery { tocRepository.getCachedToc("srv1", "item1") } returns ("ino1" to emptyList())
         coEvery { publicationMetricsRepository.get("srv1", "item1") } returns
             PublicationMetrics("ino1", totalPositions = 120)
-        coEvery { epubRepository.openEpub(any()) } returns
+        coEvery { epubRepository.openEpubForMetadata(any()) } returns
             EpubOpenResult.NetworkError(RuntimeException("offline"))
 
         val result = useCase(makeItem(ebookFileIno = "ino1"))
 
-        coVerify(exactly = 1) { epubRepository.openEpub(any()) }
+        coVerify(exactly = 1) { epubRepository.openEpubForMetadata(any()) }
         assertTrue(result.isEmpty())
     }
 
@@ -209,13 +210,13 @@ class ExtractEpubTocUseCaseTest {
         coEvery { tocRepository.getCachedToc("srv1", "item1") } returns ("old-ino" to staleCached)
         coEvery { publicationMetricsRepository.get("srv1", "item1") } returns
             PublicationMetrics("ino1", totalPositions = 120)
-        coEvery { epubRepository.openEpub(any()) } returns
+        coEvery { epubRepository.openEpubForMetadata(any()) } returns
             EpubOpenResult.NetworkError(RuntimeException("network unavailable"))
 
         val result = useCase(makeItem(ebookFileIno = "ino1"))
 
         // Stale cache is bypassed and openEpub is called
-        coVerify(exactly = 1) { epubRepository.openEpub(any()) }
+        coVerify(exactly = 1) { epubRepository.openEpubForMetadata(any()) }
         // openEpub failed so result is empty (not the stale cached value)
         assertTrue(result.isEmpty())
     }
@@ -239,7 +240,8 @@ class ExtractEpubTocUseCaseTest {
         coEvery { tocRepository.getCachedToc("srv1", "item1") } returns null
         coEvery { publicationMetricsRepository.get("srv1", "item1") } returns null
         coEvery { publicationMetricsRepository.save(any(), any(), any()) } returns Unit
-        coEvery { epubRepository.openEpub(any()) } returns EpubOpenResult.Success(file, null)
+        coEvery { epubRepository.openEpubForMetadata(any()) } returns
+            EpubOpenResult.Success(file, null, temporary = true)
         coEvery { assetRetriever.retrieve(any<AbsoluteUrl>()) } returns Try.Success(asset)
         coEvery {
             publicationOpener.open(asset, allowUserInteraction = false)
@@ -286,6 +288,7 @@ class ExtractEpubTocUseCaseTest {
             }
             coVerify(exactly = 0) { positionsService.positionsByReadingOrder() }
             verify(exactly = 0) { publication.get(any<Link>()) }
+            assertFalse(file.exists())
         } finally {
             unmockkStatic(Uri::class)
         }

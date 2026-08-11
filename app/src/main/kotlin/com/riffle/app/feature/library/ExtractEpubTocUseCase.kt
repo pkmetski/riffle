@@ -103,53 +103,58 @@ class ExtractEpubTocUseCase @Inject constructor(
             return Details(matchingCachedEntries, matchingPositionCount, matchingEpubVersion)
         }
 
-        val file = when (val r = epubRepository.openEpub(item)) {
-            is EpubOpenResult.Success -> r.epubFile
+        val opened = when (val r = epubRepository.openEpubForMetadata(item)) {
+            is EpubOpenResult.Success -> r
             else -> return Details(matchingCachedEntries.orEmpty(), matchingPositionCount, matchingEpubVersion)
         }
+        val file = opened.epubFile
 
-        // Use "" as a sentinel meaning "extracted but version attribute absent", so a version-less
-        // EPUB doesn't permanently fail the cache-hit guard (which treats null as "never extracted").
-        val extractedEpubVersion = EpubMetadataExtractor.extract(file).epubVersion ?: ""
+        try {
+            // Use "" as a sentinel meaning "extracted but version attribute absent", so a version-less
+            // EPUB doesn't permanently fail the cache-hit guard (which treats null as "never extracted").
+            val extractedEpubVersion = EpubMetadataExtractor.extract(file).epubVersion ?: ""
 
-        val url = AbsoluteUrl("file://${file.absolutePath}")
-            ?: return Details(matchingCachedEntries.orEmpty(), matchingPositionCount, matchingEpubVersion)
-        val asset = when (val r = assetRetriever.retrieve(url)) {
-            is Try.Success -> r.value
-            is Try.Failure -> return Details(matchingCachedEntries.orEmpty(), matchingPositionCount, matchingEpubVersion)
-        }
-        val publication = when (val r = publicationOpener.open(asset, allowUserInteraction = false)) {
-            is Try.Success -> r.value
-            is Try.Failure -> return Details(matchingCachedEntries.orEmpty(), matchingPositionCount, matchingEpubVersion)
-        }
+            val url = AbsoluteUrl("file://${file.absolutePath}")
+                ?: return Details(matchingCachedEntries.orEmpty(), matchingPositionCount, matchingEpubVersion)
+            val asset = when (val r = assetRetriever.retrieve(url)) {
+                is Try.Success -> r.value
+                is Try.Failure -> return Details(matchingCachedEntries.orEmpty(), matchingPositionCount, matchingEpubVersion)
+            }
+            val publication = when (val r = publicationOpener.open(asset, allowUserInteraction = false)) {
+                is Try.Success -> r.value
+                is Try.Failure -> return Details(matchingCachedEntries.orEmpty(), matchingPositionCount, matchingEpubVersion)
+            }
 
-        val details = publication.use {
-            Details(
-                tocEntries = it.tableOfContents.toTocEntries(),
-                totalPositions = runCatching {
-                    countEpubPositionsFromArchive(
-                        epubFile = file,
-                        readingOrderHrefs = it.readingOrder.map { link -> link.href.toString() },
-                        layout = it.metadata.layout,
-                    )
-                }.getOrNull(),
-                epubVersion = extractedEpubVersion,
-            )
+            val details = publication.use {
+                Details(
+                    tocEntries = it.tableOfContents.toTocEntries(),
+                    totalPositions = runCatching {
+                        countEpubPositionsFromArchive(
+                            epubFile = file,
+                            readingOrderHrefs = it.readingOrder.map { link -> link.href.toString() },
+                            layout = it.metadata.layout,
+                        )
+                    }.getOrNull(),
+                    epubVersion = extractedEpubVersion,
+                )
+            }
+            if (details.tocEntries.isNotEmpty()) {
+                tocRepository.saveToc(item.sourceId, item.id, inode, details.tocEntries)
+            }
+            if (details.totalPositions != null) {
+                publicationMetricsRepository.save(
+                    item.sourceId,
+                    item.id,
+                    PublicationMetrics(
+                        ebookFileIno = inode,
+                        totalPositions = details.totalPositions,
+                        epubVersion = details.epubVersion,
+                    ),
+                )
+            }
+            return details
+        } finally {
+            if (opened.temporary) file.delete()
         }
-        if (details.tocEntries.isNotEmpty()) {
-            tocRepository.saveToc(item.sourceId, item.id, inode, details.tocEntries)
-        }
-        if (details.totalPositions != null) {
-            publicationMetricsRepository.save(
-                item.sourceId,
-                item.id,
-                PublicationMetrics(
-                    ebookFileIno = inode,
-                    totalPositions = details.totalPositions,
-                    epubVersion = details.epubVersion,
-                ),
-            )
-        }
-        return details
     }
 }

@@ -50,7 +50,8 @@ fun ReadaloudDownloadButton(
                 )
             }
         }
-        DownloadState.NotDownloaded -> {
+        DownloadState.NotDownloaded,
+        DownloadState.Cached -> {
             BadgedDownloadCircle(
                 modifier = modifier,
                 contentDescription = "Download readaloud",
