@@ -46,9 +46,7 @@ class GitHubReleaseApi(
             val parsed = response.body<List<ReleaseResponse>>()
             for (release in parsed) {
                 if (release.draft || release.prerelease) continue
-                val apk = release.assets.firstOrNull {
-                    it.name.endsWith(".apk", ignoreCase = true)
-                } ?: continue
+                val apk = release.releaseApkAsset() ?: continue
                 return GitHubReleaseResult.Success(
                     GitHubRelease(
                         tagName = release.tagName,
@@ -81,7 +79,7 @@ class GitHubReleaseApi(
             parsed
                 .filter { !it.draft && !it.prerelease }
                 .map { release ->
-                    val apk = release.assets.firstOrNull { it.name.endsWith(".apk", ignoreCase = true) }
+                    val apk = release.releaseApkAsset()
                     GitHubRelease(
                         tagName = release.tagName,
                         apkUrl = apk?.downloadUrl ?: "",
@@ -176,3 +174,12 @@ private data class AssetResponse(
     @SerialName("browser_download_url") val downloadUrl: String,
     val size: Long = 0,
 )
+
+private fun ReleaseResponse.releaseApkAsset(): AssetResponse? {
+    val versionName = tagName.removePrefix("v")
+    val versionedApkName = "riffle-$versionName.apk"
+    return assets.firstOrNull { it.name.equals(versionedApkName, ignoreCase = true) }
+        ?: assets.firstOrNull { it.name.equals(LEGACY_RELEASE_APK_NAME, ignoreCase = true) }
+}
+
+private const val LEGACY_RELEASE_APK_NAME = "app-release.apk"
