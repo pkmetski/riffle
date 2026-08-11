@@ -11,6 +11,7 @@ import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 
 /**
  * Domain-specific semantic assertion helpers for the EPUB reader screen.
@@ -42,6 +43,12 @@ object ReaderSemanticMatchers {
         // on the back stack, wedging the open (exactly what happened on the slow CI
         // emulator, where first opens legitimately take >2s).
         repeat(3) {
+            // The detail screen is a scrollable Column; on short screens (CI's 1080x1920 pixel
+            // profile) the full-width 2:3 cover plus the facts line pushes the action row below
+            // the fold, and a click injected at the off-screen node's center lands in dead
+            // space with no error. Scroll the button into view first. runCatching: on layouts
+            // where the button is in a non-scrollable pane (tablet) performScrollTo throws.
+            runCatching { onNodeWithText("Read").performScrollTo() }
             onNodeWithText("Read").performClick()
             val navigated = runCatching {
                 waitUntil(timeoutMillis = 2_000) {

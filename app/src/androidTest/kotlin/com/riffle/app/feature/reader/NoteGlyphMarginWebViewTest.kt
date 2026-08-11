@@ -31,8 +31,18 @@ class NoteGlyphMarginWebViewTest {
             webView.awaitInnerHeight()
             // The clamp treats window.innerWidth as the spread pitch (ColumnSnap sizes the real
             // reader so they match). The fixture's widthPx is PHYSICAL px, so the CSS-px pitch is
-            // widthPx / density — measure it instead of assuming 400.
-            val spreadPitch = webView.evalSync("window.innerWidth").trim('"').toDouble()
+            // widthPx / density — measure it instead of assuming 400. The fixture re-applies its
+            // layout after onPageFinished, so poll until innerWidth is STABLE, not just non-zero:
+            // measuring mid-settle positions the second glyph against a pitch the clamp no longer
+            // sees when it runs (CI repro: measured 568, clamp ran against a smaller viewport).
+            var spreadPitch = webView.evalSync("window.innerWidth").trim('"').toDouble()
+            val settleDeadline = System.currentTimeMillis() + 3_000
+            while (System.currentTimeMillis() < settleDeadline) {
+                Thread.sleep(150)
+                val next = webView.evalSync("window.innerWidth").trim('"').toDouble()
+                if (next == spreadPitch && next > 0) break
+                spreadPitch = next
+            }
             webView.evalSync(
                 "document.getElementById('next-selection').style.left = ($spreadPitch + 8) + 'px'"
             )
