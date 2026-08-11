@@ -116,9 +116,6 @@ open class AudiobookController @Inject constructor(
                 && player.playbackState == Player.STATE_ENDED) {
                 _playbackEnded.tryEmit(Unit)
             }
-            if (events.contains(Player.EVENT_POSITION_DISCONTINUITY)) {
-                pendingSeek.onDiscontinuity()
-            }
             maybeStart(player)
             pushState()
         }
@@ -376,6 +373,7 @@ open class AudiobookController @Inject constructor(
 
     private fun pushState() {
         val c = controller
+        c?.let { pendingSeek.maybeConfirm(it.currentPosition / 1000.0) }
         val position = currentAbsoluteSec()
         // While a seek is pending the client's [MediaController.bufferedPosition] mirror also holds the
         // raw local offsetMs we just issued; treating that as absolute would paint a phantom

@@ -32,6 +32,32 @@ class PendingSeekGateTest {
         assertEquals(10_218.5, gate.sample { 10_218.5 }, 0.0)
     }
 
+    /**
+     * Regression: skip-forward near the end of a multi-track book flashed the progress bar to
+     * chapter 1 for ~0.75s. Root cause: EVENT_POSITION_DISCONTINUITY fired optimistically from the
+     * MediaController.seekTo() call with c.currentPosition = perTrackOffsetMs (not book-absolute),
+     * and calling onDiscontinuity() there cleared pendingSec, letting the small per-track value
+     * win the next sample(). If this test is reverted, that flash returns.
+     */
+    @Test
+    fun maybeConfirmIgnoresOptimisticPerTrackPosition() {
+        val gate = PendingSeekGate()
+        gate.onSeekIssued(39526.0) // ~10:58:46 book-absolute (near end of 11h book)
+        // Optimistic discontinuity: c.currentPosition = perTrackOffsetMs / 1000 = 2775s (not absolute)
+        gate.maybeConfirm(2775.0)
+        assertEquals(39526.0, gate.sample { 2775.0 }, 0.0)
+    }
+
+    @Test
+    fun maybeConfirmClearsWhenPositionConverges() {
+        val gate = PendingSeekGate()
+        gate.onSeekIssued(39526.0)
+        // PlayerInfo arrives from session with AbsolutePositionPlayer's projected value
+        gate.maybeConfirm(39526.0)
+        assertNull(gate.pendingSec)
+        assertEquals(39526.1, gate.sample { 39526.1 }, 0.0)
+    }
+
     @Test
     fun resetClearsPending() {
         val gate = PendingSeekGate()
