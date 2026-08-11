@@ -53,14 +53,9 @@ class ContinuousHighlightRendererTest {
 
     // ---- Helpers -------------------------------------------------------------
 
-    /**
-     * Creates an [AbsoluteUrl] backed by [urlString] without going through [android.net.Uri.parse],
-     * which is unavailable in JVM unit tests.
-     *
-     * Uses [sun.misc.Unsafe] to allocate [AbsoluteUrl] without calling its private constructor,
-     * then injects a [FakeUri] (our test-only [android.net.Uri] concrete subclass) via reflection.
-     * [FakeUri] is in the [android.net] package so it can subclass the package-private [Uri] ctor.
-     */
+    // Builds an AbsoluteUrl for JVM tests without calling android.net.Uri.parse, which is not
+    // available there. The helper allocates AbsoluteUrl via sun.misc.Unsafe and injects our
+    // test-only FakeUri so the private Uri-backed field is populated.
     @Suppress("UNCHECKED_CAST")
     private fun makeAbsoluteUrl(urlString: String): AbsoluteUrl {
         val unsafe = Class.forName("sun.misc.Unsafe")
@@ -74,10 +69,7 @@ class ContinuousHighlightRendererTest {
         return instance
     }
 
-    /**
-     * Creates a [Locator] with a meaningful href and text highlight for use in
-     * [applyAnnotations] tests.
-     */
+    // Creates a Locator with a meaningful href and text highlight for applyAnnotations tests.
     private fun makeRender(
         id: String,
         href: String,
@@ -103,7 +95,7 @@ class ContinuousHighlightRendererTest {
         isBeingEdited = isBeingEdited,
     )
 
-    /** Creates a [Locator] with href and text highlight, suitable for search result tests. */
+    // Creates a Locator with href and text highlight for search result tests.
     private fun makeSearchLocator(href: String, text: String): Locator = Locator(
         href = makeAbsoluteUrl("https://example.com/$href"),
         mediaType = MediaType.XHTML,
