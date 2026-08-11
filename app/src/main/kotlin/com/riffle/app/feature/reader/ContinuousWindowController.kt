@@ -708,7 +708,15 @@ internal class ContinuousWindowController(
         backwardShiftConsumedForTouchGesture = false
         // Programmatic navigation overrides any gesture-scoped scroll floor: a leftover
         // backward-fling floor from the previous gesture must not clamp the landing scroll.
+        // The boundary detent is likewise gesture-scoped ("hold until the next ACTION_DOWN") —
+        // but a TOC/bookmark/annotation jump never sends one, and with the detent still armed
+        // backwardPrependScrollFloorY treats the measured top slot as a placeholder and clamps
+        // the landing to the chapter boundary (in-window nav after a backward fling landed at
+        // the boundary instead of the requested progression). The prependAwaiting* gates stay
+        // untouched — they, not the detent, guard genuinely unmeasured placeholders.
         backwardFlingFloorY = 0
+        gestureStartFlingFloorY = 0
+        boundaryDetentArmed = false
         val target = href.substringBefore('#')
         val fragment = href.substringAfter('#', "")
         val targetIndex = ContinuousPositionTracker.chapterIndexForHref(

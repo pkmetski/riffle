@@ -397,7 +397,7 @@ private fun CollapsibleDescription(description: String) {
 }
 
 @Composable
-private fun LibraryItemDetailContent(
+internal fun LibraryItemDetailContent(
     item: LibraryItem,
     seriesId: String?,
     capabilities: DetailCapabilities = DetailCapabilities.All,
@@ -635,14 +635,26 @@ private fun PublicationFactsLine(
             ?.takeIf { it > 0 }
             ?.let { publicationPageCountText(EbookFormat.Cbz, it) }
         EbookFormat.Unsupported -> null
-    } ?: return
+    }
+    // EPUB reading time and the extracted PDF page count arrive asynchronously, seconds after
+    // first render. Reserve the line for those formats even while the value is pending so the
+    // Read button below never shifts under an in-flight tap once the value lands.
+    if (text == null && !publicationFactsLineReservesSpace(item.ebookFormat)) return
 
     Text(
-        text = text,
+        text = text.orEmpty(),
         style = MaterialTheme.typography.bodyMedium,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
     )
 }
+
+/**
+ * Whether [PublicationFactsLine] must occupy its line even before its value resolves. EPUB
+ * estimates and extracted PDF page counts are computed asynchronously after the detail screen
+ * renders; appearing late must not reflow the action row (tap-target stability).
+ */
+internal fun publicationFactsLineReservesSpace(format: EbookFormat): Boolean =
+    format == EbookFormat.Epub || format == EbookFormat.Pdf
 
 internal fun ebookReadingTimeText(totalSec: Long, readingProgress: Float): String {
     val total = formatDuration(totalSec)
