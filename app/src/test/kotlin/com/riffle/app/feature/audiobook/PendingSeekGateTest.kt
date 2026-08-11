@@ -21,17 +21,6 @@ class PendingSeekGateTest {
         assertEquals(10_217.0, gate.sample { 355.0 }, 0.0)
     }
 
-    @Test
-    fun fallbackReturnsAfterDiscontinuity() {
-        val gate = PendingSeekGate()
-        gate.onSeekIssued(10_217.0)
-        gate.onDiscontinuity()
-        assertNull(gate.pendingSec)
-        assertEquals(10_217.0, gate.sample { 10_217.0 }, 0.0)
-        // Confirm subsequent samples read the fallback each time.
-        assertEquals(10_218.5, gate.sample { 10_218.5 }, 0.0)
-    }
-
     /**
      * Regression: skip-forward near the end of a multi-track book flashed the progress bar to
      * chapter 1 for ~0.75s. Root cause: EVENT_POSITION_DISCONTINUITY fired optimistically from the

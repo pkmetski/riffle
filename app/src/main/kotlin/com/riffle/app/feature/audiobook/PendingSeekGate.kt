@@ -26,12 +26,14 @@ internal class PendingSeekGate {
         if (kotlin.math.abs(rawPositionSec - p) < CONFIRM_EPSILON_SEC) pendingSec = null
     }
 
-    fun onDiscontinuity() { pendingSec = null }
     fun reset() { pendingSec = null }
 
     inline fun sample(fallback: () -> Double): Double = pendingSec ?: fallback()
 
     companion object {
+        // Safe because perTrackOffset = bookAbsolute − trackStartSec, and any track that could be
+        // a seek target has startSec >> 0.5s; the only exception is track 0 (startSec == 0), where
+        // perTrackOffset == bookAbsolute and clearing immediately is correct.
         const val CONFIRM_EPSILON_SEC = 0.5
     }
 }

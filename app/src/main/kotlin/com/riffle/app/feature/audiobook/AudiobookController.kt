@@ -373,8 +373,14 @@ open class AudiobookController @Inject constructor(
 
     private fun pushState() {
         val c = controller
-        c?.let { pendingSeek.maybeConfirm(it.currentPosition / 1000.0) }
-        val position = currentAbsoluteSec()
+        // Snapshot raw position once: maybeConfirm and the fallback in sample both need it, and
+        // c.currentPosition interpolates via SystemClock (a JNI call) on every access.
+        val rawSec = c?.let {
+            val s = it.currentPosition / 1000.0
+            pendingSeek.maybeConfirm(s)
+            s
+        }
+        val position = if (rawSec != null) pendingSeek.sample { rawSec } else 0.0
         // While a seek is pending the client's [MediaController.bufferedPosition] mirror also holds the
         // raw local offsetMs we just issued; treating that as absolute would paint a phantom
         // buffer band. Pin it to the pending target (== "nothing loaded past the seek yet") until the
