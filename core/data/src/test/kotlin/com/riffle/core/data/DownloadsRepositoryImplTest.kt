@@ -1,7 +1,9 @@
 package com.riffle.core.data
 
 import com.riffle.core.domain.DefaultDispatcherProvider
+import com.riffle.core.domain.StoredItemArtifact
 import com.riffle.core.domain.StoredItemRef
+import com.riffle.core.domain.StoredMediaType
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -21,7 +23,11 @@ class DownloadsRepositoryImplTest {
     fun `lists audiobook downloads and caches alongside file backed stores`() = runTest {
         val stores = stores()
         stores.epubDownloads.save("srv", "epub-down", ByteArrayInputStream("epub".toByteArray()))
+        stores.pdfDownloads.save("srv", "pdf-down", ByteArrayInputStream("pdf".toByteArray()))
+        stores.cbzDownloads.save("srv", "cbz-down", ByteArrayInputStream("cbz".toByteArray()))
         stores.epubCache.save("srv", "epub-cache", ByteArrayInputStream("cache".toByteArray()))
+        stores.pdfCache.save("srv", "pdf-cache", ByteArrayInputStream("cache".toByteArray()))
+        stores.cbzCache.save("srv", "cbz-cache", ByteArrayInputStream("cache".toByteArray()))
         writeAudiobook(stores.audiobookDownloadsDir, "srv", "audio-down", "downloaded-track")
         writeAudiobook(stores.audiobookCacheDir, "srv", "audio-cache", "cached-track")
 
@@ -30,6 +36,8 @@ class DownloadsRepositoryImplTest {
         assertEquals(
             setOf(
                 StoredItemRef("srv", "epub-down"),
+                StoredItemRef("srv", "pdf-down"),
+                StoredItemRef("srv", "cbz-down"),
                 StoredItemRef("srv", "audio-down"),
             ),
             repo.getDownloadedItems().toSet(),
@@ -37,9 +45,29 @@ class DownloadsRepositoryImplTest {
         assertEquals(
             setOf(
                 StoredItemRef("srv", "epub-cache"),
+                StoredItemRef("srv", "pdf-cache"),
+                StoredItemRef("srv", "cbz-cache"),
                 StoredItemRef("srv", "audio-cache"),
             ),
             repo.getCachedItems().toSet(),
+        )
+        assertEquals(
+            setOf(
+                StoredItemArtifact("srv", "epub-down", StoredMediaType.Epub),
+                StoredItemArtifact("srv", "pdf-down", StoredMediaType.Pdf),
+                StoredItemArtifact("srv", "cbz-down", StoredMediaType.Cbz),
+                StoredItemArtifact("srv", "audio-down", StoredMediaType.Audiobook),
+            ),
+            repo.getDownloadedArtifacts().toSet(),
+        )
+        assertEquals(
+            setOf(
+                StoredItemArtifact("srv", "epub-cache", StoredMediaType.Epub),
+                StoredItemArtifact("srv", "pdf-cache", StoredMediaType.Pdf),
+                StoredItemArtifact("srv", "cbz-cache", StoredMediaType.Cbz),
+                StoredItemArtifact("srv", "audio-cache", StoredMediaType.Audiobook),
+            ),
+            repo.getCachedArtifacts().toSet(),
         )
     }
 

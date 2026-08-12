@@ -79,6 +79,8 @@ class LibraryItemDetailViewModelTest {
     private fun fakeRepo(
         item: LibraryItem? = null,
         itemFlow: MutableStateFlow<LibraryItem?> = MutableStateFlow(item),
+        sourceItem: LibraryItem? = item,
+        sourceItemFlow: MutableStateFlow<LibraryItem?> = MutableStateFlow(sourceItem),
     ): LibraryObserver = object : LibraryObserver {
         override fun observeLibraries(): Flow<List<Library>> = MutableStateFlow(emptyList())
         override fun observeLibraries(sourceId: String): Flow<List<Library>> = observeLibraries()
@@ -95,7 +97,8 @@ class LibraryItemDetailViewModelTest {
         override fun observeCollectionItems(collectionId: String): Flow<List<LibraryItem>> = MutableStateFlow(emptyList())
         override suspend fun getItem(itemId: String): LibraryItem? = item
         override fun observeItem(itemId: String): Flow<LibraryItem?> = itemFlow
-        override suspend fun getItem(sourceId: String, itemId: String): LibraryItem? = getItem(itemId)
+        override suspend fun getItem(sourceId: String, itemId: String): LibraryItem? = sourceItem
+        override fun observeItem(sourceId: String, itemId: String): Flow<LibraryItem?> = sourceItemFlow
         override suspend fun getLibrary(libraryId: String): com.riffle.core.models.Library? = null
         override suspend fun getSeriesIdForItem(sourceId: String, itemId: String): String? = null
     }
@@ -344,8 +347,14 @@ class LibraryItemDetailViewModelTest {
         libraryRefresher: com.riffle.core.domain.LibraryRefresher = com.riffle.app.testing.NoopLibraryRefresher,
         saveOverride: com.riffle.core.data.localfiles.SaveLocalFileMetadataOverrideUseCase = com.riffle.app.testing.noopSaveLocalFileMetadataOverride(),
         copyCoverImageFn: com.riffle.core.data.localfiles.CopyCoverImageUseCase = com.riffle.app.testing.noopCopyCoverImage(),
+        sourceId: String? = null,
     ) = LibraryItemDetailViewModel(
-        savedStateHandle = SavedStateHandle(mapOf("itemId" to itemId)),
+        savedStateHandle = SavedStateHandle(
+            buildMap {
+                put("itemId", itemId)
+                if (sourceId != null) put("sourceId", sourceId)
+            }
+        ),
         libraryObserver = repo,
         recordItemOpened = com.riffle.app.testing.NoopRecordItemOpened(),
         updateReadingProgressUseCase = com.riffle.app.testing.NoopUpdateReadingProgress(),
@@ -462,6 +471,25 @@ class LibraryItemDetailViewModelTest {
             ),
             vm.uiState.value,
         )
+    }
+
+    @Test
+    fun `uiState uses explicit source id when details are opened from cross-source downloads`() = runTest {
+        val downloadedItem = knownItem.copy(
+            id = "downloaded-1",
+            sourceId = "other-source",
+            libraryId = "other-library",
+        )
+        val vm = makeVm(
+            fakeRepo(item = null, sourceItem = downloadedItem),
+            itemId = downloadedItem.id,
+            sourceId = downloadedItem.sourceId,
+        )
+        backgroundScope.launch { vm.uiState.collect {} }
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        val ready = vm.uiState.value as? LibraryItemDetailUiState.Ready
+        assertEquals(downloadedItem, ready?.item)
     }
 
     @Test

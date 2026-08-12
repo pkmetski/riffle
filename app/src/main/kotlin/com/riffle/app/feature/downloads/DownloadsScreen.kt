@@ -16,8 +16,11 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.ArrowDownward
+import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.GraphicEq
+import androidx.compose.material.icons.filled.GridView
+import androidx.compose.material.icons.filled.PictureAsPdf
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -40,10 +43,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
-import com.riffle.core.domain.ContentCacheAutoClear
 import com.riffle.app.ui.TabletContentWidthContainer
+import com.riffle.core.domain.ContentCacheAutoClear
 import com.riffle.core.models.LibraryItem
 import java.util.Locale
 
@@ -63,7 +67,7 @@ fun DownloadsScreen(
         AlertDialog(
             onDismissRequest = { showRemoveAllDownloadsDialog = false },
             title = { Text("Remove all downloads?") },
-            text = { Text("This will remove all downloaded books from your device.") },
+            text = { Text("This will remove all downloaded media from your device.") },
             confirmButton = {
                 TextButton(onClick = {
                     viewModel.removeAllDownloads()
@@ -113,10 +117,10 @@ fun DownloadsScreen(
                 }
                 if (uiState.downloadedItems.isEmpty()) {
                     item {
-                        EmptySection("No downloaded books")
+                        EmptySection("No downloaded media")
                     }
                 } else {
-                    items(uiState.downloadedItems, key = { it.sourceId + "/" + it.item.id }) { entry ->
+                    items(uiState.downloadedItems, key = { "${it.sourceId}_${it.item.id}" }) { entry ->
                         LocalItemRow(
                             entry = entry,
                             pillColor = PillColor.Downloaded,
@@ -142,34 +146,15 @@ fun DownloadsScreen(
                 }
                 if (uiState.cachedItems.isEmpty()) {
                     item {
-                        EmptySection("No cached books")
+                        EmptySection("No cached media")
                     }
                 } else {
-                    items(uiState.cachedItems, key = { it.sourceId + "/" + it.item.id }) { entry ->
+                    items(uiState.cachedItems, key = { "${it.sourceId}_${it.item.id}" }) { entry ->
                         LocalItemRow(
                             entry = entry,
                             pillColor = PillColor.Cached,
                             onClick = { onItemSelected(entry.item) },
-                            onRemove = { viewModel.removeCachedItem(entry.sourceId, entry.item.id) },
-                        )
-                    }
-                }
-
-                if (uiState.readaloudSidecars.isNotEmpty()) {
-                    item {
-                        SectionHeader(
-                            title = "Readaloud (streaming)",
-                            totalLabel = formatBytes(uiState.readaloudSidecarsTotalBytes),
-                            actionLabel = "Clear all",
-                            onAction = { viewModel.clearAllReadaloudSidecars() },
-                        )
-                    }
-                    items(uiState.readaloudSidecars, key = { "sidecar/" + it.sourceId + "/" + it.item.id }) { entry ->
-                        LocalItemRow(
-                            entry = entry,
-                            pillColor = PillColor.Readaloud,
-                            onClick = { onItemSelected(entry.item) },
-                            onRemove = { viewModel.removeReadaloudSidecar(entry.sourceId, entry.item.id) },
+                            onRemove = { viewModel.removeCachedItem(entry) },
                         )
                     }
                 }
@@ -217,7 +202,7 @@ private fun CacheSettingsDialog(
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(
-                    text = "Cached book, audiobook, and comic files can be removed after they have not been opened for this long. Downloads are kept.",
+                    text = "Cached book, audiobook, comic, and readaloud files can be removed after they have not been opened for this long. Downloads are kept.",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -279,7 +264,7 @@ private fun EmptySection(message: String) {
     }
 }
 
-private enum class PillColor { Downloaded, Cached, Readaloud }
+private enum class PillColor { Downloaded, Cached }
 
 @Composable
 private fun LocalItemRow(
@@ -291,13 +276,12 @@ private fun LocalItemRow(
     val containerColor = when (pillColor) {
         PillColor.Downloaded -> MaterialTheme.colorScheme.primary
         PillColor.Cached -> MaterialTheme.colorScheme.secondary
-        PillColor.Readaloud -> MaterialTheme.colorScheme.tertiary
     }
     val contentColor = when (pillColor) {
         PillColor.Downloaded -> MaterialTheme.colorScheme.onPrimary
         PillColor.Cached -> MaterialTheme.colorScheme.onSecondary
-        PillColor.Readaloud -> MaterialTheme.colorScheme.onTertiary
     }
+    val mediaTypeLabel = entry.mediaTypes.displayLabel()
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -312,8 +296,8 @@ private fun LocalItemRow(
         ) {
             Box(contentAlignment = Alignment.Center) {
                 Icon(
-                    imageVector = Icons.Default.ArrowDownward,
-                    contentDescription = null,
+                    imageVector = entry.mediaTypes.primaryIcon(),
+                    contentDescription = mediaTypeLabel,
                     modifier = Modifier.size(18.dp),
                 )
             }
@@ -325,7 +309,9 @@ private fun LocalItemRow(
         ) {
             Text(text = entry.item.title, style = MaterialTheme.typography.bodyLarge)
             Text(
-                text = entry.item.author,
+                text = listOf(entry.item.author, mediaTypeLabel)
+                    .filter { it.isNotBlank() }
+                    .joinToString(" · "),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -344,6 +330,39 @@ private fun LocalItemRow(
         }
     }
 }
+
+private fun Set<LocalMediaType>.displayLabel(): String =
+    sortedBy { it.displayOrder }.joinToString(" + ") { it.label }
+
+private fun Set<LocalMediaType>.primaryIcon(): ImageVector =
+    minByOrNull { it.displayOrder }?.icon ?: Icons.AutoMirrored.Filled.MenuBook
+
+private val LocalMediaType.label: String
+    get() = when (this) {
+        LocalMediaType.Epub -> "EPUB"
+        LocalMediaType.Pdf -> "PDF"
+        LocalMediaType.Comic -> "Comic"
+        LocalMediaType.Audiobook -> "Audiobook"
+        LocalMediaType.Readaloud -> "Readaloud"
+    }
+
+private val LocalMediaType.displayOrder: Int
+    get() = when (this) {
+        LocalMediaType.Epub -> 0
+        LocalMediaType.Pdf -> 1
+        LocalMediaType.Comic -> 2
+        LocalMediaType.Audiobook -> 3
+        LocalMediaType.Readaloud -> 4
+    }
+
+private val LocalMediaType.icon: ImageVector
+    get() = when (this) {
+        LocalMediaType.Epub -> Icons.AutoMirrored.Filled.MenuBook
+        LocalMediaType.Pdf -> Icons.Default.PictureAsPdf
+        LocalMediaType.Comic -> Icons.Default.GridView
+        LocalMediaType.Audiobook -> Icons.Default.GraphicEq
+        LocalMediaType.Readaloud -> Icons.Default.GraphicEq
+    }
 
 /** Renders a byte count as a compact human-readable size (e.g. "312 MB", "1.2 GB"). */
 internal fun formatBytes(bytes: Long): String {

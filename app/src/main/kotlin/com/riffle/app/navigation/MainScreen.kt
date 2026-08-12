@@ -55,6 +55,7 @@ import com.riffle.app.feature.settings.readaloud.ReadaloudMatchesScreen
 import com.riffle.app.feature.settings.readaloud.ReadaloudSettingsScreen
 import com.riffle.app.playback.NowPlaying
 import com.riffle.app.ui.isTabletLayout
+import com.riffle.core.models.LibraryItem
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.launch
@@ -96,7 +97,7 @@ private const val LIBRARY_SECTION = "library_section/{libraryId}/{libraryName}/{
 private const val SERIES_DETAIL = "series_detail/{libraryId}/{seriesId}/{seriesName}"
 private const val COLLECTION_DETAIL = "collection_detail/{libraryId}/{collectionId}/{collectionName}"
 private const val FILTERED_BOOKS = "filtered_books/{libraryId}/{facetType}/{facetValue}"
-internal const val LIBRARY_ITEM_DETAIL = "library_item_detail/{itemId}"
+internal const val LIBRARY_ITEM_DETAIL = "library_item_detail/{itemId}?sourceId={sourceId}"
 private const val PLAYLIST_DETAIL = "playlist_detail/{libraryId}/{playlistId}/{playlistName}"
 private const val EPUB_READER =
     "epub_reader/{itemId}?startReadaloudAtSec={startReadaloudAtSec}&openAtCfi={openAtCfi}&openAnnotationId={openAnnotationId}&startTocHref={startTocHref}&source={source}&sourceId={sourceId}"
@@ -118,6 +119,16 @@ internal fun seriesDetailRoute(libraryId: String, seriesId: String, seriesName: 
 /** Same reasoning as [seriesDetailRoute] but for collection ids. */
 internal fun collectionDetailRoute(libraryId: String, collectionId: String, collectionName: String): String =
     "collection_detail/$libraryId/${URLEncoder.encode(collectionId, "UTF-8")}/${URLEncoder.encode(collectionName, "UTF-8")}"
+
+internal fun libraryItemDetailRoute(item: LibraryItem): String {
+    val encodedId = URLEncoder.encode(item.id, "UTF-8")
+    val encodedSourceId = URLEncoder.encode(item.sourceId, "UTF-8")
+    return if (item.sourceId.isBlank()) {
+        "library_item_detail/$encodedId"
+    } else {
+        "library_item_detail/$encodedId?sourceId=$encodedSourceId"
+    }
+}
 
 /**
  * Dispatches to the correct library entry point for [sourceType]:
@@ -561,8 +572,7 @@ fun MainScreen(
                     windowSizeClass = windowSizeClass,
                     onNavigateBack = { navController.popBackStack() },
                     onItemSelected = { item ->
-                        val encodedId = URLEncoder.encode(item.id, "UTF-8")
-                        navController.navigate("library_item_detail/$encodedId")
+                        navController.navigate(libraryItemDetailRoute(item))
                     },
                 )
             }
@@ -610,8 +620,7 @@ fun MainScreen(
                         navController.navigate(collectionDetailRoute(libraryId, collection.id, collection.name))
                     },
                     onItemSelected = { item ->
-                        val encodedId = URLEncoder.encode(item.id, "UTF-8")
-                        navController.navigate("library_item_detail/$encodedId")
+                        navController.navigate(libraryItemDetailRoute(item))
                     },
                     onAnnotationSelected = { result ->
                         val encodedId = URLEncoder.encode(result.annotation.itemId, "UTF-8")
@@ -656,8 +665,7 @@ fun MainScreen(
                 com.riffle.app.feature.library.playlists.PlaylistDetailScreen(
                     onNavigateBack = { navController.popBackStack() },
                     onItemSelected = { item ->
-                        val encodedId = URLEncoder.encode(item.id, "UTF-8")
-                        navController.navigate("library_item_detail/$encodedId")
+                        navController.navigate(libraryItemDetailRoute(item))
                     },
                     // Play launches the first item into the audiobook player carrying the playlist
                     // context (`playlistId` + `libraryId`) — the player VM uses those to look up
@@ -694,8 +702,7 @@ fun MainScreen(
                     sectionType = sectionType,
                     viewModel = hiltViewModel<LibraryItemsViewModel>(parentEntry),
                     onItemSelected = { item ->
-                        val encodedId = URLEncoder.encode(item.id, "UTF-8")
-                        navController.navigate("library_item_detail/$encodedId")
+                        navController.navigate(libraryItemDetailRoute(item))
                     },
                     onNavigateBack = { navController.popBackStack() },
                 )
@@ -715,8 +722,7 @@ fun MainScreen(
                 SeriesDetailScreen(
                     seriesName = seriesName,
                     onItemSelected = { item ->
-                        val encodedId = URLEncoder.encode(item.id, "UTF-8")
-                        navController.navigate("library_item_detail/$encodedId")
+                        navController.navigate(libraryItemDetailRoute(item))
                     },
                     onNavigateBack = { navController.popBackStack() },
                 )
@@ -736,8 +742,7 @@ fun MainScreen(
                 CollectionDetailScreen(
                     collectionName = collectionName,
                     onItemSelected = { item ->
-                        val encodedId = URLEncoder.encode(item.id, "UTF-8")
-                        navController.navigate("library_item_detail/$encodedId")
+                        navController.navigate(libraryItemDetailRoute(item))
                     },
                     onNavigateBack = { navController.popBackStack() },
                 )
@@ -746,6 +751,11 @@ fun MainScreen(
                 route = LIBRARY_ITEM_DETAIL,
                 arguments = listOf(
                     navArgument("itemId") { type = NavType.StringType },
+                    navArgument("sourceId") {
+                        type = NavType.StringType
+                        nullable = true
+                        defaultValue = null
+                    },
                 )
             ) { backStackEntry ->
                 LibraryItemDetailScreen(
@@ -786,8 +796,7 @@ fun MainScreen(
             ) {
                 FilteredBooksScreen(
                     onItemSelected = { item ->
-                        val encodedId = URLEncoder.encode(item.id, "UTF-8")
-                        navController.navigate("library_item_detail/$encodedId")
+                        navController.navigate(libraryItemDetailRoute(item))
                     },
                     onNavigateBack = { navController.popBackStack() },
                 )

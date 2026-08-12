@@ -139,6 +139,9 @@ class LibraryRepositoryImpl @Inject constructor(
     override suspend fun getItem(sourceId: String, itemId: String): LibraryItem? =
         libraryItemDao.getById(sourceId, itemId)?.toDomain()
 
+    override fun observeItem(sourceId: String, itemId: String): Flow<LibraryItem?> =
+        libraryItemDao.observeById(sourceId, itemId).map { it?.toDomain() }
+
     // Library ids are only unique within a Source (issue #113); resolve against the active Source's
     // copy, mirroring how [getItem] keys item reads. No active Source → nothing to resolve.
     override suspend fun getLibrary(libraryId: String): Library? {

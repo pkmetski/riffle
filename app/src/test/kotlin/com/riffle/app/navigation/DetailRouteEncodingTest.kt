@@ -1,5 +1,7 @@
 package com.riffle.app.navigation
 
+import com.riffle.core.models.EbookFormat
+import com.riffle.core.models.LibraryItem
 import com.riffle.core.models.SourceType
 import org.junit.Assert.assertEquals
 import org.junit.Test
@@ -47,6 +49,26 @@ class DetailRouteEncodingTest {
         assertEquals(4, segments.size)
         assertEquals("collection_detail", segments[0])
         assertEquals("collection%2Fsome%2Fnested%2Fid", segments[2])
+    }
+
+    @Test
+    fun `libraryItemDetailRoute carries sourceId for cross-source downloads`() {
+        val route = libraryItemDetailRoute(
+            LibraryItem(
+                id = "book/123",
+                libraryId = "lib-1",
+                title = "Title",
+                author = "Author",
+                coverUrl = null,
+                readingProgress = 0f,
+                isCached = false,
+                isDownloaded = true,
+                ebookFormat = EbookFormat.Epub,
+                sourceId = "source/with space",
+            )
+        )
+
+        assertEquals("library_item_detail/book%2F123?sourceId=source%2Fwith+space", route)
     }
 
     // ─── libraryEntryRoute: generic dispatch driven by SourceType.isUnboundedCatalog ────────────

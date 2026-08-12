@@ -6,7 +6,12 @@ import com.riffle.core.domain.DownloadsRepository
 import com.riffle.core.models.EbookFormat
 import com.riffle.core.models.LibraryItem
 import com.riffle.core.domain.LibraryObserver
-import com.riffle.core.domain.StoredItemRef
+import com.riffle.core.domain.SourceRepository
+import com.riffle.core.domain.StoredItemArtifact
+import com.riffle.core.domain.StoredMediaType
+import com.riffle.core.models.ServerType
+import com.riffle.core.models.Source
+import com.riffle.core.models.SourceUrl
 import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.mockk
@@ -58,22 +63,23 @@ class DownloadsViewModelTest {
      *  omits both capabilities), the ViewModel silently produced state that told the UI to hide
      *  every ABS/Chitanka/Storyteller Cached row and every Storyteller readaloud sidecar — even
      *  though the Downloaded list was rendered app-wide. The fix removes the capability lookup so
-     *  all three lists behave the same way (populated whenever local artifacts exist).
+     *  downloaded and cached media behave the same way (populated whenever local artifacts exist).
      *
      *  This test would fail if someone re-adds capability gating: injecting a CatalogRegistry (or any
-     *  active-source predicate) that drops rows from non-matching sources would make the cached and
-     *  sidecar lists empty here. */
+     *  active-source predicate) that drops rows from non-matching sources would make the cached list
+     *  lose the cached artifacts and folded readaloud sidecars here. */
     @Test
     fun `populates all sections regardless of active source`() = runTest(dispatcher) {
         val downloadsRepo = mockk<DownloadsRepository>(relaxed = true)
-        every { downloadsRepo.getDownloadedItems() } returns listOf(
-            StoredItemRef("abs", "abs-book"),
-            StoredItemRef("chitanka", "ch-book"),
-            StoredItemRef("abs", "ab-book"),
+        every { downloadsRepo.getDownloadedArtifacts() } returns listOf(
+            StoredItemArtifact("abs", "abs-book", StoredMediaType.Epub),
+            StoredItemArtifact("chitanka", "ch-book", StoredMediaType.Pdf),
+            StoredItemArtifact("abs", "ab-book", StoredMediaType.Audiobook),
+            StoredItemArtifact("storyteller", "st-down", StoredMediaType.Epub),
         )
-        every { downloadsRepo.getCachedItems() } returns listOf(
-            StoredItemRef("abs", "abs-cached"),
-            StoredItemRef("abs", "ab-cached"),
+        every { downloadsRepo.getCachedArtifacts() } returns listOf(
+            StoredItemArtifact("abs", "abs-cached", StoredMediaType.Cbz),
+            StoredItemArtifact("abs", "ab-cached", StoredMediaType.Audiobook),
         )
         every { downloadsRepo.sizeOf(any(), any()) } returns 1024L
 
@@ -83,9 +89,16 @@ class DownloadsViewModelTest {
         coEvery { libraryObserver.getItem("abs", "abs-cached") } returns item("abs", "abs-cached", "ABS Cached")
         coEvery { libraryObserver.getItem("abs", "ab-book") } returns
             item("abs", "ab-book", "ABS Audiobook Downloaded", ebookFormat = EbookFormat.Unsupported, hasAudio = true)
+        coEvery { libraryObserver.getItem("storyteller", "st-down") } returns
+            item("storyteller", "st-down", "Storyteller Downloaded")
         coEvery { libraryObserver.getItem("abs", "ab-cached") } returns
             item("abs", "ab-cached", "ABS Audiobook Cached", ebookFormat = EbookFormat.Unsupported, hasAudio = true)
         coEvery { libraryObserver.getItem("storyteller", "st-book") } returns item("storyteller", "st-book", "Storyteller Readaloud")
+
+        val sourceRepository = mockk<SourceRepository>(relaxed = true)
+        coEvery { sourceRepository.getById("abs") } returns source("abs", ServerType.AUDIOBOOKSHELF)
+        coEvery { sourceRepository.getById("chitanka") } returns source("chitanka", ServerType.AUDIOBOOKSHELF)
+        coEvery { sourceRepository.getById("storyteller") } returns source("storyteller", ServerType.STORYTELLER_SERVICE)
 
         val sidecarStore = mockk<ReadaloudSidecarStore>(relaxed = true)
         every { sidecarStore.listCached() } returns listOf(
@@ -94,16 +107,44 @@ class DownloadsViewModelTest {
         val cacheSettingsStore = mockk<ContentCacheSettingsStore>(relaxed = true)
         every { cacheSettingsStore.autoClear } returns MutableStateFlow(ContentCacheSettingsStore.DEFAULT_AUTO_CLEAR)
 
-        val vm = DownloadsViewModel(downloadsRepo, libraryObserver, sidecarStore, cacheSettingsStore)
+        val vm = DownloadsViewModel(downloadsRepo, libraryObserver, sourceRepository, sidecarStore, cacheSettingsStore)
         advanceUntilIdle()
 
         val state = vm.uiState.value
         assertEquals(
-            listOf("ABS Downloaded", "Chitanka Downloaded", "ABS Audiobook Downloaded"),
+            listOf("ABS Downloaded", "Chitanka Downloaded", "ABS Audiobook Downloaded", "Storyteller Downloaded"),
             state.downloadedItems.map { it.item.title },
         )
-        assertEquals(listOf("ABS Cached", "ABS Audiobook Cached"), state.cachedItems.map { it.item.title })
-        assertEquals(listOf("Storyteller Readaloud"), state.readaloudSidecars.map { it.item.title })
+        assertEquals(
+            listOf("ABS Cached", "ABS Audiobook Cached", "Storyteller Readaloud"),
+            state.cachedItems.map { it.item.title },
+        )
+        assertEquals(
+            listOf(
+                setOf(LocalMediaType.Epub),
+                setOf(LocalMediaType.Pdf),
+                setOf(LocalMediaType.Audiobook),
+                setOf(LocalMediaType.Readaloud),
+            ),
+            state.downloadedItems.map { it.mediaTypes },
+        )
+        assertEquals(
+            listOf(
+                setOf(LocalMediaType.Comic),
+                setOf(LocalMediaType.Audiobook),
+                setOf(LocalMediaType.Readaloud),
+            ),
+            state.cachedItems.map { it.mediaTypes },
+        )
         assertEquals(ContentCacheSettingsStore.DEFAULT_AUTO_CLEAR, state.cacheAutoClear)
     }
+
+    private fun source(id: String, serverType: ServerType) = Source(
+        id = id,
+        url = SourceUrl.parse("http://$id.local")!!,
+        isActive = false,
+        insecureConnectionAllowed = false,
+        username = "user",
+        serverType = serverType,
+    )
 }
