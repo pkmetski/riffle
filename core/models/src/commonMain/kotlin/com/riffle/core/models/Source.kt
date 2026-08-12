@@ -22,3 +22,6 @@ data class Source(
      */
     val absUserId: String? = null,
 )
+
+val Source.isStorytellerService: Boolean
+    get() = serverType == ServerType.STORYTELLER_SERVICE

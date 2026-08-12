@@ -47,6 +47,10 @@ interface LibraryObserver {
 
     /** A specific Server's copy of an item — for cross-Server callers like the Downloads screen. */
     suspend fun getItem(sourceId: String, itemId: String): LibraryItem?
+
+    /** Reactive view of a specific Source's copy of an item. */
+    fun observeItem(sourceId: String, itemId: String): Flow<LibraryItem?> = observeItem(itemId)
+
     suspend fun getLibrary(libraryId: String): Library?
 
     /** The id of the series the given item belongs to, or null if it is not in any series. */

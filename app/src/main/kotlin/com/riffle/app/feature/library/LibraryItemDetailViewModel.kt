@@ -204,6 +204,7 @@ class LibraryItemDetailViewModel @Inject constructor(
 ) : ViewModel() {
 
     private val itemId: String = savedStateHandle.get<String>("itemId") ?: ""
+    private val sourceId: String? = savedStateHandle.get<String>("sourceId")?.takeIf { it.isNotBlank() }
 
     private val _uiState = MutableStateFlow<LibraryItemDetailUiState>(LibraryItemDetailUiState.Loading)
     val uiState: StateFlow<LibraryItemDetailUiState> = _uiState
@@ -282,8 +283,8 @@ class LibraryItemDetailViewModel @Inject constructor(
         // case the refresh was added for. The refresher's own precondition checks handle a null
         // active source or a mismatched sourceId.
         viewModelScope.launch {
-            val sourceId = sourceRepository.getActive()?.id ?: return@launch
-            libraryRefresher.refreshItemProgress(sourceId, itemId)
+            val resolvedSourceId = sourceId ?: sourceRepository.getActive()?.id ?: return@launch
+            libraryRefresher.refreshItemProgress(resolvedSourceId, itemId)
         }
     }
 
@@ -335,7 +336,9 @@ class LibraryItemDetailViewModel @Inject constructor(
                 authToken = tokenStorage.getToken(server.id) ?: ""
             }
             _uiState.value = try {
-                val item = libraryObserver.getItem(itemId)
+                val item = sourceId
+                    ?.let { libraryObserver.getItem(it, itemId) }
+                    ?: libraryObserver.getItem(itemId)
                 if (item != null) {
                     loadedItem = item
                     _downloadState.value = deriveDownloadState(item)
@@ -490,7 +493,10 @@ class LibraryItemDetailViewModel @Inject constructor(
         // keep showing the one-shot snapshot taken in init. Observing the item patches the live row
         // (e.g. readingProgress) into the existing Ready state so book details matches where the
         // reader left off. Only patches once Ready, so it never pre-empts the Error/enrichment path.
-        libraryObserver.observeItem(itemId)
+        val itemFlow = sourceId
+            ?.let { libraryObserver.observeItem(it, itemId) }
+            ?: libraryObserver.observeItem(itemId)
+        itemFlow
             .onEach { latest ->
                 if (latest == null) return@onEach
                 val current = _uiState.value

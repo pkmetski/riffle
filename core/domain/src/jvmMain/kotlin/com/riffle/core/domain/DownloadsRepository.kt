@@ -1,10 +1,16 @@
 package com.riffle.core.domain
 
-// The Downloads screen is inherently cross-Server (it lists every file on disk), so it keys by
+// The Downloads screen is inherently cross-Source (it lists every file on disk), so it keys by
 // (sourceId, itemId) rather than itemId alone (ADR 0025).
 interface DownloadsRepository {
-    fun getDownloadedItems(): List<StoredItemRef>
-    fun getCachedItems(): List<StoredItemRef>
+    fun getDownloadedArtifacts(): List<StoredItemArtifact>
+    fun getCachedArtifacts(): List<StoredItemArtifact>
+
+    fun getDownloadedItems(): List<StoredItemRef> =
+        getDownloadedArtifacts().map { it.ref }.distinct()
+
+    fun getCachedItems(): List<StoredItemRef> =
+        getCachedArtifacts().map { it.ref }.distinct()
 
     /** Total bytes of the item's local artifact(s), including directory-backed audiobook data. */
     fun sizeOf(sourceId: String, itemId: String): Long
@@ -17,4 +23,19 @@ interface DownloadsRepository {
 
     suspend fun removeAllDownloads()
     suspend fun clearAllCached()
+}
+
+data class StoredItemArtifact(
+    val sourceId: String,
+    val itemId: String,
+    val mediaType: StoredMediaType,
+) {
+    val ref: StoredItemRef get() = StoredItemRef(sourceId, itemId)
+}
+
+enum class StoredMediaType {
+    Epub,
+    Pdf,
+    Cbz,
+    Audiobook,
 }
