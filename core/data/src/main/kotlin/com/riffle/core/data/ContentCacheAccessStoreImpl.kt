@@ -31,6 +31,11 @@ class ContentCacheAccessStoreImpl @Inject constructor(
     override suspend fun lastAccessedAt(key: ContentCacheKey): Long? =
         dataStore.data.map { prefs -> prefs[prefKey(key)] }.first()
 
+    override suspend fun lastAccessedAtBulk(keys: Set<ContentCacheKey>): Map<ContentCacheKey, Long?> {
+        val prefs = dataStore.data.first()
+        return keys.associateWith { key -> prefs[prefKey(key)] }
+    }
+
     override suspend fun forget(key: ContentCacheKey) {
         dataStore.edit { prefs ->
             prefs.remove(prefKey(key))

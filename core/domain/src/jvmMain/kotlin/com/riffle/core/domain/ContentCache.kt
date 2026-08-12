@@ -29,6 +29,7 @@ interface ContentCacheAccessStore {
     suspend fun markAccessed(key: ContentCacheKey)
     suspend fun markAccessedAt(key: ContentCacheKey, timestampMs: Long)
     suspend fun lastAccessedAt(key: ContentCacheKey): Long?
+    suspend fun lastAccessedAtBulk(keys: Set<ContentCacheKey>): Map<ContentCacheKey, Long?>
     suspend fun forget(key: ContentCacheKey)
 }
 
@@ -54,16 +55,18 @@ class ContentCacheCleaner(
     suspend fun cleanExpired(): ContentCacheCleanResult = cleanExpired(clock.nowMs())
 
     suspend fun cleanExpired(nowMs: Long): ContentCacheCleanResult = withContext(dispatchers.io) {
-        val autoClear = settingsStore.autoClearValue()
-        val cutoffMs = autoClear.days?.let { nowMs - it.toLong() * MILLIS_PER_DAY }
+        val cutoffMs = settingsStore.autoClear.first().days?.let { nowMs - it.toLong() * MILLIS_PER_DAY }
         var scanned = 0
         var backfilled = 0
         var removed = 0
         var freedBytes = 0L
 
-        artifactScanner.listArtifacts().forEach { artifact ->
+        val artifacts = artifactScanner.listArtifacts()
+        val timestamps = accessStore.lastAccessedAtBulk(artifacts.map { it.key }.toSet())
+
+        artifacts.forEach { artifact ->
             scanned += 1
-            val lastAccessedAt = accessStore.lastAccessedAt(artifact.key)
+            val lastAccessedAt = timestamps[artifact.key]
             if (lastAccessedAt == null) {
                 val initialTimestamp = artifact.evidenceLastModifiedAtMs?.takeIf { it > 0L } ?: nowMs
                 accessStore.markAccessedAt(artifact.key, initialTimestamp)
@@ -91,7 +94,3 @@ class ContentCacheCleaner(
 }
 
 private const val MILLIS_PER_DAY = 24L * 60L * 60L * 1000L
-
-private suspend fun ContentCacheSettingsStore.autoClearValue(): ContentCacheAutoClear {
-    return autoClear.first()
-}

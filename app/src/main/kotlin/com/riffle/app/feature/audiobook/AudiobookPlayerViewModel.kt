@@ -413,7 +413,7 @@ class AudiobookPlayerViewModel @Inject constructor(
                 return@launch
             }
             if (usedAutoCache) {
-                contentCacheAccessStore.markAccessed(audiobookCacheKey(sourceId, itemId))
+                viewModelScope.launch { contentCacheAccessStore.markAccessed(audiobookCacheKey(sourceId, itemId)) }
             }
             timeline = session.timeline
             // Resolve the resume position: last-update-wins reconcile (ADR 0029), progress-fraction

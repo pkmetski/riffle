@@ -24,62 +24,56 @@ class ContentCacheArtifactScannerImpl @Inject constructor(
             fileArtifacts(cbzCacheDir, ".cbz", ContentCacheArtifactKind.Cbz)
 
     private fun fileArtifacts(root: File, extension: String, kind: ContentCacheArtifactKind): List<ContentCacheArtifact> =
-        root.listFiles()
-            ?.filter { it.isDirectory }
-            ?.flatMap { sourceDir ->
-                val prefix = sourceDir.absolutePath + File.separator
-                sourceDir.walkTopDown()
-                    .filter { it.isFile && it.name.endsWith(extension) }
-                    .map { file ->
-                        val relative = file.absolutePath.removePrefix(prefix)
-                        ContentCacheArtifact(
-                            key = ContentCacheKey(
-                                sourceId = sourceDir.name,
-                                itemId = relative.removeSuffix(extension),
-                                kind = kind,
-                            ),
-                            file = file,
-                            sizeBytes = file.length(),
-                            evidenceLastModifiedAtMs = file.lastModified().takeIf { it > 0L },
-                        )
-                    }
-                    .toList()
-            }
-            ?: emptyList()
+        root.forSourceDirs { sourceDir ->
+            val prefix = sourceDir.absolutePath + File.separator
+            sourceDir.walkTopDown()
+                .filter { it.isFile && it.name.endsWith(extension) }
+                .map { file ->
+                    val relative = file.absolutePath.removePrefix(prefix)
+                    ContentCacheArtifact(
+                        key = ContentCacheKey(
+                            sourceId = sourceDir.name,
+                            itemId = relative.removeSuffix(extension),
+                            kind = kind,
+                        ),
+                        file = file,
+                        sizeBytes = file.length(),
+                        evidenceLastModifiedAtMs = file.lastModified().takeIf { it > 0L },
+                    )
+                }
+                .toList()
+        }
 
     private fun audiobookArtifacts(root: File): List<ContentCacheArtifact> =
-        root.listFiles()
-            ?.filter { it.isDirectory }
-            ?.flatMap { sourceDir ->
-                val prefix = sourceDir.absolutePath + File.separator
-                sourceDir.walkTopDown()
-                    .filter { it.isFile && it.name == "manifest.json" }
-                    .mapNotNull { manifest ->
-                        val itemDir = manifest.parentFile ?: return@mapNotNull null
-                        val relative = itemDir.absolutePath.removePrefix(prefix).takeIf { it.isNotBlank() }
-                            ?: return@mapNotNull null
-                        ContentCacheArtifact(
-                            key = ContentCacheKey(
-                                sourceId = sourceDir.name,
-                                itemId = relative,
-                                kind = ContentCacheArtifactKind.Audiobook,
-                            ),
-                            file = itemDir,
-                            sizeBytes = itemDir.sizeBytes(),
-                            evidenceLastModifiedAtMs = itemDir.newestLastModifiedAtMs(),
-                        )
+        root.forSourceDirs { sourceDir ->
+            val prefix = sourceDir.absolutePath + File.separator
+            sourceDir.walkTopDown()
+                .filter { it.isFile && it.name == "manifest.json" }
+                .mapNotNull { manifest ->
+                    val itemDir = manifest.parentFile ?: return@mapNotNull null
+                    val relative = itemDir.absolutePath.removePrefix(prefix).takeIf { it.isNotBlank() }
+                        ?: return@mapNotNull null
+                    var sizeBytes = 0L
+                    var newestMs = 0L
+                    itemDir.walkTopDown().filter { it.isFile }.forEach { f ->
+                        sizeBytes += f.length()
+                        val lm = f.lastModified()
+                        if (lm > newestMs) newestMs = lm
                     }
-                    .toList()
-            }
-            ?: emptyList()
+                    ContentCacheArtifact(
+                        key = ContentCacheKey(
+                            sourceId = sourceDir.name,
+                            itemId = relative,
+                            kind = ContentCacheArtifactKind.Audiobook,
+                        ),
+                        file = itemDir,
+                        sizeBytes = sizeBytes,
+                        evidenceLastModifiedAtMs = newestMs.takeIf { it > 0L },
+                    )
+                }
+                .toList()
+        }
 }
 
-private fun File.sizeBytes(): Long =
-    if (isFile) length() else walkTopDown().filter { it.isFile }.sumOf { it.length() }
-
-private fun File.newestLastModifiedAtMs(): Long? =
-    if (isFile) {
-        lastModified().takeIf { it > 0L }
-    } else {
-        walkTopDown().map { it.lastModified() }.filter { it > 0L }.maxOrNull()
-    }
+private fun File.forSourceDirs(block: (File) -> List<ContentCacheArtifact>): List<ContentCacheArtifact> =
+    listFiles()?.filter { it.isDirectory }?.flatMap(block) ?: emptyList()

@@ -363,17 +363,7 @@ internal fun formatBytes(bytes: Long): String {
 }
 
 private fun ContentCacheAutoClear.summaryLabel(): String =
-    when (this) {
-        ContentCacheAutoClear.Off -> "Auto-clear off"
-        ContentCacheAutoClear.After7Days -> "Auto-clear after 7 days"
-        ContentCacheAutoClear.After30Days -> "Auto-clear after 30 days"
-        ContentCacheAutoClear.After90Days -> "Auto-clear after 90 days"
-    }
+    days?.let { "Auto-clear after $it days" } ?: "Auto-clear off"
 
 private fun ContentCacheAutoClear.optionLabel(): String =
-    when (this) {
-        ContentCacheAutoClear.Off -> "Off"
-        ContentCacheAutoClear.After7Days -> "After 7 days"
-        ContentCacheAutoClear.After30Days -> "After 30 days"
-        ContentCacheAutoClear.After90Days -> "After 90 days"
-    }
+    days?.let { "After $it days" } ?: "Off"

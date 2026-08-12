@@ -10,6 +10,7 @@ import com.riffle.core.domain.LibraryObserver
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -74,12 +75,13 @@ class DownloadsViewModel @Inject constructor(
                 }
             }
 
-            _uiState.value = DownloadsUiState(
-                downloadedItems = downloadedItems,
-                cachedItems = cachedItems,
-                readaloudSidecars = readaloudSidecars,
-                cacheAutoClear = _uiState.value.cacheAutoClear,
-            )
+            _uiState.update { current ->
+                current.copy(
+                    downloadedItems = downloadedItems,
+                    cachedItems = cachedItems,
+                    readaloudSidecars = readaloudSidecars,
+                )
+            }
         }
     }
 

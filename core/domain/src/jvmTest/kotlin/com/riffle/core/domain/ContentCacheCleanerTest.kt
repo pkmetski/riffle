@@ -139,6 +139,9 @@ class ContentCacheCleanerTest {
 
         override suspend fun lastAccessedAt(key: ContentCacheKey): Long? = entries[key]
 
+        override suspend fun lastAccessedAtBulk(keys: Set<ContentCacheKey>): Map<ContentCacheKey, Long?> =
+            keys.associateWith { entries[it] }
+
         override suspend fun forget(key: ContentCacheKey) {
             entries.remove(key)
         }
