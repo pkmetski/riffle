@@ -105,6 +105,8 @@ class RiffleApplication : Application(), ImageLoaderFactory {
         // Durable offline annotation reconcile (ADR 0036): symmetric with progress.
         com.riffle.app.sync.AnnotationSyncScheduler.sweepNow(this)
         com.riffle.app.sync.AnnotationSyncScheduler.ensurePeriodic(this)
+        com.riffle.app.sync.ContentCacheCleanupScheduler.sweepNow(this)
+        com.riffle.app.sync.ContentCacheCleanupScheduler.ensurePeriodic(this)
 
         // Flush promptly when connectivity returns mid-session (offline edits made while the app kept
         // running would otherwise wait for the periodic sweep). We run the sweeps INLINE rather than

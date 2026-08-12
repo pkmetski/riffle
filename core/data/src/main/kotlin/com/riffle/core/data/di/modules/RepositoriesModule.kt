@@ -27,6 +27,7 @@ import com.riffle.core.data.di.PdfDownloadsStore
 import com.riffle.core.domain.AudiobookDownloadRepository
 import com.riffle.core.domain.BundleAudiobookSource
 import com.riffle.core.domain.ConnectivityObserver
+import com.riffle.core.domain.ContentCacheAccessStore
 import com.riffle.core.domain.LibraryItemOfflineAvailability
 import com.riffle.core.domain.CrashReportRepository
 import com.riffle.core.domain.EpubRepository
@@ -125,7 +126,16 @@ abstract class RepositoriesModule {
             positionStore: ReadingPositionStore,
             sourceRepository: SourceRepository,
             localAvailabilityEvents: LocalAvailabilityEvents,
-        ): EpubRepository = EpubRepositoryImpl(catalogRegistry, cacheStore, downloadsStore, positionStore, sourceRepository, localAvailabilityEvents)
+            contentCacheAccessStore: ContentCacheAccessStore,
+        ): EpubRepository = EpubRepositoryImpl(
+            catalogRegistry,
+            cacheStore,
+            downloadsStore,
+            positionStore,
+            sourceRepository,
+            localAvailabilityEvents,
+            contentCacheAccessStore,
+        )
 
         @Provides
         @Singleton
@@ -136,7 +146,16 @@ abstract class RepositoriesModule {
             positionStore: ReadingPositionStore,
             sourceRepository: SourceRepository,
             localAvailabilityEvents: LocalAvailabilityEvents,
-        ): PdfRepository = PdfRepositoryImpl(catalogRegistry, cacheStore, downloadsStore, positionStore, sourceRepository, localAvailabilityEvents)
+            contentCacheAccessStore: ContentCacheAccessStore,
+        ): PdfRepository = PdfRepositoryImpl(
+            catalogRegistry,
+            cacheStore,
+            downloadsStore,
+            positionStore,
+            sourceRepository,
+            localAvailabilityEvents,
+            contentCacheAccessStore,
+        )
 
         @Provides
         @Singleton
@@ -147,7 +166,16 @@ abstract class RepositoriesModule {
             positionStore: ReadingPositionStore,
             sourceRepository: SourceRepository,
             localAvailabilityEvents: LocalAvailabilityEvents,
-        ): com.riffle.core.domain.CbzRepository = com.riffle.core.data.CbzRepositoryImpl(catalogRegistry, cacheStore, downloadsStore, positionStore, sourceRepository, localAvailabilityEvents)
+            contentCacheAccessStore: ContentCacheAccessStore,
+        ): com.riffle.core.domain.CbzRepository = com.riffle.core.data.CbzRepositoryImpl(
+            catalogRegistry,
+            cacheStore,
+            downloadsStore,
+            positionStore,
+            sourceRepository,
+            localAvailabilityEvents,
+            contentCacheAccessStore,
+        )
 
         @Provides
         @Singleton

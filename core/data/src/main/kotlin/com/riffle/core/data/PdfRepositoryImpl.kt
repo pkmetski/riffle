@@ -3,6 +3,9 @@ package com.riffle.core.data
 import com.riffle.core.catalog.BookFormat
 import com.riffle.core.catalog.CatalogRegistry
 import com.riffle.core.models.LibraryItem
+import com.riffle.core.domain.ContentCacheAccessStore
+import com.riffle.core.domain.ContentCacheArtifactKind
+import com.riffle.core.domain.ContentCacheKey
 import com.riffle.core.domain.LocalAvailabilityEvents
 import com.riffle.core.domain.LocalStore
 import com.riffle.core.domain.PdfDownloadResult
@@ -19,17 +22,22 @@ class PdfRepositoryImpl(
     private val positionStore: ReadingPositionStore,
     private val sourceRepository: SourceRepository,
     private val localAvailabilityEvents: LocalAvailabilityEvents = NoopLocalAvailabilityEvents,
+    private val contentCacheAccessStore: ContentCacheAccessStore = com.riffle.core.domain.NoopContentCacheAccessStore,
 ) : PdfRepository {
 
     override suspend fun openPdf(item: LibraryItem): PdfOpenResult {
         // Resolve the item's OWN source, not the active one. See EpubRepositoryImpl.openEpub
         // for the rationale — this is the same bug on the PDF side.
-        val local = (downloadsStore.get(item.sourceId, item.id) ?: cacheStore.get(item.sourceId, item.id))?.takeIf { it.isValidPdf() }
-        if (local == null) {
+        val downloaded = downloadsStore.get(item.sourceId, item.id)?.takeIf { it.isValidPdf() }
+        val cached = if (downloaded == null) cacheStore.get(item.sourceId, item.id)?.takeIf { it.isValidPdf() } else null
+        if (downloaded == null && cached == null) {
             cacheStore.delete(item.sourceId, item.id)
         }
-        val pdfFile = if (local != null) {
-            local
+        val pdfFile = if (downloaded != null) {
+            downloaded
+        } else if (cached != null) {
+            contentCacheAccessStore.markAccessed(contentCacheKey(item))
+            cached
         } else {
             val catalog = catalogRegistry.forSourceId(item.sourceId)
                 ?: return PdfOpenResult.NetworkError(IllegalStateException("No catalog for item"))
@@ -37,7 +45,10 @@ class PdfRepositoryImpl(
                 CatalogFileTransfer.acquire(
                     catalog, item.sourceId, item.id, BookFormat.Pdf,
                     item.ebookFileIno, cacheStore,
-                ).also { localAvailabilityEvents.notifyChanged(item.sourceId, item.id) }
+                ).also {
+                    contentCacheAccessStore.markAccessed(contentCacheKey(item))
+                    localAvailabilityEvents.notifyChanged(item.sourceId, item.id)
+                }
             } catch (t: Throwable) {
                 return PdfOpenResult.NetworkError(t)
             }
@@ -113,6 +124,9 @@ class PdfRepositoryImpl(
         val sourceId = sourceRepository.getActive()?.id ?: return
         positionStore.save(sourceId, itemId, locatorJson)
     }
+
+    private fun contentCacheKey(item: LibraryItem): ContentCacheKey =
+        ContentCacheKey(item.sourceId, item.id, ContentCacheArtifactKind.Pdf)
 }
 
 private fun File.isValidPdf(): Boolean {

@@ -6,6 +6,9 @@ import com.riffle.core.catalog.CbzPageStreamCapability
 import com.riffle.core.domain.CbzDownloadResult
 import com.riffle.core.domain.CbzOpenResult
 import com.riffle.core.domain.CbzRepository
+import com.riffle.core.domain.ContentCacheAccessStore
+import com.riffle.core.domain.ContentCacheArtifactKind
+import com.riffle.core.domain.ContentCacheKey
 import com.riffle.core.models.LibraryItem
 import com.riffle.core.domain.LocalAvailabilityEvents
 import com.riffle.core.domain.LocalStore
@@ -27,14 +30,16 @@ class CbzRepositoryImpl(
     private val positionStore: ReadingPositionStore,
     private val sourceRepository: SourceRepository,
     private val localAvailabilityEvents: LocalAvailabilityEvents = NoopLocalAvailabilityEvents,
+    private val contentCacheAccessStore: ContentCacheAccessStore = com.riffle.core.domain.NoopContentCacheAccessStore,
 ) : CbzRepository {
 
     override suspend fun openCbz(item: LibraryItem): CbzOpenResult {
         val local = resolveLocalFile(item.sourceId, item.id)
         if (local != null) {
+            if (local.tier == LocalFileTier.Cache) contentCacheAccessStore.markAccessed(contentCacheKey(item))
             val activeSource = sourceRepository.getActive()
             val lastPosition = activeSource?.let { positionStore.load(it.id, item.id) }
-            return CbzOpenResult.Success(cbzFile = local, lastPosition = lastPosition)
+            return CbzOpenResult.Success(cbzFile = local.file, lastPosition = lastPosition)
         }
         val catalog = catalogRegistry.forSourceId(item.sourceId)
             ?: return CbzOpenResult.NetworkError(IllegalStateException("No catalog for item"))
@@ -57,6 +62,7 @@ class CbzRepositoryImpl(
                 catalog, item.sourceId, item.id, BookFormat.Cbz,
                 item.ebookFileIno, cacheStore,
             )
+            contentCacheAccessStore.markAccessed(contentCacheKey(item))
             localAvailabilityEvents.notifyChanged(item.sourceId, item.id)
             val activeSource = sourceRepository.getActive()
             val lastPosition = activeSource?.let { positionStore.load(it.id, item.id) }
@@ -120,13 +126,19 @@ class CbzRepositoryImpl(
 
     override suspend fun awaitCachedFile(item: LibraryItem): File? {
         val existing = resolveLocalFile(item.sourceId, item.id)
-        if (existing != null) return existing
+        if (existing != null) {
+            if (existing.tier == LocalFileTier.Cache) contentCacheAccessStore.markAccessed(contentCacheKey(item))
+            return existing.file
+        }
         val catalog = catalogRegistry.forSourceId(item.sourceId) ?: return null
         return try {
             CatalogFileTransfer.acquire(
                 catalog, item.sourceId, item.id, BookFormat.Cbz,
                 item.ebookFileIno, cacheStore,
-            ).also { localAvailabilityEvents.notifyChanged(item.sourceId, item.id) }
+            ).also {
+                contentCacheAccessStore.markAccessed(contentCacheKey(item))
+                localAvailabilityEvents.notifyChanged(item.sourceId, item.id)
+            }
         } catch (_: Throwable) {
             cacheStore.delete(item.sourceId, item.id)
             null
@@ -138,20 +150,27 @@ class CbzRepositoryImpl(
      * background cache. Deletes any file that exists but fails the integrity check — a corrupt
      * or truncated file in either store must not block the streaming fallback path.
      */
-    private fun resolveLocalFile(sourceId: String, itemId: String): File? {
+    private fun resolveLocalFile(sourceId: String, itemId: String): LocalFile? {
         val dl = downloadsStore.get(sourceId, itemId)
         if (dl != null) {
-            if (dl.isValidCbz()) return dl
+            if (dl.isValidCbz()) return LocalFile(dl, LocalFileTier.Download)
             downloadsStore.delete(sourceId, itemId)
         }
         val cached = cacheStore.get(sourceId, itemId)
         if (cached != null) {
-            if (cached.isValidCbz()) return cached
+            if (cached.isValidCbz()) return LocalFile(cached, LocalFileTier.Cache)
             cacheStore.delete(sourceId, itemId)
         }
         return null
     }
+
+    private fun contentCacheKey(item: LibraryItem): ContentCacheKey =
+        ContentCacheKey(item.sourceId, item.id, ContentCacheArtifactKind.Cbz)
 }
+
+private data class LocalFile(val file: File, val tier: LocalFileTier)
+
+private enum class LocalFileTier { Download, Cache }
 
 /**
  * Opens the file as a [ZipFile], which reads the End-of-Central-Directory record from the tail

@@ -2,6 +2,8 @@
 
 **Status:** Accepted
 
+> **Amended 2026-08-12:** Cache files remain distinct from permanent Downloads, but cache eviction is no longer solely OS-managed. Riffle also supports a user-configurable age-after-access cleanup for content cache artifacts. The cleanup does not touch Downloads, metadata, covers, or library records.
+
 ## Context
 
 The app needs local file access to render EPUBs via Readium. The question is what happens to that local copy after the reading session ends.
@@ -14,7 +16,7 @@ Simple alternatives considered:
 
 Use a hybrid model with two distinct local storage tiers:
 
-- **Cache** — app-managed, auto-populated on open, stored in Android's cache directory (`getCacheDir()`). Evicted automatically by the OS when storage is low.
+- **Cache** — app-managed, auto-populated on open, stored in Android's cache directory (`getCacheDir()`). Evicted automatically by the OS when storage is low and eligible for Riffle's age-after-access cleanup.
 - **Download** — user-initiated, stored in a permanent directory, never auto-cleared.
 
 Both tiers are available during Offline Mode. The user can explicitly Download a book to guarantee offline availability regardless of cache eviction.
@@ -47,4 +49,4 @@ Three distinct local states are surfaced to the user: not local, cached (availab
 
 - Reading progress recorded offline must be queued and synced back to the ABS server on reconnect (Progress Sync).
 - `EpubRepository` exposes a `downloadEpub()` operation alongside `openEpub()` — the former stores directly to the downloads directory without opening the reader.
-- Cache eviction is OS-managed. The app does not implement its own eviction policy.
+- Cache eviction is OS-managed under storage pressure and also app-managed by the configurable age-after-access content cleanup.

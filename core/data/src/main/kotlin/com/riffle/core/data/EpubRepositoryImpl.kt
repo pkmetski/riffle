@@ -5,6 +5,9 @@ import com.riffle.core.catalog.CatalogRegistry
 import com.riffle.core.domain.EpubDownloadResult
 import com.riffle.core.domain.EpubOpenResult
 import com.riffle.core.domain.EpubRepository
+import com.riffle.core.domain.ContentCacheAccessStore
+import com.riffle.core.domain.ContentCacheArtifactKind
+import com.riffle.core.domain.ContentCacheKey
 import com.riffle.core.models.LibraryItem
 import com.riffle.core.domain.LocalAvailabilityEvents
 import com.riffle.core.domain.LocalStore
@@ -20,6 +23,7 @@ class EpubRepositoryImpl(
     private val positionStore: ReadingPositionStore,
     private val sourceRepository: SourceRepository,
     private val localAvailabilityEvents: LocalAvailabilityEvents = NoopLocalAvailabilityEvents,
+    private val contentCacheAccessStore: ContentCacheAccessStore = com.riffle.core.domain.NoopContentCacheAccessStore,
 ) : EpubRepository {
 
     /**
@@ -43,9 +47,13 @@ class EpubRepositoryImpl(
         // made the opener look under the new row's dir, miss the truly-cached file, and fall into
         // the network branch — surfacing "unable to resolve host" when offline even though the
         // library detail badge (which correctly keys by item.sourceId) said the book was cached.
-        val local = downloadsStore.get(item.sourceId, item.id) ?: cacheStore.get(item.sourceId, item.id)
-        val epubFile = if (local != null) {
-            local
+        val downloaded = downloadsStore.get(item.sourceId, item.id)
+        val cached = if (downloaded == null) cacheStore.get(item.sourceId, item.id) else null
+        val epubFile = if (downloaded != null) {
+            downloaded
+        } else if (cached != null) {
+            contentCacheAccessStore.markAccessed(contentCacheKey(item))
+            cached
         } else {
             val catalog = catalogRegistry.forSourceId(item.sourceId)
                 ?: return EpubOpenResult.NetworkError(IllegalStateException("No catalog for item"))
@@ -54,12 +62,17 @@ class EpubRepositoryImpl(
                 // either store while we were waiting for the lock. Reuse those bytes instead of
                 // firing a second HTTP request (Chitanka 429s concurrent fetches for the same IP).
                 downloadsStore.get(item.sourceId, item.id)
-                    ?: cacheStore.get(item.sourceId, item.id)
+                    ?: cacheStore.get(item.sourceId, item.id)?.also {
+                        contentCacheAccessStore.markAccessed(contentCacheKey(item))
+                    }
                     ?: try {
                         CatalogFileTransfer.acquire(
                             catalog, item.sourceId, item.id, BookFormat.Epub,
                             item.ebookFileIno, cacheStore,
-                        ).also { localAvailabilityEvents.notifyChanged(item.sourceId, item.id) }
+                        ).also {
+                            contentCacheAccessStore.markAccessed(contentCacheKey(item))
+                            localAvailabilityEvents.notifyChanged(item.sourceId, item.id)
+                        }
                     } catch (t: Throwable) {
                         return EpubOpenResult.NetworkError(t)
                     }
@@ -157,4 +170,7 @@ class EpubRepositoryImpl(
         val json = positionStore.load(sourceId, itemId) ?: return null
         return runCatching { org.json.JSONObject(json).getString("href").trimStart('/') }.getOrNull()
     }
+
+    private fun contentCacheKey(item: LibraryItem): ContentCacheKey =
+        ContentCacheKey(item.sourceId, item.id, ContentCacheArtifactKind.Epub)
 }

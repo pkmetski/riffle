@@ -1,6 +1,7 @@
 package com.riffle.app.feature.downloads
 
 import com.riffle.core.data.ReadaloudSidecarStore
+import com.riffle.core.domain.ContentCacheSettingsStore
 import com.riffle.core.domain.DownloadsRepository
 import com.riffle.core.models.EbookFormat
 import com.riffle.core.models.LibraryItem
@@ -11,6 +12,7 @@ import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
@@ -89,8 +91,10 @@ class DownloadsViewModelTest {
         every { sidecarStore.listCached() } returns listOf(
             ReadaloudSidecarStore.CachedSidecar("storyteller", "st-book", 2048L),
         )
+        val cacheSettingsStore = mockk<ContentCacheSettingsStore>(relaxed = true)
+        every { cacheSettingsStore.autoClear } returns MutableStateFlow(ContentCacheSettingsStore.DEFAULT_AUTO_CLEAR)
 
-        val vm = DownloadsViewModel(downloadsRepo, libraryObserver, sidecarStore)
+        val vm = DownloadsViewModel(downloadsRepo, libraryObserver, sidecarStore, cacheSettingsStore)
         advanceUntilIdle()
 
         val state = vm.uiState.value
@@ -100,5 +104,6 @@ class DownloadsViewModelTest {
         )
         assertEquals(listOf("ABS Cached", "ABS Audiobook Cached"), state.cachedItems.map { it.item.title })
         assertEquals(listOf("Storyteller Readaloud"), state.readaloudSidecars.map { it.item.title })
+        assertEquals(ContentCacheSettingsStore.DEFAULT_AUTO_CLEAR, state.cacheAutoClear)
     }
 }
