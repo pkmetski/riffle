@@ -2,6 +2,8 @@ package com.riffle.app.feature.downloads
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.riffle.core.domain.ContentCacheAutoClear
+import com.riffle.core.domain.ContentCacheSettingsStore
 import com.riffle.core.domain.DownloadsRepository
 import com.riffle.core.models.LibraryItem
 import com.riffle.core.domain.LibraryObserver
@@ -22,6 +24,7 @@ data class DownloadsUiState(
     val downloadedItems: List<LocalItemUi> = emptyList(),
     val cachedItems: List<LocalItemUi> = emptyList(),
     val readaloudSidecars: List<LocalItemUi> = emptyList(),
+    val cacheAutoClear: ContentCacheAutoClear = ContentCacheSettingsStore.DEFAULT_AUTO_CLEAR,
 ) {
     val downloadedTotalBytes: Long get() = downloadedItems.sumOf { it.sizeBytes }
     val cachedTotalBytes: Long get() = cachedItems.sumOf { it.sizeBytes }
@@ -33,6 +36,7 @@ class DownloadsViewModel @Inject constructor(
     private val downloadsRepository: DownloadsRepository,
     private val libraryObserver: LibraryObserver,
     private val sidecarStore: com.riffle.core.data.ReadaloudSidecarStore,
+    private val contentCacheSettingsStore: ContentCacheSettingsStore,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(DownloadsUiState())
@@ -40,6 +44,11 @@ class DownloadsViewModel @Inject constructor(
 
     init {
         load()
+        viewModelScope.launch {
+            contentCacheSettingsStore.autoClear.collect { autoClear ->
+                _uiState.value = _uiState.value.copy(cacheAutoClear = autoClear)
+            }
+        }
     }
 
     private fun load() {
@@ -69,7 +78,14 @@ class DownloadsViewModel @Inject constructor(
                 downloadedItems = downloadedItems,
                 cachedItems = cachedItems,
                 readaloudSidecars = readaloudSidecars,
+                cacheAutoClear = _uiState.value.cacheAutoClear,
             )
+        }
+    }
+
+    fun setCacheAutoClear(value: ContentCacheAutoClear) {
+        viewModelScope.launch {
+            contentCacheSettingsStore.setAutoClear(value)
         }
     }
 

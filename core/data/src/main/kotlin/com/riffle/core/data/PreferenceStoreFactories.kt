@@ -7,6 +7,8 @@ import androidx.datastore.preferences.core.stringPreferencesKey
 import com.riffle.core.domain.AppTheme
 import com.riffle.core.domain.AppThemeStore
 import com.riffle.core.domain.AppUpdatePreferencesStore
+import com.riffle.core.domain.ContentCacheAutoClear
+import com.riffle.core.domain.ContentCacheSettingsStore
 import com.riffle.core.domain.CoverGridDensityStore
 import com.riffle.core.domain.EmphasisPreferencesStore
 import com.riffle.core.models.EmphasisStyle
@@ -143,6 +145,21 @@ fun AppUpdatePreferencesStore(dataStore: DataStore<Preferences>): AppUpdatePrefe
         override val ignoredVersionCode = ignoredVersionStore.flow
         override suspend fun setAutoUpdateEnabled(value: Boolean) = autoUpdateStore.update(value)
         override suspend fun setIgnoredVersionCode(value: Int) = ignoredVersionStore.update(value)
+    }
+}
+
+fun ContentCacheSettingsStore(dataStore: DataStore<Preferences>): ContentCacheSettingsStore {
+    val autoClearStore = preferenceStore(
+        dataStore,
+        PrefCodecs.enum(
+            "auto_clear",
+            ContentCacheSettingsStore.DEFAULT_AUTO_CLEAR,
+            ContentCacheAutoClear.entries.toTypedArray(),
+        ),
+    )
+    return object : ContentCacheSettingsStore {
+        override val autoClear: Flow<ContentCacheAutoClear> = autoClearStore.flow
+        override suspend fun setAutoClear(value: ContentCacheAutoClear) = autoClearStore.update(value)
     }
 }
 

@@ -32,6 +32,7 @@ import com.riffle.core.models.EbookFormat
 import com.riffle.core.models.LibraryItem
 import com.riffle.core.domain.LibraryObserver
 import com.riffle.core.domain.LocalStore
+import com.riffle.core.domain.NoopContentCacheAccessStore
 import com.riffle.core.domain.PositionSnapshot
 import com.riffle.core.domain.ReadaloudAudioRepository
 import com.riffle.core.models.ReadaloudLink
@@ -212,6 +213,7 @@ class AudiobookPlayerViewModelBookmarkTest {
             },
             logger = logger,
             playlistsRepository = playlistsRepository,
+            contentCacheAccessStore = NoopContentCacheAccessStore,
         )
     }
 

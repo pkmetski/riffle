@@ -5,6 +5,7 @@ import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import com.riffle.core.data.AudioPlaybackPreferencesStoreImpl
 import com.riffle.core.data.BookFormattingPreferencesStoreImpl
+import com.riffle.core.data.ContentCacheAccessStoreImpl
 import com.riffle.core.data.FormattingPreferencesStoreImpl
 import com.riffle.core.data.FormattingPreferencesStoreProviderImpl
 import com.riffle.core.data.LastOpenedLibraryStoreImpl
@@ -14,6 +15,8 @@ import com.riffle.core.data.ListeningPreferencesStoreImpl
 import com.riffle.core.data.VolumeKeyPreferencesStoreImpl
 import com.riffle.core.data.di.AppThemePreferencesDataStore
 import com.riffle.core.data.di.AppUpdatePreferencesDataStore
+import com.riffle.core.data.di.ContentCacheAccessDataStore
+import com.riffle.core.data.di.ContentCacheSettingsDataStore
 import com.riffle.core.data.di.CoverGridDensityDataStore
 import com.riffle.core.data.di.DeviceIdDataStore
 import com.riffle.core.data.di.DeviceLabelDataStore
@@ -32,6 +35,8 @@ import com.riffle.core.data.di.VolumeKeyPreferencesDataStore
 import com.riffle.core.data.di.WakeLockPreferencesDataStore
 import com.riffle.core.data.di.appThemePreferencesDataStore
 import com.riffle.core.data.di.appUpdatePreferencesDataStore
+import com.riffle.core.data.di.contentCacheAccessDataStore
+import com.riffle.core.data.di.contentCacheSettingsDataStore
 import com.riffle.core.data.di.coverGridDensityDataStore
 import com.riffle.core.data.di.deviceIdDataStore
 import com.riffle.core.data.di.deviceLabelDataStore
@@ -52,6 +57,8 @@ import com.riffle.core.domain.AppThemeStore
 import com.riffle.core.domain.AppUpdatePreferencesStore
 import com.riffle.core.domain.AudioPlaybackPreferencesStore
 import com.riffle.core.domain.BookFormattingPreferencesStore
+import com.riffle.core.domain.ContentCacheAccessStore
+import com.riffle.core.domain.ContentCacheSettingsStore
 import com.riffle.core.domain.CoverGridDensityStore
 import com.riffle.core.domain.FormattingPreferencesStore
 import com.riffle.core.domain.FormattingPreferencesStoreProvider
@@ -68,6 +75,7 @@ import com.riffle.core.domain.VolumeKeyPreferencesStore
 import com.riffle.core.domain.WakeLockPreferencesStore
 import com.riffle.core.data.AppThemeStore as createAppThemeStore
 import com.riffle.core.data.AppUpdatePreferencesStore as createAppUpdatePreferencesStore
+import com.riffle.core.data.ContentCacheSettingsStore as createContentCacheSettingsStore
 import com.riffle.core.data.CoverGridDensityStore as createCoverGridDensityStore
 import com.riffle.core.data.EmphasisPreferencesStore as createEmphasisPreferencesStore
 import com.riffle.core.data.HighlightColorPreferencesStore as createHighlightColorPreferencesStore
@@ -118,6 +126,10 @@ abstract class PreferencesModule {
     @Binds
     @Singleton
     abstract fun bindVolumeKeyPreferencesStore(impl: VolumeKeyPreferencesStoreImpl): VolumeKeyPreferencesStore
+
+    @Binds
+    @Singleton
+    abstract fun bindContentCacheAccessStore(impl: ContentCacheAccessStoreImpl): ContentCacheAccessStore
 
     companion object {
         @Provides @Singleton @FormattingPreferencesDataStore
@@ -185,6 +197,14 @@ abstract class PreferencesModule {
         @Provides @Singleton @HighlightsResumePreferencesDataStore
         fun provideHighlightsResumePreferencesDataStore(@ApplicationContext c: Context): DataStore<Preferences> = c.highlightsResumePreferencesDataStore
 
+        @Provides @Singleton @ContentCacheSettingsDataStore
+        fun provideContentCacheSettingsDataStore(@ApplicationContext c: Context): DataStore<Preferences> =
+            c.contentCacheSettingsDataStore
+
+        @Provides @Singleton @ContentCacheAccessDataStore
+        fun provideContentCacheAccessDataStore(@ApplicationContext c: Context): DataStore<Preferences> =
+            c.contentCacheAccessDataStore
+
         // Single-key DataStore<Preferences> wrappers — see PreferenceStoreFactories.kt.
         @Provides
         @Singleton
@@ -247,5 +267,11 @@ abstract class PreferencesModule {
         fun provideAppUpdatePreferencesStore(
             @AppUpdatePreferencesDataStore dataStore: DataStore<Preferences>,
         ): AppUpdatePreferencesStore = createAppUpdatePreferencesStore(dataStore)
+
+        @Provides
+        @Singleton
+        fun provideContentCacheSettingsStore(
+            @ContentCacheSettingsDataStore dataStore: DataStore<Preferences>,
+        ): ContentCacheSettingsStore = createContentCacheSettingsStore(dataStore)
     }
 }

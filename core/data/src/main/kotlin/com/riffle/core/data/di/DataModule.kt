@@ -85,6 +85,18 @@ annotation class ListeningPreferencesDataStore
 
 @Qualifier
 @Retention(AnnotationRetention.BINARY)
+annotation class ContentCacheSettingsDataStore
+
+@Qualifier
+@Retention(AnnotationRetention.BINARY)
+annotation class ContentCacheAccessDataStore
+
+@Qualifier
+@Retention(AnnotationRetention.BINARY)
+annotation class EpubCacheDir
+
+@Qualifier
+@Retention(AnnotationRetention.BINARY)
 annotation class EpubCacheStore
 
 @Qualifier
@@ -101,11 +113,19 @@ annotation class AudiobookCacheDir
 
 @Qualifier
 @Retention(AnnotationRetention.BINARY)
+annotation class PdfCacheDir
+
+@Qualifier
+@Retention(AnnotationRetention.BINARY)
 annotation class PdfCacheStore
 
 @Qualifier
 @Retention(AnnotationRetention.BINARY)
 annotation class PdfDownloadsStore
+
+@Qualifier
+@Retention(AnnotationRetention.BINARY)
+annotation class CbzCacheDir
 
 @Qualifier
 @Retention(AnnotationRetention.BINARY)

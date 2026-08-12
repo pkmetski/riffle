@@ -3,6 +3,8 @@
 **Status:** Accepted (supersedes the "Cache cap / LRU" clause of [ADR 0023](0023-storyteller-synced-bundle-is-the-readaloud-audio-source.md))
 
 > **Note (ADR 0026):** the implicit cache-on-open path described in the Context below (`MAX_STORYTELLER_IMPLICIT_CACHE_BYTES` / `BundleTooLarge` in `EpubRepositoryImpl`) has since been removed — a Storyteller book is never opened directly, so its bundle reaches disk only via the explicit readaloud-audio download / the cross-EPUB index prerequisite fetch. The decision below (no app-managed audio cache cap) stands.
+>
+> **Amended 2026-08-12:** The "no size cap / no LRU" decision still stands. Riffle now has a separate age-after-access cleanup setting for content cache artifacts from the Downloads screen. It is not a size budget, does not target Storyteller permanent Downloads, and does not clear metadata, covers, library records, or readaloud sidecars.
 
 ## Context
 
@@ -24,7 +26,7 @@ Remove the app-managed audio cache cap entirely and rely on OS-managed eviction 
 
 Deleted: `AudioCachePreferencesStore` + impl + its DataStore + DI wiring, `LruCacheEvictor` + `CachedBundle`, `ReadaloudAudioRepository.enforceCacheCap()`, and the "Audio cache" section in Settings.
 
-There is **no app-managed cache size cap and no caching configuration** anywhere. The Downloads screen instead simply **reports** the total size of the Downloaded and Cached sections, so the user can see local usage without a knob that does nothing useful.
+There is **no app-managed cache size cap**. The Downloads screen reports the total size of the Downloaded and Cached sections and exposes Cache settings for age-after-access cleanup of content cache files.
 
 The 50 MB implicit-cache gate in `openEpub` is **kept** — it is a fetch-time guardrail that prevents silently pulling a multi-hundred-MB bundle when the user merely taps to read, not a caching policy.
 
@@ -36,7 +38,7 @@ The 50 MB implicit-cache gate in `openEpub` is **kept** — it is a fetch-time g
 
 ## Consequences
 
-- Cache eviction for all formats is OS-managed; no Riffle-managed eviction code remains.
+- Cache eviction for all formats remains OS-managed under storage pressure; Riffle also runs configurable age-after-access cleanup for content cache files.
 - The "Audio cache" Settings section is gone; the only Storyteller-specific Settings surface (the per-server cap) disappears, consolidating local-storage visibility into the Downloads screen.
 - The removed `AudioCachePreferencesStore`'s backing DataStore file (`audio_cache_cap`) is left in place; it becomes inert (nothing reads or writes it) and needs no active cleanup.
-- The Downloads screen gains size totals (Downloaded, Cached) but no configuration.
+- The Downloads screen gains size totals (Downloaded, Cached) and a Cache settings entry for age-after-access cleanup.

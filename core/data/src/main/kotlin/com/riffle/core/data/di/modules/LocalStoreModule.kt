@@ -5,6 +5,7 @@ import com.riffle.core.data.AnnotationStoreImpl
 import com.riffle.core.data.FilesdirFileStore
 import com.riffle.core.data.AudiobookBookmarkStoreImpl
 import com.riffle.core.data.AudiobookPositionStoreImpl
+import com.riffle.core.data.ContentCacheArtifactScannerImpl
 import com.riffle.core.data.CrossEpubIndexStoreImpl
 import com.riffle.core.data.DeviceIdStoreImpl
 import com.riffle.core.data.DownloadsRepositoryImpl
@@ -19,21 +20,31 @@ import com.riffle.core.data.ReadingPositionStoreImpl
 import com.riffle.core.data.SourceFilesCleanerImpl
 import com.riffle.core.data.di.AudiobookCacheDir
 import com.riffle.core.data.di.AudiobookDownloadsDir
+import com.riffle.core.data.di.CbzCacheDir
 import com.riffle.core.data.di.CrashReportDir
+import com.riffle.core.data.di.EpubCacheDir
 import com.riffle.core.data.di.CbzCacheStore
 import com.riffle.core.data.di.CbzDownloadsStore
 import com.riffle.core.data.di.EpubCacheStore
 import com.riffle.core.data.di.EpubDownloadsStore
+import com.riffle.core.data.di.PdfCacheDir
 import com.riffle.core.data.di.PdfCacheStore
 import com.riffle.core.data.di.PdfDownloadsStore
 import com.riffle.core.database.LibraryItemDao
 import com.riffle.core.domain.AnnotationStore
 import com.riffle.core.domain.AudiobookBookmarkStore
 import com.riffle.core.domain.AudiobookPositionStore
+import com.riffle.core.common.Clock
+import com.riffle.core.domain.ContentCacheAccessStore
+import com.riffle.core.domain.ContentCacheArtifactScanner
+import com.riffle.core.domain.ContentCacheCleaner
+import com.riffle.core.domain.ContentCacheSettingsStore
 import com.riffle.core.domain.CrossEpubIndexStore
 import com.riffle.core.domain.DeviceIdStore
+import com.riffle.core.domain.DispatcherProvider
 import com.riffle.core.domain.DownloadsRepository
 import com.riffle.core.domain.LocalStore
+import com.riffle.core.domain.LocalAvailabilityEvents
 import com.riffle.core.domain.ReadaloudResumeStore
 import com.riffle.core.domain.ReadingPositionStore
 import com.riffle.core.domain.SourceFilesCleaner
@@ -99,6 +110,10 @@ abstract class LocalStoreModule {
     @Singleton
     abstract fun bindDeviceLabelResolver(impl: com.riffle.core.data.AndroidDeviceLabelResolver): com.riffle.core.domain.DeviceLabelResolver
 
+    @Binds
+    @Singleton
+    abstract fun bindContentCacheArtifactScanner(impl: ContentCacheArtifactScannerImpl): ContentCacheArtifactScanner
+
     companion object {
         @Provides
         @Singleton
@@ -108,9 +123,15 @@ abstract class LocalStoreModule {
 
         @Provides
         @Singleton
+        @EpubCacheDir
+        fun provideEpubCacheDir(@ApplicationContext context: Context): File =
+            context.cacheDir.resolve("epubs").also { it.mkdirs() }
+
+        @Provides
+        @Singleton
         @EpubCacheStore
-        fun provideEpubCacheStore(@ApplicationContext context: Context, dispatchers: com.riffle.core.domain.DispatcherProvider): LocalStore =
-            LocalStoreImpl(context.cacheDir.resolve("epubs").also { it.mkdirs() }, ".epub", dispatchers)
+        fun provideEpubCacheStore(@EpubCacheDir dir: File, dispatchers: com.riffle.core.domain.DispatcherProvider): LocalStore =
+            LocalStoreImpl(dir, ".epub", dispatchers)
 
         @Provides
         @Singleton
@@ -132,9 +153,15 @@ abstract class LocalStoreModule {
 
         @Provides
         @Singleton
+        @PdfCacheDir
+        fun providePdfCacheDir(@ApplicationContext context: Context): File =
+            context.cacheDir.resolve("pdfs").also { it.mkdirs() }
+
+        @Provides
+        @Singleton
         @PdfCacheStore
-        fun providePdfCacheStore(@ApplicationContext context: Context, dispatchers: com.riffle.core.domain.DispatcherProvider): LocalStore =
-            LocalStoreImpl(context.cacheDir.resolve("pdfs").also { it.mkdirs() }, ".pdf", dispatchers)
+        fun providePdfCacheStore(@PdfCacheDir dir: File, dispatchers: com.riffle.core.domain.DispatcherProvider): LocalStore =
+            LocalStoreImpl(dir, ".pdf", dispatchers)
 
         @Provides
         @Singleton
@@ -144,9 +171,15 @@ abstract class LocalStoreModule {
 
         @Provides
         @Singleton
+        @CbzCacheDir
+        fun provideCbzCacheDir(@ApplicationContext context: Context): File =
+            context.cacheDir.resolve("cbz").also { it.mkdirs() }
+
+        @Provides
+        @Singleton
         @CbzCacheStore
-        fun provideCbzCacheStore(@ApplicationContext context: Context, dispatchers: com.riffle.core.domain.DispatcherProvider): LocalStore =
-            LocalStoreImpl(context.cacheDir.resolve("cbz").also { it.mkdirs() }, ".cbz", dispatchers)
+        fun provideCbzCacheStore(@CbzCacheDir dir: File, dispatchers: com.riffle.core.domain.DispatcherProvider): LocalStore =
+            LocalStoreImpl(dir, ".cbz", dispatchers)
 
         @Provides
         @Singleton
@@ -215,5 +248,24 @@ abstract class LocalStoreModule {
             audiobookDownloadsDir = audiobookDownloadsDir,
             dispatchers = dispatchers,
         )
+
+        @Provides
+        @Singleton
+        fun provideContentCacheCleaner(
+            settingsStore: ContentCacheSettingsStore,
+            accessStore: ContentCacheAccessStore,
+            artifactScanner: ContentCacheArtifactScanner,
+            clock: Clock,
+            dispatchers: DispatcherProvider,
+            localAvailabilityEvents: LocalAvailabilityEvents,
+        ): ContentCacheCleaner =
+            ContentCacheCleaner(
+                settingsStore = settingsStore,
+                accessStore = accessStore,
+                artifactScanner = artifactScanner,
+                clock = clock,
+                dispatchers = dispatchers,
+                onRemoved = { key -> localAvailabilityEvents.notifyChanged(key.sourceId, key.itemId) },
+            )
     }
 }
