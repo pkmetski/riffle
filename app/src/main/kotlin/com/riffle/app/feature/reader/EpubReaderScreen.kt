@@ -3048,6 +3048,7 @@ private fun EpubNavigatorView(
                         view.onFigureLongPress = { payload, anchorRect -> onFigureLongPress(payload, anchorRect) }
                         view.onSelectionEnded = { currentOnSelectionEnded() }
                         view.onSelectionActiveChanged = { active -> currentOnSelectionActiveChanged(active) }
+                        view.onUserTouch = { onUserInteracted() }
                         // Continuous-mode body-font probe (issue #484). Fires once per chapter
                         // load with the source book's computed body `font-family`; the VM caches
                         // it as the elided-view fallback and backfills legacy null-font rows.
@@ -3058,6 +3059,7 @@ private fun EpubNavigatorView(
                 update = {
                     it.annotationsAvailable = annotationsAvailable
                     it.readaloudAvailable = readaloudAvailable
+                    it.onUserTouch = { onUserInteracted() }
                 },
                 modifier = readerModifier,
             )

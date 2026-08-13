@@ -117,6 +117,13 @@ internal class ContinuousReaderView @JvmOverloads constructor(
         set(value) { controller.readaloudAvailable = value }
 
     /**
+     * Fires on ACTION_DOWN for every touch on the continuous reader surface. Mirrors
+     * [ScrollBoundaryNavigationContainer.onUserTouch] for Readium-backed modes so the
+     * post-resume restore watcher is disarmed before a manual scroll emits a backward locator.
+     */
+    var onUserTouch: (() -> Unit)? = null
+
+    /**
      * Called on the main thread with (chapter href, selected text, evalJs) when the user taps
      * "Play". [evalJs] is the WebView's evaluateJavascript so the host can run geometry-based
      * sentence resolution before falling back to text matching.
@@ -411,6 +418,7 @@ internal class ContinuousReaderView @JvmOverloads constructor(
     // would never reach the controller and a latched backward intent would outlive the gesture.
     override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
         when (ev.actionMasked) {
+            MotionEvent.ACTION_DOWN -> onUserTouch?.invoke()
             MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> controller.onTouchUp()
         }
         return super.dispatchTouchEvent(ev)

@@ -52,6 +52,23 @@ class ContinuousReaderViewSelectionInterceptTest {
     }
 
     @Test
+    fun actionDown_notifiesUserTouchCallback() {
+        // Regression for sleep-resume scroll bounce: ContinuousReaderView is the visible scroll
+        // surface in Continuous mode, so its first touch must disarm ResumeRestorer before the
+        // resulting backward-scroll locator can be mistaken for Readium's post-resume clobber.
+        val v = view()
+        var touchCount = 0
+        val t = SystemClock.uptimeMillis()
+        val e = MotionEvent.obtain(t, t, MotionEvent.ACTION_DOWN, 100f, 100f, 0)
+        onMain {
+            v.onUserTouch = { touchCount++ }
+            v.dispatchTouchEvent(e)
+        }
+        e.recycle()
+        assertEquals(1, touchCount)
+    }
+
+    @Test
     fun normalReading_interceptsAsSoonAsHalfTouchSlopIsCrossed() {
         val v = view()
         down(v, 100f, 100f)
