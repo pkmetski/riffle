@@ -28,6 +28,8 @@ data class CatalogItem(
     val addedAt: Long? = null,
     val isbn: String? = null,
     val asin: String? = null,
+    /** Total pages for fixed-page formats when the Source reports it. */
+    val pageCount: Int? = null,
     /**
      * Optional server-reported "how far through" fraction (0..1). Only populated by non-progress
      * paths that return items with server-side progress joined (e.g. some catalog list endpoints).

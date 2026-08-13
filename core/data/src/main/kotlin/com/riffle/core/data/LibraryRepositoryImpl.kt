@@ -267,6 +267,7 @@ class LibraryRepositoryImpl @Inject constructor(
                         isbn = item.isbn,
                         asin = item.asin,
                         finishedAt = serverProgress?.finishedAt,
+                        pageCount = item.pageCount,
                     )
                 }
             libraryItemDao.replaceAllForLibrary(source.id, libraryId, entities)

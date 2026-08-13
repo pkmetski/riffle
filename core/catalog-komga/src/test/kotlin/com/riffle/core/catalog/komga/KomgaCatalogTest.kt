@@ -74,7 +74,7 @@ class KomgaCatalogTest {
             {
               "content": [
                 {"id":"B1","libraryId":"L1","name":"book.epub","media":{"mediaType":"application/epub+zip"},"metadata":{"title":"Book One","authors":[{"name":"Alice","role":"writer"}]}},
-                {"id":"B2","libraryId":"L1","name":"volume.cbz","media":{"mediaType":"application/x-cbz"},"metadata":{"title":"Vol 2","authors":[{"name":"Bob","role":"writer"}]}},
+                {"id":"B2","libraryId":"L1","name":"volume.cbz","media":{"mediaType":"application/x-cbz","pagesCount":120},"metadata":{"title":"Vol 2","authors":[{"name":"Bob","role":"writer"}]}},
                 {"id":"B3","libraryId":"L1","name":"doc.pdf","media":{"mediaType":"application/pdf"},"metadata":{"title":"PDF","authors":[]}}
               ],
               "totalPages":1,"totalElements":3,"first":true,"last":true,"empty":false
@@ -88,6 +88,7 @@ class KomgaCatalogTest {
         assertEquals("Alice", items[0].author)
         assertEquals(BookFormat.Epub, items[0].ebookFormat)
         assertEquals(BookFormat.Cbz, items[1].ebookFormat)
+        assertEquals(120, items[1].pageCount)
         assertEquals(BookFormat.Pdf, items[2].ebookFormat)
         val recorded = server.takeRequest()
         assertTrue(recorded.path!!.startsWith("/api/v1/books?library_id=L1"))

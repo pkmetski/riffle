@@ -216,6 +216,7 @@ data class LibraryItemMetadata(
     val isbn: String?,
     val asin: String?,
     val finishedAt: Long?,
+    val pageCount: Int?,
 ) {
     companion object {
         fun from(entity: LibraryItemEntity) = LibraryItemMetadata(
@@ -240,6 +241,7 @@ data class LibraryItemMetadata(
             isbn = entity.isbn,
             asin = entity.asin,
             finishedAt = entity.finishedAt,
+            pageCount = entity.pageCount,
         )
     }
 }

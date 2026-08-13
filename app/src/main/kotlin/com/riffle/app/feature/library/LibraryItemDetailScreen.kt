@@ -88,10 +88,11 @@ import com.riffle.app.feature.reader.TocPanel
 import com.riffle.app.ui.DefaultCoverPlaceholder
 import com.riffle.app.ui.isPhoneLandscape
 import com.riffle.app.ui.isTabletLayout
+import com.riffle.app.ui.source.asAuthHeader
 import com.riffle.core.models.EbookFormat
 import com.riffle.core.models.LibraryItem
 import kotlinx.coroutines.launch
-import com.riffle.app.ui.source.asAuthHeader
+import kotlin.math.roundToInt
 
 const val LIBRARY_ITEM_DETAIL_LEFT_PANE_TAG = "library_item_detail_left_pane"
 const val LIBRARY_ITEM_DETAIL_RIGHT_PANE_TAG = "library_item_detail_right_pane"
@@ -618,10 +619,10 @@ private fun PublicationFactsLine(
         }
         EbookFormat.Pdf -> (extractedPdfPageCount ?: item.pageCount)
             ?.takeIf { it > 0 }
-            ?.let { publicationPageCountText(EbookFormat.Pdf, it) }
+            ?.let { publicationPageCountText(it, item.readingProgress) }
         EbookFormat.Cbz -> item.pageCount
             ?.takeIf { it > 0 }
-            ?.let { publicationPageCountText(EbookFormat.Cbz, it) }
+            ?.let { publicationPageCountText(it, item.readingProgress) }
         EbookFormat.Unsupported -> null
     }
     // EPUB reading time and the extracted PDF page count arrive asynchronously, seconds after
@@ -656,13 +657,14 @@ internal fun ebookReadingTimeText(totalSec: Long, readingProgress: Float): Strin
     }
 }
 
-internal fun publicationPageCountText(format: EbookFormat, pageCount: Int): String {
-    val label = when (format) {
-        EbookFormat.Pdf -> "PDF"
-        EbookFormat.Cbz -> "Comic"
-        else -> "Ebook"
-    }
-    return "$label · $pageCount pages"
+internal fun publicationPageCountText(pageCount: Int, readingProgress: Float): String {
+    if (pageCount <= 0) return ""
+    if (!readingProgress.isFinite() || readingProgress <= 0f) return "$pageCount pages"
+
+    val pagesRead = (pageCount * readingProgress)
+        .roundToInt()
+        .coerceIn(1, pageCount)
+    return "$pagesRead of $pageCount pages read"
 }
 
 /** Total audiobook length on the detail screen, with remaining time when in progress (ADR 0029). */
