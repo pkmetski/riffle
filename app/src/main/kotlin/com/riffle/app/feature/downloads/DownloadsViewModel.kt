@@ -5,11 +5,13 @@ import androidx.lifecycle.viewModelScope
 import com.riffle.core.domain.ContentCacheAutoClear
 import com.riffle.core.domain.ContentCacheSettingsStore
 import com.riffle.core.domain.DownloadsRepository
-import com.riffle.core.models.LibraryItem
 import com.riffle.core.domain.LibraryObserver
+import com.riffle.core.domain.ReadaloudLinkRepository
 import com.riffle.core.domain.SourceRepository
 import com.riffle.core.domain.StoredItemArtifact
 import com.riffle.core.domain.StoredMediaType
+import com.riffle.core.models.LibraryItem
+import com.riffle.core.models.ReadaloudLink
 import com.riffle.core.models.isStorytellerService
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -24,7 +26,13 @@ data class LocalItemUi(
     val item: LibraryItem,
     val sizeBytes: Long,
     val mediaTypes: Set<LocalMediaType>,
+    val storageRefs: Set<LocalStorageRef> = setOf(LocalStorageRef(sourceId, item.id)),
+    val readaloudSidecarRefs: Set<ReadaloudSidecarRef> = emptySet(),
 )
+
+data class LocalStorageRef(val sourceId: String, val itemId: String)
+
+data class ReadaloudSidecarRef(val storytellerSourceId: String, val storytellerBookId: String)
 
 enum class LocalMediaType {
     Epub,
@@ -48,6 +56,7 @@ class DownloadsViewModel @Inject constructor(
     private val downloadsRepository: DownloadsRepository,
     private val libraryObserver: LibraryObserver,
     private val sourceRepository: SourceRepository,
+    private val readaloudLinkRepository: ReadaloudLinkRepository,
     private val sidecarStore: com.riffle.core.data.ReadaloudSidecarStore,
     private val contentCacheSettingsStore: ContentCacheSettingsStore,
 ) : ViewModel() {
@@ -68,16 +77,10 @@ class DownloadsViewModel @Inject constructor(
         viewModelScope.launch {
             val downloadedArtifacts = downloadsRepository.getDownloadedArtifacts().toLocalArtifacts()
             val cachedArtifacts = downloadsRepository.getCachedArtifacts().toLocalArtifacts()
-            // Prepared readaloud sidecars (ADR 0028): the small audio-free streaming caches. Keyed by the
-            // Storyteller (sourceId, bookId); resolve the title from the Storyteller readaloud library item.
-            val readaloudSidecars = sidecarStore.listCached().map { sc ->
-                LocalArtifact(
-                    sourceId = sc.storytellerSourceId,
-                    itemId = sc.storytellerBookId,
-                    mediaType = LocalMediaType.Readaloud,
-                    sizeBytes = sc.sizeBytes,
-                )
-            }
+            // Prepared readaloud sidecars (ADR 0028): the small audio-free streaming caches. They
+            // are stored under the Storyteller service key but displayed on the linked Source item,
+            // because a Readaloud is a sidecar capability rather than a browsable item of its own.
+            val readaloudSidecars = sidecarStore.listCached().mapNotNull { it.toLocalArtifact() }
 
             val downloadedItems = buildLocalItems(downloadedArtifacts)
             val cachedItems = buildLocalItems(cachedArtifacts + readaloudSidecars)
@@ -93,20 +96,22 @@ class DownloadsViewModel @Inject constructor(
 
     private suspend fun buildLocalItems(artifacts: List<LocalArtifact>): List<LocalItemUi> =
         artifacts
-            .groupBy { it.sourceId to it.itemId }
+            .groupBy { it.displaySourceId to it.displayItemId }
             .mapNotNull { (key, group) ->
                 val (sourceId, itemId) = key
                 libraryObserver.getItem(sourceId, itemId)?.let { item ->
-                    val repositoryBytes = if (group.any { it.sizeBytes == null }) {
-                        downloadsRepository.sizeOf(sourceId, itemId)
-                    } else {
-                        0L
-                    }
+                    val repositoryBytes = group
+                        .filter { it.sizeBytes == null }
+                        .mapNotNull { it.repositoryStorageRef }
+                        .distinct()
+                        .sumOf { downloadsRepository.sizeOf(it.sourceId, it.itemId) }
                     LocalItemUi(
                         sourceId = sourceId,
                         item = item,
                         sizeBytes = repositoryBytes + group.sumOf { it.sizeBytes ?: 0L },
                         mediaTypes = group.map { it.mediaType }.toSet(),
+                        storageRefs = group.mapNotNull { it.repositoryStorageRef }.toSet(),
+                        readaloudSidecarRefs = group.mapNotNull { it.readaloudSidecarRef }.toSet(),
                     )
                 }
             }
@@ -121,11 +126,18 @@ class DownloadsViewModel @Inject constructor(
     private suspend fun List<StoredItemArtifact>.toLocalArtifacts(): List<LocalArtifact> =
         buildList {
             for (artifact in this@toLocalArtifacts) {
+                val mediaType = artifact.toLocalMediaType()
+                val displayRef = if (mediaType == LocalMediaType.Readaloud) {
+                    linkedSourceRef(artifact.sourceId, artifact.itemId) ?: continue
+                } else {
+                    LocalStorageRef(artifact.sourceId, artifact.itemId)
+                }
                 add(
                     LocalArtifact(
-                        sourceId = artifact.sourceId,
-                        itemId = artifact.itemId,
-                        mediaType = artifact.toLocalMediaType(),
+                        displaySourceId = displayRef.sourceId,
+                        displayItemId = displayRef.itemId,
+                        repositoryStorageRef = LocalStorageRef(artifact.sourceId, artifact.itemId),
+                        mediaType = mediaType,
                         sizeBytes = null,
                     )
                 )
@@ -139,15 +151,47 @@ class DownloadsViewModel @Inject constructor(
             mediaType.toLocalMediaType()
         }
 
+    private suspend fun com.riffle.core.data.ReadaloudSidecarStore.CachedSidecar.toLocalArtifact(): LocalArtifact? {
+        val displayRef = linkedSourceRef(storytellerSourceId, storytellerBookId) ?: return null
+        return LocalArtifact(
+            displaySourceId = displayRef.sourceId,
+            displayItemId = displayRef.itemId,
+            repositoryStorageRef = null,
+            mediaType = LocalMediaType.Readaloud,
+            sizeBytes = sizeBytes,
+            readaloudSidecarRef = ReadaloudSidecarRef(storytellerSourceId, storytellerBookId),
+        )
+    }
+
+    private suspend fun linkedSourceRef(storytellerSourceId: String, storytellerBookId: String): LocalStorageRef? =
+        readaloudLinkRepository
+            .findByStorytellerBook(storytellerSourceId, storytellerBookId)
+            .preferredDisplayLink()
+            ?.let { LocalStorageRef(it.absSourceId, it.absLibraryItemId) }
+
+    private suspend fun List<ReadaloudLink>.preferredDisplayLink(): ReadaloudLink? {
+        var firstExisting: ReadaloudLink? = null
+        for (link in this) {
+            val item = libraryObserver.getItem(link.absSourceId, link.absLibraryItemId) ?: continue
+            if (firstExisting == null) {
+                firstExisting = link
+            }
+            if (item.isReadable) {
+                return link
+            }
+        }
+        return firstExisting
+    }
+
     fun setCacheAutoClear(value: ContentCacheAutoClear) {
         viewModelScope.launch {
             contentCacheSettingsStore.setAutoClear(value)
         }
     }
 
-    fun removeDownloadedItem(sourceId: String, itemId: String) {
+    fun removeDownloadedItem(entry: LocalItemUi) {
         viewModelScope.launch {
-            downloadsRepository.removeDownload(sourceId, itemId)
+            entry.storageRefs.forEach { downloadsRepository.removeDownload(it.sourceId, it.itemId) }
             load()
         }
     }
@@ -169,18 +213,20 @@ class DownloadsViewModel @Inject constructor(
 
     fun removeCachedItem(entry: LocalItemUi) {
         viewModelScope.launch {
-            downloadsRepository.removeCached(entry.sourceId, entry.item.id)
-            if (LocalMediaType.Readaloud in entry.mediaTypes) {
-                sidecarStore.remove(entry.sourceId, entry.item.id)
+            entry.storageRefs.forEach { downloadsRepository.removeCached(it.sourceId, it.itemId) }
+            entry.readaloudSidecarRefs.forEach {
+                sidecarStore.remove(it.storytellerSourceId, it.storytellerBookId)
             }
             load()
         }
     }
 
     private data class LocalArtifact(
-        val sourceId: String,
-        val itemId: String,
+        val displaySourceId: String,
+        val displayItemId: String,
+        val repositoryStorageRef: LocalStorageRef?,
         val mediaType: LocalMediaType,
         val sizeBytes: Long?,
+        val readaloudSidecarRef: ReadaloudSidecarRef? = null,
     )
 }

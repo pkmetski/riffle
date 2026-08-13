@@ -125,7 +125,7 @@ fun DownloadsScreen(
                             entry = entry,
                             pillColor = PillColor.Downloaded,
                             onClick = { onItemSelected(entry.item) },
-                            onRemove = { viewModel.removeDownloadedItem(entry.sourceId, entry.item.id) },
+                            onRemove = { viewModel.removeDownloadedItem(entry) },
                         )
                     }
                 }
