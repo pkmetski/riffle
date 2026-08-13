@@ -25,6 +25,7 @@ import com.riffle.core.domain.SourceRepository
 import com.riffle.core.models.SourceUrl
 import com.riffle.core.data.ToReadRepository
 import com.riffle.core.domain.TokenStorage
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -808,7 +809,7 @@ class LibraryItemsViewModelTest {
     // --- periodic retry while refresh is failing ---
 
     private class CountingRefreshLibraryItems(
-        val refreshResult: () -> LibraryRefreshResult,
+        val refreshResult: suspend () -> LibraryRefreshResult,
         val onCall: () -> Unit = {},
     ) : com.riffle.core.domain.usecase.RefreshLibraryItems(
         com.riffle.app.testing.NoopLibraryRefresher,
@@ -823,6 +824,75 @@ class LibraryItemsViewModelTest {
         override suspend fun invoke(libraryId: String): LibraryRefreshResult {
             onCall(); return refreshResult()
         }
+    }
+
+    @Test
+    fun `reconnect and resume share an in-flight refresh`() = runTest {
+        val connectivity = FakeConnectivityObserver(online = false)
+        val refreshGate = CompletableDeferred<Unit>()
+        var refreshCount = 0
+        val vm = makeViewModel(
+            connectivityObserver = connectivity,
+            refreshLibraryItemsUseCase = CountingRefreshLibraryItems({
+                refreshGate.await()
+                LibraryRefreshResult.Success
+            }) { refreshCount++ },
+        )
+        backgroundScope.launch { vm.isOffline.collect {} }
+        testDispatcher.scheduler.runCurrent()
+        assertEquals(1, refreshCount)
+
+        connectivity.state.value = true
+        vm.onScreenResumed()
+        testDispatcher.scheduler.runCurrent()
+
+        assertEquals(
+            "Reconnect and ON_RESUME should join the already-running refresh, not start duplicates",
+            1,
+            refreshCount,
+        )
+
+        refreshGate.complete(Unit)
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(false, vm.isOffline.value)
+        assertEquals(1, refreshCount)
+    }
+
+    @Test
+    fun `online resume clears stale offline banner before refresh completes`() = runTest {
+        val connectivity = FakeConnectivityObserver(online = false)
+        val refreshGate = CompletableDeferred<Unit>()
+        var failRefresh = true
+        val vm = makeViewModel(
+            connectivityObserver = connectivity,
+            refreshLibraryItemsUseCase = CountingRefreshLibraryItems({
+                if (failRefresh) {
+                    LibraryRefreshResult.NetworkError(RuntimeException("offline"))
+                } else {
+                    refreshGate.await()
+                    LibraryRefreshResult.Success
+                }
+            }),
+        )
+        backgroundScope.launch { vm.isOffline.collect {} }
+        testDispatcher.scheduler.runCurrent()
+        assertEquals(true, vm.isOffline.value)
+
+        failRefresh = false
+        connectivity.state.value = true
+        vm.onScreenResumed()
+        testDispatcher.scheduler.runCurrent()
+
+        assertEquals(
+            "A stale offline refresh failure should clear as soon as the device is online again",
+            false,
+            vm.isOffline.value,
+        )
+
+        refreshGate.complete(Unit)
+        testDispatcher.scheduler.advanceUntilIdle()
+        assertEquals(false, vm.isOffline.value)
     }
 
     @Test

@@ -174,6 +174,7 @@ class LibraryItemsViewModel @Inject constructor(
 
     private val _isLoading = MutableStateFlow(true)
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
+    private var refreshJob: Job? = null
 
     // The banner appears when the device has no network or when the last server refresh failed.
     val isOffline: StateFlow<Boolean> = combine(
@@ -293,9 +294,7 @@ class LibraryItemsViewModel @Inject constructor(
             if (server != null) {
                 authToken = tokenStorage.getToken(server.id) ?: ""
             }
-            val refreshJob = launch { refresh() }
-            launch { toReadRepository.refresh(libraryId) }
-            launch { playlistsRepository.refresh(libraryId) }
+            val refreshJob = launchRefresh()
             // Unblock the UI as soon as we have something meaningful to show:
             // either Room returns cached data quickly, or we wait for the network
             // refresh to complete so an empty state is known to be genuine.
@@ -314,9 +313,7 @@ class LibraryItemsViewModel @Inject constructor(
         // and the offline banner clears without requiring a manual lifecycle resume.
         viewModelScope.launch {
             connectivityObserver.isOnline.collectReconnects {
-                refresh()
-                toReadRepository.refresh(libraryId)
-                playlistsRepository.refresh(libraryId)
+                launchRefresh(clearStaleFailureIfOnline = true).join()
             }
         }
         // While a refresh is failing AND the device is online (i.e. server unreachable on an
@@ -332,10 +329,10 @@ class LibraryItemsViewModel @Inject constructor(
                         // Immediate retry covers cold-start transient failures (fast-fail
                         // "network unreachable" clears within milliseconds). Subsequent
                         // retries use the full interval for genuine server-down scenarios.
-                        runRefresh()
+                        launchRefresh().join()
                         while (true) {
                             delay(FAILED_REFRESH_RETRY_INTERVAL_MS)
-                            runRefresh()
+                            launchRefresh().join()
                         }
                     }
                 }
@@ -351,11 +348,26 @@ class LibraryItemsViewModel @Inject constructor(
      * doze/wake drift on ProcessLifecycleOwner ON_START (see ConnectivityObserverImpl) — no
      * explicit poke needed here. */
     fun onScreenResumed() {
-        refresh()
+        launchRefresh(clearStaleFailureIfOnline = true)
     }
 
     fun refresh() {
-        viewModelScope.launch { runRefresh() }
+        launchRefresh()
+    }
+
+    private fun launchRefresh(clearStaleFailureIfOnline: Boolean = false): Job {
+        if (clearStaleFailureIfOnline && connectivityObserver.isOnline.value) {
+            _refreshFailed.value = false
+        }
+        refreshJob?.takeIf { it.isActive }?.let { return it }
+        val job = viewModelScope.launch { runRefresh() }
+        refreshJob = job
+        job.invokeOnCompletion {
+            if (refreshJob === job) {
+                refreshJob = null
+            }
+        }
+        return job
     }
 
     private suspend fun runRefresh() = coroutineScope {
