@@ -15,6 +15,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.GridView
@@ -23,6 +24,8 @@ import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Search
 import com.riffle.app.ui.theme.RiffleIcons
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
@@ -62,6 +65,7 @@ import com.riffle.app.feature.source.websource.UnboundedCatalogGrid
 import com.riffle.app.feature.source.websource.UnboundedCoverGridZoomProvider
 import com.riffle.app.ui.DefaultCoverPlaceholder
 import com.riffle.app.ui.TabletContentWidthContainer
+import com.riffle.core.catalog.CatalogFacet
 import com.riffle.core.catalog.CatalogItem
 
 /**
@@ -207,6 +211,8 @@ private fun LibraryTabContent(
     val error by viewModel.error.collectAsState()
     val isPaging by viewModel.isPaging.collectAsState()
     val hasMore by viewModel.hasMore.collectAsState()
+    val languageFacets = remember(facets) { gutenbergLanguageFacets(facets) }
+    val topicFacets = remember(facets) { gutenbergTopicFacets(facets) }
 
     Column(modifier = Modifier.fillMaxSize()) {
         if (searchOpen) {
@@ -241,7 +247,7 @@ private fun LibraryTabContent(
                     } else null,
                 )
             }
-            if (facets.isNotEmpty()) {
+            if (topicFacets.isNotEmpty() || languageFacets.isNotEmpty()) {
                 item {
                     FilterChip(
                         selected = selectedFacet == null,
@@ -249,7 +255,16 @@ private fun LibraryTabContent(
                         label = { Text("All") },
                     )
                 }
-                items(facets, key = { it.key }) { facet ->
+                if (languageFacets.isNotEmpty()) {
+                    item {
+                        GutenbergLanguageFilterChip(
+                            languageFacets = languageFacets,
+                            selectedFacet = selectedFacet,
+                            onSelectFacet = viewModel::selectFacet,
+                        )
+                    }
+                }
+                items(topicFacets, key = { it.key }) { facet ->
                     FilterChip(
                         selected = selectedFacet == facet.key,
                         onClick = { viewModel.selectFacet(facet.key) },
@@ -295,6 +310,63 @@ private fun LibraryTabContent(
         }
     }
 }
+
+@Composable
+private fun GutenbergLanguageFilterChip(
+    languageFacets: List<CatalogFacet>,
+    selectedFacet: String?,
+    onSelectFacet: (String?) -> Unit,
+) {
+    var expanded by remember { mutableStateOf(false) }
+    val selectedLanguage = languageFacets.firstOrNull { it.key == selectedFacet }
+
+    Box {
+        FilterChip(
+            selected = selectedLanguage != null,
+            onClick = { expanded = true },
+            label = { Text("Language: ${selectedLanguage?.label ?: "Any"}") },
+            trailingIcon = {
+                Icon(
+                    Icons.Filled.ArrowDropDown,
+                    contentDescription = null,
+                    modifier = Modifier.size(FilterChipDefaults.IconSize),
+                )
+            },
+        )
+        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            DropdownMenuItem(
+                text = { Text("Any") },
+                onClick = {
+                    onSelectFacet(null)
+                    expanded = false
+                },
+                leadingIcon = if (selectedLanguage == null) {
+                    { Icon(Icons.Filled.Check, contentDescription = null) }
+                } else null,
+            )
+            languageFacets.forEach { facet ->
+                DropdownMenuItem(
+                    text = { Text(facet.label) },
+                    onClick = {
+                        onSelectFacet(facet.key)
+                        expanded = false
+                    },
+                    leadingIcon = if (facet.key == selectedFacet) {
+                        { Icon(Icons.Filled.Check, contentDescription = null) }
+                    } else null,
+                )
+            }
+        }
+    }
+}
+
+internal fun gutenbergLanguageFacets(facets: List<CatalogFacet>): List<CatalogFacet> =
+    facets.filter { it.key.startsWith(GUTENBERG_LANGUAGE_FACET_PREFIX) }
+
+internal fun gutenbergTopicFacets(facets: List<CatalogFacet>): List<CatalogFacet> =
+    facets.filterNot { it.key.startsWith(GUTENBERG_LANGUAGE_FACET_PREFIX) }
+
+private const val GUTENBERG_LANGUAGE_FACET_PREFIX = "language:"
 
 @Composable
 private fun GutenbergHomeTab(

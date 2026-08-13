@@ -1,5 +1,6 @@
 package com.riffle.app.navigation
 
+import com.riffle.app.feature.navigation.HomeViewModel
 import com.riffle.core.models.EbookFormat
 import com.riffle.core.models.LibraryItem
 import com.riffle.core.models.SourceType
@@ -106,6 +107,17 @@ class DetailRouteEncodingTest {
         // therefore renders an empty grid.
         val route = libraryEntryRoute(SourceType.GUTENBERG, "books", "Project Gutenberg")
         assertEquals("gutenberg_browse/books/Project+Gutenberg", route)
+    }
+
+    @Test
+    fun `home library destination for Gutenberg lands on gutenberg_browse`() {
+        val destination = HomeViewModel.StartDestination.Library(
+            sourceType = SourceType.GUTENBERG,
+            libraryId = "books",
+            libraryName = "Books",
+        )
+
+        assertEquals("gutenberg_browse/books/Books", libraryEntryRoute(destination))
     }
 
     @Test

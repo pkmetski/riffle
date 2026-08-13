@@ -24,13 +24,14 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.withResumed
+import com.riffle.core.models.SourceType
 import kotlinx.coroutines.yield
 import kotlinx.coroutines.withContext
 
 @Composable
 fun HomeScreen(
     onNavigateToAddSource: () -> Unit,
-    onNavigateToLibrary: (libraryId: String, libraryName: String) -> Unit,
+    onNavigateToLibrary: (sourceType: SourceType, libraryId: String, libraryName: String) -> Unit,
     viewModel: HomeViewModel = hiltViewModel(),
 ) {
     var retryKey by remember { mutableIntStateOf(0) }
@@ -45,7 +46,9 @@ fun HomeScreen(
             showRetry = false
             when (dest) {
                 is HomeViewModel.StartDestination.AddSource -> onNavigateToAddSource()
-                is HomeViewModel.StartDestination.Library -> onNavigateToLibrary(dest.libraryId, dest.libraryName)
+                is HomeViewModel.StartDestination.Library -> {
+                    onNavigateToLibrary(dest.sourceType, dest.libraryId, dest.libraryName)
+                }
                 is HomeViewModel.StartDestination.NoLibraries -> showRetry = true
             }
         }

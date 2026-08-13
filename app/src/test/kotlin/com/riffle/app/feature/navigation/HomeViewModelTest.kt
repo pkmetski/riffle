@@ -16,6 +16,7 @@ import com.riffle.core.domain.LibraryVisibilityPreferencesStore
 import com.riffle.core.models.Series
 import com.riffle.core.models.Source
 import com.riffle.core.domain.SourceRepository
+import com.riffle.core.models.SourceType
 import com.riffle.core.models.SourceUrl
 import java.io.IOException
 import kotlinx.coroutines.CompletableDeferred
@@ -50,12 +51,17 @@ class HomeViewModelTest {
     private val hiddenFlow = MutableStateFlow<Map<String, Set<String>>>(emptyMap())
     private val lastOpenedFlow = MutableStateFlow<Map<String, String>>(emptyMap())
 
-    private fun server(id: String, active: Boolean = false) = Source(
+    private fun server(
+        id: String,
+        active: Boolean = false,
+        type: SourceType = SourceType.ABS,
+    ) = Source(
         id = id,
         url = SourceUrl.parse("https://$id.example.com")!!,
         isActive = active,
         insecureConnectionAllowed = false,
         username = "",
+        type = type,
     )
 
     private fun library(id: String) = Library(id = id, name = id, mediaType = "book", isUnsupported = false)
@@ -152,7 +158,7 @@ class HomeViewModelTest {
 
         val result = makeVm().getStartDestination()
 
-        assertEquals(HomeViewModel.StartDestination.Library("lib-1", "lib-1"), result)
+        assertEquals(HomeViewModel.StartDestination.Library(SourceType.ABS, "lib-1", "lib-1"), result)
     }
 
     @Test
@@ -163,7 +169,17 @@ class HomeViewModelTest {
         val refresh = FakeRefreshLibraries(onRefresh = { librariesFlow.value = listOf(library("lib-1")) })
         val result = makeVm(refreshLibraries = refresh).getStartDestination()
 
-        assertEquals(HomeViewModel.StartDestination.Library("lib-1", "lib-1"), result)
+        assertEquals(HomeViewModel.StartDestination.Library(SourceType.ABS, "lib-1", "lib-1"), result)
+    }
+
+    @Test
+    fun `getStartDestination carries active source type for unbounded sources`() = runTest {
+        serversFlow.value = listOf(server("gut-1", active = true, type = SourceType.GUTENBERG))
+        librariesFlow.value = listOf(library("books"))
+
+        val result = makeVm().getStartDestination()
+
+        assertEquals(HomeViewModel.StartDestination.Library(SourceType.GUTENBERG, "books", "books"), result)
     }
 
     @Test
@@ -204,7 +220,7 @@ class HomeViewModelTest {
 
         val result = makeVm().getStartDestination()
 
-        assertEquals(HomeViewModel.StartDestination.Library("lib-2", "lib-2"), result)
+        assertEquals(HomeViewModel.StartDestination.Library(SourceType.ABS, "lib-2", "lib-2"), result)
     }
 
     @Test
@@ -216,7 +232,7 @@ class HomeViewModelTest {
 
         val result = makeVm().getStartDestination()
 
-        assertEquals(HomeViewModel.StartDestination.Library("lib-1", "lib-1"), result)
+        assertEquals(HomeViewModel.StartDestination.Library(SourceType.ABS, "lib-1", "lib-1"), result)
     }
 
     @Test
@@ -227,7 +243,7 @@ class HomeViewModelTest {
 
         val result = makeVm().getStartDestination()
 
-        assertEquals(HomeViewModel.StartDestination.Library("lib-1", "lib-1"), result)
+        assertEquals(HomeViewModel.StartDestination.Library(SourceType.ABS, "lib-1", "lib-1"), result)
     }
 
     // Pins the fix for the predictive-back burger-menu infinite loop: Compose Navigation 2.8+
@@ -280,7 +296,7 @@ class HomeViewModelTest {
 
         val result = makeVm().getStartDestination()
 
-        assertEquals(HomeViewModel.StartDestination.Library("lib-1", "lib-1"), result)
+        assertEquals(HomeViewModel.StartDestination.Library(SourceType.ABS, "lib-1", "lib-1"), result)
     }
 
     @Test
@@ -291,7 +307,7 @@ class HomeViewModelTest {
 
         val result = makeVm().getStartDestination()
 
-        assertEquals(HomeViewModel.StartDestination.Library("lib-2", "lib-2"), result)
+        assertEquals(HomeViewModel.StartDestination.Library(SourceType.ABS, "lib-2", "lib-2"), result)
     }
 
     // Pins the transient-RESUMED guard introduced to fix the burger-menu spinner flash.
