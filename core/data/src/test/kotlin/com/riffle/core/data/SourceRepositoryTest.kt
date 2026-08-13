@@ -66,6 +66,7 @@ class ServerRepositoryTest {
 
     private class FakeServerDao(initial: List<SourceEntity>) : SourceDao {
         val store = initial.toMutableList()
+        val graphDeletedSourceIds = mutableListOf<String>()
         override fun observeAll() = flowOf(store.toList())
         override suspend fun getActive() = store.firstOrNull { it.isActive }
         override suspend fun getById(id: String): SourceEntity? = store.firstOrNull { it.id == id }
@@ -83,6 +84,36 @@ class ServerRepositoryTest {
             return toInsert
         }
         override suspend fun deleteById(id: String) { store.removeAll { it.id == id } }
+        override suspend fun deleteReadaloudLinksForSource(id: String) = Unit
+        override suspend fun deleteReadaloudCandidatesForSource(id: String) = Unit
+        override suspend fun deleteReadaloudDismissalsForSource(id: String) = Unit
+        override suspend fun deleteSeriesForSource(id: String) = Unit
+        override suspend fun deleteSeriesItemsForSource(id: String) = Unit
+        override suspend fun deleteCollectionsForSource(id: String) = Unit
+        override suspend fun deleteCollectionItemsForSource(id: String) = Unit
+        override suspend fun deletePlaylistItemsForSource(id: String) = Unit
+        override suspend fun deletePlaylistsForSource(id: String) = Unit
+        override suspend fun deleteReadingPositionsForSource(id: String) = Unit
+        override suspend fun deleteBookFormattingPreferencesForSource(id: String) = Unit
+        override suspend fun deleteAnnotationsForSource(id: String) = Unit
+        override suspend fun deleteReadaloudResumePositionsForSource(id: String) = Unit
+        override suspend fun deleteAudioPlaybackPreferencesForSource(id: String) = Unit
+        override suspend fun deleteAudiobookPositionsForSource(id: String) = Unit
+        override suspend fun deleteAudiobookBookmarksForSource(id: String) = Unit
+        override suspend fun deleteTocCacheForSource(id: String) = Unit
+        override suspend fun deleteAudiobookChapterCacheForSource(id: String) = Unit
+        override suspend fun deleteLocalFilesFileFoldersForSource(id: String) = Unit
+        override suspend fun deleteLocalFilesFilesForSource(id: String) = Unit
+        override suspend fun deleteLocalFilesFoldersForSource(id: String) = Unit
+        override suspend fun deleteLocalFileMetadataOverridesForSource(id: String) = Unit
+        override suspend fun deleteRemoteItemFreshnessForSource(id: String) = Unit
+        override suspend fun deletePublicationMetricsCacheForSource(id: String) = Unit
+        override suspend fun deleteLibraryItemsForSource(id: String) = Unit
+        override suspend fun deleteLibrariesForSource(id: String) = Unit
+        override suspend fun deleteSourceGraph(id: String) {
+            graphDeletedSourceIds += id
+            deleteById(id)
+        }
         override suspend fun setAbsUserId(id: String, absUserId: String) {
             store.replaceAll { if (it.id == id) it.copy(absUserId = absUserId) else it }
         }
@@ -205,7 +236,7 @@ class ServerRepositoryTest {
         serverInfoApi: AbsServerInfoApi,
         libraryApi: AbsLibraryApi,
         libraryDao: LibraryDao,
-        libraryItemDao: com.riffle.core.database.LibraryItemDao,
+        @Suppress("UNUSED_PARAMETER") libraryItemDao: com.riffle.core.database.LibraryItemDao,
         visibilityStore: LibraryVisibilityPreferencesStore,
         filesCleaner: SourceFilesCleaner,
         sidecarCache: com.riffle.core.domain.ReadaloudSidecarCache = fakeSidecarCache(),
@@ -238,8 +269,6 @@ class ServerRepositoryTest {
             tokenStorage = tokens,
             serverInfoApi = serverInfoApi,
             komgaServerInfoApi = fakeKomgaServerInfoApi,
-            libraryDao = libraryDao,
-            libraryItemDao = libraryItemDao,
             filesCleaner = filesCleaner,
             sidecarCache = sidecarCacheProvider,
             installer = installer,
@@ -611,6 +640,7 @@ class ServerRepositoryTest {
             dao, tokens, absApi, storytellerApiNotCalled, fakeServerInfoApi, libsApiNotCalled, fakeLibraryDao(), fakeLibraryItemDao(), fakeVisibilityStore(), fakeFilesCleaner()
         )
         repo.remove("srv-1")
+        assertEquals(listOf("srv-1"), dao.graphDeletedSourceIds)
         assertTrue("token not deleted", tokens.tokens.isEmpty())
         assertNull("entity not deleted from store", dao.getActive())
     }
@@ -668,57 +698,38 @@ class ServerRepositoryTest {
     }
 
     @Test
-    fun `remove cascades libraries and library_items for a Storyteller source`() = runTest {
+    fun `remove delegates Storyteller source Room cleanup to source graph delete`() = runTest {
         val entity = SourceEntity("st-1", "http://media-source:8001", true, false, username = "plamen", serverType = "STORYTELLER_SERVICE")
         val dao = fakeDao(entity)
         val tokens = fakeTokenStorage()
         tokens.tokens["st-1"] = "tok-st"
-        val libDao = fakeLibraryDao()
-        val libraryId = SourceRepositoryImpl.readaloudLibraryId("st-1")
-        libDao.rows["st-1"] = mutableListOf(LibraryEntity(libraryId, "Readalouds", "readaloud", "st-1"))
-        val itemDao = fakeLibraryItemDao()
-        itemDao.seed(libraryId, listOf(
-            com.riffle.core.database.LibraryItemEntity("st-1", "1385738337074647", libraryId, "The Martian", "Andy Weir", null, 0f, addedAt = 0L),
-            com.riffle.core.database.LibraryItemEntity("st-1", "99", libraryId, "Dune", "Frank Herbert", null, 0f, addedAt = 0L),
-        ))
         val absApi = AbsApi { _, _, _, _ -> error("not called") }
         val repo = buildRepo(
-            dao, tokens, absApi, storytellerApiNotCalled, fakeServerInfoApi, libsApiNotCalled, libDao, itemDao, fakeVisibilityStore(), fakeFilesCleaner()
+            dao, tokens, absApi, storytellerApiNotCalled, fakeServerInfoApi, libsApiNotCalled, fakeLibraryDao(), fakeLibraryItemDao(), fakeVisibilityStore(), fakeFilesCleaner()
         )
 
         repo.remove("st-1")
 
+        assertEquals(listOf("st-1"), dao.graphDeletedSourceIds)
         assertEquals("source entity not deleted", 0, dao.allCount())
         assertTrue("token not deleted", tokens.tokens.isEmpty())
-        assertTrue("library rows not cleared", libDao.allEntities().isEmpty())
-        assertTrue("library_items not deleted via deleteByLibraryId", itemDao.deletedLibraryIds.contains(libraryId))
-        assertTrue("library items remain after removal", itemDao.itemsFor(libraryId).isEmpty())
     }
 
     @Test
-    fun `remove cascades libraries and library_items for an ABS source`() = runTest {
+    fun `remove delegates ABS source Room cleanup to source graph delete`() = runTest {
         val entity = SourceEntity("abs-1", "https://abs.example.com", true, false, username = "u")
         val dao = fakeDao(entity)
         val tokens = fakeTokenStorage()
         tokens.tokens["abs-1"] = "tok"
-        val libDao = fakeLibraryDao()
-        libDao.rows["abs-1"] = mutableListOf(
-            LibraryEntity("lib-1", "Books", "book", "abs-1"),
-            LibraryEntity("lib-2", "Audiobooks", "book", "abs-1"),
-        )
-        val itemDao = fakeLibraryItemDao()
-        itemDao.seed("lib-1", listOf(com.riffle.core.database.LibraryItemEntity("s1", "i-1", "lib-1", "Dune", "Herbert", null, 0f, addedAt = 0L)))
-        itemDao.seed("lib-2", listOf(com.riffle.core.database.LibraryItemEntity("s1", "i-2", "lib-2", "Foundation", "Asimov", null, 0f, addedAt = 0L)))
         val absApi = AbsApi { _, _, _, _ -> error("not called") }
         val repo = buildRepo(
-            dao, tokens, absApi, storytellerApiNotCalled, fakeServerInfoApi, libsApiNotCalled, libDao, itemDao, fakeVisibilityStore(), fakeFilesCleaner()
+            dao, tokens, absApi, storytellerApiNotCalled, fakeServerInfoApi, libsApiNotCalled, fakeLibraryDao(), fakeLibraryItemDao(), fakeVisibilityStore(), fakeFilesCleaner()
         )
 
         repo.remove("abs-1")
 
+        assertEquals(listOf("abs-1"), dao.graphDeletedSourceIds)
         assertEquals(0, dao.allCount())
-        assertTrue(libDao.allEntities().isEmpty())
-        assertEquals(setOf("lib-1", "lib-2"), itemDao.deletedLibraryIds.toSet())
     }
 
     @Test

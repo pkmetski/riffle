@@ -108,6 +108,32 @@ class LocalFilesSourceInstallerTest {
         override suspend fun getByType(type: String): SourceEntity? =
             rows.values.firstOrNull { it.type == type }
         override suspend fun deleteById(id: String) { rows.remove(id) }
+        override suspend fun deleteReadaloudLinksForSource(id: String) = Unit
+        override suspend fun deleteReadaloudCandidatesForSource(id: String) = Unit
+        override suspend fun deleteReadaloudDismissalsForSource(id: String) = Unit
+        override suspend fun deleteSeriesForSource(id: String) = Unit
+        override suspend fun deleteSeriesItemsForSource(id: String) = Unit
+        override suspend fun deleteCollectionsForSource(id: String) = Unit
+        override suspend fun deleteCollectionItemsForSource(id: String) = Unit
+        override suspend fun deletePlaylistItemsForSource(id: String) = Unit
+        override suspend fun deletePlaylistsForSource(id: String) = Unit
+        override suspend fun deleteReadingPositionsForSource(id: String) = Unit
+        override suspend fun deleteBookFormattingPreferencesForSource(id: String) = Unit
+        override suspend fun deleteAnnotationsForSource(id: String) = Unit
+        override suspend fun deleteReadaloudResumePositionsForSource(id: String) = Unit
+        override suspend fun deleteAudioPlaybackPreferencesForSource(id: String) = Unit
+        override suspend fun deleteAudiobookPositionsForSource(id: String) = Unit
+        override suspend fun deleteAudiobookBookmarksForSource(id: String) = Unit
+        override suspend fun deleteTocCacheForSource(id: String) = Unit
+        override suspend fun deleteAudiobookChapterCacheForSource(id: String) = Unit
+        override suspend fun deleteLocalFilesFileFoldersForSource(id: String) = Unit
+        override suspend fun deleteLocalFilesFilesForSource(id: String) = Unit
+        override suspend fun deleteLocalFilesFoldersForSource(id: String) = Unit
+        override suspend fun deleteLocalFileMetadataOverridesForSource(id: String) = Unit
+        override suspend fun deleteRemoteItemFreshnessForSource(id: String) = Unit
+        override suspend fun deletePublicationMetricsCacheForSource(id: String) = Unit
+        override suspend fun deleteLibraryItemsForSource(id: String) = Unit
+        override suspend fun deleteLibrariesForSource(id: String) = Unit
         override suspend fun setAbsUserId(id: String, absUserId: String) {
             rows[id]?.let { rows[id] = it.copy(absUserId = absUserId) }
         }

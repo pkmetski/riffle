@@ -2,8 +2,6 @@ package com.riffle.core.data
 
 import com.riffle.core.data.credentialed.CredentialedSourceInstaller
 import com.riffle.core.data.credentialed.toDomain
-import com.riffle.core.database.LibraryDao
-import com.riffle.core.database.LibraryItemDao
 import com.riffle.core.database.SourceDao
 import com.riffle.core.domain.CommitSourceResult
 import com.riffle.core.domain.PendingSource
@@ -31,8 +29,6 @@ class SourceRepositoryImpl @Inject constructor(
     private val tokenStorage: TokenStorage,
     private val serverInfoApi: AbsServerInfoApi,
     private val komgaServerInfoApi: KomgaServerInfoApi,
-    private val libraryDao: LibraryDao,
-    private val libraryItemDao: LibraryItemDao,
     private val filesCleaner: SourceFilesCleaner,
     // Provider (not direct injection) breaks the SourceRepository ↔ ReadaloudSidecarStore Hilt
     // cycle: the sidecar store needs SourceRepository to look up per-source credentials, and the
@@ -70,13 +66,10 @@ class SourceRepositoryImpl @Inject constructor(
     }
 
     override suspend fun remove(sourceId: String) {
-        // Cascade: clear per-library items + the libraries themselves + the token + the source row.
-        // For Storyteller sources this purges the synthetic Readaloud library and its books;
-        // for ABS sources it cleans up real libraries and their items. ReadaloudLinks cross-source
-        // cleanup belongs to #36 (matching slice) — until that lands the count of links is 0.
-        libraryDao.libraryIdsForSource(sourceId).forEach { libraryItemDao.deleteByLibraryId(sourceId, it) }
-        libraryDao.deleteBySourceId(sourceId)
-        dao.deleteById(sourceId)
+        // Keep Room cleanup atomic. Some user databases have accumulated rows in source-scoped
+        // caches and cross-source readaloud tables; deleting the source row through one graph
+        // cleanup avoids FK failures and leaves no partial source removal behind.
+        dao.deleteSourceGraph(sourceId)
         tokenStorage.deleteToken(sourceId)
         tokenStorage.deletePassword(sourceId)
         // The file stores live outside Room, so the FK cascade above doesn't touch them — purge the
