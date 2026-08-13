@@ -87,6 +87,7 @@ internal class FakeLibraryItemDao : LibraryItemDao {
                     addedAt = metadata.addedAt,
                     isbn = metadata.isbn,
                     asin = metadata.asin,
+                    pageCount = metadata.pageCount,
                 )
             } else existing
         }

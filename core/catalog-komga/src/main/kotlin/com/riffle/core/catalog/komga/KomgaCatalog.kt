@@ -703,6 +703,7 @@ class KomgaCatalog(
         addedAt = parseIsoInstant(created),
         isbn = metadata.isbn,
         asin = null,
+        pageCount = media.pagesCount?.takeIf { it > 0 },
         readingProgress = null,
         updatedAt = parseIsoInstant(lastModified),
     )

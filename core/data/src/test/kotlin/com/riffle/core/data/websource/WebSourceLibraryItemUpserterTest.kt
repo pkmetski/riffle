@@ -84,6 +84,19 @@ class WebSourceLibraryItemUpserterTest {
     }
 
     @Test
+    fun `first upsert preserves remote page count for fixed-page items`() = runTest {
+        val dao = InMemoryLibraryItemDao()
+        val upserter = WebSourceLibraryItemUpserter(dao)
+
+        upserter.upsert(
+            sourceId = "src-1",
+            item = catalogEpub().copy(ebookFormat = BookFormat.Cbz, pageCount = 120),
+        )
+
+        assertEquals(120, dao.getById("src-1", "text/12345-x")!!.pageCount)
+    }
+
+    @Test
     fun `audiobook item maps hasAudio true and libraryId to audio root`() = runTest {
         val dao = InMemoryLibraryItemDao()
         val upserter = WebSourceLibraryItemUpserter(dao)
@@ -253,6 +266,7 @@ class WebSourceLibraryItemUpserterTest {
                 isbn = metadata.isbn,
                 asin = metadata.asin,
                 finishedAt = metadata.finishedAt,
+                pageCount = metadata.pageCount,
                 // readingProgress intentionally NOT copied — updateMetadata excludes it (Room @Update).
             )
         }

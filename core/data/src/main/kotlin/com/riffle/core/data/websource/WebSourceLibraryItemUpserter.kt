@@ -78,6 +78,7 @@ class WebSourceLibraryItemUpserter @Inject constructor(
         addedAt = 0L,
         isbn = isbn,
         asin = asin,
+        pageCount = pageCount,
     )
 
     private fun BookFormat.toEbookFormat(): EbookFormat = when (this) {

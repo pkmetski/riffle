@@ -274,6 +274,7 @@ class LocalFilesCatalog(
         addedAt = addedAt,
         isbn = isbn,
         asin = asin,
+        pageCount = pageCount,
         readingProgress = readingProgress,
         updatedAt = null,
     )

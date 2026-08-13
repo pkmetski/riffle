@@ -39,8 +39,13 @@ class LibraryItemDetailPublicationFactsTest {
     }
 
     @Test
-    fun `pdf page count is labelled by format`() {
-        assertEquals("PDF · 321 pages", publicationPageCountText(EbookFormat.Pdf, 321))
+    fun `fresh fixed-page item shows total page count without format prefix`() {
+        assertEquals("321 pages", publicationPageCountText(pageCount = 321, readingProgress = 0f))
+    }
+
+    @Test
+    fun `invalid fixed-page progress falls back to total page count`() {
+        assertEquals("321 pages", publicationPageCountText(pageCount = 321, readingProgress = Float.NaN))
     }
 
     @Test
@@ -50,8 +55,16 @@ class LibraryItemDetailPublicationFactsTest {
     }
 
     @Test
-    fun `comic page count is labelled by format`() {
-        assertEquals("Comic · 120 pages", publicationPageCountText(EbookFormat.Cbz, 120))
+    fun `in-progress fixed-page item shows pages read out of total`() {
+        assertEquals(
+            "40 of 120 pages read",
+            publicationPageCountText(pageCount = 120, readingProgress = 40f / 120f),
+        )
+    }
+
+    @Test
+    fun `finished fixed-page item shows all pages read`() {
+        assertEquals("120 of 120 pages read", publicationPageCountText(pageCount = 120, readingProgress = 1f))
     }
 
     @Test
