@@ -190,6 +190,32 @@ class KomgaCatalogTest {
         assertNull(items[2].addedAt)
     }
 
+    @Test fun `listSeries uses first book thumbnail as cover cache key`() = runTest {
+        server.enqueue(MockResponse().setBody("""
+            {
+              "content": [
+                {"id":"B1","libraryId":"L1","seriesId":"S1","name":"one.cbz","number":1,
+                 "media":{"mediaType":"application/x-cbz"},"metadata":{"title":"One","authors":[]}}
+              ],
+              "totalPages":1,"totalElements":1,"first":true,"last":true,"empty":false
+            }
+        """.trimIndent()))
+        server.enqueue(MockResponse().setBody("""
+            {
+              "content": [
+                {"id":"S1","libraryId":"L1","name":"Series One","booksCount":1,"metadata":{"title":"Series One"}}
+              ],
+              "totalPages":1,"totalElements":1,"first":true,"last":true,"empty":false
+            }
+        """.trimIndent()))
+
+        val series = catalog.listSeries("L1")
+
+        assertEquals(1, series.size)
+        val baseUrl = server.url("/").toString().trimEnd('/')
+        assertEquals("$baseUrl/api/v1/books/B1/thumbnail", series[0].coverUrl)
+    }
+
     @Test fun `parseIsoInstant handles null blank and malformed strings`() {
         assertNull(KomgaCatalog.parseIsoInstant(null))
         assertNull(KomgaCatalog.parseIsoInstant(""))

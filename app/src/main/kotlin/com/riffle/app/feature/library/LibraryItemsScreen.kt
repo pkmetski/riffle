@@ -180,6 +180,7 @@ fun LibraryItemsScreen(
     val toReadItems = projection.toRead
     val annotationResults = projection.annotations
     val audiobookBookmarkResults = projection.audiobookBookmarks
+    val seriesCoverUrls by viewModel.seriesCoverUrls.collectAsState()
     val collectionCoverUrls by viewModel.collectionCoverUrls.collectAsState()
     val isOffline by viewModel.isOffline.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
@@ -310,6 +311,7 @@ fun LibraryItemsScreen(
                     filteredItems = filteredUngroupedItems,
                     annotationResults = annotationResults,
                     audiobookBookmarkResults = audiobookBookmarkResults,
+                    seriesCoverUrls = seriesCoverUrls,
                     token = viewModel.authToken,
                     onSeriesSelected = onSeriesSelected,
                     onCollectionSelected = onCollectionSelected,
@@ -354,6 +356,7 @@ fun LibraryItemsScreen(
                         items = series,
                         isLoading = isLoading,
                         token = viewModel.authToken,
+                        seriesCoverUrls = seriesCoverUrls,
                         onSeriesSelected = onSeriesSelected,
                         onCoverScaleChange = onCoverScaleChange,
                     )
@@ -397,6 +400,7 @@ private fun SearchResultsContent(
     filteredItems: List<LibraryItem>,
     annotationResults: List<AnnotationSearchResult>,
     audiobookBookmarkResults: List<AudiobookBookmarkSearchResult>,
+    seriesCoverUrls: Map<String, String>,
     token: String,
     onSeriesSelected: (Series) -> Unit,
     onCollectionSelected: (Collection) -> Unit,
@@ -422,7 +426,12 @@ private fun SearchResultsContent(
         if (filteredSeries.isNotEmpty()) {
             item { SectionHeader("Series") }
             items(filteredSeries, key = { "series_${it.id}" }) { s ->
-                SearchSeriesRow(series = s, token = token, onClick = { onSeriesSelected(s) })
+                SearchSeriesRow(
+                    series = s,
+                    token = token,
+                    coverUrl = seriesCoverUrls[s.id],
+                    onClick = { onSeriesSelected(s) },
+                )
             }
         }
         if (filteredCollections.isNotEmpty()) {
@@ -523,6 +532,7 @@ fun BookSectionGrid(
 fun SeriesSectionGrid(
     items: List<Series>,
     token: String,
+    seriesCoverUrls: Map<String, String> = emptyMap(),
     onSeriesSelected: (Series) -> Unit,
     onSeeMore: (() -> Unit)? = null,
 ) {
@@ -543,7 +553,12 @@ fun SeriesSectionGrid(
                 SeeMoreTile(overflowCount = overflowCount, onClick = onSeeMore)
             } else {
                 val s = preview[index]
-                SeriesCoverTile(series = s, token = token, onClick = { onSeriesSelected(s) })
+                SeriesCoverTile(
+                    series = s,
+                    token = token,
+                    coverUrl = seriesCoverUrls[s.id],
+                    onClick = { onSeriesSelected(s) },
+                )
             }
         }
     }
@@ -737,8 +752,10 @@ fun BookCoverTile(
 fun SeriesCoverTile(
     series: Series,
     token: String,
+    coverUrl: String? = null,
     onClick: () -> Unit,
 ) {
+    val resolvedCoverUrl = coverUrl ?: series.coverUrl
     Column(modifier = Modifier.clickable(onClick = onClick)) {
         Box(
             modifier = Modifier
@@ -749,10 +766,10 @@ fun SeriesCoverTile(
             DefaultCoverPlaceholder(isAudiobook = false, modifier = Modifier.fillMaxSize())
             AsyncImage(
                 model = ImageRequest.Builder(LocalContext.current)
-                    .data(series.coverUrl)
+                    .data(resolvedCoverUrl)
                     .addHeader("Authorization", token.asAuthHeader())
                     .crossfade(true)
-                    .instrumentCover("series", series.id, series.coverUrl)
+                    .instrumentCover("series", series.id, resolvedCoverUrl)
                     .build(),
                 contentDescription = series.name,
                 contentScale = ContentScale.Crop,
@@ -875,7 +892,8 @@ fun SeeMoreTile(overflowCount: Int, onClick: () -> Unit) {
 // --- Search result rows (kept for search mode) ---
 
 @Composable
-private fun SearchSeriesRow(series: Series, token: String, onClick: () -> Unit) {
+private fun SearchSeriesRow(series: Series, token: String, coverUrl: String? = null, onClick: () -> Unit) {
+    val resolvedCoverUrl = coverUrl ?: series.coverUrl
     Surface(
         modifier = Modifier
             .fillMaxWidth()
@@ -888,7 +906,7 @@ private fun SearchSeriesRow(series: Series, token: String, onClick: () -> Unit) 
                 DefaultCoverPlaceholder(isAudiobook = false, modifier = Modifier.fillMaxSize())
                 AsyncImage(
                     model = ImageRequest.Builder(LocalContext.current)
-                        .data(series.coverUrl)
+                        .data(resolvedCoverUrl)
                         .addHeader("Authorization", token.asAuthHeader())
                         .crossfade(true)
                         .build(),
@@ -1557,6 +1575,7 @@ private fun SeriesTabContent(
     items: List<Series>,
     isLoading: Boolean,
     token: String,
+    seriesCoverUrls: Map<String, String>,
     onSeriesSelected: (Series) -> Unit,
     onCoverScaleChange: (Float) -> Unit = {},
 ) {
@@ -1584,7 +1603,12 @@ private fun SeriesTabContent(
         }
         items(items, key = { it.id }) { s ->
             Box(modifier = Modifier.padding(4.dp)) {
-                SeriesCoverTile(series = s, token = token, onClick = { onSeriesSelected(s) })
+                SeriesCoverTile(
+                    series = s,
+                    token = token,
+                    coverUrl = seriesCoverUrls[s.id],
+                    onClick = { onSeriesSelected(s) },
+                )
             }
         }
     }

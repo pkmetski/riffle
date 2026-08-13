@@ -461,6 +461,65 @@ class LibraryItemsViewModelTest {
         assertEquals(listOf(collection("Fantasy")), vm.collections.value)
     }
 
+    // --- seriesCoverUrls derivation ---
+
+    @Test
+    fun `seriesCoverUrls uses member item cover instead of stale series cover`() = runTest {
+        val vm = makeViewModel()
+        backgroundScope.launch { vm.seriesCoverUrls.collect {} }
+        val stale = series("Fables").copy(coverUrl = "https://komga/api/v1/series/S1/thumbnail")
+        seriesFlow.value = listOf(stale)
+        seriesItemsBySeriesId.getOrPut(stale.id) { MutableStateFlow(emptyList()) }.value =
+            listOf(item("Fables Issue", "Writer", coverUrl = "https://komga/api/v1/books/B1/thumbnail"))
+
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(
+            mapOf(stale.id to "https://komga/api/v1/books/B1/thumbnail"),
+            vm.seriesCoverUrls.value,
+        )
+    }
+
+    @Test
+    fun `seriesCoverUrls skips items with null or blank cover URLs`() = runTest {
+        val vm = makeViewModel()
+        backgroundScope.launch { vm.seriesCoverUrls.collect {} }
+        val ser = series("Mixed")
+        seriesFlow.value = listOf(ser)
+        seriesItemsBySeriesId.getOrPut(ser.id) { MutableStateFlow(emptyList()) }.value = listOf(
+            item("A", "X", coverUrl = null),
+            item("B", "X", coverUrl = ""),
+            item("C", "X", coverUrl = "   "),
+            item("D", "X", coverUrl = "https://komga/api/v1/books/D/thumbnail"),
+        )
+
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(mapOf(ser.id to "https://komga/api/v1/books/D/thumbnail"), vm.seriesCoverUrls.value)
+    }
+
+    @Test
+    fun `seriesCoverUrls prefers offline-available member cover while offline`() = runTest {
+        val vm = makeViewModel(
+            connectivityObserver = FakeConnectivityObserver(online = false),
+            epubRepository = fakeEpubRepoWithDownloads(setOf("id-Downloaded")),
+        )
+        backgroundScope.launch { vm.seriesCoverUrls.collect {} }
+        val ser = series("Arc")
+        seriesFlow.value = listOf(ser)
+        seriesItemsBySeriesId.getOrPut(ser.id) { MutableStateFlow(emptyList()) }.value = listOf(
+            item("Remote", "X", coverUrl = "https://komga/api/v1/books/remote/thumbnail"),
+            item("Downloaded", "X", coverUrl = "https://komga/api/v1/books/downloaded/thumbnail"),
+        )
+
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(
+            mapOf(ser.id to "https://komga/api/v1/books/downloaded/thumbnail"),
+            vm.seriesCoverUrls.value,
+        )
+    }
+
     // --- collectionCoverUrls derivation ---
 
     @Test
