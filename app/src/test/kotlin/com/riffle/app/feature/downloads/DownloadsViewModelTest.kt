@@ -3,18 +3,22 @@ package com.riffle.app.feature.downloads
 import com.riffle.core.data.ReadaloudSidecarStore
 import com.riffle.core.domain.ContentCacheSettingsStore
 import com.riffle.core.domain.DownloadsRepository
+import com.riffle.core.domain.ReadaloudLinkRepository
 import com.riffle.core.models.EbookFormat
 import com.riffle.core.models.LibraryItem
 import com.riffle.core.domain.LibraryObserver
 import com.riffle.core.domain.SourceRepository
 import com.riffle.core.domain.StoredItemArtifact
 import com.riffle.core.domain.StoredMediaType
+import com.riffle.core.models.ReadaloudLink
 import com.riffle.core.models.ServerType
 import com.riffle.core.models.Source
 import com.riffle.core.models.SourceUrl
 import io.mockk.coEvery
+import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.verify
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -89,16 +93,25 @@ class DownloadsViewModelTest {
         coEvery { libraryObserver.getItem("abs", "abs-cached") } returns item("abs", "abs-cached", "ABS Cached")
         coEvery { libraryObserver.getItem("abs", "ab-book") } returns
             item("abs", "ab-book", "ABS Audiobook Downloaded", ebookFormat = EbookFormat.Unsupported, hasAudio = true)
-        coEvery { libraryObserver.getItem("storyteller", "st-down") } returns
-            item("storyteller", "st-down", "Storyteller Downloaded")
+        coEvery { libraryObserver.getItem("abs", "abs-readaloud-down") } returns
+            item("abs", "abs-readaloud-down", "ABS Readaloud Downloaded")
         coEvery { libraryObserver.getItem("abs", "ab-cached") } returns
             item("abs", "ab-cached", "ABS Audiobook Cached", ebookFormat = EbookFormat.Unsupported, hasAudio = true)
-        coEvery { libraryObserver.getItem("storyteller", "st-book") } returns item("storyteller", "st-book", "Storyteller Readaloud")
+        coEvery { libraryObserver.getItem("abs", "abs-readaloud-cached") } returns
+            item("abs", "abs-readaloud-cached", "ABS Readaloud Cached")
 
         val sourceRepository = mockk<SourceRepository>(relaxed = true)
         coEvery { sourceRepository.getById("abs") } returns source("abs", ServerType.AUDIOBOOKSHELF)
         coEvery { sourceRepository.getById("chitanka") } returns source("chitanka", ServerType.AUDIOBOOKSHELF)
         coEvery { sourceRepository.getById("storyteller") } returns source("storyteller", ServerType.STORYTELLER_SERVICE)
+
+        val readaloudLinkRepository = mockk<ReadaloudLinkRepository>(relaxed = true)
+        coEvery { readaloudLinkRepository.findByStorytellerBook("storyteller", "st-down") } returns listOf(
+            link("storyteller", "st-down", "abs", "abs-readaloud-down"),
+        )
+        coEvery { readaloudLinkRepository.findByStorytellerBook("storyteller", "st-book") } returns listOf(
+            link("storyteller", "st-book", "abs", "abs-readaloud-cached"),
+        )
 
         val sidecarStore = mockk<ReadaloudSidecarStore>(relaxed = true)
         every { sidecarStore.listCached() } returns listOf(
@@ -107,16 +120,23 @@ class DownloadsViewModelTest {
         val cacheSettingsStore = mockk<ContentCacheSettingsStore>(relaxed = true)
         every { cacheSettingsStore.autoClear } returns MutableStateFlow(ContentCacheSettingsStore.DEFAULT_AUTO_CLEAR)
 
-        val vm = DownloadsViewModel(downloadsRepo, libraryObserver, sourceRepository, sidecarStore, cacheSettingsStore)
+        val vm = DownloadsViewModel(
+            downloadsRepo,
+            libraryObserver,
+            sourceRepository,
+            readaloudLinkRepository,
+            sidecarStore,
+            cacheSettingsStore,
+        )
         advanceUntilIdle()
 
         val state = vm.uiState.value
         assertEquals(
-            listOf("ABS Downloaded", "Chitanka Downloaded", "ABS Audiobook Downloaded", "Storyteller Downloaded"),
+            listOf("ABS Downloaded", "Chitanka Downloaded", "ABS Audiobook Downloaded", "ABS Readaloud Downloaded"),
             state.downloadedItems.map { it.item.title },
         )
         assertEquals(
-            listOf("ABS Cached", "ABS Audiobook Cached", "Storyteller Readaloud"),
+            listOf("ABS Cached", "ABS Audiobook Cached", "ABS Readaloud Cached"),
             state.cachedItems.map { it.item.title },
         )
         assertEquals(
@@ -139,6 +159,49 @@ class DownloadsViewModelTest {
         assertEquals(ContentCacheSettingsStore.DEFAULT_AUTO_CLEAR, state.cacheAutoClear)
     }
 
+    @Test
+    fun `cached readaloud sidecar opens linked source item and removes storyteller sidecar`() = runTest(dispatcher) {
+        val downloadsRepo = mockk<DownloadsRepository>(relaxed = true)
+        every { downloadsRepo.getDownloadedArtifacts() } returns emptyList()
+        every { downloadsRepo.getCachedArtifacts() } returns emptyList()
+        every { downloadsRepo.sizeOf(any(), any()) } returns 0L
+
+        val libraryObserver = mockk<LibraryObserver>()
+        coEvery { libraryObserver.getItem("abs", "ebook") } returns item("abs", "ebook", "Linked Source Item")
+        val sourceRepository = mockk<SourceRepository>(relaxed = true)
+        val readaloudLinkRepository = mockk<ReadaloudLinkRepository>(relaxed = true)
+        coEvery { readaloudLinkRepository.findByStorytellerBook("storyteller", "sidecar-book") } returns listOf(
+            link("storyteller", "sidecar-book", "abs", "ebook"),
+        )
+        val sidecarStore = mockk<ReadaloudSidecarStore>(relaxed = true)
+        every { sidecarStore.listCached() } returns listOf(
+            ReadaloudSidecarStore.CachedSidecar("storyteller", "sidecar-book", 4096L),
+        )
+        val cacheSettingsStore = mockk<ContentCacheSettingsStore>(relaxed = true)
+        every { cacheSettingsStore.autoClear } returns MutableStateFlow(ContentCacheSettingsStore.DEFAULT_AUTO_CLEAR)
+
+        val vm = DownloadsViewModel(
+            downloadsRepo,
+            libraryObserver,
+            sourceRepository,
+            readaloudLinkRepository,
+            sidecarStore,
+            cacheSettingsStore,
+        )
+        advanceUntilIdle()
+
+        val entry = vm.uiState.value.cachedItems.single()
+        assertEquals("abs", entry.sourceId)
+        assertEquals("ebook", entry.item.id)
+        assertEquals(setOf(LocalMediaType.Readaloud), entry.mediaTypes)
+
+        vm.removeCachedItem(entry)
+        advanceUntilIdle()
+
+        verify { sidecarStore.remove("storyteller", "sidecar-book") }
+        coVerify(exactly = 0) { downloadsRepo.removeCached(any(), any()) }
+    }
+
     private fun source(id: String, serverType: ServerType) = Source(
         id = id,
         url = SourceUrl.parse("http://$id.local")!!,
@@ -146,5 +209,18 @@ class DownloadsViewModelTest {
         insecureConnectionAllowed = false,
         username = "user",
         serverType = serverType,
+    )
+
+    private fun link(
+        storytellerSourceId: String,
+        storytellerBookId: String,
+        absSourceId: String,
+        absLibraryItemId: String,
+    ) = ReadaloudLink(
+        storytellerSourceId = storytellerSourceId,
+        storytellerBookId = storytellerBookId,
+        absSourceId = absSourceId,
+        absLibraryItemId = absLibraryItemId,
+        userConfirmed = true,
     )
 }
