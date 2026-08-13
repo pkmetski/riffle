@@ -183,6 +183,33 @@ class LibraryItemsViewModel @Inject constructor(
         !online || refreshFailed
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
 
+    /**
+     * Representative member cover per Series. The persisted `series.coverUrl` can point at a
+     * source-specific series-thumbnail endpoint that was never cached; member item rows are the
+     * same source of cover URLs used by the series-detail grid, so they survive stale series rows.
+     * Offline mode prefers a locally-available member so the chosen URL is the one most likely to
+     * already exist in Coil's disk cache.
+     */
+    val seriesCoverUrls: StateFlow<Map<String, String>> = series
+        .map { rows -> rows.map { it.id } }
+        .distinctUntilChanged()
+        .flatMapLatest { ids ->
+            if (ids.isEmpty()) {
+                flowOf(emptyMap())
+            } else {
+                combine(
+                    ids.map { id ->
+                        combine(libraryObserver.observeSeriesItems(id), isOffline) { items, offline ->
+                            id to representativeSeriesCoverUrl(items, offline)
+                        }
+                    },
+                ) { pairs ->
+                    pairs.mapNotNull { (id, coverUrl) -> coverUrl?.let { id to it } }.toMap()
+                }
+            }
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
+
     private val _notStartedFilterActive = MutableStateFlow(false)
     val notStartedFilterActive: StateFlow<Boolean> = _notStartedFilterActive.asStateFlow()
 
@@ -371,8 +398,23 @@ class LibraryItemsViewModel @Inject constructor(
         _refreshFailed.value = results.any { it is LibraryRefreshResult.NetworkError }
     }
 
+    private fun representativeSeriesCoverUrl(
+        items: List<LibraryItem>,
+        offline: Boolean,
+    ): String? {
+        val preferred = if (offline) {
+            items.filter { offlineAvailability.isAvailableOffline(it) }
+        } else {
+            items
+        }
+        return firstNonBlankCoverUrl(preferred) ?: firstNonBlankCoverUrl(items)
+    }
+
     private companion object {
         const val FAILED_REFRESH_RETRY_INTERVAL_MS = 10_000L
         const val KEY_SEARCH_QUERY = "searchQuery"
     }
 }
+
+private fun firstNonBlankCoverUrl(items: List<LibraryItem>): String? =
+    items.firstNotNullOfOrNull { it.coverUrl?.takeIf { url -> url.isNotBlank() } }

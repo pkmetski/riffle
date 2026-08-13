@@ -416,7 +416,11 @@ class KomgaCatalog(
                     id = s.id,
                     rootId = s.libraryId,
                     name = s.metadata.title?.takeIf { it.isNotBlank() } ?: s.name,
-                    coverUrl = apiUrl("series/${s.id}/thumbnail"),
+                    // Share the book-card cache key so a cached single-book series keeps its
+                    // cover offline even if /series/{id}/thumbnail was never persisted by Coil.
+                    coverUrl = entries.firstOrNull()
+                        ?.let { apiUrl("books/${it.itemId}/thumbnail") }
+                        ?: apiUrl("series/${s.id}/thumbnail"),
                     bookCount = s.booksCount.takeIf { it > 0 } ?: entries.size,
                     items = entries,
                 )
