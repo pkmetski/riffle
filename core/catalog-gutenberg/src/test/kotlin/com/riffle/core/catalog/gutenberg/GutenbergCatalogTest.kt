@@ -68,7 +68,14 @@ class GutenbergCatalogTest {
     fun `listFacets returns the curated topic set for the books root`() = runTest {
         val facets = catalog.listFacets(GutenbergCatalog.ROOT_BOOKS)
         assertTrue("expected curated topics, got $facets", facets.isNotEmpty())
-        assertTrue(facets.all { it.key.startsWith("topic:") })
+        assertTrue(facets.any { it.key == "topic:fiction" })
+    }
+
+    @Test
+    fun `listFacets returns the curated language filters for the books root`() = runTest {
+        val facets = catalog.listFacets(GutenbergCatalog.ROOT_BOOKS)
+        assertTrue("English language facet missing from $facets", facets.any { it.key == "language:en" })
+        assertTrue("French language facet missing from $facets", facets.any { it.key == "language:fr" })
     }
 
     @Test
@@ -109,6 +116,19 @@ class GutenbergCatalogTest {
     }
 
     @Test
+    fun `browse threads the language facet into the query string`() = runTest {
+        server.enqueue(MockResponse().setBody(fixture("gutendex-books-page-1.json")))
+        catalog.browse(
+            rootId = GutenbergCatalog.ROOT_BOOKS,
+            page = 0,
+            pageSize = 32,
+            facet = FacetSelection("language:fr"),
+        )
+        val request = server.takeRequest()
+        assertTrue("expected languages=fr in ${request.path}", request.path?.contains("languages=fr") == true)
+    }
+
+    @Test
     fun `browse for a non-books root returns empty without hitting the network`() = runTest {
         val items = catalog.browse(rootId = "bogus", page = 0, pageSize = 32)
         assertTrue(items.isEmpty())
@@ -129,6 +149,22 @@ class GutenbergCatalogTest {
             "expected encoded query in $path",
             path.contains("search=jane+austen") || path.contains("search=jane%20austen"),
         )
+    }
+
+    @Test
+    fun `faceted search threads the language facet into the query string`() = runTest {
+        server.enqueue(MockResponse().setBody(fixture("gutendex-books-page-1.json")))
+        catalog.search(
+            rootId = GutenbergCatalog.ROOT_BOOKS,
+            query = "dumas",
+            page = 0,
+            pageSize = 32,
+            facet = FacetSelection("language:fr"),
+        )
+        val request = server.takeRequest()
+        val path = request.path.orEmpty()
+        assertTrue("expected search=dumas in $path", path.contains("search=dumas"))
+        assertTrue("expected languages=fr in $path", path.contains("languages=fr"))
     }
 
     @Test

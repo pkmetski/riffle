@@ -39,6 +39,7 @@ import com.riffle.app.feature.library.LibrarySectionScreen
 import com.riffle.app.feature.library.LibrarySectionType
 import com.riffle.app.feature.library.SeriesDetailScreen
 import com.riffle.app.feature.navigation.HomeScreen
+import com.riffle.app.feature.navigation.HomeViewModel
 import com.riffle.app.feature.navigation.NavigationDrawerViewModel
 import com.riffle.app.feature.navigation.RiffleNavigationDrawer
 import com.riffle.app.feature.reader.EpubReaderScreen
@@ -151,6 +152,9 @@ internal fun libraryEntryRoute(sourceType: SourceType?, libraryId: String, libra
         ?.browseRoutePrefix
     return if (prefix != null) "$prefix/$libraryId/$encoded" else "library_items/$libraryId/$encoded"
 }
+
+internal fun libraryEntryRoute(destination: HomeViewModel.StartDestination.Library): String =
+    libraryEntryRoute(destination.sourceType, destination.libraryId, destination.libraryName)
 
 @Composable
 fun MainScreen(
@@ -286,9 +290,13 @@ fun MainScreen(
                     onNavigateToAddSource = {
                         navController.navigateAsRoot(ADD_SOURCE_TYPE_PICKER)
                     },
-                    onNavigateToLibrary = { libraryId, libraryName ->
+                    onNavigateToLibrary = { sourceType, libraryId, libraryName ->
                         viewModel.setActiveLibrary(libraryId)
-                        navController.navigateAsRoot(libraryEntryRoute(activeServer?.type, libraryId, libraryName))
+                        navController.navigateAsRoot(
+                            libraryEntryRoute(
+                                HomeViewModel.StartDestination.Library(sourceType, libraryId, libraryName),
+                            ),
+                        )
                     },
                 )
             }

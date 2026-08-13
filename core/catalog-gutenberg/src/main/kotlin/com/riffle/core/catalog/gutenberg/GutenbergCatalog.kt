@@ -4,12 +4,13 @@ import com.riffle.core.catalog.BookFormat
 import com.riffle.core.catalog.Catalog
 import com.riffle.core.catalog.CatalogFacet
 import com.riffle.core.catalog.CatalogFileHandle
+import com.riffle.core.catalog.CatalogFileRetryPolicy
 import com.riffle.core.catalog.CatalogFileStream
 import com.riffle.core.catalog.CatalogHealth
 import com.riffle.core.catalog.CatalogItem
 import com.riffle.core.catalog.CatalogRoot
-import com.riffle.core.catalog.CatalogFileRetryPolicy
 import com.riffle.core.catalog.DownloadsCapability
+import com.riffle.core.catalog.FacetedSearchCapability
 import com.riffle.core.catalog.FacetSelection
 import com.riffle.core.catalog.OfflineBrowseCapability
 import com.riffle.core.catalog.ReadCapability
@@ -35,7 +36,8 @@ import java.net.URLEncoder
  * - Mandatory core: implemented.
  * - [OfflineBrowseCapability]: marker mixin — page-cache TTL logic lives in a wrapper repository
  *   layer (not this class).
- * - [DownloadsCapability], [ToReadListCapability], [ReadCapability]: yes.
+ * - [DownloadsCapability], [ToReadListCapability], [ReadCapability],
+ *   [FacetedSearchCapability]: yes.
  * - Absent: Series (Gutendex has bookshelves, not per-title series metadata), Collections,
  *   Playlists, Progress, ReadingSessions, Stats, Bookmarks, AudiobookMedia.
  */
@@ -49,7 +51,8 @@ class GutenbergCatalog(
     OfflineBrowseCapability,
     DownloadsCapability,
     ToReadListCapability,
-    ReadCapability {
+    ReadCapability,
+    FacetedSearchCapability {
 
     override val sourceType: SourceType = SourceType.GUTENBERG
 
@@ -62,14 +65,11 @@ class GutenbergCatalog(
     // ---- Facets -------------------------------------------------------------
 
     /**
-     * Chip strip contents: a curated list of top-level Gutendex topics that map cleanly onto
-     * `?topic=<label>` filters. Gutendex accepts topic as a case-insensitive substring match on
-     * subject/bookshelf, so these are stable — the site's underlying category taxonomy can be
-     * extended without breaking the chip. Kept small (10 entries) so the strip is scannable at
-     * a glance on a phone; power users can search instead.
+     * Chip strip contents: curated Gutendex topics and language filters. Kept small so the strip
+     * is scannable at a glance on a phone; power users can search instead.
      */
     override suspend fun listFacets(rootId: String): List<CatalogFacet> = when (rootId) {
-        ROOT_BOOKS -> DEFAULT_TOPICS
+        ROOT_BOOKS -> DEFAULT_FACETS
         else -> emptyList()
     }
 
@@ -95,16 +95,7 @@ class GutenbergCatalog(
     }
 
     internal fun browseUrlFor(facet: FacetSelection?, page: Int): String {
-        val pageNum = page + 1 // Gutendex pagination is 1-indexed.
-        val qs = buildList {
-            add("page=$pageNum")
-            facet?.key?.let { key ->
-                if (key.startsWith("topic:")) {
-                    add("topic=${URLEncoder.encode(key.removePrefix("topic:"), "UTF-8")}")
-                }
-            }
-        }.joinToString("&")
-        return "$apiBase/books/?$qs"
+        return booksUrl(page = page, facet = facet)
     }
 
     // ---- Search -------------------------------------------------------------
@@ -114,12 +105,28 @@ class GutenbergCatalog(
         query: String,
         page: Int,
         pageSize: Int,
+    ): List<CatalogItem> = search(
+        rootId = rootId,
+        query = query,
+        page = page,
+        pageSize = pageSize,
+        facet = null,
+    )
+
+    override suspend fun search(
+        rootId: String,
+        query: String,
+        page: Int,
+        pageSize: Int,
+        facet: FacetSelection?,
     ): List<CatalogItem> {
         if (rootId != ROOT_BOOKS) return emptyList()
         if (query.isBlank()) return emptyList()
-        val pageNum = page + 1
-        val url = "$apiBase/books/?page=$pageNum&search=" +
-            URLEncoder.encode(query.trim(), "UTF-8")
+        val url = booksUrl(
+            page = page,
+            facet = facet,
+            extraParams = listOf("search=${URLEncoder.encode(query.trim(), "UTF-8")}"),
+        )
         val body = http.getString(url)
         return GutenbergParser.parseListing(body).items
             .map { it.toCatalogItem() }
@@ -218,6 +225,33 @@ class GutenbergCatalog(
         return GutenbergParser.parseBook(body)
     }
 
+    private fun booksUrl(
+        page: Int,
+        facet: FacetSelection?,
+        extraParams: List<String> = emptyList(),
+    ): String {
+        val pageNum = page + 1 // Gutendex pagination is 1-indexed.
+        val qs = buildList {
+            add("page=$pageNum")
+            addAll(facetQueryParams(facet))
+            addAll(extraParams)
+        }.joinToString("&")
+        return "$apiBase/books/?$qs"
+    }
+
+    private fun facetQueryParams(facet: FacetSelection?): List<String> {
+        val key = facet?.key ?: return emptyList()
+        return when {
+            key.startsWith(TOPIC_PREFIX) -> {
+                listOf("topic=${URLEncoder.encode(key.removePrefix(TOPIC_PREFIX), "UTF-8")}")
+            }
+            key.startsWith(LANGUAGE_PREFIX) -> {
+                listOf("languages=${URLEncoder.encode(key.removePrefix(LANGUAGE_PREFIX), "UTF-8")}")
+            }
+            else -> emptyList()
+        }
+    }
+
     private fun GutenbergBookSummary.toCatalogItem(): CatalogItem = CatalogItem(
         id = id.toString(),
         rootId = ROOT_BOOKS,
@@ -254,6 +288,8 @@ class GutenbergCatalog(
 
     companion object {
         const val ROOT_BOOKS: String = "books"
+        private const val TOPIC_PREFIX: String = "topic:"
+        private const val LANGUAGE_PREFIX: String = "language:"
 
         /**
          * Curated topic facets. Gutendex accepts `topic=<label>` as a case-insensitive substring
@@ -261,17 +297,37 @@ class GutenbergCatalog(
          * against Project Gutenberg's Library-of-Congress subject taxonomy.
          */
         internal val DEFAULT_TOPICS: List<CatalogFacet> = listOf(
-            CatalogFacet(key = "topic:fiction", label = "Fiction", sortOrder = 1),
-            CatalogFacet(key = "topic:children", label = "Children's", sortOrder = 2),
-            CatalogFacet(key = "topic:history", label = "History", sortOrder = 3),
-            CatalogFacet(key = "topic:poetry", label = "Poetry", sortOrder = 4),
-            CatalogFacet(key = "topic:philosophy", label = "Philosophy", sortOrder = 5),
-            CatalogFacet(key = "topic:science", label = "Science", sortOrder = 6),
-            CatalogFacet(key = "topic:biography", label = "Biography", sortOrder = 7),
-            CatalogFacet(key = "topic:drama", label = "Drama", sortOrder = 8),
-            CatalogFacet(key = "topic:adventure", label = "Adventure", sortOrder = 9),
-            CatalogFacet(key = "topic:mystery", label = "Mystery", sortOrder = 10),
+            CatalogFacet(key = "${TOPIC_PREFIX}fiction", label = "Fiction", sortOrder = 1),
+            CatalogFacet(key = "${TOPIC_PREFIX}children", label = "Children's", sortOrder = 2),
+            CatalogFacet(key = "${TOPIC_PREFIX}history", label = "History", sortOrder = 3),
+            CatalogFacet(key = "${TOPIC_PREFIX}poetry", label = "Poetry", sortOrder = 4),
+            CatalogFacet(key = "${TOPIC_PREFIX}philosophy", label = "Philosophy", sortOrder = 5),
+            CatalogFacet(key = "${TOPIC_PREFIX}science", label = "Science", sortOrder = 6),
+            CatalogFacet(key = "${TOPIC_PREFIX}biography", label = "Biography", sortOrder = 7),
+            CatalogFacet(key = "${TOPIC_PREFIX}drama", label = "Drama", sortOrder = 8),
+            CatalogFacet(key = "${TOPIC_PREFIX}adventure", label = "Adventure", sortOrder = 9),
+            CatalogFacet(key = "${TOPIC_PREFIX}mystery", label = "Mystery", sortOrder = 10),
         )
+
+        /**
+         * Curated Gutendex language filters. The API accepts comma-separated ISO-639 two-letter
+         * codes in a `languages` query parameter; Riffle exposes one language at a time through
+         * the existing single-selection facet strip.
+         */
+        internal val DEFAULT_LANGUAGES: List<CatalogFacet> = listOf(
+            CatalogFacet(key = "${LANGUAGE_PREFIX}en", label = "English", sortOrder = 101),
+            CatalogFacet(key = "${LANGUAGE_PREFIX}fr", label = "French", sortOrder = 102),
+            CatalogFacet(key = "${LANGUAGE_PREFIX}de", label = "German", sortOrder = 103),
+            CatalogFacet(key = "${LANGUAGE_PREFIX}es", label = "Spanish", sortOrder = 104),
+            CatalogFacet(key = "${LANGUAGE_PREFIX}it", label = "Italian", sortOrder = 105),
+            CatalogFacet(key = "${LANGUAGE_PREFIX}pt", label = "Portuguese", sortOrder = 106),
+            CatalogFacet(key = "${LANGUAGE_PREFIX}nl", label = "Dutch", sortOrder = 107),
+            CatalogFacet(key = "${LANGUAGE_PREFIX}fi", label = "Finnish", sortOrder = 108),
+            CatalogFacet(key = "${LANGUAGE_PREFIX}sv", label = "Swedish", sortOrder = 109),
+            CatalogFacet(key = "${LANGUAGE_PREFIX}pl", label = "Polish", sortOrder = 110),
+        )
+
+        internal val DEFAULT_FACETS: List<CatalogFacet> = DEFAULT_TOPICS + DEFAULT_LANGUAGES
     }
 }
 

@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.riffle.core.catalog.CatalogFacet
 import com.riffle.core.catalog.CatalogItem
 import com.riffle.core.catalog.CatalogRegistry
+import com.riffle.core.catalog.FacetedSearchCapability
 import com.riffle.core.catalog.FacetSelection
 import com.riffle.core.data.websource.WebSourceItemGate
 import com.riffle.core.data.websource.WebSourceLibraryItemUpserter
@@ -266,7 +267,18 @@ abstract class UnboundedBrowseViewModel(
         try {
             val q = _query.value.trim()
             val result = if (q.isNotEmpty()) {
-                catalog.search(rootId = rootId, query = q, page = 0, pageSize = pageSize)
+                val facet = _selectedFacet.value?.let { FacetSelection(it) }
+                if (catalog is FacetedSearchCapability) {
+                    catalog.search(
+                        rootId = rootId,
+                        query = q,
+                        page = 0,
+                        pageSize = pageSize,
+                        facet = facet,
+                    )
+                } else {
+                    catalog.search(rootId = rootId, query = q, page = 0, pageSize = pageSize)
+                }
             } else {
                 val facet = _selectedFacet.value?.let { FacetSelection(it) }
                 catalog.browse(rootId = rootId, page = 0, pageSize = pageSize, facet = facet)
@@ -297,7 +309,18 @@ abstract class UnboundedBrowseViewModel(
             val nextPage = currentPage + 1
             val q = _query.value.trim()
             val next = if (q.isNotEmpty()) {
-                catalog.search(rootId = rootId, query = q, page = nextPage, pageSize = pageSize)
+                val facet = _selectedFacet.value?.let { FacetSelection(it) }
+                if (catalog is FacetedSearchCapability) {
+                    catalog.search(
+                        rootId = rootId,
+                        query = q,
+                        page = nextPage,
+                        pageSize = pageSize,
+                        facet = facet,
+                    )
+                } else {
+                    catalog.search(rootId = rootId, query = q, page = nextPage, pageSize = pageSize)
+                }
             } else {
                 val facet = _selectedFacet.value?.let { FacetSelection(it) }
                 catalog.browse(rootId = rootId, page = nextPage, pageSize = pageSize, facet = facet)

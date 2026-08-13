@@ -8,6 +8,7 @@ import com.riffle.core.domain.LibraryRefreshResult
 import com.riffle.core.domain.LibraryVisibilityPreferencesStore
 import com.riffle.core.domain.SourceRepository
 import com.riffle.core.domain.usecase.RefreshLibraries
+import com.riffle.core.models.SourceType
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
@@ -26,7 +27,11 @@ class HomeViewModel @Inject constructor(
     sealed class StartDestination {
         data object AddSource : StartDestination()
         data object NoLibraries : StartDestination()
-        data class Library(val libraryId: String, val libraryName: String) : StartDestination()
+        data class Library(
+            val sourceType: SourceType,
+            val libraryId: String,
+            val libraryName: String,
+        ) : StartDestination()
     }
 
     suspend fun getStartDestination(): StartDestination = withContext(dispatchers.io) {
@@ -55,6 +60,10 @@ class HomeViewModel @Inject constructor(
         val target = visible.firstOrNull { it.id == lastOpenedId }
             ?: visible.firstOrNull()
             ?: libraries.first()
-        StartDestination.Library(target.id, target.name)
+        StartDestination.Library(
+            sourceType = activeServer.type,
+            libraryId = target.id,
+            libraryName = target.name,
+        )
     }
 }
