@@ -298,7 +298,7 @@ fun MainScreen(
             // With this shape the back stack for those flows stays [caller, ADD_SOURCE], and
             // `previousBackStackEntry.route == SETTINGS` remains the right predicate for
             // "should top-app-bar back pop to Settings?".
-            composable(ADD_SOURCE_TYPE_PICKER) {
+            composable(ADD_SOURCE_TYPE_PICKER) { backStackEntry ->
                 val cameFromSettings = navController.previousBackStackEntry
                     ?.destination?.route == SETTINGS
                 val pickerViewModel: com.riffle.app.feature.server.SourceTypePickerViewModel =
@@ -307,8 +307,8 @@ fun MainScreen(
                 com.riffle.app.feature.server.SourceTypePickerScreen(
                     windowSizeClass = windowSizeClass,
                     onNavigateBack = {
-                        if (cameFromSettings) navController.popBackStack()
-                        else navController.navigateAsRoot(HOME)
+                        if (cameFromSettings) navController.popBackStackIfTop(backStackEntry)
+                        else navController.navigateAsRootIfTop(backStackEntry, HOME)
                     },
                     onPick = { type ->
                         val route = addSourceRouteFor(type)
@@ -342,18 +342,18 @@ fun MainScreen(
                     },
                 )
             }
-            composable(ADD_CHITANKA) {
+            composable(ADD_CHITANKA) { backStackEntry ->
                 val cameFromSettings = navController.previousBackStackEntry
                     ?.destination?.route == SETTINGS
                 com.riffle.app.feature.source.chitanka.AddChitankaScreen(
                     windowSizeClass = windowSizeClass,
                     onDone = {
-                        if (cameFromSettings) navController.popBackStack()
-                        else navController.navigateAsRoot(HOME)
+                        if (cameFromSettings) navController.popBackStackIfTop(backStackEntry)
+                        else navController.navigateAsRootIfTop(backStackEntry, HOME)
                     },
                     onNavigateBack = {
-                        if (cameFromSettings) navController.popBackStack()
-                        else navController.navigateAsRoot(HOME)
+                        if (cameFromSettings) navController.popBackStackIfTop(backStackEntry)
+                        else navController.navigateAsRootIfTop(backStackEntry, HOME)
                     },
                 )
             }
@@ -379,33 +379,33 @@ fun MainScreen(
                     },
                 )
             }
-            composable(ADD_GUTENBERG) {
+            composable(ADD_GUTENBERG) { backStackEntry ->
                 val cameFromSettings = navController.previousBackStackEntry
                     ?.destination?.route == SETTINGS
                 com.riffle.app.feature.source.gutenberg.AddGutenbergScreen(
                     windowSizeClass = windowSizeClass,
                     onDone = {
-                        if (cameFromSettings) navController.popBackStack()
-                        else navController.navigateAsRoot(HOME)
+                        if (cameFromSettings) navController.popBackStackIfTop(backStackEntry)
+                        else navController.navigateAsRootIfTop(backStackEntry, HOME)
                     },
                     onNavigateBack = {
-                        if (cameFromSettings) navController.popBackStack()
-                        else navController.navigateAsRoot(HOME)
+                        if (cameFromSettings) navController.popBackStackIfTop(backStackEntry)
+                        else navController.navigateAsRootIfTop(backStackEntry, HOME)
                     },
                 )
             }
-            composable(ADD_LOCAL_FILES) {
+            composable(ADD_LOCAL_FILES) { backStackEntry ->
                 val cameFromSettings = navController.previousBackStackEntry
                     ?.destination?.route == SETTINGS
                 com.riffle.app.feature.source.localfiles.AddLocalFilesScreen(
                     windowSizeClass = windowSizeClass,
                     onDone = {
-                        if (cameFromSettings) navController.popBackStack()
-                        else navController.navigateAsRoot(HOME)
+                        if (cameFromSettings) navController.popBackStackIfTop(backStackEntry)
+                        else navController.navigateAsRootIfTop(backStackEntry, HOME)
                     },
                     onNavigateBack = {
-                        if (cameFromSettings) navController.popBackStack()
-                        else navController.navigateAsRoot(HOME)
+                        if (cameFromSettings) navController.popBackStackIfTop(backStackEntry)
+                        else navController.navigateAsRootIfTop(backStackEntry, HOME)
                     },
                 )
             }
@@ -436,16 +436,16 @@ fun MainScreen(
                     AddSourceScreen(
                         windowSizeClass = windowSizeClass,
                         onNavigateBack = {
-                            if (cameFromSettings) navController.popBackStack()
-                            else navController.navigateAsRoot(HOME)
+                            if (cameFromSettings) navController.popBackStackIfTop(backStackEntry)
+                            else navController.navigateAsRootIfTop(backStackEntry, HOME)
                         },
                         onAuthenticated = { pending ->
                             setupVm.pendingServer = pending
                             navController.navigate(SELECT_LIBRARIES)
                         },
                         onAutoCompleted = {
-                            if (cameFromSettings) navController.popBackStack()
-                            else navController.navigateAsRoot(HOME)
+                            if (cameFromSettings) navController.popBackStackIfTop(backStackEntry)
+                            else navController.navigateAsRootIfTop(backStackEntry, HOME)
                         },
                     )
                 }
@@ -456,14 +456,14 @@ fun MainScreen(
                     val setupVm: SourceSetupViewModel = hiltViewModel(parentEntry)
                     val pending = setupVm.pendingServer
                     if (pending == null) {
-                        LaunchedEffect(Unit) { navController.popBackStack() }
+                        LaunchedEffect(Unit) { navController.popBackStackIfTop(backStackEntry) }
                     } else {
                         SelectLibrariesScreen(
                             pending = pending,
                             windowSizeClass = windowSizeClass,
-                            onNavigateBack = { navController.popBackStack() },
+                            onNavigateBack = { navController.popBackStackIfTop(backStackEntry) },
                             onContinueComplete = {
-                                navController.navigateAsRoot(HOME)
+                                navController.navigateAsRootIfTop(backStackEntry, HOME)
                             },
                         )
                     }
@@ -506,7 +506,7 @@ fun MainScreen(
                 val settingsVm: com.riffle.app.feature.settings.SettingsViewModel =
                     hiltViewModel(settingsEntry)
                 ReadaloudSettingsScreen(
-                    onNavigateBack = { navController.popBackStack() },
+                    onNavigateBack = { navController.popBackStackIfTop(backStackEntry) },
                     onNavigateToAddSource = { backend, editId ->
                         val params = buildList {
                             add("type=${backend.routeType}")
@@ -521,9 +521,9 @@ fun MainScreen(
                     viewModel = settingsVm,
                 )
             }
-            composable(CHANGELOG) {
+            composable(CHANGELOG) { backStackEntry ->
                 com.riffle.app.feature.update.ChangelogScreen(
-                    onNavigateBack = { navController.popBackStack() },
+                    onNavigateBack = { navController.popBackStackIfTop(backStackEntry) },
                 )
             }
             composable(ANNOTATIONS_SYNC_SETTINGS) { backStackEntry ->
@@ -533,7 +533,7 @@ fun MainScreen(
                 val settingsVm: com.riffle.app.feature.settings.SettingsViewModel =
                     hiltViewModel(settingsEntry)
                 AnnotationsSyncSettingsScreen(
-                    onNavigateBack = { navController.popBackStack() },
+                    onNavigateBack = { navController.popBackStackIfTop(backStackEntry) },
                     onNavigateToAddSource = { backend, editId ->
                         val params = buildList {
                             add("type=${backend.routeType}")
@@ -545,13 +545,13 @@ fun MainScreen(
                     viewModel = settingsVm,
                 )
             }
-            composable(ANNOTATION_SYNC_MAINTENANCE) {
+            composable(ANNOTATION_SYNC_MAINTENANCE) { backStackEntry ->
                 AnnotationSyncMaintenanceScreen(
-                    onNavigateBack = { navController.popBackStack() },
+                    onNavigateBack = { navController.popBackStackIfTop(backStackEntry) },
                 )
             }
-            composable(DEBUG_LOGS) {
-                DebugLogScreen(onNavigateBack = { navController.popBackStack() })
+            composable(DEBUG_LOGS) { backStackEntry ->
+                DebugLogScreen(onNavigateBack = { navController.popBackStackIfTop(backStackEntry) })
             }
             composable(
                 route = READALOUD_MATCHES,
@@ -562,15 +562,15 @@ fun MainScreen(
                         defaultValue = ""
                     },
                 ),
-            ) {
+            ) { backStackEntry ->
                 ReadaloudMatchesScreen(
-                    onNavigateBack = { navController.popBackStack() },
+                    onNavigateBack = { navController.popBackStackIfTop(backStackEntry) },
                 )
             }
-            composable(DOWNLOADS) {
+            composable(DOWNLOADS) { backStackEntry ->
                 DownloadsScreen(
                     windowSizeClass = windowSizeClass,
-                    onNavigateBack = { navController.popBackStack() },
+                    onNavigateBack = { navController.popBackStackIfTop(backStackEntry) },
                     onItemSelected = { item ->
                         navController.navigate(libraryItemDetailRoute(item))
                     },
@@ -612,7 +612,7 @@ fun MainScreen(
                         committedTopRoute(navController.currentBackStackSnapshot().map { it.destination.route })
                             ?.startsWith("library_items/") == true
                     },
-                    onNavigateBack = { navController.popBackStack() },
+                    onNavigateBack = { navController.popCommittedTopFromLibraryPreview() },
                     onSeriesSelected = { series ->
                         navController.navigate(seriesDetailRoute(libraryId, series.id, series.name))
                     },
@@ -663,7 +663,7 @@ fun MainScreen(
                 val playlistLibraryId = backStackEntry.arguments?.getString("libraryId").orEmpty()
                 val playlistIdArg = backStackEntry.arguments?.getString("playlistId").orEmpty()
                 com.riffle.app.feature.library.playlists.PlaylistDetailScreen(
-                    onNavigateBack = { navController.popBackStack() },
+                    onNavigateBack = { navController.popBackStackIfTop(backStackEntry) },
                     onItemSelected = { item ->
                         navController.navigate(libraryItemDetailRoute(item))
                     },
@@ -704,7 +704,7 @@ fun MainScreen(
                     onItemSelected = { item ->
                         navController.navigate(libraryItemDetailRoute(item))
                     },
-                    onNavigateBack = { navController.popBackStack() },
+                    onNavigateBack = { navController.popBackStackIfTop(backStackEntry) },
                 )
             }
             composable(
@@ -724,7 +724,7 @@ fun MainScreen(
                     onItemSelected = { item ->
                         navController.navigate(libraryItemDetailRoute(item))
                     },
-                    onNavigateBack = { navController.popBackStack() },
+                    onNavigateBack = { navController.popBackStackIfTop(backStackEntry) },
                 )
             }
             composable(
@@ -744,7 +744,7 @@ fun MainScreen(
                     onItemSelected = { item ->
                         navController.navigate(libraryItemDetailRoute(item))
                     },
-                    onNavigateBack = { navController.popBackStack() },
+                    onNavigateBack = { navController.popBackStackIfTop(backStackEntry) },
                 )
             }
             composable(
@@ -793,12 +793,12 @@ fun MainScreen(
                     navArgument("facetType") { type = NavType.StringType },
                     navArgument("facetValue") { type = NavType.StringType },
                 ),
-            ) {
+            ) { backStackEntry ->
                 FilteredBooksScreen(
                     onItemSelected = { item ->
                         navController.navigate(libraryItemDetailRoute(item))
                     },
-                    onNavigateBack = { navController.popBackStack() },
+                    onNavigateBack = { navController.popBackStackIfTop(backStackEntry) },
                 )
             }
             composable(
@@ -835,7 +835,7 @@ fun MainScreen(
                         defaultValue = null
                     },
                 )
-            ) {
+            ) { backStackEntry ->
                 val viewModel: com.riffle.app.feature.reader.EpubReaderViewModel = hiltViewModel()
                 val context = LocalContext.current
                 val exportErrorMessage = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.export_pdf_error)
@@ -849,13 +849,14 @@ fun MainScreen(
                                 val encodedId = URLEncoder.encode(event.itemId, "UTF-8")
                                 val encodedCfi = URLEncoder.encode(event.cfi, "UTF-8")
                                 val encodedAnnotationId = URLEncoder.encode(event.annotationId, "UTF-8")
-                                navController.popBackStack()
-                                navController.navigate(
-                                    "epub_reader/$encodedId?openAtCfi=$encodedCfi&openAnnotationId=$encodedAnnotationId"
-                                )
+                                if (navController.popBackStackIfTop(backStackEntry)) {
+                                    navController.navigate(
+                                        "epub_reader/$encodedId?openAtCfi=$encodedCfi&openAnnotationId=$encodedAnnotationId"
+                                    )
+                                }
                             }
                             com.riffle.app.feature.reader.ReaderNavEvent.CloseEmptyHighlights -> {
-                                navController.popBackStack()
+                                navController.popBackStackIfTop(backStackEntry)
                             }
                             is com.riffle.app.feature.reader.ReaderNavEvent.ShareHighlights -> {
                                 val intent = Intent(Intent.ACTION_SEND).apply {
@@ -878,7 +879,7 @@ fun MainScreen(
                 }
                 EpubReaderScreen(
                     windowSizeClass = windowSizeClass,
-                    onNavigateBack = { navController.popBackStack() },
+                    onNavigateBack = { navController.popBackStackIfTop(backStackEntry) },
                     viewModel = viewModel,
                 )
             }
@@ -892,9 +893,9 @@ fun MainScreen(
                         defaultValue = null
                     },
                 ),
-            ) {
+            ) { backStackEntry ->
                 AnnotationSearchResultsScreen(
-                    onNavigateBack = { navController.popBackStack() },
+                    onNavigateBack = { navController.popBackStackIfTop(backStackEntry) },
                     onAnnotationSelected = { result ->
                         val encodedId = URLEncoder.encode(result.annotation.itemId, "UTF-8")
                         val encodedCfi = URLEncoder.encode(result.annotation.cfi, "UTF-8")
@@ -914,16 +915,16 @@ fun MainScreen(
                 arguments = listOf(
                     navArgument("itemId") { type = NavType.StringType },
                 )
-            ) {
-                PdfReaderScreen(onNavigateBack = { navController.popBackStack() })
+            ) { backStackEntry ->
+                PdfReaderScreen(onNavigateBack = { navController.popBackStackIfTop(backStackEntry) })
             }
             composable(
                 route = CBZ_READER,
                 arguments = listOf(
                     navArgument("itemId") { type = NavType.StringType },
                 )
-            ) {
-                CbzReaderScreen(onNavigateBack = { navController.popBackStack() })
+            ) { backStackEntry ->
+                CbzReaderScreen(onNavigateBack = { navController.popBackStackIfTop(backStackEntry) })
             }
             composable(
                 route = AUDIOBOOK_PLAYER,
@@ -953,7 +954,7 @@ fun MainScreen(
                 val currentLibraryId = backStackEntry.arguments?.getString("libraryId")
                 AudiobookPlayerScreen(
                     windowSizeClass = windowSizeClass,
-                    onNavigateBack = { navController.popBackStack() },
+                    onNavigateBack = { navController.popBackStackIfTop(backStackEntry) },
                     // End-of-book with a playlist context: hop straight to the next item's player,
                     // popping the current player entry so Back returns to the playlist detail
                     // (rather than an ever-growing stack of dead player entries).
@@ -1088,7 +1089,7 @@ internal fun committedTopRoute(backStackRoutes: List<String?>): String? =
     backStackRoutes.lastOrNull { it != null }
 
 /**
- * Calls [popBack] only if [isStillTop] returns true.
+ * Calls [action] only if [isStillTop] returns true.
  *
  * Guards back-navigation callbacks in sub-screens against double-pops during Compose exit
  * animations. When a screen exits, its composable stays alive for the animation duration
@@ -1096,18 +1097,30 @@ internal fun committedTopRoute(backStackRoutes: List<String?>): String? =
  * committed back stack has already advanced — [isStillTop] catches this and skips the pop to
  * prevent removing the wrong entry (e.g. library_items → HOME spinner).
  */
-internal fun guardedNavigateBack(isStillTop: () -> Boolean, popBack: () -> Unit) {
-    if (isStillTop()) popBack()
+internal fun guardedNavigateBack(isStillTop: () -> Boolean, action: () -> Unit): Boolean {
+    if (!isStillTop()) return false
+    action()
+    return true
 }
 
-internal fun NavController.popBackStackIfTop(backStackEntry: NavBackStackEntry) {
+private fun NavController.isCommittedTop(backStackEntry: NavBackStackEntry): Boolean =
+    currentBackStackSnapshot().lastOrNull { it.destination.route != null } == backStackEntry
+
+internal fun NavController.popBackStackIfTop(backStackEntry: NavBackStackEntry): Boolean =
     guardedNavigateBack(
-        isStillTop = {
-            currentBackStackSnapshot().lastOrNull { it.destination.route != null } == backStackEntry
-        },
-        popBack = { popBackStack() },
+        isStillTop = { isCommittedTop(backStackEntry) },
+        action = { popBackStack() },
     )
-}
+
+internal fun NavController.navigateAsRootIfTop(backStackEntry: NavBackStackEntry, route: String): Boolean =
+    guardedNavigateBack(
+        isStillTop = { isCommittedTop(backStackEntry) },
+        action = { navigateAsRoot(route) },
+    )
+
+// LibraryItemsScreen can remain composed as the predictive-back preview while a sub-screen is
+// still the committed top. In that one case, popping the actual committed top is intentional.
+internal fun NavController.popCommittedTopFromLibraryPreview(): Boolean = popBackStack()
 
 // Navigating to HOME on every source switch lets getStartDestination() pick the correct library
 // for the new source (last-opened per source, falling back to the first in the list).
