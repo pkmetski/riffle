@@ -1,5 +1,6 @@
 package com.riffle.app.navigation
 
+import java.io.File
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -226,14 +227,51 @@ class GuardedNavigateBackTest {
     @Test
     fun `calls popBack when entry is still the committed top`() {
         var called = false
-        guardedNavigateBack(isStillTop = { true }, popBack = { called = true })
+        val acted = guardedNavigateBack(isStillTop = { true }, action = { called = true })
+        assertTrue(acted)
         assertTrue(called)
     }
 
     @Test
     fun `does not call popBack when entry is no longer the committed top (double-tap during exit animation)`() {
         var called = false
-        guardedNavigateBack(isStillTop = { false }, popBack = { called = true })
+        val acted = guardedNavigateBack(isStillTop = { false }, action = { called = true })
+        assertFalse(acted)
         assertFalse(called)
     }
+}
+
+/**
+ * Keeps the fix at the route-boundary instead of per-screen patches.
+ *
+ * Any route-level UI back callback that calls navController.popBackStack() directly can fire
+ * again while its composable is retained for an exit/predictive-back animation. That second
+ * fire pops the entry underneath the exiting screen, which is the bug this branch is fixing.
+ *
+ * Assertion that flips red if a future route reintroduces the raw pattern: this test will report
+ * the offending MainScreen.kt line and force the callback through popBackStackIfTop(backStackEntry)
+ * or an explicitly named exception helper.
+ */
+class RouteBackCallbackGuardrailTest {
+
+    @Test
+    fun `MainScreen does not call navController popBackStack directly`() {
+        val source = locateMainScreenSource()
+        val offenders = source.readLines()
+            .mapIndexedNotNull { index, line ->
+                if ("navController.popBackStack()" in line) "${index + 1}: ${line.trim()}" else null
+            }
+
+        assertTrue(
+            "Route callbacks must use a guarded helper instead of raw navController.popBackStack():\n" +
+                offenders.joinToString("\n"),
+            offenders.isEmpty(),
+        )
+    }
+
+    private fun locateMainScreenSource(): File =
+        listOf(
+            File("src/main/kotlin/com/riffle/app/navigation/MainScreen.kt"),
+            File("app/src/main/kotlin/com/riffle/app/navigation/MainScreen.kt"),
+        ).first { it.exists() }
 }
