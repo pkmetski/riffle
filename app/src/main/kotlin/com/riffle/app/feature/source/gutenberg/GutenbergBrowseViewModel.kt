@@ -7,6 +7,7 @@ import com.riffle.core.catalog.gutenberg.GutenbergCatalog
 import com.riffle.core.data.websource.WebSourceItemGate
 import com.riffle.core.data.websource.WebSourceLibraryItemUpserter
 import com.riffle.core.domain.CoverGridDensityStore
+import com.riffle.core.domain.LibraryFilterPreferencesStore
 import com.riffle.core.domain.LibraryObserver
 import com.riffle.core.domain.SourceRepository
 import com.riffle.core.models.SourceType
@@ -29,6 +30,7 @@ class GutenbergBrowseViewModel @Inject constructor(
     libraryItemUpserter: WebSourceLibraryItemUpserter,
     webSourceItemGate: WebSourceItemGate,
     coverGridDensityStore: CoverGridDensityStore,
+    libraryFilterPreferencesStore: LibraryFilterPreferencesStore,
     libraryObserver: LibraryObserver,
 ) : UnboundedBrowseViewModel(
     savedStateHandle = savedStateHandle,
@@ -37,6 +39,7 @@ class GutenbergBrowseViewModel @Inject constructor(
     libraryItemUpserter = libraryItemUpserter,
     webSourceItemGate = webSourceItemGate,
     coverGridDensityStore = coverGridDensityStore,
+    libraryFilterPreferencesStore = libraryFilterPreferencesStore,
     libraryObserver = libraryObserver,
     sourceType = SourceType.GUTENBERG,
     defaultRootId = GutenbergCatalog.ROOT_BOOKS,

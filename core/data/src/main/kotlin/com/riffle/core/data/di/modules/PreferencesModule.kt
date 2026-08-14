@@ -9,6 +9,7 @@ import com.riffle.core.data.ContentCacheAccessStoreImpl
 import com.riffle.core.data.FormattingPreferencesStoreImpl
 import com.riffle.core.data.FormattingPreferencesStoreProviderImpl
 import com.riffle.core.data.LastOpenedLibraryStoreImpl
+import com.riffle.core.data.LibraryFilterPreferencesStoreImpl
 import com.riffle.core.data.LibraryOrderPreferencesStoreImpl
 import com.riffle.core.data.LibraryVisibilityPreferencesStoreImpl
 import com.riffle.core.data.ListeningPreferencesStoreImpl
@@ -25,6 +26,7 @@ import com.riffle.core.data.di.HighlightsFormattingPreferencesDataStore
 import com.riffle.core.data.di.HighlightColorPreferencesDataStore
 import com.riffle.core.data.di.HighlightsResumePreferencesDataStore
 import com.riffle.core.data.di.LastOpenedLibraryDataStore
+import com.riffle.core.data.di.LibraryFilterPreferencesDataStore
 import com.riffle.core.data.di.LibraryOrderPreferencesDataStore
 import com.riffle.core.data.di.LibraryVisibilityPreferencesDataStore
 import com.riffle.core.data.di.ListeningPreferencesDataStore
@@ -45,6 +47,7 @@ import com.riffle.core.data.di.formattingPreferencesHighlightsDataStore
 import com.riffle.core.data.di.highlightColorPreferencesDataStore
 import com.riffle.core.data.di.highlightsResumePreferencesDataStore
 import com.riffle.core.data.di.lastOpenedLibraryDataStore
+import com.riffle.core.data.di.libraryFilterPreferencesDataStore
 import com.riffle.core.data.di.libraryOrderPreferencesDataStore
 import com.riffle.core.data.di.libraryVisibilityPreferencesDataStore
 import com.riffle.core.data.di.listeningPreferencesDataStore
@@ -66,6 +69,7 @@ import com.riffle.core.models.FormattingScope
 import com.riffle.core.domain.HighlightColorPreferencesStore
 import com.riffle.core.domain.HighlightsResumeStore
 import com.riffle.core.domain.LastOpenedLibraryStore
+import com.riffle.core.domain.LibraryFilterPreferencesStore
 import com.riffle.core.domain.LibraryOrderPreferencesStore
 import com.riffle.core.domain.LibraryVisibilityPreferencesStore
 import com.riffle.core.domain.ListeningPreferencesStore
@@ -113,6 +117,10 @@ abstract class PreferencesModule {
 
     @Binds
     @Singleton
+    abstract fun bindLibraryFilterPreferencesStore(impl: LibraryFilterPreferencesStoreImpl): LibraryFilterPreferencesStore
+
+    @Binds
+    @Singleton
     abstract fun bindLibraryOrderPreferencesStore(impl: LibraryOrderPreferencesStoreImpl): LibraryOrderPreferencesStore
 
     @Binds
@@ -154,6 +162,9 @@ abstract class PreferencesModule {
 
         @Provides @Singleton @LibraryVisibilityPreferencesDataStore
         fun provideLibraryVisibilityPreferencesDataStore(@ApplicationContext c: Context): DataStore<Preferences> = c.libraryVisibilityPreferencesDataStore
+
+        @Provides @Singleton @LibraryFilterPreferencesDataStore
+        fun provideLibraryFilterPreferencesDataStore(@ApplicationContext c: Context): DataStore<Preferences> = c.libraryFilterPreferencesDataStore
 
         @Provides @Singleton @LocalToReadDataStore
         fun provideLocalToReadDataStore(@ApplicationContext c: Context): DataStore<Preferences> = c.localToReadDataStore

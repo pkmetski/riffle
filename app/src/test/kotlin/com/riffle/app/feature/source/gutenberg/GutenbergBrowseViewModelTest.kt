@@ -17,6 +17,8 @@ import com.riffle.core.catalog.gutenberg.GutenbergCatalog
 import com.riffle.core.data.websource.WebSourceItemGate
 import com.riffle.core.data.websource.WebSourceLibraryItemUpserter
 import com.riffle.core.domain.CoverGridDensityStore
+import com.riffle.core.domain.LibraryFilterPreferences
+import com.riffle.core.domain.LibraryFilterPreferencesStore
 import com.riffle.core.domain.SourceRepository
 import com.riffle.core.models.Source
 import com.riffle.core.models.SourceType
@@ -27,8 +29,12 @@ import io.mockk.mockk
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.async
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
@@ -77,6 +83,7 @@ class GutenbergBrowseViewModelTest {
             coEvery { openItem(any(), any(), any(), any()) } returns WebSourceItemGate.Outcome.Fresh
         },
         upserter: WebSourceLibraryItemUpserter = mockk(relaxed = true),
+        libraryFilterPreferencesStore: LibraryFilterPreferencesStore = FakeLibraryFilterPreferencesStore(),
         catalog: Catalog = mockk<Catalog>(relaxed = true).also {
             // Gutendex facets aren't relevant to openDetail; keep the init refresh cheap.
             coEvery { it.listFacets(any()) } returns emptyList()
@@ -92,6 +99,7 @@ class GutenbergBrowseViewModelTest {
             upserter,
             gate,
             fakeCoverGridDensityStore(),
+            libraryFilterPreferencesStore,
             emptyLibraryObserver(),
         )
         return vm to gate
@@ -140,6 +148,44 @@ class GutenbergBrowseViewModelTest {
         assertEquals("dumas", catalog.lastSearchQuery)
     }
 
+    @Test
+    fun `remembered language facet is used for initial Project Gutenberg browse`() = runTest(dispatcher) {
+        val store = FakeLibraryFilterPreferencesStore(
+            mapOf(
+                ("gut-1" to GutenbergCatalog.ROOT_BOOKS) to LibraryFilterPreferences(
+                    selectedFacetKey = "language:fr",
+                    notStartedFilterActive = true,
+                ),
+            ),
+        )
+        val catalog = RecordingFacetedSearchCatalog()
+        val (vm, _) = makeVm(catalog = catalog, libraryFilterPreferencesStore = store)
+        advanceUntilIdle()
+
+        assertEquals("language:fr", vm.selectedFacet.value)
+        assertEquals(true, vm.notStartedFilterActive.value)
+        assertEquals(FacetSelection("language:fr"), catalog.lastBrowseFacet)
+    }
+
+    @Test
+    fun `facet and not-started changes are persisted for Project Gutenberg`() = runTest(dispatcher) {
+        val store = FakeLibraryFilterPreferencesStore()
+        val (vm, _) = makeVm(libraryFilterPreferencesStore = store)
+        advanceUntilIdle()
+
+        vm.selectFacet("topic:history")
+        vm.toggleNotStartedFilter()
+        advanceUntilIdle()
+
+        assertEquals(
+            LibraryFilterPreferences(
+                selectedFacetKey = "topic:history",
+                notStartedFilterActive = true,
+            ),
+            store.state.value["gut-1" to GutenbergCatalog.ROOT_BOOKS],
+        )
+    }
+
     private fun fakeSourceRepo(active: Source?): SourceRepository = object : SourceRepository {
         override fun observeAll() = kotlinx.coroutines.flow.flowOf(listOfNotNull(active))
         override suspend fun getActive(): Source? = active
@@ -160,9 +206,37 @@ class GutenbergBrowseViewModelTest {
 
     private fun emptyLibraryObserver() = FakeLibraryObserver()
 
+    private class FakeLibraryFilterPreferencesStore(
+        initial: Map<Pair<String, String>, LibraryFilterPreferences> = emptyMap(),
+    ) : LibraryFilterPreferencesStore {
+        val state = MutableStateFlow(initial)
+
+        override fun preferences(sourceId: String, libraryId: String): Flow<LibraryFilterPreferences> =
+            state.map { it[sourceId to libraryId] ?: LibraryFilterPreferences() }
+
+        override suspend fun setSelectedFacetKey(sourceId: String, libraryId: String, key: String?) {
+            state.update {
+                it + ((sourceId to libraryId) to ((it[sourceId to libraryId] ?: LibraryFilterPreferences()).copy(selectedFacetKey = key)))
+            }
+        }
+
+        override suspend fun setNotStartedFilterActive(sourceId: String, libraryId: String, active: Boolean) {
+            state.update {
+                it + ((sourceId to libraryId) to ((it[sourceId to libraryId] ?: LibraryFilterPreferences()).copy(notStartedFilterActive = active)))
+            }
+        }
+
+        override suspend fun setSortModeName(sourceId: String, libraryId: String, name: String?) {
+            state.update {
+                it + ((sourceId to libraryId) to ((it[sourceId to libraryId] ?: LibraryFilterPreferences()).copy(sortModeName = name)))
+            }
+        }
+    }
+
     private inner class RecordingFacetedSearchCatalog : Catalog, FacetedSearchCapability {
         var lastSearchFacet: FacetSelection? = null
         var lastSearchQuery: String? = null
+        var lastBrowseFacet: FacetSelection? = null
 
         override val sourceType: SourceType = SourceType.GUTENBERG
 
@@ -173,7 +247,10 @@ class GutenbergBrowseViewModelTest {
             page: Int,
             pageSize: Int,
             facet: FacetSelection?,
-        ): List<CatalogItem> = emptyList()
+        ): List<CatalogItem> {
+            lastBrowseFacet = facet
+            return emptyList()
+        }
 
         override suspend fun search(
             rootId: String,
