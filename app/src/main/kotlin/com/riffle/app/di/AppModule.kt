@@ -3,8 +3,11 @@
 package com.riffle.app.di
 
 import android.content.Context
+import com.riffle.app.BuildConfig
 import com.riffle.app.feature.reader.EbookCfiTranslatorFactoryImpl
 import com.riffle.core.data.AppearanceCoordinatorImpl
+import com.riffle.core.data.dictionary.PackManifestFetcher
+import io.ktor.client.HttpClient
 import com.riffle.core.domain.AppThemeStore
 import com.riffle.core.domain.ApplicationScope
 import com.riffle.core.common.Clock
@@ -123,6 +126,11 @@ object AppModule {
     fun provideReadaloudOfflineDownloader(
         impl: com.riffle.app.feature.reader.readaloud.ReadaloudOfflineDownloaderImpl,
     ): com.riffle.app.feature.reader.readaloud.ReadaloudOfflineDownloader = impl
+
+    @Provides
+    @Singleton
+    fun providePackManifestFetcher(httpClient: HttpClient): PackManifestFetcher =
+        PackManifestFetcher(httpClient, BuildConfig.DICT_MANIFEST_URL)
 
     @Provides
     @Singleton

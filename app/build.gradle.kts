@@ -55,6 +55,7 @@ android {
         buildConfigField("String", "DEV_SERVER_URL", "\"\"")
         buildConfigField("String", "DEV_USERNAME", "\"\"")
         buildConfigField("String", "DEV_PASSWORD", "\"\"")
+        buildConfigField("String", "DICT_MANIFEST_URL", "\"\"")
 
         // Resolved Readium version, surfaced so ReadiumVersionPinTest can flag any future bump
         // (Readium 3.2.0+ regresses the readaloud highlight — see that test).
@@ -129,6 +130,7 @@ dependencies {
     implementation(project(":core:sources"))
     implementation(project(":core:sync"))
     implementation(project(":core:data"))
+    implementation(project(":core:dictionary"))
     implementation(project(":core:database"))
     implementation(libs.kotlinx.serialization.json)
     implementation(project(":core:logging"))
