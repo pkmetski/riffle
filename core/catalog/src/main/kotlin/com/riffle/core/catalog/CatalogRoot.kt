@@ -10,4 +10,6 @@ data class CatalogRoot(
     val name: String,
     val mediaType: String,
     val isUnsupported: Boolean = false,
+    /** Destination folder used when this root accepts an uploaded item, if applicable. */
+    val importFolderId: String? = null,
 )

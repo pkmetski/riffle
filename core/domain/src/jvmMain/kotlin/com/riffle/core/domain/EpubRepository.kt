@@ -30,5 +30,7 @@ interface EpubRepository {
     fun isDownloaded(sourceId: String, itemId: String): Boolean
     fun isCached(sourceId: String, itemId: String): Boolean
     suspend fun saveReadingPosition(itemId: String, cfi: String)
+    /** Returns the complete persisted Readium Locator JSON, when a position exists. */
+    suspend fun loadLastPosition(sourceId: String, itemId: String): String? = null
     suspend fun loadLastPositionHref(sourceId: String, itemId: String): String? = null
 }

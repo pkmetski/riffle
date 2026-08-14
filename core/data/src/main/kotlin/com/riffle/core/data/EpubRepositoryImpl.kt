@@ -166,8 +166,11 @@ class EpubRepositoryImpl(
         positionStore.save(sourceId, itemId, cfi)
     }
 
+    override suspend fun loadLastPosition(sourceId: String, itemId: String): String? =
+        positionStore.load(sourceId, itemId)
+
     override suspend fun loadLastPositionHref(sourceId: String, itemId: String): String? {
-        val json = positionStore.load(sourceId, itemId) ?: return null
+        val json = loadLastPosition(sourceId, itemId) ?: return null
         return runCatching { org.json.JSONObject(json).getString("href").trimStart('/') }.getOrNull()
     }
 

@@ -38,4 +38,7 @@ data class CatalogItem(
     val readingProgress: Float? = null,
     /** Last time this item was updated on the source (used to bust cover-image CDN caches). */
     val updatedAt: Long? = null,
+    /** Optional stable on-disk identity exposed by server-backed catalogs. */
+    val path: String? = null,
+    val relPath: String? = null,
 )

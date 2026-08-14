@@ -1,6 +1,12 @@
 package com.riffle.core.catalog.abs
 
 import com.riffle.core.catalog.AudiobookMediaCapability
+import com.riffle.core.catalog.BookImportCapability
+import com.riffle.core.catalog.CatalogImportMetadata
+import com.riffle.core.catalog.CatalogImportResult
+import com.riffle.core.catalog.CatalogImportPhase
+import com.riffle.core.catalog.CatalogImportProgress
+import com.riffle.core.catalog.CatalogImportRequest
 import com.riffle.core.catalog.AudiobookProgressPeerCapability
 import com.riffle.core.catalog.BookFormat
 import com.riffle.core.catalog.BookmarksCapability
@@ -36,6 +42,7 @@ import com.riffle.core.catalog.SeriesCapability
 import com.riffle.core.catalog.SortKey
 import com.riffle.core.catalog.StatsCapability
 import com.riffle.core.catalog.ToReadListCapability
+import com.riffle.core.catalog.doesDestinationItemExist
 import com.riffle.core.models.AudiobookFingerprint
 import com.riffle.core.common.Clock
 import com.riffle.core.models.EbookFormat
@@ -49,6 +56,10 @@ import com.riffle.core.network.AbsPlaybackApi
 import com.riffle.core.network.AbsServerInfoApi
 import com.riffle.core.network.AbsSessionApi
 import com.riffle.core.network.NetworkAbsAudioTrack
+import com.riffle.core.network.NetworkAbsAuthorUpdate
+import com.riffle.core.network.NetworkAbsChapterUpdate
+import com.riffle.core.network.NetworkAbsMetadataUpdate
+import com.riffle.core.network.NetworkAbsSeriesUpdate
 import com.riffle.core.network.NetworkAbsBookmark
 import com.riffle.core.network.NetworkAudiobookProgressPayload
 import com.riffle.core.network.NetworkCollection
@@ -59,7 +70,14 @@ import com.riffle.core.network.NetworkPlaylist
 import com.riffle.core.network.NetworkResult
 import com.riffle.core.network.NetworkSeries
 import com.riffle.core.network.NetworkServerProgress
+import com.riffle.core.network.NetworkUploadMetadata
+import com.riffle.core.network.NetworkUploadPart
 import com.riffle.core.network.errorAsThrowable
+import io.ktor.utils.io.jvm.javaio.toByteReadChannel
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.CancellationException
+import java.io.File
+import java.io.FileInputStream
 
 /**
  * The ABS-backed [Catalog] implementation. Wraps the existing ABS HTTP client (split across
@@ -95,7 +113,7 @@ class AbsCatalog(
     DownloadsCapability,
     ReadaloudCapability,
     ToReadListCapability,
-    ReadCapability {
+    ReadCapability, BookImportCapability {
 
     override val sourceType: SourceType = SourceType.ABS
 
@@ -105,6 +123,337 @@ class AbsCatalog(
         libraryApi.getLibraries(config.baseUrl, config.token, config.insecureAllowed)
             .unwrap()
             .map { it.toCatalogRoot() }
+
+    override suspend fun importBook(request: CatalogImportRequest): CatalogImportResult {
+        if (request.files.isEmpty()) {
+            return CatalogImportResult.Failed(IllegalArgumentException("An upload needs at least one file"))
+        }
+        if (request.folderId.isNullOrBlank()) {
+            return CatalogImportResult.Failed(
+                IllegalArgumentException("ABS upload requires a destination library folder"),
+            )
+        }
+        val tempFiles = mutableListOf<File>()
+        val uploadStartMs = clock.nowMs()
+        return try {
+            request.onProgress(CatalogImportProgress(CatalogImportPhase.Preparing, 0, request.files.size))
+            val uploadFiles = request.files.mapIndexed { index, file ->
+                val tempFile = materializeImportFile(file)
+                tempFiles += tempFile
+                request.onProgress(CatalogImportProgress(CatalogImportPhase.Preparing, index + 1, request.files.size))
+                NetworkUploadPart(
+                    fileName = file.fileName,
+                    mimeType = file.mimeType,
+                    sizeBytes = tempFile.length(),
+                    provider = { FileInputStream(tempFile).toByteReadChannel() },
+                )
+            }
+            // ABS groups files by the shared title/folder fields, but its upload endpoint is
+            // unreliable when several files are sent in one multipart request. Upload each
+            // audiobook track separately so all tracks still land in the same ABS item.
+            val uploadBatches = if (uploadFiles.size == 1) {
+                listOf(uploadFiles)
+            } else {
+                uploadFiles.map(::listOf)
+            }
+            uploadBatches.forEachIndexed { index, files ->
+                request.onProgress(
+                    CatalogImportProgress(
+                        phase = CatalogImportPhase.Uploading,
+                        completedFiles = index,
+                        totalFiles = uploadBatches.size,
+                    ),
+                )
+                val result = libraryApi.uploadBook(
+                    baseUrl = config.baseUrl,
+                    libraryId = request.libraryId,
+                    // ABS requires the configured library-folder id here. ABS creates the actual
+                    // item directory beneath it from author/series/title metadata.
+                    metadata = request.metadata.toNetworkUploadMetadata(request.folderId),
+                    files = files,
+                    token = config.token,
+                    insecureAllowed = config.insecureAllowed,
+                )
+                result.unwrap()
+            }
+            request.onProgress(
+                CatalogImportProgress(
+                    phase = CatalogImportPhase.Uploading,
+                    completedFiles = uploadBatches.size,
+                    totalFiles = uploadBatches.size,
+                ),
+            )
+            request.onProgress(CatalogImportProgress(CatalogImportPhase.Uploaded))
+            // /api/upload only moves files. Ask ABS to start indexing them immediately; the
+            // watcher remains asynchronous, so reconciliation below still polls the library.
+            try {
+                libraryApi.scanLibrary(
+                    config.baseUrl,
+                    request.libraryId,
+                    config.token,
+                    config.insecureAllowed,
+                ).unwrap()
+            } catch (cause: CancellationException) {
+                throw cause
+            } catch (_: Throwable) {
+                // Scanning is best effort. The normal watcher may still discover the files.
+            }
+            val reconciliationWarning = mutableListOf<String>()
+            request.onProgress(CatalogImportProgress(CatalogImportPhase.Reconciling))
+            val destinationItem = try {
+                reconcileUploadedItem(request, uploadStartMs)
+            } catch (cause: CancellationException) {
+                throw cause
+            } catch (cause: Throwable) {
+                reconciliationWarning += "Uploaded, but the destination item could not be reconciled: ${cause.message ?: "unknown error"}"
+                null
+            }
+            if (destinationItem == null) {
+                CatalogImportResult.Uploaded(
+                    warnings = reconciliationWarning.ifEmpty {
+                        listOf("Uploaded, but the destination item could not be reconciled")
+                    },
+                )
+            } else {
+                request.onProgress(CatalogImportProgress(CatalogImportPhase.Finalizing))
+                val warnings = reconciliationWarning + enrichUploadedItem(destinationItem, request)
+                CatalogImportResult.Uploaded(destinationItemId = destinationItem.id, warnings = warnings)
+            }
+        } catch (cause: CancellationException) {
+            throw cause
+        } catch (cause: Throwable) {
+            CatalogImportResult.Failed(cause)
+        } finally {
+            tempFiles.forEach(File::delete)
+        }
+    }
+
+    private suspend fun materializeImportFile(file: com.riffle.core.catalog.CatalogImportFile): File {
+        val temp = File.createTempFile("riffle-upload-", ".part")
+        try {
+            file.withStream { stream ->
+                stream.byteStream().use { input ->
+                    temp.outputStream().use { output -> input.copyTo(output) }
+                }
+            }
+            return temp
+        } catch (cause: Throwable) {
+            temp.delete()
+            throw cause
+        }
+    }
+
+    /**
+     * ABS's upload endpoint only moves the files and does not return a library-item id. The
+     * watcher creates the item asynchronously, so poll the selected library listing until the
+     * item exists. Search is used as a fallback because its index can lag behind the listing.
+     * Reuse the same stable-id/title+author matcher as the UI preflight so all post-upload
+     * mutations target the item that was actually created.
+     */
+    private suspend fun reconcileUploadedItem(request: CatalogImportRequest, uploadStartMs: Long): ReconciledDestinationItem? {
+        val sourceIdentity = CatalogItem(
+            id = "import",
+            rootId = request.libraryId,
+            title = request.metadata.title,
+            author = request.metadata.author,
+            coverUrl = request.metadata.coverUrl,
+            ebookFormat = BookFormat.Unsupported,
+            seriesName = request.metadata.series,
+            seriesSequence = request.metadata.seriesSequence,
+            description = request.metadata.description,
+            publisher = request.metadata.publisher,
+            language = request.metadata.language,
+            publishedYear = request.metadata.publishedYear,
+            genres = request.metadata.genres,
+            isbn = request.metadata.isbn,
+            asin = request.metadata.asin,
+        )
+        repeat(RECONCILIATION_ATTEMPTS) { attempt ->
+            // ABS returns immediately when another library scan is already running. A scan
+            // kicked off before the upload can therefore miss these files; retry at intervals
+            // so the upload is picked up once that scan has finished.
+            if (attempt > 0 && attempt % RESCAN_INTERVAL_ATTEMPTS == 0) {
+                try {
+                    libraryApi.scanLibrary(
+                        config.baseUrl,
+                        request.libraryId,
+                        config.token,
+                        config.insecureAllowed,
+                    ).unwrap()
+                } catch (cause: CancellationException) {
+                    throw cause
+                } catch (_: Throwable) {
+                    // Scanning is best effort; continue polling the listing.
+                }
+            }
+            val candidates = try {
+                libraryApi.getRecentlyAddedLibraryItems(
+                    config.baseUrl,
+                    request.libraryId,
+                    RECONCILIATION_LIMIT,
+                    config.token,
+                    config.insecureAllowed,
+                ).unwrap()
+            } catch (cause: CancellationException) {
+                throw cause
+            } catch (_: Throwable) {
+                emptyList()
+            }
+            // ABS's directory is the identity Riffle requested. Check it before metadata or
+            // timestamps: during a rescan, both title/author and addedAt may describe a prior
+            // scan state even though the stable author/title folder is already present.
+            candidates.firstOrNull { candidate ->
+                doesDestinationItemExist(sourceIdentity, listOf(candidate.toCatalogItem()))
+            }
+                ?.let { return ReconciledDestinationItem(it.id, it.addedAt) }
+
+            // addedAt identifies the item created by this upload even when ABS has not yet
+            // parsed the EPUB/ID3 metadata, so do not require title/author matching here.
+            candidates.firstOrNull { it.addedAt?.let { addedAt -> addedAt > uploadStartMs } == true }
+                ?.let { return ReconciledDestinationItem(it.id, it.addedAt) }
+
+            // Keep the logical matcher as a compatibility fallback for servers that omit
+            // addedAt or have clock skew between the client and ABS.
+            val fallbackCandidates = buildList {
+                addAll(candidates)
+                try {
+                    addAll(
+                        libraryApi.searchLibrary(
+                            config.baseUrl,
+                            request.libraryId,
+                            request.metadata.title,
+                            limit = 50,
+                            config.token,
+                            config.insecureAllowed,
+                        ).unwrap()
+                    )
+                } catch (cause: CancellationException) {
+                    throw cause
+                } catch (_: Throwable) {
+                    // Search indexing is asynchronous on ABS; continue polling the listing.
+                }
+            }
+            fallbackCandidates.firstOrNull { candidate ->
+                doesDestinationItemExist(sourceIdentity, listOf(candidate.toCatalogItem()))
+            }?.let { return ReconciledDestinationItem(it.id, it.addedAt) }
+            if (attempt < RECONCILIATION_ATTEMPTS - 1) delay(RECONCILIATION_DELAY_MS)
+        }
+        return null
+    }
+
+    private suspend fun enrichUploadedItem(
+        destination: ReconciledDestinationItem,
+        request: CatalogImportRequest,
+    ): List<String> {
+        val itemId = destination.id
+        val warnings = mutableListOf<String>()
+        suspend fun attempt(label: String, operation: suspend () -> Unit) {
+            try {
+                operation()
+            } catch (cause: CancellationException) {
+                throw cause
+            } catch (cause: Throwable) {
+                warnings += "$label could not be applied: ${cause.message ?: "unknown error"}"
+            }
+        }
+
+        attempt("Metadata") {
+            val metadataUpdate = request.metadata.toNetworkAbsMetadataUpdate()
+            libraryApi.updateItemMedia(
+                config.baseUrl,
+                itemId,
+                metadataUpdate,
+                config.token,
+                config.insecureAllowed,
+            ).unwrap()
+
+            // /api/upload returns after moving files; ABS's watcher can still finish scanning the
+            // directory and overwrite metadata from the EPUB/audio tags. Give that scan a chance
+            // to settle, then re-apply the source metadata if it was overwritten.
+            val remainingScanDelay = destination.addedAt
+                ?.let { (it + METADATA_SETTLE_DELAY_MS - clock.nowMs()).coerceAtLeast(0L) }
+                ?: METADATA_SETTLE_DELAY_MS
+            delay(remainingScanDelay)
+            val current = runCatching {
+                libraryApi.getItem(
+                    config.baseUrl,
+                    itemId,
+                    config.token,
+                    config.insecureAllowed,
+                ).unwrap()
+            }.getOrNull()
+            if (current == null || current.metadataDiffersFrom(request.metadata)) {
+                libraryApi.updateItemMedia(
+                    config.baseUrl,
+                    itemId,
+                    metadataUpdate,
+                    config.token,
+                    config.insecureAllowed,
+                ).unwrap()
+            }
+        }
+        if (request.chapters.isNotEmpty()) {
+            attempt("Chapters") {
+                libraryApi.updateItemChapters(
+                    config.baseUrl,
+                    itemId,
+                    request.chapters.map { chapter ->
+                        NetworkAbsChapterUpdate(chapter.id, chapter.startSec, chapter.endSec, chapter.title)
+                    },
+                    config.token,
+                    config.insecureAllowed,
+                ).unwrap()
+            }
+        }
+        request.metadata.coverUrl?.takeIf(String::isNotBlank)?.let { coverUrl ->
+            attempt("Cover") {
+                libraryApi.uploadItemCoverFromUrl(
+                    config.baseUrl,
+                    itemId,
+                    coverUrl,
+                    config.token,
+                    config.insecureAllowed,
+                ).unwrap()
+            }
+        }
+        if (request.ebookLocation != null) {
+            request.readingProgress?.let { progress ->
+                attempt("Reading progress") {
+                    sessionApi.syncEbookProgress(
+                        config.baseUrl,
+                        itemId,
+                        NetworkEbookProgressPayload(
+                            // An empty location is valid for ABS and preserves the numeric
+                            // progress when no source CFI is available. Never send a raw EPUB
+                            // href here: ABS expects its epubcfi(...) dialect.
+                            ebookLocation = request.ebookLocation,
+                            ebookProgress = progress.coerceIn(0f, 1f),
+                            isFinished = progress >= 1f,
+                        ),
+                        config.token,
+                        config.insecureAllowed,
+                    ).unwrap()
+                }
+            }
+        }
+        if (request.audioDurationSec > 0.0) {
+            request.readingProgress?.let { progress ->
+                attempt("Listening progress") {
+                    sessionApi.syncAudiobookProgress(
+                        config.baseUrl,
+                        itemId,
+                        NetworkAudiobookProgressPayload(
+                            currentTime = progress.coerceIn(0f, 1f) * request.audioDurationSec,
+                            duration = request.audioDurationSec,
+                        ),
+                        config.token,
+                        config.insecureAllowed,
+                    ).unwrap()
+                }
+            }
+        }
+        return warnings
+    }
 
     override suspend fun browse(
         rootId: String,
@@ -531,6 +880,7 @@ class AbsCatalog(
         name = name,
         mediaType = mediaType,
         isUnsupported = mediaType == "podcast",
+        importFolderId = folders.firstOrNull()?.id,
     )
 
     private fun NetworkLibraryItem.toCatalogItem(): CatalogItem = CatalogItem(
@@ -554,6 +904,8 @@ class AbsCatalog(
         asin = asin,
         readingProgress = readingProgress,
         updatedAt = updatedAt,
+        path = path,
+        relPath = relPath,
     )
 
     private fun NetworkSeries.toCatalogSeries(): CatalogSeries = CatalogSeries(
@@ -628,6 +980,61 @@ class AbsCatalog(
         if (from >= size) return emptyList()
         val to = (from + pageSize).coerceAtMost(size)
         return subList(from, to)
+    }
+
+    private fun CatalogImportMetadata.toNetworkUploadMetadata(folderId: String?) = NetworkUploadMetadata(
+        title = title,
+        author = author,
+        folderId = folderId,
+        series = series,
+        description = description,
+        publisher = publisher,
+        language = language,
+        publishedYear = publishedYear,
+        genres = genres,
+        isbn = isbn,
+        asin = asin,
+    )
+
+    private fun CatalogImportMetadata.toNetworkAbsMetadataUpdate() = NetworkAbsMetadataUpdate(
+        title = title,
+        authors = listOf(NetworkAbsAuthorUpdate(author)),
+        series = series?.let { listOf(NetworkAbsSeriesUpdate(it, seriesSequence)) }.orEmpty(),
+        genres = genres,
+        publishedYear = publishedYear,
+        publisher = publisher,
+        description = description,
+        isbn = isbn,
+        asin = asin,
+        language = language,
+    )
+
+    private fun NetworkLibraryItem.metadataDiffersFrom(expected: CatalogImportMetadata): Boolean =
+        title != expected.title ||
+            author != expected.author ||
+            (expected.description != null && description != expected.description) ||
+            (expected.series != null && seriesName != expected.series) ||
+            (expected.publishedYear != null && publishedYear != expected.publishedYear) ||
+            (expected.genres.isNotEmpty() && genres != expected.genres) ||
+            (expected.publisher != null && publisher != expected.publisher) ||
+            (expected.language != null && language != expected.language) ||
+            (expected.isbn != null && isbn != expected.isbn) ||
+            (expected.asin != null && asin != expected.asin)
+
+    private data class ReconciledDestinationItem(
+        val id: String,
+        val addedAt: Long?,
+    )
+
+    private companion object {
+        const val RECONCILIATION_ATTEMPTS = 30
+        const val RECONCILIATION_DELAY_MS = 2_000L
+        // The upload may reuse an existing author/title directory, so ABS keeps the item's
+        // original addedAt and it may no longer be in the newest ten results. Fetch a full
+        // library-sized window so reconciliation can still locate that item.
+        const val RECONCILIATION_LIMIT = 1_000
+        const val RESCAN_INTERVAL_ATTEMPTS = 5
+        const val METADATA_SETTLE_DELAY_MS = 14_000L
     }
 
     // endregion

@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Riffle — Upload to server prototype</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main class="prototype-workspace">
+      <section class="phone" aria-label="Riffle app preview">
+        <div class="status-bar"><span>8:42</span><span class="status-icons">◢ ◇ ▰</span></div>
+        <div id="appScreen"></div>
+        <div class="system-bar"><span></span></div>
+      </section>
+
+      <aside class="prototype-panel">
+        <div class="prototype-kicker">Riffle localhost prototype</div>
+        <h1>Upload a Web Source item</h1>
+        <p>Open the overflow menu on the item detail screen. The upload action is intentionally subtle and only appears when both conditions are true.</p>
+
+        <label>Media shape<select id="formatSelect"><option value="audio">Audiobook · ordered MP3 chapters</option><option value="epub">EPUB · chapter structure</option></select></label>
+        <label>Item source<select id="sourceSelect"><option value="web">Web Source item</option><option value="server">Server Source item</option></select></label>
+        <label>Configured servers<select id="serversSelect"><option value="configured">Audiobookshelf configured</option><option value="none">No servers configured</option></select></label>
+        <label>Destination state<select id="scenarioSelect"><option value="new">No item in selected library</option><option value="compatible">Compatible item found</option><option value="annotations">Annotations block overwrite</option></select></label>
+
+        <div class="rules">
+          <strong>Prototype rules shown</strong>
+          <span>• metadata and media structure transfer on upload</span>
+          <span>• overwrite replaces file only</span>
+          <span>• existing progress and annotations are preserved</span>
+          <span>• incompatible annotated EPUBs cannot be overwritten</span>
+        </div>
+        <small class="prototype-note">No server mutation is performed. This is a UI prototype only.</small>
+      </aside>
+    </main>
+    <div id="toast" role="status"></div>
+    <script src="app.js"></script>
+  </body>
+</html>

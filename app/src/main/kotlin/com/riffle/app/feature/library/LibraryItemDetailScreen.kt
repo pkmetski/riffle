@@ -32,6 +32,7 @@ import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.outlined.Headphones
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.AlertDialog
 import androidx.compose.ui.res.painterResource
 import com.riffle.app.R
 import androidx.compose.material3.Button
@@ -46,6 +47,7 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.PlainTooltip
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
@@ -124,11 +126,24 @@ fun LibraryItemDetailScreen(
     val scope = rememberCoroutineScope()
     var showAddToPlaylistSheet by remember { mutableStateOf(false) }
     var showMetadataOverflowMenu by remember { mutableStateOf(false) }
+    var showUploadDestinationDialog by remember { mutableStateOf(false) }
     var showEditMetadataDialog by remember { mutableStateOf(false) }
+    val uploadDestinations by viewModel.uploadDestinations.collectAsState()
+    val uploadPreflight by viewModel.uploadPreflight.collectAsState()
+    val bookImportState by viewModel.bookImportState.collectAsState()
 
     LaunchedEffect(viewModel) {
         viewModel.snackbarEvents.collect { message ->
             snackbarHostState.showSnackbar(message)
+        }
+    }
+
+    LaunchedEffect(bookImportState) {
+        bookImportSnackbarMessage(bookImportState)?.let { message ->
+            snackbarHostState.showSnackbar(
+                message = message,
+                duration = SnackbarDuration.Short,
+            )
         }
     }
 
@@ -159,21 +174,122 @@ fun LibraryItemDetailScreen(
         )
     }
 
+    if (showUploadDestinationDialog && readyState != null) {
+        AlertDialog(
+            onDismissRequest = { showUploadDestinationDialog = false },
+            title = { Text("Upload to…") },
+            text = {
+                Column {
+                    if (uploadDestinations.isEmpty()) {
+                        CircularProgressIndicator()
+                    } else {
+                        uploadDestinations.forEach { destination ->
+                            Text(destination.label, style = MaterialTheme.typography.titleSmall)
+                            if (destination.username.isNotBlank()) {
+                                Text(
+                                    destination.username,
+                                    style = MaterialTheme.typography.bodySmall,
+                                )
+                            }
+                            if (destination.libraries.isEmpty()) {
+                                Text("No libraries configured")
+                            } else {
+                                destination.libraries.forEach { library ->
+                                    TextButton(
+                                        onClick = {
+                                            showUploadDestinationDialog = false
+                                            viewModel.checkUploadDestination(destination, library)
+                                        },
+                                    ) {
+                                        Text(library.name)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showUploadDestinationDialog = false }) {
+                    Text("Cancel")
+                }
+            },
+        )
+    }
+
+    when (val preflight = uploadPreflight) {
+        is UploadPreflight.ExistingItem -> AlertDialog(
+            onDismissRequest = viewModel::dismissUploadPreflight,
+            title = { Text("Item already exists") },
+            text = {
+                Text(
+                    if (preflight.canOverwrite) {
+                        "This audiobook is already in the destination library. Overwrite it?"
+                    } else {
+                        "Overwrite is blocked until the destination can safely replace files without invalidating annotations."
+                    },
+                )
+            },
+            confirmButton = {
+                if (preflight.canOverwrite) {
+                    TextButton(
+                        onClick = {
+                            viewModel.importToDestination(preflight.destination, preflight.library)
+                        },
+                    ) { Text("Overwrite") }
+                } else {
+                    TextButton(onClick = viewModel::dismissUploadPreflight) { Text("OK") }
+                }
+            },
+        )
+        is UploadPreflight.Blocked -> AlertDialog(
+            onDismissRequest = viewModel::dismissUploadPreflight,
+            title = { Text("Upload unavailable") },
+            text = { Text(preflight.reason) },
+            confirmButton = {
+                TextButton(onClick = viewModel::dismissUploadPreflight) { Text("OK") }
+            },
+        )
+        UploadPreflight.Idle, UploadPreflight.Checking -> Unit
+    }
+
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = {
-                    if (readyState != null) {
-                        Text(text = readyState.item.title, maxLines = 1)
-                    }
-                },
-                navigationIcon = {
-                    IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-                    }
-                },
-                actions = {
-                    if (readyState?.capabilities?.canEditMetadata == true) {
+            Column {
+                TopAppBar(
+                    title = {
+                        if (readyState != null) {
+                            Column {
+                                Text(text = readyState.item.title, maxLines = 1)
+                                when (val importState = bookImportState) {
+                                    is BookImportState.InProgress -> Text(
+                                        text = when (importState.phase) {
+                                            com.riffle.core.catalog.CatalogImportPhase.Preparing -> "Preparing files…"
+                                            com.riffle.core.catalog.CatalogImportPhase.Uploading -> "Uploading…"
+                                            com.riffle.core.catalog.CatalogImportPhase.Reconciling -> "Uploaded — waiting for ABS…"
+                                            com.riffle.core.catalog.CatalogImportPhase.Finalizing -> "Uploaded — applying metadata…"
+                                            com.riffle.core.catalog.CatalogImportPhase.Uploaded -> "Uploaded — finishing…"
+                                        },
+                                        style = MaterialTheme.typography.labelSmall,
+                                    )
+                                    is BookImportState.Failed -> Text(
+                                        text = "Upload failed",
+                                        style = MaterialTheme.typography.labelSmall,
+                                    )
+                                    BookImportState.Idle, BookImportState.Completed -> Unit
+                                }
+                            }
+                        }
+                    },
+                    navigationIcon = {
+                        IconButton(onClick = onNavigateBack) {
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        }
+                    },
+                    actions = {
+                    if (readyState?.capabilities?.canEditMetadata == true ||
+                        readyState?.capabilities?.canUploadToConfiguredSource == true
+                    ) {
                         Box {
                             IconButton(onClick = { showMetadataOverflowMenu = true }) {
                                 Icon(Icons.Filled.MoreVert, contentDescription = "More options")
@@ -182,18 +298,46 @@ fun LibraryItemDetailScreen(
                                 expanded = showMetadataOverflowMenu,
                                 onDismissRequest = { showMetadataOverflowMenu = false },
                             ) {
-                                DropdownMenuItem(
-                                    text = { Text("Edit metadata") },
-                                    onClick = {
-                                        showMetadataOverflowMenu = false
-                                        showEditMetadataDialog = true
-                                    },
-                                )
+                                if (readyState?.capabilities?.canEditMetadata == true) {
+                                    DropdownMenuItem(
+                                        text = { Text("Edit metadata") },
+                                        onClick = {
+                                            showMetadataOverflowMenu = false
+                                            showEditMetadataDialog = true
+                                        },
+                                    )
+                                }
+                                if (readyState?.capabilities?.canUploadToConfiguredSource == true) {
+                                    DropdownMenuItem(
+                                        text = { Text("Upload to…") },
+                                        onClick = {
+                                            showMetadataOverflowMenu = false
+                                            showUploadDestinationDialog = true
+                                            viewModel.refreshUploadDestinations()
+                                        },
+                                    )
+                                }
                             }
                         }
                     }
-                },
-            )
+                    },
+                )
+                when (val state = bookImportState) {
+                    is BookImportState.InProgress -> {
+                        val progress = state.completedFiles.takeIf { state.totalFiles > 0 }
+                            ?.toFloat()?.div(state.totalFiles)
+                        if (progress == null) {
+                            LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                        } else {
+                            LinearProgressIndicator(
+                                progress = { progress },
+                                modifier = Modifier.fillMaxWidth(),
+                            )
+                        }
+                    }
+                    BookImportState.Idle, BookImportState.Completed, is BookImportState.Failed -> Unit
+                }
+            }
         },
         snackbarHost = { SnackbarHost(snackbarHostState) },
     ) { padding ->

@@ -131,6 +131,14 @@ class EpubRepositoryTest {
         }
     }
 
+    @Test
+    fun `loadLastPosition returns the complete persisted locator`() = runTest {
+        val locator = "{\"href\":\"OEBPS/chapter.xhtml\",\"locations\":{\"progression\":0.42}}"
+        positionStore.save("source-1", "item-1", locator)
+
+        assertEquals(locator, repo.loadLastPosition("source-1", "item-1"))
+    }
+
     private fun item(id: String = "item-1", ino: String? = "ino-42", sourceId: String = "source-1") = LibraryItem(
         id = id,
         libraryId = "lib-1",

@@ -12,6 +12,8 @@ import com.riffle.core.domain.ConnectivityObserver
 import com.riffle.core.models.EbookFormat
 import com.riffle.core.domain.EpubDownloadResult
 import com.riffle.core.domain.EpubRepository
+import com.riffle.core.domain.AudiobookPositionStore
+import com.riffle.core.domain.EbookCfiTranslatorFactory
 import com.riffle.core.models.LibraryItem
 import com.riffle.core.domain.LibraryObserver
 import com.riffle.core.domain.LibraryRefresher
@@ -28,7 +30,19 @@ import com.riffle.core.data.RESERVED_PLAYLIST_NAMES
 import com.riffle.core.data.ReservedPlaylistNameException
 import com.riffle.core.data.ToReadRepository
 import com.riffle.core.catalog.AudiobookMediaCapability
+import com.riffle.core.catalog.BookImportCapability
+import com.riffle.core.catalog.BookFormat
+import com.riffle.core.catalog.CatalogImportFile
+import com.riffle.core.catalog.CatalogImportChapter
+import com.riffle.core.catalog.CatalogImportMetadata
+import com.riffle.core.catalog.CatalogImportRequest
+import com.riffle.core.catalog.CatalogImportResult
+import com.riffle.core.catalog.CatalogRoot
+import com.riffle.core.catalog.CatalogImportPhase
+import com.riffle.core.catalog.CatalogImportProgress
+import com.riffle.core.catalog.doesDestinationItemExist
 import com.riffle.core.catalog.CatalogRegistry
+import com.riffle.app.feature.audiobook.audiobookProgressFraction
 import com.riffle.core.data.localfiles.CopyCoverImageUseCase
 import com.riffle.core.data.localfiles.SaveLocalFileMetadataOverrideUseCase
 import com.riffle.core.models.SourceType
@@ -56,6 +70,7 @@ import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.CancellationException
 import javax.inject.Inject
 
 sealed interface LibraryItemDetailUiState {
@@ -86,6 +101,44 @@ sealed interface LibraryItemDetailUiState {
     data object Error : LibraryItemDetailUiState
 }
 
+data class UploadDestination(
+    val sourceId: String,
+    val label: String,
+    val username: String,
+    val libraries: List<CatalogRoot>,
+)
+
+sealed interface UploadPreflight {
+    data object Idle : UploadPreflight
+    data object Checking : UploadPreflight
+    data class ExistingItem(
+        val destination: UploadDestination,
+        val library: CatalogRoot,
+        val itemId: String,
+        /** Audiobooks have no EPUB annotations that a replacement can invalidate. */
+        val canOverwrite: Boolean,
+    ) : UploadPreflight
+    data class Blocked(val reason: String) : UploadPreflight
+}
+
+internal fun canUploadWebSourceItem(sourceType: SourceType?, hasImportDestination: Boolean): Boolean =
+    sourceType?.isWebSource == true && hasImportDestination
+
+internal fun importAudioProgress(
+    positionSec: Double?,
+    durationSec: Double,
+    fallback: Float?,
+): Float? = positionSec
+    ?.takeIf { durationSec > 0.0 }
+    ?.let { audiobookProgressFraction(it, durationSec) }
+    ?: fallback
+
+internal fun importEbookLocation(format: BookFormat, translatedCfi: String?): String? = when {
+    format != BookFormat.Epub -> null
+    translatedCfi != null -> translatedCfi
+    else -> ""
+}
+
 /** Per-Source capability flags consumed by the item-detail screen. */
 data class DetailCapabilities(
     val hasSeries: Boolean,
@@ -107,6 +160,8 @@ data class DetailCapabilities(
     /** True when the item is from a LocalFiles Source — gates the "Edit metadata" and
      *  "Reset title to filename" overflow actions. */
     val canEditMetadata: Boolean = false,
+    /** True when a Web Source item has at least one configured import-capable destination. */
+    val canUploadToConfiguredSource: Boolean = false,
 ) {
     companion object {
         /** Every capability present — matches the ABS shape used by the majority of items. */
@@ -118,6 +173,7 @@ data class DetailCapabilities(
             hasReadaloud = true,
             hasAddToPlaylist = true,
             canEditMetadata = false,
+            canUploadToConfiguredSource = false,
         )
 
         /** No capability present — safe default when the active Source's Catalog can't be resolved.
@@ -131,6 +187,7 @@ data class DetailCapabilities(
             hasReadaloud = false,
             hasAddToPlaylist = false,
             canEditMetadata = false,
+            canUploadToConfiguredSource = false,
         )
     }
 }
@@ -179,6 +236,8 @@ class LibraryItemDetailViewModel @Inject constructor(
     private val sourceRepository: SourceRepository,
     private val tokenStorage: TokenStorage,
     private val epubRepository: EpubRepository,
+    private val ebookCfiTranslatorFactory: EbookCfiTranslatorFactory,
+    private val audiobookPositionStore: AudiobookPositionStore,
     private val pdfRepository: PdfRepository,
     private val cbzRepository: com.riffle.core.domain.CbzRepository,
     private val toReadRepository: ToReadRepository,
@@ -191,6 +250,7 @@ class LibraryItemDetailViewModel @Inject constructor(
     private val readaloudOfflineDownloader: com.riffle.app.feature.reader.readaloud.ReadaloudOfflineDownloader,
     private val connectivityObserver: ConnectivityObserver,
     private val downloadManager: DownloadManager,
+    private val bookImportManager: BookImportManager,
     private val crossEpubIndexBuildTrigger: com.riffle.core.data.CrossEpubIndexBuildTrigger,
     private val sidecarPrefetcher: com.riffle.core.data.ReadaloudSidecarPrefetcher,
     private val extractEpubTocUseCase: ExtractEpubTocUseCase,
@@ -208,6 +268,15 @@ class LibraryItemDetailViewModel @Inject constructor(
 
     private val _uiState = MutableStateFlow<LibraryItemDetailUiState>(LibraryItemDetailUiState.Loading)
     val uiState: StateFlow<LibraryItemDetailUiState> = _uiState
+
+    private val _uploadDestinations = MutableStateFlow<List<UploadDestination>>(emptyList())
+    val uploadDestinations: StateFlow<List<UploadDestination>> = _uploadDestinations.asStateFlow()
+
+    private val _uploadPreflight = MutableStateFlow<UploadPreflight>(UploadPreflight.Idle)
+    val uploadPreflight: StateFlow<UploadPreflight> = _uploadPreflight.asStateFlow()
+
+    private val _bookImportState = MutableStateFlow<BookImportState>(BookImportState.Idle)
+    val bookImportState: StateFlow<BookImportState> = _bookImportState.asStateFlow()
 
     private val _downloadState = MutableStateFlow<DownloadState>(DownloadState.NotDownloaded)
     val downloadState: StateFlow<DownloadState> = _downloadState
@@ -269,6 +338,221 @@ class LibraryItemDetailViewModel @Inject constructor(
             _audiobookDownloadState.value = if (item.isListenable) deriveAudiobookDownloadState(item) else null
         }
     }
+
+    /** Loads configured destinations that explicitly opt in to book uploads. */
+    fun refreshUploadDestinations() {
+        viewModelScope.launch {
+            val destinations = sourceRepository.observeAll().first().mapNotNull { source ->
+                val catalog = runCatching { catalogRegistry.forSource(source) }.getOrNull()
+                if (catalog !is BookImportCapability) return@mapNotNull null
+                UploadDestination(
+                    sourceId = source.id,
+                    label = source.url.value,
+                    username = source.username,
+                    libraries = runCatching { catalog.listRoots() }.getOrDefault(emptyList()),
+                )
+            }
+            _uploadDestinations.value = destinations
+        }
+    }
+
+    /** Checks the destination before uploading. A missing item proceeds directly to upload. */
+    fun checkUploadDestination(destination: UploadDestination, library: CatalogRoot) {
+        viewModelScope.launch {
+            _uploadPreflight.value = UploadPreflight.Checking
+            val item = loadedItem ?: run {
+                _uploadPreflight.value = UploadPreflight.Blocked("The item is not loaded yet")
+                return@launch
+            }
+            val sourceItem = catalogRegistry.forSourceId(item.sourceId)?.getItem(item.id)
+            val destinationCatalog = catalogRegistry.forSourceId(destination.sourceId)
+            if (sourceItem == null || destinationCatalog !is BookImportCapability) {
+                _uploadPreflight.value = UploadPreflight.Blocked("This item cannot be prepared for upload")
+                return@launch
+            }
+            val matches = try {
+                destinationCatalog.search(library.id, sourceItem.title, pageSize = 50)
+            } catch (cause: CancellationException) {
+                throw cause
+            } catch (_: Throwable) {
+                _uploadPreflight.value = UploadPreflight.Blocked("Could not check the destination library")
+                return@launch
+            }
+            val existing = matches.firstOrNull { candidate ->
+                doesDestinationItemExist(sourceItem, listOf(candidate))
+            }
+            if (existing != null) {
+                _uploadPreflight.value = UploadPreflight.ExistingItem(
+                    destination = destination,
+                    library = library,
+                    itemId = existing.id,
+                    canOverwrite = sourceItem.hasAudio && sourceItem.ebookFormat != BookFormat.Epub,
+                )
+            } else {
+                _uploadPreflight.value = UploadPreflight.Idle
+                importToDestination(destination, library)
+            }
+        }
+    }
+
+    fun dismissUploadPreflight() {
+        _uploadPreflight.value = UploadPreflight.Idle
+    }
+
+    fun importToDestination(destination: UploadDestination, library: CatalogRoot) {
+        val item = loadedItem ?: return
+        val key = importKey(item, destination, library)
+        bookImportManager.start(key) { onProgress ->
+            val sourceCatalog = catalogRegistry.forSourceId(item.sourceId)
+            val sourceItem = sourceCatalog?.getItem(item.id)
+            val destinationCatalog = catalogRegistry.forSourceId(destination.sourceId) as? BookImportCapability
+            if (sourceCatalog == null || sourceItem == null || destinationCatalog == null) {
+                return@start CatalogImportResult.Failed(IllegalStateException("This item cannot be uploaded"))
+            }
+            if (library.importFolderId == null) {
+                return@start CatalogImportResult.Failed(
+                    IllegalArgumentException("This library has no upload folder configured"),
+                )
+            }
+            val request = buildImportRequest(item.sourceId, sourceCatalog, sourceItem, library, item.readingProgress)
+                .copy(onProgress = onProgress)
+            destinationCatalog.importBook(request)
+        }
+        _uploadPreflight.value = UploadPreflight.Idle
+    }
+
+    private suspend fun buildImportRequest(
+        sourceId: String,
+        sourceCatalog: com.riffle.core.catalog.Catalog,
+        sourceItem: com.riffle.core.catalog.CatalogItem,
+        library: CatalogRoot,
+        readingProgress: Float?,
+    ): CatalogImportRequest {
+        val audio = sourceCatalog as? AudiobookMediaCapability
+        val audioTracks = if (sourceItem.hasAudio && audio != null) {
+            audio.getTracks(sourceItem.id).sortedBy { it.index }
+        } else {
+            emptyList()
+        }
+        // Chapter retrieval is supplemental: a source may expose its tracks but not chapter
+        // markers. The files still transfer in their source-UI order in that case.
+        val audioChapters = if (sourceItem.hasAudio && audio != null) {
+            try {
+                audio.getAudiobookChapters(sourceItem.id)
+            } catch (_: Throwable) {
+                emptyList()
+            }
+        } else {
+            emptyList()
+        }
+        val files = buildList {
+            when (sourceItem.ebookFormat) {
+                BookFormat.Epub -> add(
+                    CatalogImportFile(
+                        fileName = "${safeFileName(sourceItem.title)}.epub",
+                        mimeType = "application/epub+zip",
+                        withStream = { block ->
+                            sourceCatalog.withFileStream(
+                                itemId = sourceItem.id,
+                                format = BookFormat.Epub,
+                                handleHint = sourceItem.ebookFileIno,
+                                block = block,
+                            )
+                        },
+                    ),
+                )
+                BookFormat.Pdf -> add(
+                    CatalogImportFile(
+                        fileName = "${safeFileName(sourceItem.title)}.pdf",
+                        mimeType = "application/pdf",
+                        withStream = { block ->
+                            sourceCatalog.withFileStream(sourceItem.id, BookFormat.Pdf, sourceItem.ebookFileIno, block)
+                        },
+                    ),
+                )
+                BookFormat.Cbz -> add(
+                    CatalogImportFile(
+                        fileName = "${safeFileName(sourceItem.title)}.cbz",
+                        mimeType = "application/vnd.comicbook+zip",
+                        withStream = { block ->
+                            sourceCatalog.withFileStream(sourceItem.id, BookFormat.Cbz, sourceItem.ebookFileIno, block)
+                        },
+                    ),
+                )
+                BookFormat.Audiobook, BookFormat.Unsupported -> Unit
+            }
+            if (sourceItem.hasAudio && audio != null) {
+                audioTracks.forEach { track ->
+                    val chapterTitle = audioChapters.firstOrNull { it.index == track.index }?.title
+                    val trackName = chapterTitle?.takeIf { it.isNotBlank() }
+                        ?: "${sourceItem.title}-${track.index + 1}"
+                    add(
+                        CatalogImportFile(
+                            fileName = "${safeFileName(trackName)}.mp3",
+                            mimeType = track.mimeType ?: "audio/mpeg",
+                            withStream = { block -> audio.withTrackStream(sourceItem.id, track.ino, block) },
+                        ),
+                    )
+                }
+            }
+        }
+        val audioPositionSec = if (sourceItem.hasAudio) {
+            audiobookPositionStore.load(sourceId, sourceItem.id)
+        } else {
+            null
+        }
+        val audioProgress = importAudioProgress(
+            positionSec = audioPositionSec,
+            durationSec = sourceItem.audioDurationSec,
+            fallback = readingProgress ?: sourceItem.readingProgress,
+        )
+        val locatorJson = if (sourceItem.ebookFormat == BookFormat.Epub) {
+            epubRepository.loadLastPosition(sourceId, sourceItem.id)
+        } else {
+            null
+        }
+        val ebookCfi = locatorJson?.let { locator ->
+            ebookCfiTranslatorFactory
+                .forItem(sourceId, sourceItem.id)
+                ?.locatorJsonToCfi(locator)
+        }
+        return CatalogImportRequest(
+            libraryId = library.id,
+            folderId = library.importFolderId,
+            metadata = CatalogImportMetadata(
+                title = sourceItem.title,
+                author = sourceItem.author,
+                series = sourceItem.seriesName,
+                description = sourceItem.description,
+                publisher = sourceItem.publisher,
+                language = sourceItem.language,
+                publishedYear = sourceItem.publishedYear,
+                genres = sourceItem.genres,
+                isbn = sourceItem.isbn,
+                asin = sourceItem.asin,
+                coverUrl = sourceItem.coverUrl,
+                seriesSequence = sourceItem.seriesSequence,
+            ),
+            files = files,
+            chapters = audioChapters.map { chapter ->
+                CatalogImportChapter(
+                    id = chapter.index,
+                    startSec = chapter.startSec,
+                    endSec = chapter.endSec,
+                    title = chapter.title,
+                )
+            },
+            readingProgress = audioProgress,
+            // ABS requires an epubcfi(...) locator to reopen at the saved position. If the EPUB
+            // is not available locally for translation, keep the numeric progress but do not
+            // invent a location.
+            ebookLocation = importEbookLocation(sourceItem.ebookFormat, ebookCfi),
+            audioDurationSec = sourceItem.audioDurationSec,
+        )
+    }
+
+    private fun safeFileName(value: String): String =
+        value.replace(Regex("[\\\\/:*?\"<>|]"), "_").trim().ifEmpty { "book" }
 
     /**
      * Called from the details screen's ON_RESUME. Pulls the item's server progress and mirrors
@@ -374,6 +658,13 @@ class LibraryItemDetailViewModel @Inject constructor(
                     // versa. Raw `is` checks (see LibraryItemsViewModel.tabVisibility for the
                     // JVM-target rationale).
                     val catalog = catalogRegistry.forSourceId(item.sourceId)
+                    val canUploadToConfiguredSource = canUploadWebSourceItem(
+                        catalog?.sourceType,
+                        sourceRepository.observeAll().first().any { destination ->
+                            destination.id != item.sourceId &&
+                                catalogRegistry.forSource(destination) is BookImportCapability
+                        },
+                    )
                     val capabilities = DetailCapabilities(
                         hasSeries = catalog is SeriesCapability,
                         // To Read is available on every Source: [ToReadRepositoryImpl] falls back to
@@ -389,6 +680,7 @@ class LibraryItemDetailViewModel @Inject constructor(
                         // same Source stay out of the Playlists surface.
                         hasAddToPlaylist = catalog is PlaylistsCapability && item.isListenable && !item.isReadable,
                         canEditMetadata = catalog?.sourceType == SourceType.LOCAL_FILES,
+                        canUploadToConfiguredSource = canUploadToConfiguredSource,
                     )
                     val originalItem = if (capabilities.canEditMetadata) {
                         val originalCoverUrl = (catalog as? OriginalCoverCapability)
@@ -484,6 +776,18 @@ class LibraryItemDetailViewModel @Inject constructor(
                     val item = loadedItem ?: return@onEach
                     if (changed.sourceId != item.sourceId || changed.itemId != item.id) return@onEach
                     refreshLocalAvailability()
+                }
+                .launchIn(viewModelScope)
+
+            bookImportManager.states
+                .onEach { states ->
+                    val item = loadedItem ?: return@onEach
+                    val prefix = importKeyPrefix(item)
+                    states.entries
+                        .firstOrNull { it.key.startsWith(prefix) }
+                        ?.value
+                        ?.let { _bookImportState.value = it }
+                        ?: run { _bookImportState.value = BookImportState.Idle }
                 }
                 .launchIn(viewModelScope)
         }
@@ -728,6 +1032,9 @@ class LibraryItemDetailViewModel @Inject constructor(
     // and a readaloud bundle downloading at once.
     private fun ebookKey(item: LibraryItem) = "ebook:${item.sourceId}:${item.id}"
     private fun audiobookKey(item: LibraryItem) = "audiobook:${item.sourceId}:${item.id}"
+    private fun importKey(item: LibraryItem, destination: UploadDestination, library: CatalogRoot) =
+        "import:${item.sourceId}:${item.id}:${destination.sourceId}:${library.id}"
+    private fun importKeyPrefix(item: LibraryItem) = "import:${item.sourceId}:${item.id}:"
     private fun readaloudKey(link: com.riffle.core.models.ReadaloudLink) =
         "readaloud:${link.storytellerSourceId}:${link.storytellerBookId}"
 

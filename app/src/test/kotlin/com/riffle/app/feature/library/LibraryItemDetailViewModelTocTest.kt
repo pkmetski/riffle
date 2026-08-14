@@ -143,6 +143,8 @@ class LibraryItemDetailViewModelTocTest {
     private fun makeVm(
         item: LibraryItem?,
         extractEpubTocUseCase: ExtractEpubTocUseCase = noOpExtractUseCase(),
+        ebookCfiTranslatorFactory: com.riffle.core.domain.EbookCfiTranslatorFactory = mockk(relaxed = true),
+        audiobookPositionStore: com.riffle.core.domain.AudiobookPositionStore = mockk(relaxed = true),
         extractPdfPageCountUseCase: ExtractPdfPageCountUseCase =
             mockk<ExtractPdfPageCountUseCase>().also { uc ->
                 coEvery { uc(any<LibraryItem>()) } returns null
@@ -162,6 +164,8 @@ class LibraryItemDetailViewModelTocTest {
         sourceRepository = noOpServerRepo,
         tokenStorage = noOpTokenStorage,
         epubRepository = FakeEpubRepo(),
+        ebookCfiTranslatorFactory = ebookCfiTranslatorFactory,
+        audiobookPositionStore = audiobookPositionStore,
         pdfRepository = FakePdfRepo(),
         cbzRepository = NoopCbzRepository(),
         toReadRepository = noOpToReadRepository,
@@ -179,6 +183,7 @@ class LibraryItemDetailViewModelTocTest {
         },
         connectivityObserver = FakeConnectivityObserver(),
         downloadManager = DownloadManager(kotlinx.coroutines.CoroutineScope(testDispatcher)),
+        bookImportManager = BookImportManager(kotlinx.coroutines.CoroutineScope(testDispatcher)),
         crossEpubIndexBuildTrigger = object : com.riffle.core.data.CrossEpubIndexBuildTrigger {
             override fun enqueueBuild(link: com.riffle.core.models.ReadaloudLink) {}
         },

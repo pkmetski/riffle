@@ -34,19 +34,109 @@ import io.ktor.client.request.get
 import io.ktor.client.request.header
 import io.ktor.client.request.patch
 import io.ktor.client.request.post
+import io.ktor.client.request.forms.MultiPartFormDataContent
+import io.ktor.client.request.forms.ChannelProvider
+import io.ktor.client.request.forms.formData
 import io.ktor.client.request.setBody
 import io.ktor.client.statement.HttpResponse
 import io.ktor.http.ContentType
+import io.ktor.http.Headers
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.contentType
 import io.ktor.http.isSuccess
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlin.random.Random
 
 class AbsApiClient(
     private val httpClient: HttpClient,
 ) : AbsApi, AbsLibraryApi, AbsSessionApi, AbsServerInfoApi, AbsPlaybackApi, AbsBookmarkApi {
+
+    override suspend fun uploadBook(
+        baseUrl: String,
+        libraryId: String,
+        metadata: NetworkUploadMetadata,
+        files: List<NetworkUploadPart>,
+        token: String,
+        insecureAllowed: Boolean,
+    ): NetworkResult<Unit> = KtorClassifier.classify {
+        val response = client(insecureAllowed).post("$baseUrl/api/upload") {
+            header(HttpHeaders.Authorization, "Bearer $token")
+            setBody(MultiPartFormDataContent(formData {
+                append("title", metadata.title)
+                append("author", metadata.author)
+                append("library", libraryId)
+                metadata.folderId?.let { append("folder", it) }
+                metadata.series?.let { append("series", it) }
+                metadata.description?.let { append("description", it) }
+                metadata.publisher?.let { append("publisher", it) }
+                metadata.language?.let { append("language", it) }
+                metadata.publishedYear?.let { append("publishedYear", it) }
+                metadata.isbn?.let { append("isbn", it) }
+                metadata.asin?.let { append("asin", it) }
+                if (metadata.genres.isNotEmpty()) append("genres", metadata.genres.joinToString(","))
+                files.forEach { file ->
+                    append(
+                        "files",
+                        ChannelProvider(file.sizeBytes) { file.provider() },
+                        Headers.build {
+                            append(HttpHeaders.ContentType, file.mimeType)
+                            append(HttpHeaders.ContentDisposition, "filename=\"${file.fileName}\"")
+                        },
+                    )
+                }
+            }))
+        }
+        if (!response.status.isSuccess()) {
+            throw HttpException(response.status.value, response.status.description)
+        }
+    }
+
+    override suspend fun updateItemMedia(
+        baseUrl: String,
+        itemId: String,
+        metadata: NetworkAbsMetadataUpdate,
+        token: String,
+        insecureAllowed: Boolean,
+    ): NetworkResult<Unit> = KtorClassifier.classify {
+        val response = client(insecureAllowed).patch("$baseUrl/api/items/$itemId/media") {
+            header(HttpHeaders.Authorization, "Bearer $token")
+            contentType(ContentType.Application.Json)
+            setBody(NetworkAbsMediaUpdate(metadata))
+        }
+        if (!response.status.isSuccess()) throw HttpException(response.status.value, response.status.description)
+    }
+
+    override suspend fun updateItemChapters(
+        baseUrl: String,
+        itemId: String,
+        chapters: List<NetworkAbsChapterUpdate>,
+        token: String,
+        insecureAllowed: Boolean,
+    ): NetworkResult<Unit> = KtorClassifier.classify {
+        val response = client(insecureAllowed).post("$baseUrl/api/items/$itemId/chapters") {
+            header(HttpHeaders.Authorization, "Bearer $token")
+            contentType(ContentType.Application.Json)
+            setBody(NetworkAbsChaptersUpdate(chapters))
+        }
+        if (!response.status.isSuccess()) throw HttpException(response.status.value, response.status.description)
+    }
+
+    override suspend fun uploadItemCoverFromUrl(
+        baseUrl: String,
+        itemId: String,
+        url: String,
+        token: String,
+        insecureAllowed: Boolean,
+    ): NetworkResult<Unit> = KtorClassifier.classify {
+        val response = client(insecureAllowed).post("$baseUrl/api/items/$itemId/cover") {
+            header(HttpHeaders.Authorization, "Bearer $token")
+            contentType(ContentType.Application.Json)
+            setBody(NetworkAbsCoverUrlUpdate(url))
+        }
+        if (!response.status.isSuccess()) throw HttpException(response.status.value, response.status.description)
+    }
 
     override suspend fun login(
         baseUrl: String,
@@ -81,6 +171,9 @@ class AbsApiClient(
                 name = dto.name,
                 mediaType = dto.mediaType,
                 audiobooksOnly = dto.settings.audiobooksOnly,
+                folders = dto.folders.map { folder ->
+                    NetworkLibraryFolder(id = folder.id, fullPath = folder.fullPath)
+                },
             )
         }
     }
@@ -129,6 +222,46 @@ class AbsApiClient(
         }.body<AbsLibraryItemsResponse>().results.map { it.toNetworkLibraryItem() }
     }
 
+    override suspend fun getRecentlyAddedLibraryItems(
+        baseUrl: String,
+        libraryId: String,
+        limit: Int,
+        token: String,
+        insecureAllowed: Boolean,
+    ): NetworkResult<List<NetworkLibraryItem>> = KtorClassifier.classify {
+        client(insecureAllowed).get("$baseUrl/api/libraries/$libraryId/items") {
+            url {
+                parameters.append("limit", limit.toString())
+                // ABS deliberately bypasses its server-side API cache for random-sorted reads.
+                parameters.append("sort", "random")
+                // Some ABS deployments sit behind a proxy that ignores request cache headers.
+                // A unique query forces that proxy to fetch the changing library index.
+                parameters.append("_riffle_refresh", Random.nextLong().toString())
+            }
+            // Reconciliation runs immediately after a write. Never reuse an item listing that
+            // was captured before ABS finished scanning or updating the uploaded metadata.
+            header(HttpHeaders.CacheControl, "no-cache, no-store")
+            header(HttpHeaders.Authorization, "Bearer $token")
+        }.body<AbsLibraryItemsResponse>().results.map { it.toNetworkLibraryItem() }
+    }
+
+    override suspend fun scanLibrary(
+        baseUrl: String,
+        libraryId: String,
+        token: String,
+        insecureAllowed: Boolean,
+    ): NetworkResult<Unit> = KtorClassifier.classify {
+        // A normal scan is ignored when ABS already has a scan in flight. Uploads can land in
+        // that window, so force the scan that discovers this upload instead of relying on the
+        // watcher or an earlier scan to notice it.
+        val response = client(insecureAllowed).post("$baseUrl/api/libraries/$libraryId/scan?force=1") {
+            header(HttpHeaders.Authorization, "Bearer $token")
+        }
+        if (!response.status.isSuccess()) {
+            throw HttpException(response.status.value, response.status.description)
+        }
+    }
+
     private fun AbsLibraryItemsResponse.AbsLibraryItemDto.toNetworkLibraryItem(
         fallbackLibraryId: String = "",
     ): NetworkLibraryItem {
@@ -155,6 +288,8 @@ class AbsApiClient(
             updatedAt = updatedAt,
             isbn = media.metadata.isbn,
             asin = media.metadata.asin,
+            path = path,
+            relPath = relPath,
         )
     }
 
@@ -167,7 +302,15 @@ class AbsApiClient(
         insecureAllowed: Boolean,
     ): NetworkResult<List<NetworkLibraryItem>> = KtorClassifier.classify {
         client(insecureAllowed).get("$baseUrl/api/libraries/$libraryId/search") {
-            url { parameters.append("q", query); parameters.append("limit", limit.toString()) }
+            url {
+                parameters.append("q", query)
+                parameters.append("limit", limit.toString())
+                // ABS's API cache middleware skips every request carrying sort=random, even for
+                // search routes. The server ignores this parameter for search semantics.
+                parameters.append("sort", "random")
+                parameters.append("_riffle_refresh", Random.nextLong().toString())
+            }
+            header(HttpHeaders.CacheControl, "no-cache, no-store")
             header(HttpHeaders.Authorization, "Bearer $token")
         }.body<AbsLibrarySearchResponse>().book.map { it.libraryItem.toNetworkLibraryItem(libraryId) }
     }
