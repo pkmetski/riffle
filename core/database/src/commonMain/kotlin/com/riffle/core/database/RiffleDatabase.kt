@@ -41,8 +41,10 @@ import androidx.sqlite.execSQL
         PlaylistItemEntity::class,
         PublicationMetricsCacheEntity::class,
         BookComicFormattingPreferencesEntity::class,
+        DictionaryPackEntity::class,
+        LookupHistoryEntity::class,
     ],
-    version = 68,
+    version = 69,
     exportSchema = true,
 )
 @ConstructedBy(RiffleDatabaseConstructor::class)
@@ -73,6 +75,8 @@ abstract class RiffleDatabase : RoomDatabase() {
     abstract fun playlistDao(): PlaylistDao
     abstract fun publicationMetricsCacheDao(): PublicationMetricsCacheDao
     abstract fun bookComicFormattingPreferencesDao(): BookComicFormattingPreferencesDao
+    abstract fun dictionaryPackDao(): DictionaryPackDao
+    abstract fun lookupHistoryDao(): LookupHistoryDao
 
     companion object {
         val MIGRATION_1_2 = object : Migration(1, 2) {
@@ -1772,6 +1776,29 @@ abstract class RiffleDatabase : RoomDatabase() {
             override fun migrate(db: SQLiteConnection) {
                 db.execSQL(
                     "ALTER TABLE `book_comic_formatting_preferences` ADD COLUMN `background_theme` TEXT"
+                )
+            }
+        }
+
+        val MIGRATION_68_69 = object : Migration(68, 69) {
+            override fun migrate(db: SQLiteConnection) {
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `dictionary_packs` (" +
+                        "`languageTag` TEXT NOT NULL, " +
+                        "`packVersion` TEXT NOT NULL, " +
+                        "`installedAt` INTEGER NOT NULL, " +
+                        "`sizeBytes` INTEGER NOT NULL, " +
+                        "`attributionHtml` TEXT NOT NULL, " +
+                        "`licenseUrl` TEXT NOT NULL, " +
+                        "`state` TEXT NOT NULL, " +
+                        "PRIMARY KEY(`languageTag`))"
+                )
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `lookup_history` (" +
+                        "`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                        "`languageTag` TEXT NOT NULL, " +
+                        "`form` TEXT NOT NULL, " +
+                        "`lookedUpAt` INTEGER NOT NULL)"
                 )
             }
         }

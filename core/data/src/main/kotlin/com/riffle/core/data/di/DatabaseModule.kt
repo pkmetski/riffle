@@ -154,4 +154,14 @@ object DatabaseModule {
     @Singleton
     fun provideBookComicFormattingPreferencesDao(db: RiffleDatabaseAccess): BookComicFormattingPreferencesDao =
         db.bookComicFormattingPreferencesDao()
+
+    @Provides
+    @Singleton
+    fun provideDictionaryPackDao(db: RiffleDatabaseAccess): com.riffle.core.database.DictionaryPackDao =
+        db.dictionaryPackDao()
+
+    @Provides
+    @Singleton
+    fun provideLookupHistoryDao(db: RiffleDatabaseAccess): com.riffle.core.database.LookupHistoryDao =
+        db.lookupHistoryDao()
 }

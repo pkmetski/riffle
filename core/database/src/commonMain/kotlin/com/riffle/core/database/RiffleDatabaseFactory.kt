@@ -45,6 +45,8 @@ internal class DefaultRiffleDatabaseAccess(
     override fun playlistDao() = database.playlistDao()
     override fun publicationMetricsCacheDao() = database.publicationMetricsCacheDao()
     override fun bookComicFormattingPreferencesDao() = database.bookComicFormattingPreferencesDao()
+    override fun dictionaryPackDao() = database.dictionaryPackDao()
+    override fun lookupHistoryDao() = database.lookupHistoryDao()
 }
 
 internal val RIFFLE_DATABASE_MIGRATIONS: Array<Migration> = arrayOf(
@@ -115,4 +117,5 @@ internal val RIFFLE_DATABASE_MIGRATIONS: Array<Migration> = arrayOf(
     RiffleDatabase.MIGRATION_65_66,
     RiffleDatabase.MIGRATION_66_67,
     RiffleDatabase.MIGRATION_67_68,
+    RiffleDatabase.MIGRATION_68_69,
 )
