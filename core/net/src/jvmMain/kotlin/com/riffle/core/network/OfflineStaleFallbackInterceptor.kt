@@ -12,7 +12,7 @@ import java.util.concurrent.TimeUnit
  * so OkHttp serves any previously-cached copy regardless of age. If nothing was cached,
  * the retry surfaces a synthetic 504 which we swap back for the original IOException —
  * a genuinely-uncached, offline URL still fails, but anything the user has visited
- * before remains accessible offline (ADR 0043).
+ * before remains accessible offline (ADR 0052).
  *
  * Registered as an application interceptor so retry can issue a new request through the
  * cache layer. Only [IOException] triggers fallback — non-2xx from the origin means we

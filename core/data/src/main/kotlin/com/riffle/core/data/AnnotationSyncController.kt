@@ -29,7 +29,7 @@ import kotlinx.coroutines.Job
  *   [AnnotationSyncTarget] kdoc for the rationale.
  *
  * Gracefully degrades to a no-op if [targetProvider] returns null (sync disabled). Companion sweep
- * ([AnnotationSweep], ADR 0036) handles durable retries after process death; this controller
+ * ([AnnotationSweep], ADR 0043) handles durable retries after process death; this controller
  * reports its own cycle outcomes through [statusStore] and asks [sweepEnqueuer] to schedule a
  * WorkManager retry on failure.
  */
@@ -80,7 +80,7 @@ class AnnotationSyncController(
         private const val LIVE_SYNC_INTERVAL_MS = 30_000L
 
         /**
-         * ADR 0038 — tombstones and the ignore-stale-orphan merge guard both use this cutoff.
+         * ADR 0045 — tombstones and the ignore-stale-orphan merge guard both use this cutoff.
          * 90 days: cheap lever to reduce the "device offline > TTL, then edits a ghost" resurrection
          * risk without meaningfully changing tidiness benefit. Not a user setting.
          */

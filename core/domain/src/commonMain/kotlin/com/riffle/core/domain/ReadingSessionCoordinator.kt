@@ -32,7 +32,7 @@ class ReadingSessionCoordinator(
     // Whether reading-session ticks and the terminal speed flush should fire. Evaluated INSIDE
     // the tick loop (not at [onResumed] entry) so the check keeps working across a Catalog
     // capability resolution that lands after the reader is already mounted (issue #439 / ADR
-    // 0041). If [enabled] were checked once at start, a race between the reader's async catalog
+    // 0048). If [enabled] were checked once at start, a race between the reader's async catalog
     // probe and its own [onResumed] call would silently kill the whole session — an ABS regression
     // as well as the LocalFiles case. Deferring the check to per-tick pays a cheap `delay(30s)`
     // every heartbeat interval for LocalFiles, which is what "zero-op" was ever going to cost

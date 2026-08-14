@@ -5,7 +5,7 @@ import com.riffle.core.models.ReadaloudLink
 /**
  * Narrow seam for scheduling a cross-EPUB index build for a matched book, so callers (the library
  * detail ViewModel's download-complete trigger, the reader-sync factory's on-open self-heal) depend
- * on the *intent* — not the I/O-heavy [CrossEpubIndexBuilderService] that fulfils it (ADR 0019/0031).
+ * on the *intent* — not the I/O-heavy [CrossEpubIndexBuilderService] that fulfils it (ADR 0023/0031).
  * Keeping the surface this small also makes those callers trivially unit-testable.
  */
 interface CrossEpubIndexBuildTrigger {

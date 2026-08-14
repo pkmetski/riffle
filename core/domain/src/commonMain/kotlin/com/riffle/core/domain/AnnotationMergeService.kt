@@ -18,12 +18,12 @@ class AnnotationMergeService {
      * @param parsed List of parsed W3C annotations from sync source (e.g., file or server).
      * @param existing Existing W3CAnnotation records (e.g., from previous merge or Room conversion);
      *        if omitted, merge is just the parsed set as-is.
-     * @param nowMs Wall-clock (ms) used to filter stale orphan incoming records (ADR 0038 rule 3).
+     * @param nowMs Wall-clock (ms) used to filter stale orphan incoming records (ADR 0045 rule 3).
      *        Omit or pass 0 to disable the filter (used by pure-merge tests).
      * @param staleOrphanCutoffMs Records in [parsed] whose `updatedAt < nowMs - staleOrphanCutoffMs`
      *        AND whose UUID has no matching row in [existing] are ignored — they are the delayed
      *        push from a peer that missed a household-wide sweep. Applying them would silently
-     *        resurrect long-deleted content (see ADR 0038). Rows we already have locally, and
+     *        resurrect long-deleted content (see ADR 0045). Rows we already have locally, and
      *        fresh rows, are unaffected.
      * @return List of W3CAnnotation winners, ready to convert to AnnotationEntity.
      *

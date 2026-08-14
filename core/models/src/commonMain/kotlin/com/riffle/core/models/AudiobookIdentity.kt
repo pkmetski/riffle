@@ -7,7 +7,7 @@ import kotlin.math.max
  * A recording's identity as Riffle can cheaply observe it: the total byte size, the total
  * duration, and the per-track durations. For the ABS side these come from the library item's
  * audio files; for the Storyteller side from the *ingested-source* audiobook record in
- * `/api/v2/books/{id}` (the original file, not the re-split bundle). See [ADR 0028].
+ * `/api/v2/books/{id}` (the original file, not the re-split bundle). See [ADR 0040].
  */
 data class AudiobookFingerprint(
     val fileSizeBytes: Long,
@@ -18,7 +18,7 @@ data class AudiobookFingerprint(
 /**
  * Decides whether the ABS audiobook is the same recording Storyteller aligned against — the gate
  * that makes the streaming path safe. Streaming is only taken when this returns true, so a
- * name-matched-but-different audiobook never silently mis-syncs the highlight (ADR 0028).
+ * name-matched-but-different audiobook never silently mis-syncs the highlight (ADR 0040).
  */
 object AudiobookIdentity {
 
@@ -34,7 +34,7 @@ object AudiobookIdentity {
         // differ from ABS's file boundaries for the very same recording (observed: identical 740,230,852 B
         // and 15222.83 s total, yet per-track splits up to ~11 s apart). The streaming mapper reconciles
         // the two segmentations on a global timeline, so the gate only needs the whole-file signals — the
-        // old pairwise-track check produced false MISMATCHes that blocked every multi-track book (ADR 0028).
+        // old pairwise-track check produced false MISMATCHes that blocked every multi-track book (ADR 0040).
         if (!fileSizeClose(storytellerSource.fileSizeBytes, absAudiobook.fileSizeBytes)) return false
         return abs(storytellerSource.durationSec - absAudiobook.durationSec) <= DURATION_TOLERANCE_SEC
     }

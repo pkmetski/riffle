@@ -189,7 +189,7 @@ class EpubReaderViewModelHighlightsSourceTest {
         assertEquals("Complexity", elidedChapterTitle("OEBPS/part0010.xhtml", "part0010", toc, 0))
     }
 
-    // ---- Fix B (ADR 0041 follow-up): chapter titles resolved from the cached TOC -----------
+    // ---- Fix B (ADR 0048 follow-up): chapter titles resolved from the cached TOC -----------
 
     // The regression this pins: without TOC resolution, Highlights-mode chapter headings show the
     // raw href basename ("part0007") instead of the book's real chapter title.
@@ -233,7 +233,7 @@ class EpubReaderViewModelHighlightsSourceTest {
         assertEquals("Nested Chapter", resolveChapterTitle("OEBPS/part0002.xhtml", toc))
     }
 
-    // ---- Task 10 (ADR 0041): per-device resume position -----------------------------------
+    // ---- Task 10 (ADR 0048): per-device resume position -----------------------------------
 
     @Test
     fun `highlightsResumeChapterHref resolves the synthesised href for the chapter containing the highlight`() {
@@ -285,7 +285,7 @@ class EpubReaderViewModelHighlightsSourceTest {
 
     // ---- Delete-last-annotation crash fix ---------------------------------------------------
 
-    // Regression: deleting the last remaining annotation in the annotations reading view (ADR 0041
+    // Regression: deleting the last remaining annotation in the annotations reading view (ADR 0048
     // "Highlights" reader) used to hard-crash — deleteAnnotation reloaded openBook(), which built a
     // synthesised Publication with an empty readingOrder, and Readium's EpubNavigatorFragment
     // throws on that. The fix keys off this predicate: when no live highlights remain, close the
@@ -322,9 +322,9 @@ class EpubReaderViewModelHighlightsSourceTest {
         assertFalse(highlightsShouldCloseAfterDelete(rows))
     }
 
-    // ---- Format-only highlights (ADR 0046) ------------------------------------------------
+    // ---- Format-only highlights (ADR 0056) ------------------------------------------------
 
-    // ADR 0046 §4: a highlight with color="" IS a valid user-created annotation ("just bold
+    // ADR 0056 §4: a highlight with color="" IS a valid user-created annotation ("just bold
     // this text"). It MUST render in the elided view — dropping it here made the whole book
     // disappear from the annotations tab whenever the user picked ∅ instead of a colour.
     // The visual differentiation from yellow highlights happens at the render seam (neutral

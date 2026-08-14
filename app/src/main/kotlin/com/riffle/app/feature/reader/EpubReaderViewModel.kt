@@ -141,7 +141,7 @@ private fun entityFontFamily(annotation: Annotation): String? =
  *  body-font probe on top, then emit no `font-family` at all if that too is unknown. Ties
  *  broken by first-seen order. */
 /**
- * ADR 0046 §4: derive the styles the draft commit should carry, given the per-book preset and
+ * ADR 0056 §4: derive the styles the draft commit should carry, given the per-book preset and
  * the chip the user just tapped. Set union is wrong when the tapped chip is already pre-selected
  * — tapping a highlighted-preset chip must TOGGLE it off, not re-add it (a chip user taps to
  * deselect otherwise commits with the style still applied). A null tap (a colour swatch pick,
@@ -214,7 +214,7 @@ private const val OVERLAP_CONTEXT_LEN = 60
 
 /**
  * Whether Reading-Session tracking, ABS progress-sync PATCHes, and highlight/bookmark creation
- * gestures should run for this reader instance (ADR 0041, Task 8). Highlights mode displays a
+ * gestures should run for this reader instance (ADR 0048, Task 8). Highlights mode displays a
  * synthesised, elided Publication built from stored highlights — it is not "reading" the real
  * book, so none of these side effects should fire against the ABS item or the annotation store.
  */
@@ -284,12 +284,12 @@ class EpubReaderViewModel @Inject constructor(
     private val connectivityObserver: ConnectivityObserver,
     private val readerSyncFactory: ReaderSyncFactory,
     private val readingPositionStore: ReadingPositionStore,
-    // Sync-store views of the same position rows for the matched dual-write (ADR 0030): read this
+    // Sync-store views of the same position rows for the matched dual-write (ADR 0036): read this
     // book's reading row stamps and mirror the translated audiobook second onto the sibling row.
     private val readingSyncStore: com.riffle.core.domain.SyncPositionStore<String>,
     private val audioSyncStore: com.riffle.core.domain.SyncPositionStore<Double>,
     // While this reader is open it drives the book's reconciliation; the durable sweep must skip it
-    // so it can't absorb a cross-device server-win the visible reader hasn't jumped to (ADR 0030).
+    // so it can't absorb a cross-device server-win the visible reader hasn't jumped to (ADR 0036).
     private val openReconcileTargets: com.riffle.core.sync.OpenReconcileTargets,
     private val readaloudResumeStore: ReadaloudResumeStore,
     private val annotationStore: AnnotationStore,
@@ -439,13 +439,13 @@ class EpubReaderViewModel @Inject constructor(
 
     private val itemId: String = checkNotNull(savedStateHandle["itemId"])
 
-    // Which content this reader instance displays (ADR 0041). Nav args carry `?source=highlights`
+    // Which content this reader instance displays (ADR 0048). Nav args carry `?source=highlights`
     // (lowercase, see MainScreen's EPUB_READER route); ReaderSource's canonical form is
     // uppercase-first ("Highlights"). See [decodeReaderSource] for why matching is case-insensitive
     // rather than single-character-normalised.
     private val source: ReaderSource = decodeReaderSource(savedStateHandle.get<String>("source"))
 
-    /** Public read of [source] for the screen layer to gate Readaloud/Rail UI (Task 9, ADR 0041). */
+    /** Public read of [source] for the screen layer to gate Readaloud/Rail UI (Task 9, ADR 0048). */
     val readerSource: ReaderSource get() = source
 
     // Audiobook→readaloud handoff: when opened by swiping the audiobook player down, this carries the
@@ -467,7 +467,7 @@ class EpubReaderViewModel @Inject constructor(
     // _navigationEvents channel as the TOC panel's tap handler (see navigateToEntry).
     private val startTocHref: String? = savedStateHandle["startTocHref"]
 
-    // Highlights mode only (ADR 0041): the server the tapped book's highlights belong to, threaded
+    // Highlights mode only (ADR 0048): the server the tapped book's highlights belong to, threaded
     // explicitly through the nav route by AnnotationsListScreen's onBookClick rather than re-resolved
     // from "the active server" at open time. Without this, a Server Switcher change racing the
     // Annotations-list → reader navigation would open the elided reader against whatever server
@@ -503,7 +503,7 @@ class EpubReaderViewModel @Inject constructor(
     private val _syncErrorEvents = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
     val syncErrorEvents: SharedFlow<Unit> = _syncErrorEvents.asSharedFlow()
 
-    // Highlights mode (ADR 0041) live DOM patch bus. Each per-annotation store change turns into
+    // Highlights mode (ADR 0048) live DOM patch bus. Each per-annotation store change turns into
     // one [HighlightsDomPatch]; the screen collects and dispatches through the RendererBridge.
     // BUFFERED replay=0 — patches are stateless deltas; on subscribe we don't want stale events.
     // The extra buffer keeps rapid bursts (e.g. sync inserts N highlights) from suspending the
@@ -516,7 +516,7 @@ class EpubReaderViewModel @Inject constructor(
         _highlightDomPatches.asSharedFlow()
 
     // Nav events the screen can't service itself — e.g. leaving the elided Highlights-mode reader
-    // to open the real source book at a tapped highlight's CFI (Task 9, ADR 0041).
+    // to open the real source book at a tapped highlight's CFI (Task 9, ADR 0048).
     private val _readerNavEvents = Channel<ReaderNavEvent>(Channel.BUFFERED)
     val readerNavEvents: Flow<ReaderNavEvent> = _readerNavEvents.receiveAsFlow()
 
@@ -542,7 +542,7 @@ class EpubReaderViewModel @Inject constructor(
         savePosition = { cfi ->
             epubRepository.saveReadingPosition(itemId, cfi)
             // Matched book: reading is also listening — persist the translated audiobook position
-            // locally so the durable sweep pushes the audio record too, without reopening (ADR 0030).
+            // locally so the durable sweep pushes the audio record too, without reopening (ADR 0036).
             readaloud.mirrorReadingToAudiobook(cfi)
         },
         updateProgress = { progress -> updateReadingProgressUseCase(itemId, progress) },
@@ -580,7 +580,7 @@ class EpubReaderViewModel @Inject constructor(
     private val annotationRenderCache =
         mutableMapOf<String, Pair<AnnotationRenderKey, List<HighlightRender>>>()
 
-    // Highlights mode only (Task 10, ADR 0041): the chapter grouping + resolved server id from the
+    // Highlights mode only (Task 10, ADR 0048): the chapter grouping + resolved server id from the
     // last [openBook] build, kept so the resume-position collector below can map a synthesised-href
     // locator update back to a highlight id without rebuilding the Publication. Null in FullBook mode.
     private var highlightsResumeChapters: List<ChapterElision>? = null
@@ -624,7 +624,7 @@ class EpubReaderViewModel @Inject constructor(
     private var footnotePopupOriginLocator: Locator? = null
 
     // Hold the screen on whenever EITHER the global preference says to OR Auto-Scroll is running
-    // (ADR 0037 — a sleeping screen would visibly break a hands-free session).
+    // (ADR 0053 — a sleeping screen would visibly break a hands-free session).
     val keepScreenOn: StateFlow<Boolean> = wakeLock.keepScreenOn
 
     // ---- FormattingSession delegations ---------------------------------------------------------
@@ -640,7 +640,7 @@ class EpubReaderViewModel @Inject constructor(
     fun reachedEndOfBookForAutoScroll() = formatting.reachedEndOfBookForAutoScroll()
 
     fun startAutoScroll() {
-        // Three-way mutual exclusion via the pure arbiter (ADR 0037 + issue #403). Compute the
+        // Three-way mutual exclusion via the pure arbiter (ADR 0053 + issue #403). Compute the
         // fan-out first, apply it, then start the local feature. Routing through the arbiter
         // keeps the "who pauses whom" truth-table in one place — the reducer stays feature-local.
         applyArbiter(com.riffle.core.domain.cadence.Feature.AutoScroll)
@@ -662,7 +662,7 @@ class EpubReaderViewModel @Inject constructor(
 
     fun setReaderViewportWidthPx(px: Int) = formatting.setViewportWidthPx(px)
 
-    // ---- Cadence (issue #403 / ADR 0040) --------------------------------------------------------
+    // ---- Cadence (issue #403 / ADR 0047) --------------------------------------------------------
 
     val cadenceState: StateFlow<com.riffle.core.domain.cadence.CadenceState> = cadenceController.state
     val cadenceCurrentFragment: StateFlow<String?> = cadenceController.currentFragment
@@ -879,13 +879,13 @@ class EpubReaderViewModel @Inject constructor(
     val currentSearchIndex: StateFlow<Int> = search.currentSearchIndex
     val searchNavigationEvents: Flow<Locator> = search.searchNavigationEvents
 
-    // ---- Readaloud (ADR 0023) ----------------------------------------------------------------
+    // ---- Readaloud (ADR 0027) ----------------------------------------------------------------
 
     // isStorytellerService and readerServerId now live on [lifecycle] (issue #376). The single
     // remaining read site (annotation binding) captures activeServer + isStorytellerService from
     // the Ready payload directly.
 
-    // ---- Annotations (ADR 0024 / 0025) -------------------------------------------------------
+    // ---- Annotations (ADR 0028 / ADR 0029) -------------------------------------------------------
 
     // The ABS server hosting this item; annotations key on it together with itemId. Resolved once
     // the active server is known. Null on the Storyteller-only / Readaloud side, where annotations
@@ -902,14 +902,14 @@ class EpubReaderViewModel @Inject constructor(
     // ---- AnnotationSession delegations -------------------------------------------------------
 
     // Highlights exist only while reading the ABS side. False on a Storyteller-only book — the
-    // "Highlight" affordance must not appear there (ADR 0024).
+    // "Highlight" affordance must not appear there (ADR 0028).
     val annotationsAvailable: StateFlow<Boolean> = annotationSession.annotationsAvailable
 
     /**
      * A persisted highlight reconstructed into a renderable Readium locator + colour token +
      * optional note.
      *
-     * [useAccentBarStyle] is Highlights-mode only (ADR 0041): when true,
+     * [useAccentBarStyle] is Highlights-mode only (ADR 0048): when true,
      * [com.riffle.app.feature.reader.ReadiumHighlightRenderer.applyAnnotations] paints via
      * the accent-bar rendering path (synthesised HTML border-left + injected tap span) instead of the usual tinted style,
      * which renders no fill and confines Readium's tap hit-testing to a narrow gutter strip on
@@ -923,12 +923,12 @@ class EpubReaderViewModel @Inject constructor(
         val color: String,
         val note: String?,
         val useAccentBarStyle: Boolean = false,
-        /** ADR 0046: union of styles from every [com.riffle.core.database.AnnotationEntity.TYPE_EMPHASIS]
+        /** ADR 0056: union of styles from every [com.riffle.core.database.AnnotationEntity.TYPE_EMPHASIS]
          *  row that overlaps this highlight's CFI range. Empty when no emphasis is layered. Drives
          *  a companion Readium underline decoration (v1) and — as the pipeline grows — inline CSS
          *  injection for the other three styles. */
         val emphasisStyles: Set<com.riffle.core.models.EmphasisStyle> = emptySet(),
-        /** ADR 0046 §4: true iff the actions sheet is currently open on this highlight. The
+        /** ADR 0056 §4: true iff the actions sheet is currently open on this highlight. The
          *  renderer paints a temporary neutral wash on `∅`-color rows only while this is true,
          *  so the user can see the range they're editing without a permanent visual footprint. */
         val isBeingEdited: Boolean = false,
@@ -936,27 +936,27 @@ class EpubReaderViewModel @Inject constructor(
 
     val highlightRenders: StateFlow<List<HighlightRender>> = annotationSession.highlightRenders
 
-    /** ADR 0046: live emphasis rows for the current book. Screen reads this to derive which
+    /** ADR 0056: live emphasis rows for the current book. Screen reads this to derive which
      *  B/I/U/S chips are active for the highlight the sheet is open on. Kept out of
      *  [annotations] to keep the review-surface panel piggyback-clean. */
     val emphasisPool: StateFlow<List<com.riffle.core.models.Annotation>> = annotationSession.emphasisPool
 
-    /** ADR 0046 §4: per-book last-used emphasis set, delegated so the screen can preview it as
+    /** ADR 0056 §4: per-book last-used emphasis set, delegated so the screen can preview it as
      *  chip pre-selection when the sheet opens on a draft. */
     val lastUsedEmphasisStyles: StateFlow<Set<com.riffle.core.models.EmphasisStyle>> =
         annotationSession.lastUsedEmphasisStyles
 
-    /** ADR 0046 §4: per-book last-used highlight colour, delegated so the screen can preview it
+    /** ADR 0056 §4: per-book last-used highlight colour, delegated so the screen can preview it
      *  as the swatch row's pre-selection when the sheet opens on a draft. Pair with
      *  [lastUsedColorIsNone] — when true the ∅ swatch is pre-selected instead. */
     val lastUsedHighlightColor: StateFlow<com.riffle.core.models.HighlightColor> =
         annotationSession.lastUsedHighlightColor
 
-    /** ADR 0046 §4: `true` when the last colour pick was ∅ so the swatch row pre-selects the
+    /** ADR 0056 §4: `true` when the last colour pick was ∅ so the swatch row pre-selects the
      *  crossed circle instead of the [lastUsedHighlightColor] value. */
     val lastUsedColorIsNone: StateFlow<Boolean> = annotationSession.lastUsedColorIsNone
 
-    /** ADR 0046 §4: the in-flight [AnnotationSession.DraftAnnotation], if any. The screen reads
+    /** ADR 0056 §4: the in-flight [AnnotationSession.DraftAnnotation], if any. The screen reads
      *  this so the DOM emphasis injector can preview bold/italic on the pending selection using
      *  the draft's [AnnotationSession.DraftAnnotation.textSnippet] + [AnnotationSession.DraftAnnotation.textBefore]
      *  before commit. Without this, the sheet's chip pre-selection wouldn't visually match the
@@ -986,7 +986,7 @@ class EpubReaderViewModel @Inject constructor(
     fun openHighlightActions(id: String, anchorRect: IntRect) =
         annotationSession.openHighlightActions(annotationIdOf(id), anchorRect)
 
-    /** ADR 0046 §4: commitDraft-only variant that marks the target as "just created from a
+    /** ADR 0056 §4: commitDraft-only variant that marks the target as "just created from a
      *  draft", so the tombstone-on-empty check in [AnnotationSession.dismissHighlightActions]
      *  knows this row is a candidate for GC if the user leaves it empty. Existing annotations
      *  opened by a tap use the plain overload above and never get auto-tombstoned. */
@@ -1012,7 +1012,7 @@ class EpubReaderViewModel @Inject constructor(
     /**
      * Dismiss the highlight-actions popup.
      *
-     * ADR 0046 §4 (updated 2026-07-19): for a pending DRAFT, dismissing without an explicit swatch
+     * ADR 0056 §4 (updated 2026-07-19): for a pending DRAFT, dismissing without an explicit swatch
      * or chip tap now COMMITS the draft in the per-book last-used state — colour = last-used
      * colour (or `∅` if the user's last pick was ∅), emphasis = last-used set — instead of
      * discarding. Only a preset of `∅` + no emphasis discards; otherwise the pre-selected state
@@ -1114,7 +1114,7 @@ class EpubReaderViewModel @Inject constructor(
         // ABS flips it on once its Catalog resolves.
         viewModelScope.launch {
             // Key on the book's own Source, not the currently-active one — a reader can outlive
-            // a Source switch (issue #439 / ADR 0041). Fall back to the active Source when nav
+            // a Source switch (issue #439 / ADR 0048). Fall back to the active Source when nav
             // didn't carry a sourceId (normal FullBook open), matching the resolution pattern
             // used elsewhere in this VM. Raw `is` check in place of the inline has<T>() extension —
             // see LibraryItemsViewModel.tabVisibility for the JVM-target rationale.
@@ -1129,7 +1129,7 @@ class EpubReaderViewModel @Inject constructor(
             formatting.bindToBook(itemId, source.toFormattingScope())
             openBook()
         }
-        // Readaloud start ⇒ stop Auto-Scroll (mutual exclusion, ADR 0037). Stop (not Pause):
+        // Readaloud start ⇒ stop Auto-Scroll (mutual exclusion, ADR 0044). Stop (not Pause):
         // pausing would leave an invisible Auto-Scroll session waiting to silently resume on
         // Readaloud stop — the surprise the ADR was written to head off.
         viewModelScope.launch {
@@ -1162,7 +1162,7 @@ class EpubReaderViewModel @Inject constructor(
                 position.requestServerJumpWithSuppressCheck(locator)
             }
         }
-        // Highlights mode only (Task 10, ADR 0041): persist the highlight the reader is currently
+        // Highlights mode only (Task 10, ADR 0048): persist the highlight the reader is currently
         // showing so reopening the book resumes near it. Device-local — never synced. Chapter-level
         // precision only: see [highlightsResumeAnnotationIdForHref]'s docstring for why a stable
         // per-highlight href isn't available.
@@ -1190,7 +1190,7 @@ class EpubReaderViewModel @Inject constructor(
         chapterDocCache.clear()
         chapterTotalCharsCache.clear()
         annotationRenderCache.clear()
-        // Highlights mode (ADR 0041): the reader displays a synthesised, elided Publication built
+        // Highlights mode (ADR 0048): the reader displays a synthesised, elided Publication built
         // from this book's stored highlights rather than the real ABS EPUB container. Diverted
         // before lifecycle.open() so the ABS fetch, matched-sync resolution, readaloud binding, and
         // annotation-sync wiring (all Task 8/9 concerns) never run for this reader instance.
@@ -1319,7 +1319,7 @@ class EpubReaderViewModel @Inject constructor(
             }
             highlightsPublicationHandle = handle
             val pub = handle.publication
-            // Per-device resume (Task 10, ADR 0041): jump back to the chapter containing the
+            // Per-device resume (Task 10, ADR 0048): jump back to the chapter containing the
             // last-viewed highlight, at chapter-level precision. The synthesised Publication's
             // hrefs ("highlights/ch$index.xhtml") are rebuilt fresh every open from `chapters`'
             // index order, so resuming needs to re-derive the same index — there's no stable
@@ -1427,7 +1427,7 @@ class EpubReaderViewModel @Inject constructor(
         // server-locator that follows; subsequent syncs (peer / live progress) still apply normally.
         if (o.openAtLocator != null) position.markSuppressNextServerLocator()
 
-        // ── Annotation binding — ABS-side only (ADR 0024) ────────────────────────────
+        // ── Annotation binding — ABS-side only (ADR 0028) ────────────────────────────
         // Bind BEFORE _state = Ready so the annotation Flow observer starts subscribing to Room
         // before Compose mounts the reader. Without this ordering, chapters mount and dispatch
         // several wasted `applyAnnotationHighlights` cycles with empty renders while the observer
@@ -1489,7 +1489,7 @@ class EpubReaderViewModel @Inject constructor(
                 annotationNamespace = namespace
                 annotationSession.updateNamespace(namespace)
             }
-            // ADR 0046 §4: orphan-emphasis cleanup (2026-07-18). Pre-2026-07-18 the commit-time
+            // ADR 0056 §4: orphan-emphasis cleanup (2026-07-18). Pre-2026-07-18 the commit-time
             // overlap-dedup and pre-cascade dismiss paths deleted a TYPE_HIGHLIGHT anchor
             // without removing its sibling TYPE_EMPHASIS rows at the same CFI. Those orphan
             // rows silently accumulate in the pool — the DOM injector keeps painting
@@ -1641,7 +1641,7 @@ class EpubReaderViewModel @Inject constructor(
     }
 
     /**
-     * One canonical reconciliation cycle (ADR 0019). The canonical position is the displayed-EPUB
+     * One canonical reconciliation cycle (ADR 0023). The canonical position is the displayed-EPUB
      * reading position with its stored timestamp; a remote win jumps the reader (including a
      * genuinely-newer audiobook listened on another device, bridged through the bundle), and the
      * winning timestamp is persisted as the canonical localUpdatedAt. Any failure is isolated here.
@@ -1662,7 +1662,7 @@ class EpubReaderViewModel @Inject constructor(
             val localUpdatedAt = readingPositionStore.loadLocalUpdatedAt(sourceId, itemId)
             // While parked on the sentence readaloud stopped on, readaloud already wrote the precise
             // audiobook position; reconcile the audiobook inbound-only so this page-derived cycle can't
-            // regress it to the page top (ADR 0031). Outbound resumes once the user navigates off the page.
+            // regress it to the page top (ADR 0037). Outbound resumes once the user navigates off the page.
             val pushAudio = readaloud.parkPolicy.fragmentRef == null
             val result = runCatching { coordinator.runCycle(locJson, localUpdatedAt, pushAudio) }.getOrNull()
             if (result != null) {
@@ -1846,7 +1846,7 @@ class EpubReaderViewModel @Inject constructor(
         // Stays on viewModelScope: runReaderSyncCycle mutates reader state (lastLocator,
         // pendingServerJumpStamp, …) and posts the inbound-jump channel, which must run on the main
         // thread while the screen is alive — it is not safe to relocate to a background flush scope.
-        // The durable reading-position write survives a reopen/the offline sweep (ADR 0030).
+        // The durable reading-position write survives a reopen/the offline sweep (ADR 0036).
         viewModelScope.launch {
             val payload = locator.toPayload()
             positionSaveCoordinator.onClose(payload.ebookProgress)
@@ -1883,7 +1883,7 @@ class EpubReaderViewModel @Inject constructor(
     /**
      * Resolves a raw ABS `epubcfi(...)` to a [Locator] using the open publication. Used by
      * [serverProgressToLocator] (live sync path: ABS always returns epubcfi) and by [openBook]
-     * (legacy-row healing for DB rows written before the ADR 0030 translation fix). Returns null
+     * (legacy-row healing for DB rows written before the ADR 0036 translation fix). Returns null
      * when the string isn't an epubcfi or can't be resolved, letting callers fall back.
      */
     private suspend fun cfiStringToLocator(rawCfi: String): Locator? {
@@ -1996,7 +1996,7 @@ class EpubReaderViewModel @Inject constructor(
 
     // Create a highlight at the current text selection in the user's last-used colour (see
     // [AnnotationSession.lastUsedHighlightColor]; falls back to yellow first-run). Anchors on a CFI range built from
-    // the selection's start progression + selected text (ADR 0024), capturing the snippet + href.
+    // the selection's start progression + selected text (ADR 0028), capturing the snippet + href.
     // Any existing highlights in the same chapter that overlap the new selection are deleted first —
     // a larger selection subsuming a previously highlighted word replaces that highlight.
     fun createHighlight(selectionLocator: Locator, anchorRect: IntRect) {
@@ -2029,7 +2029,7 @@ class EpubReaderViewModel @Inject constructor(
                 selectionLocator.locations.progression ?: 0.0
             }
 
-            // ADR 0046 §4: overlapping-highlight dedup used to happen here at create time. It's
+            // ADR 0056 §4: overlapping-highlight dedup used to happen here at create time. It's
             // now deferred to commitDraft — if the user cancels the sheet without picking a
             // colour/emphasis, we don't want to have already deleted their existing highlights.
             val newAfter = selectionLocator.text.after ?: ""
@@ -2119,7 +2119,7 @@ class EpubReaderViewModel @Inject constructor(
             // so the render side takes its plain textSnippet path unambiguously.
             val snippetHtml = SelectionSnippetHtmlStash.consume().takeIf { it.isNotBlank() }
 
-            // ADR 0046 §4: build a draft — nothing persists until the user taps a swatch or
+            // ADR 0056 §4: build a draft — nothing persists until the user taps a swatch or
             // emphasis chip. `commitDraft*` in this VM performs the delayed store writes
             // (highlight, sibling emphasis, figure absorption dedup) once the sheet's first
             // real action fires.
@@ -2161,7 +2161,7 @@ class EpubReaderViewModel @Inject constructor(
     }
 
     /**
-     * ADR 0046 §4: persist the pending draft with [initialColor] and (optionally) a sibling
+     * ADR 0056 §4: persist the pending draft with [initialColor] and (optionally) a sibling
      * emphasis row carrying the per-book last-used styles. Runs the deferred overlapping-highlight
      * dedup and standalone-TYPE_IMAGE absorption here — those side effects were previously done
      * at create time in [createHighlight] but now wait for the user's first swatch/chip pick to
@@ -2199,7 +2199,7 @@ class EpubReaderViewModel @Inject constructor(
         // The new detector [computeOverlapMerge] uses char-offset ranges resolved via
         // [locateSnippetInBody], so any true positional overlap merges.
         //
-        // ADR 0046 §4 cascade: MUST cascade sibling emphasis rows at each victim's CFI, or the
+        // ADR 0056 §4 cascade: MUST cascade sibling emphasis rows at each victim's CFI, or the
         // merge leaks a TYPE_EMPHASIS row with no live anchor. Users who iterated on layered
         // bold/italic annotations accumulated N orphan emphasis rows (observed 2026-07-18 — 29
         // orphans on a debug device); manifested as "annotations don't show in the panel and the
@@ -2315,7 +2315,7 @@ class EpubReaderViewModel @Inject constructor(
                 originFontFamily = draft.originFontFamily,
             )
         }
-        // ADR 0046 §4: persist the final emphasis set as the per-book default so the NEXT
+        // ADR 0056 §4: persist the final emphasis set as the per-book default so the NEXT
         // annotation on this book opens with the same chips pre-selected. Applies whether the
         // user tapped a chip on the draft (combinedStyles contains it) or picked a colour only
         // (combinedStyles is empty — clears the preset so a plain-color book stops nagging with
@@ -2323,7 +2323,7 @@ class EpubReaderViewModel @Inject constructor(
         // toggleEmphasisStyle, so the very first emphasis a user creates on a book teaches the
         // preset for the next.
         emphasisPreferencesStore.setLastUsedStyles(draft.sourceId, draft.itemId, combinedStyles)
-        // ADR 0046 §4 (2026-07-20 fix): persist the committed COLOUR as the per-book default
+        // ADR 0056 §4 (2026-07-20 fix): persist the committed COLOUR as the per-book default
         // too — sibling to the emphasis persistence above. Without this, tapping a swatch on a
         // draft was committed correctly but the next draft opened on the OLD last-used colour;
         // the user's most recent pick was forgotten ("the latest selection on the annotation
@@ -2394,7 +2394,7 @@ class EpubReaderViewModel @Inject constructor(
             pool = annotationSession.emphasisPool.value,
             cascadeCfis = setOf(current.cfi),
         )
-        // Highlight and Emphasis are independent axes (ADR 0046). Only merge highlight ranges
+        // Highlight and Emphasis are independent axes (ADR 0056). Only merge highlight ranges
         // whose sibling emphasis sets are identical; otherwise a plain range adjacent to a bold
         // range would collapse into one edit target and formatting would spread across the union.
         val pool = highlightsWithEmphasisStyles(
@@ -2530,7 +2530,7 @@ class EpubReaderViewModel @Inject constructor(
             absorbedHighlights = toAbsorb,
         )
         // All computations succeeded — commit: delete neighbours, then replace the anchor row.
-        // ADR 0046 §4: cascade sibling emphasis rows for every anchor/neighbour we tombstone so
+        // ADR 0056 §4: cascade sibling emphasis rows for every anchor/neighbour we tombstone so
         // the merge doesn't leak an orphan TYPE_EMPHASIS row into `emphasisPool` (the DOM
         // injector reads directly from the pool and would keep painting bold/italic on a
         // no-longer-existent range). Same cascade the panel-delete + overlap-dedup paths do.
@@ -2887,7 +2887,7 @@ class EpubReaderViewModel @Inject constructor(
                     originFontFamily = bookBodyFontFamilyReported.get().takeIf { it.isNotBlank() }
                         ?: FALLBACK_ORIGIN_FONT_FAMILY,
                 )
-                // ADR 0046 §4: this is a fresh anchor created without a swatch/chip pick, so
+                // ADR 0056 §4: this is a fresh anchor created without a swatch/chip pick, so
                 // dismissing without further interaction must GC the phantom row — same shape as
                 // the text draft path (see commitDraft's [openHighlightActionsJustCreated]).
                 openHighlightActionsJustCreated(created.id, anchorRect)
@@ -2912,7 +2912,7 @@ class EpubReaderViewModel @Inject constructor(
             imageBytes = payload.imageBytes,
             color = annotationSession.lastUsedHighlightColor.value.token,
         )
-        // ADR 0046 §4: fresh anchor with no user pick yet — flag for tombstone-on-empty like
+        // ADR 0056 §4: fresh anchor with no user pick yet — flag for tombstone-on-empty like
         // the text draft path so a dismiss-without-interaction doesn't leak a phantom row.
         openHighlightActionsJustCreated(created.id, anchorRect)
         scheduleAnnotationSync()
@@ -2923,7 +2923,7 @@ class EpubReaderViewModel @Inject constructor(
      *  patch via [highlightDomPatches], so the accent bar refreshes in place — no rebuild. */
     fun recolorHighlight(id: String, color: HighlightColor) {
         viewModelScope.launch {
-            // ADR 0046 §4: sheet action on a pending draft → commit now with the tapped colour
+            // ADR 0056 §4: sheet action on a pending draft → commit now with the tapped colour
             // and (optionally) any last-used emphasis pre-selection.
             if (id == com.riffle.app.feature.reader.session.AnnotationSession.DRAFT_ANNOTATION_ID) {
                 commitDraft(initialColor = color.token)
@@ -2934,7 +2934,7 @@ class EpubReaderViewModel @Inject constructor(
     }
 
     /**
-     * ADR 0046: toggle a single emphasis style over the range of an existing highlight [highlightId].
+     * ADR 0056: toggle a single emphasis style over the range of an existing highlight [highlightId].
      *
      * The gesture routes through the highlight's action sheet: the user has a highlight target
      * open, taps a B/I/U/S chip, and this method resolves-or-creates the sibling emphasis row
@@ -2957,7 +2957,7 @@ class EpubReaderViewModel @Inject constructor(
     private val emphasisToggleMutex = kotlinx.coroutines.sync.Mutex()
 
     fun toggleEmphasisStyle(highlightId: String, style: com.riffle.core.models.EmphasisStyle) {
-        // ADR 0046 §4: draft emphasis tap → commit with the per-book pre-selected colour
+        // ADR 0056 §4: draft emphasis tap → commit with the per-book pre-selected colour
         // (respecting ∅) + the tapped style. Color and emphasis are INDEPENDENT dimensions —
         // reported 2026-07-19: hardcoding initialColor="" here wiped the swatch-row pre-selection
         // when the user toggled a chip on the draft popup ("clearing the font formatting also
@@ -2984,7 +2984,7 @@ class EpubReaderViewModel @Inject constructor(
                     val current = existing.emphasisStyles.orEmpty()
                     val next = if (style in current) current - style else current + style
                     if (next.isEmpty()) {
-                        // ADR 0046 §4 envisions "empty-set GC on sheet dismiss" to preserve
+                        // ADR 0056 §4 envisions "empty-set GC on sheet dismiss" to preserve
                         // provenance across in-flight edits; that requires sheet-lifecycle
                         // plumbing not yet wired. As an interim we tombstone; the trade-off is
                         // provenance churn on toggle-off-then-on. Follow-up: sheet-dismiss GC.
@@ -3015,7 +3015,7 @@ class EpubReaderViewModel @Inject constructor(
                     )
                     setOf(style)
                 }
-                // ADR 0046: persist the resulting styles set as the per-book default for the
+                // ADR 0056: persist the resulting styles set as the per-book default for the
                 // next annotate gesture. On empty (tombstone path), we reset to empty; that
                 // way "off, off, off, ..." on many highlights teaches the app "this book
                 // doesn't want emphasis by default."
@@ -3271,13 +3271,13 @@ class EpubReaderViewModel @Inject constructor(
      *  Highlights mode: the observer sees the id disappear and dispatches a Remove DOM patch
      *  (or, if the chapter empties, falls back to reloadOrCloseHighlightsAfterDelete). */
     fun deleteHighlight(id: String) {
-        // ADR 0046 §4: draft trash tap → discard the pending selection without persisting.
+        // ADR 0056 §4: draft trash tap → discard the pending selection without persisting.
         if (id == com.riffle.app.feature.reader.session.AnnotationSession.DRAFT_ANNOTATION_ID) {
             annotationSession.discardDraft()
             return
         }
         viewModelScope.launch {
-            // ADR 0046 §4: the sheet's Delete removes "every annotation the range carries" — both
+            // ADR 0056 §4: the sheet's Delete removes "every annotation the range carries" — both
             // the highlight and every sibling emphasis on the same CFI. Do the emphasis cascade
             // first so that if the highlight delete races with UI teardown, the emphasis rows
             // still land; the store's tombstone is idempotent.
@@ -3291,7 +3291,7 @@ class EpubReaderViewModel @Inject constructor(
         }
     }
 
-    /** ADR 0046 §4: `∅` swatch — set the highlight's color to empty so the yellow overlay stops
+    /** ADR 0056 §4: `∅` swatch — set the highlight's color to empty so the yellow overlay stops
      *  painting while the row (and every layered emphasis at the same CFI) survives. */
     fun removeHighlightColor(id: String) {
         viewModelScope.launch {
@@ -3344,7 +3344,7 @@ class EpubReaderViewModel @Inject constructor(
     }
 
     /**
-     * Highlights mode only (Task 9, ADR 0041): tapping "Open in book" on a highlight in the
+     * Highlights mode only (Task 9, ADR 0048): tapping "Open in book" on a highlight in the
      * synthesised, elided reader navigates OUT to the full-book reader at that highlight's CFI.
      * Falls back to the active server if [annotationServerId] hasn't resolved yet — a race that
      * shouldn't occur in practice, since Highlights mode had to load highlights (and thus resolve
@@ -3389,7 +3389,7 @@ class EpubReaderViewModel @Inject constructor(
      * with a `#segN` suffix so `annotationIdOf` can strip it back at tap-dispatch time.
      */
     private suspend fun annotationToRender(a: Annotation): List<HighlightRender> {
-        // ADR 0046: union every TYPE_EMPHASIS row whose CFI matches this highlight's CFI.
+        // ADR 0056: union every TYPE_EMPHASIS row whose CFI matches this highlight's CFI.
         // Computed first so it feeds the cache key — a style toggle invalidates the cache entry.
         val emphasisStyles = annotationSession.emphasisPool.value
             .filter { it.cfi == a.cfi }
@@ -3920,7 +3920,7 @@ internal fun decodeReaderSource(raw: String?): ReaderSource =
 
 /**
  * Filters a stream of locator hrefs down to the ones that should trigger a
- * [HighlightsResumeStore] write (Important #3 fix, ADR 0041 Task 10). Two transforms:
+ * [HighlightsResumeStore] write (Important #3 fix, ADR 0048 Task 10). Two transforms:
  *  - [Flow.distinctUntilChanged] — collapse same-chapter position updates within a chapter to one
  *    write per chapter entered (chapter-level resume precision only, see
  *    [highlightsResumeAnnotationIdForHref]'s docstring).
@@ -3962,7 +3962,7 @@ internal fun <T> debouncedHighlightsFlow(
 
 /**
  * Highlights-mode counterpart to [EpubReaderViewModel.annotationToRender] (Critical #1 fix, ADR
- * 0041). The synthesised Publication has no CFI-addressable ABS EPUB backing it —
+ * 0048). The synthesised Publication has no CFI-addressable ABS EPUB backing it —
  * `lifecycle.publication` and `lifecycle.zip()` are both null in this mode by design (openBook's
  * Highlights branch never calls `lifecycle.open()`) — so the CFI→progression path
  * [EpubReaderViewModel.annotationToRender] uses can never resolve here. Instead this builds the
@@ -4007,7 +4007,7 @@ internal fun highlightsAnnotationToRender(
 }
 
 /**
- * Fallback chapter title for Highlights mode (ADR 0041) — the href basename with its directory and
+ * Fallback chapter title for Highlights mode (ADR 0048) — the href basename with its directory and
  * extension stripped (e.g. "OEBPS/ch03.xhtml" -> "ch03"). [HighlightsPublicationFactory] renders
  * whatever title string it's given verbatim (see [HighlightsPublicationFactoryTest]'s docstring);
  * this is where the actual fallback is computed. `internal` so it's unit-testable from `app:test`.
@@ -4018,7 +4018,7 @@ internal fun deriveChapterTitle(href: String): String {
 }
 
 /**
- * Elided-reader chapter heading, in priority order (ADR 0041 follow-up):
+ * Elided-reader chapter heading, in priority order (ADR 0048 follow-up):
  *  1. Cached TOC entry title (real book chapter name).
  *  2. `deriveChapterTitle(href)` — unless it looks unhelpful (UUID, "unknown", etc.), which
  *     happens for Storyteller-aligned chapters where `chapterHref` is an alignment UUID.
@@ -4045,7 +4045,7 @@ internal fun looksUnhelpfulTitle(title: String): Boolean =
     UUID_TITLE_REGEX.matches(title) || SPINE_FILENAME_REGEX.matches(title)
 
 /**
- * Resolves a highlight's chapter title from the cached TOC (Fix B, ADR 0041 follow-up) — without
+ * Resolves a highlight's chapter title from the cached TOC (Fix B, ADR 0048 follow-up) — without
  * this, [deriveChapterTitle]'s href-basename fallback surfaces raw filenames like "part0007" as
  * chapter headings. Matches on the href with any TOC fragment (`#anchor`) stripped, since a
  * highlight's stored `chapterHref` never carries one but a TOC entry pointing at a mid-chapter
@@ -4077,7 +4077,7 @@ internal fun resolveChapterTitle(href: String, toc: List<TocEntry>): String? {
  * without constructing the (Android-dependency-laden) ViewModel itself.
  */
 /**
- * Highlights-mode delete decision (ADR 0041 follow-up): given the DB rows for this book *after*
+ * Highlights-mode delete decision (ADR 0048 follow-up): given the DB rows for this book *after*
  * a soft-delete has been applied, returns `true` when the reader should be closed instead of
  * reloaded. Closing is required whenever no live highlights remain — the synthesised Publication
  * would otherwise be built with an empty readingOrder and Readium's navigator crashes on that
@@ -4134,7 +4134,7 @@ internal fun buildChapterElisions(rows: List<AnnotationEntity>): List<ChapterEli
 }
 
 /**
- * Resumes to chapter-level precision only (Task 10, ADR 0041): the synthesised Publication's
+ * Resumes to chapter-level precision only (Task 10, ADR 0048): the synthesised Publication's
  * [HighlightsPublicationFactory] hrefs — `"highlights/ch$index.xhtml"` — are rebuilt fresh on every
  * open from [chapters]' index order (filtered to non-empty chapters, matching the factory), so
  * there is no stable per-highlight href to persist directly. Instead this re-derives the index of
@@ -4155,7 +4155,7 @@ internal fun highlightsResumeChapterHref(
 }
 
 /**
- * Inverse of [highlightsResumeChapterHref] (Task 10, ADR 0041): given the synthesised href the
+ * Inverse of [highlightsResumeChapterHref] (Task 10, ADR 0048): given the synthesised href the
  * navigator just landed on (`"highlights/ch$index.xhtml"`) and the same [chapters] grouping used to
  * build the Publication, returns the id of the first highlight in that chapter — the id persisted
  * as this book's resume position. Returns null for a malformed/out-of-range href (defensive; the

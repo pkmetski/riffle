@@ -11,7 +11,7 @@ import com.riffle.core.sync.ReconcileLocks
 import javax.inject.Inject
 
 /**
- * Runs the ADR-0030 GET-before-PATCH reconcile for one (sourceId, itemId) — the same primitive
+ * Runs the ADR-0036 GET-before-PATCH reconcile for one (sourceId, itemId) — the same primitive
  * [ProgressSweep] runs across dirty rows, but scoped to a specific book on demand. Invoked from
  * [com.riffle.app.feature.reader.session.ReaderSessionLifecycle.open] BEFORE loading the initial
  * locator so the reader opens at the fresh server position instead of rendering the old local

@@ -9,7 +9,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 /**
- * Regression: chitanka series/collection ids contain slashes (`serie/foo`, per ADR 0042) so the
+ * Regression: chitanka series/collection ids contain slashes (`serie/foo`, per ADR 0051) so the
  * id MUST be URL-encoded before being spliced into the fixed `series_detail/{libraryId}/{seriesId}/
  * {seriesName}` template. Without encoding the extra `/` slots break the route match and
  * NavController throws `IllegalArgumentException: destination cannot be found in the navigation

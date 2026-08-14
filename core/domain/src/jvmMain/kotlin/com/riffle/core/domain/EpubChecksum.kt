@@ -4,7 +4,7 @@ import java.io.File
 import java.security.MessageDigest
 
 /**
- * Content checksum of an EPUB file, used to key the cross-EPUB index cache (ADR 0019).
+ * Content checksum of an EPUB file, used to key the cross-EPUB index cache (ADR 0023).
  * A server re-uploading its EPUB changes the bytes and therefore the checksum, so the
  * keyed cache lookup misses and the next sync cycle rebuilds — no explicit invalidation.
  */
@@ -13,7 +13,7 @@ object EpubChecksum {
     fun of(bytes: ByteArray): String = MessageDigest.getInstance("SHA-256").digest(bytes).toHex()
 
     /**
-     * Streams the file through the digest so a hundreds-of-MB synced bundle (ADR 0023) is hashed
+     * Streams the file through the digest so a hundreds-of-MB synced bundle (ADR 0027) is hashed
      * without ever being held in memory — produces the same value as [of] over the same bytes.
      */
     fun of(file: File): String {

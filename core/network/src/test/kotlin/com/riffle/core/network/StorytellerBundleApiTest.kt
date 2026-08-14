@@ -153,7 +153,7 @@ class StorytellerBundleApiTest {
     @Test fun probeBundleSize_slowSynced_failsFast_doesNotHang() = runBlocking {
         // Storyteller lazily generates the whole aligned bundle before answering /synced — for a large
         // cold book that can be minutes. The size probe must NOT inherit the download's unbounded timeout
-        // (else the streaming-play path that awaits the sidecar wedges forever, ADR 0028). A bounded
+        // (else the streaming-play path that awaits the sidecar wedges forever, ADR 0040). A bounded
         // sidecar client makes a slow /synced fail fast so the caller falls back.
         val bounded = StorytellerBundleApiImpl(createDefaultHttpClient(OkHttpClient()), sidecarCallTimeoutSeconds = 1)
         server.enqueue(
@@ -178,7 +178,7 @@ class StorytellerBundleApiTest {
     @Test fun streamSidecar_wedgedSynced_failsWithinTimeout_doesNotHangForever() = runBlocking {
         // A coroutine timeout can't cancel the blocking execute(), so the streaming sidecar fetch relies
         // on a real callTimeout to fail a wedged /synced — otherwise the "Preparing…" indicator sticks
-        // forever (ADR 0028). With a 1s bound, a 10s-delayed response must come back as NetworkError fast.
+        // forever (ADR 0040). With a 1s bound, a 10s-delayed response must come back as NetworkError fast.
         val bounded = StorytellerBundleApiImpl(createDefaultHttpClient(OkHttpClient()), sidecarStreamTimeoutSeconds = 1)
         server.enqueue(
             MockResponse().setBody(Buffer().write(ByteArray(64))).setHeadersDelay(10, TimeUnit.SECONDS),

@@ -24,7 +24,7 @@ interface PlayerController {
     fun nextChapter()
     /** Connects the controller to [bundleFile] and queues [track]'s audio. */
     suspend fun open(itemId: String, bundleFile: File, track: ReadaloudTrack)
-    /** Streaming counterpart of [open] (ADR 0028): audio streams from ABS. */
+    /** Streaming counterpart of [open] (ADR 0040): audio streams from ABS. */
     suspend fun openStreaming(streaming: SharedBundle.Streaming, track: ReadaloudTrack)
     /** "Play from here" from text-selection or resume. */
     fun playFromHere(fragmentRef: String)

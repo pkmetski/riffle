@@ -6,7 +6,7 @@ import com.riffle.core.models.LibraryItem
  * Decides whether a [LibraryItem] can be opened with no network — the single source of truth behind
  * the library's offline filtering. An item is available offline when its ebook is downloaded or
  * cached (EPUB/PDF), OR when its audiobook is downloaded. Audiobooks have a download-only tier (no
- * auto-cache), so the audio side is a plain `isDownloaded` check (ADR 0029). An item is ALSO
+ * auto-cache), so the audio side is a plain `isDownloaded` check (ADR 0035). An item is ALSO
  * offline-available when a downloaded readaloud bundle can supply its audio ([BundleAudiobookSource]).
  */
 class LibraryItemOfflineAvailability(

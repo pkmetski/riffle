@@ -2,7 +2,7 @@ package com.riffle.core.domain
 
 /**
  * Pure last-update-wins reconciliation for the audiobook's single durable local position against
- * ABS's media-progress record (ADR 0029). Mirrors [StorytellerPositionReconciler] but over absolute
+ * ABS's media-progress record (ADR 0035). Mirrors [StorytellerPositionReconciler] but over absolute
  * seconds: whichever side has the newer timestamp wins; ties stay in sync (local-favoured). The
  * caller resolves the offline case (a missing local row → [localSec] null, [localUpdatedAt] 0).
  */

@@ -12,7 +12,7 @@ import org.junit.Assert.assertNull
 import org.junit.Test
 
 /**
- * Catalog-backed [com.riffle.core.domain.ProgressRemote] adapters (ADR 0030 / ADR 0013): translate
+ * Catalog-backed [com.riffle.core.domain.ProgressRemote] adapters (ADR 0036 / ADR 0013): translate
  * ABS `epubcfi(...)` ↔ Riffle Locator JSON at the Catalog boundary so the local store is never
  * polluted with a foreign format. A null translator defers (returns null) — row stays dirty for
  * the next sweep once the EPUB is cached. [CfiDialect.PAGE_NUMBER] short-circuits the translator

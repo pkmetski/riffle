@@ -14,7 +14,7 @@ import kotlin.coroutines.resume
 
 /**
  * Shared [MediaController] lifecycle the audiobook and readaloud controllers used to hand-roll
- * each (~50 lines of identical buildAsync → suspendCancellableCoroutine → listener-attach). ADR 0032
+ * each (~50 lines of identical buildAsync → suspendCancellableCoroutine → listener-attach). ADR 0039
  * makes any divergence between the two controllers' connection state load-bearing for the
  * pre-warmed handoff — one connector to debug instead of two.
  *
@@ -36,7 +36,7 @@ interface MediaSessionConnector {
 
     /**
      * Pause + detach the listener but keep the binder alive — used during the audiobook↔readaloud
-     * swipe handoff so the incoming side reconnects in ~0 ms (ADR 0032). Does NOT stop or clear
+     * swipe handoff so the incoming side reconnects in ~0 ms (ADR 0039). Does NOT stop or clear
      * media items: the incoming side replaces the queue with its own [MediaController.setMediaItems].
      */
     fun releaseForHandoff()
@@ -47,7 +47,7 @@ interface MediaSessionConnector {
 
 /**
  * Deliberately UNscoped — each `@Inject` site gets its own connector instance. The audiobook and
- * readaloud controllers must each own their own `MediaController` binder so ADR 0032's pre-warmed
+ * readaloud controllers must each own their own `MediaController` binder so ADR 0039's pre-warmed
  * handoff can pause one side while the other takes over the shared session. Annotating this with
  * `@Singleton` would silently collapse both controllers onto one binder and re-introduce the very
  * divergence the connector was extracted to prevent.

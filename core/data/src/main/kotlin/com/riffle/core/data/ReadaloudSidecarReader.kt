@@ -10,7 +10,7 @@ import java.util.zip.ZipInputStream
 import java.util.zip.ZipOutputStream
 
 /**
- * Produces the Readaloud **sidecar** (ADR 0028): the `/synced` bundle with every audio resource
+ * Produces the Readaloud **sidecar** (ADR 0040): the `/synced` bundle with every audio resource
  * removed, repackaged as a small ZIP. The result is a valid audio-free EPUB, so [MediaOverlayReader]
  * and `EpubContentExtractor` consume it exactly as they consume the full bundle — the only
  * difference is ~1 MB instead of hundreds.
@@ -23,7 +23,7 @@ object ReadaloudSidecarReader {
 
     /**
      * Streams the `/synced` bundle and copies the non-audio entries into the sidecar, STOPPING at the
-     * first audio entry (ADR 0028). Returns null when no SMIL entry was seen before that stop point —
+     * first audio entry (ADR 0040). Returns null when no SMIL entry was seen before that stop point —
      * this happens either because the book is unaligned (no SMIL anywhere) or because this particular
      * bundle packs SMIL after audio in the zip. The caller cannot distinguish these cases from a stream
      * alone; use [readFromFile] on the fully-downloaded bundle to resolve the ambiguity.

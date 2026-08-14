@@ -14,7 +14,7 @@ class AudiobookPositionStoreImpl @Inject constructor(
 ) : TimestampedPositionStore<Double>(clock), AudiobookPositionStore, SyncPositionStore<Double> {
 
     override suspend fun writePayload(sourceId: String, itemId: String, payload: Double, updatedAt: Long) {
-        // Preserve lastSyncedAt so a local save marks the row dirty (ADR 0030).
+        // Preserve lastSyncedAt so a local save marks the row dirty (ADR 0036).
         val existing = dao.getByItemId(sourceId, itemId)
         dao.upsert(AudiobookPositionEntity(sourceId, itemId, payload, updatedAt, existing?.lastSyncedAt ?: 0L))
     }
@@ -43,7 +43,7 @@ class AudiobookPositionStoreImpl @Inject constructor(
         dao.upsert(AudiobookPositionEntity(sourceId, itemId, existing?.positionSec ?: 0.0, updatedAt, existing?.lastSyncedAt ?: 0L))
     }
 
-    // --- SyncPositionStore (ADR 0030) ---
+    // --- SyncPositionStore (ADR 0036) ---
 
     override suspend fun snapshot(sourceId: String, itemId: String): PositionSnapshot<Double> {
         val e = dao.getByItemId(sourceId, itemId)

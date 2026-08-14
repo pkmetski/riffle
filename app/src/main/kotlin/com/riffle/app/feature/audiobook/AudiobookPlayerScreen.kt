@@ -51,7 +51,7 @@ import com.riffle.app.feature.reader.CornerBookmarkIndicator
 import com.riffle.core.models.AudiobookBookmark
 
 /**
- * Full-screen [Audiobook Player] (ADR 0029): square cover, title/author, current-chapter label, a
+ * Full-screen [Audiobook Player] (ADR 0035): square cover, title/author, current-chapter label, a
  * seekable chapter-map scrubber (vertical playhead + chapter ticks + current-chapter band) with dual
  * chapter/book time, and a centered transport cluster — rewind 15s · prev chapter · play/pause · next
  * chapter · forward 30s — with the speed control in a separate utility row. Chapter controls disable
@@ -182,7 +182,7 @@ fun AudiobookPlayerScreen(
                     .pointerInput(Unit) {
                         var total = 0f
                         detectVerticalDragGestures(
-                            // Pre-warm readaloud the moment a downward drag starts (ADR 0032):
+                            // Pre-warm readaloud the moment a downward drag starts (ADR 0039):
                             // resolves the SMIL seek target while the user is still dragging so
                             // playFromSecond() fires instantly when the threshold is reached.
                             onDragStart = { total = 0f; viewModel.hintReadaloudHandoff() },

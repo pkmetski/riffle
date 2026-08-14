@@ -7,7 +7,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * Pins the SourceType picker's data model. Post-ADR-0044 the cards are derived by iterating
+ * Pins the SourceType picker's data model. Post-ADR-0053 the cards are derived by iterating
  * `WebSourceDescriptors.all` and hiding `descriptor.isSingleton` types whose entry is present in
  * the `installedTypes` set. Card type is the concrete [SourceType] enum entry; the picker screen
  * routes `onPick(type)` to the correct add-route.

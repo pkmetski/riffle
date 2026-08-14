@@ -50,7 +50,7 @@ class ReadaloudMatchesViewModel @Inject constructor(
      * in the manual picker and whose candidate suggestions appear in "Suggested". Picked as:
      * the active ABS Source, else any other ABS Source, else empty. Empty disables the picker
      * (no results) so the picker can't link a Storyteller readaloud against the wrong account
-     * just because no ABS server is configured. See ADR 0021 and the pkmetski/readaloud-
+     * just because no ABS server is configured. See ADR 0025 and the pkmetski/readaloud-
      * manual-match-crash PR — multiple ABS accounts pointing at the same library would
      * otherwise produce indistinguishable duplicate rows.
      */

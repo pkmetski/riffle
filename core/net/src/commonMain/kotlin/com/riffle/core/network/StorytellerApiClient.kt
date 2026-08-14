@@ -60,7 +60,7 @@ class StorytellerApiClient(
         token: String,
         insecureAllowed: Boolean,
     ): NetworkResult<List<NetworkStorytellerBook>> = KtorClassifier.classify {
-        // ?synced=true: server-side filter to completed readalouds only (ADR 0020).
+        // ?synced=true: server-side filter to completed readalouds only (ADR 0024).
         val response = client(insecureAllowed).get("$baseUrl/api/books?synced=true") {
             header(HttpHeaders.Authorization, "Bearer $token")
         }

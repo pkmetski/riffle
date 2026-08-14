@@ -12,7 +12,7 @@ import kotlinx.coroutines.launch
 /**
  * [SentenceTicker] for Readaloud: resolves the text fragment currently narrated from the
  * controller's polled audio-clock position via [ReadaloudTrack.activeClipAt]. Extracted from
- * [PlayerCoordinator] (ADR 0039) — [PlayerCoordinator] retains track lifecycle and cross-href
+ * [PlayerCoordinator] (ADR 0046) — [PlayerCoordinator] retains track lifecycle and cross-href
  * resolution, and holds this ticker to derive [currentFragment] + [progress].
  */
 class AudioClockTicker(

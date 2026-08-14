@@ -8,7 +8,7 @@ import kotlin.math.min
  * applied to a fit-whole image via a graphics layer whose pivot is the composable centre — makes
  * the panel fill the viewport centred, letterbox-aware.
  *
- * Pure math; unit-tested. Used by the CBZ Panel View renderer (ADR 0043).
+ * Pure math; unit-tested. Used by the CBZ Panel View renderer (ADR 0055).
  */
 data class PanelFitTransform(
     val scale: Float,

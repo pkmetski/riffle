@@ -1,6 +1,6 @@
 package com.riffle.core.domain
 
-/** Outcome of one single-target reconcile (ADR 0030). */
+/** Outcome of one single-target reconcile (ADR 0036). */
 sealed interface ReconcileOutcome<out P> {
     /** The server position was newer and has been persisted into the local store. */
     data class ServerWon<P>(val position: P, val stamp: Long) : ReconcileOutcome<P>
@@ -28,7 +28,7 @@ fun interface UiProgressSink {
 }
 
 /**
- * The durable single-target reconcile primitive of ADR 0030: GET-before-PATCH last-update-wins for
+ * The durable single-target reconcile primitive of ADR 0036: GET-before-PATCH last-update-wins for
  * one ABS record, with compare-and-clear so a concurrent offline edit is never overwritten or lost.
  * Pure orchestration over a [SyncPositionStore] and a per-row [ProgressRemote] — no Android, Room, or
  * network. Used directly by the headless sweep worker (single target) and composed by the live

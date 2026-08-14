@@ -19,7 +19,7 @@ import com.riffle.core.domain.withResolvedTheme
 import java.time.LocalTime
 
 /**
- * Cadence drill-in — the sentence-highlight hands-free reading feature. See issue #403 / ADR 0040.
+ * Cadence drill-in — the sentence-highlight hands-free reading feature. See issue #403 / ADR 0047.
  *
  * [platformSupported] is the WebView `Intl.Segmenter` gate. When false, the whole drill-in body
  * shows a "not supported on this WebView" note instead of the toggles — same posture as

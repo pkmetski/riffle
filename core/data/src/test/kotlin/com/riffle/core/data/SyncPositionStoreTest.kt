@@ -12,7 +12,7 @@ import org.junit.Test
 
 /**
  * The Room-backed [com.riffle.core.domain.SyncPositionStore] behaviour of the position stores
- * (ADR 0030): snapshot, the compare-and-clear conditional writes, and the regression that the
+ * (ADR 0036): snapshot, the compare-and-clear conditional writes, and the regression that the
  * existing PositionStore writes preserve `lastSyncedAt` (so a local save marks the row dirty rather
  * than silently clearing the sync marker). Driven over faithful in-memory fake DAOs.
  */

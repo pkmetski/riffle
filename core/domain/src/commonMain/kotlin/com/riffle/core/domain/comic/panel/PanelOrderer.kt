@@ -8,7 +8,7 @@ package com.riffle.core.domain.comic.panel
  * layouts correctly; degrades on layouts with heavy vertical overlap (splash-with-insets) — for
  * those the user's escape hatch on the peek overlay is the intended answer.
  *
- * RTL manga stays deferred (ADR 0042). When it lands, only the within-row sort flips.
+ * RTL manga stays deferred (ADR 0050). When it lands, only the within-row sort flips.
  */
 class PanelOrderer(
     private val rowOverlapFraction: Double = 0.5,

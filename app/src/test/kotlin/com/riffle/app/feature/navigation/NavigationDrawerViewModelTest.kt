@@ -280,7 +280,7 @@ class NavigationDrawerViewModelTest {
 
     @Test
     fun `allServers excludes Storyteller services from the switcher`() = runTest {
-        // Storyteller is a Settings-only readaloud backend (ADR 0026) — it must never appear in the
+        // Storyteller is a Settings-only readaloud backend (ADR 0032) — it must never appear in the
         // drawer's Source Switcher, so it can never become the active browsable server.
         serversFlow.value = listOf(
             server("abs-1", active = true),
@@ -296,7 +296,7 @@ class NavigationDrawerViewModelTest {
 
     @Test
     fun `visibleLibraries excludes readaloud media-type libraries`() = runTest {
-        // The synthetic Readaloud library row exists only as matcher input (ADR 0026); it is never
+        // The synthetic Readaloud library row exists only as matcher input (ADR 0032); it is never
         // browsable, so it must not show in the drawer even if the active server still owns it.
         serversFlow.value = listOf(server("srv-1", active = true))
         librariesFlow.value = listOf(library("lib-1"), library("readaloud:srv-1", mediaType = "readaloud"))

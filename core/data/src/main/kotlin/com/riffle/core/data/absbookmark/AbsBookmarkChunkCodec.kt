@@ -24,7 +24,7 @@ import kotlinx.serialization.json.put
  * detectable and readers can reject partial shards cleanly.
  *
  * Pure JVM: no Android, no coroutines, no network. Suitable for `core:annotations` when that
- * module lands (ADR 0041 platform-agnostic-core rule).
+ * module lands (ADR 0049 platform-agnostic-core rule).
  */
 object AbsBookmarkChunkCodec {
 

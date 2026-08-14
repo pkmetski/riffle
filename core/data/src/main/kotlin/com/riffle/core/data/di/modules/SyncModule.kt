@@ -78,7 +78,7 @@ abstract class SyncModule {
     abstract fun bindAudiobookBookmarkSyncStore(impl: AudiobookBookmarkSyncStoreImpl): AudiobookBookmarkSyncStore
 
     companion object {
-        // Durable offline progress reconcile (ADR 0030): assemble the multi-source dirty sweep
+        // Durable offline progress reconcile (ADR 0036): assemble the multi-source dirty sweep
         // over the single-target primitive. Skipping unresolvable sources (no row / no token /
         // no factory) is baked into ProgressSweep via CatalogRegistry.forSourceId.
         @Provides
@@ -102,7 +102,7 @@ abstract class SyncModule {
                 com.riffle.core.domain.ProgressReconciler(audioStore, uiProgressSink),
                 remoteFactory, locks, openTargets,
                 // Bookmarks ride the sweep at the same cadence as positions: enumerate dirty
-                // (source, item) pairs straight off the bookmark DAO (ADR 0030, Task 12).
+                // (source, item) pairs straight off the bookmark DAO (ADR 0036, Task 12).
                 object : DirtyBookmarkLedger {
                     override suspend fun serversWithDirty() = bookmarkDao.sourcesWithDirtyRows()
                     override suspend fun dirtyItems(sourceId: String) =

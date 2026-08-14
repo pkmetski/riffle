@@ -36,7 +36,7 @@ import kotlinx.coroutines.launch
  * Shared ViewModel base for the browse screens of every unbounded web source (Chitanka,
  * Gutenberg, and every future `SourceType.isUnboundedCatalog == true` source). Wraps the
  * facet/query/pagination state machine that both `ChitankaBrowseViewModel` and
- * `GutenbergBrowseViewModel` shared before ADR 0044 Phase 5.
+ * `GutenbergBrowseViewModel` shared before ADR 0053 Phase 5.
  *
  * Adding a new unbounded source is a ~10-line subclass:
  *
@@ -273,7 +273,7 @@ abstract class UnboundedBrowseViewModel(
 
     /**
      * Open the tapped item's detail. Routes through [WebSourceItemGate] which enforces the
-     * ADR-0043 caching policy. See ChitankaBrowseViewModel's inline comment on `openDetail` for
+     * ADR-0052 caching policy. See ChitankaBrowseViewModel's inline comment on `openDetail` for
      * the state-machine notes — same behaviour for every unbounded source.
      */
     fun openDetail(item: CatalogItem) {

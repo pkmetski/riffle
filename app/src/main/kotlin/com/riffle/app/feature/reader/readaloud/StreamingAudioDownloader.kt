@@ -15,7 +15,7 @@ import kotlinx.coroutines.withContext
 import kotlin.coroutines.coroutineContext
 
 /**
- * Makes a streamed Readaloud available offline (ADR 0028) by eagerly filling the audio cache with
+ * Makes a streamed Readaloud available offline (ADR 0040) by eagerly filling the audio cache with
  * every ABS track ahead of playback, via ExoPlayer's [CacheWriter]. This is the "Download readaloud"
  * action for a streaming-eligible book — the ebook and sidecar are already small/cached, so the audio
  * is the only heavy part. Progress is reported as a 0..1 fraction across the distinct tracks.

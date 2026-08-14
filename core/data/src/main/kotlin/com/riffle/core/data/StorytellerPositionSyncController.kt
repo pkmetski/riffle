@@ -17,7 +17,7 @@ sealed interface StorytellerSyncOutcome {
 }
 
 /**
- * Storyteller-only single-peer position sync (ADR 0023). Runs on the reader's existing ~30 s
+ * Storyteller-only single-peer position sync (ADR 0027). Runs on the reader's existing ~30 s
  * cadence: GET the remote position, reconcile last-update-wins against the local canonical
  * position (no conflict prompt), then PATCH or jump as the [StorytellerPositionReconciler] decides.
  * The local canonical position is stored as the Readium locator JSON in [ReadingPositionStore].

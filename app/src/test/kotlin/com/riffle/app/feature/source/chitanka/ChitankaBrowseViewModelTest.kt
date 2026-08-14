@@ -47,7 +47,7 @@ import org.junit.Test
  * detail screen can resolve it) and emits an [ChitankaBrowseViewModel.OpenDetailEvent] with the
  * item id.
  *
- * Chitanka's library_items population is on-demand (ADR 0042), so the emission MUST come after the
+ * Chitanka's library_items population is on-demand (ADR 0051), so the emission MUST come after the
  * upsert — the screen collects openDetailEvents to navigate. Reversing that order would race
  * `LibraryObserver.getItem` in the detail screen and land it on the "item not found" branch.
  */
@@ -147,7 +147,7 @@ class ChitankaBrowseViewModelTest {
 
     @Test
     fun `openDetail on books root routes through the gate then emits item id`() = runTest(dispatcher) {
-        // The VM delegates all persistence to WebSourceItemGate (ADR 0043) — the gate owns
+        // The VM delegates all persistence to WebSourceItemGate (ADR 0052) — the gate owns
         // caching, refetch, stale-fallback and last-resort listing-item upsert. This test pins
         // the VM contract: pass the listing item to the gate with the active source id, then
         // emit so the screen can navigate.

@@ -2,7 +2,7 @@ package com.riffle.core.models
 
 /**
  * The four typographic styles that can layer onto a text range via a `TYPE_EMPHASIS` annotation
- * (ADR 0046). A given emphasis row carries a non-empty [Set] of these; the union of styles from
+ * (ADR 0056). A given emphasis row carries a non-empty [Set] of these; the union of styles from
  * every overlapping row is applied at render time.
  *
  * [token] is the wire form persisted in `AnnotationEntity.emphasisStyles` (comma-separated) and

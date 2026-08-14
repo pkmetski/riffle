@@ -321,7 +321,7 @@ class AnnotationStoreTest {
         assertEquals(AnnotationEntity.TYPE_HIGHLIGHT, highlights[0].type)
     }
 
-    // ADR 0046: TYPE_EMPHASIS row carries a non-empty styles set encoded as the wire form.
+    // ADR 0056: TYPE_EMPHASIS row carries a non-empty styles set encoded as the wire form.
     // The regression flip: reverting createEmphasis would either leave `emphasisStyles` NULL
     // (row created but styleless) or persist the wrong type constant.
     @Test

@@ -26,7 +26,7 @@ import java.time.LocalTime
  * JVM tests for AppearanceCoordinatorImpl. Exercises:
  * - app-chrome resolution from (AppTheme × systemDark)
  * - reader-theme resolution from Auto + ThemeSchedule
- * - the boundary-tick timer that flips Auto live across day/night crossings (ADR 0022)
+ * - the boundary-tick timer that flips Auto live across day/night crossings (ADR 0026)
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class AppearanceCoordinatorImplTest {

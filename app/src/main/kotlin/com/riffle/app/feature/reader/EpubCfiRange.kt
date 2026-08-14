@@ -10,7 +10,7 @@ import org.jsoup.nodes.Element
 import org.jsoup.nodes.Node
 import org.jsoup.nodes.TextNode
 
-// Builds an EPUB CFI *range* for a highlight (ADR 0024). Reuses the char-count positioning model
+// Builds an EPUB CFI *range* for a highlight (ADR 0028). Reuses the char-count positioning model
 // of EpubCfiTranslator so the range's endpoints are in the same coordinate family ABS stores.
 //
 // A range CFI factors the two endpoints to their nearest common ancestor:

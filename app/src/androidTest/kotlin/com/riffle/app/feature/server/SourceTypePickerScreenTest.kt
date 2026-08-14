@@ -17,7 +17,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 
 /**
- * Instrumentation coverage for the SourceTypePickerScreen. Post-ADR-0044 the picker delivers a
+ * Instrumentation coverage for the SourceTypePickerScreen. Post-ADR-0053 the picker delivers a
  * single `onPick(SourceType)` callback; card taps identify by [SourceType]. Locks the "cards are
  * displayed and clickable" contract.
  */

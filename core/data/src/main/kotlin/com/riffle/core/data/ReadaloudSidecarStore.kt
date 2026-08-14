@@ -20,7 +20,7 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
- * Caches the Readaloud sidecar (SMIL + chapter text, ADR 0028) on disk and prepares it **ahead of
+ * Caches the Readaloud sidecar (SMIL + chapter text, ADR 0040) on disk and prepares it **ahead of
  * playback**: callers [prepare] it the moment a matched book is opened (details or reader), so that
  * by the time the user taps Play the streaming session can be built instantly from the cached file
  * — no `/synced` fetch on the Play path (which would block for the server's bundle-generation time).

@@ -7,12 +7,12 @@ package com.riffle.core.common
  *
  * Production binding is [SystemClock]; tests inject a controllable fake (`TestClock`) from
  * `core/domain` test source. The contract is intentionally narrow — only the `now()` family. For
- * hour-of-day scheduling (ADR 0022) see `TimeProvider`, which delegates to this seam for millis.
+ * hour-of-day scheduling (ADR 0026) see `TimeProvider`, which delegates to this seam for millis.
  */
 interface Clock {
     /** Wall-clock millis since epoch — for session timestamps, ages, scheduling deadlines. */
     fun nowMs(): Long
 
-    /** Monotonic nanos — for sub-ms handoff traces (ADR 0032) and short performance probes. */
+    /** Monotonic nanos — for sub-ms handoff traces (ADR 0039) and short performance probes. */
     fun nowNs(): Long
 }

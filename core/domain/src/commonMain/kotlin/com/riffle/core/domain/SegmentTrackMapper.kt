@@ -6,7 +6,7 @@ data class AbsAudioPosition(val trackIndex: Int, val offsetSec: Double)
 /**
  * Where one Storyteller segment sits on the ABS timeline: which track, the start offset, and how
  * long. Lets the player queue one media item per segment (preserving the existing clip/highlight
- * machinery) pointed at the ABS track, clipped to `[startSec, startSec + durationSec]` (ADR 0028).
+ * machinery) pointed at the ABS track, clipped to `[startSec, startSec + durationSec]` (ADR 0040).
  */
 data class SegmentPlacement(
     val audioSrc: String,
@@ -17,7 +17,7 @@ data class SegmentPlacement(
 
 /**
  * Reconciles Storyteller's audio segments (one per distinct `audioSrc`, in clip order) with the
- * ABS audiobook's tracks, so a Media Overlay clip can be played from ABS. Two regimes (ADR 0028):
+ * ABS audiobook's tracks, so a Media Overlay clip can be played from ABS. Two regimes (ADR 0040):
  *
  *  - **per-track** — Storyteller's segment durations match a contiguous run of ABS tracks (1:1,
  *    tolerant of dropped leading/trailing tracks like a publisher intro/outro). A clip plays from
@@ -45,7 +45,7 @@ class SegmentTrackMap internal constructor(
         return AbsAudioPosition(track, (global - absCumulative[track]).coerceAtLeast(0.0))
     }
 
-    /** One placement per Storyteller segment, in order — the streaming media plan (ADR 0028). */
+    /** One placement per Storyteller segment, in order — the streaming media plan (ADR 0040). */
     fun segmentPlacements(): List<SegmentPlacement> {
         if (perTrackStart != null) {
             return segmentOrder.mapIndexed { k, src ->

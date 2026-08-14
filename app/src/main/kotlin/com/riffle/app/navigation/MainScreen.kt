@@ -80,7 +80,7 @@ private const val ADD_SOURCE_ROUTE = "add_source?type={type}&editId={editId}"
 
 /**
  * Where the "Add source" picker routes each [SourceType] to — delegated to the descriptor
- * (ADR 0044). Adding a new source needs no edit here.
+ * (ADR 0053). Adding a new source needs no edit here.
  */
 private fun addSourceRouteFor(type: com.riffle.core.models.SourceType): String =
     com.riffle.core.domain.WebSourceDescriptors.forTypeOrError(type).addRoute
@@ -109,7 +109,7 @@ private const val AUDIOBOOK_PLAYER = "audiobook_player/{itemId}?startAtSec={star
 
 /**
  * URL-encodes each path segment in a series-detail route. seriesId is encoded because chitanka
- * series ids contain slashes (`serie/foo` per ADR 0042) and would otherwise splay across the
+ * series ids contain slashes (`serie/foo` per ADR 0051) and would otherwise splay across the
  * fixed [SERIES_DETAIL] template's `{seriesId}` slot, producing the "destination cannot be
  * found in the navigation graph" crash. Nav Compose auto-decodes path arguments so the receiver
  * (SeriesDetailViewModel) sees the original id.
@@ -853,7 +853,7 @@ fun MainScreen(
                 val viewModel: com.riffle.app.feature.reader.EpubReaderViewModel = hiltViewModel()
                 val context = LocalContext.current
                 val exportErrorMessage = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.export_pdf_error)
-                // Highlights mode's "Open in book" (Task 9, ADR 0041): leaves the elided reader and
+                // Highlights mode's "Open in book" (Task 9, ADR 0048): leaves the elided reader and
                 // opens the full-book reader at the tapped highlight's CFI. Handled at the nav-host
                 // level (not inside EpubReaderScreen) since it pops this route off the back stack.
                 LaunchedEffect(viewModel) {

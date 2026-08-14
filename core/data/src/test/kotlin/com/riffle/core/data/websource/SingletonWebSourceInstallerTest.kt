@@ -23,7 +23,7 @@ import org.junit.Test
 /**
  * Covers [SingletonWebSourceInstaller] end-to-end for every singleton descriptor. Replaces the
  * per-source `ChitankaSourceInstallerTest` and `GutenbergSourceInstallerTest` (deleted with the
- * per-source installers themselves — ADR 0044 Phase 4). New singleton sources need no new test
+ * per-source installers themselves — ADR 0053 Phase 4). New singleton sources need no new test
  * class — the parameterised assertions here cover them once they're registered in
  * `WebSourceDescriptors`.
  */

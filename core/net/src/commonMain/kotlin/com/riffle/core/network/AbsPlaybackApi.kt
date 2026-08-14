@@ -20,7 +20,7 @@ data class NetworkAudioChapter(
 
 /**
  * A direct-play audiobook session opened from ABS: the ordered audio tracks, the chapter markers
- * (empty for a chapterless book), and the server-recorded position/duration (ADR 0029).
+ * (empty for a chapterless book), and the server-recorded position/duration (ADR 0035).
  */
 data class NetworkPlaybackSession(
     val sessionId: String?,
@@ -30,7 +30,7 @@ data class NetworkPlaybackSession(
     val durationSec: Double,
 )
 
-/** ABS audiobook playback: open a direct-play session for an item's audio (ADR 0029). */
+/** ABS audiobook playback: open a direct-play session for an item's audio (ADR 0035). */
 interface AbsPlaybackApi {
     suspend fun openPlaybackSession(
         baseUrl: String,

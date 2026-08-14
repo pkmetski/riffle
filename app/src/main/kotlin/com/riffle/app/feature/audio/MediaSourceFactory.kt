@@ -26,7 +26,7 @@ interface MediaSourceFactory {
     fun createDataSource(): DataSource
 }
 
-/** Streamed ABS audiobook tracks (ADR 0029). */
+/** Streamed ABS audiobook tracks (ADR 0035). */
 @OptIn(UnstableApi::class)
 @Singleton
 class HttpAudioSourceFactory @Inject constructor() : MediaSourceFactory {
@@ -34,7 +34,7 @@ class HttpAudioSourceFactory @Inject constructor() : MediaSourceFactory {
     override fun createDataSource(): DataSource = DefaultHttpDataSource.Factory().createDataSource()
 }
 
-/** Downloaded audiobook tracks (ADR 0029, file:// after offline download). */
+/** Downloaded audiobook tracks (ADR 0035, file:// after offline download). */
 @OptIn(UnstableApi::class)
 @Singleton
 class FileAudioSourceFactory @Inject constructor() : MediaSourceFactory {
@@ -43,7 +43,7 @@ class FileAudioSourceFactory @Inject constructor() : MediaSourceFactory {
 }
 
 /**
- * Readaloud bundle audio served out of the synced EPUB zip (ADR 0023). The active bundle file
+ * Readaloud bundle audio served out of the synced EPUB zip (ADR 0027). The active bundle file
  * pointer lives in [SharedBundle] — set by `ReadaloudController` / `AudiobookController` before
  * the controller queues media items.
  */

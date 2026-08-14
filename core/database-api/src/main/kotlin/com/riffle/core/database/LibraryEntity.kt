@@ -6,7 +6,7 @@ import androidx.room.Index
 
 // Keyed by (sourceId, id): library ids are only unique within an Audiobookshelf instance, so two
 // Sources pointing at the same instance emit identical ids (issue #113). sourceId FK-cascades so
-// removing a Source clears its libraries — mirroring [LibraryItemEntity] (ADR 0025).
+// removing a Source clears its libraries — mirroring [LibraryItemEntity] (ADR 0029).
 @Entity(
     tableName = "libraries",
     primaryKeys = ["sourceId", "id"],

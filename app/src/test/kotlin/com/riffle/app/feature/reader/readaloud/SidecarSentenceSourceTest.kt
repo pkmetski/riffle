@@ -19,7 +19,7 @@ import java.util.zip.ZipOutputStream
 
 /**
  * [SidecarSentenceSource] is a pure wrap of [ReadaloudQuoteBuilder] behind [com.riffle.core.domain.sentence.SentenceSource]
- * (ADR 0039 task 4) — no logic moves here. These tests drive a real builder against a minimal EPUB
+ * (ADR 0046 task 4) — no logic moves here. These tests drive a real builder against a minimal EPUB
  * fixture (mirroring EpubContentExtractorTest) to pin: (1) loadAll()/chapterHrefs() trigger the
  * builder's build via ensureBuilt() and return its resulting maps, and (2) a source bound to a
  * builder that was never given a bundle returns empty maps rather than hanging or throwing.

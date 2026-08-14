@@ -11,7 +11,7 @@ data class AudiobookTrackSpan(
  * Maps between the audiobook's absolute book-timeline position (what [Progress Sync] and the UI use)
  * and the per-track (file, offset-within-file) position the player seeks to. ABS serves an audiobook
  * as several concatenated tracks; ExoPlayer plays them as a playlist, so a book-absolute seek must be
- * resolved to a (track index, offset) pair. Pure and unit-tested (ADR 0029).
+ * resolved to a (track index, offset) pair. Pure and unit-tested (ADR 0035).
  */
 object AudiobookTracks {
 
@@ -38,7 +38,7 @@ object AudiobookTracks {
     /**
      * Resolves a book-absolute resume position to the (track index, in-track offset) start point to
      * seed into the player's *initial* media-item list, so playback buffers from the resume point
-     * rather than starting at track 0 / offset 0 and audibly snapping forward (ADR 0029). [absoluteSec]
+     * rather than starting at track 0 / offset 0 and audibly snapping forward (ADR 0035). [absoluteSec]
      * is clamped into `[0, durationSec]` (or `[0, absoluteSec]` when the duration is unknown).
      */
     fun startPositionFor(

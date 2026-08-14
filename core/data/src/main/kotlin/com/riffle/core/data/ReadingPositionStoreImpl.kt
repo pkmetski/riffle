@@ -15,7 +15,7 @@ class ReadingPositionStoreImpl @Inject constructor(
 
     override suspend fun writePayload(sourceId: String, itemId: String, payload: String, updatedAt: Long) {
         // Preserve lastSyncedAt so a local save marks the row dirty (localUpdatedAt > lastSyncedAt)
-        // rather than silently clearing the sync marker (ADR 0030).
+        // rather than silently clearing the sync marker (ADR 0036).
         val existing = dao.getByItemId(sourceId, itemId)
         dao.upsert(ReadingPositionEntity(sourceId, itemId, payload, updatedAt, existing?.lastSyncedAt ?: 0L))
     }
@@ -47,7 +47,7 @@ class ReadingPositionStoreImpl @Inject constructor(
         dao.upsert(ReadingPositionEntity(sourceId, itemId, existing?.cfi ?: "", updatedAt, existing?.lastSyncedAt ?: 0L))
     }
 
-    // --- SyncPositionStore (ADR 0030) ---
+    // --- SyncPositionStore (ADR 0036) ---
 
     override suspend fun snapshot(sourceId: String, itemId: String): PositionSnapshot<String> {
         val e = dao.getByItemId(sourceId, itemId)

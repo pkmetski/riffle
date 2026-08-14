@@ -34,7 +34,7 @@ internal data class AnnotationHighlight(
     val before: String = "",
     val after: String = "",
     /**
-     * Highlights-mode (ADR 0041): when true, the injected `<mark>` MUST NOT carry a click listener.
+     * Highlights-mode (ADR 0048): when true, the injected `<mark>` MUST NOT carry a click listener.
      * Tap dispatch is owned by the accent-bar span baked into the synthesised HTML by
      * [com.riffle.app.feature.reader.highlights.HighlightsPublicationFactory] — a `<mark>` listener
      * here would let a tap on the text itself open the highlight menu, which the annotations view
@@ -42,7 +42,7 @@ internal data class AnnotationHighlight(
      */
     val suppressMarkClick: Boolean = false,
     /**
-     * ADR 0046: union of typographic styles (bold / italic / underline / strike) that layer onto
+     * ADR 0056: union of typographic styles (bold / italic / underline / strike) that layer onto
      * this annotation's range. Rendered as inline CSS on the injected `<mark>` — continuous mode
      * owns the DOM directly, so unlike paginated (which stacks a companion Readium decoration for
      * underline/strike and a DOM-wrap script for bold/italic) all four styles live on the mark.

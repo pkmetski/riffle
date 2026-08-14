@@ -4,7 +4,7 @@ import androidx.room.Entity
 import androidx.room.ForeignKey
 import androidx.room.Index
 
-// Per-book audio playback settings, device-local and never synced (ADR 0028). Keyed by a resolved
+// Per-book audio playback settings, device-local and never synced (ADR 0040). Keyed by a resolved
 // audio identity (sourceId, bookId): the linked audiobook's ABS id when present, else the Storyteller
 // readaloud id. sourceId FK-cascades so a removed Source's settings are cleared. A row exists only
 // when the user has overridden the fixed 1x default. `speed` is nullable to allow the table to grow

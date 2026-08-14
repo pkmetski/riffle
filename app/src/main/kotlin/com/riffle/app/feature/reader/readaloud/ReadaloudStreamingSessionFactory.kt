@@ -23,7 +23,7 @@ import java.io.File
 import javax.inject.Inject
 
 /**
- * Assembles a streaming Readaloud session (ADR 0028) for a matched book, or returns null so the
+ * Assembles a streaming Readaloud session (ADR 0040) for a matched book, or returns null so the
  * caller falls back to the bundle. Streaming is built only when a Source-side audiobook is linked
  * AND its recording identity is VERIFIED against Storyteller's ingested source — so a mismatch
  * never streams.

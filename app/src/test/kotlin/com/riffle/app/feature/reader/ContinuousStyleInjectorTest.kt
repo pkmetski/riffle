@@ -562,7 +562,7 @@ class ContinuousStyleInjectorTest {
         assertTrue(js.contains("\\r"))
     }
 
-    // ── applyAnnotationHighlightsJs — ADR 0046 emphasis ─────────────────────
+    // ── applyAnnotationHighlightsJs — ADR 0056 emphasis ─────────────────────
     // Continuous mode had NO emphasis rendering before this fix: applying B/I/U/S in the
     // highlight sheet did nothing on-page. The renderer now emits an `e:` field carrying the
     // comma-separated tokens, and the injected JS composes an `emphasisStyle()` suffix that

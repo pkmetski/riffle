@@ -457,7 +457,7 @@ class ServerRepositoryTest {
         val pending = (result as AuthenticateResult.Success).pending
         assertEquals("tok-st", pending.token)
         assertEquals(ServerType.STORYTELLER_SERVICE, pending.serverType)
-        // Storyteller contributes no browsable Library (ADR 0026) — the namespace row is created
+        // Storyteller contributes no browsable Library (ADR 0032) — the namespace row is created
         // at commit time, not surfaced as a pending library.
         assertTrue(pending.libraries.isEmpty())
         assertEquals(0, dao.allCount())
@@ -569,7 +569,7 @@ class ServerRepositoryTest {
         val result = repo.commit(pending, hiddenLibraryIds = emptySet())
 
         assertTrue(result is CommitSourceResult.Success)
-        // Storyteller is a Settings-only readaloud backend (ADR 0026) — it must never become the
+        // Storyteller is a Settings-only readaloud backend (ADR 0032) — it must never become the
         // active browsable Source, even when it is the first source added.
         assertFalse((result as CommitSourceResult.Success).source.isActive)
         assertEquals(null, dao.getActive())
@@ -757,7 +757,7 @@ class ServerRepositoryTest {
 
         repo.setActive("st")
 
-        // ADR 0026: a Storyteller Source is a Settings-only readaloud backend and can never be the
+        // ADR 0032: a Storyteller Source is a Settings-only readaloud backend and can never be the
         // active browsable Source — the previously active ABS source stays active.
         assertEquals("abs", dao.getActive()?.id)
     }
@@ -795,7 +795,7 @@ class ServerRepositoryTest {
     @Test
     fun `commit Storyteller source leaves absUserId null — annotations live on ABS, not Storyteller`() = runTest {
         // Storyteller's auth response carries no user id (auth is username + token). Annotations
-        // are ABS-side only (ADR 0024), so a Storyteller source has nothing to namespace.
+        // are ABS-side only (ADR 0028), so a Storyteller source has nothing to namespace.
         val dao = fakeDao(); val tokens = fakeTokenStorage()
         val libDao = fakeLibraryDao(); val visibility = fakeVisibilityStore()
         val absApi = AbsApi { _, _, _, _ -> error("not called") }

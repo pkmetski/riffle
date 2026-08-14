@@ -5,7 +5,7 @@ package com.riffle.core.domain
  *
  * Every source that participates in annotation sync produces a cross-device-stable string —
  * shared by every device signed into the *same* remote account — that keys the source's
- * annotation files on the sync target (WebDAV today, per ADR 0035). Two devices resolve to the
+ * annotation files on the sync target (WebDAV today, per ADR 0042). Two devices resolve to the
  * same [Configured.value] iff they should discover each other's annotation files.
  *
  * The namespace is a plain opaque [String] to the transport ([AnnotationSyncTarget]); the shape

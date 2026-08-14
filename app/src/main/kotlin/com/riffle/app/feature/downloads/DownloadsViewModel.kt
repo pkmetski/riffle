@@ -77,7 +77,7 @@ class DownloadsViewModel @Inject constructor(
         viewModelScope.launch {
             val downloadedArtifacts = downloadsRepository.getDownloadedArtifacts().toLocalArtifacts()
             val cachedArtifacts = downloadsRepository.getCachedArtifacts().toLocalArtifacts()
-            // Prepared readaloud sidecars (ADR 0028): the small audio-free streaming caches. They
+            // Prepared readaloud sidecars (ADR 0040): the small audio-free streaming caches. They
             // are stored under the Storyteller service key but displayed on the linked Source item,
             // because a Readaloud is a sidecar capability rather than a browsable item of its own.
             val readaloudSidecars = sidecarStore.listCached().mapNotNull { it.toLocalArtifact() }

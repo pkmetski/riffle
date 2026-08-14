@@ -7,7 +7,7 @@ import com.riffle.core.models.AudiobookFingerprint
 import com.riffle.core.models.AudiobookIdentity
 
 /**
- * The identity check that gates the streaming path (ADR 0028): the ABS audiobook must be the
+ * The identity check that gates the streaming path (ADR 0040): the ABS audiobook must be the
  * same recording Storyteller aligned against, compared via the *ingested-source* fingerprint
  * (file size + total duration + per-track durations) that Storyteller's /api/v2 record exposes.
  */
@@ -43,7 +43,7 @@ class AudiobookIdentityTest {
     fun `a different track split still matches when bytes and total duration agree`() {
         // The SAME recording, re-segmented: Storyteller re-chapters the audio, so the same file shows up
         // as a different per-track split than ABS's files. Identical bytes + total length ⇒ same recording,
-        // so this must MATCH — the streaming mapper handles the differing segmentation (ADR 0028).
+        // so this must MATCH — the streaming mapper handles the differing segmentation (ADR 0040).
         val reSegmented = martian.copy(trackDurationsSec = listOf(19_607.0, 19_607.464))
         assertTrue(AudiobookIdentity.matches(martian, reSegmented))
     }

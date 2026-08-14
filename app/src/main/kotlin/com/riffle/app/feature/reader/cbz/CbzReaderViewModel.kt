@@ -42,7 +42,7 @@ import org.json.JSONObject
  * comics don't go through Readium — page images come straight out of a [CbzArchive] — so there's no
  * Publication, no navigator, no formatting session, no annotations, no TOC.
  *
- * v1 scope per ADR 0042; Panel View overlay per ADR 0043 (opt-in per-book toggle that frames one
+ * v1 scope per ADR 0050; Panel View overlay per ADR 0055 (opt-in per-book toggle that frames one
  * panel at a time using auto-detected regions).
  */
 @HiltViewModel
@@ -89,7 +89,7 @@ class CbzReaderViewModel @Inject constructor(
     val currentPage: StateFlow<Int> = _currentPage
 
     private val _panelViewOn = MutableStateFlow(false)
-    /** Panel View toggle for the current book (ADR 0043). */
+    /** Panel View toggle for the current book (ADR 0055). */
     val panelViewOn: StateFlow<Boolean> = _panelViewOn
 
     private val _currentPagePanels = MutableStateFlow<PagePanels?>(null)
@@ -329,7 +329,7 @@ class CbzReaderViewModel @Inject constructor(
         onCurrentPageChanged(newPage)
     }
 
-    // --- Panel View (ADR 0043) ---
+    // --- Panel View (ADR 0055) ---
 
     /** Flip the per-book Panel View toggle. Persisted to [panelViewPreferencesStore]. */
     fun togglePanelView() {

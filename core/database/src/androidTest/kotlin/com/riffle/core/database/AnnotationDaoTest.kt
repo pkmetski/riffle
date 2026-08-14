@@ -256,7 +256,7 @@ class AnnotationDaoTest {
         assertEquals(listOf("a1", "a2"), result.map { it.id })
     }
 
-    // ===== ADR 0038 — purgeAgedTombstones =====
+    // ===== ADR 0045 — purgeAgedTombstones =====
 
     @Test
     fun purgeAgedTombstones_removesOnlyAgedAlreadySyncedTombstones() = runTest {
@@ -399,7 +399,7 @@ class AnnotationDaoTest {
         assertEquals("A", result[1].itemId)
     }
 
-    // ADR 0046 §4: a highlight with color="" IS a real user-created annotation ("just bold this
+    // ADR 0056 §4: a highlight with color="" IS a real user-created annotation ("just bold this
     // text") and must count in the Annotations tab. The visual differentiation from yellow
     // highlights happens at the render seam (neutral dot instead of yellow) — the DAO does NOT
     // hide these rows. Reverting to a filter that dropped color="" here would make the whole

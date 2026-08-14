@@ -7,7 +7,7 @@ import com.riffle.core.domain.ProgressReconciler
 import com.riffle.core.domain.RemoteKind
 
 /**
- * The durable, book-independent dirty sweep of ADR 0030: reconcile every dirty position row across
+ * The durable, book-independent dirty sweep of ADR 0036: reconcile every dirty position row across
  * all sources when online, so offline progress is pushed without the book being reopened.
  */
 class ProgressSweep(

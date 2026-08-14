@@ -14,7 +14,7 @@ interface AudiobookPositionDao {
     @Query("SELECT * FROM audiobook_positions WHERE sourceId = :sourceId AND itemId = :itemId LIMIT 1")
     suspend fun getByItemId(sourceId: String, itemId: String): AudiobookPositionEntity?
 
-    // Compare-and-clear conditional writes (ADR 0030) — see ReadingPositionDao for the rationale.
+    // Compare-and-clear conditional writes (ADR 0036) — see ReadingPositionDao for the rationale.
 
     /** Server wins: overwrite the seconds and set both stamps clean (= server stamp). */
     @Query(
@@ -41,7 +41,7 @@ interface AudiobookPositionDao {
     )
     suspend fun confirmInSyncIfUnchanged(sourceId: String, itemId: String, ifLocalUpdatedAt: Long): Int
 
-    /** Dirty rows for one source (ADR 0030 sweep). */
+    /** Dirty rows for one source (ADR 0036 sweep). */
     @Query("SELECT * FROM audiobook_positions WHERE sourceId = :sourceId AND localUpdatedAt > lastSyncedAt")
     suspend fun dirtyForSource(sourceId: String): List<AudiobookPositionEntity>
 

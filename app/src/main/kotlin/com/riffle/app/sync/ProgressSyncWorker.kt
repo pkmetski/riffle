@@ -10,7 +10,7 @@ import dagger.hilt.android.EntryPointAccessors
 import dagger.hilt.components.SingletonComponent
 
 /**
- * Thin WorkManager shell over the tested [ProgressSweep] (ADR 0030): runs the durable, book-
+ * Thin WorkManager shell over the tested [ProgressSweep] (ADR 0036): runs the durable, book-
  * independent dirty reconcile when the device is online. Dependencies are resolved via a Hilt
  * EntryPoint (no @HiltWorker / custom factory needed). A network failure mid-sweep leaves the
  * affected rows dirty, so retrying the whole sweep is safe and idempotent.

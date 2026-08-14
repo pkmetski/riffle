@@ -121,7 +121,7 @@ internal fun emphasisStylesPrefKey(sourceId: String, itemId: String) =
     stringPreferencesKey("last_used_emphasis_styles:$sourceId:$itemId")
 
 fun EmphasisPreferencesStore(dataStore: DataStore<Preferences>): EmphasisPreferencesStore {
-    // Per-book last-used emphasis styles set (ADR 0046). Absent → empty set (no emphasis
+    // Per-book last-used emphasis styles set (ADR 0056). Absent → empty set (no emphasis
     // pre-selected on the next annotate gesture). Persisted as the same comma-separated wire
     // form used by `AnnotationEntity.emphasisStyles`, so unknown tokens from a
     // forward-compat peer decode cleanly to the subset we know.

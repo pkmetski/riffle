@@ -155,7 +155,7 @@ class ReadaloudTrack(val clips: List<MediaOverlayClip>) {
         val target = href.trimStart('/')
         if (fragmentId != null) {
             clips.firstOrNull { it.textFragmentRef.trimStart('/') == "$target#$fragmentId" }?.let { return it }
-            // Fall back to the bare span id. The rendered publication (the ABS EPUB, ADR 0026) can carry
+            // Fall back to the bare span id. The rendered publication (the ABS EPUB, ADR 0032) can carry
             // different chapter hrefs than the Storyteller bundle the SMIL clips come from, so the href
             // portions won't match even for the same sentence. But sentence-span ids are only unique
             // WITHIN a document — they recur across chapters — so a plain bare-id match would return the

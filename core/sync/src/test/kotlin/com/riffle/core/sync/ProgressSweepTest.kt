@@ -27,7 +27,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * The durable multi-source dirty sweep (ADR 0030 slice 5): enumerate dirty rows across every source,
+ * The durable multi-source dirty sweep (ADR 0036 slice 5): enumerate dirty rows across every source,
  * skip sources whose Catalog can't be resolved (missing token / unknown source), and reconcile each
  * dirty target once under its per-target lock. Orchestration is exercised over fakes — no Android,
  * Room, or network.
@@ -99,7 +99,7 @@ class ProgressSweepTest {
 
     /**
      * A Catalog that implements [ProgressPeerCapability] — sweep gates sources on the capability
-     * (ADR 0041), so the fake registry's presence-check maps 1:1 to "is a progress peer" for these
+     * (ADR 0049), so the fake registry's presence-check maps 1:1 to "is a progress peer" for these
      * tests. All methods no-op; only presence/absence matters. The [asPeer] flag lets a test opt out
      * of the capability to simulate a zero-peer source (LocalFiles).
      */
@@ -236,7 +236,7 @@ class ProgressSweepTest {
 
     @Test
     fun `skips sources whose Catalog is not a ProgressPeerCapability, leaving their rows dirty`() = runTest {
-        // A LocalFiles Source has a Catalog but no ProgressPeerCapability (ADR 0041). Its dirty
+        // A LocalFiles Source has a Catalog but no ProgressPeerCapability (ADR 0049). Its dirty
         // position rows are legal zero-peer entries — the sweep must drain them immediately (no
         // work) and never build a remote for them. `localUpdatedAt` stays as the reader wrote it.
         val store = FakeStore<String>().apply { rows["local-fs" to "book"] = Triple("local", 300L, 100L) }

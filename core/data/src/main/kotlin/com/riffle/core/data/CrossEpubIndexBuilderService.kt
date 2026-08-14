@@ -20,7 +20,7 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
- * Builds and persists the cross-EPUB index for Confirmed matched books (ADR 0019/0021).
+ * Builds and persists the cross-EPUB index for Confirmed matched books (ADR 0023/0025).
  *
  * [enqueueBuild] is fire-and-forget on a background scope so a library refresh never blocks
  * on EPUB downloads; the work is idempotent (it skips when the index for the current
@@ -28,7 +28,7 @@ import javax.inject.Singleton
  * a prerequisite EPUB isn't available yet.
  *
  * The Source-side publisher EPUB is small and is downloaded-then-cached on the first build. The
- * Storyteller side, however, is the *synced bundle* (ADR 0023) — the full readaloud audio, hundreds
+ * Storyteller side, however, is the *synced bundle* (ADR 0027) — the full readaloud audio, hundreds
  * of MB — so this service never downloads it proactively: it builds only once that bundle is already
  * present locally (i.e. after the user has downloaded readaloud for the book).
  */
@@ -77,7 +77,7 @@ class CrossEpubIndexBuilderService(
 
     private suspend fun loadInputs(link: ReadaloudLink): CrossEpubBuildInputs? {
         // Storyteller text for the index: the downloaded bundle if present, otherwise the ~1 MB sidecar
-        // (ADR 0028). Use ONLY the already-prepared sidecar (cachedFile, non-blocking) — never fetch here.
+        // (ADR 0040). Use ONLY the already-prepared sidecar (cachedFile, non-blocking) — never fetch here.
         val storytellerFile = cachedFile(link.storytellerSourceId, link.storytellerBookId)
             ?: sidecarStore.cachedFile(link.storytellerSourceId, link.storytellerBookId)
             ?: return null
@@ -85,7 +85,7 @@ class CrossEpubIndexBuilderService(
         val absFile = absEpubFile(link.absSourceId, link.absLibraryItemId) ?: return null
 
         // extract() reads only the OPF + spine chapters + SMIL from the zip, and of() streams the
-        // file — so the hundreds-of-MB synced bundle (ADR 0023) is never held in memory.
+        // file — so the hundreds-of-MB synced bundle (ADR 0027) is never held in memory.
         val absExtract = EpubContentExtractor.extract(absFile) ?: return null
         val storytellerExtract = EpubContentExtractor.extract(storytellerFile) ?: return null
 

@@ -49,7 +49,7 @@ import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
 
 /**
- * On-device integration of the whole streaming assembly (ADR 0028), exercised against a MockWebServer
+ * On-device integration of the whole streaming assembly (ADR 0040), exercised against a MockWebServer
  * and a real Room DB — no audio output required, so it's deterministic on the headless harness AVD.
  * Covers the three user-facing source decisions: stream when verified, bundle on identity mismatch,
  * bundle when no audiobook is linked.
@@ -105,7 +105,7 @@ class ReadaloudStreamingSessionFactoryAndroidTest {
                             MockResponse().setResponseCode(206)
                                 .setBody(Buffer().write(bundleZip.copyOfRange(start, end + 1)))
                         }
-                        // The sidecar fetch streams the whole bundle with a plain GET (ADR 0028), stopping
+                        // The sidecar fetch streams the whole bundle with a plain GET (ADR 0040), stopping
                         // at the first audio entry — so serve the full zip here.
                         else -> MockResponse().setBody(Buffer().write(bundleZip))
                     }
@@ -222,7 +222,7 @@ class ReadaloudStreamingSessionFactoryAndroidTest {
         seed(withAudiobook = true)
 
         val f = factory()
-        // The sidecar is prepared ahead of Play (prepare-on-open, ADR 0028); tryBuild reads the cached copy.
+        // The sidecar is prepared ahead of Play (prepare-on-open, ADR 0040); tryBuild reads the cached copy.
         sidecarStore.get(ST_SERVER, ST_BOOK)
         val session = f.tryBuild(ST_SERVER, ST_BOOK)
 
@@ -233,7 +233,7 @@ class ReadaloudStreamingSessionFactoryAndroidTest {
         assertEquals("$baseUrl/api/items/$AUDIOBOOK_ITEM/file/ino-a?token=tok", item!!.url)
         assertEquals(0L, item.clipStartMs)
         assertEquals(5000L, item.clipEndMs)
-        // The verdict is persisted on the link (ADR 0028) so the matches screen can show "Streaming".
+        // The verdict is persisted on the link (ADR 0040) so the matches screen can show "Streaming".
         assertEquals("VERIFIED", db.readaloudLinkDao().findByAbsItem(ABS_SERVER, AUDIOBOOK_ITEM)!!.identityResult)
     }
 

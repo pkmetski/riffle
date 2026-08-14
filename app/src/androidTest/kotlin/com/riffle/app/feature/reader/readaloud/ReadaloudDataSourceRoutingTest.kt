@@ -16,7 +16,7 @@ import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
 
 /**
- * On-device check (ADR 0028) that the registry routes by URI scheme: `zipaudio://` reads out of the
+ * On-device check (ADR 0040) that the registry routes by URI scheme: `zipaudio://` reads out of the
  * on-disk bundle (the unchanged bundle path). Streaming-vs-bundle dispatch is now in
  * [MediaSourceRegistry] (issue #333); this test guards the bundle path the registry assembles.
  */

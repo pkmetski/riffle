@@ -19,7 +19,7 @@ data class AudiobookBundleStream(val body: InputStream, val totalBytes: Long, va
 
 /**
  * Opens a (resumable) byte stream of the Storyteller synced bundle — the EPUB-3-with-audio that
- * is the Readaloud audio source (see ADR 0023). [fromByte] > 0 issues a `Range` request so an
+ * is the Readaloud audio source (see ADR 0027). [fromByte] > 0 issues a `Range` request so an
  * interrupted download can pick up where it left off.
  */
 interface AudiobookBundleApi {

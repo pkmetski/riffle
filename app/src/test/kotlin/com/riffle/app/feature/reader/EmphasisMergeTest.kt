@@ -10,11 +10,11 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * Regression tests for emphasis auto-merge (ADR 0046). Mirrors [HighlightMergeTest]'s shape:
+ * Regression tests for emphasis auto-merge (ADR 0056). Mirrors [HighlightMergeTest]'s shape:
  * eligibility uses `styles` as the match key (same-set-only) instead of `color`, the no-note gate
  * is collapsed (Emphasis carries no note field), and the figure-gap block still applies.
  *
- * Each assertion pins one design decision from ADR 0046 §5. Reverting the corresponding logic in
+ * Each assertion pins one design decision from ADR 0056 §5. Reverting the corresponding logic in
  * [isMergeEligible] or [MergeAnchor] flips the named test red.
  */
 class EmphasisMergeTest {
@@ -96,7 +96,7 @@ class EmphasisMergeTest {
         emphasisStyles = styles,
     )
 
-    // -------- Eligibility (pins ADR 0046 §5: same-styles-set match, distinct sets never merge) --
+    // -------- Eligibility (pins ADR 0056 §5: same-styles-set match, distinct sets never merge) --
 
     @Test
     fun `same styles set in same chapter is eligible`() {
@@ -114,7 +114,7 @@ class EmphasisMergeTest {
 
     @Test
     fun `overlapping styles sets that are not equal are not eligible`() {
-        // ADR 0046: only IDENTICAL sets merge; {bold} and {bold, underline} don't collapse.
+        // ADR 0056: only IDENTICAL sets merge; {bold} and {bold, underline} don't collapse.
         val a = anchor(styles = BOLD, textSnippet = "Foo", textAfter = " Bar")
         val n = emphasis(styles = BOLD_UNDERLINE, textSnippet = "Bar")
         assertEquals(false, isMergeEligible(a, n))
@@ -162,7 +162,7 @@ class EmphasisMergeTest {
         assertNull(findAnyMergeableNeighbor(a, listOf(n), emptySet()))
     }
 
-    // -------- Merge action (pins ADR 0046: snippets combine with whitespace, styles inherited) --
+    // -------- Merge action (pins ADR 0056: snippets combine with whitespace, styles inherited) --
 
     @Test
     fun `applyMerge unions text spans and keeps the anchor's styles`() {

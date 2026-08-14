@@ -10,7 +10,7 @@ import org.junit.Test
  * [EpubReaderViewModel] consults at every Reading-Session / progress-sync suppression site
  * (startReadingSession, syncCurrentPosition, the serverPositionEvents collector, onReaderClosed)
  * plus the eager `source == ReaderSource.Highlights` guards on createHighlight/toggleBookmark
- * (Task 8, ADR 0041).
+ * (Task 8, ADR 0048).
  *
  * [EpubReaderViewModel] cannot be constructed in a JVM test (Robolectric-only constraint
  * documented in Task 7); this test therefore exercises the extracted pure decision function

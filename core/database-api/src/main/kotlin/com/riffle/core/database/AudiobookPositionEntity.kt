@@ -7,7 +7,7 @@ import androidx.room.Index
 // The audiobook listen position (book-absolute seconds) + the wall-clock it was last set at, stored
 // per (sourceId, itemId) — the same identity and FK-cascade as `reading_positions`. Server-synced
 // (unlike the device-local `readaloud_resume_positions`): it is a durable last-update-wins peer
-// against ABS's media-progress record (ADR 0029).
+// against ABS's media-progress record (ADR 0035).
 @Entity(
     tableName = "audiobook_positions",
     primaryKeys = ["sourceId", "itemId"],
@@ -27,6 +27,6 @@ data class AudiobookPositionEntity(
     val positionSec: Double,
     val localUpdatedAt: Long = 0,
     // The localUpdatedAt value last confirmed pushed to / pulled from the server; the row is
-    // **dirty** when localUpdatedAt > lastSyncedAt (ADR 0030). See ReadingPositionEntity.
+    // **dirty** when localUpdatedAt > lastSyncedAt (ADR 0036). See ReadingPositionEntity.
     val lastSyncedAt: Long = 0,
 )

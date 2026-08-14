@@ -65,7 +65,7 @@ internal fun realCapturedFontOrNull(value: String?): String? {
 }
 
 /**
- * One chapter's worth of highlights to be rendered into the elided reader (ADR 0041).
+ * One chapter's worth of highlights to be rendered into the elided reader (ADR 0048).
  *
  * [highlights] must already be sorted by (spineIndex, progression, createdAt) — the factory
  * renders them in the order given, it does not re-sort.
@@ -113,7 +113,7 @@ class HighlightsPublicationHandle internal constructor(
 
 /**
  * Synthesises an in-memory Readium [Publication] out of a set of [ChapterElision]s so the elided
- * "highlights only" reader (ADR 0041) can be driven by the exact same [EpubNavigatorFragment] /
+ * "highlights only" reader (ADR 0048) can be driven by the exact same [EpubNavigatorFragment] /
  * [EpubReaderViewModel] machinery as a full book — Readium never needs to know the content didn't
  * come from a real EPUB container.
  *
@@ -243,7 +243,7 @@ class HighlightsPublicationFactory @Inject constructor() {
         }
 
         val manifest = Manifest(
-            // conformsTo = EPUB is load-bearing (ADR 0041 follow-up): WebViewServer only invokes
+            // conformsTo = EPUB is load-bearing (ADR 0048 follow-up): WebViewServer only invokes
             // Readium's HtmlInjector — which registers the WebView tap listener that drives
             // immersive-mode toggle AND injects ReadiumCSS-before/default/after — when the
             // publication conforms to the EPUB profile. Without it, our synthesised chapters
@@ -716,7 +716,7 @@ internal fun sanitizeCssFontFamily(value: String?): String? {
 }
 
 /**
- * Renders a TYPE_IMAGE annotation as a full-size `<figure>` (Task 9, ADR 0041) — full reader
+ * Renders a TYPE_IMAGE annotation as a full-size `<figure>` (Task 9, ADR 0048) — full reader
  * content width, no explicit max-width shrinking, matching the "graphs and diagrams... show up in
  * the annotations view" spec goal. Inline SVG source ([AnnotationEntity.imageSvg]) is embedded
  * verbatim as a first-class XHTML element rather than wrapped in an `<img>`; raster figures
@@ -910,7 +910,7 @@ private fun AnnotationEntity.decodedEmbeddedFigures(): List<EmbeddedFigure>? =
 
 /**
  * Guaranteed-visible background paint for a synthesised `<p class="riffle-hl">` (Fix A,
- * ADR 0041 follow-up). Long or punctuated snippets can fail Readium's text-matched
+ * ADR 0048 follow-up). Long or punctuated snippets can fail Readium's text-matched
  * [org.readium.r2.shared.publication.Locator.Text] decoration (see
  * [HighlightsPublicationFactory]'s KDoc for the rendering path this backs up), leaving the
  * paragraph unpainted. Inline CSS is format-independent and never depends on Readium's decoration
@@ -926,7 +926,7 @@ private fun highlightBackgroundCss(colorToken: String): String =
 
 /**
  * Explicit `<link>` to Readium's own `ReadiumCSS-default.css`, worked around this way to fix a
- * formatting bug in the elided reader (ADR 0041): every synthesised chapter loses font-size/
+ * formatting bug in the elided reader (ADR 0048): every synthesised chapter loses font-size/
  * heading/spacing styling in FullBook mode's terms because Readium's `ReadiumCss.injectHtml`
  * (readium-navigator's `HtmlInjector`/`ReadiumCss.kt`, `injectStyles()`) only auto-appends
  * `ReadiumCSS-default.css` when the resource has **no** publisher-supplied styling — and its
@@ -956,7 +956,7 @@ private const val READIUM_DEFAULT_CSS_LINK =
 
 /**
  * Explicit vertical margin on every synthesised highlight `<p>`, fixing "Immersive Mode doesn't
- * toggle in the elided reader" (ADR 0041 follow-up). ReadiumCSS-default.css's own paragraph rule
+ * toggle in the elided reader" (ADR 0048 follow-up). ReadiumCSS-default.css's own paragraph rule
  * (`p{margin-top:var(--RS__paraSpacing);margin-bottom:var(--RS__paraSpacing)}`, with
  * `--RS__paraSpacing:0` by default) sets **zero** paragraph margin — normal FullBook-mode EPUBs
  * still read fine because only isolated phrases within a much longer paragraph are highlighted, so
@@ -969,7 +969,7 @@ private const val READIUM_DEFAULT_CSS_LINK =
  * highlight `<p>`s sit flush against each other, leaving no non-decorated gap for a tap to land in
  * and reach `Android.onTap` (wired to [com.riffle.app.feature.reader.ImmersiveModeState.toggle] —
  * see `EpubReaderScreen`'s `tapListener`/`InputListener.onTap`). Tapping a highlight itself
- * correctly opens the highlight-actions sheet (by design — see ADR 0041 and the "Annotations View"
+ * correctly opens the highlight-actions sheet (by design — see ADR 0048 and the "Annotations View"
  * glossary entry in CONTEXT.md) — the bug is that immersive becomes *unreachable* because there's
  * no other place to tap.
  *

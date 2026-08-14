@@ -15,7 +15,7 @@ import kotlinx.coroutines.CompletableDeferred
  * [supplyResult] once JS has finished; concurrent callers of [loadAll] / [chapterHrefs] all await
  * that same completion via [CompletableDeferred].
  *
- * See [ADR 0039](../../../../../../../../docs/adr/0039-sentence-playback-pipeline-shared-with-cadence.md)
+ * See [ADR 0046](../../../../../../../../docs/adr/0046-sentence-playback-pipeline-shared-with-cadence.md)
  * for the shared [SentenceSource] contract between Readaloud (SMIL) and Cadence (DOM).
  */
 class DomSentenceSource : SentenceSource {

@@ -22,7 +22,7 @@ import org.junit.Test
  * Pins the contract for on-demand insertion of a browsed web-source [CatalogItem] into
  * `library_items`. This upserter is shared by every unbounded-catalogue Source (Chitanka,
  * Gutenberg, and any future entry) — refreshLibraryItems does NOT populate library_items for
- * them (ADR 0042), so the reader / audiobook player can only resolve an item once this
+ * them (ADR 0051), so the reader / audiobook player can only resolve an item once this
  * upserter has run.
  *
  * Chitanka fixtures are used here because they're the most representative — the same code
@@ -191,7 +191,7 @@ class WebSourceLibraryItemUpserterTest {
         // row. A CatalogItem carries neither, so its `toEntity()` defaults both to null; without
         // the "read the current row and preserve the surviving locals" step in the upserter, a
         // second browse-tap after the reader has stamped either field would silently null it and
-        // erase the book from Recently Opened / undo the "finished" mark. The ADR-0043 24 h TTL
+        // erase the book from Recently Opened / undo the "finished" mark. The ADR-0052 24 h TTL
         // cycle makes this a routine trigger: user opens the book, revisits the source next day,
         // taps the same title from the browse listing → gate refetches → this upserter runs.
         val dao = InMemoryLibraryItemDao()

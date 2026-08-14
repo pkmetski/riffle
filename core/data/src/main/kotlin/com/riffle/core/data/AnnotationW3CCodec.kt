@@ -119,7 +119,7 @@ object AnnotationW3CCodec {
             // figure annotation. The decoder derives type from body composition regardless
             // (see w3cObjectToAnnotation), so this value isn't load-bearing on round-trip.
             AnnotationEntity.TYPE_IMAGE -> "describing"
-            // ADR 0046: emphasis rides on "commenting" so a legacy peer that doesn't know
+            // ADR 0056: emphasis rides on "commenting" so a legacy peer that doesn't know
             // `riffle:emphasis` decodes it as a commenting-motivation annotation with no
             // TextualBody value — NOT as a phantom empty-color highlight in the peer's
             // Annotations View. See code-review F3.
@@ -181,7 +181,7 @@ object AnnotationW3CCodec {
                 imageBytes = entity.imageBytes,
             )
         } else if (entity.type == AnnotationEntity.TYPE_EMPHASIS) {
-            // ADR 0046: emphasis carries a single riffle:emphasis body with the comma-separated
+            // ADR 0056: emphasis carries a single riffle:emphasis body with the comma-separated
             // styles token. No TextualBody — emphasis has no color, no note.
             bodies += buildJsonObject {
                 put("type", "riffle:emphasis")
@@ -193,7 +193,7 @@ object AnnotationW3CCodec {
             bodies += buildJsonObject {
                 put("type", "TextualBody")
                 put("purpose", motivation)
-                // For highlights, include the color; for bookmarks, use the title. ADR 0046 §4:
+                // For highlights, include the color; for bookmarks, use the title. ADR 0056 §4:
                 // emit `value` even when empty (`""` == user picked ∅ — the format-only anchor)
                 // so peers can distinguish "explicitly no color" from "legacy row where value
                 // was never written." Without this, the receiver's merge falls back to yellow
@@ -460,7 +460,7 @@ object AnnotationW3CCodec {
                 else -> emptyList()
             }
             val imageBodies = bodyList.filter { it["type"]?.jsonPrimitive?.content == "riffle:image" }
-            // ADR 0046: a riffle:emphasis body overrides motivation-derived type; the presence of
+            // ADR 0056: a riffle:emphasis body overrides motivation-derived type; the presence of
             // one below flips type to TYPE_EMPHASIS and populates emphasisStyles.
             val emphasisBody = bodyList.firstOrNull { it["type"]?.jsonPrimitive?.content == "riffle:emphasis" }
             val textBody = bodyList.firstOrNull { it["type"]?.jsonPrimitive?.content !in setOf("riffle:image", "riffle:emphasis") }
@@ -493,7 +493,7 @@ object AnnotationW3CCodec {
             var imageBytes: String? = null
             var emphasisStyles: String? = null
 
-            // ADR 0046: riffle:emphasis body → TYPE_EMPHASIS + emphasisStyles token. Emphasis
+            // ADR 0056: riffle:emphasis body → TYPE_EMPHASIS + emphasisStyles token. Emphasis
             // wins the type-of-body arbitration: a malformed W3C annotation carrying BOTH a
             // riffle:emphasis and a riffle:image body would otherwise be silently rewritten to
             // TYPE_IMAGE/TYPE_HIGHLIGHT by the next block, leaving orphan emphasisStyles on a

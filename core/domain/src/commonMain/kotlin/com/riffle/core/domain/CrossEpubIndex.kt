@@ -6,7 +6,7 @@ import kotlinx.serialization.Serializable
  * Readable-character counts for one logical chapter as it appears in each of the two
  * EPUBs of a matched readaloud book. A position inside the chapter is bridged between
  * the two CFI domains by scaling its character offset proportionally between
- * [absChars] and [storytellerChars] — best-effort, per ADR 0019.
+ * [absChars] and [storytellerChars] — best-effort, per ADR 0023.
  */
 @Serializable
 data class ChapterCharMap(
@@ -15,7 +15,7 @@ data class ChapterCharMap(
 )
 
 /**
- * The per-matched-book cross-EPUB character-position index (ADR 0019): one
+ * The per-matched-book cross-EPUB character-position index (ADR 0023): one
  * [ChapterCharMap] per chapter, aligned by spine order. Serialisable for Room
  * persistence keyed by the two EPUBs' checksums.
  */

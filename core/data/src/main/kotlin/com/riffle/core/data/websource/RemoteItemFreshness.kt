@@ -7,7 +7,7 @@ import javax.inject.Inject
 
 /**
  * Records when a web-source item's persisted detail was last successfully refetched
- * (ADR 0043). Used by [WebSourceItemGate] to short-circuit item-open flows within TTL
+ * (ADR 0052). Used by [WebSourceItemGate] to short-circuit item-open flows within TTL
  * and to skip stamping when a fetch fails so the next open retries.
  *
  * TTL semantics are the caller's — the service just answers "how old is this row".

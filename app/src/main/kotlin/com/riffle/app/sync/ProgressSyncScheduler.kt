@@ -3,7 +3,7 @@ package com.riffle.app.sync
 import android.content.Context
 
 /**
- * Schedules the durable progress sweep (ADR 0030). Thin facade over the shared [SyncScheduler].
+ * Schedules the durable progress sweep (ADR 0036). Thin facade over the shared [SyncScheduler].
  * Public `sweepNow` / `ensurePeriodic` shape is preserved so call sites in [RiffleApplication] and
  * other places remain unchanged.
  */

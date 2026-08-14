@@ -678,7 +678,7 @@ class AbsCatalog(
         isFinished: Boolean?,
         lastUpdateEpochMs: Long,
     ): Long? {
-        // ABS derives finished-state server-side from progress==1.0 for audiobook records (ADR 0029),
+        // ABS derives finished-state server-side from progress==1.0 for audiobook records (ADR 0035),
         // so the `isFinished` param is captured for capability parity but not forwarded here.
         return sessionApi.syncAudiobookProgress(
             config.baseUrl,

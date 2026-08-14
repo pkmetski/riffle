@@ -20,7 +20,7 @@ import kotlinx.coroutines.runBlocking
  * Holds the currently-active [AnnotationSyncTarget], rebuilt whenever WebDAV config OR the list of
  * ABS Sources changes.
  *
- * **Composition rules (ADR 0047):**
+ * **Composition rules (ADR 0057):**
  * - WebDAV configured → one WebDAV child, servicing every namespace **except** those already
  *   covered by an ABS-bookmark child. Once ABS-bookmark sync is live for an account, WebDAV would
  *   only add cross-transport reconciliation cost without any read that the ABS-bookmark child

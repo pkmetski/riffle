@@ -4,7 +4,7 @@ import kotlinx.coroutines.flow.Flow
 import com.riffle.core.models.EmphasisStyle
 
 /**
- * Per-book "last-used" emphasis styles set for user-created emphasis annotations (ADR 0046).
+ * Per-book "last-used" emphasis styles set for user-created emphasis annotations (ADR 0056).
  *
  * Mirrors [HighlightColorPreferencesStore]: every time the user picks emphasis styles on a
  * highlight (via a chip toggle), the resulting set becomes the default for the NEXT

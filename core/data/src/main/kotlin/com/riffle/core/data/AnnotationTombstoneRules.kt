@@ -3,7 +3,7 @@ package com.riffle.core.data
 import com.riffle.core.database.AnnotationEntity
 
 /**
- * Single source of truth for the ADR 0038 aged-tombstone predicate. Mirrors the
+ * Single source of truth for the ADR 0045 aged-tombstone predicate. Mirrors the
  * `AnnotationDao.purgeAgedTombstones` SQL clause exactly:
  *
  *   `deleted = 1 AND updatedAt < :cutoff AND updatedAt <= lastSyncedAt`

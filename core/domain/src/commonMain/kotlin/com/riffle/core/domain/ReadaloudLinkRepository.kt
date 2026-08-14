@@ -19,6 +19,6 @@ interface ReadaloudLinkRepository {
 
     suspend fun countForSource(sourceId: String): Int
 
-    /** Persist the streaming identity verdict for an ABS item (ADR 0028). */
+    /** Persist the streaming identity verdict for an ABS item (ADR 0040). */
     suspend fun updateIdentityResult(absSourceId: String, absLibraryItemId: String, result: AudiobookIdentityResult) {}
 }

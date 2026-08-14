@@ -6,7 +6,7 @@ import org.junit.Assert.assertNull
 import org.junit.Test
 
 /**
- * The audiobook→readaloud entry rule (ADR 0031): a newer local audiobook position seeds the readaloud
+ * The audiobook→readaloud entry rule (ADR 0037): a newer local audiobook position seeds the readaloud
  * start sentence; otherwise the caller falls back to its resume tiers. Last-update-wins, index-free.
  */
 class ReadaloudStartAnchorTest {

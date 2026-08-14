@@ -77,7 +77,7 @@ fun HighlightSwatchRow(
     modifier: Modifier = Modifier,
 ) {
     Row(modifier = modifier, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        // ADR 0046 §4: the `∅` swatch removes the highlight color while keeping any emphasis
+        // ADR 0056 §4: the `∅` swatch removes the highlight color while keeping any emphasis
         // rows intact — the coupled "Annotate" sheet's escape hatch when the user only wanted
         // formatting (bold/italic/underline/strike) and not a highlight.
         val noneSelected = selected == null
@@ -140,7 +140,7 @@ fun HighlightSwatchRow(
 }
 
 /**
- * ADR 0046 §4: Emphasis chip row. Four chips (B/I/U/S) rendered in their own style so the
+ * ADR 0056 §4: Emphasis chip row. Four chips (B/I/U/S) rendered in their own style so the
  * affordance mirrors the visual result. Active chips fill with the reader accent; the row is
  * independent of the highlight-colour row above.
  */
@@ -203,7 +203,7 @@ fun HighlightActionsPopup(
     readerBackground: Color,
     emphasisStyles: Set<EmphasisStyle> = emptySet(),
     onPick: (HighlightColor) -> Unit,
-    /** ADR 0046 §4: remove the highlight color while keeping the emphasis rows intact. */
+    /** ADR 0056 §4: remove the highlight color while keeping the emphasis rows intact. */
     onRemoveColor: () -> Unit = {},
     onToggleEmphasis: (EmphasisStyle) -> Unit = {},
     onDelete: () -> Unit,
@@ -372,7 +372,7 @@ fun HighlightActionsPopup(
                         )
                     }
                 }
-                // Highlights-mode only (Task 9, ADR 0041): the elided reader has no chapter
+                // Highlights-mode only (Task 9, ADR 0048): the elided reader has no chapter
                 // context, so this row is the escape hatch back to the real book at this
                 // highlight's position.
                 if (showOpenInBook && !noteOnly) {

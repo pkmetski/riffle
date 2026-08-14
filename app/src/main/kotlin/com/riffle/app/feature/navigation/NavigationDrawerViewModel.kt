@@ -54,7 +54,7 @@ class NavigationDrawerViewModel @Inject constructor(
 
     fun currentNowPlaying(): NowPlaying? = nowPlayingStore.current
 
-    // Storyteller is a Settings-only readaloud backend (ADR 0026): it never appears in the Source
+    // Storyteller is a Settings-only readaloud backend (ADR 0032): it never appears in the Source
     // Switcher and can never become the active browsable Source.
     val allServers: StateFlow<List<Source>> = sourceRepository.observeAll()
         .map { servers -> servers.filter { it.serverType != ServerType.STORYTELLER_SERVICE } }
@@ -99,7 +99,7 @@ class NavigationDrawerViewModel @Inject constructor(
                 visibilityStore.hiddenLibraryIds(server.id),
                 orderStore.libraryOrder(server.id),
             ) { libraries, hiddenIds, order ->
-                // Exclude hidden libraries and the never-browsable Readaloud namespace row (ADR 0026),
+                // Exclude hidden libraries and the never-browsable Readaloud namespace row (ADR 0032),
                 // then apply the user's custom per-server order (alphabetical fallback for the rest).
                 val visible = libraries.filter { it.id !in hiddenIds && !it.isReadaloud }
                 orderLibraries(visible, order)

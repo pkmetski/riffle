@@ -12,7 +12,7 @@ import com.riffle.core.domain.SourceRepository
 import javax.inject.Inject
 
 // Formatting is per-device but keyed by (sourceId, itemId, scope) so two Sources' colliding item
-// ids don't share one row (ADR 0025) and so the annotations reading view keeps a chain independent
+// ids don't share one row (ADR 0031) and so the annotations reading view keeps a chain independent
 // from the full-book reader. Like LibraryRepositoryImpl, the active Source is resolved here — you
 // format the book you're actively reading — keeping the domain interface itemId-only.
 class BookFormattingPreferencesStoreImpl @Inject constructor(

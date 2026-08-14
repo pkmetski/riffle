@@ -811,7 +811,7 @@ internal fun publicationPageCountText(pageCount: Int, readingProgress: Float): S
     return "$pagesRead of $pageCount pages read"
 }
 
-/** Total audiobook length on the detail screen, with remaining time when in progress (ADR 0029). */
+/** Total audiobook length on the detail screen, with remaining time when in progress (ADR 0035). */
 @Composable
 private fun AudiobookDurationLine(durationSec: Double, readingProgress: Float = 0f) {
     val text = when {
@@ -1275,7 +1275,7 @@ private fun TitleWithReadaloudIndicator(
         if (hasReadaloud) {
             Spacer(modifier = Modifier.width(8.dp))
             // Tapping the badge is the sole entry point to the "Readalouds" Filtered Books Screen
-            // (ADR 0027) — self-gating, since the badge only shows when the book has a readaloud.
+            // (ADR 0033) — self-gating, since the badge only shows when the book has a readaloud.
             Icon(
                 painter = painterResource(R.drawable.ic_readaloud),
                 contentDescription = "Show all readalouds",
@@ -1290,7 +1290,7 @@ private fun TitleWithReadaloudIndicator(
 
 /**
  * The "By …" line. Splits the flattened author string on ", " so each author is an independent,
- * tappable facet leading to that author's Filtered Books Screen (ADR 0027).
+ * tappable facet leading to that author's Filtered Books Screen (ADR 0033).
  */
 @Composable
 private fun AuthorByline(author: String, onAuthorClick: (String) -> Unit) {
@@ -1394,7 +1394,7 @@ private fun ActionRow(
     onDownloadAudiobook: () -> Unit = {},
     onRemoveAudiobook: () -> Unit = {},
 ) {
-    // An item may be readable (has an ebook), listenable (an Audiobook — ADR 0029), both (a
+    // An item may be readable (has an ebook), listenable (an Audiobook — ADR 0035), both (a
     // combined item), or neither. The action row offers Read and Listen independently; only a wholly
     // un-openable item shows the empty-state message. When the active Source lacks
     // AudiobookMediaCapability (e.g. LocalFiles has no audiobook player yet, issue #439), a nominally
@@ -1440,7 +1440,7 @@ private fun ActionRow(
             }
         }
         if (item.isListenable && capabilities.hasAudiobookMedia) {
-            // The audiobook player resolves download > bundle > ABS stream (ADR 0029), so Listen needs
+            // The audiobook player resolves download > bundle > ABS stream (ADR 0035), so Listen needs
             // connectivity only when neither a dedicated audiobook download nor a readaloud bundle is
             // present locally — either local source plays offline.
             val audiobookAvailableOffline = audiobookDownloadState == DownloadState.Downloaded ||
@@ -1487,7 +1487,7 @@ private fun ActionRow(
         val showDownloadAffordances = capabilities.hasDownloads
         // The base DownloadButton manages the ABS EPUB, so it only applies to a readable item. A
         // matched ABS item additionally gets the ReadaloudDownloadButton below, which fetches the
-        // Storyteller synced bundle (ADR 0023/0026) for audio + highlight.
+        // Storyteller synced bundle (ADR 0027/ADR 0032) for audio + highlight.
         if (showDownloadAffordances && item.isReadable) {
             DownloadButton(
                 state = downloadState,
@@ -1496,7 +1496,7 @@ private fun ActionRow(
             )
         }
         // A listenable item gets its own download control: the ABS audiobook tracks for offline play
-        // (ADR 0029). Disabled offline when not yet downloaded (can't fetch).
+        // (ADR 0035). Disabled offline when not yet downloaded (can't fetch).
         if (showDownloadAffordances && item.isListenable && audiobookDownloadState != null) {
             val audioOfflineBlocked = isOffline && audiobookDownloadState == DownloadState.NotDownloaded
             val audioButton: @Composable () -> Unit = {

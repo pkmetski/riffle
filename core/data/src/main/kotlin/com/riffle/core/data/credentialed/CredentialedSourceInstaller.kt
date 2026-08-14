@@ -41,7 +41,7 @@ class CredentialedSourceInstaller @Inject constructor(
      * committed [Source], or [CommitSourceResult.Failure] wrapping any thrown cause.
      *
      * Storyteller-specific carve-outs (never becomes the active source, seeds a synthetic
-     * "Readalouds" library row per ADR 0026) are still branched here on
+     * "Readalouds" library row per ADR 0032) are still branched here on
      * [PendingSource.serverType]. Once #441 splits Storyteller into its own SourceType those
      * branches move behind a descriptor capability, but until then they're isolated to this file
      * so `SourceRepositoryImpl` doesn't have to know.
@@ -81,7 +81,7 @@ class CredentialedSourceInstaller @Inject constructor(
         // writes credentials-first closes the race so the first flow read already sees the token.
         tokenStorage.saveToken(id, pending.token)
         tokenStorage.savePassword(id, pending.password)
-        // A Storyteller Source is a Settings-only readaloud backend (ADR 0026) — it must never
+        // A Storyteller Source is a Settings-only readaloud backend (ADR 0032) — it must never
         // become the active browsable Source, not even as the first source added. Other
         // credentialed sources keep the "first source becomes active" convenience.
         val inserted = if (pending.serverType == ServerType.STORYTELLER_SERVICE) {
@@ -93,7 +93,7 @@ class CredentialedSourceInstaller @Inject constructor(
         val libraryRows = pending.libraries.map {
             LibraryEntity(id = it.id, name = it.name, mediaType = it.mediaType, sourceId = id)
         }.toMutableList()
-        // A Storyteller Source contributes no browsable Library (ADR 0026), but its readaloud books
+        // A Storyteller Source contributes no browsable Library (ADR 0032), but its readaloud books
         // are stored in `library_items` as matcher input. They need an owning `libraries` row so the
         // matcher's library→source join resolves their serverType and the source-removal cascade
         // cleans them up. This row is never surfaced in the drawer or any library picker — the
@@ -115,7 +115,7 @@ class CredentialedSourceInstaller @Inject constructor(
 
     companion object {
         // The local-only library id that namespaces a Storyteller Source's readaloud rows in
-        // `library_items` (matcher input; never browsable — ADR 0026). Its mediaType is the shared
+        // `library_items` (matcher input; never browsable — ADR 0032). Its mediaType is the shared
         // [READALOUD_MEDIA_TYPE] so consumers can filter it out of browsable surfaces.
         fun readaloudLibraryId(sourceId: String): String = "readaloud:$sourceId"
     }

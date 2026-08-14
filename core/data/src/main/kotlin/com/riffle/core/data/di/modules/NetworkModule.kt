@@ -93,7 +93,7 @@ abstract class NetworkModule {
         private const val DEFAULT_HTTP_CACHE_BYTES: Long = 20L * 1024L * 1024L
 
         /**
-         * OkHttp client for web-source scrapers (ADR 0043). Carries a 10 MB disk cache,
+         * OkHttp client for web-source scrapers (ADR 0052). Carries a 10 MB disk cache,
          * a network interceptor that forces `max-age=86400` (24 h) onto all successful
          * responses since chitanka/gramofonche send no cache headers, and an application
          * interceptor that falls back to any cached copy on network failure. Cache dir

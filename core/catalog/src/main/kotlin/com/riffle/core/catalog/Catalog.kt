@@ -27,7 +27,7 @@ interface Catalog {
      * Server-side facets exposed by [rootId] — a Source-local filter dimension (e.g. genre category
      * on Chitanka). The Library screen renders these as a chip strip; selecting one issues a
      * [browse] with the chosen [FacetSelection]. Sources without server-side facets return the
-     * default empty list — no strip renders. See ADR 0042.
+     * default empty list — no strip renders. See ADR 0051.
      */
     suspend fun listFacets(rootId: String): List<CatalogFacet> = emptyList()
 

@@ -137,7 +137,7 @@ internal interface RendererBridge {
     /** Id-based [snapNarratedColumn] for Cadence — resolves the target via `getElementById`. */
     suspend fun snapCadenceColumn(fragmentId: String, columnIndex: Int)
 
-    // ── Highlights-mode (elided reader) live DOM patches (ADR 0041) ───────────────────────────
+    // ── Highlights-mode (elided reader) live DOM patches (ADR 0048) ───────────────────────────
 
     /**
      * Apply one [com.riffle.app.feature.reader.highlights.HighlightsDomPatch] to the currently

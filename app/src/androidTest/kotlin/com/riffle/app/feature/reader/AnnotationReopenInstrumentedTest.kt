@@ -32,7 +32,7 @@ import javax.inject.Inject
 
 /**
  * End-to-end re-render-on-reopen for highlights against a real EPUB, without driving WebView text
- * selection. Exercises the load-bearing path (ADR 0024): a selection's start progression + text →
+ * selection. Exercises the load-bearing path (ADR 0028): a selection's start progression + text →
  * a persisted CFI **range**, then — as on reopen — that range re-anchored back to a within-chapter
  * progression and spine index. The Readium decoration itself is rendered by the same
  * DecorableNavigator mechanism the search/readaloud highlights already use.

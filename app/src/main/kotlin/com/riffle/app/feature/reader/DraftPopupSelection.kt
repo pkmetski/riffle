@@ -12,7 +12,7 @@ import com.riffle.core.models.HighlightColor
  * - **Persisted annotation** (`isDraft = false`): `selectedColor` reflects the row's stored color;
  *   empty color → `null` (∅ shown); `emphasisStyles` reflects the sibling emphasis row at the same
  *   CFI, empty otherwise.
- * - **Pending draft** (`isDraft = true`): ADR 0046 §4 — pre-select the per-book last-used state so
+ * - **Pending draft** (`isDraft = true`): ADR 0056 §4 — pre-select the per-book last-used state so
  *   dismissing the sheet with no explicit pick auto-commits the "last color" annotation the user
  *   is used to (see [com.riffle.app.feature.reader.session.AnnotationSession.dismissHighlightActions]).
  *   `selectedColor` = last-used color (or `null` when the last pick was ∅);

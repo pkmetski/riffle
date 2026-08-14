@@ -5,7 +5,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * Guards ADR 0046's bold/italic DOM injector against the "cross-line-break" regression:
+ * Guards ADR 0056's bold/italic DOM injector against the "cross-line-break" regression:
  * a selection spanning two paragraphs (or a `<br>`) arrives with a newline where the
  * concatenated `document.body` text nodes have nothing at all, so the naive `indexOf`
  * approach found no match and silently failed to wrap the range. The fix has two moving

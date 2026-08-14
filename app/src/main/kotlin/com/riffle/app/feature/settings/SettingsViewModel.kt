@@ -55,7 +55,7 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
-/** UI state for the at-a-glance "WebDAV" row in Settings (ADR 0036). */
+/** UI state for the at-a-glance "WebDAV" row in Settings (ADR 0043). */
 data class AnnotationSyncRowState(
     val badge: Badge,
     val headline: String,
@@ -94,7 +94,7 @@ class SettingsViewModel @Inject constructor(
     annotationDao: AnnotationDao,
 ) : ViewModel() {
 
-    /** At-a-glance row state for the main Settings "WebDAV" entry (ADR 0036). */
+    /** At-a-glance row state for the main Settings "WebDAV" entry (ADR 0043). */
     val annotationSyncRow: StateFlow<AnnotationSyncRowState> = combine(
         annotationSyncConfigStore.observe(),
         annotationSyncStatusStore.lastCycleOutcome,
@@ -349,7 +349,7 @@ class SettingsViewModel @Inject constructor(
     }
 
     // Every browsable source contributes to the per-source library editor. Storyteller stays
-    // excluded (Settings-only, never browsable per ADR 0026) — its expansion shows a
+    // excluded (Settings-only, never browsable per ADR 0032) — its expansion shows a
     // readaloud-matches summary instead of a library list.
     private val browsableSources: StateFlow<List<Source>> = servers
         .map { list -> list.filter { it.serverType != ServerType.STORYTELLER_SERVICE } }
@@ -441,7 +441,7 @@ class SettingsViewModel @Inject constructor(
             sourceRepository.remove(sourceId)
             if (removing.isActive) {
                 // Promote the next browsable server. A Storyteller Source is never browsable
-                // (ADR 0026) and can never be active, so skip it when choosing the successor.
+                // (ADR 0032) and can never be active, so skip it when choosing the successor.
                 val next = current.firstOrNull { it.id != sourceId && it.serverType != ServerType.STORYTELLER_SERVICE }
                 if (next != null) {
                     sourceRepository.setActive(next.id)

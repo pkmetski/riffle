@@ -332,7 +332,7 @@ class AbsApiClientLibraryTest {
     @Test
     fun `getUserProgress surfaces audiobook progress even when ebookProgress is zero`() = runTest {
         // An audiobook entry: real listen `progress`, with `ebookProgress` 0 (no ebook). The mapping
-        // must not let the 0 ebookProgress shadow the listen position (ADR 0029) — regression for
+        // must not let the 0 ebookProgress shadow the listen position (ADR 0035) — regression for
         // "audiobook progress not visible in the library".
         server.enqueue(
             MockResponse()

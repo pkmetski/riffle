@@ -184,7 +184,7 @@ class FormattingSession @AssistedInject constructor(
                 deviceDensity = deviceDensity,
             )
         }
-        // Readaloud start ⇒ stop Auto-Scroll (mutual exclusion, ADR 0037).
+        // Readaloud start ⇒ stop Auto-Scroll (mutual exclusion, ADR 0044).
         // Driven externally via onPlaybackStateChanged(isPlaying).
         // When the user parks Auto-Scroll from the HUD pill, keep the pill on-screen for a couple
         // of minutes so they can resume or tweak speed. If they never act, auto-stop so the pill
@@ -323,7 +323,7 @@ class FormattingSession @AssistedInject constructor(
 
     /**
      * Called by the VM when the readaloud/audiobook playback state changes. If audio starts playing
-     * and Auto-Scroll is running, stop it (mutual exclusion, ADR 0037).
+     * and Auto-Scroll is running, stop it (mutual exclusion, ADR 0044).
      */
     fun onPlaybackStateChanged(isPlaying: Boolean) {
         if (isPlaying &&

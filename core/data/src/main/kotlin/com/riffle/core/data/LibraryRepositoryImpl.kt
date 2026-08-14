@@ -74,7 +74,7 @@ class LibraryRepositoryImpl @Inject constructor(
             .distinctUntilChanged()
 
     // Library-scoped item flows resolve the active Source's id and pass it as the DAO's primary
-    // scope. library_items is keyed by (sourceId, id) (ADR 0025), so the query itself enforces
+    // scope. library_items is keyed by (sourceId, id) (ADR 0031), so the query itself enforces
     // source isolation — no post-query filter required. With no active Source the screen has
     // nothing to show, so we emit an empty list rather than mixing data across Sources.
     @OptIn(ExperimentalCoroutinesApi::class)
@@ -119,7 +119,7 @@ class LibraryRepositoryImpl @Inject constructor(
     override fun observeCollectionItems(collectionId: String): Flow<List<LibraryItem>> =
         scopedItemFlow { sourceId -> collectionDao.observeItemsByCollectionId(sourceId, collectionId) }
 
-    // Item ids are only unique within a Source (ADR 0025); reads/writes here target the active
+    // Item ids are only unique within a Source (ADR 0031); reads/writes here target the active
     // Source's copy, mirroring how reading positions are keyed. No active Source → nothing to do.
     override suspend fun getItem(itemId: String): LibraryItem? {
         val sourceId = sourceRepository.getActive()?.id ?: return null
@@ -185,7 +185,7 @@ class LibraryRepositoryImpl @Inject constructor(
         val source = sourceRepository.getActive() ?: return LibraryRefreshResult.NoActiveServer
         val catalog = catalogRegistry.forSource(source) ?: return LibraryRefreshResult.NoActiveServer
         // Unbounded remote catalogues (Chitanka, Gutenberg; future OPDS) do not populate a Room
-        // mirror of library_items — ADR 0042 explicitly names them as network-only. If refresh
+        // mirror of library_items — ADR 0051 explicitly names them as network-only. If refresh
         // fires against one of these (e.g. LibraryItemsViewModel reached from a non-drawer route),
         // no-op the refresh instead of scraping /new into Room and letting the ABS-shaped grid
         // render it as if the item were owned by the local catalogue. Keyed on the
@@ -238,7 +238,7 @@ class LibraryRepositoryImpl @Inject constructor(
                         coverUrl = item.coverUrl ?: "",
                         // The unified "how far through this item" fraction (ebook CFI progress,
                         // else audio currentTime/duration) that surfaces audiobooks in In
-                        // Progress too (ADR 0029) — same derivation as refreshItemProgress so
+                        // Progress too (ADR 0035) — same derivation as refreshItemProgress so
                         // the bulk and per-item pulls can never disagree.
                         // Note: for existing items the DAO's updateMetadata ignores this field and
                         // preserves the locally-tracked value. It is only used when inserting a
@@ -279,7 +279,7 @@ class LibraryRepositoryImpl @Inject constructor(
             // reopened locally. Adopt server `readingProgress` here for every row that is NOT
             // locally dirty per [DirtyProgressLedger]: a dirty ebook or audio position row is the
             // definitive signal that a local edit is pending push and MUST NOT be overwritten
-            // (the ADR 0030 sweep will resolve that row and mirror the result via UiProgressSink).
+            // (the ADR 0036 sweep will resolve that row and mirror the result via UiProgressSink).
             // A clean row's `library_items.readingProgress` equals the last synced server value,
             // so overwriting it with the just-pulled server value is either identical (in sync)
             // or an authoritative advancement from another device — never a regression. This
@@ -321,7 +321,7 @@ class LibraryRepositoryImpl @Inject constructor(
             }
             return LibraryRefreshResult.NetworkError(t)
         } ?: return LibraryRefreshResult.Success
-        // Derive the unified library fraction (ADR 0029) through the shared helper so this
+        // Derive the unified library fraction (ADR 0035) through the shared helper so this
         // per-item pull can never disagree with refreshLibraryItems' bulk pull. A null fraction
         // means the payload carries no meaningful progress at all (fresh item / audio-only book
         // whose duration hasn't been populated server-side yet) — writing 0 in that case would

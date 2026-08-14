@@ -8,7 +8,7 @@ import java.io.File
  * [ServerReferenceLint] / [RiffleLogTagLint] — the gradle task `checkNoAndroidImports`
  * is a thin wrapper around [findAndroidImportOffenders].
  *
- * The multi-platform plan (issue #550, ADR 0049) carves a set of `core:*` modules
+ * The multi-platform plan (issue #550, ADR 0059) carves a set of `core:*` modules
  * that must stay pure-Kotlin so a future KMP target can consume them unchanged. This
  * lint fails CI the moment any of those modules pulls in an Android dependency,
  * catching drift at the import statement before it spreads.

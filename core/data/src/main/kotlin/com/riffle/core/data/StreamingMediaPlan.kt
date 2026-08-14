@@ -5,7 +5,7 @@ import com.riffle.core.network.AbsAudioUrl
 import com.riffle.core.network.NetworkAbsAudioTrack
 
 /**
- * One queued media item for streaming playback (ADR 0028). [audioSrc] stays the Storyteller segment
+ * One queued media item for streaming playback (ADR 0040). [audioSrc] stays the Storyteller segment
  * path so it remains the media id — the existing clip/highlight/skip machinery is reused unchanged;
  * only [url] (an ABS track) and the clip window differ from the bundle path.
  */

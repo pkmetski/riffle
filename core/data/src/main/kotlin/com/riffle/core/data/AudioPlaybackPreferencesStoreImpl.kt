@@ -7,7 +7,7 @@ import com.riffle.core.domain.AudioPlaybackPreferencesStore
 import javax.inject.Inject
 
 /**
- * Persists per-book audio playback settings keyed by the resolved [AudioIdentity] (ADR 0028). Unlike
+ * Persists per-book audio playback settings keyed by the resolved [AudioIdentity] (ADR 0040). Unlike
  * the formatting store, the identity already carries (sourceId, bookId), so no active-server lookup
  * is needed.
  *

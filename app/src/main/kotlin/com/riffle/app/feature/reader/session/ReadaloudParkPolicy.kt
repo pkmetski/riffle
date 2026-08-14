@@ -1,7 +1,7 @@
 package com.riffle.app.feature.reader.session
 
 /**
- * State machine for the "parked-on-sentence" invariant (ADR 0031).
+ * State machine for the "parked-on-sentence" invariant (ADR 0037).
  *
  * When readaloud pauses or closes we remember the sentence it stopped on AND the reader page it
  * sits on. While parked, the reconcile cycle inbound-mirrors the audiobook (never overwrites the
@@ -60,7 +60,7 @@ internal class ReadaloudParkPolicy {
         /**
          * A reading-position progression change beyond this (or any href change) counts as
          * navigating off the parked page; smaller deltas are settle jitter on the same page
-         * (ADR 0031).
+         * (ADR 0037).
          */
         internal const val PARK_PAGE_EPS = 0.001
     }

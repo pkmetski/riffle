@@ -14,8 +14,8 @@ import kotlinx.coroutines.sync.withLock
  *
  * Two key shapes are exposed because the resource axis differs per pipeline:
  *
- * - Progress (ADR 0030): `(sourceId, itemId, kind)` — three peer-target axes per book.
- * - Annotations (ADR 0036): `(sourceId, itemId)` — one device file per book, no per-target axis.
+ * - Progress (ADR 0036): `(sourceId, itemId, kind)` — three peer-target axes per book.
+ * - Annotations (ADR 0043): `(sourceId, itemId)` — one device file per book, no per-target axis.
  */
 @Singleton
 class ReconcileLocks @Inject constructor() : AnnotationLockPort {

@@ -1075,7 +1075,7 @@ class AnnotationW3CCodecTest {
         assertEquals("malformed figure", parsed.textSnippet)
     }
 
-    // ADR 0046: TYPE_EMPHASIS rows round-trip through a riffle:emphasis body carrying the
+    // ADR 0056: TYPE_EMPHASIS rows round-trip through a riffle:emphasis body carrying the
     // encoded styles token. Regression flip: dropping the body encode or the type override on
     // decode would leave the parsed row as TYPE_HIGHLIGHT with a null color — the renderer would
     // paint a phantom no-color highlight instead of applying the emphasis marks.

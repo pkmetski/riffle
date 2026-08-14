@@ -98,7 +98,7 @@ sealed class AddSourceBackend {
 @HiltViewModel
 class AddSourceViewModel @Inject constructor(
     private val repository: SourceRepository,
-    // Per-SourceType credentialed authenticators (ADR 0044). Injected as a Hilt multibinding —
+    // Per-SourceType credentialed authenticators (ADR 0053). Injected as a Hilt multibinding —
     // adding a new credentialed source contributes one entry via @IntoMap without touching this
     // ViewModel. Kept out of SourceRepository to avoid rippling a `sourceType` param through
     // every anonymous test fake for a Kotlin interface method with a single production caller.

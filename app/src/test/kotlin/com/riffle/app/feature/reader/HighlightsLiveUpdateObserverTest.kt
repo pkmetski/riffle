@@ -6,7 +6,7 @@ import org.junit.Test
 import java.io.File
 
 /**
- * Regression guard for the Highlights-mode (ADR 0041) live per-annotation DOM-patch pipeline.
+ * Regression guard for the Highlights-mode (ADR 0048) live per-annotation DOM-patch pipeline.
  *
  * The elided reader USED to rebuild its whole synthesised Publication on every colour / note /
  * delete edit via `reloadHighlightsView()` — the resulting Loading→Ready state flash was visible

@@ -45,7 +45,7 @@ Multi-context repo (presence of `CONTEXT-MAP.md` at the root):
 - Code that needs Hilt wiring, `Context`, `DataStore`, or `android.*` → Android-hosting (`core:data`, `core:logging`, or `app`).
 - Room entities / DAOs → `core:database-api` or `core:database`.
 
-The `checkNoAndroidImports` CI task enforces the boundary. See [ADR 0049](../adr/0049-platform-agnostic-core-boundary.md).
+The `checkNoAndroidImports` CI task enforces the boundary. See [ADR 0059](../adr/0059-platform-agnostic-core-boundary.md).
 
 ## Use the glossary's vocabulary
 

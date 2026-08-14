@@ -38,7 +38,7 @@ class PlayerCoordinator @Inject constructor(
 
     @Volatile private var track: ReadaloudTrack? = null
 
-    /** Resolves the audio-clock position to the narrated text fragment (ADR 0039). */
+    /** Resolves the audio-clock position to the narrated text fragment (ADR 0046). */
     private val ticker = AudioClockTicker(controller, { track }, scope)
 
     /** The text fragment currently narrated, or null when nothing is playing/prepared. */
@@ -65,7 +65,7 @@ class PlayerCoordinator @Inject constructor(
         controller.prepare(bundleFile, track)
     }
 
-    /** Streaming counterpart of [open] (ADR 0028): audio streams from ABS, same [track] machinery. */
+    /** Streaming counterpart of [open] (ADR 0040): audio streams from ABS, same [track] machinery. */
     override suspend fun openStreaming(streaming: SharedBundle.Streaming, track: ReadaloudTrack) {
         this.track = track
         controller.prepareStreaming(streaming, track)

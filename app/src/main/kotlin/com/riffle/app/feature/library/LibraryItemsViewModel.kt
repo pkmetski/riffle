@@ -145,7 +145,7 @@ class LibraryItemsViewModel @Inject constructor(
 
     /**
      * Set of ABS Library Item ids in this library that have a Readaloud↔ABS link — drives the
-     * small readaloud badge on each LibraryItemCard (ADR 0026: readalouds surface only on ABS
+     * small readaloud badge on each LibraryItemCard (ADR 0032: readalouds surface only on ABS
      * items).
      */
     val linkedItemIds: StateFlow<Set<String>> = readaloudLinkRepository.observeLinkedAbsItemIds()
@@ -156,7 +156,7 @@ class LibraryItemsViewModel @Inject constructor(
 
     // An audiobooks-only library: every item is a listen-only Audiobook. Drives square covers across
     // every tile in the library — including Series / Collection / "+ N more" tiles that carry no
-    // per-item audio signal of their own (ADR 0029). Also gates the Playlists tab (audiobook root
+    // per-item audio signal of their own (ADR 0035). Also gates the Playlists tab (audiobook root
     // only, per the audiobook-playlists design).
     val isAudiobooksOnlyLibrary: StateFlow<Boolean> = allItems
         .map { items -> items.isNotEmpty() && items.all { it.isListenable && !it.isReadable } }

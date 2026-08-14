@@ -35,7 +35,7 @@ internal data class AbsItemResponse(
         val size: Long = 0,
     )
 
-    /** The ABS audiobook's fingerprint for the identity check (ADR 0028), or null if it has no audio. */
+    /** The ABS audiobook's fingerprint for the identity check (ADR 0040), or null if it has no audio. */
     fun audiobookFingerprint(): AudiobookFingerprint? {
         if (media.audioFiles.isEmpty()) return null
         val tracks = media.audioFiles.sortedBy { it.index }
@@ -46,7 +46,7 @@ internal data class AbsItemResponse(
         )
     }
 
-    /** The streamable audiobook tracks (ino + duration), index-ordered, for streaming playback (ADR 0028). */
+    /** The streamable audiobook tracks (ino + duration), index-ordered, for streaming playback (ADR 0040). */
     fun audiobookTracks(): List<NetworkAbsAudioTrack> =
         media.audioFiles.sortedBy { it.index }.map {
             NetworkAbsAudioTrack(ino = it.ino, index = it.index, durationSec = it.duration)

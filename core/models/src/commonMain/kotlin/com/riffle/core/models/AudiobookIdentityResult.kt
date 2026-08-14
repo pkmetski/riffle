@@ -1,7 +1,7 @@
 package com.riffle.core.models
 
 /**
- * The verdict of the streaming identity check (ADR 0028), persisted on the Readaloud link so the
+ * The verdict of the streaming identity check (ADR 0040), persisted on the Readaloud link so the
  * source decision can read it without re-fetching. Only [VERIFIED] permits streaming; everything
  * else falls back to the bundle.
  */

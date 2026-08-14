@@ -245,7 +245,7 @@ class ContinuousHighlightRendererTest {
         assertEquals("", ann.after)
     }
 
-    // Regression: in the annotations reading view (ADR 0041 Highlights mode) the highlight must
+    // Regression: in the annotations reading view (ADR 0048 Highlights mode) the highlight must
     // NOT paint over the text — only the synthesised HTML's left accent bar. Paginated/vertical
     // already honour this via [HighlightAccentBarStyle]; continuous mode used to always paint the
     // palette colour as the <mark>'s background because [applyAnnotations] didn't check
@@ -273,7 +273,7 @@ class ContinuousHighlightRendererTest {
         assertEquals(HighlightColor.fromToken("yellow").argb.toCssRgba(), ann.cssColor)
     }
 
-    // Regression (ADR 0046 §4): the `∅` (remove-colour) picker persists `color = ""` on the
+    // Regression (ADR 0056 §4): the `∅` (remove-colour) picker persists `color = ""` on the
     // annotation. `HighlightColor.fromToken("")` falls back to YELLOW, so passing the empty
     // token through the palette map would repaint the mark yellow — the "removing color keeps
     // it yellow" bug in continuous mode. Empty colour MUST resolve to transparent so the mark
@@ -317,7 +317,7 @@ class ContinuousHighlightRendererTest {
         assertEquals(ContinuousHighlightRenderer.ACCENT_BAR_TRANSPARENT_CSS, ann.cssColor)
     }
 
-    // Regression (ADR 0046): continuous mode had no emphasis path at all before this fix — the
+    // Regression (ADR 0056): continuous mode had no emphasis path at all before this fix — the
     // `emphasisStyles` field on HighlightRender was silently dropped and applying B/I/U/S did
     // nothing on-page. Pin the pass-through so a regression that stops threading the set will
     // flip red (any single style suffices as the smoke assertion).

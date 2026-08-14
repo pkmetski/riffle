@@ -4,7 +4,7 @@ import java.io.File
 
 /**
  * Opens a CBZ and extracts (page count, first-image cover). Convention: the first entry in the
- * sorted image list IS the cover (Q13 of ADR 0042). Returns [ComicMetadata.EMPTY] on any I/O or
+ * sorted image list IS the cover (Q13 of ADR 0050). Returns [ComicMetadata.EMPTY] on any I/O or
  * archive-format failure — the caller falls back to the filename.
  */
 object ComicMetadataExtractor {

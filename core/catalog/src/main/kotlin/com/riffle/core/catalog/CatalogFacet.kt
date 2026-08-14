@@ -2,9 +2,9 @@ package com.riffle.core.catalog
 
 /**
  * A server-side facet the Catalog can filter [Catalog.browse] by. Distinct from the client-side
- * [FilteredBooksScreen] facets (ADR 0027) which filter already-synced items in memory: a server-side
+ * [FilteredBooksScreen] facets (ADR 0033) which filter already-synced items in memory: a server-side
  * facet is a hint passed back to [Catalog.browse] via [FacetSelection] and executes on the origin
- * (e.g. Chitanka fetches `/texts/label/{key}`). See ADR 0042.
+ * (e.g. Chitanka fetches `/texts/label/{key}`). See ADR 0051.
  *
  * Rendered by the Library screen as a horizontal chip strip below the search bar; a Catalog with no
  * server-side facets returns an empty list from [Catalog.listFacets] and no strip appears.

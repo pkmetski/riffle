@@ -1,7 +1,7 @@
 package com.riffle.core.domain
 
 /**
- * Auto-cache tier for ABS audiobook tracks (ADR 0029). When a book is opened for streaming, all
+ * Auto-cache tier for ABS audiobook tracks (ADR 0035). When a book is opened for streaming, all
  * tracks are downloaded in the background to evictable cache storage. On completion the player
  * swaps its unplayed [MediaItem]s to the local [file://][AudiobookSession.trackUrls] URLs — the
  * same swap the CBZ reader does from [NetworkImageSource] to [ArchiveImageSource].

@@ -1,7 +1,7 @@
 package com.riffle.app.feature.reader.highlights
 
 /**
- * UI-visibility decision points for Highlights mode (Task 9, ADR 0041). Extracted as pure
+ * UI-visibility decision points for Highlights mode (Task 9, ADR 0048). Extracted as pure
  * top-level functions — not test-only mirrors — so [EpubReaderScreen][com.riffle.app.feature.reader.EpubReaderScreen]
  * can call them directly at each branch point, and so the decisions are JVM-testable without
  * constructing the ViewModel (Robolectric-only constraint documented in Task 7) or Compose runtime.

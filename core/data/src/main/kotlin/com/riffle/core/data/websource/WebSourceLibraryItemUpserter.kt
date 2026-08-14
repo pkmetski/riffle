@@ -12,7 +12,7 @@ import javax.inject.Inject
  * Bridges a browsed [CatalogItem] into the local `library_items` cache when the user taps it.
  *
  * Web sources (Chitanka, Gutenberg, and future entries) are unbounded remote catalogues (ADR
- * 0042) — [com.riffle.core.data.LibraryRepositoryImpl.refreshLibraryItems] intentionally does
+ * 0051) — [com.riffle.core.data.LibraryRepositoryImpl.refreshLibraryItems] intentionally does
  * NOT populate `library_items` for them. But the reader, the audiobook player, and the detail
  * screen resolve the item via `LibraryObserver.getItem(itemId)`, so opening a browsed item
  * requires a row to exist. This upserter is the on-demand hop: called from each web source's
@@ -35,7 +35,7 @@ class WebSourceLibraryItemUpserter @Inject constructor(
         // Preserve every locally-tracked timestamp on the existing row. A CatalogItem carries
         // none of these — its toEntity() defaults them all to 0/null — so blindly copying the
         // entity into updateMetadata would silently null them out and erase real user state.
-        // This matters most on the ADR-0043 24 h TTL cycle: a user opens a book (row picks up
+        // This matters most on the ADR-0052 24 h TTL cycle: a user opens a book (row picks up
         // lastOpenedAt + maybe finishedAt), then re-taps that same book from the browse listing
         // 24 h+ later — the gate refetches and calls this upserter, which used to overwrite:
         //   - addedAt      → sentinel 0, evicting the book from Recently Added

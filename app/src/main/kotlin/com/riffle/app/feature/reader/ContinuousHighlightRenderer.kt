@@ -23,7 +23,7 @@ internal class ContinuousHighlightRenderer(
 
     companion object {
         /**
-         * CSS colour token emitted for Highlights-mode (ADR 0041) annotation marks in continuous
+         * CSS colour token emitted for Highlights-mode (ADR 0048) annotation marks in continuous
          * mode. The `<mark>` still wraps the text so annotation locator resolution works, but the
          * fill is transparent — paginated/vertical don't paint any decoration for accent-bar
          * highlights either. `internal` for regression pinning.
@@ -73,7 +73,7 @@ internal class ContinuousHighlightRenderer(
                     AnnotationHighlight(
                         id = h.id,
                         text = h.locator.text.highlight!!,
-                        // Highlights-mode (ADR 0041): paginated/vertical emit no Readium decoration
+                        // Highlights-mode (ADR 0048): paginated/vertical emit no Readium decoration
                         // and rely entirely on the synthesised HTML's border-left as the visible
                         // accent bar. Continuous still wraps the text itself in a <mark>, so a
                         // palette background here would paint on-text fill that the other modes
@@ -81,13 +81,13 @@ internal class ContinuousHighlightRenderer(
                         // to satisfy annotation locator resolution; tap dispatch is owned by the
                         // accent-bar span baked into the synthesised HTML.
                         //
-                        // ADR 0046 §4: the `∅` (no colour) pick also emits a transparent
+                        // ADR 0056 §4: the `∅` (no colour) pick also emits a transparent
                         // background. Without this branch, `HighlightColor.fromToken("")` falls
                         // back to YELLOW and the mark keeps painting yellow after the user removed
                         // the colour — the exact bug that "removing color keeps it yellow"
                         // triggers in continuous mode. The mark is retained (never dropped) so
                         // layered emphasis and tap-to-edit still work on a colourless annotation.
-                        // ADR 0046 §4: mirror ReadiumHighlightRenderer's three-way tint logic.
+                        // ADR 0056 §4: mirror ReadiumHighlightRenderer's three-way tint logic.
                         //  - useAccentBarStyle: transparent (mark kept for tap dispatch only).
                         //  - empty colour + sheet open (draft): neutral wash so user sees range.
                         //  - empty colour + sheet closed: transparent (emphasis-only annotation).

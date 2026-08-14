@@ -6,7 +6,7 @@ import org.junit.Test
 
 /**
  * Maps a Media Overlay clip's per-segment audio offset onto the ABS audiobook's track timeline
- * (ADR 0028). Storyteller re-splits the source audio into its own segments; this reconciles those
+ * (ADR 0040). Storyteller re-splits the source audio into its own segments; this reconciles those
  * segments with ABS's tracks for the three shapes the dev-server survey actually produced.
  */
 class SegmentTrackMapperTest {

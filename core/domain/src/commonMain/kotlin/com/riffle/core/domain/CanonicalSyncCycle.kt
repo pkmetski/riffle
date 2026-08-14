@@ -10,7 +10,7 @@ import kotlinx.serialization.json.doubleOrNull
 
 /**
  * A reader position expressed in the canonical coordinate system of the cycle — the
- * Readium Locator on the EPUB the reader currently displays (ADR 0019). Opaque to the
+ * Readium Locator on the EPUB the reader currently displays (ADR 0023). Opaque to the
  * cycle, which only compares update times and routes the value to remotes; remotes
  * translate it to/from their native coordinates at their boundary.
  *
@@ -78,7 +78,7 @@ sealed interface WriteResult {
 
 /**
  * One reconcilable position holder for the live canonical cycle — today an ABS ebook peer and an
- * ABS audiobook peer (ADR 0019, as amended by ADR 0029 which dropped the Storyteller position
+ * ABS audiobook peer (ADR 0023, as amended by ADR 0035 which dropped the Storyteller position
  * peer). Both operations are per-target isolated:
  *
  *  - [tryGet] returns `null` when the peer is unreachable or its position cannot be translated to
@@ -113,7 +113,7 @@ data class SyncCycleResult(
 )
 
 /**
- * The unified-canonical reconciliation cycle of ADR 0019, run over whatever remote set is
+ * The unified-canonical reconciliation cycle of ADR 0023, run over whatever remote set is
  * applicable to the open book. Invariant: one inbound winner, at most one reader jump, and
  * every outbound PATCH derived from the same canonical position.
  */
@@ -154,7 +154,7 @@ object CanonicalSyncCycle {
                         if (outcome.serverStamp > effectiveLastUpdate) effectiveLastUpdate = outcome.serverStamp
                     }
                     // Skipped/Failed: leave the peer out of `patched`; the cycle's other peers and
-                    // the durable sweep (ADR 0030) handle retry.
+                    // the durable sweep (ADR 0036) handle retry.
                     WriteResult.Skipped, is WriteResult.Failed -> Unit
                 }
             }

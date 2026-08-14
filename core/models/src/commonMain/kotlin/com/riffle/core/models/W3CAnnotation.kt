@@ -9,7 +9,7 @@ package com.riffle.core.models
 data class W3CAnnotation(
     /** Stable UUID identifying this annotation across devices. */
     val id: String,
-    /** CFI *range* for highlights/notes, CFI *point* for bookmarks (ADR 0024). */
+    /** CFI *range* for highlights/notes, CFI *point* for bookmarks (ADR 0028). */
     val cfi: String,
     /** Human-readable snippet of the annotated text; fallback for re-anchoring. */
     val textSnippet: String,
@@ -41,7 +41,7 @@ data class W3CAnnotation(
     val deleted: Boolean = false,
     /** Zero-based spine position of the containing chapter — cross-chapter sort key for the panel.
      *  Derivable from [cfi] but not part of the W3C spec, so it rides along as a Riffle extension
-     *  to keep the sort order stable across a WebDAV round-trip (see ADR 0038 / AnnotationDao
+     *  to keep the sort order stable across a WebDAV round-trip (see ADR 0045 / AnnotationDao
      *  observeAnnotationsByPosition). Defaults to 0 for backward-compat with files written before
      *  the extension existed. */
     val spineIndex: Int = 0,
@@ -60,7 +60,7 @@ data class W3CAnnotation(
      *  field on the `riffle:image` body so a sync round-trip doesn't drop the local raster. Null
      *  when the source didn't rasterize (or the file was written by an older peer). */
     val imageBytes: String? = null,
-    /** ADR 0046: comma-separated encoding of the emphasis styles set (same wire form as the entity
+    /** ADR 0056: comma-separated encoding of the emphasis styles set (same wire form as the entity
      *  column). Non-null iff [type] == TYPE_EMPHASIS. Peers ignorant of TYPE_EMPHASIS simply
      *  ignore the unrecognised body type and drop the row cleanly. */
     val emphasisStyles: String? = null,

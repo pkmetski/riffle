@@ -26,7 +26,7 @@ import org.junit.runner.RunWith
  * Pins the singleton Chitanka Settings row to swipe-to-delete parity with every other
  * configured-source row: end-to-start swipe invokes onRemove, and no trailing "Remove" button
  * exists. If the row is un-wrapped from SwipeToDeleteRow or a Remove button is re-added, this
- * test fails. Post-ADR-0044 the row is the generic [SingletonWebSourceRow] parameterised by the
+ * test fails. Post-ADR-0053 the row is the generic [SingletonWebSourceRow] parameterised by the
  * source's [com.riffle.core.domain.WebSourceDescriptor].
  */
 @RunWith(AndroidJUnit4::class)

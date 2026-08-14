@@ -63,7 +63,7 @@ import com.riffle.core.catalog.chitanka.ChitankaCatalog
 /**
  * Chitanka Source screen. Dedicated route ("chitanka_browse/{libraryId}/{name}") distinct
  * from LibraryItemsScreen — Chitanka has no ABS-shape library mirror, so we can't reuse
- * that screen's refresh/capability plumbing (ADR 0041/0042). Instead we host a small tab
+ * that screen's refresh/capability plumbing (ADR 0049/0051). Instead we host a small tab
  * bar with three surfaces that ARE consistent with every other Source:
  *
  * Tabs match [LibraryItemsScreen]'s bar exactly (same icons, same order, icon-only):
@@ -89,7 +89,7 @@ fun ChitankaBrowseScreen(
 ) {
     var selectedTab by rememberSaveable(key = "chitanka_selected_tab_v2") { mutableIntStateOf(TAB_HOME) }
 
-    // Chitanka items don't live in `library_items` until this point (ADR 0042: unbounded
+    // Chitanka items don't live in `library_items` until this point (ADR 0051: unbounded
     // catalogue), so the VM upserts a row first and only then emits — guaranteeing the
     // detail screen's `LibraryObserver.getItem` resolves it.
     LaunchedEffect(viewModel) {

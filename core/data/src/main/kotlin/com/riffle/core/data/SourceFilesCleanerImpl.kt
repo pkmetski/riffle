@@ -7,9 +7,9 @@ import kotlinx.coroutines.withContext
 import java.io.File
 
 /**
- * Purges a Source's files across all on-disk stores (ADR 0025). [stores] are the EPUB/PDF
+ * Purges a Source's files across all on-disk stores (ADR 0031). [stores] are the EPUB/PDF
  * download+cache [LocalStore]s; [audiobookDownloadsDir] is the audiobook download root, which is a
- * directory-per-item tree rather than a [LocalStore] (ADR 0029) but follows the same
+ * directory-per-item tree rather than a [LocalStore] (ADR 0035) but follows the same
  * `<root>/<sourceId>/…` layout, so it too is removed as a per-Source subtree.
  */
 class SourceFilesCleanerImpl(

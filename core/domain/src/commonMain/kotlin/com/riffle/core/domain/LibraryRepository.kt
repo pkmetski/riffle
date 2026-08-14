@@ -35,7 +35,7 @@ interface LibraryObserver {
     fun observeContinueSeriesItems(libraryId: String): Flow<List<LibraryItem>>
     fun observeCollectionItems(collectionId: String): Flow<List<LibraryItem>>
 
-    /** The active Server's copy of an item (item ids are only unique within a Server, ADR 0025). */
+    /** The active Server's copy of an item (item ids are only unique within a Server, ADR 0031). */
     suspend fun getItem(itemId: String): LibraryItem?
 
     /**

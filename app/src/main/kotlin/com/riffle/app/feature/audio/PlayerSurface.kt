@@ -122,7 +122,7 @@ data class PlayerSurfaceActions(
 )
 
 /**
- * The full-screen player body (ADR 0029): square cover, title/author, current-chapter label, a
+ * The full-screen player body (ADR 0035): square cover, title/author, current-chapter label, a
  * seekable chapter-map scrubber (vertical playhead + chapter ticks) with dual chapter/book time, and
  * a centered transport cluster — rewind 15s · prev chapter · play/pause · next chapter · forward 30s
  * — with the shared speed control in a separate utility row. Stateless: the standalone Audiobook
@@ -203,7 +203,7 @@ private fun PlayerSurfaceTwoColumn(
     }
 }
 
-/** Square audiobook cover (ADR 0029). [modifier] supplies the size (fraction of width, or fixed). */
+/** Square audiobook cover (ADR 0035). [modifier] supplies the size (fraction of width, or fixed). */
 @Composable
 private fun PlayerCover(state: PlayerSurfaceState, modifier: Modifier) {
     Box(

@@ -10,7 +10,7 @@ import java.io.File
  * and even now the *active book pointer* still flows out-of-band between the controllers (which
  * choose the book) and the service-side media sources (which read from disk). One holder, two modes.
  *
- * Two modes coexist (ADR 0028): the **bundle** path streams audio entries out of the synced EPUB on
+ * Two modes coexist (ADR 0040): the **bundle** path streams audio entries out of the synced EPUB on
  * disk ([current], read by [com.riffle.app.feature.audio.BundleAudioSourceFactory]); the **streaming**
  * path plays ABS tracks over HTTP with a write-through cache ([streaming], consumed by
  * [com.riffle.app.feature.audio.StreamingReadaloudItemRestorer]). There is only ever one Readaloud

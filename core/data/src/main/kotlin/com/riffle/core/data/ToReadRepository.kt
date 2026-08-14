@@ -8,7 +8,7 @@ const val TO_READ_PLAYLIST_NAME = "To Read"
  * Manages the per-Library, per-User "To Read" Playlist on the active ABS server.
  *
  * Backed by a normal ABS Playlist named [TO_READ_PLAYLIST_NAME], looked up by name and
- * find-or-created on first use. See ADR 0019.
+ * find-or-created on first use. See ADR 0022.
  *
  * Playlists are scoped to (userId, libraryId) on the server, so each ABS account has its
  * own independent To Read list.

@@ -83,7 +83,7 @@ class RiffleApplication : Application(), ImageLoaderFactory {
         val applicationScope = entryPoint.applicationScope()
         logger = entryPoint.logger()
 
-        // One-time relocation of legacy flat cache/download files into per-Source dirs (ADR 0025).
+        // One-time relocation of legacy flat cache/download files into per-Source dirs (ADR 0031).
         // Idempotent and best-effort; runs off the main thread and never blocks startup.
         val migrator = entryPoint.localStoreMigrator()
         applicationScope.launchSurvivable {
@@ -97,12 +97,12 @@ class RiffleApplication : Application(), ImageLoaderFactory {
             runCatching { appUpdate.sweepStaleApks() }
         }
 
-        // Durable offline progress reconcile (ADR 0030): a foreground kick to flush any progress made
+        // Durable offline progress reconcile (ADR 0036): a foreground kick to flush any progress made
         // offline (waits for connectivity via the worker's CONNECTED constraint), plus the periodic
         // safety net for progress on a book that is never reopened.
         com.riffle.app.sync.ProgressSyncScheduler.sweepNow(this)
         com.riffle.app.sync.ProgressSyncScheduler.ensurePeriodic(this)
-        // Durable offline annotation reconcile (ADR 0036): symmetric with progress.
+        // Durable offline annotation reconcile (ADR 0043): symmetric with progress.
         com.riffle.app.sync.AnnotationSyncScheduler.sweepNow(this)
         com.riffle.app.sync.AnnotationSyncScheduler.ensurePeriodic(this)
         com.riffle.app.sync.ContentCacheCleanupScheduler.sweepNow(this)

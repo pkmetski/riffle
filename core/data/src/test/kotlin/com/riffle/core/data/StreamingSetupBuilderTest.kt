@@ -9,7 +9,7 @@ import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
 
 /**
- * End-to-end assembly (ADR 0028): a sidecar (SMIL) + ABS tracks → a parsed track and clipped
+ * End-to-end assembly (ADR 0040): a sidecar (SMIL) + ABS tracks → a parsed track and clipped
  * streaming items, keyed by the segment path so the highlight machinery is reused.
  */
 class StreamingSetupBuilderTest {

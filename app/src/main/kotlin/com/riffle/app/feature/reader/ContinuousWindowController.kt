@@ -232,7 +232,7 @@ internal class ContinuousWindowController(
     }
 
     /**
-     * Fan an ADR-0041 Highlights-mode DOM patch out to every loaded chapter WebView in the sliding
+     * Fan an ADR-0048 Highlights-mode DOM patch out to every loaded chapter WebView in the sliding
      * window. Each patch's JS resolves its target via `data-ann-id` and no-ops on chapters that
      * don't hold the annotation, so the broadcast is safe. Paginated / vertical mode route this
      * through [com.riffle.app.feature.reader.renderer.RendererBridge]; continuous mode must fan

@@ -9,7 +9,7 @@ import java.io.IOException
 import javax.inject.Inject
 
 /**
- * Time-limited item cache for web sources (ADR 0043). Composes `Catalog + LibraryObserver +
+ * Time-limited item cache for web sources (ADR 0052). Composes `Catalog + LibraryObserver +
  * RemoteItemFreshness + WebSourceLibraryItemUpserter` and is the sole sanctioned way for
  * ViewModels to open a web-source item detail — routing through this class guarantees the
  * freshness check, network-failure stale-fallback, Room upsert, and TTL stamp all happen at

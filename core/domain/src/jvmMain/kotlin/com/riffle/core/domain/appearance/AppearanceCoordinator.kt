@@ -6,7 +6,7 @@ import kotlinx.coroutines.flow.StateFlow
 /**
  * The single source of truth for "what should the UI render right now?" — combines the user's
  * app-chrome choice ([com.riffle.core.domain.AppTheme]), the reader theme + Auto schedule
- * (ADR 0022) carried in [com.riffle.core.domain.FormattingPreferences], and the live system
+ * (ADR 0026) carried in [com.riffle.core.domain.FormattingPreferences], and the live system
  * dark-mode flag into one [StateFlow] every surface consumes.
  *
  * Implementations also own the boundary-tick timer that re-emits at each day/night crossing so a

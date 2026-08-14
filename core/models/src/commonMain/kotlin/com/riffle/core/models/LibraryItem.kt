@@ -12,7 +12,7 @@ data class LibraryItem(
     val ebookFormat: EbookFormat,
     val ebookFileIno: String? = null,
     // True when the ABS item carries audio (audiobook or combined item). Drives which matched
-    // ABS item receives audiobook `currentTime` progress for a readaloud (ADR 0019).
+    // ABS item receives audiobook `currentTime` progress for a readaloud (ADR 0023).
     val hasAudio: Boolean = false,
     // Total audio length in seconds (0 when no audio). Sent with audiobook progress so ABS reports
     // a real percentage rather than 0% on the first sync.
@@ -27,7 +27,7 @@ data class LibraryItem(
     val addedAt: Long? = null,
     val isbn: String? = null,
     val asin: String? = null,
-    // The owning Server. Item ids are only unique within a Server (ADR 0025), so callers that key
+    // The owning Server. Item ids are only unique within a Server (ADR 0031), so callers that key
     // local files / DB rows must pair id with sourceId. Defaulted for construction sites (e.g.
     // tests) that don't care; the real value is set when mapping from the DB entity.
     val sourceId: String = "",
@@ -48,7 +48,7 @@ data class LibraryItem(
     val canAnnotate: Boolean get() =
         ebookFormat == EbookFormat.Epub || ebookFormat == EbookFormat.Pdf
 
-    /** Has audio Riffle can play in the audiobook player — an Audiobook (ADR 0029). */
+    /** Has audio Riffle can play in the audiobook player — an Audiobook (ADR 0035). */
     val isListenable: Boolean get() = hasAudio
 
     /**
