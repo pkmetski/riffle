@@ -20,7 +20,7 @@ interface MediaItemRestorer {
 }
 
 /**
- * Readaloud-while-streaming items (ADR 0028): the mediaId is the canonical `audioSrc` and the
+ * Readaloud-while-streaming items (ADR 0040): the mediaId is the canonical `audioSrc` and the
  * concrete ABS URL + per-segment clip window are pulled from the active streaming context.
  */
 @OptIn(UnstableApi::class)
@@ -40,7 +40,7 @@ class StreamingReadaloudItemRestorer @Inject constructor() : MediaItemRestorer {
 }
 
 /**
- * Audiobook tracks (ADR 0029): each track's mediaId is its full URL — `http(s)` while streaming,
+ * Audiobook tracks (ADR 0035): each track's mediaId is its full URL — `http(s)` while streaming,
  * `file://` once downloaded. Parse-and-restore is enough; no clipping is needed.
  */
 @OptIn(UnstableApi::class)
@@ -53,7 +53,7 @@ class AudiobookHttpItemRestorer @Inject constructor() : MediaItemRestorer {
 }
 
 /**
- * Readaloud bundle items (ADR 0023): the mediaId is the zip-entry path of the audio resource.
+ * Readaloud bundle items (ADR 0027): the mediaId is the zip-entry path of the audio resource.
  * Rebuilt to the `zipaudio:///<path>` URI [BundleAudioSourceFactory] consumes.
  */
 @OptIn(UnstableApi::class)

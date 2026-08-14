@@ -3,7 +3,7 @@ package com.riffle.app.sync
 import android.content.Context
 
 /**
- * Schedules the durable annotation sweep (ADR 0036). Thin facade over the shared [SyncScheduler].
+ * Schedules the durable annotation sweep (ADR 0043). Thin facade over the shared [SyncScheduler].
  */
 object AnnotationSyncScheduler {
 

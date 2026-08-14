@@ -20,7 +20,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 
 /**
- * On-device check (ADR 0028) that "Download readaloud" eagerly fills the audio cache: after a
+ * On-device check (ADR 0040) that "Download readaloud" eagerly fills the audio cache: after a
  * download the cached bytes for the track equal its full size, so the book plays offline.
  */
 @OptIn(UnstableApi::class)

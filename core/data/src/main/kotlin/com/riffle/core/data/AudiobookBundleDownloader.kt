@@ -8,7 +8,7 @@ import kotlinx.coroutines.withContext
 import java.io.File
 
 /**
- * Downloads the Storyteller synced bundle (the Readaloud audio source — ADR 0023) into the
+ * Downloads the Storyteller synced bundle (the Readaloud audio source — ADR 0027) into the
  * permanent Downloads area with **resume** and **progress reporting**.
  *
  * Bytes accumulate in a `.part` sidecar so an interrupted transfer can pick up where it left off
@@ -18,9 +18,9 @@ import java.io.File
 class AudiobookBundleDownloader(
     private val api: AudiobookBundleApi,
     // Resolves the final on-disk destination for a book's bundle. The reader and the player share
-    // this single file (the synced bundle is both the EPUB and the audio source — ADR 0023), so the
+    // this single file (the synced bundle is both the EPUB and the audio source — ADR 0027), so the
     // caller points this at the Downloads EPUB store location. Keyed by (sourceId, bookId) since
-    // bundle ids are only unique within a Source (ADR 0025) — it must land where the Downloads store
+    // bundle ids are only unique within a Source (ADR 0031) — it must land where the Downloads store
     // looks it up, i.e. under the sourceId subdirectory.
     private val targetFileProvider: (sourceId: String, bookId: String) -> File,
     private val dispatchers: DispatcherProvider,

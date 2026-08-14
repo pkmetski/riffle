@@ -81,7 +81,7 @@ class AnnotationSession @AssistedInject constructor(
      */
     @Assisted("merge") private val mergeAfterEdit: suspend (id: String, color: String, note: String?) -> Unit,
     /**
-     * Called when the note editor closes on a PENDING DRAFT (ADR 0046 §4). The draft has no DB
+     * Called when the note editor closes on a PENDING DRAFT (ADR 0056 §4). The draft has no DB
      * row yet, so [commitNoteEdit]'s `updateNote` would match zero rows and the annotation (and
      * its note) would silently vanish — the reported "annotate + add note at the same time saves
      * nothing" bug (2026-08-03). Publication-dependent (the commit path rebuilds CFI ranges), so
@@ -127,12 +127,12 @@ class AnnotationSession @AssistedInject constructor(
     val annotationsPanelVisible: StateFlow<Boolean> = _annotationsPanelVisible
 
     /** All live "review-surface" annotations for the current book, sorted by position. Excludes
-     *  [com.riffle.core.database.AnnotationEntity.TYPE_EMPHASIS] per ADR 0046 §6 (piggyback rule);
+     *  [com.riffle.core.database.AnnotationEntity.TYPE_EMPHASIS] per ADR 0056 §6 (piggyback rule);
      *  callers that need the render-side union (see [emphasisPool]) read from that flow instead. */
     private val _annotations = MutableStateFlow<List<Annotation>>(emptyList())
     val annotations: StateFlow<List<Annotation>> = _annotations
 
-    /** ADR 0046: live emphasis rows for the current book. Read synchronously by the highlight
+    /** ADR 0056: live emphasis rows for the current book. Read synchronously by the highlight
      *  render resolver to attach `emphasisStyles` to each `HighlightRender`. Held here so a change
      *  to an emphasis row re-fires the same `bind` collect that rebuilds renders. */
     private val _emphasisPool = MutableStateFlow<List<Annotation>>(emptyList())
@@ -184,13 +184,13 @@ class AnnotationSession @AssistedInject constructor(
     private val _lastUsedHighlightColor = MutableStateFlow(HighlightColor.DEFAULT)
     val lastUsedHighlightColor: StateFlow<HighlightColor> = _lastUsedHighlightColor
 
-    /** ADR 0046 §4: `true` when the last pick was `∅`. Read by
+    /** ADR 0056 §4: `true` when the last pick was `∅`. Read by
      *  [EpubReaderViewModel.createHighlight] so the next new annotation on this book opens
      *  with empty color rather than the previous swatch. */
     private val _lastUsedColorIsNone = MutableStateFlow(false)
     val lastUsedColorIsNone: StateFlow<Boolean> = _lastUsedColorIsNone
 
-    /** ADR 0046 §4: pending annotation draft. When non-null, the user has tapped "Annotate" on
+    /** ADR 0056 §4: pending annotation draft. When non-null, the user has tapped "Annotate" on
      *  a fresh selection but has NOT yet chosen a colour or emphasis — no row is persisted. The
      *  sheet is open (see [highlightToEdit] carrying [DRAFT_ANNOTATION_ID]); the first swatch or
      *  chip tap commits the draft with that state, and the draft clears. Dismissing without a
@@ -260,7 +260,7 @@ class AnnotationSession @AssistedInject constructor(
         const val DRAFT_ANNOTATION_ID: String = "__draft__"
     }
 
-    /** ADR 0046: per-book last-used emphasis styles set. Empty until the user has toggled at
+    /** ADR 0056: per-book last-used emphasis styles set. Empty until the user has toggled at
      *  least one chip in this book; the ViewModel applies it as the new-highlight default. */
     private val _lastUsedEmphasisStyles = MutableStateFlow<Set<EmphasisStyle>>(emptySet())
     val lastUsedEmphasisStyles: StateFlow<Set<EmphasisStyle>> = _lastUsedEmphasisStyles
@@ -313,7 +313,7 @@ class AnnotationSession @AssistedInject constructor(
     /** Observes the per-book last-used highlight colour. Cancelled on [bind]. */
     private var lastUsedColorObserveJob: Job? = null
 
-    /** ADR 0046: observes the per-book last-used emphasis styles set. Cancelled on [bind]. */
+    /** ADR 0056: observes the per-book last-used emphasis styles set. Cancelled on [bind]. */
     private var lastUsedEmphasisObserveJob: Job? = null
 
     // ---- Public API --------------------------------------------------------------------------
@@ -362,10 +362,10 @@ class AnnotationSession @AssistedInject constructor(
         // Mark annotations as available now that we have an ABS server id.
         _annotationsAvailable.value = true
 
-        // ADR 0046: single subscription combining the full annotations flow with the current
+        // ADR 0056: single subscription combining the full annotations flow with the current
         // edit-target so renders' `isBeingEdited` flag reflects sheet-open state in real time.
         // Also splits the emissions into `_annotations` (review surface, no emphasis) and
-        // `_emphasisPool` (emphasis only) per ADR 0046 §6 piggyback rule.
+        // `_emphasisPool` (emphasis only) per ADR 0056 §6 piggyback rule.
         highlightObserveJob = scope.launch {
             kotlinx.coroutines.flow.combine(
                 annotationStore.observeAnnotations(sourceId, itemId),
@@ -399,7 +399,7 @@ class AnnotationSession @AssistedInject constructor(
                             r.copy(isBeingEdited = r.id == editingId)
                         }
                     }
-                    // ADR 0046 §4: synthesize a render for the pending draft so the pre-selected
+                    // ADR 0056 §4: synthesize a render for the pending draft so the pre-selected
                     // colour + emphasis (from the per-book last-used preset) paint on the selection
                     // BEFORE commit. Empty preview color (i.e. last pick was ∅) falls through to
                     // the neutral editing wash. Without this, the swatch shows a colour as
@@ -430,7 +430,7 @@ class AnnotationSession @AssistedInject constructor(
                 _lastUsedHighlightColor.value = it
             }
         }
-        // ADR 0046 §4: observe the sibling `is-none` flag so createHighlight can prefer `∅` on
+        // ADR 0056 §4: observe the sibling `is-none` flag so createHighlight can prefer `∅` on
         // the next new annotation when that's what the user last picked. Reset to false on
         // book change; the observer overwrites on first emission when a value exists.
         _lastUsedColorIsNone.value = false
@@ -440,7 +440,7 @@ class AnnotationSession @AssistedInject constructor(
             }
         }
 
-        // ADR 0046: same shape as the color observer — per-book last-used emphasis styles set,
+        // ADR 0056: same shape as the color observer — per-book last-used emphasis styles set,
         // reset to empty for a fresh book (no observer emission yet).
         _lastUsedEmphasisStyles.value = emptySet()
         lastUsedEmphasisObserveJob = scope.launch {
@@ -596,7 +596,7 @@ class AnnotationSession @AssistedInject constructor(
     fun dismissHighlightActions() {
         val target = _highlightToEdit.value
         _highlightToEdit.value = null
-        // ADR 0046 §4: draft dismissed without a swatch/chip tap → discard, no annotation persists.
+        // ADR 0056 §4: draft dismissed without a swatch/chip tap → discard, no annotation persists.
         if (target?.id == DRAFT_ANNOTATION_ID) {
             _draftAnnotation.value = null
             return
@@ -612,7 +612,7 @@ class AnnotationSession @AssistedInject constructor(
             // fresh highlights don't merge on dismiss" race — spec:
             // 2026-07-05-highlight-auto-merge-design.md.
             val row = awaitAnnotation(id) ?: return@launch
-            // ADR 0046 §4: garbage-collect a highlight anchor that the user JUST CREATED from a
+            // ADR 0056 §4: garbage-collect a highlight anchor that the user JUST CREATED from a
             // draft and then left completely empty (no colour, no note, no sibling emphasis).
             // Gated on [HighlightEditTarget.justCreatedFromDraft] — an EXISTING annotation the
             // user edited down to empty (e.g. tapped Bold to un-bold) stays put; the user is
@@ -708,7 +708,7 @@ class AnnotationSession @AssistedInject constructor(
         val sid = boundServerId ?: return
         val iid = boundItemId ?: return
         highlightColorPreferencesStore.setLastUsedColor(sid, iid, color)
-        // ADR 0046 §4: any real-colour pick clears the "last was ∅" flag.
+        // ADR 0056 §4: any real-colour pick clears the "last was ∅" flag.
         highlightColorPreferencesStore.setLastUsedIsNone(sid, iid, false)
         // Merge check is deferred to [dismissHighlightActions] — the popup close is the commit
         // point. Firing here would absorb a neighbour mid-iteration while the user is still
@@ -716,7 +716,7 @@ class AnnotationSession @AssistedInject constructor(
         scheduleSync(sid, boundNamespace ?: return, iid)
     }
 
-    /** ADR 0046 §4: recolor to an arbitrary raw token — supports the `∅` swatch which passes ""
+    /** ADR 0056 §4: recolor to an arbitrary raw token — supports the `∅` swatch which passes ""
      *  so the row survives with no highlight paint. When the token is empty, persists the sibling
      *  "last used is none" flag so a subsequent new annotation on this book opens with `∅`. */
     suspend fun recolorHighlightRaw(id: String, colorToken: String) {
@@ -792,7 +792,7 @@ class AnnotationSession @AssistedInject constructor(
     /** Soft-delete any annotation (highlight, bookmark, or image); clears highlight-edit state
      *  if needed.
      *
-     *  ADR 0046 §4: MUST cascade sibling emphasis rows so a delete of a format-only annotation
+     *  ADR 0056 §4: MUST cascade sibling emphasis rows so a delete of a format-only annotation
      *  from the annotations panel doesn't leave an orphan TYPE_EMPHASIS at the same CFI —
      *  otherwise the DOM injector keeps reading it from the pool and the underlying text stays
      *  bold/italic even though the panel row is gone ("delete doesn't refresh formatting").

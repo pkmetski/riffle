@@ -12,7 +12,7 @@ import kotlinx.coroutines.flow.map
 
 /**
  * DataStore-backed per-book Panel View toggle. Key is `<bookId>` — two books never collide
- * because bookId is the canonical `(sourceId, itemId)` composite (ADR 0025).
+ * because bookId is the canonical `(sourceId, itemId)` composite (ADR 0031).
  */
 class PanelViewPreferencesStoreImpl @Inject constructor(
     @param:PanelViewPreferencesDataStore private val dataStore: DataStore<Preferences>,

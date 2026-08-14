@@ -2,7 +2,7 @@ package com.riffle.core.catalog
 
 /**
  * Which position dialect a [ProgressPeerCapability] stores its ebook position in (ADR 0013,
- * ADR 0041, refined for source-agnostic peers by #528).
+ * ADR 0049, refined for source-agnostic peers by #528).
  *
  * ABS stores epub.js-style `epubcfi(...)` — different from Readium's native CFI. When the peer
  * uses [EPUB_JS], writes/reads must round-trip through the

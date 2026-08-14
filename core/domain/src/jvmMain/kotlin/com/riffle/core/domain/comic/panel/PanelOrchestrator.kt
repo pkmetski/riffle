@@ -13,7 +13,7 @@ package com.riffle.core.domain.comic.panel
  * it can be invoked from `withContext(Dispatchers.Default)` in a prefetcher or synchronously
  * in a test. Bitmap decode dominates the cost budget; run this off the main thread.
  *
- * The ACBF-sidecar override path from ADR 0043 §3 is intentionally not wired — carrying
+ * The ACBF-sidecar override path from ADR 0055 §3 is intentionally not wired — carrying
  * per-page image dimensions through the reader for the one uncommon input class isn't worth
  * the plumbing; [AcbfPanelReader] remains available for a future revival.
  */

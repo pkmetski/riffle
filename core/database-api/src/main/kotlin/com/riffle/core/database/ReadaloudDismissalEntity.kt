@@ -4,7 +4,7 @@ import androidx.room.Entity
 import androidx.room.ForeignKey
 
 /**
- * A sticky user decision that suppresses an auto-match from re-surfacing (ADR 0021):
+ * A sticky user decision that suppresses an auto-match from re-surfacing (ADR 0025):
  *
  *  - [SCOPE_BOOK] — "No match — don't ask again" for a whole readaloud. The book moves to
  *    Unmatched and the matcher never proposes candidates for it again. [absSourceId] /

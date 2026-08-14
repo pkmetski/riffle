@@ -45,7 +45,7 @@ class StorytellerBundleApiImpl(
 ) : StorytellerBundleApi, StorytellerBundleProbeApi {
 
     /**
-     * Streaming GET of `/synced` for sidecar extraction (ADR 0028) — same as [downloadBundle] but on a
+     * Streaming GET of `/synced` for sidecar extraction (ADR 0040) — same as [downloadBundle] but on a
      * BOUNDED timeout so a wedged generation fails instead of hanging the background prepare forever.
      */
     suspend fun streamSidecar(

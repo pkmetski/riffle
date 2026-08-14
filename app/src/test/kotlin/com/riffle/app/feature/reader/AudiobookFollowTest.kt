@@ -15,7 +15,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * The bundle-SMIL-only [AudiobookFollow] (ADR 0031): readaloud→audiobook works from the bundle alone
+ * The bundle-SMIL-only [AudiobookFollow] (ADR 0037): readaloud→audiobook works from the bundle alone
  * (no cross-EPUB index). Verifies fragment↔seconds translation and the Catalog push, over a fake peer.
  */
 class AudiobookFollowTest {

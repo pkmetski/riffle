@@ -226,11 +226,11 @@ class AnnotationSweepTest {
         assertTrue(status.lastCycleOutcome.value is CycleOutcome.Success)
     }
 
-    // ADR 0046: TYPE_EMPHASIS rows sync end-to-end through the sweep. Pushes the row, verifies
+    // ADR 0056: TYPE_EMPHASIS rows sync end-to-end through the sweep. Pushes the row, verifies
     // the on-wire body is a `riffle:emphasis` body carrying the encoded styles token, then
     // decodes the same JSON through the codec + merge orchestrator and confirms it lands as a
     // TYPE_EMPHASIS entity with `emphasisStyles` populated. This is the regression pin for the
-    // whole ADR 0046 sync surface.
+    // whole ADR 0056 sync surface.
     @Test
     fun `emphasis rows push through the sweep and round-trip via the codec + merge`() = runTest {
         val now = 5_000L

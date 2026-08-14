@@ -14,9 +14,9 @@ data class AbsLinkMedia(
 data class ResolvedAbsTargets(val ebook: ReadaloudLink?, val audio: ReadaloudLink?)
 
 /**
- * Routes a readaloud's progress to the matched ABS items by media type (ADR 0019). The ebook
+ * Routes a readaloud's progress to the matched ABS items by media type (ADR 0023). The ebook
  * target is a matched item that carries an ebook — the opened item when it qualifies, since it is
- * the displayed EPUB and canonical frame (ADR 0026). The audio target is a matched item that
+ * the displayed EPUB and canonical frame (ADR 0032). The audio target is a matched item that
  * carries audio. One combined item satisfies both; split libraries yield two distinct items.
  */
 fun resolveAbsTargets(openedItemId: String, items: List<AbsLinkMedia>): ResolvedAbsTargets {

@@ -76,7 +76,7 @@ interface LibraryItemDao {
     fun observeById(sourceId: String, itemId: String): Flow<LibraryItemEntity?>
 
     /**
-     * The Source that owns an item id. Used by the one-time on-disk file migration (ADR 0025) to
+     * The Source that owns an item id. Used by the one-time on-disk file migration (ADR 0029) to
      * relocate legacy flat `<itemId>` files under their owning Source. Pre-migration item ids were
      * globally unique (DB PK was itemId), so at most one row matches.
      */

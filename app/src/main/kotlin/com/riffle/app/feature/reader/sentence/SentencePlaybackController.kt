@@ -13,7 +13,7 @@ import org.readium.r2.shared.publication.Locator
 /**
  * Owns the two sentence-highlight `LaunchedEffect`s that used to live inline in
  * `EpubReaderScreen`: applying the synced highlight decoration, and auto-following the narrated
- * sentence (scroll-centering in Vertical, column-snap in Paginated). Extracted per ADR 0039 so a
+ * sentence (scroll-centering in Vertical, column-snap in Paginated). Extracted per ADR 0046 so a
  * future non-Readaloud driver (Cadence) can attach the same pipeline.
  *
  * This task (Task 6) keeps the data flow exactly as it was: [sentenceQuotes] and [activeFragmentRef]

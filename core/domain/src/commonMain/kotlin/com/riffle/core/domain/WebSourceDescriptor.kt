@@ -294,7 +294,7 @@ object AbsWebSourceDescriptor : WebSourceDescriptor {
     override val addSourceCopy = AUDIOBOOKSHELF_COPY
 
     // Two product servers currently share [SourceType.ABS]: Audiobookshelf (the ebook/audiobook
-    // library server) and Storyteller Service (the readaloud-alignment backend from ADR 0026).
+    // library server) and Storyteller Service (the readaloud-alignment backend from ADR 0032).
     // Until #441 splits Storyteller into its own SourceType, they're discriminated at the UI
     // layer by [ServerType] — this override wires the AddSourceScreen copy to the right variant
     // so the top bar reads "Add Storyteller" not "Add Audiobookshelf" when the picker card
@@ -442,7 +442,7 @@ object GutenbergWebSourceDescriptor : WebSourceDescriptor {
     override val pickerBlurb = "Browse tens of thousands of free public-domain ebooks."
     override val defaultLibraries = listOf(
         // id mirrors GutenbergCatalog.ROOT_BOOKS; see the note on ChitankaWebSourceDescriptor.
-        // name = "Books" matches the pre-ADR-0044 GutenbergSourceInstaller row so existing
+        // name = "Books" matches the pre-ADR-0053 GutenbergSourceInstaller row so existing
         // installs surviving a remove+re-add don't see the drawer library row silently rename
         // ("Project Gutenberg" as both the source header AND the sole library row read as
         // duplicated in the drawer).

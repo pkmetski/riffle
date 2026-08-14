@@ -19,7 +19,7 @@ data class CatalogProgress(
 ) {
     /**
      * The single "how far through this item" fraction that `library_items.readingProgress`
-     * stores (ADR 0029). Every writer of that column that consumes a [CatalogProgress] must
+     * stores (ADR 0035). Every writer of that column that consumes a [CatalogProgress] must
      * derive through here — the bulk pull ([ProgressPeerCapability.pullAllProgress]) and the
      * per-item pull ([ProgressPeerCapability.pullProgress]) hit different endpoints, and letting
      * them derive differently makes the two writers ping-pong the library UI between two values.

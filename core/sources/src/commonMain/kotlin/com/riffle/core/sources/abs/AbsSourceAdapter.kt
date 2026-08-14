@@ -15,7 +15,7 @@ import com.riffle.core.sources.SourceAdapter
 
 /**
  * [SourceAdapter] for [SourceType.ABS]. Handles both Audiobookshelf servers (full login +
- * library fetch) and Storyteller Services (token-only login, no browsable libraries per ADR 0026),
+ * library fetch) and Storyteller Services (token-only login, no browsable libraries per ADR 0032),
  * dispatched on the [ServerType] arg.
  */
 class AbsSourceAdapter(

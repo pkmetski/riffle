@@ -5,7 +5,7 @@ import com.riffle.core.models.AudiobookIdentity
 import com.riffle.core.models.AudiobookIdentityResult
 
 /**
- * Resolves the two fetched fingerprints into an [AudiobookIdentityResult] (ADR 0028). A fetch
+ * Resolves the two fetched fingerprints into an [AudiobookIdentityResult] (ADR 0040). A fetch
  * failure resolves to [AudiobookIdentityResult.UNKNOWN] — never a false VERIFIED — so an offline
  * or flaky check can only ever keep a book on the (safe) bundle path. A successful fetch with no
  * audiobook attached resolves to [AudiobookIdentityResult.NO_AUDIOBOOK].

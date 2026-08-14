@@ -1,6 +1,6 @@
 package com.riffle.core.network
 
-/** One streamable ABS audiobook track: its file inode and playable duration (ADR 0028). */
+/** One streamable ABS audiobook track: its file inode and playable duration (ADR 0040). */
 data class NetworkAbsAudioTrack(
     val ino: String,
     val index: Int,

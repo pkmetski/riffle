@@ -17,7 +17,7 @@ interface ReadingPositionDao {
     @Query("UPDATE reading_positions SET localUpdatedAt = :millis WHERE sourceId = :sourceId AND itemId = :itemId")
     suspend fun updateLocalTimestamp(sourceId: String, itemId: String, millis: Long)
 
-    // Compare-and-clear conditional writes (ADR 0030). Each is a single atomic UPDATE guarded by
+    // Compare-and-clear conditional writes (ADR 0036). Each is a single atomic UPDATE guarded by
     // `localUpdatedAt = :ifLocalUpdatedAt`, so a concurrent local save() landing mid-flight makes the
     // write a no-op (0 rows) instead of clobbering the fresh edit. Returns rows affected.
 
@@ -46,7 +46,7 @@ interface ReadingPositionDao {
     )
     suspend fun confirmInSyncIfUnchanged(sourceId: String, itemId: String, ifLocalUpdatedAt: Long): Int
 
-    /** Dirty rows for one source (ADR 0030 sweep): localUpdatedAt strictly ahead of lastSyncedAt. */
+    /** Dirty rows for one source (ADR 0036 sweep): localUpdatedAt strictly ahead of lastSyncedAt. */
     @Query("SELECT * FROM reading_positions WHERE sourceId = :sourceId AND localUpdatedAt > lastSyncedAt")
     suspend fun dirtyForSource(sourceId: String): List<ReadingPositionEntity>
 

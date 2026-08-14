@@ -20,7 +20,7 @@ import org.junit.Test
 /**
  * Pins the install-flow state machine for the zero-config Gutenberg Source install screen.
  * Mirrors [com.riffle.app.feature.source.chitanka.AddChitankaViewModelTest]; both VMs delegate
- * to the generic [SingletonWebSourceInstaller] (ADR 0044 Phase 4).
+ * to the generic [SingletonWebSourceInstaller] (ADR 0053 Phase 4).
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class AddGutenbergViewModelTest {

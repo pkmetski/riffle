@@ -307,7 +307,7 @@ class AnnotationSyncControllerLifecycleTest {
         // No local rows at all. Pre-condition: don't overwrite this device's existing remote file
         // with `[]` — a transient local empty (clear-data, mid-migration) would otherwise erase
         // the cloud copy of this device's annotations. And crucially, don't DELETE either — that
-        // would erase a live remote file the same way. Pre-ADR-0038 behaviour preserved.
+        // would erase a live remote file the same way. Pre-ADR-0045 behaviour preserved.
         newController().syncOnClose(SRV, NS, ITEM)
         advanceUntilIdle()
 
@@ -316,7 +316,7 @@ class AnnotationSyncControllerLifecycleTest {
             "got ${target.deletes}", target.deletes.isEmpty())
     }
 
-    // ===== ADR 0038 — tomb sweep + empty-file DELETE =====
+    // ===== ADR 0045 — tomb sweep + empty-file DELETE =====
 
     @Test
     fun `pushPending sweeps aged synced tombstones before deciding what to write`() = runTest {
@@ -377,7 +377,7 @@ class AnnotationSyncControllerLifecycleTest {
     fun `pushPending does NOT DELETE when Room was already empty (no sweep transition)`() = runTest {
         val nowMs = 100L * 24L * 60L * 60L * 1000L
         // No local rows at all — Room-already-empty is the transient/clear-data state, not a
-        // sweep transition. Same protection the pre-ADR-0038 code carried: don't DELETE, don't
+        // sweep transition. Same protection the pre-ADR-0045 code carried: don't DELETE, don't
         // write.
         newController(clock = { nowMs }).syncOnClose(SRV, NS, ITEM)
         advanceUntilIdle()
@@ -433,7 +433,7 @@ class AnnotationSyncControllerLifecycleTest {
     fun `syncOnOpen DELETE failure keeps aged tomb in Room so the next sync retries`() = runTest {
         // Regression: previously the sweep purged Room BEFORE attempting DELETE. If DELETE threw
         // (network hiccup), the row was gone from Room, `beforeSweep.isNotEmpty()` misfired on
-        // the retry, and the WebDAV file lingered forever. ADR 0038's whole point is that empty
+        // the retry, and the WebDAV file lingered forever. ADR 0045's whole point is that empty
         // files disappear — this scenario broke that promise.
         val nowMs = 100L * 24L * 60L * 60L * 1000L
         val ownFile = "annotations-$DEVICE_ID.jsonld"

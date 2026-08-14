@@ -9,7 +9,7 @@ import java.io.InputStream
 import java.util.zip.ZipFile
 
 /**
- * Reads the Media Overlay timeline out of a Storyteller synced EPUB bundle (ADR 0023).
+ * Reads the Media Overlay timeline out of a Storyteller synced EPUB bundle (ADR 0027).
  *
  * Every `.smil` entry is parsed with the pure [SmilOverlayParser]; each clip's relative `text`/
  * `audio` refs are resolved against the `.smil` entry's own folder so they become full

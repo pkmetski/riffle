@@ -25,7 +25,7 @@ import javax.inject.Inject
 
 /**
  * Backs the [FilteredBooksScreen]: lists every Library Item in the current Library matching one
- * metadata facet (ADR 0027). The filter runs locally over the already-synced items, so it works
+ * metadata facet (ADR 0033). The filter runs locally over the already-synced items, so it works
  * offline; when offline, results are further narrowed to locally-available books, mirroring the
  * Series/Collection detail screens.
  */

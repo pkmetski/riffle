@@ -957,7 +957,7 @@ class MigrationTest {
         }
     }
 
-    // 25 → 26: key Library Items by (serverId, itemId) end-to-end (issue #81, ADR 0025).
+    // 25 → 26: key Library Items by (serverId, itemId) end-to-end (issue #81, ADR 0029).
     // `library_items` gains a `serverId` column + composite PK (serverId, id), backfilled from
     // each item's owning library (libraryId → libraries.serverId). The series_items /
     // collection_items join tables and book_formatting_preferences gain `serverId` in their PKs,
@@ -2032,7 +2032,7 @@ class MigrationTest {
         }
     }
 
-    // Task 3 of the Server→Source rename (issue #432, ADR 0041): renames `servers` → `sources`
+    // Task 3 of the Server→Source rename (issue #432, ADR 0049): renames `servers` → `sources`
     // (backfilling a new `type` column) and `serverId` → `sourceId` across every carrying table.
     // Schema JSON 44.json does not exist yet (exported by KSP only after Task 4 bumps
     // @Database(version = 44)), so this applies MIGRATION_43_44 directly rather than going through
@@ -2143,7 +2143,7 @@ class MigrationTest {
         db.close()
     }
 
-    // Rename Storyteller Server → Storyteller Service per ADR 0041. Legacy Storyteller rows
+    // Rename Storyteller Server → Storyteller Service per ADR 0049. Legacy Storyteller rows
     // must be rewritten from serverType='STORYTELLER' to 'STORYTELLER_SERVICE'; ABS rows and
     // any other value stay untouched.
     @Test
@@ -2270,7 +2270,7 @@ class MigrationTest {
         db.close()
     }
 
-    // ADR 0042: comics carry an intrinsic page count. Existing rows must default to NULL and
+    // ADR 0050: comics carry an intrinsic page count. Existing rows must default to NULL and
     // preserve every other column.
     @Test
     fun migration51To52_addsPageCountToLibraryItems() {
@@ -2446,7 +2446,7 @@ class MigrationTest {
         db.close()
     }
 
-    // ADR 0043: introduce `remote_item_freshness`, the freshness-timestamp table used by
+    // ADR 0055: introduce `remote_item_freshness`, the freshness-timestamp table used by
     // WebSourceItemGate to short-circuit web-source item-open flows within the 24 h TTL and
     // fall back to the persisted row on network failure. Pre-existing data must survive the
     // migration; the new table starts empty.
@@ -2594,7 +2594,7 @@ class MigrationTest {
         db.close()
     }
 
-    // ADR 0046: emphasis annotations (bold/italic/underline/strike) as a sibling of TYPE_HIGHLIGHT.
+    // ADR 0056: emphasis annotations (bold/italic/underline/strike) as a sibling of TYPE_HIGHLIGHT.
     // Adds a nullable `emphasisStyles` text column carrying the styles set for TYPE_EMPHASIS rows.
     // Every pre-existing row (highlights, bookmarks, images) must survive with emphasisStyles = NULL.
     @Test

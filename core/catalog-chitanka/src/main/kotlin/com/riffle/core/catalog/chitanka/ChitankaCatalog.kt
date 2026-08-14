@@ -43,7 +43,7 @@ import java.net.URLEncoder
  * caller with the standard User-Agent. Parsing is delegated to [ChitankaScraper] / [GramofoncheScraper]
  * (pure functions, module-internal types); this class translates those into `core:catalog` vocabulary.
  *
- * Capability shape (ADR 0042):
+ * Capability shape (ADR 0051):
  * - Mandatory core: implemented.
  * - [SeriesCapability]: yes for `books`; empty list for `audiobooks`.
  * - [AudiobookMediaCapability]: yes for `gramofonche` item ids; no-audiobook (null / empty)
@@ -81,7 +81,7 @@ class ChitankaCatalog(
     /**
      * Category chip strip contents:
      *  - Books: top-level `/books/category` entries + the two editorial "collections"
-     *    (`school`, `university`) surfaced as extra chips per ADR 0042.
+     *    (`school`, `university`) surfaced as extra chips per ADR 0051.
      *  - Audiobooks: the three Gramofonche categories (hardcoded — they haven't changed in years).
      *
      * The chip labels come straight from the site in Bulgarian. Sort is Bulgarian collation.
@@ -97,7 +97,7 @@ class ChitankaCatalog(
         // ChitankaBrowseViewModel calls listFacets() every screen entry. Without this, repeated
         // drawer→Books navigation re-scrapes ~40 categories over the network on every entry —
         // and if the request fails (runCatching-swallowed in the ViewModel), the chip strip
-        // goes empty even though the previous entry populated it. ADR 0042 spec'd a 7-day
+        // goes empty even though the previous entry populated it. ADR 0051 spec'd a 7-day
         // Room cache; this is the strictly-smaller in-process interim.
         cachedBooksFacets?.let { return it }
         val html = http.getString("${ChitankaScraper.BASE}/books/category")
@@ -110,7 +110,7 @@ class ChitankaCatalog(
                 sortOrder = 100 + idx,
             )
         }
-        // Editorial "collections" per ADR 0042: two extra chips at the tail.
+        // Editorial "collections" per ADR 0051: two extra chips at the tail.
         val result = cats + EDITORIAL_COLLECTIONS
         cachedBooksFacets = result
         return result
@@ -240,7 +240,7 @@ class ChitankaCatalog(
     /**
      * Fetches the detail page for [itemId] and returns the parsed [ChitankaDetail].
      * Canonicalises `/book/N-slug` to `/text/N-slug` when the two point at the same book
-     * — the `/text/` surface carries the EPUB link + genre labels (ADR 0042).
+     * — the `/text/` surface carries the EPUB link + genre labels (ADR 0051).
      */
     private suspend fun resolveItem(itemId: String): Pair<String, ChitankaDetail>? {
         return when {
@@ -520,7 +520,7 @@ class ChitankaCatalog(
 
     private fun ChitankaBookSummary.toCatalogItem(rootId: String): CatalogItem {
         // Derive the Source-local id: URL path without the leading slash. This is stable
-        // (see ADR 0042). `/book/…` and `/text/…` share the same numeric part but different
+        // (see ADR 0051). `/book/…` and `/text/…` share the same numeric part but different
         // slugs — `getItem` promotes to `/text/` before persisting, but the summary keeps
         // whatever the listing produced.
         val id = url.removePrefix(ChitankaScraper.BASE + "/")

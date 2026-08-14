@@ -37,7 +37,7 @@ import org.junit.Test
  * fail, CI turns red.
  *
  * The mock's behaviour mirrors the real ABS server's observed contract (empirical probe results
- * folded into ADR 0047):
+ * folded into ADR 0057):
  * - `(libraryItemId, timeSec)` is the primary key; POST at an existing slot updates in place.
  * - DELETE at a nonexistent slot returns HTTP 200 body `"OK"` (idempotent).
  * - Titles can be arbitrarily long; `timeSec` accepts negative values.

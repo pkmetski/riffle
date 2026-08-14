@@ -9,7 +9,7 @@ class CatalogModuleQualifierTest {
     /**
      * Every unbounded-catalog (web) source's `CatalogFactory` provider must inject the
      * `@WebSourceOkHttpClient`-qualified Ktor `HttpClient`, not the app-wide default. The qualified
-     * client is the only one backed by the ADR 0043 disk cache + `ForceCacheHeadersInterceptor` +
+     * client is the only one backed by the ADR 0052 disk cache + `ForceCacheHeadersInterceptor` +
      * `OfflineStaleFallbackInterceptor`. Missing the qualifier turns filter switches into
      * uncached, non-retriable Gutendex/… round-trips that fail fast on transient IO — the
      * "couldn't reach Project Gutenberg" error the user hit after 1–2 filter taps (#516/#520).

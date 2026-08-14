@@ -6,7 +6,7 @@ import androidx.room.Index
 
 /**
  * A Tier 3 (fuzzy) ABS candidate for a Storyteller readaloud, awaiting the user's review
- * decision (ADR 0021). One row per (readaloud, ABS item) pair the auto-matcher surfaced;
+ * decision (ADR 0025). One row per (readaloud, ABS item) pair the auto-matcher surfaced;
  * [score] is the matcher's combined title/author similarity.
  *
  * Keyed on the full (Storyteller, ABS) pair because a single readaloud can have several

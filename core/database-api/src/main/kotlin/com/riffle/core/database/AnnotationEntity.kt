@@ -8,18 +8,18 @@ import androidx.room.PrimaryKey
 /**
  * A reader Annotation (Highlight in v1; Notes/Bookmarks land in later slices).
  *
- * The primary, always-queryable store (ADR 0025). Every field the future W3C Web Annotation
+ * The primary, always-queryable store (ADR 0029). Every field the future W3C Web Annotation
  * format + per-device-file merge needs is carried now even though v1 has no sync:
  *
  * - [id] — stable client-generated UUID; the annotation's identity across devices.
  * - [originDeviceId] / [lastModifiedByDeviceId] — provenance for last-write-wins merge.
  * - [deleted] — tombstone so deletes propagate instead of vanishing.
  * - [cfi] — the load-bearing anchor in the ABS-EPUB coordinate system; a CFI *range* for
- *   highlights/notes, a CFI *point* for bookmarks (ADR 0024).
+ *   highlights/notes, a CFI *point* for bookmarks (ADR 0028).
  * - [textSnippet] + [chapterHref] — human-readable fallback / re-anchoring aid.
  *
  * Annotations are scoped to the ABS Library Item ([sourceId] + [itemId]) and exist only on the
- * ABS side; Storyteller-only books and the Readaloud reading side carry none (ADR 0024).
+ * ABS side; Storyteller-only books and the Readaloud reading side carry none (ADR 0028).
  */
 @Entity(
     tableName = "annotations",
@@ -53,7 +53,7 @@ data class AnnotationEntity(
     val originDeviceId: String,
     val lastModifiedByDeviceId: String,
     val deleted: Boolean = false,
-    /** ADR 0036: stamp of the last successful PUT for this row. `updatedAt > lastSyncedAt` ⇒ dirty. */
+    /** ADR 0043: stamp of the last successful PUT for this row. `updatedAt > lastSyncedAt` ⇒ dirty. */
     val lastSyncedAt: Long = 0L,
     /** JSON list of figures enclosed by a TYPE_HIGHLIGHT annotation's range. Null on TYPE_IMAGE and TYPE_BOOKMARK. */
     val embeddedFigures: String? = null,
@@ -79,7 +79,7 @@ data class AnnotationEntity(
     /**
      * Comma-separated tokens from [EMPHASIS_STYLE_BOLD], [EMPHASIS_STYLE_ITALIC],
      * [EMPHASIS_STYLE_UNDERLINE], [EMPHASIS_STYLE_STRIKE] for [TYPE_EMPHASIS] rows.
-     * Null (or empty) on every other type. See ADR 0046.
+     * Null (or empty) on every other type. See ADR 0056.
      */
     val emphasisStyles: String? = null,
     /**

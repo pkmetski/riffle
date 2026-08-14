@@ -36,7 +36,7 @@ interface StorytellerLibraryApi {
     fun coverUrl(baseUrl: String, bookId: Long): String
 
     /**
-     * The ingested-source audiobook fingerprint from `/api/v2/books/{id}` (ADR 0028). Success(null)
+     * The ingested-source audiobook fingerprint from `/api/v2/books/{id}` (ADR 0040). Success(null)
      * means the source carries no audiobook. Default returns Unknown so existing fakes need no change.
      */
     suspend fun getAudiobookFingerprint(

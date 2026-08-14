@@ -5,7 +5,7 @@ import kotlinx.coroutines.withContext
 import java.io.File
 
 /**
- * One-time on-disk relocation for the (sourceId, itemId) file keying introduced by ADR 0025.
+ * One-time on-disk relocation for the (sourceId, itemId) file keying introduced by ADR 0031.
  *
  * Before this change `LocalStore` kept files flat as `dir/<itemId><ext>`; now they live under
  * `dir/<sourceId>/<itemId><ext>`. This migrator finds any legacy flat files left at the top level

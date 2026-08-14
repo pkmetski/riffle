@@ -253,7 +253,7 @@ abstract class PreferencesModule {
             @HighlightColorPreferencesDataStore dataStore: DataStore<Preferences>,
         ): HighlightColorPreferencesStore = createHighlightColorPreferencesStore(dataStore)
 
-        // ADR 0046: last-used emphasis styles per book. Piggybacks on the highlight-color
+        // ADR 0056: last-used emphasis styles per book. Piggybacks on the highlight-color
         // DataStore file — the keys are namespaced (`last_used_emphasis_styles:…` vs
         // `last_used_highlight_color:…`) so there's no collision, and colocating them keeps the
         // set of "picker default" preferences in one file per user.

@@ -25,7 +25,7 @@ data class StorytellerPosition(val locatorJson: String, val timestampMillis: Lon
 /**
  * Storyteller's single-peer reading-position endpoint (`/api/v2/books/{id}/positions`). The
  * position is a native Readium `Locator` plus a millisecond timestamp — no CFI translation needed
- * (contrast the ABS path, ADR 0013). Drives the Storyteller-only last-update-wins sync (ADR 0023).
+ * (contrast the ABS path, ADR 0013). Drives the Storyteller-only last-update-wins sync (ADR 0027).
  *
  * `Success(null)` ⇒ no position is recorded yet (the old `NoPosition` variant).
  */

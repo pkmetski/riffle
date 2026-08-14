@@ -5,7 +5,7 @@ import java.io.InputStream
 
 /**
  * Random-access read of an image-per-entry archive (CBZ today; CBR TBD). Entries are the archive's
- * image entries in filename-sorted order — that ordering IS the page order (Q11 of ADR 0042).
+ * image entries in filename-sorted order — that ordering IS the page order (Q11 of ADR 0050).
  */
 interface ComicArchive : Closeable {
     val pageCount: Int

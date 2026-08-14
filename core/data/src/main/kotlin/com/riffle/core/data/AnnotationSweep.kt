@@ -17,7 +17,7 @@ import java.time.Instant
 /**
  * Push-only sweep over annotation rows whose `updatedAt > lastSyncedAt`. Companion to the live
  * [AnnotationSyncController] — the controller pushes opportunistically on reader open/close/debounce;
- * the sweep is the durability backstop (ADR 0036).
+ * the sweep is the durability backstop (ADR 0043).
  *
  * One book at a time, no parallelism. The first failure aborts the cycle: WebDAV failures are
  * almost always connection-scoped (auth/network/TLS), so attempting subsequent books would issue
@@ -90,7 +90,7 @@ class AnnotationSweep(
                 val bookTitle = bookTitleProvider(sourceId, itemId)
                 // Hold the per-book lock across the read-then-write so the live
                 // [AnnotationSyncController] cannot interleave on the same device file
-                // (#321, ADR 0036).
+                // (#321, ADR 0043).
                 locks.withAnnotationLock(sourceId, itemId) {
                     pushBook(target, sourceId, namespace, itemId, deviceId, bookTitle)
                 }

@@ -24,7 +24,7 @@ import java.io.File
 import javax.inject.Singleton
 
 /**
- * DI bindings for the CBZ Panel View pipeline (ADR 0043). The store lives under
+ * DI bindings for the CBZ Panel View pipeline (ADR 0055). The store lives under
  * `<filesDir>/comic-panels/`; the on-device decoder wraps `BitmapFactory`; the orchestrator
  * threads them together with the pure-JVM detector and orderer.
  */

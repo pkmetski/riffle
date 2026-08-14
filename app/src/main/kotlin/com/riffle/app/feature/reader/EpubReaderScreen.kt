@@ -298,7 +298,7 @@ fun EpubReaderScreen(
     val lastUsedEmphasisStyles by viewModel.lastUsedEmphasisStyles.collectAsState()
     val lastUsedHighlightColor by viewModel.lastUsedHighlightColor.collectAsState()
     val lastUsedColorIsNone by viewModel.lastUsedColorIsNone.collectAsState()
-    // ADR 0046 §4: draft-time preview needs the pending selection's text + last-used styles so
+    // ADR 0056 §4: draft-time preview needs the pending selection's text + last-used styles so
     // the DOM emphasis injector can wrap the range BEFORE commit — otherwise a chip that's
     // pre-selected (from the per-book preset) shows checked in the sheet but the text isn't
     // bold on screen ("selection restored in modal, not applied to text").
@@ -416,7 +416,7 @@ fun EpubReaderScreen(
                         viewModel.onPanelStateChanged(tocVisible || showFormattingPanel)
                     }
                     // Pause Auto-Scroll while any reader panel is open (TOC / Formatting /
-                    // Search / Annotations); resume on close. Per ADR 0037.
+                    // Search / Annotations); resume on close. Per ADR 0053.
                     LaunchedEffect(tocVisible, showFormattingPanel, isSearchActive, annotationsPanelVisible) {
                         val anyOpen = tocVisible || showFormattingPanel || isSearchActive || annotationsPanelVisible
                         viewModel.setAutoScrollPaused(
@@ -539,7 +539,7 @@ fun EpubReaderScreen(
                         readaloudHighlightColor = effectiveHighlightColor,
                         // Suppress the "Highlight" action on text-selection long-press when the
                         // reader is showing the elided highlight-only view — new highlights aren't
-                        // creatable here (createHighlight is a no-op in Highlights mode, ADR 0041),
+                        // creatable here (createHighlight is a no-op in Highlights mode, ADR 0048),
                         // so surfacing the option would be dead UI.
                         annotationsAvailable = annotationsAvailable && viewModel.readerSource != ReaderSource.Highlights,
                         annotations = annotations,
@@ -1412,24 +1412,24 @@ private fun EpubNavigatorView(
     onCommitNoteEdit: (String, String?) -> Unit,
     onCancelNoteEdit: () -> Unit,
     onRecolorHighlight: (String, HighlightColor) -> Unit,
-    /** ADR 0046 §4: `∅` swatch — remove the highlight color while preserving layered emphasis. */
+    /** ADR 0056 §4: `∅` swatch — remove the highlight color while preserving layered emphasis. */
     onRemoveHighlightColor: (String) -> Unit = {},
     onDeleteHighlight: (String) -> Unit,
     onUpdateHighlightNote: (String, String?) -> Unit,
-    /** ADR 0046: toggle a single emphasis style (bold/italic/underline/strike) over a highlight's range. */
+    /** ADR 0056: toggle a single emphasis style (bold/italic/underline/strike) over a highlight's range. */
     onToggleEmphasis: (String, com.riffle.core.models.EmphasisStyle) -> Unit = { _, _ -> },
-    /** ADR 0046: live pool of emphasis rows for the current book, used to derive the popup's
+    /** ADR 0056: live pool of emphasis rows for the current book, used to derive the popup's
      *  chip active-state. Kept separate from `annotations` so the review-surface panel stays
      *  piggyback-clean (see AnnotationSession). */
     emphasisPool: List<com.riffle.core.models.Annotation> = emptyList(),
-    /** ADR 0046 §4: per-book last-used emphasis set, used to preview chip pre-selection while
+    /** ADR 0056 §4: per-book last-used emphasis set, used to preview chip pre-selection while
      *  the sheet is open on a pending draft. */
     lastUsedEmphasisStyles: Set<com.riffle.core.models.EmphasisStyle> = emptySet(),
-    /** ADR 0046 §4: per-book last-used highlight colour + ∅ flag; used to pre-select the swatch
+    /** ADR 0056 §4: per-book last-used highlight colour + ∅ flag; used to pre-select the swatch
      *  in the popup when the sheet is open on a pending draft. */
     lastUsedHighlightColor: HighlightColor = HighlightColor.DEFAULT,
     lastUsedColorIsNone: Boolean = false,
-    /** ADR 0046 §4: the in-flight draft, if any. Threaded down so the DOM emphasis injector
+    /** ADR 0056 §4: the in-flight draft, if any. Threaded down so the DOM emphasis injector
      *  can preview bold/italic on the pending selection BEFORE commit (chip pre-selected
      *  from the per-book preset must visually match the text). */
     draftAnnotation: com.riffle.app.feature.reader.session.AnnotationSession.DraftAnnotation? = null,
@@ -1549,7 +1549,7 @@ private fun EpubNavigatorView(
         presenter.attach(fragment)
     }
 
-    // Highlights mode (ADR 0041) live DOM patches — recolour / note edit / delete of a single
+    // Highlights mode (ADR 0048) live DOM patches — recolour / note edit / delete of a single
     // annotation is applied as a targeted `document.querySelector(...)` mutation on the reader's
     // WebView(s), so the Annotations View refreshes IN PLACE instead of transitioning through
     // Loading and rebuilding the whole Publication. Bytes for the affected chapter are rewritten
@@ -1579,11 +1579,11 @@ private fun EpubNavigatorView(
     // injection per ChapterWebView; ReadiumHighlightRenderer drives DecorableNavigator on the
     // attached fragment. The two pipelines are inherently different — the seam HighlightRenderer
     // type already abstracts the call sites, this `remember` only picks which concrete instance.
-    // ADR 0046: keep a live reference to the emphasis pool so the DOM-wrap injector reads the
+    // ADR 0056: keep a live reference to the emphasis pool so the DOM-wrap injector reads the
     // latest set each apply. `remember` below captures at composition; without this indirection
     // the injector would always see the empty initial pool.
     val emphasisPoolState = androidx.compose.runtime.rememberUpdatedState(emphasisPool)
-    // ADR 0046 §4: draft + last-used state feeding the DOM emphasis injector so a pending
+    // ADR 0056 §4: draft + last-used state feeding the DOM emphasis injector so a pending
     // (not-yet-committed) selection previews its bold/italic BEFORE the user picks a colour.
     val draftAnnotationState = androidx.compose.runtime.rememberUpdatedState(draftAnnotation)
     val lastUsedEmphasisStylesState = androidx.compose.runtime.rememberUpdatedState(lastUsedEmphasisStyles)
@@ -1614,7 +1614,7 @@ private fun EpubNavigatorView(
                             styles = styles,
                         )
                     }
-                    // ADR 0046 §4: preview the draft's chip pre-selection on the pending selection
+                    // ADR 0056 §4: preview the draft's chip pre-selection on the pending selection
                     // BEFORE commit. Without this, the sheet shows a bold chip pre-selected (from
                     // the per-book last-used preset) but the text on screen isn't bold — commit
                     // hasn't fired, so no emphasis row exists in the pool yet.
@@ -1643,7 +1643,7 @@ private fun EpubNavigatorView(
     // creation time (Kotlin closures capture by value, not by reference to the local variable slot), so
     // without these keys a mode flip would leave the controller invoking the pre-flip renderer while the
     // post-flip WebView surface gets nothing. This was the "highlight paints in previous mode only after
-    // switching modes" regression from the ADR-0039 refactor.
+    // switching modes" regression from the ADR-0046 refactor.
     val sentencePlaybackController = remember(highlightRenderer, readerPresenter, readiumPresenter) {
         SentencePlaybackController(
             highlightRenderer = { highlightRenderer },
@@ -2461,7 +2461,7 @@ private fun EpubNavigatorView(
     // See [SentencePlaybackController.Attach] for the key-list rationale (unchanged from the
     // inline LaunchedEffects this replaces) and the auto-follow behaviour.
     //
-    // Cadence + Readaloud are mutually exclusive (issue #403 / ADR 0040). The caller passes an
+    // Cadence + Readaloud are mutually exclusive (issue #403 / ADR 0047). The caller passes an
     // effective fragment/quote/colour triple that is Cadence's when Cadence is live and
     // Readaloud's otherwise; the shared pipeline paints whichever is active. See the call site
     // in the outer screen composable for the OR that produces these values.
@@ -2549,7 +2549,7 @@ private fun EpubNavigatorView(
 
     // ---- Auto-follow: keep the narrated sentence on screen ---------------------------------
     // Now hosted by [sentencePlaybackController.Attach] above (see that call and
-    // [SentencePlaybackController] for the full rationale) — extracted per ADR 0039 so a future
+    // [SentencePlaybackController] for the full rationale) — extracted per ADR 0046 so a future
     // non-Readaloud driver (Cadence) can attach the same pipeline.
 
     // INTRA-sentence page follow (paginated): the effect above snaps to the column holding the
@@ -3134,7 +3134,7 @@ private fun EpubNavigatorView(
 
             // Drive Auto-Scroll deltas into the ContinuousReaderView's scrollBy. When the view
             // reaches the bottom of the book the delta is rejected by the NestedScrollView and we
-            // dispatch ReachedEndOfBook to stop the controller silently (ADR 0037).
+            // dispatch ReachedEndOfBook to stop the controller silently (ADR 0044).
             LaunchedEffect(continuousView) {
                 val view = continuousView ?: return@LaunchedEffect
                 autoScrollDeltas.collect { delta ->
@@ -3215,7 +3215,7 @@ private fun EpubNavigatorView(
             // decoration), so `current` above is always null for image annotations. Fall back to
             // the full annotations list so the palette can still show the current colour selected.
             val currentAnnotation = annotations.firstOrNull { it.id == editTarget.id }
-            // ADR 0046 §4: swatch + chip pre-selection is derived by [resolveDraftPopupSelection]
+            // ADR 0056 §4: swatch + chip pre-selection is derived by [resolveDraftPopupSelection]
             // (pure helper — see its KDoc for the persisted-vs-draft rules; the draft case pre-
             // selects the per-book last-used state so a dismiss-without-explicit-pick auto-commits
             // in the user's remembered colour/emphasis).
@@ -3303,7 +3303,7 @@ private fun PullChip(forward: Boolean, progress: Float) {
 }
 
 
-// Maps an annotation colour token to a Readium highlight tint. v1 has only yellow (ADR 0024); a
+// Maps an annotation colour token to a Readium highlight tint. v1 has only yellow (ADR 0028); a
 // later colour-picker slice maps `color` to other tints.
 private fun highlightTint(color: String): Int =
     android.graphics.Color.parseColor("#FFFDE68A")

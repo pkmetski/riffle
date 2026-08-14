@@ -200,7 +200,7 @@ interface AbsLibraryApi {
     ): NetworkResult<NetworkLibraryItem?> = throw UnsupportedOperationException("getItem not implemented")
 
     /**
-     * The ABS audiobook's identity fingerprint for the streaming check (ADR 0028). Success(null)
+     * The ABS audiobook's identity fingerprint for the streaming check (ADR 0040). Success(null)
      * means the item carries no audiobook (the old `NoAudiobook` variant).
      */
     suspend fun getAudiobookFingerprint(
@@ -211,7 +211,7 @@ interface AbsLibraryApi {
     ): NetworkResult<AudiobookFingerprint?> = NetworkResult.Unknown(NotImplementedError("getAudiobookFingerprint"))
 
     /**
-     * The ABS audiobook's streamable tracks (ino + duration) for streaming playback (ADR 0028).
+     * The ABS audiobook's streamable tracks (ino + duration) for streaming playback (ADR 0040).
      * Success with an empty list means the item carries no audiobook (the old `NoAudiobook` variant).
      */
     suspend fun getAudiobookTracks(

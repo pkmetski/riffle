@@ -6,7 +6,7 @@ import androidx.room.Index
 
 // Formatting stays per-device (never synced, never per-user). The row must point at the *right*
 // book and the *right* reading context: once item ids collide across Sources, itemId alone would
-// let two different books share one formatting row (ADR 0025), and once the annotations reading
+// let two different books share one formatting row (ADR 0029), and once the annotations reading
 // view got its own preferences chain, sourceId+itemId alone would let the annotations view and
 // full-book view collide on the same book. `sourceId` FK-cascades so a removed Source's
 // formatting is cleared. `scope` is the `FormattingScope` enum name ("FullBook" / "Highlights").

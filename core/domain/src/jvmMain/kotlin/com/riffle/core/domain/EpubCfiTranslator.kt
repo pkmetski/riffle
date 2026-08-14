@@ -146,7 +146,7 @@ fun walkCfiSteps(root: Element, steps: List<Int>): Node? {
 // ── Character counting ────────────────────────────────────────────────────────
 
 // Single source of truth for the readable-character definition, shared with the
-// cross-EPUB index (ADR 0019) via core/domain.
+// cross-EPUB index (ADR 0023) via core/domain.
 fun countBodyChars(body: Element): Long = EpubTextChars.countReadableChars(body)
 
 fun countCharsBefore(body: Element, target: TextNode, offsetInTarget: Int): Long {

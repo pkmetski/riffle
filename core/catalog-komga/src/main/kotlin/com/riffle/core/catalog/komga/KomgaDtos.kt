@@ -76,7 +76,7 @@ internal data class KomgaBookDto(
  * embedded on bulk book listings. [page] is 1-indexed (or 0 for the never-opened case) and
  * [completed] is Komga's finished flag. [readDate] is when the user last progressed the book;
  * [lastModified] is when the row itself was last written (the field Riffle uses as the sync
- * `lastUpdate` — see ADR 0030). Both are ISO-8601 strings.
+ * `lastUpdate` — see ADR 0036). Both are ISO-8601 strings.
  */
 @Serializable
 internal data class KomgaReadProgressDto(

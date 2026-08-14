@@ -601,7 +601,7 @@ class AnnotationMergeServiceTest {
         assertEquals("zzzz", result[2].id)
     }
 
-    // ===== ADR 0038 rule 3 — stale-orphan filter on merge =====
+    // ===== ADR 0045 rule 3 — stale-orphan filter on merge =====
     //
     // When a peer that has been offline > TTL comes online and pushes rows whose updatedAt is
     // older than (now - TTL), we ignore any such row whose UUID we have no local copy of. This is
@@ -725,7 +725,7 @@ class AnnotationMergeServiceTest {
 
     @Test
     fun `filter is disabled by default so legacy callers see no behavior change`() {
-        // Without nowMs/staleOrphanCutoffMs, the merge must behave like the pre-ADR-0038 version.
+        // Without nowMs/staleOrphanCutoffMs, the merge must behave like the pre-ADR-0045 version.
         val ancientOrphan = W3CAnnotation(
             id = "uuid-ancient",
             cfi = "/2/4!/4/2/2,/1:0,/1:10",

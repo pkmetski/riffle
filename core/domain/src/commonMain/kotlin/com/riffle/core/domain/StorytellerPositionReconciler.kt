@@ -1,7 +1,7 @@
 package com.riffle.core.domain
 
 /**
- * Pure last-update-wins reconciliation for the Storyteller single-peer position cycle (ADR 0023).
+ * Pure last-update-wins reconciliation for the Storyteller single-peer position cycle (ADR 0027).
  * One remote, one canonical local position; whichever has the newer timestamp wins, with no
  * conflict prompt. The orchestrator handles the offline case (a failed GET) before calling this.
  */

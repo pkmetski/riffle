@@ -7,7 +7,7 @@ import okhttp3.Response
  * Rewrites successful upstream responses to `Cache-Control: public, max-age=<maxAgeSeconds>`
  * so OkHttp's [okhttp3.Cache] treats them as cacheable for [maxAgeSeconds] regardless of
  * whether the origin sent cache headers. chitanka.info and gramofonche.chitanka.info emit
- * none — without this, the disk cache would never store their responses (ADR 0043).
+ * none — without this, the disk cache would never store their responses (ADR 0052).
  *
  * Registered as a network interceptor (not application) so it runs after the response
  * comes off the wire and the modified headers are what OkHttp caches. Non-2xx responses

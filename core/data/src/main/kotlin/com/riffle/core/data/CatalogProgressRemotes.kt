@@ -9,7 +9,7 @@ import com.riffle.core.domain.ProgressRemote
 import com.riffle.core.domain.RemoteProgress
 
 /**
- * An ebook media-progress record as one reconcilable target (ADR 0030), routed through the
+ * An ebook media-progress record as one reconcilable target (ADR 0036), routed through the
  * Source's [ProgressPeerCapability]. Position is stored locally as Readium Locator JSON. Whether
  * the peer stores that same JSON verbatim ([CfiDialect.READIUM_NATIVE]), a foreign epub.js
  * `epubcfi(...)` string ([CfiDialect.EPUB_JS]), or an opaque page-number
@@ -78,7 +78,7 @@ class CatalogEbookProgressRemote(
 }
 
 /**
- * An audiobook media-progress record as one reconcilable target (ADR 0030), routed through the
+ * An audiobook media-progress record as one reconcilable target (ADR 0036), routed through the
  * Source's [AudiobookProgressPeerCapability]. Position is the book-absolute `currentTime` in
  * seconds. The PATCH needs the track [duration]; the local store keeps only seconds, so duration
  * is supplied by the caller from `library_items.audioDurationSec`. The same [peer] serves both
@@ -104,7 +104,7 @@ class CatalogAudioProgressRemote(
         if (!r.isFinished && r.audioDuration <= 0.0 && r.audioCurrentTime <= 0.0) return null
         // ABS pullProgress leaves `ebookProgress` at 0 for audio-only items; derive from
         // currentTime/duration here so an audio-only book's library-grid % reflects the
-        // just-pulled listen fraction (ADR 0029). `isFinished` overrides to 1f in case
+        // just-pulled listen fraction (ADR 0035). `isFinished` overrides to 1f in case
         // duration is 0/absent on server payload.
         val fraction = when {
             r.isFinished -> 1f

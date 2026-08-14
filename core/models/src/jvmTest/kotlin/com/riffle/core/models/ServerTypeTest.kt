@@ -11,7 +11,7 @@ class ServerTypeTest {
         assertEquals("STORYTELLER_SERVICE", ServerType.STORYTELLER_SERVICE.name)
     }
 
-    // Legacy alias — pre-migration rows written before the ADR 0041 rename used "STORYTELLER".
+    // Legacy alias — pre-migration rows written before the ADR 0049 rename used "STORYTELLER".
     // If MIGRATION_48_49 fails to run for any reason (e.g. downgrade + re-upgrade path), this
     // fallback keeps such rows readable and identifies them as the same Storyteller Service.
     @Test

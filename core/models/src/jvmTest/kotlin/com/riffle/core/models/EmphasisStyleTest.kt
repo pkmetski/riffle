@@ -6,7 +6,7 @@ import org.junit.Test
 import com.riffle.core.models.EmphasisStyle
 
 /**
- * Locks in the on-the-wire form of `TYPE_EMPHASIS.emphasisStyles` (ADR 0046). Any changes here
+ * Locks in the on-the-wire form of `TYPE_EMPHASIS.emphasisStyles` (ADR 0056). Any changes here
  * flip the entity's persisted column and the W3C `riffle:styles` extension, so the encoder needs
  * to be deterministic (enum-declaration order, not insertion order) so identical sets always
  * serialize identically — otherwise same-styles equality checks (auto-merge, sync dedup) break.

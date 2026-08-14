@@ -73,7 +73,7 @@ class DraftPopupSelectionTest {
 
     @Test
     fun persistedRow_withEmptyColorShowsNone() {
-        // ADR 0046 §4: after ∅ the row's color is empty; pass null so the swatch row highlights ∅.
+        // ADR 0056 §4: after ∅ the row's color is empty; pass null so the swatch row highlights ∅.
         // (Passing empty through HighlightColor.fromToken would fall back to DEFAULT and show yellow.)
         val result = resolveDraftPopupSelection(
             isDraft = false,

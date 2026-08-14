@@ -52,7 +52,7 @@ class SentencePlaybackControllerRememberKeysTest {
                 "remember(highlightRenderer, readerPresenter, readiumPresenter) { … }. Without " +
                 "these keys, the controller's captured lambdas hold the FIRST-composition " +
                 "renderer/presenter and a mode flip (Paginated/Vertical ↔ Continuous) leaves " +
-                "the sentence highlight painting on the pre-flip surface — the ADR-0039 " +
+                "the sentence highlight painting on the pre-flip surface — the ADR-0046 " +
                 "capture-time regression fixed in 9ef052d. If a keyless remember { … } has " +
                 "been reintroduced, the bug is back.",
             keyedRememberPattern.containsMatchIn(text),
@@ -65,7 +65,7 @@ class SentencePlaybackControllerRememberKeysTest {
             """remember\s*\{\s*\n?\s*SentencePlaybackController\s*\("""
         )
         assertTrue(
-            "A keyless `remember { SentencePlaybackController(…) }` reintroduces the ADR-0039 " +
+            "A keyless `remember { SentencePlaybackController(…) }` reintroduces the ADR-0046 " +
                 "capture-time bug: the constructor's lambdas freeze on first composition and " +
                 "later mode flips can't route highlights to the current renderer. Add the " +
                 "renderer/presenter keys (see the primary assertion above).",

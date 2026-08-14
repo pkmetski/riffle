@@ -33,7 +33,7 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
- * App-facing handle to the [AudioPlayerService] for [Audiobook] playback (ADR 0029). Connects via a
+ * App-facing handle to the [AudioPlayerService] for [Audiobook] playback (ADR 0035). Connects via a
  * Media3 [MediaController], queues one [MediaItem] per ABS audio track (streamed directly from ABS
  * over HTTP — the auth token is carried in each track URL), and surfaces a polled [PlaybackState]
  * whose `positionSec` is the **book-absolute** position (across all tracks), the value the audiobook
@@ -181,7 +181,7 @@ open class AudiobookController @Inject constructor(
     /**
      * Establishes the [MediaController] binder connection without touching media items. Call during
      * pre-warm so the first swipe-up pays ~0 ms instead of the full [MediaController.Builder.buildAsync]
-     * round-trip (ADR 0032).
+     * round-trip (ADR 0039).
      */
     open suspend fun warmBinder() {
         ensureConnected()
@@ -344,7 +344,7 @@ open class AudiobookController @Inject constructor(
      * own `setMediaItems` replaces the queue, and clearing here would kill the readaloud playback that
      * is about to start (the "swipe down pauses readaloud" bug). Leaves the bundle for readaloud.
      *
-     * Keeps the [MediaController] Binder connection alive (ADR 0032) so the incoming side reconnects
+     * Keeps the [MediaController] Binder connection alive (ADR 0039) so the incoming side reconnects
      * in ~0 ms instead of paying a full [MediaController.Builder.buildAsync] round-trip each time.
      */
     fun releaseForHandoff() {

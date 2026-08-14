@@ -170,7 +170,7 @@ class LibraryItemDaoTest {
         assertEquals("each item must appear once, not duplicated by the library-id JOIN", keys.toSet().size, keys.size)
     }
 
-    // A0c — library-scoped queries (ADR 0025) must isolate by sourceId. Two Servers sharing
+    // A0c — library-scoped queries (ADR 0031) must isolate by sourceId. Two Servers sharing
     // a library id with overlapping item ids must each see only their own rows.
     @Test
     fun observeByLibraryId_scopesByServerId() = runTest {

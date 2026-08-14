@@ -52,7 +52,7 @@ import com.riffle.core.domain.WebSourceDescriptors
  * inline to reveal its library visibility+order editor and per-source management controls.
  *
  * Storyteller Services do NOT appear here — they live under the collapsed Readaloud entry, which
- * is a Service (not a Source) per ADR 0020.
+ * is a Service (not a Source) per ADR 0024.
  */
 @Composable
 internal fun SourcesSection(
@@ -77,7 +77,7 @@ internal fun SourcesSection(
     SettingsSectionHeader("Sources")
     // Credentialed multi-instance sources: any Source whose [WebSourceDescriptor] declares
     // hasCredentials=true && isSingleton=false renders here. Storyteller Services are excluded
-    // because they live under the Readaloud drill-in (ADR 0020) — the exclusion is by
+    // because they live under the Readaloud drill-in (ADR 0024) — the exclusion is by
     // `serverType`, not by SourceType, because Storyteller currently shares SourceType.ABS with
     // Audiobookshelf. Once #441 splits Storyteller into its own SourceType the serverType clause
     // drops out. A new credentialed source (Komga, Calibre-Web, …) drops in without an edit
@@ -487,7 +487,7 @@ internal fun LocalFilesSourceRow(
  * end-to-start swipe gesture, matching every other configured-source row.
  *
  * Renders header text from the [descriptor] so adding a new source needs no new composable —
- * just a `WebSourceDescriptor object` and its `@IntoSet` binding (ADR 0044).
+ * just a `WebSourceDescriptor object` and its `@IntoSet` binding (ADR 0053).
  */
 @Composable
 internal fun SingletonWebSourceRow(

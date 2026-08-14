@@ -4,7 +4,7 @@ import com.riffle.core.models.ReadaloudLink
 /**
  * The locally-cached materials needed to build a cross-EPUB index for one matched book. The EPUBs
  * are referenced by their precomputed [EpubChecksum] (streamed from disk by the caller) rather than
- * their raw bytes, so a hundreds-of-MB synced bundle (ADR 0023) is never held in memory here.
+ * their raw bytes, so a hundreds-of-MB synced bundle (ADR 0027) is never held in memory here.
  */
 data class CrossEpubBuildInputs(
     val absChecksum: String,
@@ -31,7 +31,7 @@ sealed interface CrossEpubIndexBuildOutcome {
 }
 
 /**
- * Builds and persists the cross-EPUB index for a Confirmed [ReadaloudLink] (ADR 0019/0021):
+ * Builds and persists the cross-EPUB index for a Confirmed [ReadaloudLink] (ADR 0023/0025):
  * eagerly on Confirm, and opportunistically on the first sync cycle that needs it if the
  * eager build was deferred. [loadInputs] ensures both EPUBs are cached (fetching the
  * Storyteller bundle and/or ABS EPUB as needed — never the audiobook bundle) and returns

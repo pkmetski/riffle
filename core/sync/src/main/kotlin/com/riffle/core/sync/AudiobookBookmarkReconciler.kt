@@ -8,7 +8,7 @@ import javax.inject.Inject
 import kotlin.math.roundToInt
 
 /**
- * Set-reconciler for audiobook bookmarks against the Source's [BookmarksCapability] (ADR 0030).
+ * Set-reconciler for audiobook bookmarks against the Source's [BookmarksCapability] (ADR 0036).
  *
  * Policy: PUSH local intent first (creates / renames / deletes), then PULL the server set to
  * insert remote additions, accept remote renames onto clean rows, and remove rows deleted on

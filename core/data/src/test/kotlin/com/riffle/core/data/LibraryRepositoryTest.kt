@@ -434,7 +434,7 @@ class LibraryRepositoryTest {
     fun `refreshLibraryItems keeps local readingProgress when the position row is locally dirty`() = runTest {
         // Reproduces the offline-read regression: local has 0.75 from an offline reader-close that
         // hasn't yet been pushed to the server (so `reading_positions` for this item is dirty per
-        // ADR 0030). The library refresh MUST NOT overwrite the pending local edit — the ADR-0030
+        // ADR 0036). The library refresh MUST NOT overwrite the pending local edit — the ADR-0036
         // sweep will resolve it and mirror the final fraction via UiProgressSink. This supersedes
         // the older `lastOpenedAt == null` gate; the definitive "pending local edit" signal is a
         // dirty position row, not "was ever opened".
@@ -575,7 +575,7 @@ class LibraryRepositoryTest {
     @Test
     fun `refreshLibraryItems keeps local readingProgress when position row is dirty via AUDIO`() = runTest {
         // Same invariant, audio side: a dirty audiobook_positions row for this item must also
-        // gate off the ebookProgress adoption, because they're the same "activity" per ADR 0029
+        // gate off the ebookProgress adoption, because they're the same "activity" per ADR 0035
         // and either dimension being pending push means the library refresh must defer.
         fakeServerRepository.activeServer = activeServer()
         fakeTokenStorage.tokens["s1"] = "tok"
@@ -680,7 +680,7 @@ class LibraryRepositoryTest {
 
     @Test
     fun `refreshLibraryItems seeds a newly inserted audiobook row from the audio position`() = runTest {
-        // ADR 0029: audiobook-only items must surface in "In Progress" too. The bulk /api/me
+        // ADR 0035: audiobook-only items must surface in "In Progress" too. The bulk /api/me
         // mapping no longer folds the stored scalar into ebookProgress when audio position data
         // is present, so the insert seed must derive the fraction from currentTime/duration.
         fakeServerRepository.activeServer = activeServer()
@@ -956,7 +956,7 @@ class LibraryRepositoryTest {
 
     @Test
     fun `library shelves re-resolve when active source changes`() = runTest {
-        // ADR 0025: library-item flows resolve activeServerId via flatMapLatest, so when the user
+        // ADR 0031: library-item flows resolve activeServerId via flatMapLatest, so when the user
         // switches Servers, subsequent emissions come only from the new Source's DAO scope —
         // never a stale snapshot of the previous Source's rows.
         fakeServerRepository.activeServer = activeServer(id = "s1")
@@ -1036,7 +1036,7 @@ class LibraryRepositoryTest {
         fakeServerRepository.activeServer = activeServer()
         val dao = FakeLibraryItemDao()
         // "azw3" is not in the supported set — must fall back to Unsupported. (CBZ was previously
-        // used as the "unknown" sentinel; it's now a supported format — ADR 0042.)
+        // used as the "unknown" sentinel; it's now a supported format — ADR 0050.)
         dao.upsertAll(listOf(LibraryItemEntity("s1", "item-1", "lib-1", "Book", "Author", null, 0f, ebookFormat = "azw3", addedAt = 0L)))
         val item = makeRepo(libraryItemDao = dao).observeLibraryItems("lib-1").first()[0]
         assertEquals(EbookFormat.Unsupported, item.ebookFormat)
@@ -1420,7 +1420,7 @@ class LibraryRepositoryTest {
     @Test
     fun `refreshItemProgress does NOT overwrite readingProgress when the position row is dirty`() = runTest {
         // Same "protect a pending offline edit" invariant as refreshLibraryItems: a dirty ebook
-        // (or audio) row means the ADR-0030 sweep owns this item. The details page pull must not
+        // (or audio) row means the ADR-0036 sweep owns this item. The details page pull must not
         // land a server value here — the sweep + UiProgressSink will resolve it.
         fakeServerRepository.activeServer = activeServer()
         fakeTokenStorage.tokens["s1"] = "tok"
@@ -1469,7 +1469,7 @@ class LibraryRepositoryTest {
     @Test
     fun `refreshItemProgress derives audio fraction from currentTime and duration when ebookProgress is 0`() = runTest {
         // Single-item pullProgress (unlike pullAllProgress) does NOT apply the audio->ebookProgress
-        // fallback that AbsApiClient does for the /me/progress bulk endpoint (ADR 0029). Ensure
+        // fallback that AbsApiClient does for the /me/progress bulk endpoint (ADR 0035). Ensure
         // `refreshItemProgress` still computes the unified library fraction for an audio-only
         // book: 900s / 3600s = 0.25.
         fakeServerRepository.activeServer = activeServer()
@@ -1499,7 +1499,7 @@ class LibraryRepositoryTest {
         serverType = com.riffle.core.models.ServerType.STORYTELLER_SERVICE,
     )
 
-    // Storyteller is never the active/browsable source (ADR 0026), so refreshLibraryItems/
+    // Storyteller is never the active/browsable source (ADR 0032), so refreshLibraryItems/
     // refreshSeries/refreshCollections no longer have a Storyteller branch. The readaloud-matcher /
     // syncer dispatch lives in the RefreshLibraryItems use-case — see core/domain tests.
 }

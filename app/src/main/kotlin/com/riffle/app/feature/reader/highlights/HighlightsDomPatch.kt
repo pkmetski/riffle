@@ -2,7 +2,7 @@ package com.riffle.app.feature.reader.highlights
 
 /**
  * Live per-annotation DOM patch applied to the currently loaded Highlights-mode chapter
- * (ADR 0041). Each patch translates ONE annotation-store change into ONE targeted
+ * (ADR 0048). Each patch translates ONE annotation-store change into ONE targeted
  * `document.querySelector('[data-ann-id="…"]')` mutation on the Readium WebView, so the elided
  * reader reflects colour / note / deletion / in-chapter-insert edits WITHOUT the visible reload
  * flash the earlier `reloadHighlightsView()` full rebuild produced.

@@ -10,7 +10,7 @@ import kotlinx.serialization.json.put
 
 /**
  * Single point of conversion between the three coordinate systems a matched book holds a
- * position in (ADR 0019, as amended by ADRs 0026 and 0029 — a book is always read from
+ * position in (ADR 0023, as amended by ADRs 0026 and 0029 — a book is always read from
  * the ABS side, so the canonical frame is always the displayed ABS EPUB):
  *
  *  - **audio-seconds** — an offset into the ABS audiobook's concatenated audio.

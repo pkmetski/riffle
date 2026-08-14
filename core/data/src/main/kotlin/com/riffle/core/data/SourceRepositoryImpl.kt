@@ -58,7 +58,7 @@ class SourceRepositoryImpl @Inject constructor(
     ): CommitSourceResult = installer.install(pending, hiddenLibraryIds)
 
     override suspend fun setActive(sourceId: String) {
-        // A Storyteller Source is a Settings-only readaloud backend (ADR 0026) — it can never be the
+        // A Storyteller Source is a Settings-only readaloud backend (ADR 0032) — it can never be the
         // active browsable Source. Enforce the invariant here so no caller (source removal, deep
         // links, future UI) can promote one, and a stale DB row can't be re-activated.
         if (dao.getById(sourceId)?.serverType == ServerType.STORYTELLER_SERVICE.name) return

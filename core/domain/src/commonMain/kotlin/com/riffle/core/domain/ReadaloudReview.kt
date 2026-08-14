@@ -2,7 +2,7 @@ package com.riffle.core.domain
 import com.riffle.core.models.AudiobookIdentityResult
 
 /**
- * The full review surface for one Storyteller Service's readalouds (ADR 0021): the three sections
+ * The full review surface for one Storyteller Service's readalouds (ADR 0025): the three sections
  * shown under Settings → [Storyteller Service] → Readaloud matches.
  */
 data class ReadaloudReview(
@@ -73,7 +73,7 @@ data class ConfirmedReadaloud(
         val identityResult: AudiobookIdentityResult = AudiobookIdentityResult.UNKNOWN,
     )
 
-    /** Derived streaming status for the matches screen (ADR 0028). */
+    /** Derived streaming status for the matches screen (ADR 0040). */
     val streamingStatus: StreamingStatus
         get() {
             val audiobook = targets.firstOrNull { it.hasAudio }

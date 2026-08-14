@@ -8,7 +8,7 @@ import java.io.File
  * `RiffleLogTagLint` — the gradle task `checkNoServerReferences` is a thin
  * wrapper around [findServerReferenceOffenders].
  *
- * The taxonomy is now Source/Service (ADR 0041). New Kotlin sites introducing
+ * The taxonomy is now Source/Service (ADR 0049). New Kotlin sites introducing
  * `ServerFoo` or `serverId` are treated as drift; the allowlist grandfathers
  * every file that legitimately carries the old spelling today (Storyteller-
  * adjacent internals, the `ServerType` enum, historical Room migration SQL
@@ -41,7 +41,7 @@ object ServerReferenceLint {
         "core/domain/src/commonMain/kotlin/com/riffle/core/domain/HighlightsResumeStore.kt",
         // WebSourceDescriptor + its ABS/Storyteller subclasses branch on ServerType to pick the
         // right AddSource copy, icon URL, and namespace shape per credentialed web source (ADR
-        // 0044). Same grandfathering rationale as SourceRepository / Source.
+        // 0053). Same grandfathering rationale as SourceRepository / Source.
         "core/domain/src/commonMain/kotlin/com/riffle/core/domain/WebSourceDescriptor.kt",
         // KMP source adapters still thread the grandfathered ServerType field through
         // credentialed source setup. Moving source sets does not introduce new debt.
@@ -50,7 +50,7 @@ object ServerReferenceLint {
         "core/sources/src/jvmMain/kotlin/com/riffle/core/sources/komga/KomgaSourceAdapter.kt",
         // WebDAV's ServerError is an HTTP result, not the Source/Service taxonomy.
         "core/sources/src/jvmMain/kotlin/com/riffle/core/sources/webdav/WebDavAnnotationSyncTarget.kt",
-        // Credentialed-authenticator layer (ADR 0044 Phase 7) — the ABS and Komga authenticators
+        // Credentialed-authenticator layer (ADR 0053 Phase 7) — the ABS and Komga authenticators
         // set `serverType` on the installed Source; the abstract Authenticator carries the field
         // through. Same rationale as SourceRepositoryImpl / AbsApiClient.
         "core/data/src/main/kotlin/com/riffle/core/data/credentialed/CredentialedAuthenticator.kt",

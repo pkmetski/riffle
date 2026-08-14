@@ -5,7 +5,7 @@ import androidx.room.ForeignKey
 import androidx.room.Index
 
 // Keyed by (sourceId, id): item ids are only unique within a Source — two Storyteller Sources
-// each emit "1", "2", … (ADR 0025). sourceId FK-cascades so removing a Source clears its items.
+// each emit "1", "2", … (ADR 0031). sourceId FK-cascades so removing a Source clears its items.
 @Entity(
     tableName = "library_items",
     primaryKeys = ["sourceId", "id"],

@@ -14,7 +14,7 @@ import java.time.Instant
  * peer's file already carries the same records; the only risk is data loss from devices that
  * went offline before any other device synced their last edits.
  *
- * A tombstone-compaction action was prototyped and removed — see ADR 0025 for the rationale.
+ * A tombstone-compaction action was prototyped and removed — see ADR 0029 for the rationale.
  * Operates against the controller's active target (gracefully no-ops when sync is disabled).
  */
 class AnnotationSyncMaintenance(

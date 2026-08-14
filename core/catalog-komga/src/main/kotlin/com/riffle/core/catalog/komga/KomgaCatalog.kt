@@ -307,7 +307,7 @@ class KomgaCatalog(
         // and no later refresh could fix it (updateMetadata preserves local). Returning what we
         // have so far is strictly better: In-Progress shows the books we DID pull, and the next
         // sweep can catch the tail. Same "best-effort partial" shape as ProgressSweep uses in
-        // ADR 0030.
+        // ADR 0036.
         val out = mutableListOf<CatalogProgress>()
         var page = 0
         while (true) {

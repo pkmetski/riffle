@@ -19,7 +19,7 @@ internal class ReadiumHighlightRenderer(
      */
     private val fragmentLocator: (ref: String, quote: SentenceQuote?) -> Locator?,
     /**
-     * ADR 0046: evaluates arbitrary JS on the current chapter's WebView. Used to wrap emphasis
+     * ADR 0056: evaluates arbitrary JS on the current chapter's WebView. Used to wrap emphasis
      * ranges in styled `<span>`s so bold/italic actually reflow the underlying text — overlay
      * decorations can't do that. Null (test / no-navigator paths) → the injector is skipped and
      * emphasis falls back to overlay-only rendering.
@@ -80,7 +80,7 @@ internal class ReadiumHighlightRenderer(
         // decorations for this group; if the list is empty we take the early-return above.
         val decorations = renders.mapNotNull { h ->
             if (h.useAccentBarStyle) return@mapNotNull null
-            // ADR 0046 §4:
+            // ADR 0056 §4:
             //  - Real colour token: paint the saturated highlight.
             //  - Empty colour + this render is currently being edited (sheet is open on it):
             //    paint the temporary ∅-editing wash so the user can see the range they're
@@ -121,7 +121,7 @@ internal class ReadiumHighlightRenderer(
         applyDecorationsWithClear(decorations, "annotations")
         adjustHighlightLeading()
         hasAnnotationDecorations = true
-        // ADR 0046: layered emphasis paints via companion decorations. Underline uses Readium's
+        // ADR 0056: layered emphasis paints via companion decorations. Underline uses Readium's
         // built-in Style.Underline; strike/bold/italic v1 render as tinted overlays (bold + italic
         // are approximations pending true DOM mutation — captured as follow-up).
         applyEmphasisCompanions(renders)
@@ -227,7 +227,7 @@ internal class ReadiumHighlightRenderer(
                         )
                     )
                 }
-                // ADR 0046: bold and italic reflow text via DOM span injection ([injectEmphasisDom])
+                // ADR 0056: bold and italic reflow text via DOM span injection ([injectEmphasisDom])
                 // rather than painting tint overlays — a tint overlay on top of real bold text
                 // would add a distracting colored background.
             }
@@ -256,7 +256,7 @@ internal class ReadiumHighlightRenderer(
         // v1 approximations — replaced by true text-style overlay when DOM mutation lands.
         private const val EMPHASIS_UNDERLINE_ARGB: Int = 0xFF1976D2.toInt() // solid line color
         private const val EMPHASIS_STRIKE_ARGB: Int = 0xFFE53935.toInt()    // solid red strike line
-        // ADR 0046: temporary neutral wash painted only while the sheet is open on a ∅-color
+        // ADR 0056: temporary neutral wash painted only while the sheet is open on a ∅-color
         // annotation, so the user can see the range they're working on. Not persistent — a
         // ∅ annotation with the sheet closed and no emphasis draws nothing at all.
         internal const val EMPTY_COLOR_EDITING_HINT_ARGB: Int = 0x30808080

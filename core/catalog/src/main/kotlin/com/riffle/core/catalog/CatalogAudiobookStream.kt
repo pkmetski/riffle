@@ -2,7 +2,7 @@ package com.riffle.core.catalog
 
 /**
  * A playable audiobook stream: track URLs (auth baked in), chapter markers, current server-side
- * position, and the last-update timestamp for last-writer-wins reconciliation (ADR 0029).
+ * position, and the last-update timestamp for last-writer-wins reconciliation (ADR 0035).
  */
 data class CatalogAudiobookStream(
     val trackUrls: List<String>,

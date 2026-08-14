@@ -8,7 +8,7 @@ import com.riffle.core.domain.ReadaloudLinkRepository
 
 /**
  * The sole [BundleAudiobookSource] implementation, and the only audiobook/library code that knows the
- * offline audio can come from a Storyteller readaloud bundle (ADR 0023). It translates the player's
+ * offline audio can come from a Storyteller readaloud bundle (ADR 0027). It translates the player's
  * ABS `(sourceId, itemId)` to the bundle's Storyteller `(sourceId, bookId)` via the [ReadaloudLink],
  * then maps the bundle's Media Overlay track to an [AudiobookSession] ([buildBundleAudiobookSession]).
  *

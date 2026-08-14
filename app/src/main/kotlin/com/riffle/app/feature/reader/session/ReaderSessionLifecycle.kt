@@ -192,7 +192,7 @@ class ReaderSessionLifecycle @AssistedInject constructor(
         // the initial-speed load below would leak an openReconcile claim forever.
         readerServerId = resolvedReaderServerId
         readerItemId = params.itemId
-        // Claim this book so the durable sweep leaves it to this reader's own cycle (ADR 0030).
+        // Claim this book so the durable sweep leaves it to this reader's own cycle (ADR 0036).
         activeServer?.id?.let { openReconcileTargets.markOpen(it, params.itemId) }
 
         val openAtCfiNonBlank = params.openAtCfi?.takeIf { it.isNotBlank() }
@@ -222,7 +222,7 @@ class ReaderSessionLifecycle @AssistedInject constructor(
         // compatibility fallback for old deep links and use it independently to enrich TextQuote.
         val initialFocusAnnotationId = params.openAnnotationId ?: openAtAnnotation?.id
 
-        // Stored lastPosition is Readium Locator JSON. Rows written before ADR 0030's translation
+        // Stored lastPosition is Readium Locator JSON. Rows written before ADR 0036's translation
         // fix may still hold a raw ABS `epubcfi(...)` — heal those on open so legacy progress
         // isn't lost. A genuinely unusable value falls back to null.
         val storedLocator = result.lastPosition?.takeIf { it.isNotBlank() }?.let { stored ->
@@ -238,7 +238,7 @@ class ReaderSessionLifecycle @AssistedInject constructor(
 
         // Build matched-sync — a matched book runs the reconciliation cycle instead of the
         // single-peer ABS/Storyteller paths. When the full coordinator can't be built (no
-        // cross-EPUB index yet), fall back to bundle-SMIL-only follow (ADR 0031).
+        // cross-EPUB index yet), fall back to bundle-SMIL-only follow (ADR 0037).
         val readerSync = runCatching { readerSyncFactory.createIfApplicable(params.itemId) }.getOrNull()
         val audiobookFollow = if (readerSync == null) {
             runCatching { readerSyncFactory.createAudiobookFollowIfApplicable(params.itemId) }.getOrNull()
@@ -251,7 +251,7 @@ class ReaderSessionLifecycle @AssistedInject constructor(
             sourceId = resolvedReaderServerId,
         )
         // A matched book also drives the audiobook ABS record from this reader, so the sweep must
-        // skip that (possibly split-library) item too while the reader is open (ADR 0030).
+        // skip that (possibly split-library) item too while the reader is open (ADR 0036).
         resolvedReaderServerId?.let { sid ->
             (readerSync?.audioItemId ?: audiobookFollow?.audioItemId)?.let {
                 openReconcileTargets.markOpen(sid, it)

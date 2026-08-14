@@ -110,7 +110,7 @@ interface AnnotationDao {
     )
     suspend fun updateNote(id: String, note: String?, updatedAt: Long, deviceId: String)
 
-    /** Replace the styles set on an emphasis row in place, bumping updatedAt + provenance (ADR 0046).
+    /** Replace the styles set on an emphasis row in place, bumping updatedAt + provenance (ADR 0056).
      *  The type = 'EMPHASIS' predicate keeps a caller error from accidentally mutating a highlight.
      *  Returns the row count updated so the store can distinguish a stale-id miss from a real edit
      *  (see code-review F7); zero means the update landed on nothing and no sync push is needed. */
@@ -208,7 +208,7 @@ interface AnnotationDao {
     suspend fun markSynced(ids: List<String>, syncedAt: Long)
 
     /**
-     * ADR 0038 — hard-delete tombstones whose `updatedAt` is older than [cutoff]. The
+     * ADR 0045 — hard-delete tombstones whose `updatedAt` is older than [cutoff]. The
      * `updatedAt <= lastSyncedAt` guard restricts purge to tombs whose current state has been
      * pushed successfully from this device at least once; a tomb that never made it to WebDAV
      * (offline at delete time) is preserved until it does, so peers still receive the delete.

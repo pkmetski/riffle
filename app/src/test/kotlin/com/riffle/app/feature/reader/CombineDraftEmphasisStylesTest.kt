@@ -5,7 +5,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 /**
- * ADR 0046 §4: [combineDraftEmphasisStyles] must TOGGLE a tapped chip that's already in the
+ * ADR 0056 §4: [combineDraftEmphasisStyles] must TOGGLE a tapped chip that's already in the
  * per-book preset (the sheet pre-selected it, so tapping again means the user wants it off),
  * ADD one that isn't in the preset yet, and PASS THROUGH the preset unchanged when the tap
  * came from a colour swatch (null chip).

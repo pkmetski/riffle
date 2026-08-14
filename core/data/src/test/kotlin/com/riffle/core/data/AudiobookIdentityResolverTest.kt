@@ -6,7 +6,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 /**
- * Turns the two fetched fingerprints into a verdict (ADR 0028). Extracted from the credential/
+ * Turns the two fetched fingerprints into a verdict (ADR 0040). Extracted from the credential/
  * fetch glue so the decision logic is testable without faking the full network interfaces.
  */
 class AudiobookIdentityResolverTest {

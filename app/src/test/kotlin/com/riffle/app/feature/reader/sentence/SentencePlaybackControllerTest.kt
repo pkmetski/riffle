@@ -10,7 +10,7 @@ import org.readium.r2.shared.publication.Locator
 
 /**
  * Regression coverage for [performAutoFollow] — the auto-follow `LaunchedEffect` body extracted
- * from `EpubReaderScreen` (Task 6 of ADR 0039). Compose's `LaunchedEffect`/`@Composable` surface
+ * from `EpubReaderScreen` (Task 6 of ADR 0046). Compose's `LaunchedEffect`/`@Composable` surface
  * isn't reachable from JVM unit tests (no `compose-ui-test` on this module's `test` source set),
  * so the branching decision is pulled into this standalone suspend function and exercised
  * directly with fakes.

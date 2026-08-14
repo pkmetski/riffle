@@ -15,7 +15,7 @@ data class ExtractedEpub(
 
 /**
  * Pure EPUB-bytes → spine chapters (in reading order) + media-overlay [MediaOverlayClip]s,
- * used to build the cross-EPUB index and the Storyteller fragment map (ADR 0019). Walks
+ * used to build the cross-EPUB index and the Storyteller fragment map (ADR 0023). Walks
  * `META-INF/container.xml` → OPF → spine, resolving hrefs relative to the OPF directory and
  * following each spine item's `media-overlay` to its SMIL. Returns `null` for input that is
  * not a readable EPUB, so a corrupt download degrades to a deferred build, never a wrong one.
@@ -30,7 +30,7 @@ object EpubContentExtractor {
 
     /**
      * File overload for large bundles: reads each needed entry directly from the zip by name, so a
-     * synced bundle's hundreds of MB of audio (ADR 0023) are never materialised — only the OPF,
+     * synced bundle's hundreds of MB of audio (ADR 0027) are never materialised — only the OPF,
      * spine chapters, and their SMIL overlays are read. Returns `null` if the file is not a zip.
      */
     fun extract(epub: File): ExtractedEpub? = try {

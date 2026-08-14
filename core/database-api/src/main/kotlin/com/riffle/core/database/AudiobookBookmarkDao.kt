@@ -41,7 +41,7 @@ interface AudiobookBookmarkDao {
     @Query("SELECT COUNT(*) FROM audiobook_bookmarks WHERE sourceId = :sourceId AND itemId = :itemId AND localUpdatedAt > lastSyncedAt")
     fun observeDirtyCountForItem(sourceId: String, itemId: String): Flow<Int>
 
-    /** Mark clean after a successful push, only if untouched since (compare-and-clear, ADR 0030). */
+    /** Mark clean after a successful push, only if untouched since (compare-and-clear, ADR 0036). */
     @Query(
         "UPDATE audiobook_bookmarks SET lastSyncedAt = :serverStamp, localUpdatedAt = :serverStamp " +
             "WHERE id = :id AND localUpdatedAt = :ifLocalUpdatedAt",

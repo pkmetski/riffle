@@ -50,7 +50,7 @@ data class SourceTypeCard(
 /**
  * Cards shown by [SourceTypePickerScreen]. Iterates every registered [WebSourceDescriptors]
  * entry and hides `descriptor.isSingleton` cards whose type is already in [installedTypes].
- * ADR 0044: adding a new source needs a descriptor object with `pickerOrder` + `pickerBlurb`
+ * ADR 0053: adding a new source needs a descriptor object with `pickerOrder` + `pickerBlurb`
  * set; no edit required here.
  */
 internal fun sourceTypeCards(

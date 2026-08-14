@@ -14,7 +14,7 @@ import org.junit.Test
 
 /**
  * Regression coverage for the audio-clock→fragment lookup extracted from [PlayerCoordinator] into
- * [AudioClockTicker] (ADR 0039 Task 5). Pins the same behaviour [PlayerCoordinator] relied on: a
+ * [AudioClockTicker] (ADR 0046 Task 5). Pins the same behaviour [PlayerCoordinator] relied on: a
  * controller state update resolves via [ReadaloudTrack.activeClipAt] to a fragment + progress, and a
  * miss (no track, or a position that hits no clip) clears both back to null.
  */

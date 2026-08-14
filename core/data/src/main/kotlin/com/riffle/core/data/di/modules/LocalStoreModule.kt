@@ -187,7 +187,7 @@ abstract class LocalStoreModule {
         fun provideCbzDownloadsStore(@ApplicationContext context: Context, dispatchers: com.riffle.core.domain.DispatcherProvider): LocalStore =
             LocalStoreImpl(context.filesDir.resolve("downloads/cbz").also { it.mkdirs() }, ".cbz", dispatchers)
 
-        // One-time relocation of legacy flat files into per-Source subdirectories (ADR 0025).
+        // One-time relocation of legacy flat files into per-Source subdirectories (ADR 0031).
         @Provides
         @Singleton
         fun provideLocalStoreMigrator(

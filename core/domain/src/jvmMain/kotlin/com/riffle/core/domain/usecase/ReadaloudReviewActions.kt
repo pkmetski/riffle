@@ -9,7 +9,7 @@ import javax.inject.Inject
 /**
  * Action coordinator for the readaloud-matches review screen. Wraps every link/unlink mutation in
  * the audio-settings rekey choreography: if the change moves the readaloud's canonical audio
- * identity (ADR 0028), the per-book audio-settings record (speed etc.) migrates with it.
+ * identity (ADR 0034), the per-book audio-settings record (speed etc.) migrates with it.
  *
  * Pure-JVM testable: depends only on domain interfaces.
  */
@@ -81,7 +81,7 @@ class ReadaloudReviewActions @Inject constructor(
 
     /**
      * Runs [mutate] (a link/unlink change), then migrates the per-book audio-settings record if the
-     * change moved the readaloud's canonical audio identity (ADR 0028) — e.g. linking an audiobook
+     * change moved the readaloud's canonical audio identity (ADR 0040) — e.g. linking an audiobook
      * moves the saved speed from the Storyteller id onto the audiobook id; unlinking moves it back.
      */
     private suspend fun rekeyAudioSettingsAround(

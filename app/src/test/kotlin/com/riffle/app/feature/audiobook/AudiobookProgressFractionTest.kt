@@ -6,7 +6,7 @@ import org.junit.Test
 /**
  * The audiobook player maps the live listen position into the unified 0..1 `readingProgress` the
  * detail/library screens render. Guards the bug where audiobook progress never reached the local
- * row (only ABS), leaving the detail view stale (ADR 0029).
+ * row (only ABS), leaving the detail view stale (ADR 0035).
  */
 class AudiobookProgressFractionTest {
 

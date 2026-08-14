@@ -9,12 +9,12 @@ import com.riffle.core.domain.SyncPositionStore
 import javax.inject.Inject
 
 /**
- * Owns the two-peer reconciliation cycle for a matched ABS audiobook (ADR 0019, 0029):
+ * Owns the two-peer reconciliation cycle for a matched ABS audiobook (ADR 0023, 0029):
  *
  * - the [ReaderSyncCoordinator] full-coordinator attach (bundle + ABS EPUB + cross-EPUB index),
  * - the bundle-only [AudiobookFollow] fallback when the index isn't built yet,
- * - the audiobook→ebook `readingSyncStore` mirror (ADR 0030),
- * - the audiobook→readaloud `readaloudResumeStore` mirror (ADR 0031).
+ * - the audiobook→ebook `readingSyncStore` mirror (ADR 0036),
+ * - the audiobook→readaloud `readaloudResumeStore` mirror (ADR 0037).
  *
  * Extracted from [AudiobookPlayerViewModel] (issue #345, slice 3). The coordinator is per-player;
  * it holds mutable references to the attached sync so a self-heal mid-session can promote from
@@ -55,7 +55,7 @@ class AudiobookReconciliationCoordinator @Inject constructor(
      * index) are cached, running the open-reconcile once. Idempotent — a second call is a no-op
      * unless the fallback is upgraded to the full coordinator. Called on open and re-tried each
      * follow-loop tick so the ebook starts syncing as soon as the background index build finishes
-     * (ADR 0029).
+     * (ADR 0035).
      *
      * @param atUpdatedAt seed timestamp for the first cycle. 0 keeps the cycle inbound-only (so a
      *   not-yet-advanced local position never leads); a real stamp lets a genuinely-newer local
@@ -77,7 +77,7 @@ class AudiobookReconciliationCoordinator @Inject constructor(
         val rs = readerSyncFactory.createIfApplicable(itemId)
         if (rs == null) {
             // No cross-EPUB index yet — fall back to the bundle-only follow so audiobook→ebook and
-            // audiobook→readaloud still sync via the bundle, index-free (ADR 0031).
+            // audiobook→readaloud still sync via the bundle, index-free (ADR 0037).
             if (_audiobookFollow == null) {
                 _audiobookFollow = runCatching {
                     readerSyncFactory.createAudiobookFollowIfApplicable(itemId)
@@ -92,7 +92,7 @@ class AudiobookReconciliationCoordinator @Inject constructor(
         }
         _readerSync = rs
         // Matched: this player also drives the ebook ABS record, so the sweep must skip that
-        // (possibly split-library) item too while the player is open (ADR 0030).
+        // (possibly split-library) item too while the player is open (ADR 0036).
         rs.ebookItemId?.let { openReconcileTargets.markOpen(sourceId, it) }
         val r = rs.runAudioLedCycle(atSec, atUpdatedAt)
         return AttachResult(
@@ -103,7 +103,7 @@ class AudiobookReconciliationCoordinator @Inject constructor(
     }
 
     /**
-     * Dual-write the counterpart reading position locally (ADR 0030), the symmetric twin of the
+     * Dual-write the counterpart reading position locally (ADR 0036), the symmetric twin of the
      * reader's mirror. For a matched book the just-saved listen position is translated through the
      * bundle's SMIL into the ebook locator and persisted into the reading store under the ebook's
      * own ABS item id, stamped with the audiobook row's current (localUpdatedAt, lastSyncedAt) so
@@ -114,7 +114,7 @@ class AudiobookReconciliationCoordinator @Inject constructor(
         if (sourceId.isEmpty()) return
         val ebookItemId = _readerSync?.ebookItemId ?: _audiobookFollow?.ebookItemId ?: return
         // Index-free first (text-anchored, via the bundle), then the index-based canonical if
-        // present (ADR 0031: audiobook→ebook goes via the bundle, never requiring the cross-EPUB
+        // present (ADR 0037: audiobook→ebook goes via the bundle, never requiring the cross-EPUB
         // index).
         val ebookLocator = _audiobookFollow?.ebookLocatorForAudioSeconds(seconds)
             ?: _readerSync?.canonicalForAudioSeconds(seconds)
@@ -124,7 +124,7 @@ class AudiobookReconciliationCoordinator @Inject constructor(
     }
 
     /**
-     * Dual-write the readaloud resume from the listen position (ADR 0031): map the listen seconds
+     * Dual-write the readaloud resume from the listen position (ADR 0037): map the listen seconds
      * to the narrated sentence and persist it under the ebook item id, so reopening the reader and
      * pressing Play resumes on that sentence instead of the stale saved one. Works index-free via
      * the bundle SMIL when the full coordinator isn't built. No-op unless matched and the seconds

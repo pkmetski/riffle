@@ -47,7 +47,7 @@ import org.junit.Test
 
 /**
  * Pins that Gutenberg's browse VM routes item taps through [WebSourceItemGate] — the same
- * ADR-0043 caching path used by every other web source. If this test flips red, Gutenberg
+ * ADR-0052 caching path used by every other web source. If this test flips red, Gutenberg
  * silently regressed to hitting Gutendex on every tap (or worse, lost its stale-fallback
  * behaviour and started dead-ending taps whenever the detail fetch fails).
  */

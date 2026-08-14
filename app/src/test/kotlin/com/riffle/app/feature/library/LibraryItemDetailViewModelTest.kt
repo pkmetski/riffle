@@ -412,7 +412,7 @@ class LibraryItemDetailViewModelTest {
             override suspend fun forSourceId(sourceId: String): com.riffle.core.catalog.Catalog? = null
         }
 
-    /** Records the links handed to the index-build trigger (the download-complete trigger, ADR 0031). */
+    /** Records the links handed to the index-build trigger (the download-complete trigger, ADR 0037). */
     private class RecordingBuildTrigger : com.riffle.core.data.CrossEpubIndexBuildTrigger {
         val enqueued = mutableListOf<com.riffle.core.models.ReadaloudLink>()
         override fun enqueueBuild(link: com.riffle.core.models.ReadaloudLink) { enqueued += link }
@@ -1179,7 +1179,7 @@ class LibraryItemDetailViewModelTest {
 
     // --- Ready.isCachedOrDownloaded / Ready.isOffline ---
 
-    // ADR 0031: downloading the readaloud bundle is the deterministic moment the cross-EPUB index's
+    // ADR 0037: downloading the readaloud bundle is the deterministic moment the cross-EPUB index's
     // only un-fetchable prerequisite (the bundle) arrives — so a successful download enqueues the build.
     @Test
     fun `a successful readaloud download enqueues a cross-EPUB index build for the link`() = runTest {

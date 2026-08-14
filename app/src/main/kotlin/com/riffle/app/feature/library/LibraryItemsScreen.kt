@@ -135,7 +135,7 @@ import com.riffle.app.ui.source.asAuthHeader
 /**
  * True within an audiobooks-only library, so cover tiles that carry no per-item audio signal —
  * [SeriesCoverTile], [CollectionCoverTile], [SeeMoreTile] — render square like the audiobook covers
- * around them (ADR 0029). Provided once at the library screen root from the ViewModel.
+ * around them (ADR 0035). Provided once at the library screen root from the ViewModel.
  */
 internal val LocalCoversAreSquare = staticCompositionLocalOf { false }
 
@@ -659,7 +659,7 @@ fun BookCoverTile(
     val alpha = if (!item.isPlayable) 0.38f else 1f
     // Audiobook covers are square (1:1); ebook covers are 2:3. The tile takes the cover's own aspect
     // ratio so an audiobook tile is genuinely square, not a square letterboxed inside a 2:3 box
-    // (ADR 0029).
+    // (ADR 0035).
     val isAudiobookOnly = item.isListenable && !item.isReadable
     val coverAspect = coverAspectRatio(isAudiobookOnly || LocalCoversAreSquare.current)
     Column(
@@ -1248,7 +1248,7 @@ internal fun LibraryItemCard(
     hasReadaloudLink: Boolean = false,
 ) {
     val alpha = if (!item.isPlayable) 0.38f else 1f
-    // Square thumbnail for an audiobook (1:1), 2:3 for an ebook (ADR 0029).
+    // Square thumbnail for an audiobook (1:1), 2:3 for an ebook (ADR 0035).
     val isAudiobookOnly = item.isListenable && !item.isReadable
     Surface(
         modifier = if (onClick != null)

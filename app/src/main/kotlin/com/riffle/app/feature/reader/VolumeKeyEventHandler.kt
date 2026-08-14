@@ -15,7 +15,7 @@ object VolumeKeyEventHandler {
         // overriding both page navigation and the panel swallow.
         if (isAudioPlaying) return VolumeKeyAction.PassThrough
         // Auto-Scroll takes precedence over panel-swallow and volumeNavEnabled — the
-        // running session repurposes the keys to nudge speed (ADR 0037).
+        // running session repurposes the keys to nudge speed (ADR 0044).
         if (isAutoScrolling) {
             val faster = if (invertVolumeKeys) isVolumeDown else !isVolumeDown
             return if (faster) VolumeKeyAction.AutoScrollFaster else VolumeKeyAction.AutoScrollSlower

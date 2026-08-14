@@ -23,7 +23,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * The bookmark pass of the durable dirty sweep (ADR 0030, Task 12): bookmarks reconcile on the SAME
+ * The bookmark pass of the durable dirty sweep (ADR 0036, Task 12): bookmarks reconcile on the SAME
  * cadence as positions. Per source (unioned with position-dirty sources), every itemId with at least
  * one dirty bookmark row reconciles once under its own per-target lock. Exercised over fakes.
  */

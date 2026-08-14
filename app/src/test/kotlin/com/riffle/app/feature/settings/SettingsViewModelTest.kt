@@ -421,7 +421,7 @@ class SettingsViewModelTest {
 
     @Test
     fun `removeServer active server promotes the next browsable server, never a Storyteller`() = runTest {
-        // ADR 0026: a Storyteller Source can never become the active browsable Source, so removing
+        // ADR 0032: a Storyteller Source can never become the active browsable Source, so removing
         // the active ABS server must skip the Storyteller and promote the next ABS server.
         serversFlow.value = listOf(
             server("abs-1", active = true),
@@ -593,7 +593,7 @@ class SettingsViewModelTest {
         backgroundScope.launch { vm.libraryUiItemsBySource.collect {} }
         testDispatcher.scheduler.advanceUntilIdle()
 
-        // Storyteller is Settings-only (ADR 0026) and never appears in the drawer, so we don't
+        // Storyteller is Settings-only (ADR 0032) and never appears in the drawer, so we don't
         // surface its libraries in the reorder/visibility editor either.
         assertNull(vm.libraryUiItemsBySource.value["st-1"])
     }

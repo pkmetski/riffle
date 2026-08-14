@@ -15,7 +15,7 @@ fun readerRouteFor(item: LibraryItem): String? {
 }
 
 /**
- * The Annotations-list "open a book" route (ADR 0041, Important #1 fix). Threads [sourceId]
+ * The Annotations-list "open a book" route (ADR 0048, Important #1 fix). Threads [sourceId]
  * through explicitly as a `?sourceId=` nav arg rather than letting the reader re-resolve "the
  * active server" at open time — a Server Switcher change racing this navigation would otherwise
  * open the elided reader against whatever server happens to be active when it opens, not the

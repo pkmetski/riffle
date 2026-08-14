@@ -10,7 +10,7 @@ import javax.inject.Inject
  * Computes the position to start playback at when opening an audiobook.
  *
  * Extracted from [AudiobookPlayerViewModel] (issue #345, slice 2). Concentrates the last-update-
- * wins reconcile (ADR 0029), the offline "no tracked position" progress-fraction fallback, the
+ * wins reconcile (ADR 0035), the offline "no tracked position" progress-fraction fallback, the
  * finished-book normalisation, and the readaloud→audiobook handoff override — all previously
  * inlined into the VM's ~60-line init prologue.
  *

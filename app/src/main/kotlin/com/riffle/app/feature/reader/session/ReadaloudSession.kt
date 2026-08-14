@@ -126,7 +126,7 @@ class ReadaloudSession @AssistedInject constructor(
         }
         // Audiobook-follow push loop: while readaloud narrates a sentence, push the audiobook
         // position derived from the current reading position (which tracks the audio) through the
-        // bundle SMIL, on a tight cadence so it reaches the server promptly (ADR 0031).
+        // bundle SMIL, on a tight cadence so it reaches the server promptly (ADR 0037).
         // Writes only the audiobook item, from a page-derived position — never the ebook.
         scope.launch {
             while (true) {
@@ -272,7 +272,7 @@ class ReadaloudSession @AssistedInject constructor(
 
     /**
      * Toggles play/pause. On pause: records the park state so a subsequent reconcile cycle doesn't
-     * regress the audiobook position (ADR 0031) and flushes the position to stores.
+     * regress the audiobook position (ADR 0037) and flushes the position to stores.
      * On play (not currently playing): delegates to [onPlayTapped].
      */
     fun togglePlayPause() {
@@ -343,14 +343,14 @@ class ReadaloudSession @AssistedInject constructor(
 
     /**
      * Called before PositionOrchestrator.onPositionChanged when the reader position changes.
-     * Clears park state when the reader navigates off the parked page (ADR 0031).
+     * Clears park state when the reader navigates off the parked page (ADR 0037).
      */
     fun onPositionBeforeForward(locator: Locator) {
         parkPolicy.onPosition(locator.href.toString(), locator.locations.progression)
     }
 
     /**
-     * Dual-write the counterpart audiobook position locally (ADR 0030). For a matched book, reading
+     * Dual-write the counterpart audiobook position locally (ADR 0036). For a matched book, reading
      * is the same activity as listening, so the just-saved reading position is also persisted into
      * the audiobook store — translated through the bundle's SMIL into the audio second, keyed by the
      * audiobook's own ABS item id, and stamped with the reading row's current dirty state.
@@ -382,7 +382,7 @@ class ReadaloudSession @AssistedInject constructor(
 
     /**
      * Responsive audiobook-follow: PATCH only the matched ABS audiobook's currentTime, keyed by the
-     * exact narrated fragment or the current reading position through the bundle SMIL (ADR 0031).
+     * exact narrated fragment or the current reading position through the bundle SMIL (ADR 0037).
      * No-op when the book isn't a matched-reconciliation book.
      *
      * NOTE: [fragment] must be captured BEFORE the player is torn down — after teardown the live
@@ -420,7 +420,7 @@ class ReadaloudSession @AssistedInject constructor(
     }
 
     /**
-     * Flush the full readaloud position into local stores on close/pause (ADR 0031): persist the
+     * Flush the full readaloud position into local stores on close/pause (ADR 0037): persist the
      * sentence-precise ebook reading position and the local audiobook position (SMIL seconds).
      * Matched-only; no-op without a coordinator or a resolvable sentence.
      *
@@ -489,7 +489,7 @@ class ReadaloudSession @AssistedInject constructor(
         resumeFragmentRef = playerCoordinator.activeFragmentRef.value
         closeLocator = snapshotLocator()
         // Park on the stopped sentence so the audiobook isn't re-derived from the page top until the
-        // user navigates off this page (ADR 0031). Keyed by the reader page we're parked on.
+        // user navigates off this page (ADR 0037). Keyed by the reader page we're parked on.
         parkPolicy.onClose(
             resumeFragment = resumeFragmentRef,
             snapshotHref = snapshotLocator()?.href?.toString(),
@@ -526,13 +526,13 @@ class ReadaloudSession @AssistedInject constructor(
     fun onPlayTapped() {
         _readaloudBarMessage.value = null
         scope.launch {
-            // Bundle precedence (ADR 0028): a downloaded bundle is complete and local — prefer it.
+            // Bundle precedence (ADR 0040): a downloaded bundle is complete and local — prefer it.
             val bundle = readaloudAudioRepository.bundleFile(audioServerId, audioBookId)
             if (bundle != null) {
                 ensurePreparedAndPlay(bundle)
                 return@launch
             }
-            // Streaming (ADR 0028): build from the sidecar prepared ahead of time when the book opened.
+            // Streaming (ADR 0040): build from the sidecar prepared ahead of time when the book opened.
             if (ensureStreamingSession() != null) {
                 ensurePreparedAndPlay(bundle = null)
                 return@launch
@@ -626,7 +626,7 @@ class ReadaloudSession @AssistedInject constructor(
             readaloudStarted = true
             resumeFragmentRef = null
             closeLocator = null
-            // Re-key the ref onto the bundle chapter the selection sits in (ADR 0031 play-from-here).
+            // Re-key the ref onto the bundle chapter the selection sits in (ADR 0037 play-from-here).
             val seekRef = readerSyncProvider()?.bundleFragmentRefForSelection(fragmentRef) ?: fragmentRef
             playerCoordinator.playFromHere(seekRef)
         }
@@ -878,7 +878,7 @@ class ReadaloudSession @AssistedInject constructor(
         }
         readaloudStarted = true
 
-        // Reconcile the readaloud start against the LOCAL audiobook position (ADR 0031).
+        // Reconcile the readaloud start against the LOCAL audiobook position (ADR 0037).
         val localAudioStartFragment: String? = run {
             val sid = readerSyncServerId ?: return@run null
             val readerSync = readerSyncProvider()
@@ -1007,7 +1007,7 @@ class ReadaloudSession @AssistedInject constructor(
      * Starts observing the sidecar store for [audioServerId]/[audioBookId] and reacts to
      * [ReadaloudSidecarStore.State.Ready] / [ReadaloudSidecarStore.State.Failed].
      *
-     * Called by the VM's init coroutine for matched ABS books where no bundle is on disk (ADR 0028).
+     * Called by the VM's init coroutine for matched ABS books where no bundle is on disk (ADR 0040).
      * Moving the observer here folds the VM's inline `viewModelScope.launch { sidecarStore.states… }`
      * into the session so the session is the sole writer of `_readaloudBarMessage` (8.4 task D).
      */
@@ -1017,7 +1017,7 @@ class ReadaloudSession @AssistedInject constructor(
                 when (byKey[sidecarStore.key(audioServerId, audioBookId)]) {
                     ReadaloudSidecarStore.State.Ready -> {
                         // The sidecar stands in for the bundle for the synced-highlight text quotes
-                        // (ADR 0028): build them the moment it's cached, through the SAME
+                        // (ADR 0040): build them the moment it's cached, through the SAME
                         // quoteBuilder path the on-disk bundle uses in bind().
                         sidecarStore.cachedFile(audioServerId, audioBookId)?.let { sidecar ->
                             quoteBuilder.quoteBundle = sidecar
@@ -1106,7 +1106,7 @@ class ReadaloudSession @AssistedInject constructor(
         internal const val PREPARING_SLOW_TIMEOUT_MS = 15_000L
         /** Debounce window for persisting a playback-speed change. */
         internal const val SPEED_SAVE_DEBOUNCE_MS = 400L
-        /** Cadence for pushing the audiobook position derived from the narrated reading position (ADR 0031). */
+        /** Cadence for pushing the audiobook position derived from the narrated reading position (ADR 0037). */
         internal const val AUDIO_PUSH_INTERVAL_MS = 10_000L
 
     }

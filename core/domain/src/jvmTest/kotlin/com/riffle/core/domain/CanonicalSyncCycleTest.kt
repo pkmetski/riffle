@@ -112,7 +112,7 @@ class CanonicalSyncCycleTest {
     fun `zero-peer cycle no-ops on both directions and preserves local lastUpdate`() = runTest {
         // A LocalFiles-only book has no ProgressPeerCapability sources → empty peer list.
         // The reconciler must run cleanly, never jump, never patch, and leave localUpdatedAt
-        // untouched so on-device activity keeps advancing it (ADR 0041 zero-peer contract).
+        // untouched so on-device activity keeps advancing it (ADR 0049 zero-peer contract).
         val local = LocalCanonical(pos("L"), lastUpdate = 4242)
 
         val result = CanonicalSyncCycle.run(local, emptyList())

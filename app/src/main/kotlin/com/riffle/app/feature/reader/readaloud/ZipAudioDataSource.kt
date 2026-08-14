@@ -15,7 +15,7 @@ import java.util.zip.ZipFile
 
 /**
  * Media3 [DataSource] that streams a single audio entry directly out of the Storyteller synced
- * EPUB zip (ADR 0023) — no extraction to a second on-disk copy. The entry path is carried in the
+ * EPUB zip (ADR 0027) — no extraction to a second on-disk copy. The entry path is carried in the
  * [DataSpec] URI path; the backing bundle file is fixed per book by [Factory].
  *
  * Seeks are honoured by reopening the entry and skipping, since zip entry streams are forward-only.

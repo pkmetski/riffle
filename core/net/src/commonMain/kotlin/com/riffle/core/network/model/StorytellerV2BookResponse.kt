@@ -4,7 +4,7 @@ import com.riffle.core.models.AudiobookFingerprint
 import kotlinx.serialization.Serializable
 
 /**
- * The slice of `GET /api/v2/books/{id}` Riffle needs for the identity check (ADR 0028): the
+ * The slice of `GET /api/v2/books/{id}` Riffle needs for the identity check (ADR 0040): the
  * **ingested-source** audiobook's byte size, total duration, and per-track durations — i.e. the
  * original file Storyteller aligned against, not the re-split bundle.
  */

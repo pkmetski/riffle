@@ -29,7 +29,7 @@ data class ScoredCandidate(
 
 /**
  * The match state of a single Storyteller readaloud against the configured ABS Library Items,
- * per [ADR 0021]. Exactly one of these is produced for each readaloud per matcher run.
+ * per [ADR 0025]. Exactly one of these is produced for each readaloud per matcher run.
  */
 sealed interface MatchOutcome {
     /**

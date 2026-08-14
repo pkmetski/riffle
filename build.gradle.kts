@@ -190,7 +190,7 @@ tasks.register("checkRendererBridgeUsage") {
             // WebViewFiguresInRangeResolver is unwired scaffolding (DI binds the Noop); it must
             // move behind RendererBridge when the WebView seam that wires it lands.
             "app/src/main/kotlin/com/riffle/app/feature/reader/FiguresInRangeResolver.kt",
-            // ADR 0046: the presenter's typed suspend wrapper around the Readium navigator's
+            // ADR 0056: the presenter's typed suspend wrapper around the Readium navigator's
             // evaluateJavascript IS the sanctioned seam for emphasis-span injection.
             "app/src/main/kotlin/com/riffle/app/feature/reader/presenter/ReadiumPresenter.kt",
         )
@@ -227,7 +227,7 @@ tasks.register("checkRendererBridgeUsage") {
     }
 }
 
-// Enforces the Source/Service taxonomy (ADR 0041, #443): fails if a Kotlin file
+// Enforces the Source/Service taxonomy (ADR 0049, #443): fails if a Kotlin file
 // outside the grandfathered allowlist introduces a `\bServer[A-Z]` identifier
 // (e.g. ServerType, ServerRepository) or the bare literal `serverId`. Test source
 // sets and comment-only lines are skipped. Detection logic lives in
@@ -248,7 +248,7 @@ tasks.register("checkNoServerReferences") {
         )
         if (offenders.isNotEmpty()) {
             throw GradleException(
-                "The taxonomy is Source/Service (ADR 0041). Rename `ServerFoo` → `SourceFoo` / `ServiceFoo`\n" +
+                "The taxonomy is Source/Service (ADR 0049). Rename `ServerFoo` → `SourceFoo` / `ServiceFoo`\n" +
                     "and `serverId` → `sourceId` at the introducing site, or (if the file legitimately\n" +
                     "belongs to Storyteller-adjacent internals / historical migration SQL) add it to\n" +
                     "ServerReferenceLint.ALLOWLIST with a one-line justification.\n" +

@@ -4,7 +4,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 import com.riffle.core.models.AudiobookIdentityResult
 
-/** The matches-screen streaming status derivation (ADR 0028). */
+/** The matches-screen streaming status derivation (ADR 0040). */
 class ConfirmedReadaloudStatusTest {
 
     private fun target(hasAudio: Boolean, verdict: AudiobookIdentityResult) =

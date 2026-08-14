@@ -340,7 +340,7 @@ private fun ConfirmedReadaloudRow(
                 modifier = Modifier.weight(1f),
             )
         }
-        // Streaming status (ADR 0028): how this book's audio is delivered.
+        // Streaming status (ADR 0040): how this book's audio is delivered.
         when (link.streamingStatus) {
             ConfirmedReadaloud.StreamingStatus.STREAMING ->
                 Text("Streaming", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)

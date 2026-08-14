@@ -9,13 +9,13 @@ sealed interface AudioDownloadResult {
 }
 
 /**
- * Manages the Readaloud audio bundle (the Storyteller synced EPUB — ADR 0023) for the reader: its
+ * Manages the Readaloud audio bundle (the Storyteller synced EPUB — ADR 0027) for the reader: its
  * local presence, its parsed Media Overlay [ReadaloudTrack], download (with progress) into the
  * permanent Downloads area, and removal. The auto-cached area is OS-managed; Riffle keeps no
- * cache-size cap (ADR 0024).
+ * cache-size cap (ADR 0028).
  */
 interface ReadaloudAudioRepository {
-    // The bundle lives on the Storyteller Service; [sourceId] is that Server (ADR 0025) — which on
+    // The bundle lives on the Storyteller Service; [sourceId] is that Server (ADR 0029) — which on
     // the ABS item-detail screen is NOT the active Server.
 
     /** True when the synced bundle is present locally (Downloads or Cache). */

@@ -16,7 +16,7 @@ interface HighlightColorPreferencesStore {
     fun lastUsedColor(sourceId: String, itemId: String): Flow<HighlightColor>
     suspend fun setLastUsedColor(sourceId: String, itemId: String, value: HighlightColor)
 
-    /** ADR 0046 §4: `∅` is a valid last-pick — a book where the user annotates only with
+    /** ADR 0056 §4: `∅` is a valid last-pick — a book where the user annotates only with
      *  emphasis wants the next new annotation to open with `∅` selected, not with the last
      *  colour they happened to pick before switching to emphasis-only. Emits `true` once the
      *  user has tapped `∅` on this book at least once, and stays true until they pick a real

@@ -7,7 +7,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * The audiobook-anchor rule of ADR 0031: the narrated **fragment** is the pivot; the **page**
+ * The audiobook-anchor rule of ADR 0037: the narrated **fragment** is the pivot; the **page**
  * canonical is a fallback only for silent reading, never during an active readaloud (the page-top
  * race that synced the audiobook ~a minute early). Pure-unit coverage of every branch.
  */
@@ -53,7 +53,7 @@ class ReadaloudAudioAnchorTest {
     }
 
     @Test
-    fun `parked on the readaloud-stop sentence uses that sentence, not the page-top (ADR 0031)`() {
+    fun `parked on the readaloud-stop sentence uses that sentence, not the page-top (ADR 0037)`() {
         // After readaloud closes mid-page, the reader is still on that page. Without the park, the
         // silent-reading fallback would re-derive the PAGE-TOP sentence (9110) and regress the audiobook
         // below where readaloud actually stopped (9160). Parked → the exact stopped sentence wins.

@@ -7,7 +7,7 @@ import org.jsoup.nodes.TextNode
 
 /**
  * The readable-character counting primitive shared by the CFI translator (ADR 0013)
- * and the cross-EPUB index (ADR 0019). "Readable" means non-blank text-node content:
+ * and the cross-EPUB index (ADR 0023). "Readable" means non-blank text-node content:
  * markup, whitespace-only nodes, and image elements contribute zero, so the same
  * logical prose counts the same across two EPUBs that mark it up differently.
  */

@@ -3,7 +3,7 @@ package com.riffle.core.domain.comic
 /**
  * Discriminates comic archive formats from magic bytes so we can surface a clean "not supported"
  * message for real RAR files even when they're extension-mislabeled — and open a `.cbr` that's
- * actually a ZIP transparently. See ADR 0042 (move 3).
+ * actually a ZIP transparently. See ADR 0050 (move 3).
  */
 enum class ComicArchiveKind {
     /** ZIP-based (CBZ, or a `.cbr` that turns out to be a ZIP). Supported in v1. */

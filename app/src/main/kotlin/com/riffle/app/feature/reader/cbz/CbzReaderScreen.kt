@@ -351,7 +351,7 @@ private fun CbzPage(
     }
 }
 
-// --- Panel View (ADR 0043) ---
+// --- Panel View (ADR 0055) ---
 
 @Composable
 private fun CbzPanelViewer(
@@ -399,7 +399,7 @@ private fun CbzPanelViewer(
                     val longPressMs = viewConfiguration.longPressTimeoutMillis
                     val up = withTimeoutOrNull(longPressMs) { waitForUpOrCancellation() }
                     if (up == null) {
-                        // Long-press: open the peek overlay (persistent — ADR 0043 §5).
+                        // Long-press: open the peek overlay (persistent — ADR 0055 §5).
                         peeking = true
                         // Wait for the finger to lift so we don't re-trigger.
                         waitForUpOrCancellation()
@@ -437,7 +437,7 @@ private fun CbzPanelViewer(
 
         // Animate scale + translation between panels. Declarative — Compose interpolates
         // whenever the target values change, and a mid-flight change simply re-targets
-        // (interrupt semantics — ADR 0043 §4). Reduce Motion collapses to a snap.
+        // (interrupt semantics — ADR 0055 §4). Reduce Motion collapses to a snap.
         val reduceMotion = remember(context) { isReduceMotionEnabled(context) }
         val animationSpec = remember(reduceMotion) {
             if (reduceMotion) snap<Float>() else tween<Float>(durationMillis = 250)

@@ -5,7 +5,7 @@ import org.json.JSONArray
 import org.json.JSONObject
 
 /**
- * ADR 0046: DOM-level emphasis renderer. Bold and italic can't render via Readium's overlay
+ * ADR 0056: DOM-level emphasis renderer. Bold and italic can't render via Readium's overlay
  * decorations (overlays don't reflow text), so this injects JavaScript into the current
  * chapter's WebView that WRAPS emphasis ranges in a `<span data-riffle-em="...">` with inline
  * `font-weight` / `font-style`. Underline and strike still ride the overlay decoration path —

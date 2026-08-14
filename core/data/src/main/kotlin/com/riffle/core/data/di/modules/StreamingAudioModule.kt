@@ -84,7 +84,7 @@ abstract class StreamingAudioModule {
         ): com.riffle.core.data.StorytellerSidecarFetcher =
             // Fast path: bounded streaming GET (sidecarStreamClient, 240 s callTimeout) stops at the
             // first audio entry. Full-download fallback: unbounded downloadBundle client, used only when
-            // the fast path finds no SMIL before audio (non-standard bundle ordering — ADR 0028).
+            // the fast path finds no SMIL before audio (non-standard bundle ordering — ADR 0040).
             com.riffle.core.data.StorytellerSidecarFetcher(
                 bundleApi = { url, bookId, token, insecure -> api.streamSidecar(url, bookId, token, insecure) },
                 fullBundleApi = { url, bookId, token, insecure -> api.downloadBundle(url, bookId, token, insecure) },
@@ -111,7 +111,7 @@ abstract class StreamingAudioModule {
         ): AudiobookBundleDownloader = AudiobookBundleDownloader(
             api = api,
             // Write into the same Downloads EPUB store the reader reads from — the synced bundle is
-            // both the EPUB and the audio source (ADR 0023), so they share one file. Must mirror
+            // both the EPUB and the audio source (ADR 0027), so they share one file. Must mirror
             // LocalStoreImpl's dir/<sourceId>/<id> layout so downloadsStore.get(sourceId, id) finds it.
             targetFileProvider = { sourceId, id ->
                 context.filesDir.resolve("downloads/epubs").resolve(sourceId).also { it.mkdirs() }.resolve("$id.epub")

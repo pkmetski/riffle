@@ -2,7 +2,7 @@ package com.riffle.app.feature.reader
 
 /**
  * Decides which audio second the matched book's audiobook position should be written from, given the
- * live readaloud/reading state (ADR 0031). The bundle SMIL **fragment** is the pivot; the page
+ * live readaloud/reading state (ADR 0037). The bundle SMIL **fragment** is the pivot; the page
  * canonical is only ever a fallback for genuine silent reading — and **never** while a readaloud
  * session is active (a transient null fragment there is the page-top race that synced the audiobook
  * ~a minute early).
@@ -19,7 +19,7 @@ object ReadaloudAudioAnchor {
      * @param parkedFragment the sentence readaloud last **stopped** on (close/pause), retained until the
      *   user navigates to a different page. When set, the reader is still parked on that exact sentence,
      *   so reading→audiobook uses it — NOT the page-top, which would regress the audiobook below where
-     *   readaloud stopped (the post-close clobber; ADR 0031). The page-top is only for *genuine* silent
+     *   readaloud stopped (the post-close clobber; ADR 0037). The page-top is only for *genuine* silent
      *   reading where no sentence is known.
      * @param fragmentSeconds resolves a fragment ref to its absolute audio second (bundle SMIL). Only
      *   ever called for a non-null fragment.

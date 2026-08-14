@@ -77,7 +77,7 @@ fun AddSourceScreen(
     val backend = viewModel.backend
     val isEditing = viewModel.isEditing
     // Every credentialed catalog source drives its copy through its [WebSourceDescriptor]
-    // (ADR 0044 Phase 7). WebDAV isn't a browsable catalog — it's an annotation-sync sidecar
+    // (ADR 0053 Phase 7). WebDAV isn't a browsable catalog — it's an annotation-sync sidecar
     // that happens to share the URL + username + password form shape — so it keeps a small
     // per-screen constant block below rather than a synthetic descriptor.
     val credentialed = backend as? AddSourceBackend.Credentialed

@@ -249,7 +249,7 @@ abstract class RiffleDatabase : RoomDatabase() {
         }
 
         // Generalises Server beyond Audiobookshelf: a Server is now either ABS or Storyteller
-        // (ADR 0020). Existing rows backfill to AUDIOBOOKSHELF — the only Server type that existed
+        // (ADR 0024). Existing rows backfill to AUDIOBOOKSHELF — the only Server type that existed
         // before this migration.
         val MIGRATION_17_18 = object : Migration(17, 18) {
             override fun migrate(db: SupportSQLiteDatabase) {
@@ -322,7 +322,7 @@ abstract class RiffleDatabase : RoomDatabase() {
             }
         }
 
-        // Storyteller↔ABS matching (issue #36, ADR 0021). Two coupled changes:
+        // Storyteller↔ABS matching (issue #36, ADR 0025). Two coupled changes:
         //
         // 1. `library_items` gains `isbn`/`asin` columns so the matcher can run Tier 1
         //    (exact identifier match) without joining a separate metadata table.
@@ -363,7 +363,7 @@ abstract class RiffleDatabase : RoomDatabase() {
             }
         }
 
-        // Completes the ADR 0021 match ladder (issue #39). Two new tables back the review queue:
+        // Completes the ADR 0025 match ladder (issue #39). Two new tables back the review queue:
         //
         // 1. `readaloud_candidates` records Tier 3 fuzzy candidates awaiting user review — one
         //    row per (readaloud, ABS item) pair with the matcher's similarity score. Both
@@ -404,7 +404,7 @@ abstract class RiffleDatabase : RoomDatabase() {
             }
         }
 
-        // Cross-EPUB character-position index cache (issue #38, ADR 0019). A standalone
+        // Cross-EPUB character-position index cache (issue #38, ADR 0023). A standalone
         // local cache table keyed by the two source EPUBs' checksums — no foreign keys,
         // since a row is invalidated by a checksum change (keyed-lookup miss), not by any
         // Server lifecycle event.
@@ -421,7 +421,7 @@ abstract class RiffleDatabase : RoomDatabase() {
             }
         }
 
-        // 24 → 25: the sync-ready Annotations store (ADR 0024 / 0025). One table carries every
+        // 24 → 25: the sync-ready Annotations store (ADR 0028 / ADR 0029). One table carries every
         // field the future W3C format + per-device-file merge needs — stable UUID identity,
         // origin/last-modified device ids, a `deleted` tombstone, the CFI range anchor, colour
         // token, nullable note, and the snippet + chapter href fallback. Scoped to the ABS
@@ -456,7 +456,7 @@ abstract class RiffleDatabase : RoomDatabase() {
             }
         }
 
-        // 25 → 26: key Library Items by (serverId, itemId) end-to-end (issue #81, ADR 0025).
+        // 25 → 26: key Library Items by (serverId, itemId) end-to-end (issue #81, ADR 0029).
         // Item ids are unique only within a Server — two Storyteller Services each emit "1", "2", …
         // — so itemId-alone keying collides. Recreate `library_items` with a `serverId` column and
         // a composite PK (serverId, id), backfilling serverId from each item's owning library
@@ -599,7 +599,7 @@ abstract class RiffleDatabase : RoomDatabase() {
         }
 
         // Adds the book's `language` to `library_items` (ABS metadata.language), surfaced on the
-        // Library Item Detail Screen and used as a Filtered Books facet (ADR 0027). Nullable — books
+        // Library Item Detail Screen and used as a Filtered Books facet (ADR 0033). Nullable — books
         // with no language set carry NULL.
         val MIGRATION_27_28 = object : Migration(27, 28) {
             override fun migrate(db: SupportSQLiteDatabase) {
@@ -609,7 +609,7 @@ abstract class RiffleDatabase : RoomDatabase() {
 
         // 28 → 29: record whether an ABS Library Item carries audio. `hasAudio` decides which matched
         // item is the audio target — possibly a different item than the ebook being read when a
-        // library splits ebooks and audiobooks (ADR 0019). Defaults to 0; refreshed from ABS
+        // library splits ebooks and audiobooks (ADR 0023). Defaults to 0; refreshed from ABS
         // (`numAudioFiles`/`numTracks`) on every library sync.
         val MIGRATION_28_29 = object : Migration(28, 29) {
             override fun migrate(db: SupportSQLiteDatabase) {
@@ -659,7 +659,7 @@ abstract class RiffleDatabase : RoomDatabase() {
             }
         }
 
-        // Per-book audio playback settings (ADR 0028). Device-local, never synced. Keyed by a resolved
+        // Per-book audio playback settings (ADR 0040). Device-local, never synced. Keyed by a resolved
         // audio identity (serverId, bookId) — the linked audiobook's ABS id when present, else the
         // Storyteller readaloud id — so a Readaloud and its audiobook share one record. serverId
         // FK-cascades. `speed` is nullable; a row exists only when the user overrides the 1x default.
@@ -680,7 +680,7 @@ abstract class RiffleDatabase : RoomDatabase() {
             }
         }
 
-        // Durable local audiobook listen position (ADR 0029): book-absolute seconds + the wall-clock
+        // Durable local audiobook listen position (ADR 0035): book-absolute seconds + the wall-clock
         // it was last set at, keyed by (serverId, itemId) with serverId FK-cascade — mirrors
         // `reading_positions`. Server-synced (a last-update-wins peer against ABS), unlike the
         // device-local readaloud resume table.
@@ -702,7 +702,7 @@ abstract class RiffleDatabase : RoomDatabase() {
             }
         }
 
-        // Durable offline-reconcile marker (ADR 0030): add `lastSyncedAt` to both position tables.
+        // Durable offline-reconcile marker (ADR 0036): add `lastSyncedAt` to both position tables.
         // A row is dirty when localUpdatedAt > lastSyncedAt; the sweep worker pushes dirty rows when
         // online. Default 0 ⇒ every existing row is dirty once and reconciled GET-before-PATCH (safe).
         val MIGRATION_33_34 = object : Migration(33, 34) {
@@ -744,7 +744,7 @@ abstract class RiffleDatabase : RoomDatabase() {
         }
 
         // Audiobook bookmarks (a COLLECTION of titled book-absolute positions per item, unlike the
-        // single-value audiobook_positions). Dirty-tracking + soft-delete mirror ADR 0030. serverId
+        // single-value audiobook_positions). Dirty-tracking + soft-delete mirror ADR 0036. serverId
         // FK-cascades; indexed by serverId and (serverId, itemId) for per-item lookups.
         val MIGRATION_34_35 = object : Migration(34, 35) {
             override fun migrate(db: SupportSQLiteDatabase) {
@@ -773,7 +773,7 @@ abstract class RiffleDatabase : RoomDatabase() {
             }
         }
 
-        // ADR 0028: persist the streaming identity verdict on each readaloud link.
+        // ADR 0040: persist the streaming identity verdict on each readaloud link.
         val MIGRATION_38_39 = object : Migration(38, 39) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL(
@@ -800,7 +800,7 @@ abstract class RiffleDatabase : RoomDatabase() {
             }
         }
 
-        // ADR 0036: per-row dirty bit `lastSyncedAt`. A row is dirty when `updatedAt > lastSyncedAt`.
+        // ADR 0043: per-row dirty bit `lastSyncedAt`. A row is dirty when `updatedAt > lastSyncedAt`.
         // Default 0 ⇒ pre-existing rows are dirty until the first sweep stamps them — safe because the
         // W3C per-device-file format is idempotent (LWW by (uuid, updatedAt) on the receiver).
         val MIGRATION_42_43 = object : Migration(42, 43) {
@@ -879,7 +879,7 @@ abstract class RiffleDatabase : RoomDatabase() {
             }
         }
 
-        // ADR 0041 (issue #432), Task 3: Server→Source rename at the schema level. Renames
+        // ADR 0049 (issue #432), Task 3: Server→Source rename at the schema level. Renames
         // `servers` → `sources`, adding a `type` column backfilled to 'ABS' for every existing
         // row (Storyteller row extraction is #441, tracked separately — intentionally NOT done
         // here). Renames `serverId` → `sourceId` on every carrying table, and
@@ -1260,7 +1260,7 @@ abstract class RiffleDatabase : RoomDatabase() {
             }
         }
 
-        // ADR 0041 phase 5a (issue #437): LocalFiles ingestion pipeline. Adds two additive tables
+        // ADR 0049 phase 5a (issue #437): LocalFiles ingestion pipeline. Adds two additive tables
         // backing configured folders and per-file ingest records under a LocalFiles Source. No
         // existing tables are touched. Both tables FK-cascade on sources(id) so a Source removal
         // clears its folder configuration and file records; the actual library_items rows and the
@@ -1321,7 +1321,7 @@ abstract class RiffleDatabase : RoomDatabase() {
             }
         }
 
-        // Rename Storyteller Server → Storyteller Service per ADR 0041: Storyteller is a
+        // Rename Storyteller Server → Storyteller Service per ADR 0049: Storyteller is a
         // Service (a sidecar that enriches items), not a Server or Source. The row stays in
         // the `sources` table for zero-cost storage — only the enum-encoded discriminator
         // in the `serverType` column changes from "STORYTELLER" to "STORYTELLER_SERVICE".
@@ -1352,7 +1352,7 @@ abstract class RiffleDatabase : RoomDatabase() {
         }
 
         // Page count for formats where a discrete page total is meaningful — comic archives (CBZ,
-        // ADR 0042) today. Nullable; existing rows carry NULL and pick up a value on the next scan.
+        // ADR 0050) today. Nullable; existing rows carry NULL and pick up a value on the next scan.
         val MIGRATION_51_52 = object : Migration(51, 52) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("ALTER TABLE `library_items` ADD COLUMN `pageCount` INTEGER")
@@ -1537,7 +1537,7 @@ abstract class RiffleDatabase : RoomDatabase() {
             }
         }
 
-        // ADR 0043: web-source item cache freshness table. Records the last successful
+        // ADR 0052: web-source item cache freshness table. Records the last successful
         // network refetch time for a persisted item so the WebSourceItemGate can serve
         // the library_items row without hitting the network when it's within TTL, and
         // fall back to the row (regardless of age) when the network is unavailable.
@@ -1582,7 +1582,7 @@ abstract class RiffleDatabase : RoomDatabase() {
             }
         }
 
-        // ADR 0046: emphasis annotations (bold/italic/underline/strike) as a sibling of
+        // ADR 0056: emphasis annotations (bold/italic/underline/strike) as a sibling of
         // TYPE_HIGHLIGHT. New nullable column carries a comma-separated styles set for
         // TYPE_EMPHASIS rows; null (default) on every existing row and on every other type.
         val MIGRATION_56_57 = object : Migration(56, 57) {

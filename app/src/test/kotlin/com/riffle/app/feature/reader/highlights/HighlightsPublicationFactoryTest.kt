@@ -20,7 +20,7 @@ import org.readium.r2.shared.util.Url
 
 /**
  * Pure-JVM tests for [HighlightsPublicationFactory] — the synthesised [Publication] behind the
- * elided reader (ADR 0041).
+ * elided reader (ADR 0048).
  *
  * [testUrlFactory] stands in for [HighlightsPublicationFactory]'s default `Url(String)` argument:
  * `Url(String)` funnels through `android.net.Uri.parse`, which is unmocked under the stock

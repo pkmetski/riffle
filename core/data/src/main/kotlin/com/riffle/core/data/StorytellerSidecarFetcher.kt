@@ -8,7 +8,7 @@ import java.io.File
 import java.io.IOException
 
 /**
- * Fetches the Readaloud sidecar (SMIL + chapter text, ADR 0028) from the Storyteller `/synced` bundle.
+ * Fetches the Readaloud sidecar (SMIL + chapter text, ADR 0040) from the Storyteller `/synced` bundle.
  *
  * **Fast path** ([bundleApi]): streams the bundle and stops at the first audio entry — transfers only
  * the ~1 MB non-audio prefix. Works when Storyteller packs SMIL before audio (the common ordering).

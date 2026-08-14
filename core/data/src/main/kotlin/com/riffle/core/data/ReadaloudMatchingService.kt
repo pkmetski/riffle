@@ -18,7 +18,7 @@ import javax.inject.Singleton
 
 /**
  * Drives the Storyteller↔ABS auto-matcher ([ReadaloudMatcher]) and persists its verdicts, per
- * the full ADR 0021 ladder:
+ * the full ADR 0025 ladder:
  *
  *  - **Confirmed** (Tier 1/2) → one [ReadaloudLinkEntity] per ABS slot. Schema is ABS-keyed, so
  *    a readaloud matching both an ebook entry and an audiobook stub produces two rows. Each slot
@@ -139,7 +139,7 @@ open class ReadaloudMatchingService(
         // No cross-EPUB index builds are enqueued here: looping every Confirmed link on every library
         // refresh was wasteful (it re-checked all matches on each navigation). The build is now triggered
         // at the deterministic moment its prerequisite arrives — readaloud bundle download-complete — and
-        // self-healed on reader/player open via ReaderSyncFactory (ADR 0031).
+        // self-healed on reader/player open via ReaderSyncFactory (ADR 0037).
     }
 
     /**

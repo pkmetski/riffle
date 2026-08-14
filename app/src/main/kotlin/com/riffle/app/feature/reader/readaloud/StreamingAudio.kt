@@ -13,7 +13,7 @@ import androidx.media3.datasource.cache.SimpleCache
 import java.io.File
 
 /**
- * App-managed, LRU-capped on-disk cache for streamed Readaloud audio (ADR 0028, amending ADR 0024
+ * App-managed, LRU-capped on-disk cache for streamed Readaloud audio (ADR 0040, amending ADR 0028
  * for the audio tier). Lives in app-owned storage — not the OS cache dir — because [SimpleCache]
  * corrupts if the OS clears spans underneath it. The cap is a fixed internal default, not a setting.
  */

@@ -11,7 +11,7 @@ import com.riffle.core.domain.sentence.SentenceSource
  *
  * This is a pure wrap — no logic moves here. [ReadaloudSession][com.riffle.app.feature.reader.session.ReadaloudSession]
  * still consumes [ReadaloudQuoteBuilder.sentenceQuotes]/[ReadaloudQuoteBuilder.sentenceChapters]
- * directly as it does today; this class is present but unused until the swap (ADR 0039).
+ * directly as it does today; this class is present but unused until the swap (ADR 0046).
  */
 internal class SidecarSentenceSource(
     private val builder: ReadaloudQuoteBuilder,

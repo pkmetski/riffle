@@ -26,7 +26,7 @@ import org.junit.Test
  *   duplicate source rows if the user rage-taps "Add source" mid-flight or after landing on the
  *   Success state (before the screen navigates away).
  *
- * Post-ADR-0044: the VM delegates to the generic [SingletonWebSourceInstaller], passing
+ * Post-ADR-0053: the VM delegates to the generic [SingletonWebSourceInstaller], passing
  * [SourceType.CHITANKA]. The mock in these tests is stubbed on the descriptor-typed
  * `install(CHITANKA)` overload.
  */

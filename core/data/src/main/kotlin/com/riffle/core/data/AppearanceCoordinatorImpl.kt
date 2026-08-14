@@ -72,7 +72,7 @@ class AppearanceCoordinatorImpl(
 
     init {
         // Boundary-tick driver: re-arms whenever the schedule changes or Auto toggles on/off.
-        // Lifted from FormattingSession.armThemeSchedule — same algorithm, one home (ADR 0022's
+        // Lifted from FormattingSession.armThemeSchedule — same algorithm, one home (ADR 0026's
         // "Boundary crossings during an open reading session repaint live").
         scope.launch {
             formattingPreferencesStore.preferences

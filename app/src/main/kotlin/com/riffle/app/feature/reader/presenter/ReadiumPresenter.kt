@@ -208,7 +208,7 @@ internal class ReadiumPresenter(
         withContext(mainDispatcher) { nav.applyDecorations(decorations, group) }
     }
 
-    /** ADR 0046: evaluate JavaScript on the currently visible resource via Readium's fragment.
+    /** ADR 0056: evaluate JavaScript on the currently visible resource via Readium's fragment.
      *  Used to wrap emphasis annotation ranges in styled `<span>`s so bold/italic actually reflow
      *  the underlying text (overlay decorations can't do that). No-op when no fragment attached. */
     suspend fun evaluateJavascript(script: String): String? {

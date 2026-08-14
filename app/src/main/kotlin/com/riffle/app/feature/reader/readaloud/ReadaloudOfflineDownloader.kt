@@ -6,7 +6,7 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 
 /**
- * Makes a streaming-eligible Readaloud available offline by eager-fetching its ABS audio (ADR 0028).
+ * Makes a streaming-eligible Readaloud available offline by eager-fetching its ABS audio (ADR 0040).
  * A narrow seam over [ReadaloudStreamingSessionFactory] + [StreamingAudioDownloader] so the
  * book-details ViewModel stays unit-testable.
  */

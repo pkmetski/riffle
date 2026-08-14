@@ -6,7 +6,7 @@ import javax.inject.Inject
  * Resolves a figure's source `href` (as stored on [com.riffle.core.database.AnnotationEntity.imageHref]
  * / [com.riffle.core.models.EmbeddedFigure.href]) to the raw image bytes backing it, so
  * [HighlightsPublicationFactory] can serve raster figures inside the synthesised elided-reader
- * Publication (ADR 0041, Task 9).
+ * Publication (ADR 0048, Task 9).
  *
  * [href] is relative to the source book's own EPUB container — this seam exists so the factory
  * itself never needs to know how to resolve it (real container lookup on-device vs. a fixed map in

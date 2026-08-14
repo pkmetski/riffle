@@ -1,7 +1,7 @@
 package com.riffle.core.domain
 
 /**
- * Selects the applicable remote set for the open book (ADR 0019) and runs the unified
+ * Selects the applicable remote set for the open book (ADR 0023) and runs the unified
  * reconciliation [CanonicalSyncCycle] over it — the same code path for single-peer
  * (one remote), two-peer (the multi-link guard), and matched (two ABS peers) cases. This is the
  * strategy [ProgressSyncController] delegates to once it knows the book's [BookSyncState];

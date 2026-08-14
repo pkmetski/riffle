@@ -21,7 +21,7 @@ class ApplicableRemotesTest {
 
     @Test
     fun `a matched book with an ebook and audio target reconciles both ABS peers`() {
-        // Two ABS peers only — Storyteller is not a sync peer (ADR 0029). AUDIO_POSITION is reconciled
+        // Two ABS peers only — Storyteller is not a sync peer (ADR 0035). AUDIO_POSITION is reconciled
         // both ways: a cross-device listen wins inbound and moves the reader; reading writes it.
         val state = BookSyncState(
             isMatched = true,
@@ -75,7 +75,7 @@ class ApplicableRemotesTest {
     fun `an unmatched audiobook-only book syncs ABS audio only`() {
         // Opened from the audiobook player; no ebook exists. The single-peer base is the opened
         // medium, so the audiobook reconciles its own ABS audio record — symmetric with an
-        // ebook-only book's single ABS ebook peer (ADR 0029).
+        // ebook-only book's single ABS ebook peer (ADR 0035).
         val state = BookSyncState(
             isMatched = false,
             openedMedium = OpenedMedium.AUDIO,
@@ -91,7 +91,7 @@ class ApplicableRemotesTest {
     fun `a matched audiobook opened before prerequisites cache falls back to ABS audio only`() {
         // The audiobook player drives an audio-led canonical; until the Storyteller bundle and
         // cross-EPUB index land it cannot translate to the ebook, so it degrades to the single
-        // ABS audio peer, then upgrades to both ABS peers on a later cycle (ADR 0029).
+        // ABS audio peer, then upgrades to both ABS peers on a later cycle (ADR 0035).
         val state = BookSyncState(
             isMatched = true,
             openedMedium = OpenedMedium.AUDIO,

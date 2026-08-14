@@ -48,7 +48,7 @@ interface ReadaloudLinkDao {
     )
     suspend fun deleteByStorytellerBook(storytellerSourceId: String, storytellerBookId: String)
 
-    /** Persist the streaming identity verdict for an ABS item (ADR 0028). */
+    /** Persist the streaming identity verdict for an ABS item (ADR 0040). */
     @Query("UPDATE readaloud_links SET identityResult = :result WHERE absSourceId = :absSourceId AND absLibraryItemId = :absLibraryItemId")
     suspend fun updateIdentityResult(absSourceId: String, absLibraryItemId: String, result: String)
 }

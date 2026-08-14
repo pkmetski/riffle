@@ -4,7 +4,7 @@ import com.riffle.core.models.LibraryItem
 
 /**
  * A single metadata dimension the [FilteredBooksScreen] can filter the current Library by. Each
- * value on the Library Item Detail Screen that is tappable maps to one of these (ADR 0027). The
+ * value on the Library Item Detail Screen that is tappable maps to one of these (ADR 0033). The
  * match is computed client-side over the already-synced Library Items — no server filter call.
  */
 enum class FacetType {

@@ -124,7 +124,7 @@ open class ReadaloudController @Inject constructor(
     }
 
     /**
-     * Streaming counterpart of [prepare] (ADR 0028): points the service at the ABS audio source and
+     * Streaming counterpart of [prepare] (ADR 0040): points the service at the ABS audio source and
      * queues one item per segment keyed by `audioSrc`, exactly as the bundle path does — so the clip,
      * highlight, skip and chapter machinery is identical. The per-segment ABS URL + clip window are
      * restored from [streaming] in the service's session callback.
@@ -180,7 +180,7 @@ open class ReadaloudController @Inject constructor(
      * setMediaItems replaces the queue, and clearing here would kill the audiobook playback that is
      * about to start. Symmetric to AudiobookController.releaseForHandoff.
      *
-     * Keeps the [MediaController] Binder connection alive (ADR 0032) so the incoming side reconnects
+     * Keeps the [MediaController] Binder connection alive (ADR 0039) so the incoming side reconnects
      * in ~0 ms instead of paying a full [MediaController.Builder.buildAsync] round-trip each time.
      * Keeps [track] so [preWarmSeek] can still resolve a position if the user drags back.
      */
@@ -196,7 +196,7 @@ open class ReadaloudController @Inject constructor(
 
     /**
      * Pre-resolves [globalSec] to a [ReadaloudTrack.Position] during the drag gesture, so
-     * [playFromSecond] can skip the SMIL computation at commit time (ADR 0032). No-op when [track]
+     * [playFromSecond] can skip the SMIL computation at commit time (ADR 0039). No-op when [track]
      * is null (audiobook-only entry with no prior readaloud session this app lifetime).
      */
     fun preWarmSeek(globalSec: Double) {

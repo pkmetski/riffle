@@ -7,7 +7,7 @@ import com.riffle.core.domain.AudioIdentityResolver
 import javax.inject.Inject
 
 /**
- * Resolves the canonical audio-settings key (ADR 0028): if any ABS item linked to the readaloud
+ * Resolves the canonical audio-settings key (ADR 0040): if any ABS item linked to the readaloud
  * carries audio (`hasAudio`), that audiobook's id owns the settings; otherwise the Storyteller
  * readaloud id does. The cardinality is 0–1 audiobook per readaloud; the sort keeps the key stable
  * if the data is ever dirty.

@@ -190,7 +190,7 @@ fun highlightTintTemplate(): HtmlDecorationTemplate =
         """.trimIndent(),
     )
 
-/** ADR 0046: strike-through overlay style. BOXES layout means one div per line; a `::after`
+/** ADR 0056: strike-through overlay style. BOXES layout means one div per line; a `::after`
  *  pseudo-element at 50% height paints a horizontal line across the middle of the box, which
  *  coincides with the text's x-height — visually a real strikethrough. Bold/italic can't
  *  reflow via overlays (they need DOM wrapping); this is the only emphasis style beyond

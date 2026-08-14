@@ -6,7 +6,7 @@ import com.riffle.core.models.ReadaloudAudioSource
 import com.riffle.core.models.ReadaloudSourceDecision
 
 /**
- * Chooses, per book, where Readaloud audio comes from (ADR 0028). Streaming requires a linked ABS
+ * Chooses, per book, where Readaloud audio comes from (ADR 0040). Streaming requires a linked ABS
  * audiobook whose identity is verified; anything else falls back to the (always-correct) bundle.
  */
 class ReadaloudSourceDecisionTest {

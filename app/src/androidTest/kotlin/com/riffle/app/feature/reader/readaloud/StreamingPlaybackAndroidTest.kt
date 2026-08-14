@@ -23,7 +23,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 
 /**
- * Proves real streaming audio actually decodes and clocks on-device (ADR 0028): a real MP3 served
+ * Proves real streaming audio actually decodes and clocks on-device (ADR 0040): a real MP3 served
  * over the streaming data-source path (cache + clipping + scheme dispatch), played through ExoPlayer,
  * must advance the playback position. This is the on-device check that the streaming audio pipeline
  * works end-to-end — independent of the media-server.

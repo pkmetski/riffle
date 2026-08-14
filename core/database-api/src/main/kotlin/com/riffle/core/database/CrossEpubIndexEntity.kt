@@ -3,7 +3,7 @@ package com.riffle.core.database
 import androidx.room.Entity
 
 /**
- * Cached cross-EPUB character-position index for a matched readaloud book (ADR 0019).
+ * Cached cross-EPUB character-position index for a matched readaloud book (ADR 0023).
  *
  * Keyed by the two source EPUBs' checksums: a row is a hit only while both the ABS EPUB
  * and the Storyteller EPUB are byte-for-byte what the index was built from. If either

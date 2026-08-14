@@ -5,7 +5,7 @@ import androidx.room.ForeignKey
 import androidx.room.Index
 
 /**
- * Link from an ABS Library Item to its Storyteller readaloud counterpart (ADR 0021).
+ * Link from an ABS Library Item to its Storyteller readaloud counterpart (ADR 0025).
  *
  * Multiplicity rationale: an ABS book has at most one readaloud — there's one narration per
  * conceptual work. A readaloud can point at *many* ABS items though, because the same
@@ -17,7 +17,7 @@ import androidx.room.Index
  * Both source columns FK-cascade to `sources.id` so the row disappears automatically when
  * either side's Source is removed.
  *
- * `state` is forward-compat with [ADR 0021]'s Pending/Unmatched states; in this slice only
+ * `state` is forward-compat with [ADR 0025]'s Pending/Unmatched states; in this slice only
  * Confirmed rows are persisted.
  */
 @Entity(
@@ -51,7 +51,7 @@ data class ReadaloudLinkEntity(
     val userConfirmed: Boolean,
     val createdAt: Long,
     val updatedAt: Long,
-    /** Streaming identity verdict for this link (ADR 0028): VERIFIED / MISMATCH / NO_AUDIOBOOK / UNKNOWN. */
+    /** Streaming identity verdict for this link (ADR 0040): VERIFIED / MISMATCH / NO_AUDIOBOOK / UNKNOWN. */
     val identityResult: String = IDENTITY_UNKNOWN,
 ) {
     companion object {

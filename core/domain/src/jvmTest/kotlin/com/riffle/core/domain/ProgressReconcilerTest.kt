@@ -7,7 +7,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * Unit tests for the durable single-target reconcile primitive (ADR 0030). Exercised entirely over
+ * Unit tests for the durable single-target reconcile primitive (ADR 0036). Exercised entirely over
  * in-memory fakes — no Android, Room, or network — so the GET-before-PATCH / last-update-wins /
  * compare-and-clear logic is pinned in isolation.
  */

@@ -14,7 +14,7 @@ import com.riffle.core.models.W3CAnnotation
 /**
  * Owns the read-list → merge → upsert path executed on book-open and reused by the live-sync
  * poll loop when peer files exist. Extracted from [AnnotationSyncController] so the merge policy
- * (ADR 0038 tombstone sweep + stale-orphan guard) can be exercised in isolation.
+ * (ADR 0045 tombstone sweep + stale-orphan guard) can be exercised in isolation.
  */
 internal class AnnotationMergeOrchestrator(
     private val mergeService: AnnotationMergeService,
@@ -65,7 +65,7 @@ internal class AnnotationMergeOrchestrator(
                 }
             }
 
-            // ADR 0038 rule 1+2 — sweep aged tombstones and DELETE the resulting empty file.
+            // ADR 0045 rule 1+2 — sweep aged tombstones and DELETE the resulting empty file.
             // Ordering matters: compute the hypothetical post-sweep state in memory FIRST, so we
             // can attempt the DELETE before mutating Room. If the DELETE throws, Room is untouched
             // and the next sync sees the same transition and retries. Sweeping first would leave
@@ -77,7 +77,7 @@ internal class AnnotationMergeOrchestrator(
             val localById = nonPurgeable.associateBy { it.id }
             val localExisting = nonPurgeable.map { AnnotationW3CCodec.entityToW3CAnnotation(it) }
 
-            // ADR 0038 rule 3 — ignore stale orphans. Incoming rows we've never seen locally and
+            // ADR 0045 rule 3 — ignore stale orphans. Incoming rows we've never seen locally and
             // whose updatedAt is past TTL are the delayed push from a peer that missed a
             // household-wide sweep; applying them would silently resurrect long-deleted content.
             val merged = mergeService.merge(
@@ -158,7 +158,7 @@ internal class AnnotationMergeOrchestrator(
                     imageHref = w3cAnnotation.imageHref,
                     imageSvg = w3cAnnotation.imageSvg,
                     imageBytes = w3cAnnotation.imageBytes ?: existing?.imageBytes,
-                    // ADR 0046: emphasis styles round-trip via a riffle:emphasis body. A peer that
+                    // ADR 0056: emphasis styles round-trip via a riffle:emphasis body. A peer that
                     // didn't emit the styles token leaves the column null; that combined with
                     // type=TYPE_EMPHASIS is an inert row the renderer ignores.
                     emphasisStyles = w3cAnnotation.emphasisStyles ?: existing?.emphasisStyles,

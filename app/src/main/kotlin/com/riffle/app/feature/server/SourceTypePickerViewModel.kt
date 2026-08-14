@@ -14,7 +14,7 @@ import kotlinx.coroutines.flow.stateIn
 /**
  * Backs [SourceTypePickerScreen] with the set of already-installed [SourceType]s. The picker
  * screen filters cards from `WebSourceDescriptors.all`, hiding descriptor-`isSingleton` types
- * whose entry is present in [installedTypes]. Post-ADR-0044: adding a new singleton source is a
+ * whose entry is present in [installedTypes]. Post-ADR-0053: adding a new singleton source is a
  * descriptor registration; no per-source `has<X>Source` StateFlow to author here.
  *
  * A source type is a "singleton" per its `WebSourceDescriptor.isSingleton` flag — every

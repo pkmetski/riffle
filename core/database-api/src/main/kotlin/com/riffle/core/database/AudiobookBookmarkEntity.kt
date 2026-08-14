@@ -6,7 +6,7 @@ import androidx.room.Index
 
 // A user bookmark in an audiobook: a titled point (book-absolute seconds) on a library item.
 // Unlike audiobook_positions (one value per item) this is a COLLECTION per (sourceId, itemId).
-// Dirty-tracking + soft-delete mirror ADR 0030: a row is dirty when localUpdatedAt > lastSyncedAt;
+// Dirty-tracking + soft-delete mirror ADR 0036: a row is dirty when localUpdatedAt > lastSyncedAt;
 // a delete is a tombstone (deleted = 1) kept until the server delete is confirmed, then hard-removed.
 @Entity(
     tableName = "audiobook_bookmarks",

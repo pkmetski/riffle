@@ -291,7 +291,7 @@ class LibraryItemDetailViewModel @Inject constructor(
     private val _readaloudDownloadState = MutableStateFlow<DownloadState?>(null)
     val readaloudDownloadState: StateFlow<DownloadState?> = _readaloudDownloadState
 
-    // Null for a non-listenable item; otherwise the offline-download state for the ABS audiobook (ADR 0029).
+    // Null for a non-listenable item; otherwise the offline-download state for the ABS audiobook (ADR 0035).
     private val _audiobookDownloadState = MutableStateFlow<DownloadState?>(null)
     val audiobookDownloadState: StateFlow<DownloadState?> = _audiobookDownloadState
 
@@ -636,7 +636,7 @@ class LibraryItemDetailViewModel @Inject constructor(
                         readaloudAudioRepository.isAudioAvailable(it.storytellerSourceId, it.storytellerBookId)
                     } ?: false
                     _readaloudDownloadState.value = link?.let { readaloudDownloadStateFor(readaloudBundlePresent) }
-                    // Streaming prep (ADR 0028): a matched book opened in details starts fetching its sidecar
+                    // Streaming prep (ADR 0040): a matched book opened in details starts fetching its sidecar
                     // now, so it's cached by the time the user opens the reader and taps Play — unless a full
                     // bundle is already downloaded (that supersedes streaming).
                     if (link != null && !readaloudBundlePresent) {
@@ -968,7 +968,7 @@ class LibraryItemDetailViewModel @Inject constructor(
         val link = readaloudLink ?: return
         if (_readaloudDownloadState.value is DownloadState.InProgress) return
         downloadManager.start(readaloudKey(link)) { onProgress ->
-            // Streaming-eligible (ADR 0028): make offline by eager-fetching the audio (the sidecar is
+            // Streaming-eligible (ADR 0040): make offline by eager-fetching the audio (the sidecar is
             // already cached when the session is built). No 300 MB bundle. Null → not streamable → bundle.
             val streamed = readaloudOfflineDownloader.download(
                 link.storytellerSourceId, link.storytellerBookId,
@@ -985,7 +985,7 @@ class LibraryItemDetailViewModel @Inject constructor(
                 _snackbarEvents.tryEmit("Couldn't download readaloud audio")
             } else {
                 // The bundle is now present — the deterministic moment the cross-EPUB index's only
-                // un-fetchable prerequisite arrives. Schedule the build (idempotent; ADR 0031).
+                // un-fetchable prerequisite arrives. Schedule the build (idempotent; ADR 0037).
                 crossEpubIndexBuildTrigger.enqueueBuild(link)
             }
             readaloudDownloadStateFor(result is com.riffle.core.domain.AudioDownloadResult.Success)

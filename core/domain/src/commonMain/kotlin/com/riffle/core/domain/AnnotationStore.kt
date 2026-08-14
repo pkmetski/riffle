@@ -19,7 +19,7 @@ interface AnnotationStore {
     /** Live, non-deleted highlights + bookmarks across every item for a server, oldest first. */
     fun observeAnnotationsForSource(sourceId: String): Flow<List<Annotation>>
 
-    /** Live, non-deleted emphasis annotations for an ABS Library Item, oldest first (ADR 0046).
+    /** Live, non-deleted emphasis annotations for an ABS Library Item, oldest first (ADR 0056).
      *  Default = empty flow so pre-existing test fakes that don't exercise emphasis aren't forced
      *  to implement it; the production impl [com.riffle.core.data.AnnotationStoreImpl] overrides
      *  with the real query. */
@@ -147,7 +147,7 @@ interface AnnotationStore {
     ): Annotation?
 
     /**
-     * Create a `TYPE_EMPHASIS` annotation (ADR 0046). The [styles] set MUST be non-empty — an
+     * Create a `TYPE_EMPHASIS` annotation (ADR 0056). The [styles] set MUST be non-empty — an
      * empty emphasis row is not a legal state; the ViewModel garbage-collects on sheet dismiss
      * before calling into the store. Range shape mirrors [createHighlight] (CFI range + snippet +
      * before/after context) so the auto-merge and same-range-write guards can be applied

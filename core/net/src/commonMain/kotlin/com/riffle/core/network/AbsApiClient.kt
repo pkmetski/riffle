@@ -194,7 +194,7 @@ class AbsApiClient(
                     // `ebookProgress` (CFI-based, can exceed `progress`); an audiobook carries
                     // `currentTime`/`duration` with `ebookProgress` 0/absent. Surface a real
                     // (>0) `ebookProgress` and the raw audio position so callers derive one
-                    // unified fraction (ADR 0029). Do NOT fold the stored `progress` scalar in
+                    // unified fraction (ADR 0035). Do NOT fold the stored `progress` scalar in
                     // when audio position data exists — that scalar can be stale (a client once
                     // pushed it computed against the wrong duration) and folding it made the
                     // bulk pull disagree with the per-item pull, ping-ponging the library UI.
@@ -266,7 +266,7 @@ class AbsApiClient(
         fallbackLibraryId: String = "",
     ): NetworkLibraryItem {
         // Prefer a real (>0) ebook position, else the audiobook `progress`; a 0 `ebookProgress`
-        // must not shadow a real audiobook position (ADR 0029). Null when no progress record.
+        // must not shadow a real audiobook position (ADR 0035). Null when no progress record.
         val progress = userMediaProgress?.let { it.ebookProgress?.takeIf { p -> p > 0f } ?: it.progress }
         return NetworkLibraryItem(
             id = id,

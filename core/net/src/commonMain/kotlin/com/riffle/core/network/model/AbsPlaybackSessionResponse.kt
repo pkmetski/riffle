@@ -4,7 +4,7 @@ import kotlinx.serialization.Serializable
 
 /**
  * Request body for `POST /api/items/{id}/play`. Riffle direct-plays the ABS audio tracks through
- * Media3/ExoPlayer (ADR 0029); the supported MIME types let ABS decide direct-play vs transcode.
+ * Media3/ExoPlayer (ADR 0035); the supported MIME types let ABS decide direct-play vs transcode.
  */
 @Serializable
 internal data class AbsPlayRequest(

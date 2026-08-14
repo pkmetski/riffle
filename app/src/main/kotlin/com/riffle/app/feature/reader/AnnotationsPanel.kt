@@ -174,7 +174,7 @@ private fun AnnotationRow(
                 // now sits inline between the text runs in the content column (see below), matching
                 // how the book itself lays out prose around a figure.
                 RowKind.Image, RowKind.Highlight -> {
-                    // ADR 0046 §4: format-only highlight anchors (color="") represent a
+                    // ADR 0056 §4: format-only highlight anchors (color="") represent a
                     // "just-format this text" annotation. HighlightColor.fromToken("") falls
                     // back to YELLOW, which used to make these rows look like plain yellow
                     // highlights in the panel — a real user complaint. Render a hollow /

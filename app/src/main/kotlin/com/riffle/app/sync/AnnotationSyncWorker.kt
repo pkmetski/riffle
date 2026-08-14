@@ -13,7 +13,7 @@ import dagger.hilt.components.SingletonComponent
 import kotlinx.coroutines.CancellationException
 
 /**
- * Thin WorkManager shell over [AnnotationSweep] (ADR 0036). Dependencies via a Hilt EntryPoint
+ * Thin WorkManager shell over [AnnotationSweep] (ADR 0043). Dependencies via a Hilt EntryPoint
  * (no @HiltWorker / custom factory).
  *
  * Maps the sweep's [CycleOutcome] to a [Result] so WorkManager's exponential backoff actually

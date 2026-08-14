@@ -18,7 +18,7 @@ import javax.inject.Inject
 
 /**
  * ViewModel for [GutenbergBrowseScreen]. Delegates to [UnboundedBrowseViewModel] for the shared
- * facet / query / pagination / open-detail state machine (ADR 0044 Phase 5); this class only
+ * facet / query / pagination / open-detail state machine (ADR 0053 Phase 5); this class only
  * carries Gutenberg-specific tuning — the [SourceType] guard, the default rootId, the page
  * size, and the host-specific error copy.
  */

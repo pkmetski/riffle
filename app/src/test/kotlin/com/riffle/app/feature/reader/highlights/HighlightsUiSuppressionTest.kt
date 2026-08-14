@@ -8,7 +8,7 @@ import org.junit.Test
  * Pins the UI-visibility decision functions ([shouldShowReadaloudUi], [shouldShowOpenInBook])
  * that [com.riffle.app.feature.reader.EpubReaderScreen] and
  * [com.riffle.app.feature.reader.HighlightActionsPopup] consult to gate Readaloud entry points and
- * the "Open in book" row respectively (Task 9, ADR 0041).
+ * the "Open in book" row respectively (Task 9, ADR 0048).
  *
  * The chapter navigation rail is intentionally NOT gated on [ReaderSource] anymore — the elided
  * (Highlights-mode) publication has a flat one-entry-per-chapter TOC, so the rail's segment

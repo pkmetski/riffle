@@ -17,7 +17,7 @@ import kotlinx.coroutines.launch
 /**
  * Owns the per-book debounced push and the close-flush handshake. Serializes reads-then-writes
  * against the durable [AnnotationSweep] via [AnnotationLockPort] so a live push and a background
- * sweep cannot interleave on the same device file (#321, ADR 0036).
+ * sweep cannot interleave on the same device file (#321, ADR 0043).
  */
 internal class AnnotationPushCoordinator(
     private val targetProvider: () -> AnnotationSyncTarget?,
@@ -65,7 +65,7 @@ internal class AnnotationPushCoordinator(
 
         val pushed = try {
             // Hold the per-book annotation lock across the read-then-write so the durable
-            // [AnnotationSweep] cannot interleave on the same device file (#321, ADR 0036).
+            // [AnnotationSweep] cannot interleave on the same device file (#321, ADR 0043).
             locks.withAnnotationLock(sourceId, itemId) {
                 pushPendingLocked(target, sourceId, namespace, itemId)
             }
@@ -92,7 +92,7 @@ internal class AnnotationPushCoordinator(
         val now = clock()
         val cutoff = now - tombstoneTtlMs
         val beforeSweep = annotationDao.getAllForItemIncludingDeleted(sourceId, itemId)
-        // ADR 0038 rule 1+2 — preview the sweep in memory. If it would leave us empty, DELETE the
+        // ADR 0045 rule 1+2 — preview the sweep in memory. If it would leave us empty, DELETE the
         // WebDAV file BEFORE mutating Room. A failed DELETE aborts before Room changes so the
         // next attempt still sees `beforeSweep.isNotEmpty()` and retries.
         val remainingAfterSweep = beforeSweep.filter { !it.isAgedSyncedTomb(cutoff) }
@@ -106,7 +106,7 @@ internal class AnnotationPushCoordinator(
                 statusStore.report(CycleOutcome.Success(now))
                 return true
             }
-            // Preserve pre-ADR-0038 behaviour: don't touch WebDAV on a transient/cleared-data
+            // Preserve pre-ADR-0045 behaviour: don't touch WebDAV on a transient/cleared-data
             // Room-already-empty state.
             return false
         }

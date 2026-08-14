@@ -38,7 +38,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 
 /**
- * On-device regression harness for ADR 0046 §4's tombstone-on-dismiss gate: an EXISTING
+ * On-device regression harness for ADR 0056 §4's tombstone-on-dismiss gate: an EXISTING
  * empty highlight opened by tap must survive dismissal (the user un-bolded intending to keep
  * the anchor); a highlight the user JUST CREATED from a draft and left empty must tombstone
  * (the "picked ∅ with no formatting" phantom row).

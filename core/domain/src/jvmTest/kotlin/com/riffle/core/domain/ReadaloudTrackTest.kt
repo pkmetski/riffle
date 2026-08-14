@@ -78,7 +78,7 @@ class ReadaloudTrackTest {
         assertEquals(null, chapterTrack.resolveStartClip("text/c9.html", null))
     }
 
-    // A matched-ABS book renders the publisher's ABS EPUB (ADR 0026), whose chapter hrefs differ from
+    // A matched-ABS book renders the publisher's ABS EPUB (ADR 0032), whose chapter hrefs differ from
     // the Storyteller bundle the SMIL clips come from — here the rendered href ("xhtml/chapter1.xhtml")
     // shares nothing with the clips' "OEBPS/text/part0001.xhtml". But Storyteller's sentence-span ids
     // are unique within a book, and that span id is exactly what "Play from here" / the page-top probe

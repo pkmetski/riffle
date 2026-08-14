@@ -6,7 +6,7 @@ import javax.inject.Singleton
 
 /**
  * The set of (sourceId, itemId) a live surface (reader / audiobook player) is currently driving
- * (ADR 0030). The durable sweep skips these: the open book's own ~30s cycle owns its inbound
+ * (ADR 0036). The durable sweep skips these: the open book's own ~30s cycle owns its inbound
  * jumps, so the headless worker must not silently absorb a cross-device server-win into the open
  * book's row.
  */

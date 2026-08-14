@@ -311,7 +311,7 @@ class AnnotationStoreImpl(
         originFontFamily: String,
     ): Annotation {
         require(styles.isNotEmpty()) {
-            "createEmphasis requires a non-empty styles set (ADR 0046)"
+            "createEmphasis requires a non-empty styles set (ADR 0056)"
         }
         require(originFontFamily.isNotBlank()) {
             "originFontFamily must be non-blank for locally-created emphasis (issue #484)"

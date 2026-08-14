@@ -2,7 +2,7 @@ package com.riffle.core.sync
 
 /**
  * The outcome of one annotation-sync cycle (live push or sweep). The store keeps only the latest;
- * persisting across process death is rejected by ADR 0036.
+ * persisting across process death is rejected by ADR 0043.
  */
 sealed class CycleOutcome {
     /** Initial state — no cycle has run since this process started. */

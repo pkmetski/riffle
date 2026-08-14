@@ -301,7 +301,7 @@ class AnnotationSessionTest {
 
         assertEquals(emptyList<EpubReaderViewModel.HighlightRender>(), session.highlightRenders.value)
 
-        // ADR 0046 refactor: bind() observes `observeAnnotations` (union) and filters by type,
+        // ADR 0056 refactor: bind() observes `observeAnnotations` (union) and filters by type,
         // not `observeHighlights`. Publish through the union flow the production code reads.
         store.allAnnotations.value = listOf(anno)
         // With UnconfinedTestDispatcher the collect lambda runs eagerly
@@ -428,7 +428,7 @@ class AnnotationSessionTest {
     }
 
     /**
-     * ADR 0046 §4: deleting a format-only annotation from the annotations panel must cascade
+     * ADR 0056 §4: deleting a format-only annotation from the annotations panel must cascade
      * to its sibling emphasis rows at the same CFI. Without the cascade, the DOM injector
      * keeps reading the orphan emphasis from `emphasisPool` and the underlying text stays
      * bold/italic — "delete doesn't refresh the book". Reverting the cascade in
@@ -459,7 +459,7 @@ class AnnotationSessionTest {
     }
 
     /**
-     * ADR 0046 §4: dismissing the sheet on a highlight the user JUST CREATED from a draft and
+     * ADR 0056 §4: dismissing the sheet on a highlight the user JUST CREATED from a draft and
      * then left completely empty (no colour, no note, no emphasis) tombstones the phantom row.
      * `justCreatedFromDraft=true` gates the check.
      */
@@ -486,7 +486,7 @@ class AnnotationSessionTest {
     }
 
     /**
-     * ADR 0046 §4: an EXISTING annotation the user opened (not created from a draft) must
+     * ADR 0056 §4: an EXISTING annotation the user opened (not created from a draft) must
      * survive dismissal even when the user edited it down to empty (e.g. tapped Bold to
      * remove the last formatting). Reverting the `justCreatedFromDraft` gate would delete
      * the anchor and produce the reported "annotation is not permanently saved" — the user
@@ -541,7 +541,7 @@ class AnnotationSessionTest {
     }
 
     /**
-     * ADR 0046 §4: [AnnotationSession.annotations] is the internal source of truth used by
+     * ADR 0056 §4: [AnnotationSession.annotations] is the internal source of truth used by
      * VM logic (toggleEmphasisStyle, note-clear merge, figure absorption) — it MUST include
      * format-only highlight anchors (color="" + blank note) so those code paths can look up
      * the anchor row by id. The phantom-yellow-dot filter for the panel lives at the render

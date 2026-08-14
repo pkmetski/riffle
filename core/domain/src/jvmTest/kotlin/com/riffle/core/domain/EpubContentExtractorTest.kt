@@ -84,7 +84,7 @@ class EpubContentExtractorTest {
 
     @Test
     fun `extract from file reads only the text entries, ignoring large audio`() {
-        // A synced bundle (ADR 0023) carries hundreds of MB of audio. The file overload must read
+        // A synced bundle (ADR 0027) carries hundreds of MB of audio. The file overload must read
         // chapters straight from the zip without materialising every entry (which would OOM), and
         // produce the same result as the in-memory extract of the text-only EPUB.
         val expected = EpubContentExtractor.extract(buildEpub())!!

@@ -1,7 +1,7 @@
 package com.riffle.core.domain
 
 // The Downloads screen is inherently cross-Source (it lists every file on disk), so it keys by
-// (sourceId, itemId) rather than itemId alone (ADR 0025).
+// (sourceId, itemId) rather than itemId alone (ADR 0031).
 interface DownloadsRepository {
     fun getDownloadedArtifacts(): List<StoredItemArtifact>
     fun getCachedArtifacts(): List<StoredItemArtifact>
