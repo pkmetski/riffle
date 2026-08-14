@@ -121,6 +121,13 @@ internal fun seriesDetailRoute(libraryId: String, seriesId: String, seriesName: 
 internal fun collectionDetailRoute(libraryId: String, collectionId: String, collectionName: String): String =
     "collection_detail/$libraryId/${URLEncoder.encode(collectionId, "UTF-8")}/${URLEncoder.encode(collectionName, "UTF-8")}"
 
+internal fun librarySectionRoute(
+    libraryId: String,
+    libraryName: String,
+    sectionType: LibrarySectionType,
+): String =
+    "library_section/${URLEncoder.encode(libraryId, "UTF-8")}/${URLEncoder.encode(libraryName, "UTF-8")}/${sectionType.name}"
+
 internal fun libraryItemDetailRoute(item: LibraryItem): String {
     val encodedId = URLEncoder.encode(item.id, "UTF-8")
     val encodedSourceId = URLEncoder.encode(item.sourceId, "UTF-8")
@@ -335,12 +342,16 @@ fun MainScreen(
                     navArgument("libraryName") { type = NavType.StringType },
                 ),
             ) { backStackEntry ->
+                val libraryId = backStackEntry.arguments?.getString("libraryId") ?: ""
                 val libraryName = backStackEntry.arguments?.getString("libraryName")
                     ?.let { URLDecoder.decode(it, "UTF-8") } ?: ""
                 com.riffle.app.feature.source.chitanka.ChitankaBrowseScreen(
                     libraryName = libraryName,
                     windowSizeClass = windowSizeClass,
                     onOpenDrawer = { scope.launch { drawerState.open() } },
+                    onSectionSeeMore = { sectionType ->
+                        navController.navigate(librarySectionRoute(libraryId, libraryName, sectionType))
+                    },
                     onOpenDetail = { itemId ->
                         val encodedId = URLEncoder.encode(itemId, "UTF-8")
                         navController.navigate("library_item_detail/$encodedId")
@@ -372,12 +383,16 @@ fun MainScreen(
                     navArgument("libraryName") { type = NavType.StringType },
                 ),
             ) { backStackEntry ->
+                val libraryId = backStackEntry.arguments?.getString("libraryId") ?: ""
                 val libraryName = backStackEntry.arguments?.getString("libraryName")
                     ?.let { URLDecoder.decode(it, "UTF-8") } ?: ""
                 com.riffle.app.feature.source.gutenberg.GutenbergBrowseScreen(
                     libraryName = libraryName,
                     windowSizeClass = windowSizeClass,
                     onOpenDrawer = { scope.launch { drawerState.open() } },
+                    onSectionSeeMore = { sectionType ->
+                        navController.navigate(librarySectionRoute(libraryId, libraryName, sectionType))
+                    },
                     onOpenDetail = { itemId ->
                         val encodedId = URLEncoder.encode(itemId, "UTF-8")
                         navController.navigate("library_item_detail/$encodedId")
@@ -647,8 +662,7 @@ fun MainScreen(
                         navController.navigate("annotation_search/$libraryId?query=$encodedQuery")
                     },
                     onSectionSeeMore = { sectionType ->
-                        val encodedName = URLEncoder.encode(libraryName, "UTF-8")
-                        navController.navigate("library_section/$libraryId/$encodedName/${sectionType.name}")
+                        navController.navigate(librarySectionRoute(libraryId, libraryName, sectionType))
                     },
                     onAnnotatedBookClick = { sourceId, itemId ->
                         navController.navigate(annotationsBookClickRoute(sourceId, itemId))
@@ -699,16 +713,8 @@ fun MainScreen(
                 val sectionType = LibrarySectionType.valueOf(
                     backStackEntry.arguments?.getString("sectionType") ?: LibrarySectionType.IN_PROGRESS.name
                 )
-                // Reuse the library-items ViewModel from the parent back stack entry instead of
-                // creating a new one. A fresh LibraryItemsViewModel triggers a full library
-                // refresh concurrently with the main screen's refresh, which can cause data races
-                // in shared singletons (e.g. StorytellerReadaloudSyncer).
-                val parentEntry = remember(backStackEntry) {
-                    navController.getBackStackEntry(LIBRARY_ITEMS)
-                }
                 LibrarySectionScreen(
                     sectionType = sectionType,
-                    viewModel = hiltViewModel<LibraryItemsViewModel>(parentEntry),
                     onItemSelected = { item ->
                         navController.navigate(libraryItemDetailRoute(item))
                     },

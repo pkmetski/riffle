@@ -50,12 +50,13 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.riffle.app.feature.annotations.AnnotationsListScreen
 import com.riffle.app.feature.annotations.AnnotationsListViewModel
-import com.riffle.app.feature.library.HomeTabContent
 import com.riffle.app.feature.library.LocalCoversAreSquare
-import com.riffle.app.feature.library.ToReadTabContent
+import com.riffle.app.feature.library.LibrarySectionType
 import com.riffle.app.feature.source.websource.UnboundedCatalogGrid
 import com.riffle.app.feature.source.websource.UnboundedCoverGridZoomProvider
 import com.riffle.app.feature.source.websource.WebSourceCatalogItemCard
+import com.riffle.app.feature.source.websource.WebSourceHomeTab
+import com.riffle.app.feature.source.websource.WebSourceToReadTab
 import com.riffle.app.ui.TabletContentWidthContainer
 import com.riffle.core.catalog.chitanka.ChitankaCatalog
 
@@ -68,8 +69,8 @@ import com.riffle.core.catalog.chitanka.ChitankaCatalog
  * Tabs match [LibraryItemsScreen]'s bar exactly (same icons, same order, icon-only):
  *
  * - **Home** (default) — Room-backed shelves (In Progress / Recently Added / Finished /
- *   Continue Series), fed by [ChitankaLibraryViewModel] and rendered with the same
- *   `HomeTabContent` composable ABS libraries use. Empty until the user has engaged.
+ *   Continue Series), fed by `WebSourceLibraryViewModel` and rendered with the same
+ *   Home Tab content ABS libraries use. Empty until the user has engaged.
  * - **Annotations** — the standard [AnnotationsListScreen], scoped to this library.
  * - **Library** — Chitanka's unbounded catalogue via [ChitankaBrowseViewModel]: search,
  *   server-side facet chips, cover grid. Tapping a card upserts the item into
@@ -81,6 +82,7 @@ fun ChitankaBrowseScreen(
     libraryName: String,
     windowSizeClass: WindowSizeClass,
     onOpenDrawer: () -> Unit,
+    onSectionSeeMore: (LibrarySectionType) -> Unit,
     onOpenDetail: (itemId: String) -> Unit,
     onAnnotatedBookClick: (sourceId: String, itemId: String) -> Unit,
     viewModel: ChitankaBrowseViewModel = hiltViewModel(),
@@ -182,11 +184,12 @@ fun ChitankaBrowseScreen(
             ) { onCoverScaleChange ->
                 CompositionLocalProvider(LocalCoversAreSquare provides isAudioRoot) {
                     when (selectedTab) {
-                        TAB_HOME -> ChitankaHomeTab(
+                        TAB_HOME -> WebSourceHomeTab(
                             onOpenDetail = onOpenDetail,
+                            onSectionSeeMore = onSectionSeeMore,
                             onCoverScaleChange = onCoverScaleChange,
                         )
-                        TAB_TO_READ -> ChitankaToReadTab(
+                        TAB_TO_READ -> WebSourceToReadTab(
                             onOpenDetail = onOpenDetail,
                             onCoverScaleChange = onCoverScaleChange,
                         )
@@ -315,49 +318,6 @@ private fun LibraryTabContent(
             }
         }
     }
-}
-
-@Composable
-private fun ChitankaHomeTab(
-    onOpenDetail: (itemId: String) -> Unit,
-    onCoverScaleChange: (Float) -> Unit,
-    viewModel: ChitankaLibraryViewModel = hiltViewModel(),
-) {
-    val inProgress by viewModel.inProgress.collectAsState()
-    val recentlyAdded by viewModel.recentlyAdded.collectAsState()
-    val finished by viewModel.finished.collectAsState()
-    val continueSeries by viewModel.continueSeries.collectAsState()
-
-    // Chitanka doesn't authenticate; cover images are public URLs — pass empty token.
-    // "See more" navigates to library_section, which is ABS-shaped and wouldn't work here;
-    // wire it to a no-op for now so users just scroll the horizontal shelf.
-    HomeTabContent(
-        inProgress = inProgress,
-        continueSeries = continueSeries,
-        recentlyAdded = recentlyAdded,
-        finished = finished,
-        isLoading = false,
-        token = "",
-        onItemSelected = { item -> onOpenDetail(item.id) },
-        onSectionSeeMore = {},
-        onCoverScaleChange = onCoverScaleChange,
-    )
-}
-
-@Composable
-private fun ChitankaToReadTab(
-    onOpenDetail: (itemId: String) -> Unit,
-    onCoverScaleChange: (Float) -> Unit,
-    viewModel: ChitankaLibraryViewModel = hiltViewModel(),
-) {
-    val items by viewModel.toReadItems.collectAsState()
-    ToReadTabContent(
-        items = items,
-        isLoading = false,
-        token = "",
-        onItemSelected = { item -> onOpenDetail(item.id) },
-        onCoverScaleChange = onCoverScaleChange,
-    )
 }
 
 @Composable

@@ -16,6 +16,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -30,12 +31,10 @@ fun LibrarySectionScreen(
     sectionType: LibrarySectionType,
     onItemSelected: (LibraryItem) -> Unit,
     onNavigateBack: () -> Unit,
-    viewModel: LibraryItemsViewModel = hiltViewModel(),
+    viewModel: LibrarySectionViewModel = hiltViewModel(),
 ) {
-    val projection by viewModel.projection.collectAsState()
-    val inProgress = projection.inProgress
-    val finished = projection.finished
-    val recentlyAdded = projection.recentlyAdded
+    val items by viewModel.items.collectAsState()
+    val coversAreSquare by viewModel.coversAreSquare.collectAsState()
 
     Scaffold(
         topBar = {
@@ -49,29 +48,13 @@ fun LibrarySectionScreen(
             )
         },
     ) { padding ->
-        when (sectionType) {
-            LibrarySectionType.IN_PROGRESS -> BookGrid(
-                items = inProgress,
+        CompositionLocalProvider(LocalCoversAreSquare provides coversAreSquare) {
+            BookGrid(
+                items = items,
                 token = viewModel.authToken,
                 onItemSelected = onItemSelected,
                 contentPadding = padding,
             )
-            LibrarySectionType.FINISHED -> BookGrid(
-                items = finished,
-                token = viewModel.authToken,
-                onItemSelected = onItemSelected,
-                contentPadding = padding,
-            )
-            LibrarySectionType.RECENTLY_ADDED -> BookGrid(
-                items = recentlyAdded,
-                token = viewModel.authToken,
-                onItemSelected = onItemSelected,
-                contentPadding = padding,
-            )
-            LibrarySectionType.CONTINUE_SERIES -> {
-                // Continue Series has no drill-down screen; the section passes onSeeMore = null
-                // so this branch is never reached from normal navigation.
-            }
         }
     }
 }

@@ -52,11 +52,12 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.riffle.app.feature.annotations.AnnotationsListScreen
 import com.riffle.app.feature.annotations.AnnotationsListViewModel
-import com.riffle.app.feature.library.HomeTabContent
-import com.riffle.app.feature.library.ToReadTabContent
+import com.riffle.app.feature.library.LibrarySectionType
 import com.riffle.app.feature.source.websource.UnboundedCatalogGrid
 import com.riffle.app.feature.source.websource.UnboundedCoverGridZoomProvider
 import com.riffle.app.feature.source.websource.WebSourceCatalogItemCard
+import com.riffle.app.feature.source.websource.WebSourceHomeTab
+import com.riffle.app.feature.source.websource.WebSourceToReadTab
 import com.riffle.app.ui.TabletContentWidthContainer
 import com.riffle.core.catalog.CatalogFacet
 
@@ -73,6 +74,7 @@ fun GutenbergBrowseScreen(
     libraryName: String,
     windowSizeClass: WindowSizeClass,
     onOpenDrawer: () -> Unit,
+    onSectionSeeMore: (LibrarySectionType) -> Unit,
     onOpenDetail: (itemId: String) -> Unit,
     onAnnotatedBookClick: (sourceId: String, itemId: String) -> Unit,
     viewModel: GutenbergBrowseViewModel = hiltViewModel(),
@@ -162,11 +164,12 @@ fun GutenbergBrowseScreen(
                 onPersistScaleChange = viewModel::setCoverGridScale,
             ) { onCoverScaleChange ->
                 when (selectedTab) {
-                    TAB_HOME -> GutenbergHomeTab(
+                    TAB_HOME -> WebSourceHomeTab(
                         onOpenDetail = onOpenDetail,
+                        onSectionSeeMore = onSectionSeeMore,
                         onCoverScaleChange = onCoverScaleChange,
                     )
-                    TAB_TO_READ -> GutenbergToReadTab(
+                    TAB_TO_READ -> WebSourceToReadTab(
                         onOpenDetail = onOpenDetail,
                         onCoverScaleChange = onCoverScaleChange,
                     )
@@ -360,46 +363,6 @@ internal fun gutenbergTopicFacets(facets: List<CatalogFacet>): List<CatalogFacet
     facets.filterNot { it.key.startsWith(GUTENBERG_LANGUAGE_FACET_PREFIX) }
 
 private const val GUTENBERG_LANGUAGE_FACET_PREFIX = "language:"
-
-@Composable
-private fun GutenbergHomeTab(
-    onOpenDetail: (itemId: String) -> Unit,
-    onCoverScaleChange: (Float) -> Unit,
-    viewModel: GutenbergLibraryViewModel = hiltViewModel(),
-) {
-    val inProgress by viewModel.inProgress.collectAsState()
-    val recentlyAdded by viewModel.recentlyAdded.collectAsState()
-    val finished by viewModel.finished.collectAsState()
-    val continueSeries by viewModel.continueSeries.collectAsState()
-
-    HomeTabContent(
-        inProgress = inProgress,
-        continueSeries = continueSeries,
-        recentlyAdded = recentlyAdded,
-        finished = finished,
-        isLoading = false,
-        token = "",
-        onItemSelected = { item -> onOpenDetail(item.id) },
-        onSectionSeeMore = {},
-        onCoverScaleChange = onCoverScaleChange,
-    )
-}
-
-@Composable
-private fun GutenbergToReadTab(
-    onOpenDetail: (itemId: String) -> Unit,
-    onCoverScaleChange: (Float) -> Unit,
-    viewModel: GutenbergLibraryViewModel = hiltViewModel(),
-) {
-    val items by viewModel.toReadItems.collectAsState()
-    ToReadTabContent(
-        items = items,
-        isLoading = false,
-        token = "",
-        onItemSelected = { item -> onOpenDetail(item.id) },
-        onCoverScaleChange = onCoverScaleChange,
-    )
-}
 
 @Composable
 private fun GutenbergAnnotationsTab(
