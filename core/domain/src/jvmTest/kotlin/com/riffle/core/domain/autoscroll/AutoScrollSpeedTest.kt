@@ -60,7 +60,7 @@ class AutoScrollSpeedTest {
     }
 
     @Test
-    fun `constants match ADR 0053`() {
+    fun `constants match ADR 0037`() {
         assertEquals(80, AutoScrollSpeed.MIN_WPM)
         assertEquals(600, AutoScrollSpeed.MAX_WPM)
         assertEquals(10, AutoScrollSpeed.STEP_WPM)
