@@ -455,6 +455,33 @@ class ChitankaBrowseViewModelTest {
         }
 
     @Test
+    fun `catalog items include local reading progress from Room`() = runTest(dispatcher) {
+        val startedId = "text/started"
+        val notStartedId = "text/not-started"
+        val roomItems = MutableStateFlow(
+            listOf(
+                libraryItem(startedId, progress = 0.42f),
+                libraryItem(notStartedId, progress = 0f),
+            ),
+        )
+
+        val catalog = mockk<Catalog>(relaxed = true)
+        coEvery { catalog.browse(rootId = any(), page = 0, pageSize = any(), facet = any()) } returns
+            listOf(item(startedId), item(notStartedId), item("text/unseen"))
+
+        val vm = makeVm(
+            catalog = catalog,
+            libraryObserver = libraryObserverWithAllBooks(roomItems),
+        )
+        advanceUntilIdle()
+
+        val byId = vm.filteredItems.value.associateBy { it.id }
+        assertEquals(0.42f, byId.getValue(startedId).readingProgress ?: -1f)
+        assertEquals(0f, byId.getValue(notStartedId).readingProgress ?: -1f)
+        assertEquals(null, byId.getValue("text/unseen").readingProgress)
+    }
+
+    @Test
     fun `toggleNotStartedFilter off restores all catalog items`() = runTest(dispatcher) {
         val startedId = "text/444"
         val roomItems = MutableStateFlow(listOf(libraryItem(startedId, progress = 0.8f)))

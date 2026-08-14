@@ -138,15 +138,21 @@ abstract class UnboundedBrowseViewModel(
         persistNotStartedFilter(active)
     }
 
-    // IDs of Room-backed items that have been started (readingProgress > 0). Items absent from
-    // Room have no progress and are treated as not-started by the filter.
-    private val startedItemIds: StateFlow<Set<String>> = libraryObserver.observeAllBooks(rootId)
-        .map { books -> books.filter { it.readingProgress > 0f }.mapTo(HashSet()) { it.id } }
-        .stateIn(viewModelScope, SharingStarted.Eagerly, emptySet())
+    // Local progress for Room-backed web-source items. Items absent from Room have no progress
+    // and are treated as not-started by the filter.
+    private val localReadingProgressByItemId: StateFlow<Map<String, Float>> =
+        libraryObserver.observeAllBooks(rootId)
+            .map { books -> books.associate { it.id to it.readingProgress } }
+            .stateIn(viewModelScope, SharingStarted.Eagerly, emptyMap())
 
     val filteredItems: StateFlow<List<CatalogItem>> =
-        combine(_items, startedItemIds, _notStartedFilterActive) { catalog, started, active ->
-            if (active) catalog.filter { it.id !in started } else catalog
+        combine(_items, localReadingProgressByItemId, _notStartedFilterActive) { catalog, progressById, active ->
+            catalog
+                .map { item ->
+                    val localProgress = progressById[item.id]
+                    if (localProgress == null) item else item.copy(readingProgress = localProgress)
+                }
+                .filter { item -> !active || (item.readingProgress ?: 0f) <= 0f }
         }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     private val _isLoading = MutableStateFlow(false)
