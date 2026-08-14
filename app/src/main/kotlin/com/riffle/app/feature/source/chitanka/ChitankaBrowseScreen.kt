@@ -1,10 +1,8 @@
 package com.riffle.app.feature.source.chitanka
 
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -12,7 +10,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
@@ -48,13 +45,9 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
-import coil.compose.AsyncImage
 import com.riffle.app.feature.annotations.AnnotationsListScreen
 import com.riffle.app.feature.annotations.AnnotationsListViewModel
 import com.riffle.app.feature.library.HomeTabContent
@@ -62,9 +55,8 @@ import com.riffle.app.feature.library.LocalCoversAreSquare
 import com.riffle.app.feature.library.ToReadTabContent
 import com.riffle.app.feature.source.websource.UnboundedCatalogGrid
 import com.riffle.app.feature.source.websource.UnboundedCoverGridZoomProvider
-import com.riffle.app.ui.DefaultCoverPlaceholder
+import com.riffle.app.feature.source.websource.WebSourceCatalogItemCard
 import com.riffle.app.ui.TabletContentWidthContainer
-import com.riffle.core.catalog.CatalogItem
 import com.riffle.core.catalog.chitanka.ChitankaCatalog
 
 /**
@@ -313,7 +305,7 @@ private fun LibraryTabContent(
                         itemKey = { it.id },
                         coverCellSizeMultiplier = if (isAudioRoot) 4f / 3f else 1f,
                     ) { item ->
-                        CatalogItemCard(
+                        WebSourceCatalogItemCard(
                             item = item,
                             isAudio = isAudioRoot,
                             onClick = { viewModel.openDetail(item) },
@@ -379,49 +371,4 @@ private fun ChitankaAnnotationsTab(
         token = viewModel.authToken,
         onBookClick = onAnnotatedBookClick,
     )
-}
-
-@Composable
-private fun CatalogItemCard(
-    item: CatalogItem,
-    isAudio: Boolean,
-    onClick: () -> Unit,
-) {
-    Column(
-        modifier = Modifier.clickable(onClick = onClick),
-        verticalArrangement = Arrangement.spacedBy(4.dp),
-    ) {
-        val ratio = if (isAudio) 1f else (2f / 3f)
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .aspectRatio(ratio)
-                .clip(RoundedCornerShape(8.dp)),
-        ) {
-            DefaultCoverPlaceholder(isAudiobook = isAudio)
-            if (!item.coverUrl.isNullOrBlank()) {
-                AsyncImage(
-                    model = item.coverUrl,
-                    contentDescription = null,
-                    modifier = Modifier.fillMaxSize(),
-                )
-            }
-        }
-        Text(
-            item.title,
-            style = MaterialTheme.typography.bodySmall,
-            fontWeight = FontWeight.Medium,
-            maxLines = 2,
-            overflow = TextOverflow.Ellipsis,
-        )
-        if (item.author.isNotBlank()) {
-            Text(
-                item.author,
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-        }
-    }
 }
