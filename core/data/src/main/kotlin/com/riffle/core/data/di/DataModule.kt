@@ -29,6 +29,10 @@ annotation class LibraryVisibilityPreferencesDataStore
 
 @Qualifier
 @Retention(AnnotationRetention.BINARY)
+annotation class LibraryFilterPreferencesDataStore
+
+@Qualifier
+@Retention(AnnotationRetention.BINARY)
 annotation class LocalToReadDataStore
 
 @Qualifier

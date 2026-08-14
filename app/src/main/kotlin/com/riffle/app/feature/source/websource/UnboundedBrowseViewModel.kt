@@ -11,6 +11,7 @@ import com.riffle.core.catalog.FacetSelection
 import com.riffle.core.data.websource.WebSourceItemGate
 import com.riffle.core.data.websource.WebSourceLibraryItemUpserter
 import com.riffle.core.domain.CoverGridDensityStore
+import com.riffle.core.domain.LibraryFilterPreferencesStore
 import com.riffle.core.domain.LibraryObserver
 import com.riffle.core.domain.SourceRepository
 import com.riffle.core.models.SourceType
@@ -26,6 +27,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -68,6 +70,7 @@ abstract class UnboundedBrowseViewModel(
     private val libraryItemUpserter: WebSourceLibraryItemUpserter,
     private val webSourceItemGate: WebSourceItemGate,
     private val coverGridDensityStore: CoverGridDensityStore,
+    private val libraryFilterPreferencesStore: LibraryFilterPreferencesStore,
     private val libraryObserver: LibraryObserver,
     private val sourceType: SourceType,
     defaultRootId: String,
@@ -121,6 +124,7 @@ abstract class UnboundedBrowseViewModel(
 
     private val _selectedFacet = MutableStateFlow<String?>(savedStateHandle["facetKey"])
     val selectedFacet: StateFlow<String?> = _selectedFacet.asStateFlow()
+    private var libraryFilterSourceId: String? = null
 
     private val _items = MutableStateFlow<List<CatalogItem>>(emptyList())
     val items: StateFlow<List<CatalogItem>> = _items.asStateFlow()
@@ -129,7 +133,9 @@ abstract class UnboundedBrowseViewModel(
     val notStartedFilterActive: StateFlow<Boolean> = _notStartedFilterActive.asStateFlow()
 
     fun toggleNotStartedFilter() {
-        _notStartedFilterActive.value = !_notStartedFilterActive.value
+        val active = !_notStartedFilterActive.value
+        _notStartedFilterActive.value = active
+        persistNotStartedFilter(active)
     }
 
     // IDs of Room-backed items that have been started (readingProgress > 0). Items absent from
@@ -175,8 +181,18 @@ abstract class UnboundedBrowseViewModel(
     private var loadMoreJob: Job? = null
 
     init {
-        viewModelScope.launch { loadFacets() }
-        refresh()
+        viewModelScope.launch {
+            val source = sourceRepository.getActive()?.takeIf { it.type == sourceType }
+            if (source != null) {
+                libraryFilterSourceId = source.id
+                val prefs = libraryFilterPreferencesStore.preferences(source.id, rootId).first()
+                _selectedFacet.value = prefs.selectedFacetKey
+                savedStateHandle["facetKey"] = prefs.selectedFacetKey
+                _notStartedFilterActive.value = prefs.notStartedFilterActive
+            }
+            loadFacets()
+            refresh()
+        }
     }
 
     private suspend fun activeCatalog() =
@@ -192,10 +208,25 @@ abstract class UnboundedBrowseViewModel(
     fun selectFacet(key: String?) {
         _selectedFacet.value = key
         savedStateHandle["facetKey"] = key
+        persistSelectedFacet(key)
         facetDebounceJob?.cancel()
         facetDebounceJob = viewModelScope.launch {
             delay(facetDebounceMs)
             refresh()
+        }
+    }
+
+    private fun persistSelectedFacet(key: String?) {
+        val sourceId = libraryFilterSourceId ?: return
+        viewModelScope.launch {
+            libraryFilterPreferencesStore.setSelectedFacetKey(sourceId, rootId, key)
+        }
+    }
+
+    private fun persistNotStartedFilter(active: Boolean) {
+        val sourceId = libraryFilterSourceId ?: return
+        viewModelScope.launch {
+            libraryFilterPreferencesStore.setNotStartedFilterActive(sourceId, rootId, active)
         }
     }
 

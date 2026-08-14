@@ -10,6 +10,8 @@ import com.riffle.core.models.EbookFormat
 import com.riffle.core.domain.EpubDownloadResult
 import com.riffle.core.domain.EpubOpenResult
 import com.riffle.core.domain.EpubRepository
+import com.riffle.core.domain.LibraryFilterPreferences
+import com.riffle.core.domain.LibraryFilterPreferencesStore
 import com.riffle.core.models.Library
 import com.riffle.core.models.LibraryItem
 import com.riffle.core.domain.BundleAudiobookSource
@@ -33,6 +35,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.resetMain
@@ -150,10 +153,60 @@ class LibraryItemsViewModelTest {
         override suspend fun getSourceVersion(sourceId: String): String? = null
     }
 
+    private fun fakeActiveSourceRepo(sourceId: String = "src-1"): SourceRepository = object : SourceRepository {
+        private val source = Source(
+            id = sourceId,
+            url = SourceUrl.parse("https://example.com")!!,
+            isActive = true,
+            insecureConnectionAllowed = false,
+            username = "",
+            type = com.riffle.core.models.SourceType.ABS,
+        )
+
+        override fun observeAll(): Flow<List<Source>> = MutableStateFlow(listOf(source))
+        override suspend fun getActive(): Source? = source
+        override suspend fun commit(pending: com.riffle.core.domain.PendingSource, hiddenLibraryIds: Set<String>) =
+            throw UnsupportedOperationException()
+        override suspend fun setActive(sourceId: String) {}
+        override suspend fun remove(sourceId: String) {}
+        override suspend fun getSourceVersion(sourceId: String): String? = null
+    }
+
     private fun fakeTokenStorage(): TokenStorage = object : TokenStorage {
         override suspend fun saveToken(sourceId: String, token: String) {}
         override suspend fun getToken(sourceId: String): String? = null
         override suspend fun deleteToken(sourceId: String) {}
+    }
+
+    private class FakeLibraryFilterPreferencesStore(
+        initial: Map<Pair<String, String>, LibraryFilterPreferences> = emptyMap(),
+    ) : LibraryFilterPreferencesStore {
+        val state = MutableStateFlow(initial)
+        val notStartedWrites = mutableListOf<Triple<String, String, Boolean>>()
+        val sortWrites = mutableListOf<Triple<String, String, String?>>()
+
+        override fun preferences(sourceId: String, libraryId: String): Flow<LibraryFilterPreferences> =
+            state.map { it[sourceId to libraryId] ?: LibraryFilterPreferences() }
+
+        override suspend fun setSelectedFacetKey(sourceId: String, libraryId: String, key: String?) {
+            state.update {
+                it + ((sourceId to libraryId) to ((it[sourceId to libraryId] ?: LibraryFilterPreferences()).copy(selectedFacetKey = key)))
+            }
+        }
+
+        override suspend fun setNotStartedFilterActive(sourceId: String, libraryId: String, active: Boolean) {
+            notStartedWrites += Triple(sourceId, libraryId, active)
+            state.update {
+                it + ((sourceId to libraryId) to ((it[sourceId to libraryId] ?: LibraryFilterPreferences()).copy(notStartedFilterActive = active)))
+            }
+        }
+
+        override suspend fun setSortModeName(sourceId: String, libraryId: String, name: String?) {
+            sortWrites += Triple(sourceId, libraryId, name)
+            state.update {
+                it + ((sourceId to libraryId) to ((it[sourceId to libraryId] ?: LibraryFilterPreferences()).copy(sortModeName = name)))
+            }
+        }
     }
 
     private fun fakeEpubRepo(): EpubRepository = object : EpubRepository {
@@ -235,6 +288,7 @@ class LibraryItemsViewModelTest {
             override val scale = kotlinx.coroutines.flow.flowOf(1f)
             override suspend fun setScale(value: Float) {}
         },
+        libraryFilterPreferencesStore: LibraryFilterPreferencesStore = FakeLibraryFilterPreferencesStore(),
         annotationStore: com.riffle.core.domain.AnnotationStore = fakeAnnotationStore(),
         audiobookBookmarkStore: com.riffle.core.domain.AudiobookBookmarkStore = fakeAudiobookBookmarkStore(),
         annotationsLibraryRepository: com.riffle.core.data.AnnotationsLibraryRepository = fakeAnnotationsLibraryRepository(),
@@ -261,6 +315,7 @@ class LibraryItemsViewModelTest {
         playlistsRepository = NoopPlaylistsRepository(),
         readaloudLinkRepository = readaloudLinkRepository,
         coverGridDensityStore = coverGridDensityStore,
+        libraryFilterPreferencesStore = libraryFilterPreferencesStore,
         annotationStore = annotationStore,
         audiobookBookmarkStore = audiobookBookmarkStore,
         annotationsLibraryRepository = annotationsLibraryRepository,
@@ -1168,6 +1223,45 @@ class LibraryItemsViewModelTest {
         vm.toggleNotStartedFilter()
         testDispatcher.scheduler.advanceUntilIdle()
         assertEquals(listOf(audiobook), vm.projection.value.allBooks)
+    }
+
+    @Test
+    fun `library filter preferences restore not-started and sort for the active source library`() = runTest {
+        val store = FakeLibraryFilterPreferencesStore(
+            mapOf(
+                ("src-1" to "lib-1") to LibraryFilterPreferences(
+                    notStartedFilterActive = true,
+                    sortModeName = LibrarySortMode.TITLE_DESC.name,
+                ),
+            ),
+        )
+        val vm = makeViewModel(
+            sourceRepository = fakeActiveSourceRepo("src-1"),
+            libraryFilterPreferencesStore = store,
+        )
+        backgroundScope.launch { vm.notStartedFilterActive.collect {} }
+        backgroundScope.launch { vm.librarySortMode.collect {} }
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertTrue(vm.notStartedFilterActive.value)
+        assertEquals(LibrarySortMode.TITLE_DESC, vm.librarySortMode.value)
+    }
+
+    @Test
+    fun `library filter changes persist under active source and library id`() = runTest {
+        val store = FakeLibraryFilterPreferencesStore()
+        val vm = makeViewModel(
+            sourceRepository = fakeActiveSourceRepo("src-1"),
+            libraryFilterPreferencesStore = store,
+        )
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        vm.toggleNotStartedFilter()
+        vm.setLibrarySortMode(LibrarySortMode.AUTHOR_ASC)
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(listOf(Triple("src-1", "lib-1", true)), store.notStartedWrites)
+        assertEquals(listOf(Triple("src-1", "lib-1", LibrarySortMode.AUTHOR_ASC.name)), store.sortWrites)
     }
 
     // --- searchQuery persistence (issue #60) ---

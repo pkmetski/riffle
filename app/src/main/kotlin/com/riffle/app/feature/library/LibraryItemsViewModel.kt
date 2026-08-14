@@ -12,6 +12,7 @@ import com.riffle.core.models.Collection
 import com.riffle.core.domain.ConnectivityObserver
 import com.riffle.core.domain.collectReconnects
 import com.riffle.core.models.LibraryItem
+import com.riffle.core.domain.LibraryFilterPreferencesStore
 import com.riffle.core.domain.LibraryItemOfflineAvailability
 import com.riffle.core.domain.LibraryRefreshResult
 import com.riffle.core.domain.LibraryObserver
@@ -66,6 +67,7 @@ class LibraryItemsViewModel @Inject constructor(
     private val playlistsRepository: PlaylistsRepository,
     private val readaloudLinkRepository: com.riffle.core.domain.ReadaloudLinkRepository,
     private val coverGridDensityStore: com.riffle.core.domain.CoverGridDensityStore,
+    private val libraryFilterPreferencesStore: LibraryFilterPreferencesStore,
     private val annotationStore: AnnotationStore,
     private val audiobookBookmarkStore: AudiobookBookmarkStore,
     private val annotationsLibraryRepository: AnnotationsLibraryRepository,
@@ -213,9 +215,12 @@ class LibraryItemsViewModel @Inject constructor(
 
     private val _notStartedFilterActive = MutableStateFlow(false)
     val notStartedFilterActive: StateFlow<Boolean> = _notStartedFilterActive.asStateFlow()
+    private var libraryFilterSourceId: String? = null
 
     fun toggleNotStartedFilter() {
-        _notStartedFilterActive.value = !_notStartedFilterActive.value
+        val active = !_notStartedFilterActive.value
+        _notStartedFilterActive.value = active
+        persistNotStartedFilter(active)
     }
 
     private val _librarySortMode = MutableStateFlow(LibrarySortMode.ADDED_DESC)
@@ -223,6 +228,7 @@ class LibraryItemsViewModel @Inject constructor(
 
     fun setLibrarySortMode(mode: LibrarySortMode) {
         _librarySortMode.value = mode
+        persistLibrarySortMode(mode)
     }
 
     // Share the VM's already-stateIn'd source flows with the engine so we don't open a second
@@ -317,9 +323,15 @@ class LibraryItemsViewModel @Inject constructor(
 
     init {
         viewModelScope.launch {
-            val server = sourceRepository.getActive()
-            if (server != null) {
-                authToken = tokenStorage.getToken(server.id) ?: ""
+            val source = sourceRepository.getActive()
+            if (source != null) {
+                authToken = tokenStorage.getToken(source.id) ?: ""
+                libraryFilterSourceId = source.id
+                val prefs = libraryFilterPreferencesStore.preferences(source.id, libraryId).first()
+                _notStartedFilterActive.value = prefs.notStartedFilterActive
+                _librarySortMode.value = prefs.sortModeName
+                    ?.let { runCatching { LibrarySortMode.valueOf(it) }.getOrNull() }
+                    ?: LibrarySortMode.ADDED_DESC
             }
             val refreshJob = launchRefresh()
             // Unblock the UI as soon as we have something meaningful to show:
@@ -363,6 +375,20 @@ class LibraryItemsViewModel @Inject constructor(
                         }
                     }
                 }
+        }
+    }
+
+    private fun persistNotStartedFilter(active: Boolean) {
+        val sourceId = libraryFilterSourceId ?: return
+        viewModelScope.launch {
+            libraryFilterPreferencesStore.setNotStartedFilterActive(sourceId, libraryId, active)
+        }
+    }
+
+    private fun persistLibrarySortMode(mode: LibrarySortMode) {
+        val sourceId = libraryFilterSourceId ?: return
+        viewModelScope.launch {
+            libraryFilterPreferencesStore.setSortModeName(sourceId, libraryId, mode.name)
         }
     }
 

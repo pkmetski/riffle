@@ -5,9 +5,12 @@ import com.riffle.core.catalog.BookFormat
 import com.riffle.core.catalog.Catalog
 import com.riffle.core.catalog.CatalogItem
 import com.riffle.core.catalog.CatalogRegistry
+import com.riffle.core.catalog.FacetSelection
 import com.riffle.core.catalog.chitanka.ChitankaCatalog
 import com.riffle.core.data.websource.WebSourceLibraryItemUpserter
 import com.riffle.core.domain.CoverGridDensityStore
+import com.riffle.core.domain.LibraryFilterPreferences
+import com.riffle.core.domain.LibraryFilterPreferencesStore
 import com.riffle.app.testing.FakeLibraryObserver
 import com.riffle.core.domain.LibraryObserver
 import com.riffle.core.models.LibraryItem
@@ -25,6 +28,8 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
@@ -68,6 +73,7 @@ class ChitankaBrowseViewModelTest {
         upserter: WebSourceLibraryItemUpserter = mockk(relaxed = true),
         sourceRepo: SourceRepository = fakeSourceRepo(chitankaSource),
         coverGridDensityStore: CoverGridDensityStore = fakeCoverGridDensityStore(),
+        libraryFilterPreferencesStore: LibraryFilterPreferencesStore = FakeLibraryFilterPreferencesStore(),
         libraryObserver: LibraryObserver = emptyLibraryObserver(),
         catalog: Catalog = mockk<Catalog>(relaxed = true).also {
             // Relaxed mocks return a stub CatalogItem instead of null for `getItem`, which breaks
@@ -95,6 +101,7 @@ class ChitankaBrowseViewModelTest {
             upserter,
             gate,
             coverGridDensityStore,
+            libraryFilterPreferencesStore,
             libraryObserver,
         )
     }
@@ -159,6 +166,7 @@ class ChitankaBrowseViewModelTest {
             mockk<WebSourceLibraryItemUpserter>(relaxed = true),
             gate,
             fakeCoverGridDensityStore(),
+            FakeLibraryFilterPreferencesStore(),
             emptyLibraryObserver(),
         )
         advanceUntilIdle()
@@ -191,6 +199,7 @@ class ChitankaBrowseViewModelTest {
             mockk<WebSourceLibraryItemUpserter>(relaxed = true),
             gate,
             fakeCoverGridDensityStore(),
+            FakeLibraryFilterPreferencesStore(),
             emptyLibraryObserver(),
         )
         advanceUntilIdle()
@@ -223,6 +232,7 @@ class ChitankaBrowseViewModelTest {
             upserter,
             gate,
             fakeCoverGridDensityStore(),
+            FakeLibraryFilterPreferencesStore(),
             emptyLibraryObserver(),
         )
         advanceUntilIdle()
@@ -467,6 +477,63 @@ class ChitankaBrowseViewModelTest {
         assertEquals(2, vm.filteredItems.value.size)
     }
 
+    @Test
+    fun `remembered filters are scoped separately for Chitanka and Gramofonche roots`() =
+        runTest(dispatcher) {
+            val store = FakeLibraryFilterPreferencesStore(
+                mapOf(
+                    ("chit-1" to ChitankaCatalog.ROOT_BOOKS) to LibraryFilterPreferences(
+                        selectedFacetKey = "genre:fantasy",
+                        notStartedFilterActive = true,
+                    ),
+                    ("chit-1" to ChitankaCatalog.ROOT_AUDIOBOOKS) to LibraryFilterPreferences(
+                        selectedFacetKey = "genre:audio",
+                        notStartedFilterActive = false,
+                    ),
+                ),
+            )
+            val catalog = mockk<Catalog>(relaxed = true)
+            coEvery { catalog.browse(rootId = any(), page = 0, pageSize = any(), facet = any()) } returns emptyList()
+
+            val vm = makeVm(
+                rootId = ChitankaCatalog.ROOT_AUDIOBOOKS,
+                catalog = catalog,
+                libraryFilterPreferencesStore = store,
+            )
+            advanceUntilIdle()
+
+            assertEquals("genre:audio", vm.selectedFacet.value)
+            assertFalse(vm.notStartedFilterActive.value)
+            coVerify {
+                catalog.browse(
+                    rootId = ChitankaCatalog.ROOT_AUDIOBOOKS,
+                    page = 0,
+                    pageSize = any(),
+                    facet = FacetSelection("genre:audio"),
+                )
+            }
+        }
+
+    @Test
+    fun `selectFacet and not-started changes persist for the active source library`() =
+        runTest(dispatcher) {
+            val store = FakeLibraryFilterPreferencesStore()
+            val vm = makeVm(libraryFilterPreferencesStore = store)
+            advanceUntilIdle()
+
+            vm.selectFacet("genre:history")
+            vm.toggleNotStartedFilter()
+            advanceUntilIdle()
+
+            assertEquals(
+                LibraryFilterPreferences(
+                    selectedFacetKey = "genre:history",
+                    notStartedFilterActive = true,
+                ),
+                store.state.value["chit-1" to ChitankaCatalog.ROOT_BOOKS],
+            )
+        }
+
     // ---- filter helpers ----------------------------------------------------------
 
     private fun libraryItem(id: String, progress: Float) = LibraryItem(
@@ -485,4 +552,31 @@ class ChitankaBrowseViewModelTest {
 
     private fun libraryObserverWithAllBooks(allBooks: Flow<List<LibraryItem>>): LibraryObserver =
         FakeLibraryObserver(allBooksFlow = allBooks)
+
+    private class FakeLibraryFilterPreferencesStore(
+        initial: Map<Pair<String, String>, LibraryFilterPreferences> = emptyMap(),
+    ) : LibraryFilterPreferencesStore {
+        val state = MutableStateFlow(initial)
+
+        override fun preferences(sourceId: String, libraryId: String): Flow<LibraryFilterPreferences> =
+            state.map { it[sourceId to libraryId] ?: LibraryFilterPreferences() }
+
+        override suspend fun setSelectedFacetKey(sourceId: String, libraryId: String, key: String?) {
+            state.update {
+                it + ((sourceId to libraryId) to ((it[sourceId to libraryId] ?: LibraryFilterPreferences()).copy(selectedFacetKey = key)))
+            }
+        }
+
+        override suspend fun setNotStartedFilterActive(sourceId: String, libraryId: String, active: Boolean) {
+            state.update {
+                it + ((sourceId to libraryId) to ((it[sourceId to libraryId] ?: LibraryFilterPreferences()).copy(notStartedFilterActive = active)))
+            }
+        }
+
+        override suspend fun setSortModeName(sourceId: String, libraryId: String, name: String?) {
+            state.update {
+                it + ((sourceId to libraryId) to ((it[sourceId to libraryId] ?: LibraryFilterPreferences()).copy(sortModeName = name)))
+            }
+        }
+    }
 }
