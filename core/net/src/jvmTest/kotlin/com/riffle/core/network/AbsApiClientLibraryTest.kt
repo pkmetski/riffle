@@ -62,6 +62,24 @@ class AbsApiClientLibraryTest {
     }
 
     @Test
+    fun `getLibraries preserves upload folder ids`() = runTest {
+        server.enqueue(
+            MockResponse()
+                .setResponseCode(200)
+                .setBody(
+                    """{"libraries":[{"id":"lib-1","name":"Books","mediaType":"book","folders":[{"id":"folder-1","fullPath":"/books"}]}]}""",
+                )
+                .addHeader("Content-Type", "application/json")
+        )
+
+        val result = client.getLibraries(server.url("/").toString().trimEnd('/'), "token", false)
+        val library = (result as NetworkResult.Success).value.single()
+
+        assertEquals("folder-1", library.folders.single().id)
+        assertEquals("/books", library.folders.single().fullPath)
+    }
+
+    @Test
     fun `getLibraries sends Authorization Bearer header and calls correct path`() = runTest {
         server.enqueue(
             MockResponse()
@@ -198,6 +216,47 @@ class AbsApiClientLibraryTest {
         val result = client.getLibraryItems(server.url("/").toString().trimEnd('/'), "lib-1", "token", false)
         val success = result as NetworkResult.Success
         assertEquals(1708369906982L, success.value[0].addedAt)
+    }
+
+    @Test
+    fun `getRecentlyAddedLibraryItems requests newest items first`() = runTest {
+        server.enqueue(
+            MockResponse()
+                .setResponseCode(200)
+                .setBody("{\"results\":[]}")
+                .addHeader("Content-Type", "application/json")
+        )
+
+        client.getRecentlyAddedLibraryItems(
+            server.url("/").toString().trimEnd('/'),
+            "lib-1",
+            limit = 10,
+            token = "tok",
+            insecureAllowed = false,
+        )
+
+        val request = server.takeRequest()
+        assertTrue(request.path.orEmpty().startsWith("/api/libraries/lib-1/items?limit=10&sort=random&_riffle_refresh="))
+        assertEquals("no-cache, no-store", request.getHeader("Cache-Control"))
+        assertEquals("Bearer tok", request.getHeader("Authorization"))
+    }
+
+    @Test
+    fun `scanLibrary posts to the selected library`() = runTest {
+        server.enqueue(MockResponse().setResponseCode(200))
+
+        val result = client.scanLibrary(
+            server.url("/").toString().trimEnd('/'),
+            "lib-1",
+            "tok",
+            false,
+        )
+
+        assertTrue(result is NetworkResult.Success)
+        val request = server.takeRequest()
+        assertEquals("POST", request.method)
+        assertEquals("/api/libraries/lib-1/scan?force=1", request.path)
+        assertEquals("Bearer tok", request.getHeader("Authorization"))
     }
 
     @Test

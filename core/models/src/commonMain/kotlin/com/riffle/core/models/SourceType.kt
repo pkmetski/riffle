@@ -14,5 +14,12 @@ enum class SourceType(
     LOCAL_FILES,
     CHITANKA(isUnboundedCatalog = true),
     GUTENBERG(isUnboundedCatalog = true),
-    KOMGA,
+    KOMGA;
+
+    /** True for Sources whose items originate on the web rather than from a configured library. */
+    val isWebSource: Boolean
+        get() = when (this) {
+            CHITANKA, GUTENBERG -> true
+            ABS, LOCAL_FILES, KOMGA -> false
+        }
 }

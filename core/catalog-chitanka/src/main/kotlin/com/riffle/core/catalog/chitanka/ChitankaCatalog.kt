@@ -488,6 +488,12 @@ class ChitankaCatalog(
         return trackIno
     }
 
+    override suspend fun <T> withTrackStream(
+        itemId: String,
+        trackIno: String,
+        block: suspend (CatalogFileStream) -> T,
+    ): T = withBytesWith429Retry(trackIno, itemId, block)
+
     override suspend fun openAudiobook(itemId: String, deviceLabel: String): CatalogAudiobookStream? {
         val (root, detail) = resolveItem(itemId) ?: return null
         if (root != ROOT_AUDIOBOOKS) return null

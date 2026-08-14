@@ -13,6 +13,39 @@ data class NetworkUserMediaProgress(
 )
 
 interface AbsLibraryApi {
+    suspend fun uploadBook(
+        baseUrl: String,
+        libraryId: String,
+        metadata: NetworkUploadMetadata,
+        files: List<NetworkUploadPart>,
+        token: String,
+        insecureAllowed: Boolean,
+    ): NetworkResult<Unit> = throw UnsupportedOperationException("uploadBook not implemented")
+
+    suspend fun updateItemMedia(
+        baseUrl: String,
+        itemId: String,
+        metadata: NetworkAbsMetadataUpdate,
+        token: String,
+        insecureAllowed: Boolean,
+    ): NetworkResult<Unit> = throw UnsupportedOperationException("updateItemMedia not implemented")
+
+    suspend fun updateItemChapters(
+        baseUrl: String,
+        itemId: String,
+        chapters: List<NetworkAbsChapterUpdate>,
+        token: String,
+        insecureAllowed: Boolean,
+    ): NetworkResult<Unit> = throw UnsupportedOperationException("updateItemChapters not implemented")
+
+    suspend fun uploadItemCoverFromUrl(
+        baseUrl: String,
+        itemId: String,
+        url: String,
+        token: String,
+        insecureAllowed: Boolean,
+    ): NetworkResult<Unit> = throw UnsupportedOperationException("uploadItemCoverFromUrl not implemented")
+
     suspend fun getUserProgress(
         baseUrl: String,
         token: String,
@@ -31,6 +64,24 @@ interface AbsLibraryApi {
         token: String,
         insecureAllowed: Boolean,
     ): NetworkResult<List<NetworkLibraryItem>>
+
+    /** Returns the newest items first, for recovering IDs after an asynchronous upload. */
+    suspend fun getRecentlyAddedLibraryItems(
+        baseUrl: String,
+        libraryId: String,
+        limit: Int,
+        token: String,
+        insecureAllowed: Boolean,
+    ): NetworkResult<List<NetworkLibraryItem>> =
+        getLibraryItems(baseUrl, libraryId, token, insecureAllowed)
+
+    /** Starts ABS's background watcher/scan after files have been moved into the library folder. */
+    suspend fun scanLibrary(
+        baseUrl: String,
+        libraryId: String,
+        token: String,
+        insecureAllowed: Boolean,
+    ): NetworkResult<Unit> = NetworkResult.Success(Unit)
 
     /**
      * `GET /api/libraries/:libraryId/search?q=`. Returns the `book` group of ABS's grouped

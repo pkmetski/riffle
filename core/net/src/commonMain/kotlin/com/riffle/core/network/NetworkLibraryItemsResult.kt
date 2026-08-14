@@ -22,6 +22,9 @@ data class NetworkLibraryItem(
     val updatedAt: Long? = null,
     val isbn: String? = null,
     val asin: String? = null,
+    /** ABS's stable on-disk item path, when the endpoint includes it. */
+    val path: String? = null,
+    val relPath: String? = null,
 ) {
     val isSupported: Boolean get() = ebookFormat != EbookFormat.Unsupported
 }

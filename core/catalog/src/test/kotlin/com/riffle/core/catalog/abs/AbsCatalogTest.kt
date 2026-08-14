@@ -1,7 +1,15 @@
 package com.riffle.core.catalog.abs
 
 import com.riffle.core.catalog.AudiobookMediaCapability
+import com.riffle.core.catalog.BookImportCapability
 import com.riffle.core.catalog.BookFormat
+import com.riffle.core.catalog.CatalogFileStream
+import com.riffle.core.catalog.CatalogImportFile
+import com.riffle.core.catalog.CatalogImportChapter
+import com.riffle.core.catalog.CatalogImportMetadata
+import com.riffle.core.catalog.CatalogImportRequest
+import com.riffle.core.catalog.CatalogImportResult
+import com.riffle.core.catalog.CatalogImportPhase
 import com.riffle.core.catalog.CatalogFileHandle
 import com.riffle.core.catalog.CollectionsCapability
 import com.riffle.core.catalog.DownloadsCapability
@@ -27,12 +35,15 @@ import com.riffle.core.network.AbsPlaybackApi
 import com.riffle.core.network.AbsServerInfoApi
 import com.riffle.core.network.AbsSessionApi
 import com.riffle.core.network.NetworkAbsAudioTrack
+import com.riffle.core.network.NetworkAbsChapterUpdate
+import com.riffle.core.network.NetworkAbsMetadataUpdate
 import com.riffle.core.network.NetworkAbsBookmark
 import com.riffle.core.network.NetworkAudiobookProgressPayload
 import com.riffle.core.network.NetworkAudioTrack
 import com.riffle.core.network.NetworkCollection
 import com.riffle.core.network.NetworkEbookProgressPayload
 import com.riffle.core.network.NetworkLibrary
+import com.riffle.core.network.NetworkLibraryFolder
 import com.riffle.core.network.NetworkLibraryItem
 import com.riffle.core.network.NetworkListeningStats
 import com.riffle.core.network.NetworkPlaybackSession
@@ -42,7 +53,12 @@ import com.riffle.core.network.NetworkSeries
 import com.riffle.core.network.NetworkSeriesItem
 import com.riffle.core.network.NetworkServerProgress
 import com.riffle.core.network.NetworkUserMediaProgress
+import com.riffle.core.network.NetworkUploadMetadata
+import com.riffle.core.network.NetworkUploadPart
 import kotlinx.coroutines.test.runTest
+import io.ktor.utils.io.readRemaining
+import io.ktor.utils.io.core.readBytes
+import java.io.ByteArrayInputStream
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
@@ -111,15 +127,346 @@ class AbsCatalogTest {
         assertTrue(catalog.has<ReadaloudCapability>())
         assertTrue(catalog.has<ToReadListCapability>())
         assertTrue(catalog.has<ReadCapability>())
+        assertTrue(catalog.has<BookImportCapability>())
     }
 
     // endregion
+
+    @Test fun `importBook forwards metadata and ordered source files`() = runTest {
+        val sourceBytes = "epub".encodeToByteArray()
+        val result = catalog.importBook(
+            CatalogImportRequest(
+                libraryId = "lib-a",
+                folderId = "folder-a",
+                metadata = CatalogImportMetadata(title = "A title", author = "An author"),
+                files = listOf(
+                    CatalogImportFile(
+                        fileName = "01.epub",
+                        mimeType = "application/epub+zip",
+                        withStream = { block ->
+                            block(object : CatalogFileStream {
+                                override val contentLength = sourceBytes.size.toLong()
+                                override fun byteStream() = ByteArrayInputStream(sourceBytes)
+                                override fun close() = Unit
+                            })
+                        },
+                    ),
+                ),
+            ),
+        )
+
+        assertTrue(result is com.riffle.core.catalog.CatalogImportResult.Uploaded)
+        assertEquals("lib-a", libraryApi.lastUploadLibraryId)
+        assertEquals("folder-a", libraryApi.lastUploadMetadata?.folderId)
+        assertEquals("A title", libraryApi.lastUploadMetadata?.title)
+        assertEquals("01.epub", libraryApi.lastUploadFiles.single().fileName)
+        assertEquals(sourceBytes.toList(), libraryApi.lastUploadBytes.single())
+    }
+
+    @Test fun `importBook uploads audiobook files as separate ABS uploads`() = runTest {
+        libraryApi.libraryItems["lib-a"] = listOf(
+            item("created", title = "A title", author = "An author", addedAt = clock.now + 1),
+        )
+        libraryApi.singleItems["created"] = item("created", title = "A title", author = "An author")
+
+        val result = catalog.importBook(
+            CatalogImportRequest(
+                libraryId = "lib-a",
+                folderId = "folder-a",
+                metadata = CatalogImportMetadata(title = "A title", author = "An author"),
+                files = listOf("01.mp3", "02.mp3").map { fileName ->
+                    CatalogImportFile(
+                        fileName = fileName,
+                        mimeType = "audio/mpeg",
+                        withStream = { block ->
+                            block(object : CatalogFileStream {
+                                override val contentLength = 1L
+                                override fun byteStream() = ByteArrayInputStream(byteArrayOf(1))
+                                override fun close() = Unit
+                            })
+                        },
+                    )
+                },
+            ),
+        )
+
+        assertTrue(result is CatalogImportResult.Uploaded)
+        assertEquals(listOf(listOf("01.mp3"), listOf("02.mp3")), libraryApi.uploadCalls)
+    }
+
+    @Test fun `importBook reconciles an existing item outside the newest ten`() = runTest {
+        libraryApi.libraryItems["lib-a"] = (1..10).map { index ->
+            item("new-$index", title = "New $index", author = "Other", addedAt = clock.now - index)
+        } + item("existing", title = "A title", author = "An author", addedAt = clock.now - 100)
+        libraryApi.singleItems["existing"] = item("existing", title = "A title", author = "An author")
+
+        val result = catalog.importBook(
+            CatalogImportRequest(
+                libraryId = "lib-a",
+                folderId = "folder-a",
+                metadata = CatalogImportMetadata(title = "A title", author = "An author"),
+                files = listOf(
+                    CatalogImportFile(
+                        fileName = "book.epub",
+                        mimeType = "application/epub+zip",
+                        withStream = { block ->
+                            block(object : CatalogFileStream {
+                                override val contentLength = 1L
+                                override fun byteStream() = ByteArrayInputStream(byteArrayOf(1))
+                                override fun close() = Unit
+                            })
+                        },
+                    ),
+                ),
+            ),
+        )
+
+        assertEquals("existing", (result as CatalogImportResult.Uploaded).destinationItemId)
+        assertEquals(1_000, libraryApi.lastRecentlyAddedLimit)
+    }
+
+    @Test fun `importBook reconciles existing ABS folder when embedded metadata differs`() = runTest {
+        libraryApi.libraryItems["lib-a"] = listOf(
+            item(
+                "existing",
+                title = "A title :embedded tag",
+                author = "Anauthor",
+                addedAt = clock.now - 100,
+            ).copy(path = "/books/An author/A title"),
+        )
+        libraryApi.singleItems["existing"] = item("existing", title = "A title", author = "An author")
+
+        val result = catalog.importBook(
+            CatalogImportRequest(
+                libraryId = "lib-a",
+                folderId = "folder-a",
+                metadata = CatalogImportMetadata(title = "A title", author = "An author"),
+                files = listOf(
+                    CatalogImportFile(
+                        fileName = "book.epub",
+                        mimeType = "application/epub+zip",
+                        withStream = { block ->
+                            block(object : CatalogFileStream {
+                                override val contentLength = 1L
+                                override fun byteStream() = ByteArrayInputStream(byteArrayOf(1))
+                                override fun close() = Unit
+                            })
+                        },
+                    ),
+                ),
+            ),
+        )
+
+        assertEquals("existing", (result as CatalogImportResult.Uploaded).destinationItemId)
+    }
+
+    @Test fun `importBook reconciles ABS folder when author spacing differs`() = runTest {
+        libraryApi.libraryItems["lib-a"] = listOf(
+            item(
+                "existing",
+                title = "A title :embedded tag",
+                author = "Anauthor",
+                addedAt = clock.now - 100,
+            ).copy(path = "/books/An author/A title"),
+        )
+
+        val result = catalog.importBook(
+            CatalogImportRequest(
+                libraryId = "lib-a",
+                folderId = "folder-a",
+                metadata = CatalogImportMetadata(title = "A title", author = "AnAuthor"),
+                files = listOf(
+                    CatalogImportFile(
+                        fileName = "book.epub",
+                        mimeType = "application/epub+zip",
+                        withStream = { block ->
+                            block(object : CatalogFileStream {
+                                override val contentLength = 1L
+                                override fun byteStream() = ByteArrayInputStream(byteArrayOf(1))
+                                override fun close() = Unit
+                            })
+                        },
+                    ),
+                ),
+            ),
+        )
+
+        assertEquals("existing", (result as CatalogImportResult.Uploaded).destinationItemId)
+    }
+
+    @Test fun `importBook reconciles ABS folder when source title has an audio tag suffix`() = runTest {
+        libraryApi.libraryItems["lib-a"] = listOf(
+            item(
+                "existing",
+                title = "A title",
+                author = "An author",
+                addedAt = clock.now - 100,
+            ).copy(path = "/books/An author/A title"),
+        )
+
+        val result = catalog.importBook(
+            CatalogImportRequest(
+                libraryId = "lib-a",
+                folderId = "folder-a",
+                metadata = CatalogImportMetadata(
+                    title = "A title :An author :radio",
+                    author = "An author",
+                ),
+                files = listOf(
+                    CatalogImportFile(
+                        fileName = "book.mp3",
+                        mimeType = "audio/mpeg",
+                        withStream = { block ->
+                            block(object : CatalogFileStream {
+                                override val contentLength = 1L
+                                override fun byteStream() = ByteArrayInputStream(byteArrayOf(1))
+                                override fun close() = Unit
+                            })
+                        },
+                    ),
+                ),
+            ),
+        )
+
+        assertEquals("existing", (result as CatalogImportResult.Uploaded).destinationItemId)
+    }
+
+    @Test fun `importBook reconciles clean ABS title folder against tagged source title`() = runTest {
+        libraryApi.libraryItems["lib-a"] = listOf(
+            item("existing", title = "Clean title", author = "An author")
+                .copy(path = "/books/An author/Clean title"),
+        )
+
+        val result = catalog.importBook(
+            CatalogImportRequest(
+                libraryId = "lib-a",
+                folderId = "folder-a",
+                metadata = CatalogImportMetadata(
+                    title = "Clean title :embedded :radio",
+                    author = "An author",
+                ),
+                files = listOf(
+                    CatalogImportFile(
+                        fileName = "book.mp3",
+                        mimeType = "audio/mpeg",
+                        withStream = { block ->
+                            block(object : CatalogFileStream {
+                                override val contentLength = 1L
+                                override fun byteStream() = ByteArrayInputStream(byteArrayOf(1))
+                                override fun close() = Unit
+                            })
+                        },
+                    ),
+                ),
+            ),
+        )
+
+        assertEquals("existing", (result as CatalogImportResult.Uploaded).destinationItemId)
+    }
+
+    @Test fun `importBook reconciles and enriches the created item`() = runTest {
+        // ABS can have the new item in the selected library listing before its search index catches up.
+        libraryApi.libraryItems["lib-a"] = listOf(
+            item("created", title = "Scanner title", author = "Scanner author", addedAt = clock.now + 1),
+        )
+        libraryApi.singleItems["created"] = item("created", title = "A title", author = "An author").copy(
+            description = "scanner summary",
+            publishedYear = "2020",
+        )
+        val phases = mutableListOf<CatalogImportPhase>()
+
+        val result = catalog.importBook(
+            CatalogImportRequest(
+                libraryId = "lib-a",
+                folderId = "folder-a",
+                metadata = CatalogImportMetadata(
+                    title = "A title",
+                    author = "An author",
+                    description = "A description",
+                    publishedYear = "1984",
+                    series = "A series",
+                    seriesSequence = "2",
+                    coverUrl = "https://example.com/cover.jpg",
+                ),
+                files = listOf(
+                    CatalogImportFile(
+                        fileName = "book.epub",
+                        mimeType = "application/epub+zip",
+                        withStream = { block ->
+                            block(object : CatalogFileStream {
+                                override val contentLength = 1L
+                                override fun byteStream() = ByteArrayInputStream(byteArrayOf(1))
+                                override fun close() = Unit
+                            })
+                        },
+                    ),
+                ),
+                chapters = listOf(CatalogImportChapter(0, 0.0, 12.5, "Chapter one")),
+                readingProgress = 0.25f,
+                ebookLocation = "epubcfi(/6/4)",
+                onProgress = { phases += it.phase },
+            ),
+        )
+
+        val uploaded = result as CatalogImportResult.Uploaded
+        assertEquals("created", uploaded.destinationItemId)
+        assertTrue(libraryApi.scanLibraryCalled)
+        assertEquals("A series", libraryApi.lastMetadataUpdate?.series?.single()?.name)
+        assertEquals("A description", libraryApi.lastMetadataUpdate?.description)
+        assertEquals("1984", libraryApi.lastMetadataUpdate?.publishedYear)
+        assertEquals(2, libraryApi.metadataUpdateCount)
+        assertEquals("created", libraryApi.lastChaptersItemId)
+        assertEquals("Chapter one", libraryApi.lastChapters?.single()?.title)
+        assertEquals("created", libraryApi.lastCoverItemId)
+        assertEquals("created", sessionApi.lastEbookPushItemId)
+        assertEquals(0.25f, sessionApi.lastEbookPushPayload?.ebookProgress)
+        assertTrue(phases.contains(CatalogImportPhase.Uploaded))
+        assertTrue(phases.contains(CatalogImportPhase.Reconciling))
+        assertTrue(phases.contains(CatalogImportPhase.Finalizing))
+    }
+
+    @Test fun `importBook preserves ebook progress when no CFI is available`() = runTest {
+        libraryApi.searchResults["A title"] = listOf(item("created", title = "A title", author = "An author"))
+
+        val result = catalog.importBook(
+            CatalogImportRequest(
+                libraryId = "lib-a",
+                folderId = "folder-a",
+                metadata = CatalogImportMetadata(title = "A title", author = "An author"),
+                files = listOf(
+                    CatalogImportFile(
+                        fileName = "book.epub",
+                        mimeType = "application/epub+zip",
+                        withStream = { block ->
+                            block(object : CatalogFileStream {
+                                override val contentLength = 1L
+                                override fun byteStream() = ByteArrayInputStream(byteArrayOf(1))
+                                override fun close() = Unit
+                            })
+                        },
+                    ),
+                ),
+                readingProgress = 0.25f,
+                ebookLocation = "",
+            ),
+        )
+
+        assertTrue(result is CatalogImportResult.Uploaded)
+        assertEquals("", sessionApi.lastEbookPushPayload?.ebookLocation)
+        assertEquals(0.25f, sessionApi.lastEbookPushPayload?.ebookProgress)
+    }
 
     // region Catalog — mandatory core
 
     @Test fun `listRoots maps libraries to CatalogRoot`() = runTest {
         libraryApi.libraries = listOf(
-            NetworkLibrary(id = "lib-a", name = "Ebooks", mediaType = "book", audiobooksOnly = false),
+            NetworkLibrary(
+                id = "lib-a",
+                name = "Ebooks",
+                mediaType = "book",
+                audiobooksOnly = false,
+                folders = listOf(NetworkLibraryFolder(id = "folder-a", fullPath = "/books")),
+            ),
             NetworkLibrary(id = "lib-b", name = "Casts", mediaType = "podcast", audiobooksOnly = false),
         )
 
@@ -130,6 +477,7 @@ class AbsCatalogTest {
         assertEquals("Ebooks", roots[0].name)
         assertEquals("book", roots[0].mediaType)
         assertEquals(false, roots[0].isUnsupported)
+        assertEquals("folder-a", roots[0].importFolderId)
         // Podcast media flagged as unsupported so UI can hide the tab.
         assertEquals(true, roots[1].isUnsupported)
     }
@@ -701,6 +1049,7 @@ class AbsCatalogTest {
         addedAt: Long? = null,
         hasAudio: Boolean = false,
         format: EbookFormat = EbookFormat.Epub,
+        path: String? = null,
     ) = NetworkLibraryItem(
         id = id,
         libraryId = "lib-a",
@@ -712,6 +1061,7 @@ class AbsCatalogTest {
         hasAudio = hasAudio,
         addedAt = addedAt,
         updatedAt = 555L,
+        path = path,
     )
 
     private fun seriesItem(id: String, title: String) = NetworkSeriesItem(
@@ -750,12 +1100,96 @@ private class FakeAbsLibraryApi : AbsLibraryApi {
     val audiobookTracks = mutableMapOf<String, List<NetworkAbsAudioTrack>>()
     val fingerprints = mutableMapOf<String, AudiobookFingerprint?>()
     var userProgress: Map<String, NetworkUserMediaProgress> = emptyMap()
+    var lastUploadLibraryId: String? = null
+    var lastUploadMetadata: NetworkUploadMetadata? = null
+    var lastUploadFiles: List<NetworkUploadPart> = emptyList()
+    var lastUploadBytes: List<List<Byte>> = emptyList()
+    val uploadCalls = mutableListOf<List<String>>()
+    var lastMetadataUpdate: NetworkAbsMetadataUpdate? = null
+    var metadataUpdateCount: Int = 0
+    var lastChaptersItemId: String? = null
+    var lastChapters: List<NetworkAbsChapterUpdate>? = null
+    var lastCoverItemId: String? = null
+    var scanLibraryCalled: Boolean = false
+    var scanLibraryCallCount: Int = 0
+    var lastRecentlyAddedLimit: Int = -1
+
+    override suspend fun uploadBook(
+        baseUrl: String,
+        libraryId: String,
+        metadata: NetworkUploadMetadata,
+        files: List<NetworkUploadPart>,
+        token: String,
+        insecureAllowed: Boolean,
+    ): NetworkResult<Unit> {
+        lastUploadLibraryId = libraryId
+        lastUploadMetadata = metadata
+        lastUploadFiles = files
+        lastUploadBytes = files.map { it.provider().readRemaining().readBytes().toList() }
+        uploadCalls += files.map { it.fileName }
+        return NetworkResult.Success(Unit)
+    }
+
+    override suspend fun updateItemMedia(
+        baseUrl: String,
+        itemId: String,
+        metadata: NetworkAbsMetadataUpdate,
+        token: String,
+        insecureAllowed: Boolean,
+    ): NetworkResult<Unit> {
+        lastMetadataUpdate = metadata
+        metadataUpdateCount++
+        return NetworkResult.Success(Unit)
+    }
+
+    override suspend fun updateItemChapters(
+        baseUrl: String,
+        itemId: String,
+        chapters: List<NetworkAbsChapterUpdate>,
+        token: String,
+        insecureAllowed: Boolean,
+    ): NetworkResult<Unit> {
+        lastChaptersItemId = itemId
+        lastChapters = chapters
+        return NetworkResult.Success(Unit)
+    }
+
+    override suspend fun uploadItemCoverFromUrl(
+        baseUrl: String,
+        itemId: String,
+        url: String,
+        token: String,
+        insecureAllowed: Boolean,
+    ): NetworkResult<Unit> {
+        lastCoverItemId = itemId
+        return NetworkResult.Success(Unit)
+    }
 
     override suspend fun getLibraries(baseUrl: String, token: String, insecureAllowed: Boolean): NetworkResult<List<NetworkLibrary>> =
         librariesResult ?: NetworkResult.Success(libraries)
 
+    override suspend fun scanLibrary(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean): NetworkResult<Unit> {
+        scanLibraryCalled = true
+        scanLibraryCallCount++
+        return NetworkResult.Success(Unit)
+    }
+
+
     override suspend fun getLibraryItems(baseUrl: String, libraryId: String, token: String, insecureAllowed: Boolean): NetworkResult<List<NetworkLibraryItem>> =
         NetworkResult.Success(libraryItems[libraryId].orEmpty())
+
+    override suspend fun getRecentlyAddedLibraryItems(
+        baseUrl: String,
+        libraryId: String,
+        limit: Int,
+        token: String,
+        insecureAllowed: Boolean,
+    ): NetworkResult<List<NetworkLibraryItem>> {
+        lastRecentlyAddedLimit = limit
+        return NetworkResult.Success(
+            libraryItems[libraryId].orEmpty().sortedByDescending { it.addedAt ?: Long.MIN_VALUE }.take(limit),
+        )
+    }
 
     override suspend fun searchLibrary(baseUrl: String, libraryId: String, query: String, limit: Int, token: String, insecureAllowed: Boolean): NetworkResult<List<NetworkLibraryItem>> {
         lastSearchLimit = limit

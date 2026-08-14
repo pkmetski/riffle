@@ -2,6 +2,7 @@ package com.riffle.core.network
 
 import com.riffle.core.models.EbookFormat
 import kotlinx.coroutines.test.runTest
+import io.ktor.utils.io.ByteReadChannel
 import okhttp3.OkHttpClient
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
@@ -65,7 +66,12 @@ class AbsApiClientCatalogEndpointsTest {
         client.searchLibrary(baseUrl(), "lib-a", "hobbit & rings", limit = 25, token = "T", insecureAllowed = false)
 
         val recorded = server.takeRequest()
-        assertEquals("/api/libraries/lib-a/search?q=hobbit+%26+rings&limit=25", recorded.path)
+        assertTrue(
+            recorded.path.orEmpty().matches(
+                Regex("/api/libraries/lib-a/search\\?q=hobbit\\+%26\\+rings&limit=25&sort=random&_riffle_refresh=-?\\d+"),
+            ),
+        )
+        assertEquals("no-cache, no-store", recorded.getHeader("Cache-Control"))
         assertEquals("Bearer T", recorded.getHeader("Authorization"))
     }
 
@@ -140,6 +146,110 @@ class AbsApiClientCatalogEndpointsTest {
         val recorded = server.takeRequest()
         assertEquals("POST", recorded.method)
         assertEquals("/api/session/sess-1/close", recorded.path)
+    }
+
+    // endregion
+
+    // region uploadBook
+
+    @Test fun `uploadBook sends metadata and source files as multipart`() = runTest {
+        server.enqueue(MockResponse().setResponseCode(201))
+
+        val result = client.uploadBook(
+            baseUrl = baseUrl(),
+            libraryId = "lib-a",
+            metadata = NetworkUploadMetadata(
+                title = "A title",
+                author = "An author",
+                folderId = "folder-a",
+            ),
+            files = listOf(
+                NetworkUploadPart("book.epub", "application/epub+zip") {
+                    ByteReadChannel("epub-bytes")
+                },
+            ),
+            token = "T",
+            insecureAllowed = false,
+        )
+
+        assertTrue(result is NetworkResult.Success)
+        val request = server.takeRequest()
+        assertEquals("/api/upload", request.path)
+        assertEquals("Bearer T", request.getHeader("Authorization"))
+        val body = request.body.readUtf8()
+        assertTrue(body.contains("name=\"title\""))
+        assertTrue(body.contains("A title"))
+        assertTrue(body.contains("lib-a"))
+        assertTrue(body.contains("folder-a"))
+        assertTrue(body.contains("name=\"files\""))
+        assertTrue(body.contains("book.epub"))
+        assertTrue(body.contains("epub-bytes"))
+    }
+
+    @Test fun `updateItemMedia patches ABS metadata`() = runTest {
+        server.enqueue(MockResponse().setResponseCode(200))
+
+        val result = client.updateItemMedia(
+            baseUrl(),
+            "item-1",
+            NetworkAbsMetadataUpdate(
+                title = "A title",
+                authors = listOf(NetworkAbsAuthorUpdate("An author")),
+                series = listOf(NetworkAbsSeriesUpdate("A series", "2")),
+                publishedYear = "1984",
+                description = "A description",
+            ),
+            "T",
+            false,
+        )
+
+        assertTrue(result is NetworkResult.Success)
+        val request = server.takeRequest()
+        assertEquals("PATCH", request.method)
+        assertEquals("/api/items/item-1/media", request.path)
+        assertEquals("Bearer T", request.getHeader("Authorization"))
+        val body = request.body.readUtf8()
+        assertTrue(body.contains("A title"))
+        assertTrue(body.contains("An author"))
+        assertTrue(body.contains("A series"))
+        assertTrue(body.contains("1984"))
+        assertTrue(body.contains("A description"))
+    }
+
+    @Test fun `updateItemChapters posts chapter markers`() = runTest {
+        server.enqueue(MockResponse().setResponseCode(200))
+
+        val result = client.updateItemChapters(
+            baseUrl(),
+            "item-1",
+            listOf(NetworkAbsChapterUpdate(0, 0.0, 12.5, "Chapter one")),
+            "T",
+            false,
+        )
+
+        assertTrue(result is NetworkResult.Success)
+        val request = server.takeRequest()
+        assertEquals("POST", request.method)
+        assertEquals("/api/items/item-1/chapters", request.path)
+        assertTrue(request.body.readUtf8().contains("Chapter one"))
+    }
+
+    @Test fun `uploadItemCoverFromUrl posts cover source`() = runTest {
+        server.enqueue(MockResponse().setResponseCode(200))
+
+        val result = client.uploadItemCoverFromUrl(
+            baseUrl(),
+            "item-1",
+            "https://example.com/cover.jpg",
+            "T",
+            false,
+        )
+
+        assertTrue(result is NetworkResult.Success)
+        val request = server.takeRequest()
+        assertEquals("POST", request.method)
+        assertEquals("/api/items/item-1/cover", request.path)
+        assertTrue(request.body.readUtf8().contains("https://example.com/cover.jpg"))
     }
 
     // endregion

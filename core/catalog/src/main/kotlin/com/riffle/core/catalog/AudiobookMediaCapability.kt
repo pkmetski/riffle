@@ -9,6 +9,13 @@ interface AudiobookMediaCapability : CatalogCapability {
     /** Direct streaming URL for a specific track. Includes any auth token needed for playback. */
     fun buildStreamUrl(itemId: String, trackIno: String): String
 
+    /** Opens one source track for transfer, preserving the source's track ordering. */
+    suspend fun <T> withTrackStream(
+        itemId: String,
+        trackIno: String,
+        block: suspend (CatalogFileStream) -> T,
+    ): T = throw UnsupportedOperationException("Track transfer is not supported by this Source")
+
     /**
      * Open a playable audiobook session for [itemId]. Returns tracks (with playable URLs baked in),
      * chapters, and the server's last-known position + lastUpdate stamp — one composite call so a

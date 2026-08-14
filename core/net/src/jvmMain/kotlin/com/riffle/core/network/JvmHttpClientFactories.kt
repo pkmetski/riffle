@@ -36,6 +36,7 @@ fun createDefaultJvmHttpClientPool(
     return JvmHttpClientPool(
         OkHttpClient.Builder()
             .cache(cache)
+            .addInterceptor(ForceNetworkOnNoStoreInterceptor())
             .addNetworkInterceptor(EndpointCacheHeadersInterceptor(DEFAULT_HTTP_CACHE_RULES))
             .callTimeout(30, TimeUnit.SECONDS)
             .build(),

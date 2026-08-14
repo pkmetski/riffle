@@ -9,7 +9,14 @@ internal data class AbsLibrariesResponse(val libraries: List<AbsLibraryDto>) {
         val id: String,
         val name: String,
         val mediaType: String,
+        val folders: List<AbsLibraryFolderDto> = emptyList(),
         val settings: AbsLibrarySettingsDto = AbsLibrarySettingsDto(),
+    )
+
+    @Serializable
+    data class AbsLibraryFolderDto(
+        val id: String,
+        val fullPath: String,
     )
 
     @Serializable
