@@ -1,5 +1,6 @@
 package com.riffle.app.navigation
 
+import com.riffle.app.feature.library.LibrarySectionType
 import com.riffle.app.feature.navigation.HomeViewModel
 import com.riffle.core.models.EbookFormat
 import com.riffle.core.models.LibraryItem
@@ -70,6 +71,20 @@ class DetailRouteEncodingTest {
         )
 
         assertEquals("library_item_detail/book%2F123?sourceId=source%2Fwith+space", route)
+    }
+
+    @Test
+    fun `librarySectionRoute encodes path segments for web-source section drilldown`() {
+        val route = librarySectionRoute(
+            libraryId = "books/bg",
+            libraryName = "Читанка",
+            sectionType = LibrarySectionType.RECENTLY_ADDED,
+        )
+
+        assertEquals(
+            "library_section/books%2Fbg/%D0%A7%D0%B8%D1%82%D0%B0%D0%BD%D0%BA%D0%B0/RECENTLY_ADDED",
+            route,
+        )
     }
 
     // ─── libraryEntryRoute: generic dispatch driven by SourceType.isUnboundedCatalog ────────────
