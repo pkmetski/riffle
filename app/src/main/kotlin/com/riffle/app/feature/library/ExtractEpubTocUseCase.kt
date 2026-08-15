@@ -21,6 +21,8 @@ import org.readium.r2.shared.util.asset.AssetRetriever
 import org.readium.r2.shared.util.use
 import org.readium.r2.streamer.PublicationOpener
 import javax.inject.Inject
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 private const val READIUM_EPUB_POSITION_PAGE_LENGTH = 1024L
 
@@ -76,7 +78,7 @@ class ExtractEpubTocUseCase @Inject constructor(
     suspend operator fun invoke(item: LibraryItem): List<TocEntry> =
         extractDetails(item).tocEntries
 
-    suspend fun extractDetails(item: LibraryItem): Details {
+    suspend fun extractDetails(item: LibraryItem): Details = withContext(Dispatchers.IO) {
         // Use "unknown" when the server doesn't provide an inode (ABS < v2.36 omits
         // ebookFile.ino from the library-items list). The cache key still works; it
         // just won't auto-invalidate when the file is replaced on disk, which is an
@@ -100,12 +102,12 @@ class ExtractEpubTocUseCase @Inject constructor(
         // the cache forever — especially under the "unknown" inode key used for ABS < v2.36, where
         // the key never changes and there's no other invalidation trigger.
         if (matchingCachedEntries != null && matchingPositionCount != null && matchingEpubVersion != null) {
-            return Details(matchingCachedEntries, matchingPositionCount, matchingEpubVersion)
+            return@withContext Details(matchingCachedEntries, matchingPositionCount, matchingEpubVersion)
         }
 
         val opened = when (val r = epubRepository.openEpubForMetadata(item)) {
             is EpubOpenResult.Success -> r
-            else -> return Details(matchingCachedEntries.orEmpty(), matchingPositionCount, matchingEpubVersion)
+            else -> return@withContext Details(matchingCachedEntries.orEmpty(), matchingPositionCount, matchingEpubVersion)
         }
         val file = opened.epubFile
 
@@ -115,14 +117,14 @@ class ExtractEpubTocUseCase @Inject constructor(
             val extractedEpubVersion = EpubMetadataExtractor.extract(file).epubVersion ?: ""
 
             val url = AbsoluteUrl("file://${file.absolutePath}")
-                ?: return Details(matchingCachedEntries.orEmpty(), matchingPositionCount, matchingEpubVersion)
+                ?: return@withContext Details(matchingCachedEntries.orEmpty(), matchingPositionCount, matchingEpubVersion)
             val asset = when (val r = assetRetriever.retrieve(url)) {
                 is Try.Success -> r.value
-                is Try.Failure -> return Details(matchingCachedEntries.orEmpty(), matchingPositionCount, matchingEpubVersion)
+                is Try.Failure -> return@withContext Details(matchingCachedEntries.orEmpty(), matchingPositionCount, matchingEpubVersion)
             }
             val publication = when (val r = publicationOpener.open(asset, allowUserInteraction = false)) {
                 is Try.Success -> r.value
-                is Try.Failure -> return Details(matchingCachedEntries.orEmpty(), matchingPositionCount, matchingEpubVersion)
+                is Try.Failure -> return@withContext Details(matchingCachedEntries.orEmpty(), matchingPositionCount, matchingEpubVersion)
             }
 
             val details = publication.use {
@@ -152,7 +154,7 @@ class ExtractEpubTocUseCase @Inject constructor(
                     ),
                 )
             }
-            return details
+            details
         } finally {
             if (opened.temporary) file.delete()
         }
