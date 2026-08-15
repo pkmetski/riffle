@@ -1,5 +1,6 @@
 package com.riffle.core.data.dictionary
 
+import com.riffle.core.common.Clock
 import com.riffle.core.database.DictionaryPackDao
 import com.riffle.core.database.DictionaryPackEntity
 import com.riffle.core.database.LookupHistoryDao
@@ -8,8 +9,11 @@ import com.riffle.core.dictionary.DictionaryEntry
 import com.riffle.core.dictionary.DictionaryPackState
 import com.riffle.core.dictionary.InstalledPack
 import com.riffle.core.dictionary.PackEntryReader
+import com.riffle.core.domain.DispatcherProvider
 import io.mockk.every
 import io.mockk.mockk
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
@@ -18,6 +22,18 @@ import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
+
+private val testDispatchers = object : DispatcherProvider {
+    override val main: CoroutineDispatcher = Dispatchers.Unconfined
+    override val mainImmediate: CoroutineDispatcher = Dispatchers.Unconfined
+    override val io: CoroutineDispatcher = Dispatchers.Unconfined
+    override val default: CoroutineDispatcher = Dispatchers.Unconfined
+}
+
+private val testClock = object : Clock {
+    override fun nowMs(): Long = 1000L
+    override fun nowNs(): Long = 1_000_000L
+}
 
 class WordLookupRepositoryImplTest {
 
@@ -94,7 +110,7 @@ class WordLookupRepositoryImplTest {
             every { sqliteStore.readerForLanguage(any()) } returns null
         }
         every { sqliteStore.deletePackFile(any()) } returns Unit
-        return WordLookupRepositoryImpl(packDao, historyDao, sqliteStore)
+        return WordLookupRepositoryImpl(packDao, historyDao, sqliteStore, testDispatchers, testClock)
     }
 }
 
