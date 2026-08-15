@@ -17,4 +17,7 @@ internal data class AbsAudiobookProgressRequest(
     val duration: Double,
     // ABS stores the fraction as sent rather than recomputing it; without it the audiobook shows 0%.
     val progress: Double,
+    // Omitted from the JSON when null (encodeDefaults=false). Set to true to move the item out of
+    // "Continue Listening" into the finished state on ABS.
+    val isFinished: Boolean? = null,
 )

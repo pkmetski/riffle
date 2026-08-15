@@ -13,6 +13,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import java.util.concurrent.ConcurrentHashMap
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -44,38 +45,43 @@ class BookImportManager @Inject constructor(
     private val _states = MutableStateFlow<Map<String, BookImportState>>(emptyMap())
     val states: StateFlow<Map<String, BookImportState>> = _states
     private val activeKeys = mutableSetOf<String>()
+    private val claimedItemIds = ConcurrentHashMap.newKeySet<String>()
 
     fun start(
         key: String,
-        work: suspend ((CatalogImportProgress) -> Unit) -> CatalogImportResult,
+        work: suspend (onProgress: (CatalogImportProgress) -> Unit, claimItem: (String) -> Boolean) -> CatalogImportResult,
     ) {
         if (!activeKeys.add(key)) return
         logger.d(LogChannel.BookImport) { "start key=$key" }
         set(key, BookImportState.InProgress(CatalogImportPhase.Preparing))
         scope.launch {
             var uploadAccepted = false
+            var claimedItemId: String? = null
             try {
-                when (val result = work { progress ->
-                    logger.d(LogChannel.BookImport) {
-                        "progress key=$key phase=${progress.phase} files=${progress.completedFiles}/${progress.totalFiles}"
-                    }
-                    if (progress.phase == CatalogImportPhase.Uploaded) {
-                        uploadAccepted = true
-                        // The server has accepted the files. Reconciliation and metadata/progress
-                        // enrichment continue in the application scope, but must not keep the
-                        // detail screen looking as if the upload itself is still pending.
-                        set(key, BookImportState.Completed)
-                    } else if (!uploadAccepted) {
-                        set(
-                            key,
-                            BookImportState.InProgress(
-                                phase = progress.phase,
-                                completedFiles = progress.completedFiles,
-                                totalFiles = progress.totalFiles,
-                            ),
-                        )
-                    }
-                }) {
+                when (val result = work(
+                    { progress ->
+                        logger.d(LogChannel.BookImport) {
+                            "progress key=$key phase=${progress.phase} files=${progress.completedFiles}/${progress.totalFiles}"
+                        }
+                        if (progress.phase == CatalogImportPhase.Uploaded) {
+                            uploadAccepted = true
+                            // The server has accepted the files. Reconciliation and metadata/progress
+                            // enrichment continue in the application scope, but must not keep the
+                            // detail screen looking as if the upload itself is still pending.
+                            set(key, BookImportState.Completed)
+                        } else if (!uploadAccepted) {
+                            set(
+                                key,
+                                BookImportState.InProgress(
+                                    phase = progress.phase,
+                                    completedFiles = progress.completedFiles,
+                                    totalFiles = progress.totalFiles,
+                                ),
+                            )
+                        }
+                    },
+                    { id -> claimedItemIds.add(id).also { claimed -> if (claimed) claimedItemId = id } },
+                )) {
                     is CatalogImportResult.Uploaded -> {
                         logger.d(LogChannel.BookImport) {
                             "completed key=$key destination=${result.destinationItemId} warnings=${result.warnings.size}"
@@ -100,6 +106,7 @@ class BookImportManager @Inject constructor(
                 }
             } finally {
                 activeKeys.remove(key)
+                claimedItemId?.let { claimedItemIds.remove(it) }
             }
         }
     }

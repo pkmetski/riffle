@@ -55,6 +55,15 @@ data class CatalogImportRequest(
     val ebookLocation: String? = null,
     val audioDurationSec: Double = 0.0,
     val onProgress: (CatalogImportProgress) -> Unit = {},
+    /**
+     * Called with the candidate destination-item ID as soon as reconciliation finds a match.
+     * Returns true if the caller has claimed the ID (this upload owns it); false if another
+     * concurrent upload already claimed it (keep polling for a different match).
+     *
+     * Defaults to always-true so callers that don't coordinate concurrent uploads need not
+     * supply this.
+     */
+    val claimDestinationItem: (String) -> Boolean = { true },
 )
 
 sealed interface CatalogImportResult {

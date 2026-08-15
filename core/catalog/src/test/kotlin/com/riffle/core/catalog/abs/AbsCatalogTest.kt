@@ -60,6 +60,7 @@ import io.ktor.utils.io.readRemaining
 import io.ktor.utils.io.core.readBytes
 import java.io.ByteArrayInputStream
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -365,9 +366,10 @@ class AbsCatalogTest {
     }
 
     @Test fun `importBook reconciles and enriches the created item`() = runTest {
-        // ABS can have the new item in the selected library listing before its search index catches up.
+        // Item appears immediately with the correct title/author so doesDestinationItemExist
+        // resolves it on the first poll — no recovery scanLibrary fires.
         libraryApi.libraryItems["lib-a"] = listOf(
-            item("created", title = "Scanner title", author = "Scanner author", addedAt = clock.now + 1),
+            item("created", title = "A title", author = "An author", addedAt = clock.now + 1),
         )
         libraryApi.singleItems["created"] = item("created", title = "A title", author = "An author").copy(
             description = "scanner summary",
@@ -410,7 +412,11 @@ class AbsCatalogTest {
 
         val uploaded = result as CatalogImportResult.Uploaded
         assertEquals("created", uploaded.destinationItemId)
-        assertTrue(libraryApi.scanLibraryCalled)
+        // No immediate post-upload scan: ABS's internal async scan (triggered by /api/upload)
+        // creates the item; a concurrent explicit scan races and creates a duplicate. The
+        // reconciliation loop handles recovery scans (every RESCAN_INTERVAL_ATTEMPTS) if the
+        // item doesn't appear promptly — here it appears on the first poll so none fire.
+        assertFalse(libraryApi.scanLibraryCalled)
         assertEquals("A series", libraryApi.lastMetadataUpdate?.series?.single()?.name)
         assertEquals("A description", libraryApi.lastMetadataUpdate?.description)
         assertEquals("1984", libraryApi.lastMetadataUpdate?.publishedYear)
@@ -423,6 +429,115 @@ class AbsCatalogTest {
         assertTrue(phases.contains(CatalogImportPhase.Uploaded))
         assertTrue(phases.contains(CatalogImportPhase.Reconciling))
         assertTrue(phases.contains(CatalogImportPhase.Finalizing))
+    }
+
+    @Test fun `importBook triggers recovery scanLibrary when item does not appear within RESCAN_INTERVAL_ATTEMPTS polls`() = runTest {
+        // Simulate the item not appearing until after RESCAN_INTERVAL_ATTEMPTS (5) polls.
+        // The reconciliation loop must call scanLibrary at that point, not before.
+        libraryApi.libraryItems["lib-a"] = listOf(
+            item("created", title = "A title", author = "An author", addedAt = clock.now + 1),
+        )
+        libraryApi.delayItemsUntilPoll = AbsCatalog.RESCAN_INTERVAL_ATTEMPTS
+
+        catalog.importBook(
+            CatalogImportRequest(
+                libraryId = "lib-a",
+                folderId = "folder-a",
+                metadata = CatalogImportMetadata(title = "A title", author = "An author"),
+                files = listOf(
+                    CatalogImportFile(
+                        fileName = "book.epub",
+                        mimeType = "application/epub+zip",
+                        withStream = { block ->
+                            block(object : CatalogFileStream {
+                                override val contentLength = 1L
+                                override fun byteStream() = ByteArrayInputStream(byteArrayOf(1))
+                                override fun close() = Unit
+                            })
+                        },
+                    ),
+                ),
+            ),
+        )
+
+        // The scan fires from the reconciliation loop at attempt RESCAN_INTERVAL_ATTEMPTS, not
+        // immediately after upload. Any immediate post-upload scan would be a sign that the
+        // duplicate-item race (ABS internal scan + explicit scan both creating items) is back.
+        assertTrue(libraryApi.scanLibraryCalled)
+        assertTrue(libraryApi.getRecentlyAddedCallCount >= AbsCatalog.RESCAN_INTERVAL_ATTEMPTS)
+    }
+
+    @Test fun `importBook resolves to matching item when concurrent upload also added a newer item`() = runTest {
+        // Two items both newer than uploadStartMs (concurrent uploads). The timestamp branch is
+        // ambiguous — it is skipped when multiple new items exist. The reconciler falls back to
+        // doesDestinationItemExist, which uses title/author to find the correct item.
+        libraryApi.libraryItems["lib-a"] = listOf(
+            item("other", title = "Other Book", author = "Other Author", addedAt = clock.now + 2),
+            item("created", title = "A title", author = "An author", addedAt = clock.now + 1),
+        )
+
+        val result = catalog.importBook(
+            CatalogImportRequest(
+                libraryId = "lib-a",
+                folderId = "folder-a",
+                metadata = CatalogImportMetadata(title = "A title", author = "An author"),
+                files = listOf(
+                    CatalogImportFile(
+                        fileName = "book.epub",
+                        mimeType = "application/epub+zip",
+                        withStream = { block ->
+                            block(object : CatalogFileStream {
+                                override val contentLength = 1L
+                                override fun byteStream() = ByteArrayInputStream(byteArrayOf(1))
+                                override fun close() = Unit
+                            })
+                        },
+                    ),
+                ),
+            ),
+        )
+
+        assertEquals("created", (result as CatalogImportResult.Uploaded).destinationItemId)
+    }
+
+    @Test fun `importBook waits for metadata indexing when concurrent upload's item is also present`() = runTest {
+        // Two items present from concurrent uploads, neither with indexed metadata yet.
+        // Reconciliation must keep polling until ABS indexes "created" with the correct
+        // title/author — at that point doesDestinationItemExist resolves it without any
+        // timestamp guessing.
+        libraryApi.libraryItems["lib-a"] = listOf(
+            item("other", title = "Scanner title B", author = "Scanner author B", addedAt = clock.now + 2),
+            item("created", title = "Scanner title A", author = "Scanner author A", addedAt = clock.now + 1),
+        )
+        // One poll later ABS has indexed "created" with the correct title/author.
+        libraryApi.delayItemsUntilPoll = 1
+        libraryApi.libraryItemsAfterDelay["lib-a"] = listOf(
+            item("other", title = "Scanner title B", author = "Scanner author B", addedAt = clock.now + 2),
+            item("created", title = "A title", author = "An author", addedAt = clock.now + 1),
+        )
+
+        val result = catalog.importBook(
+            CatalogImportRequest(
+                libraryId = "lib-a",
+                folderId = "folder-a",
+                metadata = CatalogImportMetadata(title = "A title", author = "An author"),
+                files = listOf(
+                    CatalogImportFile(
+                        fileName = "book.epub",
+                        mimeType = "application/epub+zip",
+                        withStream = { block ->
+                            block(object : CatalogFileStream {
+                                override val contentLength = 1L
+                                override fun byteStream() = ByteArrayInputStream(byteArrayOf(1))
+                                override fun close() = Unit
+                            })
+                        },
+                    ),
+                ),
+            ),
+        )
+
+        assertEquals("created", (result as CatalogImportResult.Uploaded).destinationItemId)
     }
 
     @Test fun `importBook preserves ebook progress when no CFI is available`() = runTest {
@@ -454,6 +569,70 @@ class AbsCatalogTest {
         assertTrue(result is CatalogImportResult.Uploaded)
         assertEquals("", sessionApi.lastEbookPushPayload?.ebookLocation)
         assertEquals(0.25f, sessionApi.lastEbookPushPayload?.ebookProgress)
+    }
+
+    @Test fun `importBook sends isFinished=true when audiobook progress is 100%`() = runTest {
+        libraryApi.libraryItems["lib-a"] = listOf(
+            item("created", title = "A title", author = "An author", addedAt = clock.now + 1),
+        )
+
+        catalog.importBook(
+            CatalogImportRequest(
+                libraryId = "lib-a",
+                folderId = "folder-a",
+                metadata = CatalogImportMetadata(title = "A title", author = "An author"),
+                files = listOf(
+                    CatalogImportFile(
+                        fileName = "book.mp3",
+                        mimeType = "audio/mpeg",
+                        withStream = { block ->
+                            block(object : CatalogFileStream {
+                                override val contentLength = 1L
+                                override fun byteStream() = ByteArrayInputStream(byteArrayOf(1))
+                                override fun close() = Unit
+                            })
+                        },
+                    ),
+                ),
+                audioDurationSec = 3600.0,
+                readingProgress = 1.0f,
+            ),
+        )
+
+        assertEquals(3600.0, sessionApi.lastAudiobookPushPayload!!.currentTime, 0.0)
+        assertEquals(true, sessionApi.lastAudiobookPushPayload!!.isFinished)
+    }
+
+    @Test fun `importBook does not send isFinished for partial audiobook progress`() = runTest {
+        libraryApi.libraryItems["lib-a"] = listOf(
+            item("created", title = "A title", author = "An author", addedAt = clock.now + 1),
+        )
+
+        catalog.importBook(
+            CatalogImportRequest(
+                libraryId = "lib-a",
+                folderId = "folder-a",
+                metadata = CatalogImportMetadata(title = "A title", author = "An author"),
+                files = listOf(
+                    CatalogImportFile(
+                        fileName = "book.mp3",
+                        mimeType = "audio/mpeg",
+                        withStream = { block ->
+                            block(object : CatalogFileStream {
+                                override val contentLength = 1L
+                                override fun byteStream() = ByteArrayInputStream(byteArrayOf(1))
+                                override fun close() = Unit
+                            })
+                        },
+                    ),
+                ),
+                audioDurationSec = 3600.0,
+                readingProgress = 0.42f,
+            ),
+        )
+
+        assertEquals(0.42f * 3600.0, sessionApi.lastAudiobookPushPayload!!.currentTime, 1.0)
+        assertNull(sessionApi.lastAudiobookPushPayload!!.isFinished)
     }
 
     // region Catalog — mandatory core
@@ -1113,6 +1292,11 @@ private class FakeAbsLibraryApi : AbsLibraryApi {
     var scanLibraryCalled: Boolean = false
     var scanLibraryCallCount: Int = 0
     var lastRecentlyAddedLimit: Int = -1
+    var getRecentlyAddedCallCount: Int = 0
+    // When set, getRecentlyAddedLibraryItems returns empty until this many calls have been made.
+    var delayItemsUntilPoll: Int = 0
+    // When set, getRecentlyAddedLibraryItems returns this map's items after delayItemsUntilPoll polls.
+    val libraryItemsAfterDelay = mutableMapOf<String, List<NetworkLibraryItem>>()
 
     override suspend fun uploadBook(
         baseUrl: String,
@@ -1186,8 +1370,14 @@ private class FakeAbsLibraryApi : AbsLibraryApi {
         insecureAllowed: Boolean,
     ): NetworkResult<List<NetworkLibraryItem>> {
         lastRecentlyAddedLimit = limit
+        val callIndex = getRecentlyAddedCallCount++
+        val items = when {
+            callIndex < delayItemsUntilPoll -> emptyList()
+            libraryItemsAfterDelay.containsKey(libraryId) -> libraryItemsAfterDelay[libraryId].orEmpty()
+            else -> libraryItems[libraryId].orEmpty()
+        }
         return NetworkResult.Success(
-            libraryItems[libraryId].orEmpty().sortedByDescending { it.addedAt ?: Long.MIN_VALUE }.take(limit),
+            items.sortedByDescending { it.addedAt ?: Long.MIN_VALUE }.take(limit),
         )
     }
 

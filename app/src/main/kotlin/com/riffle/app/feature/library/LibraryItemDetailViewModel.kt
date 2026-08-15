@@ -402,7 +402,7 @@ class LibraryItemDetailViewModel @Inject constructor(
     fun importToDestination(destination: UploadDestination, library: CatalogRoot) {
         val item = loadedItem ?: return
         val key = importKey(item, destination, library)
-        bookImportManager.start(key) { onProgress ->
+        bookImportManager.start(key) { onProgress, claimItem ->
             val sourceCatalog = catalogRegistry.forSourceId(item.sourceId)
             val sourceItem = sourceCatalog?.getItem(item.id)
             val destinationCatalog = catalogRegistry.forSourceId(destination.sourceId) as? BookImportCapability
@@ -415,7 +415,7 @@ class LibraryItemDetailViewModel @Inject constructor(
                 )
             }
             val request = buildImportRequest(item.sourceId, sourceCatalog, sourceItem, library, item.readingProgress)
-                .copy(onProgress = onProgress)
+                .copy(onProgress = onProgress, claimDestinationItem = claimItem)
             destinationCatalog.importBook(request)
         }
         _uploadPreflight.value = UploadPreflight.Idle
