@@ -88,6 +88,7 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.mapNotNull
 import kotlinx.coroutines.flow.receiveAsFlow
@@ -326,6 +327,10 @@ class EpubReaderViewModel @Inject constructor(
     @com.riffle.core.data.di.EpubCacheStore
     private val epubCacheStore: com.riffle.core.domain.LocalStore,
     private val pdfExporter: HighlightsPdfExporter,
+    private val dictionaryRepository: com.riffle.core.dictionary.DictionaryRepository,
+    private val packStore: com.riffle.core.dictionary.PackStore,
+    private val packManifestFetcher: com.riffle.core.data.dictionary.PackManifestFetcher,
+    private val dictionaryPackScheduler: com.riffle.app.dictionary.DictionaryPackScheduler,
 ) : AndroidViewModel(application) {
 
     // ReadingSessionCoordinator's per-call enabled gate reads this atomic; init below flips it once
@@ -3518,6 +3523,9 @@ class EpubReaderViewModel @Inject constructor(
     private val _isExporting = MutableStateFlow(false)
     val isExporting: StateFlow<Boolean> = _isExporting.asStateFlow()
 
+    private val _lookupTarget = MutableStateFlow<LookupTarget?>(null)
+    val lookupTarget: StateFlow<LookupTarget?> = _lookupTarget.asStateFlow()
+
     fun openToc() {
         annotationSession.closeAnnotationsPanel()
         _tocVisible.value = true
@@ -3899,6 +3907,47 @@ class EpubReaderViewModel @Inject constructor(
     fun dismissDownloadPrompt() = readaloud.dismissDownloadPrompt()
 
     fun onPageTopResolved(href: String, fragmentId: String?) = readaloud.onPageTopResolved(href, fragmentId)
+
+    fun onLookupWord(word: String, languageTag: String) {
+        _lookupTarget.value = LookupTarget(word, languageTag)
+    }
+
+    fun dismissLookup() {
+        _lookupTarget.value = null
+    }
+
+    fun observeLookupResult(target: LookupTarget): kotlinx.coroutines.flow.Flow<LookupUiState> =
+        packStore.observePackState(target.languageTag)
+            .flatMapLatest { packState ->
+                kotlinx.coroutines.flow.flow {
+                    emit(LookupUiState.Loading)
+                    when (packState) {
+                        com.riffle.core.dictionary.DictionaryPackState.INSTALLED -> {
+                            val entries = dictionaryRepository.lookup(target.text, target.languageTag)
+                            if (entries.isNotEmpty()) {
+                                dictionaryRepository.recordLookup(target.text, target.languageTag)
+                            }
+                            val recents = dictionaryRepository
+                                .observeRecentLookups(target.languageTag)
+                                .first()
+                            emit(resolveLookupUiState(packState, target.text, target.languageTag, entries, recents, 0L))
+                        }
+                        com.riffle.core.dictionary.DictionaryPackState.NOT_INSTALLED -> {
+                            val sizeBytes = try {
+                                packManifestFetcher.fetch()
+                                    .packs.firstOrNull { it.languageTag == target.languageTag }
+                                    ?.sizeBytes ?: 0L
+                            } catch (_: Exception) { 0L }
+                            emit(resolveLookupUiState(packState, target.text, target.languageTag, emptyList(), emptyList(), sizeBytes))
+                        }
+                        else -> emit(resolveLookupUiState(packState, target.text, target.languageTag, emptyList(), emptyList(), 0L))
+                    }
+                }
+            }
+
+    fun enqueuePackDownload(context: android.content.Context, packInfo: com.riffle.core.dictionary.PackInfo) {
+        dictionaryPackScheduler.enqueueDownload(context, packInfo)
+    }
 }
 
 /**

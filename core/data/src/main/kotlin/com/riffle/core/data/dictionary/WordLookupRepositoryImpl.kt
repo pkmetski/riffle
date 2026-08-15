@@ -1,5 +1,6 @@
 package com.riffle.core.data.dictionary
 
+import com.riffle.core.common.Clock
 import com.riffle.core.database.DictionaryPackDao
 import com.riffle.core.database.LookupHistoryDao
 import com.riffle.core.database.LookupHistoryEntity
@@ -8,7 +9,7 @@ import com.riffle.core.dictionary.DictionaryPackState
 import com.riffle.core.dictionary.DictionaryRepository
 import com.riffle.core.dictionary.InstalledPack
 import com.riffle.core.dictionary.PackStore
-import kotlinx.coroutines.Dispatchers
+import com.riffle.core.domain.DispatcherProvider
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
@@ -18,10 +19,12 @@ class WordLookupRepositoryImpl @Inject constructor(
     private val dictionaryPackDao: DictionaryPackDao,
     private val lookupHistoryDao: LookupHistoryDao,
     private val packSqliteStore: DictionaryPackSqliteStore,
+    private val dispatchers: DispatcherProvider,
+    private val clock: Clock,
 ) : DictionaryRepository, PackStore {
 
     override suspend fun lookup(form: String, languageTag: String): List<DictionaryEntry> =
-        withContext(Dispatchers.IO) {
+        withContext(dispatchers.io) {
             packSqliteStore.readerForLanguage(languageTag)?.query(form) ?: emptyList()
         }
 
@@ -30,7 +33,7 @@ class WordLookupRepositoryImpl @Inject constructor(
             LookupHistoryEntity(
                 languageTag = languageTag,
                 form = form,
-                lookedUpAt = System.currentTimeMillis(),
+                lookedUpAt = clock.nowMs(),
             )
         )
         lookupHistoryDao.pruneOldest(languageTag)
