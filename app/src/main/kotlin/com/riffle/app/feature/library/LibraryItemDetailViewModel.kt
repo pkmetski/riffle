@@ -45,6 +45,7 @@ import com.riffle.core.catalog.CatalogRegistry
 import com.riffle.app.feature.audiobook.audiobookProgressFraction
 import com.riffle.core.data.localfiles.CopyCoverImageUseCase
 import com.riffle.core.data.localfiles.SaveLocalFileMetadataOverrideUseCase
+import com.riffle.core.data.websource.WebSourceLibraryItemUpserter
 import com.riffle.core.models.SourceType
 import com.riffle.core.catalog.DownloadsCapability
 import com.riffle.core.catalog.OriginalCoverCapability
@@ -261,6 +262,7 @@ class LibraryItemDetailViewModel @Inject constructor(
     private val saveLocalFileMetadataOverride: SaveLocalFileMetadataOverrideUseCase,
     private val copyCoverImage: CopyCoverImageUseCase,
     private val readingSpeedStore: ReadingSpeedStore,
+    private val webSourceLibraryItemUpserter: WebSourceLibraryItemUpserter,
 ) : ViewModel() {
 
     private val itemId: String = savedStateHandle.get<String>("itemId") ?: ""
@@ -416,7 +418,15 @@ class LibraryItemDetailViewModel @Inject constructor(
             }
             val request = buildImportRequest(item.sourceId, sourceCatalog, sourceItem, library, item.readingProgress)
                 .copy(onProgress = onProgress, claimDestinationItem = claimItem)
-            destinationCatalog.importBook(request)
+            val result = destinationCatalog.importBook(request)
+            if (result is CatalogImportResult.Uploaded) {
+                // Mirror the uploaded item into Room under the destination source so the
+                // "Unowned" web-source filter sees it immediately — without waiting for the
+                // next full ABS library sync (which only runs against the active source).
+                val upsertId = result.destinationItemId ?: sourceItem.id
+                webSourceLibraryItemUpserter.upsert(destination.sourceId, sourceItem.copy(id = upsertId))
+            }
+            result
         }
         _uploadPreflight.value = UploadPreflight.Idle
     }

@@ -104,6 +104,9 @@ class LibraryRepositoryImpl @Inject constructor(
     override fun observeAllBooks(libraryId: String): Flow<List<LibraryItem>> =
         scopedItemFlow { sourceId -> libraryItemDao.observeAllBooks(sourceId, libraryId) }
 
+    override fun observeAllItemsForSource(sourceId: String): Flow<List<LibraryItem>> =
+        libraryItemDao.observeBySource(sourceId).map { list -> list.map { it.toDomain() } }
+
     override fun observeSeries(libraryId: String): Flow<List<Series>> =
         seriesDao.observeByLibraryId(libraryId).map { list -> list.map { it.toDomain() } }
 

@@ -22,6 +22,7 @@ class LibraryFilterPreferencesStoreImpl @Inject constructor(
                 selectedFacetKey = prefs[facetKey(sourceId, libraryId)],
                 notStartedFilterActive = prefs[notStartedKey(sourceId, libraryId)] ?: false,
                 sortModeName = prefs[sortModeKey(sourceId, libraryId)],
+                unownedFilterActive = prefs[unownedKey(sourceId, libraryId)] ?: false,
             )
         }
 
@@ -38,6 +39,12 @@ class LibraryFilterPreferencesStoreImpl @Inject constructor(
         }
     }
 
+    override suspend fun setUnownedFilterActive(sourceId: String, libraryId: String, active: Boolean) {
+        dataStore.edit { prefs ->
+            prefs[unownedKey(sourceId, libraryId)] = active
+        }
+    }
+
     override suspend fun setSortModeName(sourceId: String, libraryId: String, name: String?) {
         dataStore.edit { prefs ->
             val prefKey = sortModeKey(sourceId, libraryId)
@@ -50,6 +57,9 @@ class LibraryFilterPreferencesStoreImpl @Inject constructor(
 
     private fun notStartedKey(sourceId: String, libraryId: String) =
         booleanPreferencesKey("library_filter:$sourceId:$libraryId:not_started")
+
+    private fun unownedKey(sourceId: String, libraryId: String) =
+        booleanPreferencesKey("library_filter:$sourceId:$libraryId:unowned")
 
     private fun sortModeKey(sourceId: String, libraryId: String) =
         stringPreferencesKey("library_filter:$sourceId:$libraryId:sort_mode")

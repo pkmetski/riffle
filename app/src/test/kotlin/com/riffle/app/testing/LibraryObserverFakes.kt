@@ -15,8 +15,10 @@ import kotlinx.coroutines.flow.flowOf
  */
 class FakeLibraryObserver(
     private val allBooksFlow: Flow<List<LibraryItem>> = flowOf(emptyList()),
+    private val serverSourceItemsFlow: Flow<List<LibraryItem>> = flowOf(emptyList()),
 ) : LibraryObserver {
     override fun observeAllBooks(libraryId: String): Flow<List<LibraryItem>> = allBooksFlow
+    override fun observeAllItemsForSource(sourceId: String): Flow<List<LibraryItem>> = serverSourceItemsFlow
     override fun observeLibraries(): Flow<List<Library>> = flowOf(emptyList())
     override fun observeLibraries(sourceId: String): Flow<List<Library>> = flowOf(emptyList())
     override fun observeLibraryItems(libraryId: String): Flow<List<LibraryItem>> = flowOf(emptyList())

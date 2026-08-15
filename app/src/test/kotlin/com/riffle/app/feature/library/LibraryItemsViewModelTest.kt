@@ -201,6 +201,12 @@ class LibraryItemsViewModelTest {
             }
         }
 
+        override suspend fun setUnownedFilterActive(sourceId: String, libraryId: String, active: Boolean) {
+            state.update {
+                it + ((sourceId to libraryId) to ((it[sourceId to libraryId] ?: LibraryFilterPreferences()).copy(unownedFilterActive = active)))
+            }
+        }
+
         override suspend fun setSortModeName(sourceId: String, libraryId: String, name: String?) {
             sortWrites += Triple(sourceId, libraryId, name)
             state.update {

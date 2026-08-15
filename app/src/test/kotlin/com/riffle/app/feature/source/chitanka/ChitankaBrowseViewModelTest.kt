@@ -76,6 +76,7 @@ class ChitankaBrowseViewModelTest {
         libraryFilterPreferencesStore: LibraryFilterPreferencesStore = FakeLibraryFilterPreferencesStore(),
         libraryObserver: LibraryObserver = emptyLibraryObserver(),
         catalog: Catalog = mockk<Catalog>(relaxed = true).also {
+
             // Relaxed mocks return a stub CatalogItem instead of null for `getItem`, which breaks
             // the openDetail enrichment fallback in tests that don't explicitly stub it. Pin to
             // null so the fallback lands on the listing item as it does at runtime for legacy
@@ -391,8 +392,11 @@ class ChitankaBrowseViewModelTest {
 
     // ---- helpers -----------------------------------------------------------------
 
-    private fun fakeSourceRepo(active: Source?): SourceRepository = object : SourceRepository {
-        override fun observeAll() = kotlinx.coroutines.flow.flowOf(listOfNotNull(active))
+    private fun fakeSourceRepo(
+        active: Source?,
+        allSources: List<Source> = listOfNotNull(active),
+    ): SourceRepository = object : SourceRepository {
+        override fun observeAll() = kotlinx.coroutines.flow.flowOf(allSources)
         override suspend fun getActive(): Source? = active
         override suspend fun commit(
             pending: com.riffle.core.domain.PendingSource,
@@ -561,6 +565,140 @@ class ChitankaBrowseViewModelTest {
             )
         }
 
+    // ─── Unowned filter ──────────────────────────────────────────────────────────────────────────
+
+    private val absSource = chitankaSource.copy(id = "abs-1", type = SourceType.ABS)
+
+    @Test
+    fun `hasServerSources is false when only web source is configured`() = runTest(dispatcher) {
+        val vm = makeVm(sourceRepo = fakeSourceRepo(active = chitankaSource))
+        advanceUntilIdle()
+        assertFalse(vm.hasServerSources.value)
+    }
+
+    @Test
+    fun `hasServerSources is true when an ABS source is also configured`() = runTest(dispatcher) {
+        val vm = makeVm(
+            sourceRepo = fakeSourceRepo(active = chitankaSource, allSources = listOf(chitankaSource, absSource)),
+        )
+        advanceUntilIdle()
+        assertTrue(vm.hasServerSources.value)
+    }
+
+    @Test
+    fun `toggleUnownedFilter hides catalog items that match server library by title+author`() =
+        runTest(dispatcher) {
+            val serverItem = serverLibraryItem(title = "Dune", author = "Frank Herbert")
+            val serverItems = MutableStateFlow(listOf(serverItem))
+
+            val catalog = mockk<Catalog>(relaxed = true)
+            coEvery { catalog.browse(rootId = any(), page = 0, pageSize = any(), facet = any()) } returns
+                listOf(item("cat-1").copy(title = "Dune", author = "Frank Herbert"), item("cat-2"))
+
+            val vm = makeVm(
+                catalog = catalog,
+                sourceRepo = fakeSourceRepo(active = chitankaSource, allSources = listOf(chitankaSource, absSource)),
+                libraryObserver = FakeLibraryObserver(serverSourceItemsFlow = serverItems),
+            )
+            advanceUntilIdle()
+
+            assertEquals(2, vm.filteredItems.value.size)
+            assertFalse(vm.unownedFilterActive.value)
+
+            vm.toggleUnownedFilter()
+            advanceUntilIdle()
+
+            assertTrue(vm.unownedFilterActive.value)
+            val ids = vm.filteredItems.value.map { it.id }
+            assertEquals(listOf("cat-2"), ids)
+        }
+
+    @Test
+    fun `toggleUnownedFilter hides catalog items that match server library by isbn`() =
+        runTest(dispatcher) {
+            val isbn = "9780441013593"
+            val serverItem = serverLibraryItem(title = "Dune", author = "Frank Herbert", isbn = isbn)
+            val serverItems = MutableStateFlow(listOf(serverItem))
+
+            val catalog = mockk<Catalog>(relaxed = true)
+            coEvery { catalog.browse(rootId = any(), page = 0, pageSize = any(), facet = any()) } returns
+                listOf(
+                    item("cat-1").copy(title = "Dune (Anniversary Edition)", author = "F. Herbert", isbn = isbn),
+                    item("cat-2"),
+                )
+
+            val vm = makeVm(
+                catalog = catalog,
+                sourceRepo = fakeSourceRepo(active = chitankaSource, allSources = listOf(chitankaSource, absSource)),
+                libraryObserver = FakeLibraryObserver(serverSourceItemsFlow = serverItems),
+            )
+            advanceUntilIdle()
+
+            vm.toggleUnownedFilter()
+            advanceUntilIdle()
+
+            val ids = vm.filteredItems.value.map { it.id }
+            assertEquals(listOf("cat-2"), ids)
+        }
+
+    @Test
+    fun `toggleUnownedFilter off restores all catalog items`() = runTest(dispatcher) {
+        val serverItem = serverLibraryItem(title = "Dune", author = "Frank Herbert")
+        val serverItems = MutableStateFlow(listOf(serverItem))
+
+        val catalog = mockk<Catalog>(relaxed = true)
+        coEvery { catalog.browse(rootId = any(), page = 0, pageSize = any(), facet = any()) } returns
+            listOf(item("cat-1").copy(title = "Dune", author = "Frank Herbert"), item("cat-2"))
+
+        val vm = makeVm(
+            catalog = catalog,
+            sourceRepo = fakeSourceRepo(active = chitankaSource, allSources = listOf(chitankaSource, absSource)),
+            libraryObserver = FakeLibraryObserver(serverSourceItemsFlow = serverItems),
+        )
+        advanceUntilIdle()
+
+        vm.toggleUnownedFilter()
+        advanceUntilIdle()
+        assertEquals(1, vm.filteredItems.value.size)
+
+        vm.toggleUnownedFilter()
+        advanceUntilIdle()
+
+        assertFalse(vm.unownedFilterActive.value)
+        assertEquals(2, vm.filteredItems.value.size)
+    }
+
+    @Test
+    fun `unownedFilter change persists via LibraryFilterPreferencesStore`() = runTest(dispatcher) {
+        val store = FakeLibraryFilterPreferencesStore()
+        val vm = makeVm(
+            libraryFilterPreferencesStore = store,
+            sourceRepo = fakeSourceRepo(active = chitankaSource, allSources = listOf(chitankaSource, absSource)),
+        )
+        advanceUntilIdle()
+
+        vm.toggleUnownedFilter()
+        advanceUntilIdle()
+
+        assertEquals(
+            LibraryFilterPreferences(unownedFilterActive = true),
+            store.state.value["chit-1" to ChitankaCatalog.ROOT_BOOKS],
+        )
+    }
+
+    @Test
+    fun `remembered unownedFilterActive is restored from preferences on init`() = runTest(dispatcher) {
+        val store = FakeLibraryFilterPreferencesStore(
+            mapOf(
+                ("chit-1" to ChitankaCatalog.ROOT_BOOKS) to LibraryFilterPreferences(unownedFilterActive = true),
+            ),
+        )
+        val vm = makeVm(libraryFilterPreferencesStore = store)
+        advanceUntilIdle()
+
+        assertTrue(vm.unownedFilterActive.value)
+    }
+
     // ---- filter helpers ----------------------------------------------------------
 
     private fun libraryItem(id: String, progress: Float) = LibraryItem(
@@ -573,6 +711,23 @@ class ChitankaBrowseViewModelTest {
         isCached = false,
         isDownloaded = false,
         ebookFormat = com.riffle.core.models.EbookFormat.Epub,
+    )
+
+    private fun serverLibraryItem(
+        title: String,
+        author: String,
+        isbn: String? = null,
+    ) = LibraryItem(
+        id = "server-${title.take(4)}",
+        libraryId = "abs-lib-1",
+        title = title,
+        author = author,
+        coverUrl = null,
+        readingProgress = 0f,
+        isCached = false,
+        isDownloaded = false,
+        ebookFormat = com.riffle.core.models.EbookFormat.Epub,
+        isbn = isbn,
     )
 
     private fun emptyLibraryObserver(): LibraryObserver = FakeLibraryObserver()
@@ -597,6 +752,12 @@ class ChitankaBrowseViewModelTest {
         override suspend fun setNotStartedFilterActive(sourceId: String, libraryId: String, active: Boolean) {
             state.update {
                 it + ((sourceId to libraryId) to ((it[sourceId to libraryId] ?: LibraryFilterPreferences()).copy(notStartedFilterActive = active)))
+            }
+        }
+
+        override suspend fun setUnownedFilterActive(sourceId: String, libraryId: String, active: Boolean) {
+            state.update {
+                it + ((sourceId to libraryId) to ((it[sourceId to libraryId] ?: LibraryFilterPreferences()).copy(unownedFilterActive = active)))
             }
         }
 

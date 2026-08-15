@@ -16,6 +16,7 @@ import com.riffle.core.domain.ReadingSessionRepository
 import com.riffle.core.models.Series
 import com.riffle.core.domain.SourceRepository
 import com.riffle.core.models.TocEntry
+import com.riffle.core.data.websource.WebSourceLibraryItemUpserter
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.mockk
@@ -200,6 +201,7 @@ class LibraryItemDetailViewModelTocTest {
         saveLocalFileMetadataOverride = com.riffle.app.testing.noopSaveLocalFileMetadataOverride(),
         copyCoverImage = com.riffle.app.testing.noopCopyCoverImage(),
         readingSpeedStore = readingSpeedStore,
+        webSourceLibraryItemUpserter = WebSourceLibraryItemUpserter(mockk(relaxed = true)),
     )
 
     private val epubItem = LibraryItem(
