@@ -154,8 +154,16 @@ internal object ContinuousStyleInjector {
         val beforeBlock = buildString {
             append("\n<link rel=\"stylesheet\" type=\"text/css\" href=\"$CSS_BASE/ReadiumCSS-before.css\"/>\n")
             // Match Readium's overflow fix so scroll layout behaves identically.
+            // Also override --RS__maxMediaHeight to break the vh feedback loop that collapses
+            // images in continuous mode. Each ChapterWebView is sized to its full content height,
+            // so window.innerHeight = chapter height (not the visible screen), making 1vh
+            // proportional to the chapter. ReadiumCSS's max-height: 95vh !important then drives
+            // image height → chapter height → vh → image height in a converging cycle that
+            // shrinks tall images toward zero. Setting none removes the cap; images remain
+            // bounded by max-width: 100% from the same ReadiumCSS rule.
             append("<style>:root[style], :root { overflow: visible !important; }")
-            append(":root[style] > body, :root > body { overflow: visible !important; }</style>\n")
+            append(":root[style] > body, :root > body { overflow: visible !important; }")
+            append(":root { --RS__maxMediaHeight: none; }</style>\n")
             if (!hasAuthorStyles) {
                 append("<link rel=\"stylesheet\" type=\"text/css\" href=\"$CSS_BASE/ReadiumCSS-default.css\"/>\n")
             }

@@ -184,6 +184,27 @@ class ContinuousStyleInjectorTest {
     }
 
     @Test
+    fun `injectInto overrides RS maxMediaHeight to none to prevent vh feedback loop`() {
+        // ReadiumCSS-before.css caps images at max-height: 95vh !important. In continuous
+        // mode each ChapterWebView height = full chapter content height, so window.innerHeight
+        // = chapter height (not the visible screen). This creates a feedback loop where image
+        // height → chapter height → vh → image height collapses toward zero each iteration.
+        // Overriding --RS__maxMediaHeight to none breaks the loop; max-width: 100% still applies.
+        val out = ContinuousStyleInjector.injectInto(sampleHtml, FormattingPreferences())
+        assertTrue(
+            "--RS__maxMediaHeight must be overridden to none to prevent the vh feedback loop",
+            out.contains("--RS__maxMediaHeight: none"),
+        )
+        // The override must appear after ReadiumCSS-before.css (to win the cascade at equal
+        // specificity via document order) and before ReadiumCSS-after.css.
+        val beforeCssIdx = out.indexOf("ReadiumCSS-before.css")
+        val overrideIdx = out.indexOf("--RS__maxMediaHeight: none")
+        val afterCssIdx = out.indexOf("ReadiumCSS-after.css")
+        assertTrue("override after ReadiumCSS-before.css in document order", overrideIdx > beforeCssIdx)
+        assertTrue("override before ReadiumCSS-after.css", overrideIdx < afterCssIdx)
+    }
+
+    @Test
     fun `injectInto adds default-css only when chapter has no author styles`() {
         val withStyles = "<html><head><style>p{}</style></head><body></body></html>"
         val without = "<html><head><title>t</title></head><body></body></html>"
