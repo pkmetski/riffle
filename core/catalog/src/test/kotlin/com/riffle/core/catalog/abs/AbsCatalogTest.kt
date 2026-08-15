@@ -540,6 +540,41 @@ class AbsCatalogTest {
         assertEquals("created", (result as CatalogImportResult.Uploaded).destinationItemId)
     }
 
+    @Test fun `importBook skips an item claimed by another upload and resolves its own`() = runTest {
+        // Simulate concurrent uploads: "other" matches by title/author for the sibling and is
+        // already claimed, so claimDestinationItem returns false for it. "created" is unclaimed
+        // and should be returned for this upload.
+        libraryApi.libraryItems["lib-a"] = listOf(
+            item("other", title = "Other Book", author = "Other Author", addedAt = clock.now + 2),
+            item("created", title = "A title", author = "An author", addedAt = clock.now + 1),
+        )
+        val alreadyClaimed = mutableSetOf("other")
+
+        val result = catalog.importBook(
+            CatalogImportRequest(
+                libraryId = "lib-a",
+                folderId = "folder-a",
+                metadata = CatalogImportMetadata(title = "A title", author = "An author"),
+                files = listOf(
+                    CatalogImportFile(
+                        fileName = "book.epub",
+                        mimeType = "application/epub+zip",
+                        withStream = { block ->
+                            block(object : CatalogFileStream {
+                                override val contentLength = 1L
+                                override fun byteStream() = ByteArrayInputStream(byteArrayOf(1))
+                                override fun close() = Unit
+                            })
+                        },
+                    ),
+                ),
+                claimDestinationItem = { id -> alreadyClaimed.add(id) },
+            ),
+        )
+
+        assertEquals("created", (result as CatalogImportResult.Uploaded).destinationItemId)
+    }
+
     @Test fun `importBook preserves ebook progress when no CFI is available`() = runTest {
         libraryApi.searchResults["A title"] = listOf(item("created", title = "A title", author = "An author"))
 
