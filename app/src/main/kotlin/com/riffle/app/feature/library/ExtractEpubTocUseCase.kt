@@ -21,7 +21,7 @@ import org.readium.r2.shared.util.asset.AssetRetriever
 import org.readium.r2.shared.util.use
 import org.readium.r2.streamer.PublicationOpener
 import javax.inject.Inject
-import kotlinx.coroutines.Dispatchers
+import com.riffle.core.domain.DispatcherProvider
 import kotlinx.coroutines.withContext
 
 private const val READIUM_EPUB_POSITION_PAGE_LENGTH = 1024L
@@ -68,6 +68,7 @@ class ExtractEpubTocUseCase @Inject constructor(
     private val assetRetriever: AssetRetriever,
     private val tocRepository: TocRepository,
     private val publicationMetricsRepository: PublicationMetricsRepository,
+    private val dispatchers: DispatcherProvider,
 ) {
     data class Details(
         val tocEntries: List<TocEntry>,
@@ -78,7 +79,7 @@ class ExtractEpubTocUseCase @Inject constructor(
     suspend operator fun invoke(item: LibraryItem): List<TocEntry> =
         extractDetails(item).tocEntries
 
-    suspend fun extractDetails(item: LibraryItem): Details = withContext(Dispatchers.IO) {
+    suspend fun extractDetails(item: LibraryItem): Details = withContext(dispatchers.io) {
         // Use "unknown" when the server doesn't provide an inode (ABS < v2.36 omits
         // ebookFile.ino from the library-items list). The cache key still works; it
         // just won't auto-invalidate when the file is replaced on disk, which is an

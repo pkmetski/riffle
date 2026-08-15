@@ -23,6 +23,7 @@ import java.io.File
 import java.util.zip.CRC32
 import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
+import com.riffle.core.domain.DefaultDispatcherProvider
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -53,6 +54,7 @@ class ExtractEpubTocUseCaseTest {
         assetRetriever,
         tocRepository,
         publicationMetricsRepository,
+        DefaultDispatcherProvider,
     )
 
     private fun makeItem(isCached: Boolean = true, ebookFileIno: String? = "ino1") = LibraryItem(
