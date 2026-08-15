@@ -30,6 +30,10 @@ import com.riffle.core.models.Source
 import com.riffle.core.domain.SourceRepository
 import com.riffle.core.models.SourceUrl
 import com.riffle.core.models.ProgressSyncCycleResult
+import com.riffle.core.data.websource.WebSourceLibraryItemUpserter
+import com.riffle.core.database.LibraryItemDao
+import com.riffle.core.database.LibraryItemEntity
+import com.riffle.core.database.LibraryItemMetadata
 import com.riffle.core.domain.ReadingSessionRepository
 import com.riffle.core.domain.StoredItemRef
 import com.riffle.core.models.SessionPayload
@@ -350,6 +354,7 @@ class LibraryItemDetailViewModelTest {
         libraryRefresher: com.riffle.core.domain.LibraryRefresher = com.riffle.app.testing.NoopLibraryRefresher,
         saveOverride: com.riffle.core.data.localfiles.SaveLocalFileMetadataOverrideUseCase = com.riffle.app.testing.noopSaveLocalFileMetadataOverride(),
         copyCoverImageFn: com.riffle.core.data.localfiles.CopyCoverImageUseCase = com.riffle.app.testing.noopCopyCoverImage(),
+        webSourceLibraryItemUpserter: WebSourceLibraryItemUpserter = WebSourceLibraryItemUpserter(NoopLibraryItemDao),
         sourceId: String? = null,
     ) = LibraryItemDetailViewModel(
         savedStateHandle = SavedStateHandle(
@@ -401,6 +406,7 @@ class LibraryItemDetailViewModelTest {
             override val speedSecPerPosition = flowOf(63.0)
             override suspend fun updateSpeed(newSecPerPosition: Double) = Unit
         },
+        webSourceLibraryItemUpserter = webSourceLibraryItemUpserter,
     )
 
     // These tests exercise ViewModel state and side-effects; none read Ready.capabilities.
@@ -1568,4 +1574,149 @@ class LibraryItemDetailViewModelTest {
             override suspend fun forSource(source: com.riffle.core.models.Source): com.riffle.core.catalog.Catalog = catalog
             override suspend fun forSourceId(sourceId: String): com.riffle.core.catalog.Catalog = catalog
         }
+
+    // ── importToDestination upsert regression ────────────────────────────────────────────────────
+
+    @Test
+    fun `importToDestination upserts uploaded item into Room under destination sourceId`() = runTest {
+        val destinationSourceId = "abs-source-1"
+        val absItemId = "abs-item-123"
+        val dao = RecordingLibraryItemDao()
+
+        val sourceCatalogItem = com.riffle.core.catalog.CatalogItem(
+            id = knownItem.id,
+            rootId = "chitanka-root",
+            title = knownItem.title,
+            author = knownItem.author,
+            coverUrl = null,
+            ebookFormat = com.riffle.core.catalog.BookFormat.Epub,
+        )
+        val sourceCatalog = object : com.riffle.core.catalog.Catalog by NoopCatalog {
+            override suspend fun getItem(itemId: String) = sourceCatalogItem
+        }
+        val importCatalog = object : com.riffle.core.catalog.Catalog by NoopCatalog,
+            com.riffle.core.catalog.BookImportCapability {
+            override suspend fun importBook(request: com.riffle.core.catalog.CatalogImportRequest) =
+                com.riffle.core.catalog.CatalogImportResult.Uploaded(destinationItemId = absItemId)
+            override suspend fun listRoots() = listOf(
+                com.riffle.core.catalog.CatalogRoot(id = "lib-abs", name = "ABS Library", mediaType = "book", importFolderId = "folder-1")
+            )
+        }
+        val registry = object : com.riffle.core.catalog.CatalogRegistry {
+            override suspend fun forActive() = sourceCatalog
+            override suspend fun forSource(source: com.riffle.core.models.Source) = sourceCatalog
+            override suspend fun forSourceId(sourceId: String) =
+                if (sourceId == destinationSourceId) importCatalog else sourceCatalog
+        }
+
+        val vm = makeVm(
+            repo = fakeRepo(knownItem),
+            catalogRegistryOverride = registry,
+            webSourceLibraryItemUpserter = WebSourceLibraryItemUpserter(dao),
+        )
+        backgroundScope.launch { vm.uiState.collect {} }
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        val destination = UploadDestination(sourceId = destinationSourceId, label = "ABS", username = "test", libraries = emptyList())
+        val library = com.riffle.core.catalog.CatalogRoot(
+            id = "lib-abs",
+            name = "ABS Library",
+            mediaType = "book",
+            importFolderId = "folder-1",
+        )
+        vm.importToDestination(destination, library)
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        // The uploaded item must appear in Room under the ABS sourceId with the ABS item ID so the
+        // "Unowned" filter can see it without waiting for the next full ABS library sync.
+        val upserted = dao.insertedItems.firstOrNull { it.sourceId == destinationSourceId }
+        assertTrue("Item was not upserted under destination sourceId", upserted != null)
+        assertEquals(absItemId, upserted!!.id)
+        assertEquals(knownItem.title, upserted.title)
+    }
+
+    @Test
+    fun `importToDestination falls back to source item id when destinationItemId is null`() = runTest {
+        val destinationSourceId = "abs-source-1"
+        val dao = RecordingLibraryItemDao()
+
+        val sourceCatalogItem = com.riffle.core.catalog.CatalogItem(
+            id = knownItem.id,
+            rootId = "chitanka-root",
+            title = knownItem.title,
+            author = knownItem.author,
+            coverUrl = null,
+            ebookFormat = com.riffle.core.catalog.BookFormat.Epub,
+        )
+        val sourceCatalog = object : com.riffle.core.catalog.Catalog by NoopCatalog {
+            override suspend fun getItem(itemId: String) = sourceCatalogItem
+        }
+        val importCatalog = object : com.riffle.core.catalog.Catalog by NoopCatalog,
+            com.riffle.core.catalog.BookImportCapability {
+            override suspend fun importBook(request: com.riffle.core.catalog.CatalogImportRequest) =
+                com.riffle.core.catalog.CatalogImportResult.Uploaded(destinationItemId = null)
+        }
+        val registry = object : com.riffle.core.catalog.CatalogRegistry {
+            override suspend fun forActive() = sourceCatalog
+            override suspend fun forSource(source: com.riffle.core.models.Source) = sourceCatalog
+            override suspend fun forSourceId(sourceId: String) =
+                if (sourceId == destinationSourceId) importCatalog else sourceCatalog
+        }
+
+        val vm = makeVm(
+            repo = fakeRepo(knownItem),
+            catalogRegistryOverride = registry,
+            webSourceLibraryItemUpserter = WebSourceLibraryItemUpserter(dao),
+        )
+        backgroundScope.launch { vm.uiState.collect {} }
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        val destination = UploadDestination(sourceId = destinationSourceId, label = "ABS", username = "test", libraries = emptyList())
+        val library = com.riffle.core.catalog.CatalogRoot(
+            id = "lib-abs",
+            name = "ABS Library",
+            mediaType = "book",
+            importFolderId = "folder-1",
+        )
+        vm.importToDestination(destination, library)
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        val upserted = dao.insertedItems.firstOrNull { it.sourceId == destinationSourceId }
+        assertTrue("Item was not upserted under destination sourceId", upserted != null)
+        assertEquals(knownItem.id, upserted!!.id)
+    }
+
+    private object NoopLibraryItemDao : LibraryItemDao {
+        override fun observeByLibraryId(sourceId: String, libraryId: String) = flowOf(emptyList<LibraryItemEntity>())
+        override suspend fun listByLibraryId(sourceId: String, libraryId: String) = emptyList<LibraryItemEntity>()
+        override fun observeBySource(sourceId: String) = flowOf(emptyList<LibraryItemEntity>())
+        override fun observeUngroupedByLibraryId(sourceId: String, libraryId: String) = flowOf(emptyList<LibraryItemEntity>())
+        override suspend fun upsertAll(items: List<LibraryItemEntity>) = Unit
+        override suspend fun insertOrIgnore(items: List<LibraryItemEntity>) = Unit
+        override suspend fun updateMetadata(metadata: LibraryItemMetadata) = Unit
+        override suspend fun deleteByIds(sourceId: String, itemIds: List<String>) = Unit
+        override suspend fun idsForLibrary(sourceId: String, libraryId: String) = emptyList<String>()
+        override suspend fun getById(sourceId: String, itemId: String): LibraryItemEntity? = null
+        override suspend fun listByIds(sourceId: String, itemIds: List<String>) = emptyList<LibraryItemEntity>()
+        override fun observeById(sourceId: String, itemId: String) = flowOf<LibraryItemEntity?>(null)
+        override suspend fun findSourceIdForItem(itemId: String): String? = null
+        override suspend fun deleteByLibraryId(sourceId: String, libraryId: String) = Unit
+        override suspend fun deleteById(sourceId: String, itemId: String) = Unit
+        override fun observeInProgress(sourceId: String, libraryId: String) = flowOf(emptyList<LibraryItemEntity>())
+        override fun observeFinished(sourceId: String, libraryId: String) = flowOf(emptyList<LibraryItemEntity>())
+        override fun observeRecentlyAdded(sourceId: String, libraryId: String) = flowOf(emptyList<LibraryItemEntity>())
+        override fun observeAllBooks(sourceId: String, libraryId: String) = flowOf(emptyList<LibraryItemEntity>())
+        override suspend fun updateLastOpenedAt(sourceId: String, itemId: String, timestamp: Long) = Unit
+        override suspend fun updateReadingProgress(sourceId: String, itemId: String, progress: Float) = Unit
+        override suspend fun updateLibraryId(sourceId: String, itemId: String, libraryId: String) = Unit
+        override suspend fun updateFinishedAt(sourceId: String, itemId: String, finishedAt: Long?) = Unit
+        override suspend fun getLastOpenedAtMap(sourceId: String, libraryId: String) = emptyList<com.riffle.core.database.LastOpenedAtRow>()
+        override suspend fun getReadingProgressMap(sourceId: String, libraryId: String) = emptyList<com.riffle.core.database.ReadingProgressRow>()
+        override suspend fun listMatchableBySourceType(serverType: String) = emptyList<com.riffle.core.database.MatchableItemRow>()
+    }
+
+    private class RecordingLibraryItemDao : LibraryItemDao by NoopLibraryItemDao {
+        val insertedItems = mutableListOf<LibraryItemEntity>()
+        override suspend fun insertOrIgnore(items: List<LibraryItemEntity>) { insertedItems += items }
+    }
 }

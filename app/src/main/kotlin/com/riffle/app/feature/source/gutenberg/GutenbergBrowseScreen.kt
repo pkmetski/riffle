@@ -199,6 +199,8 @@ private fun LibraryTabContent(
 ) {
     val items by viewModel.filteredItems.collectAsState()
     val notStartedFilterActive by viewModel.notStartedFilterActive.collectAsState()
+    val unownedFilterActive by viewModel.unownedFilterActive.collectAsState()
+    val hasServerSources by viewModel.hasServerSources.collectAsState()
     val facets by viewModel.facets.collectAsState()
     val selectedFacet by viewModel.selectedFacet.collectAsState()
     val query by viewModel.query.collectAsState()
@@ -241,6 +243,24 @@ private fun LibraryTabContent(
                         }
                     } else null,
                 )
+            }
+            if (hasServerSources) {
+                item {
+                    FilterChip(
+                        selected = unownedFilterActive,
+                        onClick = { viewModel.toggleUnownedFilter() },
+                        label = { Text("Unowned") },
+                        leadingIcon = if (unownedFilterActive) {
+                            {
+                                Icon(
+                                    Icons.Filled.Check,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(FilterChipDefaults.IconSize),
+                                )
+                            }
+                        } else null,
+                    )
+                }
             }
             if (topicFacets.isNotEmpty() || languageFacets.isNotEmpty()) {
                 item {

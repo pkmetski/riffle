@@ -16,6 +16,7 @@ import com.riffle.core.domain.LibraryObserver
 import com.riffle.core.domain.SourceRepository
 import com.riffle.core.models.SourceType
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.delay
@@ -28,6 +29,8 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -138,6 +141,36 @@ abstract class UnboundedBrowseViewModel(
         persistNotStartedFilter(active)
     }
 
+    private val _unownedFilterActive = MutableStateFlow(false)
+    val unownedFilterActive: StateFlow<Boolean> = _unownedFilterActive.asStateFlow()
+
+    fun toggleUnownedFilter() {
+        val active = !_unownedFilterActive.value
+        _unownedFilterActive.value = active
+        persistUnownedFilter(active)
+    }
+
+    /** True when at least one non-web source (e.g. ABS) is configured. Controls chip visibility. */
+    val hasServerSources: StateFlow<Boolean> =
+        sourceRepository.observeAll()
+            .map { sources -> sources.any { !it.type.isWebSource } }
+            .stateIn(viewModelScope, SharingStarted.Eagerly, false)
+
+    // Ownership index built from all configured server-source libraries. Used by the "Unowned"
+    // filter to exclude items the user already has on their ABS/Komga server.
+    @OptIn(ExperimentalCoroutinesApi::class)
+    private val ownedItemIndex: StateFlow<OwnedItemIndex> =
+        sourceRepository.observeAll()
+            .map { sources -> sources.filter { !it.type.isWebSource }.map { it.id } }
+            .flatMapLatest { serverSourceIds ->
+                if (serverSourceIds.isEmpty()) return@flatMapLatest flowOf(buildOwnedItemIndex(emptyList()))
+                val perSourceFlows = serverSourceIds.map { sourceId ->
+                    libraryObserver.observeAllItemsForSource(sourceId)
+                }
+                combine(perSourceFlows) { arrays -> buildOwnedItemIndex(arrays.flatMap { it }) }
+            }
+            .stateIn(viewModelScope, SharingStarted.Eagerly, buildOwnedItemIndex(emptyList()))
+
     // Local progress for Room-backed web-source items. Items absent from Room have no progress
     // and are treated as not-started by the filter.
     private val localReadingProgressByItemId: StateFlow<Map<String, Float>> =
@@ -146,13 +179,20 @@ abstract class UnboundedBrowseViewModel(
             .stateIn(viewModelScope, SharingStarted.Eagerly, emptyMap())
 
     val filteredItems: StateFlow<List<CatalogItem>> =
-        combine(_items, localReadingProgressByItemId, _notStartedFilterActive) { catalog, progressById, active ->
+        combine(
+            _items,
+            localReadingProgressByItemId,
+            _notStartedFilterActive,
+            ownedItemIndex,
+            _unownedFilterActive,
+        ) { catalog, progressById, notStartedActive, index, unownedActive ->
             catalog
                 .map { item ->
                     val localProgress = progressById[item.id]
                     if (localProgress == null) item else item.copy(readingProgress = localProgress)
                 }
-                .filter { item -> !active || (item.readingProgress ?: 0f) <= 0f }
+                .filter { item -> !notStartedActive || (item.readingProgress ?: 0f) <= 0f }
+                .filter { item -> !unownedActive || !index.isOwned(item) }
         }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     private val _isLoading = MutableStateFlow(false)
@@ -195,6 +235,7 @@ abstract class UnboundedBrowseViewModel(
                 _selectedFacet.value = prefs.selectedFacetKey
                 savedStateHandle["facetKey"] = prefs.selectedFacetKey
                 _notStartedFilterActive.value = prefs.notStartedFilterActive
+                _unownedFilterActive.value = prefs.unownedFilterActive
             }
             loadFacets()
             refresh()
@@ -233,6 +274,13 @@ abstract class UnboundedBrowseViewModel(
         val sourceId = libraryFilterSourceId ?: return
         viewModelScope.launch {
             libraryFilterPreferencesStore.setNotStartedFilterActive(sourceId, rootId, active)
+        }
+    }
+
+    private fun persistUnownedFilter(active: Boolean) {
+        val sourceId = libraryFilterSourceId ?: return
+        viewModelScope.launch {
+            libraryFilterPreferencesStore.setUnownedFilterActive(sourceId, rootId, active)
         }
     }
 

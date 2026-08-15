@@ -6,6 +6,7 @@ data class LibraryFilterPreferences(
     val selectedFacetKey: String? = null,
     val notStartedFilterActive: Boolean = false,
     val sortModeName: String? = null,
+    val unownedFilterActive: Boolean = false,
 )
 
 /**
@@ -18,5 +19,6 @@ interface LibraryFilterPreferencesStore {
     fun preferences(sourceId: String, libraryId: String): Flow<LibraryFilterPreferences>
     suspend fun setSelectedFacetKey(sourceId: String, libraryId: String, key: String?)
     suspend fun setNotStartedFilterActive(sourceId: String, libraryId: String, active: Boolean)
+    suspend fun setUnownedFilterActive(sourceId: String, libraryId: String, active: Boolean)
     suspend fun setSortModeName(sourceId: String, libraryId: String, name: String?)
 }

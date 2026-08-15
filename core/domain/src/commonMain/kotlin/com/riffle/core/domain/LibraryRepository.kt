@@ -1,6 +1,7 @@
 package com.riffle.core.domain
 
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flowOf
 import com.riffle.core.models.Collection
 import com.riffle.core.models.Library
 import com.riffle.core.models.LibraryItem
@@ -29,6 +30,10 @@ interface LibraryObserver {
     fun observeFinishedItems(libraryId: String): Flow<List<LibraryItem>>
     fun observeRecentlyAddedItems(libraryId: String): Flow<List<LibraryItem>>
     fun observeAllBooks(libraryId: String): Flow<List<LibraryItem>>
+
+    /** All items owned by a specific Source, across every library. Used to check ownership
+     *  across server sources when filtering web-source catalogs. */
+    fun observeAllItemsForSource(sourceId: String): Flow<List<LibraryItem>> = flowOf(emptyList())
     fun observeSeries(libraryId: String): Flow<List<Series>>
     fun observeCollections(libraryId: String): Flow<List<Collection>>
     fun observeSeriesItems(seriesId: String): Flow<List<LibraryItem>>
