@@ -13,6 +13,7 @@ data class NetworkEbookProgressPayload(
 data class NetworkAudiobookProgressPayload(
     val currentTime: Double,
     val duration: Double,
+    val isFinished: Boolean? = null,
 )
 
 data class NetworkServerProgress(

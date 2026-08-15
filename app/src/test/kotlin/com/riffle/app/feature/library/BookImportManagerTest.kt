@@ -37,7 +37,7 @@ class BookImportManagerTest {
         val manager = BookImportManager(CoroutineScope(dispatcher))
         val gate = CompletableDeferred<Unit>()
 
-        manager.start("import:item") { onProgress ->
+        manager.start("import:item") { onProgress, _ ->
             onProgress(CatalogImportProgress(CatalogImportPhase.Uploading))
             gate.await()
             CatalogImportResult.Uploaded(destinationItemId = "abs-item")
@@ -61,7 +61,7 @@ class BookImportManagerTest {
         val manager = BookImportManager(CoroutineScope(dispatcher))
         val gate = CompletableDeferred<Unit>()
 
-        manager.start("import:item") { onProgress ->
+        manager.start("import:item") { onProgress, _ ->
             onProgress(CatalogImportProgress(CatalogImportPhase.Uploaded))
             gate.await()
             CatalogImportResult.Uploaded()
@@ -81,7 +81,7 @@ class BookImportManagerTest {
         val manager = BookImportManager(CoroutineScope(dispatcher))
         val gate = CompletableDeferred<Unit>()
 
-        manager.start("import:item") { onProgress ->
+        manager.start("import:item") { onProgress, _ ->
             onProgress(CatalogImportProgress(CatalogImportPhase.Uploaded))
             onProgress(CatalogImportProgress(CatalogImportPhase.Reconciling))
             gate.await()

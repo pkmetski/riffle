@@ -184,20 +184,12 @@ class AbsCatalog(
                 ),
             )
             request.onProgress(CatalogImportProgress(CatalogImportPhase.Uploaded))
-            // /api/upload only moves files. Ask ABS to start indexing them immediately; the
-            // watcher remains asynchronous, so reconciliation below still polls the library.
-            try {
-                libraryApi.scanLibrary(
-                    config.baseUrl,
-                    request.libraryId,
-                    config.token,
-                    config.insecureAllowed,
-                ).unwrap()
-            } catch (cause: CancellationException) {
-                throw cause
-            } catch (_: Throwable) {
-                // Scanning is best effort. The normal watcher may still discover the files.
-            }
+            // /api/upload moves files and internally kicks off an async folder scan that creates
+            // the library item. Triggering an explicit scanLibrary here races with that internal
+            // scan: both see the new directory before either has committed the item, so ABS ends
+            // up creating two separate items for the same upload. Skip the immediate scan and let
+            // ABS's own scan land first; reconcileUploadedItem already calls scanLibrary every
+            // RESCAN_INTERVAL_ATTEMPTS as a recovery mechanism if the item doesn't appear.
             val reconciliationWarning = mutableListOf<String>()
             request.onProgress(CatalogImportProgress(CatalogImportPhase.Reconciling))
             val destinationItem = try {
@@ -304,13 +296,9 @@ class AbsCatalog(
             // scan state even though the stable author/title folder is already present.
             candidates.firstOrNull { candidate ->
                 doesDestinationItemExist(sourceIdentity, listOf(candidate.toCatalogItem()))
+            }?.let {
+                if (request.claimDestinationItem(it.id)) return ReconciledDestinationItem(it.id, it.addedAt)
             }
-                ?.let { return ReconciledDestinationItem(it.id, it.addedAt) }
-
-            // addedAt identifies the item created by this upload even when ABS has not yet
-            // parsed the EPUB/ID3 metadata, so do not require title/author matching here.
-            candidates.firstOrNull { it.addedAt?.let { addedAt -> addedAt > uploadStartMs } == true }
-                ?.let { return ReconciledDestinationItem(it.id, it.addedAt) }
 
             // Keep the logical matcher as a compatibility fallback for servers that omit
             // addedAt or have clock skew between the client and ABS.
@@ -335,7 +323,9 @@ class AbsCatalog(
             }
             fallbackCandidates.firstOrNull { candidate ->
                 doesDestinationItemExist(sourceIdentity, listOf(candidate.toCatalogItem()))
-            }?.let { return ReconciledDestinationItem(it.id, it.addedAt) }
+            }?.let {
+                if (request.claimDestinationItem(it.id)) return ReconciledDestinationItem(it.id, it.addedAt)
+            }
             if (attempt < RECONCILIATION_ATTEMPTS - 1) delay(RECONCILIATION_DELAY_MS)
         }
         return null
@@ -445,6 +435,7 @@ class AbsCatalog(
                         NetworkAudiobookProgressPayload(
                             currentTime = progress.coerceIn(0f, 1f) * request.audioDurationSec,
                             duration = request.audioDurationSec,
+                            isFinished = if (progress >= 1f) true else null,
                         ),
                         config.token,
                         config.insecureAllowed,
@@ -1026,7 +1017,7 @@ class AbsCatalog(
         val addedAt: Long?,
     )
 
-    private companion object {
+    internal companion object {
         const val RECONCILIATION_ATTEMPTS = 30
         const val RECONCILIATION_DELAY_MS = 2_000L
         // The upload may reuse an existing author/title directory, so ABS keeps the item's

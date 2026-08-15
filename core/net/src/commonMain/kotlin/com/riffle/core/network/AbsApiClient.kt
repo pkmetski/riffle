@@ -585,7 +585,7 @@ class AbsApiClient(
         val response = client(insecureAllowed).patch("$baseUrl/api/me/progress/$libraryItemId") {
             header(HttpHeaders.Authorization, "Bearer $token")
             contentType(ContentType.Application.Json)
-            setBody(AbsAudiobookProgressRequest(payload.currentTime, payload.duration, progress))
+            setBody(AbsAudiobookProgressRequest(payload.currentTime, payload.duration, progress, payload.isFinished))
         }
         if (!response.status.isSuccess()) throw HttpException(response.status.value, response.status.description)
         runCatching { response.body<AbsProgressResponse>() }.getOrNull()?.lastUpdate ?: 0L
