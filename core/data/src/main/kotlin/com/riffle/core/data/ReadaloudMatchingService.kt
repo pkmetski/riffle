@@ -1,5 +1,6 @@
 package com.riffle.core.data
 
+import android.database.sqlite.SQLiteConstraintException
 import com.riffle.core.database.LibraryItemDao
 import com.riffle.core.database.MatchableItemRow
 import com.riffle.core.database.ReadaloudCandidateDao
@@ -98,18 +99,25 @@ open class ReadaloudMatchingService(
                             }
                             return@forEach
                         }
-                        readaloudLinkDao.upsert(
-                            ReadaloudLinkEntity(
-                                absSourceId = match.absServerUuid,
-                                absLibraryItemId = match.absLibraryItemId,
-                                storytellerSourceId = book.sourceId,
-                                storytellerBookId = book.itemId,
-                                state = ReadaloudLinkEntity.STATE_CONFIRMED,
-                                userConfirmed = false,
-                                createdAt = existing?.createdAt ?: now,
-                                updatedAt = now,
+                        // Either source may be concurrently deleted (race with source removal
+                        // in RefreshLibraryItems background scope). Skip silently — the next
+                        // reconcile won't include the deleted source's books.
+                        try {
+                            readaloudLinkDao.upsert(
+                                ReadaloudLinkEntity(
+                                    absSourceId = match.absServerUuid,
+                                    absLibraryItemId = match.absLibraryItemId,
+                                    storytellerSourceId = book.sourceId,
+                                    storytellerBookId = book.itemId,
+                                    state = ReadaloudLinkEntity.STATE_CONFIRMED,
+                                    userConfirmed = false,
+                                    createdAt = existing?.createdAt ?: now,
+                                    updatedAt = now,
+                                )
                             )
-                        )
+                        } catch (_: SQLiteConstraintException) {
+                            return@forEach
+                        }
                         freshAutoSlots += slot
                     }
 
