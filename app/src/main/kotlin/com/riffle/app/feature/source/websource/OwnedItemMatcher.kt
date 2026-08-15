@@ -148,9 +148,9 @@ private fun authorsOverlap(a: String, b: String): Boolean {
 
 private fun titlesSimilar(a: String, b: String): Boolean {
     if (a == b) return true
-    if (Math.abs(a.length - b.length) > 3) return false
+    if (kotlin.math.abs(a.length - b.length) > 3) return false
     val maxLen = maxOf(a.length, b.length)
-    val threshold = minOf(3, Math.ceil(maxLen * 0.10).toInt())
+    val threshold = minOf(3, kotlin.math.ceil(maxLen * 0.10).toInt())
     return levenshtein(a, b) <= threshold
 }
 
