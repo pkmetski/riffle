@@ -7,6 +7,7 @@ import com.riffle.core.domain.PublicationMetricsRepository
 import com.riffle.core.domain.TocRepository
 import com.riffle.core.models.EbookFormat
 import com.riffle.core.models.LibraryItem
+import com.riffle.core.domain.DefaultDispatcherProvider
 import com.riffle.core.models.TocEntry
 import io.mockk.coEvery
 import io.mockk.mockk
@@ -39,6 +40,7 @@ class ExtractEpubTocUseCaseCacheTest {
         assetRetriever = mockk<AssetRetriever>(),
         tocRepository = tocRepo,
         publicationMetricsRepository = metricsRepo,
+        dispatchers = DefaultDispatcherProvider,
     )
 
     @Test

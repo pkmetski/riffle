@@ -23,9 +23,11 @@ import java.io.File
 import java.util.zip.CRC32
 import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
+import com.riffle.core.domain.DefaultDispatcherProvider
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.readium.r2.shared.publication.Layout
@@ -52,6 +54,7 @@ class ExtractEpubTocUseCaseTest {
         assetRetriever,
         tocRepository,
         publicationMetricsRepository,
+        DefaultDispatcherProvider,
     )
 
     private fun makeItem(isCached: Boolean = true, ebookFileIno: String? = "ino1") = LibraryItem(
@@ -292,5 +295,36 @@ class ExtractEpubTocUseCaseTest {
         } finally {
             unmockkStatic(Uri::class)
         }
+    }
+
+    @Test
+    fun `extractDetails dispatches to IO thread, not the calling coroutine thread`() = runTest {
+        // Regression: before the fix, extractDetails() ran on whatever dispatcher called it
+        // (typically Dispatchers.Main in the ViewModel). This blocked the main thread with
+        // synchronous ZipFile I/O and Readium parse work, causing jank during back navigation
+        // from the item detail screen opened by PR 710's readaloud-to-ABS redirect.
+        // The fix wraps extractDetails() in withContext(Dispatchers.IO). This test pins that
+        // dispatch by verifying the thread name inside openEpubForMetadata (the first blocking
+        // call on the cache-miss path) is a real IO pool thread, not the test scheduler thread.
+        val testThreadName = Thread.currentThread().name
+        var capturedThreadName: String? = null
+
+        coEvery { tocRepository.getCachedToc(any(), any()) } returns null
+        coEvery { publicationMetricsRepository.get(any(), any()) } returns null
+        coEvery { epubRepository.openEpubForMetadata(any()) } answers {
+            capturedThreadName = Thread.currentThread().name
+            EpubOpenResult.NetworkError(RuntimeException("no file"))
+        }
+
+        useCase.extractDetails(makeItem())
+
+        assertNotEquals(
+            "extractDetails must not run on the calling coroutine's thread",
+            testThreadName, capturedThreadName,
+        )
+        assertTrue(
+            "extractDetails must run on a Dispatchers.IO worker, got: $capturedThreadName",
+            capturedThreadName?.startsWith("DefaultDispatcher-worker") == true,
+        )
     }
 }
