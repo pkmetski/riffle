@@ -13,6 +13,9 @@ import com.riffle.core.domain.MatchOutcome
 import com.riffle.core.domain.MatchableAbsItem
 import com.riffle.core.domain.MatchableStorytellerBook
 import com.riffle.core.domain.ReadaloudMatcher
+import com.riffle.core.logging.LogChannel
+import com.riffle.core.logging.Logger
+import com.riffle.core.logging.NoopLogger
 import com.riffle.core.models.ServerType
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -41,13 +44,15 @@ open class ReadaloudMatchingService(
     private val readaloudCandidateDao: ReadaloudCandidateDao,
     private val readaloudDismissalDao: ReadaloudDismissalDao,
     private val clock: () -> Long = System::currentTimeMillis,
+    private val logger: Logger = NoopLogger,
 ) : com.riffle.core.domain.ReadaloudLinkReconciler {
     @Inject constructor(
         libraryItemDao: LibraryItemDao,
         readaloudLinkDao: ReadaloudLinkDao,
         readaloudCandidateDao: ReadaloudCandidateDao,
         readaloudDismissalDao: ReadaloudDismissalDao,
-    ) : this(libraryItemDao, readaloudLinkDao, readaloudCandidateDao, readaloudDismissalDao, System::currentTimeMillis)
+        logger: Logger,
+    ) : this(libraryItemDao, readaloudLinkDao, readaloudCandidateDao, readaloudDismissalDao, System::currentTimeMillis, logger)
 
     override suspend fun reconcileLinks() {
         val storytellerBooks = libraryItemDao.listMatchableBySourceType(ServerType.STORYTELLER_SERVICE.name)
@@ -100,7 +105,7 @@ open class ReadaloudMatchingService(
                             return@forEach
                         }
                         // Either source may be concurrently deleted (race with source removal
-                        // in RefreshLibraryItems background scope). Skip silently — the next
+                        // in RefreshLibraryItems background scope). Log and skip — the next
                         // reconcile won't include the deleted source's books.
                         try {
                             readaloudLinkDao.upsert(
@@ -115,10 +120,13 @@ open class ReadaloudMatchingService(
                                     updatedAt = now,
                                 )
                             )
-                        } catch (_: SQLiteConstraintException) {
-                            return@forEach
+                            freshAutoSlots += slot
+                        } catch (e: SQLiteConstraintException) {
+                            logger.w(LogChannel.Readaloud, e) {
+                                "reconcileLinks upsert skipped — constraint violation for " +
+                                    "storytellerSourceId=${book.sourceId} absSourceId=${match.absServerUuid}"
+                            }
                         }
-                        freshAutoSlots += slot
                     }
 
                     is MatchOutcome.PendingReview -> {
