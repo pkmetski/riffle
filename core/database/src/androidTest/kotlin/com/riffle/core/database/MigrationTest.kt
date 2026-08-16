@@ -2994,8 +2994,8 @@ class MigrationTest {
         helper.createDatabase(TEST_DB, 65).use { db ->
             // Insert a source row (required for FK in book_comic_formatting_preferences)
             db.execSQL(
-                "INSERT INTO sources (id, type, name, url, token, userId) " +
-                    "VALUES ('src1', 'ABS', 'Test', 'http://test', 'tok', 'u1')"
+                "INSERT INTO sources (id, url, isActive, insecureConnectionAllowed, username, serverType, absUserId, type) " +
+                    "VALUES ('src1', 'http://test', 1, 0, '', 'AUDIOBOOKSHELF', NULL, 'ABS')"
             )
         }
         helper.runMigrationsAndValidate(TEST_DB, 66, true, RiffleDatabase.MIGRATION_65_66).use { db ->

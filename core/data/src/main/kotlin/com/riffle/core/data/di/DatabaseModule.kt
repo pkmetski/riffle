@@ -6,6 +6,7 @@ import com.riffle.core.database.AnnotationDao
 import com.riffle.core.database.AudioPlaybackPreferencesDao
 import com.riffle.core.database.AudiobookChapterCacheDao
 import com.riffle.core.database.AudiobookPositionDao
+import com.riffle.core.database.BookComicFormattingPreferencesDao
 import com.riffle.core.database.BookFormattingPreferencesDao
 import com.riffle.core.database.CollectionDao
 import com.riffle.core.database.LibraryDao
@@ -219,6 +220,6 @@ object DatabaseModule {
 
     @Provides
     @Singleton
-    fun provideBookComicFormattingPreferencesDao(db: RiffleDatabase): com.riffle.core.database.BookComicFormattingPreferencesDao =
+    fun provideBookComicFormattingPreferencesDao(db: RiffleDatabase): BookComicFormattingPreferencesDao =
         db.bookComicFormattingPreferencesDao()
 }
