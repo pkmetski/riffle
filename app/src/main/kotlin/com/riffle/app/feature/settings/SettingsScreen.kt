@@ -42,6 +42,7 @@ import com.riffle.app.feature.settings.panels.ListeningPreferencesPanel
 import com.riffle.app.feature.settings.panels.ComicDisplaySettingsPanel
 import com.riffle.app.feature.settings.sections.AnnotationsSyncSection
 import com.riffle.app.feature.settings.sections.AppBehaviorSection
+import com.riffle.app.feature.settings.sections.DictionaryPacksSection
 import com.riffle.app.feature.settings.sections.AppVersionSection
 import com.riffle.app.feature.settings.sections.AppearanceSection
 import com.riffle.app.feature.settings.sections.ComicsSection
@@ -76,6 +77,7 @@ fun SettingsScreen(
     onNavigateToReadaloudSettings: () -> Unit = {},
     onNavigateToAnnotationsSyncSettings: () -> Unit = {},
     onNavigateToDeveloperOptions: () -> Unit = {},
+    onNavigateToDictionaryPacks: () -> Unit = {},
     onNavigateToDebugLogs: () -> Unit = {},
     onNavigateToChangelog: () -> Unit = {},
     viewModel: SettingsViewModel = hiltViewModel(),
@@ -228,10 +230,24 @@ fun SettingsScreen(
                 )
                 HorizontalDivider()
 
+                DictionaryPacksSection(
+                    onOpen = onNavigateToDictionaryPacks,
+                )
+                HorizontalDivider()
+
                 if (developerModeEnabled) {
                     DeveloperOptionsSection(onOpen = onNavigateToDeveloperOptions)
                     HorizontalDivider()
                 }
+
+                DiagnosticsSection(
+                    crashReports = crashReports,
+                    expandedCrashes = expandedCrashes,
+                    crashReportFiles = { viewModel.crashReportFiles() },
+                    onClearCrashReports = viewModel::clearCrashReports,
+                    onNavigateToDebugLogs = onNavigateToDebugLogs,
+                )
+                HorizontalDivider()
 
                 AppVersionSection(
                     installedVersionName = viewModel.installedVersionName,

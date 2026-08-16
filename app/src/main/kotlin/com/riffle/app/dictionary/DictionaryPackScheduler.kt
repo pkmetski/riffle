@@ -16,13 +16,13 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 @Singleton
-class DictionaryPackScheduler @Inject constructor() {
+open class DictionaryPackScheduler @Inject constructor() {
 
     private val networkConstraint = Constraints.Builder()
         .setRequiredNetworkType(NetworkType.CONNECTED)
         .build()
 
-    fun enqueueDownload(context: Context, packInfo: PackInfo) {
+    open fun enqueueDownload(context: Context, packInfo: PackInfo) {
         val data = workDataOf(
             PackDownloadWorker.KEY_LANGUAGE_TAG to packInfo.languageTag,
             PackDownloadWorker.KEY_DOWNLOAD_URL to packInfo.downloadUrl,

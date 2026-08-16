@@ -8,11 +8,11 @@ import io.ktor.client.request.get
 import io.ktor.http.isSuccess
 import java.io.IOException
 
-class PackManifestFetcher(
+open class PackManifestFetcher(
     private val httpClient: HttpClient,
     private val manifestUrl: String,
 ) {
-    suspend fun fetch(): PackManifest {
+    open suspend fun fetch(): PackManifest {
         val response = httpClient.get(manifestUrl)
         if (!response.status.isSuccess()) {
             throw IOException("Manifest fetch failed: HTTP ${response.status.value}")
