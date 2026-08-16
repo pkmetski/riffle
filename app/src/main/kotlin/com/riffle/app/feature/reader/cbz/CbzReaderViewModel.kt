@@ -1,7 +1,6 @@
 package com.riffle.app.feature.reader.cbz
 
 import android.app.Application
-import android.content.pm.ActivityInfo
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.viewModelScope
@@ -127,7 +126,7 @@ class CbzReaderViewModel @Inject constructor(
 
     /**
      * Effective panels after applying the overflow transform (e.g. SPLIT). Used for panel
-     * navigation logic. The screen still reads [currentPagePanels] (raw) for rendering.
+     * navigation logic. The screen reads [currentPagePanels] (raw) for rendering.
      */
     val effectivePanels: StateFlow<PagePanels?> = combine(
         _currentPagePanels,
@@ -149,24 +148,16 @@ class CbzReaderViewModel @Inject constructor(
 
     /**
      * Requested screen orientation for AUTO_ROTATE overflow behavior. Non-null only when the
-     * current panel overflows the viewport and should trigger a rotation.
+     * current panel's axis ratios indicate a wide or tall panel requiring forced rotation.
+     * Does not depend on viewport size — avoiding the feedback loop where forced rotation
+     * changes the viewport and retrips the condition.
      */
     val requestedOrientation: StateFlow<Int?> = combine(
         effectiveComicFormatting,
         _currentPanelIndex,
         _currentPagePanels,
-        _viewportSize,
-    ) { formatting, panelIndex, pagePanels, (vpW, vpH) ->
-        if (!formatting.panelViewOn) return@combine null
-        if (formatting.panelOverflow != PanelOverflowBehavior.AUTO_ROTATE) return@combine null
-        if (pagePanels == null || pagePanels.isFallback) return@combine null
-        val panel = pagePanels.panels.getOrNull(panelIndex) ?: return@combine null
-        val overflowing = PanelOverflowTransform.isOverflowing(
-            panel, pagePanels.imageWidth, pagePanels.imageHeight, vpW, vpH,
-        )
-        if (!overflowing) return@combine null
-        if (vpW < vpH) ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
-        else ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
+    ) { formatting, panelIndex, pagePanels ->
+        computeAutoRotateOrientation(formatting, panelIndex, pagePanels)
     }.stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
     val keepScreenOn: StateFlow<Boolean> = wakeLockPreferencesStore.keepScreenOn
