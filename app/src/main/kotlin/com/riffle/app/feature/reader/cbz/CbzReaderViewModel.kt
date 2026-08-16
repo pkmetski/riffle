@@ -123,6 +123,10 @@ class CbzReaderViewModel @Inject constructor(
 
     /** Low-resolution page bitmap sampler for SMART_SPLIT seam detection. Null until decoded. */
     private val _energySampler = MutableStateFlow<((PanelRegion) -> FloatArray)?>(null)
+    // Strong reference to the bitmap captured by the current sampler lambda so it can be
+    // explicitly recycled on page change or ViewModel teardown. API-25 allocates bitmaps in
+    // native memory outside the GC heap, so waiting for GC to collect them causes OOM.
+    @Volatile private var energySamplerBitmap: Bitmap? = null
 
     private val _currentPagePanels = MutableStateFlow<PagePanels?>(null)
     /**
@@ -465,9 +469,12 @@ class CbzReaderViewModel @Inject constructor(
                         formatting.panelOverflow == PanelOverflowBehavior.SMART_SPLIT) &&
                     !pagePanels.isFallback && vpW > 0 && vpH > 0
                 ) {
+                    // Pass the actual behavior; SMART_SPLIT with no sampler falls back to center
+                    // split, which produces the same count as SPLIT — but using the real behavior
+                    // stays correct if counts ever diverge.
                     PanelOverflowTransform.applyOverflow(
                         pagePanels.panels, pagePanels.imageWidth, pagePanels.imageHeight,
-                        vpW, vpH, PanelOverflowBehavior.SPLIT,
+                        vpW, vpH, formatting.panelOverflow,
                     ).size
                 } else {
                     pagePanels.panels.size
@@ -489,6 +496,10 @@ class CbzReaderViewModel @Inject constructor(
         // Cancel any prior in-flight resolve/prefetch so a stale coroutine can't clobber
         // `_currentPagePanels` with an older page's result under rapid navigation.
         panelResolveJob?.cancel()
+        // Recycle before nulling — sampler lambda holds a strong bitmap ref; after null the
+        // combine in effectivePanels will no longer call it, so the recycle is safe.
+        energySamplerBitmap?.let { if (!it.isRecycled) it.recycle() }
+        energySamplerBitmap = null
         _energySampler.value = null
         panelResolveJob = viewModelScope.launch {
             val current = withContext(Dispatchers.Default) {
@@ -496,10 +507,12 @@ class CbzReaderViewModel @Inject constructor(
             } ?: return@launch
             if (archiveClosed || _currentPage.value != pageIndex) return@launch
             _currentPagePanels.value = current
-            // Decode a low-res version of the page for SMART_SPLIT seam energy sampling.
-            // Runs on Dispatchers.Default (already in a Default coroutine here).
-            _energySampler.value = withContext(Dispatchers.Default) {
-                computeEnergySampler(pageIndex, current.imageWidth, current.imageHeight)
+            // Only decode when SMART_SPLIT is active — the energy sampler is not needed
+            // for OFF or SPLIT, and the decode is non-trivial even at ≤300px.
+            if (effectiveComicFormatting.value.panelOverflow == PanelOverflowBehavior.SMART_SPLIT) {
+                _energySampler.value = withContext(Dispatchers.Default) {
+                    computeEnergySampler(pageIndex, current.imageWidth, current.imageHeight)
+                }
             }
             // Prefetch the next two pages.
             withContext(Dispatchers.Default) {
@@ -578,6 +591,8 @@ class CbzReaderViewModel @Inject constructor(
         panelResolveJob?.cancel()
         archive?.close()
         archive = null
+        energySamplerBitmap?.let { if (!it.isRecycled) it.recycle() }
+        energySamplerBitmap = null
     }
 
     private fun computeEnergySampler(
@@ -604,6 +619,8 @@ class CbzReaderViewModel @Inject constructor(
 
         val scaleX = bitmap.width.toFloat() / imageWidth
         val scaleY = bitmap.height.toFloat() / imageHeight
+        // Register the bitmap so onCurrentPageChanged / onCleared can explicitly recycle it.
+        energySamplerBitmap = bitmap
         return { panel ->
             val widthRatio = panel.width.toFloat() / imageWidth
             val heightRatio = panel.height.toFloat() / imageHeight
