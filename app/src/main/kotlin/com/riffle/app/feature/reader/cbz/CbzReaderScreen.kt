@@ -36,8 +36,6 @@ import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.GridView
-import androidx.compose.material.icons.filled.ViewCarousel
 import androidx.compose.material.icons.outlined.ViewQuilt
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
@@ -96,7 +94,6 @@ fun CbzReaderScreen(
     val effectivePanels by viewModel.effectivePanels.collectAsState()
     val currentPanelIndex by viewModel.currentPanelIndex.collectAsState()
     val effectiveComicFormatting by viewModel.effectiveComicFormatting.collectAsState()
-    val requestedOrientation by viewModel.requestedOrientation.collectAsState()
     var formattingSheetOpen by remember { mutableStateOf(false) }
     val context = LocalContext.current
     val lifecycle = LocalLifecycleOwner.current.lifecycle
@@ -127,17 +124,6 @@ fun CbzReaderScreen(
         if (keepScreenOn) window?.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         else window?.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         onDispose { window?.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON) }
-    }
-
-    val activity = context as? android.app.Activity
-    LaunchedEffect(requestedOrientation) {
-        activity?.requestedOrientation =
-            requestedOrientation ?: android.content.pm.ActivityInfo.SCREEN_ORIENTATION_USER
-    }
-    DisposableEffect(Unit) {
-        onDispose {
-            activity?.requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_USER
-        }
     }
 
     Box(modifier = Modifier.fillMaxSize().background(Color.Black)) {
@@ -198,15 +184,6 @@ fun CbzReaderScreen(
                             Icon(
                                 imageVector = Icons.Outlined.ViewQuilt,
                                 contentDescription = "Comic formatting",
-                            )
-                        }
-                        IconButton(
-                            onClick = viewModel::togglePanelView,
-                            modifier = Modifier.testTag("cbz_panel_view_toggle"),
-                        ) {
-                            Icon(
-                                imageVector = if (panelViewOn) Icons.Filled.ViewCarousel else Icons.Filled.GridView,
-                                contentDescription = if (panelViewOn) "Exit Panel View" else "Panel View",
                             )
                         }
                     }
