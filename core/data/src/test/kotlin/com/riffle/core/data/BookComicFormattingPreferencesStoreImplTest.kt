@@ -40,13 +40,13 @@ class BookComicFormattingPreferencesStoreImplTest {
         assertNull(result.panelViewOn)
     }
 
-    @Test fun `known panelOverflow AUTO_ROTATE is parsed correctly`() = runTest {
+    @Test fun `known panelOverflow SMART_SPLIT is parsed correctly`() = runTest {
         val entity = BookComicFormattingPreferencesEntity(
             sourceId = "src", itemId = "item",
-            panelViewOn = true, panelOverflow = "AUTO_ROTATE",
+            panelViewOn = true, panelOverflow = "SMART_SPLIT",
         )
         val result = storeWith(entity).overrides("src::item").first()
-        assertEquals(PanelOverflowBehavior.AUTO_ROTATE, result.panelOverflow)
+        assertEquals(PanelOverflowBehavior.SMART_SPLIT, result.panelOverflow)
     }
 
     @Test fun `null entity returns empty overrides`() = runTest {

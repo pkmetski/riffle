@@ -3007,14 +3007,14 @@ class MigrationTest {
             db.execSQL(
                 "INSERT INTO book_comic_formatting_preferences " +
                     "(source_id, item_id, panel_view_on, panel_overflow) " +
-                    "VALUES ('src1', 'item1', 1, 'AUTO_ROTATE')"
+                    "VALUES ('src1', 'item1', 1, 'SMART_SPLIT')"
             )
             db.query("SELECT * FROM book_comic_formatting_preferences").use { cursor ->
                 assertTrue(cursor.moveToFirst())
                 assertEquals("src1", cursor.getString(cursor.getColumnIndexOrThrow("source_id")))
                 assertEquals("item1", cursor.getString(cursor.getColumnIndexOrThrow("item_id")))
                 assertEquals(1, cursor.getInt(cursor.getColumnIndexOrThrow("panel_view_on")))
-                assertEquals("AUTO_ROTATE", cursor.getString(cursor.getColumnIndexOrThrow("panel_overflow")))
+                assertEquals("SMART_SPLIT", cursor.getString(cursor.getColumnIndexOrThrow("panel_overflow")))
             }
         }
     }
