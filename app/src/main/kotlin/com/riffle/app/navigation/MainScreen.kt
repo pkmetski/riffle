@@ -16,6 +16,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
 import androidx.navigation.NavBackStackEntry
 import androidx.navigation.NavController
 import androidx.navigation.NavType
@@ -284,14 +286,21 @@ fun MainScreen(
         },
         onDownloadsSelected = {
             scope.launch { drawerState.close() }
-            navController.navigate(DOWNLOADS)
+            if (navController.currentDestination?.route != DOWNLOADS) navController.navigate(DOWNLOADS)
         },
         onSettingsSelected = {
             scope.launch { drawerState.close() }
-            navController.navigate(SETTINGS)
+            if (navController.currentDestination?.route != SETTINGS) navController.navigate(SETTINGS)
         },
     ) {
-        NavHost(navController = navController, startDestination = HOME) {
+        NavHost(
+            navController = navController,
+            startDestination = HOME,
+            enterTransition = { EnterTransition.None },
+            exitTransition = { ExitTransition.None },
+            popEnterTransition = { EnterTransition.None },
+            popExitTransition = { ExitTransition.None },
+        ) {
             composable(HOME) {
                 HomeScreen(
                     onNavigateToAddSource = {

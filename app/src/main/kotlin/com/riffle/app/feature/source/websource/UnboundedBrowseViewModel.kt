@@ -228,6 +228,7 @@ abstract class UnboundedBrowseViewModel(
 
     init {
         viewModelScope.launch {
+            launch { loadFacets() }
             val source = sourceRepository.getActive()?.takeIf { it.type == sourceType }
             if (source != null) {
                 libraryFilterSourceId = source.id
@@ -237,7 +238,6 @@ abstract class UnboundedBrowseViewModel(
                 _notStartedFilterActive.value = prefs.notStartedFilterActive
                 _unownedFilterActive.value = prefs.unownedFilterActive
             }
-            loadFacets()
             refresh()
         }
     }
