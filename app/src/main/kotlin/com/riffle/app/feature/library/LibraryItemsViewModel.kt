@@ -325,9 +325,11 @@ class LibraryItemsViewModel @Inject constructor(
         viewModelScope.launch {
             val source = sourceRepository.getActive()
             if (source != null) {
-                authToken = tokenStorage.getToken(source.id) ?: ""
+                val tokenDeferred = async { tokenStorage.getToken(source.id) ?: "" }
+                val prefsDeferred = async { libraryFilterPreferencesStore.preferences(source.id, libraryId).first() }
+                authToken = tokenDeferred.await()
                 libraryFilterSourceId = source.id
-                val prefs = libraryFilterPreferencesStore.preferences(source.id, libraryId).first()
+                val prefs = prefsDeferred.await()
                 _notStartedFilterActive.value = prefs.notStartedFilterActive
                 _librarySortMode.value = prefs.sortModeName
                     ?.let { runCatching { LibrarySortMode.valueOf(it) }.getOrNull() }
