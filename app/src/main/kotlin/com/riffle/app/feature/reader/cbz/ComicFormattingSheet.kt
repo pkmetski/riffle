@@ -47,7 +47,7 @@ internal fun ComicFormattingSheet(
             val overflowEnabled = formatting.panelViewOn
             val options = listOf(
                 PanelOverflowBehavior.SPLIT to "Split",
-                PanelOverflowBehavior.AUTO_ROTATE to "Auto-rotate",
+                PanelOverflowBehavior.SMART_SPLIT to "Smart split",
                 PanelOverflowBehavior.OFF to "Off",
             )
             Column(Modifier.selectableGroup()) {

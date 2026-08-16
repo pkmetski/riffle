@@ -21,16 +21,15 @@ internal fun PanelOverflowSettingsPanel(
     onDismiss: () -> Unit,
 ) = DetailScaffold("Panel Overflow", onDismiss) {
     Text(
-        text = "Some panels span the full width or height of the page and can't be zoomed " +
-            "into in the current orientation. Split divides them at the midpoint into two " +
-            "navigable halves. Auto-rotate temporarily turns the device so the panel fits " +
-            "naturally.",
+        text = "Some panels span the full width or height of the page and can't be zoomed into usefully. " +
+            "Split divides them at the midpoint into two navigable halves. Smart split finds the quietest " +
+            "seam — a column or row with the least visual content — and splits there instead.",
         style = MaterialTheme.typography.bodyMedium,
         modifier = Modifier.padding(top = 4.dp, bottom = 20.dp),
     )
     val options = listOf(
         PanelOverflowBehavior.SPLIT to "Split",
-        PanelOverflowBehavior.AUTO_ROTATE to "Auto-rotate",
+        PanelOverflowBehavior.SMART_SPLIT to "Smart split",
         PanelOverflowBehavior.OFF to "Off",
     )
     Column(Modifier.selectableGroup()) {

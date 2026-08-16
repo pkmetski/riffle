@@ -22,7 +22,7 @@ internal fun ComicsSection(
         title = "Panel Overflow",
         summary = when (comicFormatting.panelOverflow) {
             PanelOverflowBehavior.SPLIT -> "Split at centre"
-            PanelOverflowBehavior.AUTO_ROTATE -> "Auto-rotate"
+            PanelOverflowBehavior.SMART_SPLIT -> "Smart split"
             PanelOverflowBehavior.OFF -> "Off"
         },
         onClick = { onOpenPanel(SettingsPanel.PanelOverflow) },
