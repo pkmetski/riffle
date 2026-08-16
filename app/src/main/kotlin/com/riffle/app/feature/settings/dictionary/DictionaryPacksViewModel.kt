@@ -55,4 +55,8 @@ class DictionaryPacksViewModel @Inject constructor(
     fun enqueueDownload(context: Context, packInfo: PackInfo) {
         scheduler.enqueueDownload(context, packInfo)
     }
+
+    fun deleteInstalledPack(languageTag: String) {
+        viewModelScope.launch { packStore.deleteInstalledPack(languageTag) }
+    }
 }

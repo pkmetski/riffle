@@ -2,7 +2,9 @@ package com.riffle.app.feature.reader
 
 import com.riffle.core.dictionary.DictionaryEntry
 import com.riffle.core.dictionary.DictionaryPackState
+import com.riffle.core.dictionary.PackInfo
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -74,5 +76,44 @@ class LookupUiStateResolutionTest {
             manifestSizeBytes = 0L,
         )
         assertTrue(state is LookupUiState.DownloadFailed)
+    }
+
+    @Test
+    fun `NOT_INSTALLED propagates manifest packInfo into NoPackInstalled`() {
+        val packInfo = PackInfo(
+            languageTag = "fr",
+            packVersion = "2026-08-01",
+            downloadUrl = "https://example.com/fr.db",
+            sha256 = "abc123",
+            sizeBytes = 12_000_000L,
+            attributionHtml = "<a>Wiktionary</a>",
+            licenseUrl = "https://cc.org",
+        )
+        val state = resolveLookupUiState(
+            packState = DictionaryPackState.NOT_INSTALLED,
+            word = "chat",
+            languageTag = "fr",
+            entries = emptyList(),
+            recentLookups = emptyList(),
+            manifestSizeBytes = packInfo.sizeBytes,
+            manifestPackInfo = packInfo,
+        )
+        assertTrue(state is LookupUiState.NoPackInstalled)
+        assertEquals(packInfo, (state as LookupUiState.NoPackInstalled).packInfo)
+    }
+
+    @Test
+    fun `NOT_INSTALLED with null manifest packInfo produces null packInfo in state`() {
+        val state = resolveLookupUiState(
+            packState = DictionaryPackState.NOT_INSTALLED,
+            word = "chat",
+            languageTag = "fr",
+            entries = emptyList(),
+            recentLookups = emptyList(),
+            manifestSizeBytes = 0L,
+            manifestPackInfo = null,
+        )
+        assertTrue(state is LookupUiState.NoPackInstalled)
+        assertNull((state as LookupUiState.NoPackInstalled).packInfo)
     }
 }

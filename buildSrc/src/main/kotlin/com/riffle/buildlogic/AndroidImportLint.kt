@@ -29,6 +29,7 @@ object AndroidImportLint {
         "core/common",
         "core/models",
         "core/domain",
+        "core/dictionary",
         "core/network",
         "core/net",
         "core/sources",

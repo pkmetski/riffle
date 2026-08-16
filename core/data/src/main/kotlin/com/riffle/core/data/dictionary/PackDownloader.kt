@@ -25,7 +25,17 @@ class PackDownloader @Inject constructor(
         val tmpFile = File(dictsDir, "${packInfo.languageTag}.tmp")
         val finalFile = File(dictsDir, "${packInfo.languageTag}.db")
 
-        dictionaryPackDao.updateState(packInfo.languageTag, DictionaryPackState.DOWNLOADING.name)
+        dictionaryPackDao.upsert(
+            DictionaryPackEntity(
+                languageTag = packInfo.languageTag,
+                packVersion = packInfo.packVersion,
+                installedAt = clock.nowMs(),
+                sizeBytes = packInfo.sizeBytes,
+                attributionHtml = packInfo.attributionHtml,
+                licenseUrl = packInfo.licenseUrl,
+                state = DictionaryPackState.DOWNLOADING.name,
+            )
+        )
 
         return try {
             val ok = httpClient.prepareGet(packInfo.downloadUrl).execute { response ->
@@ -54,7 +64,11 @@ class PackDownloader @Inject constructor(
                 return false
             }
 
-            tmpFile.renameTo(finalFile)
+            if (!tmpFile.renameTo(finalFile)) {
+                tmpFile.delete()
+                dictionaryPackDao.updateState(packInfo.languageTag, DictionaryPackState.FAILED.name)
+                return false
+            }
 
             dictionaryPackDao.upsert(
                 DictionaryPackEntity(
