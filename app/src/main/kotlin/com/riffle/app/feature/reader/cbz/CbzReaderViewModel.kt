@@ -193,6 +193,11 @@ class CbzReaderViewModel @Inject constructor(
     }
 
     private suspend fun openBook() {
+        // Ensure the global ComicFormattingPreferences DataStore has emitted at least once before
+        // state becomes Ready. Without this, effectiveComicFormatting starts at the default
+        // (panelViewOn=false), causing a pager flash for books with Panel View enabled.
+        comicFormattingPreferencesStore.preferences.first()
+
         val item = libraryObserver.getItem(itemId)
         if (item == null) {
             _state.value = CbzReaderState.Error("Book not found")
