@@ -24,9 +24,9 @@ class BookComicFormattingOverridesTest {
     }
 
     @Test fun `applyTo overrides panelOverflow when set`() {
-        val result = BookComicFormattingOverrides(panelOverflow = PanelOverflowBehavior.AUTO_ROTATE).applyTo(global)
+        val result = BookComicFormattingOverrides(panelOverflow = PanelOverflowBehavior.SMART_SPLIT).applyTo(global)
         assertFalse(result.panelViewOn)
-        assertEquals(PanelOverflowBehavior.AUTO_ROTATE, result.panelOverflow)
+        assertEquals(PanelOverflowBehavior.SMART_SPLIT, result.panelOverflow)
     }
 
     @Test fun `applyTo can override both fields simultaneously`() {

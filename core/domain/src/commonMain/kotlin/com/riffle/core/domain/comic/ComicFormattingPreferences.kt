@@ -1,6 +1,6 @@
 package com.riffle.core.domain.comic
 
-enum class PanelOverflowBehavior { OFF, SPLIT, AUTO_ROTATE }
+enum class PanelOverflowBehavior { OFF, SPLIT, SMART_SPLIT }
 
 data class ComicFormattingPreferences(
     val panelViewOn: Boolean = false,

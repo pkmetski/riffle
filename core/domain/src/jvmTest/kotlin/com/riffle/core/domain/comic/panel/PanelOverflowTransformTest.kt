@@ -92,12 +92,59 @@ class PanelOverflowTransformTest {
     }
 
     @Test
-    fun applyOverflowAutoRotateDoesNotSplitPanels() {
+    fun applyOverflowSmartSplitWithNoSamplerFallsToCenterSplit() {
+        // SMART_SPLIT + null sampler must give the same result as SPLIT (dead-centre fallback).
         val panels = listOf(widePanelBanner, normalPanel)
-        val result = PanelOverflowTransform.applyOverflow(
-            panels, imgW, imgH, vpW, vpH, PanelOverflowBehavior.AUTO_ROTATE,
+        val smart = PanelOverflowTransform.applyOverflow(
+            panels, imgW, imgH, vpW, vpH, PanelOverflowBehavior.SMART_SPLIT, null,
         )
-        assertEquals(panels, result)
+        val center = PanelOverflowTransform.applyOverflow(
+            panels, imgW, imgH, vpW, vpH, PanelOverflowBehavior.SPLIT,
+        )
+        assertEquals(center, smart)
+    }
+
+    @Test
+    fun applyOverflowSmartSplitSplitsAtLowestEnergySeam() {
+        // widePanelBanner: PanelRegion(0, 0, 1080, 300) with imgW=1080.
+        // Synthetic sampler returns zero energy at index 400 out of 1080,
+        // which is in the middle third [360, 720). Split must land at x=400.
+        val targetCol = 400
+        val sampler: (PanelRegion) -> FloatArray = { panel ->
+            FloatArray(panel.width) { col -> if (col == targetCol) 0f else 1_000f }
+        }
+        val result = PanelOverflowTransform.applyOverflow(
+            listOf(widePanelBanner), imgW, imgH, vpW, vpH,
+            PanelOverflowBehavior.SMART_SPLIT, sampler,
+        )
+        assertEquals(2, result.size)
+        assertEquals(0, result[0].x)
+        assertEquals(targetCol, result[0].width)
+        assertEquals(targetCol, result[1].x)
+        assertEquals(imgW - targetCol, result[1].width)
+    }
+
+    @Test
+    fun applyOverflowSmartSplitIgnoresEnergyOutsideMiddleThird() {
+        // Low-energy column at index 50 (outside middle third [360..720) for width=1080).
+        // The seam finder must ignore it and pick the best seam within the middle third.
+        val outsideCol = 50
+        val insideCol = 500  // inside middle third, second lowest energy
+        val sampler: (PanelRegion) -> FloatArray = { panel ->
+            FloatArray(panel.width) { col ->
+                when (col) {
+                    outsideCol -> 0f       // lowest energy overall, but outside middle third
+                    insideCol -> 1f        // lowest inside middle third — must win
+                    else -> 1_000f
+                }
+            }
+        }
+        val result = PanelOverflowTransform.applyOverflow(
+            listOf(widePanelBanner), imgW, imgH, vpW, vpH,
+            PanelOverflowBehavior.SMART_SPLIT, sampler,
+        )
+        assertEquals(2, result.size)
+        assertEquals(insideCol, result[0].width)
     }
 
     @Test
