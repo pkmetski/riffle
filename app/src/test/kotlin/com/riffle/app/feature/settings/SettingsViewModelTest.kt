@@ -22,6 +22,8 @@ import com.riffle.core.models.CrashReport
 import com.riffle.core.domain.CrashReportRepository
 import com.riffle.core.domain.FormattingPreferences
 import com.riffle.core.domain.FormattingPreferencesStore
+import com.riffle.core.domain.comic.ComicFormattingPreferences
+import com.riffle.core.domain.comic.ComicFormattingPreferencesStore
 import com.riffle.core.models.Library
 import com.riffle.core.models.LibraryItem
 import com.riffle.core.domain.LibraryRefreshResult
@@ -77,6 +79,11 @@ class SettingsViewModelTest {
         override val preferences = flowOf(FormattingPreferences())
         override suspend fun update(preferences: FormattingPreferences) {}
         override suspend fun setCadencePlatformSupported(supported: Boolean) {}
+    }
+
+    private val noOpComicFormattingStore = object : ComicFormattingPreferencesStore {
+        override val preferences = flowOf(ComicFormattingPreferences())
+        override suspend fun update(prefs: ComicFormattingPreferences) {}
     }
 
     private val noOpWakeLockStore = object : WakeLockPreferencesStore {
@@ -274,6 +281,7 @@ class SettingsViewModelTest {
         localFilesScanner = fakeLocalFilesScanner,
         localFilesSourceInstaller = fakeLocalFilesSourceInstaller,
         localFilesFolderHealthChecker = fakeLocalFilesFolderHealthChecker,
+        comicFormattingPreferencesStore = noOpComicFormattingStore,
     )
 
     private fun stubAnnotationDao(pendingBookCount: Int): AnnotationDao = object : AnnotationDao {
@@ -362,6 +370,7 @@ class SettingsViewModelTest {
         localFilesScanner = fakeLocalFilesScanner,
         localFilesSourceInstaller = fakeLocalFilesSourceInstaller,
         localFilesFolderHealthChecker = fakeLocalFilesFolderHealthChecker,
+        comicFormattingPreferencesStore = noOpComicFormattingStore,
     )
 
     // --- crash report list tests ---

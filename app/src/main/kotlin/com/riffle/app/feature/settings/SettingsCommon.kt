@@ -90,9 +90,10 @@ internal fun DrillInChevron() {
 }
 
 /**
- * The four bottom-sheet reader/pacing/listening panels the main settings screen can open.
- * Collapses the six previously-separate `showFooPanel: Boolean` flags into one state so the
- * screen only tracks a single "which panel is open" value.
+ * The bottom-sheet reader/pacing/listening/comics panels the main settings screen can open.
+ * Collapses the previously-separate `showFooPanel: Boolean` flags into one state so the
+ * screen only tracks a single "which panel is open" value. PanelView and PanelOverflow cover
+ * global Comic Formatting defaults.
  */
 internal enum class SettingsPanel {
     Formatting,
@@ -101,6 +102,8 @@ internal enum class SettingsPanel {
     AutoScroll,
     Cadence,
     Listening,
+    PanelView,
+    PanelOverflow,
 }
 
 /**

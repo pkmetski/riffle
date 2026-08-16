@@ -17,6 +17,8 @@ import com.riffle.core.domain.UpdateCheckResult
 import com.riffle.core.domain.UpdateDownloadState
 import com.riffle.core.domain.FormattingPreferences
 import com.riffle.core.domain.FormattingPreferencesStore
+import com.riffle.core.domain.comic.ComicFormattingPreferences
+import com.riffle.core.domain.comic.ComicFormattingPreferencesStore
 import com.riffle.core.domain.LibraryOrderPreferencesStore
 import com.riffle.core.domain.LibraryObserver
 import com.riffle.core.domain.LibraryVisibilityPreferencesStore
@@ -89,6 +91,7 @@ class SettingsViewModel @Inject constructor(
     private val localFilesScanner: LocalFilesScanner,
     private val localFilesSourceInstaller: LocalFilesSourceInstaller,
     private val localFilesFolderHealthChecker: LocalFilesFolderHealthChecker,
+    private val comicFormattingPreferencesStore: ComicFormattingPreferencesStore,
     annotationSyncConfigStore: com.riffle.core.domain.AnnotationSyncConfigStore,
     annotationSyncStatusStore: AnnotationSyncStatusStore,
     annotationDao: AnnotationDao,
@@ -214,6 +217,10 @@ class SettingsViewModel @Inject constructor(
     val globalFormattingPreferences: StateFlow<FormattingPreferences> =
         formattingPreferencesStore.preferences
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), FormattingPreferences())
+
+    val globalComicFormatting: StateFlow<ComicFormattingPreferences> =
+        comicFormattingPreferencesStore.preferences
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ComicFormattingPreferences())
 
     val readaloudPreferences: StateFlow<ReadaloudPreferences> =
         readaloudPreferencesStore.preferences
@@ -394,6 +401,10 @@ class SettingsViewModel @Inject constructor(
 
     fun updateGlobalFormatting(prefs: FormattingPreferences) {
         viewModelScope.launch { formattingPreferencesStore.update(prefs) }
+    }
+
+    fun updateGlobalComicFormatting(prefs: ComicFormattingPreferences) {
+        viewModelScope.launch { comicFormattingPreferencesStore.update(prefs) }
     }
 
     fun updateHighlightColor(color: HighlightColor) {

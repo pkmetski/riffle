@@ -36,9 +36,12 @@ import com.riffle.app.feature.settings.panels.CadenceSettingsPanel
 import com.riffle.app.feature.settings.panels.DisplaySettingsPanel
 import com.riffle.app.feature.settings.panels.FormattingSettingsPanel
 import com.riffle.app.feature.settings.panels.ListeningPreferencesPanel
+import com.riffle.app.feature.settings.panels.PanelOverflowSettingsPanel
+import com.riffle.app.feature.settings.panels.PanelViewSettingsPanel
 import com.riffle.app.feature.settings.sections.AnnotationsSyncSection
 import com.riffle.app.feature.settings.sections.AppVersionSection
 import com.riffle.app.feature.settings.sections.AppearanceSection
+import com.riffle.app.feature.settings.sections.ComicsSection
 import com.riffle.app.feature.settings.sections.DiagnosticsSection
 import com.riffle.app.feature.settings.sections.ListeningSection
 import com.riffle.app.feature.settings.sections.PacingSection
@@ -74,6 +77,7 @@ fun SettingsScreen(
 ) {
     val crashReports by viewModel.crashReports.collectAsState()
     val globalFormatting by viewModel.globalFormattingPreferences.collectAsState()
+    val globalComicFormatting by viewModel.globalComicFormatting.collectAsState()
     val keepScreenOn by viewModel.keepScreenOn.collectAsState()
     val volumeKeyNavigationEnabled by viewModel.volumeKeyNavigationEnabled.collectAsState()
     val invertVolumeKeys by viewModel.invertVolumeKeys.collectAsState()
@@ -174,6 +178,12 @@ fun SettingsScreen(
                 )
                 HorizontalDivider()
 
+                ComicsSection(
+                    comicFormatting = globalComicFormatting,
+                    onOpenPanel = { openPanel = it },
+                )
+                HorizontalDivider()
+
                 PacingSection(
                     globalFormatting = globalFormatting,
                     onOpenPanel = { openPanel = it },
@@ -259,6 +269,20 @@ fun SettingsScreen(
             onRewindIntervalSecondsChange = viewModel::setRewindIntervalSeconds,
             rewindOnResumeSeconds = rewindOnResumeSeconds,
             onRewindOnResumeSecondsChange = viewModel::setRewindOnResumeSeconds,
+            onDismiss = { openPanel = null },
+        )
+        SettingsPanel.PanelView -> PanelViewSettingsPanel(
+            panelViewOn = globalComicFormatting.panelViewOn,
+            onPanelViewOnChange = { on ->
+                viewModel.updateGlobalComicFormatting(globalComicFormatting.copy(panelViewOn = on))
+            },
+            onDismiss = { openPanel = null },
+        )
+        SettingsPanel.PanelOverflow -> PanelOverflowSettingsPanel(
+            selected = globalComicFormatting.panelOverflow,
+            onSelected = { behavior ->
+                viewModel.updateGlobalComicFormatting(globalComicFormatting.copy(panelOverflow = behavior))
+            },
             onDismiss = { openPanel = null },
         )
         null -> {}

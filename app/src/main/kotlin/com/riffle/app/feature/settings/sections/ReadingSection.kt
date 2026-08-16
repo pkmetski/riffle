@@ -10,7 +10,7 @@ import com.riffle.app.feature.settings.SettingsSectionHeader
 import com.riffle.core.domain.FormattingPreferences
 
 /**
- * "Reading" section — presentation-of-the-book preferences. Formatting = typography (fonts, sizes),
+ * "Books" section — presentation-of-the-book preferences. Formatting = typography (fonts, sizes),
  * Display = layout (paginated/vertical/continuous, dark), Behavior = device inputs (keep screen on,
  * volume-key navigation). Pacing (Auto-Scroll + Cadence) lives in its own section — same shape,
  * different concern.
@@ -22,7 +22,7 @@ internal fun ReadingSection(
     volumeKeyNavigationEnabled: Boolean,
     onOpenPanel: (SettingsPanel) -> Unit,
 ) {
-    SettingsSectionHeader("Reading")
+    SettingsSectionHeader("Books")
     SettingsDrillInRow(
         title = "Formatting",
         summary = formattingSummary(globalFormatting),
