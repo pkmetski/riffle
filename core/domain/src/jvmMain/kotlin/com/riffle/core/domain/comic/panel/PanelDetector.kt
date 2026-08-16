@@ -136,6 +136,15 @@ class PanelDetector(
         val internalGutterFloodFillFraction: Double = 0.3,
 
         /**
+         * An internal gutter whose run thickness exceeds this fraction of the bbox's perpendicular
+         * dimension is rejected as a false gutter. Genuine inter-panel gutters are narrow relative
+         * to the panels they separate (a 12px gutter between two 400px panels = 1.5% of bbox
+         * height). A thick "gutter" indicates a flood-fill-accessible panel interior reached via a
+         * downscaling border gap — those must not be split or the panel disappears.
+         */
+        val internalGutterMaxFraction: Double = 0.25,
+
+        /**
          * Ignore internal gutters this close to the panel edge (fraction of panel dimension).
          * Prevents spurious "split off the top 5% of a panel" from a low-content strip near
          * the border.
@@ -170,22 +179,15 @@ class PanelDetector(
         val mask = binarize(grid) ?: return fallback
         val cropped = trimMargin(mask) ?: return fallback
 
-        // 1. Try grid detection via row/column projection profiles. Works cleanly for regular
-        //    N×M grids (common in Western superhero, most manga chapters, and dark-tone books
-        //    where local pixel classification is noisy but projections still show clean valleys).
-        gridByProjection(cropped, pageIndex, originalWidth, originalHeight, grid.width, grid.height)
-            ?.let { return it }
+        val projResult = gridByProjection(cropped, pageIndex, originalWidth, originalHeight, grid.width, grid.height)
+        if (projResult != null) return projResult
 
-        // 2. Fall back to connected-component detection for irregular layouts (T-shapes,
-        //    staircases, splash-with-insets).
         val gutter = floodFillGutter(cropped)
         val components = connectedComponents(cropped, gutter)
         val filtered = filterAndTighten(components, cropped)
-        // Split any bbox that straddles a full-crossing internal gutter — CC can merge two
-        // real panels into one bbox when a stray content pixel bridges them at the edge.
         val split = splitAtInternalGutters(filtered, cropped, gutter)
 
-        return sanityCheck(
+        val result = sanityCheck(
             candidates = split,
             cropped = cropped,
             originalWidth = originalWidth,
@@ -193,7 +195,8 @@ class PanelDetector(
             downscaledWidth = grid.width,
             downscaledHeight = grid.height,
             pageIndex = pageIndex,
-        ) ?: fallback
+        )
+        return result ?: fallback
     }
 
     // --- Grid detection via projection profiles ---
@@ -230,31 +233,41 @@ class PanelDetector(
         val totalCells = bandColBands.sumOf { it.size }
         if (totalCells < 2 && rowBands.size < 2) return null
 
-        // If any row produced only one column band spanning the vast majority of the cropped
-        // width, the projection couldn't find interior column gutters — either they're narrower
-        // than projectionMinBandThickness, or dark art pixels pushed the column counts above the
-        // gutter cutoff. Rather than trying to re-split with a flood-fill heuristic (which
-        // creates false splits on panels whose interiors the flood-fill can penetrate through
-        // downscaling gaps), hand the page to the CC detector which is immune to this: it
-        // operates on flood-fill gutter connectivity, not projection valleys.
-        val suspiciousWideRow = bandColBands.any { colBands ->
+        // A row whose only column band spans ≥ 90 % of the cropped width is "suspicious":
+        // either the projection couldn't find interior column gutters (gutters too narrow, or
+        // dark art pixels pushed column counts above the gutter cutoff), or the row is a
+        // genuine full-width splash panel.
+        //
+        // When ALL rows are suspicious we can't distinguish the two cases and the CC path is
+        // better equipped to recover — it operates on flood-fill gutter connectivity, not
+        // projection valleys, so narrow gutters that fool the projection are still found.
+        //
+        // When only SOME rows are suspicious we're almost certainly looking at a
+        // "splash-on-top / panels-below" layout (or the mirror).  In that case, keeping the
+        // suspicious rows as single full-width cells and the non-suspicious rows with their
+        // proper column subdivisions is correct and far better than handing everything to the
+        // CC path: the CC path merges splash art with the adjacent panel borders when there is
+        // no clean gutter row between them, causing splitAtInternalGutters to find only a
+        // vertical split and emit two wrong half-height panels.
+        fun isSuspicious(colBands: List<Band>) =
             colBands.size == 1 && colBands[0].let { it.end - it.start + 1 } >= cropped.width * 0.9
-        }
-        if (suspiciousWideRow) return null
+        val allSuspicious = bandColBands.all { isSuspicious(it) }
+        if (allSuspicious) return null
 
-        // Known limitation: a gutter narrower than projectionMinBandThickness (15px) but wider
-        // than internalGutterMinThickness (4px) will be missed by the column projection AND won't
-        // trigger suspiciousWideRow if the merged cell is < 90% of the cropped width. In that
-        // case the two panels appear merged here with no recovery. Accepted tradeoff: the
-        // alternative (calling splitAtInternalGutters on projection bboxes) risks false-splitting
-        // panels whose interiors are flood-fill-reachable through downscaling border gaps, causing
-        // panels to disappear entirely — a worse outcome than a merged zoom region.
-        val bboxesInCropped = mutableListOf<Bbox>()
+        val rawBboxes = mutableListOf<Bbox>()
         for ((rowIndex, rowBand) in rowBands.withIndex()) {
             for (colBand in bandColBands[rowIndex]) {
-                bboxesInCropped.add(Bbox(colBand.start, rowBand.start, colBand.end, rowBand.end))
+                rawBboxes.add(Bbox(colBand.start, rowBand.start, colBand.end, rowBand.end))
             }
         }
+
+        // Projection bboxes can straddle two real panels whose shared gutter was too narrow for
+        // projectionMinBandThickness (e.g. 12px gutter on a scanned page that merges rows 1+2
+        // into one tall column strip). Apply the same flood-fill split used in the CC path: a
+        // genuine inter-panel gutter is connected to the page border (~100% accessible), while a
+        // closed panel interior scores 0% — so the 30% threshold distinguishes them reliably.
+        val gutter = floodFillGutter(cropped)
+        val bboxesInCropped = rawBboxes.flatMap { splitSinglePanelRecursively(it, cropped, gutter, depth = 0) }
 
         val scaleX = originalWidth.toDouble() / downscaledWidth.toDouble()
         val scaleY = originalHeight.toDouble() / downscaledHeight.toDouble()
@@ -341,6 +354,11 @@ class PanelDetector(
             ?: return listOf(bbox)
 
         if (bestGutter.third < config.internalGutterMinThickness) return listOf(bbox)
+        val maxGutterThickness = when (bestGutter.first) {
+            "h" -> (height * config.internalGutterMaxFraction).toInt()
+            else -> (width * config.internalGutterMaxFraction).toInt()
+        }
+        if (bestGutter.third > maxGutterThickness) return listOf(bbox)
 
         val (axis, start, thickness) = bestGutter
         val end = start + thickness - 1
@@ -531,7 +549,15 @@ class PanelDetector(
         for (y in 0 until h) {
             for (x in 0 until w) {
                 val v = grid.get(x, y)
-                val differsFromBg = kotlin.math.abs(v - bg) >= cutoff
+                val differsFromBg = if (bg >= 128) {
+                    // Light background: only pixels darker than background are content (ink, panel
+                    // borders). Pixels lighter than background (white speech bubble interiors,
+                    // highlight fills) are treated as background-like so flood fill can flow through
+                    // them instead of treating them as content bridges between panels.
+                    bg - v >= cutoff
+                } else {
+                    v - bg >= cutoff
+                }
                 mask[y * w + x] = if (differsFromBg || hasTexture(grid, x, y, radius, varianceCutoff)) 1 else 0
             }
         }
@@ -565,22 +591,31 @@ class PanelDetector(
         return variance >= varianceCutoff
     }
 
-    /** Median luma of eight border samples — cheap and robust page-background estimator. */
+    /**
+     * 85th-percentile luma of the full page border (sampled at ~50-pixel intervals).
+     *
+     * Resistant to scanner corner / book-spine artefacts: for scanned book pages the 4
+     * corners often show dark binding (~luma 97-100), and the top/bottom edges may include
+     * ink titles or page numbers (~luma 140-150). The authentic paper margin lives on the
+     * left/right edges (~luma 200-215). On such pages those authentic samples account for
+     * ≥ 61% of all border samples, so the 85th percentile lands in the paper range rather
+     * than on the book-spine outliers.
+     *
+     * For dark-background comics every border pixel is dark, so the 85th percentile is
+     * equally dark — the same result a median would give. The only scenario the 85th
+     * percentile disagrees with the median is when > 15% of border samples are dark
+     * outliers while the true background is light, which is exactly the scanner-corner
+     * failure mode this fixes.
+     */
     private fun detectBackgroundLuma(grid: PixelGrid): Int {
         val w = grid.width
         val h = grid.height
-        val samples = intArrayOf(
-            grid.get(0, 0),
-            grid.get(w - 1, 0),
-            grid.get(0, h - 1),
-            grid.get(w - 1, h - 1),
-            grid.get(w / 2, 0),
-            grid.get(w / 2, h - 1),
-            grid.get(0, h / 2),
-            grid.get(w - 1, h / 2),
-        )
+        val step = maxOf(1, minOf(w, h) / 50)
+        val samples = mutableListOf<Int>()
+        var x = 0; while (x < w) { samples.add(grid.get(x, 0)); samples.add(grid.get(x, h - 1)); x += step }
+        var y = 0; while (y < h) { samples.add(grid.get(0, y)); samples.add(grid.get(w - 1, y)); y += step }
         samples.sort()
-        return (samples[3] + samples[4]) / 2
+        return samples[(samples.size * 85) / 100]
     }
 
 

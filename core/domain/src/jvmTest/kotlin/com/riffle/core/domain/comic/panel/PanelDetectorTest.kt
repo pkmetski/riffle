@@ -369,6 +369,87 @@ class PanelDetectorTest {
     }
 
     @Test
+    fun `full-width splash row above two side-by-side panels yields 3 regions`() {
+        // Regression for the page-56-style layout: a full-width top splash and two panels
+        // side-by-side below. The splash row produces one "suspicious" full-width column band
+        // in the projection; previously any suspicious row caused gridByProjection to return
+        // null and hand the whole page to the CC detector.  The CC detector cannot always
+        // recover this layout correctly: when the splash art meets the bottom panels with no
+        // clean gutter row between them at downscale resolution, flood-fill gutter is empty,
+        // the three panel CCs merge into one, splitAtInternalGutters finds only a vertical
+        // split, and the result is two wrong half-height panels.
+        //
+        // Fix: return null only when ALL rows are suspicious.  When some rows are non-
+        // suspicious, keep the suspicious rows as single full-width cells and proceed with
+        // the projection — this correctly produces 1 splash + 2 bottom panels = 3 panels.
+        val grid = fixture(width = 400, height = 560) { canvas ->
+            canvas.fill(background = LIGHT)
+            // Full-width splash: spans almost the entire width so its column projection
+            // contains a single band ≥ 90 % of the cropped width → suspicious row.
+            canvas.rect(x = 10, y = 10, w = 380, h = 290, color = DARK)
+            // Gutter gap (rows 300–319 stay LIGHT).
+            // Two side-by-side panels below: the column projection for this row finds 2
+            // bands → not suspicious → allSuspicious = false → projection path proceeds.
+            canvas.rect(x = 10, y = 320, w = 170, h = 220, color = DARK)
+            canvas.rect(x = 220, y = 320, w = 170, h = 220, color = DARK)
+        }
+
+        val result = detector.detect(grid, pageIndex = 0, originalWidth = 400, originalHeight = 560)
+
+        assertEquals(PanelSource.Auto, result.source)
+        assertEquals(
+            "expected 3 panels (1 splash + 2 bottom), got ${result.panels.map { "(${it.x},${it.y})${it.width}x${it.height}" }}",
+            3, result.panels.size,
+        )
+        val topPanels = result.panels.filter { it.y < 200 }
+        val bottomPanels = result.panels.filter { it.y >= 200 }
+        assertEquals("expected 1 top splash panel", 1, topPanels.size)
+        assertEquals("expected 2 bottom panels", 2, bottomPanels.size)
+        assertTrue(
+            "splash should span ≥ 80 % of page width; got ${topPanels[0].width}",
+            topPanels[0].width >= 320,
+        )
+    }
+
+    @Test
+    fun `two full-width rows above two side-by-side panels yield 4 regions`() {
+        // Regression for the "yellow papyrus" bug: a page with two consecutive full-width
+        // panels (rows 1 and 2 are both suspicious) followed by a two-column row.  Previously
+        // suspiciousWideRow fired on row 1 and the projection returned null; the CC path then
+        // ran and detected the yellow narrator-box scroll — whose bright interior is classified
+        // as gutter — as its own CC, because the scroll's border+text pixels were isolated from
+        // the surrounding panel art.  deduplicateOverlapping then kept the scroll (smaller CC)
+        // and dropped the larger panel-art CC, producing a wrong result where the narrator box
+        // appeared as a panel and the real top panel was missing.
+        //
+        // Fix: null is returned only when ALL rows are suspicious.  Here row 3 is not, so the
+        // projection returns 4 correct panels and the CC path (which would mis-detect the
+        // narrator box) is never invoked.
+        val grid = fixture(width = 400, height = 600) { canvas ->
+            canvas.fill(background = LIGHT)
+            // Row 1: full-width panel (column projection → 1 suspicious wide band)
+            canvas.rect(x = 10, y = 10, w = 380, h = 170, color = DARK)
+            // Row 2: full-width panel (also suspicious)
+            canvas.rect(x = 10, y = 200, w = 380, h = 170, color = DARK)
+            // Row 3: two side-by-side panels (column projection → 2 bands, not suspicious)
+            canvas.rect(x = 10, y = 390, w = 170, h = 190, color = DARK)
+            canvas.rect(x = 220, y = 390, w = 170, h = 190, color = DARK)
+        }
+
+        val result = detector.detect(grid, pageIndex = 0, originalWidth = 400, originalHeight = 600)
+
+        assertEquals(PanelSource.Auto, result.source)
+        assertEquals(
+            "expected 4 panels (2 full-width + 2 bottom), got ${result.panels.map { "(${it.x},${it.y})${it.width}x${it.height}" }}",
+            4, result.panels.size,
+        )
+        val fullWidthRows = result.panels.filter { it.width >= 320 }
+        val bottomPanels = result.panels.filter { it.width < 320 }
+        assertEquals("expected 2 full-width panels", 2, fullWidthRows.size)
+        assertEquals("expected 2 narrow bottom panels", 2, bottomPanels.size)
+    }
+
+    @Test
     fun `top strip with dark-bordered gutters is split into 4 panels`() {
         // Regression for the "4 top panels treated as one" bug. Layout: a narrow top strip with
         // 4 panels whose between-panel gutters have enough dark art pixels to push the column
@@ -402,15 +483,16 @@ class PanelDetectorTest {
 
     @Test
     fun `panel with flood-fill-accessible interior is not falsely split by projection path`() {
-        // Regression: previously splitAtInternalGutters ran on every gridByProjection bbox.
-        // If the downscaled image had a gap in a speech-balloon border, the flood-fill would
-        // penetrate the white interior. The horizontal gutter check then fired on those interior
-        // rows (scoring ~70% gutter pixels, well above the 30% threshold) and the panel was
-        // halved; both halves were too short to survive minPanelDimensionFraction, so the first
-        // panel disappeared from the reading sequence entirely.
+        // Regression: if the downscaled image has a gap in a speech-balloon border, the flood-fill
+        // penetrates the white interior. The horizontal gutter check fires on interior rows
+        // (scoring ~70% gutter pixels, well above the 30% threshold). Without a guard, the panel
+        // would be halved; both halves could be too short to survive minPanelDimensionFraction, so
+        // the first panel disappears from the reading sequence entirely.
         //
-        // Fix: gridByProjection no longer calls splitAtInternalGutters; projection already
-        // separates panels via gutter bands, so no further splitting is needed there.
+        // Guard: internalGutterMaxFraction (25%) rejects "gutters" that span more than 25% of the
+        // bbox's perpendicular dimension. A flood-fill-accessible interior typically covers 50%+
+        // of the panel height, far above the limit. A genuine narrow gutter (missed by the 15px
+        // projection minimum) is at most a few percent — always accepted.
         //
         // Fixture: 2×2 grid. Top-left panel has a white interior (x=60..199, y=50..149) connected
         // to the top page gutter via a white channel (x=90..109, y=10..49) — this is the
@@ -435,6 +517,139 @@ class PanelDetectorTest {
         assertEquals("top-left panel with flood-fill-accessible interior must survive as one panel", 1, topLeft.size)
         assertTrue("top-left panel must span the full panel height, not just a falsely-split remnant",
             topLeft[0].height >= 150)
+    }
+
+    @Test
+    fun `scanned splash-plus-two-panels page is detected correctly`() {
+        // Regression for page 56: full-width splash on top + two panels at the bottom.
+        // Same dark book-spine corner issue as page 58 would have caused Fallback.
+        val imgFile = java.io.File("../../.context/attachments/re2TGP/image.png")
+        if (!imgFile.exists()) return
+        val img = javax.imageio.ImageIO.read(imgFile) ?: return
+        val w = img.width
+        val h = img.height
+        val luma = ByteArray(w * h)
+        for (y in 0 until h) {
+            for (x in 0 until w) {
+                val rgb = img.getRGB(x, y)
+                val r = (rgb shr 16) and 0xFF
+                val g = (rgb shr 8) and 0xFF
+                val b = rgb and 0xFF
+                luma[y * w + x] = (0.299 * r + 0.587 * g + 0.114 * b).toInt().coerceIn(0, 255).toByte()
+            }
+        }
+        val grid = PixelGrid(w, h, luma)
+        val result = detector.detect(grid, pageIndex = 56, originalWidth = w, originalHeight = h)
+        assertEquals(PanelSource.Auto, result.source)
+        assertEquals(
+            "expected 3 panels for splash+2-panel layout, got ${result.panels.size}",
+            3, result.panels.size,
+        )
+    }
+
+    @Test
+    fun `scanned page with dark book-spine corners is detected correctly`() {
+        // Regression for page 58: a 3x2 grid of 6 panels on a scanned comic page.
+        // The scanner captured dark book-binding pixels in all 4 corners, dragging the
+        // 8-sample median background estimate down to 142. At that value the tan page
+        // gutter (luma ~200-215) reads as content (diff 58 >= 32 threshold), flooding
+        // the entire page with "content" pixels and leaving no gutter for flood fill —
+        // the single resulting CC covers the whole page and triggers Fallback.
+        //
+        // Fix: sample the full border at regular intervals and use the 85th percentile
+        // instead of the median of 8 corner/midpoint samples. The left and right edges of
+        // a scanned page are authentic paper margin; they represent ~60% of border samples.
+        // The 85th percentile lands in the light range even when 40% of border samples are
+        // dark spine/binding pixels, correctly estimating the tan paper background at ~208.
+        val imgFile = java.io.File("../../.context/attachments/6Y8Gd3/image.png")
+        if (!imgFile.exists()) return  // skip on CI where attachment isn't present
+        val img = javax.imageio.ImageIO.read(imgFile) ?: return
+        val w = img.width
+        val h = img.height
+        val luma = ByteArray(w * h)
+        for (y in 0 until h) {
+            for (x in 0 until w) {
+                val rgb = img.getRGB(x, y)
+                val r = (rgb shr 16) and 0xFF
+                val g = (rgb shr 8) and 0xFF
+                val b = rgb and 0xFF
+                luma[y * w + x] = (0.299 * r + 0.587 * g + 0.114 * b).toInt().coerceIn(0, 255).toByte()
+            }
+        }
+        val grid = PixelGrid(w, h, luma)
+        val result = detector.detect(grid, pageIndex = 58, originalWidth = w, originalHeight = h)
+        assertEquals(
+            "expected 6 panels for scanned 3x2 grid, got ${result.panels.size} (source=${result.source})",
+            6, result.panels.size,
+        )
+        assertEquals(PanelSource.Auto, result.source)
+    }
+
+    @Test
+    fun `white speech bubble in gutter between two stacked panels does not merge them`() {
+        // Reproduces: page with Panel 1 (top) / white speech bubble in gutter / Panel 2 (bottom).
+        // With two-sided contrast the speech bubble interior (luma ~250, background ~210) was
+        // classified as content=1, blocking flood fill and causing both panels to merge into one
+        // CC. With one-sided contrast (bg - v >= threshold) pixels brighter than the background
+        // are non-content and flood fill flows through the bubble, keeping the panels separate.
+        val W = 400
+        val H = 560
+        // Background luma ~210. Use a mid-tan byte so detectBackgroundLuma lands at 210.
+        val BG: Byte = 210.toByte()
+        // Panel content (dark ink borders) — clearly darker than BG (210-20=190 >> 32).
+        val INK: Byte = 20.toByte()
+        // Speech bubble interior — lighter than BG (250-210=40, two-sided hit, one-sided miss).
+        val WHITE: Byte = 250.toByte()
+
+        val grid = fixture(width = W, height = H) { canvas ->
+            canvas.fill(background = BG)
+            // Panel 1: top half, solid dark fill
+            canvas.rect(x = 20, y = 20, w = W - 40, h = 220, color = INK)
+            // Gutter row (y=240..279): page background, plus a white speech bubble blob in the
+            // middle. The bubble is 80px wide × 30px tall — interior is lighter than BG.
+            canvas.rect(x = 160, y = 242, w = 80, h = 28, color = WHITE)
+            // Panel 2: bottom half, solid dark fill
+            canvas.rect(x = 20, y = 290, w = W - 40, h = 250, color = INK)
+        }
+
+        val result = detector.detect(grid, pageIndex = 0, originalWidth = W, originalHeight = H)
+
+        assertEquals(
+            "speech bubble in gutter must not merge panels; expected 2 panels, got ${result.panels.size} (source=${result.source})",
+            2, result.panels.size,
+        )
+        assertEquals(PanelSource.Auto, result.source)
+    }
+
+    @Test
+    fun `2x2 grid with narrow horizontal gutter is split correctly via flood-fill`() {
+        // Regression for the "rows merged into tall column strips" bug. The horizontal gutter
+        // between rows 1 and 2 is 10px — below projectionMinBandThickness (15px). The projection
+        // merges both rows into one tall row band, then detects two column bands within it,
+        // producing two tall column strips (not 4 individual panels). The flood-fill split in
+        // gridByProjection recovers the horizontal gutter: it's reachable from the page border
+        // (~100% accessible), so internalGutterFloodFillFraction=30% is satisfied. The
+        // internalGutterMaxFraction=25% guard does not fire: 10/(190+10+190) = 2.6% << 25%.
+        val grid = fixture(width = 400, height = 420) { canvas ->
+            canvas.fill(background = LIGHT)
+            // 2×2 grid with 10px horizontal gutter (< 15px projection min) and 20px vertical gutter
+            canvas.rect(x = 10, y = 10, w = 170, h = 190, color = DARK)   // top-left
+            canvas.rect(x = 220, y = 10, w = 170, h = 190, color = DARK)  // top-right
+            canvas.rect(x = 10, y = 210, w = 170, h = 200, color = DARK)  // bottom-left
+            canvas.rect(x = 220, y = 210, w = 170, h = 200, color = DARK) // bottom-right
+        }
+
+        val result = detector.detect(grid, pageIndex = 0, originalWidth = 400, originalHeight = 420)
+
+        assertEquals(PanelSource.Auto, result.source)
+        assertEquals(
+            "narrow horizontal gutter must not merge rows into column strips; expected 4 panels, got ${result.panels.map { "(${it.x},${it.y})${it.width}x${it.height}" }}",
+            4, result.panels.size,
+        )
+        val topPanels = result.panels.filter { it.y < 200 }
+        val bottomPanels = result.panels.filter { it.y >= 200 }
+        assertEquals("expected 2 top panels", 2, topPanels.size)
+        assertEquals("expected 2 bottom panels", 2, bottomPanels.size)
     }
 
     // --- Fixture builders ---

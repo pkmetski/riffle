@@ -120,8 +120,32 @@ class JsonPanelStore @Inject constructor(
          *      trigger false splits. projection path loses splitAtInternalGutters; instead a
          *      suspiciousWideRow check detects under-split projection rows and hands them to CC.
          *      v7 caches held either wrong splits or wrong merges from the old heuristic.
+         * v9: gridByProjection no longer returns null when only SOME rows are suspicious.
+         *      Suspicious rows are now kept as full-width single-cell panels. Pages with a
+         *      full-width splash row above/below multi-column rows now emit the correct 3+
+         *      panel layout instead of falling back to CC which could produce wrong splits.
+         *      v8 caches for splash+panels layouts may have wrong panel count.
+         * v10: detectBackgroundLuma now uses 85th-percentile of full-border samples instead of
+         *      median of 8 corner/midpoint samples. Scanned pages with dark book-spine corners
+         *      previously had background misestimated as ~140 (median biased by dark corners)
+         *      instead of ~210 (actual tan paper), causing the gutter to be classified as
+         *      content and the entire detection to fall back to Fallback. v9 caches for those
+         *      pages hold Fallback results that must be re-detected.
+         * v11: binarize now uses one-sided contrast (bg − v ≥ threshold for light backgrounds,
+         *      v − bg ≥ threshold for dark backgrounds). White speech bubble interiors (lighter
+         *      than the page background) are no longer classified as content, so flood fill can
+         *      flow through them as gutter. This prevents speech bubbles sitting in the gutter
+         *      between panels from acting as content bridges that cause adjacent panels to be
+         *      merged into one CC and missed. v10 caches for pages with gutter speech bubbles
+         *      may hold wrong (under-detected) panel counts.
+         * v12: gridByProjection now applies the same flood-fill split used in the CC path to
+         *      all projection bboxes. Previously a gutter narrower than projectionMinBandThickness
+         *      (15px) would cause adjacent rows to merge into one tall column strip with no
+         *      recovery; now splitSinglePanelRecursively detects the genuine inter-panel gutter
+         *      (flood-fill accessible from page border → ~100%) and splits the strip correctly.
+         *      v11 caches for pages with narrow row gutters may hold under-split column strips.
          */
-        internal const val CURRENT_SCHEMA_VERSION: Int = 8
+        internal const val CURRENT_SCHEMA_VERSION: Int = 12
 
         private val UNSAFE = Regex("[^A-Za-z0-9._-]")
     }
