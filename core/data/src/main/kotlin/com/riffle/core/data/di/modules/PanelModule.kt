@@ -3,11 +3,13 @@ package com.riffle.core.data.di.modules
 import android.content.Context
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
+import com.riffle.core.data.BookComicFormattingPreferencesStoreImpl
 import com.riffle.core.data.PanelViewPreferencesStoreImpl
 import com.riffle.core.data.comic.panel.AndroidPageImageDecoder
 import com.riffle.core.data.comic.panel.JsonPanelStore
 import com.riffle.core.data.di.PanelViewPreferencesDataStore
 import com.riffle.core.data.di.panelViewPreferencesDataStore
+import com.riffle.core.domain.comic.BookComicFormattingPreferencesStore
 import com.riffle.core.domain.comic.panel.PageImageDecoder
 import com.riffle.core.domain.comic.panel.PanelDetector
 import com.riffle.core.domain.comic.panel.PanelOrchestrator
@@ -41,6 +43,12 @@ abstract class PanelModule {
     abstract fun bindPanelViewPreferencesStore(
         impl: PanelViewPreferencesStoreImpl,
     ): PanelViewPreferencesStore
+
+    @Binds
+    @Singleton
+    abstract fun bindBookComicFormattingPreferencesStore(
+        impl: BookComicFormattingPreferencesStoreImpl,
+    ): BookComicFormattingPreferencesStore
 
     companion object {
 

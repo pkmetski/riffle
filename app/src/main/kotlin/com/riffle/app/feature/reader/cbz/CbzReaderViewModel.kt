@@ -13,22 +13,35 @@ import com.riffle.core.domain.CbzRepository
 import com.riffle.core.domain.LibraryObserver
 import com.riffle.core.domain.ProgressSyncController
 import com.riffle.core.domain.ReadingSessionRepository
+import com.riffle.core.domain.WakeLockPreferencesStore
 import com.riffle.core.models.LibraryItem
 import com.riffle.core.models.SessionPayload
-import com.riffle.core.domain.WakeLockPreferencesStore
+import com.riffle.core.domain.comic.BookComicFormattingOverrides
+import com.riffle.core.domain.comic.BookComicFormattingPreferencesStore
 import com.riffle.core.domain.comic.CbzArchive
 import com.riffle.core.domain.comic.ComicArchive
+import com.riffle.core.domain.comic.ComicFormattingPreferences
+import com.riffle.core.domain.comic.ComicFormattingPreferencesStore
+import com.riffle.core.domain.comic.PanelOverflowBehavior
 import com.riffle.core.domain.comic.panel.PagePanels
 import com.riffle.core.domain.comic.panel.PanelOrchestrator
+import com.riffle.core.domain.comic.panel.PanelOverflowTransform
+import com.riffle.core.domain.comic.panel.PanelRegion
 import com.riffle.core.domain.comic.panel.PanelViewPreferencesStore
 import com.riffle.core.domain.usecase.UpdateReadingProgress
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.graphics.Color
 import dagger.hilt.android.lifecycle.HiltViewModel
 import java.io.File
 import javax.inject.Inject
+import kotlin.math.sqrt
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -59,6 +72,8 @@ class CbzReaderViewModel @Inject constructor(
     private val readerStateHolder: ReaderStateHolder,
     private val panelOrchestrator: PanelOrchestrator,
     private val panelViewPreferencesStore: PanelViewPreferencesStore,
+    private val comicFormattingPreferencesStore: ComicFormattingPreferencesStore,
+    private val bookComicFormattingPreferencesStore: BookComicFormattingPreferencesStore,
 ) : AndroidViewModel(application) {
 
     private val itemId: String = checkNotNull(savedStateHandle["itemId"])
@@ -88,9 +103,30 @@ class CbzReaderViewModel @Inject constructor(
     private val _currentPage = MutableStateFlow(0)
     val currentPage: StateFlow<Int> = _currentPage
 
-    private val _panelViewOn = MutableStateFlow(false)
-    /** Panel View toggle for the current book (ADR 0055). */
-    val panelViewOn: StateFlow<Boolean> = _panelViewOn
+    private val _bookComicOverrides = MutableStateFlow(BookComicFormattingOverrides())
+
+    val effectiveComicFormatting: StateFlow<ComicFormattingPreferences> =
+        combine(comicFormattingPreferencesStore.preferences, _bookComicOverrides) { global, overrides ->
+            overrides.applyTo(global)
+        }.stateIn(viewModelScope, SharingStarted.Eagerly, ComicFormattingPreferences())
+
+    /** Panel View toggle for the current book (ADR 0055). Derived from [effectiveComicFormatting]. */
+    val panelViewOn: StateFlow<Boolean> = effectiveComicFormatting
+        .map { it.panelViewOn }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, false)
+
+    private val _viewportSize = MutableStateFlow(0 to 0) // (width, height) in px
+
+    fun setViewportSize(w: Int, h: Int) {
+        _viewportSize.value = w to h
+    }
+
+    /** Low-resolution page bitmap sampler for SMART_SPLIT seam detection. Null until decoded. */
+    private val _energySampler = MutableStateFlow<((PanelRegion) -> FloatArray)?>(null)
+    // Strong reference to the bitmap captured by the current sampler lambda so it can be
+    // explicitly recycled on page change or ViewModel teardown. API-25 allocates bitmaps in
+    // native memory outside the GC heap, so waiting for GC to collect them causes OOM.
+    @Volatile private var energySamplerBitmap: Bitmap? = null
 
     private val _currentPagePanels = MutableStateFlow<PagePanels?>(null)
     /**
@@ -99,6 +135,28 @@ class CbzReaderViewModel @Inject constructor(
      * background so re-enabling is instant.
      */
     val currentPagePanels: StateFlow<PagePanels?> = _currentPagePanels
+
+    /**
+     * Effective panels after applying the overflow transform (e.g. SPLIT). Used for panel
+     * navigation logic. The screen reads [currentPagePanels] (raw) for rendering.
+     */
+    val effectivePanels: StateFlow<PagePanels?> = combine(
+        _currentPagePanels,
+        effectiveComicFormatting,
+        _viewportSize,
+        _energySampler,
+    ) { pagePanels, formatting, (vpW, vpH), energySampler ->
+        if (pagePanels == null || pagePanels.isFallback || !formatting.panelViewOn) return@combine pagePanels
+        val overflow = formatting.panelOverflow
+        if ((overflow != PanelOverflowBehavior.SPLIT && overflow != PanelOverflowBehavior.SMART_SPLIT) ||
+            vpW == 0 || vpH == 0) return@combine pagePanels
+        val transformed = PanelOverflowTransform.applyOverflow(
+            pagePanels.panels, pagePanels.imageWidth, pagePanels.imageHeight, vpW, vpH,
+            overflow,
+            energySampler = if (overflow == PanelOverflowBehavior.SMART_SPLIT) energySampler else null,
+        )
+        pagePanels.copy(panels = transformed)
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
     private val _currentPanelIndex = MutableStateFlow(0)
     /** 0-based index into [currentPagePanels]. Advances with next/prev-panel gestures. */
@@ -137,18 +195,30 @@ class CbzReaderViewModel @Inject constructor(
     }
 
     private suspend fun openBook() {
+        // Ensure the global ComicFormattingPreferences DataStore has emitted at least once before
+        // state becomes Ready. Without this, effectiveComicFormatting starts at the default
+        // (panelViewOn=false), causing a pager flash for books with Panel View enabled.
+        comicFormattingPreferencesStore.preferences.first()
+
         val item = libraryObserver.getItem(itemId)
         if (item == null) {
             _state.value = CbzReaderState.Error("Book not found")
             return
         }
         bookId = "${item.sourceId}::${item.id}"
-        // Await the FIRST DataStore emission before state becomes Ready so the reader doesn't
-        // briefly render the whole-page pager before flipping to Panel View on every open.
-        val prefState = panelViewPreferencesStore.state(bookId)
-        _panelViewOn.value = prefState.first().panelViewOn
-        viewModelScope.launch {
-            prefState.collect { state -> _panelViewOn.value = state.panelViewOn }
+        // Load per-book Comic formatting overrides (new store).
+        // Also performs a one-time lazy migration from the legacy PanelViewPreferencesStore.
+        val existingOverrides = bookComicFormattingPreferencesStore.overrides(bookId).first()
+        val legacyPanelViewOn = if (existingOverrides.panelViewOn == null) {
+            panelViewPreferencesStore.state(bookId).first().panelViewOn
+        } else null
+
+        if (legacyPanelViewOn == true) {
+            val migrated = existingOverrides.copy(panelViewOn = true)
+            bookComicFormattingPreferencesStore.save(bookId, migrated)
+            _bookComicOverrides.value = migrated
+        } else {
+            _bookComicOverrides.value = existingOverrides
         }
         when (val result = cbzRepository.openCbz(item)) {
             is CbzOpenResult.Success -> loadArchive(result.cbzFile, result.lastPosition, item.title)
@@ -331,10 +401,25 @@ class CbzReaderViewModel @Inject constructor(
 
     // --- Panel View (ADR 0055) ---
 
-    /** Flip the per-book Panel View toggle. Persisted to [panelViewPreferencesStore]. */
-    fun togglePanelView() {
-        val newValue = !_panelViewOn.value
-        viewModelScope.launch { panelViewPreferencesStore.setPanelViewOn(bookId, newValue) }
+    /**
+     * Merges the given [patch] into the current per-book overrides and persists.
+     * Only non-null fields in [patch] replace the corresponding field in the stored overrides.
+     */
+    fun updateComicFormatting(patch: BookComicFormattingOverrides) {
+        val merged = _bookComicOverrides.value.let { current ->
+            current.copy(
+                panelViewOn = patch.panelViewOn ?: current.panelViewOn,
+                panelOverflow = patch.panelOverflow ?: current.panelOverflow,
+            )
+        }
+        _bookComicOverrides.value = merged
+        viewModelScope.launch { bookComicFormattingPreferencesStore.save(bookId, merged) }
+    }
+
+    /** Clears all per-book Comic formatting overrides, falling back to global defaults. */
+    fun resetComicFormattingToDefaults() {
+        _bookComicOverrides.value = BookComicFormattingOverrides()
+        viewModelScope.launch { bookComicFormattingPreferencesStore.reset(bookId) }
     }
 
     /**
@@ -343,9 +428,9 @@ class CbzReaderViewModel @Inject constructor(
      * [nextPage] so tap-right / swipe / vol-down continue to work as they always did.
      */
     fun nextPanel() {
-        if (!_panelViewOn.value) return nextPage()
-        val panels = _currentPagePanels.value?.panels
-        if (panels.isNullOrEmpty() || _currentPagePanels.value?.isFallback == true) return nextPage()
+        if (!panelViewOn.value) return nextPage()
+        val panels = effectivePanels.value?.panels
+        if (panels.isNullOrEmpty() || effectivePanels.value?.isFallback == true) return nextPage()
         val nextIndex = _currentPanelIndex.value + 1
         if (nextIndex < panels.size) {
             _currentPanelIndex.value = nextIndex
@@ -355,9 +440,9 @@ class CbzReaderViewModel @Inject constructor(
     }
 
     fun previousPanel() {
-        if (!_panelViewOn.value) return previousPage()
-        val panels = _currentPagePanels.value?.panels
-        if (panels.isNullOrEmpty() || _currentPagePanels.value?.isFallback == true) return previousPage()
+        if (!panelViewOn.value) return previousPage()
+        val panels = effectivePanels.value?.panels
+        if (panels.isNullOrEmpty() || effectivePanels.value?.isFallback == true) return previousPage()
         val prevIndex = _currentPanelIndex.value - 1
         if (prevIndex >= 0) {
             _currentPanelIndex.value = prevIndex
@@ -376,7 +461,25 @@ class CbzReaderViewModel @Inject constructor(
                 } ?: return@launch
                 if (_currentPage.value != newPage) return@launch  // user navigated away mid-resolve
                 _currentPagePanels.value = pagePanels
-                _currentPanelIndex.value = (pagePanels.panels.size - 1).coerceAtLeast(0)
+                val formatting = effectiveComicFormatting.value
+                val (vpW, vpH) = _viewportSize.value
+                val effectiveCount = if (
+                    formatting.panelViewOn &&
+                    (formatting.panelOverflow == PanelOverflowBehavior.SPLIT ||
+                        formatting.panelOverflow == PanelOverflowBehavior.SMART_SPLIT) &&
+                    !pagePanels.isFallback && vpW > 0 && vpH > 0
+                ) {
+                    // Pass the actual behavior; SMART_SPLIT with no sampler falls back to center
+                    // split, which produces the same count as SPLIT — but using the real behavior
+                    // stays correct if counts ever diverge.
+                    PanelOverflowTransform.applyOverflow(
+                        pagePanels.panels, pagePanels.imageWidth, pagePanels.imageHeight,
+                        vpW, vpH, formatting.panelOverflow,
+                    ).size
+                } else {
+                    pagePanels.panels.size
+                }
+                _currentPanelIndex.value = (effectiveCount - 1).coerceAtLeast(0)
             }
         }
     }
@@ -393,12 +496,24 @@ class CbzReaderViewModel @Inject constructor(
         // Cancel any prior in-flight resolve/prefetch so a stale coroutine can't clobber
         // `_currentPagePanels` with an older page's result under rapid navigation.
         panelResolveJob?.cancel()
+        // Recycle before nulling — sampler lambda holds a strong bitmap ref; after null the
+        // combine in effectivePanels will no longer call it, so the recycle is safe.
+        energySamplerBitmap?.let { if (!it.isRecycled) it.recycle() }
+        energySamplerBitmap = null
+        _energySampler.value = null
         panelResolveJob = viewModelScope.launch {
             val current = withContext(Dispatchers.Default) {
                 runCatching { book.resolvePage(pageIndex) }.getOrNull()
             } ?: return@launch
             if (archiveClosed || _currentPage.value != pageIndex) return@launch
             _currentPagePanels.value = current
+            // Only decode when SMART_SPLIT is active — the energy sampler is not needed
+            // for OFF or SPLIT, and the decode is non-trivial even at ≤300px.
+            if (effectiveComicFormatting.value.panelOverflow == PanelOverflowBehavior.SMART_SPLIT) {
+                _energySampler.value = withContext(Dispatchers.Default) {
+                    computeEnergySampler(pageIndex, current.imageWidth, current.imageHeight)
+                }
+            }
             // Prefetch the next two pages.
             withContext(Dispatchers.Default) {
                 for (offset in 1..2) {
@@ -476,6 +591,96 @@ class CbzReaderViewModel @Inject constructor(
         panelResolveJob?.cancel()
         archive?.close()
         archive = null
+        energySamplerBitmap?.let { if (!it.isRecycled) it.recycle() }
+        energySamplerBitmap = null
+    }
+
+    private fun computeEnergySampler(
+        pageIndex: Int,
+        imageWidth: Int,
+        imageHeight: Int,
+    ): ((PanelRegion) -> FloatArray)? {
+        val source = (_state.value as? CbzReaderState.Ready)?.imageSource ?: return null
+        // Bounds-only pass.
+        val boundsOpts = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        try { source.openStream(pageIndex).use { BitmapFactory.decodeStream(it, null, boundsOpts) } }
+        catch (_: Throwable) { return null }
+        val sampleSize = run {
+            val target = 300
+            var s = 1
+            while (maxOf(boundsOpts.outWidth, boundsOpts.outHeight) / (s * 2) >= target) s *= 2
+            s
+        }
+        val bitmap = try {
+            source.openStream(pageIndex).use { stream ->
+                BitmapFactory.decodeStream(stream, null, BitmapFactory.Options().apply { inSampleSize = sampleSize })
+            }
+        } catch (_: Throwable) { null } ?: return null
+
+        val scaleX = bitmap.width.toFloat() / imageWidth
+        val scaleY = bitmap.height.toFloat() / imageHeight
+        // Register the bitmap so onCurrentPageChanged / onCleared can explicitly recycle it.
+        energySamplerBitmap = bitmap
+        return { panel ->
+            val widthRatio = panel.width.toFloat() / imageWidth
+            val heightRatio = panel.height.toFloat() / imageHeight
+            if (widthRatio >= heightRatio) columnEnergies(bitmap, panel, scaleX, scaleY)
+            else rowEnergies(bitmap, panel, scaleX, scaleY)
+        }
+    }
+
+    private fun columnEnergies(
+        bitmap: Bitmap,
+        panel: PanelRegion,
+        scaleX: Float,
+        scaleY: Float,
+    ): FloatArray {
+        val bmpX = (panel.x * scaleX).toInt().coerceIn(0, bitmap.width - 1)
+        val bmpW = (panel.width * scaleX).toInt().coerceAtLeast(1).coerceAtMost(bitmap.width - bmpX)
+        val bmpY = (panel.y * scaleY).toInt().coerceIn(0, bitmap.height - 1)
+        val bmpH = (panel.height * scaleY).toInt().coerceAtLeast(1).coerceAtMost(bitmap.height - bmpY)
+        if (bmpW == 0 || bmpH < 2) return FloatArray(bmpW)
+        val pixels = IntArray(bmpW * bmpH)
+        bitmap.getPixels(pixels, 0, bmpW, bmpX, bmpY, bmpW, bmpH)
+        return FloatArray(bmpW) { col ->
+            var energy = 0f
+            for (row in 0 until bmpH - 1) {
+                val p1 = pixels[row * bmpW + col]
+                val p2 = pixels[(row + 1) * bmpW + col]
+                val dr = Color.red(p1) - Color.red(p2)
+                val dg = Color.green(p1) - Color.green(p2)
+                val db = Color.blue(p1) - Color.blue(p2)
+                energy += sqrt((dr * dr + dg * dg + db * db).toFloat())
+            }
+            energy
+        }
+    }
+
+    private fun rowEnergies(
+        bitmap: Bitmap,
+        panel: PanelRegion,
+        scaleX: Float,
+        scaleY: Float,
+    ): FloatArray {
+        val bmpX = (panel.x * scaleX).toInt().coerceIn(0, bitmap.width - 1)
+        val bmpW = (panel.width * scaleX).toInt().coerceAtLeast(1).coerceAtMost(bitmap.width - bmpX)
+        val bmpY = (panel.y * scaleY).toInt().coerceIn(0, bitmap.height - 1)
+        val bmpH = (panel.height * scaleY).toInt().coerceAtLeast(1).coerceAtMost(bitmap.height - bmpY)
+        if (bmpH == 0 || bmpW < 2) return FloatArray(bmpH)
+        val pixels = IntArray(bmpW * bmpH)
+        bitmap.getPixels(pixels, 0, bmpW, bmpX, bmpY, bmpW, bmpH)
+        return FloatArray(bmpH) { row ->
+            var energy = 0f
+            for (col in 0 until bmpW - 1) {
+                val p1 = pixels[row * bmpW + col]
+                val p2 = pixels[row * bmpW + col + 1]
+                val dr = Color.red(p1) - Color.red(p2)
+                val dg = Color.green(p1) - Color.green(p2)
+                val db = Color.blue(p1) - Color.blue(p2)
+                energy += sqrt((dr * dr + dg * dg + db * db).toFloat())
+            }
+            energy
+        }
     }
 }
 

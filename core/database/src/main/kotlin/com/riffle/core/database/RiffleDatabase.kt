@@ -35,8 +35,9 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         PlaylistEntity::class,
         PlaylistItemEntity::class,
         PublicationMetricsCacheEntity::class,
+        BookComicFormattingPreferencesEntity::class,
     ],
-    version = 65,
+    version = 66,
     exportSchema = true,
 )
 abstract class RiffleDatabase : RoomDatabase() {
@@ -65,6 +66,7 @@ abstract class RiffleDatabase : RoomDatabase() {
     abstract fun remoteItemFreshnessDao(): RemoteItemFreshnessDao
     abstract fun playlistDao(): PlaylistDao
     abstract fun publicationMetricsCacheDao(): PublicationMetricsCacheDao
+    abstract fun bookComicFormattingPreferencesDao(): BookComicFormattingPreferencesDao
 
     companion object {
         val MIGRATION_1_2 = object : Migration(1, 2) {
@@ -1728,6 +1730,27 @@ abstract class RiffleDatabase : RoomDatabase() {
         val MIGRATION_64_65 = object : Migration(64, 65) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("ALTER TABLE `publication_metrics_cache` ADD COLUMN `epubVersion` TEXT")
+            }
+        }
+
+        val MIGRATION_65_66 = object : Migration(65, 66) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS `book_comic_formatting_preferences` (
+                        `source_id` TEXT NOT NULL,
+                        `item_id` TEXT NOT NULL,
+                        `panel_view_on` INTEGER,
+                        `panel_overflow` TEXT,
+                        PRIMARY KEY(`source_id`, `item_id`),
+                        FOREIGN KEY(`source_id`) REFERENCES `sources`(`id`) ON DELETE CASCADE
+                    )
+                    """.trimIndent()
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS `index_book_comic_formatting_preferences_source_id` " +
+                        "ON `book_comic_formatting_preferences` (`source_id`)"
+                )
             }
         }
     }

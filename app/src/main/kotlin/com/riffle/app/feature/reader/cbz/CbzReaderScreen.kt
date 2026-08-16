@@ -36,8 +36,7 @@ import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.GridView
-import androidx.compose.material.icons.filled.ViewCarousel
+import androidx.compose.material.icons.outlined.ViewQuilt
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -92,8 +91,10 @@ fun CbzReaderScreen(
     val currentPage by viewModel.currentPage.collectAsState()
     val keepScreenOn by viewModel.keepScreenOn.collectAsState()
     val panelViewOn by viewModel.panelViewOn.collectAsState()
-    val currentPagePanels by viewModel.currentPagePanels.collectAsState()
+    val effectivePanels by viewModel.effectivePanels.collectAsState()
     val currentPanelIndex by viewModel.currentPanelIndex.collectAsState()
+    val effectiveComicFormatting by viewModel.effectiveComicFormatting.collectAsState()
+    var formattingSheetOpen by remember { mutableStateOf(false) }
     val context = LocalContext.current
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     val immersiveState = rememberImmersiveModeState()
@@ -138,13 +139,14 @@ fun CbzReaderScreen(
                     CbzPanelViewer(
                         state = s,
                         currentPage = currentPage,
-                        pagePanels = currentPagePanels,
+                        pagePanels = effectivePanels,
                         panelIndex = currentPanelIndex,
                         onNextPanel = viewModel::nextPanel,
                         onPrevPanel = viewModel::previousPanel,
                         onSkipGuidedPage = viewModel::skipGuidedPanelsOnPage,
                         onToggleImmersive = immersiveState::toggle,
                         volumeNavEvents = viewModel.volumeNavEvents,
+                        onViewportSizeChanged = viewModel::setViewportSize,
                     )
                 } else {
                     CbzPager(
@@ -178,13 +180,10 @@ fun CbzReaderScreen(
                 },
                 actions = {
                     if (state is CbzReaderState.Ready) {
-                        IconButton(
-                            onClick = viewModel::togglePanelView,
-                            modifier = Modifier.testTag("cbz_panel_view_toggle"),
-                        ) {
+                        IconButton(onClick = { formattingSheetOpen = true }) {
                             Icon(
-                                imageVector = if (panelViewOn) Icons.Filled.ViewCarousel else Icons.Filled.GridView,
-                                contentDescription = if (panelViewOn) "Exit Panel View" else "Panel View",
+                                imageVector = Icons.Outlined.ViewQuilt,
+                                contentDescription = "Comic formatting",
                             )
                         }
                     }
@@ -208,6 +207,14 @@ fun CbzReaderScreen(
                 )
             }
         }
+    }
+
+    if (formattingSheetOpen) {
+        ComicFormattingSheet(
+            formatting = effectiveComicFormatting,
+            onUpdate = viewModel::updateComicFormatting,
+            onDismiss = { formattingSheetOpen = false },
+        )
     }
 }
 
@@ -364,6 +371,7 @@ private fun CbzPanelViewer(
     onSkipGuidedPage: () -> Unit,
     onToggleImmersive: () -> Unit,
     volumeNavEvents: kotlinx.coroutines.flow.SharedFlow<VolumeNavEvent>,
+    onViewportSizeChanged: ((Int, Int) -> Unit)? = null,
 ) {
     var peeking by remember(currentPage) { mutableStateOf(false) }
 
@@ -392,6 +400,7 @@ private fun CbzPanelViewer(
             .onSizeChanged { size ->
                 viewportW = size.width
                 viewportH = size.height
+                onViewportSizeChanged?.invoke(size.width, size.height)
             }
             .pointerInput(currentPage, panelIndex, peeking) {
                 awaitEachGesture {

@@ -8,6 +8,7 @@ import com.riffle.core.database.AudioPlaybackPreferencesDao
 import com.riffle.core.database.AudiobookBookmarkDao
 import com.riffle.core.database.AudiobookChapterCacheDao
 import com.riffle.core.database.AudiobookPositionDao
+import com.riffle.core.database.BookComicFormattingPreferencesDao
 import com.riffle.core.database.BookFormattingPreferencesDao
 import com.riffle.core.database.CollectionDao
 import com.riffle.core.database.CrossEpubIndexDao
@@ -162,4 +163,9 @@ object TestDatabaseModule {
     @Provides
     @Singleton
     fun providePlaylistDao(db: RiffleDatabase): PlaylistDao = db.playlistDao()
+
+    @Provides
+    @Singleton
+    fun provideBookComicFormattingPreferencesDao(db: RiffleDatabase): BookComicFormattingPreferencesDao =
+        db.bookComicFormattingPreferencesDao()
 }
