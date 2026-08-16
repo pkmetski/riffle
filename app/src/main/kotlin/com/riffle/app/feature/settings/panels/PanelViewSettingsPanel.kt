@@ -23,8 +23,7 @@ internal fun PanelViewSettingsPanel(
         modifier = Modifier.padding(top = 4.dp, bottom = 20.dp),
     )
     ListItem(
-        headlineContent = { Text("Panel View on by default") },
-        supportingContent = { Text("New comics open in Panel View") },
+        headlineContent = { Text("Panel View") },
         trailingContent = {
             Switch(checked = panelViewOn, onCheckedChange = onPanelViewOnChange)
         },

@@ -15,7 +15,7 @@ internal fun ComicsSection(
     SettingsSectionHeader("Comics")
     SettingsDrillInRow(
         title = "Panel View",
-        summary = if (comicFormatting.panelViewOn) "On by default" else "Off by default",
+        summary = if (comicFormatting.panelViewOn) "On" else "Off",
         onClick = { onOpenPanel(SettingsPanel.PanelView) },
     )
     SettingsDrillInRow(
