@@ -673,7 +673,7 @@ fun EpubReaderScreen(
                     lookupTarget?.let { target ->
                         WordLookupSheet(
                             target = target,
-                            resultFlow = viewModel.observeLookupResult(target),
+                            resultFlow = remember(target) { viewModel.observeLookupResult(target) },
                             onDismiss = viewModel::dismissLookup,
                             onEnqueueDownload = { packInfo -> viewModel.enqueuePackDownload(context, packInfo) },
                         )
@@ -1630,7 +1630,8 @@ private fun EpubNavigatorView(
                 menu.add(0, searchMenuId, 3, "Search")
                 menu.add(0, shareMenuId, 4, "Share")
                 if (publicationLanguageTag != null && currentOnLookupWord != null) {
-                    menu.add(0, lookupMenuId, 5, "Look up")
+                    menu.add(0, lookupMenuId, 0, "Look up")
+                        .setShowAsAction(android.view.MenuItem.SHOW_AS_ACTION_ALWAYS)
                 }
                 return true
             }

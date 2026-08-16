@@ -79,6 +79,30 @@ class LookupUiStateResolutionTest {
     }
 
     @Test
+    fun `FAILED propagates manifest packInfo into DownloadFailed`() {
+        val packInfo = PackInfo(
+            languageTag = "fr",
+            packVersion = "2026-08-01",
+            downloadUrl = "https://example.com/fr.db",
+            sha256 = "abc123",
+            sizeBytes = 12_000_000L,
+            attributionHtml = "<a>Wiktionary</a>",
+            licenseUrl = "https://cc.org",
+        )
+        val state = resolveLookupUiState(
+            packState = DictionaryPackState.FAILED,
+            word = "chat",
+            languageTag = "fr",
+            entries = emptyList(),
+            recentLookups = emptyList(),
+            manifestSizeBytes = packInfo.sizeBytes,
+            manifestPackInfo = packInfo,
+        )
+        assertTrue(state is LookupUiState.DownloadFailed)
+        assertEquals(packInfo, (state as LookupUiState.DownloadFailed).packInfo)
+    }
+
+    @Test
     fun `NOT_INSTALLED propagates manifest packInfo into NoPackInstalled`() {
         val packInfo = PackInfo(
             languageTag = "fr",

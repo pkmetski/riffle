@@ -3908,8 +3908,10 @@ class EpubReaderViewModel @Inject constructor(
 
     fun onPageTopResolved(href: String, fragmentId: String?) = readaloud.onPageTopResolved(href, fragmentId)
 
-    fun onLookupWord(word: String, languageTag: String) {
-        _lookupTarget.value = LookupTarget(word, languageTag)
+    fun onLookupWord(text: String, languageTag: String) {
+        val word = text.trim().split(Regex("\\s+")).firstOrNull()?.take(60) ?: return
+        val normalizedTag = languageTag.substringBefore('-')
+        _lookupTarget.value = LookupTarget(word, normalizedTag)
     }
 
     fun dismissLookup() {
@@ -3932,7 +3934,8 @@ class EpubReaderViewModel @Inject constructor(
                                 .first()
                             emit(resolveLookupUiState(packState, target.text, target.languageTag, entries, recents, 0L))
                         }
-                        com.riffle.core.dictionary.DictionaryPackState.NOT_INSTALLED -> {
+                        com.riffle.core.dictionary.DictionaryPackState.NOT_INSTALLED,
+                        com.riffle.core.dictionary.DictionaryPackState.FAILED -> {
                             val packInfo = try {
                                 packManifestFetcher.fetch()
                                     .packs.firstOrNull { it.languageTag == target.languageTag }

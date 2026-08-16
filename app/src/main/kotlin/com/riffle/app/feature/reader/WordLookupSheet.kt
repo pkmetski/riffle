@@ -92,6 +92,19 @@ internal fun WordLookupSheet(
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.error,
                     )
+                    val packInfo = state.packInfo
+                    if (packInfo != null) {
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Button(
+                            onClick = {
+                                onEnqueueDownload(packInfo)
+                                onDismiss()
+                            },
+                            modifier = Modifier.align(Alignment.End),
+                        ) {
+                            Text("Retry")
+                        }
+                    }
                 }
                 is LookupUiState.NoResults -> {
                     Text(
