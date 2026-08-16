@@ -1,6 +1,7 @@
 package com.riffle.app.feature.reader.cbz
 
 import android.app.Application
+import android.content.pm.ActivityInfo
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.viewModelScope
@@ -13,10 +14,9 @@ import com.riffle.core.domain.CbzRepository
 import com.riffle.core.domain.LibraryObserver
 import com.riffle.core.domain.ProgressSyncController
 import com.riffle.core.domain.ReadingSessionRepository
+import com.riffle.core.domain.WakeLockPreferencesStore
 import com.riffle.core.models.LibraryItem
 import com.riffle.core.models.SessionPayload
-import com.riffle.core.domain.WakeLockPreferencesStore
-import android.content.pm.ActivityInfo
 import com.riffle.core.domain.comic.BookComicFormattingOverrides
 import com.riffle.core.domain.comic.BookComicFormattingPreferencesStore
 import com.riffle.core.domain.comic.CbzArchive
