@@ -460,7 +460,21 @@ class CbzReaderViewModel @Inject constructor(
                 } ?: return@launch
                 if (_currentPage.value != newPage) return@launch  // user navigated away mid-resolve
                 _currentPagePanels.value = pagePanels
-                _currentPanelIndex.value = (pagePanels.panels.size - 1).coerceAtLeast(0)
+                val formatting = effectiveComicFormatting.value
+                val (vpW, vpH) = _viewportSize.value
+                val effectiveCount = if (
+                    formatting.panelViewOn &&
+                    formatting.panelOverflow == PanelOverflowBehavior.SPLIT &&
+                    !pagePanels.isFallback && vpW > 0 && vpH > 0
+                ) {
+                    PanelOverflowTransform.applyOverflow(
+                        pagePanels.panels, pagePanels.imageWidth, pagePanels.imageHeight,
+                        vpW, vpH, PanelOverflowBehavior.SPLIT,
+                    ).size
+                } else {
+                    pagePanels.panels.size
+                }
+                _currentPanelIndex.value = (effectiveCount - 1).coerceAtLeast(0)
             }
         }
     }
