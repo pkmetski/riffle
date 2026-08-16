@@ -143,6 +143,10 @@ annotation class CbzDownloadsStore
 @Retention(AnnotationRetention.BINARY)
 annotation class AppUpdatePreferencesDataStore
 
+@Qualifier
+@Retention(AnnotationRetention.BINARY)
+annotation class ComicFormattingPreferencesDataStore
+
 @Module(
     includes = [
         NetworkModule::class,

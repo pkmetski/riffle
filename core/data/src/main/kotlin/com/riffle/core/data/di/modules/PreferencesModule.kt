@@ -5,6 +5,7 @@ import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import com.riffle.core.data.AudioPlaybackPreferencesStoreImpl
 import com.riffle.core.data.BookFormattingPreferencesStoreImpl
+import com.riffle.core.data.ComicFormattingPreferencesStoreImpl
 import com.riffle.core.data.ContentCacheAccessStoreImpl
 import com.riffle.core.data.FormattingPreferencesStoreImpl
 import com.riffle.core.data.FormattingPreferencesStoreProviderImpl
@@ -16,6 +17,7 @@ import com.riffle.core.data.ListeningPreferencesStoreImpl
 import com.riffle.core.data.VolumeKeyPreferencesStoreImpl
 import com.riffle.core.data.di.AppThemePreferencesDataStore
 import com.riffle.core.data.di.AppUpdatePreferencesDataStore
+import com.riffle.core.data.di.ComicFormattingPreferencesDataStore
 import com.riffle.core.data.di.ContentCacheAccessDataStore
 import com.riffle.core.data.di.ContentCacheSettingsDataStore
 import com.riffle.core.data.di.CoverGridDensityDataStore
@@ -37,6 +39,7 @@ import com.riffle.core.data.di.VolumeKeyPreferencesDataStore
 import com.riffle.core.data.di.WakeLockPreferencesDataStore
 import com.riffle.core.data.di.appThemePreferencesDataStore
 import com.riffle.core.data.di.appUpdatePreferencesDataStore
+import com.riffle.core.data.di.comicFormattingPreferencesDataStore
 import com.riffle.core.data.di.contentCacheAccessDataStore
 import com.riffle.core.data.di.contentCacheSettingsDataStore
 import com.riffle.core.data.di.coverGridDensityDataStore
@@ -59,6 +62,7 @@ import com.riffle.core.data.di.wakeLockPreferencesDataStore
 import com.riffle.core.domain.AppThemeStore
 import com.riffle.core.domain.AppUpdatePreferencesStore
 import com.riffle.core.domain.AudioPlaybackPreferencesStore
+import com.riffle.core.domain.comic.ComicFormattingPreferencesStore
 import com.riffle.core.domain.BookFormattingPreferencesStore
 import com.riffle.core.domain.ContentCacheAccessStore
 import com.riffle.core.domain.ContentCacheSettingsStore
@@ -138,6 +142,12 @@ abstract class PreferencesModule {
     @Binds
     @Singleton
     abstract fun bindContentCacheAccessStore(impl: ContentCacheAccessStoreImpl): ContentCacheAccessStore
+
+    @Binds
+    @Singleton
+    abstract fun bindComicFormattingPreferencesStore(
+        impl: ComicFormattingPreferencesStoreImpl,
+    ): ComicFormattingPreferencesStore
 
     companion object {
         @Provides @Singleton @FormattingPreferencesDataStore
@@ -272,6 +282,10 @@ abstract class PreferencesModule {
         @Provides @Singleton @AppUpdatePreferencesDataStore
         fun provideAppUpdatePreferencesDataStore(@ApplicationContext c: Context): DataStore<Preferences> =
             c.appUpdatePreferencesDataStore
+
+        @Provides @Singleton @ComicFormattingPreferencesDataStore
+        fun provideComicFormattingPreferencesDataStore(@ApplicationContext c: Context): DataStore<Preferences> =
+            c.comicFormattingPreferencesDataStore
 
         @Provides
         @Singleton
