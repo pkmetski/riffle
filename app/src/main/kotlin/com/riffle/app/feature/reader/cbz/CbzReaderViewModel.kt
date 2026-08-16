@@ -16,10 +16,17 @@ import com.riffle.core.domain.ReadingSessionRepository
 import com.riffle.core.models.LibraryItem
 import com.riffle.core.models.SessionPayload
 import com.riffle.core.domain.WakeLockPreferencesStore
+import android.content.pm.ActivityInfo
+import com.riffle.core.domain.comic.BookComicFormattingOverrides
+import com.riffle.core.domain.comic.BookComicFormattingPreferencesStore
 import com.riffle.core.domain.comic.CbzArchive
 import com.riffle.core.domain.comic.ComicArchive
+import com.riffle.core.domain.comic.ComicFormattingPreferences
+import com.riffle.core.domain.comic.ComicFormattingPreferencesStore
+import com.riffle.core.domain.comic.PanelOverflowBehavior
 import com.riffle.core.domain.comic.panel.PagePanels
 import com.riffle.core.domain.comic.panel.PanelOrchestrator
+import com.riffle.core.domain.comic.panel.PanelOverflowTransform
 import com.riffle.core.domain.comic.panel.PanelViewPreferencesStore
 import com.riffle.core.domain.usecase.UpdateReadingProgress
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -28,7 +35,9 @@ import javax.inject.Inject
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -59,6 +68,8 @@ class CbzReaderViewModel @Inject constructor(
     private val readerStateHolder: ReaderStateHolder,
     private val panelOrchestrator: PanelOrchestrator,
     private val panelViewPreferencesStore: PanelViewPreferencesStore,
+    private val comicFormattingPreferencesStore: ComicFormattingPreferencesStore,
+    private val bookComicFormattingPreferencesStore: BookComicFormattingPreferencesStore,
 ) : AndroidViewModel(application) {
 
     private val itemId: String = checkNotNull(savedStateHandle["itemId"])
@@ -88,9 +99,23 @@ class CbzReaderViewModel @Inject constructor(
     private val _currentPage = MutableStateFlow(0)
     val currentPage: StateFlow<Int> = _currentPage
 
-    private val _panelViewOn = MutableStateFlow(false)
-    /** Panel View toggle for the current book (ADR 0055). */
-    val panelViewOn: StateFlow<Boolean> = _panelViewOn
+    private val _bookComicOverrides = MutableStateFlow(BookComicFormattingOverrides())
+
+    val effectiveComicFormatting: StateFlow<ComicFormattingPreferences> =
+        combine(comicFormattingPreferencesStore.preferences, _bookComicOverrides) { global, overrides ->
+            overrides.applyTo(global)
+        }.stateIn(viewModelScope, SharingStarted.Eagerly, ComicFormattingPreferences())
+
+    /** Panel View toggle for the current book (ADR 0055). Derived from [effectiveComicFormatting]. */
+    val panelViewOn: StateFlow<Boolean> = effectiveComicFormatting
+        .map { it.panelViewOn }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, false)
+
+    private val _viewportSize = MutableStateFlow(0 to 0) // (width, height) in px
+
+    fun setViewportSize(w: Int, h: Int) {
+        _viewportSize.value = w to h
+    }
 
     private val _currentPagePanels = MutableStateFlow<PagePanels?>(null)
     /**
@@ -100,9 +125,49 @@ class CbzReaderViewModel @Inject constructor(
      */
     val currentPagePanels: StateFlow<PagePanels?> = _currentPagePanels
 
+    /**
+     * Effective panels after applying the overflow transform (e.g. SPLIT). Used for panel
+     * navigation logic. The screen still reads [currentPagePanels] (raw) for rendering.
+     */
+    val effectivePanels: StateFlow<PagePanels?> = combine(
+        _currentPagePanels,
+        effectiveComicFormatting,
+        _viewportSize,
+    ) { pagePanels, formatting, (vpW, vpH) ->
+        if (pagePanels == null || pagePanels.isFallback || !formatting.panelViewOn) return@combine pagePanels
+        if (formatting.panelOverflow != PanelOverflowBehavior.SPLIT || vpW == 0 || vpH == 0) return@combine pagePanels
+        val transformed = PanelOverflowTransform.applyOverflow(
+            pagePanels.panels, pagePanels.imageWidth, pagePanels.imageHeight, vpW, vpH,
+            PanelOverflowBehavior.SPLIT,
+        )
+        pagePanels.copy(panels = transformed)
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, null)
+
     private val _currentPanelIndex = MutableStateFlow(0)
     /** 0-based index into [currentPagePanels]. Advances with next/prev-panel gestures. */
     val currentPanelIndex: StateFlow<Int> = _currentPanelIndex
+
+    /**
+     * Requested screen orientation for AUTO_ROTATE overflow behavior. Non-null only when the
+     * current panel overflows the viewport and should trigger a rotation.
+     */
+    val requestedOrientation: StateFlow<Int?> = combine(
+        effectiveComicFormatting,
+        _currentPanelIndex,
+        _currentPagePanels,
+        _viewportSize,
+    ) { formatting, panelIndex, pagePanels, (vpW, vpH) ->
+        if (!formatting.panelViewOn) return@combine null
+        if (formatting.panelOverflow != PanelOverflowBehavior.AUTO_ROTATE) return@combine null
+        if (pagePanels == null || pagePanels.isFallback) return@combine null
+        val panel = pagePanels.panels.getOrNull(panelIndex) ?: return@combine null
+        val overflowing = PanelOverflowTransform.isOverflowing(
+            panel, pagePanels.imageWidth, pagePanels.imageHeight, vpW, vpH,
+        )
+        if (!overflowing) return@combine null
+        if (vpW < vpH) ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+        else ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
     val keepScreenOn: StateFlow<Boolean> = wakeLockPreferencesStore.keepScreenOn
         .stateIn(viewModelScope, SharingStarted.Eagerly, true)
@@ -143,12 +208,19 @@ class CbzReaderViewModel @Inject constructor(
             return
         }
         bookId = "${item.sourceId}::${item.id}"
-        // Await the FIRST DataStore emission before state becomes Ready so the reader doesn't
-        // briefly render the whole-page pager before flipping to Panel View on every open.
-        val prefState = panelViewPreferencesStore.state(bookId)
-        _panelViewOn.value = prefState.first().panelViewOn
-        viewModelScope.launch {
-            prefState.collect { state -> _panelViewOn.value = state.panelViewOn }
+        // Load per-book Comic formatting overrides (new store).
+        // Also performs a one-time lazy migration from the legacy PanelViewPreferencesStore.
+        val existingOverrides = bookComicFormattingPreferencesStore.overrides(bookId).first()
+        val legacyPanelViewOn = if (existingOverrides.panelViewOn == null) {
+            panelViewPreferencesStore.state(bookId).first().panelViewOn
+        } else null
+
+        if (legacyPanelViewOn == true) {
+            val migrated = existingOverrides.copy(panelViewOn = true)
+            bookComicFormattingPreferencesStore.save(bookId, migrated)
+            _bookComicOverrides.value = migrated
+        } else {
+            _bookComicOverrides.value = existingOverrides
         }
         when (val result = cbzRepository.openCbz(item)) {
             is CbzOpenResult.Success -> loadArchive(result.cbzFile, result.lastPosition, item.title)
@@ -331,10 +403,31 @@ class CbzReaderViewModel @Inject constructor(
 
     // --- Panel View (ADR 0055) ---
 
-    /** Flip the per-book Panel View toggle. Persisted to [panelViewPreferencesStore]. */
+    /** Flip the per-book Panel View toggle. Persisted via [bookComicFormattingPreferencesStore]. */
     fun togglePanelView() {
-        val newValue = !_panelViewOn.value
-        viewModelScope.launch { panelViewPreferencesStore.setPanelViewOn(bookId, newValue) }
+        val newPanelViewOn = !effectiveComicFormatting.value.panelViewOn
+        updateComicFormatting(_bookComicOverrides.value.copy(panelViewOn = newPanelViewOn))
+    }
+
+    /**
+     * Merges the given [patch] into the current per-book overrides and persists.
+     * Only non-null fields in [patch] replace the corresponding field in the stored overrides.
+     */
+    fun updateComicFormatting(patch: BookComicFormattingOverrides) {
+        val merged = _bookComicOverrides.value.let { current ->
+            current.copy(
+                panelViewOn = patch.panelViewOn ?: current.panelViewOn,
+                panelOverflow = patch.panelOverflow ?: current.panelOverflow,
+            )
+        }
+        _bookComicOverrides.value = merged
+        viewModelScope.launch { bookComicFormattingPreferencesStore.save(bookId, merged) }
+    }
+
+    /** Clears all per-book Comic formatting overrides, falling back to global defaults. */
+    fun resetComicFormattingToDefaults() {
+        _bookComicOverrides.value = BookComicFormattingOverrides()
+        viewModelScope.launch { bookComicFormattingPreferencesStore.reset(bookId) }
     }
 
     /**
@@ -343,9 +436,9 @@ class CbzReaderViewModel @Inject constructor(
      * [nextPage] so tap-right / swipe / vol-down continue to work as they always did.
      */
     fun nextPanel() {
-        if (!_panelViewOn.value) return nextPage()
-        val panels = _currentPagePanels.value?.panels
-        if (panels.isNullOrEmpty() || _currentPagePanels.value?.isFallback == true) return nextPage()
+        if (!panelViewOn.value) return nextPage()
+        val panels = effectivePanels.value?.panels
+        if (panels.isNullOrEmpty() || effectivePanels.value?.isFallback == true) return nextPage()
         val nextIndex = _currentPanelIndex.value + 1
         if (nextIndex < panels.size) {
             _currentPanelIndex.value = nextIndex
@@ -355,9 +448,9 @@ class CbzReaderViewModel @Inject constructor(
     }
 
     fun previousPanel() {
-        if (!_panelViewOn.value) return previousPage()
-        val panels = _currentPagePanels.value?.panels
-        if (panels.isNullOrEmpty() || _currentPagePanels.value?.isFallback == true) return previousPage()
+        if (!panelViewOn.value) return previousPage()
+        val panels = effectivePanels.value?.panels
+        if (panels.isNullOrEmpty() || effectivePanels.value?.isFallback == true) return previousPage()
         val prevIndex = _currentPanelIndex.value - 1
         if (prevIndex >= 0) {
             _currentPanelIndex.value = prevIndex
