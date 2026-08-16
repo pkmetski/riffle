@@ -3933,12 +3933,11 @@ class EpubReaderViewModel @Inject constructor(
                             emit(resolveLookupUiState(packState, target.text, target.languageTag, entries, recents, 0L))
                         }
                         com.riffle.core.dictionary.DictionaryPackState.NOT_INSTALLED -> {
-                            val sizeBytes = try {
+                            val packInfo = try {
                                 packManifestFetcher.fetch()
                                     .packs.firstOrNull { it.languageTag == target.languageTag }
-                                    ?.sizeBytes ?: 0L
-                            } catch (_: Exception) { 0L }
-                            emit(resolveLookupUiState(packState, target.text, target.languageTag, emptyList(), emptyList(), sizeBytes))
+                            } catch (_: Exception) { null }
+                            emit(resolveLookupUiState(packState, target.text, target.languageTag, emptyList(), emptyList(), packInfo?.sizeBytes ?: 0L, packInfo))
                         }
                         else -> emit(resolveLookupUiState(packState, target.text, target.languageTag, emptyList(), emptyList(), 0L))
                     }

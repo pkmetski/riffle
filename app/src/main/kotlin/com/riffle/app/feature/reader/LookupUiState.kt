@@ -8,7 +8,7 @@ data class LookupTarget(val text: String, val languageTag: String)
 
 sealed interface LookupUiState {
     data object Loading : LookupUiState
-    data class NoPackInstalled(val languageTag: String, val sizeBytes: Long) : LookupUiState
+    data class NoPackInstalled(val languageTag: String, val sizeBytes: Long, val packInfo: PackInfo? = null) : LookupUiState
     data object Downloading : LookupUiState
     data class DownloadFailed(val languageTag: String) : LookupUiState
     data class Loaded(
@@ -26,11 +26,12 @@ internal fun resolveLookupUiState(
     entries: List<DictionaryEntry>,
     recentLookups: List<String>,
     manifestSizeBytes: Long,
+    manifestPackInfo: PackInfo? = null,
 ): LookupUiState = when (packState) {
     DictionaryPackState.INSTALLED ->
         if (entries.isEmpty()) LookupUiState.NoResults(word, languageTag)
         else LookupUiState.Loaded(word, entries, recentLookups)
     DictionaryPackState.DOWNLOADING -> LookupUiState.Downloading
     DictionaryPackState.FAILED -> LookupUiState.DownloadFailed(languageTag)
-    DictionaryPackState.NOT_INSTALLED -> LookupUiState.NoPackInstalled(languageTag, manifestSizeBytes)
+    DictionaryPackState.NOT_INSTALLED -> LookupUiState.NoPackInstalled(languageTag, manifestSizeBytes, manifestPackInfo)
 }
