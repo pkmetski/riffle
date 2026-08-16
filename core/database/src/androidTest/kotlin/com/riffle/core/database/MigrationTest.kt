@@ -1919,7 +1919,7 @@ class MigrationTest {
         }
 
         val db = helper.runMigrationsAndValidate(
-            TEST_DB, 65, true,
+            TEST_DB, 66, true,
             RiffleDatabase.MIGRATION_1_2,
             RiffleDatabase.MIGRATION_2_3,
             RiffleDatabase.MIGRATION_3_4,
@@ -1984,6 +1984,7 @@ class MigrationTest {
             RiffleDatabase.MIGRATION_62_63,
             RiffleDatabase.MIGRATION_63_64,
             RiffleDatabase.MIGRATION_64_65,
+            RiffleDatabase.MIGRATION_65_66,
         )
 
         db.query("SELECT url, username, serverType, absUserId, type FROM sources WHERE id = 's1'").use { cursor ->
@@ -2984,6 +2985,36 @@ class MigrationTest {
                     "pre-existing row must have null epubVersion after migration",
                     cursor.getString(cursor.getColumnIndexOrThrow("epubVersion")),
                 )
+            }
+        }
+    }
+
+    @Test
+    fun migration65To66_addsBookComicFormattingPreferences() {
+        helper.createDatabase(TEST_DB, 65).use { db ->
+            // Insert a source row (required for FK in book_comic_formatting_preferences)
+            db.execSQL(
+                "INSERT INTO sources (id, type, name, url, token, userId) " +
+                    "VALUES ('src1', 'ABS', 'Test', 'http://test', 'tok', 'u1')"
+            )
+        }
+        helper.runMigrationsAndValidate(TEST_DB, 66, true, RiffleDatabase.MIGRATION_65_66).use { db ->
+            // Table should exist and be empty
+            db.query("SELECT * FROM book_comic_formatting_preferences").use { cursor ->
+                assertEquals(0, cursor.count)
+            }
+            // Insert a row to verify columns and FK
+            db.execSQL(
+                "INSERT INTO book_comic_formatting_preferences " +
+                    "(source_id, item_id, panel_view_on, panel_overflow) " +
+                    "VALUES ('src1', 'item1', 1, 'AUTO_ROTATE')"
+            )
+            db.query("SELECT * FROM book_comic_formatting_preferences").use { cursor ->
+                assertTrue(cursor.moveToFirst())
+                assertEquals("src1", cursor.getString(cursor.getColumnIndexOrThrow("source_id")))
+                assertEquals("item1", cursor.getString(cursor.getColumnIndexOrThrow("item_id")))
+                assertEquals(1, cursor.getInt(cursor.getColumnIndexOrThrow("panel_view_on")))
+                assertEquals("AUTO_ROTATE", cursor.getString(cursor.getColumnIndexOrThrow("panel_overflow")))
             }
         }
     }
