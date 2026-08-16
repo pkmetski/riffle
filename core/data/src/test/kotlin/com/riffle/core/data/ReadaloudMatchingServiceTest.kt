@@ -1,5 +1,6 @@
 package com.riffle.core.data
 
+import android.database.sqlite.SQLiteConstraintException
 import com.riffle.core.database.LastOpenedAtRow
 import com.riffle.core.database.LibraryItemDao
 import com.riffle.core.database.LibraryItemEntity
@@ -309,6 +310,24 @@ class ReadaloudMatchingServiceTest {
     }
 
     @Test
+    fun `FK constraint on upsert is silently swallowed — source deleted mid-reconcile does not crash`() = runTest {
+        // Regression: reconcileLinks() fires on applicationScope and can race with source
+        // deletion. If the source is deleted between the listMatchable read and the upsert,
+        // Room throws SQLiteConstraintException (FK violation). The reconcile must complete
+        // normally; the stale link will simply not be written.
+        val items = StubLibraryItemDao(
+            storyteller = listOf(row("st-1", "42", isbn = "9780261103573")),
+            abs = listOf(row("abs-1", "ebook", isbn = "9780261103573")),
+        )
+        val links = FKFailingReadaloudLinkDao()
+
+        service(items, links).reconcileLinks()
+
+        // No crash — test reaching here proves the exception was swallowed.
+        assertTrue("no row written when FK throws", links.upserts.isEmpty())
+    }
+
+    @Test
     fun `stale candidates are cleared every pass`() = runTest {
         val items = StubLibraryItemDao(
             storyteller = listOf(row("st-1", "42", title = "Dune", author = "Frank Herbert")),
@@ -409,7 +428,14 @@ class ReadaloudMatchingServiceTest {
         override fun observeBySource(sourceId: String): Flow<List<LibraryItemEntity>> = flowOf(emptyList())
     }
 
-    private class RecordingReadaloudLinkDao : ReadaloudLinkDao {
+    /** Simulates the race where the source is deleted between the read and the upsert. */
+    private class FKFailingReadaloudLinkDao : RecordingReadaloudLinkDao() {
+        override suspend fun upsert(entity: ReadaloudLinkEntity) {
+            throw SQLiteConstraintException("FOREIGN KEY constraint failed (code 787)")
+        }
+    }
+
+    private open class RecordingReadaloudLinkDao : ReadaloudLinkDao {
         override suspend fun updateIdentityResult(absSourceId: String, absLibraryItemId: String, result: String) = Unit
         val upserts = mutableListOf<ReadaloudLinkEntity>()
         val deletions = mutableListOf<Pair<String, String>>()
