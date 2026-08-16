@@ -21,7 +21,7 @@ object PanelOverflowTransform {
         val isLandscape = viewportWidth > viewportHeight
         // Only fire in portrait: in landscape the full-width panel already has a wide viewport and doesn't need assist.
         val isWideOverflow = isPortrait && widthRatio >= 0.9f && panelDisplayW < viewportHeight
-        // Symmetric: tall panels only need assist in portrait viewport (landscape already gives height room).
+        // Symmetric: tall panels only need assist in landscape viewport (portrait already gives height room).
         val isTallOverflow = isLandscape && heightRatio >= 0.9f && panelDisplayH < viewportWidth
         return isWideOverflow || isTallOverflow
     }
