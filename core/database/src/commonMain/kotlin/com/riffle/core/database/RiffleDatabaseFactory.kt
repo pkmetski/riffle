@@ -43,6 +43,8 @@ internal class DefaultRiffleDatabaseAccess(
     override fun localFileMetadataOverrideDao() = database.localFileMetadataOverrideDao()
     override fun remoteItemFreshnessDao() = database.remoteItemFreshnessDao()
     override fun playlistDao() = database.playlistDao()
+    override fun publicationMetricsCacheDao() = database.publicationMetricsCacheDao()
+    override fun bookComicFormattingPreferencesDao() = database.bookComicFormattingPreferencesDao()
 }
 
 internal val RIFFLE_DATABASE_MIGRATIONS: Array<Migration> = arrayOf(
@@ -106,4 +108,9 @@ internal val RIFFLE_DATABASE_MIGRATIONS: Array<Migration> = arrayOf(
     RiffleDatabase.MIGRATION_58_59,
     RiffleDatabase.MIGRATION_59_60,
     RiffleDatabase.MIGRATION_60_61,
+    RiffleDatabase.MIGRATION_61_62,
+    RiffleDatabase.MIGRATION_62_63,
+    RiffleDatabase.MIGRATION_63_64,
+    RiffleDatabase.MIGRATION_64_65,
+    RiffleDatabase.MIGRATION_65_66,
 )

@@ -1691,7 +1691,7 @@ abstract class RiffleDatabase : RoomDatabase() {
         // Optional colored chapter-map rendering. NULL keeps existing per-book rows following the
         // global preference, whose default is enabled for backward-compatible visuals.
         val MIGRATION_61_62 = object : Migration(61, 62) {
-            override fun migrate(db: SupportSQLiteDatabase) {
+            override fun migrate(db: SQLiteConnection) {
                 db.execSQL(
                     "ALTER TABLE `book_formatting_preferences` " +
                         "ADD COLUMN `coloredChapterMap` INTEGER"
@@ -1704,7 +1704,7 @@ abstract class RiffleDatabase : RoomDatabase() {
         // the discrete page label. Both are keyed by ebookFileIno and TTL'd by the repository so
         // file replacements and future derivation fixes self-heal without becoming catalog data.
         val MIGRATION_62_63 = object : Migration(62, 63) {
-            override fun migrate(db: SupportSQLiteDatabase) {
+            override fun migrate(db: SQLiteConnection) {
                 db.execSQL(
                     "CREATE TABLE IF NOT EXISTS `publication_metrics_cache` (" +
                         "`sourceId` TEXT NOT NULL, " +
@@ -1728,19 +1728,19 @@ abstract class RiffleDatabase : RoomDatabase() {
         // snap the reader column to the exact element instead of relying on progression math.
         // NULL for all pre-existing bookmarks and every non-BOOKMARK annotation type.
         val MIGRATION_63_64 = object : Migration(63, 64) {
-            override fun migrate(db: SupportSQLiteDatabase) {
+            override fun migrate(db: SQLiteConnection) {
                 db.execSQL("ALTER TABLE `annotations` ADD COLUMN `fragmentAnchor` TEXT")
             }
         }
 
         val MIGRATION_64_65 = object : Migration(64, 65) {
-            override fun migrate(db: SupportSQLiteDatabase) {
+            override fun migrate(db: SQLiteConnection) {
                 db.execSQL("ALTER TABLE `publication_metrics_cache` ADD COLUMN `epubVersion` TEXT")
             }
         }
 
         val MIGRATION_65_66 = object : Migration(65, 66) {
-            override fun migrate(db: SupportSQLiteDatabase) {
+            override fun migrate(db: SQLiteConnection) {
                 db.execSQL(
                     """
                     CREATE TABLE IF NOT EXISTS `book_comic_formatting_preferences` (
