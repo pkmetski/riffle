@@ -28,6 +28,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
@@ -142,6 +143,17 @@ class NavigationDrawerViewModel @Inject constructor(
                         _serverVersions.value = versionsCache.toMap()
                     }
                 }
+        }
+        viewModelScope.launch {
+            // On a source switch, MainScreen fires navigateAsRoot(HOME) which handles routing to
+            // the new source's library. Clear the remembered library ID so the redirectToLibrary
+            // watcher below doesn't ALSO fire a competing navigateAsRoot(library) for the same
+            // switch — if both fire, the result is library→HOME→library (three navigation
+            // transitions) which blocks the main thread for ~1.3s.
+            activeServer
+                .filterNotNull()
+                .drop(1)
+                .collect { _lastActiveLibraryId.value = null }
         }
         viewModelScope.launch {
             visibleLibraries.collect { visible ->
