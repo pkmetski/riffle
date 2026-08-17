@@ -31,7 +31,7 @@ object ServerReferenceLint {
         // Room database + migrations reference historical `serverId` columns and
         // `servers` table in SQL that must remain verbatim to preserve migration
         // history. Identifier holdouts (ServerRepository comment) live here too.
-        "core/database/src/main/kotlin/com/riffle/core/database/RiffleDatabase.kt",
+        "core/database/src/commonMain/kotlin/com/riffle/core/database/RiffleDatabase.kt",
         // Domain models that still carry `serverType: ServerType` parameters.
         "core/models/src/commonMain/kotlin/com/riffle/core/models/Source.kt",
         "core/domain/src/commonMain/kotlin/com/riffle/core/domain/PendingSource.kt",

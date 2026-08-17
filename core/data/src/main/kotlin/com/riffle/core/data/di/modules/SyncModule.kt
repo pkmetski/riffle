@@ -1,6 +1,8 @@
 package com.riffle.core.data.di.modules
 
-import com.riffle.core.catalog.CatalogRegistry
+import com.riffle.core.common.Clock
+import com.riffle.core.common.RandomProvider
+import com.riffle.core.data.CatalogSyncSourceResolver
 import com.riffle.core.data.AnnotationSyncConfigStoreImpl
 import com.riffle.core.data.AudiobookBookmarkSyncStoreImpl
 import com.riffle.core.data.AudiobookPositionStoreImpl
@@ -25,6 +27,7 @@ import com.riffle.core.sync.OpenReconcileTargets
 import com.riffle.core.sync.ProgressRemoteFactory
 import com.riffle.core.sync.ProgressSweep
 import com.riffle.core.sync.ReconcileLocks
+import com.riffle.core.sync.SyncSourceResolver
 import dagger.Binds
 import dagger.Module
 import dagger.Provides
@@ -63,6 +66,10 @@ abstract class SyncModule {
 
     @Binds
     @Singleton
+    abstract fun bindSyncSourceResolver(impl: CatalogSyncSourceResolver): SyncSourceResolver
+
+    @Binds
+    @Singleton
     abstract fun bindItemProgressPuller(impl: com.riffle.core.data.ReconcilingItemProgressPuller): com.riffle.core.data.ItemProgressPuller
 
     @Binds
@@ -80,12 +87,12 @@ abstract class SyncModule {
     companion object {
         // Durable offline progress reconcile (ADR 0036): assemble the multi-source dirty sweep
         // over the single-target primitive. Skipping unresolvable sources (no row / no token /
-        // no factory) is baked into ProgressSweep via CatalogRegistry.forSourceId.
+        // no factory) is baked into ProgressSweep via SyncSourceResolver.
         @Provides
         @Singleton
         fun provideProgressSweep(
             ledger: DirtyProgressLedger,
-            catalogRegistry: CatalogRegistry,
+            sourceResolver: SyncSourceResolver,
             remoteFactory: ProgressRemoteFactory,
             locks: ReconcileLocks,
             openTargets: OpenReconcileTargets,
@@ -97,7 +104,7 @@ abstract class SyncModule {
         ): ProgressSweep =
             ProgressSweep(
                 ledger,
-                catalogRegistry,
+                sourceResolver,
                 com.riffle.core.domain.ProgressReconciler(ebookStore, uiProgressSink),
                 com.riffle.core.domain.ProgressReconciler(audioStore, uiProgressSink),
                 remoteFactory, locks, openTargets,
@@ -111,6 +118,34 @@ abstract class SyncModule {
                 BookmarkReconcile { sourceId, itemId ->
                     bookmarkReconciler.reconcile(sourceId, itemId)
                 },
+            )
+
+        @Provides
+        @Singleton
+        fun provideReconcileLocks(): ReconcileLocks = ReconcileLocks()
+
+        @Provides
+        @Singleton
+        fun provideOpenReconcileTargets(): OpenReconcileTargets = OpenReconcileTargets()
+
+        @Provides
+        @Singleton
+        fun provideAnnotationSyncStatusStore(): com.riffle.core.sync.AnnotationSyncStatusStore =
+            com.riffle.core.sync.AnnotationSyncStatusStore()
+
+        @Provides
+        @Singleton
+        fun provideAudiobookBookmarkReconciler(
+            store: AudiobookBookmarkSyncStore,
+            sourceResolver: SyncSourceResolver,
+            clock: Clock,
+            random: RandomProvider,
+        ): com.riffle.core.sync.AudiobookBookmarkReconciler =
+            com.riffle.core.sync.AudiobookBookmarkReconciler(
+                store = store,
+                sourceResolver = sourceResolver,
+                clock = clock,
+                random = random,
             )
 
         @Provides

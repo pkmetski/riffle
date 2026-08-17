@@ -65,6 +65,7 @@ class TestGuardrailLintTest {
     fun `recognizes test source sets`() {
         assertTrue(TestGuardrailLint.isTestSourceFile("app/src/test/kotlin/FooTest.kt"))
         assertTrue(TestGuardrailLint.isTestSourceFile("app/src/androidTest/kotlin/FooTest.kt"))
+        assertTrue(TestGuardrailLint.isTestSourceFile("core/database/src/androidDeviceTest/kotlin/FooTest.kt"))
         assertTrue(TestGuardrailLint.isTestSourceFile("core/domain/src/jvmTest/kotlin/FooTest.kt"))
         assertFalse(TestGuardrailLint.isTestSourceFile("app/src/main/kotlin/Foo.kt"))
         assertFalse(TestGuardrailLint.isTestSourceFile("app/src/test/resources/fixture.json"))

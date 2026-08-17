@@ -8,11 +8,13 @@ import com.riffle.core.data.AppearanceCoordinatorImpl
 import com.riffle.core.domain.AppThemeStore
 import com.riffle.core.domain.ApplicationScope
 import com.riffle.core.common.Clock
+import com.riffle.core.common.RandomProvider
 import com.riffle.core.domain.DefaultDispatcherProvider
 import com.riffle.core.domain.DispatcherProvider
 import com.riffle.core.domain.EbookCfiTranslatorFactory
 import com.riffle.core.domain.FormattingPreferencesStore
 import com.riffle.core.common.SystemClock
+import com.riffle.core.common.SystemRandomProvider
 import com.riffle.core.common.SystemTimeProvider
 import com.riffle.core.common.TimeProvider
 import com.riffle.core.domain.appearance.AppearanceCoordinator
@@ -68,6 +70,10 @@ object AppModule {
     @Provides
     @Singleton
     fun provideClock(): Clock = SystemClock
+
+    @Provides
+    @Singleton
+    fun provideRandomProvider(): RandomProvider = SystemRandomProvider
 
     @Provides
     @Singleton

@@ -17,7 +17,8 @@ import com.riffle.app.MainActivity
 import com.riffle.app.harness.ReaderSemanticMatchers.assertNoErrorState
 import com.riffle.app.harness.ReaderSemanticMatchers.tapReadInDetailScreen
 import com.riffle.core.data.di.EpubCacheStore
-import com.riffle.core.database.RiffleDatabase
+import com.riffle.core.database.RiffleDatabaseAccess
+import com.riffle.core.database.clearAllTables
 import com.riffle.core.domain.LocalStore
 import dagger.hilt.android.testing.HiltAndroidRule
 import dagger.hilt.android.testing.HiltAndroidTest
@@ -50,7 +51,7 @@ class GoldenTraceHarnessTest {
     @get:Rule(order = 0) val hiltRule = HiltAndroidRule(this)
     @get:Rule(order = 1) val composeTestRule = createAndroidComposeRule<MainActivity>()
 
-    @Inject lateinit var database: RiffleDatabase
+    @Inject lateinit var database: RiffleDatabaseAccess
     @EpubCacheStore @Inject lateinit var epubCacheStore: LocalStore
 
     private val stubServer = StubAbsServer()

@@ -1,4 +1,5 @@
 import com.riffle.buildlogic.AndroidImportLint
+import com.riffle.buildlogic.DatabaseImplLeakLint
 import com.riffle.buildlogic.OkHttpConfinementLint
 import com.riffle.buildlogic.RiffleLogTagLint
 import com.riffle.buildlogic.ServerReferenceLint
@@ -7,6 +8,8 @@ import com.riffle.buildlogic.TestGuardrailLint
 plugins {
     alias(libs.plugins.android.application) apply false
     alias(libs.plugins.android.library) apply false
+    alias(libs.plugins.android.kotlin.multiplatform.library) apply false
+    alias(libs.plugins.androidx.room) apply false
     alias(libs.plugins.kotlin.jvm) apply false
     alias(libs.plugins.ksp) apply false
     alias(libs.plugins.hilt) apply false
@@ -119,6 +122,9 @@ tasks.register("checkRiffleInfraSeams") {
             "app/src/main/kotlin/com/riffle/app/feature/reader/highlights/HighlightsPdfExporter.kt",
             "app/src/main/kotlin/com/riffle/app/feature/reader/session/ReaderSessionLifecycle.kt",
             "app/src/main/kotlin/com/riffle/app/feature/source/localfiles/PdfiumPdfMetadataExtractor.kt",
+            // core:database KMP factory — Room's setQueryCoroutineContext() requires a direct
+            // CoroutineContext; injecting DispatcherProvider here would invert the dependency graph.
+            "core/database/src/commonMain/kotlin/com/riffle/core/database/RiffleDatabaseFactory.kt",
         )
 
         val scanRoots = listOf(
@@ -131,7 +137,7 @@ tasks.register("checkRiffleInfraSeams") {
             .flatMap { it.walkTopDown().toList() }
             .filter { it.isFile && it.extension == "kt" }
             // Only enforce on production source — tests legitimately reference the literals in fakes.
-            .filterNot { it.absolutePath.contains("/src/test/") || it.absolutePath.contains("/src/androidTest/") }
+            .filterNot { it.absolutePath.contains("/src/test/") || it.absolutePath.contains("/src/androidTest/") || it.absolutePath.contains("/src/androidDeviceTest/") }
             .forEach { f ->
                 val rel = f.relativeTo(layout.projectDirectory.asFile).path
                 if (rel in allowlist) return@forEach
@@ -368,7 +374,28 @@ tasks.register("checkTestGuardrails") {
     }
 }
 
-// Aggregate for CI: the six static lints plus the test-guardrail check. The CI Lint job runs this
+// Keeps Room/SQLite implementation APIs behind the persistence boundary (ADR 0048, #555).
+// DAO consumers use RiffleDatabaseAccess and the DAO/entity contracts.
+tasks.register("checkNoDatabaseImplLeak") {
+    group = "verification"
+    description = "Fails if code outside the database modules imports Room/SQLite implementation APIs."
+    notCompatibleWithConfigurationCache("reading the file system at execution time")
+
+    doLast {
+        val projectRoot = layout.projectDirectory.asFile
+        val offenders = DatabaseImplLeakLint.findDatabaseImplLeaks(projectRoot)
+        if (offenders.isNotEmpty()) {
+            throw GradleException(
+                "Persistence implementation APIs are private to core:database and " +
+                    "core:database-api (ADR 0048, #555). Depend on RiffleDatabaseAccess and " +
+                    "the DAO/entity contracts instead:\n" +
+                    offenders.joinToString("\n") { it.render(projectRoot) },
+            )
+        }
+    }
+}
+
+// Aggregate for CI: the static lints plus the test-guardrail check. The CI Lint job runs this
 // explicitly — module `check` tasks (which also depend on these) are never invoked on CI, where
 // unit tests run via `./gradlew test`.
 tasks.register("riffleChecks") {
@@ -380,6 +407,7 @@ tasks.register("riffleChecks") {
         "checkRendererBridgeUsage",
         "checkNoServerReferences",
         "checkNoAndroidImports",
+        "checkNoDatabaseImplLeak",
         "checkNoOkHttpOutsideCoreNet",
         "checkTestGuardrails",
     )
@@ -393,6 +421,7 @@ allprojects {
         dependsOn(rootProject.tasks.named("checkRendererBridgeUsage"))
         dependsOn(rootProject.tasks.named("checkNoServerReferences"))
         dependsOn(rootProject.tasks.named("checkNoAndroidImports"))
+        dependsOn(rootProject.tasks.named("checkNoDatabaseImplLeak"))
         dependsOn(rootProject.tasks.named("checkNoOkHttpOutsideCoreNet"))
         dependsOn(rootProject.tasks.named("checkTestGuardrails"))
     }
