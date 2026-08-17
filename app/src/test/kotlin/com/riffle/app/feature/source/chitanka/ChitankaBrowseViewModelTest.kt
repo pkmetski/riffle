@@ -699,6 +699,34 @@ class ChitankaBrowseViewModelTest {
         assertTrue(vm.unownedFilterActive.value)
     }
 
+    @Test
+    fun `owned item index does not query Room until unowned filter is activated`() = runTest(dispatcher) {
+        // Regression: ownedItemIndex used SharingStarted.Eagerly without gating on the filter,
+        // so observeAllItemsForSource() was called on every VM creation regardless of whether
+        // the user had the Unowned filter on. For a large ABS library this ran buildOwnedItemIndex()
+        // on the main thread every time a source or library switch recreated the VM, causing
+        // UI freezes. The index must only be built when the filter is actually active.
+        var queryFired = false
+        val spyObserver = object : LibraryObserver by FakeLibraryObserver() {
+            override fun observeAllItemsForSource(sourceId: String): Flow<List<LibraryItem>> {
+                queryFired = true
+                return flowOf(emptyList())
+            }
+        }
+        val vm = makeVm(
+            sourceRepo = fakeSourceRepo(active = chitankaSource, allSources = listOf(chitankaSource, absSource)),
+            libraryObserver = spyObserver,
+        )
+        advanceUntilIdle()
+
+        assertFalse("ownedItemIndex must not query Room while the unowned filter is off", queryFired)
+
+        vm.toggleUnownedFilter()
+        advanceUntilIdle()
+
+        assertTrue("ownedItemIndex must query Room once the filter is activated", queryFired)
+    }
+
     // ---- filter helpers ----------------------------------------------------------
 
     private fun libraryItem(id: String, progress: Float) = LibraryItem(

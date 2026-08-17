@@ -323,6 +323,10 @@ class LibraryItemsViewModel @Inject constructor(
 
     init {
         viewModelScope.launch {
+            // launchRefresh() only needs libraryId (from SavedStateHandle) — no dependency on
+            // the active source, token, or filter prefs. Start it immediately so the network
+            // sync runs in parallel with the I/O below instead of being gated behind it.
+            val refreshJob = launchRefresh()
             val source = sourceRepository.getActive()
             if (source != null) {
                 val tokenDeferred = async { tokenStorage.getToken(source.id) ?: "" }
@@ -335,7 +339,6 @@ class LibraryItemsViewModel @Inject constructor(
                     ?.let { runCatching { LibrarySortMode.valueOf(it) }.getOrNull() }
                     ?: LibrarySortMode.ADDED_DESC
             }
-            val refreshJob = launchRefresh()
             // Unblock the UI as soon as we have something meaningful to show:
             // either Room returns cached data quickly, or we wait for the network
             // refresh to complete so an empty state is known to be genuine.
