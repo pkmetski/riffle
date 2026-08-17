@@ -90,11 +90,12 @@ class CatalogSyncSourceResolverTest {
         override suspend fun fetchFile(itemId: String, format: BookFormat): CatalogFileHandle =
             error("not used")
 
-        override suspend fun openFile(
+        override suspend fun <T> withFileStream(
             itemId: String,
             format: BookFormat,
             handleHint: String?,
-        ): CatalogFileStream = error("not used")
+            block: suspend (CatalogFileStream) -> T,
+        ): T = error("not used")
 
         override suspend fun connectivityCheck() = CatalogHealth(isReachable = true)
 

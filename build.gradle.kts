@@ -122,6 +122,9 @@ tasks.register("checkRiffleInfraSeams") {
             "app/src/main/kotlin/com/riffle/app/feature/reader/highlights/HighlightsPdfExporter.kt",
             "app/src/main/kotlin/com/riffle/app/feature/reader/session/ReaderSessionLifecycle.kt",
             "app/src/main/kotlin/com/riffle/app/feature/source/localfiles/PdfiumPdfMetadataExtractor.kt",
+            // core:database KMP factory — Room's setQueryCoroutineContext() requires a direct
+            // CoroutineContext; injecting DispatcherProvider here would invert the dependency graph.
+            "core/database/src/commonMain/kotlin/com/riffle/core/database/RiffleDatabaseFactory.kt",
         )
 
         val scanRoots = listOf(
@@ -134,7 +137,7 @@ tasks.register("checkRiffleInfraSeams") {
             .flatMap { it.walkTopDown().toList() }
             .filter { it.isFile && it.extension == "kt" }
             // Only enforce on production source — tests legitimately reference the literals in fakes.
-            .filterNot { it.absolutePath.contains("/src/test/") || it.absolutePath.contains("/src/androidTest/") }
+            .filterNot { it.absolutePath.contains("/src/test/") || it.absolutePath.contains("/src/androidTest/") || it.absolutePath.contains("/src/androidDeviceTest/") }
             .forEach { f ->
                 val rel = f.relativeTo(layout.projectDirectory.asFile).path
                 if (rel in allowlist) return@forEach
