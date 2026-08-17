@@ -158,16 +158,26 @@ abstract class UnboundedBrowseViewModel(
 
     // Ownership index built from all configured server-source libraries. Used by the "Unowned"
     // filter to exclude items the user already has on their ABS/Komga server.
+    //
+    // Gated on _unownedFilterActive: when the filter is off, the index is empty and no DB query
+    // is issued. This avoids loading thousands of library items and running buildOwnedItemIndex()
+    // on every VM creation regardless of whether the user ever uses the filter.
     @OptIn(ExperimentalCoroutinesApi::class)
     private val ownedItemIndex: StateFlow<OwnedItemIndex> =
-        sourceRepository.observeAll()
-            .map { sources -> sources.filter { !it.type.isWebSource }.map { it.id } }
-            .flatMapLatest { serverSourceIds ->
-                if (serverSourceIds.isEmpty()) return@flatMapLatest flowOf(buildOwnedItemIndex(emptyList()))
-                val perSourceFlows = serverSourceIds.map { sourceId ->
-                    libraryObserver.observeAllItemsForSource(sourceId)
-                }
-                combine(perSourceFlows) { arrays -> buildOwnedItemIndex(arrays.flatMap { it }) }
+        _unownedFilterActive
+            .flatMapLatest { active ->
+                if (!active) return@flatMapLatest flowOf(buildOwnedItemIndex(emptyList()))
+                sourceRepository.observeAll()
+                    .map { sources -> sources.filter { !it.type.isWebSource }.map { it.id } }
+                    .flatMapLatest { serverSourceIds ->
+                        if (serverSourceIds.isEmpty()) flowOf(buildOwnedItemIndex(emptyList()))
+                        else {
+                            val perSourceFlows = serverSourceIds.map { sourceId ->
+                                libraryObserver.observeAllItemsForSource(sourceId)
+                            }
+                            combine(perSourceFlows) { arrays -> buildOwnedItemIndex(arrays.flatMap { it }) }
+                        }
+                    }
             }
             .stateIn(viewModelScope, SharingStarted.Eagerly, buildOwnedItemIndex(emptyList()))
 

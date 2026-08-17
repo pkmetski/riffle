@@ -322,6 +322,24 @@ class LibraryItemsViewModel @Inject constructor(
         private set
 
     init {
+        // Loading gate: unblocks the UI as soon as Room has cached content, or the network
+        // refresh completes (for a genuinely empty first-open). Runs independently of the
+        // prefs/token read below so the DataStore round-trip (~200ms) never blocks the spinner.
+        val refreshJob = launchRefresh()
+        viewModelScope.launch {
+            val anyCachedData = merge(
+                inProgress.filter { it.isNotEmpty() },
+                finished.filter { it.isNotEmpty() },
+                allBooks.filter { it.isNotEmpty() },
+                series.filter { it.isNotEmpty() },
+                collections.filter { it.isNotEmpty() },
+            )
+            val hasCached = withTimeoutOrNull(500L) { anyCachedData.first() } != null
+            if (!hasCached) refreshJob.join()
+            _isLoading.value = false
+        }
+        // Prefs/token read: applies saved sort mode and filter state. Runs in parallel with
+        // the loading gate so a slow DataStore read doesn't delay the initial content render.
         viewModelScope.launch {
             val source = sourceRepository.getActive()
             if (source != null) {
@@ -335,20 +353,6 @@ class LibraryItemsViewModel @Inject constructor(
                     ?.let { runCatching { LibrarySortMode.valueOf(it) }.getOrNull() }
                     ?: LibrarySortMode.ADDED_DESC
             }
-            val refreshJob = launchRefresh()
-            // Unblock the UI as soon as we have something meaningful to show:
-            // either Room returns cached data quickly, or we wait for the network
-            // refresh to complete so an empty state is known to be genuine.
-            val anyCachedData = merge(
-                inProgress.filter { it.isNotEmpty() },
-                finished.filter { it.isNotEmpty() },
-                allBooks.filter { it.isNotEmpty() },
-                series.filter { it.isNotEmpty() },
-                collections.filter { it.isNotEmpty() },
-            )
-            val hasCached = withTimeoutOrNull(500L) { anyCachedData.first() } != null
-            if (!hasCached) refreshJob.join()
-            _isLoading.value = false
         }
         // Auto-refresh whenever the device returns to online so cached data is refreshed
         // and the offline banner clears without requiring a manual lifecycle resume.

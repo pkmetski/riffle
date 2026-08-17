@@ -30,10 +30,13 @@ import com.riffle.core.domain.TokenStorage
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -830,6 +833,68 @@ class LibraryItemsViewModelTest {
         // Both must be true simultaneously: loading done AND token present
         assertEquals(false, vm.isLoading.value)
         assertEquals("tok-abc", vm.authToken)
+    }
+
+    @Test
+    fun `launchRefresh starts without waiting for prefs when switching libraries`() = runTest {
+        // Regression: launchRefresh() was gated behind getActive() + token + DataStore prefs.
+        // On every library switch both VMs are recreated, so the network refresh was delayed
+        // by the DataStore read on every transition. launchRefresh() has no dependency on
+        // token or prefs — it only needs libraryId (from SavedStateHandle) — so it must start
+        // in parallel with the I/O. This assertion fails if launchRefresh() is ever moved
+        // back below the prefs read.
+        val refresh = com.riffle.app.testing.NoopRefreshLibraryItems()
+        val slowPrefs = object : LibraryFilterPreferencesStore {
+            override fun preferences(sourceId: String, libraryId: String) = flow<LibraryFilterPreferences> {
+                delay(500)
+                emit(LibraryFilterPreferences())
+            }
+            override suspend fun setSelectedFacetKey(s: String, l: String, k: String?) = Unit
+            override suspend fun setNotStartedFilterActive(s: String, l: String, a: Boolean) = Unit
+            override suspend fun setUnownedFilterActive(s: String, l: String, a: Boolean) = Unit
+            override suspend fun setSortModeName(s: String, l: String, n: String?) = Unit
+        }
+        makeViewModel(
+            sourceRepository = fakeActiveSourceRepo(),
+            libraryFilterPreferencesStore = slowPrefs,
+            refreshLibraryItemsUseCase = refresh,
+        )
+        // Advance 250ms — half the 500ms prefs delay. The refresh must have fired already
+        // even though prefs haven't resolved yet.
+        testDispatcher.scheduler.advanceTimeBy(250)
+        assertTrue("refresh must start in parallel with prefs, not gated behind them", refresh.calls > 0)
+    }
+
+    @Test
+    fun `isLoading clears as soon as Room has data without waiting for prefs`() = runTest {
+        // Regression: the loading gate (isLoading = false) was sequenced after the DataStore
+        // prefs read in a single coroutine, so the spinner stayed visible for the full
+        // DataStore round-trip (~200ms) even when Room already had content cached. The gate
+        // must run in a parallel coroutine so it fires as soon as any cached list is non-empty.
+        val latch = CompletableDeferred<Unit>()
+        val slowPrefs = object : LibraryFilterPreferencesStore {
+            override fun preferences(sourceId: String, libraryId: String) = flow<LibraryFilterPreferences> {
+                latch.await() // blocks until released
+                emit(LibraryFilterPreferences())
+            }
+            override suspend fun setSelectedFacetKey(s: String, l: String, k: String?) = Unit
+            override suspend fun setNotStartedFilterActive(s: String, l: String, a: Boolean) = Unit
+            override suspend fun setUnownedFilterActive(s: String, l: String, a: Boolean) = Unit
+            override suspend fun setSortModeName(s: String, l: String, n: String?) = Unit
+        }
+        val oneBook = LibraryItem("id-1", "lib-1", "Title", "Author", null, 0f, false, false, EbookFormat.Epub)
+        val fakeObserver = com.riffle.app.testing.FakeLibraryObserver(allBooksFlow = flowOf(listOf(oneBook)))
+        val vm = makeViewModel(
+            sourceRepository = fakeActiveSourceRepo(),
+            libraryFilterPreferencesStore = slowPrefs,
+            libraryRepository = fakeObserver,
+        )
+        backgroundScope.launch { vm.projection.collect {} }
+        testDispatcher.scheduler.advanceUntilIdle()
+        // Prefs latch is still open — prefs have NOT resolved — but Room emitted content.
+        // isLoading must be false already.
+        assertFalse("isLoading must clear when Room has data, even if prefs haven't resolved", vm.isLoading.value)
+        latch.complete(Unit) // release to avoid coroutine leak
     }
 
     // --- filteredRecentlyAdded ---

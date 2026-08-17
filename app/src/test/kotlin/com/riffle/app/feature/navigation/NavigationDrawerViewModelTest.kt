@@ -362,19 +362,23 @@ class NavigationDrawerViewModelTest {
     }
 
     @Test
-    fun `redirectToLibrary emits when switching servers leaves the active library absent from the new server`() = runTest(testDispatcher) {
-        // Regression for the server-switch spinner: onServerSelected no longer navigates to HOME;
-        // instead it relies entirely on redirectToLibrary to navigate straight to the new
-        // server's library. Verify that the emit fires when setActiveServer is called and the
-        // new server's visible libraries do not contain _lastActiveLibraryId.
+    fun `redirectToLibrary does not emit on source switch — navigateAsRoot HOME handles that`() = runTest(testDispatcher) {
+        // Regression for the source-switch jank (77 Choreographer frames / ~1.3s):
+        // MainScreen has TWO paths that both fire on a source switch:
+        //   1. activeServer.drop(1) → navigateAsRoot(HOME)
+        //   2. redirectToLibrary → navigateAsRoot(library)
+        // If both fire, the back-stack transitions library→HOME→library, causing a ~1.3s
+        // main-thread block. The fix: reset _lastActiveLibraryId on server change so path 2
+        // skips, letting path 1 (HOME) handle the navigation exclusively.
         serversFlow.value = listOf(server("srv-1", active = true), server("srv-2"))
         librariesFlow.value = listOf(library("lib-A"))
         val vm = makeVm()
         vm.setActiveLibrary("lib-A")
 
-        val redirect = async { vm.redirectToLibrary.first() }
+        val redirects = mutableListOf<Library>()
+        backgroundScope.launch { vm.redirectToLibrary.collect { redirects.add(it) } }
         testScheduler.advanceUntilIdle()
-        assertTrue("no redirect before server switch", !redirect.isCompleted)
+        assertTrue("no redirect before server switch", redirects.isEmpty())
 
         // Switch to srv-2 whose libraries don't include lib-A.
         vm.setActiveServer("srv-2")
@@ -382,7 +386,8 @@ class NavigationDrawerViewModelTest {
         librariesFlow.value = listOf(library("lib-B"), library("lib-C"))
         testScheduler.advanceUntilIdle()
 
-        assertEquals(library("lib-B"), redirect.await())
+        // redirectToLibrary must NOT emit — navigateAsRoot(HOME) in MainScreen handles the switch.
+        assertTrue("redirectToLibrary must not emit on source switch", redirects.isEmpty())
     }
 
     @Test
