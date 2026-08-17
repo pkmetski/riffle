@@ -107,7 +107,7 @@ class ProgressSweepBookmarkTest {
     }
 
     @Test
-    fun `skips a bookmark item the live player is currently driving consistent with the audio pass`() = runTest {
+    fun `skips a bookmark item the live player is currently driving, consistent with the audio pass`() = runTest {
         val rec = RecordingBookmarkReconcile()
         val openTargets = OpenReconcileTargets().apply { markOpen("s1", "open") }
 
@@ -122,7 +122,7 @@ class ProgressSweepBookmarkTest {
     }
 
     @Test
-    fun `skips a bookmark-dirty source that cannot be resolved leaving it for a later sweep`() = runTest {
+    fun `skips a bookmark-dirty source whose Catalog cannot be resolved, leaving it for a later sweep`() = runTest {
         val rec = RecordingBookmarkReconcile()
 
         sweep(

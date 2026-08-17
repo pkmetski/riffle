@@ -144,7 +144,7 @@ class ProgressSweepTest {
     }
 
     @Test
-    fun `skips sources that cannot be resolved leaving their rows dirty`() = runTest {
+    fun `skips sources whose Catalog cannot be resolved, leaving their rows dirty`() = runTest {
         val store = FakeStore<String>().apply {
             rows["s1" to "i1"] = Triple("local1", 300L, 100L)
             rows["s2" to "i2"] = Triple("local2", 300L, 100L)
@@ -165,7 +165,7 @@ class ProgressSweepTest {
     }
 
     @Test
-    fun `skips a book a live surface is currently driving leaving it dirty`() = runTest {
+    fun `skips a book a live surface is currently driving, leaving it dirty`() = runTest {
         val store = FakeStore<String>().apply { rows["s1" to "open"] = Triple("local", 300L, 100L) }
         val factory = RecordingFactory(
             ebookRemotes = mapOf(("s1" to "open") to FakeRemote(RemoteProgress("srv", 200L), stamp = 305L)),
@@ -200,7 +200,7 @@ class ProgressSweepTest {
     }
 
     @Test
-    fun `skips sources without progress capability leaving their rows dirty`() = runTest {
+    fun `skips sources whose Catalog is not a ProgressPeerCapability, leaving their rows dirty`() = runTest {
         // A LocalFiles source has no progress peer (ADR 0041). Its dirty position rows are legal
         // zero-peer entries, so no remote is built and `localUpdatedAt` stays as the reader wrote it.
         val store = FakeStore<String>().apply { rows["local-fs" to "book"] = Triple("local", 300L, 100L) }
