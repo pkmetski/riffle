@@ -86,7 +86,7 @@ class GitHubPanelReportRepository(
                 JsonObject(mapOf(
                     "title" to JsonPrimitive("[Panel Detection] ${report.failureType.label} — page ${report.pageIndex}"),
                     "body" to JsonPrimitive(buildIssueBody(report, rawUrl)),
-                    "labels" to JsonArray(listOf(JsonPrimitive("panel-detection-issue"), JsonPrimitive(report.failureType.githubLabel))),
+                    "labels" to JsonArray(listOf(JsonPrimitive(report.failureType.githubLabel))),
                 )).toString(),
             ).field("html_url")
         } }
@@ -158,6 +158,6 @@ class GitHubPanelReportRepository(
         appendLine("![sanitized page mask]($imageUrl)")
         appendLine()
         appendLine("---")
-        appendLine("*Filed automatically by Riffle panel detection reporter (ADR 0062)*")
+        appendLine("*panel-detection-issue · Filed automatically by Riffle panel detection reporter (ADR 0062)*")
     }
 }
