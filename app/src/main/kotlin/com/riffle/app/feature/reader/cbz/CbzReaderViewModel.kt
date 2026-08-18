@@ -27,11 +27,16 @@ import com.riffle.core.domain.comic.ComicArchive
 import com.riffle.core.domain.comic.ComicFormattingPreferences
 import com.riffle.core.domain.comic.ComicFormattingPreferencesStore
 import com.riffle.core.domain.comic.PanelOverflowBehavior
+import com.riffle.core.data.comic.panel.PanelMaskEncoder
 import com.riffle.core.domain.comic.panel.PagePanels
+import com.riffle.core.domain.comic.panel.PanelBinaryMask
+import com.riffle.core.domain.comic.panel.PanelDetector
 import com.riffle.core.domain.comic.panel.PanelOrchestrator
 import com.riffle.core.domain.comic.panel.PanelOverflowTransform
 import com.riffle.core.domain.comic.panel.PanelRegion
+import com.riffle.core.domain.comic.panel.PanelReportRepository
 import com.riffle.core.domain.comic.panel.PanelViewPreferencesStore
+import com.riffle.core.domain.developer.DeveloperOptionsRepository
 import com.riffle.core.domain.usecase.UpdateReadingProgress
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
@@ -79,6 +84,9 @@ class CbzReaderViewModel @Inject constructor(
     private val panelViewPreferencesStore: PanelViewPreferencesStore,
     private val comicFormattingPreferencesStore: ComicFormattingPreferencesStore,
     private val bookComicFormattingPreferencesStore: BookComicFormattingPreferencesStore,
+    private val developerOptionsRepository: DeveloperOptionsRepository,
+    val panelReportRepository: PanelReportRepository,
+    private val panelDetector: PanelDetector,
 ) : AndroidViewModel(application) {
 
     private val itemId: String = checkNotNull(savedStateHandle["itemId"])
@@ -195,6 +203,37 @@ class CbzReaderViewModel @Inject constructor(
 
     val invertVolumeKeys = volumeKeyDispatcher.invertVolumeKeys
         .stateIn(viewModelScope, SharingStarted.Eagerly, false)
+
+    val developerModeEnabled: StateFlow<Boolean> = developerOptionsRepository.developerModeEnabled
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
+
+    /**
+     * Decodes the page image, runs the binarizer, and encodes the result as PNG for the report
+     * sheet. Returns null if the page is a uniform solid (binarizer returns null) or on I/O error.
+     */
+    suspend fun generateMaskPng(pageIndex: Int): Pair<PanelBinaryMask, ByteArray>? =
+        withContext(Dispatchers.IO) {
+            val book = panelBook ?: return@withContext null
+            val pagePanels = runCatching { book.resolvePage(pageIndex) }.getOrNull() ?: return@withContext null
+            val imageSource = (_state.value as? CbzReaderState.Ready)?.imageSource ?: return@withContext null
+            val rawBytes = runCatching { imageSource.imageBytes(pageIndex) }.getOrNull() ?: return@withContext null
+            val opts = android.graphics.BitmapFactory.Options().apply { inPreferredConfig = android.graphics.Bitmap.Config.ARGB_8888 }
+            val bitmap = android.graphics.BitmapFactory.decodeByteArray(rawBytes, 0, rawBytes.size, opts) ?: return@withContext null
+            val w = bitmap.width; val h = bitmap.height
+            val luma = ByteArray(w * h)
+            val pixels = IntArray(w * h)
+            bitmap.getPixels(pixels, 0, w, 0, 0, w, h)
+            bitmap.recycle()
+            for (i in pixels.indices) {
+                val c = pixels[i]
+                val r = (c shr 16) and 0xFF; val g = (c shr 8) and 0xFF; val b = c and 0xFF
+                luma[i] = (0.299 * r + 0.587 * g + 0.114 * b).toInt().coerceIn(0, 255).toByte()
+            }
+            val grid = com.riffle.core.domain.comic.panel.PixelGrid(w, h, luma)
+            val mask = panelDetector.binarizeMask(grid) ?: return@withContext null
+            val png = PanelMaskEncoder.encode(mask)
+            mask to png
+        }
 
     init {
         viewModelScope.launch { openBook() }

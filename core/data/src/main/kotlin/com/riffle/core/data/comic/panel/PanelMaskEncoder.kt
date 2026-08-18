@@ -13,7 +13,7 @@ import java.io.ByteArrayOutputStream
 object PanelMaskEncoder {
 
     /** Exposed for unit testing — converts mask to ARGB pixel array without Bitmap. */
-    internal fun toArgbPixels(mask: PanelBinaryMask): IntArray {
+    fun toArgbPixels(mask: PanelBinaryMask): IntArray {
         val pixels = IntArray(mask.width * mask.height)
         for (i in pixels.indices) {
             pixels[i] = if (mask.data[i] == 1.toByte()) Color.BLACK else Color.WHITE
