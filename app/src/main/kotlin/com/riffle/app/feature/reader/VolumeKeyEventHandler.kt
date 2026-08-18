@@ -9,6 +9,8 @@ object VolumeKeyEventHandler {
         isPanelOpen: Boolean,
         isAudioPlaying: Boolean,
         isAutoScrolling: Boolean = false,
+        // null = portrait/ambiguous orientation — fall back to invertVolumeKeys preference.
+        volumeUpPointsRight: Boolean? = null,
     ): VolumeKeyAction {
         if (!isReaderActive) return VolumeKeyAction.PassThrough
         // While in-app audio is playing, the volume keys belong to system volume,
@@ -22,7 +24,13 @@ object VolumeKeyEventHandler {
         }
         if (!volumeNavEnabled) return VolumeKeyAction.PassThrough
         if (isPanelOpen) return VolumeKeyAction.Swallow
-        val goForward = if (invertVolumeKeys) !isVolumeDown else isVolumeDown
+        // In landscape, the physical direction of volume-up overrides the user preference;
+        // in portrait (null) the preference is used as-is.
+        val goForward = when (volumeUpPointsRight) {
+            true  -> !isVolumeDown
+            false -> isVolumeDown
+            null  -> if (invertVolumeKeys) !isVolumeDown else isVolumeDown
+        }
         return if (goForward) VolumeKeyAction.NavigateForward else VolumeKeyAction.NavigateBackward
     }
 }
