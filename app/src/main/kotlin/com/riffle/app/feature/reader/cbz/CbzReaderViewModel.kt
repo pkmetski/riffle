@@ -230,8 +230,8 @@ class CbzReaderViewModel @Inject constructor(
                 luma[i] = (0.299 * r + 0.587 * g + 0.114 * b).toInt().coerceIn(0, 255).toByte()
             }
             val grid = com.riffle.core.domain.comic.panel.PixelGrid(w, h, luma)
-            val mask = panelDetector.binarizeMask(grid)?.blockQuantize(blockSize = 8) ?: return@withContext null
-            val png = PanelMaskEncoder.encode(mask)
+            val mask = panelDetector.binarizeMask(grid) ?: return@withContext null
+            val png = PanelMaskEncoder.encode(mask.blockQuantize(blockSize = 8))
             mask to png
         }
 
