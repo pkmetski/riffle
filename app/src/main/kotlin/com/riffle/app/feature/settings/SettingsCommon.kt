@@ -102,8 +102,7 @@ internal enum class SettingsPanel {
     AutoScroll,
     Cadence,
     Listening,
-    PanelView,
-    PanelOverflow,
+    ComicDisplay,
 }
 
 /**

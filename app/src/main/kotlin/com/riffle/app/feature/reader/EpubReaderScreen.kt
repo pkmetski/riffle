@@ -919,12 +919,6 @@ fun EpubReaderScreen(
                 onPrefsChange = { viewModel.updateFormatting(it) },
                 onReset = { viewModel.resetToGlobalDefaults() },
                 onDismiss = { showFormattingPanel = false },
-                keepScreenOn = keepScreenOn,
-                onKeepScreenOnChange = { viewModel.setKeepScreenOn(it) },
-                volumeKeyNavigationEnabled = volumeKeyNavigationEnabled,
-                onVolumeKeyNavigationEnabledChange = { viewModel.setVolumeKeyNavigationEnabled(it) },
-                invertVolumeKeys = invertVolumeKeys,
-                onInvertVolumeKeysChange = { viewModel.setInvertVolumeKeys(it) },
             )
         }
         footnotePopup?.let { popupState ->

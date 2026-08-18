@@ -14,17 +14,12 @@ internal fun ComicsSection(
 ) {
     SettingsSectionHeader("Comics")
     SettingsDrillInRow(
-        title = "Panel View",
-        summary = if (comicFormatting.panelViewOn) "On" else "Off",
-        onClick = { onOpenPanel(SettingsPanel.PanelView) },
-    )
-    SettingsDrillInRow(
-        title = "Panel Overflow",
-        summary = when (comicFormatting.panelOverflow) {
-            PanelOverflowBehavior.SPLIT -> "Split at centre"
-            PanelOverflowBehavior.SMART_SPLIT -> "Smart split"
-            PanelOverflowBehavior.OFF -> "Off"
-        },
-        onClick = { onOpenPanel(SettingsPanel.PanelOverflow) },
+        title = "Display",
+        summary = if (comicFormatting.panelViewOn) when (comicFormatting.panelOverflow) {
+            PanelOverflowBehavior.SPLIT -> "Panel View · Split"
+            PanelOverflowBehavior.SMART_SPLIT -> "Panel View · Smart split"
+            PanelOverflowBehavior.OFF -> "Panel View on"
+        } else "Panel View off",
+        onClick = { onOpenPanel(SettingsPanel.ComicDisplay) },
     )
 }

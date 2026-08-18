@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Switch
@@ -35,13 +36,14 @@ fun BehaviorSection(
     onInvertVolumeKeysChange: (Boolean) -> Unit,
 ) {
     Column {
-        ToggleRow("Keep screen on", keepScreenOn, onKeepScreenOnChange)
+        ToggleRow("Keep screen on while reading", keepScreenOn, onKeepScreenOnChange)
         ToggleRow("Volume key navigation", volumeKeyNavigationEnabled, onVolumeKeyNavigationEnabledChange)
         ToggleRow(
             label = "Invert volume keys",
             checked = invertVolumeKeys,
             onChange = onInvertVolumeKeysChange,
             enabled = volumeKeyNavigationEnabled,
+            modifier = Modifier.padding(start = 16.dp),
         )
     }
 }
@@ -52,10 +54,11 @@ private fun ToggleRow(
     checked: Boolean,
     onChange: (Boolean) -> Unit,
     enabled: Boolean = true,
+    modifier: Modifier = Modifier,
 ) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .heightIn(min = 48.dp)
             .toggleable(value = checked, enabled = enabled, role = Role.Switch, onValueChange = onChange)

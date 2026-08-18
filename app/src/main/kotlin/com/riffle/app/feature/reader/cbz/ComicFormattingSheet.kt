@@ -2,16 +2,22 @@ package com.riffle.app.feature.reader.cbz
 
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.ListItem
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
@@ -23,13 +29,18 @@ import com.riffle.core.domain.comic.PanelOverflowBehavior
 @Composable
 internal fun ComicFormattingSheet(
     formatting: ComicFormattingPreferences,
+    hasBookOverrides: Boolean,
     onUpdate: (BookComicFormattingOverrides) -> Unit,
+    onReset: () -> Unit,
     onDismiss: () -> Unit,
 ) {
     val sheetState = rememberModalBottomSheetState()
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState) {
-        Column(Modifier.padding(bottom = 24.dp)) {
-            // Panel View toggle
+        Column(
+            modifier = Modifier
+                .verticalScroll(rememberScrollState())
+                .padding(bottom = 8.dp),
+        ) {
             ListItem(
                 headlineContent = { Text("Panel View") },
                 supportingContent = { Text("Navigate panel by panel") },
@@ -43,23 +54,31 @@ internal fun ComicFormattingSheet(
                 },
             )
 
-            // Panel Overflow picker — disabled when Panel View is off (chapter-map dependency pattern)
             val overflowEnabled = formatting.panelViewOn
             val options = listOf(
-                PanelOverflowBehavior.SPLIT to "Split",
-                PanelOverflowBehavior.SMART_SPLIT to "Smart split",
-                PanelOverflowBehavior.OFF to "Off",
+                Triple(PanelOverflowBehavior.SPLIT, "Split", "Cuts oversized panels in half and shows each half as its own page"),
+                Triple(PanelOverflowBehavior.SMART_SPLIT, "Smart split", "Like Split, but finds a natural seam (gutter or whitespace) to cut at a cleaner boundary"),
             )
             Column(Modifier.selectableGroup()) {
-                options.forEach { (behavior, label) ->
+                options.forEach { (behavior, label, description) ->
                     ListItem(
                         headlineContent = {
                             Text(
                                 label,
                                 color = if (overflowEnabled) {
-                                    androidx.compose.material3.MaterialTheme.colorScheme.onSurface
+                                    MaterialTheme.colorScheme.onSurface
                                 } else {
-                                    androidx.compose.material3.MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
+                                    MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
+                                },
+                            )
+                        },
+                        supportingContent = {
+                            Text(
+                                description,
+                                color = if (overflowEnabled) {
+                                    MaterialTheme.colorScheme.onSurfaceVariant
+                                } else {
+                                    MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f)
                                 },
                             )
                         },
@@ -79,6 +98,17 @@ internal fun ComicFormattingSheet(
                         } else Modifier,
                     )
                 }
+            }
+
+            HorizontalDivider()
+            TextButton(
+                onClick = onReset,
+                enabled = hasBookOverrides,
+                modifier = Modifier
+                    .align(Alignment.CenterHorizontally)
+                    .padding(vertical = 4.dp),
+            ) {
+                Text("Restore global defaults")
             }
         }
     }
