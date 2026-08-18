@@ -4,7 +4,7 @@ import com.riffle.core.common.Clock
 import com.riffle.core.database.DictionaryPackDao
 import com.riffle.core.database.DictionaryPackEntity
 import com.riffle.core.dictionary.DictionaryPackState
-import com.riffle.core.dictionary.PackInfo
+import com.riffle.core.dictionary.LanguageCatalogEntry
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flowOf
@@ -15,7 +15,6 @@ import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
-import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Rule
@@ -33,9 +32,7 @@ class PackDownloaderTest {
     private lateinit var filesDir: File
     private lateinit var downloader: PackDownloader
 
-    private val packContent = "hello world"
-    // sha256 of "hello world" (no newline)
-    private val packSha256 = "b94d27b9934d3e08a52e52d7da7dabfac484efe37a5380ee9088f7ace2efcde9"
+    private val fakeConverter = FakeJsonlConverter()
 
     @Before
     fun setUp() {
@@ -50,6 +47,7 @@ class PackDownloaderTest {
                 override fun nowMs() = 1000L
                 override fun nowNs() = 1_000_000L
             },
+            converter = fakeConverter,
         )
     }
 
@@ -58,61 +56,60 @@ class PackDownloaderTest {
         server.shutdown()
     }
 
-    private fun packInfo(sha256: String = packSha256) = PackInfo(
+    private fun testEntry() = LanguageCatalogEntry(
         languageTag = "fr",
-        packVersion = "2026-08-01",
-        downloadUrl = server.url("/fr.db").toString(),
-        sha256 = sha256,
-        sizeBytes = packContent.length.toLong(),
+        displayName = "French",
+        jsonlUrl = server.url("/fr.json").toString(),
+        approximateSizeBytes = 150_000_000L,
         attributionHtml = "<a>Wiktionary</a>",
         licenseUrl = "https://cc.org",
     )
 
     @Test
-    fun `happy path - returns true and sets INSTALLED state`() = runBlocking {
-        server.enqueue(MockResponse().setBody(packContent))
-        val result = downloader.download(packInfo())
+    fun `happy path - returns true and final db exists`() = runBlocking {
+        server.enqueue(MockResponse().setBody("{}"))
+        val result = downloader.download(testEntry())
         assertTrue(result)
         assertEquals(DictionaryPackState.INSTALLED.name, dao.lastUpserted?.state)
         val finalFile = File(filesDir, "dicts/fr.db")
         assertTrue("final .db file should exist", finalFile.exists())
-        assertFalse("tmp file should be gone", File(filesDir, "dicts/fr.tmp").exists())
-    }
-
-    @Test
-    fun `sha256 mismatch - returns false, sets FAILED, deletes tmp`() = runBlocking {
-        server.enqueue(MockResponse().setBody(packContent))
-        val result = downloader.download(packInfo(sha256 = "0000000000000000000000000000000000000000000000000000000000000000"))
-        assertFalse(result)
-        assertEquals(DictionaryPackState.FAILED.name, dao.lastState)
-        assertFalse("tmp file should be deleted on mismatch", File(filesDir, "dicts/fr.tmp").exists())
-        assertFalse("final .db should not exist", File(filesDir, "dicts/fr.db").exists())
+        assertFalse("tmp json file should be gone", File(filesDir, "dicts/fr.tmp.json").exists())
+        assertFalse("tmp db file should be gone", File(filesDir, "dicts/fr.tmp.db").exists())
     }
 
     @Test
     fun `http 500 - returns false and sets FAILED state`() = runBlocking {
         server.enqueue(MockResponse().setResponseCode(500))
-        val result = downloader.download(packInfo())
+        val result = downloader.download(testEntry())
         assertFalse(result)
         assertEquals(DictionaryPackState.FAILED.name, dao.lastState)
     }
 
     @Test
-    fun `sets DOWNLOADING state before download begins`() = runBlocking {
-        var stateAtDownloadTime: String? = null
-        server.enqueue(
-            MockResponse().setBody(packContent).apply {
-                // The downloader calls upsert(DOWNLOADING) before the HTTP request.
-                // We can verify via the DAO that DOWNLOADING was the state when the server
-                // was hit — by the time download() returns, the final state is INSTALLED.
-                // Checking via lastUpsertedBefore which is set before execute().
-            }
-        )
-        stateAtDownloadTime = dao.stateAtFirstUpsert
-        downloader.download(packInfo())
-        // After first upsert the state must have been DOWNLOADING
+    fun `converter exception - returns false, sets FAILED, cleans up tmp files`() = runBlocking {
+        server.enqueue(MockResponse().setBody("{}"))
+        fakeConverter.throwOnConvert = true
+        val result = downloader.download(testEntry())
+        assertFalse(result)
+        assertEquals(DictionaryPackState.FAILED.name, dao.lastState)
+        assertFalse("tmp json should be cleaned up", File(filesDir, "dicts/fr.tmp.json").exists())
+        assertFalse("tmp db should be cleaned up", File(filesDir, "dicts/fr.tmp.db").exists())
+    }
+
+    @Test
+    fun `DOWNLOADING state is upserted before http call`() = runBlocking {
+        server.enqueue(MockResponse().setBody("{}"))
+        downloader.download(testEntry())
         assertNotNull(dao.firstUpsertedState)
         assertEquals(DictionaryPackState.DOWNLOADING.name, dao.firstUpsertedState)
+    }
+}
+
+private class FakeJsonlConverter : JsonlToSqliteConverter {
+    var throwOnConvert = false
+    override fun convert(jsonlFile: File, dbFile: File) {
+        if (throwOnConvert) throw RuntimeException("converter error")
+        dbFile.createNewFile()
     }
 }
 
@@ -121,7 +118,6 @@ private class FakePackDao : DictionaryPackDao {
     var lastUpserted: DictionaryPackEntity? = null
     var lastState: String? = null
     var firstUpsertedState: String? = null
-    var stateAtFirstUpsert: String? = null
     private var upsertCount = 0
 
     override fun observeForLanguage(languageTag: String): Flow<DictionaryPackEntity?> = _flow

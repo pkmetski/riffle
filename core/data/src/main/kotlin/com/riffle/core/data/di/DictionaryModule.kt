@@ -3,6 +3,7 @@ package com.riffle.core.data.di
 import android.content.Context
 import com.riffle.core.common.Clock
 import com.riffle.core.data.dictionary.DictionaryPackSqliteStore
+import com.riffle.core.data.dictionary.KaikkiJsonlToSqliteConverter
 import com.riffle.core.data.dictionary.PackDownloader
 import com.riffle.core.data.dictionary.WordLookupRepositoryImpl
 import com.riffle.core.database.DictionaryPackDao
@@ -39,6 +40,12 @@ abstract class DictionaryModule {
             httpClient: HttpClient,
             dictionaryPackDao: DictionaryPackDao,
             clock: Clock,
-        ): PackDownloader = PackDownloader(context.filesDir, httpClient, dictionaryPackDao, clock)
+        ): PackDownloader = PackDownloader(
+            context.filesDir,
+            httpClient,
+            dictionaryPackDao,
+            clock,
+            KaikkiJsonlToSqliteConverter(),
+        )
     }
 }

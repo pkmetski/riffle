@@ -4,14 +4,16 @@ import com.riffle.core.common.Clock
 import com.riffle.core.database.DictionaryPackDao
 import com.riffle.core.database.DictionaryPackEntity
 import com.riffle.core.dictionary.DictionaryPackState
-import com.riffle.core.dictionary.PackInfo
+import com.riffle.core.dictionary.LanguageCatalogEntry
 import io.ktor.client.HttpClient
 import io.ktor.client.request.prepareGet
 import io.ktor.client.statement.bodyAsChannel
 import io.ktor.http.isSuccess
 import io.ktor.utils.io.readAvailable
 import java.io.File
-import java.security.MessageDigest
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import javax.inject.Inject
 
 class PackDownloader @Inject constructor(
@@ -19,29 +21,32 @@ class PackDownloader @Inject constructor(
     private val httpClient: HttpClient,
     private val dictionaryPackDao: DictionaryPackDao,
     private val clock: Clock,
+    private val converter: JsonlToSqliteConverter,
 ) {
-    suspend fun download(packInfo: PackInfo): Boolean {
+    suspend fun download(entry: LanguageCatalogEntry): Boolean {
         val dictsDir = File(filesDir, "dicts").also { it.mkdirs() }
-        val tmpFile = File(dictsDir, "${packInfo.languageTag}.tmp")
-        val finalFile = File(dictsDir, "${packInfo.languageTag}.db")
+        val tmpJsonFile = File(dictsDir, "${entry.languageTag}.tmp.json")
+        val tmpDbFile = File(dictsDir, "${entry.languageTag}.tmp.db")
+        val finalFile = File(dictsDir, "${entry.languageTag}.db")
 
         dictionaryPackDao.upsert(
             DictionaryPackEntity(
-                languageTag = packInfo.languageTag,
-                packVersion = packInfo.packVersion,
+                languageTag = entry.languageTag,
+                packVersion = "",
                 installedAt = clock.nowMs(),
-                sizeBytes = packInfo.sizeBytes,
-                attributionHtml = packInfo.attributionHtml,
-                licenseUrl = packInfo.licenseUrl,
+                sizeBytes = entry.approximateSizeBytes,
+                attributionHtml = entry.attributionHtml,
+                licenseUrl = entry.licenseUrl,
                 state = DictionaryPackState.DOWNLOADING.name,
             )
         )
 
         return try {
-            val ok = httpClient.prepareGet(packInfo.downloadUrl).execute { response ->
+            // 1. Download JSONL
+            val downloaded = httpClient.prepareGet(entry.jsonlUrl).execute { response ->
                 if (!response.status.isSuccess()) return@execute false
                 val channel = response.bodyAsChannel()
-                tmpFile.outputStream().use { out ->
+                tmpJsonFile.outputStream().use { out ->
                     val buffer = ByteArray(65_536)
                     while (!channel.isClosedForRead) {
                         val read = channel.readAvailable(buffer)
@@ -51,53 +56,49 @@ class PackDownloader @Inject constructor(
                 }
                 true
             }
-            if (!ok) {
-                tmpFile.delete()
-                dictionaryPackDao.updateState(packInfo.languageTag, DictionaryPackState.FAILED.name)
+            if (!downloaded) {
+                tmpJsonFile.delete()
+                dictionaryPackDao.updateState(entry.languageTag, DictionaryPackState.FAILED.name)
                 return false
             }
 
-            val actualSha256 = sha256Hex(tmpFile)
-            if (!actualSha256.equals(packInfo.sha256, ignoreCase = true)) {
-                tmpFile.delete()
-                dictionaryPackDao.updateState(packInfo.languageTag, DictionaryPackState.FAILED.name)
+            // 2. Convert JSONL → SQLite
+            tmpDbFile.delete()
+            try {
+                converter.convert(tmpJsonFile, tmpDbFile)
+            } catch (_: Exception) {
+                tmpJsonFile.delete()
+                tmpDbFile.delete()
+                dictionaryPackDao.updateState(entry.languageTag, DictionaryPackState.FAILED.name)
+                return false
+            }
+            tmpJsonFile.delete()
+
+            // 3. Atomic rename to final location
+            if (!tmpDbFile.renameTo(finalFile)) {
+                tmpDbFile.delete()
+                dictionaryPackDao.updateState(entry.languageTag, DictionaryPackState.FAILED.name)
                 return false
             }
 
-            if (!tmpFile.renameTo(finalFile)) {
-                tmpFile.delete()
-                dictionaryPackDao.updateState(packInfo.languageTag, DictionaryPackState.FAILED.name)
-                return false
-            }
-
+            val packVersion = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date(clock.nowMs()))
             dictionaryPackDao.upsert(
                 DictionaryPackEntity(
-                    languageTag = packInfo.languageTag,
-                    packVersion = packInfo.packVersion,
+                    languageTag = entry.languageTag,
+                    packVersion = packVersion,
                     installedAt = clock.nowMs(),
                     sizeBytes = finalFile.length(),
-                    attributionHtml = packInfo.attributionHtml,
-                    licenseUrl = packInfo.licenseUrl,
+                    attributionHtml = entry.attributionHtml,
+                    licenseUrl = entry.licenseUrl,
                     state = DictionaryPackState.INSTALLED.name,
                 )
             )
             true
         } catch (_: Exception) {
-            tmpFile.delete()
-            dictionaryPackDao.updateState(packInfo.languageTag, DictionaryPackState.FAILED.name)
+            tmpJsonFile.delete()
+            tmpDbFile.delete()
+            dictionaryPackDao.updateState(entry.languageTag, DictionaryPackState.FAILED.name)
             false
         }
-    }
-
-    private fun sha256Hex(file: File): String {
-        val digest = MessageDigest.getInstance("SHA-256")
-        file.inputStream().use { input ->
-            val buffer = ByteArray(65_536)
-            var read: Int
-            while (input.read(buffer).also { read = it } != -1) {
-                digest.update(buffer, 0, read)
-            }
-        }
-        return digest.digest().joinToString("") { "%02x".format(it) }
     }
 }
