@@ -63,6 +63,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import androidx.fragment.app.FragmentActivity
@@ -203,13 +204,21 @@ fun CbzReaderScreen(
 
         val ready = state as? CbzReaderState.Ready
         if (ready != null) {
-            Column(
-                modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth().navigationBarsPadding(),
+            var chapterMapContentPx by remember { mutableStateOf(0) }
+            val density = LocalDensity.current
+
+            // Thumbnail strip — animated, sits above the chapter map
+            AnimatedVisibility(
+                visible = !immersiveState.isImmersive,
+                modifier = Modifier.align(Alignment.BottomCenter),
+                enter = slideInVertically { it },
+                exit = slideOutVertically { it },
             ) {
-                AnimatedVisibility(
-                    visible = !immersiveState.isImmersive,
-                    enter = slideInVertically { it },
-                    exit = slideOutVertically { it },
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .navigationBarsPadding()
+                        .padding(bottom = with(density) { chapterMapContentPx.toDp() }),
                 ) {
                     CbzThumbnailStrip(
                         currentPage = currentPage,
@@ -218,11 +227,25 @@ fun CbzReaderScreen(
                         onSeek = { viewModel.jumpToPage(it) },
                     )
                 }
-                if (effectiveComicFormatting.showChapterMap && railSegments.isNotEmpty()) {
-                    val mapBgColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.9f)
-                    val labelColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.65f)
-                    val labelStyle = MaterialTheme.typography.labelSmall
-                    Column(modifier = Modifier.fillMaxWidth().background(mapBgColor)) {
+            }
+
+            // Chapter map — static, always at bottom, never animated
+            if (effectiveComicFormatting.showChapterMap && railSegments.isNotEmpty()) {
+                val mapBgColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.9f)
+                val labelColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.65f)
+                val labelStyle = MaterialTheme.typography.labelSmall
+                Column(
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .fillMaxWidth()
+                        .navigationBarsPadding(),
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(mapBgColor)
+                            .onSizeChanged { chapterMapContentPx = it.height },
+                    ) {
                         if (effectiveComicFormatting.showPageProgress) {
                             Row(
                                 modifier = Modifier
@@ -236,7 +259,7 @@ fun CbzReaderScreen(
                                 )
                                 Spacer(modifier = Modifier.weight(1f))
                                 Text(
-                                    text = "${ready.pageCount - currentPage - 1} left",
+                                    text = "${ready.pageCount - currentPage - 1}",
                                     style = labelStyle,
                                     color = labelColor,
                                 )

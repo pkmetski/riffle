@@ -69,20 +69,19 @@ internal fun ComicFormattingSheet(
                     )
                 },
             )
-            if (formatting.showChapterMap) {
-                ListItem(
-                    headlineContent = { Text("Page progress") },
-                    supportingContent = { Text("Current page and remaining pages above the chapter map") },
-                    trailingContent = {
-                        Switch(
-                            checked = formatting.showPageProgress,
-                            onCheckedChange = { on ->
-                                onUpdate(BookComicFormattingOverrides(showPageProgress = on))
-                            },
-                        )
-                    },
-                )
-            }
+            ListItem(
+                headlineContent = { Text("Page progress") },
+                supportingContent = { Text("Current page and remaining pages above the chapter map") },
+                trailingContent = {
+                    Switch(
+                        checked = formatting.showPageProgress,
+                        enabled = formatting.showChapterMap,
+                        onCheckedChange = { on ->
+                            onUpdate(BookComicFormattingOverrides(showPageProgress = on))
+                        },
+                    )
+                },
+            )
             HorizontalDivider()
             TextButton(
                 onClick = onReset,
