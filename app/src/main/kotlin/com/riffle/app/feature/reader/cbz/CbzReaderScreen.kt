@@ -72,8 +72,11 @@ import coil.compose.AsyncImage
 import coil.compose.SubcomposeAsyncImage
 import coil.request.ImageRequest
 import coil.size.Size as CoilSize
+import com.riffle.app.feature.reader.ChapterMapOverlay
 import com.riffle.app.feature.reader.VolumeNavEvent
+import com.riffle.app.feature.reader.cbzSegmentPageIndex
 import com.riffle.app.feature.reader.rememberImmersiveModeState
+import com.riffle.core.domain.ReaderTheme
 import com.riffle.core.domain.comic.panel.PagePanels
 import com.riffle.core.domain.comic.panel.PanelFitTransform
 import kotlinx.coroutines.Dispatchers
@@ -94,6 +97,9 @@ fun CbzReaderScreen(
     val effectivePanels by viewModel.effectivePanels.collectAsState()
     val currentPanelIndex by viewModel.currentPanelIndex.collectAsState()
     val effectiveComicFormatting by viewModel.effectiveComicFormatting.collectAsState()
+    val railSegments by viewModel.railSegments.collectAsState()
+    val activeRailSegmentIndex by viewModel.activeRailSegmentIndex.collectAsState()
+    val railCursorPosition by viewModel.railCursorPosition.collectAsState()
     val hasComicOverrides by viewModel.hasComicOverrides.collectAsState()
     var formattingSheetOpen by remember { mutableStateOf(false) }
     val context = LocalContext.current
@@ -201,12 +207,29 @@ fun CbzReaderScreen(
                 exit = slideOutVertically { it },
                 modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth(),
             ) {
-                CbzThumbnailStrip(
-                    currentPage = currentPage,
-                    pageCount = ready.pageCount,
-                    imageSource = ready.thumbnailSource ?: ready.imageSource,
-                    onSeek = { viewModel.jumpToPage(it) },
-                )
+                Column {
+                    if (effectiveComicFormatting.showChapterMap) {
+                        ChapterMapOverlay(
+                            segments = railSegments,
+                            activeIndex = activeRailSegmentIndex,
+                            cursorPosition = railCursorPosition,
+                            totalProgress = railCursorPosition,
+                            readerTheme = ReaderTheme.Dark,
+                            showRail = true,
+                            coloredChapterMap = effectiveComicFormatting.coloredChapterMap,
+                            showCurrentChapterLabel = effectiveComicFormatting.showCurrentChapterLabel,
+                            showProgressLabels = false,
+                            showReadingTimeEstimate = false,
+                            onSegmentClick = { segment -> viewModel.jumpToPage(cbzSegmentPageIndex(segment)) },
+                        )
+                    }
+                    CbzThumbnailStrip(
+                        currentPage = currentPage,
+                        pageCount = ready.pageCount,
+                        imageSource = ready.thumbnailSource ?: ready.imageSource,
+                        onSeek = { viewModel.jumpToPage(it) },
+                    )
+                }
             }
         }
     }
