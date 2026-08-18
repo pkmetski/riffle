@@ -329,7 +329,6 @@ class EpubReaderViewModel @Inject constructor(
     private val pdfExporter: HighlightsPdfExporter,
     private val dictionaryRepository: com.riffle.core.dictionary.DictionaryRepository,
     private val packStore: com.riffle.core.dictionary.PackStore,
-    private val packManifestFetcher: com.riffle.core.data.dictionary.PackManifestFetcher,
     private val dictionaryPackScheduler: com.riffle.app.dictionary.DictionaryPackScheduler,
 ) : AndroidViewModel(application) {
 
@@ -3932,23 +3931,20 @@ class EpubReaderViewModel @Inject constructor(
                             val recents = dictionaryRepository
                                 .observeRecentLookups(target.languageTag)
                                 .first()
-                            emit(resolveLookupUiState(packState, target.text, target.languageTag, entries, recents, 0L))
+                            emit(resolveLookupUiState(packState, target.text, target.languageTag, entries, recents))
                         }
                         com.riffle.core.dictionary.DictionaryPackState.NOT_INSTALLED,
                         com.riffle.core.dictionary.DictionaryPackState.FAILED -> {
-                            val packInfo = try {
-                                packManifestFetcher.fetch()
-                                    .packs.firstOrNull { it.languageTag == target.languageTag }
-                            } catch (_: Exception) { null }
-                            emit(resolveLookupUiState(packState, target.text, target.languageTag, emptyList(), emptyList(), packInfo?.sizeBytes ?: 0L, packInfo))
+                            val catalogEntry = com.riffle.core.dictionary.LanguageCatalog.entryFor(target.languageTag)
+                            emit(resolveLookupUiState(packState, target.text, target.languageTag, emptyList(), emptyList(), catalogEntry))
                         }
-                        else -> emit(resolveLookupUiState(packState, target.text, target.languageTag, emptyList(), emptyList(), 0L))
+                        else -> emit(resolveLookupUiState(packState, target.text, target.languageTag, emptyList(), emptyList()))
                     }
                 }
             }
 
-    fun enqueuePackDownload(context: android.content.Context, packInfo: com.riffle.core.dictionary.PackInfo) {
-        dictionaryPackScheduler.enqueueDownload(context, packInfo)
+    fun enqueuePackDownload(context: android.content.Context, entry: com.riffle.core.dictionary.LanguageCatalogEntry) {
+        dictionaryPackScheduler.enqueueDownload(context, entry)
     }
 }
 

@@ -21,7 +21,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.riffle.core.dictionary.DictionaryEntry
-import com.riffle.core.dictionary.PackInfo
+import com.riffle.core.dictionary.LanguageCatalogEntry
 import kotlinx.coroutines.flow.Flow
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -30,7 +30,7 @@ internal fun WordLookupSheet(
     target: LookupTarget,
     resultFlow: Flow<LookupUiState>,
     onDismiss: () -> Unit,
-    onEnqueueDownload: (PackInfo) -> Unit,
+    onEnqueueDownload: (LanguageCatalogEntry) -> Unit,
 ) {
     val result by resultFlow.collectAsState(initial = LookupUiState.Loading)
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -60,18 +60,22 @@ internal fun WordLookupSheet(
                         style = MaterialTheme.typography.bodyMedium,
                     )
                     Spacer(modifier = Modifier.height(8.dp))
+                    val entry = state.entry
                     Text(
-                        text = "Download the ${state.languageTag} dictionary pack " +
-                            "(${formatBytes(state.sizeBytes)}) to look up words offline.",
+                        text = if (entry != null) {
+                            "Download the ${state.languageTag} dictionary pack " +
+                                "(${formatBytes(entry.approximateSizeBytes)}) to look up words offline."
+                        } else {
+                            "Download the ${state.languageTag} dictionary pack to look up words offline."
+                        },
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
-                    val packInfo = state.packInfo
-                    if (packInfo != null) {
+                    if (entry != null) {
                         Spacer(modifier = Modifier.height(16.dp))
                         Button(
                             onClick = {
-                                onEnqueueDownload(packInfo)
+                                onEnqueueDownload(entry)
                                 onDismiss()
                             },
                             modifier = Modifier.align(Alignment.End),
@@ -92,12 +96,12 @@ internal fun WordLookupSheet(
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.error,
                     )
-                    val packInfo = state.packInfo
-                    if (packInfo != null) {
+                    val entry = state.entry
+                    if (entry != null) {
                         Spacer(modifier = Modifier.height(16.dp))
                         Button(
                             onClick = {
-                                onEnqueueDownload(packInfo)
+                                onEnqueueDownload(entry)
                                 onDismiss()
                             },
                             modifier = Modifier.align(Alignment.End),

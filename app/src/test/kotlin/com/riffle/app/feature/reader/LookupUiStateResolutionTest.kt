@@ -2,13 +2,16 @@ package com.riffle.app.feature.reader
 
 import com.riffle.core.dictionary.DictionaryEntry
 import com.riffle.core.dictionary.DictionaryPackState
-import com.riffle.core.dictionary.PackInfo
+import com.riffle.core.dictionary.LanguageCatalog
+import com.riffle.core.dictionary.LanguageCatalogEntry
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class LookupUiStateResolutionTest {
+
+    private val frEntry = LanguageCatalog.entryFor("fr")!!
 
     @Test
     fun `INSTALLED with results produces Loaded`() {
@@ -19,7 +22,6 @@ class LookupUiStateResolutionTest {
             languageTag = "fr",
             entries = entries,
             recentLookups = emptyList(),
-            manifestSizeBytes = 0L,
         )
         assertTrue(state is LookupUiState.Loaded)
         assertEquals("chat", (state as LookupUiState.Loaded).word)
@@ -33,23 +35,36 @@ class LookupUiStateResolutionTest {
             languageTag = "fr",
             entries = emptyList(),
             recentLookups = emptyList(),
-            manifestSizeBytes = 0L,
         )
         assertTrue(state is LookupUiState.NoResults)
     }
 
     @Test
-    fun `NOT_INSTALLED produces NoPackInstalled`() {
+    fun `NOT_INSTALLED with null entry produces NoPackInstalled with null entry`() {
         val state = resolveLookupUiState(
             packState = DictionaryPackState.NOT_INSTALLED,
             word = "chat",
             languageTag = "fr",
             entries = emptyList(),
             recentLookups = emptyList(),
-            manifestSizeBytes = 12_000_000L,
+            catalogEntry = null,
         )
         assertTrue(state is LookupUiState.NoPackInstalled)
-        assertEquals(12_000_000L, (state as LookupUiState.NoPackInstalled).sizeBytes)
+        assertNull((state as LookupUiState.NoPackInstalled).entry)
+    }
+
+    @Test
+    fun `NOT_INSTALLED with catalog entry propagates entry into NoPackInstalled`() {
+        val state = resolveLookupUiState(
+            packState = DictionaryPackState.NOT_INSTALLED,
+            word = "chat",
+            languageTag = "fr",
+            entries = emptyList(),
+            recentLookups = emptyList(),
+            catalogEntry = frEntry,
+        )
+        assertTrue(state is LookupUiState.NoPackInstalled)
+        assertEquals(frEntry, (state as LookupUiState.NoPackInstalled).entry)
     }
 
     @Test
@@ -60,7 +75,6 @@ class LookupUiStateResolutionTest {
             languageTag = "fr",
             entries = emptyList(),
             recentLookups = emptyList(),
-            manifestSizeBytes = 0L,
         )
         assertEquals(LookupUiState.Downloading, state)
     }
@@ -73,71 +87,21 @@ class LookupUiStateResolutionTest {
             languageTag = "fr",
             entries = emptyList(),
             recentLookups = emptyList(),
-            manifestSizeBytes = 0L,
         )
         assertTrue(state is LookupUiState.DownloadFailed)
     }
 
     @Test
-    fun `FAILED propagates manifest packInfo into DownloadFailed`() {
-        val packInfo = PackInfo(
-            languageTag = "fr",
-            packVersion = "2026-08-01",
-            downloadUrl = "https://example.com/fr.db",
-            sha256 = "abc123",
-            sizeBytes = 12_000_000L,
-            attributionHtml = "<a>Wiktionary</a>",
-            licenseUrl = "https://cc.org",
-        )
+    fun `FAILED propagates catalog entry into DownloadFailed`() {
         val state = resolveLookupUiState(
             packState = DictionaryPackState.FAILED,
             word = "chat",
             languageTag = "fr",
             entries = emptyList(),
             recentLookups = emptyList(),
-            manifestSizeBytes = packInfo.sizeBytes,
-            manifestPackInfo = packInfo,
+            catalogEntry = frEntry,
         )
         assertTrue(state is LookupUiState.DownloadFailed)
-        assertEquals(packInfo, (state as LookupUiState.DownloadFailed).packInfo)
-    }
-
-    @Test
-    fun `NOT_INSTALLED propagates manifest packInfo into NoPackInstalled`() {
-        val packInfo = PackInfo(
-            languageTag = "fr",
-            packVersion = "2026-08-01",
-            downloadUrl = "https://example.com/fr.db",
-            sha256 = "abc123",
-            sizeBytes = 12_000_000L,
-            attributionHtml = "<a>Wiktionary</a>",
-            licenseUrl = "https://cc.org",
-        )
-        val state = resolveLookupUiState(
-            packState = DictionaryPackState.NOT_INSTALLED,
-            word = "chat",
-            languageTag = "fr",
-            entries = emptyList(),
-            recentLookups = emptyList(),
-            manifestSizeBytes = packInfo.sizeBytes,
-            manifestPackInfo = packInfo,
-        )
-        assertTrue(state is LookupUiState.NoPackInstalled)
-        assertEquals(packInfo, (state as LookupUiState.NoPackInstalled).packInfo)
-    }
-
-    @Test
-    fun `NOT_INSTALLED with null manifest packInfo produces null packInfo in state`() {
-        val state = resolveLookupUiState(
-            packState = DictionaryPackState.NOT_INSTALLED,
-            word = "chat",
-            languageTag = "fr",
-            entries = emptyList(),
-            recentLookups = emptyList(),
-            manifestSizeBytes = 0L,
-            manifestPackInfo = null,
-        )
-        assertTrue(state is LookupUiState.NoPackInstalled)
-        assertNull((state as LookupUiState.NoPackInstalled).packInfo)
+        assertEquals(frEntry, (state as LookupUiState.DownloadFailed).entry)
     }
 }
