@@ -26,10 +26,11 @@ class ComicFormattingPreferencesStoreImplTest {
         ),
     )
 
-    @Test fun `defaults are panelViewOn=false and panelOverflow=SPLIT`() = testScope.runTest {
+    @Test fun `defaults are panelViewOn=false, panelOverflow=SPLIT, panelAnimationSpeedMs=250`() = testScope.runTest {
         val prefs = newStore().preferences.first()
         assertEquals(false, prefs.panelViewOn)
         assertEquals(PanelOverflowBehavior.SPLIT, prefs.panelOverflow)
+        assertEquals(250, prefs.panelAnimationSpeedMs)
     }
 
     @Test fun `panelViewOn round-trips`() = testScope.runTest {
@@ -58,6 +59,25 @@ class ComicFormattingPreferencesStoreImplTest {
         val store = newStore()
         store.update(ComicFormattingPreferences(panelViewOn = false, panelOverflow = PanelOverflowBehavior.OFF))
         assertEquals(PanelOverflowBehavior.OFF, store.preferences.first().panelOverflow)
+    }
+
+    @Test fun `panelAnimationSpeedMs round-trips non-default value`() = testScope.runTest {
+        val store = newStore()
+        store.update(ComicFormattingPreferences(panelAnimationSpeedMs = 400))
+        assertEquals(400, store.preferences.first().panelAnimationSpeedMs)
+    }
+
+    @Test fun `panelAnimationSpeedMs 0 round-trips (disabled)`() = testScope.runTest {
+        val store = newStore()
+        store.update(ComicFormattingPreferences(panelAnimationSpeedMs = 0))
+        assertEquals(0, store.preferences.first().panelAnimationSpeedMs)
+    }
+
+    @Test fun `panelAnimationSpeedMs default 250 is stored as absent and reads back as 250`() = testScope.runTest {
+        val store = newStore()
+        store.update(ComicFormattingPreferences(panelAnimationSpeedMs = 400))
+        store.update(ComicFormattingPreferences(panelAnimationSpeedMs = 250))
+        assertEquals(250, store.preferences.first().panelAnimationSpeedMs)
     }
 
 }

@@ -9,6 +9,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.riffle.app.feature.reader.cbz.PanelAnimationSpeedSlider
 import com.riffle.app.feature.reader.cbz.PanelOverflowRadioGroup
 import com.riffle.core.domain.comic.ComicFormattingPreferences
 
@@ -48,5 +49,13 @@ internal fun ComicDisplaySettingsPanel(
         selected = prefs.panelOverflow,
         enabled = prefs.panelViewOn,
         onSelect = { onPrefsChange(prefs.copy(panelOverflow = it)) },
+    )
+
+    HorizontalDivider(modifier = Modifier.padding(top = 8.dp, bottom = 8.dp))
+    PanelAnimationSpeedSlider(
+        speedMs = prefs.panelAnimationSpeedMs,
+        onSpeedChange = { speed -> onPrefsChange(prefs.copy(panelAnimationSpeedMs = speed)) },
+        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+        enabled = prefs.panelViewOn,
     )
 }

@@ -45,5 +45,23 @@ class BookComicFormattingOverridesTest {
     @Test fun `isEmpty returns false when any field non-null`() {
         assertFalse(BookComicFormattingOverrides(panelViewOn = true).isEmpty())
         assertFalse(BookComicFormattingOverrides(panelOverflow = PanelOverflowBehavior.OFF).isEmpty())
+        assertFalse(BookComicFormattingOverrides(panelAnimationSpeedMs = 400).isEmpty())
+    }
+
+    @Test fun `applyTo overrides panelAnimationSpeedMs when set`() {
+        val result = BookComicFormattingOverrides(panelAnimationSpeedMs = 400).applyTo(global)
+        assertEquals(400, result.panelAnimationSpeedMs)
+        assertEquals(global.panelViewOn, result.panelViewOn)
+        assertEquals(global.panelOverflow, result.panelOverflow)
+    }
+
+    @Test fun `applyTo uses global panelAnimationSpeedMs when override is null`() {
+        val result = BookComicFormattingOverrides().applyTo(global)
+        assertEquals(global.panelAnimationSpeedMs, result.panelAnimationSpeedMs)
+    }
+
+    @Test fun `applyTo 0ms disables animation (override takes precedence)`() {
+        val result = BookComicFormattingOverrides(panelAnimationSpeedMs = 0).applyTo(global)
+        assertEquals(0, result.panelAnimationSpeedMs)
     }
 }

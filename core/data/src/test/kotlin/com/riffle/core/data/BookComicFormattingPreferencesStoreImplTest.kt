@@ -24,6 +24,7 @@ class BookComicFormattingPreferencesStoreImplTest {
         val entity = BookComicFormattingPreferencesEntity(
             sourceId = "src", itemId = "item",
             panelViewOn = true, panelOverflow = "UNKNOWN_FUTURE_VALUE",
+            panelAnimationSpeedMs = null,
         )
         val result = storeWith(entity).overrides("src::item").first()
         assertNull("Unknown enum name must not crash; maps to null", result.panelOverflow)
@@ -34,6 +35,7 @@ class BookComicFormattingPreferencesStoreImplTest {
         val entity = BookComicFormattingPreferencesEntity(
             sourceId = "src", itemId = "item",
             panelViewOn = null, panelOverflow = "SPLIT",
+            panelAnimationSpeedMs = null,
         )
         val result = storeWith(entity).overrides("src::item").first()
         assertEquals(PanelOverflowBehavior.SPLIT, result.panelOverflow)
@@ -44,6 +46,7 @@ class BookComicFormattingPreferencesStoreImplTest {
         val entity = BookComicFormattingPreferencesEntity(
             sourceId = "src", itemId = "item",
             panelViewOn = true, panelOverflow = "SMART_SPLIT",
+            panelAnimationSpeedMs = null,
         )
         val result = storeWith(entity).overrides("src::item").first()
         assertEquals(PanelOverflowBehavior.SMART_SPLIT, result.panelOverflow)
@@ -53,5 +56,26 @@ class BookComicFormattingPreferencesStoreImplTest {
         val result = storeWith(null).overrides("src::item").first()
         assertNull(result.panelViewOn)
         assertNull(result.panelOverflow)
+        assertNull(result.panelAnimationSpeedMs)
+    }
+
+    @Test fun `panelAnimationSpeedMs is round-tripped through entity`() = runTest {
+        val entity = BookComicFormattingPreferencesEntity(
+            sourceId = "src", itemId = "item",
+            panelViewOn = true, panelOverflow = null,
+            panelAnimationSpeedMs = 400,
+        )
+        val result = storeWith(entity).overrides("src::item").first()
+        assertEquals(400, result.panelAnimationSpeedMs)
+    }
+
+    @Test fun `null panelAnimationSpeedMs in entity maps to null override — follows global`() = runTest {
+        val entity = BookComicFormattingPreferencesEntity(
+            sourceId = "src", itemId = "item",
+            panelViewOn = true, panelOverflow = null,
+            panelAnimationSpeedMs = null,
+        )
+        val result = storeWith(entity).overrides("src::item").first()
+        assertNull(result.panelAnimationSpeedMs)
     }
 }

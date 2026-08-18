@@ -13,6 +13,7 @@ import androidx.compose.ui.semantics.Role
 import com.riffle.core.domain.comic.PanelOverflowBehavior
 
 private val PANEL_OVERFLOW_OPTIONS = listOf(
+    Triple(PanelOverflowBehavior.OFF, "No split", "Show oversized panels as-is without splitting"),
     Triple(PanelOverflowBehavior.SPLIT, "Split", "Cuts oversized panels in half and shows each half as its own page"),
     Triple(PanelOverflowBehavior.SMART_SPLIT, "Smart split", "Like Split, but finds a natural seam (gutter or whitespace) to cut at a cleaner boundary"),
 )

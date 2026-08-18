@@ -32,6 +32,7 @@ import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
@@ -104,10 +105,11 @@ internal fun UnifiedSliderRow(
     bubbleLabel: (Float) -> String,
     modifier: Modifier = Modifier,
     contentDescription: String = title,
+    enabled: Boolean = true,
     onDecrement: (() -> Unit)? = null,
     onIncrement: (() -> Unit)? = null,
 ) {
-    Column(modifier = modifier.fillMaxWidth()) {
+    Column(modifier = modifier.fillMaxWidth().alpha(if (enabled) 1f else 0.38f)) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.fillMaxWidth(),
@@ -134,7 +136,7 @@ internal fun UnifiedSliderRow(
                 modifier = Modifier
                     .size(28.dp)
                     .then(
-                        if (onDecrement != null) {
+                        if (enabled && onDecrement != null) {
                             Modifier
                                 .clickable(onClickLabel = "Decrease $contentDescription") { onDecrement() }
                                 .semantics { this.contentDescription = "Decrease $contentDescription" }
@@ -152,13 +154,14 @@ internal fun UnifiedSliderRow(
                 bubbleLabel = bubbleLabel,
                 contentDescription = contentDescription,
                 modifier = Modifier.weight(1f),
+                enabled = enabled,
             )
             Spacer(Modifier.width(8.dp))
             Box(
                 modifier = Modifier
                     .size(28.dp)
                     .then(
-                        if (onIncrement != null) {
+                        if (enabled && onIncrement != null) {
                             Modifier
                                 .clickable(onClickLabel = "Increase $contentDescription") { onIncrement() }
                                 .semantics { this.contentDescription = "Increase $contentDescription" }
@@ -180,6 +183,7 @@ private fun SliderTrack(
     bubbleLabel: (Float) -> String,
     contentDescription: String,
     modifier: Modifier = Modifier,
+    enabled: Boolean = true,
 ) {
     val min = valueRange.start
     val max = valueRange.endInclusive
@@ -275,6 +279,7 @@ private fun SliderTrack(
             onValueChangeFinished = { interacting = false },
             valueRange = valueRange,
             steps = steps,
+            enabled = enabled,
             colors = sliderColors,
             interactionSource = interactionSource,
             thumb = {
