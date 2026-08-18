@@ -186,8 +186,8 @@ class GitHubPanelReportRepository(
             appendLine("- [$i] x=${p.x} y=${p.y} w=${p.width} h=${p.height}")
         }
         appendLine()
-        appendLine("**Sanitized page mask:**")
-        appendLine("![sanitized page mask]($imageUrl)")
+        appendLine("**Panel mask:**")
+        appendLine("![panel mask]($imageUrl)")
         appendLine()
         appendLine("---")
         appendLine("*panel-detection-issue · Filed automatically by Riffle panel detection reporter (ADR 0062)*")
