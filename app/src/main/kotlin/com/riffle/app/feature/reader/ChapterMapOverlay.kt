@@ -39,13 +39,14 @@ fun ChapterMapOverlay(
     bookmarkPositions: List<Float> = emptyList(),
     onSegmentClick: (RailSegment) -> Unit,
     modifier: Modifier = Modifier,
+    backgroundColor: Color = readerTheme.palette.background,
 ) {
     val darkTheme = readerTheme == ReaderTheme.Dark || readerTheme == ReaderTheme.DarkDim
     RiffleTheme(darkTheme = darkTheme) {
         Column(
             modifier = modifier
                 .fillMaxWidth()
-                .background(readerTheme.palette.background),
+                .background(backgroundColor),
         ) {
             if (showProgressLabels || showCurrentChapterLabel || showReadingTimeEstimate) {
                 ReadingProgressLabels(

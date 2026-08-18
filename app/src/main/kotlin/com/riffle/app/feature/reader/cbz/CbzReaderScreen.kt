@@ -72,7 +72,7 @@ import coil.compose.AsyncImage
 import coil.compose.SubcomposeAsyncImage
 import coil.request.ImageRequest
 import coil.size.Size as CoilSize
-import com.riffle.app.feature.reader.ChapterNavigationRail
+import com.riffle.app.feature.reader.ChapterMapOverlay
 import com.riffle.app.feature.reader.VolumeNavEvent
 import com.riffle.app.feature.reader.cbzSegmentPageIndex
 import com.riffle.app.feature.reader.rememberImmersiveModeState
@@ -202,22 +202,8 @@ fun CbzReaderScreen(
         val ready = state as? CbzReaderState.Ready
         if (ready != null) {
             Column(
-                modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth(),
+                modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth().navigationBarsPadding(),
             ) {
-                if (effectiveComicFormatting.showChapterMap && railSegments.isNotEmpty()) {
-                    ChapterNavigationRail(
-                        segments = railSegments,
-                        activeIndex = activeRailSegmentIndex,
-                        cursorPosition = railCursorPosition,
-                        readerTheme = ReaderTheme.Dark,
-                        onSegmentClick = { segment -> viewModel.jumpToPage(cbzSegmentPageIndex(segment)) },
-                        coloredChapterMap = true,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.9f)),
-                        railHeight = 6.dp,
-                    )
-                }
                 AnimatedVisibility(
                     visible = !immersiveState.isImmersive,
                     enter = slideInVertically { it },
@@ -228,6 +214,22 @@ fun CbzReaderScreen(
                         pageCount = ready.pageCount,
                         imageSource = ready.thumbnailSource ?: ready.imageSource,
                         onSeek = { viewModel.jumpToPage(it) },
+                    )
+                }
+                if (effectiveComicFormatting.showChapterMap && railSegments.isNotEmpty()) {
+                    ChapterMapOverlay(
+                        segments = railSegments,
+                        activeIndex = activeRailSegmentIndex,
+                        cursorPosition = railCursorPosition,
+                        totalProgress = railCursorPosition,
+                        readerTheme = ReaderTheme.Dark,
+                        showRail = true,
+                        coloredChapterMap = true,
+                        showCurrentChapterLabel = false,
+                        showProgressLabels = false,
+                        showReadingTimeEstimate = false,
+                        onSegmentClick = { segment -> viewModel.jumpToPage(cbzSegmentPageIndex(segment)) },
+                        backgroundColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.9f),
                     )
                 }
             }
@@ -569,7 +571,6 @@ internal fun CbzThumbnailStrip(
         modifier = Modifier
             .fillMaxWidth()
             .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.9f))
-            .navigationBarsPadding()
             .padding(vertical = 8.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
