@@ -75,18 +75,11 @@ class WakeLockHarnessTest {
         // Disable "Keep screen on" in Settings before opening a book
         addServerAndNavigateToSettings()
 
-        // Open the "Behavior" drill-in under the "Reading" section, which hosts the wake-lock
-        // toggle. (Reader settings were split into Formatting / Display / Behavior; "Keep screen
-        // on" is a device-behavior toggle, so it lives in the Behavior panel.)
-        composeTestRule.onNodeWithText("Behavior").performClick()
-        composeTestRule.waitForIdle()
-
-        composeTestRule.onNodeWithText("Keep screen on").assertExists()
-        // Scroll it on-screen so the click hits the toggleable Row instead of being
-        // swallowed by clipped/empty space.
-        composeTestRule.onNodeWithText("Keep screen on").performScrollTo()
-        // Toggle the switch off (it's on by default)
-        composeTestRule.onNodeWithText("Keep screen on").performClick()
+        // "Keep screen on while reading" is now directly visible in the Behavior section on the
+        // Settings screen (no drill-in panel). Scroll it into view and tap.
+        composeTestRule.onNodeWithText("Keep screen on while reading").assertExists()
+        composeTestRule.onNodeWithText("Keep screen on while reading").performScrollTo()
+        composeTestRule.onNodeWithText("Keep screen on while reading").performClick()
         composeTestRule.waitForIdle()
         // Compose's waitForIdle does not wait for the DataStore write fired by the toggle's
         // viewModelScope.launch. Poll the store directly so the preference is verified
@@ -95,10 +88,8 @@ class WakeLockHarnessTest {
             runBlocking { wakeLockPreferencesStore.keepScreenOn.first() } == false
         }
 
-        // Two back-presses: the first dismisses the full-screen panel (consumed by its
-        // BackHandler), the second leaves Settings and returns to the library.
-        Espresso.pressBack()
-        composeTestRule.waitForIdle()
+        // One back-press leaves Settings and returns to the library. There is no full-screen
+        // panel to dismiss; the toggle is directly in the Behavior section of Settings.
         Espresso.pressBack()
         composeTestRule.waitForIdle()
 
