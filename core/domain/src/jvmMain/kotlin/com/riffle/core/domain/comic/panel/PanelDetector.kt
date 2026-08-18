@@ -199,6 +199,16 @@ class PanelDetector(
         return result ?: fallback
     }
 
+    /**
+     * Returns the same binarized representation the detector operates on internally, exported as
+     * a copyright-safe [PanelBinaryMask] for regression fixtures (ADR 0062). Returns null when
+     * the page is entirely uniform — same condition under which [detect] falls back to whole-page.
+     */
+    fun binarizeMask(grid: PixelGrid): PanelBinaryMask? {
+        val mask = binarize(grid) ?: return null
+        return PanelBinaryMask(width = mask.width, height = mask.height, data = mask.data.copyOf())
+    }
+
     // --- Grid detection via projection profiles ---
 
     /**

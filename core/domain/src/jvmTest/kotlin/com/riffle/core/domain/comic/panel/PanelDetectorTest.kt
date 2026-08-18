@@ -1,6 +1,8 @@
 package com.riffle.core.domain.comic.panel
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
 import org.junit.Test
@@ -620,6 +622,35 @@ class PanelDetectorTest {
             "surviving panel must start near x=15, not after a false split; got x=${result.panels[0].x}",
             result.panels[0].x < 30,
         )
+    }
+
+    // --- binarizeMask() ---
+
+    @Test
+    fun `binarizeMask returns non-null result with correct dimensions for a two-panel page`() {
+        val grid = fixture(width = 400, height = 560) { canvas ->
+            canvas.fill(background = LIGHT)
+            canvas.rect(x = 20, y = 20, w = 170, h = 250, color = DARK)
+            canvas.rect(x = 210, y = 20, w = 170, h = 250, color = DARK)
+        }
+
+        val mask = detector.binarizeMask(grid)
+
+        assertNotNull(mask)
+        assertEquals(400, mask!!.width)
+        assertEquals(560, mask.height)
+        assertEquals(400 * 560, mask.data.size)
+        // Panel pixels should be content (1), gutter at origin should be background (0)
+        assertEquals(1.toByte(), mask.data[25 * 400 + 25])
+        assertEquals(0.toByte(), mask.data[0])
+    }
+
+    @Test
+    fun `binarizeMask returns null for a blank page`() {
+        val grid = fixture(width = 400, height = 560) { canvas ->
+            canvas.fill(background = LIGHT)
+        }
+        assertNull(detector.binarizeMask(grid))
     }
 
     // --- Synthetic fixture builders ---
