@@ -76,25 +76,5 @@ internal fun ComicDisplaySettingsPanel(
             )
         },
     )
-    ListItem(
-        headlineContent = { Text("Colored chapter map") },
-        trailingContent = {
-            Switch(
-                checked = prefs.coloredChapterMap,
-                enabled = prefs.showChapterMap,
-                onCheckedChange = { on -> onPrefsChange(prefs.copy(coloredChapterMap = on)) },
-            )
-        },
-        modifier = Modifier.padding(start = 16.dp),
-    )
-    ListItem(
-        headlineContent = { Text("Current chapter label") },
-        trailingContent = {
-            Switch(
-                checked = prefs.showCurrentChapterLabel,
-                enabled = prefs.showChapterMap,
-                onCheckedChange = { on -> onPrefsChange(prefs.copy(showCurrentChapterLabel = on)) },
-            )
-        },
-    )
 }
+

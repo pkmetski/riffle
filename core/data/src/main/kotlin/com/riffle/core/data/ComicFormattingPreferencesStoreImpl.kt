@@ -26,8 +26,6 @@ class ComicFormattingPreferencesStoreImpl @Inject constructor(
                 ?: PanelOverflowBehavior.SPLIT,
             panelAnimationSpeedMs = prefs[PANEL_ANIMATION_SPEED_MS] ?: 250,
             showChapterMap = prefs[SHOW_CHAPTER_MAP] ?: true,
-            coloredChapterMap = prefs[COLORED_CHAPTER_MAP] ?: true,
-            showCurrentChapterLabel = prefs[SHOW_CURRENT_CHAPTER_LABEL] ?: true,
         )
     }
 
@@ -46,10 +44,6 @@ class ComicFormattingPreferencesStoreImpl @Inject constructor(
             }
             if (prefs.showChapterMap) data.remove(SHOW_CHAPTER_MAP)
             else data[SHOW_CHAPTER_MAP] = false
-            if (prefs.coloredChapterMap) data.remove(COLORED_CHAPTER_MAP)
-            else data[COLORED_CHAPTER_MAP] = false
-            if (prefs.showCurrentChapterLabel) data.remove(SHOW_CURRENT_CHAPTER_LABEL)
-            else data[SHOW_CURRENT_CHAPTER_LABEL] = false
         }
     }
 
@@ -58,7 +52,5 @@ class ComicFormattingPreferencesStoreImpl @Inject constructor(
         private val PANEL_OVERFLOW = stringPreferencesKey("panel_overflow")
         private val PANEL_ANIMATION_SPEED_MS = intPreferencesKey("panel_animation_speed_ms")
         private val SHOW_CHAPTER_MAP = booleanPreferencesKey("show_chapter_map")
-        private val COLORED_CHAPTER_MAP = booleanPreferencesKey("colored_chapter_map")
-        private val SHOW_CURRENT_CHAPTER_LABEL = booleanPreferencesKey("show_current_chapter_label")
     }
 }

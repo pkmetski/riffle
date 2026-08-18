@@ -69,31 +69,6 @@ internal fun ComicFormattingSheet(
                     )
                 },
             )
-            ListItem(
-                headlineContent = { Text("Colored chapter map") },
-                trailingContent = {
-                    Switch(
-                        checked = formatting.coloredChapterMap,
-                        enabled = formatting.showChapterMap,
-                        onCheckedChange = { on ->
-                            onUpdate(BookComicFormattingOverrides(coloredChapterMap = on))
-                        },
-                    )
-                },
-                modifier = Modifier.padding(start = 16.dp),
-            )
-            ListItem(
-                headlineContent = { Text("Current chapter label") },
-                trailingContent = {
-                    Switch(
-                        checked = formatting.showCurrentChapterLabel,
-                        enabled = formatting.showChapterMap,
-                        onCheckedChange = { on ->
-                            onUpdate(BookComicFormattingOverrides(showCurrentChapterLabel = on))
-                        },
-                    )
-                },
-            )
             HorizontalDivider()
             TextButton(
                 onClick = onReset,
