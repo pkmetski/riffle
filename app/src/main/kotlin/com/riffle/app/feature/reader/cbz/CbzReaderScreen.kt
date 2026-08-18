@@ -218,12 +218,18 @@ fun CbzReaderScreen(
                         railHeight = 6.dp,
                     )
                 }
-                CbzThumbnailStrip(
-                    currentPage = currentPage,
-                    pageCount = ready.pageCount,
-                    imageSource = ready.thumbnailSource ?: ready.imageSource,
-                    onSeek = { viewModel.jumpToPage(it) },
-                )
+                AnimatedVisibility(
+                    visible = !immersiveState.isImmersive,
+                    enter = slideInVertically { it },
+                    exit = slideOutVertically { it },
+                ) {
+                    CbzThumbnailStrip(
+                        currentPage = currentPage,
+                        pageCount = ready.pageCount,
+                        imageSource = ready.thumbnailSource ?: ready.imageSource,
+                        onSeek = { viewModel.jumpToPage(it) },
+                    )
+                }
             }
         }
     }
