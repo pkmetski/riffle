@@ -26,7 +26,7 @@ class ComicFormattingPreferencesStoreImplTest {
         ),
     )
 
-    @Test fun `defaults are panelViewOn=false, panelOverflow=SPLIT, panelAnimationSpeedMs=250`() = testScope.runTest {
+    @Test fun `defaults are panelViewOn=false and panelOverflow=SPLIT`() = testScope.runTest {
         val prefs = newStore().preferences.first()
         assertEquals(false, prefs.panelViewOn)
         assertEquals(PanelOverflowBehavior.SPLIT, prefs.panelOverflow)
