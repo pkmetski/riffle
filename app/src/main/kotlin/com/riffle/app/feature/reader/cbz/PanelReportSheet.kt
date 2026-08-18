@@ -137,7 +137,7 @@ internal fun PanelReportSheet(
             }
 
             if (state.submittedIssueUrl != null) {
-                Text("Filed: ${state.submittedIssueUrl}", color = Color(0xFF388E3C))
+                Text("Created: ${state.submittedIssueUrl}", color = Color(0xFF388E3C))
             }
 
             Button(
