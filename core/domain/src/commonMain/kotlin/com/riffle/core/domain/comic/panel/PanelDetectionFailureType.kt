@@ -6,5 +6,5 @@ enum class PanelDetectionFailureType(val label: String) {
     WrongPanelCount("Wrong panel count"),
     FalsePanel("False panel"),
     FellBackToFullPage("Fell back to full page"),
-    CutPanelCutOff("Cut panel cut off"),
+    CutPanelCutOff("Panel cut off"),
 }
