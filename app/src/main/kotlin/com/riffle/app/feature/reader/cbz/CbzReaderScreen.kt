@@ -231,8 +231,7 @@ fun CbzReaderScreen(
 
             // Chapter map — static, always at bottom, never animated
             if (effectiveComicFormatting.showChapterMap && railSegments.isNotEmpty()) {
-                val mapBgColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.9f)
-                val labelColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.65f)
+                val labelColor = readerThemeLabelColor(ReaderTheme.Dark)
                 val labelStyle = MaterialTheme.typography.labelSmall
                 Column(
                     modifier = Modifier
@@ -243,13 +242,13 @@ fun CbzReaderScreen(
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .background(mapBgColor)
                             .onSizeChanged { chapterMapContentPx = it.height },
                     ) {
                         if (effectiveComicFormatting.showPageProgress) {
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
+                                    .background(ReaderTheme.Dark.palette.background)
                                     .padding(horizontal = 14.dp, vertical = 2.dp),
                             ) {
                                 Text(
@@ -277,7 +276,6 @@ fun CbzReaderScreen(
                             showProgressLabels = false,
                             showReadingTimeEstimate = false,
                             onSegmentClick = { segment -> viewModel.jumpToPage(cbzSegmentPageIndex(segment)) },
-                            backgroundColor = Color.Transparent,
                         )
                     }
                 }
