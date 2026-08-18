@@ -522,6 +522,53 @@ class PanelDetectorTest {
     }
 
     @Test
+    fun `scanned splash-plus-two-panels page is detected correctly`() {
+        // Regression for page 56: full-width splash on top + two panels at the bottom.
+        // Fixture is a committed binarized mask (0=gutter, 1=content) generated from
+        // the original scanned image — copyright-safe per ADR 0062.
+        val grid = loadFixture("splash-plus-two-panels-p56.png")
+        val result = detector.detect(grid, pageIndex = 56, originalWidth = grid.width, originalHeight = grid.height)
+
+        assertEquals(PanelSource.Auto, result.source)
+        assertEquals("expected 3 panels for splash+2-panel layout", 3, result.panels.size)
+        val topPanels = result.panels.filter { it.y + it.height / 2 < grid.height / 2 }
+        val bottomPanels = result.panels.filter { it.y + it.height / 2 >= grid.height / 2 }
+        assertEquals("1 splash panel in top half", 1, topPanels.size)
+        assertEquals("2 panels in bottom half", 2, bottomPanels.size)
+        assertTrue("splash is wide", topPanels[0].width >= grid.width * 0.6)
+        val leftBottom = bottomPanels.filter { it.x + it.width / 2 < grid.width / 2 }
+        val rightBottom = bottomPanels.filter { it.x + it.width / 2 >= grid.width / 2 }
+        assertEquals("one panel in bottom-left quadrant", 1, leftBottom.size)
+        assertEquals("one panel in bottom-right quadrant", 1, rightBottom.size)
+    }
+
+    @Test
+    fun `scanned page with dark book-spine corners is detected correctly`() {
+        // Regression for page 58: a 3x2 grid of 6 panels on a scanned comic page.
+        // Fixture is a committed binarized mask (0=gutter, 1=content) generated from
+        // the original scanned image — copyright-safe per ADR 0062.
+        val grid = loadFixture("dark-spine-corners-p58.png")
+        val result = detector.detect(grid, pageIndex = 58, originalWidth = grid.width, originalHeight = grid.height)
+
+        assertEquals(PanelSource.Auto, result.source)
+        assertEquals("expected 6 panels for 3x2 grid", 6, result.panels.size)
+        val topRow = result.panels.filter { it.y + it.height / 2 < grid.height / 2 }
+        val bottomRow = result.panels.filter { it.y + it.height / 2 >= grid.height / 2 }
+        assertEquals("3 panels in top row", 3, topRow.size)
+        assertEquals("3 panels in bottom row", 3, bottomRow.size)
+        fun assertThreeColumnsPresent(row: List<PanelRegion>, label: String) {
+            val left = row.filter { it.x + it.width / 2 < grid.width / 3 }
+            val centre = row.filter { it.x + it.width / 2 in grid.width / 3 until 2 * grid.width / 3 }
+            val right = row.filter { it.x + it.width / 2 >= 2 * grid.width / 3 }
+            assertEquals("$label: 1 panel in left third", 1, left.size)
+            assertEquals("$label: 1 panel in centre third", 1, centre.size)
+            assertEquals("$label: 1 panel in right third", 1, right.size)
+        }
+        assertThreeColumnsPresent(topRow, "top row")
+        assertThreeColumnsPresent(bottomRow, "bottom row")
+    }
+
+    @Test
     fun `white speech bubble in gutter between two stacked panels does not merge them`() {
         // Reproduces: page with Panel 1 (top) / white speech bubble in gutter / Panel 2 (bottom).
         // With two-sided contrast the speech bubble interior (luma ~250, background ~210) was
@@ -657,6 +704,21 @@ class PanelDetectorTest {
 
     private val LIGHT: Byte = 240.toByte()
     private val DARK: Byte = 20.toByte()
+
+    private fun loadFixture(resourceName: String): PixelGrid {
+        val stream = javaClass.getResourceAsStream("fixtures/$resourceName")
+            ?: error("Fixture not found: fixtures/$resourceName")
+        val img = javax.imageio.ImageIO.read(stream)
+        val w = img.width; val h = img.height
+        val luma = ByteArray(w * h)
+        for (y in 0 until h) {
+            for (x in 0 until w) {
+                val rgb = img.getRGB(x, y)
+                luma[y * w + x] = if ((rgb and 0xFFFFFF) == 0) DARK else LIGHT
+            }
+        }
+        return PixelGrid(w, h, luma)
+    }
 
     private fun fixture(width: Int, height: Int, paint: (Canvas) -> Unit): PixelGrid {
         val luma = ByteArray(width * height)
