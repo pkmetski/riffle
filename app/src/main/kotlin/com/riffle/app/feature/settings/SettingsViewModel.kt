@@ -45,7 +45,10 @@ import com.riffle.core.domain.SourceRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -510,8 +513,14 @@ class SettingsViewModel @Inject constructor(
     val developerModeEnabled: StateFlow<Boolean> = developerOptionsRepository.developerModeEnabled
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
 
+    private val _developerUnlockEvents = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+    val developerUnlockEvents: SharedFlow<Unit> = _developerUnlockEvents.asSharedFlow()
+
     private val tapCounter = DeveloperOptionsTapCounter {
-        viewModelScope.launch { developerOptionsRepository.setDeveloperModeEnabled(true) }
+        viewModelScope.launch {
+            developerOptionsRepository.setDeveloperModeEnabled(true)
+            _developerUnlockEvents.emit(Unit)
+        }
     }
 
     fun onVersionTap() = tapCounter.onTap()

@@ -12,6 +12,8 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.windowsizeclass.WindowSizeClass
@@ -42,7 +44,6 @@ import com.riffle.app.feature.settings.sections.AppBehaviorSection
 import com.riffle.app.feature.settings.sections.AppVersionSection
 import com.riffle.app.feature.settings.sections.AppearanceSection
 import com.riffle.app.feature.settings.sections.ComicsSection
-import com.riffle.app.feature.settings.sections.DeveloperOptionsSection
 import com.riffle.app.feature.settings.sections.DiagnosticsSection
 import com.riffle.app.feature.settings.sections.ListeningSection
 import com.riffle.app.feature.settings.sections.ReadaloudSection
@@ -101,6 +102,11 @@ fun SettingsScreen(
     val expandedServers = remember { mutableStateMapOf<String, Boolean>() }
     val expandedCrashes = remember { mutableStateMapOf<String, Boolean>() }
     var openPanel by remember { mutableStateOf<SettingsPanel?>(null) }
+    val snackbarHostState = remember { SnackbarHostState() }
+
+    LaunchedEffect(Unit) {
+        viewModel.developerUnlockEvents.collect { snackbarHostState.showSnackbar("Developer options enabled") }
+    }
 
     LaunchedEffect(Unit) {
         viewModel.navigationEvents.collect { event ->
@@ -132,6 +138,7 @@ fun SettingsScreen(
                 },
             )
         },
+        snackbarHost = { SnackbarHost(snackbarHostState) },
     ) { padding ->
         TabletContentWidthContainer(
             windowSizeClass = windowSizeClass,
@@ -228,10 +235,9 @@ fun SettingsScreen(
                     onSetAutoUpdateEnabled = viewModel::setAutoUpdateEnabled,
                     onNavigateToChangelog = onNavigateToChangelog,
                     onVersionTap = viewModel::onVersionTap,
+                    developerModeEnabled = developerModeEnabled,
+                    onSaveGithubPat = viewModel::onSaveGithubPat,
                 )
-                if (developerModeEnabled) {
-                    DeveloperOptionsSection(onSaveGithubPat = viewModel::onSaveGithubPat)
-                }
                 HorizontalDivider()
             }
         }

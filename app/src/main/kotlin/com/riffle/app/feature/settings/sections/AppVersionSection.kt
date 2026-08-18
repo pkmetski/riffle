@@ -1,6 +1,7 @@
 package com.riffle.app.feature.settings.sections
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
@@ -29,6 +30,8 @@ internal fun AppVersionSection(
     onSetAutoUpdateEnabled: (Boolean) -> Unit,
     onNavigateToChangelog: () -> Unit,
     onVersionTap: () -> Unit = {},
+    developerModeEnabled: Boolean = false,
+    onSaveGithubPat: (String) -> Unit = {},
 ) {
     SettingsSectionHeader("App version")
     val supporting = when (state) {
@@ -41,9 +44,12 @@ internal fun AppVersionSection(
         is AppUpdateUiState.Failed -> "Update check failed: ${state.message}"
     }
     ListItem(
-        headlineContent = { Text("Riffle") },
-        supportingContent = { Text(supporting) },
-        modifier = Modifier.clickable(onClick = onVersionTap),
+        headlineContent = {
+            Column(modifier = Modifier.clickable(onClick = onVersionTap)) {
+                Text("Riffle")
+                Text(supporting)
+            }
+        },
         trailingContent = {
             when (state) {
                 is AppUpdateUiState.Checking ->
@@ -64,6 +70,9 @@ internal fun AppVersionSection(
             }
         },
     )
+    if (developerModeEnabled) {
+        DeveloperOptionsSection(onSaveGithubPat = onSaveGithubPat)
+    }
     ListItem(
         headlineContent = { Text("Check for updates on startup") },
         trailingContent = {
