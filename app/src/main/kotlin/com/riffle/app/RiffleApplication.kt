@@ -5,7 +5,6 @@ import android.content.Context
 import coil.ImageLoader
 import coil.ImageLoaderFactory
 import coil.disk.DiskCache
-import com.riffle.app.dictionary.DictionaryPackScheduler
 import com.riffle.app.sync.kickSweepsOnReconnect
 import com.riffle.core.data.AnnotationSweep
 import com.riffle.core.data.LocalStoreMigrator
@@ -108,8 +107,6 @@ class RiffleApplication : Application(), ImageLoaderFactory {
         com.riffle.app.sync.AnnotationSyncScheduler.ensurePeriodic(this)
         com.riffle.app.sync.ContentCacheCleanupScheduler.sweepNow(this)
         com.riffle.app.sync.ContentCacheCleanupScheduler.ensurePeriodic(this)
-        // Periodic dictionary manifest refresh: check for pack updates every 7 days.
-        DictionaryPackScheduler().ensurePeriodicRefresh(this)
 
         // Flush promptly when connectivity returns mid-session (offline edits made while the app kept
         // running would otherwise wait for the periodic sweep). We run the sweeps INLINE rather than
