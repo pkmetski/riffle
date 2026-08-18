@@ -99,7 +99,10 @@ internal fun PanelReportSheet(
                     },
             ) {
                 Canvas(modifier = Modifier.matchParentSize()) {
-                    drawImage(maskBitmap)
+                    drawImage(
+                        image = maskBitmap,
+                        dstSize = IntSize(size.width.toInt(), size.height.toInt()),
+                    )
                     viewModel.detectedPanels.forEachIndexed { i, p ->
                         val selected = state.tappedPanelIndex == i
                         drawRect(
