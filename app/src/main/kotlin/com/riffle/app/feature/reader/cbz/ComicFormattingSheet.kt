@@ -50,6 +50,13 @@ internal fun ComicFormattingSheet(
                 enabled = formatting.panelViewOn,
                 onSelect = { onUpdate(BookComicFormattingOverrides(panelOverflow = it)) },
             )
+            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+            PanelAnimationSpeedSlider(
+                speedMs = formatting.panelAnimationSpeedMs,
+                onSpeedChange = { speed -> onUpdate(BookComicFormattingOverrides(panelAnimationSpeedMs = speed)) },
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                enabled = formatting.panelViewOn,
+            )
             HorizontalDivider()
             TextButton(
                 onClick = onReset,

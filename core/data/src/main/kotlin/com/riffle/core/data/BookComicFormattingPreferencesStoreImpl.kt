@@ -29,6 +29,7 @@ class BookComicFormattingPreferencesStoreImpl @Inject constructor(
                 itemId = itemId,
                 panelViewOn = overrides.panelViewOn,
                 panelOverflow = overrides.panelOverflow?.name,
+                panelAnimationSpeedMs = overrides.panelAnimationSpeedMs,
             )
         )
     }
@@ -43,5 +44,6 @@ class BookComicFormattingPreferencesStoreImpl @Inject constructor(
         panelOverflow = panelOverflow?.let {
             runCatching { PanelOverflowBehavior.valueOf(it) }.getOrNull()
         },
+        panelAnimationSpeedMs = panelAnimationSpeedMs,
     )
 }

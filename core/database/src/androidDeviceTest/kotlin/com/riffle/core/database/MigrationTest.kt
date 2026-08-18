@@ -1987,6 +1987,7 @@ class MigrationTest {
             RiffleDatabase.MIGRATION_63_64,
             RiffleDatabase.MIGRATION_64_65,
             RiffleDatabase.MIGRATION_65_66,
+            RiffleDatabase.MIGRATION_66_67,
         )
 
         db.query("SELECT url, username, serverType, absUserId, type FROM sources WHERE id = 's1'").use { cursor ->
@@ -3048,6 +3049,40 @@ class MigrationTest {
                 assertEquals("item1", cursor.getString(cursor.getColumnIndexOrThrow("item_id")))
                 assertEquals(1, cursor.getInt(cursor.getColumnIndexOrThrow("panel_view_on")))
                 assertEquals("SMART_SPLIT", cursor.getString(cursor.getColumnIndexOrThrow("panel_overflow")))
+            }
+        }
+    }
+
+    @Test
+    fun migration66To67_addsAnimationSpeedToComicFormatting() {
+        helper.createDatabase(TEST_DB, 66).use { db ->
+            db.execSQL(
+                "INSERT INTO sources (id, url, isActive, insecureConnectionAllowed, username, serverType, absUserId, type) " +
+                    "VALUES ('src1', 'http://test', 1, 0, '', 'AUDIOBOOKSHELF', NULL, 'ABS')"
+            )
+            // Pre-existing row without panel_animation_speed_ms
+            db.execSQL(
+                "INSERT INTO book_comic_formatting_preferences " +
+                    "(source_id, item_id, panel_view_on, panel_overflow) " +
+                    "VALUES ('src1', 'item1', 1, 'SPLIT')"
+            )
+        }
+        helper.runMigrationsAndValidate(TEST_DB, 67, true, RiffleDatabase.MIGRATION_66_67).use { db ->
+            db.query("SELECT * FROM book_comic_formatting_preferences WHERE item_id = 'item1'").use { cursor ->
+                assertTrue(cursor.moveToFirst())
+                // Pre-existing row: panel_animation_speed_ms defaults to NULL (follow global)
+                val col = cursor.getColumnIndexOrThrow("panel_animation_speed_ms")
+                assertTrue(cursor.isNull(col))
+            }
+            // New row can store a speed override
+            db.execSQL(
+                "INSERT INTO book_comic_formatting_preferences " +
+                    "(source_id, item_id, panel_view_on, panel_overflow, panel_animation_speed_ms) " +
+                    "VALUES ('src1', 'item2', 1, 'SPLIT', 400)"
+            )
+            db.query("SELECT panel_animation_speed_ms FROM book_comic_formatting_preferences WHERE item_id = 'item2'").use { cursor ->
+                assertTrue(cursor.moveToFirst())
+                assertEquals(400, cursor.getInt(cursor.getColumnIndexOrThrow("panel_animation_speed_ms")))
             }
         }
     }

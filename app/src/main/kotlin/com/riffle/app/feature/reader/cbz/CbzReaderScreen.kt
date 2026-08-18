@@ -142,6 +142,7 @@ fun CbzReaderScreen(
                         currentPage = currentPage,
                         pagePanels = effectivePanels,
                         panelIndex = currentPanelIndex,
+                        panelAnimationSpeedMs = effectiveComicFormatting.panelAnimationSpeedMs,
                         onNextPanel = viewModel::nextPanel,
                         onPrevPanel = viewModel::previousPanel,
                         onSkipGuidedPage = viewModel::skipGuidedPanelsOnPage,
@@ -369,6 +370,7 @@ private fun CbzPanelViewer(
     currentPage: Int,
     pagePanels: PagePanels?,
     panelIndex: Int,
+    panelAnimationSpeedMs: Int,
     onNextPanel: () -> Unit,
     onPrevPanel: () -> Unit,
     onSkipGuidedPage: () -> Unit,
@@ -451,8 +453,8 @@ private fun CbzPanelViewer(
         // whenever the target values change, and a mid-flight change simply re-targets
         // (interrupt semantics — ADR 0055 §4). Reduce Motion collapses to a snap.
         val reduceMotion = remember(context) { isReduceMotionEnabled(context) }
-        val animationSpec = remember(reduceMotion) {
-            if (reduceMotion) snap<Float>() else tween<Float>(durationMillis = 250)
+        val animationSpec = remember(reduceMotion, panelAnimationSpeedMs) {
+            if (reduceMotion || panelAnimationSpeedMs == 0) snap<Float>() else tween<Float>(durationMillis = panelAnimationSpeedMs)
         }
         val animatedScale by animateFloatAsState(
             targetValue = zoomScale,

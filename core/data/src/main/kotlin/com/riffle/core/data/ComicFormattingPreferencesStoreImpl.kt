@@ -4,6 +4,7 @@ import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import com.riffle.core.data.di.ComicFormattingPreferencesDataStore
 import com.riffle.core.domain.comic.ComicFormattingPreferences
@@ -23,6 +24,7 @@ class ComicFormattingPreferencesStoreImpl @Inject constructor(
             panelOverflow = prefs[PANEL_OVERFLOW]
                 ?.let { runCatching { PanelOverflowBehavior.valueOf(it) }.getOrNull() }
                 ?: PanelOverflowBehavior.SPLIT,
+            panelAnimationSpeedMs = prefs[PANEL_ANIMATION_SPEED_MS] ?: 250,
         )
     }
 
@@ -34,11 +36,17 @@ class ComicFormattingPreferencesStoreImpl @Inject constructor(
             } else {
                 data[PANEL_OVERFLOW] = prefs.panelOverflow.name
             }
+            if (prefs.panelAnimationSpeedMs == 250) {
+                data.remove(PANEL_ANIMATION_SPEED_MS)
+            } else {
+                data[PANEL_ANIMATION_SPEED_MS] = prefs.panelAnimationSpeedMs
+            }
         }
     }
 
     companion object {
         private val PANEL_VIEW_ON = booleanPreferencesKey("panel_view_on")
         private val PANEL_OVERFLOW = stringPreferencesKey("panel_overflow")
+        private val PANEL_ANIMATION_SPEED_MS = intPreferencesKey("panel_animation_speed_ms")
     }
 }

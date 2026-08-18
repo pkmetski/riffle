@@ -42,7 +42,7 @@ import androidx.sqlite.execSQL
         PublicationMetricsCacheEntity::class,
         BookComicFormattingPreferencesEntity::class,
     ],
-    version = 66,
+    version = 67,
     exportSchema = true,
 )
 @ConstructedBy(RiffleDatabaseConstructor::class)
@@ -1756,6 +1756,14 @@ abstract class RiffleDatabase : RoomDatabase() {
                 db.execSQL(
                     "CREATE INDEX IF NOT EXISTS `index_book_comic_formatting_preferences_source_id` " +
                         "ON `book_comic_formatting_preferences` (`source_id`)"
+                )
+            }
+        }
+
+        val MIGRATION_66_67 = object : Migration(66, 67) {
+            override fun migrate(db: SQLiteConnection) {
+                db.execSQL(
+                    "ALTER TABLE `book_comic_formatting_preferences` ADD COLUMN `panel_animation_speed_ms` INTEGER"
                 )
             }
         }
