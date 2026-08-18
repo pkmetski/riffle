@@ -31,6 +31,7 @@ class WebDavProgressRemoteFactory(
         namespace: String,
         itemId: String,
         readingProgress: suspend () -> Float,
+        finishedAt: suspend () -> Long?,
         clock: Clock,
     ): ProgressRemote<String>? {
         val baseUrl = parseWebDavBaseUrl(config.baseUrl) ?: return null
@@ -41,6 +42,7 @@ class WebDavProgressRemoteFactory(
             authHeader = authHeader,
             progressFileUrl = WebDavProgressRemote.progressFileUrl(baseUrl.toString(), namespace, itemId),
             readingProgress = readingProgress,
+            finishedAt = finishedAt,
             dispatchers = dispatchers,
             clock = clock,
         )

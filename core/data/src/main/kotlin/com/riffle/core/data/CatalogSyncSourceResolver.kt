@@ -5,6 +5,7 @@ import com.riffle.core.catalog.BookmarksCapability
 import com.riffle.core.catalog.CatalogBookmark
 import com.riffle.core.catalog.CatalogRegistry
 import com.riffle.core.catalog.ProgressPeerCapability
+import com.riffle.core.domain.SourceRepository
 import com.riffle.core.sync.BookmarkRemote
 import com.riffle.core.sync.RemoteBookmark
 import com.riffle.core.sync.SyncSource
@@ -13,11 +14,17 @@ import javax.inject.Inject
 
 class CatalogSyncSourceResolver @Inject constructor(
     private val registry: CatalogRegistry,
+    private val sourceRepository: SourceRepository,
 ) : SyncSourceResolver {
     override suspend fun resolve(sourceId: String): SyncSource? {
         val catalog = registry.forSourceId(sourceId) ?: return null
+        val source = sourceRepository.getById(sourceId)
         return object : SyncSource {
-            override val supportsEbookProgress = catalog is ProgressPeerCapability
+            // Web sources (Chitanka, Gutenberg) have no ProgressPeerCapability but sync ebook
+            // progress via WebDAV (ADR 0062). ProgressSweep gates the ebook reconcile loop on
+            // this flag, so web sources must return true here or dirty rows are never processed.
+            override val supportsEbookProgress =
+                catalog is ProgressPeerCapability || source?.type?.isWebSource == true
             override val supportsAudiobookProgress = catalog is AudiobookProgressPeerCapability
             override val bookmarks = (catalog as? BookmarksCapability)?.let(::CatalogBookmarkRemote)
         }

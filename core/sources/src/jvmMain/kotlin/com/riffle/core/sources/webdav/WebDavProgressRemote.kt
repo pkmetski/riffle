@@ -16,6 +16,7 @@ import io.ktor.http.content.TextContent
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
+import java.net.URLEncoder
 import java.text.SimpleDateFormat
 import java.util.Locale
 
@@ -27,13 +28,16 @@ import java.util.Locale
  * GET: parse [ProgressPayload]; use `Last-Modified` response header as [RemoteProgress.lastUpdate].
  * PUT: write [ProgressPayload]; adopt `Last-Modified` from response as the server stamp.
  *
- * All HTTP and network errors return null — the caller's sweep retries the next cycle.
+ * HTTP 404 on GET returns `lastUpdate=0` rather than null — the Offline sentinel — so a dirty
+ * local row (first sync from this device) fires LocalWins and creates the file. All other HTTP
+ * and network errors return null so the sweep retries next cycle.
  */
 class WebDavProgressRemote(
     private val client: HttpClient,
     private val authHeader: String,
     private val progressFileUrl: String,
     private val readingProgress: suspend () -> Float,
+    private val finishedAt: suspend () -> Long?,
     private val dispatchers: DispatcherProvider,
     private val clock: Clock,
 ) : ProgressRemote<String> {
@@ -45,7 +49,9 @@ class WebDavProgressRemote(
                 header(HttpHeaders.UserAgent, FINDER_USER_AGENT)
             }
             when (response.status.value) {
-                404 -> null
+                // File doesn't exist yet — not Offline; return lastUpdate=0 so LocalWins fires
+                // on the first sweep and creates the file.
+                404 -> RemoteProgress(position = "", lastUpdate = 0L, readingProgress = 0f, finishedAt = null)
                 in 200..299 -> {
                     val payload = json.decodeFromString<ProgressPayload>(response.bodyAsText())
                     val lastModified = response.headers[HttpHeaders.LastModified]
@@ -65,20 +71,22 @@ class WebDavProgressRemote(
 
     override suspend fun patch(position: String): Long? = withContext(dispatchers.io) {
         runCatching {
-            val now = clock.nowMs()
             val payload = ProgressPayload(
                 position = position,
                 readingProgress = readingProgress(),
-                finishedAt = null,
-                lastUpdate = now,
+                finishedAt = finishedAt(),
+                lastUpdate = clock.nowMs(),
             )
             val response = client.put(progressFileUrl) {
                 header(HttpHeaders.Authorization, authHeader)
                 header(HttpHeaders.UserAgent, FINDER_USER_AGENT)
                 setBody(TextContent(json.encodeToString(ProgressPayload.serializer(), payload), ContentType.parse(JSON_CONTENT_TYPE)))
             }
+            // Capture the clock AFTER the PUT so the fallback stamp is no older than the server
+            // write. Synology WebDAV does not return Last-Modified on PUT responses.
+            val fallback = clock.nowMs()
             when (response.status.value) {
-                in 200..299 -> response.headers[HttpHeaders.LastModified]?.let { parseHttpDate(it) } ?: now
+                in 200..299 -> response.headers[HttpHeaders.LastModified]?.let { parseHttpDate(it) } ?: fallback
                 else -> null
             }
         }.getOrNull()
@@ -106,7 +114,9 @@ class WebDavProgressRemote(
 
         fun progressFileUrl(basePath: String, namespace: String, itemId: String): String {
             val base = if (basePath.endsWith("/")) basePath else "$basePath/"
-            return "$base$namespace$NAMESPACE_SEPARATOR$itemId$PROGRESS_SUFFIX"
+            val encodedNamespace = URLEncoder.encode(namespace, "UTF-8").replace("+", "%20")
+            val encodedItemId = URLEncoder.encode(itemId, "UTF-8").replace("+", "%20")
+            return "$base$encodedNamespace$NAMESPACE_SEPARATOR$encodedItemId$PROGRESS_SUFFIX"
         }
     }
 }

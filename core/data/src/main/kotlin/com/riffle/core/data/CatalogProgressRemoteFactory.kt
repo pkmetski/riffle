@@ -64,6 +64,7 @@ class CatalogProgressRemoteFactory @Inject constructor(
             namespace = source.type.name.lowercase(),
             itemId = itemId,
             readingProgress = { libraryItemDao.getById(sourceId, itemId)?.readingProgress ?: 0f },
+            finishedAt = { libraryItemDao.getById(sourceId, itemId)?.finishedAt },
             clock = clock,
         )
     }

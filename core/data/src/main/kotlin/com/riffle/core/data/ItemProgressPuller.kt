@@ -2,7 +2,6 @@ package com.riffle.core.data
 
 import com.riffle.core.catalog.AudiobookProgressPeerCapability
 import com.riffle.core.catalog.CatalogRegistry
-import com.riffle.core.catalog.ProgressPeerCapability
 import com.riffle.core.domain.ProgressReconciler
 import com.riffle.core.domain.RemoteKind
 import com.riffle.core.sync.OpenReconcileTargets
@@ -46,16 +45,17 @@ class ReconcilingItemProgressPuller @Inject constructor(
     override suspend fun pullItem(sourceId: String, itemId: String) {
         if (openTargets.isOpen(sourceId, itemId)) return
         val catalog = catalogRegistry.forSourceId(sourceId) ?: return
-        if (catalog is ProgressPeerCapability) {
-            val remote = remoteFactory.ebook(sourceId, itemId)
-            if (remote != null) locks.withLock(sourceId, itemId, RemoteKind.EBOOK_POSITION) {
-                ebookReconciler.reconcile(sourceId, itemId, remote)
-            }
+        // Ebook: the factory resolves both catalog-peer remotes (ABS, Komga) and WebDAV remotes
+        // for web sources (ADR 0062). No need to check ProgressPeerCapability here — the factory
+        // returns null when no remote is applicable.
+        val ebookRemote = remoteFactory.ebook(sourceId, itemId)
+        if (ebookRemote != null) locks.withLock(sourceId, itemId, RemoteKind.EBOOK_POSITION) {
+            ebookReconciler.reconcile(sourceId, itemId, ebookRemote)
         }
         if (catalog is AudiobookProgressPeerCapability) {
-            val remote = remoteFactory.audio(sourceId, itemId)
-            if (remote != null) locks.withLock(sourceId, itemId, RemoteKind.AUDIO_POSITION) {
-                audioReconciler.reconcile(sourceId, itemId, remote)
+            val audioRemote = remoteFactory.audio(sourceId, itemId)
+            if (audioRemote != null) locks.withLock(sourceId, itemId, RemoteKind.AUDIO_POSITION) {
+                audioReconciler.reconcile(sourceId, itemId, audioRemote)
             }
         }
     }

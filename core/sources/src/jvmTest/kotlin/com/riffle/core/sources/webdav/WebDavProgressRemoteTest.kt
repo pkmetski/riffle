@@ -29,12 +29,14 @@ class WebDavProgressRemoteTest {
 
     private fun makeRemote(
         readingProgress: Float = 0.42f,
+        finishedAt: Long? = null,
         engine: MockEngine,
     ) = WebDavProgressRemote(
         client = HttpClient(engine),
         authHeader = authHeader,
         progressFileUrl = progressUrl,
         readingProgress = { readingProgress },
+        finishedAt = { finishedAt },
         dispatchers = DefaultDispatcherProvider,
         clock = clock,
     )
@@ -60,9 +62,17 @@ class WebDavProgressRemoteTest {
 
     // ── get() ──────────────────────────────────────────────────────────────
 
-    @Test fun `get returns null on 404`() = runTest {
+    // 404 previously returned null (Offline), preventing first-sync file creation.
+    // Now returns RemoteProgress(lastUpdate=0) so a dirty local row fires LocalWins.
+    // Removed-test: get returns null on 404
+    @Test fun `get on 404 returns RemoteProgress with lastUpdate=0 to enable first-sync push`() = runTest {
         val r = makeRemote(engine = statusEngine(HttpStatusCode.NotFound))
-        assertNull(r.get())
+        val result = r.get()
+        assertNotNull(result)
+        assertEquals(0L, result!!.lastUpdate)
+        assertEquals("", result.position)
+        assertEquals(0f, result.readingProgress, 0.001f)
+        assertNull(result.finishedAt)
     }
 
     @Test fun `get returns null on non-2xx non-404`() = runTest {
@@ -116,7 +126,7 @@ class WebDavProgressRemoteTest {
                 headers = headersOf(HttpHeaders.LastModified to listOf("Mon, 18 Aug 2025 12:00:00 GMT")),
             )
         }
-        val r = makeRemote(readingProgress = 0.42f, engine = engine)
+        val r = makeRemote(readingProgress = 0.42f, finishedAt = null, engine = engine)
         r.patch("{\"href\":\"/ch1.html\"}")
 
         assertEquals(1, engine.requestHistory.size)
@@ -127,6 +137,20 @@ class WebDavProgressRemoteTest {
         assertEquals("{\"href\":\"/ch1.html\"}", payload.position)
         assertEquals(0.42f, payload.readingProgress, 0.001f)
         assertNull(payload.finishedAt)
+    }
+
+    @Test fun `patch writes finishedAt from injected lambda when book is finished`() = runTest {
+        var capturedBody = ""
+        val engine = MockEngine { req ->
+            capturedBody = (req.body as io.ktor.http.content.TextContent).text
+            respond(ByteReadChannel(ByteArray(0)), HttpStatusCode.NoContent, headers = headersOf())
+        }
+        val r = makeRemote(finishedAt = 1_724_000_000_000L, engine = engine)
+        r.patch("{}")
+
+        val payload = WebDavProgressRemote.json
+            .decodeFromString(WebDavProgressRemote.ProgressPayload.serializer(), capturedBody)
+        assertEquals(1_724_000_000_000L, payload.finishedAt)
     }
 
     @Test fun `patch returns Last-Modified from response as server stamp`() = runTest {
@@ -176,5 +200,16 @@ class WebDavProgressRemoteTest {
     @Test fun `progressFileUrl uses double-underscore separator between all three segments`() {
         val url = WebDavProgressRemote.progressFileUrl("https://dav.test/", "gutenberg", "42")
         assertTrue(url.endsWith("gutenberg__42__progress.json"))
+    }
+
+    @Test fun `progressFileUrl percent-encodes special characters in itemId`() {
+        val url = WebDavProgressRemote.progressFileUrl("https://dav.test/", "chitanka", "abc#1")
+        assertTrue("# must be encoded as %23", url.contains("abc%231"))
+        assertTrue("file name must end with __progress.json", url.endsWith("__progress.json"))
+    }
+
+    @Test fun `progressFileUrl encodes spaces as %20 not +`() {
+        val url = WebDavProgressRemote.progressFileUrl("https://dav.test/", "source", "my book")
+        assertTrue(url.contains("my%20book"))
     }
 }
