@@ -30,9 +30,6 @@ class ReaderSettingsSheetCapabilitiesTest {
                 capabilities = RenderCapabilities.PDF,
                 hasBookOverrides = false,
                 onPrefsChange = {}, onReset = {}, onDismiss = {},
-                keepScreenOn = false, onKeepScreenOnChange = {},
-                volumeKeyNavigationEnabled = false, onVolumeKeyNavigationEnabledChange = {},
-                invertVolumeKeys = false, onInvertVolumeKeysChange = {},
             )
         }
         // "Font" is the section label that heads the font-family picker chip row (FormattingSection.kt).
@@ -67,9 +64,6 @@ class ReaderSettingsSheetCapabilitiesTest {
                 capabilities = RenderCapabilities.EPUB,
                 hasBookOverrides = false,
                 onPrefsChange = {}, onReset = {}, onDismiss = {},
-                keepScreenOn = false, onKeepScreenOnChange = {},
-                volumeKeyNavigationEnabled = false, onVolumeKeyNavigationEnabledChange = {},
-                invertVolumeKeys = false, onInvertVolumeKeysChange = {},
             )
         }
         composeTestRule.onNodeWithText("Font").assertIsDisplayed()
@@ -92,9 +86,6 @@ class ReaderSettingsSheetCapabilitiesTest {
                 capabilities = RenderCapabilities.EPUB,
                 hasBookOverrides = false,
                 onPrefsChange = {}, onReset = {}, onDismiss = { dismissed = true },
-                keepScreenOn = false, onKeepScreenOnChange = {},
-                volumeKeyNavigationEnabled = false, onVolumeKeyNavigationEnabledChange = {},
-                invertVolumeKeys = false, onInvertVolumeKeysChange = {},
             )
         }
         composeTestRule.activity.onBackPressedDispatcher.onBackPressed()
