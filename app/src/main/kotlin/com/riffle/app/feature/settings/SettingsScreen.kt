@@ -42,6 +42,7 @@ import com.riffle.app.feature.settings.sections.AppBehaviorSection
 import com.riffle.app.feature.settings.sections.AppVersionSection
 import com.riffle.app.feature.settings.sections.AppearanceSection
 import com.riffle.app.feature.settings.sections.ComicsSection
+import com.riffle.app.feature.settings.sections.DeveloperOptionsSection
 import com.riffle.app.feature.settings.sections.DiagnosticsSection
 import com.riffle.app.feature.settings.sections.ListeningSection
 import com.riffle.app.feature.settings.sections.ReadaloudSection
@@ -96,6 +97,7 @@ fun SettingsScreen(
     val rewindIntervalSeconds by viewModel.rewindIntervalSeconds.collectAsState()
     val rewindOnResumeSeconds by viewModel.rewindOnResumeSeconds.collectAsState()
     val annotationSyncRow by viewModel.annotationSyncRow.collectAsState()
+    val developerModeEnabled by viewModel.developerModeEnabled.collectAsState()
     val expandedServers = remember { mutableStateMapOf<String, Boolean>() }
     val expandedCrashes = remember { mutableStateMapOf<String, Boolean>() }
     var openPanel by remember { mutableStateOf<SettingsPanel?>(null) }
@@ -225,7 +227,11 @@ fun SettingsScreen(
                     onInstallUpdate = viewModel::downloadAndInstallUpdate,
                     onSetAutoUpdateEnabled = viewModel::setAutoUpdateEnabled,
                     onNavigateToChangelog = onNavigateToChangelog,
+                    onVersionTap = viewModel::onVersionTap,
                 )
+                if (developerModeEnabled) {
+                    DeveloperOptionsSection(onSaveGithubPat = viewModel::onSaveGithubPat)
+                }
                 HorizontalDivider()
             }
         }

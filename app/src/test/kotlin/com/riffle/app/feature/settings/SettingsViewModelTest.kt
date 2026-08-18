@@ -282,6 +282,12 @@ class SettingsViewModelTest {
         localFilesSourceInstaller = fakeLocalFilesSourceInstaller,
         localFilesFolderHealthChecker = fakeLocalFilesFolderHealthChecker,
         comicFormattingPreferencesStore = noOpComicFormattingStore,
+        developerOptionsRepository = object : com.riffle.core.domain.developer.DeveloperOptionsRepository {
+            override val developerModeEnabled = kotlinx.coroutines.flow.MutableStateFlow(false)
+            override suspend fun setDeveloperModeEnabled(enabled: Boolean) = Unit
+            override suspend fun getGithubPat(): String? = null
+            override suspend fun setGithubPat(pat: String?) = Unit
+        },
     )
 
     private fun stubAnnotationDao(pendingBookCount: Int): AnnotationDao = object : AnnotationDao {
@@ -371,6 +377,12 @@ class SettingsViewModelTest {
         localFilesSourceInstaller = fakeLocalFilesSourceInstaller,
         localFilesFolderHealthChecker = fakeLocalFilesFolderHealthChecker,
         comicFormattingPreferencesStore = noOpComicFormattingStore,
+        developerOptionsRepository = object : com.riffle.core.domain.developer.DeveloperOptionsRepository {
+            override val developerModeEnabled = kotlinx.coroutines.flow.MutableStateFlow(false)
+            override suspend fun setDeveloperModeEnabled(enabled: Boolean) = Unit
+            override suspend fun getGithubPat(): String? = null
+            override suspend fun setGithubPat(pat: String?) = Unit
+        },
     )
 
     // --- crash report list tests ---

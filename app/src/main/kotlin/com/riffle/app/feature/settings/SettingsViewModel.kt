@@ -92,6 +92,7 @@ class SettingsViewModel @Inject constructor(
     private val localFilesSourceInstaller: LocalFilesSourceInstaller,
     private val localFilesFolderHealthChecker: LocalFilesFolderHealthChecker,
     private val comicFormattingPreferencesStore: ComicFormattingPreferencesStore,
+    private val developerOptionsRepository: com.riffle.core.domain.developer.DeveloperOptionsRepository,
     annotationSyncConfigStore: com.riffle.core.domain.AnnotationSyncConfigStore,
     annotationSyncStatusStore: AnnotationSyncStatusStore,
     annotationDao: AnnotationDao,
@@ -500,6 +501,23 @@ class SettingsViewModel @Inject constructor(
      */
     fun removeLocalFilesSource() {
         localFilesSource.value?.id?.let { removeServer(it) }
+    }
+
+    // endregion
+
+    // region Developer Options
+
+    val developerModeEnabled: StateFlow<Boolean> = developerOptionsRepository.developerModeEnabled
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
+
+    private val tapCounter = DeveloperOptionsTapCounter {
+        viewModelScope.launch { developerOptionsRepository.setDeveloperModeEnabled(true) }
+    }
+
+    fun onVersionTap() = tapCounter.onTap()
+
+    fun onSaveGithubPat(pat: String) {
+        viewModelScope.launch { developerOptionsRepository.setGithubPat(pat.ifBlank { null }) }
     }
 
     // endregion

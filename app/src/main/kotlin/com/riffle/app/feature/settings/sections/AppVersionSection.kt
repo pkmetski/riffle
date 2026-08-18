@@ -28,6 +28,7 @@ internal fun AppVersionSection(
     onInstallUpdate: () -> Unit,
     onSetAutoUpdateEnabled: (Boolean) -> Unit,
     onNavigateToChangelog: () -> Unit,
+    onVersionTap: () -> Unit = {},
 ) {
     SettingsSectionHeader("App version")
     val supporting = when (state) {
@@ -42,6 +43,7 @@ internal fun AppVersionSection(
     ListItem(
         headlineContent = { Text("Riffle") },
         supportingContent = { Text(supporting) },
+        modifier = Modifier.clickable(onClick = onVersionTap),
         trailingContent = {
             when (state) {
                 is AppUpdateUiState.Checking ->
