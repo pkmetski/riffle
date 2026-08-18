@@ -14,6 +14,7 @@ class VolumeKeyEventHandlerTest {
         isPanelOpen: Boolean = false,
         isAudioPlaying: Boolean = false,
         isAutoScrolling: Boolean = false,
+        volumeUpPointsRight: Boolean? = null,
     ) = VolumeKeyEventHandler.handle(
         isVolumeDown = isVolumeDown,
         isReaderActive = isReaderActive,
@@ -22,6 +23,7 @@ class VolumeKeyEventHandlerTest {
         isPanelOpen = isPanelOpen,
         isAudioPlaying = isAudioPlaying,
         isAutoScrolling = isAutoScrolling,
+        volumeUpPointsRight = volumeUpPointsRight,
     )
 
     @Test
@@ -131,6 +133,37 @@ class VolumeKeyEventHandlerTest {
             VolumeKeyAction.PassThrough,
             handle(isVolumeDown = true, isAutoScrolling = true, isAudioPlaying = true),
         )
+    }
+
+    @Test
+    fun `volume-up navigates forward when it points right`() {
+        assertEquals(VolumeKeyAction.NavigateForward, handle(isVolumeDown = false, volumeUpPointsRight = true))
+        assertEquals(VolumeKeyAction.NavigateBackward, handle(isVolumeDown = true, volumeUpPointsRight = true))
+    }
+
+    @Test
+    fun `landscape direction overrides invert preference when volume-up points right`() {
+        assertEquals(VolumeKeyAction.NavigateForward, handle(isVolumeDown = false, invertVolumeKeys = true, volumeUpPointsRight = true))
+        assertEquals(VolumeKeyAction.NavigateBackward, handle(isVolumeDown = true, invertVolumeKeys = true, volumeUpPointsRight = true))
+    }
+
+    @Test
+    fun `volume-down navigates forward when volume-up points left`() {
+        assertEquals(VolumeKeyAction.NavigateForward, handle(isVolumeDown = true, volumeUpPointsRight = false))
+        assertEquals(VolumeKeyAction.NavigateBackward, handle(isVolumeDown = false, volumeUpPointsRight = false))
+    }
+
+    @Test
+    fun `landscape direction overrides invert preference when volume-up points left`() {
+        assertEquals(VolumeKeyAction.NavigateForward, handle(isVolumeDown = true, invertVolumeKeys = true, volumeUpPointsRight = false))
+        assertEquals(VolumeKeyAction.NavigateBackward, handle(isVolumeDown = false, invertVolumeKeys = true, volumeUpPointsRight = false))
+    }
+
+    @Test
+    fun `auto-scroll speed direction is not affected by orientation`() {
+        // Speed nudge always follows invertVolumeKeys, not spatial orientation
+        assertEquals(VolumeKeyAction.AutoScrollFaster, handle(isVolumeDown = false, isAutoScrolling = true, volumeUpPointsRight = true))
+        assertEquals(VolumeKeyAction.AutoScrollSlower, handle(isVolumeDown = true, isAutoScrolling = true, volumeUpPointsRight = true))
     }
 
 }

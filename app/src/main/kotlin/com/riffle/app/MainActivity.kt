@@ -4,6 +4,7 @@ import android.content.Intent
 import android.os.Build
 import android.os.Bundle
 import android.view.KeyEvent
+import android.view.Surface
 import android.view.View
 import android.view.ViewGroup
 import androidx.activity.SystemBarStyle
@@ -145,6 +146,11 @@ class MainActivity : FragmentActivity() {
             isPanelOpen = readerStateHolder.isPanelOpen,
             isAudioPlaying = readerStateHolder.isAudioPlaying,
             isAutoScrolling = autoScrollController.state.value.isAutoScrollActive,
+            volumeUpPointsRight = when (windowManager.defaultDisplay.rotation) {
+                Surface.ROTATION_270 -> true
+                Surface.ROTATION_90 -> false
+                else -> null
+            },
         )
         return when (action) {
             VolumeKeyAction.NavigateForward -> {
