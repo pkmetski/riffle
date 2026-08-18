@@ -173,6 +173,14 @@ abstract class SyncModule {
 
         @Provides
         @Singleton
+        fun provideWebDavProgressRemoteFactory(
+            httpClient: io.ktor.client.HttpClient,
+            dispatchers: DispatcherProvider,
+        ): com.riffle.core.sources.webdav.WebDavProgressRemoteFactory =
+            com.riffle.core.sources.webdav.WebDavProgressRemoteFactory(httpClient, dispatchers)
+
+        @Provides
+        @Singleton
         fun provideAnnotationSyncTargetHolder(
             configStore: AnnotationSyncConfigStore,
             webDavFactory: com.riffle.core.sources.webdav.WebDavAnnotationSyncTargetFactory,

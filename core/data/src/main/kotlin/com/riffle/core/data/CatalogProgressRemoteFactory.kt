@@ -5,8 +5,11 @@ import com.riffle.core.catalog.CatalogRegistry
 import com.riffle.core.catalog.ProgressPeerCapability
 import com.riffle.core.database.LibraryItemDao
 import com.riffle.core.common.Clock
+import com.riffle.core.domain.AnnotationSyncConfigStore
 import com.riffle.core.domain.EbookCfiTranslatorFactory
 import com.riffle.core.domain.ProgressRemote
+import com.riffle.core.domain.SourceRepository
+import com.riffle.core.sources.webdav.WebDavProgressRemoteFactory
 import com.riffle.core.sync.ProgressRemoteFactory
 import javax.inject.Inject
 
@@ -23,20 +26,43 @@ import javax.inject.Inject
  * returns null and the remote defers (leaves the row dirty) rather than writing a raw CFI. Peers
  * with [com.riffle.core.catalog.CfiDialect.PAGE_NUMBER] or
  * [com.riffle.core.catalog.CfiDialect.READIUM_NATIVE] bypass the translator entirely.
+ *
+ * ADR 0062: when a source has no [ProgressPeerCapability] but its [SourceType.isWebSource] is
+ * true and WebDAV is configured, a [com.riffle.core.sources.webdav.WebDavProgressRemote] is
+ * returned instead. The namespace is `sourceType.name.lowercase()` — stable across devices because
+ * web sources have no user account and are singleton-per-device. The audio branch is unchanged:
+ * Chitanka and Gutenberg are ebook-only and never have an [AudiobookProgressPeerCapability].
  */
 class CatalogProgressRemoteFactory @Inject constructor(
     private val catalogRegistry: CatalogRegistry,
     private val libraryItemDao: LibraryItemDao,
     private val translatorFactory: EbookCfiTranslatorFactory,
     private val clock: Clock,
+    private val annotationSyncConfigStore: AnnotationSyncConfigStore,
+    private val webDavProgressRemoteFactory: WebDavProgressRemoteFactory,
+    private val sourceRepository: SourceRepository,
 ) : ProgressRemoteFactory {
 
     override suspend fun ebook(sourceId: String, itemId: String): ProgressRemote<String>? {
-        val peer = catalogRegistry.forSourceId(sourceId) as? ProgressPeerCapability ?: return null
-        return CatalogEbookProgressRemote(
-            peer = peer,
+        val peer = catalogRegistry.forSourceId(sourceId) as? ProgressPeerCapability
+        if (peer != null) {
+            return CatalogEbookProgressRemote(
+                peer = peer,
+                itemId = itemId,
+                translator = translatorFactory.forItem(sourceId, itemId),
+                readingProgress = { libraryItemDao.getById(sourceId, itemId)?.readingProgress ?: 0f },
+                clock = clock,
+            )
+        }
+        // ADR 0062: Web Sources have no ProgressPeerCapability; fall back to WebDAV file sync.
+        // Audio is not handled here — Chitanka and Gutenberg are ebook-only.
+        val source = sourceRepository.getById(sourceId) ?: return null
+        if (!source.type.isWebSource) return null
+        val webDavConfig = annotationSyncConfigStore.observe().value ?: return null
+        return webDavProgressRemoteFactory.create(
+            config = webDavConfig,
+            namespace = source.type.name.lowercase(),
             itemId = itemId,
-            translator = translatorFactory.forItem(sourceId, itemId),
             readingProgress = { libraryItemDao.getById(sourceId, itemId)?.readingProgress ?: 0f },
             clock = clock,
         )
