@@ -3,6 +3,8 @@ package com.riffle.core.domain.comic
 import java.io.File
 import java.io.InputStream
 import java.util.zip.ZipFile
+import javax.xml.parsers.DocumentBuilderFactory
+import org.w3c.dom.Element
 
 /**
  * Reads a CBZ (ZIP-of-images) with random-access. Page order is the archive's image entries in
@@ -52,6 +54,30 @@ class CbzArchive(file: File) : ComicArchive {
 
     override fun close() {
         zip.close()
+    }
+
+    fun readComicInfo(): List<ComicBookmark>? {
+        val entry = zip.entries().asSequence()
+            .firstOrNull { e ->
+                e.name.equals("ComicInfo.xml", ignoreCase = true) ||
+                    e.name.endsWith("/ComicInfo.xml", ignoreCase = true)
+            } ?: return null
+        return try {
+            val doc = zip.getInputStream(entry).use { stream ->
+                DocumentBuilderFactory.newInstance().newDocumentBuilder().parse(stream)
+            }
+            val pageNodes = doc.getElementsByTagName("Page")
+            val bookmarks = mutableListOf<ComicBookmark>()
+            for (i in 0 until pageNodes.length) {
+                val page = pageNodes.item(i) as? Element ?: continue
+                val bookmark = page.getAttribute("Bookmark").takeIf { it.isNotBlank() } ?: continue
+                val imageIndex = page.getAttribute("Image").toIntOrNull() ?: continue
+                bookmarks.add(ComicBookmark(pageIndex = imageIndex, title = bookmark))
+            }
+            bookmarks.takeIf { it.isNotEmpty() }
+        } catch (_: Exception) {
+            null
+        }
     }
 
     private data class Entry(val name: String, val mediaType: String)
