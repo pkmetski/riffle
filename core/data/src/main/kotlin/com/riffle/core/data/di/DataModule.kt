@@ -147,6 +147,14 @@ annotation class AppUpdatePreferencesDataStore
 @Retention(AnnotationRetention.BINARY)
 annotation class ComicFormattingPreferencesDataStore
 
+@Qualifier
+@Retention(AnnotationRetention.BINARY)
+annotation class DeveloperOptionsDataStore
+
+@Qualifier
+@Retention(AnnotationRetention.BINARY)
+annotation class DeveloperOptionsPatStore
+
 @Module(
     includes = [
         NetworkModule::class,
@@ -156,6 +164,7 @@ annotation class ComicFormattingPreferencesDataStore
         RepositoriesModule::class,
         SyncModule::class,
         com.riffle.core.data.di.modules.PanelModule::class,
+        com.riffle.core.data.di.modules.DeveloperModule::class,
     ],
 )
 @InstallIn(SingletonComponent::class)
