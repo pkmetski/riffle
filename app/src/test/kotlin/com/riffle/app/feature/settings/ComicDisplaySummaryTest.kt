@@ -29,9 +29,11 @@ class ComicDisplaySummaryTest {
         )
     }
 
-    @Test fun `panel view on with legacy OFF shows Panel View on`() {
+    @Test fun `panel view on with OFF shows No split`() {
+        // PanelOverflowBehavior.OFF is now the user-selectable "No split" option in the
+        // overflow radio group, so the summary must reflect that label.
         assertEquals(
-            "Panel View on",
+            "Panel View · No split",
             comicDisplaySummary(ComicFormattingPreferences(panelViewOn = true, panelOverflow = PanelOverflowBehavior.OFF)),
         )
     }
