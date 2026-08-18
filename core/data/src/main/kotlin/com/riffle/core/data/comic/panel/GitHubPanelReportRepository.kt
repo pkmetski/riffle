@@ -14,6 +14,7 @@ import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
+import java.io.IOException
 import java.util.UUID
 
 class GitHubPanelReportRepository(
@@ -40,9 +41,20 @@ class GitHubPanelReportRepository(
                 jsonObject("content" to pngBase64, "encoding" to "base64"),
             ).field("sha")
 
-            // 2. Get current commit sha from panel-reports branch
-            val refJson = get("$base/repos/$owner/$repoName/git/ref/heads/panel-reports")
-            val currentCommitSha = refJson["object"]!!.jsonObject["sha"]!!.jsonPrimitive.content
+            // 2. Get current commit sha from panel-reports branch (create from main if absent)
+            val currentCommitSha = try {
+                get("$base/repos/$owner/$repoName/git/ref/heads/panel-reports")
+                    .let { it["object"]!!.jsonObject["sha"]!!.jsonPrimitive.content }
+            } catch (e: IOException) {
+                if ("404" !in (e.message ?: "")) throw e
+                val mainSha = get("$base/repos/$owner/$repoName/git/ref/heads/main")
+                    .let { it["object"]!!.jsonObject["sha"]!!.jsonPrimitive.content }
+                post(
+                    "$base/repos/$owner/$repoName/git/refs",
+                    jsonObject("ref" to "refs/heads/panel-reports", "sha" to mainSha),
+                )
+                mainSha
+            }
 
             // 3. Get current tree sha
             val commitJson = get("$base/repos/$owner/$repoName/git/commits/$currentCommitSha")
@@ -101,7 +113,13 @@ class GitHubPanelReportRepository(
             .header("X-GitHub-Api-Version", "2022-11-28")
             .build()
         return client.newCall(req).execute().use { resp ->
-            json.parseToJsonElement(resp.body!!.string()).jsonObject
+            val bodyStr = resp.body!!.string()
+            val obj = json.parseToJsonElement(bodyStr).jsonObject
+            if (!resp.isSuccessful) {
+                val msg = obj["message"]?.jsonPrimitive?.content ?: resp.message
+                throw IOException("GitHub ${resp.code}: $msg")
+            }
+            obj
         }
     }
 
@@ -113,7 +131,13 @@ class GitHubPanelReportRepository(
             .post(body.toRequestBody(jsonMedia))
             .build()
         return client.newCall(req).execute().use { resp ->
-            json.parseToJsonElement(resp.body!!.string()).jsonObject
+            val bodyStr = resp.body!!.string()
+            val obj = json.parseToJsonElement(bodyStr).jsonObject
+            if (!resp.isSuccessful) {
+                val msg = obj["message"]?.jsonPrimitive?.content ?: resp.message
+                throw IOException("GitHub ${resp.code}: $msg")
+            }
+            obj
         }
     }
 
@@ -124,7 +148,15 @@ class GitHubPanelReportRepository(
             .header("X-GitHub-Api-Version", "2022-11-28")
             .patch(body.toRequestBody(jsonMedia))
             .build()
-        client.newCall(req).execute().use { }
+        client.newCall(req).execute().use { resp ->
+            if (!resp.isSuccessful) {
+                val bodyStr = resp.body?.string() ?: ""
+                val msg = runCatching {
+                    json.parseToJsonElement(bodyStr).jsonObject["message"]?.jsonPrimitive?.content
+                }.getOrNull() ?: resp.message
+                throw IOException("GitHub ${resp.code}: $msg")
+            }
+        }
     }
 
     private fun JsonObject.field(key: String): String = this[key]!!.jsonPrimitive.content
