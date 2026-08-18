@@ -10,7 +10,6 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -39,14 +38,13 @@ fun ChapterMapOverlay(
     bookmarkPositions: List<Float> = emptyList(),
     onSegmentClick: (RailSegment) -> Unit,
     modifier: Modifier = Modifier,
-    backgroundColor: Color = readerTheme.palette.background,
 ) {
     val darkTheme = readerTheme == ReaderTheme.Dark || readerTheme == ReaderTheme.DarkDim
     RiffleTheme(darkTheme = darkTheme) {
         Column(
             modifier = modifier
                 .fillMaxWidth()
-                .background(backgroundColor),
+                .background(readerTheme.palette.background),
         ) {
             if (showProgressLabels || showCurrentChapterLabel || showReadingTimeEstimate) {
                 ReadingProgressLabels(
