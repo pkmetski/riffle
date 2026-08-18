@@ -37,4 +37,18 @@ class ComicDisplaySummaryTest {
             comicDisplaySummary(ComicFormattingPreferences(panelViewOn = true, panelOverflow = PanelOverflowBehavior.OFF)),
         )
     }
+
+    @Test fun `chapter map off appends to panel view summary`() {
+        assertEquals(
+            "Panel View · Split · Chapter map off",
+            comicDisplaySummary(ComicFormattingPreferences(panelViewOn = true, panelOverflow = PanelOverflowBehavior.SPLIT, showChapterMap = false)),
+        )
+    }
+
+    @Test fun `chapter map off panel view also off`() {
+        assertEquals(
+            "Panel View off · Chapter map off",
+            comicDisplaySummary(ComicFormattingPreferences(panelViewOn = false, showChapterMap = false)),
+        )
+    }
 }
