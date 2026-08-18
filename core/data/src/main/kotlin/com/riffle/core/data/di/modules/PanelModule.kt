@@ -14,8 +14,11 @@ import com.riffle.core.domain.comic.panel.PageImageDecoder
 import com.riffle.core.domain.comic.panel.PanelDetector
 import com.riffle.core.domain.comic.panel.PanelOrchestrator
 import com.riffle.core.domain.comic.panel.PanelOrderer
+import com.riffle.core.data.comic.panel.GitHubPanelReportRepository
+import com.riffle.core.domain.comic.panel.PanelReportRepository
 import com.riffle.core.domain.comic.panel.PanelStore
 import com.riffle.core.domain.comic.panel.PanelViewPreferencesStore
+import com.riffle.core.domain.developer.DeveloperOptionsRepository
 import dagger.Binds
 import dagger.Module
 import dagger.Provides
@@ -71,6 +74,21 @@ abstract class PanelModule {
         @Provides
         @Singleton
         fun providePanelOrderer(): PanelOrderer = PanelOrderer()
+
+        @Provides
+        @Singleton
+        fun providePanelReportRepository(
+            developerOptionsRepository: DeveloperOptionsRepository,
+        ): PanelReportRepository = object : PanelReportRepository {
+            override suspend fun submit(
+                report: com.riffle.core.domain.comic.panel.PanelDetectionReport,
+                maskPng: ByteArray,
+            ): Result<String> {
+                val pat = developerOptionsRepository.getGithubPat()
+                    ?: return Result.failure(IllegalStateException("No GitHub PAT configured"))
+                return GitHubPanelReportRepository(pat = pat).submit(report, maskPng)
+            }
+        }
 
         @Provides
         @Singleton
