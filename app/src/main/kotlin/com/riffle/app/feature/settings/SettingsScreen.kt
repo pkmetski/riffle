@@ -25,12 +25,14 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.hilt.navigation.compose.hiltViewModel
+import kotlinx.coroutines.launch
 import com.riffle.app.feature.server.AddSourceBackend
 import com.riffle.app.feature.settings.panels.AutoScrollSettingsPanel
 import com.riffle.app.feature.settings.panels.BehaviorSettingsPanel
@@ -103,6 +105,7 @@ fun SettingsScreen(
     val expandedCrashes = remember { mutableStateMapOf<String, Boolean>() }
     var openPanel by remember { mutableStateOf<SettingsPanel?>(null) }
     val snackbarHostState = remember { SnackbarHostState() }
+    val coroutineScope = rememberCoroutineScope()
 
     LaunchedEffect(Unit) {
         viewModel.developerUnlockEvents.collect { snackbarHostState.showSnackbar("Developer options enabled") }
@@ -237,6 +240,7 @@ fun SettingsScreen(
                     onVersionTap = viewModel::onVersionTap,
                     developerModeEnabled = developerModeEnabled,
                     onSaveGithubPat = viewModel::onSaveGithubPat,
+                    onPatSaved = { coroutineScope.launch { snackbarHostState.showSnackbar("PAT saved") } },
                 )
                 HorizontalDivider()
             }

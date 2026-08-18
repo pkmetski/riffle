@@ -23,7 +23,10 @@ import androidx.compose.ui.unit.dp
 import com.riffle.app.feature.settings.SettingsSectionHeader
 
 @Composable
-internal fun DeveloperOptionsSection(onSaveGithubPat: (String) -> Unit) {
+internal fun DeveloperOptionsSection(
+    onSaveGithubPat: (String) -> Unit,
+    onPatSaved: () -> Unit = {},
+) {
     HorizontalDivider()
     SettingsSectionHeader("Developer options")
     var pat by remember { mutableStateOf("") }
@@ -43,7 +46,11 @@ internal fun DeveloperOptionsSection(onSaveGithubPat: (String) -> Unit) {
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Button(
-                onClick = { onSaveGithubPat(pat) },
+                onClick = {
+                    onSaveGithubPat(pat)
+                    pat = ""
+                    onPatSaved()
+                },
                 enabled = pat.isNotBlank(),
             ) { Text("Save") }
         }
