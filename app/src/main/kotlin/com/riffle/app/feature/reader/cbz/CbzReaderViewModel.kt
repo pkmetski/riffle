@@ -111,14 +111,15 @@ class CbzReaderViewModel @Inject constructor(
     private val _railSegments = MutableStateFlow<List<RailSegment>>(emptyList())
     val railSegments: StateFlow<List<RailSegment>> = _railSegments.asStateFlow()
 
+    private val _pageCount = MutableStateFlow(0)
+
     val activeRailSegmentIndex: StateFlow<Int> = combine(_currentPage, _railSegments) { page, segments ->
         findActiveCbzSegmentIndex(segments, page).coerceAtLeast(0)
     }.stateIn(viewModelScope, SharingStarted.Eagerly, 0)
 
-    val railCursorPosition: StateFlow<Float> = combine(_currentPage, _railSegments) { page, segments ->
-        val pageCount = (_state.value as? CbzReaderState.Ready)?.pageCount ?: 1
+    val railCursorPosition: StateFlow<Float> = combine(_currentPage, _railSegments, _pageCount) { page, segments, pageCount ->
         val activeIndex = findActiveCbzSegmentIndex(segments, page).coerceAtLeast(0)
-        cbzRailCursorPosition(segments, activeIndex, page, pageCount)
+        cbzRailCursorPosition(segments, activeIndex, page, pageCount.coerceAtLeast(1))
     }.stateIn(viewModelScope, SharingStarted.Eagerly, 0f)
 
     private val _bookComicOverrides = MutableStateFlow(BookComicFormattingOverrides())
@@ -270,6 +271,7 @@ class CbzReaderViewModel @Inject constructor(
         archive = opened
         val bookmarks = withContext(Dispatchers.IO) { opened.readComicInfo() ?: emptyList() }
         _railSegments.value = buildCbzRailSegments(bookmarks, pageCount)
+        _pageCount.value = pageCount
         val resumeIndex = lastPosition
             ?.let { parsePageIndex(it) }
             ?.coerceIn(0, pageCount - 1)
@@ -363,6 +365,7 @@ class CbzReaderViewModel @Inject constructor(
         val swapPageCount = actualPageCount.takeIf { it > 0 } ?: (_state.value as? CbzReaderState.Ready)?.pageCount ?: 1
         val swapBookmarks = withContext(Dispatchers.IO) { newArchive.readComicInfo() ?: emptyList() }
         _railSegments.value = buildCbzRailSegments(swapBookmarks, swapPageCount)
+        _pageCount.value = swapPageCount
         panelBook = panelOrchestrator.forBook(
             bookId = bookId,
             imageBytes = { pageIndex -> newArchive.imageBytes(pageIndex) },
