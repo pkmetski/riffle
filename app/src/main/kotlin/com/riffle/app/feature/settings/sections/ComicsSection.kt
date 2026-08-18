@@ -15,7 +15,10 @@ internal fun comicDisplaySummary(prefs: ComicFormattingPreferences): String = bu
             PanelOverflowBehavior.OFF -> "Panel View · No split"
         } else "Panel View off"
     )
-    if (prefs.showChapterMap) append(" · Chapter map")
+    if (prefs.showChapterMap) {
+        append(" · Chapter map")
+        if (prefs.showPageProgress) append(" · Pages")
+    }
 }
 
 @Composable

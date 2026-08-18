@@ -442,6 +442,7 @@ class CbzReaderViewModel @Inject constructor(
                 panelOverflow = patch.panelOverflow ?: current.panelOverflow,
                 panelAnimationSpeedMs = patch.panelAnimationSpeedMs ?: current.panelAnimationSpeedMs,
                 showChapterMap = patch.showChapterMap ?: current.showChapterMap,
+                showPageProgress = patch.showPageProgress ?: current.showPageProgress,
             )
         }
         _bookComicOverrides.value = merged

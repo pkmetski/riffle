@@ -76,5 +76,17 @@ internal fun ComicDisplaySettingsPanel(
             )
         },
     )
+    if (prefs.showChapterMap) {
+        ListItem(
+            headlineContent = { Text("Page progress") },
+            supportingContent = { Text("Current page and remaining pages above the chapter map") },
+            trailingContent = {
+                Switch(
+                    checked = prefs.showPageProgress,
+                    onCheckedChange = { on -> onPrefsChange(prefs.copy(showPageProgress = on)) },
+                )
+            },
+        )
+    }
 }
 

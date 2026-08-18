@@ -7,6 +7,7 @@ data class ComicFormattingPreferences(
     val panelOverflow: PanelOverflowBehavior = PanelOverflowBehavior.SPLIT,
     val panelAnimationSpeedMs: Int = 250,
     val showChapterMap: Boolean = false,
+    val showPageProgress: Boolean = false,
 )
 
 data class BookComicFormattingOverrides(
@@ -14,14 +15,16 @@ data class BookComicFormattingOverrides(
     val panelOverflow: PanelOverflowBehavior? = null,
     val panelAnimationSpeedMs: Int? = null,
     val showChapterMap: Boolean? = null,
+    val showPageProgress: Boolean? = null,
 ) {
     fun applyTo(global: ComicFormattingPreferences) = global.copy(
         panelViewOn = panelViewOn ?: global.panelViewOn,
         panelOverflow = panelOverflow ?: global.panelOverflow,
         panelAnimationSpeedMs = panelAnimationSpeedMs ?: global.panelAnimationSpeedMs,
         showChapterMap = showChapterMap ?: global.showChapterMap,
+        showPageProgress = showPageProgress ?: global.showPageProgress,
     )
 
     fun isEmpty() = panelViewOn == null && panelOverflow == null && panelAnimationSpeedMs == null &&
-        showChapterMap == null
+        showChapterMap == null && showPageProgress == null
 }

@@ -29,6 +29,8 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.pager.HorizontalPager
@@ -217,20 +219,44 @@ fun CbzReaderScreen(
                     )
                 }
                 if (effectiveComicFormatting.showChapterMap && railSegments.isNotEmpty()) {
-                    ChapterMapOverlay(
-                        segments = railSegments,
-                        activeIndex = activeRailSegmentIndex,
-                        cursorPosition = railCursorPosition,
-                        totalProgress = railCursorPosition,
-                        readerTheme = ReaderTheme.Dark,
-                        showRail = true,
-                        coloredChapterMap = true,
-                        showCurrentChapterLabel = false,
-                        showProgressLabels = false,
-                        showReadingTimeEstimate = false,
-                        onSegmentClick = { segment -> viewModel.jumpToPage(cbzSegmentPageIndex(segment)) },
-                        backgroundColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.9f),
-                    )
+                    val mapBgColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.9f)
+                    val labelColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.65f)
+                    val labelStyle = MaterialTheme.typography.labelSmall
+                    Column(modifier = Modifier.fillMaxWidth().background(mapBgColor)) {
+                        if (effectiveComicFormatting.showPageProgress) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 14.dp, vertical = 2.dp),
+                            ) {
+                                Text(
+                                    text = "${currentPage + 1}",
+                                    style = labelStyle,
+                                    color = labelColor,
+                                )
+                                Spacer(modifier = Modifier.weight(1f))
+                                Text(
+                                    text = "${ready.pageCount - currentPage - 1} left",
+                                    style = labelStyle,
+                                    color = labelColor,
+                                )
+                            }
+                        }
+                        ChapterMapOverlay(
+                            segments = railSegments,
+                            activeIndex = activeRailSegmentIndex,
+                            cursorPosition = railCursorPosition,
+                            totalProgress = railCursorPosition,
+                            readerTheme = ReaderTheme.Dark,
+                            showRail = true,
+                            coloredChapterMap = true,
+                            showCurrentChapterLabel = false,
+                            showProgressLabels = false,
+                            showReadingTimeEstimate = false,
+                            onSegmentClick = { segment -> viewModel.jumpToPage(cbzSegmentPageIndex(segment)) },
+                            backgroundColor = Color.Transparent,
+                        )
+                    }
                 }
             }
         }

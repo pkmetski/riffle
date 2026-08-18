@@ -51,4 +51,18 @@ class ComicDisplaySummaryTest {
             comicDisplaySummary(ComicFormattingPreferences(panelViewOn = false, showChapterMap = true)),
         )
     }
+
+    @Test fun `page progress on appends pages after chapter map`() {
+        assertEquals(
+            "Panel View off · Chapter map · Pages",
+            comicDisplaySummary(ComicFormattingPreferences(panelViewOn = false, showChapterMap = true, showPageProgress = true)),
+        )
+    }
+
+    @Test fun `page progress on without chapter map does not append`() {
+        assertEquals(
+            "Panel View off",
+            comicDisplaySummary(ComicFormattingPreferences(panelViewOn = false, showChapterMap = false, showPageProgress = true)),
+        )
+    }
 }
