@@ -201,34 +201,29 @@ fun CbzReaderScreen(
 
         val ready = state as? CbzReaderState.Ready
         if (ready != null) {
-            AnimatedVisibility(
-                visible = !immersiveState.isImmersive,
-                enter = slideInVertically { it },
-                exit = slideOutVertically { it },
+            Column(
                 modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth(),
             ) {
-                Column {
-                    if (effectiveComicFormatting.showChapterMap && railSegments.isNotEmpty()) {
-                        ChapterNavigationRail(
-                            segments = railSegments,
-                            activeIndex = activeRailSegmentIndex,
-                            cursorPosition = railCursorPosition,
-                            readerTheme = ReaderTheme.Dark,
-                            onSegmentClick = { segment -> viewModel.jumpToPage(cbzSegmentPageIndex(segment)) },
-                            coloredChapterMap = true,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.9f)),
-                            railHeight = 6.dp,
-                        )
-                    }
-                    CbzThumbnailStrip(
-                        currentPage = currentPage,
-                        pageCount = ready.pageCount,
-                        imageSource = ready.thumbnailSource ?: ready.imageSource,
-                        onSeek = { viewModel.jumpToPage(it) },
+                if (effectiveComicFormatting.showChapterMap && railSegments.isNotEmpty()) {
+                    ChapterNavigationRail(
+                        segments = railSegments,
+                        activeIndex = activeRailSegmentIndex,
+                        cursorPosition = railCursorPosition,
+                        readerTheme = ReaderTheme.Dark,
+                        onSegmentClick = { segment -> viewModel.jumpToPage(cbzSegmentPageIndex(segment)) },
+                        coloredChapterMap = true,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.9f)),
+                        railHeight = 6.dp,
                     )
                 }
+                CbzThumbnailStrip(
+                    currentPage = currentPage,
+                    pageCount = ready.pageCount,
+                    imageSource = ready.thumbnailSource ?: ready.imageSource,
+                    onSeek = { viewModel.jumpToPage(it) },
+                )
             }
         }
     }
