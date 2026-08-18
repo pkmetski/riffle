@@ -1,12 +1,12 @@
 package com.riffle.app.feature.settings.dictionary
 
+import android.content.Context
 import androidx.arch.core.executor.testing.InstantTaskExecutorRule
 import com.riffle.app.dictionary.DictionaryPackScheduler
-import com.riffle.core.data.dictionary.PackManifestFetcher
 import com.riffle.core.dictionary.DictionaryPackState
 import com.riffle.core.dictionary.InstalledPack
-import com.riffle.core.dictionary.PackInfo
-import com.riffle.core.dictionary.PackManifest
+import com.riffle.core.dictionary.LanguageCatalog
+import com.riffle.core.dictionary.LanguageCatalogEntry
 import com.riffle.core.dictionary.PackStore
 import io.mockk.mockk
 import kotlinx.coroutines.Dispatchers
@@ -19,7 +19,6 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Rule
@@ -40,71 +39,71 @@ class DictionaryPacksViewModelTest {
 
     private val installedFrench = InstalledPack(
         languageTag = "fr",
-        packVersion = "2026-08-01",
+        packVersion = "2026-08-18",
         installedAt = 0L,
-        sizeBytes = 12_000_000L,
-        attributionHtml = "<a>Wiktionary</a>",
-        licenseUrl = "https://cc.org",
-    )
-
-    private val frPack = PackInfo(
-        languageTag = "fr",
-        packVersion = "2026-09-01",
-        downloadUrl = "https://example.com/fr.db",
-        sha256 = "abc123",
-        sizeBytes = 13_000_000L,
+        sizeBytes = 120_000_000L,
         attributionHtml = "<a>Wiktionary</a>",
         licenseUrl = "https://cc.org",
     )
 
     @Test
-    fun `manifest is loaded on init`() = runTest {
-        val manifest = PackManifest(version = 1, packs = listOf(frPack))
-        val vm = viewModel(manifest = manifest)
-        advanceUntilIdle()
-        assertEquals(manifest, vm.manifest.value)
-        assertFalse(vm.manifestError.value)
+    fun `catalog returns all LanguageCatalog entries`() {
+        val vm = viewModel()
+        assertEquals(LanguageCatalog.all, vm.catalog)
     }
 
     @Test
-    fun `manifestError is set when fetch fails`() = runTest {
-        val vm = viewModel(manifestFails = true)
-        advanceUntilIdle()
-        assertTrue(vm.manifestError.value)
-    }
-
-    @Test
-    fun `installedPacks reflects the PackStore`() = runTest {
+    fun `installedPacks reflects PackStore`() = runTest {
         val vm = viewModel(installed = listOf(installedFrench))
         advanceUntilIdle()
         assertEquals(1, vm.installedPacks.value.size)
         assertEquals("fr", vm.installedPacks.value[0].languageTag)
     }
 
+    @Test
+    fun `enqueueDownload delegates to scheduler`() {
+        val scheduled = mutableListOf<LanguageCatalogEntry>()
+        val vm = viewModel(onSchedule = { scheduled.add(it) })
+        val frEntry = LanguageCatalog.entryFor("fr")!!
+        vm.enqueueDownload(mockContext(), frEntry)
+        assertEquals(listOf(frEntry), scheduled)
+    }
+
+    @Test
+    fun `enqueueUpdate delegates to scheduler for known language`() {
+        val scheduled = mutableListOf<LanguageCatalogEntry>()
+        val vm = viewModel(onSchedule = { scheduled.add(it) })
+        vm.enqueueUpdate(mockContext(), "fr")
+        assertEquals(1, scheduled.size)
+        assertEquals("fr", scheduled[0].languageTag)
+    }
+
+    @Test
+    fun `enqueueUpdate is no-op for unknown language`() {
+        val scheduled = mutableListOf<LanguageCatalogEntry>()
+        val vm = viewModel(onSchedule = { scheduled.add(it) })
+        vm.enqueueUpdate(mockContext(), "xx")
+        assertTrue(scheduled.isEmpty())
+    }
+
     // --- Helpers ---
 
     private fun viewModel(
         installed: List<InstalledPack> = emptyList(),
-        manifest: PackManifest = PackManifest(version = 1, packs = emptyList()),
-        manifestFails: Boolean = false,
+        onSchedule: (LanguageCatalogEntry) -> Unit = {},
     ): DictionaryPacksViewModel {
         val packStore = object : PackStore {
             override fun observeInstalledPacks(): Flow<List<InstalledPack>> = flowOf(installed)
             override fun observePackState(languageTag: String) = flowOf(DictionaryPackState.NOT_INSTALLED)
             override suspend fun deleteInstalledPack(languageTag: String) {}
         }
-        val fetcher = object : PackManifestFetcher(
-            httpClient = mockk(relaxed = true),
-            manifestUrl = "",
-        ) {
-            override suspend fun fetch(): PackManifest {
-                if (manifestFails) throw Exception("fetch failed")
-                return manifest
+        val scheduler = object : DictionaryPackScheduler() {
+            override fun enqueueDownload(context: Context, entry: LanguageCatalogEntry) {
+                onSchedule(entry)
             }
         }
-        val scheduler = object : DictionaryPackScheduler() {
-            override fun enqueueDownload(context: android.content.Context, packInfo: PackInfo) {}
-        }
-        return DictionaryPacksViewModel(packStore, fetcher, scheduler)
+        return DictionaryPacksViewModel(packStore, scheduler)
     }
+
+    private fun mockContext(): Context = mockk(relaxed = true)
 }

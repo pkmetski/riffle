@@ -11,7 +11,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -31,7 +30,8 @@ import androidx.compose.ui.unit.dp
 import androidx.core.text.HtmlCompat
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.riffle.core.dictionary.InstalledPack
-import com.riffle.core.dictionary.PackInfo
+import com.riffle.core.dictionary.LanguageCatalog
+import com.riffle.core.dictionary.LanguageCatalogEntry
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -40,9 +40,10 @@ fun DictionaryPacksScreen(
     viewModel: DictionaryPacksViewModel = hiltViewModel(),
 ) {
     val installedPacks by viewModel.installedPacks.collectAsState()
-    val manifest by viewModel.manifest.collectAsState()
-    val manifestError by viewModel.manifestError.collectAsState()
     val context = LocalContext.current
+
+    val installedTags = installedPacks.map { it.languageTag }.toSet()
+    val availablePacks = viewModel.catalog.filter { it.languageTag !in installedTags }
 
     Scaffold(
         topBar = {
@@ -72,6 +73,7 @@ fun DictionaryPacksScreen(
                     InstalledPackRow(
                         pack = pack,
                         onDelete = { viewModel.deleteInstalledPack(pack.languageTag) },
+                        onUpdate = { viewModel.enqueueUpdate(context, pack.languageTag) },
                     )
                 }
                 Spacer(modifier = Modifier.height(8.dp))
@@ -83,41 +85,18 @@ fun DictionaryPacksScreen(
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
             )
 
-            when {
-                manifestError -> {
-                    Text(
-                        text = "Could not load available packs. Check your connection.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        modifier = Modifier.padding(horizontal = 16.dp),
+            if (availablePacks.isEmpty()) {
+                Text(
+                    text = "All available packs are installed.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.padding(horizontal = 16.dp),
+                )
+            } else {
+                availablePacks.forEach { entry ->
+                    AvailablePackRow(
+                        entry = entry,
+                        onDownload = { viewModel.enqueueDownload(context, entry) },
                     )
-                    TextButton(
-                        onClick = viewModel::refreshManifest,
-                        modifier = Modifier.padding(horizontal = 8.dp),
-                    ) {
-                        Text("Retry")
-                    }
-                }
-                manifest == null -> {
-                    CircularProgressIndicator(modifier = Modifier.padding(16.dp))
-                }
-                else -> {
-                    val availablePacks = manifest!!.packs.filter { remote ->
-                        installedPacks.none { it.languageTag == remote.languageTag }
-                    }
-                    if (availablePacks.isEmpty()) {
-                        Text(
-                            text = "All available packs are installed.",
-                            style = MaterialTheme.typography.bodyMedium,
-                            modifier = Modifier.padding(horizontal = 16.dp),
-                        )
-                    } else {
-                        availablePacks.forEach { pack ->
-                            AvailablePackRow(
-                                pack = pack,
-                                onDownload = { viewModel.enqueueDownload(context, pack) },
-                            )
-                        }
-                    }
                 }
             }
         }
@@ -125,10 +104,18 @@ fun DictionaryPacksScreen(
 }
 
 @Composable
-private fun InstalledPackRow(pack: InstalledPack, onDelete: () -> Unit) {
+private fun InstalledPackRow(
+    pack: InstalledPack,
+    onDelete: () -> Unit,
+    onUpdate: () -> Unit,
+) {
+    val displayName = LanguageCatalog.entryFor(pack.languageTag)?.displayName ?: pack.languageTag
     val attributionText = HtmlCompat.fromHtml(pack.attributionHtml, HtmlCompat.FROM_HTML_MODE_COMPACT).toString()
     Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
-        Text("${pack.languageTag} · v${pack.packVersion} · ${formatBytes(pack.sizeBytes)}", style = MaterialTheme.typography.bodyMedium)
+        Text(
+            "$displayName · ${pack.packVersion} · ${formatBytes(pack.sizeBytes)}",
+            style = MaterialTheme.typography.bodyMedium,
+        )
         Text(
             text = attributionText,
             style = MaterialTheme.typography.bodySmall,
@@ -147,6 +134,7 @@ private fun InstalledPackRow(pack: InstalledPack, onDelete: () -> Unit) {
         }
         Row {
             Spacer(modifier = Modifier.weight(1f))
+            TextButton(onClick = onUpdate) { Text("Update") }
             TextButton(onClick = onDelete) { Text("Delete") }
         }
     }
@@ -154,12 +142,12 @@ private fun InstalledPackRow(pack: InstalledPack, onDelete: () -> Unit) {
 
 @Composable
 private fun AvailablePackRow(
-    pack: PackInfo,
+    entry: LanguageCatalogEntry,
     onDownload: () -> Unit,
 ) {
     ListItem(
-        headlineContent = { Text(pack.languageTag) },
-        supportingContent = { Text(formatBytes(pack.sizeBytes)) },
+        headlineContent = { Text(entry.displayName) },
+        supportingContent = { Text("~${formatBytes(entry.approximateSizeBytes)}") },
         trailingContent = {
             TextButton(onClick = onDownload) { Text("Download") }
         },
@@ -168,5 +156,5 @@ private fun AvailablePackRow(
 
 private fun formatBytes(bytes: Long): String {
     val mb = bytes / (1024.0 * 1024.0)
-    return if (mb >= 1.0) "%.1f MB".format(mb) else "${bytes / 1024} KB"
+    return if (mb >= 1.0) "%.0f MB".format(mb) else "${bytes / 1024} KB"
 }
