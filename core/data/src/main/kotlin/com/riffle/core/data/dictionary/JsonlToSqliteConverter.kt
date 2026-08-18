@@ -12,6 +12,40 @@ fun interface JsonlToSqliteConverter {
 
 internal class KaikkiJsonlToSqliteConverter : JsonlToSqliteConverter {
     override fun convert(jsonlFile: File, dbFile: File) {
+        // Phase 1: Parse JSONL and accumulate glosses per (form, pos).
+        // kaikki.org emits one line per etymology, so the same word+pos may appear multiple times.
+        // Accumulating here merges all etymologies' senses rather than silently overwriting them.
+        val accumulated = HashMap<Pair<String, String>, JSONArray>()
+        BufferedReader(jsonlFile.reader()).use { reader ->
+            var line = reader.readLine()
+            while (line != null) {
+                try {
+                    val obj = JSONObject(line)
+                    val form = obj.optString("word").trim()
+                    val pos = obj.optString("pos").trim()
+                    if (form.isNotBlank()) {
+                        val glosses = extractGlosses(obj)
+                        if (glosses.length() > 0) {
+                            val key = Pair(form, pos)
+                            val existing = accumulated.getOrPut(key) { JSONArray() }
+                            for (i in 0 until glosses.length()) {
+                                existing.put(glosses.getString(i))
+                            }
+                        }
+                    }
+                } catch (_: Exception) {
+                    // malformed line: skip
+                }
+                line = reader.readLine()
+            }
+        }
+
+        if (accumulated.isEmpty()) {
+            throw IllegalStateException("No valid entries found in JSONL — file may be malformed or an HTML error page")
+        }
+
+        // Phase 2: Write to SQLite. Batch-commit logic is outside the per-line catch so
+        // disk-full and other DB exceptions propagate correctly to PackDownloader's error handler.
         val db = SQLiteDatabase.openOrCreateDatabase(dbFile, null)
         try {
             db.execSQL(
@@ -25,42 +59,23 @@ internal class KaikkiJsonlToSqliteConverter : JsonlToSqliteConverter {
             db.execSQL("CREATE INDEX entries_form ON entries(form COLLATE NOCASE)")
 
             val insert = db.compileStatement(
-                "INSERT OR REPLACE INTO entries(form, pos, glosses) VALUES(?,?,?)"
+                "INSERT INTO entries(form, pos, glosses) VALUES(?,?,?)"
             )
 
             var rowCount = 0
             db.beginTransaction()
             try {
-                BufferedReader(jsonlFile.reader()).use { reader ->
-                    var line = reader.readLine()
-                    while (line != null) {
-                        try {
-                            val obj = JSONObject(line)
-                            val form = obj.optString("word").trim()
-                            val pos = obj.optString("pos").trim()
-                            if (form.isBlank()) {
-                                line = reader.readLine()
-                                continue
-                            }
-                            val glosses = extractGlosses(obj)
-                            if (glosses.length() == 0) {
-                                line = reader.readLine()
-                                continue
-                            }
-                            insert.bindString(1, form)
-                            insert.bindString(2, pos)
-                            insert.bindString(3, glosses.toString())
-                            insert.executeInsert()
-                            rowCount++
-                            if (rowCount % 10_000 == 0) {
-                                db.setTransactionSuccessful()
-                                db.endTransaction()
-                                db.beginTransaction()
-                            }
-                        } catch (_: Exception) {
-                            // malformed line: skip
-                        }
-                        line = reader.readLine()
+                for ((key, glosses) in accumulated) {
+                    val (form, pos) = key
+                    insert.bindString(1, form)
+                    insert.bindString(2, pos)
+                    insert.bindString(3, glosses.toString())
+                    insert.executeInsert()
+                    rowCount++
+                    if (rowCount % 10_000 == 0) {
+                        db.setTransactionSuccessful()
+                        db.endTransaction()
+                        db.beginTransaction()
                     }
                 }
                 db.setTransactionSuccessful()

@@ -97,6 +97,7 @@ class PackDownloader @Inject constructor(
         } catch (_: Exception) {
             tmpJsonFile.delete()
             tmpDbFile.delete()
+            finalFile.delete()
             dictionaryPackDao.updateState(entry.languageTag, DictionaryPackState.FAILED.name)
             false
         }

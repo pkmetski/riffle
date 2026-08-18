@@ -103,6 +103,15 @@ class PackDownloaderTest {
         assertNotNull(dao.firstUpsertedState)
         assertEquals(DictionaryPackState.DOWNLOADING.name, dao.firstUpsertedState)
     }
+
+    @Test
+    fun `upsert failure after rename - final db is deleted to avoid storage leak`() = runBlocking {
+        server.enqueue(MockResponse().setBody("{}"))
+        dao.throwOnSecondUpsert = true
+        val result = downloader.download(testEntry())
+        assertFalse(result)
+        assertFalse("orphaned final db should be cleaned up", File(filesDir, "dicts/fr.db").exists())
+    }
 }
 
 private class FakeJsonlConverter : JsonlToSqliteConverter {
@@ -118,6 +127,7 @@ private class FakePackDao : DictionaryPackDao {
     var lastUpserted: DictionaryPackEntity? = null
     var lastState: String? = null
     var firstUpsertedState: String? = null
+    var throwOnSecondUpsert = false
     private var upsertCount = 0
 
     override fun observeForLanguage(languageTag: String): Flow<DictionaryPackEntity?> = _flow
@@ -126,6 +136,7 @@ private class FakePackDao : DictionaryPackDao {
     override suspend fun upsert(entity: DictionaryPackEntity) {
         upsertCount++
         if (upsertCount == 1) firstUpsertedState = entity.state
+        if (upsertCount == 2 && throwOnSecondUpsert) throw RuntimeException("DAO error on second upsert")
         lastUpserted = entity
         _flow.value = entity
     }
