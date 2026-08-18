@@ -72,7 +72,7 @@ import coil.compose.AsyncImage
 import coil.compose.SubcomposeAsyncImage
 import coil.request.ImageRequest
 import coil.size.Size as CoilSize
-import com.riffle.app.feature.reader.ChapterMapOverlay
+import com.riffle.app.feature.reader.ChapterNavigationRail
 import com.riffle.app.feature.reader.VolumeNavEvent
 import com.riffle.app.feature.reader.cbzSegmentPageIndex
 import com.riffle.app.feature.reader.rememberImmersiveModeState
@@ -208,19 +208,18 @@ fun CbzReaderScreen(
                 modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth(),
             ) {
                 Column {
-                    if (effectiveComicFormatting.showChapterMap) {
-                        ChapterMapOverlay(
+                    if (effectiveComicFormatting.showChapterMap && railSegments.isNotEmpty()) {
+                        ChapterNavigationRail(
                             segments = railSegments,
                             activeIndex = activeRailSegmentIndex,
                             cursorPosition = railCursorPosition,
-                            totalProgress = railCursorPosition,
                             readerTheme = ReaderTheme.Dark,
-                            showRail = true,
-                            coloredChapterMap = true,
-                            showCurrentChapterLabel = true,
-                            showProgressLabels = false,
-                            showReadingTimeEstimate = false,
                             onSegmentClick = { segment -> viewModel.jumpToPage(cbzSegmentPageIndex(segment)) },
+                            coloredChapterMap = true,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.9f)),
+                            railHeight = 6.dp,
                         )
                     }
                     CbzThumbnailStrip(

@@ -6,7 +6,7 @@ data class ComicFormattingPreferences(
     val panelViewOn: Boolean = false,
     val panelOverflow: PanelOverflowBehavior = PanelOverflowBehavior.SPLIT,
     val panelAnimationSpeedMs: Int = 250,
-    val showChapterMap: Boolean = true,
+    val showChapterMap: Boolean = false,
 )
 
 data class BookComicFormattingOverrides(

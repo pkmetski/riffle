@@ -25,7 +25,7 @@ class ComicFormattingPreferencesStoreImpl @Inject constructor(
                 ?.let { runCatching { PanelOverflowBehavior.valueOf(it) }.getOrNull() }
                 ?: PanelOverflowBehavior.SPLIT,
             panelAnimationSpeedMs = prefs[PANEL_ANIMATION_SPEED_MS] ?: 250,
-            showChapterMap = prefs[SHOW_CHAPTER_MAP] ?: true,
+            showChapterMap = prefs[SHOW_CHAPTER_MAP] ?: false,
         )
     }
 
@@ -42,8 +42,8 @@ class ComicFormattingPreferencesStoreImpl @Inject constructor(
             } else {
                 data[PANEL_ANIMATION_SPEED_MS] = prefs.panelAnimationSpeedMs
             }
-            if (prefs.showChapterMap) data.remove(SHOW_CHAPTER_MAP)
-            else data[SHOW_CHAPTER_MAP] = false
+            if (!prefs.showChapterMap) data.remove(SHOW_CHAPTER_MAP)
+            else data[SHOW_CHAPTER_MAP] = true
         }
     }
 
