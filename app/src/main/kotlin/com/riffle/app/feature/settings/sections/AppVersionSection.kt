@@ -31,8 +31,8 @@ internal fun AppVersionSection(
     onNavigateToChangelog: () -> Unit,
     onVersionTap: () -> Unit = {},
     developerModeEnabled: Boolean = false,
+    currentGithubPat: String = "",
     onSaveGithubPat: (String) -> Unit = {},
-    onPatSaved: () -> Unit = {},
 ) {
     SettingsSectionHeader("App version")
     val supporting = when (state) {
@@ -72,7 +72,7 @@ internal fun AppVersionSection(
         },
     )
     if (developerModeEnabled) {
-        DeveloperOptionsSection(onSaveGithubPat = onSaveGithubPat, onPatSaved = onPatSaved)
+        DeveloperOptionsSection(currentPat = currentGithubPat, onSaveGithubPat = onSaveGithubPat)
     }
     ListItem(
         headlineContent = { Text("Check for updates on startup") },

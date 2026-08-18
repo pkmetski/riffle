@@ -55,6 +55,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -512,6 +513,9 @@ class SettingsViewModel @Inject constructor(
 
     val developerModeEnabled: StateFlow<Boolean> = developerOptionsRepository.developerModeEnabled
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
+
+    val githubPat: StateFlow<String> = flow { emit(developerOptionsRepository.getGithubPat() ?: "") }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), "")
 
     private val _developerUnlockEvents = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
     val developerUnlockEvents: SharedFlow<Unit> = _developerUnlockEvents.asSharedFlow()
