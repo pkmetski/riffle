@@ -68,6 +68,16 @@ class ReaderSettingsSummariesTest {
         assertEquals("Keep screen off · volume nav on", behaviorSummary(keepScreenOn = false, volumeKeyNavigationEnabled = true))
     }
 
+    @Test fun autoScrollSummaryOnAndOff() {
+        assertEquals("Hands-free scroll — 250 wpm", autoScrollSummary(defaults.copy(showAutoScroll = true, autoScrollWpm = 250)))
+        assertEquals("Off", autoScrollSummary(defaults.copy(showAutoScroll = false)))
+    }
+
+    @Test fun cadenceSummaryOnAndOff() {
+        assertEquals("Sentence highlight — 300 wpm", cadenceSummary(defaults.copy(showCadence = true, cadenceWpm = 300)))
+        assertEquals("Off", cadenceSummary(defaults.copy(showCadence = false)))
+    }
+
     @Test fun autoScheduleSummaryFormatsTimesAndThemes() {
         val schedule = ThemeSchedule(
             dayStart = LocalTime.of(7, 0),

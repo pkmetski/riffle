@@ -1,6 +1,8 @@
 package com.riffle.app.feature.settings.sections
 
 import androidx.compose.runtime.Composable
+import com.riffle.app.feature.reader.autoScrollSummary
+import com.riffle.app.feature.reader.cadenceSummary
 import com.riffle.app.feature.reader.displaySummary
 import com.riffle.app.feature.reader.formattingSummary
 import com.riffle.app.feature.settings.SettingsDrillInRow
@@ -26,17 +28,13 @@ internal fun ReadingSection(
     )
     SettingsDrillInRow(
         title = "Auto-Scroll",
-        summary = if (globalFormatting.showAutoScroll)
-            "Hands-free scroll — ${globalFormatting.autoScrollWpm} wpm"
-        else "Off",
+        summary = autoScrollSummary(globalFormatting),
         onClick = { onOpenPanel(SettingsPanel.AutoScroll) },
     )
     if (globalFormatting.cadencePlatformSupported) {
         SettingsDrillInRow(
             title = "Cadence",
-            summary = if (globalFormatting.showCadence)
-                "Sentence highlight — ${globalFormatting.cadenceWpm} wpm"
-            else "Off",
+            summary = cadenceSummary(globalFormatting),
             onClick = { onOpenPanel(SettingsPanel.Cadence) },
         )
     }

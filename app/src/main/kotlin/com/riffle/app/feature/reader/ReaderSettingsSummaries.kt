@@ -60,6 +60,12 @@ fun displaySummary(prefs: FormattingPreferences): String {
 fun behaviorSummary(keepScreenOn: Boolean, volumeKeyNavigationEnabled: Boolean): String =
     "Keep screen ${if (keepScreenOn) "on" else "off"} · volume nav ${if (volumeKeyNavigationEnabled) "on" else "off"}"
 
+fun autoScrollSummary(prefs: FormattingPreferences): String =
+    if (prefs.showAutoScroll) "Hands-free scroll — ${prefs.autoScrollWpm} wpm" else "Off"
+
+fun cadenceSummary(prefs: FormattingPreferences): String =
+    if (prefs.showCadence) "Sentence highlight — ${prefs.cadenceWpm} wpm" else "Off"
+
 fun autoScheduleSummary(schedule: ThemeSchedule): String {
     fun t(time: LocalTime) = "%02d:%02d".format(time.hour, time.minute)
     return "Day ${t(schedule.dayStart)} · ${schedule.dayTheme.label()} → " +
