@@ -3,14 +3,12 @@ package com.riffle.app.dictionary
 import android.content.Context
 import androidx.work.BackoffPolicy
 import androidx.work.Constraints
-import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.ExistingWorkPolicy
 import androidx.work.NetworkType
 import androidx.work.OneTimeWorkRequestBuilder
-import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.workDataOf
-import com.riffle.core.dictionary.PackInfo
+import com.riffle.core.dictionary.LanguageCatalogEntry
 import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -22,15 +20,14 @@ open class DictionaryPackScheduler @Inject constructor() {
         .setRequiredNetworkType(NetworkType.CONNECTED)
         .build()
 
-    open fun enqueueDownload(context: Context, packInfo: PackInfo) {
+    open fun enqueueDownload(context: Context, entry: LanguageCatalogEntry) {
         val data = workDataOf(
-            PackDownloadWorker.KEY_LANGUAGE_TAG to packInfo.languageTag,
-            PackDownloadWorker.KEY_DOWNLOAD_URL to packInfo.downloadUrl,
-            PackDownloadWorker.KEY_SHA256 to packInfo.sha256,
-            PackDownloadWorker.KEY_PACK_VERSION to packInfo.packVersion,
-            PackDownloadWorker.KEY_SIZE_BYTES to packInfo.sizeBytes,
-            PackDownloadWorker.KEY_ATTRIBUTION_HTML to packInfo.attributionHtml,
-            PackDownloadWorker.KEY_LICENSE_URL to packInfo.licenseUrl,
+            PackDownloadWorker.KEY_LANGUAGE_TAG to entry.languageTag,
+            PackDownloadWorker.KEY_JSONL_URL to entry.jsonlUrl,
+            PackDownloadWorker.KEY_DISPLAY_NAME to entry.displayName,
+            PackDownloadWorker.KEY_SIZE_BYTES to entry.approximateSizeBytes,
+            PackDownloadWorker.KEY_ATTRIBUTION_HTML to entry.attributionHtml,
+            PackDownloadWorker.KEY_LICENSE_URL to entry.licenseUrl,
         )
         val request = OneTimeWorkRequestBuilder<PackDownloadWorker>()
             .setInputData(data)
@@ -39,20 +36,8 @@ open class DictionaryPackScheduler @Inject constructor() {
             .build()
         WorkManager.getInstance(context)
             .enqueueUniqueWork(
-                "dict_download_${packInfo.languageTag}",
+                "dict_download_${entry.languageTag}",
                 ExistingWorkPolicy.KEEP,
-                request,
-            )
-    }
-
-    fun ensurePeriodicRefresh(context: Context) {
-        val request = PeriodicWorkRequestBuilder<PackRefreshWorker>(7, TimeUnit.DAYS)
-            .setConstraints(networkConstraint)
-            .build()
-        WorkManager.getInstance(context)
-            .enqueueUniquePeriodicWork(
-                "dict_refresh",
-                ExistingPeriodicWorkPolicy.KEEP,
                 request,
             )
     }
