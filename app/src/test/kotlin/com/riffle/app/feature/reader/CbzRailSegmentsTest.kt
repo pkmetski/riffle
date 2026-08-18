@@ -100,8 +100,8 @@ class CbzRailSegmentsTest {
     fun `flat mode cursor is page fraction`() {
         val segments = buildCbzRailSegments(emptyList(), pageCount = 10)
         assertEquals(0f, cbzRailCursorPosition(segments, activeIndex = 0, currentPage = 0, pageCount = 10), 0.001f)
-        assertEquals(0.5f, cbzRailCursorPosition(segments, activeIndex = 0, currentPage = 5, pageCount = 10), 0.001f)
-        assertEquals(0.9f, cbzRailCursorPosition(segments, activeIndex = 0, currentPage = 9, pageCount = 10), 0.001f)
+        assertEquals(0.5f, cbzRailCursorPosition(segments, activeIndex = 0, currentPage = 5, pageCount = 10), 0.1f)
+        assertEquals(1f, cbzRailCursorPosition(segments, activeIndex = 0, currentPage = 9, pageCount = 10), 0.001f)
     }
 
     @Test

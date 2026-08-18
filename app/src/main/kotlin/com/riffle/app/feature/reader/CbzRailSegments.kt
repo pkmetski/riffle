@@ -44,7 +44,7 @@ fun cbzRailCursorPosition(
 ): Float {
     if (segments.isEmpty() || pageCount <= 0) return 0f
     if (segments.size == 1) {
-        return currentPage.toFloat() / pageCount
+        return currentPage.toFloat() / (pageCount - 1).coerceAtLeast(1)
     }
     val startPage = cbzSegmentPageIndex(segments[activeIndex])
     val nextStart = if (activeIndex + 1 < segments.size) {
