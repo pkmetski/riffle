@@ -30,6 +30,8 @@ class ReaderSettingsSectionsTest {
 
     @Test
     fun readerSheet_showsAllThreeTabs_andBehaviorReachable() {
+        // "Behavior" tab was retired — device-level settings moved to top-level Settings section.
+        // This test now pins the 2-tab sheet (Formatting + Display).
         composeTestRule.setContent {
             ReaderSettingsSheet(
                 prefs = FormattingPreferences(),
@@ -38,17 +40,11 @@ class ReaderSettingsSectionsTest {
                 onPrefsChange = {},
                 onReset = {},
                 onDismiss = {},
-                keepScreenOn = false, onKeepScreenOnChange = {},
-                volumeKeyNavigationEnabled = false, onVolumeKeyNavigationEnabledChange = {},
-                invertVolumeKeys = false, onInvertVolumeKeysChange = {},
             )
         }
         composeTestRule.onNodeWithText("Formatting").assertIsDisplayed()
         composeTestRule.onNodeWithText("Display").assertIsDisplayed()
-        composeTestRule.onNodeWithText("Behavior").assertIsDisplayed()
-        // Behavior is reachable while reading.
-        composeTestRule.onNodeWithText("Behavior").performClick()
-        composeTestRule.onNodeWithText("Keep screen on").assertIsDisplayed()
+        composeTestRule.onAllNodesWithText("Behavior").assertCountEquals(0)
     }
 
     @Test

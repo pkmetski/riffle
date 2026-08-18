@@ -110,6 +110,10 @@ class CbzReaderViewModel @Inject constructor(
             overrides.applyTo(global)
         }.stateIn(viewModelScope, SharingStarted.Eagerly, ComicFormattingPreferences())
 
+    val hasComicOverrides: StateFlow<Boolean> = _bookComicOverrides
+        .map { !it.isEmpty() }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, false)
+
     /** Panel View toggle for the current book (ADR 0055). Derived from [effectiveComicFormatting]. */
     val panelViewOn: StateFlow<Boolean> = effectiveComicFormatting
         .map { it.panelViewOn }

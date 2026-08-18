@@ -59,4 +59,5 @@ class ComicFormattingPreferencesStoreImplTest {
         store.update(ComicFormattingPreferences(panelViewOn = false, panelOverflow = PanelOverflowBehavior.OFF))
         assertEquals(PanelOverflowBehavior.OFF, store.preferences.first().panelOverflow)
     }
+
 }

@@ -36,15 +36,14 @@ import com.riffle.app.feature.settings.panels.CadenceSettingsPanel
 import com.riffle.app.feature.settings.panels.DisplaySettingsPanel
 import com.riffle.app.feature.settings.panels.FormattingSettingsPanel
 import com.riffle.app.feature.settings.panels.ListeningPreferencesPanel
-import com.riffle.app.feature.settings.panels.PanelOverflowSettingsPanel
-import com.riffle.app.feature.settings.panels.PanelViewSettingsPanel
+import com.riffle.app.feature.settings.panels.ComicDisplaySettingsPanel
 import com.riffle.app.feature.settings.sections.AnnotationsSyncSection
+import com.riffle.app.feature.settings.sections.AppBehaviorSection
 import com.riffle.app.feature.settings.sections.AppVersionSection
 import com.riffle.app.feature.settings.sections.AppearanceSection
 import com.riffle.app.feature.settings.sections.ComicsSection
 import com.riffle.app.feature.settings.sections.DiagnosticsSection
 import com.riffle.app.feature.settings.sections.ListeningSection
-import com.riffle.app.feature.settings.sections.PacingSection
 import com.riffle.app.feature.settings.sections.ReadaloudSection
 import com.riffle.app.feature.settings.sections.ReadingSection
 import com.riffle.app.feature.settings.sections.SourcesSection
@@ -170,22 +169,24 @@ fun SettingsScreen(
                 )
                 HorizontalDivider()
 
+                AppBehaviorSection(
+                    keepScreenOn = keepScreenOn,
+                    onKeepScreenOnChange = viewModel::setKeepScreenOn,
+                    volumeKeyNavigationEnabled = volumeKeyNavigationEnabled,
+                    onVolumeKeyNavigationEnabledChange = viewModel::setVolumeKeyNavigationEnabled,
+                    invertVolumeKeys = invertVolumeKeys,
+                    onInvertVolumeKeysChange = viewModel::setInvertVolumeKeys,
+                )
+                HorizontalDivider()
+
                 ReadingSection(
                     globalFormatting = globalFormatting,
-                    keepScreenOn = keepScreenOn,
-                    volumeKeyNavigationEnabled = volumeKeyNavigationEnabled,
                     onOpenPanel = { openPanel = it },
                 )
                 HorizontalDivider()
 
                 ComicsSection(
                     comicFormatting = globalComicFormatting,
-                    onOpenPanel = { openPanel = it },
-                )
-                HorizontalDivider()
-
-                PacingSection(
-                    globalFormatting = globalFormatting,
                     onOpenPanel = { openPanel = it },
                 )
                 HorizontalDivider()
@@ -241,15 +242,7 @@ fun SettingsScreen(
             onPrefsChange = viewModel::updateGlobalFormatting,
             onDismiss = { openPanel = null },
         )
-        SettingsPanel.Behavior -> BehaviorSettingsPanel(
-            keepScreenOn = keepScreenOn,
-            onKeepScreenOnChange = viewModel::setKeepScreenOn,
-            volumeKeyNavigationEnabled = volumeKeyNavigationEnabled,
-            onVolumeKeyNavigationEnabledChange = viewModel::setVolumeKeyNavigationEnabled,
-            invertVolumeKeys = invertVolumeKeys,
-            onInvertVolumeKeysChange = viewModel::setInvertVolumeKeys,
-            onDismiss = { openPanel = null },
-        )
+        SettingsPanel.Behavior -> {}
         SettingsPanel.AutoScroll -> AutoScrollSettingsPanel(
             prefs = globalFormatting,
             onPrefsChange = viewModel::updateGlobalFormatting,
@@ -271,18 +264,9 @@ fun SettingsScreen(
             onRewindOnResumeSecondsChange = viewModel::setRewindOnResumeSeconds,
             onDismiss = { openPanel = null },
         )
-        SettingsPanel.PanelView -> PanelViewSettingsPanel(
-            panelViewOn = globalComicFormatting.panelViewOn,
-            onPanelViewOnChange = { on ->
-                viewModel.updateGlobalComicFormatting(globalComicFormatting.copy(panelViewOn = on))
-            },
-            onDismiss = { openPanel = null },
-        )
-        SettingsPanel.PanelOverflow -> PanelOverflowSettingsPanel(
-            selected = globalComicFormatting.panelOverflow,
-            onSelected = { behavior ->
-                viewModel.updateGlobalComicFormatting(globalComicFormatting.copy(panelOverflow = behavior))
-            },
+        SettingsPanel.ComicDisplay -> ComicDisplaySettingsPanel(
+            prefs = globalComicFormatting,
+            onPrefsChange = viewModel::updateGlobalComicFormatting,
             onDismiss = { openPanel = null },
         )
         null -> {}

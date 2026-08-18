@@ -36,7 +36,7 @@ import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.outlined.ViewQuilt
+import androidx.compose.material.icons.outlined.Tune
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -94,6 +94,7 @@ fun CbzReaderScreen(
     val effectivePanels by viewModel.effectivePanels.collectAsState()
     val currentPanelIndex by viewModel.currentPanelIndex.collectAsState()
     val effectiveComicFormatting by viewModel.effectiveComicFormatting.collectAsState()
+    val hasComicOverrides by viewModel.hasComicOverrides.collectAsState()
     var formattingSheetOpen by remember { mutableStateOf(false) }
     val context = LocalContext.current
     val lifecycle = LocalLifecycleOwner.current.lifecycle
@@ -182,7 +183,7 @@ fun CbzReaderScreen(
                     if (state is CbzReaderState.Ready) {
                         IconButton(onClick = { formattingSheetOpen = true }) {
                             Icon(
-                                imageVector = Icons.Outlined.ViewQuilt,
+                                imageVector = Icons.Outlined.Tune,
                                 contentDescription = "Comic formatting",
                             )
                         }
@@ -212,7 +213,9 @@ fun CbzReaderScreen(
     if (formattingSheetOpen) {
         ComicFormattingSheet(
             formatting = effectiveComicFormatting,
+            hasBookOverrides = hasComicOverrides,
             onUpdate = viewModel::updateComicFormatting,
+            onReset = viewModel::resetComicFormattingToDefaults,
             onDismiss = { formattingSheetOpen = false },
         )
     }

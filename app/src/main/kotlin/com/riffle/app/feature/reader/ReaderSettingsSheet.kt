@@ -32,7 +32,7 @@ import com.riffle.core.domain.FormattingPreferences
 
 /**
  * In-reader settings host. A fixed-height bottom sheet (does not resize when switching tabs;
- * leaves the page visible behind it to preview changes) with Formatting / Display / Behavior tabs,
+ * leaves the page visible behind it to preview changes) with Formatting / Display tabs,
  * each rendering the shared section composable. Hosts the reader-only "Reset to global defaults"
  * footer. Opened from the reader's "Aa" toolbar button.
  *
@@ -47,14 +47,8 @@ fun ReaderSettingsSheet(
     onPrefsChange: (FormattingPreferences) -> Unit,
     onReset: () -> Unit,
     onDismiss: () -> Unit,
-    keepScreenOn: Boolean,
-    onKeepScreenOnChange: (Boolean) -> Unit,
-    volumeKeyNavigationEnabled: Boolean,
-    onVolumeKeyNavigationEnabledChange: (Boolean) -> Unit,
-    invertVolumeKeys: Boolean,
-    onInvertVolumeKeysChange: (Boolean) -> Unit,
 ) {
-    val tabs = listOf("Formatting", "Display", "Behavior")
+    val tabs = listOf("Formatting", "Display")
     var selectedTab by remember { mutableIntStateOf(0) }
 
     BackHandler(onBack = onDismiss)
@@ -100,12 +94,7 @@ fun ReaderSettingsSheet(
                 ) {
                     when (selectedTab) {
                         0 -> FormattingSection(prefs, onPrefsChange, capabilities)
-                        1 -> DisplaySection(prefs, onPrefsChange, scheduleEditable = false, capabilities = capabilities)
-                        else -> BehaviorSection(
-                            keepScreenOn, onKeepScreenOnChange,
-                            volumeKeyNavigationEnabled, onVolumeKeyNavigationEnabledChange,
-                            invertVolumeKeys, onInvertVolumeKeysChange,
-                        )
+                        else -> DisplaySection(prefs, onPrefsChange, scheduleEditable = false, capabilities = capabilities)
                     }
                 }
                 HorizontalDivider()

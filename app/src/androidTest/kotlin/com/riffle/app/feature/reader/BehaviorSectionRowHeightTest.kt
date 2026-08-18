@@ -43,7 +43,7 @@ class BehaviorSectionRowHeightTest {
             )
         }
 
-        val keepScreen = composeTestRule.onNodeWithText("Keep screen on")
+        val keepScreen = composeTestRule.onNodeWithText("Keep screen on while reading")
             .fetchSemanticsNode().boundsInRoot
         val volumeKeys = composeTestRule.onNodeWithText("Volume key navigation")
             .fetchSemanticsNode().boundsInRoot
