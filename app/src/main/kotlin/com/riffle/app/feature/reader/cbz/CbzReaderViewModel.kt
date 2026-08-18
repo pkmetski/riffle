@@ -5,9 +5,13 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.viewModelScope
 import com.riffle.app.feature.reader.ReaderStateHolder
+import com.riffle.app.feature.reader.RailSegment
 import com.riffle.app.feature.reader.VolumeNavEvent
 import com.riffle.app.feature.reader.VolumeNavigationController
+import com.riffle.app.feature.reader.buildCbzRailSegments
+import com.riffle.app.feature.reader.cbzRailCursorPosition
 import com.riffle.app.feature.reader.controllers.VolumeKeyDispatcher
+import com.riffle.app.feature.reader.findActiveCbzSegmentIndex
 import com.riffle.core.domain.CbzOpenResult
 import com.riffle.core.domain.CbzRepository
 import com.riffle.core.domain.LibraryObserver
@@ -39,6 +43,7 @@ import kotlin.math.sqrt
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
@@ -102,6 +107,19 @@ class CbzReaderViewModel @Inject constructor(
 
     private val _currentPage = MutableStateFlow(0)
     val currentPage: StateFlow<Int> = _currentPage
+
+    private val _railSegments = MutableStateFlow<List<RailSegment>>(emptyList())
+    val railSegments: StateFlow<List<RailSegment>> = _railSegments.asStateFlow()
+
+    val activeRailSegmentIndex: StateFlow<Int> = combine(_currentPage, _railSegments) { page, segments ->
+        findActiveCbzSegmentIndex(segments, page).coerceAtLeast(0)
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, 0)
+
+    val railCursorPosition: StateFlow<Float> = combine(_currentPage, _railSegments) { page, segments ->
+        val pageCount = (_state.value as? CbzReaderState.Ready)?.pageCount ?: 1
+        val activeIndex = findActiveCbzSegmentIndex(segments, page).coerceAtLeast(0)
+        cbzRailCursorPosition(segments, activeIndex, page, pageCount)
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, 0f)
 
     private val _bookComicOverrides = MutableStateFlow(BookComicFormattingOverrides())
 
@@ -250,6 +268,8 @@ class CbzReaderViewModel @Inject constructor(
             return
         }
         archive = opened
+        val bookmarks = withContext(Dispatchers.IO) { opened.readComicInfo() ?: emptyList() }
+        _railSegments.value = buildCbzRailSegments(bookmarks, pageCount)
         val resumeIndex = lastPosition
             ?.let { parsePageIndex(it) }
             ?.coerceIn(0, pageCount - 1)
@@ -340,6 +360,9 @@ class CbzReaderViewModel @Inject constructor(
         // Close any prior archive (shouldn't exist for the streaming path, but guard anyway).
         archive?.close()
         archive = newArchive
+        val swapPageCount = actualPageCount.takeIf { it > 0 } ?: (_state.value as? CbzReaderState.Ready)?.pageCount ?: 1
+        val swapBookmarks = withContext(Dispatchers.IO) { newArchive.readComicInfo() ?: emptyList() }
+        _railSegments.value = buildCbzRailSegments(swapBookmarks, swapPageCount)
         panelBook = panelOrchestrator.forBook(
             bookId = bookId,
             imageBytes = { pageIndex -> newArchive.imageBytes(pageIndex) },
