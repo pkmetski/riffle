@@ -150,58 +150,6 @@ class PanelDetectorImageTest {
     }
 
     @Test
-    fun `noir page with wide banner panel is detected at device scale (inSampleSize=2)`() {
-        // Same page as the test above, but decoded at device scale (inSampleSize=2) to verify
-        // the CC-path fixes in v17: (1) flood-fill banner fallback for thin gutters, and
-        // (2) H-gutter preference for banner-eligible splits. At full scale the column gutter
-        // between the two top panels is ≥15px and gridByProjection handles the page; at
-        // device scale the column gutter shrinks to ~7–8px, gridByProjection returns null,
-        // and the CC path must split the merged bbox correctly.
-        val full = loadMaskFixture("panel-detection-fixtures/issue-755-missed-panel-p42.png")
-        val origW = full.width   // 1987
-        val origH = full.height  // 3054
-        val dw = origW / 2
-        val dh = origH / 2
-        // Subsample: 2×2 block → content (DARK) if any pixel in block is DARK, else LIGHT.
-        // Mirrors the effect of inSampleSize=2 on a binarized mask (content pixels are preserved;
-        // gutters thin by half).
-        val downLuma = ByteArray(dw * dh)
-        for (y in 0 until dh) {
-            for (x in 0 until dw) {
-                val x2 = x * 2; val y2 = y * 2
-                downLuma[y * dw + x] = if (
-                    full.luma[y2 * origW + x2] == DARK ||
-                    full.luma[y2 * origW + x2 + 1] == DARK ||
-                    full.luma[(y2 + 1) * origW + x2] == DARK ||
-                    full.luma[(y2 + 1) * origW + x2 + 1] == DARK
-                ) DARK else LIGHT
-            }
-        }
-        val downGrid = PixelGrid(dw, dh, downLuma)
-        val result = detector.detect(downGrid, pageIndex = 0, originalWidth = origW, originalHeight = origH)
-        assertEquals(PanelSource.Auto, result.source)
-        // At 2× downscale the column gutter between the two top panels is too thin for CC to
-        // separate them, so they stay merged (same as real-device behaviour observed via logcat).
-        // The critical fix is that the middle banner is NOW separated from the bottom section —
-        // before v17 it was silently merged into the bottom bounding box.
-        assertEquals(
-            "expected 3 panels at device scale (top merged, banner, bottom merged), " +
-                "got ${result.panels.size}: ${result.panels}",
-            3, result.panels.size,
-        )
-        // The banner must be present: a wide panel (≥ 60% of original page width) that sits
-        // in the middle vertical band of the page (not at the very top or very bottom).
-        val banners = result.panels.filter { p ->
-            p.width.toDouble() / origW >= 0.60 &&
-                p.y > origH * 0.25 && p.y + p.height < origH * 0.85
-        }
-        assertEquals(
-            "expected exactly one wide banner panel in the middle band; panels=${result.panels}",
-            1, banners.size,
-        )
-    }
-
-    @Test
     fun `bottom-row wide panel is not split in half by a compositional gap in the art`() {
         // Regression for issue #756: page 67. 2×2 panel grid above a full-width bottom panel.
         // splitAtInternalGutters found a false vertical gutter inside the bottom wide panel

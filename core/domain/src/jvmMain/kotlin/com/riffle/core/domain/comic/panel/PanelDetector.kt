@@ -359,32 +359,54 @@ class PanelDetector(
             val minDimPx = (downscaledHeight * config.minPanelDimensionFraction).toInt().coerceAtLeast(1)
             (start - bbox.minY) >= minDimPx && (bbox.maxY - end) >= minDimPx
         } == true
+        val bboxWideFrac = width.toDouble() / downscaledWidth
         val effectiveHorizontalGutter: Pair<Int, Int>? = if (floodFillWouldSplit) horizontalGutter else run {
             val maxRowContent = (bbox.minY..bbox.maxY).maxOf { y ->
                 cropped.rowContentCount(y, innerMinX, innerMaxX)
             }
             if (maxRowContent <= 0) return@run null
             val contentCutoff = maxRowContent * 0.20
-            widestGutterRun(
+            val projGutter = widestGutterRun(
                 axisStart = bbox.minY + edgeMarginY,
                 axisEnd = bbox.maxY - edgeMarginY,
             ) { y ->
                 cropped.rowContentCount(y, innerMinX, innerMaxX) < contentCutoff
-            }?.takeIf { (_, thickness) -> thickness >= 7 }
-                // If projection didn't find a ≥7-row gutter but flood-fill found a thin accessible
-                // one, use it when the split would be banner-eligible. Flood-fill accessibility
-                // confirms the gutter is real (connects to the page border); the banner conditions
-                // guard against splitting off caption boxes that happen to touch the page edge.
+            }
+            // Full ≥7-row threshold for general (non-banner) splits — keeps the guard above
+            // typical 1–5-row sparse-artwork noise.
+            projGutter?.takeIf { (_, thickness) -> thickness >= 7 }
+                // Thin-gutter banner fallback: at device scale (inSampleSize=2) the gutter between
+                // a banner and its adjacent section shrinks to ~4 rows after panel borders are
+                // removed, falling below the 7-row floor. Accept ≥4 rows when the split is
+                // banner-eligible (bbox ≥50% wide, short piece ≥5% of page AND ≥25% of bbox).
+                // The banner conditions prevent this relaxation from firing on sparse artwork
+                // dips — those lack the width + height combination that characterises a real banner.
+                ?: projGutter?.takeIf { (start, thickness) ->
+                    thickness >= 4 && run {
+                        val end = start + thickness - 1
+                        val topH = start - bbox.minY
+                        val bottomH = bbox.maxY - end
+                        val bboxWidthFraction = width.toDouble() / downscaledWidth.toDouble()
+                        val bannerMinH = (downscaledHeight * 0.05).toInt().coerceAtLeast(1)
+                        val bannerBboxMinH = (height * 0.25).toInt().coerceAtLeast(1)
+                        bboxWidthFraction >= 0.5 &&
+                            minOf(topH, bottomH) >= bannerMinH &&
+                            minOf(topH, bottomH) >= bannerBboxMinH
+                    }
+                }
+                // If projection found nothing, fall back to a thin flood-fill gutter when
+                // banner-eligible. Flood-fill accessibility confirms the gutter connects to the
+                // page border; the banner conditions guard against caption-box false splits.
                 ?: horizontalGutter?.takeIf { (start, thickness) ->
                     val end = start + thickness - 1
                     val topH = start - bbox.minY
                     val bottomH = bbox.maxY - end
                     val bboxWidthFraction = width.toDouble() / downscaledWidth.toDouble()
                     val bannerMinH = (downscaledHeight * 0.05).toInt().coerceAtLeast(1)
-                    val companionMinH = (downscaledHeight * 0.40).toInt().coerceAtLeast(1)
+                    val bannerBboxMinH = (height * 0.25).toInt().coerceAtLeast(1)
                     bboxWidthFraction >= 0.5 &&
                         minOf(topH, bottomH) >= bannerMinH &&
-                        maxOf(topH, bottomH) >= companionMinH
+                        minOf(topH, bottomH) >= bannerBboxMinH
                 }
         }
 
@@ -424,7 +446,7 @@ class PanelDetector(
                 val bannerEligible = (topH < minDimPx || bottomH < minDimPx) &&
                     width.toDouble() / downscaledWidth >= 0.5 &&
                     minOf(topH, bottomH) >= (downscaledHeight * 0.05).toInt().coerceAtLeast(1) &&
-                    maxOf(topH, bottomH) >= (downscaledHeight * 0.40).toInt().coerceAtLeast(1)
+                    minOf(topH, bottomH) >= (height * 0.25).toInt().coerceAtLeast(1)
                 if (bannerEligible) hGutter
                 else listOfNotNull(hGutter, vGutter).maxByOrNull { it.third }!!
             } else {
@@ -461,16 +483,17 @@ class PanelDetector(
             // applyGlobalSanityChecks which uses originalHeight; both scale proportionally.
             val minDimPx = (downscaledHeight * config.minPanelDimensionFraction).toInt().coerceAtLeast(1)
             if (topHeight < minDimPx || bottomHeight < minDimPx) {
-                // Banner exception: allow an asymmetric split where one piece is a large panel
-                // (≥ 40%) and the other is a narrow wide banner (≥ 50% page width, ≥ 5% tall).
-                // The ≥ 40% companion guard prevents false positives where a narrow bottom section
-                // (grid row + banner) would be incorrectly split by this exception.
+                // Banner exception: allow an asymmetric split where one piece is a wide banner
+                // (≥ 50% page width, ≥ 5% page height, ≥ 25% of the current bbox height) and
+                // the other is the adjacent panel section. The 25%-of-bbox guard (rather than a
+                // page-relative companion threshold) prevents false positives: in the #757 fixture
+                // the false-split short piece is only 18.8% of the bbox, well below the 25% floor,
+                // while real banners are ≥ 30% of their containing bbox.
                 val bannerMinHeightPx = (downscaledHeight * 0.05).toInt().coerceAtLeast(1)
-                val bannerCompanionMinHeightPx = (downscaledHeight * 0.40).toInt().coerceAtLeast(1)
+                val bannerBboxMinHeightPx = (height * 0.25).toInt().coerceAtLeast(1)
                 val bboxWidthFraction = width.toDouble() / downscaledWidth.toDouble()
-                val tallPieceHeight = maxOf(topHeight, bottomHeight)
                 val shortPieceHeight = minOf(topHeight, bottomHeight)
-                if (bboxWidthFraction < 0.5 || shortPieceHeight < bannerMinHeightPx || tallPieceHeight < bannerCompanionMinHeightPx) return listOf(bbox)
+                if (bboxWidthFraction < 0.5 || shortPieceHeight < bannerMinHeightPx || shortPieceHeight < bannerBboxMinHeightPx) return listOf(bbox)
             }
         } else {
             val leftWidth = start - bbox.minX

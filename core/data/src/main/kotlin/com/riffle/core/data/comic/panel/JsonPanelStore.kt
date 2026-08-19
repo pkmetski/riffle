@@ -174,6 +174,32 @@ class JsonPanelStore @Inject constructor(
          *      downscaled device images where the narrow gutter fell below the 15px projection
          *      band threshold and the panels merged into one bbox. v15 caches for pages with a
          *      wide banner adjacent to a splash panel hold a single merged bbox for those two.
+         * v20: Detection now runs at full resolution (targetLongEdge raised from 1 000 to 4 096,
+         *      keeping inSampleSize=1 for typical comic pages up to ~8 190 px on the long edge).
+         *      At half resolution, panel gutters shrank to ~8 px, border pixels mixed by the
+         *      JPEG/PNG decoder contaminated gutter rows after binarization, and the projection
+         *      fallback could not find them reliably. Running at full resolution eliminates the
+         *      contamination entirely and makes JVM test fixtures (full-resolution masks) bit-for-
+         *      bit identical to the algorithm input on device. All v16–v19 threshold workarounds
+         *      remain in place as defence-in-depth for comics with unusually thin gutters even at
+         *      full resolution. v19 and earlier caches were computed at half resolution — invalidate
+         *      to re-detect at full resolution.
+         * v19: effectiveHorizontalGutter now accepts a thin (≥4-row) projection gutter for
+         *      banner-eligible splits. At device scale the inner white gap between the banner
+         *      and the adjacent section shrinks to ~4 rows after panel borders are subtracted,
+         *      falling below the 7-row general floor. The relaxation is gated on the same banner
+         *      conditions (bbox ≥50% wide, short piece ≥5% page height AND ≥25% bbox height)
+         *      to prevent it from firing on sparse-artwork row dips inside real panels. v18
+         *      caches for pages with a banner adjacent to the bottom section hold a merged bbox.
+         * v18: Banner exception threshold changed from page-relative companion (≥ 40% of page
+         *      height for the tall piece) to bbox-relative short-piece check (≥ 25% of the
+         *      current bbox height for the banner itself). At device scale the CC merges the
+         *      banner with the adjacent bottom section into one component whose bbox is ~47% of
+         *      the page; the banner occupies ~30% of that bbox while the false-split case
+         *      (#757) only reached 18.8%. The old 40% companion check measured the TALL piece
+         *      against the full page, which failed here because the bottom section is only 32.5%
+         *      of the page — less than 40%. v17 caches for pages with a wide banner adjacent to
+         *      the bottom section hold a merged bbox for those two.
          * v17: Two fixes for banner detection at device scale. (1) effectiveHorizontalGutter now
          *      accepts a thin flood-fill gutter (≥ 4px but < 7 rows) as a banner fallback when
          *      all banner conditions are met (bbox ≥ 50% wide, short piece ≥ 5%, companion ≥
@@ -187,7 +213,7 @@ class JsonPanelStore @Inject constructor(
          *      check and were never promoted. v16 caches with a wide banner adjacent to a splash
          *      may still hold a merged bbox if detection ran on a downscaled image.
          */
-        internal const val CURRENT_SCHEMA_VERSION: Int = 17
+        internal const val CURRENT_SCHEMA_VERSION: Int = 20
 
         private val UNSAFE = Regex("[^A-Za-z0-9._-]")
     }
