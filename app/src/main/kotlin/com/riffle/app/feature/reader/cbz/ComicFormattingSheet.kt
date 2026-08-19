@@ -35,6 +35,7 @@ internal fun ComicFormattingSheet(
                 prefs = formatting,
                 onPanelViewChange = { onUpdate(BookComicFormattingOverrides(panelViewOn = it)) },
                 onPanelOverflowChange = { onUpdate(BookComicFormattingOverrides(panelOverflow = it)) },
+                onPanelAnimationSpeedChange = { onUpdate(BookComicFormattingOverrides(panelAnimationSpeedMs = it)) },
                 onShowReadingProgressChange = { onUpdate(BookComicFormattingOverrides(showChapterMap = it)) },
                 onShowPageNumbersChange = { onUpdate(BookComicFormattingOverrides(showPageProgress = it)) },
             )

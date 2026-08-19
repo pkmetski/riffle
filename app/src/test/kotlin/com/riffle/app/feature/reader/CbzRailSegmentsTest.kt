@@ -119,4 +119,18 @@ class CbzRailSegmentsTest {
     fun `cursor returns 0 for empty segments`() {
         assertEquals(0f, cbzRailCursorPosition(emptyList(), activeIndex = 0, currentPage = 5, pageCount = 10), 0.001f)
     }
+
+    @Test
+    fun `cursor reaches 1_0 on last page of multi-segment book`() {
+        val bookmarks = listOf(
+            ComicBookmark(pageIndex = 0, title = "S1"),
+            ComicBookmark(pageIndex = 10, title = "S2"),
+        )
+        val segments = buildCbzRailSegments(bookmarks, pageCount = 20)
+        assertEquals(
+            1f,
+            cbzRailCursorPosition(segments, activeIndex = 1, currentPage = 19, pageCount = 20),
+            0.001f,
+        )
+    }
 }

@@ -188,7 +188,7 @@ fun ChapterNavigationRail(
                         )
                     }
 
-                    if (useColorProgress) {
+                    if (chapterRailUsesGroups(segments)) {
                         drawLine(
                             color = haloColor,
                             start = Offset(fillX, 0f),

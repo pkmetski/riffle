@@ -21,6 +21,7 @@ internal fun ComicDisplaySection(
     prefs: ComicFormattingPreferences,
     onPanelViewChange: (Boolean) -> Unit,
     onPanelOverflowChange: (PanelOverflowBehavior) -> Unit,
+    onPanelAnimationSpeedChange: (Int) -> Unit,
     onShowReadingProgressChange: (Boolean) -> Unit,
     onShowPageNumbersChange: (Boolean) -> Unit,
 ) {
@@ -52,6 +53,14 @@ internal fun ComicDisplaySection(
         selected = prefs.panelOverflow,
         enabled = prefs.panelViewOn,
         onSelect = onPanelOverflowChange,
+    )
+
+    HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+    PanelAnimationSpeedSlider(
+        speedMs = prefs.panelAnimationSpeedMs,
+        onSpeedChange = onPanelAnimationSpeedChange,
+        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+        enabled = prefs.panelViewOn,
     )
 
     HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))

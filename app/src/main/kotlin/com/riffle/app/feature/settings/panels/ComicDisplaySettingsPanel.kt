@@ -14,6 +14,7 @@ internal fun ComicDisplaySettingsPanel(
         prefs = prefs,
         onPanelViewChange = { onPrefsChange(prefs.copy(panelViewOn = it)) },
         onPanelOverflowChange = { onPrefsChange(prefs.copy(panelOverflow = it)) },
+        onPanelAnimationSpeedChange = { onPrefsChange(prefs.copy(panelAnimationSpeedMs = it)) },
         onShowReadingProgressChange = { onPrefsChange(prefs.copy(showChapterMap = it)) },
         onShowPageNumbersChange = { onPrefsChange(prefs.copy(showPageProgress = it)) },
     )

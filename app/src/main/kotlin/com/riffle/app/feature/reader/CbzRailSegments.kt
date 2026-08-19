@@ -54,7 +54,7 @@ fun cbzRailCursorPosition(
     }
     val pagesInSegment = (nextStart - startPage).coerceAtLeast(1)
     val pagesIntoSegment = (currentPage - startPage).coerceIn(0, pagesInSegment - 1)
-    val progressionInSegment = pagesIntoSegment.toFloat() / pagesInSegment
+    val progressionInSegment = pagesIntoSegment.toFloat() / (pagesInSegment - 1).coerceAtLeast(1)
     val priorWeight = segments.take(activeIndex).sumOf { it.weight.toDouble() }.toFloat()
     val totalWeight = segments.sumOf { it.weight.toDouble() }.toFloat().coerceAtLeast(0.001f)
     return ((priorWeight + segments[activeIndex].weight * progressionInSegment) / totalWeight)
