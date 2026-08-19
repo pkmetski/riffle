@@ -93,6 +93,7 @@ private const val ANNOTATIONS_SYNC_SETTINGS = "settings/annotation_sync"
 private const val CHANGELOG = "settings/changelog"
 private const val ANNOTATION_SYNC_MAINTENANCE = "settings/annotation_sync/maintenance"
 private const val DEBUG_LOGS = "settings/debug_logs"
+private const val DEVELOPER_OPTIONS = "settings/developer_options"
 private const val READALOUD_MATCHES = "readaloud_matches/{sourceId}?pairBookId={pairBookId}"
 private const val DOWNLOADS = "downloads"
 private const val LIBRARY_ITEMS = "library_items/{libraryId}/{libraryName}"
@@ -523,6 +524,7 @@ fun MainScreen(
                     onNavigateToAddLocalFolder = { navController.navigate(ADD_LOCAL_FILES) },
                     onNavigateToReadaloudSettings = { navController.navigate(READALOUD_SETTINGS) },
                     onNavigateToAnnotationsSyncSettings = { navController.navigate(ANNOTATIONS_SYNC_SETTINGS) },
+                    onNavigateToDeveloperOptions = { navController.navigate(DEVELOPER_OPTIONS) },
                     onNavigateToDebugLogs = { navController.navigate(DEBUG_LOGS) },
                     onNavigateToChangelog = { navController.navigate(CHANGELOG) },
                 )
@@ -580,6 +582,18 @@ fun MainScreen(
             composable(ANNOTATION_SYNC_MAINTENANCE) { backStackEntry ->
                 AnnotationSyncMaintenanceScreen(
                     onNavigateBack = { navController.popBackStackIfTop(backStackEntry) },
+                )
+            }
+            composable(DEVELOPER_OPTIONS) { backStackEntry ->
+                val settingsEntry = remember(backStackEntry) {
+                    navController.getBackStackEntry(SETTINGS)
+                }
+                val settingsVm: com.riffle.app.feature.settings.SettingsViewModel =
+                    hiltViewModel(settingsEntry)
+                com.riffle.app.feature.settings.developer.DeveloperOptionsScreen(
+                    onNavigateBack = { navController.popBackStackIfTop(backStackEntry) },
+                    onNavigateToDebugLogs = { navController.navigate(DEBUG_LOGS) },
+                    viewModel = settingsVm,
                 )
             }
             composable(DEBUG_LOGS) { backStackEntry ->

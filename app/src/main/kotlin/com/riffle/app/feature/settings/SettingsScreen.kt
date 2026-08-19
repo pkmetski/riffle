@@ -44,7 +44,7 @@ import com.riffle.app.feature.settings.sections.AppBehaviorSection
 import com.riffle.app.feature.settings.sections.AppVersionSection
 import com.riffle.app.feature.settings.sections.AppearanceSection
 import com.riffle.app.feature.settings.sections.ComicsSection
-import com.riffle.app.feature.settings.sections.DiagnosticsSection
+import com.riffle.app.feature.settings.sections.DeveloperOptionsSection
 import com.riffle.app.feature.settings.sections.ListeningSection
 import com.riffle.app.feature.settings.sections.ReadaloudSection
 import com.riffle.app.feature.settings.sections.ReadingSection
@@ -72,11 +72,11 @@ fun SettingsScreen(
     onNavigateToAddLocalFolder: () -> Unit = {},
     onNavigateToReadaloudSettings: () -> Unit = {},
     onNavigateToAnnotationsSyncSettings: () -> Unit = {},
+    onNavigateToDeveloperOptions: () -> Unit = {},
     onNavigateToDebugLogs: () -> Unit = {},
     onNavigateToChangelog: () -> Unit = {},
     viewModel: SettingsViewModel = hiltViewModel(),
 ) {
-    val crashReports by viewModel.crashReports.collectAsState()
     val globalFormatting by viewModel.globalFormattingPreferences.collectAsState()
     val globalComicFormatting by viewModel.globalComicFormatting.collectAsState()
     val keepScreenOn by viewModel.keepScreenOn.collectAsState()
@@ -99,9 +99,7 @@ fun SettingsScreen(
     val rewindOnResumeSeconds by viewModel.rewindOnResumeSeconds.collectAsState()
     val annotationSyncRow by viewModel.annotationSyncRow.collectAsState()
     val developerModeEnabled by viewModel.developerModeEnabled.collectAsState()
-    val githubPat by viewModel.githubPat.collectAsState()
     val expandedServers = remember { mutableStateMapOf<String, Boolean>() }
-    val expandedCrashes = remember { mutableStateMapOf<String, Boolean>() }
     var openPanel by remember { mutableStateOf<SettingsPanel?>(null) }
     val snackbarHostState = remember { SnackbarHostState() }
 
@@ -218,14 +216,10 @@ fun SettingsScreen(
                 )
                 HorizontalDivider()
 
-                DiagnosticsSection(
-                    crashReports = crashReports,
-                    expandedCrashes = expandedCrashes,
-                    crashReportFiles = { viewModel.crashReportFiles() },
-                    onClearCrashReports = viewModel::clearCrashReports,
-                    onNavigateToDebugLogs = onNavigateToDebugLogs,
-                )
-                HorizontalDivider()
+                if (developerModeEnabled) {
+                    DeveloperOptionsSection(onOpen = onNavigateToDeveloperOptions)
+                    HorizontalDivider()
+                }
 
                 AppVersionSection(
                     installedVersionName = viewModel.installedVersionName,
@@ -236,9 +230,6 @@ fun SettingsScreen(
                     onSetAutoUpdateEnabled = viewModel::setAutoUpdateEnabled,
                     onNavigateToChangelog = onNavigateToChangelog,
                     onVersionTap = viewModel::onVersionTap,
-                    developerModeEnabled = developerModeEnabled,
-                    currentGithubPat = githubPat,
-                    onSaveGithubPat = viewModel::onSaveGithubPat,
                 )
                 HorizontalDivider()
             }
