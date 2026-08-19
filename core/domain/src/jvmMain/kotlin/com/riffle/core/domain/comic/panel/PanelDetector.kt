@@ -413,13 +413,30 @@ class PanelDetector(
         // flood-fill-reachable from the outside: the thin white margin below the caption scores
         // ≥30% gutter pixels and would be split off, leaving the caption as a tiny orphan that
         // gets filtered — visually cutting off the top of the real panel.
+        //
+        // Exception: applyGlobalSanityChecks keeps wide banner panels (≥ 50% page width, ≥ 5%
+        // page height) even below the 15% floor. When the bbox spans ≥ 50% of the downscaled
+        // width and the short piece reaches the 5% banner-height threshold, allow the split so
+        // the banner can reach the sanity check instead of being silently merged with its
+        // neighbour. This is the symmetric counterpart to the banner exception in sanity checks.
         if (axis == "h") {
             val topHeight = start - bbox.minY
             val bottomHeight = bbox.maxY - end
             // Use the full downscaled page height (not cropped) so the threshold matches
             // applyGlobalSanityChecks which uses originalHeight; both scale proportionally.
             val minDimPx = (downscaledHeight * config.minPanelDimensionFraction).toInt().coerceAtLeast(1)
-            if (topHeight < minDimPx || bottomHeight < minDimPx) return listOf(bbox)
+            if (topHeight < minDimPx || bottomHeight < minDimPx) {
+                // Banner exception: allow an asymmetric split where one piece is a large panel
+                // (≥ 40%) and the other is a narrow wide banner (≥ 50% page width, ≥ 5% tall).
+                // The ≥ 40% companion guard prevents false positives where a narrow bottom section
+                // (grid row + banner) would be incorrectly split by this exception.
+                val bannerMinHeightPx = (downscaledHeight * 0.05).toInt().coerceAtLeast(1)
+                val bannerCompanionMinHeightPx = (downscaledHeight * 0.40).toInt().coerceAtLeast(1)
+                val bboxWidthFraction = width.toDouble() / downscaledWidth.toDouble()
+                val tallPieceHeight = maxOf(topHeight, bottomHeight)
+                val shortPieceHeight = minOf(topHeight, bottomHeight)
+                if (bboxWidthFraction < 0.5 || shortPieceHeight < bannerMinHeightPx || tallPieceHeight < bannerCompanionMinHeightPx) return listOf(bbox)
+            }
         } else {
             val leftWidth = start - bbox.minX
             val rightWidth = bbox.maxX - end

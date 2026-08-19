@@ -165,8 +165,17 @@ class JsonPanelStore @Inject constructor(
          *      and splits the merged CC bbox into the correct two panels. Uses 10% (vs 20% for
          *      horizontal) to avoid splitting on sparse-content artwork columns. v14 caches for
          *      pages with enclosed side-by-side panels hold a single merged bbox.
+         * v16: splitSinglePanelRecursively now considers the wide-banner exception when deciding
+         *      whether to attempt a split. Previously a split that would produce a piece shorter
+         *      than 15% of the page height was always blocked — even when that piece spanned ≥
+         *      50% of the page width and was ≥ 5% tall (a genuine banner panel). This matched
+         *      the applyGlobalSanityChecks banner exception but the split guard was more
+         *      restrictive, so banners were never separated from the splash above them on
+         *      downscaled device images where the narrow gutter fell below the 15px projection
+         *      band threshold and the panels merged into one bbox. v15 caches for pages with a
+         *      wide banner adjacent to a splash panel hold a single merged bbox for those two.
          */
-        internal const val CURRENT_SCHEMA_VERSION: Int = 15
+        internal const val CURRENT_SCHEMA_VERSION: Int = 16
 
         private val UNSAFE = Regex("[^A-Za-z0-9._-]")
     }
