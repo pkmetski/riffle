@@ -77,8 +77,18 @@ class PanelDetector(
          * A pixel is considered content if its luma differs from the detected page background by
          * at least this much (in `[0, 255]`). Handles both light-background comics (dark art on
          * white gutter) and dark-background comics (bright figures on black gutter) uniformly.
+         *
+         * 50 (raised from 32): JPEG compression introduces artifact pixels in gutter rows at
+         * roughly v ≈ 190–210 on a 240-background page (bg − v ≈ 30–50). At 32 those pixels
+         * were classified as content, contaminating gutter rows and causing the projection to
+         * merge adjacent row bands (e.g. a narrow banner with the section below). At 50 only
+         * genuinely dark ink (v < 190, bg − v > 50) is classified as content; the texture
+         * check catches any fine-grained panel content that is below this threshold.
+         * Pre-binarised fixture masks have pixels at only DARK=20 and LIGHT=240 so both 32
+         * and 50 produce identical results on fixtures — the threshold only matters for real
+         * JPEG input on device.
          */
-        val backgroundContrastThreshold: Int = 32,
+        val backgroundContrastThreshold: Int = 50,
 
         /**
          * A pixel is also content if the standard deviation of luma in an 11x11 window around it
@@ -697,10 +707,6 @@ class PanelDetector(
             for (x in 0 until w) {
                 val v = grid.get(x, y)
                 val differsFromBg = if (bg >= 128) {
-                    // Light background: only pixels darker than background are content (ink, panel
-                    // borders). Pixels lighter than background (white speech bubble interiors,
-                    // highlight fills) are treated as background-like so flood fill can flow through
-                    // them instead of treating them as content bridges between panels.
                     bg - v >= cutoff
                 } else {
                     v - bg >= cutoff

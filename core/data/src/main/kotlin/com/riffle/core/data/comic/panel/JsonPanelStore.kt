@@ -174,6 +174,18 @@ class JsonPanelStore @Inject constructor(
          *      downscaled device images where the narrow gutter fell below the 15px projection
          *      band threshold and the panels merged into one bbox. v15 caches for pages with a
          *      wide banner adjacent to a splash panel hold a single merged bbox for those two.
+         * v21: backgroundContrastThreshold raised from 32 to 50. JPEG compression introduces
+         *      artifact pixels in gutter rows at roughly v ≈ 190–210 on a 240-background page
+         *      (bg − v ≈ 30–50). At threshold 32 those pixels were classified as content,
+         *      contaminating gutter rows and causing the projection to classify the rows as part
+         *      of a panel band instead of a gutter — merging adjacent row bands (e.g. a narrow
+         *      banner with the section below it) and producing wrong panel counts. At threshold
+         *      50 only genuinely dark ink (v < 190) is classified as content; the texture check
+         *      catches any fine-grained panel content below this contrast level. Pre-binarised
+         *      fixture masks have pixels at only DARK=20 and LIGHT=240 so JVM tests produced
+         *      identical results at both thresholds — the regression only appeared with real
+         *      JPEG input on device. v20 caches for pages with JPEG gutter contamination may
+         *      have wrong row-band splits.
          * v20: Detection now runs at full resolution (targetLongEdge raised from 1 000 to 4 096,
          *      keeping inSampleSize=1 for typical comic pages up to ~8 190 px on the long edge).
          *      At half resolution, panel gutters shrank to ~8 px, border pixels mixed by the
@@ -213,7 +225,7 @@ class JsonPanelStore @Inject constructor(
          *      check and were never promoted. v16 caches with a wide banner adjacent to a splash
          *      may still hold a merged bbox if detection ran on a downscaled image.
          */
-        internal const val CURRENT_SCHEMA_VERSION: Int = 20
+        internal const val CURRENT_SCHEMA_VERSION: Int = 21
 
         private val UNSAFE = Regex("[^A-Za-z0-9._-]")
     }
