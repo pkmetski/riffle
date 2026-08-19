@@ -31,6 +31,7 @@ import com.riffle.core.data.comic.panel.PanelMaskEncoder
 import com.riffle.core.domain.comic.panel.PagePanels
 import com.riffle.core.domain.comic.panel.PanelBinaryMask
 import com.riffle.core.domain.comic.panel.PanelDetector
+import com.riffle.core.domain.comic.panel.PanelMaskBinarizer
 import com.riffle.core.domain.comic.panel.PanelOrchestrator
 import com.riffle.core.domain.comic.panel.PanelOverflowTransform
 import com.riffle.core.domain.comic.panel.PanelRegion
@@ -230,7 +231,7 @@ class CbzReaderViewModel @Inject constructor(
                 luma[i] = (0.299 * r + 0.587 * g + 0.114 * b).toInt().coerceIn(0, 255).toByte()
             }
             val grid = com.riffle.core.domain.comic.panel.PixelGrid(w, h, luma)
-            val mask = panelDetector.binarizeMask(grid) ?: return@withContext null
+            val mask = PanelMaskBinarizer.binarize(grid) ?: return@withContext null
             mask to PanelMaskEncoder.encode(mask)
         }
 

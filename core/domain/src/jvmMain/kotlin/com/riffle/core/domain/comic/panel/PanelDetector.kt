@@ -199,67 +199,6 @@ class PanelDetector(
         return result ?: fallback
     }
 
-    /**
-     * Returns the same binarized representation the detector operates on internally, exported as
-     * a copyright-safe [PanelBinaryMask] for regression fixtures (ADR 0062). Returns null when
-     * the page is entirely uniform — same condition under which [detect] falls back to whole-page.
-     */
-    /**
-     * Produces a binary mask for report upload using directional adaptive (local) thresholding.
-     *
-     * Like [binarize], uses the same directionality: on a light-background page only pixels
-     * DARKER than their local neighbourhood mean are content (ink); on a dark-background page
-     * only pixels LIGHTER than their local mean are content (highlights, panel borders). This
-     * preserves thin gutters that the absolute-deviation variant destroyed — a white gutter pixel
-     * surrounded by dark panels has a dark local mean, but `v > mean` is false for white on a
-     * light page so it stays gutter.
-     *
-     * Window half-size = max(32, height/12); constant C = 10.
-     * Uses a 2-D integral image for O(1) per-pixel mean computation.
-     */
-    fun binarizeMask(grid: PixelGrid): PanelBinaryMask? {
-        val w = grid.width; val h = grid.height
-        val bg = detectBackgroundLuma(grid)
-        val lightPage = bg >= 128
-        val stride = w + 1
-
-        // Build integral image (1-indexed, zero-padded border)
-        val integral = LongArray(stride * (h + 1))
-        for (y in 0 until h) {
-            for (x in 0 until w) {
-                integral[(y + 1) * stride + (x + 1)] =
-                    grid.get(x, y).toLong() +
-                    integral[y * stride + (x + 1)] +
-                    integral[(y + 1) * stride + x] -
-                    integral[y * stride + x]
-            }
-        }
-
-        val half = maxOf(32, h / 12)
-        val C = 10L
-        val data = ByteArray(w * h)
-
-        for (y in 0 until h) {
-            val y0 = maxOf(0, y - half); val y1 = minOf(h - 1, y + half)
-            for (x in 0 until w) {
-                val x0 = maxOf(0, x - half); val x1 = minOf(w - 1, x + half)
-                val area = (y1 - y0 + 1).toLong() * (x1 - x0 + 1)
-                val sum = integral[(y1 + 1) * stride + (x1 + 1)] -
-                          integral[y0 * stride + (x1 + 1)] -
-                          integral[(y1 + 1) * stride + x0] +
-                          integral[y0 * stride + x0]
-                val mean = sum / area
-                val v = grid.get(x, y).toLong()
-                val isContent = if (lightPage) v < mean - C else v > mean + C
-                data[y * w + x] = if (isContent) 1 else 0
-            }
-        }
-
-        val contentCount = data.count { it == 1.toByte() }
-        if (contentCount == 0 || contentCount == data.size) return null
-        return PanelBinaryMask(w, h, data)
-    }
-
     // --- Grid detection via projection profiles ---
 
     /**
@@ -673,32 +612,7 @@ class PanelDetector(
         return variance >= varianceCutoff
     }
 
-    /**
-     * 85th-percentile luma of the full page border (sampled at ~50-pixel intervals).
-     *
-     * Resistant to scanner corner / book-spine artefacts: for scanned book pages the 4
-     * corners often show dark binding (~luma 97-100), and the top/bottom edges may include
-     * ink titles or page numbers (~luma 140-150). The authentic paper margin lives on the
-     * left/right edges (~luma 200-215). On such pages those authentic samples account for
-     * ≥ 61% of all border samples, so the 85th percentile lands in the paper range rather
-     * than on the book-spine outliers.
-     *
-     * For dark-background comics every border pixel is dark, so the 85th percentile is
-     * equally dark — the same result a median would give. The only scenario the 85th
-     * percentile disagrees with the median is when > 15% of border samples are dark
-     * outliers while the true background is light, which is exactly the scanner-corner
-     * failure mode this fixes.
-     */
-    private fun detectBackgroundLuma(grid: PixelGrid): Int {
-        val w = grid.width
-        val h = grid.height
-        val step = maxOf(1, minOf(w, h) / 50)
-        val samples = mutableListOf<Int>()
-        var x = 0; while (x < w) { samples.add(grid.get(x, 0)); samples.add(grid.get(x, h - 1)); x += step }
-        var y = 0; while (y < h) { samples.add(grid.get(0, y)); samples.add(grid.get(w - 1, y)); y += step }
-        samples.sort()
-        return samples[(samples.size * 85) / 100]
-    }
+    private fun detectBackgroundLuma(grid: PixelGrid): Int = detectPageBackground(grid)
 
 
     // --- Step 2: trim outer margin to content bounding box ---

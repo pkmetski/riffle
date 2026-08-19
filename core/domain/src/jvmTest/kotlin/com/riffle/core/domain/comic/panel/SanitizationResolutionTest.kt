@@ -40,7 +40,7 @@ class SanitizationResolutionTest {
             println("  [$i] x=${p.x} y=${p.y} w=${p.width} h=${p.height}")
         }
 
-        val rawMask = detector.binarizeMask(grid)
+        val rawMask = PanelMaskBinarizer.binarize(grid)
         if (rawMask == null) { println("binarizeMask returned null, skipping"); return }
 
         val techniques = listOf(
