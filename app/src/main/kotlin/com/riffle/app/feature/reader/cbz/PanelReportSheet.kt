@@ -103,8 +103,14 @@ internal fun PanelReportSheet(
             }
 
             var canvasSize by remember { mutableStateOf(IntSize.Zero) }
-            val scaleX = if (canvasSize.width > 0 && mask.width > 0) canvasSize.width.toFloat() / mask.width else 1f
-            val scaleY = if (canvasSize.height > 0 && mask.height > 0) canvasSize.height.toFloat() / mask.height else 1f
+            // Panel coordinates are in the original image space (pagePanels.imageWidth × imageHeight).
+            // Use imageWidth/imageHeight (not mask.width/height) as the reference so rectangles
+            // stay correctly positioned even when the mask bitmap was decoded at a different
+            // resolution (e.g. DPI-scaled by BitmapFactory inScaled=true).
+            val imageW = viewModel.imageWidth.takeIf { it > 0 } ?: mask.width
+            val imageH = viewModel.imageHeight.takeIf { it > 0 } ?: mask.height
+            val scaleX = if (canvasSize.width > 0 && imageW > 0) canvasSize.width.toFloat() / imageW else 1f
+            val scaleY = if (canvasSize.height > 0 && imageH > 0) canvasSize.height.toFloat() / imageH else 1f
 
             // In-progress draw state (canvas coords, local only)
             var dragStart by remember { mutableStateOf<Offset?>(null) }

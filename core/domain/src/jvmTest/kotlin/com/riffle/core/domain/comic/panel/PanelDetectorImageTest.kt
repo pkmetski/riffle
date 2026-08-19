@@ -134,17 +134,22 @@ class PanelDetectorImageTest {
         val grid = loadMaskFixture("panel-detection-fixtures/issue-755-missed-panel-p42.png")
         val result = detector.detect(grid, pageIndex = 0, originalWidth = grid.width, originalHeight = grid.height)
         assertEquals(PanelSource.Auto, result.source)
+        // 4 panels: top-left splash, top-right panel, wide banner strip, bottom section.
+        // The column gutter between the two top panels is wide enough at full resolution
+        // for the binarizer to keep it clean; the banner is kept by the banner exception.
         assertEquals(
-            "expected 4 panels for splash+banner+2-bottom layout, got ${result.panels.size} (source=${result.source})",
+            "expected 4 panels for splash+banner+bottom layout, got ${result.panels.size}; panels=${result.panels}",
             4, result.panels.size,
         )
-        // The banner must appear: a very wide panel (≥ 60% page width) sitting in the lower half.
+        // The banner must appear: a very wide panel (≥ 75% page width) in the middle vertical
+        // band of the page (not at the very top, not at the very bottom).
         val banners = result.panels.filter { p ->
             p.width.toDouble() / grid.width >= 0.75 &&
-                p.y + p.height / 2 > grid.height / 2
+                p.y > grid.height * 0.25 &&
+                p.y + p.height < grid.height * 0.90
         }
         assertEquals(
-            "expected exactly one wide banner panel in the lower half of the page; panels=${result.panels}",
+            "expected exactly one wide banner panel in the middle band; panels=${result.panels}",
             1, banners.size,
         )
     }

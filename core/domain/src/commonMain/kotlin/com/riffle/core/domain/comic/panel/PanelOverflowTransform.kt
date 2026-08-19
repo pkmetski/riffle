@@ -20,8 +20,8 @@ object PanelOverflowTransform {
         val heightRatio = panel.height.toFloat() / imageHeight
         val isPortrait = viewportHeight > viewportWidth
         val isLandscape = viewportWidth > viewportHeight
-        val isWideOverflow = isPortrait && widthRatio >= 0.9f && panelDisplayW < viewportHeight
-        val isTallOverflow = isLandscape && heightRatio >= 0.9f && panelDisplayH < viewportWidth
+        val isWideOverflow = isPortrait && widthRatio >= 0.85f && panelDisplayW < viewportHeight
+        val isTallOverflow = isLandscape && heightRatio >= 0.85f && panelDisplayH < viewportWidth
         return isWideOverflow || isTallOverflow
     }
 
