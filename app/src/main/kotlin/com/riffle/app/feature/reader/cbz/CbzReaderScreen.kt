@@ -245,21 +245,11 @@ fun CbzReaderScreen(
             LaunchedEffect(effectiveThumbnailSource) {
                 delay(2_000)
                 val startPage = currentPage
-                val capacity = thumbnailCache.maxSize()
+                val source = effectiveThumbnailSource
+                val pageCount = ready.pageCount
                 withContext(Dispatchers.IO) {
-                    var loaded = 0
-                    for (offset in 0..ready.pageCount) {
-                        if (loaded >= capacity) break
-                        for (candidate in listOf(startPage + offset, startPage - offset).distinct()) {
-                            if (candidate in 0 until ready.pageCount && thumbnailCache.get(candidate) == null) {
-                                runCatching {
-                                    decodeSampledBitmap(effectiveThumbnailSource, candidate, MAX_THUMB_DIMENSION)
-                                }.getOrNull()?.let {
-                                    thumbnailCache.put(candidate, it)
-                                    loaded++
-                                }
-                            }
-                        }
+                    prewarmThumbnailCache(startPage, pageCount, thumbnailCache) { index ->
+                        runCatching { decodeSampledBitmap(source, index, MAX_THUMB_DIMENSION) }.getOrNull()
                     }
                 }
             }
@@ -756,4 +746,35 @@ internal fun cbzPageGestureAction(pointerCount: Int, scale: Float): CbzPageGestu
     pointerCount >= 2 -> CbzPageGestureAction.Zoom
     pointerCount == 1 && scale > 1f -> CbzPageGestureAction.PanZoomed
     else -> CbzPageGestureAction.Ignore
+}
+
+/**
+ * Fills [cache] with decoded thumbnails, radiating outward from [startPage].
+ *
+ * Stops as soon as [cache] is full — loading beyond capacity would evict nearby entries
+ * and leave the reading neighbourhood uncached (the "cache lost on page turn" bug).
+ *
+ * [decode] is called with a page index and must return a [Bitmap] or null on failure.
+ * Production callers pass `{ decodeSampledBitmap(source, it, MAX_THUMB_DIMENSION) }`.
+ * Tests pass a stub that creates a cheap 1×1 Bitmap.
+ */
+internal fun prewarmThumbnailCache(
+    startPage: Int,
+    pageCount: Int,
+    cache: LruCache<Int, Bitmap>,
+    decode: (Int) -> Bitmap?,
+) {
+    val capacity = cache.maxSize()
+    var loaded = 0
+    for (offset in 0..pageCount) {
+        if (loaded >= capacity) break
+        for (candidate in listOf(startPage + offset, startPage - offset).distinct()) {
+            if (candidate in 0 until pageCount && cache.get(candidate) == null) {
+                decode(candidate)?.let {
+                    cache.put(candidate, it)
+                    loaded++
+                }
+            }
+        }
+    }
 }
