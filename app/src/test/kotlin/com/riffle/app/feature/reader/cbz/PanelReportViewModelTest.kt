@@ -12,6 +12,7 @@ import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
+import com.riffle.core.domain.comic.panel.PanelBoundaryLine
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -69,6 +70,65 @@ class PanelReportViewModelTest {
         testDispatcher.scheduler.advanceUntilIdle()
         assertTrue(submitted)
         assertEquals("https://github.com/pkmetski/riffle/issues/1", vm.state.value.submittedIssueUrl)
+    }
+
+    @Test
+    fun `addDrawnPanel appends a panel region`() = runTest {
+        val vm = makeVm()
+        vm.addDrawnPanel(10, 20, 110, 120)
+        assertEquals(1, vm.state.value.drawnPanels.size)
+        val p = vm.state.value.drawnPanels.first()
+        assertEquals(10, p.x); assertEquals(20, p.y)
+        assertEquals(100, p.width); assertEquals(100, p.height)
+    }
+
+    @Test
+    fun `clearLastDrawnPanel removes the most-recent panel`() = runTest {
+        val vm = makeVm()
+        vm.addDrawnPanel(0, 0, 50, 50)
+        vm.addDrawnPanel(60, 60, 110, 110)
+        vm.clearLastDrawnPanel()
+        assertEquals(1, vm.state.value.drawnPanels.size)
+        assertEquals(0, vm.state.value.drawnPanels.first().x)
+    }
+
+    @Test
+    fun `addDrawnBoundary appends a boundary line`() = runTest {
+        val vm = makeVm()
+        vm.addDrawnBoundary(0, 100, 799, 100)  // imageWidth=800 → max x = 799
+        assertEquals(1, vm.state.value.drawnBoundaries.size)
+        val b = vm.state.value.drawnBoundaries.first()
+        assertEquals(PanelBoundaryLine(0, 100, 799, 100), b)
+    }
+
+    @Test
+    fun `clearLastDrawnBoundary removes the most-recent boundary`() = runTest {
+        val vm = makeVm()
+        vm.addDrawnBoundary(0, 100, 800, 100)
+        vm.addDrawnBoundary(0, 200, 800, 200)
+        vm.clearLastDrawnBoundary()
+        assertEquals(1, vm.state.value.drawnBoundaries.size)
+        assertEquals(100, vm.state.value.drawnBoundaries.first().y1)
+    }
+
+    @Test
+    fun `setFailureType clears drawn panels and boundaries`() = runTest {
+        val vm = makeVm()
+        vm.addDrawnPanel(0, 0, 50, 50)
+        vm.addDrawnBoundary(0, 100, 800, 100)
+        vm.setFailureType(PanelDetectionFailureType.FalsePanel)
+        assertTrue(vm.state.value.drawnPanels.isEmpty())
+        assertTrue(vm.state.value.drawnBoundaries.isEmpty())
+    }
+
+    @Test
+    fun `SplitPanel routes drawn region to drawnPanels not drawnBoundaries`() = runTest {
+        // Regression: SplitPanel must use addDrawnPanel (rectangle), not addDrawnBoundary (line).
+        val vm = makeVm()
+        vm.setFailureType(PanelDetectionFailureType.SplitPanel)
+        vm.addDrawnPanel(10, 20, 110, 120)
+        assertEquals(1, vm.state.value.drawnPanels.size)
+        assertTrue(vm.state.value.drawnBoundaries.isEmpty())
     }
 
     @Test
