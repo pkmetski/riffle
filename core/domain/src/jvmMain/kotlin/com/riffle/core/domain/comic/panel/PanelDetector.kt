@@ -694,31 +694,8 @@ class PanelDetector(
      * so one pass per pixel over its window is enough.
      */
     private fun binarize(grid: PixelGrid): BinaryMask? {
-        val w = grid.width
-        val h = grid.height
-        val bg = detectBackgroundLuma(grid)
-        val cutoff = config.backgroundContrastThreshold
-        val radius = config.textureWindowRadius
-        val stddevCutoff = config.textureStdDevThreshold
-        val varianceCutoff = stddevCutoff * stddevCutoff
-        val mask = ByteArray(w * h)
-
-        for (y in 0 until h) {
-            for (x in 0 until w) {
-                val v = grid.get(x, y)
-                val differsFromBg = if (bg >= 128) {
-                    bg - v >= cutoff
-                } else {
-                    v - bg >= cutoff
-                }
-                mask[y * w + x] = if (differsFromBg || hasTexture(grid, x, y, radius, varianceCutoff)) 1 else 0
-            }
-        }
-        var contentCount = 0
-        for (b in mask) if (b == 1.toByte()) contentCount++
-        val total = mask.size
-        if (contentCount == 0 || contentCount == total) return null
-        return BinaryMask(w, h, mask)
+        val panelMask = PanelMaskBinarizer.binarize(grid) ?: return null
+        return BinaryMask(panelMask.width, panelMask.height, panelMask.data)
     }
 
     private fun hasTexture(grid: PixelGrid, x: Int, y: Int, radius: Int, varianceCutoff: Double): Boolean {

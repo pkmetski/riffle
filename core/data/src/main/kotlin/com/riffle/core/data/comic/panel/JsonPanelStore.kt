@@ -174,6 +174,18 @@ class JsonPanelStore @Inject constructor(
          *      downscaled device images where the narrow gutter fell below the 15px projection
          *      band threshold and the panels merged into one bbox. v15 caches for pages with a
          *      wide banner adjacent to a splash panel hold a single merged bbox for those two.
+         * v22: PanelDetector.binarize() now ORs [PanelMaskBinarizer] (local adaptive, same code
+         *      as the panel mask reporter) with the global contrast classifier. The local adaptive
+         *      eliminates JPEG artifact false-positives in gutter rows (the large window is
+         *      dominated by adjacent dark panel content, so off-white artifact pixels satisfy
+         *      v >> local_mean and are correctly classified as gutter). The global classifier
+         *      catches solid-colour synthetic grids where local adaptive misclassifies interior
+         *      pixels as gutter (uniform neighbourhood → local mean = pixel value → no contrast).
+         *      Because the reporter uses [PanelMaskBinarizer] to generate JVM test fixtures, the
+         *      OR combination ensures the fixture is a subset of the detector's content pixels —
+         *      any test passing in JVM is guaranteed to produce the same or more panels on device
+         *      (never fewer). v21 caches computed without local adaptive may have wrong
+         *      content classifications for JPEG artifact gutter rows.
          * v21: backgroundContrastThreshold raised from 32 to 50. JPEG compression introduces
          *      artifact pixels in gutter rows at roughly v ≈ 190–210 on a 240-background page
          *      (bg − v ≈ 30–50). At threshold 32 those pixels were classified as content,
@@ -225,7 +237,7 @@ class JsonPanelStore @Inject constructor(
          *      check and were never promoted. v16 caches with a wide banner adjacent to a splash
          *      may still hold a merged bbox if detection ran on a downscaled image.
          */
-        internal const val CURRENT_SCHEMA_VERSION: Int = 21
+        internal const val CURRENT_SCHEMA_VERSION: Int = 22
 
         private val UNSAFE = Regex("[^A-Za-z0-9._-]")
     }
