@@ -51,9 +51,9 @@ class PanelMaskBinarizerTest {
         assertEquals("ground truth must be 4 panels", 4, expected.panels.size)
 
         val mask = PanelMaskBinarizer.binarize(original)!!
-        // Re-encode mask as a PixelGrid with the same two-value luma palette the fixtures use.
+        // Re-encode mask as a PixelGrid matching PanelMaskEncoder.encode(): content=0, gutter=255.
         val maskGrid = PixelGrid(mask.width, mask.height, ByteArray(mask.data.size) { i ->
-            if (mask.data[i] == 1.toByte()) 20 else 230.toByte().toInt().toByte()
+            if (mask.data[i] == 1.toByte()) 0 else 255.toByte().toInt().toByte()
         })
         val fromMask = detector.detect(maskGrid, 0, W, H)
 

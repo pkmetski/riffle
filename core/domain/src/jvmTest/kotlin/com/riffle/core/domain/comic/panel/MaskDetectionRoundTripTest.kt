@@ -56,8 +56,9 @@ class MaskDetectionRoundTripTest {
     }
 
     private fun PanelBinaryMask.toPixelGrid(): PixelGrid {
+        // Use the same palette as PanelMaskEncoder.encode(): content=0 (black), gutter=255 (white).
         val luma = ByteArray(width * height) { i ->
-            if (data[i] == 1.toByte()) 20 else 230.toByte().toInt().toByte()
+            if (data[i] == 1.toByte()) 0 else 255.toByte().toInt().toByte()
         }
         return PixelGrid(width, height, luma)
     }
