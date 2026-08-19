@@ -99,13 +99,10 @@ internal fun PanelReportSheet(
                 }
             }
 
-            // Render the binary mask: content = dark grey, gutter = cyan. This is the same
-            // image that will be uploaded to GitHub, so the user sees exactly what the agent sees.
+            // Black-on-white — same palette as the PNG uploaded to GitHub (ADR 0062).
             val maskBitmap = remember(mask) {
-                val contentColor = android.graphics.Color.rgb(50, 50, 50)
-                val gutterColor = android.graphics.Color.rgb(0, 188, 212)
                 val pixels = IntArray(mask.width * mask.height) { i ->
-                    if (mask.data[i] == 1.toByte()) contentColor else gutterColor
+                    if (mask.data[i] == 1.toByte()) android.graphics.Color.BLACK else android.graphics.Color.WHITE
                 }
                 Bitmap.createBitmap(pixels, mask.width, mask.height, Bitmap.Config.ARGB_8888)
                     .asImageBitmap()
