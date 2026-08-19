@@ -44,7 +44,10 @@ class PanelOrchestrator(
          * non-empty [PagePanels] — a Fallback source signals "render Fit Whole for this page."
          */
         fun resolvePage(pageIndex: Int): PagePanels {
-            store.load(bookId, pageIndex)?.let { return it }
+            store.load(bookId, pageIndex)?.let {
+                System.err.println("[DEBUG-PANELS] book=$bookId page=$pageIndex CACHE HIT source=${it.source} panels=${it.panels.map { p -> "x=${p.x} y=${p.y} w=${p.width} h=${p.height}" }}")
+                return it
+            }
             val resolved = resolveUncached(pageIndex)
             store.save(bookId, resolved)
             return resolved
@@ -61,7 +64,9 @@ class PanelOrchestrator(
                 originalWidth = decoded.originalWidth,
                 originalHeight = decoded.originalHeight,
             )
-            return detected.copy(panels = orderer.order(detected.panels))
+            val result = detected.copy(panels = orderer.order(detected.panels))
+            System.err.println("[DEBUG-PANELS] book=$bookId page=$pageIndex grid=${decoded.grid.width}x${decoded.grid.height} original=${decoded.originalWidth}x${decoded.originalHeight} source=${result.source} panels=${result.panels.map { "x=${it.x} y=${it.y} w=${it.width} h=${it.height}" }}")
+            return result
         }
 
         private fun fitWhole(pageIndex: Int, w: Int, h: Int): PagePanels = PagePanels(
