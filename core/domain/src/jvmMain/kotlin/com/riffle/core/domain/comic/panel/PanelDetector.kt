@@ -612,32 +612,7 @@ class PanelDetector(
         return variance >= varianceCutoff
     }
 
-    /**
-     * 85th-percentile luma of the full page border (sampled at ~50-pixel intervals).
-     *
-     * Resistant to scanner corner / book-spine artefacts: for scanned book pages the 4
-     * corners often show dark binding (~luma 97-100), and the top/bottom edges may include
-     * ink titles or page numbers (~luma 140-150). The authentic paper margin lives on the
-     * left/right edges (~luma 200-215). On such pages those authentic samples account for
-     * ≥ 61% of all border samples, so the 85th percentile lands in the paper range rather
-     * than on the book-spine outliers.
-     *
-     * For dark-background comics every border pixel is dark, so the 85th percentile is
-     * equally dark — the same result a median would give. The only scenario the 85th
-     * percentile disagrees with the median is when > 15% of border samples are dark
-     * outliers while the true background is light, which is exactly the scanner-corner
-     * failure mode this fixes.
-     */
-    private fun detectBackgroundLuma(grid: PixelGrid): Int {
-        val w = grid.width
-        val h = grid.height
-        val step = maxOf(1, minOf(w, h) / 50)
-        val samples = mutableListOf<Int>()
-        var x = 0; while (x < w) { samples.add(grid.get(x, 0)); samples.add(grid.get(x, h - 1)); x += step }
-        var y = 0; while (y < h) { samples.add(grid.get(0, y)); samples.add(grid.get(w - 1, y)); y += step }
-        samples.sort()
-        return samples[(samples.size * 85) / 100]
-    }
+    private fun detectBackgroundLuma(grid: PixelGrid): Int = detectPageBackground(grid)
 
 
     // --- Step 2: trim outer margin to content bounding box ---

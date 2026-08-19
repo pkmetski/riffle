@@ -311,3 +311,15 @@ The UI variant applied when the current window's width is in Material 3's **Expa
 
 ### Permanent Navigation Drawer
 The Tablet Layout variant of the Navigation Drawer. Pinned to the leading edge and always visible. Contents and ordering identical to the modal drawer used on phones.
+
+### Panel Detection Report
+A developer-filed record of a [Panel View] detection failure on a specific comic page. Submitted via a hidden "Report panel detection issue" item in the CBZ reader's overflow menu (visible only when [Developer Options] are unlocked). Contains: a [Sanitized Page Mask] of the affected page, a [Panel Detection Failure Type], optional free-form notes, and tapped coordinates identifying the problematic area (a detected [Panel Region] or a free-point marker for a missed panel). Submitted programmatically to GitHub Issues via the GitHub REST API; the mask image is committed to the `panel-reports` branch via the git data API and embedded as a `raw.githubusercontent.com` URL in the issue body. See ADR 0062.
+
+### Sanitized Page Mask
+A binarized, copyright-free representation of a comic page used as a regression test fixture. Produced by running the [Panel View] detector's binarize step on the real page image: each pixel is classified as content (black) or gutter/background (white), with all original art discarded. Stored as a PNG in `core/domain/src/jvmTest/resources/com/riffle/core/domain/comic/panel/fixtures/` and loaded by `PanelDetectorTest` to pin detection behaviour on real-world page structures without committing copyrighted material.
+
+### Panel Detection Failure Type
+A structured classification of what went wrong on a page in [Panel View]. One of: **Missed panel** (a real panel was not detected), **Merged panels** (two or more panels were returned as one region), **Wrong panel count** (detected count does not match visible panels), **False panel** (a region was detected that is not a real panel), **Fell back to full page** (the detector triggered [Fit Whole] fallback on a page that has real panels), **Cut panel cut off** (a panel region is clipped and does not cover the full drawn panel). Recorded in the [Panel Detection Report] and used as a GitHub issue label.
+
+### Developer Options
+A hidden section in the Riffle Settings screen, unlocked by tapping the app version number 7 times. Contains developer-only controls including the GitHub PAT field used for [Panel Detection Report] submission. The PAT is stored in `EncryptedSharedPreferences`. The [Panel Detection Report] menu item in the CBZ reader is gated on `developerModeEnabled`, a DataStore flag set by the unlock gesture; the section and flag are present in both debug and release builds.

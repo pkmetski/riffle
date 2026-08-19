@@ -38,9 +38,12 @@ import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.outlined.Tune
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -75,15 +78,19 @@ import coil.compose.AsyncImage
 import coil.compose.SubcomposeAsyncImage
 import coil.request.ImageRequest
 import coil.size.Size as CoilSize
+import androidx.compose.ui.graphics.asImageBitmap
 import com.riffle.app.feature.reader.ChapterMapOverlay
 import com.riffle.app.feature.reader.VolumeNavEvent
 import com.riffle.app.feature.reader.cbzSegmentPageIndex
 import com.riffle.app.feature.reader.palette
 import com.riffle.app.feature.reader.readerThemeLabelColor
 import com.riffle.app.feature.reader.rememberImmersiveModeState
+import com.riffle.core.data.comic.panel.PanelMaskEncoder
 import com.riffle.core.domain.ReaderTheme
 import com.riffle.core.domain.comic.panel.PagePanels
+import com.riffle.core.domain.comic.panel.PanelBinaryMask
 import com.riffle.core.domain.comic.panel.PanelFitTransform
+import com.riffle.core.domain.comic.panel.PanelSource
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -106,7 +113,11 @@ fun CbzReaderScreen(
     val activeRailSegmentIndex by viewModel.activeRailSegmentIndex.collectAsState()
     val railCursorPosition by viewModel.railCursorPosition.collectAsState()
     val hasComicOverrides by viewModel.hasComicOverrides.collectAsState()
+    val developerModeEnabled by viewModel.developerModeEnabled.collectAsState()
     var formattingSheetOpen by remember { mutableStateOf(false) }
+    var reportSheetOpen by remember { mutableStateOf(false) }
+    var reportData by remember { mutableStateOf<Pair<PanelBinaryMask, ByteArray>?>(null) }
+    val coroutineScope = androidx.compose.runtime.rememberCoroutineScope()
     val context = LocalContext.current
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     val immersiveState = rememberImmersiveModeState()
@@ -198,6 +209,27 @@ fun CbzReaderScreen(
                                 imageVector = Icons.Outlined.Tune,
                                 contentDescription = "Comic formatting",
                             )
+                        }
+                        if (developerModeEnabled) {
+                            var menuOpen by remember { mutableStateOf(false) }
+                            IconButton(onClick = { menuOpen = true }) {
+                                Icon(Icons.Default.MoreVert, contentDescription = "More options")
+                            }
+                            DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                                DropdownMenuItem(
+                                    text = { Text("Report panel detection issue") },
+                                    onClick = {
+                                        menuOpen = false
+                                        coroutineScope.launch(Dispatchers.IO) {
+                                            val result = viewModel.generateMaskPng(currentPage)
+                                            if (result != null) {
+                                                reportData = result
+                                                reportSheetOpen = true
+                                            }
+                                        }
+                                    },
+                                )
+                            }
                         }
                     }
                 },
@@ -294,6 +326,35 @@ fun CbzReaderScreen(
             onReset = viewModel::resetComicFormattingToDefaults,
             onDismiss = { formattingSheetOpen = false },
         )
+    }
+
+    val data = reportData
+    if (reportSheetOpen && data != null) {
+        val (mask, maskPng) = data
+        val maskBitmap = remember(mask) {
+            val pixels = PanelMaskEncoder.toArgbPixels(mask)
+            android.graphics.Bitmap.createBitmap(pixels, mask.width, mask.height, android.graphics.Bitmap.Config.ARGB_8888)
+                .asImageBitmap()
+        }
+        val panelReportVm = remember(currentPage) {
+            PanelReportViewModel(
+                bookId = viewModel.bookId,
+                pageIndex = currentPage,
+                imageWidth = mask.width,
+                imageHeight = mask.height,
+                detectedPanels = effectivePanels?.panels ?: emptyList(),
+                detectedSource = effectivePanels?.source ?: PanelSource.Fallback,
+                repository = viewModel.panelReportRepository,
+            )
+        }
+        PanelReportSheet(
+            viewModel = panelReportVm,
+            mask = mask,
+            maskBitmap = maskBitmap,
+            onSubmit = { panelReportVm.submit(maskPng) },
+            onDismiss = { reportSheetOpen = false },
+        )
+
     }
 }
 

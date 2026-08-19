@@ -45,13 +45,17 @@ import com.riffle.core.domain.SourceRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -92,6 +96,7 @@ class SettingsViewModel @Inject constructor(
     private val localFilesSourceInstaller: LocalFilesSourceInstaller,
     private val localFilesFolderHealthChecker: LocalFilesFolderHealthChecker,
     private val comicFormattingPreferencesStore: ComicFormattingPreferencesStore,
+    private val developerOptionsRepository: com.riffle.core.domain.developer.DeveloperOptionsRepository,
     annotationSyncConfigStore: com.riffle.core.domain.AnnotationSyncConfigStore,
     annotationSyncStatusStore: AnnotationSyncStatusStore,
     annotationDao: AnnotationDao,
@@ -500,6 +505,32 @@ class SettingsViewModel @Inject constructor(
      */
     fun removeLocalFilesSource() {
         localFilesSource.value?.id?.let { removeServer(it) }
+    }
+
+    // endregion
+
+    // region Developer Options
+
+    val developerModeEnabled: StateFlow<Boolean> = developerOptionsRepository.developerModeEnabled
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
+
+    val githubPat: StateFlow<String> = flow { emit(developerOptionsRepository.getGithubPat() ?: "") }
+        .stateIn(viewModelScope, SharingStarted.Lazily, "")
+
+    private val _developerUnlockEvents = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+    val developerUnlockEvents: SharedFlow<Unit> = _developerUnlockEvents.asSharedFlow()
+
+    private val tapCounter = DeveloperOptionsTapCounter {
+        viewModelScope.launch {
+            developerOptionsRepository.setDeveloperModeEnabled(true)
+            _developerUnlockEvents.emit(Unit)
+        }
+    }
+
+    fun onVersionTap() = tapCounter.onTap()
+
+    fun onSaveGithubPat(pat: String) {
+        viewModelScope.launch { developerOptionsRepository.setGithubPat(pat.ifBlank { null }) }
     }
 
     // endregion

@@ -12,6 +12,8 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.windowsizeclass.WindowSizeClass
@@ -96,9 +98,16 @@ fun SettingsScreen(
     val rewindIntervalSeconds by viewModel.rewindIntervalSeconds.collectAsState()
     val rewindOnResumeSeconds by viewModel.rewindOnResumeSeconds.collectAsState()
     val annotationSyncRow by viewModel.annotationSyncRow.collectAsState()
+    val developerModeEnabled by viewModel.developerModeEnabled.collectAsState()
+    val githubPat by viewModel.githubPat.collectAsState()
     val expandedServers = remember { mutableStateMapOf<String, Boolean>() }
     val expandedCrashes = remember { mutableStateMapOf<String, Boolean>() }
     var openPanel by remember { mutableStateOf<SettingsPanel?>(null) }
+    val snackbarHostState = remember { SnackbarHostState() }
+
+    LaunchedEffect(Unit) {
+        viewModel.developerUnlockEvents.collect { snackbarHostState.showSnackbar("Developer options enabled") }
+    }
 
     LaunchedEffect(Unit) {
         viewModel.navigationEvents.collect { event ->
@@ -130,6 +139,7 @@ fun SettingsScreen(
                 },
             )
         },
+        snackbarHost = { SnackbarHost(snackbarHostState) },
     ) { padding ->
         TabletContentWidthContainer(
             windowSizeClass = windowSizeClass,
@@ -225,6 +235,10 @@ fun SettingsScreen(
                     onInstallUpdate = viewModel::downloadAndInstallUpdate,
                     onSetAutoUpdateEnabled = viewModel::setAutoUpdateEnabled,
                     onNavigateToChangelog = onNavigateToChangelog,
+                    onVersionTap = viewModel::onVersionTap,
+                    developerModeEnabled = developerModeEnabled,
+                    currentGithubPat = githubPat,
+                    onSaveGithubPat = viewModel::onSaveGithubPat,
                 )
                 HorizontalDivider()
             }

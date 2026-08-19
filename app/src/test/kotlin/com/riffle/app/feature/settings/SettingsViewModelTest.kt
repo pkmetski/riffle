@@ -238,6 +238,13 @@ class SettingsViewModelTest {
     }
 
     private val reviewsFlow = MutableStateFlow<Map<String, ReadaloudReview>>(emptyMap())
+    private val fakeDeveloperOptionsRepository = object : com.riffle.core.domain.developer.DeveloperOptionsRepository {
+        override val developerModeEnabled = kotlinx.coroutines.flow.MutableStateFlow(false)
+        override suspend fun setDeveloperModeEnabled(enabled: Boolean) = Unit
+        override suspend fun getGithubPat(): String? = null
+        override suspend fun setGithubPat(pat: String?) = Unit
+    }
+
     private val fakeReviewRepo = object : ReadaloudReviewRepository {
         override fun observeReview(storytellerSourceId: String, absSourceId: String?): Flow<ReadaloudReview> =
             reviewsFlow.map { it[storytellerSourceId] ?: ReadaloudReview(emptyList(), emptyList(), emptyList()) }
@@ -282,6 +289,7 @@ class SettingsViewModelTest {
         localFilesSourceInstaller = fakeLocalFilesSourceInstaller,
         localFilesFolderHealthChecker = fakeLocalFilesFolderHealthChecker,
         comicFormattingPreferencesStore = noOpComicFormattingStore,
+        developerOptionsRepository = fakeDeveloperOptionsRepository,
     )
 
     private fun stubAnnotationDao(pendingBookCount: Int): AnnotationDao = object : AnnotationDao {
@@ -371,6 +379,7 @@ class SettingsViewModelTest {
         localFilesSourceInstaller = fakeLocalFilesSourceInstaller,
         localFilesFolderHealthChecker = fakeLocalFilesFolderHealthChecker,
         comicFormattingPreferencesStore = noOpComicFormattingStore,
+        developerOptionsRepository = fakeDeveloperOptionsRepository,
     )
 
     // --- crash report list tests ---
