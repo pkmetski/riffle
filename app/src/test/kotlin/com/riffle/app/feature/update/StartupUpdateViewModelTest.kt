@@ -19,8 +19,10 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 
@@ -286,5 +288,14 @@ class StartupUpdateViewModelTest {
 
         assertNull(vm.dialogState.value)
         assertEquals(0, prefs.ignoredVersionCode.first())
+    }
+
+    @Test
+    fun `isDevVersionName returns true for dash-dev suffix and false for real versions`() {
+        assertTrue(isDevVersionName("0.0.0-dev"))
+        assertTrue(isDevVersionName("1.2.3-dev"))
+        assertFalse(isDevVersionName("1.2.3"))
+        assertFalse(isDevVersionName("0.0.0-ci"))
+        assertFalse(isDevVersionName("1.0.0-rc1"))
     }
 }
