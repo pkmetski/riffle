@@ -60,6 +60,7 @@ internal fun ComicFormattingSheet(
             HorizontalDivider()
             ListItem(
                 headlineContent = { Text("Reading progress") },
+                supportingContent = { Text("Progress bar at the bottom of the page") },
                 trailingContent = {
                     Switch(
                         checked = formatting.showChapterMap,
