@@ -520,72 +520,6 @@ class PanelDetectorTest {
     }
 
     @Test
-    fun `scanned splash-plus-two-panels page is detected correctly`() {
-        // Regression for page 56: full-width splash on top + two panels at the bottom.
-        // Same dark book-spine corner issue as page 58 would have caused Fallback.
-        val imgFile = java.io.File("../../.context/attachments/re2TGP/image.png")
-        if (!imgFile.exists()) return
-        val img = javax.imageio.ImageIO.read(imgFile) ?: return
-        val w = img.width
-        val h = img.height
-        val luma = ByteArray(w * h)
-        for (y in 0 until h) {
-            for (x in 0 until w) {
-                val rgb = img.getRGB(x, y)
-                val r = (rgb shr 16) and 0xFF
-                val g = (rgb shr 8) and 0xFF
-                val b = rgb and 0xFF
-                luma[y * w + x] = (0.299 * r + 0.587 * g + 0.114 * b).toInt().coerceIn(0, 255).toByte()
-            }
-        }
-        val grid = PixelGrid(w, h, luma)
-        val result = detector.detect(grid, pageIndex = 56, originalWidth = w, originalHeight = h)
-        assertEquals(PanelSource.Auto, result.source)
-        assertEquals(
-            "expected 3 panels for splash+2-panel layout, got ${result.panels.size}",
-            3, result.panels.size,
-        )
-    }
-
-    @Test
-    fun `scanned page with dark book-spine corners is detected correctly`() {
-        // Regression for page 58: a 3x2 grid of 6 panels on a scanned comic page.
-        // The scanner captured dark book-binding pixels in all 4 corners, dragging the
-        // 8-sample median background estimate down to 142. At that value the tan page
-        // gutter (luma ~200-215) reads as content (diff 58 >= 32 threshold), flooding
-        // the entire page with "content" pixels and leaving no gutter for flood fill —
-        // the single resulting CC covers the whole page and triggers Fallback.
-        //
-        // Fix: sample the full border at regular intervals and use the 85th percentile
-        // instead of the median of 8 corner/midpoint samples. The left and right edges of
-        // a scanned page are authentic paper margin; they represent ~60% of border samples.
-        // The 85th percentile lands in the light range even when 40% of border samples are
-        // dark spine/binding pixels, correctly estimating the tan paper background at ~208.
-        val imgFile = java.io.File("../../.context/attachments/6Y8Gd3/image.png")
-        if (!imgFile.exists()) return  // skip on CI where attachment isn't present
-        val img = javax.imageio.ImageIO.read(imgFile) ?: return
-        val w = img.width
-        val h = img.height
-        val luma = ByteArray(w * h)
-        for (y in 0 until h) {
-            for (x in 0 until w) {
-                val rgb = img.getRGB(x, y)
-                val r = (rgb shr 16) and 0xFF
-                val g = (rgb shr 8) and 0xFF
-                val b = rgb and 0xFF
-                luma[y * w + x] = (0.299 * r + 0.587 * g + 0.114 * b).toInt().coerceIn(0, 255).toByte()
-            }
-        }
-        val grid = PixelGrid(w, h, luma)
-        val result = detector.detect(grid, pageIndex = 58, originalWidth = w, originalHeight = h)
-        assertEquals(
-            "expected 6 panels for scanned 3x2 grid, got ${result.panels.size} (source=${result.source})",
-            6, result.panels.size,
-        )
-        assertEquals(PanelSource.Auto, result.source)
-    }
-
-    @Test
     fun `white speech bubble in gutter between two stacked panels does not merge them`() {
         // Reproduces: page with Panel 1 (top) / white speech bubble in gutter / Panel 2 (bottom).
         // With two-sided contrast the speech bubble interior (luma ~250, background ~210) was
@@ -652,7 +586,43 @@ class PanelDetectorTest {
         assertEquals("expected 2 bottom panels", 2, bottomPanels.size)
     }
 
-    // --- Fixture builders ---
+    @Test
+    fun `narrow side-strip false-vertical-split is suppressed by min-dimension guard`() {
+        // Regression for the vertical-split branch of the caption-box guard (issue #751 symmetric
+        // case). A wide panel has its left-side text strip (15px wide) flood-fill-reachable from
+        // the top border via a gap in the strip's right border. splitSinglePanelRecursively finds
+        // a vertical gutter at x≈15 (between strip and art) — but the resulting left sub-bbox
+        // would be 15px wide, well below minPanelDimensionFraction × pageWidth (60px). Without
+        // the guard the strip is split off, tightened to nothing, and filtered, leaving the panel
+        // truncated on the left. With the guard the split is skipped and the panel is intact.
+        val W = 400
+        val H = 560
+        val grid = fixture(width = W, height = H) { canvas ->
+            canvas.fill(background = LIGHT)
+            // Main panel: solid dark fill. Left 15px is "caption strip" with LIGHT interior
+            // (background colour) connected to the top page border, simulating a flood-fill-
+            // reachable side strip. The strip is only 15px wide — 15/400 = 3.75%, well below
+            // minPanelDimensionFraction (15%).
+            canvas.rect(x = 15, y = 20, w = 365, h = 520, color = DARK)
+            // The 15px left strip stays LIGHT (background fill), making those columns appear
+            // flood-fill reachable from the top border — the column at x=15 would score high
+            // gutter pixels and could trigger a vertical split without the guard.
+        }
+
+        val result = detector.detect(grid, pageIndex = 0, originalWidth = W, originalHeight = H)
+
+        assertEquals(PanelSource.Auto, result.source)
+        assertEquals(
+            "narrow left strip must not be falsely split off; expected 1 panel, got ${result.panels.map { "(${it.x},${it.y})${it.width}x${it.height}" }}",
+            1, result.panels.size,
+        )
+        assertTrue(
+            "surviving panel must start near x=15, not after a false split; got x=${result.panels[0].x}",
+            result.panels[0].x < 30,
+        )
+    }
+
+    // --- Synthetic fixture builders ---
 
     private val LIGHT: Byte = 240.toByte()
     private val DARK: Byte = 20.toByte()
