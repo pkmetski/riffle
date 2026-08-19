@@ -2,6 +2,7 @@ package com.riffle.app.feature.reader.cbz
 
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.util.LruCache
 import android.view.WindowManager
 import android.provider.Settings
 import androidx.compose.animation.AnimatedVisibility
@@ -17,25 +18,16 @@ import androidx.compose.foundation.gestures.calculatePan
 import androidx.compose.foundation.gestures.calculateZoom
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.waitForUpOrCancellation
-import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.MoreVert
@@ -74,10 +66,8 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
-import coil.compose.AsyncImage
 import coil.compose.SubcomposeAsyncImage
 import coil.request.ImageRequest
-import coil.size.Size as CoilSize
 import androidx.compose.ui.graphics.asImageBitmap
 import com.riffle.app.feature.reader.ChapterMapOverlay
 import com.riffle.app.feature.reader.VolumeNavEvent
@@ -92,6 +82,7 @@ import com.riffle.core.domain.comic.panel.PanelBinaryMask
 import com.riffle.core.domain.comic.panel.PanelFitTransform
 import com.riffle.core.domain.comic.panel.PanelSource
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
@@ -240,6 +231,28 @@ fun CbzReaderScreen(
         if (ready != null) {
             var chapterMapContentPx by remember { mutableStateOf(0) }
             val density = LocalDensity.current
+            val effectiveThumbnailSource = ready.thumbnailSource ?: ready.imageSource
+            // Cache scoped to the book session — survives immersive mode toggles so thumbnails
+            // that were decoded before entering immersive are served instantly on re-exit.
+            val thumbnailCache = remember(effectiveThumbnailSource) { LruCache<Int, Bitmap>(50) }
+
+            // Pre-warm the cache ~2 s after the comic opens so the initial page render
+            // claims the full IO budget first. Radiates outward from the current reading
+            // position so the pages the user is most likely to scroll to are cached first.
+            // Stops once the cache is full — loading beyond capacity evicts earlier entries
+            // and leaves the reading neighbourhood uncached.
+            // Keyed only on effectiveThumbnailSource — runs once per book, not per page turn.
+            LaunchedEffect(effectiveThumbnailSource) {
+                delay(2_000)
+                val startPage = currentPage
+                val source = effectiveThumbnailSource
+                val pageCount = ready.pageCount
+                withContext(Dispatchers.IO) {
+                    prewarmThumbnailCache(startPage, pageCount, thumbnailCache) { index ->
+                        runCatching { decodeSampledBitmap(source, index, MAX_THUMB_DIMENSION) }.getOrNull()
+                    }
+                }
+            }
 
             // Thumbnail strip — animated, sits above the chapter map
             AnimatedVisibility(
@@ -257,7 +270,8 @@ fun CbzReaderScreen(
                     CbzThumbnailStrip(
                         currentPage = currentPage,
                         pageCount = ready.pageCount,
-                        imageSource = ready.thumbnailSource ?: ready.imageSource,
+                        imageSource = effectiveThumbnailSource,
+                        thumbnailCache = thumbnailCache,
                         onSeek = { viewModel.jumpToPage(it) },
                     )
                 }
@@ -663,90 +677,6 @@ private fun CbzPanelPeekOverlay(
     }
 }
 
-@Composable
-internal fun CbzThumbnailStrip(
-    currentPage: Int,
-    pageCount: Int,
-    imageSource: CbzImageSource,
-    onSeek: (Int) -> Unit,
-) {
-    val listState = rememberLazyListState()
-
-    LaunchedEffect(currentPage) {
-        val viewport = listState.layoutInfo.viewportEndOffset - listState.layoutInfo.viewportStartOffset
-        val leading = if (viewport > 0) -(viewport / 2) else 0
-        listState.animateScrollToItem(currentPage, scrollOffset = leading)
-    }
-
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.9f))
-            .padding(vertical = 8.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        Text(
-            text = "${currentPage + 1} / $pageCount",
-            color = MaterialTheme.colorScheme.onSurface,
-        )
-        LazyRow(
-            state = listState,
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(top = 4.dp)
-                .testTag("cbz_thumbnail_strip"),
-            contentPadding = PaddingValues(horizontal = 12.dp),
-            horizontalArrangement = Arrangement.spacedBy(4.dp),
-        ) {
-            items(pageCount) { index ->
-                CbzThumbnail(
-                    imageSource = imageSource,
-                    pageIndex = index,
-                    isCurrent = index == currentPage,
-                    onClick = { onSeek(index) },
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun CbzThumbnail(
-    imageSource: CbzImageSource,
-    pageIndex: Int,
-    isCurrent: Boolean,
-    onClick: () -> Unit,
-) {
-    val context = LocalContext.current
-    val bitmap by produceState<Bitmap?>(initialValue = null, key1 = pageIndex, key2 = imageSource) {
-        value = withContext(Dispatchers.IO) {
-            runCatching { decodeSampledBitmap(imageSource, pageIndex, MAX_THUMB_DIMENSION) }.getOrNull()
-        }
-    }
-    val borderColor = if (isCurrent) MaterialTheme.colorScheme.primary else Color.Transparent
-    Box(
-        modifier = Modifier
-            .size(width = 88.dp, height = 120.dp)
-            .background(Color(0xFF1A1A1A), RoundedCornerShape(2.dp))
-            .border(width = 2.dp, color = borderColor, shape = RoundedCornerShape(2.dp))
-            .clickable { onClick() }
-            .testTag("cbz_thumb_$pageIndex"),
-    ) {
-        val currentBitmap = bitmap
-        if (currentBitmap != null) {
-            AsyncImage(
-                model = ImageRequest.Builder(context)
-                    .data(currentBitmap)
-                    .size(CoilSize(264, 360))
-                    .crossfade(false)
-                    .build(),
-                contentDescription = null,
-                modifier = Modifier.fillMaxSize(),
-            )
-        }
-    }
-}
-
 private enum class TapZone { Left, Center, Right }
 
 /**
@@ -771,7 +701,6 @@ internal enum class CbzPageGestureAction { Ignore, Zoom, PanZoomed }
 // Large BMPs can exceed 274MB decoded. Subsample to this max dimension to keep the Bitmap
 // allocation under the app heap limit.
 private const val MAX_PAGE_DIMENSION = 4096
-private const val MAX_THUMB_DIMENSION = 256
 
 internal fun calculateInSampleSize(width: Int, height: Int, maxDimension: Int): Int {
     var sampleSize = 1
@@ -817,4 +746,35 @@ internal fun cbzPageGestureAction(pointerCount: Int, scale: Float): CbzPageGestu
     pointerCount >= 2 -> CbzPageGestureAction.Zoom
     pointerCount == 1 && scale > 1f -> CbzPageGestureAction.PanZoomed
     else -> CbzPageGestureAction.Ignore
+}
+
+/**
+ * Fills [cache] with decoded thumbnails, radiating outward from [startPage].
+ *
+ * Stops as soon as [cache] is full — loading beyond capacity would evict nearby entries
+ * and leave the reading neighbourhood uncached (the "cache lost on page turn" bug).
+ *
+ * [decode] is called with a page index and must return a [Bitmap] or null on failure.
+ * Production callers pass `{ decodeSampledBitmap(source, it, MAX_THUMB_DIMENSION) }`.
+ * Tests pass a stub that creates a cheap 1×1 Bitmap.
+ */
+internal fun prewarmThumbnailCache(
+    startPage: Int,
+    pageCount: Int,
+    cache: LruCache<Int, Bitmap>,
+    decode: (Int) -> Bitmap?,
+) {
+    val capacity = cache.maxSize()
+    var loaded = 0
+    outer@ for (offset in 0..pageCount) {
+        for (candidate in listOf(startPage + offset, startPage - offset).distinct()) {
+            if (loaded >= capacity) break@outer
+            if (candidate in 0 until pageCount && cache.get(candidate) == null) {
+                decode(candidate)?.let {
+                    cache.put(candidate, it)
+                    loaded++
+                }
+            }
+        }
+    }
 }

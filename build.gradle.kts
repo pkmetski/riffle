@@ -101,6 +101,7 @@ tasks.register("checkRiffleInfraSeams") {
             // migrate once the reader layer routes through DispatcherProvider.
             "app/src/main/kotlin/com/riffle/app/feature/reader/cbz/CbzReaderViewModel.kt",
             "app/src/main/kotlin/com/riffle/app/feature/reader/cbz/CbzReaderScreen.kt",
+            "app/src/main/kotlin/com/riffle/app/feature/reader/cbz/CbzThumbnailStrip.kt",
             // ---- Grandfathered when CI enforcement of these lints was turned on (the custom
             // checks were wired into `check`, which no CI job ran — drift below accumulated
             // unenforced). Same sweep-follow-up rationale as the blocks above.
