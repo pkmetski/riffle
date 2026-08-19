@@ -27,6 +27,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
+import android.graphics.Bitmap
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -37,6 +38,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
@@ -97,6 +99,17 @@ internal fun PanelReportSheet(
                 }
             }
 
+            // Render the binary mask as an image: content = dark grey, gutter = cyan.
+            val maskBitmap = remember(mask) {
+                val contentColor = android.graphics.Color.rgb(50, 50, 50)
+                val gutterColor = android.graphics.Color.rgb(0, 188, 212)
+                val pixels = IntArray(mask.width * mask.height) { i ->
+                    if (mask.data[i] == 1.toByte()) contentColor else gutterColor
+                }
+                Bitmap.createBitmap(pixels, mask.width, mask.height, Bitmap.Config.ARGB_8888)
+                    .asImageBitmap()
+            }
+
             var canvasSize by remember { mutableStateOf(IntSize.Zero) }
             val scaleX = if (canvasSize.width > 0 && mask.width > 0) canvasSize.width.toFloat() / mask.width else 1f
             val scaleY = if (canvasSize.height > 0 && mask.height > 0) canvasSize.height.toFloat() / mask.height else 1f
@@ -152,7 +165,10 @@ internal fun PanelReportSheet(
                     },
             ) {
                 Canvas(modifier = Modifier.matchParentSize()) {
-                    drawRect(color = Color(0xFF1A1A2E))
+                    drawImage(
+                        image = maskBitmap,
+                        dstSize = IntSize(size.width.toInt(), size.height.toInt()),
+                    )
 
                     // Detected panels
                     viewModel.detectedPanels.forEachIndexed { i, p ->
