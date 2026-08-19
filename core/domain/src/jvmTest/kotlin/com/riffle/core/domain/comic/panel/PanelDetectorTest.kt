@@ -520,72 +520,6 @@ class PanelDetectorTest {
     }
 
     @Test
-    fun `scanned splash-plus-two-panels page is detected correctly`() {
-        // Regression for page 56: full-width splash on top + two panels at the bottom.
-        // Same dark book-spine corner issue as page 58 would have caused Fallback.
-        val imgFile = java.io.File("../../.context/attachments/re2TGP/image.png")
-        if (!imgFile.exists()) return
-        val img = javax.imageio.ImageIO.read(imgFile) ?: return
-        val w = img.width
-        val h = img.height
-        val luma = ByteArray(w * h)
-        for (y in 0 until h) {
-            for (x in 0 until w) {
-                val rgb = img.getRGB(x, y)
-                val r = (rgb shr 16) and 0xFF
-                val g = (rgb shr 8) and 0xFF
-                val b = rgb and 0xFF
-                luma[y * w + x] = (0.299 * r + 0.587 * g + 0.114 * b).toInt().coerceIn(0, 255).toByte()
-            }
-        }
-        val grid = PixelGrid(w, h, luma)
-        val result = detector.detect(grid, pageIndex = 56, originalWidth = w, originalHeight = h)
-        assertEquals(PanelSource.Auto, result.source)
-        assertEquals(
-            "expected 3 panels for splash+2-panel layout, got ${result.panels.size}",
-            3, result.panels.size,
-        )
-    }
-
-    @Test
-    fun `scanned page with dark book-spine corners is detected correctly`() {
-        // Regression for page 58: a 3x2 grid of 6 panels on a scanned comic page.
-        // The scanner captured dark book-binding pixels in all 4 corners, dragging the
-        // 8-sample median background estimate down to 142. At that value the tan page
-        // gutter (luma ~200-215) reads as content (diff 58 >= 32 threshold), flooding
-        // the entire page with "content" pixels and leaving no gutter for flood fill —
-        // the single resulting CC covers the whole page and triggers Fallback.
-        //
-        // Fix: sample the full border at regular intervals and use the 85th percentile
-        // instead of the median of 8 corner/midpoint samples. The left and right edges of
-        // a scanned page are authentic paper margin; they represent ~60% of border samples.
-        // The 85th percentile lands in the light range even when 40% of border samples are
-        // dark spine/binding pixels, correctly estimating the tan paper background at ~208.
-        val imgFile = java.io.File("../../.context/attachments/6Y8Gd3/image.png")
-        if (!imgFile.exists()) return  // skip on CI where attachment isn't present
-        val img = javax.imageio.ImageIO.read(imgFile) ?: return
-        val w = img.width
-        val h = img.height
-        val luma = ByteArray(w * h)
-        for (y in 0 until h) {
-            for (x in 0 until w) {
-                val rgb = img.getRGB(x, y)
-                val r = (rgb shr 16) and 0xFF
-                val g = (rgb shr 8) and 0xFF
-                val b = rgb and 0xFF
-                luma[y * w + x] = (0.299 * r + 0.587 * g + 0.114 * b).toInt().coerceIn(0, 255).toByte()
-            }
-        }
-        val grid = PixelGrid(w, h, luma)
-        val result = detector.detect(grid, pageIndex = 58, originalWidth = w, originalHeight = h)
-        assertEquals(
-            "expected 6 panels for scanned 3x2 grid, got ${result.panels.size} (source=${result.source})",
-            6, result.panels.size,
-        )
-        assertEquals(PanelSource.Auto, result.source)
-    }
-
-    @Test
     fun `white speech bubble in gutter between two stacked panels does not merge them`() {
         // Reproduces: page with Panel 1 (top) / white speech bubble in gutter / Panel 2 (bottom).
         // With two-sided contrast the speech bubble interior (luma ~250, background ~210) was
@@ -652,7 +586,7 @@ class PanelDetectorTest {
         assertEquals("expected 2 bottom panels", 2, bottomPanels.size)
     }
 
-    // --- Fixture builders ---
+    // --- Synthetic fixture builders ---
 
     private val LIGHT: Byte = 240.toByte()
     private val DARK: Byte = 20.toByte()

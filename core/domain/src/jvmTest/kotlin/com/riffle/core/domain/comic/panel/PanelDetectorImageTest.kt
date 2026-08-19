@@ -1,0 +1,172 @@
+package com.riffle.core.domain.comic.panel
+
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
+import org.junit.Test
+
+/**
+ * Panel-detector regression tests that run against real comic-page images.
+ *
+ * Every test here loads a fixture image from the classpath
+ * (`core/domain/src/jvmTest/resources/panel-detection-fixtures/`). All fixtures are
+ * source-controlled so tests always run on CI — no conditional skips, no `.context/` paths.
+ *
+ * Adding a new test:
+ *  1. Copy the page image to `core/domain/src/jvmTest/resources/panel-detection-fixtures/`
+ *     with a name like `issue-<N>-<short-description>.png`.
+ *  2. Load it with [loadFixture] and convert with [lumaGrid].
+ *  3. Assert the expected [PanelSource] and panel count (and any geometry checks needed).
+ *  4. Run the test — it must fail RED before you touch [PanelDetector].
+ *
+ * Synthetic / geometry-only tests belong in [PanelDetectorTest].
+ */
+class PanelDetectorImageTest {
+
+    private val detector = PanelDetector()
+
+    @Test
+    fun `scanned splash-plus-two-panels page is detected correctly`() {
+        // Regression for page 56: full-width splash on top + two panels at the bottom.
+        // Fixture is a binarized mask (black=content, white=gutter) generated from the
+        // original scanned image — copyright-safe per ADR 0062.
+        val grid = loadMaskFixture("panel-detection-fixtures/issue-old-splash-plus-two-panels-p56.png")
+        val result = detector.detect(grid, pageIndex = 56, originalWidth = grid.width, originalHeight = grid.height)
+        assertEquals(PanelSource.Auto, result.source)
+        assertEquals("expected 3 panels for splash+2-panel layout", 3, result.panels.size)
+        val topPanels = result.panels.filter { it.y + it.height / 2 < grid.height / 2 }
+        val bottomPanels = result.panels.filter { it.y + it.height / 2 >= grid.height / 2 }
+        assertEquals("1 splash panel in top half", 1, topPanels.size)
+        assertEquals("2 panels in bottom half", 2, bottomPanels.size)
+        assertTrue("splash is wide", topPanels[0].width >= grid.width * 0.6)
+        val leftBottom = bottomPanels.filter { it.x + it.width / 2 < grid.width / 2 }
+        val rightBottom = bottomPanels.filter { it.x + it.width / 2 >= grid.width / 2 }
+        assertEquals("one panel in bottom-left quadrant", 1, leftBottom.size)
+        assertEquals("one panel in bottom-right quadrant", 1, rightBottom.size)
+    }
+
+    @Test
+    fun `scanned page with dark book-spine corners is detected correctly`() {
+        // Regression for page 58: a 3x2 grid of 6 panels on a scanned comic page.
+        // The scanner captured dark book-binding pixels in all 4 corners, dragging the
+        // 8-sample median background estimate down to 142. At that value the tan page
+        // gutter (luma ~200-215) reads as content (diff 58 >= 32 threshold), flooding
+        // the entire page with "content" pixels and leaving no gutter for flood fill —
+        // the single resulting CC covers the whole page and triggers Fallback.
+        //
+        // Fix: sample the full border at regular intervals and use the 85th percentile
+        // instead of the median of 8 corner/midpoint samples. The left and right edges of
+        // a scanned page are authentic paper margin; they represent ~60% of border samples.
+        // The 85th percentile lands in the light range even when 40% of border samples are
+        // dark spine/binding pixels, correctly estimating the tan paper background at ~208.
+        //
+        // Fixture is a binarized mask (black=content, white=gutter) — copyright-safe per ADR 0062.
+        val grid = loadMaskFixture("panel-detection-fixtures/issue-old-dark-spine-corners-p58.png")
+        val result = detector.detect(grid, pageIndex = 58, originalWidth = grid.width, originalHeight = grid.height)
+        assertEquals(PanelSource.Auto, result.source)
+        assertEquals("expected 6 panels for 3x2 grid", 6, result.panels.size)
+        val topRow = result.panels.filter { it.y + it.height / 2 < grid.height / 2 }
+        val bottomRow = result.panels.filter { it.y + it.height / 2 >= grid.height / 2 }
+        assertEquals("3 panels in top row", 3, topRow.size)
+        assertEquals("3 panels in bottom row", 3, bottomRow.size)
+        fun assertThreeColumnsPresent(row: List<PanelRegion>, label: String) {
+            val left = row.filter { it.x + it.width / 2 < grid.width / 3 }
+            val centre = row.filter { it.x + it.width / 2 in grid.width / 3 until 2 * grid.width / 3 }
+            val right = row.filter { it.x + it.width / 2 >= 2 * grid.width / 3 }
+            assertEquals("$label: 1 panel in left third", 1, left.size)
+            assertEquals("$label: 1 panel in centre third", 1, centre.size)
+            assertEquals("$label: 1 panel in right third", 1, right.size)
+        }
+        assertThreeColumnsPresent(topRow, "top row")
+        assertThreeColumnsPresent(bottomRow, "bottom row")
+    }
+
+    @Test
+    fun `scanned page with caption-box at top of bottom-left panel is not cut off`() {
+        // Regression for issue #751: page 66 with 1 top panel, 1 middle panel, 2 bottom panels
+        // (left and right). The bottom-left panel has a light caption box whose left edge touches
+        // the page border. Flood-fill gutter enters the caption interior via the border, making the
+        // narrow white margin below the caption score ≥30% gutter pixels. splitSinglePanelRecursively
+        // found that narrow strip (well under internalGutterMaxFraction), split the left panel into
+        // a caption piece (top ~11% of page) and a character-art piece (bottom ~21%). The caption
+        // piece fell below minPanelDimensionFraction (15%) and was dropped, leaving the bottom-left
+        // panel starting at y=1239 instead of y=1070.
+        val img = loadFixture("panel-detection-fixtures/issue-751-page-66.png")
+        val w = img.width
+        val h = img.height
+        val grid = lumaGrid(img)
+        val result = detector.detect(grid, pageIndex = 0, originalWidth = w, originalHeight = h)
+        assertEquals(PanelSource.Auto, result.source)
+        assertEquals(
+            "expected 4 panels for 1-wide+1-wide+2-column layout, got ${result.panels.size} (source=${result.source})",
+            4, result.panels.size,
+        )
+        // The two bottom panels must start at approximately the same y coordinate — the bottom-left
+        // panel must not be cut off so that it starts much later than the bottom-right panel.
+        val sortedByY = result.panels.sortedBy { it.y }
+        val bottomTwo = sortedByY.takeLast(2)
+        val minBottomY = bottomTwo.minOf { it.y }
+        val maxBottomY = bottomTwo.maxOf { it.y }
+        assertTrue(
+            "both bottom panels must start at roughly the same y (within 5% of page height); " +
+                "got y values=${bottomTwo.map { it.y }} with difference=${maxBottomY - minBottomY}, threshold=${(h * 0.05).toInt()}",
+            maxBottomY - minBottomY < h * 0.05,
+        )
+    }
+
+    // --- Helpers ---
+
+    private val LIGHT: Byte = 240.toByte()
+    private val DARK: Byte = 20.toByte()
+
+    /**
+     * Load a binarized-mask fixture (black=content, white=gutter) from the jvmTest classpath
+     * and return it as a [PixelGrid]. Fixtures are stored as copyright-safe lossless PNGs per
+     * ADR 0062 — black pixels map to [DARK] (content), any non-black pixel maps to [LIGHT] (gutter).
+     *
+     * Throws loudly if the resource is missing so the test fails rather than silently skipping.
+     */
+    private fun loadMaskFixture(resourcePath: String): PixelGrid {
+        val stream = javaClass.classLoader.getResourceAsStream(resourcePath)
+            ?: error("Fixture not found on classpath: $resourcePath — ensure the file exists under core/domain/src/jvmTest/resources/")
+        val img = stream.use { javax.imageio.ImageIO.read(it) }
+            ?: error("Could not decode image at $resourcePath")
+        val w = img.width
+        val h = img.height
+        val luma = ByteArray(w * h)
+        for (y in 0 until h) {
+            for (x in 0 until w) {
+                luma[y * w + x] = if ((img.getRGB(x, y) and 0xFFFFFF) == 0) DARK else LIGHT
+            }
+        }
+        return PixelGrid(w, h, luma)
+    }
+
+    /**
+     * Load a raw page image from the jvmTest classpath and convert it to a luma [PixelGrid]
+     * using BT.601 coefficients. Use this for panel-report mask PNGs (which are already
+     * binarized black/white pages) when you need the full luma range rather than the strict
+     * black=content mapping of [loadMaskFixture].
+     */
+    private fun loadFixture(resourcePath: String): java.awt.image.BufferedImage {
+        val stream = javaClass.classLoader.getResourceAsStream(resourcePath)
+            ?: error("Fixture not found on classpath: $resourcePath — ensure the file exists under core/domain/src/jvmTest/resources/")
+        return stream.use { javax.imageio.ImageIO.read(it) }
+            ?: error("Could not decode image at $resourcePath")
+    }
+
+    private fun lumaGrid(img: java.awt.image.BufferedImage): PixelGrid {
+        val w = img.width
+        val h = img.height
+        val luma = ByteArray(w * h)
+        for (y in 0 until h) {
+            for (x in 0 until w) {
+                val rgb = img.getRGB(x, y)
+                val r = (rgb shr 16) and 0xFF
+                val g = (rgb shr 8) and 0xFF
+                val b = rgb and 0xFF
+                luma[y * w + x] = (0.299 * r + 0.587 * g + 0.114 * b).toInt().coerceIn(0, 255).toByte()
+            }
+        }
+        return PixelGrid(w, h, luma)
+    }
+}

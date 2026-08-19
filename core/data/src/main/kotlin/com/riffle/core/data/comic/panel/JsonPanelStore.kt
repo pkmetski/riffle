@@ -144,8 +144,15 @@ class JsonPanelStore @Inject constructor(
          *      recovery; now splitSinglePanelRecursively detects the genuine inter-panel gutter
          *      (flood-fill accessible from page border → ~100%) and splits the strip correctly.
          *      v11 caches for pages with narrow row gutters may hold under-split column strips.
+         * v13: splitSinglePanelRecursively now skips a split if either resulting sub-bbox would
+         *      be smaller than minPanelDimensionFraction of the page. Fixes panels with a caption
+         *      box whose left/right edge touches the page border: flood-fill entered the caption
+         *      interior through the border, making the narrow margin below the caption qualify as
+         *      an internal gutter; the split produced a caption-only piece that fell below the
+         *      15% dimension floor and was dropped, cutting off the top of the real panel. v12
+         *      caches for those pages hold under-sized panels missing their caption top.
          */
-        internal const val CURRENT_SCHEMA_VERSION: Int = 12
+        internal const val CURRENT_SCHEMA_VERSION: Int = 13
 
         private val UNSAFE = Regex("[^A-Za-z0-9._-]")
     }

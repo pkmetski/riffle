@@ -362,6 +362,25 @@ class PanelDetector(
 
         val (axis, start, thickness) = bestGutter
         val end = start + thickness - 1
+
+        // Skip the split if either resulting sub-panel would be too narrow to survive
+        // applyGlobalSanityChecks (which filters panels < minPanelDimensionFraction of the page).
+        // Catches the case where a caption box whose left/right edge touches the page border is
+        // flood-fill-reachable from the outside: the thin white margin below the caption scores
+        // ≥30% gutter pixels and would be split off, leaving the caption as a tiny orphan that
+        // gets filtered — visually cutting off the top of the real panel.
+        if (axis == "h") {
+            val topHeight = start - bbox.minY
+            val bottomHeight = bbox.maxY - end
+            val minDimPx = (cropped.height * config.minPanelDimensionFraction).toInt().coerceAtLeast(1)
+            if (topHeight < minDimPx || bottomHeight < minDimPx) return listOf(bbox)
+        } else {
+            val leftWidth = start - bbox.minX
+            val rightWidth = bbox.maxX - end
+            val minDimPx = (cropped.width * config.minPanelDimensionFraction).toInt().coerceAtLeast(1)
+            if (leftWidth < minDimPx || rightWidth < minDimPx) return listOf(bbox)
+        }
+
         return if (axis == "h") {
             val topBbox = Bbox(bbox.minX, bbox.minY, bbox.maxX, start - 1)
             val bottomBbox = Bbox(bbox.minX, end + 1, bbox.maxX, bbox.maxY)
