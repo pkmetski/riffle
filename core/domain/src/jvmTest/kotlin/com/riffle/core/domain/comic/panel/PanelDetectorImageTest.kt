@@ -133,7 +133,6 @@ class PanelDetectorImageTest {
         // Fix: panels with width ≥ 50% of the page and height ≥ 5% are kept as banners.
         val grid = loadMaskFixture("panel-detection-fixtures/issue-755-missed-panel-p42.png")
         val result = detector.detect(grid, pageIndex = 0, originalWidth = grid.width, originalHeight = grid.height)
-        println("[DBG-755] panels=${result.panels.map { "x=${it.x} y=${it.y} w=${it.width} h=${it.height}" }}")
         assertEquals(PanelSource.Auto, result.source)
         assertEquals(
             "expected 4 panels for splash+banner+2-bottom layout, got ${result.panels.size} (source=${result.source})",
@@ -158,7 +157,6 @@ class PanelDetectorImageTest {
         // either half only zoomed to that fragment instead of the whole bottom scene.
         val grid = loadMaskFixture("panel-detection-fixtures/issue-756-panel-cut-off-p67.png")
         val result = detector.detect(grid, pageIndex = 0, originalWidth = grid.width, originalHeight = grid.height)
-        println("[DBG-756] panels=${result.panels.map { "x=${it.x} y=${it.y} w=${it.width} h=${it.height}" }}")
         assertEquals(PanelSource.Auto, result.source)
         assertEquals(
             "expected 5 panels for 2+2+1 layout, got ${result.panels.size} (source=${result.source})",

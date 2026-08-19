@@ -347,13 +347,13 @@ class PanelDetector(
             g.toLong() * 1000 >= innerHeight.toLong() * (config.internalGutterFloodFillFraction * 1000).toLong()
         }
 
-        // Projection-based fallback for enclosed horizontal gutters. When two stacked panels
-        // share a border that forms a closed ring (only a thin side gap connects the gutter to
-        // the exterior), flood-fill scores < 30% on every row and either finds nothing or detects
-        // a border-edge "gutter" that would produce an invalid split (one resulting side too narrow).
-        // In both cases fall back to content projection: a real gutter is a continuous run of ≥ 7
-        // rows where content < 20% of the bbox peak — this threshold reliably discriminates real
-        // inter-panel gutters from sparse artwork dips (typically only 1–5 rows).
+        // Projection-based fallback for enclosed gutters. When two adjacent panels share a border
+        // that forms a closed ring (only a thin gap connects the gutter to the exterior),
+        // flood-fill scores < 30% and either finds nothing or detects a border-edge "gutter" that
+        // would produce an invalid split (one resulting side too narrow). In both cases fall back
+        // to content projection: a real gutter is a continuous run of ≥ 7 rows/columns where
+        // content < 20% of the bbox peak — this threshold reliably discriminates real inter-panel
+        // gutters from sparse artwork dips (typically only 1–5 rows/columns).
         val floodFillWouldSplit = horizontalGutter?.let { (start, thickness) ->
             val end = start + thickness - 1
             val minDimPx = (downscaledHeight * config.minPanelDimensionFraction).toInt().coerceAtLeast(1)
@@ -373,9 +373,27 @@ class PanelDetector(
             }?.takeIf { (_, thickness) -> thickness >= 7 }
         }
 
+        // Same projection-based fallback for vertical (column) gutters. Covers the symmetric case
+        // where two side-by-side panels have an enclosed vertical gutter that flood-fill can't reach.
+        // Uses a 10% threshold (vs 20% for horizontal) to reject sparse-content columns in artwork
+        // that are not real gutters — vertical artwork dips are more common than horizontal ones.
+        val effectiveVerticalGutter: Pair<Int, Int>? = verticalGutter ?: run {
+            val maxColContent = (bbox.minX..bbox.maxX).maxOf { x ->
+                cropped.colContentCount(x, innerMinY, innerMaxY)
+            }
+            if (maxColContent <= 0) return@run null
+            val contentCutoff = maxColContent * 0.10
+            widestGutterRun(
+                axisStart = bbox.minX + edgeMarginX,
+                axisEnd = bbox.maxX - edgeMarginX,
+            ) { x ->
+                cropped.colContentCount(x, innerMinY, innerMaxY) < contentCutoff
+            }?.takeIf { (_, thickness) -> thickness >= 7 }
+        }
+
         val bestGutter = listOfNotNull(
             effectiveHorizontalGutter?.let { Triple("h", it.first, it.second) },
-            verticalGutter?.let { Triple("v", it.first, it.second) },
+            effectiveVerticalGutter?.let { Triple("v", it.first, it.second) },
         ).maxByOrNull { it.third }
             ?: return listOf(bbox)
 

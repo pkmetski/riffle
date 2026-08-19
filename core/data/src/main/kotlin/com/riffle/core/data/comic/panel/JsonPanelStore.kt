@@ -158,8 +158,15 @@ class JsonPanelStore @Inject constructor(
          *      check — previously the projection path was blocked whenever horizontalGutter was
          *      non-null even if the resulting split would have been invalid. v13 caches for
          *      pages with enclosed column gutters or wide banner panels hold wrong results.
+         * v15: splitSinglePanelRecursively now also applies a projection-based fallback for
+         *      vertical (column) gutters — symmetric to the existing horizontal fallback. When
+         *      two side-by-side panels share an enclosed vertical gutter (flood-fill scores 0%),
+         *      the fallback finds runs of ≥ 7 columns where content is < 10% of the bbox peak
+         *      and splits the merged CC bbox into the correct two panels. Uses 10% (vs 20% for
+         *      horizontal) to avoid splitting on sparse-content artwork columns. v14 caches for
+         *      pages with enclosed side-by-side panels hold a single merged bbox.
          */
-        internal const val CURRENT_SCHEMA_VERSION: Int = 14
+        internal const val CURRENT_SCHEMA_VERSION: Int = 15
 
         private val UNSAFE = Regex("[^A-Za-z0-9._-]")
     }
