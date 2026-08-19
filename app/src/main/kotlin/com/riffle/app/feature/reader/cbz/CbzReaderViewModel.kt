@@ -232,11 +232,7 @@ class CbzReaderViewModel @Inject constructor(
             }
             val grid = com.riffle.core.domain.comic.panel.PixelGrid(w, h, luma)
             val mask = PanelMaskBinarizer.binarize(grid) ?: return@withContext null
-            // Upload an 8px block-quantized version (~1/8 resolution): text shrinks to 2-4px
-            // (illegible), character faces become 12px blobs (unrecognizable), but gutter channels
-            // and panel layout are preserved — sufficient for an agent to understand detection
-            // failures without making copyrighted content readable.
-            mask to PanelMaskEncoder.encode(mask.blockQuantize(8))
+            mask to PanelMaskEncoder.encode(mask)
         }
 
     init {
