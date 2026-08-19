@@ -72,12 +72,9 @@ object PanelOverflowTransform {
     private fun PanelRegion.splitAtSmartSeam(energies: FloatArray, isWide: Boolean): List<PanelRegion> {
         val axisLength = if (isWide) width else height
         if (energies.isEmpty()) return splitAtCenter(isWide)
-        // Search the central 40–60% so the split stays visually close to the midpoint.
-        // The wider middle-third window (33–67%) allowed seams too close to the edges —
-        // for scene panels with no natural seam, the lowest-energy column often lands at
-        // the edge of the search range (≈33% or ≈67%), producing an asymmetric split.
-        val start = energies.size * 4 / 10
-        val end = (energies.size * 6 / 10).coerceAtLeast(start + 1)
+        // Search the middle third only so the split never lands near an edge.
+        val start = energies.size / 3
+        val end = ((energies.size * 2) / 3).coerceAtLeast(start + 1)
         var minEnergy = Float.MAX_VALUE
         var minIndex = energies.size / 2
         for (i in start until end) {
