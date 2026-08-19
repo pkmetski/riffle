@@ -185,7 +185,7 @@ class PanelDetector(
         val gutter = floodFillGutter(cropped)
         val components = connectedComponents(cropped, gutter)
         val filtered = filterAndTighten(components, cropped)
-        val split = splitAtInternalGutters(filtered, cropped, gutter)
+        val split = splitAtInternalGutters(filtered, cropped, gutter, grid.width, grid.height)
 
         val result = sanityCheck(
             candidates = split,
@@ -267,7 +267,7 @@ class PanelDetector(
         // genuine inter-panel gutter is connected to the page border (~100% accessible), while a
         // closed panel interior scores 0% — so the 30% threshold distinguishes them reliably.
         val gutter = floodFillGutter(cropped)
-        val bboxesInCropped = rawBboxes.flatMap { splitSinglePanelRecursively(it, cropped, gutter, depth = 0) }
+        val bboxesInCropped = rawBboxes.flatMap { splitSinglePanelRecursively(it, cropped, gutter, depth = 0, downscaledWidth = downscaledWidth, downscaledHeight = downscaledHeight) }
 
         val scaleX = originalWidth.toDouble() / downscaledWidth.toDouble()
         val scaleY = originalHeight.toDouble() / downscaledHeight.toDouble()
@@ -305,10 +305,10 @@ class PanelDetector(
      * panel interiors and dark-tone panel backgrounds are enclosed by the panel border and
      * score 0% — so they never trigger a false split.
      */
-    private fun splitAtInternalGutters(bboxes: List<Bbox>, cropped: CroppedMask, gutter: BooleanArray): List<Bbox> =
-        bboxes.flatMap { splitSinglePanelRecursively(it, cropped, gutter, depth = 0) }
+    private fun splitAtInternalGutters(bboxes: List<Bbox>, cropped: CroppedMask, gutter: BooleanArray, downscaledWidth: Int, downscaledHeight: Int): List<Bbox> =
+        bboxes.flatMap { splitSinglePanelRecursively(it, cropped, gutter, depth = 0, downscaledWidth = downscaledWidth, downscaledHeight = downscaledHeight) }
 
-    private fun splitSinglePanelRecursively(bbox: Bbox, cropped: CroppedMask, gutter: BooleanArray, depth: Int): List<Bbox> {
+    private fun splitSinglePanelRecursively(bbox: Bbox, cropped: CroppedMask, gutter: BooleanArray, depth: Int, downscaledWidth: Int, downscaledHeight: Int): List<Bbox> {
         if (depth >= config.maxInternalGutterSplitDepth) return listOf(bbox)
         val height = bbox.maxY - bbox.minY + 1
         val width = bbox.maxX - bbox.minX + 1
@@ -372,25 +372,27 @@ class PanelDetector(
         if (axis == "h") {
             val topHeight = start - bbox.minY
             val bottomHeight = bbox.maxY - end
-            val minDimPx = (cropped.height * config.minPanelDimensionFraction).toInt().coerceAtLeast(1)
+            // Use the full downscaled page height (not cropped) so the threshold matches
+            // applyGlobalSanityChecks which uses originalHeight; both scale proportionally.
+            val minDimPx = (downscaledHeight * config.minPanelDimensionFraction).toInt().coerceAtLeast(1)
             if (topHeight < minDimPx || bottomHeight < minDimPx) return listOf(bbox)
         } else {
             val leftWidth = start - bbox.minX
             val rightWidth = bbox.maxX - end
-            val minDimPx = (cropped.width * config.minPanelDimensionFraction).toInt().coerceAtLeast(1)
+            val minDimPx = (downscaledWidth * config.minPanelDimensionFraction).toInt().coerceAtLeast(1)
             if (leftWidth < minDimPx || rightWidth < minDimPx) return listOf(bbox)
         }
 
         return if (axis == "h") {
             val topBbox = Bbox(bbox.minX, bbox.minY, bbox.maxX, start - 1)
             val bottomBbox = Bbox(bbox.minX, end + 1, bbox.maxX, bbox.maxY)
-            splitSinglePanelRecursively(topBbox, cropped, gutter, depth + 1) +
-                splitSinglePanelRecursively(bottomBbox, cropped, gutter, depth + 1)
+            splitSinglePanelRecursively(topBbox, cropped, gutter, depth + 1, downscaledWidth, downscaledHeight) +
+                splitSinglePanelRecursively(bottomBbox, cropped, gutter, depth + 1, downscaledWidth, downscaledHeight)
         } else {
             val leftBbox = Bbox(bbox.minX, bbox.minY, start - 1, bbox.maxY)
             val rightBbox = Bbox(end + 1, bbox.minY, bbox.maxX, bbox.maxY)
-            splitSinglePanelRecursively(leftBbox, cropped, gutter, depth + 1) +
-                splitSinglePanelRecursively(rightBbox, cropped, gutter, depth + 1)
+            splitSinglePanelRecursively(leftBbox, cropped, gutter, depth + 1, downscaledWidth, downscaledHeight) +
+                splitSinglePanelRecursively(rightBbox, cropped, gutter, depth + 1, downscaledWidth, downscaledHeight)
         }
     }
 

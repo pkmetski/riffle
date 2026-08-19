@@ -586,6 +586,42 @@ class PanelDetectorTest {
         assertEquals("expected 2 bottom panels", 2, bottomPanels.size)
     }
 
+    @Test
+    fun `narrow side-strip false-vertical-split is suppressed by min-dimension guard`() {
+        // Regression for the vertical-split branch of the caption-box guard (issue #751 symmetric
+        // case). A wide panel has its left-side text strip (15px wide) flood-fill-reachable from
+        // the top border via a gap in the strip's right border. splitSinglePanelRecursively finds
+        // a vertical gutter at x≈15 (between strip and art) — but the resulting left sub-bbox
+        // would be 15px wide, well below minPanelDimensionFraction × pageWidth (60px). Without
+        // the guard the strip is split off, tightened to nothing, and filtered, leaving the panel
+        // truncated on the left. With the guard the split is skipped and the panel is intact.
+        val W = 400
+        val H = 560
+        val grid = fixture(width = W, height = H) { canvas ->
+            canvas.fill(background = LIGHT)
+            // Main panel: solid dark fill. Left 15px is "caption strip" with LIGHT interior
+            // (background colour) connected to the top page border, simulating a flood-fill-
+            // reachable side strip. The strip is only 15px wide — 15/400 = 3.75%, well below
+            // minPanelDimensionFraction (15%).
+            canvas.rect(x = 15, y = 20, w = 365, h = 520, color = DARK)
+            // The 15px left strip stays LIGHT (background fill), making those columns appear
+            // flood-fill reachable from the top border — the column at x=15 would score high
+            // gutter pixels and could trigger a vertical split without the guard.
+        }
+
+        val result = detector.detect(grid, pageIndex = 0, originalWidth = W, originalHeight = H)
+
+        assertEquals(PanelSource.Auto, result.source)
+        assertEquals(
+            "narrow left strip must not be falsely split off; expected 1 panel, got ${result.panels.map { "(${it.x},${it.y})${it.width}x${it.height}" }}",
+            1, result.panels.size,
+        )
+        assertTrue(
+            "surviving panel must start near x=15, not after a false split; got x=${result.panels[0].x}",
+            result.panels[0].x < 30,
+        )
+    }
+
     // --- Synthetic fixture builders ---
 
     private val LIGHT: Byte = 240.toByte()
