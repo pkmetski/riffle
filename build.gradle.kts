@@ -111,6 +111,8 @@ tasks.register("checkRiffleInfraSeams") {
             "core/catalog-gutenberg/src/main/kotlin/com/riffle/core/catalog/gutenberg/GutenbergCatalog.kt",
             "core/catalog-komga/src/main/kotlin/com/riffle/core/catalog/komga/KomgaCatalog.kt",
             // core:data — file I/O, connectivity callbacks, sync timestamps.
+            // Developer options PAT store wraps EncryptedSharedPreferences (blocking disk I/O).
+            "core/data/src/main/kotlin/com/riffle/core/data/developer/DeveloperOptionsRepositoryImpl.kt",
             "core/data/src/main/kotlin/com/riffle/core/data/ConnectivityObserverImpl.kt",
             "core/data/src/main/kotlin/com/riffle/core/data/SourceRepositoryImpl.kt",
             "core/data/src/main/kotlin/com/riffle/core/data/absbookmark/AbsBookmarkAnnotationSyncTarget.kt",
