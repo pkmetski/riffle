@@ -45,6 +45,7 @@ class StartupUpdateViewModel @Inject constructor(
     }
 
     fun checkNow() {
+        if (BuildConfig.VERSION_NAME.endsWith("-dev")) return
         if (_dialogState.value != null) return
         viewModelScope.launch {
             val autoEnabled = appUpdatePreferencesStore.autoUpdateEnabled.first()
