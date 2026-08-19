@@ -21,6 +21,20 @@ object PanelMaskEncoder {
         return pixels
     }
 
+    /**
+     * Display palette: content → dark grey, gutter → bright cyan.
+     * Panel borders (gutter) are always visible regardless of how dark or light the comic is.
+     */
+    fun toArgbPixelsDisplay(mask: PanelBinaryMask): IntArray {
+        val content = Color.rgb(50, 50, 50)
+        val gutter = Color.rgb(0, 188, 212)
+        val pixels = IntArray(mask.width * mask.height)
+        for (i in pixels.indices) {
+            pixels[i] = if (mask.data[i] == 1.toByte()) content else gutter
+        }
+        return pixels
+    }
+
     fun encode(mask: PanelBinaryMask): ByteArray {
         val pixels = toArgbPixels(mask)
         val bitmap = Bitmap.createBitmap(pixels, mask.width, mask.height, Bitmap.Config.ARGB_8888)

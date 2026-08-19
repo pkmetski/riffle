@@ -2,6 +2,7 @@ package com.riffle.app.feature.reader.cbz
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.riffle.core.domain.comic.panel.PanelBoundaryLine
 import com.riffle.core.domain.comic.panel.PanelDetectionFailureType
 import com.riffle.core.domain.comic.panel.PanelDetectionReport
 import com.riffle.core.domain.comic.panel.PanelRegion
@@ -19,6 +20,8 @@ data class PanelReportUiState(
     val tappedX: Int? = null,
     val tappedY: Int? = null,
     val tappedPanelIndex: Int? = null,
+    val drawnPanels: List<PanelRegion> = emptyList(),
+    val drawnBoundaries: List<PanelBoundaryLine> = emptyList(),
     val submitting: Boolean = false,
     val submittedIssueUrl: String? = null,
     val error: String? = null,
@@ -38,7 +41,7 @@ class PanelReportViewModel(
     val state: StateFlow<PanelReportUiState> = _state.asStateFlow()
 
     fun setFailureType(type: PanelDetectionFailureType) {
-        _state.update { it.copy(failureType = type, error = null) }
+        _state.update { it.copy(failureType = type, error = null, drawnPanels = emptyList(), drawnBoundaries = emptyList()) }
     }
 
     fun setNotes(notes: String) {
@@ -52,6 +55,34 @@ class PanelReportViewModel(
         _state.update { it.copy(tappedX = tappedImageX, tappedY = tappedImageY, tappedPanelIndex = panelIndex) }
     }
 
+    fun addDrawnPanel(x1: Int, y1: Int, x2: Int, y2: Int) {
+        val left = minOf(x1, x2).coerceIn(0, imageWidth - 1)
+        val top = minOf(y1, y2).coerceIn(0, imageHeight - 1)
+        val right = maxOf(x1, x2).coerceIn(0, imageWidth - 1)
+        val bottom = maxOf(y1, y2).coerceIn(0, imageHeight - 1)
+        if (right <= left || bottom <= top) return
+        val panel = PanelRegion(x = left, y = top, width = right - left, height = bottom - top)
+        _state.update { it.copy(drawnPanels = it.drawnPanels + panel) }
+    }
+
+    fun clearLastDrawnPanel() {
+        _state.update { it.copy(drawnPanels = it.drawnPanels.dropLast(1)) }
+    }
+
+    fun addDrawnBoundary(x1: Int, y1: Int, x2: Int, y2: Int) {
+        val line = PanelBoundaryLine(
+            x1 = x1.coerceIn(0, imageWidth - 1),
+            y1 = y1.coerceIn(0, imageHeight - 1),
+            x2 = x2.coerceIn(0, imageWidth - 1),
+            y2 = y2.coerceIn(0, imageHeight - 1),
+        )
+        _state.update { it.copy(drawnBoundaries = it.drawnBoundaries + line) }
+    }
+
+    fun clearLastDrawnBoundary() {
+        _state.update { it.copy(drawnBoundaries = it.drawnBoundaries.dropLast(1)) }
+    }
+
     fun submit(maskPng: ByteArray) {
         val ft = _state.value.failureType
         if (ft == null) {
@@ -60,6 +91,7 @@ class PanelReportViewModel(
         }
         viewModelScope.launch {
             _state.update { it.copy(submitting = true, error = null) }
+            val s = _state.value
             val report = PanelDetectionReport(
                 bookId = bookId,
                 pageIndex = pageIndex,
@@ -68,10 +100,12 @@ class PanelReportViewModel(
                 detectedPanels = detectedPanels,
                 detectedSource = detectedSource,
                 failureType = ft,
-                notes = _state.value.notes,
-                tappedX = _state.value.tappedX,
-                tappedY = _state.value.tappedY,
-                tappedPanelIndex = _state.value.tappedPanelIndex,
+                notes = s.notes,
+                tappedX = s.tappedX,
+                tappedY = s.tappedY,
+                tappedPanelIndex = s.tappedPanelIndex,
+                drawnPanels = s.drawnPanels,
+                drawnBoundaries = s.drawnBoundaries,
             )
             repository.submit(report, maskPng).fold(
                 onSuccess = { url -> _state.update { it.copy(submitting = false, submittedIssueUrl = url) } },

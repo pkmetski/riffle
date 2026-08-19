@@ -204,9 +204,60 @@ class PanelDetector(
      * a copyright-safe [PanelBinaryMask] for regression fixtures (ADR 0062). Returns null when
      * the page is entirely uniform — same condition under which [detect] falls back to whole-page.
      */
+    /**
+     * Produces a binary mask for report upload using directional adaptive (local) thresholding.
+     *
+     * Like [binarize], uses the same directionality: on a light-background page only pixels
+     * DARKER than their local neighbourhood mean are content (ink); on a dark-background page
+     * only pixels LIGHTER than their local mean are content (highlights, panel borders). This
+     * preserves thin gutters that the absolute-deviation variant destroyed — a white gutter pixel
+     * surrounded by dark panels has a dark local mean, but `v > mean` is false for white on a
+     * light page so it stays gutter.
+     *
+     * Window half-size = max(32, height/12); constant C = 10.
+     * Uses a 2-D integral image for O(1) per-pixel mean computation.
+     */
     fun binarizeMask(grid: PixelGrid): PanelBinaryMask? {
-        val mask = binarize(grid) ?: return null
-        return PanelBinaryMask(width = mask.width, height = mask.height, data = mask.data.copyOf())
+        val w = grid.width; val h = grid.height
+        val bg = detectBackgroundLuma(grid)
+        val lightPage = bg >= 128
+        val stride = w + 1
+
+        // Build integral image (1-indexed, zero-padded border)
+        val integral = LongArray(stride * (h + 1))
+        for (y in 0 until h) {
+            for (x in 0 until w) {
+                integral[(y + 1) * stride + (x + 1)] =
+                    grid.get(x, y).toLong() +
+                    integral[y * stride + (x + 1)] +
+                    integral[(y + 1) * stride + x] -
+                    integral[y * stride + x]
+            }
+        }
+
+        val half = maxOf(32, h / 12)
+        val C = 10L
+        val data = ByteArray(w * h)
+
+        for (y in 0 until h) {
+            val y0 = maxOf(0, y - half); val y1 = minOf(h - 1, y + half)
+            for (x in 0 until w) {
+                val x0 = maxOf(0, x - half); val x1 = minOf(w - 1, x + half)
+                val area = (y1 - y0 + 1).toLong() * (x1 - x0 + 1)
+                val sum = integral[(y1 + 1) * stride + (x1 + 1)] -
+                          integral[y0 * stride + (x1 + 1)] -
+                          integral[(y1 + 1) * stride + x0] +
+                          integral[y0 * stride + x0]
+                val mean = sum / area
+                val v = grid.get(x, y).toLong()
+                val isContent = if (lightPage) v < mean - C else v > mean + C
+                data[y * w + x] = if (isContent) 1 else 0
+            }
+        }
+
+        val contentCount = data.count { it == 1.toByte() }
+        if (contentCount == 0 || contentCount == data.size) return null
+        return PanelBinaryMask(w, h, data)
     }
 
     // --- Grid detection via projection profiles ---

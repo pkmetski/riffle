@@ -18,4 +18,6 @@ data class PanelDetectionReport(
     val tappedX: Int?,
     val tappedY: Int?,
     val tappedPanelIndex: Int?,
+    val drawnPanels: List<PanelRegion> = emptyList(),
+    val drawnBoundaries: List<PanelBoundaryLine> = emptyList(),
 )

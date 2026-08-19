@@ -345,19 +345,13 @@ fun CbzReaderScreen(
                 repository = viewModel.panelReportRepository,
             )
         }
-        val maskBitmap = remember(mask) {
-            val pixels = PanelMaskEncoder.toArgbPixels(mask)
-            android.graphics.Bitmap.createBitmap(
-                pixels, mask.width, mask.height, android.graphics.Bitmap.Config.ARGB_8888,
-            ).asImageBitmap()
-        }
         PanelReportSheet(
             viewModel = panelReportVm,
             mask = mask,
-            maskBitmap = maskBitmap,
             onSubmit = { panelReportVm.submit(maskPng) },
             onDismiss = { reportSheetOpen = false },
         )
+
     }
 }
 

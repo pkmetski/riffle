@@ -33,7 +33,10 @@ class GitHubPanelReportRepository(
     override suspend fun submit(report: PanelDetectionReport, maskPng: ByteArray): Result<String> =
         withContext(Dispatchers.IO) { runCatching {
             val pngBase64 = java.util.Base64.getEncoder().encodeToString(maskPng)
-            val filename = "panel-report-${UUID.randomUUID()}.png"
+            val ext = if (maskPng.size >= 3 &&
+                maskPng[0] == 0xFF.toByte() && maskPng[1] == 0xD8.toByte() && maskPng[2] == 0xFF.toByte()
+            ) "jpg" else "png"
+            val filename = "panel-report-${UUID.randomUUID()}.$ext"
 
             // 1. Create blob
             val blobSha = post(
@@ -186,8 +189,22 @@ class GitHubPanelReportRepository(
             appendLine("- [$i] x=${p.x} y=${p.y} w=${p.width} h=${p.height}")
         }
         appendLine()
-        appendLine("**Panel mask:**")
-        appendLine("![panel mask]($imageUrl)")
+        if (report.drawnPanels.isNotEmpty()) {
+            appendLine("**Expected panels (user-drawn):**")
+            report.drawnPanels.forEachIndexed { i, p ->
+                appendLine("- [$i] x=${p.x} y=${p.y} w=${p.width} h=${p.height}")
+            }
+            appendLine()
+        }
+        if (report.drawnBoundaries.isNotEmpty()) {
+            appendLine("**Panel boundaries (user-drawn):**")
+            report.drawnBoundaries.forEachIndexed { i, b ->
+                appendLine("- [$i] (${b.x1},${b.y1}) → (${b.x2},${b.y2})")
+            }
+            appendLine()
+        }
+        appendLine("**Page image:**")
+        appendLine("![page]($imageUrl)")
         appendLine()
         appendLine("---")
         appendLine("*panel-detection-issue · Filed automatically by Riffle panel detection reporter (ADR 0062)*")

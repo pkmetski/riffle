@@ -231,8 +231,7 @@ class CbzReaderViewModel @Inject constructor(
             }
             val grid = com.riffle.core.domain.comic.panel.PixelGrid(w, h, luma)
             val mask = panelDetector.binarizeMask(grid) ?: return@withContext null
-            val png = PanelMaskEncoder.encode(mask.blockQuantize(blockSize = 8))
-            mask to png
+            mask to PanelMaskEncoder.encode(mask)
         }
 
     init {
