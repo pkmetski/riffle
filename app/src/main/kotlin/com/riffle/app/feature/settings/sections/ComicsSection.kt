@@ -16,8 +16,8 @@ internal fun comicDisplaySummary(prefs: ComicFormattingPreferences): String = bu
         } else "Panel View off"
     )
     if (prefs.showChapterMap) {
-        append(" · Chapter map")
-        if (prefs.showPageProgress) append(" · Pages")
+        append(" · Reading progress")
+        if (prefs.showPageProgress) append(" · Page numbers")
     }
 }
 

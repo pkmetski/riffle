@@ -261,7 +261,7 @@ fun CbzReaderScreen(
                                 )
                                 Spacer(modifier = Modifier.weight(1f))
                                 Text(
-                                    text = "${ready.pageCount - currentPage - 1}",
+                                    text = "-${ready.pageCount - currentPage - 1}",
                                     style = labelStyle,
                                     color = labelColor,
                                 )

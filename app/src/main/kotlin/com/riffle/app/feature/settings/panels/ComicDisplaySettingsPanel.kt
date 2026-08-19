@@ -67,8 +67,8 @@ internal fun ComicDisplaySettingsPanel(
         modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 4.dp),
     )
     ListItem(
-        headlineContent = { Text("Chapter map") },
-        supportingContent = { Text("Progress bar with chapter segments above the thumbnail strip") },
+        headlineContent = { Text("Reading progress") },
+        supportingContent = { Text("Progress bar above the thumbnail strip") },
         trailingContent = {
             Switch(
                 checked = prefs.showChapterMap,
@@ -77,8 +77,8 @@ internal fun ComicDisplaySettingsPanel(
         },
     )
     ListItem(
-        headlineContent = { Text("Page progress") },
-        supportingContent = { Text("Current page and remaining pages above the chapter map") },
+        headlineContent = { Text("Page numbers") },
+        supportingContent = { Text("Current page and remaining pages above the reading progress bar") },
         trailingContent = {
             Switch(
                 checked = prefs.showPageProgress,

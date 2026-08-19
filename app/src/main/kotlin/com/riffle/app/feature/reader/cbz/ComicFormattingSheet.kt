@@ -59,7 +59,7 @@ internal fun ComicFormattingSheet(
             )
             HorizontalDivider()
             ListItem(
-                headlineContent = { Text("Chapter map") },
+                headlineContent = { Text("Reading progress") },
                 trailingContent = {
                     Switch(
                         checked = formatting.showChapterMap,
@@ -70,8 +70,8 @@ internal fun ComicFormattingSheet(
                 },
             )
             ListItem(
-                headlineContent = { Text("Page progress") },
-                supportingContent = { Text("Current page and remaining pages above the chapter map") },
+                headlineContent = { Text("Page numbers") },
+                supportingContent = { Text("Current page and remaining pages above the reading progress bar") },
                 trailingContent = {
                     Switch(
                         checked = formatting.showPageProgress,
