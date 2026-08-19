@@ -59,7 +59,8 @@ internal fun PanelReportSheet(
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
     val drawMode = state.failureType == PanelDetectionFailureType.MissedPanel ||
-        state.failureType == PanelDetectionFailureType.MergedPanels
+        state.failureType == PanelDetectionFailureType.MergedPanels ||
+        state.failureType == PanelDetectionFailureType.SplitPanel
 
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState) {
         Column(
@@ -117,8 +118,11 @@ internal fun PanelReportSheet(
             var dragCurrent by remember { mutableStateOf<Offset?>(null) }
 
             if (drawMode) {
-                val hint = if (state.failureType == PanelDetectionFailureType.MissedPanel)
-                    "Draw expected panel rectangles" else "Draw panel boundary lines"
+                val hint = when (state.failureType) {
+                    PanelDetectionFailureType.MissedPanel -> "Draw expected panel rectangles"
+                    PanelDetectionFailureType.SplitPanel -> "Draw the correct single panel boundary"
+                    else -> "Draw panel boundary lines"
+                }
                 Text(hint, style = androidx.compose.material3.MaterialTheme.typography.bodySmall)
             }
 
@@ -140,7 +144,8 @@ internal fun PanelReportSheet(
                                         val iy1 = (s.y / scaleY).toInt().coerceIn(0, mask.height - 1)
                                         val ix2 = (e.x / scaleX).toInt().coerceIn(0, mask.width - 1)
                                         val iy2 = (e.y / scaleY).toInt().coerceIn(0, mask.height - 1)
-                                        if (state.failureType == PanelDetectionFailureType.MissedPanel) {
+                                        if (state.failureType == PanelDetectionFailureType.MissedPanel ||
+                                            state.failureType == PanelDetectionFailureType.SplitPanel) {
                                             viewModel.addDrawnPanel(ix1, iy1, ix2, iy2)
                                         } else {
                                             viewModel.addDrawnBoundary(ix1, iy1, ix2, iy2)
@@ -208,7 +213,8 @@ internal fun PanelReportSheet(
                     // In-progress draw preview (yellow)
                     val s = dragStart; val e = dragCurrent
                     if (s != null && e != null) {
-                        if (state.failureType == PanelDetectionFailureType.MissedPanel) {
+                        if (state.failureType == PanelDetectionFailureType.MissedPanel ||
+                            state.failureType == PanelDetectionFailureType.SplitPanel) {
                             drawRect(
                                 color = Color.Yellow,
                                 topLeft = Offset(minOf(s.x, e.x), minOf(s.y, e.y)),
@@ -228,7 +234,8 @@ internal fun PanelReportSheet(
                 if (hasDrawn) {
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                         OutlinedButton(onClick = {
-                            if (state.failureType == PanelDetectionFailureType.MissedPanel)
+                            if (state.failureType == PanelDetectionFailureType.MissedPanel ||
+                                state.failureType == PanelDetectionFailureType.SplitPanel)
                                 viewModel.clearLastDrawnPanel()
                             else
                                 viewModel.clearLastDrawnBoundary()
