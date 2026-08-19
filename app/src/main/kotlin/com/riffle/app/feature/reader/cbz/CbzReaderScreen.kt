@@ -231,15 +231,16 @@ fun CbzReaderScreen(
                 }
             }
 
-            // Chapter map — static, always at bottom, never animated
+            // Chapter map — static, always at bottom, never animated.
+            // No navigationBarsPadding: the system nav bar overlays this column without
+            // shifting it up, matching how EpubReaderScreen anchors its chapter rail.
             if (effectiveComicFormatting.showChapterMap && railSegments.isNotEmpty()) {
                 val labelColor = readerThemeLabelColor(ReaderTheme.Dark)
                 val labelStyle = MaterialTheme.typography.labelSmall
                 Column(
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
-                        .fillMaxWidth()
-                        .navigationBarsPadding(),
+                        .fillMaxWidth(),
                 ) {
                     Column(
                         modifier = Modifier
