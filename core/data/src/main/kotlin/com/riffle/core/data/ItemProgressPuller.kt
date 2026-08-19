@@ -46,7 +46,7 @@ class ReconcilingItemProgressPuller @Inject constructor(
         if (openTargets.isOpen(sourceId, itemId)) return
         val catalog = catalogRegistry.forSourceId(sourceId) ?: return
         // Ebook: the factory resolves both catalog-peer remotes (ABS, Komga) and WebDAV remotes
-        // for web sources (ADR 0062). No need to check ProgressPeerCapability here — the factory
+        // for web sources (ADR 0063). No need to check ProgressPeerCapability here — the factory
         // returns null when no remote is applicable.
         val ebookRemote = remoteFactory.ebook(sourceId, itemId)
         if (ebookRemote != null) locks.withLock(sourceId, itemId, RemoteKind.EBOOK_POSITION) {

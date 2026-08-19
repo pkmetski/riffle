@@ -22,7 +22,7 @@ import java.util.Locale
 
 /**
  * [ProgressRemote] that reads and writes a single canonical progress file on a WebDAV server.
- * Implements the ebook position side of ADR 0062 — one file per book, no per-device split.
+ * Implements the ebook position side of ADR 0063 — one file per book, no per-device split.
  *
  * File URL: `{basePath}{namespace}__{itemId}__progress.json`
  * GET: parse [ProgressPayload]; use `Last-Modified` response header as [RemoteProgress.lastUpdate].

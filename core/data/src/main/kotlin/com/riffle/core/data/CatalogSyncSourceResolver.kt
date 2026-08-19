@@ -21,7 +21,7 @@ class CatalogSyncSourceResolver @Inject constructor(
         val source = sourceRepository.getById(sourceId)
         return object : SyncSource {
             // Web sources (Chitanka, Gutenberg) have no ProgressPeerCapability but sync ebook
-            // progress via WebDAV (ADR 0062). ProgressSweep gates the ebook reconcile loop on
+            // progress via WebDAV (ADR 0063). ProgressSweep gates the ebook reconcile loop on
             // this flag, so web sources must return true here or dirty rows are never processed.
             override val supportsEbookProgress =
                 catalog is ProgressPeerCapability || source?.type?.isWebSource == true

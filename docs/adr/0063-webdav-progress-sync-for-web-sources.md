@@ -1,4 +1,4 @@
-# ADR 0062 — WebDAV Reading Progress Sync for Web Sources
+# ADR 0063 — WebDAV Reading Progress Sync for Web Sources
 
 **Status:** Proposed
 

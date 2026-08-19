@@ -27,7 +27,7 @@ import javax.inject.Inject
  * with [com.riffle.core.catalog.CfiDialect.PAGE_NUMBER] or
  * [com.riffle.core.catalog.CfiDialect.READIUM_NATIVE] bypass the translator entirely.
  *
- * ADR 0062: when a source has no [ProgressPeerCapability] but its [SourceType.isWebSource] is
+ * ADR 0063: when a source has no [ProgressPeerCapability] but its [SourceType.isWebSource] is
  * true and WebDAV is configured, a [com.riffle.core.sources.webdav.WebDavProgressRemote] is
  * returned instead. The namespace is `sourceType.name.lowercase()` — stable across devices because
  * web sources have no user account and are singleton-per-device. The audio branch is unchanged:
@@ -54,7 +54,7 @@ class CatalogProgressRemoteFactory @Inject constructor(
                 clock = clock,
             )
         }
-        // ADR 0062: Web Sources have no ProgressPeerCapability; fall back to WebDAV file sync.
+        // ADR 0063: Web Sources have no ProgressPeerCapability; fall back to WebDAV file sync.
         // Audio is not handled here — Chitanka and Gutenberg are ebook-only.
         val source = sourceRepository.getById(sourceId) ?: return null
         if (!source.type.isWebSource) return null

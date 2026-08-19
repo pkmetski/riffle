@@ -10,7 +10,7 @@ import java.util.Base64
 
 /**
  * Builds a [WebDavProgressRemote] from an [AnnotationSyncConfig] (shared WebDAV credentials,
- * ADR 0062) and per-call routing parameters.
+ * ADR 0063) and per-call routing parameters.
  *
  * Returns null when [config]'s base URL is malformed — callers treat null as "WebDAV unavailable."
  */

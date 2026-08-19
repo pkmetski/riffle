@@ -68,7 +68,7 @@ class CatalogSyncSourceResolverTest {
         )
     }
 
-    // ADR 0062: web sources have no ProgressPeerCapability but must still report
+    // ADR 0063: web sources have no ProgressPeerCapability but must still report
     // supportsEbookProgress=true so ProgressSweep includes their dirty rows.
     @Test
     fun `web source with no ProgressPeerCapability has supportsEbookProgress=true`() = runTest {

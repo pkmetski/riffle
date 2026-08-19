@@ -353,7 +353,7 @@ class CatalogProgressRemoteFactoryTest {
         assertEquals(1750L, read?.finishedAt)
     }
 
-    // ── CatalogProgressRemoteFactory WebDAV branch (ADR 0062) ────────────────
+    // ── CatalogProgressRemoteFactory WebDAV branch (ADR 0063) ────────────────
 
     private fun buildFactory(
         sourceType: com.riffle.core.models.SourceType = com.riffle.core.models.SourceType.CHITANKA,
