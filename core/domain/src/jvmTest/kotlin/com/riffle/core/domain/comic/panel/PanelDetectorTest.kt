@@ -622,6 +622,46 @@ class PanelDetectorTest {
         )
     }
 
+    @Test
+    fun `two side-by-side panels with enclosed vertical gutter are split via projection fallback`() {
+        // Regression for issue #755: two panels share a gutter that is fully enclosed by panel
+        // borders (the border ring is closed, so flood-fill from the page edge scores 0% for every
+        // gutter column). The projection fallback in splitSinglePanelRecursively must still find the
+        // gutter (< 10% content in a ≥ 7-column run) and split the merged CC bbox into two panels.
+        //
+        // Using solid-fill panels (not hollow) so that panel interiors have high content, keeping
+        // only the actual gutter columns at near-zero content. Hollow panels would make the entire
+        // interior + gutter a single low-content run wider than internalGutterMaxFraction.
+        val W = 400
+        val H = 560
+        val grid = fixture(width = W, height = H) { canvas ->
+            canvas.fill(background = LIGHT)
+            // Two solid-fill side-by-side panels. CC merges them into one bbox via the caps.
+            canvas.rect(x = 10, y = 50, w = 160, h = 460, color = DARK)
+            canvas.rect(x = 230, y = 50, w = 160, h = 460, color = DARK)
+            // Horizontal caps that seal both ends of the gutter (x=170–229), preventing flood-fill
+            // from the page top/bottom border from reaching the gutter columns at y=56–503.
+            canvas.rect(x = 170, y = 50, w = 60, h = 6, color = DARK)
+            canvas.rect(x = 170, y = 504, w = 60, h = 6, color = DARK)
+        }
+
+        val result = detector.detect(grid, pageIndex = 0, originalWidth = W, originalHeight = H)
+
+        assertEquals(PanelSource.Auto, result.source)
+        assertEquals(
+            "enclosed vertical gutter must be split via projection fallback; expected 2 panels, " +
+                "got ${result.panels.map { "(${it.x},${it.y})${it.width}x${it.height}" }}",
+            2, result.panels.size,
+        )
+        // Each panel should be roughly half the page width, not a single full-width bbox.
+        for (p in result.panels) {
+            assertTrue(
+                "each panel width (${p.width}) must be < 70% of page width (no merged bbox)",
+                p.width < W * 0.7,
+            )
+        }
+    }
+
     // --- Synthetic fixture builders ---
 
     private val LIGHT: Byte = 240.toByte()

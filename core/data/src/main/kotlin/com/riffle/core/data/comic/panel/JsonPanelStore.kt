@@ -151,8 +151,93 @@ class JsonPanelStore @Inject constructor(
          *      an internal gutter; the split produced a caption-only piece that fell below the
          *      15% dimension floor and was dropped, cutting off the top of the real panel. v12
          *      caches for those pages hold under-sized panels missing their caption top.
+         * v14: applyGlobalSanityChecks now keeps wide-but-short banner panels (width ≥ 50% of
+         *      page, height ≥ 5%) that would otherwise be dropped by the 15% height floor.
+         *      Projection-based fallback in splitSinglePanelRecursively now also activates when
+         *      flood-fill finds a border-edge gutter that would be rejected by the min-dimension
+         *      check — previously the projection path was blocked whenever horizontalGutter was
+         *      non-null even if the resulting split would have been invalid. v13 caches for
+         *      pages with enclosed column gutters or wide banner panels hold wrong results.
+         * v15: splitSinglePanelRecursively now also applies a projection-based fallback for
+         *      vertical (column) gutters — symmetric to the existing horizontal fallback. When
+         *      two side-by-side panels share an enclosed vertical gutter (flood-fill scores 0%),
+         *      the fallback finds runs of ≥ 7 columns where content is < 10% of the bbox peak
+         *      and splits the merged CC bbox into the correct two panels. Uses 10% (vs 20% for
+         *      horizontal) to avoid splitting on sparse-content artwork columns. v14 caches for
+         *      pages with enclosed side-by-side panels hold a single merged bbox.
+         * v16: splitSinglePanelRecursively now considers the wide-banner exception when deciding
+         *      whether to attempt a split. Previously a split that would produce a piece shorter
+         *      than 15% of the page height was always blocked — even when that piece spanned ≥
+         *      50% of the page width and was ≥ 5% tall (a genuine banner panel). This matched
+         *      the applyGlobalSanityChecks banner exception but the split guard was more
+         *      restrictive, so banners were never separated from the splash above them on
+         *      downscaled device images where the narrow gutter fell below the 15px projection
+         *      band threshold and the panels merged into one bbox. v15 caches for pages with a
+         *      wide banner adjacent to a splash panel hold a single merged bbox for those two.
+         * v22: PanelDetector.binarize() now ORs [PanelMaskBinarizer] (local adaptive, same code
+         *      as the panel mask reporter) with the global contrast classifier. The local adaptive
+         *      eliminates JPEG artifact false-positives in gutter rows (the large window is
+         *      dominated by adjacent dark panel content, so off-white artifact pixels satisfy
+         *      v >> local_mean and are correctly classified as gutter). The global classifier
+         *      catches solid-colour synthetic grids where local adaptive misclassifies interior
+         *      pixels as gutter (uniform neighbourhood → local mean = pixel value → no contrast).
+         *      Because the reporter uses [PanelMaskBinarizer] to generate JVM test fixtures, the
+         *      OR combination ensures the fixture is a subset of the detector's content pixels —
+         *      any test passing in JVM is guaranteed to produce the same or more panels on device
+         *      (never fewer). v21 caches computed without local adaptive may have wrong
+         *      content classifications for JPEG artifact gutter rows.
+         * v21: backgroundContrastThreshold raised from 32 to 50. JPEG compression introduces
+         *      artifact pixels in gutter rows at roughly v ≈ 190–210 on a 240-background page
+         *      (bg − v ≈ 30–50). At threshold 32 those pixels were classified as content,
+         *      contaminating gutter rows and causing the projection to classify the rows as part
+         *      of a panel band instead of a gutter — merging adjacent row bands (e.g. a narrow
+         *      banner with the section below it) and producing wrong panel counts. At threshold
+         *      50 only genuinely dark ink (v < 190) is classified as content; the texture check
+         *      catches any fine-grained panel content below this contrast level. Pre-binarised
+         *      fixture masks have pixels at only DARK=20 and LIGHT=240 so JVM tests produced
+         *      identical results at both thresholds — the regression only appeared with real
+         *      JPEG input on device. v20 caches for pages with JPEG gutter contamination may
+         *      have wrong row-band splits.
+         * v20: Detection now runs at full resolution (targetLongEdge raised from 1 000 to 4 096,
+         *      keeping inSampleSize=1 for typical comic pages up to ~8 190 px on the long edge).
+         *      At half resolution, panel gutters shrank to ~8 px, border pixels mixed by the
+         *      JPEG/PNG decoder contaminated gutter rows after binarization, and the projection
+         *      fallback could not find them reliably. Running at full resolution eliminates the
+         *      contamination entirely and makes JVM test fixtures (full-resolution masks) bit-for-
+         *      bit identical to the algorithm input on device. All v16–v19 threshold workarounds
+         *      remain in place as defence-in-depth for comics with unusually thin gutters even at
+         *      full resolution. v19 and earlier caches were computed at half resolution — invalidate
+         *      to re-detect at full resolution.
+         * v19: effectiveHorizontalGutter now accepts a thin (≥4-row) projection gutter for
+         *      banner-eligible splits. At device scale the inner white gap between the banner
+         *      and the adjacent section shrinks to ~4 rows after panel borders are subtracted,
+         *      falling below the 7-row general floor. The relaxation is gated on the same banner
+         *      conditions (bbox ≥50% wide, short piece ≥5% page height AND ≥25% bbox height)
+         *      to prevent it from firing on sparse-artwork row dips inside real panels. v18
+         *      caches for pages with a banner adjacent to the bottom section hold a merged bbox.
+         * v18: Banner exception threshold changed from page-relative companion (≥ 40% of page
+         *      height for the tall piece) to bbox-relative short-piece check (≥ 25% of the
+         *      current bbox height for the banner itself). At device scale the CC merges the
+         *      banner with the adjacent bottom section into one component whose bbox is ~47% of
+         *      the page; the banner occupies ~30% of that bbox while the false-split case
+         *      (#757) only reached 18.8%. The old 40% companion check measured the TALL piece
+         *      against the full page, which failed here because the bottom section is only 32.5%
+         *      of the page — less than 40%. v17 caches for pages with a wide banner adjacent to
+         *      the bottom section hold a merged bbox for those two.
+         * v17: Two fixes for banner detection at device scale. (1) effectiveHorizontalGutter now
+         *      accepts a thin flood-fill gutter (≥ 4px but < 7 rows) as a banner fallback when
+         *      all banner conditions are met (bbox ≥ 50% wide, short piece ≥ 5%, companion ≥
+         *      40%). At device scale (inSampleSize=2) the gutter between a banner and its
+         *      companion panel shrinks below the 7-row projection threshold, so the gutter was
+         *      previously discarded even though flood-fill already confirmed it was accessible.
+         *      (2) bestGutter selection now prefers the horizontal gutter over a thicker vertical
+         *      gutter when the horizontal split is banner-eligible. Without this the column gutter
+         *      (spanning the full bbox height) always won the thickness comparison, splitting the
+         *      bbox into ~50%-wide halves whose sub-banner pieces then failed the ≥ 50% width
+         *      check and were never promoted. v16 caches with a wide banner adjacent to a splash
+         *      may still hold a merged bbox if detection ran on a downscaled image.
          */
-        internal const val CURRENT_SCHEMA_VERSION: Int = 13
+        internal const val CURRENT_SCHEMA_VERSION: Int = 22
 
         private val UNSAFE = Regex("[^A-Za-z0-9._-]")
     }

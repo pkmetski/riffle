@@ -77,8 +77,18 @@ class PanelDetector(
          * A pixel is considered content if its luma differs from the detected page background by
          * at least this much (in `[0, 255]`). Handles both light-background comics (dark art on
          * white gutter) and dark-background comics (bright figures on black gutter) uniformly.
+         *
+         * 50 (raised from 32): JPEG compression introduces artifact pixels in gutter rows at
+         * roughly v ≈ 190–210 on a 240-background page (bg − v ≈ 30–50). At 32 those pixels
+         * were classified as content, contaminating gutter rows and causing the projection to
+         * merge adjacent row bands (e.g. a narrow banner with the section below). At 50 only
+         * genuinely dark ink (v < 190, bg − v > 50) is classified as content; the texture
+         * check catches any fine-grained panel content that is below this threshold.
+         * Pre-binarised fixture masks have pixels at only DARK=20 and LIGHT=240 so both 32
+         * and 50 produce identical results on fixtures — the threshold only matters for real
+         * JPEG input on device.
          */
-        val backgroundContrastThreshold: Int = 32,
+        val backgroundContrastThreshold: Int = 50,
 
         /**
          * A pixel is also content if the standard deviation of luma in an 11x11 window around it
@@ -347,11 +357,111 @@ class PanelDetector(
             g.toLong() * 1000 >= innerHeight.toLong() * (config.internalGutterFloodFillFraction * 1000).toLong()
         }
 
-        val bestGutter = listOfNotNull(
-            horizontalGutter?.let { Triple("h", it.first, it.second) },
-            verticalGutter?.let { Triple("v", it.first, it.second) },
-        ).maxByOrNull { it.third }
-            ?: return listOf(bbox)
+        // Projection-based fallback for enclosed gutters. When two adjacent panels share a border
+        // that forms a closed ring (only a thin gap connects the gutter to the exterior),
+        // flood-fill scores < 30% and either finds nothing or detects a border-edge "gutter" that
+        // would produce an invalid split (one resulting side too narrow). In both cases fall back
+        // to content projection: a real gutter is a continuous run of ≥ 7 rows/columns where
+        // content < 20% of the bbox peak — this threshold reliably discriminates real inter-panel
+        // gutters from sparse artwork dips (typically only 1–5 rows/columns).
+        val floodFillWouldSplit = horizontalGutter?.let { (start, thickness) ->
+            val end = start + thickness - 1
+            val minDimPx = (downscaledHeight * config.minPanelDimensionFraction).toInt().coerceAtLeast(1)
+            (start - bbox.minY) >= minDimPx && (bbox.maxY - end) >= minDimPx
+        } == true
+        val effectiveHorizontalGutter: Pair<Int, Int>? = if (floodFillWouldSplit) horizontalGutter else run {
+            val maxRowContent = (bbox.minY..bbox.maxY).maxOf { y ->
+                cropped.rowContentCount(y, innerMinX, innerMaxX)
+            }
+            if (maxRowContent <= 0) return@run null
+            val contentCutoff = maxRowContent * 0.20
+            val projGutter = widestGutterRun(
+                axisStart = bbox.minY + edgeMarginY,
+                axisEnd = bbox.maxY - edgeMarginY,
+            ) { y ->
+                cropped.rowContentCount(y, innerMinX, innerMaxX) < contentCutoff
+            }
+            // Full ≥7-row threshold for general (non-banner) splits — keeps the guard above
+            // typical 1–5-row sparse-artwork noise.
+            projGutter?.takeIf { (_, thickness) -> thickness >= 7 }
+                // Thin-gutter banner fallback: at device scale (inSampleSize=2) the gutter between
+                // a banner and its adjacent section shrinks to ~4 rows after panel borders are
+                // removed, falling below the 7-row floor. Accept ≥4 rows when the split is
+                // banner-eligible (bbox ≥50% wide, short piece ≥5% of page AND ≥25% of bbox).
+                // The banner conditions prevent this relaxation from firing on sparse artwork
+                // dips — those lack the width + height combination that characterises a real banner.
+                ?: projGutter?.takeIf { (start, thickness) ->
+                    thickness >= 4 && run {
+                        val end = start + thickness - 1
+                        val topH = start - bbox.minY
+                        val bottomH = bbox.maxY - end
+                        val bboxWidthFraction = width.toDouble() / downscaledWidth.toDouble()
+                        val bannerMinH = (downscaledHeight * 0.05).toInt().coerceAtLeast(1)
+                        val bannerBboxMinH = (height * 0.25).toInt().coerceAtLeast(1)
+                        bboxWidthFraction >= 0.5 &&
+                            minOf(topH, bottomH) >= bannerMinH &&
+                            minOf(topH, bottomH) >= bannerBboxMinH
+                    }
+                }
+                // If projection found nothing, fall back to a thin flood-fill gutter when
+                // banner-eligible. Flood-fill accessibility confirms the gutter connects to the
+                // page border; the banner conditions guard against caption-box false splits.
+                ?: horizontalGutter?.takeIf { (start, thickness) ->
+                    val end = start + thickness - 1
+                    val topH = start - bbox.minY
+                    val bottomH = bbox.maxY - end
+                    val bboxWidthFraction = width.toDouble() / downscaledWidth.toDouble()
+                    val bannerMinH = (downscaledHeight * 0.05).toInt().coerceAtLeast(1)
+                    val bannerBboxMinH = (height * 0.25).toInt().coerceAtLeast(1)
+                    bboxWidthFraction >= 0.5 &&
+                        minOf(topH, bottomH) >= bannerMinH &&
+                        minOf(topH, bottomH) >= bannerBboxMinH
+                }
+        }
+
+        // Same projection-based fallback for vertical (column) gutters. Covers the symmetric case
+        // where two side-by-side panels have an enclosed vertical gutter that flood-fill can't reach.
+        // Uses a 10% threshold (vs 20% for horizontal) to reject sparse-content columns in artwork
+        // that are not real gutters — vertical artwork dips are more common than horizontal ones.
+        val effectiveVerticalGutter: Pair<Int, Int>? = verticalGutter ?: run {
+            val maxColContent = (bbox.minX..bbox.maxX).maxOf { x ->
+                cropped.colContentCount(x, innerMinY, innerMaxY)
+            }
+            if (maxColContent <= 0) return@run null
+            val contentCutoff = maxColContent * 0.10
+            widestGutterRun(
+                axisStart = bbox.minX + edgeMarginX,
+                axisEnd = bbox.maxX - edgeMarginX,
+            ) { x ->
+                cropped.colContentCount(x, innerMinY, innerMaxY) < contentCutoff
+            }?.takeIf { (_, thickness) -> thickness >= 7 }
+        }
+
+        val hGutter = effectiveHorizontalGutter?.let { Triple("h", it.first, it.second) }
+        val vGutter = effectiveVerticalGutter?.let { Triple("v", it.first, it.second) }
+        val bestGutter = run {
+            if (hGutter != null && vGutter != null) {
+                // When both H and V gutters are available, prefer H if it would produce a
+                // valid banner split. Without this preference the (typically thicker) vertical
+                // column gutter wins and splits the bbox into ~50%-wide halves; the banner piece
+                // in each half is then too narrow to pass the ≥50% width check, so it is never
+                // separated from its neighbour. Choosing H first keeps the full bbox width
+                // intact and lets the banner exception fire at the correct level.
+                val (_, hStart, hThick) = hGutter
+                val hEnd = hStart + hThick - 1
+                val topH = hStart - bbox.minY
+                val bottomH = bbox.maxY - hEnd
+                val minDimPx = (downscaledHeight * config.minPanelDimensionFraction).toInt().coerceAtLeast(1)
+                val bannerEligible = (topH < minDimPx || bottomH < minDimPx) &&
+                    width.toDouble() / downscaledWidth >= 0.5 &&
+                    minOf(topH, bottomH) >= (downscaledHeight * 0.05).toInt().coerceAtLeast(1) &&
+                    minOf(topH, bottomH) >= (height * 0.25).toInt().coerceAtLeast(1)
+                if (bannerEligible) hGutter
+                else listOfNotNull(hGutter, vGutter).maxByOrNull { it.third }!!
+            } else {
+                listOfNotNull(hGutter, vGutter).maxByOrNull { it.third }
+            }
+        } ?: return listOf(bbox)
 
         if (bestGutter.third < config.internalGutterMinThickness) return listOf(bbox)
         val maxGutterThickness = when (bestGutter.first) {
@@ -369,13 +479,31 @@ class PanelDetector(
         // flood-fill-reachable from the outside: the thin white margin below the caption scores
         // ≥30% gutter pixels and would be split off, leaving the caption as a tiny orphan that
         // gets filtered — visually cutting off the top of the real panel.
+        //
+        // Exception: applyGlobalSanityChecks keeps wide banner panels (≥ 50% page width, ≥ 5%
+        // page height) even below the 15% floor. When the bbox spans ≥ 50% of the downscaled
+        // width and the short piece reaches the 5% banner-height threshold, allow the split so
+        // the banner can reach the sanity check instead of being silently merged with its
+        // neighbour. This is the symmetric counterpart to the banner exception in sanity checks.
         if (axis == "h") {
             val topHeight = start - bbox.minY
             val bottomHeight = bbox.maxY - end
             // Use the full downscaled page height (not cropped) so the threshold matches
             // applyGlobalSanityChecks which uses originalHeight; both scale proportionally.
             val minDimPx = (downscaledHeight * config.minPanelDimensionFraction).toInt().coerceAtLeast(1)
-            if (topHeight < minDimPx || bottomHeight < minDimPx) return listOf(bbox)
+            if (topHeight < minDimPx || bottomHeight < minDimPx) {
+                // Banner exception: allow an asymmetric split where one piece is a wide banner
+                // (≥ 50% page width, ≥ 5% page height, ≥ 25% of the current bbox height) and
+                // the other is the adjacent panel section. The 25%-of-bbox guard (rather than a
+                // page-relative companion threshold) prevents false positives: in the #757 fixture
+                // the false-split short piece is only 18.8% of the bbox, well below the 25% floor,
+                // while real banners are ≥ 30% of their containing bbox.
+                val bannerMinHeightPx = (downscaledHeight * 0.05).toInt().coerceAtLeast(1)
+                val bannerBboxMinHeightPx = (height * 0.25).toInt().coerceAtLeast(1)
+                val bboxWidthFraction = width.toDouble() / downscaledWidth.toDouble()
+                val shortPieceHeight = minOf(topHeight, bottomHeight)
+                if (bboxWidthFraction < 0.5 || shortPieceHeight < bannerMinHeightPx || shortPieceHeight < bannerBboxMinHeightPx) return listOf(bbox)
+            }
         } else {
             val leftWidth = start - bbox.minX
             val rightWidth = bbox.maxX - end
@@ -467,13 +595,20 @@ class PanelDetector(
         originalHeight: Int,
     ): List<PanelRegion>? {
         val pageArea = originalWidth.toLong() * originalHeight.toLong()
-        // Drop panels smaller than 15% of the page in BOTH axes. A "panel" that's tiny in one
-        // dimension is a noise island; a "panel" that's tiny in one dimension AND huge in the
-        // other (e.g. 100%×8% title-strip banners) is a wide banner — also a noise island for
-        // Panel View purposes. AND-ing catches both.
+        // Drop panels that are smaller than 15% of the page in BOTH dimensions — a region tiny
+        // in both width and height is a noise island. A panel that fails only the height check
+        // but spans ≥ 50% of the page width is a real wide banner (e.g. 100%×13% title strip)
+        // and is kept; everything else requires both axes to pass.
         val minWidth = (originalWidth * config.minPanelDimensionFraction).toInt().coerceAtLeast(1)
         val minHeight = (originalHeight * config.minPanelDimensionFraction).toInt().coerceAtLeast(1)
-        val filtered = regions.filter { it.width >= minWidth && it.height >= minHeight }
+        // A wide panel (≥ 50% of page width) that is taller than 5% of the page is a real
+        // banner even if its height doesn't reach the 15% full-panel threshold.
+        val bannerWidthThreshold = originalWidth * 0.5
+        val bannerMinHeight = (originalHeight * 0.05).toInt().coerceAtLeast(1)
+        val filtered = regions.filter {
+            (it.width >= minWidth && it.height >= minHeight) ||
+                (it.width >= bannerWidthThreshold && it.height >= bannerMinHeight)
+        }
         if (filtered.isEmpty()) return null
 
         // Deduplicate. If both a tight bbox around Panel A AND a larger bbox around Panel A +
@@ -558,35 +693,8 @@ class PanelDetector(
      * so one pass per pixel over its window is enough.
      */
     private fun binarize(grid: PixelGrid): BinaryMask? {
-        val w = grid.width
-        val h = grid.height
-        val bg = detectBackgroundLuma(grid)
-        val cutoff = config.backgroundContrastThreshold
-        val radius = config.textureWindowRadius
-        val stddevCutoff = config.textureStdDevThreshold
-        val varianceCutoff = stddevCutoff * stddevCutoff
-        val mask = ByteArray(w * h)
-
-        for (y in 0 until h) {
-            for (x in 0 until w) {
-                val v = grid.get(x, y)
-                val differsFromBg = if (bg >= 128) {
-                    // Light background: only pixels darker than background are content (ink, panel
-                    // borders). Pixels lighter than background (white speech bubble interiors,
-                    // highlight fills) are treated as background-like so flood fill can flow through
-                    // them instead of treating them as content bridges between panels.
-                    bg - v >= cutoff
-                } else {
-                    v - bg >= cutoff
-                }
-                mask[y * w + x] = if (differsFromBg || hasTexture(grid, x, y, radius, varianceCutoff)) 1 else 0
-            }
-        }
-        var contentCount = 0
-        for (b in mask) if (b == 1.toByte()) contentCount++
-        val total = mask.size
-        if (contentCount == 0 || contentCount == total) return null
-        return BinaryMask(w, h, mask)
+        val panelMask = PanelMaskBinarizer.binarize(grid) ?: return null
+        return BinaryMask(panelMask.width, panelMask.height, panelMask.data)
     }
 
     private fun hasTexture(grid: PixelGrid, x: Int, y: Int, radius: Int, varianceCutoff: Double): Boolean {

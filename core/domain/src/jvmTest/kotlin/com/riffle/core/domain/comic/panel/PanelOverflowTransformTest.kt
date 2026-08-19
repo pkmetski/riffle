@@ -19,8 +19,11 @@ class PanelOverflowTransformTest {
     // width = 1080 (100% of imgW). displayW = 1080 < vpH 1920 → overflowing.
     private val widePanelBanner = PanelRegion(x = 0, y = 0, width = 1080, height = 300)
 
-    // Wide panel at 89% — just below threshold. Not overflowing.
+    // Wide panel at 89% — above the 85% threshold. Overflowing.
     private val almostWidePanelBanner = PanelRegion(x = 60, y = 0, width = 960, height = 300)
+
+    // Wide panel at 84% — just below the 85% threshold. Not overflowing.
+    private val belowThresholdPanel = PanelRegion(x = 86, y = 0, width = 908, height = 300)
 
     // Normal panel: 50% width. Not overflowing.
     private val normalPanel = PanelRegion(x = 0, y = 300, width = 540, height = 600)
@@ -37,8 +40,14 @@ class PanelOverflowTransformTest {
     }
 
     @Test
-    fun isOverflowingReturnsFalseForPanelBelow90PercentWidthThreshold() {
-        assertFalse(PanelOverflowTransform.isOverflowing(almostWidePanelBanner, imgW, imgH, vpW, vpH))
+    fun isOverflowingReturnsTrueForPanelAt89PercentWidth() {
+        // 89% > 85% threshold → overflowing (threshold lowered from 0.9 to 0.85).
+        assertTrue(PanelOverflowTransform.isOverflowing(almostWidePanelBanner, imgW, imgH, vpW, vpH))
+    }
+
+    @Test
+    fun isOverflowingReturnsFalseForPanelBelow85PercentWidthThreshold() {
+        assertFalse(PanelOverflowTransform.isOverflowing(belowThresholdPanel, imgW, imgH, vpW, vpH))
     }
 
     @Test

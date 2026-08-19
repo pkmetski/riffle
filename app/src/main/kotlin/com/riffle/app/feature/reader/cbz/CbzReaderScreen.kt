@@ -354,8 +354,10 @@ fun CbzReaderScreen(
             PanelReportViewModel(
                 bookId = viewModel.bookId,
                 pageIndex = currentPage,
-                imageWidth = mask.width,
-                imageHeight = mask.height,
+                // Use original image dimensions from the detected panels, not the mask bitmap
+                // dimensions — the mask may be decoded at a different DPI-scaled size.
+                imageWidth = effectivePanels?.imageWidth ?: mask.width,
+                imageHeight = effectivePanels?.imageHeight ?: mask.height,
                 detectedPanels = effectivePanels?.panels ?: emptyList(),
                 detectedSource = effectivePanels?.source ?: PanelSource.Fallback,
                 repository = viewModel.panelReportRepository,
