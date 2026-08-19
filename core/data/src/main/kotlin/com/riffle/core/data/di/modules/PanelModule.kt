@@ -25,6 +25,7 @@ import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
+import io.ktor.client.HttpClient
 import java.io.File
 import javax.inject.Singleton
 
@@ -79,6 +80,7 @@ abstract class PanelModule {
         @Singleton
         fun providePanelReportRepository(
             developerOptionsRepository: DeveloperOptionsRepository,
+            httpClient: HttpClient,
         ): PanelReportRepository = object : PanelReportRepository {
             override suspend fun submit(
                 report: com.riffle.core.domain.comic.panel.PanelDetectionReport,
@@ -86,7 +88,7 @@ abstract class PanelModule {
             ): Result<String> {
                 val pat = developerOptionsRepository.getGithubPat()
                     ?: return Result.failure(IllegalStateException("No GitHub PAT configured"))
-                return GitHubPanelReportRepository(pat = pat).submit(report, maskPng)
+                return GitHubPanelReportRepository(pat = pat, client = httpClient).submit(report, maskPng)
             }
         }
 

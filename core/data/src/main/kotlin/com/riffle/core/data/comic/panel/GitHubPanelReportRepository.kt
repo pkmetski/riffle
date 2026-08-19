@@ -2,18 +2,23 @@ package com.riffle.core.data.comic.panel
 
 import com.riffle.core.domain.comic.panel.PanelDetectionReport
 import com.riffle.core.domain.comic.panel.PanelReportRepository
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
+import io.ktor.client.HttpClient
+import io.ktor.client.request.get
+import io.ktor.client.request.header
+import io.ktor.client.request.patch
+import io.ktor.client.request.post
+import io.ktor.client.request.setBody
+import io.ktor.client.statement.bodyAsText
+import io.ktor.http.ContentType
+import io.ktor.http.HttpHeaders
+import io.ktor.http.contentType
+import io.ktor.http.isSuccess
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
-import okhttp3.MediaType.Companion.toMediaType
-import okhttp3.OkHttpClient
-import okhttp3.Request
-import okhttp3.RequestBody.Companion.toRequestBody
 import java.io.IOException
 import java.util.UUID
 
@@ -21,16 +26,15 @@ class GitHubPanelReportRepository(
     private val pat: String,
     private val owner: String = "pkmetski",
     private val repoName: String = "riffle",
-    private val client: OkHttpClient = OkHttpClient(),
+    private val client: HttpClient,
     private val apiBase: String = "https://api.github.com",
     private val rawBase: String = "https://raw.githubusercontent.com",
 ) : PanelReportRepository {
 
     private val json = Json { ignoreUnknownKeys = true }
-    private val jsonMedia = "application/json; charset=utf-8".toMediaType()
 
     override suspend fun submit(report: PanelDetectionReport, maskPng: ByteArray): Result<String> =
-        withContext(Dispatchers.IO) { runCatching {
+        runCatching {
             val pngBase64 = java.util.Base64.getEncoder().encodeToString(maskPng)
             val filename = "panel-report-${UUID.randomUUID()}.png"
 
@@ -100,61 +104,57 @@ class GitHubPanelReportRepository(
                     "labels" to JsonArray(listOf(JsonPrimitive("panel-view-issue"))),
                 )).toString(),
             ).field("html_url")
-        } }
+        }
 
     private fun jsonObject(vararg pairs: Pair<String, String>): String =
         JsonObject(pairs.associate { (k, v) -> k to JsonPrimitive(v) }).toString()
 
-    private fun get(url: String): JsonObject {
-        val req = Request.Builder().url(url)
-            .header("Authorization", "token $pat")
-            .header("Accept", "application/vnd.github+json")
-            .header("X-GitHub-Api-Version", "2022-11-28")
-            .build()
-        return client.newCall(req).execute().use { resp ->
-            val bodyStr = resp.body!!.string()
-            val obj = json.parseToJsonElement(bodyStr).jsonObject
-            if (!resp.isSuccessful) {
-                val msg = obj["message"]?.jsonPrimitive?.content ?: resp.message
-                throw IOException("GitHub ${resp.code}: $msg")
-            }
-            obj
+    private suspend fun get(url: String): JsonObject {
+        val response = client.get(url) {
+            header(HttpHeaders.Authorization, "token $pat")
+            header(HttpHeaders.Accept, "application/vnd.github+json")
+            header("X-GitHub-Api-Version", "2022-11-28")
         }
+        val bodyStr = response.bodyAsText()
+        val obj = json.parseToJsonElement(bodyStr).jsonObject
+        if (!response.status.isSuccess()) {
+            val msg = obj["message"]?.jsonPrimitive?.content ?: response.status.description
+            throw IOException("GitHub ${response.status.value}: $msg")
+        }
+        return obj
     }
 
-    private fun post(url: String, body: String): JsonObject {
-        val req = Request.Builder().url(url)
-            .header("Authorization", "token $pat")
-            .header("Accept", "application/vnd.github+json")
-            .header("X-GitHub-Api-Version", "2022-11-28")
-            .post(body.toRequestBody(jsonMedia))
-            .build()
-        return client.newCall(req).execute().use { resp ->
-            val bodyStr = resp.body!!.string()
-            val obj = json.parseToJsonElement(bodyStr).jsonObject
-            if (!resp.isSuccessful) {
-                val msg = obj["message"]?.jsonPrimitive?.content ?: resp.message
-                throw IOException("GitHub ${resp.code}: $msg")
-            }
-            obj
+    private suspend fun post(url: String, body: String): JsonObject {
+        val response = client.post(url) {
+            header(HttpHeaders.Authorization, "token $pat")
+            header(HttpHeaders.Accept, "application/vnd.github+json")
+            header("X-GitHub-Api-Version", "2022-11-28")
+            contentType(ContentType.Application.Json)
+            setBody(body)
         }
+        val bodyStr = response.bodyAsText()
+        val obj = json.parseToJsonElement(bodyStr).jsonObject
+        if (!response.status.isSuccess()) {
+            val msg = obj["message"]?.jsonPrimitive?.content ?: response.status.description
+            throw IOException("GitHub ${response.status.value}: $msg")
+        }
+        return obj
     }
 
-    private fun patch(url: String, body: String) {
-        val req = Request.Builder().url(url)
-            .header("Authorization", "token $pat")
-            .header("Accept", "application/vnd.github+json")
-            .header("X-GitHub-Api-Version", "2022-11-28")
-            .patch(body.toRequestBody(jsonMedia))
-            .build()
-        client.newCall(req).execute().use { resp ->
-            if (!resp.isSuccessful) {
-                val bodyStr = resp.body?.string() ?: ""
-                val msg = runCatching {
-                    json.parseToJsonElement(bodyStr).jsonObject["message"]?.jsonPrimitive?.content
-                }.getOrNull() ?: resp.message
-                throw IOException("GitHub ${resp.code}: $msg")
-            }
+    private suspend fun patch(url: String, body: String) {
+        val response = client.patch(url) {
+            header(HttpHeaders.Authorization, "token $pat")
+            header(HttpHeaders.Accept, "application/vnd.github+json")
+            header("X-GitHub-Api-Version", "2022-11-28")
+            contentType(ContentType.Application.Json)
+            setBody(body)
+        }
+        if (!response.status.isSuccess()) {
+            val bodyStr = response.bodyAsText()
+            val msg = runCatching {
+                json.parseToJsonElement(bodyStr).jsonObject["message"]?.jsonPrimitive?.content
+            }.getOrNull() ?: response.status.description
+            throw IOException("GitHub ${response.status.value}: $msg")
         }
     }
 

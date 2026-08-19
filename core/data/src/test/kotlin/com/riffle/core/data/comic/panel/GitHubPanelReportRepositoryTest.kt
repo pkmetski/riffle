@@ -4,11 +4,12 @@ import com.riffle.core.domain.comic.panel.PanelDetectionFailureType
 import com.riffle.core.domain.comic.panel.PanelDetectionReport
 import com.riffle.core.domain.comic.panel.PanelRegion
 import com.riffle.core.domain.comic.panel.PanelSource
+import io.ktor.client.HttpClient
+import io.ktor.client.engine.okhttp.OkHttp
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
-import okhttp3.OkHttpClient
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
 import org.junit.After
@@ -20,14 +21,17 @@ import org.junit.Test
 class GitHubPanelReportRepositoryTest {
 
     private val server = MockWebServer()
+    private lateinit var httpClient: HttpClient
 
     @Before
     fun setUp() {
         server.start()
+        httpClient = HttpClient(OkHttp)
     }
 
     @After
     fun tearDown() {
+        httpClient.close()
         server.shutdown()
     }
 
@@ -37,7 +41,7 @@ class GitHubPanelReportRepositoryTest {
             pat = "test-pat",
             owner = "pkmetski",
             repoName = "riffle",
-            client = OkHttpClient(),
+            client = httpClient,
             apiBase = baseUrl,
             rawBase = baseUrl,
         )
