@@ -1,5 +1,6 @@
 package com.riffle.app.feature.settings.sections
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -7,7 +8,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
-import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.ListItem
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -21,20 +22,28 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
+import com.riffle.app.feature.settings.DrillInChevron
 import com.riffle.app.feature.settings.SettingsSectionHeader
 
 @Composable
-internal fun DeveloperOptionsSection(
+internal fun DeveloperOptionsSection(onOpen: () -> Unit) {
+    SettingsSectionHeader("Developer options")
+    ListItem(
+        headlineContent = { Text("Developer options") },
+        trailingContent = { DrillInChevron() },
+        modifier = Modifier.clickable(onClick = onOpen),
+    )
+}
+
+/** PAT input field used inside the Developer Options screen. */
+@Composable
+internal fun GithubPatField(
     currentPat: String,
     onSaveGithubPat: (String) -> Unit,
 ) {
-    HorizontalDivider()
-    SettingsSectionHeader("Developer options")
     var pat by remember { mutableStateOf(currentPat) }
     var isSaved by remember { mutableStateOf(currentPat.isNotEmpty()) }
 
-    // When the StateFlow delivers the persisted PAT (starts empty, then emits the real value),
-    // seed the field only if the user hasn't typed anything yet.
     LaunchedEffect(currentPat) {
         if (currentPat.isNotEmpty() && pat.isEmpty()) {
             pat = currentPat
