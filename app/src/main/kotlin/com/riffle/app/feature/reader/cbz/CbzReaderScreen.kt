@@ -766,9 +766,9 @@ internal fun prewarmThumbnailCache(
 ) {
     val capacity = cache.maxSize()
     var loaded = 0
-    for (offset in 0..pageCount) {
-        if (loaded >= capacity) break
+    outer@ for (offset in 0..pageCount) {
         for (candidate in listOf(startPage + offset, startPage - offset).distinct()) {
+            if (loaded >= capacity) break@outer
             if (candidate in 0 until pageCount && cache.get(candidate) == null) {
                 decode(candidate)?.let {
                     cache.put(candidate, it)

@@ -146,8 +146,11 @@ class CbzThumbnailStripTest {
         val stub = Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888)
         val decoded = mutableListOf<Int>()
 
+        // startPage=50 puts it in the middle: each offset produces TWO candidates (+offset and
+        // -offset). Without an inner-loop capacity check the last outer iteration can load both
+        // candidates and push loaded to capacity+1, evicting the startPage entry from the LruCache.
         prewarmThumbnailCache(
-            startPage = 0,
+            startPage = 50,
             pageCount = 200,
             cache = cache,
         ) { index ->
@@ -164,6 +167,10 @@ class CbzThumbnailStripTest {
             "cache must hold exactly [capacity] entries — no eviction occurred",
             capacity,
             cache.size(),
+        )
+        assertTrue(
+            "startPage must still be in cache — inner-loop overshoot must not evict it",
+            cache.get(50) != null,
         )
     }
 
