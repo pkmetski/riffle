@@ -369,7 +369,6 @@ class PanelDetector(
             val minDimPx = (downscaledHeight * config.minPanelDimensionFraction).toInt().coerceAtLeast(1)
             (start - bbox.minY) >= minDimPx && (bbox.maxY - end) >= minDimPx
         } == true
-        val bboxWideFrac = width.toDouble() / downscaledWidth
         val effectiveHorizontalGutter: Pair<Int, Int>? = if (floodFillWouldSplit) horizontalGutter else run {
             val maxRowContent = (bbox.minY..bbox.maxY).maxOf { y ->
                 cropped.rowContentCount(y, innerMinX, innerMaxX)
