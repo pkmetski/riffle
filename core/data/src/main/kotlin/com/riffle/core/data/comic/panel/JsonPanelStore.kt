@@ -174,8 +174,20 @@ class JsonPanelStore @Inject constructor(
          *      downscaled device images where the narrow gutter fell below the 15px projection
          *      band threshold and the panels merged into one bbox. v15 caches for pages with a
          *      wide banner adjacent to a splash panel hold a single merged bbox for those two.
+         * v17: Two fixes for banner detection at device scale. (1) effectiveHorizontalGutter now
+         *      accepts a thin flood-fill gutter (≥ 4px but < 7 rows) as a banner fallback when
+         *      all banner conditions are met (bbox ≥ 50% wide, short piece ≥ 5%, companion ≥
+         *      40%). At device scale (inSampleSize=2) the gutter between a banner and its
+         *      companion panel shrinks below the 7-row projection threshold, so the gutter was
+         *      previously discarded even though flood-fill already confirmed it was accessible.
+         *      (2) bestGutter selection now prefers the horizontal gutter over a thicker vertical
+         *      gutter when the horizontal split is banner-eligible. Without this the column gutter
+         *      (spanning the full bbox height) always won the thickness comparison, splitting the
+         *      bbox into ~50%-wide halves whose sub-banner pieces then failed the ≥ 50% width
+         *      check and were never promoted. v16 caches with a wide banner adjacent to a splash
+         *      may still hold a merged bbox if detection ran on a downscaled image.
          */
-        internal const val CURRENT_SCHEMA_VERSION: Int = 16
+        internal const val CURRENT_SCHEMA_VERSION: Int = 17
 
         private val UNSAFE = Regex("[^A-Za-z0-9._-]")
     }

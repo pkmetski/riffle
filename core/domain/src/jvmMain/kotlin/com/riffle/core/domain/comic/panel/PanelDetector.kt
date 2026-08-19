@@ -371,6 +371,21 @@ class PanelDetector(
             ) { y ->
                 cropped.rowContentCount(y, innerMinX, innerMaxX) < contentCutoff
             }?.takeIf { (_, thickness) -> thickness >= 7 }
+                // If projection didn't find a ≥7-row gutter but flood-fill found a thin accessible
+                // one, use it when the split would be banner-eligible. Flood-fill accessibility
+                // confirms the gutter is real (connects to the page border); the banner conditions
+                // guard against splitting off caption boxes that happen to touch the page edge.
+                ?: horizontalGutter?.takeIf { (start, thickness) ->
+                    val end = start + thickness - 1
+                    val topH = start - bbox.minY
+                    val bottomH = bbox.maxY - end
+                    val bboxWidthFraction = width.toDouble() / downscaledWidth.toDouble()
+                    val bannerMinH = (downscaledHeight * 0.05).toInt().coerceAtLeast(1)
+                    val companionMinH = (downscaledHeight * 0.40).toInt().coerceAtLeast(1)
+                    bboxWidthFraction >= 0.5 &&
+                        minOf(topH, bottomH) >= bannerMinH &&
+                        maxOf(topH, bottomH) >= companionMinH
+                }
         }
 
         // Same projection-based fallback for vertical (column) gutters. Covers the symmetric case
@@ -391,11 +406,31 @@ class PanelDetector(
             }?.takeIf { (_, thickness) -> thickness >= 7 }
         }
 
-        val bestGutter = listOfNotNull(
-            effectiveHorizontalGutter?.let { Triple("h", it.first, it.second) },
-            effectiveVerticalGutter?.let { Triple("v", it.first, it.second) },
-        ).maxByOrNull { it.third }
-            ?: return listOf(bbox)
+        val hGutter = effectiveHorizontalGutter?.let { Triple("h", it.first, it.second) }
+        val vGutter = effectiveVerticalGutter?.let { Triple("v", it.first, it.second) }
+        val bestGutter = run {
+            if (hGutter != null && vGutter != null) {
+                // When both H and V gutters are available, prefer H if it would produce a
+                // valid banner split. Without this preference the (typically thicker) vertical
+                // column gutter wins and splits the bbox into ~50%-wide halves; the banner piece
+                // in each half is then too narrow to pass the ≥50% width check, so it is never
+                // separated from its neighbour. Choosing H first keeps the full bbox width
+                // intact and lets the banner exception fire at the correct level.
+                val (_, hStart, hThick) = hGutter
+                val hEnd = hStart + hThick - 1
+                val topH = hStart - bbox.minY
+                val bottomH = bbox.maxY - hEnd
+                val minDimPx = (downscaledHeight * config.minPanelDimensionFraction).toInt().coerceAtLeast(1)
+                val bannerEligible = (topH < minDimPx || bottomH < minDimPx) &&
+                    width.toDouble() / downscaledWidth >= 0.5 &&
+                    minOf(topH, bottomH) >= (downscaledHeight * 0.05).toInt().coerceAtLeast(1) &&
+                    maxOf(topH, bottomH) >= (downscaledHeight * 0.40).toInt().coerceAtLeast(1)
+                if (bannerEligible) hGutter
+                else listOfNotNull(hGutter, vGutter).maxByOrNull { it.third }!!
+            } else {
+                listOfNotNull(hGutter, vGutter).maxByOrNull { it.third }
+            }
+        } ?: return listOf(bbox)
 
         if (bestGutter.third < config.internalGutterMinThickness) return listOf(bbox)
         val maxGutterThickness = when (bestGutter.first) {
