@@ -68,7 +68,7 @@ internal fun ComicDisplaySettingsPanel(
     )
     ListItem(
         headlineContent = { Text("Reading progress") },
-        supportingContent = { Text("Progress bar at the bottom of the screen") },
+        supportingContent = { Text("Progress bar at the bottom of the page") },
         trailingContent = {
             Switch(
                 checked = prefs.showChapterMap,
@@ -78,7 +78,7 @@ internal fun ComicDisplaySettingsPanel(
     )
     ListItem(
         headlineContent = { Text("Page numbers") },
-        supportingContent = { Text("Current page and remaining pages above the reading progress bar") },
+        supportingContent = { Text("Current page and remaining pages") },
         trailingContent = {
             Switch(
                 checked = prefs.showPageProgress,

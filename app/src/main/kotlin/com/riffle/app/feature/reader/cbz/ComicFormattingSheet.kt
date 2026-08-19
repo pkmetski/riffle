@@ -71,7 +71,7 @@ internal fun ComicFormattingSheet(
             )
             ListItem(
                 headlineContent = { Text("Page numbers") },
-                supportingContent = { Text("Current page and remaining pages above the reading progress bar") },
+                supportingContent = { Text("Current page and remaining pages") },
                 trailingContent = {
                     Switch(
                         checked = formatting.showPageProgress,
