@@ -3,6 +3,9 @@ package com.riffle.app.feature.reader.cbz
 import android.graphics.Bitmap
 import android.util.LruCache
 import androidx.activity.ComponentActivity
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
@@ -85,10 +88,10 @@ class CbzThumbnailStripTest {
     }
 
     /**
-     * Regression: when thumbnails are decoded and stored in a shared cache, re-composing
-     * the strip with the same cache must not trigger additional openStream calls.
-     * This covers the immersive-mode toggle case: strip exits → composable removed →
-     * strip re-enters → composable recreated with the same hoisted cache → no re-decode.
+     * Regression: when thumbnails are decoded and stored in a shared cache, removing and
+     * re-adding the strip (immersive-mode toggle) must not trigger additional openStream calls.
+     *
+     * Uses state-driven visibility toggle — `setContent` can only be called once per test.
      */
     @Test
     fun shared_cache_survives_strip_recomposition_without_redecoding() {
@@ -97,36 +100,33 @@ class CbzThumbnailStripTest {
         val stubBitmap = Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888)
         repeat(5) { cache.put(it, stubBitmap) }
 
-        // First composition
+        var showStrip by mutableStateOf(true)
+
         composeTestRule.setContent {
-            CbzThumbnailStrip(
-                currentPage = 0,
-                pageCount = source.pageCount,
-                imageSource = source,
-                onSeek = {},
-                thumbnailCache = cache,
-            )
+            if (showStrip) {
+                CbzThumbnailStrip(
+                    currentPage = 0,
+                    pageCount = source.pageCount,
+                    imageSource = source,
+                    onSeek = {},
+                    thumbnailCache = cache,
+                )
+            }
         }
         composeTestRule.waitForIdle()
 
-        // Second composition with the same cache (simulates immersive toggle re-entry)
-        composeTestRule.setContent {
-            CbzThumbnailStrip(
-                currentPage = 0,
-                pageCount = source.pageCount,
-                imageSource = source,
-                onSeek = {},
-                thumbnailCache = cache,
-            )
-        }
+        // Simulate immersive toggle: strip exits then re-enters
+        showStrip = false
+        composeTestRule.waitForIdle()
+        showStrip = true
         composeTestRule.waitForIdle()
 
         assertEquals(
-            "openStream must not be called on second composition when cache is still populated",
+            "openStream must not be called after toggle when cache is still populated",
             0,
             source.openStreamCallCount,
         )
-        assertTrue("Cache must still hold all entries after recomposition", cache.size() == 5)
+        assertTrue("Cache must still hold all entries after toggle", cache.size() == 5)
     }
 
     /**
