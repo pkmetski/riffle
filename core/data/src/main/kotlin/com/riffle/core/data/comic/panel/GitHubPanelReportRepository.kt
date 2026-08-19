@@ -28,44 +28,40 @@ class GitHubPanelReportRepository(
 
     private val json = Json { ignoreUnknownKeys = true }
     private val jsonMedia = "application/json; charset=utf-8".toMediaType()
-    private val base = apiBase
 
     override suspend fun submit(report: PanelDetectionReport, maskPng: ByteArray): Result<String> =
         withContext(Dispatchers.IO) { runCatching {
             val pngBase64 = java.util.Base64.getEncoder().encodeToString(maskPng)
-            val ext = if (maskPng.size >= 3 &&
-                maskPng[0] == 0xFF.toByte() && maskPng[1] == 0xD8.toByte() && maskPng[2] == 0xFF.toByte()
-            ) "jpg" else "png"
-            val filename = "panel-report-${UUID.randomUUID()}.$ext"
+            val filename = "panel-report-${UUID.randomUUID()}.png"
 
             // 1. Create blob
             val blobSha = post(
-                "$base/repos/$owner/$repoName/git/blobs",
+                "$apiBase/repos/$owner/$repoName/git/blobs",
                 jsonObject("content" to pngBase64, "encoding" to "base64"),
             ).field("sha")
 
             // 2. Get current commit sha from panel-reports branch (create from main if absent)
             val currentCommitSha = try {
-                get("$base/repos/$owner/$repoName/git/ref/heads/panel-reports")
+                get("$apiBase/repos/$owner/$repoName/git/ref/heads/panel-reports")
                     .let { it["object"]!!.jsonObject["sha"]!!.jsonPrimitive.content }
             } catch (e: IOException) {
                 if ("404" !in (e.message ?: "")) throw e
-                val mainSha = get("$base/repos/$owner/$repoName/git/ref/heads/main")
+                val mainSha = get("$apiBase/repos/$owner/$repoName/git/ref/heads/main")
                     .let { it["object"]!!.jsonObject["sha"]!!.jsonPrimitive.content }
                 post(
-                    "$base/repos/$owner/$repoName/git/refs",
+                    "$apiBase/repos/$owner/$repoName/git/refs",
                     jsonObject("ref" to "refs/heads/panel-reports", "sha" to mainSha),
                 )
                 mainSha
             }
 
             // 3. Get current tree sha
-            val commitJson = get("$base/repos/$owner/$repoName/git/commits/$currentCommitSha")
+            val commitJson = get("$apiBase/repos/$owner/$repoName/git/commits/$currentCommitSha")
             val currentTreeSha = commitJson["tree"]!!.jsonObject["sha"]!!.jsonPrimitive.content
 
             // 4. Create tree
             val newTreeSha = post(
-                "$base/repos/$owner/$repoName/git/trees",
+                "$apiBase/repos/$owner/$repoName/git/trees",
                 JsonObject(mapOf(
                     "base_tree" to JsonPrimitive(currentTreeSha),
                     "tree" to JsonArray(listOf(JsonObject(mapOf(
@@ -79,7 +75,7 @@ class GitHubPanelReportRepository(
 
             // 5. Create commit
             val newCommitSha = post(
-                "$base/repos/$owner/$repoName/git/commits",
+                "$apiBase/repos/$owner/$repoName/git/commits",
                 JsonObject(mapOf(
                     "message" to JsonPrimitive("panel report: ${report.failureType.label} p${report.pageIndex}"),
                     "tree" to JsonPrimitive(newTreeSha),
@@ -89,7 +85,7 @@ class GitHubPanelReportRepository(
 
             // 6. Advance ref
             patch(
-                "$base/repos/$owner/$repoName/git/refs/heads/panel-reports",
+                "$apiBase/repos/$owner/$repoName/git/refs/heads/panel-reports",
                 jsonObject("sha" to newCommitSha),
             )
 
@@ -97,7 +93,7 @@ class GitHubPanelReportRepository(
 
             // 7. Create issue
             post(
-                "$base/repos/$owner/$repoName/issues",
+                "$apiBase/repos/$owner/$repoName/issues",
                 JsonObject(mapOf(
                     "title" to JsonPrimitive("[Panel Detection] ${report.failureType.label} — page ${report.pageIndex}"),
                     "body" to JsonPrimitive(buildIssueBody(report, rawUrl)),

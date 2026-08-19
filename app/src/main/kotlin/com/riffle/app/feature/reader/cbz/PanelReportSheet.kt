@@ -27,7 +27,6 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
-import android.graphics.Bitmap
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -38,7 +37,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
@@ -52,6 +51,7 @@ import com.riffle.core.domain.comic.panel.PanelDetectionFailureType
 internal fun PanelReportSheet(
     viewModel: PanelReportViewModel,
     mask: PanelBinaryMask,
+    maskBitmap: ImageBitmap,
     onSubmit: () -> Unit,
     onDismiss: () -> Unit,
 ) {
@@ -60,6 +60,8 @@ internal fun PanelReportSheet(
 
     val drawMode = state.failureType == PanelDetectionFailureType.MissedPanel ||
         state.failureType == PanelDetectionFailureType.MergedPanels ||
+        state.failureType == PanelDetectionFailureType.SplitPanel
+    val drawsRectangle = state.failureType == PanelDetectionFailureType.MissedPanel ||
         state.failureType == PanelDetectionFailureType.SplitPanel
 
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState) {
@@ -100,15 +102,6 @@ internal fun PanelReportSheet(
                 }
             }
 
-            // Black-on-white — same palette as the PNG uploaded to GitHub (ADR 0062).
-            val maskBitmap = remember(mask) {
-                val pixels = IntArray(mask.width * mask.height) { i ->
-                    if (mask.data[i] == 1.toByte()) android.graphics.Color.BLACK else android.graphics.Color.WHITE
-                }
-                Bitmap.createBitmap(pixels, mask.width, mask.height, Bitmap.Config.ARGB_8888)
-                    .asImageBitmap()
-            }
-
             var canvasSize by remember { mutableStateOf(IntSize.Zero) }
             val scaleX = if (canvasSize.width > 0 && mask.width > 0) canvasSize.width.toFloat() / mask.width else 1f
             val scaleY = if (canvasSize.height > 0 && mask.height > 0) canvasSize.height.toFloat() / mask.height else 1f
@@ -119,8 +112,8 @@ internal fun PanelReportSheet(
 
             if (drawMode) {
                 val hint = when (state.failureType) {
-                    PanelDetectionFailureType.MissedPanel -> "Draw expected panel rectangles"
-                    PanelDetectionFailureType.SplitPanel -> "Draw the correct single panel boundary"
+                    PanelDetectionFailureType.MissedPanel,
+                    PanelDetectionFailureType.SplitPanel -> "Draw the correct panel boundary"
                     else -> "Draw panel boundary lines"
                 }
                 Text(hint, style = androidx.compose.material3.MaterialTheme.typography.bodySmall)
@@ -144,8 +137,7 @@ internal fun PanelReportSheet(
                                         val iy1 = (s.y / scaleY).toInt().coerceIn(0, mask.height - 1)
                                         val ix2 = (e.x / scaleX).toInt().coerceIn(0, mask.width - 1)
                                         val iy2 = (e.y / scaleY).toInt().coerceIn(0, mask.height - 1)
-                                        if (state.failureType == PanelDetectionFailureType.MissedPanel ||
-                                            state.failureType == PanelDetectionFailureType.SplitPanel) {
+                                        if (drawsRectangle) {
                                             viewModel.addDrawnPanel(ix1, iy1, ix2, iy2)
                                         } else {
                                             viewModel.addDrawnBoundary(ix1, iy1, ix2, iy2)
@@ -213,8 +205,7 @@ internal fun PanelReportSheet(
                     // In-progress draw preview (yellow)
                     val s = dragStart; val e = dragCurrent
                     if (s != null && e != null) {
-                        if (state.failureType == PanelDetectionFailureType.MissedPanel ||
-                            state.failureType == PanelDetectionFailureType.SplitPanel) {
+                        if (drawsRectangle) {
                             drawRect(
                                 color = Color.Yellow,
                                 topLeft = Offset(minOf(s.x, e.x), minOf(s.y, e.y)),
@@ -234,8 +225,7 @@ internal fun PanelReportSheet(
                 if (hasDrawn) {
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                         OutlinedButton(onClick = {
-                            if (state.failureType == PanelDetectionFailureType.MissedPanel ||
-                                state.failureType == PanelDetectionFailureType.SplitPanel)
+                            if (drawsRectangle)
                                 viewModel.clearLastDrawnPanel()
                             else
                                 viewModel.clearLastDrawnBoundary()

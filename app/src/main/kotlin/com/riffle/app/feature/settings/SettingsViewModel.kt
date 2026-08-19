@@ -515,7 +515,7 @@ class SettingsViewModel @Inject constructor(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
 
     val githubPat: StateFlow<String> = flow { emit(developerOptionsRepository.getGithubPat() ?: "") }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), "")
+        .stateIn(viewModelScope, SharingStarted.Lazily, "")
 
     private val _developerUnlockEvents = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
     val developerUnlockEvents: SharedFlow<Unit> = _developerUnlockEvents.asSharedFlow()

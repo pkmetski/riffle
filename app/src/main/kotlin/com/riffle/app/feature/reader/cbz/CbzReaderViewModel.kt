@@ -95,7 +95,8 @@ class CbzReaderViewModel @Inject constructor(
     private var archive: ComicArchive? = null
     private var lastSavedPage: Int = -1
     private var closeSyncDone: Boolean = false
-    private var bookId: String = itemId
+    var bookId: String = itemId
+        private set
     private var panelBook: PanelOrchestrator.Book? = null
     // Cancel-and-replace the in-flight panel resolve on every page change so a stale resolver
     // can't overwrite a newer page's PagePanels result.
@@ -228,7 +229,7 @@ class CbzReaderViewModel @Inject constructor(
             for (i in pixels.indices) {
                 val c = pixels[i]
                 val r = (c shr 16) and 0xFF; val g = (c shr 8) and 0xFF; val b = c and 0xFF
-                luma[i] = (0.299 * r + 0.587 * g + 0.114 * b).toInt().coerceIn(0, 255).toByte()
+                luma[i] = ((77 * r + 150 * g + 29 * b) shr 8).toByte()
             }
             val grid = com.riffle.core.domain.comic.panel.PixelGrid(w, h, luma)
             val mask = PanelMaskBinarizer.binarize(grid) ?: return@withContext null

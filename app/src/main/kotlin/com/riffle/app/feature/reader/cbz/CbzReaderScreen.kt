@@ -116,8 +116,7 @@ fun CbzReaderScreen(
     val developerModeEnabled by viewModel.developerModeEnabled.collectAsState()
     var formattingSheetOpen by remember { mutableStateOf(false) }
     var reportSheetOpen by remember { mutableStateOf(false) }
-    var reportMask by remember { mutableStateOf<PanelBinaryMask?>(null) }
-    var reportMaskPng by remember { mutableStateOf<ByteArray?>(null) }
+    var reportData by remember { mutableStateOf<Pair<PanelBinaryMask, ByteArray>?>(null) }
     val coroutineScope = androidx.compose.runtime.rememberCoroutineScope()
     val context = LocalContext.current
     val lifecycle = LocalLifecycleOwner.current.lifecycle
@@ -224,8 +223,7 @@ fun CbzReaderScreen(
                                         coroutineScope.launch(Dispatchers.IO) {
                                             val result = viewModel.generateMaskPng(currentPage)
                                             if (result != null) {
-                                                reportMask = result.first
-                                                reportMaskPng = result.second
+                                                reportData = result
                                                 reportSheetOpen = true
                                             }
                                         }
@@ -330,13 +328,17 @@ fun CbzReaderScreen(
         )
     }
 
-    val ready = state as? CbzReaderState.Ready
-    val mask = reportMask
-    val maskPng = reportMaskPng
-    if (reportSheetOpen && ready != null && mask != null && maskPng != null) {
+    val data = reportData
+    if (reportSheetOpen && data != null) {
+        val (mask, maskPng) = data
+        val maskBitmap = remember(mask) {
+            val pixels = PanelMaskEncoder.toArgbPixels(mask)
+            android.graphics.Bitmap.createBitmap(pixels, mask.width, mask.height, android.graphics.Bitmap.Config.ARGB_8888)
+                .asImageBitmap()
+        }
         val panelReportVm = remember(currentPage) {
             PanelReportViewModel(
-                bookId = ready.title,
+                bookId = viewModel.bookId,
                 pageIndex = currentPage,
                 imageWidth = mask.width,
                 imageHeight = mask.height,
@@ -348,6 +350,7 @@ fun CbzReaderScreen(
         PanelReportSheet(
             viewModel = panelReportVm,
             mask = mask,
+            maskBitmap = maskBitmap,
             onSubmit = { panelReportVm.submit(maskPng) },
             onDismiss = { reportSheetOpen = false },
         )
