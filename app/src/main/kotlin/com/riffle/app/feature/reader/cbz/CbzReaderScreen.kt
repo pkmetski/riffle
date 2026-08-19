@@ -78,6 +78,8 @@ import coil.size.Size as CoilSize
 import com.riffle.app.feature.reader.ChapterMapOverlay
 import com.riffle.app.feature.reader.VolumeNavEvent
 import com.riffle.app.feature.reader.cbzSegmentPageIndex
+import com.riffle.app.feature.reader.palette
+import com.riffle.app.feature.reader.readerThemeLabelColor
 import com.riffle.app.feature.reader.rememberImmersiveModeState
 import com.riffle.core.domain.ReaderTheme
 import com.riffle.core.domain.comic.panel.PagePanels
