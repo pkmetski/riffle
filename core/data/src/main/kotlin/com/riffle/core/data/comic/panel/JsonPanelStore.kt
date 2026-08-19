@@ -151,8 +151,15 @@ class JsonPanelStore @Inject constructor(
          *      an internal gutter; the split produced a caption-only piece that fell below the
          *      15% dimension floor and was dropped, cutting off the top of the real panel. v12
          *      caches for those pages hold under-sized panels missing their caption top.
+         * v14: applyGlobalSanityChecks now keeps wide-but-short banner panels (width ≥ 50% of
+         *      page, height ≥ 5%) that would otherwise be dropped by the 15% height floor.
+         *      Projection-based fallback in splitSinglePanelRecursively now also activates when
+         *      flood-fill finds a border-edge gutter that would be rejected by the min-dimension
+         *      check — previously the projection path was blocked whenever horizontalGutter was
+         *      non-null even if the resulting split would have been invalid. v13 caches for
+         *      pages with enclosed column gutters or wide banner panels hold wrong results.
          */
-        internal const val CURRENT_SCHEMA_VERSION: Int = 13
+        internal const val CURRENT_SCHEMA_VERSION: Int = 14
 
         private val UNSAFE = Regex("[^A-Za-z0-9._-]")
     }
