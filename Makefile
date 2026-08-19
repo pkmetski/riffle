@@ -75,7 +75,7 @@ build: wrapper ## Build the project
 
 .PHONY: test
 test: wrapper ## Run all unit tests
-	./gradlew test
+	./gradlew test -PversionName=0.0.0-ci
 
 .PHONY: lint
 lint: wrapper ## Run lint checks
@@ -83,7 +83,7 @@ lint: wrapper ## Run lint checks
 
 .PHONY: check
 check: wrapper ## Run build + lint + tests
-	./gradlew build lint test
+	./gradlew build lint test -PversionName=0.0.0-ci
 
 .PHONY: clean
 clean: ## Clean build outputs

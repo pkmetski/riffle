@@ -17,6 +17,10 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
+// Dev builds produced outside the release pipeline carry a "-dev" suffix and never need an update
+// prompt — the developer is already running the latest code they built themselves.
+internal fun isDevVersionName(versionName: String): Boolean = versionName.endsWith("-dev")
+
 data class StartupUpdateDialogState(
     val releases: List<ReleaseInfo>,
     val update: AvailableUpdate,
@@ -45,7 +49,7 @@ class StartupUpdateViewModel @Inject constructor(
     }
 
     fun checkNow() {
-        if (BuildConfig.VERSION_NAME.endsWith("-dev")) return
+        if (isDevVersionName(BuildConfig.VERSION_NAME)) return
         if (_dialogState.value != null) return
         viewModelScope.launch {
             val autoEnabled = appUpdatePreferencesStore.autoUpdateEnabled.first()
