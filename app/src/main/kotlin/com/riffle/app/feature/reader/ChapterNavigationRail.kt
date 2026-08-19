@@ -188,18 +188,20 @@ fun ChapterNavigationRail(
                         )
                     }
 
-                    drawLine(
-                        color = haloColor,
-                        start = Offset(fillX, 0f),
-                        end = Offset(fillX, size.height),
-                        strokeWidth = CHAPTER_RAIL_CURSOR_HALO_WIDTH.toPx(),
-                    )
-                    drawLine(
-                        color = cursorColor,
-                        start = Offset(fillX, 0f),
-                        end = Offset(fillX, size.height),
-                        strokeWidth = CHAPTER_RAIL_CURSOR_CORE_WIDTH.toPx(),
-                    )
+                    if (chapterRailUsesGroups(segments)) {
+                        drawLine(
+                            color = haloColor,
+                            start = Offset(fillX, 0f),
+                            end = Offset(fillX, size.height),
+                            strokeWidth = CHAPTER_RAIL_CURSOR_HALO_WIDTH.toPx(),
+                        )
+                        drawLine(
+                            color = cursorColor,
+                            start = Offset(fillX, 0f),
+                            end = Offset(fillX, size.height),
+                            strokeWidth = CHAPTER_RAIL_CURSOR_CORE_WIDTH.toPx(),
+                        )
+                    }
                 }
             },
     )

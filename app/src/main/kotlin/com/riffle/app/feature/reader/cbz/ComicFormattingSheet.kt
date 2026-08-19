@@ -6,9 +6,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.ListItem
 import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -33,29 +31,13 @@ internal fun ComicFormattingSheet(
                 .verticalScroll(rememberScrollState())
                 .padding(bottom = 8.dp),
         ) {
-            ListItem(
-                headlineContent = { Text("Panel View") },
-                supportingContent = { Text("Navigate panel by panel") },
-                trailingContent = {
-                    Switch(
-                        checked = formatting.panelViewOn,
-                        onCheckedChange = { on ->
-                            onUpdate(BookComicFormattingOverrides(panelViewOn = on))
-                        },
-                    )
-                },
-            )
-            PanelOverflowRadioGroup(
-                selected = formatting.panelOverflow,
-                enabled = formatting.panelViewOn,
-                onSelect = { onUpdate(BookComicFormattingOverrides(panelOverflow = it)) },
-            )
-            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-            PanelAnimationSpeedSlider(
-                speedMs = formatting.panelAnimationSpeedMs,
-                onSpeedChange = { speed -> onUpdate(BookComicFormattingOverrides(panelAnimationSpeedMs = speed)) },
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-                enabled = formatting.panelViewOn,
+            ComicDisplaySection(
+                prefs = formatting,
+                onPanelViewChange = { onUpdate(BookComicFormattingOverrides(panelViewOn = it)) },
+                onPanelOverflowChange = { onUpdate(BookComicFormattingOverrides(panelOverflow = it)) },
+                onPanelAnimationSpeedChange = { onUpdate(BookComicFormattingOverrides(panelAnimationSpeedMs = it)) },
+                onShowReadingProgressChange = { onUpdate(BookComicFormattingOverrides(showChapterMap = it)) },
+                onShowPageNumbersChange = { onUpdate(BookComicFormattingOverrides(showPageProgress = it)) },
             )
             HorizontalDivider()
             TextButton(

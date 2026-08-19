@@ -37,4 +37,32 @@ class ComicDisplaySummaryTest {
             comicDisplaySummary(ComicFormattingPreferences(panelViewOn = true, panelOverflow = PanelOverflowBehavior.OFF)),
         )
     }
+
+    @Test fun `reading progress on appends to panel view summary`() {
+        assertEquals(
+            "Panel View · Split · Reading progress",
+            comicDisplaySummary(ComicFormattingPreferences(panelViewOn = true, panelOverflow = PanelOverflowBehavior.SPLIT, showChapterMap = true)),
+        )
+    }
+
+    @Test fun `reading progress on panel view also off`() {
+        assertEquals(
+            "Panel View off · Reading progress",
+            comicDisplaySummary(ComicFormattingPreferences(panelViewOn = false, showChapterMap = true)),
+        )
+    }
+
+    @Test fun `page numbers on appends after reading progress`() {
+        assertEquals(
+            "Panel View off · Reading progress · Page numbers",
+            comicDisplaySummary(ComicFormattingPreferences(panelViewOn = false, showChapterMap = true, showPageProgress = true)),
+        )
+    }
+
+    @Test fun `page progress on without chapter map does not append`() {
+        assertEquals(
+            "Panel View off",
+            comicDisplaySummary(ComicFormattingPreferences(panelViewOn = false, showChapterMap = false, showPageProgress = true)),
+        )
+    }
 }

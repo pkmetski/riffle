@@ -29,6 +29,8 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.pager.HorizontalPager
@@ -61,6 +63,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import androidx.fragment.app.FragmentActivity
@@ -72,8 +75,13 @@ import coil.compose.AsyncImage
 import coil.compose.SubcomposeAsyncImage
 import coil.request.ImageRequest
 import coil.size.Size as CoilSize
+import com.riffle.app.feature.reader.ChapterMapOverlay
 import com.riffle.app.feature.reader.VolumeNavEvent
+import com.riffle.app.feature.reader.cbzSegmentPageIndex
+import com.riffle.app.feature.reader.palette
+import com.riffle.app.feature.reader.readerThemeLabelColor
 import com.riffle.app.feature.reader.rememberImmersiveModeState
+import com.riffle.core.domain.ReaderTheme
 import com.riffle.core.domain.comic.panel.PagePanels
 import com.riffle.core.domain.comic.panel.PanelFitTransform
 import kotlinx.coroutines.Dispatchers
@@ -94,6 +102,9 @@ fun CbzReaderScreen(
     val effectivePanels by viewModel.effectivePanels.collectAsState()
     val currentPanelIndex by viewModel.currentPanelIndex.collectAsState()
     val effectiveComicFormatting by viewModel.effectiveComicFormatting.collectAsState()
+    val railSegments by viewModel.railSegments.collectAsState()
+    val activeRailSegmentIndex by viewModel.activeRailSegmentIndex.collectAsState()
+    val railCursorPosition by viewModel.railCursorPosition.collectAsState()
     val hasComicOverrides by viewModel.hasComicOverrides.collectAsState()
     var formattingSheetOpen by remember { mutableStateOf(false) }
     val context = LocalContext.current
@@ -195,18 +206,82 @@ fun CbzReaderScreen(
 
         val ready = state as? CbzReaderState.Ready
         if (ready != null) {
+            var chapterMapContentPx by remember { mutableStateOf(0) }
+            val density = LocalDensity.current
+
+            // Thumbnail strip — animated, sits above the chapter map
             AnimatedVisibility(
                 visible = !immersiveState.isImmersive,
+                modifier = Modifier.align(Alignment.BottomCenter),
                 enter = slideInVertically { it },
                 exit = slideOutVertically { it },
-                modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth(),
             ) {
-                CbzThumbnailStrip(
-                    currentPage = currentPage,
-                    pageCount = ready.pageCount,
-                    imageSource = ready.thumbnailSource ?: ready.imageSource,
-                    onSeek = { viewModel.jumpToPage(it) },
-                )
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .navigationBarsPadding()
+                        .padding(bottom = with(density) { chapterMapContentPx.toDp() }),
+                ) {
+                    CbzThumbnailStrip(
+                        currentPage = currentPage,
+                        pageCount = ready.pageCount,
+                        imageSource = ready.thumbnailSource ?: ready.imageSource,
+                        onSeek = { viewModel.jumpToPage(it) },
+                    )
+                }
+            }
+
+            // Chapter map — static, always at bottom, never animated.
+            // No navigationBarsPadding: the system nav bar overlays this column without
+            // shifting it up, matching how EpubReaderScreen anchors its chapter rail.
+            if (effectiveComicFormatting.showChapterMap && railSegments.isNotEmpty()) {
+                val labelColor = readerThemeLabelColor(ReaderTheme.Dark)
+                val labelStyle = MaterialTheme.typography.labelSmall
+                Column(
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .fillMaxWidth(),
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .onSizeChanged { chapterMapContentPx = it.height },
+                    ) {
+                        if (effectiveComicFormatting.showPageProgress) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .background(ReaderTheme.Dark.palette.background)
+                                    .padding(horizontal = 14.dp, vertical = 2.dp),
+                            ) {
+                                Text(
+                                    text = "${currentPage + 1}",
+                                    style = labelStyle,
+                                    color = labelColor,
+                                )
+                                Spacer(modifier = Modifier.weight(1f))
+                                Text(
+                                    text = "-${ready.pageCount - currentPage - 1}",
+                                    style = labelStyle,
+                                    color = labelColor,
+                                )
+                            }
+                        }
+                        ChapterMapOverlay(
+                            segments = railSegments,
+                            activeIndex = activeRailSegmentIndex,
+                            cursorPosition = railCursorPosition,
+                            totalProgress = railCursorPosition,
+                            readerTheme = ReaderTheme.Dark,
+                            showRail = true,
+                            coloredChapterMap = true,
+                            showCurrentChapterLabel = false,
+                            showProgressLabels = false,
+                            showReadingTimeEstimate = false,
+                            onSegmentClick = { segment -> viewModel.jumpToPage(cbzSegmentPageIndex(segment)) },
+                        )
+                    }
+                }
             }
         }
     }
@@ -546,7 +621,6 @@ internal fun CbzThumbnailStrip(
         modifier = Modifier
             .fillMaxWidth()
             .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.9f))
-            .navigationBarsPadding()
             .padding(vertical = 8.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
