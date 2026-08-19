@@ -125,6 +125,119 @@ class PanelDetectorImageTest {
         )
     }
 
+    @Test
+    fun `noir page with wide banner panel between splash and three bottom panels is not missed`() {
+        // Regression for issue #755: page 42. Top splash + full-width banner + bottom panels.
+        // The banner (h ≈ 393px on a 3054px page = ~13%) was silently dropped by
+        // applyGlobalSanityChecks because its height fell below minPanelDimensionFraction (15%).
+        // Fix: panels with width ≥ 50% of the page and height ≥ 5% are kept as banners.
+        val grid = loadMaskFixture("panel-detection-fixtures/issue-755-missed-panel-p42.png")
+        val result = detector.detect(grid, pageIndex = 0, originalWidth = grid.width, originalHeight = grid.height)
+        assertEquals(PanelSource.Auto, result.source)
+        assertEquals(
+            "expected 4 panels for splash+banner+2-bottom layout, got ${result.panels.size} (source=${result.source})",
+            4, result.panels.size,
+        )
+        // The banner must appear: a very wide panel (≥ 60% page width) sitting in the lower half.
+        val banners = result.panels.filter { p ->
+            p.width.toDouble() / grid.width >= 0.75 &&
+                p.y + p.height / 2 > grid.height / 2
+        }
+        assertEquals(
+            "expected exactly one wide banner panel in the lower half of the page; panels=${result.panels}",
+            1, banners.size,
+        )
+    }
+
+    @Test
+    fun `bottom-row wide panel is not split in half by a compositional gap in the art`() {
+        // Regression for issue #756: page 67. 2×2 panel grid above a full-width bottom panel.
+        // splitAtInternalGutters found a false vertical gutter inside the bottom wide panel
+        // (a low-content column in the art) and split it into two half-panels, so tapping
+        // either half only zoomed to that fragment instead of the whole bottom scene.
+        val grid = loadMaskFixture("panel-detection-fixtures/issue-756-panel-cut-off-p67.png")
+        val result = detector.detect(grid, pageIndex = 0, originalWidth = grid.width, originalHeight = grid.height)
+        assertEquals(PanelSource.Auto, result.source)
+        assertEquals(
+            "expected 5 panels for 2+2+1 layout, got ${result.panels.size} (source=${result.source})",
+            5, result.panels.size,
+        )
+        // Bottom panel must span ≥ 60% of the page width.
+        val bottomPanels = result.panels.filter { p -> p.y + p.height / 2 > grid.height * 2 / 3 }
+        assertEquals("expected one wide bottom panel", 1, bottomPanels.size)
+        assertTrue(
+            "bottom panel must span ≥ 60% of page width; got w=${bottomPanels[0].width} on ${grid.width}px",
+            bottomPanels[0].width.toDouble() / grid.width >= 0.6,
+        )
+    }
+
+    @Test
+    fun `right-side panels are not merged into one tall panel when separated by a narrow gutter`() {
+        // Regression for issue #757: page 68. 2×2 layout (left column 2 panels, right column 2
+        // panels) above a full-width bottom panel — 5 panels total. The right-column gutter is
+        // enclosed by panel borders; flood-fill scores only ~1.5% (vs the 30% threshold) and the
+        // detected flood-fill gutter is at the edge margin (rejected by min-dimension check). Fix:
+        // projection-based fallback triggers when flood-fill produces no valid split, and splits on
+        // the widest continuous run of low-content rows (h ≥ 7).
+        val grid = loadMaskFixture("panel-detection-fixtures/issue-757-merged-panels-p68.png")
+        val result = detector.detect(grid, pageIndex = 0, originalWidth = grid.width, originalHeight = grid.height)
+        assertEquals(PanelSource.Auto, result.source)
+        assertEquals(
+            "expected 5 panels for 2×2-above-banner layout, got ${result.panels.size} (source=${result.source})",
+            5, result.panels.size,
+        )
+        // Both right-side stacked panels must sit in the top two-thirds of the page.
+        val rightPanels = result.panels.filter { p -> p.x + p.width / 2 > grid.width / 2 }
+        val rightTopHalf = rightPanels.filter { p -> p.y + p.height / 2 < grid.height * 2 / 3 }
+        assertTrue(
+            "expected ≥ 2 right-side panels in the top two-thirds; got all panels=${result.panels}, rightPanels=$rightPanels",
+            rightTopHalf.size >= 2,
+        )
+    }
+
+    @Test
+    fun `right-side panels are not merged when left column is one tall panel`() {
+        // Regression for issue #758: page 70. The right column has two stacked panels; the left
+        // column appears as one tall panel in the binarized mask (the gutter between the two left
+        // panels is not visible in the fixture). The right side must be correctly detected as two
+        // separate panels despite the enclosed gutter — the projection-based fallback handles this.
+        val grid = loadMaskFixture("panel-detection-fixtures/issue-758-merged-panels-p70.png")
+        val result = detector.detect(grid, pageIndex = 0, originalWidth = grid.width, originalHeight = grid.height)
+        assertEquals(PanelSource.Auto, result.source)
+        assertEquals(
+            "expected 4 panels (tall-left + 2-right-stacked + bottom), got ${result.panels.size} (source=${result.source})",
+            4, result.panels.size,
+        )
+        // Both right-side stacked panels must sit in the top two-thirds of the page.
+        val rightPanels = result.panels.filter { p -> p.x + p.width / 2 > grid.width / 2 }
+        val rightTopSection = rightPanels.filter { p -> p.y + p.height / 2 < grid.height * 2 / 3 }
+        assertTrue(
+            "expected ≥ 2 right-side panels in the top two-thirds; got rightPanels=$rightPanels",
+            rightTopSection.size >= 2,
+        )
+    }
+
+    @Test
+    fun `right-side stacked panels are detected when left column is one tall panel`() {
+        // Regression for issue #759: page 74. Left column is one tall panel spanning rows 1+2
+        // while the right column has two separate stacked panels. The projection found a row
+        // boundary at the right-column gutter level and created a phantom full-width row band
+        // (a known limitation); the right-column panels must still be correctly detected as two
+        // separate stacked panels in the top two-thirds.
+        val grid = loadMaskFixture("panel-detection-fixtures/issue-759-split-panel-p74.png")
+        val result = detector.detect(grid, pageIndex = 0, originalWidth = grid.width, originalHeight = grid.height)
+        assertEquals(
+            "expected 5 panels for tall-left + 2-right-stacked + 2-bottom layout, got ${result.panels.size} (source=${result.source})",
+            5, result.panels.size,
+        )
+        // The right column must be split into at least 2 panels (not merged into one tall panel).
+        val rightPanels = result.panels.filter { p -> p.x + p.width / 2 > grid.width / 2 }
+        assertTrue(
+            "expected ≥ 2 right-side panels (right column was merged); got rightPanels=$rightPanels",
+            rightPanels.size >= 2,
+        )
+    }
+
     // --- Helpers ---
 
     private val LIGHT: Byte = 240.toByte()

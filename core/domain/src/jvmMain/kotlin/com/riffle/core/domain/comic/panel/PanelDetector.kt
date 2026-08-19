@@ -347,8 +347,34 @@ class PanelDetector(
             g.toLong() * 1000 >= innerHeight.toLong() * (config.internalGutterFloodFillFraction * 1000).toLong()
         }
 
+        // Projection-based fallback for enclosed horizontal gutters. When two stacked panels
+        // share a border that forms a closed ring (only a thin side gap connects the gutter to
+        // the exterior), flood-fill scores < 30% on every row and either finds nothing or detects
+        // a border-edge "gutter" that would produce an invalid split (one resulting side too narrow).
+        // In both cases fall back to content projection: a real gutter is a continuous run of ≥ 7
+        // rows where content < 20% of the bbox peak — this threshold reliably discriminates real
+        // inter-panel gutters from sparse artwork dips (typically only 1–5 rows).
+        val floodFillWouldSplit = horizontalGutter?.let { (start, thickness) ->
+            val end = start + thickness - 1
+            val minDimPx = (downscaledHeight * config.minPanelDimensionFraction).toInt().coerceAtLeast(1)
+            (start - bbox.minY) >= minDimPx && (bbox.maxY - end) >= minDimPx
+        } == true
+        val effectiveHorizontalGutter: Pair<Int, Int>? = if (floodFillWouldSplit) horizontalGutter else run {
+            val maxRowContent = (bbox.minY..bbox.maxY).maxOf { y ->
+                cropped.rowContentCount(y, innerMinX, innerMaxX)
+            }
+            if (maxRowContent <= 0) return@run null
+            val contentCutoff = maxRowContent * 0.20
+            widestGutterRun(
+                axisStart = bbox.minY + edgeMarginY,
+                axisEnd = bbox.maxY - edgeMarginY,
+            ) { y ->
+                cropped.rowContentCount(y, innerMinX, innerMaxX) < contentCutoff
+            }?.takeIf { (_, thickness) -> thickness >= 7 }
+        }
+
         val bestGutter = listOfNotNull(
-            horizontalGutter?.let { Triple("h", it.first, it.second) },
+            effectiveHorizontalGutter?.let { Triple("h", it.first, it.second) },
             verticalGutter?.let { Triple("v", it.first, it.second) },
         ).maxByOrNull { it.third }
             ?: return listOf(bbox)
@@ -467,13 +493,20 @@ class PanelDetector(
         originalHeight: Int,
     ): List<PanelRegion>? {
         val pageArea = originalWidth.toLong() * originalHeight.toLong()
-        // Drop panels smaller than 15% of the page in BOTH axes. A "panel" that's tiny in one
-        // dimension is a noise island; a "panel" that's tiny in one dimension AND huge in the
-        // other (e.g. 100%×8% title-strip banners) is a wide banner — also a noise island for
-        // Panel View purposes. AND-ing catches both.
+        // Drop panels that are smaller than 15% of the page in BOTH dimensions — a region tiny
+        // in both width and height is a noise island. A panel that fails only the height check
+        // but spans ≥ 50% of the page width is a real wide banner (e.g. 100%×13% title strip)
+        // and is kept; everything else requires both axes to pass.
         val minWidth = (originalWidth * config.minPanelDimensionFraction).toInt().coerceAtLeast(1)
         val minHeight = (originalHeight * config.minPanelDimensionFraction).toInt().coerceAtLeast(1)
-        val filtered = regions.filter { it.width >= minWidth && it.height >= minHeight }
+        // A wide panel (≥ 50% of page width) that is taller than 5% of the page is a real
+        // banner even if its height doesn't reach the 15% full-panel threshold.
+        val bannerWidthThreshold = originalWidth * 0.5
+        val bannerMinHeight = (originalHeight * 0.05).toInt().coerceAtLeast(1)
+        val filtered = regions.filter {
+            (it.width >= minWidth && it.height >= minHeight) ||
+                (it.width >= bannerWidthThreshold && it.height >= bannerMinHeight)
+        }
         if (filtered.isEmpty()) return null
 
         // Deduplicate. If both a tight bbox around Panel A AND a larger bbox around Panel A +
