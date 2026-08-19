@@ -99,14 +99,16 @@ internal fun PanelReportSheet(
                 }
             }
 
-            // Render the binary mask as an image: content = dark grey, gutter = cyan.
+            // Render the upload image (8px block-quantized mask) so the canvas shows exactly
+            // what will be sent to GitHub. The quantized version is stretched to fill the canvas.
             val maskBitmap = remember(mask) {
+                val quantized = mask.blockQuantize(8)
                 val contentColor = android.graphics.Color.rgb(50, 50, 50)
                 val gutterColor = android.graphics.Color.rgb(0, 188, 212)
-                val pixels = IntArray(mask.width * mask.height) { i ->
-                    if (mask.data[i] == 1.toByte()) contentColor else gutterColor
+                val pixels = IntArray(quantized.width * quantized.height) { i ->
+                    if (quantized.data[i] == 1.toByte()) contentColor else gutterColor
                 }
-                Bitmap.createBitmap(pixels, mask.width, mask.height, Bitmap.Config.ARGB_8888)
+                Bitmap.createBitmap(pixels, quantized.width, quantized.height, Bitmap.Config.ARGB_8888)
                     .asImageBitmap()
             }
 
