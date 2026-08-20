@@ -150,9 +150,6 @@ object AppModule {
 abstract class AnnotationSyncModule {
     @Binds
     abstract fun bindAnnotationSweepEnqueuer(impl: com.riffle.app.sync.AnnotationSweepEnqueuerImpl): com.riffle.core.domain.AnnotationSweepEnqueuer
-
-    @Binds
-    abstract fun bindProgressSweepEnqueuer(impl: com.riffle.app.sync.ProgressSweepEnqueuerImpl): com.riffle.core.domain.ProgressSweepEnqueuer
 }
 
 @Module
