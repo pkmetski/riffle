@@ -126,7 +126,7 @@ class PanelDetector(
          * pixels — filters noise (a single content row inside a gutter, or a stray gutter row
          * inside a panel band that would spuriously split a panel).
          */
-        val projectionMinBandThickness: Int = 24,
+        val projectionMinBandThickness: Int = 15,
 
         /**
          * Maximum recursion depth for [splitSinglePanelRecursively]. Bounds the number of times
@@ -228,6 +228,9 @@ class PanelDetector(
     ): PagePanels? {
         val rowContent = IntArray(cropped.height) { cropped.rowContentCount(it) }
         val rowBands = contentBands(rowContent, config.projectionGutterFraction, config.projectionMinBandThickness)
+            // Thin horizontal strips are usually panel borders/noise attached to the next row,
+            // not standalone reading panels.
+            .filterNot { it.end - it.start + 1 < 24 }
         if (rowBands.isEmpty()) return null
 
         // Compute column bands PER ROW BAND — layouts often vary across rows (e.g. top splash
@@ -478,7 +481,7 @@ class PanelDetector(
         // narrow side fragments instead of real panels.
         if (
             axis == "v" &&
-            width.toDouble() / downscaledWidth.toDouble() >= 0.9 &&
+            width.toDouble() / downscaledWidth.toDouble() >= 0.95 &&
             height.toDouble() / downscaledHeight.toDouble() <= 0.25
         ) {
             return listOf(bbox)
