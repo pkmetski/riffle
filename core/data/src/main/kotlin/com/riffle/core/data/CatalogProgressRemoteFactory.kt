@@ -29,11 +29,10 @@ import javax.inject.Inject
  *
  * ADR 0063: when a source has no [ProgressPeerCapability] but its [SourceType.isWebSource] is
  * true and WebDAV is configured, a [com.riffle.core.sources.webdav.WebDavProgressRemote] is
- * returned instead. The namespace is `{sourceType}_{webDavUsername}` (e.g. `chitanka_pkmetski`),
- * mirroring the `komga_{userId}` convention in annotation sync so two users who share a WebDAV
- * root don't collide on the same Chitanka/Gutenberg book. Gramofonche audiobooks are served
- * under the CHITANKA source type — the audio branch also checks isWebSource and uses a Double
- * adapter ([WebDavProgressRemoteFactory.createForAudio]) backed by the same file.
+ * returned instead. The namespace is just the source type slug (e.g. `chitanka`) — one file per
+ * book, last-update-wins. Gramofonche audiobooks are served under the CHITANKA source type — the
+ * audio branch also checks isWebSource and uses a Double adapter
+ * ([WebDavProgressRemoteFactory.createForAudio]) backed by the same file.
  */
 class CatalogProgressRemoteFactory @Inject constructor(
     private val catalogRegistry: CatalogRegistry,
@@ -60,7 +59,7 @@ class CatalogProgressRemoteFactory @Inject constructor(
         val source = sourceRepository.getById(sourceId) ?: return null
         if (!source.type.isWebSource) return null
         val webDavConfig = annotationSyncConfigStore.observe().value ?: return null
-        val ns = WebDavProgressRemoteFactory.webDavNamespace(source.type.name.lowercase(), webDavConfig.username)
+        val ns = WebDavProgressRemoteFactory.webDavNamespace(source.type.name.lowercase())
         return webDavProgressRemoteFactory.create(
             config = webDavConfig,
             namespace = ns,
@@ -89,7 +88,7 @@ class CatalogProgressRemoteFactory @Inject constructor(
         val webDavConfig = annotationSyncConfigStore.observe().value ?: return null
         return webDavProgressRemoteFactory.createForAudio(
             config = webDavConfig,
-            namespace = WebDavProgressRemoteFactory.webDavNamespace(source.type.name.lowercase(), webDavConfig.username),
+            namespace = WebDavProgressRemoteFactory.webDavNamespace(source.type.name.lowercase()),
             itemId = itemId,
             readingProgress = { libraryItemDao.getById(sourceId, itemId)?.readingProgress ?: 0f },
             finishedAt = { libraryItemDao.getById(sourceId, itemId)?.finishedAt },

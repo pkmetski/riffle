@@ -75,7 +75,7 @@ class CatalogRemoteProgressIndex @Inject constructor(
         val source = sourceRepository.getById(sourceId) ?: return null
         if (!source.type.isWebSource) return null
         val config = annotationSyncConfigStore.observe().value ?: return null
-        val namespace = WebDavProgressRemoteFactory.webDavNamespace(source.type.name.lowercase(), config.username)
+        val namespace = WebDavProgressRemoteFactory.webDavNamespace(source.type.name.lowercase())
         return config to namespace
     }
 

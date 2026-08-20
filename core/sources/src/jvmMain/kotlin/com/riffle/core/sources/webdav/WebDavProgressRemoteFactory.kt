@@ -14,10 +14,8 @@ import java.util.Base64
  *
  * Returns null when [config]'s base URL is malformed — callers treat null as "WebDAV unavailable."
  *
- * [webDavNamespace]: build the per-source namespace from a source-type slug and the WebDAV username.
- * The username is sanitized to `[a-zA-Z0-9_-]` so it's safe in filenames across all WebDAV servers.
- * Analogous to `komga_{userId}` in annotation sync — prevents collisions when two users share the
- * same WebDAV server root and both read the same Chitanka/Gutenberg book.
+ * [webDavNamespace]: build the per-source namespace from a source-type slug (e.g. `chitanka`).
+ * One file per book; last-update-wins handles concurrent writes from multiple devices.
  */
 class WebDavProgressRemoteFactory(
     httpClient: HttpClient,
@@ -70,12 +68,6 @@ class WebDavProgressRemoteFactory(
         private const val WEBDAV_CONNECT_TIMEOUT_MS = 10_000L
         private const val WEBDAV_READ_TIMEOUT_MS = 20_000L
 
-        // Username is included so two users sharing the same WebDAV root don't overwrite each
-        // other's progress for the same book. Mirrors the komga_{userId} convention in annotation
-        // sync. Without it, Alice and Bob reading the same Chitanka book would collide on one file.
-        fun webDavNamespace(sourceTypeSlug: String, username: String): String {
-            val safeUser = username.replace(Regex("[^a-zA-Z0-9_-]"), "_")
-            return "${sourceTypeSlug}_$safeUser"
-        }
+        fun webDavNamespace(sourceTypeSlug: String): String = sourceTypeSlug
     }
 }
