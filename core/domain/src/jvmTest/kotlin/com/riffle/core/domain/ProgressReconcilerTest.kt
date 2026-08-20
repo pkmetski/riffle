@@ -246,6 +246,63 @@ class ProgressReconcilerTest {
         assertTrue(store.dirty)
     }
 
+    /**
+     * Re-sync regression: a clean row whose server file was deleted (404 → lastUpdate=0) must
+     * re-push to recreate the file. This covers the "clean-row stuck" scenario where:
+     * (1) book was read and pushed → lastSyncedAt=S, (2) server file deleted, (3) sweep ran and
+     * (old buggy code) called confirmInSync which reduced lastSyncedAt from S to localUpdatedAt=T1,
+     * (4) row is now clean at T1/T1 but no file exists → formerly stuck as InSync forever.
+     */
+    @Test
+    fun `clean row with missing server file (lastUpdate=0) re-pushes to restore it`() = runTest {
+        val store = FakeSyncStore(position = "saved-cfi", localUpdatedAt = 500L, lastSyncedAt = 500L)
+        val remote = FakeRemote(RemoteProgress("", lastUpdate = 0L), patchStamp = 505L)
+
+        val outcome = ProgressReconciler(store).reconcile(SERVER, ITEM, remote)
+
+        assertEquals(ReconcileOutcome.LocalPushed(505L), outcome)
+        assertEquals("saved-cfi", remote.patchedWith)
+        assertEquals(1, remote.patchCalls)
+        assertFalse(store.dirty)
+    }
+
+    /**
+     * Never-opened book (lastSyncedAt=0, no position) must NOT create a ghost file even when the
+     * server returns lastUpdate=0. The re-sync guard requires lastSyncedAt > 0.
+     */
+    @Test
+    fun `book never synced (lastSyncedAt=0) with server lastUpdate=0 stays InSync without push`() = runTest {
+        val store = FakeSyncStore<String>(position = null, localUpdatedAt = 0L, lastSyncedAt = 0L)
+        val remote = FakeRemote(RemoteProgress("", lastUpdate = 0L))
+
+        val outcome = ProgressReconciler(store).reconcile(SERVER, ITEM, remote)
+
+        assertEquals(ReconcileOutcome.InSync, outcome)
+        assertEquals(0, remote.patchCalls)
+    }
+
+    /**
+     * confirmInSync must NOT be called for already-clean rows. The old code called it unconditionally
+     * in the else branch, which could REDUCE lastSyncedAt from a higher post-push stamp S back down to
+     * localUpdatedAt=T1 after server-file deletion, permanently corrupting the sync state.
+     */
+    @Test
+    fun `clean row stays clean without confirmInSync reducing lastSyncedAt`() = runTest {
+        // lastSyncedAt=500 > localUpdatedAt=300 (can happen when the post-push stamp S was
+        // adopted for localUpdatedAt by confirmPushed in the fake but not in prod — mirrors the
+        // state where prod's lastSyncedAt was set by a push at stamp S > T1).
+        val store = FakeSyncStore(position = "cfi", localUpdatedAt = 300L, lastSyncedAt = 500L)
+        val remote = FakeRemote(RemoteProgress("", lastUpdate = 0L), patchStamp = 600L)
+
+        // With lastSyncedAt=500 and read.lastUpdate=0: re-sync condition fires (missing file)
+        val outcome = ProgressReconciler(store).reconcile(SERVER, ITEM, remote)
+
+        assertEquals(ReconcileOutcome.LocalPushed(600L), outcome)
+        // lastSyncedAt must NOT be reduced to localUpdatedAt (300); confirmPushed sets it to stamp
+        assertEquals(600L, store.lastSyncedAt)
+        assertEquals(1, remote.patchCalls)
+    }
+
     @Test
     fun `no local position with a newer server stamp pulls the server`() = runTest {
         val store = FakeSyncStore<String>(position = null, localUpdatedAt = 0L, lastSyncedAt = 0L)
