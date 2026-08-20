@@ -532,6 +532,7 @@
     <string name="ui_available">Налични</string>
     <string name="ui_all_packs_installed">Всички налични пакети са инсталирани.</string>
     <string name="ui_approx_size">~%1$s изтегляне</string>
+    <string name="ui_dictionary_source_description">%1$s · %2$s</string>
     <string name="ui_no_dictionary_installed">Няма инсталиран речник за този език.</string>
     <string name="ui_download_dictionary_pack_with_size">Изтеглете речниковия пакет за %1$s (%2$s), за да търсите думи офлайн.</string>
     <string name="ui_download_dictionary_pack">Изтеглете речниковия пакет за %1$s, за да търсите думи офлайн.</string>

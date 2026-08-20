@@ -536,6 +536,7 @@
     <string name="ui_available">Available</string>
     <string name="ui_all_packs_installed">All available packs are installed.</string>
     <string name="ui_approx_size">~%1$s download</string>
+    <string name="ui_dictionary_source_description">%1$s · %2$s</string>
     <string name="ui_no_dictionary_installed">No dictionary installed for this language.</string>
     <string name="ui_download_dictionary_pack_with_size">Download the %1$s dictionary pack (%2$s) to look up words offline.</string>
     <string name="ui_download_dictionary_pack">Download the %1$s dictionary pack to look up words offline.</string>
