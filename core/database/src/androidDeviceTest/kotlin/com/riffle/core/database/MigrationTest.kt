@@ -3025,6 +3025,7 @@ class MigrationTest {
         }
     }
 
+    @Test
     fun migration65To66_addsBookComicFormattingPreferences() {
         helper.createDatabase(TEST_DB, 65).use { db ->
             // Insert a source row (required for FK in book_comic_formatting_preferences)

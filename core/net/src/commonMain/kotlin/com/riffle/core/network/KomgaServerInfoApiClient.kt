@@ -34,7 +34,7 @@ class KomgaServerInfoApiClient(
     companion object {
         @OptIn(ExperimentalEncodingApi::class)
         internal fun buildBasicAuthHeader(username: String, password: String): String {
-            val encoded = Base64.encode("$username:$password".toByteArray(Charsets.UTF_8))
+            val encoded = Base64.encode("$username:$password".encodeToByteArray())
             return "Basic $encoded"
         }
 
