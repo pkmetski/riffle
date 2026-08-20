@@ -10,12 +10,17 @@ import com.riffle.core.database.ReadaloudDismissalEntity
 import com.riffle.core.database.ReadaloudLinkDao
 import com.riffle.core.database.ReadaloudLinkEntity
 import com.riffle.core.domain.AbsFormatFilter
+import com.riffle.core.domain.ReadaloudReview
 import com.riffle.core.models.AudioIdentity
 import com.riffle.core.domain.AudioPlaybackPreferencesStore
 import com.riffle.core.models.ServerType
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -370,6 +375,59 @@ class ReadaloudReviewRepositoryTest {
         val confirmed = repo.observeReview("st", absSourceId = "abs-A").first().confirmed.single()
 
         assertEquals(setOf("abs-A"), confirmed.targets.map { it.absSourceId }.toSet())
+    }
+
+    @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+    @Test
+    fun `observeReview debounces rapid link table updates — only the settled state reaches downstream`() = runTest {
+        // Regression for Summary-vs-Detail count inconsistency: reconcileLinks upserts one link
+        // at a time, firing a Room invalidation per row. Without debounce, the Summary and Detail
+        // screens run buildReview for every intermediate state and can diverge (e.g. Summary shows
+        // "51 partially matched" while Detail shows "Unmatched (51)" during the same reconcile
+        // pass). The 200 ms debounce on observeReview coalesces the burst into one settled emission.
+        val linksFlow = MutableSharedFlow<List<ReadaloudLinkEntity>>(extraBufferCapacity = 10)
+        val items = MatchableLibraryItemDao(
+            listOf(absCombined("X"), storytellerBook("42")),
+            absServerIds = setOf("abs"),
+            storytellerServerIds = setOf("st"),
+        )
+        val impl = ReadaloudReviewRepositoryImpl(
+            libraryItemDao = items,
+            libraryDao = ThrowingLibraryDao,
+            linkDao = EmittingLinkDao(linksFlow),
+            candidateDao = RecordingCandidateDao(),
+            dismissalDao = RecordingDismissalDao(),
+            clock = { 1000L },
+        )
+
+        val collected = mutableListOf<ReadaloudReview>()
+        val collectJob = launch(UnconfinedTestDispatcher(testScheduler)) {
+            impl.observeReview("st").collect { collected += it }
+        }
+
+        // Two rapid link-table notifications (no time between them): the first represents
+        // an intermediate state mid-reconcile, the second is the settled final state.
+        linksFlow.emit(emptyList())
+        linksFlow.emit(listOf(link("abs", "X", "st", "42", userConfirmed = true)))
+
+        // Debounce has not fired yet — no downstream emission
+        assertEquals("debounce must suppress intermediate states", 0, collected.size)
+
+        // Advance past the 200 ms debounce window
+        advanceTimeBy(300)
+
+        // Exactly one emission: the settled final state (not the intermediate empty state)
+        assertEquals("only the settled state must reach downstream", 1, collected.size)
+        assertEquals("settled state reflects the final link", 1, collected.single().confirmed.size)
+
+        collectJob.cancel()
+    }
+
+    /** A [ReadaloudLinkDao] that drives [observeAll] from an externally-controlled [Flow]. */
+    private class EmittingLinkDao(
+        private val linksFlow: Flow<List<ReadaloudLinkEntity>>,
+    ) : ReadaloudLinkDao by NoopReadaloudLinkDao {
+        override fun observeAll() = linksFlow
     }
 
     private fun absSearchDao() = MatchableLibraryItemDao(
