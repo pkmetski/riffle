@@ -60,9 +60,10 @@ class CatalogProgressRemoteFactory @Inject constructor(
         val source = sourceRepository.getById(sourceId) ?: return null
         if (!source.type.isWebSource) return null
         val webDavConfig = annotationSyncConfigStore.observe().value ?: return null
+        val ns = WebDavProgressRemoteFactory.webDavNamespace(source.type.name.lowercase(), webDavConfig.username)
         return webDavProgressRemoteFactory.create(
             config = webDavConfig,
-            namespace = WebDavProgressRemoteFactory.webDavNamespace(source.type.name.lowercase(), webDavConfig.username),
+            namespace = ns,
             itemId = itemId,
             readingProgress = { libraryItemDao.getById(sourceId, itemId)?.readingProgress ?: 0f },
             finishedAt = { libraryItemDao.getById(sourceId, itemId)?.finishedAt },
