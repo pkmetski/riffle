@@ -1,6 +1,13 @@
 package com.riffle.core.data
 
+import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
+import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.intPreferencesKey
+import androidx.datastore.preferences.core.stringPreferencesKey
+import com.riffle.core.domain.AppThemeReaderThemes
+import com.riffle.core.domain.AutoReaderThemeMode
 import com.riffle.core.domain.FormattingPreferences
 import com.riffle.core.models.HighlightColor
 import com.riffle.core.domain.ReaderFontFamily
@@ -27,12 +34,13 @@ class FormattingPreferencesStoreTest {
     private val dispatcher = UnconfinedTestDispatcher()
     private val testScope = TestScope(dispatcher)
 
-    private fun buildStore() = FormattingPreferencesStoreImpl(
+    private fun buildDataStore(): DataStore<Preferences> =
         PreferenceDataStoreFactory.create(
             scope = testScope.backgroundScope,
             produceFile = { tmp.newFile("prefs.preferences_pb") },
         )
-    )
+
+    private fun buildStore() = FormattingPreferencesStoreImpl(buildDataStore())
 
     @Test
     fun `default preferences returned when DataStore is empty`() = testScope.runTest {
@@ -144,6 +152,51 @@ class FormattingPreferencesStoreTest {
         val store = buildStore()
         store.update(FormattingPreferences(theme = ReaderTheme.Auto))
         assertEquals(ReaderTheme.Auto, store.preferences.first().theme)
+    }
+
+    @Test
+    fun `legacy Auto schedule preferences load as time based Auto without losing schedule`() = testScope.runTest {
+        val dataStore = buildDataStore()
+        val schedule = ThemeSchedule(
+            dayStart = LocalTime.of(6, 30),
+            nightStart = LocalTime.of(19, 45),
+            dayTheme = ReaderTheme.Sepia,
+            nightTheme = ReaderTheme.DarkDim,
+        )
+        dataStore.edit { prefs ->
+            prefs[stringPreferencesKey("theme")] = ReaderTheme.Auto.name
+            prefs[intPreferencesKey("theme_schedule_day_start_minute_of_day")] =
+                schedule.dayStart.hour * 60 + schedule.dayStart.minute
+            prefs[intPreferencesKey("theme_schedule_night_start_minute_of_day")] =
+                schedule.nightStart.hour * 60 + schedule.nightStart.minute
+            prefs[stringPreferencesKey("theme_schedule_day_theme")] = schedule.dayTheme.name
+            prefs[stringPreferencesKey("theme_schedule_night_theme")] = schedule.nightTheme.name
+        }
+
+        val loaded = FormattingPreferencesStoreImpl(dataStore).preferences.first()
+
+        assertEquals(ReaderTheme.Auto, loaded.theme)
+        assertEquals(AutoReaderThemeMode.Schedule, loaded.autoReaderThemeMode)
+        assertEquals(schedule, loaded.themeSchedule)
+        assertEquals(AppThemeReaderThemes(), loaded.appThemeReaderThemes)
+    }
+
+    @Test
+    fun `auto reader theme mode round-trips through the DataStore`() = testScope.runTest {
+        val store = buildStore()
+        store.update(FormattingPreferences(autoReaderThemeMode = AutoReaderThemeMode.AppTheme))
+        assertEquals(AutoReaderThemeMode.AppTheme, store.preferences.first().autoReaderThemeMode)
+    }
+
+    @Test
+    fun `app theme reader themes round-trip through the DataStore`() = testScope.runTest {
+        val store = buildStore()
+        val appThemeReaderThemes = AppThemeReaderThemes(
+            lightTheme = ReaderTheme.Sepia,
+            darkTheme = ReaderTheme.DarkDim,
+        )
+        store.update(FormattingPreferences(appThemeReaderThemes = appThemeReaderThemes))
+        assertEquals(appThemeReaderThemes, store.preferences.first().appThemeReaderThemes)
     }
 
     @Test

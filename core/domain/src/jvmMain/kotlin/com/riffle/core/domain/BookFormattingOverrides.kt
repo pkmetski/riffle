@@ -52,6 +52,8 @@ data class BookFormattingOverrides(
         // global through keeps the in-reader Auto resolution honouring the user's
         // configured day/night times instead of silently falling back to defaults.
         themeSchedule = global.themeSchedule,
+        autoReaderThemeMode = global.autoReaderThemeMode,
+        appThemeReaderThemes = global.appThemeReaderThemes,
         autoScrollWpm = autoScrollWpm ?: global.autoScrollWpm,
         showAutoScroll = global.showAutoScroll,
         cadenceWpm = cadenceWpm ?: global.cadenceWpm,

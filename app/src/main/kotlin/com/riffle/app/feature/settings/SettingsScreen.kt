@@ -255,6 +255,7 @@ fun SettingsScreen(
         )
         SettingsPanel.Cadence -> CadenceSettingsPanel(
             prefs = globalFormatting,
+            appTheme = appTheme,
             onPrefsChange = viewModel::updateGlobalFormatting,
             onDismiss = { openPanel = null },
         )

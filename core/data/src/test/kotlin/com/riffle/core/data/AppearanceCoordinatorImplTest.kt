@@ -2,6 +2,8 @@ package com.riffle.core.data
 
 import com.riffle.core.domain.AppTheme
 import com.riffle.core.domain.AppThemeStore
+import com.riffle.core.domain.AppThemeReaderThemes
+import com.riffle.core.domain.AutoReaderThemeMode
 import com.riffle.core.domain.FormattingPreferences
 import com.riffle.core.domain.FormattingPreferencesStore
 import com.riffle.core.domain.ReaderTheme
@@ -122,6 +124,67 @@ class AppearanceCoordinatorImplTest {
         )
         try {
             assertEquals(ConcreteReaderTheme.Sepia, coord.resolved.value.readerTheme)
+        } finally {
+            scope.cancel()
+        }
+    }
+
+    @Test
+    fun `reader Auto in app-theme mode follows forced app Dark`() = runTest {
+        val dispatcher = UnconfinedTestDispatcher(testScheduler)
+        val scope = CoroutineScope(dispatcher)
+        val coord = AppearanceCoordinatorImpl(
+            appThemeStore = FakeAppThemeStore(AppTheme.Dark),
+            formattingPreferencesStore = FakeFormattingPreferencesStore(
+                FormattingPreferences(
+                    theme = ReaderTheme.Auto,
+                    autoReaderThemeMode = AutoReaderThemeMode.AppTheme,
+                    appThemeReaderThemes = AppThemeReaderThemes(
+                        lightTheme = ReaderTheme.Sepia,
+                        darkTheme = ReaderTheme.DarkDim,
+                    ),
+                    themeSchedule = ThemeSchedule(
+                        dayStart = LocalTime.of(7, 0),
+                        nightStart = LocalTime.of(21, 0),
+                        dayTheme = ReaderTheme.Sepia,
+                        nightTheme = ReaderTheme.DarkDim,
+                    ),
+                ),
+            ),
+            timeProvider = FakeTimeProvider(LocalTime.of(12, 0)),
+            scope = scope,
+        )
+        try {
+            assertEquals(ConcreteReaderTheme.DarkDim, coord.resolved.value.readerTheme)
+        } finally {
+            scope.cancel()
+        }
+    }
+
+    @Test
+    fun `reader Auto in app-theme mode follows System app theme from systemDark flag`() = runTest {
+        val dispatcher = UnconfinedTestDispatcher(testScheduler)
+        val scope = CoroutineScope(dispatcher)
+        val coord = AppearanceCoordinatorImpl(
+            appThemeStore = FakeAppThemeStore(AppTheme.System),
+            formattingPreferencesStore = FakeFormattingPreferencesStore(
+                FormattingPreferences(
+                    theme = ReaderTheme.Auto,
+                    autoReaderThemeMode = AutoReaderThemeMode.AppTheme,
+                    appThemeReaderThemes = AppThemeReaderThemes(
+                        lightTheme = ReaderTheme.Sepia,
+                        darkTheme = ReaderTheme.DarkDim,
+                    ),
+                ),
+            ),
+            timeProvider = FakeTimeProvider(LocalTime.of(12, 0)),
+            scope = scope,
+        )
+        try {
+            assertEquals(ConcreteReaderTheme.Sepia, coord.resolved.value.readerTheme)
+
+            coord.setSystemDark(true)
+            assertEquals(ConcreteReaderTheme.DarkDim, coord.resolved.value.readerTheme)
         } finally {
             scope.cancel()
         }

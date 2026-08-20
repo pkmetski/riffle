@@ -77,7 +77,7 @@ Riffle lets you browse your library, read EPUB, PDF, and CBZ files, listen to au
 
 ### Reading Display
 - Rich formatting controls (themes, fonts, sizing, spacing, margins, justification)
-- Auto theme that switches between configured day and night themes on a global clock schedule
+- Auto theme that can follow configured app light/dark reader themes or switch between configured day/night themes on a global clock schedule
 - Paginated and continuous scroll modes, with landscape double-page spread
 - Per-book formatting overrides
 - Volume-key page navigation (with optional inverted direction)

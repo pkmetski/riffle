@@ -149,6 +149,26 @@ class BookFormattingOverridesTest {
     }
 
     @Test
+    fun `applyTo always threads global autoReaderThemeMode (no per-book override)`() {
+        val globalWithAppThemeAuto = global.copy(autoReaderThemeMode = AutoReaderThemeMode.AppTheme)
+        val effective = BookFormattingOverrides(theme = ReaderTheme.Auto)
+            .applyTo(globalWithAppThemeAuto)
+        assertEquals(AutoReaderThemeMode.AppTheme, effective.autoReaderThemeMode)
+    }
+
+    @Test
+    fun `applyTo always threads global appThemeReaderThemes (no per-book override)`() {
+        val appThemeReaderThemes = AppThemeReaderThemes(
+            lightTheme = ReaderTheme.Sepia,
+            darkTheme = ReaderTheme.DarkDim,
+        )
+        val globalWithAppThemeAuto = global.copy(appThemeReaderThemes = appThemeReaderThemes)
+        val effective = BookFormattingOverrides(theme = ReaderTheme.Auto)
+            .applyTo(globalWithAppThemeAuto)
+        assertEquals(appThemeReaderThemes, effective.appThemeReaderThemes)
+    }
+
+    @Test
     fun `withChanges does not record a field when new equals previous`() {
         val previous = global
         val new = global.copy() // identical
