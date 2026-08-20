@@ -464,9 +464,19 @@ class CatalogProgressRemoteFactoryTest {
         assertNull(factory.ebook("source-1", "item-1"))
     }
 
+    // ADR 0063: Gramofonche audiobooks are served under the CHITANKA source type with no
+    // AudiobookProgressPeerCapability. The factory must return a WebDav-backed Double remote
+    // (via asAudioRemote) so ProgressSweep can sync audiobook_positions rows.
+    // Removed-test: factory - audio always returns null for isWebSource source
     @Test
-    fun `factory - audio always returns null for isWebSource source`() = runTest {
+    fun `factory - audio returns non-null WebDav remote for isWebSource source when WebDAV configured`() = runTest {
         val factory = buildFactory(sourceType = com.riffle.core.models.SourceType.CHITANKA)
+        assertNotNull(factory.audio("source-1", "item-1"))
+    }
+
+    @Test
+    fun `factory - audio returns null for isWebSource source when WebDAV not configured`() = runTest {
+        val factory = buildFactory(sourceType = com.riffle.core.models.SourceType.CHITANKA, webDavBaseUrl = null)
         assertNull(factory.audio("source-1", "item-1"))
     }
 }

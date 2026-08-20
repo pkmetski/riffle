@@ -11,6 +11,7 @@ import io.ktor.http.headersOf
 import io.ktor.utils.io.ByteReadChannel
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -202,14 +203,59 @@ class WebDavProgressRemoteTest {
         assertTrue(url.endsWith("gutenberg__42__progress.json"))
     }
 
-    @Test fun `progressFileUrl percent-encodes special characters in itemId`() {
-        val url = WebDavProgressRemote.progressFileUrl("https://dav.test/", "chitanka", "abc#1")
-        assertTrue("# must be encoded as %23", url.contains("abc%231"))
-        assertTrue("file name must end with __progress.json", url.endsWith("__progress.json"))
+    // ADR 0063: Chitanka itemIds contain '/' (e.g. "book/12073-xxx"). %2F in a URL path causes
+    // Synology and other WebDAV servers that decode percent-encoding before routing to split the
+    // filename on the decoded slash and return 404 (parent directory does not exist). Replaced with
+    // '.' which is safe in both URL paths and filesystem filenames, and does not appear in
+    // Chitanka/Gutenberg itemIds — no collision risk.
+    // Removed-test: progressFileUrl percent-encodes special characters in itemId
+    // Removed-test: progressFileUrl encodes spaces as %20 not +
+    @Test fun `progressFileUrl replaces slash with dot in itemId`() {
+        val url = WebDavProgressRemote.progressFileUrl("https://dav.test/", "chitanka", "book/12073-foo")
+        assertTrue("slash in itemId must become dot, not %2F", url.contains("book.12073-foo"))
+        assertFalse("must not contain %2F which Synology decodes as path separator", url.contains("%2F"))
+        assertTrue(url.endsWith("__progress.json"))
     }
 
-    @Test fun `progressFileUrl encodes spaces as %20 not +`() {
-        val url = WebDavProgressRemote.progressFileUrl("https://dav.test/", "source", "my book")
-        assertTrue(url.contains("my%20book"))
+    @Test fun `progressFileUrl replaces slash with dot in namespace`() {
+        val url = WebDavProgressRemote.progressFileUrl("https://dav.test/", "ns/sub", "42")
+        assertTrue(url.contains("ns.sub"))
+        assertFalse(url.contains("%2F"))
+    }
+
+    // ── asAudioRemote() ───────────────────────────────────────────────────
+
+    @Test fun `asAudioRemote get - parses decimal string position as Double`() = runTest {
+        val body = """{"position":"942.5","readingProgress":0.3,"finishedAt":null,"lastUpdate":1724000000000}"""
+        val r = makeRemote(engine = okEngine(body)).asAudioRemote()
+        val result = r.get()
+        assertNotNull(result)
+        assertEquals(942.5, result!!.position, 0.0001)
+        assertEquals(0.3f, result.readingProgress, 0.001f)
+    }
+
+    @Test fun `asAudioRemote get - returns 0 dot 0 when position is empty (404 first-sync case)`() = runTest {
+        val r = makeRemote(engine = statusEngine(HttpStatusCode.NotFound)).asAudioRemote()
+        val result = r.get()
+        assertNotNull(result)
+        assertEquals(0.0, result!!.position, 0.0001)
+        assertEquals(0L, result.lastUpdate)
+    }
+
+    @Test fun `asAudioRemote get - returns null on network error`() = runTest {
+        val r = makeRemote(engine = MockEngine { throw IOException("network error") }).asAudioRemote()
+        assertNull(r.get())
+    }
+
+    @Test fun `asAudioRemote patch - converts Double seconds to decimal string`() = runTest {
+        var capturedBody = ""
+        val engine = MockEngine { req ->
+            capturedBody = (req.body as io.ktor.http.content.TextContent).text
+            respond(ByteReadChannel(ByteArray(0)), HttpStatusCode.Created, headers = headersOf())
+        }
+        makeRemote(engine = engine).asAudioRemote().patch(3661.25)
+        val payload = WebDavProgressRemote.json
+            .decodeFromString(WebDavProgressRemote.ProgressPayload.serializer(), capturedBody)
+        assertEquals("3661.25", payload.position)
     }
 }

@@ -29,9 +29,11 @@ import javax.inject.Inject
  *
  * ADR 0063: when a source has no [ProgressPeerCapability] but its [SourceType.isWebSource] is
  * true and WebDAV is configured, a [com.riffle.core.sources.webdav.WebDavProgressRemote] is
- * returned instead. The namespace is `sourceType.name.lowercase()` — stable across devices because
- * web sources have no user account and are singleton-per-device. The audio branch is unchanged:
- * Chitanka and Gutenberg are ebook-only and never have an [AudiobookProgressPeerCapability].
+ * returned instead. The namespace is `{sourceType}_{webDavUsername}` (e.g. `chitanka_pkmetski`),
+ * mirroring the `komga_{userId}` convention in annotation sync so two users who share a WebDAV
+ * root don't collide on the same Chitanka/Gutenberg book. Gramofonche audiobooks are served
+ * under the CHITANKA source type — the audio branch also checks isWebSource and uses a Double
+ * adapter ([WebDavProgressRemoteFactory.createForAudio]) backed by the same file.
  */
 class CatalogProgressRemoteFactory @Inject constructor(
     private val catalogRegistry: CatalogRegistry,
@@ -55,13 +57,12 @@ class CatalogProgressRemoteFactory @Inject constructor(
             )
         }
         // ADR 0063: Web Sources have no ProgressPeerCapability; fall back to WebDAV file sync.
-        // Audio is not handled here — Chitanka and Gutenberg are ebook-only.
         val source = sourceRepository.getById(sourceId) ?: return null
         if (!source.type.isWebSource) return null
         val webDavConfig = annotationSyncConfigStore.observe().value ?: return null
         return webDavProgressRemoteFactory.create(
             config = webDavConfig,
-            namespace = source.type.name.lowercase(),
+            namespace = WebDavProgressRemoteFactory.webDavNamespace(source.type.name.lowercase(), webDavConfig.username),
             itemId = itemId,
             readingProgress = { libraryItemDao.getById(sourceId, itemId)?.readingProgress ?: 0f },
             finishedAt = { libraryItemDao.getById(sourceId, itemId)?.finishedAt },
@@ -70,11 +71,27 @@ class CatalogProgressRemoteFactory @Inject constructor(
     }
 
     override suspend fun audio(sourceId: String, itemId: String): ProgressRemote<Double>? {
-        val peer = catalogRegistry.forSourceId(sourceId) as? AudiobookProgressPeerCapability ?: return null
-        return CatalogAudioProgressRemote(
-            peer = peer,
+        val peer = catalogRegistry.forSourceId(sourceId) as? AudiobookProgressPeerCapability
+        if (peer != null) {
+            return CatalogAudioProgressRemote(
+                peer = peer,
+                itemId = itemId,
+                duration = { libraryItemDao.getById(sourceId, itemId)?.audioDurationSec ?: 0.0 },
+                clock = clock,
+            )
+        }
+        // ADR 0063: Chitanka serves audiobooks via gramofonche.chitanka.info under the same source
+        // type. These have no AudiobookProgressPeerCapability; sync via WebDAV file, same namespace
+        // as ebook, position stored as a decimal string (seconds).
+        val source = sourceRepository.getById(sourceId) ?: return null
+        if (!source.type.isWebSource) return null
+        val webDavConfig = annotationSyncConfigStore.observe().value ?: return null
+        return webDavProgressRemoteFactory.createForAudio(
+            config = webDavConfig,
+            namespace = WebDavProgressRemoteFactory.webDavNamespace(source.type.name.lowercase(), webDavConfig.username),
             itemId = itemId,
-            duration = { libraryItemDao.getById(sourceId, itemId)?.audioDurationSec ?: 0.0 },
+            readingProgress = { libraryItemDao.getById(sourceId, itemId)?.readingProgress ?: 0f },
+            finishedAt = { libraryItemDao.getById(sourceId, itemId)?.finishedAt },
             clock = clock,
         )
     }

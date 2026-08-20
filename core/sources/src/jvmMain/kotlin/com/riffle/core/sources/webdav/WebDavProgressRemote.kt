@@ -16,13 +16,12 @@ import io.ktor.http.content.TextContent
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
-import java.net.URLEncoder
 import java.text.SimpleDateFormat
 import java.util.Locale
 
 /**
  * [ProgressRemote] that reads and writes a single canonical progress file on a WebDAV server.
- * Implements the ebook position side of ADR 0063 — one file per book, no per-device split.
+ * Implements the ebook and audiobook position side of ADR 0063 — one file per book, no per-device split.
  *
  * File URL: `{basePath}{namespace}__{itemId}__progress.json`
  * GET: parse [ProgressPayload]; use `Last-Modified` response header as [RemoteProgress.lastUpdate].
@@ -31,6 +30,10 @@ import java.util.Locale
  * HTTP 404 on GET returns `lastUpdate=0` rather than null — the Offline sentinel — so a dirty
  * local row (first sync from this device) fires LocalWins and creates the file. All other HTTP
  * and network errors return null so the sweep retries next cycle.
+ *
+ * For audiobook progress (position in seconds as [Double]), use [asAudioRemote] to get a
+ * [ProgressRemote]<Double> backed by the same file. The seconds value is stored as a decimal
+ * string in [ProgressPayload.position] and parsed back on read.
  */
 class WebDavProgressRemote(
     private val client: HttpClient,
@@ -92,6 +95,25 @@ class WebDavProgressRemote(
         }.getOrNull()
     }
 
+    /**
+     * Returns a [ProgressRemote]<Double> backed by this same WebDAV file. The Double position
+     * (audiobook seconds) is stored as a decimal string in [ProgressPayload.position].
+     */
+    fun asAudioRemote(): ProgressRemote<Double> = object : ProgressRemote<Double> {
+        override suspend fun get(): RemoteProgress<Double>? {
+            val r = this@WebDavProgressRemote.get() ?: return null
+            return RemoteProgress(
+                position = r.position.toDoubleOrNull() ?: 0.0,
+                lastUpdate = r.lastUpdate,
+                readingProgress = r.readingProgress,
+                finishedAt = r.finishedAt,
+            )
+        }
+
+        override suspend fun patch(position: Double): Long? =
+            this@WebDavProgressRemote.patch(position.toString())
+    }
+
     @Serializable
     data class ProgressPayload(
         val position: String,
@@ -114,9 +136,12 @@ class WebDavProgressRemote(
 
         fun progressFileUrl(basePath: String, namespace: String, itemId: String): String {
             val base = if (basePath.endsWith("/")) basePath else "$basePath/"
-            val encodedNamespace = URLEncoder.encode(namespace, "UTF-8").replace("+", "%20")
-            val encodedItemId = URLEncoder.encode(itemId, "UTF-8").replace("+", "%20")
-            return "$base$encodedNamespace$NAMESPACE_SEPARATOR$encodedItemId$PROGRESS_SUFFIX"
+            // Replace '/' with '.' so Synology and other WebDAV servers that decode %2F as a path
+            // separator don't split the filename into a nonexistent subdirectory. Chitanka itemIds
+            // look like "book/12073-xxx"; Gutenberg IDs contain no '/' or '.', so no collision risk.
+            val safeNamespace = namespace.replace('/', '.')
+            val safeItemId = itemId.replace('/', '.')
+            return "$base$safeNamespace$NAMESPACE_SEPARATOR$safeItemId$PROGRESS_SUFFIX"
         }
     }
 }

@@ -70,13 +70,14 @@ class CatalogSyncSourceResolverTest {
 
     // ADR 0063: web sources have no ProgressPeerCapability but must still report
     // supportsEbookProgress=true so ProgressSweep includes their dirty rows.
+    // supportsAudiobookProgress=true for the same reason — Chitanka serves Gramofonche audiobooks.
     @Test
-    fun `web source with no ProgressPeerCapability has supportsEbookProgress=true`() = runTest {
+    fun `web source with no ProgressPeerCapability has supportsEbookProgress and supportsAudiobookProgress`() = runTest {
         val catalog = WebOnlyCatalog()
         val source = resolver(catalog, SourceType.CHITANKA).resolve("source")
         assertNotNull(source)
         assertTrue(source!!.supportsEbookProgress)
-        assertFalse(source.supportsAudiobookProgress)
+        assertTrue(source.supportsAudiobookProgress)
     }
 
     @Test

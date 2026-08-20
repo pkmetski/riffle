@@ -25,7 +25,11 @@ class CatalogSyncSourceResolver @Inject constructor(
             // this flag, so web sources must return true here or dirty rows are never processed.
             override val supportsEbookProgress =
                 catalog is ProgressPeerCapability || source?.type?.isWebSource == true
-            override val supportsAudiobookProgress = catalog is AudiobookProgressPeerCapability
+            // Chitanka serves audiobooks via gramofonche.chitanka.info under the same source type
+            // (no AudiobookProgressPeerCapability). Mark web sources as supporting audio progress
+            // so the sweep doesn't skip their dirty audiobook_positions rows (ADR 0063).
+            override val supportsAudiobookProgress =
+                catalog is AudiobookProgressPeerCapability || source?.type?.isWebSource == true
             override val bookmarks = (catalog as? BookmarksCapability)?.let(::CatalogBookmarkRemote)
         }
     }
