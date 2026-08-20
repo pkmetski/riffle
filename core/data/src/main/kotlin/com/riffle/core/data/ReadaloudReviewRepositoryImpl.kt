@@ -20,8 +20,10 @@ import com.riffle.core.domain.ReadaloudReviewMutator
 import com.riffle.core.domain.ReadaloudReviewRepository
 import com.riffle.core.models.ServerType
 import com.riffle.core.domain.UnmatchedReadaloud
+import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.debounce
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -50,6 +52,7 @@ class ReadaloudReviewRepositoryImpl(
         dismissalDao: ReadaloudDismissalDao,
     ) : this(libraryItemDao, libraryDao, linkDao, candidateDao, dismissalDao, System::currentTimeMillis)
 
+    @OptIn(FlowPreview::class)
     override fun observeReview(storytellerSourceId: String, absSourceId: String?): Flow<ReadaloudReview> =
         combine(
             linkDao.observeAll(),
@@ -67,6 +70,11 @@ class ReadaloudReviewRepositoryImpl(
                 else candidates.filter { it.absSourceId == absSourceId }
             buildReview(storytellerSourceId, scopedLinks, scopedCandidates)
         }
+        // Reconcile writes each link individually, firing a Room invalidation per row. Without
+        // debounce, both this flow and every subscriber (Summary, Detail) run buildReview for
+        // every intermediate state and can diverge. 200 ms coalesces the burst into one settled
+        // emission after the reconcile pass finishes.
+        .debounce(200)
 
     private suspend fun buildReview(
         storytellerSourceId: String,
