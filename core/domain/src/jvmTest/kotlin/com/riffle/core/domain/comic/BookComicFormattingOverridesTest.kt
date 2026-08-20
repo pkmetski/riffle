@@ -1,5 +1,6 @@
 package com.riffle.core.domain.comic
 
+import com.riffle.core.domain.ReaderTheme
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -15,6 +16,23 @@ class BookComicFormattingOverridesTest {
     @Test fun `applyTo returns global when overrides are all null`() {
         val result = BookComicFormattingOverrides().applyTo(global)
         assertEquals(global, result)
+    }
+
+    @Test fun `applyTo overrides backgroundTheme when set`() {
+        val result = BookComicFormattingOverrides(backgroundTheme = ReaderTheme.Sepia).applyTo(global)
+        assertEquals(ReaderTheme.Sepia, result.backgroundTheme)
+        assertEquals(global.panelViewOn, result.panelViewOn)
+        assertEquals(global.panelOverflow, result.panelOverflow)
+    }
+
+    @Test fun `applyTo preserves Auto backgroundTheme override`() {
+        val result = BookComicFormattingOverrides(backgroundTheme = ReaderTheme.Auto).applyTo(global)
+        assertEquals(ReaderTheme.Auto, result.backgroundTheme)
+    }
+
+    @Test fun `applyTo normalizes legacy DarkDim backgroundTheme to Dark`() {
+        val result = BookComicFormattingOverrides(backgroundTheme = ReaderTheme.DarkDim).applyTo(global)
+        assertEquals(ReaderTheme.Dark, result.backgroundTheme)
     }
 
     @Test fun `applyTo overrides panelViewOn when set`() {
@@ -46,6 +64,7 @@ class BookComicFormattingOverridesTest {
         assertFalse(BookComicFormattingOverrides(panelViewOn = true).isEmpty())
         assertFalse(BookComicFormattingOverrides(panelOverflow = PanelOverflowBehavior.OFF).isEmpty())
         assertFalse(BookComicFormattingOverrides(panelAnimationSpeedMs = 400).isEmpty())
+        assertFalse(BookComicFormattingOverrides(backgroundTheme = ReaderTheme.Light).isEmpty())
     }
 
     @Test fun `applyTo overrides panelAnimationSpeedMs when set`() {

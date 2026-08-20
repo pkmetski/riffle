@@ -7,9 +7,11 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import com.riffle.core.data.di.ComicFormattingPreferencesDataStore
+import com.riffle.core.domain.ReaderTheme
 import com.riffle.core.domain.comic.ComicFormattingPreferences
 import com.riffle.core.domain.comic.ComicFormattingPreferencesStore
 import com.riffle.core.domain.comic.PanelOverflowBehavior
+import com.riffle.core.domain.comic.asComicBackgroundTheme
 import javax.inject.Inject
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
@@ -20,6 +22,9 @@ class ComicFormattingPreferencesStoreImpl @Inject constructor(
 
     override val preferences: Flow<ComicFormattingPreferences> = dataStore.data.map { prefs ->
         ComicFormattingPreferences(
+            backgroundTheme = prefs[BACKGROUND_THEME]
+                ?.let { runCatching { ReaderTheme.valueOf(it) }.getOrNull()?.asComicBackgroundTheme() }
+                ?: ReaderTheme.Dark,
             panelViewOn = prefs[PANEL_VIEW_ON] ?: false,
             panelOverflow = prefs[PANEL_OVERFLOW]
                 ?.let { runCatching { PanelOverflowBehavior.valueOf(it) }.getOrNull() }
@@ -32,6 +37,12 @@ class ComicFormattingPreferencesStoreImpl @Inject constructor(
 
     override suspend fun update(prefs: ComicFormattingPreferences) {
         dataStore.edit { data ->
+            val backgroundTheme = prefs.backgroundTheme.asComicBackgroundTheme()
+            if (backgroundTheme == ReaderTheme.Dark) {
+                data.remove(BACKGROUND_THEME)
+            } else {
+                data[BACKGROUND_THEME] = backgroundTheme.name
+            }
             if (prefs.panelViewOn) data[PANEL_VIEW_ON] = true else data.remove(PANEL_VIEW_ON)
             if (prefs.panelOverflow == PanelOverflowBehavior.SPLIT) {
                 data.remove(PANEL_OVERFLOW)
@@ -51,6 +62,7 @@ class ComicFormattingPreferencesStoreImpl @Inject constructor(
     }
 
     companion object {
+        private val BACKGROUND_THEME = stringPreferencesKey("background_theme")
         private val PANEL_VIEW_ON = booleanPreferencesKey("panel_view_on")
         private val PANEL_OVERFLOW = stringPreferencesKey("panel_overflow")
         private val PANEL_ANIMATION_SPEED_MS = intPreferencesKey("panel_animation_speed_ms")

@@ -27,6 +27,7 @@ import androidx.room.Query
 data class BookComicFormattingPreferencesEntity(
     @ColumnInfo(name = "source_id") val sourceId: String,
     @ColumnInfo(name = "item_id") val itemId: String,
+    @ColumnInfo(name = "background_theme") val backgroundTheme: String?,
     @ColumnInfo(name = "panel_view_on") val panelViewOn: Boolean?,
     @ColumnInfo(name = "panel_overflow") val panelOverflow: String?,
     @ColumnInfo(name = "panel_animation_speed_ms") val panelAnimationSpeedMs: Int?,

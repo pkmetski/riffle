@@ -1,6 +1,7 @@
 package com.riffle.core.data
 
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
+import com.riffle.core.domain.ReaderTheme
 import com.riffle.core.domain.comic.ComicFormattingPreferences
 import com.riffle.core.domain.comic.PanelOverflowBehavior
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -31,6 +32,32 @@ class ComicFormattingPreferencesStoreImplTest {
         assertEquals(false, prefs.panelViewOn)
         assertEquals(PanelOverflowBehavior.SPLIT, prefs.panelOverflow)
         assertEquals(250, prefs.panelAnimationSpeedMs)
+        assertEquals(ReaderTheme.Dark, prefs.backgroundTheme)
+    }
+
+    @Test fun `backgroundTheme round-trips non-default value`() = testScope.runTest {
+        val store = newStore()
+        store.update(ComicFormattingPreferences(backgroundTheme = ReaderTheme.Sepia))
+        assertEquals(ReaderTheme.Sepia, store.preferences.first().backgroundTheme)
+    }
+
+    @Test fun `backgroundTheme Auto round-trips`() = testScope.runTest {
+        val store = newStore()
+        store.update(ComicFormattingPreferences(backgroundTheme = ReaderTheme.Auto))
+        assertEquals(ReaderTheme.Auto, store.preferences.first().backgroundTheme)
+    }
+
+    @Test fun `backgroundTheme default Dark is stored as absent and reads back as Dark`() = testScope.runTest {
+        val store = newStore()
+        store.update(ComicFormattingPreferences(backgroundTheme = ReaderTheme.Sepia))
+        store.update(ComicFormattingPreferences(backgroundTheme = ReaderTheme.Dark))
+        assertEquals(ReaderTheme.Dark, store.preferences.first().backgroundTheme)
+    }
+
+    @Test fun `backgroundTheme DarkDim is stored and read back as Dark for comics`() = testScope.runTest {
+        val store = newStore()
+        store.update(ComicFormattingPreferences(backgroundTheme = ReaderTheme.DarkDim))
+        assertEquals(ReaderTheme.Dark, store.preferences.first().backgroundTheme)
     }
 
     @Test fun `panelViewOn round-trips`() = testScope.runTest {
