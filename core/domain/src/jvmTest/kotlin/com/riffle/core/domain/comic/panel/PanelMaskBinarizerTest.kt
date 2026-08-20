@@ -35,6 +35,29 @@ class PanelMaskBinarizerTest {
     }
 
     @Test
+    fun `binarize preserves narrow gutters in an already-binarized light mask`() {
+        val width = 80
+        val height = 60
+        val luma = ByteArray(width * height) { 255.toByte() }
+        rect(luma, width, x = 10, y = 10, w = 25, h = 40, color = 0.toByte())
+        rect(luma, width, x = 39, y = 10, w = 25, h = 40, color = 0.toByte())
+
+        val mask = PanelMaskBinarizer.binarize(PixelGrid(width, height, luma))
+
+        assertNotNull(mask)
+        val result = mask!!
+        for (y in 10 until 50) {
+            for (x in 35 until 39) {
+                assertEquals(
+                    "already-binarized gutter at ($x,$y) must not be promoted by texture expansion",
+                    0.toByte(),
+                    result.data[y * width + x],
+                )
+            }
+        }
+    }
+
+    @Test
     fun `binarize output is detectable — panel detector finds the same panels on the mask as on the original`() {
         // Regression: the mask fed back into the detector must yield the same panel count as
         // running detection on the original grid. If binarizeMask drifts from the detection
