@@ -105,6 +105,19 @@ internal fun PanelReportSheet(
                 }
             }
 
+            val labelPaint = remember {
+                android.graphics.Paint().apply {
+                    color = android.graphics.Color.WHITE
+                    textSize = 36f
+                    isFakeBoldText = true
+                    textAlign = android.graphics.Paint.Align.CENTER
+                    setShadowLayer(3f, 1f, 1f, android.graphics.Color.BLACK)
+                }
+            }
+            val orderedIndexMap = remember(state.orderedPanelIndices) {
+                state.orderedPanelIndices.withIndex().associate { (pos, idx) -> idx to pos }
+            }
+
             var canvasSize by remember { mutableStateOf(IntSize.Zero) }
             // Panel coordinates are in the original image space (pagePanels.imageWidth × imageHeight).
             // Use imageWidth/imageHeight (not mask.width/height) as the reference so rectangles
@@ -168,10 +181,7 @@ internal fun PanelReportSheet(
                                     val ix = (offset.x / scaleX).toInt().coerceIn(0, mask.width - 1)
                                     val iy = (offset.y / scaleY).toInt().coerceIn(0, mask.height - 1)
                                     if (orderMode) {
-                                        val panelIndex = viewModel.detectedPanels.indexOfFirst { p ->
-                                            ix in p.x until p.right && iy in p.y until p.bottom
-                                        }
-                                        if (panelIndex >= 0) viewModel.addOrRemoveOrderedPanel(panelIndex)
+                                        viewModel.tapForOrder(ix, iy)
                                     } else {
                                         viewModel.onTap(tappedImageX = ix, tappedImageY = iy)
                                     }
@@ -188,8 +198,8 @@ internal fun PanelReportSheet(
 
                     // Detected panels
                     viewModel.detectedPanels.forEachIndexed { i, p ->
-                        val orderPos = state.orderedPanelIndices.indexOf(i)
-                        val isOrdered = orderPos >= 0
+                        val orderPos = orderedIndexMap[i]
+                        val isOrdered = orderPos != null
                         val selected = state.tappedPanelIndex == i
                         drawRect(
                             color = when {
@@ -201,20 +211,13 @@ internal fun PanelReportSheet(
                             size = Size(p.width * scaleX, p.height * scaleY),
                             style = Stroke(width = if (selected || isOrdered) 3f else 1.5f),
                         )
-                        if (isOrdered) {
+                        if (orderPos != null) {
                             drawIntoCanvas { canvas ->
-                                val paint = android.graphics.Paint().apply {
-                                    color = android.graphics.Color.WHITE
-                                    textSize = 36f
-                                    isFakeBoldText = true
-                                    textAlign = android.graphics.Paint.Align.CENTER
-                                    setShadowLayer(3f, 1f, 1f, android.graphics.Color.BLACK)
-                                }
                                 canvas.nativeCanvas.drawText(
                                     "${orderPos + 1}",
                                     (p.x + p.width / 2f) * scaleX,
-                                    (p.y + p.height / 2f) * scaleY + paint.textSize / 2f - paint.descent(),
-                                    paint,
+                                    (p.y + p.height / 2f) * scaleY + labelPaint.textSize / 2f - labelPaint.descent(),
+                                    labelPaint,
                                 )
                             }
                         }

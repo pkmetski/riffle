@@ -112,6 +112,28 @@ class PanelReportViewModelTest {
     }
 
     @Test
+    fun `tapForOrder on a panel region appends that panel to orderedPanelIndices`() = runTest {
+        val panels = listOf(
+            PanelRegion(x = 0, y = 0, width = 100, height = 100),
+            PanelRegion(x = 100, y = 0, width = 100, height = 100),
+        )
+        val vm = makeVm(panels = panels)
+        vm.setFailureType(PanelDetectionFailureType.WrongPanelOrder)
+        vm.tapForOrder(ix = 150, iy = 50)  // inside panel 1
+        vm.tapForOrder(ix = 50, iy = 50)   // inside panel 0
+        assertEquals(listOf(1, 0), vm.state.value.orderedPanelIndices)
+    }
+
+    @Test
+    fun `tapForOrder outside all panels does nothing`() = runTest {
+        val panels = listOf(PanelRegion(x = 0, y = 0, width = 100, height = 100))
+        val vm = makeVm(panels = panels)
+        vm.setFailureType(PanelDetectionFailureType.WrongPanelOrder)
+        vm.tapForOrder(ix = 500, iy = 500)
+        assertTrue(vm.state.value.orderedPanelIndices.isEmpty())
+    }
+
+    @Test
     fun `tapping panel in WrongPanelOrder mode appends its index to orderedPanelIndices`() = runTest {
         val panels = listOf(
             PanelRegion(x = 0, y = 0, width = 100, height = 100),

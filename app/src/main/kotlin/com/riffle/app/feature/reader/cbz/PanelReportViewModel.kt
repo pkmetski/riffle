@@ -58,11 +58,17 @@ class PanelReportViewModel(
     }
 
     fun onTap(tappedImageX: Int, tappedImageY: Int) {
-        val panelIndex = detectedPanels.indexOfFirst { p ->
-            tappedImageX in p.x until p.right && tappedImageY in p.y until p.bottom
-        }.takeIf { it >= 0 }
+        val panelIndex = panelIndexAt(tappedImageX, tappedImageY).takeIf { it >= 0 }
         _state.update { it.copy(tappedX = tappedImageX, tappedY = tappedImageY, tappedPanelIndex = panelIndex) }
     }
+
+    fun tapForOrder(ix: Int, iy: Int) {
+        val panelIndex = panelIndexAt(ix, iy)
+        if (panelIndex >= 0) addOrRemoveOrderedPanel(panelIndex)
+    }
+
+    private fun panelIndexAt(x: Int, y: Int): Int =
+        detectedPanels.indexOfFirst { p -> x in p.x until p.right && y in p.y until p.bottom }
 
     fun addDrawnPanel(x1: Int, y1: Int, x2: Int, y2: Int) {
         val left = minOf(x1, x2).coerceIn(0, imageWidth - 1)
