@@ -48,46 +48,16 @@ fun DisplaySection(
         // Theme
         if (capabilities.supportsTheme) {
             Text(stringResource(R.string.ui_theme), style = MaterialTheme.typography.labelMedium)
-            val concreteThemes = listOf(ReaderTheme.Light, ReaderTheme.Dark, ReaderTheme.DarkDim, ReaderTheme.Sepia)
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                concreteThemes.forEach { theme ->
-                    val label = theme.localizedLabel()
-                    val themeContentDescription = stringResource(R.string.ui_theme_named, label)
-                    FilterChip(
-                        selected = prefs.theme == theme,
-                        onClick = { onPrefsChange(prefs.copy(theme = theme)) },
-                        label = { Text(label) },
-                        leadingIcon = {
-                            ThemeSwatch(
-                                theme = theme,
-                                schedule = prefs.themeSchedule,
-                                autoMode = prefs.autoReaderThemeMode,
-                                appThemeReaderThemes = prefs.appThemeReaderThemes,
-                            )
-                        },
-                        modifier = Modifier.semantics { contentDescription = themeContentDescription },
-                    )
-                }
-            }
-            Spacer(Modifier.height(4.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                val autoLabel = ReaderTheme.Auto.localizedLabel()
-                val autoThemeContentDescription = stringResource(R.string.ui_theme_named, autoLabel)
-                FilterChip(
-                    selected = prefs.theme == ReaderTheme.Auto,
-                    onClick = { onPrefsChange(prefs.copy(theme = ReaderTheme.Auto)) },
-                    label = { Text(autoLabel) },
-                    leadingIcon = {
-                        ThemeSwatch(
-                            theme = ReaderTheme.Auto,
-                            schedule = prefs.themeSchedule,
-                            autoMode = prefs.autoReaderThemeMode,
-                            appThemeReaderThemes = prefs.appThemeReaderThemes,
-                        )
-                    },
-                    modifier = Modifier.semantics { contentDescription = autoThemeContentDescription },
-                )
-            }
+            ThemeChipRows(
+                selected = prefs.theme,
+                onSelect = { onPrefsChange(prefs.copy(theme = it)) },
+                schedule = prefs.themeSchedule,
+                autoMode = prefs.autoReaderThemeMode,
+                appThemeReaderThemes = prefs.appThemeReaderThemes,
+                includeAuto = true,
+                labelForTheme = { it.localizedLabel() },
+                contentDescriptionForTheme = { _, label -> stringResource(R.string.ui_theme_named, label) },
+            )
             if (prefs.theme == ReaderTheme.Auto) {
                 Spacer(Modifier.height(12.dp))
                 if (scheduleEditable) {

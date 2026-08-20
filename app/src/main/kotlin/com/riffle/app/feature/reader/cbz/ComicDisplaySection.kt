@@ -1,5 +1,6 @@
 package com.riffle.app.feature.reader.cbz
 
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.ListItem
@@ -8,23 +9,48 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.riffle.app.feature.reader.ThemeChipRows
+import com.riffle.app.feature.reader.ThemeSwatchStyle
+import com.riffle.core.domain.ReaderTheme
+import com.riffle.core.domain.comic.ComicBackgroundThemeChoices
 import com.riffle.core.domain.comic.ComicFormattingPreferences
 import com.riffle.core.domain.comic.PanelOverflowBehavior
+import com.riffle.core.domain.comic.asComicBackgroundTheme
 
 /**
- * Panel View, Panel Overflow, and on-screen-info controls. Reused by the in-reader formatting
- * sheet and the global Settings → Display screen.
+ * Background, Panel View, Panel Overflow, and on-screen-info controls. Reused by the in-reader
+ * formatting sheet and the global Settings → Display screen.
  */
 @Composable
 internal fun ComicDisplaySection(
     prefs: ComicFormattingPreferences,
+    backgroundHorizontalPadding: Dp = 0.dp,
+    onBackgroundThemeChange: (ReaderTheme) -> Unit,
     onPanelViewChange: (Boolean) -> Unit,
     onPanelOverflowChange: (PanelOverflowBehavior) -> Unit,
     onPanelAnimationSpeedChange: (Int) -> Unit,
     onShowReadingProgressChange: (Boolean) -> Unit,
     onShowPageNumbersChange: (Boolean) -> Unit,
 ) {
+    Column(modifier = Modifier.padding(horizontal = backgroundHorizontalPadding)) {
+        Text(
+            text = "Background",
+            style = MaterialTheme.typography.titleSmall,
+            modifier = Modifier.padding(top = 4.dp, bottom = 4.dp),
+        )
+        ThemeChipRows(
+            selected = prefs.backgroundTheme.asComicBackgroundTheme(),
+            onSelect = { onBackgroundThemeChange(it.asComicBackgroundTheme()) },
+            includeAuto = true,
+            swatchStyle = ThemeSwatchStyle.BackgroundOnly,
+            concreteThemes = ComicBackgroundThemeChoices,
+        )
+    }
+
+    HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+
     ListItem(
         headlineContent = { Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_panel_view)) },
         supportingContent = { Text(androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_frame_one_panel_at_a_time_in_reading_order)) },

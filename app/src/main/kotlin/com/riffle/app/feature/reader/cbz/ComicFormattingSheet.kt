@@ -33,6 +33,8 @@ internal fun ComicFormattingSheet(
         ) {
             ComicDisplaySection(
                 prefs = formatting,
+                backgroundHorizontalPadding = 24.dp,
+                onBackgroundThemeChange = { onUpdate(BookComicFormattingOverrides(backgroundTheme = it)) },
                 onPanelViewChange = { onUpdate(BookComicFormattingOverrides(panelViewOn = it)) },
                 onPanelOverflowChange = { onUpdate(BookComicFormattingOverrides(panelOverflow = it)) },
                 onPanelAnimationSpeedChange = { onUpdate(BookComicFormattingOverrides(panelAnimationSpeedMs = it)) },

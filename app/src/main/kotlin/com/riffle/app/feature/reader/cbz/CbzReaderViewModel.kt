@@ -17,7 +17,9 @@ import com.riffle.core.domain.CbzRepository
 import com.riffle.core.domain.LibraryObserver
 import com.riffle.core.domain.ProgressSyncController
 import com.riffle.core.domain.ReadingSessionRepository
+import com.riffle.core.domain.ReaderTheme
 import com.riffle.core.domain.WakeLockPreferencesStore
+import com.riffle.core.domain.appearance.AppearanceCoordinator
 import com.riffle.core.models.LibraryItem
 import com.riffle.core.models.SessionPayload
 import com.riffle.core.domain.comic.BookComicFormattingOverrides
@@ -27,6 +29,7 @@ import com.riffle.core.domain.comic.ComicArchive
 import com.riffle.core.domain.comic.ComicFormattingPreferences
 import com.riffle.core.domain.comic.ComicFormattingPreferencesStore
 import com.riffle.core.domain.comic.PanelOverflowBehavior
+import com.riffle.core.domain.comic.resolveComicBackgroundTheme
 import com.riffle.core.data.comic.panel.PanelMaskEncoder
 import com.riffle.core.domain.comic.panel.PagePanels
 import com.riffle.core.domain.comic.panel.PanelBinaryMask
@@ -86,6 +89,7 @@ class CbzReaderViewModel @Inject constructor(
     private val comicFormattingPreferencesStore: ComicFormattingPreferencesStore,
     private val bookComicFormattingPreferencesStore: BookComicFormattingPreferencesStore,
     private val developerOptionsRepository: DeveloperOptionsRepository,
+    private val appearanceCoordinator: AppearanceCoordinator,
     val panelReportRepository: PanelReportRepository,
     private val panelDetector: PanelDetector,
 ) : AndroidViewModel(application) {
@@ -138,6 +142,11 @@ class CbzReaderViewModel @Inject constructor(
         combine(comicFormattingPreferencesStore.preferences, _bookComicOverrides) { global, overrides ->
             overrides.applyTo(global)
         }.stateIn(viewModelScope, SharingStarted.Eagerly, ComicFormattingPreferences())
+
+    val comicBackgroundTheme: StateFlow<ReaderTheme> =
+        combine(effectiveComicFormatting, appearanceCoordinator.resolved) { formatting, appearance ->
+            formatting.backgroundTheme.resolveComicBackgroundTheme(appearance.readerTheme.toReaderTheme())
+        }.stateIn(viewModelScope, SharingStarted.Eagerly, ReaderTheme.Dark)
 
     val hasComicOverrides: StateFlow<Boolean> = _bookComicOverrides
         .map { !it.isEmpty() }
@@ -476,15 +485,7 @@ class CbzReaderViewModel @Inject constructor(
      * Only non-null fields in [patch] replace the corresponding field in the stored overrides.
      */
     fun updateComicFormatting(patch: BookComicFormattingOverrides) {
-        val merged = _bookComicOverrides.value.let { current ->
-            current.copy(
-                panelViewOn = patch.panelViewOn ?: current.panelViewOn,
-                panelOverflow = patch.panelOverflow ?: current.panelOverflow,
-                panelAnimationSpeedMs = patch.panelAnimationSpeedMs ?: current.panelAnimationSpeedMs,
-                showChapterMap = patch.showChapterMap ?: current.showChapterMap,
-                showPageProgress = patch.showPageProgress ?: current.showPageProgress,
-            )
-        }
+        val merged = mergeComicFormattingOverrides(_bookComicOverrides.value, patch)
         _bookComicOverrides.value = merged
         viewModelScope.launch { bookComicFormattingPreferencesStore.save(bookId, merged) }
     }
@@ -773,6 +774,18 @@ internal fun computeArchiveSwapState(
         thumbnailSource = null,
     )
 }
+
+internal fun mergeComicFormattingOverrides(
+    current: BookComicFormattingOverrides,
+    patch: BookComicFormattingOverrides,
+): BookComicFormattingOverrides = current.copy(
+    backgroundTheme = patch.backgroundTheme ?: current.backgroundTheme,
+    panelViewOn = patch.panelViewOn ?: current.panelViewOn,
+    panelOverflow = patch.panelOverflow ?: current.panelOverflow,
+    panelAnimationSpeedMs = patch.panelAnimationSpeedMs ?: current.panelAnimationSpeedMs,
+    showChapterMap = patch.showChapterMap ?: current.showChapterMap,
+    showPageProgress = patch.showPageProgress ?: current.showPageProgress,
+)
 
 /**
  * Returns the clamped page index when an archive swap reveals the real page count is smaller

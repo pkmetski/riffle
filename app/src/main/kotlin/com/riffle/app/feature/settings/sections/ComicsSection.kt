@@ -6,10 +6,22 @@ import com.riffle.app.R
 import com.riffle.app.feature.settings.SettingsDrillInRow
 import com.riffle.app.feature.settings.SettingsPanel
 import com.riffle.app.feature.settings.SettingsSectionHeader
+import com.riffle.app.feature.reader.label
+import com.riffle.core.domain.ReaderTheme
 import com.riffle.core.domain.comic.ComicFormattingPreferences
 import com.riffle.core.domain.comic.PanelOverflowBehavior
+import com.riffle.core.domain.comic.asComicBackgroundTheme
 
 internal fun comicDisplaySummary(prefs: ComicFormattingPreferences): String = buildString {
+    val backgroundTheme = prefs.backgroundTheme.asComicBackgroundTheme()
+    append(
+        if (backgroundTheme == ReaderTheme.Auto) {
+            "Auto background"
+        } else {
+            "${backgroundTheme.label()} background"
+        }
+    )
+    append(" · ")
     append(
         if (prefs.panelViewOn) when (prefs.panelOverflow) {
             PanelOverflowBehavior.SPLIT -> "Panel View · Split"

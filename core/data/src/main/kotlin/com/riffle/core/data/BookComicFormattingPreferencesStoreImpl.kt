@@ -2,9 +2,11 @@ package com.riffle.core.data
 
 import com.riffle.core.database.BookComicFormattingPreferencesDao
 import com.riffle.core.database.BookComicFormattingPreferencesEntity
+import com.riffle.core.domain.ReaderTheme
 import com.riffle.core.domain.comic.BookComicFormattingOverrides
 import com.riffle.core.domain.comic.BookComicFormattingPreferencesStore
 import com.riffle.core.domain.comic.PanelOverflowBehavior
+import com.riffle.core.domain.comic.asComicBackgroundTheme
 import javax.inject.Inject
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
@@ -27,6 +29,7 @@ class BookComicFormattingPreferencesStoreImpl @Inject constructor(
             BookComicFormattingPreferencesEntity(
                 sourceId = sourceId,
                 itemId = itemId,
+                backgroundTheme = overrides.backgroundTheme?.asComicBackgroundTheme()?.name,
                 panelViewOn = overrides.panelViewOn,
                 panelOverflow = overrides.panelOverflow?.name,
                 panelAnimationSpeedMs = overrides.panelAnimationSpeedMs,
@@ -40,6 +43,9 @@ class BookComicFormattingPreferencesStoreImpl @Inject constructor(
     }
 
     private fun BookComicFormattingPreferencesEntity.toDomain() = BookComicFormattingOverrides(
+        backgroundTheme = backgroundTheme?.let {
+            runCatching { ReaderTheme.valueOf(it) }.getOrNull()?.asComicBackgroundTheme()
+        },
         panelViewOn = panelViewOn,
         panelOverflow = panelOverflow?.let {
             runCatching { PanelOverflowBehavior.valueOf(it) }.getOrNull()

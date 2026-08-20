@@ -14,6 +14,7 @@ internal fun ComicDisplaySettingsPanel(
 ) = DetailScaffold(stringResource(R.string.ui_display), onDismiss) {
     ComicDisplaySection(
         prefs = prefs,
+        onBackgroundThemeChange = { onPrefsChange(prefs.copy(backgroundTheme = it)) },
         onPanelViewChange = { onPrefsChange(prefs.copy(panelViewOn = it)) },
         onPanelOverflowChange = { onPrefsChange(prefs.copy(panelOverflow = it)) },
         onPanelAnimationSpeedChange = { onPrefsChange(prefs.copy(panelAnimationSpeedMs = it)) },

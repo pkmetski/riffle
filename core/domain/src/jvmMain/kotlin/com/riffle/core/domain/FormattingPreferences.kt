@@ -57,7 +57,6 @@ data class FormattingPreferences(
     }
 }
 
-enum class ReaderTheme { Light, Dark, DarkDim, Sepia, Auto }
 enum class AutoReaderThemeMode { Schedule, AppTheme }
 enum class ReaderFontFamily { Original, Serif, SansSerif, Monospace, Literata, Merriweather, OpenDyslexic }
 enum class ReaderOrientation { Horizontal, Vertical, Continuous }

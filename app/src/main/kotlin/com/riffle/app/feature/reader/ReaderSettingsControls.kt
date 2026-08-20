@@ -61,22 +61,25 @@ import com.riffle.core.domain.ThemeSchedule
 import java.time.LocalTime
 import kotlin.math.roundToInt
 
+internal enum class ThemeSwatchStyle { TextPreview, BackgroundOnly }
+
 @Composable
 internal fun ThemeSwatch(
     theme: ReaderTheme,
     schedule: ThemeSchedule,
     autoMode: AutoReaderThemeMode = AutoReaderThemeMode.Schedule,
     appThemeReaderThemes: AppThemeReaderThemes = AppThemeReaderThemes(),
+    style: ThemeSwatchStyle = ThemeSwatchStyle.TextPreview,
 ) {
     if (theme == ReaderTheme.Auto) {
         AutoThemeSwatch(schedule, autoMode, appThemeReaderThemes)
     } else {
-        ConcreteThemeSwatch(theme)
+        ConcreteThemeSwatch(theme, style)
     }
 }
 
 @Composable
-private fun ConcreteThemeSwatch(theme: ReaderTheme) {
+private fun ConcreteThemeSwatch(theme: ReaderTheme, style: ThemeSwatchStyle) {
     val palette = theme.palette
     Box(
         modifier = Modifier
@@ -85,7 +88,9 @@ private fun ConcreteThemeSwatch(theme: ReaderTheme) {
             .border(1.dp, palette.foreground, RoundedCornerShape(percent = 50)),
         contentAlignment = Alignment.Center,
     ) {
-        Text("A", color = palette.foreground, style = MaterialTheme.typography.labelSmall)
+        if (style == ThemeSwatchStyle.TextPreview) {
+            Text("A", color = palette.foreground, style = MaterialTheme.typography.labelSmall)
+        }
     }
 }
 
@@ -195,6 +200,83 @@ internal fun FontChipRow(
             )
         }
     }
+}
+
+@Composable
+internal fun ThemeChipRows(
+    selected: ReaderTheme,
+    onSelect: (ReaderTheme) -> Unit,
+    schedule: ThemeSchedule = ThemeSchedule(),
+    autoMode: AutoReaderThemeMode = AutoReaderThemeMode.Schedule,
+    appThemeReaderThemes: AppThemeReaderThemes = AppThemeReaderThemes(),
+    includeAuto: Boolean,
+    swatchStyle: ThemeSwatchStyle = ThemeSwatchStyle.TextPreview,
+    concreteThemes: List<ReaderTheme> = listOf(ReaderTheme.Light, ReaderTheme.Dark, ReaderTheme.DarkDim, ReaderTheme.Sepia),
+    labelForTheme: @Composable (ReaderTheme) -> String = { it.label() },
+    contentDescriptionForTheme: @Composable (ReaderTheme, String) -> String = { _, label -> "$label theme" },
+) {
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        concreteThemes.forEach { theme ->
+            val label = labelForTheme(theme)
+            ThemeChip(
+                theme = theme,
+                label = label,
+                contentDescription = contentDescriptionForTheme(theme, label),
+                selected = selected == theme,
+                onSelect = onSelect,
+                schedule = schedule,
+                autoMode = autoMode,
+                appThemeReaderThemes = appThemeReaderThemes,
+                swatchStyle = swatchStyle,
+            )
+        }
+    }
+    if (includeAuto) {
+        Spacer(Modifier.height(4.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            val label = labelForTheme(ReaderTheme.Auto)
+            ThemeChip(
+                theme = ReaderTheme.Auto,
+                label = label,
+                contentDescription = contentDescriptionForTheme(ReaderTheme.Auto, label),
+                selected = selected == ReaderTheme.Auto,
+                onSelect = onSelect,
+                schedule = schedule,
+                autoMode = autoMode,
+                appThemeReaderThemes = appThemeReaderThemes,
+                swatchStyle = swatchStyle,
+            )
+        }
+    }
+}
+
+@Composable
+private fun ThemeChip(
+    theme: ReaderTheme,
+    label: String,
+    contentDescription: String,
+    selected: Boolean,
+    onSelect: (ReaderTheme) -> Unit,
+    schedule: ThemeSchedule,
+    autoMode: AutoReaderThemeMode,
+    appThemeReaderThemes: AppThemeReaderThemes,
+    swatchStyle: ThemeSwatchStyle,
+) {
+    FilterChip(
+        selected = selected,
+        onClick = { onSelect(theme) },
+        label = { Text(label) },
+        leadingIcon = {
+            ThemeSwatch(
+                theme = theme,
+                schedule = schedule,
+                autoMode = autoMode,
+                appThemeReaderThemes = appThemeReaderThemes,
+                style = swatchStyle,
+            )
+        },
+        modifier = Modifier.semantics { this.contentDescription = contentDescription },
+    )
 }
 
 @Composable

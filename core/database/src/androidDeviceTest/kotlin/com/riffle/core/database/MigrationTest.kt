@@ -1921,7 +1921,7 @@ class MigrationTest {
         }
 
         val db = helper.runMigrationsAndValidate(
-            TEST_DB, 66, true,
+            TEST_DB, 68, true,
             RiffleDatabase.MIGRATION_1_2,
             RiffleDatabase.MIGRATION_2_3,
             RiffleDatabase.MIGRATION_3_4,
@@ -1988,6 +1988,7 @@ class MigrationTest {
             RiffleDatabase.MIGRATION_64_65,
             RiffleDatabase.MIGRATION_65_66,
             RiffleDatabase.MIGRATION_66_67,
+            RiffleDatabase.MIGRATION_67_68,
         )
 
         db.query("SELECT url, username, serverType, absUserId, type FROM sources WHERE id = 's1'").use { cursor ->
@@ -2001,7 +2002,7 @@ class MigrationTest {
         }
         db.query("PRAGMA user_version").use { cursor ->
             assertTrue(cursor.moveToFirst())
-            assertEquals(66, cursor.getInt(0))
+            assertEquals(68, cursor.getInt(0))
         }
         db.query("SELECT coverUrl FROM local_file_metadata_overrides LIMIT 0").use { cursor ->
             assertEquals("coverUrl", cursor.getColumnName(0))
@@ -3083,6 +3084,40 @@ class MigrationTest {
             db.query("SELECT panel_animation_speed_ms FROM book_comic_formatting_preferences WHERE item_id = 'item2'").use { cursor ->
                 assertTrue(cursor.moveToFirst())
                 assertEquals(400, cursor.getInt(cursor.getColumnIndexOrThrow("panel_animation_speed_ms")))
+            }
+        }
+    }
+
+    @Test
+    fun migration67To68_addsBackgroundThemeToComicFormatting() {
+        helper.createDatabase(TEST_DB, 67).use { db ->
+            db.execSQL(
+                "INSERT INTO sources (id, url, isActive, insecureConnectionAllowed, username, serverType, absUserId, type) " +
+                    "VALUES ('src1', 'http://test', 1, 0, '', 'AUDIOBOOKSHELF', NULL, 'ABS')"
+            )
+            db.execSQL(
+                "INSERT INTO book_comic_formatting_preferences " +
+                    "(source_id, item_id, panel_view_on, panel_overflow, panel_animation_speed_ms) " +
+                    "VALUES ('src1', 'item1', 1, 'SPLIT', 400)"
+            )
+        }
+        helper.runMigrationsAndValidate(TEST_DB, 68, true, RiffleDatabase.MIGRATION_67_68).use { db ->
+            db.query("SELECT * FROM book_comic_formatting_preferences WHERE item_id = 'item1'").use { cursor ->
+                assertTrue(cursor.moveToFirst())
+                assertEquals(1, cursor.getInt(cursor.getColumnIndexOrThrow("panel_view_on")))
+                assertEquals("SPLIT", cursor.getString(cursor.getColumnIndexOrThrow("panel_overflow")))
+                assertEquals(400, cursor.getInt(cursor.getColumnIndexOrThrow("panel_animation_speed_ms")))
+                val col = cursor.getColumnIndexOrThrow("background_theme")
+                assertTrue(cursor.isNull(col))
+            }
+            db.execSQL(
+                "INSERT INTO book_comic_formatting_preferences " +
+                    "(source_id, item_id, panel_view_on, panel_overflow, panel_animation_speed_ms, background_theme) " +
+                    "VALUES ('src1', 'item2', 0, 'OFF', 0, 'Sepia')"
+            )
+            db.query("SELECT background_theme FROM book_comic_formatting_preferences WHERE item_id = 'item2'").use { cursor ->
+                assertTrue(cursor.moveToFirst())
+                assertEquals("Sepia", cursor.getString(cursor.getColumnIndexOrThrow("background_theme")))
             }
         }
     }

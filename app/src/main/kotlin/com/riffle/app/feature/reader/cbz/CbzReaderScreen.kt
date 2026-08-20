@@ -100,6 +100,7 @@ fun CbzReaderScreen(
     val effectivePanels by viewModel.effectivePanels.collectAsState()
     val currentPanelIndex by viewModel.currentPanelIndex.collectAsState()
     val effectiveComicFormatting by viewModel.effectiveComicFormatting.collectAsState()
+    val comicBackgroundTheme by viewModel.comicBackgroundTheme.collectAsState()
     val railSegments by viewModel.railSegments.collectAsState()
     val activeRailSegmentIndex by viewModel.activeRailSegmentIndex.collectAsState()
     val railCursorPosition by viewModel.railCursorPosition.collectAsState()
@@ -140,7 +141,7 @@ fun CbzReaderScreen(
         onDispose { window?.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON) }
     }
 
-    Box(modifier = Modifier.fillMaxSize().background(Color.Black)) {
+    Box(modifier = Modifier.fillMaxSize().background(comicBackgroundTheme.palette.background)) {
         when (val s = state) {
             CbzReaderState.Loading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 CircularProgressIndicator()
