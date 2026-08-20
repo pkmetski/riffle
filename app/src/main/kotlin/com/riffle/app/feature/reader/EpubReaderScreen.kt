@@ -1532,6 +1532,14 @@ private fun EpubNavigatorView(
     val currentAnnotationsAvailable by rememberUpdatedState(annotationsAvailable)
     val currentReadaloudAvailable by rememberUpdatedState(readaloudAvailable)
     val currentOnLookupWord by rememberUpdatedState(onLookupWord)
+    val labelAnnotate = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_annotate)
+    val labelSearch = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_search)
+    val labelPlay = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_play)
+    val labelLookUp = androidx.compose.ui.res.stringResource(com.riffle.app.R.string.ui_look_up)
+    val currentLabelAnnotate by rememberUpdatedState(labelAnnotate)
+    val currentLabelSearch by rememberUpdatedState(labelSearch)
+    val currentLabelPlay by rememberUpdatedState(labelPlay)
+    val currentLabelLookUp by rememberUpdatedState(labelLookUp)
     // Latest readaloud bottom reserve, read inside the (remembered-once) pagination listener so each
     // freshly loaded page re-applies the current value.
     val currentPublication by rememberUpdatedState(state.publication)
@@ -1620,17 +1628,17 @@ private fun EpubNavigatorView(
                 handoff.reset()
                 menu.add(0, copyMenuId, 0, android.R.string.copy)
                 if (currentAnnotationsAvailable) {
-                    menu.add(0, highlightMenuId, 1, "Annotate")
+                    menu.add(0, highlightMenuId, 1, currentLabelAnnotate)
                         .setShowAsAction(android.view.MenuItem.SHOW_AS_ACTION_ALWAYS)
                 }
                 if (currentReadaloudAvailable) {
-                    menu.add(0, playFromHereMenuId, 2, "Play")
+                    menu.add(0, playFromHereMenuId, 2, currentLabelPlay)
                         .setShowAsAction(android.view.MenuItem.SHOW_AS_ACTION_ALWAYS)
                 }
-                menu.add(0, searchMenuId, 3, "Search")
+                menu.add(0, searchMenuId, 3, currentLabelSearch)
                 menu.add(0, shareMenuId, 4, "Share")
                 if (publicationLanguageTag != null && currentOnLookupWord != null) {
-                    menu.add(0, lookupMenuId, 0, "Look up")
+                    menu.add(0, lookupMenuId, 0, currentLabelLookUp)
                         .setShowAsAction(android.view.MenuItem.SHOW_AS_ACTION_ALWAYS)
                 }
                 return true

@@ -603,14 +603,14 @@ internal class ChapterWebView(context: Context) : WebView(context), ChapterWebVi
                 menu.clear()
                 menu.add(0, MENU_COPY, 0, android.R.string.copy)
                 if (annotationsAvailable) {
-                    menu.add(0, MENU_HIGHLIGHT, 1, "Annotate")
+                    menu.add(0, MENU_HIGHLIGHT, 1, context.getString(com.riffle.app.R.string.ui_annotate))
                         .setShowAsAction(android.view.MenuItem.SHOW_AS_ACTION_ALWAYS)
                 }
                 if (readaloudAvailable) {
-                    menu.add(0, MENU_PLAY, 2, "Play")
+                    menu.add(0, MENU_PLAY, 2, context.getString(com.riffle.app.R.string.ui_play))
                         .setShowAsAction(android.view.MenuItem.SHOW_AS_ACTION_ALWAYS)
                 }
-                menu.add(0, MENU_SEARCH, 3, "Search")
+                menu.add(0, MENU_SEARCH, 3, context.getString(com.riffle.app.R.string.ui_search))
                 menu.add(0, MENU_SHARE, 4, "Share")
                 return true
             }

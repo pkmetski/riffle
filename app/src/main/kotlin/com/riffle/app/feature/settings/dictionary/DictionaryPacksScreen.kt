@@ -89,16 +89,12 @@ fun DictionaryPacksScreen(
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
             )
 
-            val sourceEntry = viewModel.catalog.firstOrNull()
-            if (sourceEntry != null) {
-                val attribution = HtmlCompat.fromHtml(sourceEntry.attributionHtml, HtmlCompat.FROM_HTML_MODE_COMPACT).toString()
-                Text(
-                    text = stringResource(R.string.ui_dictionary_source_description, attribution, sourceEntry.licenseUrl),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(horizontal = 16.dp).padding(bottom = 4.dp),
-                )
-            }
+            Text(
+                text = stringResource(R.string.ui_dictionary_source_description),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(horizontal = 16.dp).padding(bottom = 4.dp),
+            )
 
             if (availablePacks.isEmpty()) {
                 Text(
